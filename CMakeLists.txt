@@ -108,6 +108,8 @@ qt_add_executable(jellyfin-native
     src/app/AppController.h
     src/app/NativeAppWindow.cpp
     src/app/NativeAppWindow.h
+    src/app/QmlNetworkAccessManagerFactory.cpp
+    src/app/QmlNetworkAccessManagerFactory.h
     src/cache/DatabaseManager.cpp
     src/cache/DatabaseManager.h
     src/common/JellyfinTypes.cpp

@@ -6,7 +6,10 @@
 #include <QJsonArray>
 #include <QJsonObject>
 #include <QNetworkReply>
+#include <QUrl>
+#include <QUrlQuery>
 
+#include <algorithm>
 #include <stdexcept>
 
 namespace JellyfinNative {
@@ -77,12 +80,35 @@ AuthSession JellyfinApiFacade::session() const
     return m_session;
 }
 
-QString JellyfinApiFacade::buildImageUrl(const QString &itemId, int maxWidth) const
+QString JellyfinApiFacade::buildImageUrl(const QString &itemId, const QString &tag, int maxWidth,
+                                         int quality, const QString &format) const
 {
-    return QStringLiteral("%1/Items/%2/Images/Primary?maxWidth=%3&quality=90&api_key=%4")
-        .arg(m_serverUrl, itemId)
-        .arg(maxWidth)
-        .arg(m_session.accessToken);
+    QUrl url(QStringLiteral("%1/Items/%2/Images/Primary").arg(m_serverUrl, itemId));
+    QUrlQuery query;
+    query.addQueryItem(QStringLiteral("maxWidth"), QString::number(maxWidth));
+    query.addQueryItem(QStringLiteral("quality"), QString::number(quality));
+    query.addQueryItem(QStringLiteral("format"), format);
+    query.addQueryItem(QStringLiteral("api_key"), m_session.accessToken);
+    if (!tag.isEmpty())
+        query.addQueryItem(QStringLiteral("tag"), tag);
+    url.setQuery(query);
+    return url.toString(QUrl::FullyEncoded);
+}
+
+void JellyfinApiFacade::prefetchImages(const QStringList &urls, int maxConcurrent)
+{
+    if (!m_networkAccessManager)
+        return;
+
+    m_prefetchMaxConcurrent = std::max(1, maxConcurrent);
+    for (const QString &url : urls) {
+        if (url.isEmpty() || m_prefetchSeen.contains(url))
+            continue;
+        m_prefetchSeen.insert(url);
+        m_prefetchQueue.push_back(url);
+    }
+
+    pumpImagePrefetch();
 }
 
 QCoro::Task<void> JellyfinApiFacade::probeServer()
@@ -182,8 +208,7 @@ QCoro::Task<std::vector<MovieItem>> JellyfinApiFacade::fetchMovies(const QString
     query.addQueryItem(QStringLiteral("parentId"), libraryId);
     query.addQueryItem(QStringLiteral("recursive"), QStringLiteral("true"));
     query.addQueryItem(QStringLiteral("includeItemTypes"), QStringLiteral("Movie"));
-    query.addQueryItem(QStringLiteral("fields"),
-                       QStringLiteral("Overview,ProductionYear,MediaSources,MediaStreams,Path,ImageTags"));
+    query.addQueryItem(QStringLiteral("fields"), QStringLiteral("Overview,ProductionYear,ImageTags"));
     query.addQueryItem(QStringLiteral("sortBy"), QStringLiteral("SortName"));
     query.addQueryItem(QStringLiteral("sortOrder"), QStringLiteral("Ascending"));
     query.addQueryItem(QStringLiteral("enableImageTypes"), QStringLiteral("Primary"));
@@ -201,11 +226,13 @@ QCoro::Task<std::vector<MovieItem>> JellyfinApiFacade::fetchMovies(const QString
             continue;
 
         const QString itemId = object.value(QStringLiteral("Id")).toString();
+        const QString posterTag = object.value(QStringLiteral("ImageTags")).toObject().value(QStringLiteral("Primary")).toString();
         movies.push_back({
             itemId,
             object.value(QStringLiteral("Name")).toString(),
             object.value(QStringLiteral("Overview")).toString(),
-            buildImageUrl(itemId),
+            buildImageUrl(itemId, posterTag),
+            posterTag,
             object.value(QStringLiteral("ProductionYear")).toInt(),
         });
     }
@@ -448,6 +475,28 @@ PlaybackSession JellyfinApiFacade::buildPlaybackSession(const MovieItem &movie, 
         playbackResponse.value(QStringLiteral("PlaySessionId")).toString(),
         container,
     };
+}
+
+void JellyfinApiFacade::pumpImagePrefetch()
+{
+    while (m_prefetchInFlight < m_prefetchMaxConcurrent && !m_prefetchQueue.isEmpty()) {
+        const QString url = m_prefetchQueue.takeFirst();
+        QNetworkRequest request{QUrl(url)};
+        request.setAttribute(QNetworkRequest::CacheLoadControlAttribute, QNetworkRequest::PreferCache);
+
+        auto *reply = m_networkAccessManager->get(request);
+        ++m_prefetchInFlight;
+        connect(reply, &QNetworkReply::finished, this, [this, reply, url]() {
+            if (reply)
+                reply->readAll();
+            if (reply)
+                reply->deleteLater();
+
+            m_prefetchSeen.remove(url);
+            m_prefetchInFlight = std::max(0, m_prefetchInFlight - 1);
+            pumpImagePrefetch();
+        });
+    }
 }
 
 } // namespace JellyfinNative

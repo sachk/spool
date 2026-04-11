@@ -6,6 +6,9 @@
 #include <QCoroTask>
 
 #include <QJsonArray>
+#include <QStringList>
+
+#include <algorithm>
 
 namespace JellyfinNative {
 
@@ -261,6 +264,7 @@ void AppController::openLibrary(int index)
         [this, library](const std::vector<MovieItem> &movies) {
             m_movies.setMovies(movies);
             m_database->saveMovies(library.id, toJsonArray(movies));
+            prefetchMoviePosters(movies);
             setBusy(false);
             setPage(QStringLiteral("movies"));
         },
@@ -371,6 +375,7 @@ void AppController::applyMoviesCache(const QString &libraryId)
     for (const auto &value : movies)
         parsed.push_back(movieFromJson(value.toObject()));
     m_movies.setMovies(parsed);
+    prefetchMoviePosters(parsed);
 }
 
 void AppController::loadLibraries()
@@ -424,6 +429,24 @@ void AppController::pollQuickConnect()
             cancelQuickConnect();
             setErrorText(exceptionMessage(error));
         });
+}
+
+void AppController::prefetchMoviePosters(const std::vector<MovieItem> &movies)
+{
+    QStringList urls;
+    urls.reserve(std::min<size_t>(movies.size(), 24));
+
+    for (const auto &movie : movies) {
+        if (movie.posterUrl.isEmpty())
+            continue;
+
+        urls.push_back(movie.posterUrl);
+        if (urls.size() >= 24)
+            break;
+    }
+
+    if (!urls.isEmpty())
+        m_api->prefetchImages(urls, 6);
 }
 
 } // namespace JellyfinNative

@@ -1,6 +1,7 @@
 #include "api/JellyfinApiFacade.h"
 #include "app/AppController.h"
 #include "app/NativeAppWindow.h"
+#include "app/QmlNetworkAccessManagerFactory.h"
 #include "cache/DatabaseManager.h"
 #include "discovery/DiscoveryController.h"
 #include "player/PlayerController.h"
@@ -294,8 +295,9 @@ int main(int argc, char **argv)
     auto controller =
         std::make_unique<JellyfinNative::AppController>(&database, discovery.get(), api.get(), player.get());
 
-    // Do NOT share the app QNAM with QML's Image loader — QQuickPixmapReader
-    // runs on its own thread and QNAM has thread-affinity requirements.
+    auto *qmlNetworkFactory = new JellyfinNative::QmlNetworkAccessManagerFactory(
+        cachePath + QStringLiteral("/qml-image-cache"), 512LL * 1024LL * 1024LL);
+    window.engine()->setNetworkAccessManagerFactory(qmlNetworkFactory);
     window.engine()->addImportPath(appRootPath + QStringLiteral("/qt-qml"));
     QObject::connect(window.engine(), &QQmlEngine::warnings, &logQmlWarnings);
     QObject::connect(&window, &QQuickView::statusChanged, [](QQuickView::Status status) {

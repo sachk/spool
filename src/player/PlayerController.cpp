@@ -13,6 +13,7 @@ extern "C" {
 #include <QCoreApplication>
 #include <QMetaObject>
 
+#include <cstdint>
 #include <cstring>
 
 namespace JellyfinNative {
@@ -60,6 +61,14 @@ QString PlayerController::statusText() const { return m_statusText; }
 
 QString PlayerController::errorText() const { return m_errorText; }
 
+bool PlayerController::buffering() const { return m_buffering; }
+
+int PlayerController::bufferingPercent() const { return m_bufferingPercent; }
+
+bool PlayerController::seeking() const { return m_seeking; }
+
+bool PlayerController::debugOsdVisible() const { return m_debugOsdVisible; }
+
 double PlayerController::positionSeconds() const { return m_positionSeconds; }
 
 double PlayerController::durationSeconds() const { return m_durationSeconds; }
@@ -80,6 +89,10 @@ void PlayerController::play(const PlaybackSession &session) {
   m_positionSeconds = 0.0;
   m_durationSeconds = 0.0;
   m_paused = false;
+  m_buffering = false;
+  m_bufferingPercent = 0;
+  m_seeking = false;
+  m_debugOsdVisible = false;
   m_visible = true;
   emit visibleChanged();
   emit stateChanged();
@@ -91,17 +104,17 @@ void PlayerController::play(const PlaybackSession &session) {
 void PlayerController::togglePause() { mpvCommand("cycle pause"); }
 
 void PlayerController::seekBack() {
-  mpvCommand("seek -10");
-  mpvCommand("set pause no");
+  mpvCommand("seek -10 exact");
 }
 
 void PlayerController::seekForward() {
-  mpvCommand("seek 30");
-  mpvCommand("set pause no");
+  mpvCommand("seek 30 exact");
 }
 
 void PlayerController::toggleDebugOsd() {
   mpvCommand("script-binding stats/display-stats-toggle");
+  m_debugOsdVisible = !m_debugOsdVisible;
+  emit stateChanged();
 }
 
 void PlayerController::stop() {
@@ -137,6 +150,10 @@ void PlayerController::stopProgressReporting(bool failed) {
 
   m_visible = false;
   m_paused = false;
+  m_buffering = false;
+  m_bufferingPercent = 0;
+  m_seeking = false;
+  m_debugOsdVisible = false;
   m_statusText = QStringLiteral("Ready");
   emit stateChanged();
   emit visibleChanged();
@@ -166,8 +183,11 @@ void PlayerController::runPlayerThread(PlaybackSession session) {
       setOption(handle, "ytdl", "no") &&
       setOption(handle, "demuxer-lavf-analyzeduration", "0.1") &&
       setOption(handle, "demuxer-lavf-probesize", "32768") &&
-      setOption(handle, "stream-buffer-size", "4k") &&
-      setOption(handle, "demuxer-lavf-o-add", "fflags=+nobuffer") &&
+      setOption(handle, "cache", "yes") &&
+      setOption(handle, "cache-pause", "yes") &&
+      setOption(handle, "cache-pause-wait", "1") &&
+      setOption(handle, "demuxer-max-bytes", "32M") &&
+      setOption(handle, "demuxer-max-back-bytes", "8M") &&
       setOption(handle, "force-window", "immediate") &&
       setOption(handle, "vo", "starfish") &&
       setOption(handle, "vd", "starfish") &&
@@ -190,6 +210,9 @@ void PlayerController::runPlayerThread(PlaybackSession session) {
 
   m_mpv = handle;
   mpv_observe_property(handle, 0, "pause", MPV_FORMAT_FLAG);
+  mpv_observe_property(handle, 0, "paused-for-cache", MPV_FORMAT_FLAG);
+  mpv_observe_property(handle, 0, "cache-buffering-state", MPV_FORMAT_INT64);
+  mpv_observe_property(handle, 0, "seeking", MPV_FORMAT_FLAG);
   mpv_observe_property(handle, 0, "time-pos", MPV_FORMAT_DOUBLE);
   mpv_observe_property(handle, 0, "duration", MPV_FORMAT_DOUBLE);
 
@@ -214,9 +237,15 @@ void PlayerController::runPlayerThread(PlaybackSession session) {
     switch (event->event_id) {
     case MPV_EVENT_FILE_LOADED:
       QMetaObject::invokeMethod(this, [this]() {
-        m_statusText = QStringLiteral("Playing");
+        updatePlaybackStatusText();
         emit stateChanged();
         startProgressReporting();
+      });
+      break;
+    case MPV_EVENT_PLAYBACK_RESTART:
+      QMetaObject::invokeMethod(this, [this]() {
+        updatePlaybackStatusText();
+        emit stateChanged();
       });
       break;
     case MPV_EVENT_PROPERTY_CHANGE: {
@@ -229,6 +258,33 @@ void PlayerController::runPlayerThread(PlaybackSession session) {
         const bool paused = *static_cast<int *>(property->data);
         QMetaObject::invokeMethod(this, [this, paused]() {
           m_paused = paused;
+          updatePlaybackStatusText();
+          emit stateChanged();
+        });
+      } else if (strcmp(property->name, "paused-for-cache") == 0 &&
+                 property->format == MPV_FORMAT_FLAG) {
+        const bool buffering = *static_cast<int *>(property->data);
+        QMetaObject::invokeMethod(this, [this, buffering]() {
+          m_buffering = buffering;
+          if (!buffering)
+            m_bufferingPercent = 0;
+          updatePlaybackStatusText();
+          emit stateChanged();
+        });
+      } else if (strcmp(property->name, "cache-buffering-state") == 0 &&
+                 property->format == MPV_FORMAT_INT64) {
+        const auto percent = static_cast<int>(*static_cast<int64_t *>(property->data));
+        QMetaObject::invokeMethod(this, [this, percent]() {
+          m_bufferingPercent = percent;
+          updatePlaybackStatusText();
+          emit stateChanged();
+        });
+      } else if (strcmp(property->name, "seeking") == 0 &&
+                 property->format == MPV_FORMAT_FLAG) {
+        const bool seeking = *static_cast<int *>(property->data);
+        QMetaObject::invokeMethod(this, [this, seeking]() {
+          m_seeking = seeking;
+          updatePlaybackStatusText();
           emit stateChanged();
         });
       } else if (strcmp(property->name, "time-pos") == 0 &&
@@ -271,6 +327,23 @@ void PlayerController::runPlayerThread(PlaybackSession session) {
 
   m_mpv = nullptr;
   mpv_terminate_destroy(handle);
+}
+
+void PlayerController::updatePlaybackStatusText() {
+  if (m_seeking) {
+    m_statusText = QStringLiteral("Seeking…");
+    return;
+  }
+
+  if (m_buffering) {
+    if (m_bufferingPercent > 0)
+      m_statusText = QStringLiteral("Buffering %1%").arg(m_bufferingPercent);
+    else
+      m_statusText = QStringLiteral("Buffering…");
+    return;
+  }
+
+  m_statusText = m_paused ? QStringLiteral("Paused") : QStringLiteral("Playing");
 }
 
 } // namespace JellyfinNative

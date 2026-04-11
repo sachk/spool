@@ -89,6 +89,7 @@ private:
     void applyMoviesCache(const QString &libraryId);
     void loadLibraries();
     void pollQuickConnect();
+    void prefetchMoviePosters(const std::vector<MovieItem> &movies);
 
     DatabaseManager *m_database = nullptr;
     DiscoveryController *m_discovery = nullptr;

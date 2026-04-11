@@ -8,8 +8,10 @@
 #include <QNetworkAccessManager>
 #include <QNetworkRequestFactory>
 #include <QObject>
+#include <QSet>
 #include <QRestAccessManager>
 #include <QString>
+#include <QStringList>
 #include <QUrlQuery>
 
 #include <vector>
@@ -32,7 +34,9 @@ public:
     void setSession(const AuthSession &session);
     AuthSession session() const;
 
-    QString buildImageUrl(const QString &itemId, int maxWidth = 360) const;
+    QString buildImageUrl(const QString &itemId, const QString &tag = {}, int maxWidth = 280,
+                          int quality = 75, const QString &format = QStringLiteral("webp")) const;
+    void prefetchImages(const QStringList &urls, int maxConcurrent = 6);
 
     QCoro::Task<void> probeServer();
     QCoro::Task<AuthSession> authenticateByName(const QString &username, const QString &password);
@@ -64,6 +68,7 @@ private:
 
     QJsonObject buildDeviceProfile() const;
     PlaybackSession buildPlaybackSession(const MovieItem &movie, const QJsonObject &playbackResponse) const;
+    void pumpImagePrefetch();
 
     QNetworkAccessManager *m_networkAccessManager = nullptr;
     QRestAccessManager m_rest;
@@ -73,6 +78,10 @@ private:
     QString m_deviceName = QStringLiteral("LG webOS TV");
     QString m_clientVersion = QStringLiteral("0.1.0");
     AuthSession m_session;
+    QStringList m_prefetchQueue;
+    QSet<QString> m_prefetchSeen;
+    int m_prefetchInFlight = 0;
+    int m_prefetchMaxConcurrent = 6;
 };
 
 } // namespace JellyfinNative
