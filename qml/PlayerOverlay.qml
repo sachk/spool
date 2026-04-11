@@ -7,32 +7,75 @@ FocusScope {
     id: overlay
     focus: visible
 
+    property bool controlsVisible: true
+    readonly property bool pinnedControls: appController.player.paused
+                                          || appController.player.buffering
+                                          || appController.player.seeking
+                                          || overflowMenu.opened
+
+    function formatClock(seconds) {
+        const total = Math.max(0, Math.floor(seconds || 0))
+        const hours = Math.floor(total / 3600)
+        const minutes = Math.floor((total % 3600) / 60)
+        const secs = total % 60
+        if (hours > 0)
+            return hours + ":" + String(minutes).padStart(2, "0") + ":" + String(secs).padStart(2, "0")
+        return minutes + ":" + String(secs).padStart(2, "0")
+    }
+
+    function shouldAutoHide() {
+        return overlay.visible && !overlay.pinnedControls
+    }
+
+    function revealControls() {
+        controlsVisible = true
+        if (shouldAutoHide())
+            autohideTimer.restart()
+        else
+            autohideTimer.stop()
+    }
+
     Timer {
         id: autohideTimer
-        interval: 3000
-        running: overlay.visible && !autohideTimer.paused
-        onTriggered: controlsItem.opacity = 0
-        property bool paused: false
+        interval: 3500
+        onTriggered: {
+            if (overlay.shouldAutoHide())
+                overlay.controlsVisible = false
+        }
     }
 
-    function resetAutohide() {
-        controlsItem.opacity = 1
-        autohideTimer.restart()
+    onVisibleChanged: {
+        if (visible) {
+            controlsVisible = true
+            revealControls()
+        } else {
+            autohideTimer.stop()
+            overflowMenu.close()
+            controlsVisible = false
+        }
     }
 
-    MouseArea {
-        anchors.fill: parent
-        hoverEnabled: true
-        onPositionChanged: overlay.resetAutohide()
-        onClicked: overlay.resetAutohide()
+    onPinnedControlsChanged: revealControls()
+
+    TapHandler {
+        onTapped: overlay.revealControls()
+    }
+
+    HoverHandler {
+        onPointChanged: overlay.revealControls()
     }
 
     Keys.onPressed: (event) => {
-        overlay.resetAutohide()
+        overlay.revealControls()
+        if ((event.key === Qt.Key_Back || event.key === Qt.Key_Escape) && overflowMenu.opened) {
+            overflowMenu.close()
+            event.accepted = true
+        }
     }
 
     Keys.onReleased: (event) => {
-        overlay.resetAutohide()
+        overlay.revealControls()
+
         if (event.key === Qt.Key_Left) {
             appController.player.seekBack()
             event.accepted = true
@@ -42,106 +85,241 @@ FocusScope {
         } else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter || event.key === Qt.Key_Space) {
             appController.player.togglePause()
             event.accepted = true
+        } else if (event.key === Qt.Key_I || event.key === Qt.Key_Info || event.key === Qt.Key_Menu) {
+            appController.player.toggleDebugOsd()
+            event.accepted = true
         } else if (event.key === Qt.Key_Back || event.key === Qt.Key_Escape) {
-            appController.player.stop()
+            if (overflowMenu.opened)
+                overflowMenu.close()
+            else
+                appController.player.stop()
             event.accepted = true
         }
     }
 
-    Item {
-        id: controlsItem
-        anchors.fill: parent
-        Behavior on opacity { NumberAnimation { duration: 250 } }
+    Popup {
+        id: overflowMenu
+        parent: overlay
+        width: 260
+        height: menuColumn.implicitHeight + 20
+        x: Math.max(24, Math.min(overlay.width - width - 24, overflowButton.x + overflowButton.width - width))
+        y: Math.max(24, dock.y - height - 14)
+        focus: opened
+        modal: false
+        padding: 10
+        closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
 
-        Rectangle {
-            anchors.left: parent.left
-            anchors.right: parent.right
-            anchors.bottom: parent.bottom
-            anchors.margins: 36
-            height: 220
-            radius: 34
-            color: "#fa08131c"
-            border.color: "#366987"
+        onOpened: {
+            overlay.controlsVisible = true
+            menuAction.forceActiveFocus()
+        }
+
+        background: Rectangle {
+            radius: 24
+            color: "#f0131d26"
             border.width: 1
+            border.color: "#4f7d97"
+        }
 
-            ColumnLayout {
-                anchors.fill: parent
-                anchors.margins: 24
+        contentItem: ColumnLayout {
+            id: menuColumn
+            spacing: 8
+
+            Button {
+                id: menuAction
+                Layout.fillWidth: true
+                text: appController.player.debugOsdVisible ? "Hide Stats" : "Show Stats"
+                onClicked: {
+                    appController.player.toggleDebugOsd()
+                    overflowMenu.close()
+                }
+            }
+
+            Label {
+                Layout.fillWidth: true
+                text: "Shortcut: Info / Menu / I"
+                color: "#8fb7cb"
+                font.pixelSize: 18
+                horizontalAlignment: Text.AlignHCenter
+            }
+        }
+    }
+
+    Rectangle {
+        id: dock
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.bottom: parent.bottom
+        anchors.margins: 28
+        height: errorLabel.visible ? 236 : 204
+        radius: 30
+        visible: overlay.controlsVisible || overflowMenu.opened
+        enabled: visible
+        color: "#ec081119"
+        border.width: 1
+        border.color: "#396480"
+
+        ColumnLayout {
+            anchors.fill: parent
+            anchors.margins: 20
+            spacing: 12
+
+            RowLayout {
+                Layout.fillWidth: true
                 spacing: 12
 
-                RowLayout {
+                ColumnLayout {
                     Layout.fillWidth: true
-                    spacing: 12
+                    spacing: 2
 
-                    ColumnLayout {
+                    Label {
                         Layout.fillWidth: true
-                        spacing: 4
-
-                        Label {
-                            text: appController.player.title
-                            font.pixelSize: 32
-                            font.weight: Font.DemiBold
-                            color: "#f1fbff"
-                        }
-
-                        Label {
-                            text: appController.player.statusText
-                            font.pixelSize: 20
-                            color: "#8fe0f5"
-                        }
+                        text: appController.player.title
+                        color: "#f2fbff"
+                        font.pixelSize: 30
+                        font.weight: Font.DemiBold
+                        maximumLineCount: 1
+                        elide: Text.ElideRight
                     }
 
-                    Button {
-                        text: "≡"
-                        width: 60
-                        height: 60
-                        onClicked: appController.player.toggleDebugOsd()
-                        ToolTip.visible: hovered
-                        ToolTip.text: "Toggle Debug OSD"
+                    Label {
+                        Layout.fillWidth: true
+                        text: appController.player.statusText
+                        color: appController.player.buffering || appController.player.seeking ? "#9de8ff" : "#7fc6de"
+                        font.pixelSize: 19
+                        maximumLineCount: 1
+                        elide: Text.ElideRight
                     }
                 }
 
-                Slider {
-                    from: 0
-                    to: Math.max(1, appController.player.durationSeconds)
-                    value: appController.player.positionSeconds
-                    enabled: false
-                    Layout.fillWidth: true
+                Rectangle {
+                    radius: 16
+                    color: "#2f17232c"
+                    border.width: 1
+                    border.color: "#315168"
+                    implicitWidth: statusRow.implicitWidth + 20
+                    implicitHeight: 34
+
+                    Row {
+                        id: statusRow
+                        anchors.centerIn: parent
+                        spacing: 12
+
+                        Label {
+                            text: appController.player.paused ? "Paused" : "Playing"
+                            color: "#d9f5ff"
+                            font.pixelSize: 18
+                        }
+
+                        Label {
+                            text: overlay.formatClock(appController.player.positionSeconds)
+                                  + " / " + overlay.formatClock(appController.player.durationSeconds)
+                            color: "#9ecbdd"
+                            font.pixelSize: 18
+                        }
+                    }
                 }
 
-                RowLayout {
+                Button {
+                    id: overflowButton
+                    implicitWidth: 60
+                    implicitHeight: 60
+                    onClicked: {
+                        overlay.revealControls()
+                        if (overflowMenu.opened)
+                            overflowMenu.close()
+                        else
+                            overflowMenu.open()
+                    }
+
+                    contentItem: Item {
+                        implicitWidth: 24
+                        implicitHeight: 24
+
+                        Row {
+                            anchors.centerIn: parent
+                            spacing: 4
+
+                            Repeater {
+                                model: 3
+                                delegate: Rectangle {
+                                    width: 6
+                                    height: 6
+                                    radius: 3
+                                    color: "#e5f7ff"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            Rectangle {
+                Layout.fillWidth: true
+                Layout.preferredHeight: 16
+                radius: 8
+                color: "#16313f"
+
+                Rectangle {
+                    anchors.left: parent.left
+                    anchors.top: parent.top
+                    anchors.bottom: parent.bottom
+                    width: Math.max(12, parent.width * (appController.player.durationSeconds > 0
+                                                        ? appController.player.positionSeconds / appController.player.durationSeconds
+                                                        : 0))
+                    radius: 8
+                    color: appController.player.buffering ? "#62d2f1" : "#84f0d2"
+                }
+            }
+
+            RowLayout {
+                Layout.fillWidth: true
+                spacing: 12
+
+                Button {
+                    text: "10s"
+                    onClicked: {
+                        overlay.revealControls()
+                        appController.player.seekBack()
+                    }
+                }
+
+                Button {
+                    text: appController.player.paused ? "Play" : "Pause"
+                    onClicked: {
+                        overlay.revealControls()
+                        appController.player.togglePause()
+                    }
+                }
+
+                Button {
+                    text: "30s"
+                    onClicked: {
+                        overlay.revealControls()
+                        appController.player.seekForward()
+                    }
+                }
+
+                Item {
                     Layout.fillWidth: true
-                    spacing: 20
-
-                    Label {
-                        text: Math.floor(appController.player.positionSeconds) + "s / " + Math.floor(appController.player.durationSeconds) + "s"
-                        font.pixelSize: 22
-                        color: "#d7f8ff"
-                    }
-
-                    Label {
-                        text: appController.player.paused ? "Paused" : "Playing"
-                        font.pixelSize: 22
-                        color: "#d7f8ff"
-                    }
-
-                    Item { Layout.fillWidth: true }
-
-                    Label {
-                        text: "Left/Right seek  Enter pause  Back stop  ≡ debug"
-                        font.pixelSize: 20
-                        color: "#84bfd8"
-                    }
                 }
 
                 Label {
-                    visible: appController.player.errorText.length > 0
-                    text: appController.player.errorText
-                    font.pixelSize: 20
-                    color: "#ffb8bd"
+                    text: "Back exit  Info stats  Left/Right seek"
+                    color: "#82afc0"
+                    font.pixelSize: 18
                 }
+            }
+
+            Label {
+                id: errorLabel
+                Layout.fillWidth: true
+                visible: appController.player.errorText.length > 0
+                text: appController.player.errorText
+                color: "#ffb8bd"
+                font.pixelSize: 18
+                wrapMode: Text.Wrap
             }
         }
     }
 }
-
