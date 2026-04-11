@@ -1,0 +1,22 @@
+{
+  "id": "com.sachk.tern",
+  "version": "0.2.0",
+  "vendor": "sachk",
+  "type": "native",
+  "main": "bin/jellyfin-native",
+  "title": "Jellyfin Native",
+  "icon": "icon.png",
+  "largeIcon": "icon.png",
+  "appDescription": "Native Qt Quick Jellyfin client for LG webOS using libmpv and Starfish.",
+  "tileSize": "normal",
+  "supportTouchMode": "full",
+  "spinnerOnLaunch": false,
+  "visible": true,
+  "removable": true,
+  "noSplashOnLaunch": true,
+  "inspectable": true,
+  "transparent": false,
+  "handlesRelaunch": true,
+  "requiredMemory": 500,
+  "nativeLifeCycleInterfaceVersion": 2
+}
