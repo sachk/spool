@@ -12,8 +12,8 @@ FocusScope {
             movieGrid.forceActiveFocus()
     }
 
-    property real sidePanelWidth: 430
-    property real contentSpacing: 28
+    property real sidePanelWidth: 340
+    property real contentSpacing: 18
     property var currentMovie: appController.movies.rowCount() > 0 && movieGrid.currentIndex >= 0
                                ? appController.movies.get(movieGrid.currentIndex)
                                : null
@@ -27,12 +27,12 @@ FocusScope {
 
     ColumnLayout {
         anchors.fill: parent
-        anchors.margins: 70
-        spacing: 20
+        anchors.margins: 48
+        spacing: 14
 
         RowLayout {
             Layout.fillWidth: true
-            spacing: 18
+            spacing: 14
 
             Button {
                 text: "Back"
@@ -41,15 +41,17 @@ FocusScope {
 
             Label {
                 text: appController.currentLibraryName
-                font.pixelSize: 48
+                font.pixelSize: 42
                 font.weight: Font.DemiBold
                 color: "#f1fbff"
+                Layout.fillWidth: true
+                elide: Text.ElideRight
             }
         }
 
         Label {
-            text: "Movies only in this prototype"
-            font.pixelSize: 22
+            text: "Movies"
+            font.pixelSize: 19
             color: "#8ec7de"
         }
 
@@ -65,8 +67,8 @@ FocusScope {
                 anchors.right: detailPanel.left
                 anchors.rightMargin: libraryPage.contentSpacing
                 model: appController.movies
-                cellWidth: 250
-                cellHeight: 430
+                cellWidth: 222
+                cellHeight: 368
                 clip: true
                 keyNavigationWraps: true
                 currentIndex: -1
@@ -74,7 +76,7 @@ FocusScope {
                 interactive: true
                 reuseItems: true
                 boundsBehavior: Flickable.StopAtBounds
-                cacheBuffer: 1200
+                cacheBuffer: 1500
                 highlightRangeMode: GridView.NoHighlightRange
                 delegate: Item {
                     id: movieDelegate
@@ -82,6 +84,7 @@ FocusScope {
                     required property string title
                     required property string overview
                     required property string posterUrl
+                    required property string posterTag
                     required property int year
 
                     width: movieGrid.cellWidth
@@ -89,7 +92,7 @@ FocusScope {
 
                     PosterCard {
                         anchors.fill: parent
-                        anchors.margins: 5
+                        anchors.margins: 4
                         title: movieDelegate.title
                         posterUrl: movieDelegate.posterUrl
                         year: movieDelegate.year
@@ -131,30 +134,32 @@ FocusScope {
                 anchors.bottom: parent.bottom
                 anchors.right: parent.right
                 width: libraryPage.sidePanelWidth
-                radius: 32
+                radius: 28
                 color: "#4b10202d"
                 border.color: "#2a5a73"
                 border.width: 1
 
                 ColumnLayout {
                     anchors.fill: parent
-                    anchors.margins: 24
-                    spacing: 18
+                    anchors.margins: 20
+                    spacing: 14
 
                     Label {
                         text: libraryPage.currentMovie ? libraryPage.currentMovie.title : "Select a movie"
                         wrapMode: Text.Wrap
-                        font.pixelSize: 36
+                        font.pixelSize: 30
                         font.weight: Font.DemiBold
                         color: "#f3fbff"
                         Layout.fillWidth: true
+                        maximumLineCount: 3
+                        elide: Text.ElideRight
                     }
 
                     Label {
                         text: libraryPage.currentMovie && libraryPage.currentMovie.year > 0
                               ? String(libraryPage.currentMovie.year)
                               : "Direct Play"
-                        font.pixelSize: 22
+                        font.pixelSize: 19
                         color: "#82daf5"
                     }
 
@@ -173,7 +178,7 @@ FocusScope {
                               : "Select a movie to begin playback."
                         wrapMode: Text.Wrap
                         color: "#d8eaf3"
-                        font.pixelSize: 24
+                        font.pixelSize: 21
                         verticalAlignment: Text.AlignTop
                     }
                 }
