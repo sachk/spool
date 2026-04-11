@@ -298,12 +298,15 @@ int main(int argc, char **argv)
     auto *qmlNetworkFactory = new JellyfinNative::QmlNetworkAccessManagerFactory(
         cachePath + QStringLiteral("/qml-image-cache"), 512LL * 1024LL * 1024LL);
     window.engine()->setNetworkAccessManagerFactory(qmlNetworkFactory);
+    window.engine()->addImageProvider(QStringLiteral("mpv-overlay"),
+                                      window.createOverlayImageProvider());
     window.engine()->addImportPath(appRootPath + QStringLiteral("/qt-qml"));
     QObject::connect(window.engine(), &QQmlEngine::warnings, &logQmlWarnings);
     QObject::connect(&window, &QQuickView::statusChanged, [](QQuickView::Status status) {
         logLine("view status changed: %d", static_cast<int>(status));
     });
     window.rootContext()->setContextProperty(QStringLiteral("appController"), controller.get());
+    window.rootContext()->setContextProperty(QStringLiteral("nativeWindow"), &window);
     window.setSource(QUrl(QStringLiteral("qrc:/qt/qml/JellyfinWebOS/qml/Main.qml")));
     if (window.status() == QQuickView::Error) {
         logQmlWarnings(window.errors());

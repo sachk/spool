@@ -75,6 +75,7 @@ double PlayerController::durationSeconds() const { return m_durationSeconds; }
 
 void PlayerController::play(const PlaybackSession &session) {
   stop();
+  m_window->clearOverlay();
   if (!m_window->prepareForPlaybackSurface()) {
     m_errorText =
         QStringLiteral("Failed to prepare the native playback surface.");
@@ -114,6 +115,8 @@ void PlayerController::seekForward() {
 void PlayerController::toggleDebugOsd() {
   mpvCommand("script-binding stats/display-stats-toggle");
   m_debugOsdVisible = !m_debugOsdVisible;
+  if (!m_debugOsdVisible)
+    m_window->clearOverlay();
   emit stateChanged();
 }
 
@@ -122,6 +125,7 @@ void PlayerController::stop() {
   mpvCommand("quit");
   if (m_thread.joinable())
     m_thread.join();
+  m_window->clearOverlay();
   stopProgressReporting(false);
 }
 

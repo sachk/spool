@@ -58,6 +58,16 @@ FocusScope {
         visible: appController.player.visible
     }
 
+    Image {
+        anchors.fill: parent
+        visible: appController.player.visible && appController.player.debugOsdVisible
+        source: visible ? "image://mpv-overlay/live?" + nativeWindow.overlayRevision : ""
+        fillMode: Image.Stretch
+        smooth: false
+        cache: false
+        z: 20
+    }
+
     Rectangle {
         anchors.fill: parent
         visible: appController.busy
