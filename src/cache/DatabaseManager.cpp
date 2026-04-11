@@ -149,6 +149,18 @@ void DatabaseManager::saveLoginHints(const QString &serverUrl, const QString &us
     });
 }
 
+QString DatabaseManager::loadDeviceId()
+{
+    return invokeOnWorker([this]() { return m_worker->value(QStringLiteral("client/deviceId")); }).toString();
+}
+
+void DatabaseManager::saveDeviceId(const QString &deviceId)
+{
+    invokeOnWorkerAsync([this, deviceId]() {
+        m_worker->setValue(QStringLiteral("client/deviceId"), deviceId);
+    });
+}
+
 QJsonArray DatabaseManager::loadDiscoveredServers()
 {
     const auto value = invokeOnWorker([this]() { return m_worker->value(QStringLiteral("cache/discoveredServers")); });

@@ -88,7 +88,29 @@ if [[ "$QT_IS_STATIC" == "0" ]]; then
 fi
 mkdir -p "$APP_DIR/qt-qml"
 
-meson configure "$MPV_BUILD" -Dzlib=enabled
+echo "Building libdovi..."
+(
+  cd "$WORKSPACE_ROOT/dovi_tool/dolby_vision"
+  rustup target add arm-unknown-linux-gnueabi || true
+  export CARGO_TARGET_ARM_UNKNOWN_LINUX_GNUEABI_LINKER="$SDK_ROOT/bin/arm-webos-linux-gnueabi-gcc"
+  export CC_arm_unknown_linux_gnueabi="$SDK_ROOT/bin/arm-webos-linux-gnueabi-gcc"
+  export CXX_arm_unknown_linux_gnueabi="$SDK_ROOT/bin/arm-webos-linux-gnueabi-g++"
+  export AR_arm_unknown_linux_gnueabi="$SDK_ROOT/bin/arm-webos-linux-gnueabi-ar"
+  
+  CARGO_BIN="cargo"
+  if command -v rustup >/dev/null 2>&1; then
+    CARGO_BIN="rustup run nightly cargo"
+  fi
+  $CARGO_BIN build --release --features capi --target arm-unknown-linux-gnueabi
+)
+DOVI_LIB="$WORKSPACE_ROOT/dovi_tool/dolby_vision/target/arm-unknown-linux-gnueabi/release/libdovi.a"
+DOVI_INC="$WORKSPACE_ROOT/dovi_tool/dolby_vision/include"
+
+export CFLAGS="${CFLAGS:-} -I$DOVI_INC"
+export CXXFLAGS="${CXXFLAGS:-} -I$DOVI_INC"
+export LDFLAGS="${LDFLAGS:-} -L$(dirname "$DOVI_LIB")"
+
+meson configure "$MPV_BUILD" -Dzlib=enabled -Dc_link_args="-L$(dirname "$DOVI_LIB") -ldovi" -Dcpp_link_args="-L$(dirname "$DOVI_LIB") -ldovi"
 meson compile -C "$MPV_BUILD"
 
 # CMAKE flags: pass BUILD_SHARED_LIBS=OFF when linking against static Qt

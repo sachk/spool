@@ -36,6 +36,7 @@ Q_IMPORT_PLUGIN(QSQLiteDriverPlugin)
 #include <QQmlError>
 #include <QQmlContext>
 #include <QQmlEngine>
+#include <QElapsedTimer>
 #include <QLoggingCategory>
 #include <QNetworkAccessManager>
 #include <QNetworkDiskCache>
@@ -199,6 +200,8 @@ bool lunaLifecycleCallback(LSHandle *, LSMessage *message, void *userData)
 
 int main(int argc, char **argv)
 {
+    QElapsedTimer startupTimer;
+    startupTimer.start();
     g_logFile = fopen(kAppLogPath, "w");
     setvbuf(stderr, nullptr, _IOLBF, 0);
     if (g_logFile)
@@ -279,17 +282,25 @@ int main(int argc, char **argv)
     if (!database.initialize(QStandardPaths::writableLocation(QStandardPaths::AppDataLocation) + QStringLiteral("/cache.sqlite")))
         return 1;
 
+    QString deviceId = database.loadDeviceId();
+    if (deviceId.isEmpty()) {
+        deviceId = QUuid::createUuid().toString(QUuid::WithoutBraces);
+        database.saveDeviceId(deviceId);
+    }
+
     auto discovery = std::make_unique<JellyfinNative::DiscoveryController>();
     auto api = std::make_unique<JellyfinNative::JellyfinApiFacade>(networkAccessManager);
-    api->setDeviceIdentity(QUuid::createUuid().toString(QUuid::WithoutBraces),
+    api->setDeviceIdentity(deviceId,
                            QStringLiteral("LG webOS TV"),
-                           QStringLiteral("0.1.0"));
+                           QStringLiteral("0.2.0"));
 
     JellyfinNative::NativeAppWindow window(QString::fromLatin1(kAppId));
     if (!window.prepareForUiSurface()) {
         logLine("failed to initialize Qt webOS UI surface");
         return 1;
     }
+    logLine("startup: prepareForUiSurface completed in %lld ms",
+            static_cast<long long>(startupTimer.elapsed()));
 
     auto player = std::make_unique<JellyfinNative::PlayerController>(&window, api.get());
     auto controller =
@@ -312,6 +323,8 @@ int main(int argc, char **argv)
         logQmlWarnings(window.errors());
         return 1;
     }
+    logLine("startup: QML source loaded in %lld ms",
+            static_cast<long long>(startupTimer.elapsed()));
     window.showFullScreen();
     window.requestActivate();
 
@@ -348,6 +361,12 @@ int main(int argc, char **argv)
         window.requestActivate();
     });
     QTimer::singleShot(0, controller.get(), &JellyfinNative::AppController::initialize);
+    QTimer::singleShot(0, &window, [&window, &startupTimer]() {
+        logLine("startup: event loop entered, first-frame path at %lld ms",
+                static_cast<long long>(startupTimer.elapsed()));
+        window.showFullScreen();
+        window.requestActivate();
+    });
 
     return app.exec();
 }

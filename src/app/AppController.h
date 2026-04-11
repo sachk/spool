@@ -109,6 +109,8 @@ private:
     QString m_quickConnectCode;
     QString m_quickConnectStatus;
     QString m_quickConnectSecret;
+    int m_quickConnectPollAttempts = 0;
+    int m_quickConnectPollErrors = 0;
     QString m_currentLibraryId;
     QString m_currentLibraryName;
 };

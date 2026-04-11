@@ -11,8 +11,12 @@ extern "C" {
 }
 
 #include <QCoreApplication>
+#include <QElapsedTimer>
+#include <QDebug>
+#include <QtGlobal>
 #include <QMetaObject>
 
+#include <cmath>
 #include <cstdint>
 #include <cstring>
 
@@ -37,6 +41,15 @@ PlayerController::PlayerController(NativeAppWindow *window,
                                    JellyfinApiFacade *api, QObject *parent)
     : QObject(parent), m_window(window), m_api(api) {
   m_progressTimer.setInterval(5000);
+  m_backGuardTimer.setSingleShot(true);
+  m_backGuardTimer.setInterval(1500);
+  connect(&m_backGuardTimer, &QTimer::timeout, this, [this]() {
+    if (!m_visible || m_backAllowed)
+      return;
+    m_backAllowed = true;
+    qInfo() << "player: startup back guard released";
+    emit stateChanged();
+  });
   connect(&m_progressTimer, &QTimer::timeout, this, [this]() {
     if (!m_visible)
       return;
@@ -49,7 +62,10 @@ PlayerController::PlayerController(NativeAppWindow *window,
   });
 }
 
-PlayerController::~PlayerController() { stop(); }
+PlayerController::~PlayerController() {
+  stopWithReason(QStringLiteral("destructor"));
+  joinPlayerThread();
+}
 
 bool PlayerController::visible() const { return m_visible; }
 
@@ -69,19 +85,29 @@ bool PlayerController::seeking() const { return m_seeking; }
 
 bool PlayerController::debugOsdVisible() const { return m_debugOsdVisible; }
 
+bool PlayerController::backAllowed() const { return m_backAllowed; }
+
 double PlayerController::positionSeconds() const { return m_positionSeconds; }
 
 double PlayerController::durationSeconds() const { return m_durationSeconds; }
 
 void PlayerController::play(const PlaybackSession &session) {
-  stop();
+  qInfo() << "player: play requested" << session.title;
+  stopWithReason(QStringLiteral("play/new-session"));
+  joinPlayerThread(); // ensure previous mpv instance is fully torn down
   m_window->clearOverlay();
+  QElapsedTimer playbackSurfaceTimer;
+  playbackSurfaceTimer.start();
   if (!m_window->prepareForPlaybackSurface()) {
     m_errorText =
         QStringLiteral("Failed to prepare the native playback surface.");
+    qWarning() << "player: prepareForPlaybackSurface failed after"
+               << playbackSurfaceTimer.elapsed() << "ms";
     emit stateChanged();
     return;
   }
+  qInfo() << "player: prepareForPlaybackSurface completed in"
+          << playbackSurfaceTimer.elapsed() << "ms";
 
   m_session = session;
   m_title = session.title;
@@ -94,6 +120,8 @@ void PlayerController::play(const PlaybackSession &session) {
   m_bufferingPercent = 0;
   m_seeking = false;
   m_debugOsdVisible = false;
+  m_backAllowed = false;
+  m_backGuardTimer.start();
   m_visible = true;
   emit visibleChanged();
   emit stateChanged();
@@ -112,6 +140,20 @@ void PlayerController::seekForward() {
   mpvCommand("seek 30 exact");
 }
 
+void PlayerController::seek(double seconds) {
+  if (!std::isfinite(seconds))
+    return;
+
+  const double clampedSeconds =
+      m_durationSeconds > 0.0 ? qBound(0.0, seconds, m_durationSeconds)
+                              : qMax(0.0, seconds);
+  const QByteArray command =
+      QByteArray("seek ") + QByteArray::number(clampedSeconds, 'f', 3) +
+      QByteArray(" absolute+exact");
+  qInfo() << "player: absolute seek" << clampedSeconds;
+  mpvCommand(command.constData());
+}
+
 void PlayerController::toggleDebugOsd() {
   mpvCommand("script-binding stats/display-stats-toggle");
   m_debugOsdVisible = !m_debugOsdVisible;
@@ -121,12 +163,31 @@ void PlayerController::toggleDebugOsd() {
 }
 
 void PlayerController::stop() {
+  stopWithReason(QStringLiteral("unspecified"));
+}
+
+void PlayerController::stopWithReason(const QString &reason) {
+  qInfo() << "player: stop requested" << reason
+          << "visible" << m_visible << "stopRequested" << m_stopRequested.load();
   m_stopRequested = true;
   mpvCommand("quit");
-  if (m_thread.joinable())
-    m_thread.join();
+
+  // Move the player thread to a background cleanup thread so that
+  // mpv_terminate_destroy (which may block while Starfish tears down)
+  // does not freeze the UI / main-thread event loop.
+  if (m_thread.joinable()) {
+    joinPlayerThread(); // finish any previous cleanup first
+    m_cleanupThread =
+        std::thread([t = std::move(m_thread)]() mutable { t.join(); });
+  }
+
   m_window->clearOverlay();
   stopProgressReporting(false);
+}
+
+void PlayerController::joinPlayerThread() {
+  if (m_cleanupThread.joinable())
+    m_cleanupThread.join();
 }
 
 void PlayerController::startProgressReporting() {
@@ -170,6 +231,8 @@ void PlayerController::mpvCommand(const char *command) {
 }
 
 void PlayerController::runPlayerThread(PlaybackSession session) {
+  QElapsedTimer startupTimer;
+  startupTimer.start();
   mpv_handle *handle = mpv_create();
   if (!handle) {
     QMetaObject::invokeMethod(this, [this]() {
@@ -188,8 +251,7 @@ void PlayerController::runPlayerThread(PlaybackSession session) {
       setOption(handle, "demuxer-lavf-analyzeduration", "0.1") &&
       setOption(handle, "demuxer-lavf-probesize", "32768") &&
       setOption(handle, "cache", "yes") &&
-      setOption(handle, "cache-pause", "yes") &&
-      setOption(handle, "cache-pause-wait", "1") &&
+      setOption(handle, "cache-pause", "no") &&
       setOption(handle, "demuxer-max-bytes", "32M") &&
       setOption(handle, "demuxer-max-back-bytes", "8M") &&
       setOption(handle, "force-window", "immediate") &&
@@ -213,6 +275,7 @@ void PlayerController::runPlayerThread(PlaybackSession session) {
   }
 
   m_mpv = handle;
+  qInfo() << "player: mpv initialized in" << startupTimer.elapsed() << "ms";
   mpv_observe_property(handle, 0, "pause", MPV_FORMAT_FLAG);
   mpv_observe_property(handle, 0, "paused-for-cache", MPV_FORMAT_FLAG);
   mpv_observe_property(handle, 0, "cache-buffering-state", MPV_FORMAT_INT64);
@@ -241,6 +304,7 @@ void PlayerController::runPlayerThread(PlaybackSession session) {
     switch (event->event_id) {
     case MPV_EVENT_FILE_LOADED:
       QMetaObject::invokeMethod(this, [this]() {
+        qInfo() << "player: file loaded";
         updatePlaybackStatusText();
         emit stateChanged();
         startProgressReporting();
@@ -248,6 +312,7 @@ void PlayerController::runPlayerThread(PlaybackSession session) {
       break;
     case MPV_EVENT_PLAYBACK_RESTART:
       QMetaObject::invokeMethod(this, [this]() {
+        qInfo() << "player: playback restart";
         updatePlaybackStatusText();
         emit stateChanged();
       });
@@ -312,6 +377,7 @@ void PlayerController::runPlayerThread(PlaybackSession session) {
       auto *endFile = static_cast<mpv_event_end_file *>(event->data);
       const bool failed = endFile && endFile->error < 0;
       QMetaObject::invokeMethod(this, [this, failed]() {
+        qInfo() << "player: end file failed=" << failed;
         if (failed)
           m_errorText = QStringLiteral("Playback ended with an mpv error.");
         stopProgressReporting(failed);
@@ -321,7 +387,10 @@ void PlayerController::runPlayerThread(PlaybackSession session) {
     }
     case MPV_EVENT_SHUTDOWN:
       QMetaObject::invokeMethod(this,
-                                [this]() { stopProgressReporting(false); });
+                                [this]() {
+                                  qInfo() << "player: mpv shutdown";
+                                  stopProgressReporting(false);
+                                });
       m_stopRequested = true;
       break;
     default:
