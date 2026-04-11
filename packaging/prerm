@@ -1,0 +1,14 @@
+#!/bin/sh
+
+APP_ID="com.codex.jellyfinwebosnative"
+
+rm -f "/var/palm/ls2-dev/roles/pub/$APP_ID.json"
+rm -f "/var/palm/ls2-dev/roles/prv/$APP_ID.json"
+rm -f "/var/luna-service2/roles.d/$APP_ID.app.json"
+rm -f "/var/luna-service2/client-permissions.d/$APP_ID.app.json"
+rm -f "/var/luna-service2/manifests.d/$APP_ID.manifest.json"
+
+ls2-control scan-services 2>/dev/null || true
+killall -HUP ls-hubd 2>/dev/null || true
+
+exit 0

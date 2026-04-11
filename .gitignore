@@ -1,0 +1,8 @@
+/build/
+/build-arm/
+/app/bin/
+/app/lib/
+/app/qt-qml/
+*.ipk
+*.log
+.DS_Store
