@@ -5,6 +5,7 @@
 #include <QHttpHeaders>
 #include <QJsonArray>
 #include <QJsonObject>
+#include <QDebug>
 #include <QNetworkReply>
 #include <QUrl>
 #include <QUrlQuery>
@@ -29,6 +30,12 @@ QString cleanContainerName(const QString &container)
     if (container.contains(QLatin1Char(',')))
         return container.section(QLatin1Char(','), 0, 0).trimmed();
     return container.trimmed();
+}
+
+bool isQuickConnectPath(const QString &path)
+{
+    return path.startsWith(QStringLiteral("/QuickConnect/")) ||
+           path == QStringLiteral("/Users/AuthenticateWithQuickConnect");
 }
 
 }
@@ -382,6 +389,12 @@ QCoro::Task<QByteArray> JellyfinApiFacade::requestBytes(HttpMethod method, const
     const QNetworkRequest request = createRequest(path, query);
     QNetworkReply *reply = nullptr;
 
+    if (isQuickConnectPath(path)) {
+        qInfo() << "api:" << (method == HttpMethod::Get ? "GET" : "POST")
+                << request.url().toString(QUrl::FullyEncoded)
+                << "deviceId" << m_deviceId;
+    }
+
     switch (method) {
     case HttpMethod::Get:
         reply = m_rest.get(request);
@@ -403,7 +416,14 @@ QCoro::Task<QByteArray> JellyfinApiFacade::requestBytes(HttpMethod method, const
 
     if (networkError != QNetworkReply::NoError || statusCode >= 400) {
         const QString details = payload.isEmpty() ? errorText : QString::fromUtf8(payload);
+        if (isQuickConnectPath(path))
+            qWarning() << "api:" << path << "failed" << statusCode << details;
         throw std::runtime_error(QStringLiteral("%1 (%2)").arg(details).arg(statusCode).toStdString());
+    }
+
+    if (isQuickConnectPath(path)) {
+        qInfo() << "api:" << path << "ok" << statusCode
+                << QString::fromUtf8(payload.left(256));
     }
 
     co_return payload;

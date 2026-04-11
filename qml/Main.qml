@@ -8,6 +8,49 @@ FocusScope {
     width: 1920
     height: 1080
     focus: true
+    onFocusChanged: console.log("Main FocusScope focus: " + focus)
+
+    function isBackEvent(event) {
+        const scanCode = Number(event.nativeScanCode || 0)
+        return event.key === Qt.Key_Back
+                || event.key === Qt.Key_Escape
+                || event.key === Qt.Key_BrowserBack
+                || event.key === 0x01200003
+                || (event.key === 0 && scanCode === 420)
+    }
+
+    function isIgnoredPlayerNoise(event) {
+        const scanCode = Number(event.nativeScanCode || 0)
+        return event.key === 0 && (scanCode === 1206 || scanCode === 1207)
+    }
+    
+    Keys.onPressed: (event) => {
+        console.log("Key pressed: " + event.key + " (nativeScanCode: " + event.nativeScanCode + ", text: '" + event.text + "')")
+        if (root.isIgnoredPlayerNoise(event) && appController.player.visible) {
+            console.log("Ignoring player noise key press scanCode=" + event.nativeScanCode)
+            event.accepted = true
+        }
+    }
+    
+    Keys.onReleased: (event) => {
+        console.log("Key released: " + event.key + " (nativeScanCode: " + event.nativeScanCode + ")")
+        if (root.isIgnoredPlayerNoise(event) && appController.player.visible) {
+            console.log("Ignoring player noise key release scanCode=" + event.nativeScanCode)
+            event.accepted = true
+            return
+        }
+        if (root.isBackEvent(event)) {
+            if (appController.player.visible) {
+                if (appController.player.backAllowed)
+                    appController.player.stopWithReason("root-back-key")
+                else
+                    console.log("Ignoring early root back release during player startup")
+            } else {
+                appController.back()
+            }
+            event.accepted = true
+        }
+    }
 
     Rectangle {
         anchors.fill: parent

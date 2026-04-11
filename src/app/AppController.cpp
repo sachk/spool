@@ -5,6 +5,8 @@
 
 #include <QCoroTask>
 
+#include <QCoreApplication>
+#include <QDebug>
 #include <QJsonArray>
 #include <QStringList>
 
@@ -204,8 +206,12 @@ void AppController::startQuickConnect()
         return;
     }
 
+    setErrorText({});
     setBusy(true, QStringLiteral("Starting Quick Connect…"));
     m_api->setServerUrl(m_serverUrl);
+    m_quickConnectPollAttempts = 0;
+    m_quickConnectPollErrors = 0;
+    qInfo() << "quick connect: starting for" << m_serverUrl;
 
     QCoro::runDetached(
         m_api->quickConnectEnabled(),
@@ -223,17 +229,23 @@ void AppController::startQuickConnect()
                     m_quickConnectCode = result.value(QStringLiteral("Code")).toString();
                     m_quickConnectSecret = result.value(QStringLiteral("Secret")).toString();
                     m_quickConnectStatus = QStringLiteral("Waiting for authorization…");
+                    m_quickConnectPollAttempts = 0;
+                    m_quickConnectPollErrors = 0;
+                    qInfo() << "quick connect: initiated code" << m_quickConnectCode
+                            << "deviceId" << result.value(QStringLiteral("DeviceId")).toString();
                     emit quickConnectChanged();
                     pollQuickConnect();
                     m_quickConnectTimer.start();
                 },
                 [this](const std::exception_ptr &error) {
                     setBusy(false);
+                    qWarning() << "quick connect: initiate failed" << exceptionMessage(error);
                     setErrorText(exceptionMessage(error));
                 });
         },
         [this](const std::exception_ptr &error) {
             setBusy(false);
+            qWarning() << "quick connect: enabled check failed" << exceptionMessage(error);
             setErrorText(exceptionMessage(error));
         });
 }
@@ -244,6 +256,8 @@ void AppController::cancelQuickConnect()
     m_quickConnectCode.clear();
     m_quickConnectStatus.clear();
     m_quickConnectSecret.clear();
+    m_quickConnectPollAttempts = 0;
+    m_quickConnectPollErrors = 0;
     emit quickConnectChanged();
 }
 
@@ -310,7 +324,10 @@ void AppController::back()
     if (m_page == QStringLiteral("libraries")) {
         setPage(QStringLiteral("login"));
         m_discovery->start();
+        return;
     }
+
+    QCoreApplication::quit();
 }
 
 void AppController::clearError()
@@ -400,10 +417,21 @@ void AppController::pollQuickConnect()
     if (m_quickConnectSecret.isEmpty())
         return;
 
+    m_quickConnectPollAttempts += 1;
+    if (m_quickConnectPollAttempts > 36) {
+        qWarning() << "quick connect: timed out after polls" << m_quickConnectPollAttempts;
+        cancelQuickConnect();
+        setErrorText(QStringLiteral("Quick Connect timed out."));
+        return;
+    }
+
     QCoro::runDetached(
         m_api->pollQuickConnect(m_quickConnectSecret),
         [this](const QJsonObject &result) {
+            m_quickConnectPollErrors = 0;
             const bool authenticated = result.value(QStringLiteral("Authenticated")).toBool();
+            qInfo() << "quick connect: poll" << m_quickConnectPollAttempts
+                    << "authenticated" << authenticated;
             if (!authenticated)
                 return;
 
@@ -414,20 +442,35 @@ void AppController::pollQuickConnect()
             QCoro::runDetached(
                 m_api->authenticateWithQuickConnect(m_quickConnectSecret),
                 [this](const AuthSession &) {
+                    qInfo() << "quick connect: authenticated successfully";
                     cancelQuickConnect();
                     m_database->saveLoginHints(m_serverUrl, m_username);
                     loadLibraries();
                     QCoro::runDetached(m_api->postCapabilities(), []() {}, [](const std::exception_ptr &) {});
                 },
                 [this](const std::exception_ptr &error) {
+                    qWarning() << "quick connect: token exchange failed" << exceptionMessage(error);
                     cancelQuickConnect();
                     setErrorText(exceptionMessage(error));
                 });
         },
         [this](const std::exception_ptr &error) {
-            m_quickConnectTimer.stop();
-            cancelQuickConnect();
-            setErrorText(exceptionMessage(error));
+            const QString message = exceptionMessage(error);
+            m_quickConnectPollErrors += 1;
+            qWarning() << "quick connect: poll failed" << m_quickConnectPollErrors << message;
+
+            if (message.contains(QStringLiteral("(401)")) ||
+                message.contains(QStringLiteral("(404)")) ||
+                m_quickConnectPollErrors >= 6) {
+                cancelQuickConnect();
+                setErrorText(message);
+                return;
+            }
+
+            if (!m_quickConnectSecret.isEmpty()) {
+                m_quickConnectStatus = QStringLiteral("Waiting for authorization…");
+                emit quickConnectChanged();
+            }
         });
 }
 

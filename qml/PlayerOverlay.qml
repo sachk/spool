@@ -8,9 +8,12 @@ FocusScope {
     focus: visible
 
     property bool controlsVisible: true
+    property bool isScrubbing: false
+    property double scrubSeconds: 0
+
     readonly property bool pinnedControls: appController.player.paused
                                           || appController.player.buffering
-                                          || appController.player.seeking
+                                          || isScrubbing
                                           || overflowMenu.opened
 
     function formatClock(seconds) {
@@ -25,6 +28,20 @@ FocusScope {
 
     function shouldAutoHide() {
         return overlay.visible && !overlay.pinnedControls
+    }
+
+    function isBackEvent(event) {
+        const scanCode = Number(event.nativeScanCode || 0)
+        return event.key === Qt.Key_Back
+                || event.key === Qt.Key_Escape
+                || event.key === Qt.Key_BrowserBack
+                || event.key === 0x01200003
+                || (event.key === 0 && scanCode === 420)
+    }
+
+    function isIgnoredPlayerNoise(event) {
+        const scanCode = Number(event.nativeScanCode || 0)
+        return event.key === 0 && (scanCode === 1206 || scanCode === 1207)
     }
 
     function revealControls() {
@@ -67,7 +84,12 @@ FocusScope {
 
     Keys.onPressed: (event) => {
         overlay.revealControls()
-        if ((event.key === Qt.Key_Back || event.key === Qt.Key_Escape) && overflowMenu.opened) {
+        if (overlay.isIgnoredPlayerNoise(event)) {
+            console.log("Ignoring overlay noise key press scanCode=" + event.nativeScanCode)
+            event.accepted = true
+            return
+        }
+        if (overlay.isBackEvent(event) && overflowMenu.opened) {
             overflowMenu.close()
             event.accepted = true
         }
@@ -75,6 +97,13 @@ FocusScope {
 
     Keys.onReleased: (event) => {
         overlay.revealControls()
+        console.log("Player key released: " + event.key + " (nativeScanCode: " + event.nativeScanCode + ")")
+
+        if (overlay.isIgnoredPlayerNoise(event)) {
+            console.log("Ignoring overlay noise key release scanCode=" + event.nativeScanCode)
+            event.accepted = true
+            return
+        }
 
         if (event.key === Qt.Key_Left) {
             appController.player.seekBack()
@@ -88,11 +117,13 @@ FocusScope {
         } else if (event.key === Qt.Key_I || event.key === Qt.Key_Info || event.key === Qt.Key_Menu) {
             appController.player.toggleDebugOsd()
             event.accepted = true
-        } else if (event.key === Qt.Key_Back || event.key === Qt.Key_Escape) {
+        } else if (overlay.isBackEvent(event)) {
             if (overflowMenu.opened)
                 overflowMenu.close()
+            else if (appController.player.backAllowed)
+                appController.player.stopWithReason("overlay-back-key")
             else
-                appController.player.stop()
+                console.log("Ignoring early overlay back release during player startup")
             event.accepted = true
         }
     }
@@ -255,20 +286,93 @@ FocusScope {
             }
 
             Rectangle {
+                id: progressBarContainer
                 Layout.fillWidth: true
-                Layout.preferredHeight: 16
-                radius: 8
-                color: "#16313f"
+                Layout.preferredHeight: 32
+                color: "transparent"
 
                 Rectangle {
-                    anchors.left: parent.left
-                    anchors.top: parent.top
                     anchors.bottom: parent.bottom
-                    width: Math.max(12, parent.width * (appController.player.durationSeconds > 0
-                                                        ? appController.player.positionSeconds / appController.player.durationSeconds
-                                                        : 0))
+                    anchors.left: parent.left
+                    anchors.right: parent.right
+                    height: 12
+                    radius: 6
+                    color: "#16313f"
+                    
+                    Rectangle {
+                        anchors.left: parent.left
+                        anchors.top: parent.top
+                        anchors.bottom: parent.bottom
+                        width: Math.max(12, parent.width * (appController.player.durationSeconds > 0
+                                                            ? (overlay.isScrubbing ? overlay.scrubSeconds : appController.player.positionSeconds) / appController.player.durationSeconds
+                                                            : 0))
+                        radius: 6
+                        color: overlay.isScrubbing ? "#ffffff" : (appController.player.buffering ? "#62d2f1" : "#84f0d2")
+                        
+                        Behavior on width {
+                            enabled: !overlay.isScrubbing
+                            NumberAnimation { duration: 250; easing.type: Easing.OutCubic }
+                        }
+                    }
+                }
+
+                MouseArea {
+                    anchors.fill: parent
+                    hoverEnabled: true
+
+                    function updateScrub(mouse) {
+                        const pos = Math.max(0, Math.min(width, mouse.x))
+                        const ratio = pos / width
+                        overlay.scrubSeconds = ratio * appController.player.durationSeconds
+                    }
+
+                    onPressed: (mouse) => {
+                        overlay.revealControls()
+                        overlay.isScrubbing = true
+                        updateScrub(mouse)
+                    }
+
+                    onPositionChanged: (mouse) => {
+                        overlay.revealControls()
+                        if (overlay.isScrubbing) {
+                            updateScrub(mouse)
+                        }
+                    }
+
+                    onReleased: (mouse) => {
+                        overlay.revealControls()
+                        if (overlay.isScrubbing) {
+                            updateScrub(mouse)
+                            appController.player.seek(overlay.scrubSeconds)
+                            overlay.isScrubbing = false
+                        }
+                    }
+                    
+                    onCanceled: {
+                        overlay.isScrubbing = false
+                    }
+                }
+
+                Rectangle {
+                    visible: overlay.isScrubbing
+                    x: Math.max(0, Math.min(progressBarContainer.width - width, 
+                                            (overlay.scrubSeconds / appController.player.durationSeconds) * progressBarContainer.width - width/2))
+                    y: -40
+                    width: scrubLabel.implicitWidth + 16
+                    height: 32
                     radius: 8
-                    color: appController.player.buffering ? "#62d2f1" : "#84f0d2"
+                    color: "#f0131d26"
+                    border.width: 1
+                    border.color: "#84f0d2"
+
+                    Label {
+                        id: scrubLabel
+                        anchors.centerIn: parent
+                        text: overlay.formatClock(overlay.scrubSeconds)
+                        color: "white"
+                        font.pixelSize: 18
+                        font.bold: true
+                    }
                 }
             }
 

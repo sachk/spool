@@ -26,6 +26,8 @@ public:
     QString loadLastServerUrl();
     QString loadLastUsername();
     void saveLoginHints(const QString &serverUrl, const QString &username);
+    QString loadDeviceId();
+    void saveDeviceId(const QString &deviceId);
 
     QJsonArray loadDiscoveredServers();
     void saveDiscoveredServers(const QJsonArray &servers);

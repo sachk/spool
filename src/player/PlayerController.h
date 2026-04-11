@@ -27,6 +27,7 @@ class PlayerController final : public QObject
     Q_PROPERTY(int bufferingPercent READ bufferingPercent NOTIFY stateChanged)
     Q_PROPERTY(bool seeking READ seeking NOTIFY stateChanged)
     Q_PROPERTY(bool debugOsdVisible READ debugOsdVisible NOTIFY stateChanged)
+    Q_PROPERTY(bool backAllowed READ backAllowed NOTIFY stateChanged)
     Q_PROPERTY(double positionSeconds READ positionSeconds NOTIFY stateChanged)
     Q_PROPERTY(double durationSeconds READ durationSeconds NOTIFY stateChanged)
 
@@ -43,6 +44,7 @@ public:
     int bufferingPercent() const;
     bool seeking() const;
     bool debugOsdVisible() const;
+    bool backAllowed() const;
     double positionSeconds() const;
     double durationSeconds() const;
 
@@ -50,8 +52,10 @@ public:
     Q_INVOKABLE void togglePause();
     Q_INVOKABLE void seekBack();
     Q_INVOKABLE void seekForward();
+    Q_INVOKABLE void seek(double seconds);
     Q_INVOKABLE void toggleDebugOsd();
     Q_INVOKABLE void stop();
+    Q_INVOKABLE void stopWithReason(const QString &reason);
 
 signals:
     void visibleChanged();
@@ -64,20 +68,24 @@ private:
     void mpvCommand(const char *command);
     void runPlayerThread(PlaybackSession session);
     void updatePlaybackStatusText();
+    void joinPlayerThread();
 
     NativeAppWindow *m_window = nullptr;
     JellyfinApiFacade *m_api = nullptr;
     PlaybackSession m_session;
     std::thread m_thread;
+    std::thread m_cleanupThread;
     std::atomic_bool m_stopRequested = false;
     std::atomic<mpv_handle *> m_mpv { nullptr };
     QTimer m_progressTimer;
+    QTimer m_backGuardTimer;
     bool m_visible = false;
     bool m_paused = false;
     bool m_buffering = false;
     int m_bufferingPercent = 0;
     bool m_seeking = false;
     bool m_debugOsdVisible = false;
+    bool m_backAllowed = true;
     QString m_title;
     QString m_statusText = QStringLiteral("Ready");
     QString m_errorText;

@@ -78,17 +78,15 @@ bool NativeAppWindow::prepareForUiSurface()
 {
     showFullScreen();
     requestActivate();
+    QCoreApplication::processEvents(QEventLoop::AllEvents, 50);
 
-    const int timeoutMs = 5000;
-    const int stepMs = 25;
-    for (int waited = 0; waited < timeoutMs; waited += stepMs) {
-        QCoreApplication::processEvents(QEventLoop::AllEvents, stepMs);
-        if (ensureShellSurface())
-            break;
-        QThread::msleep(stepMs);
-    }
+    // Do not block app startup for seconds waiting on the shell surface.
+    // The login UI can appear first; playback still performs a stricter wait
+    // later when the video export surface is actually needed.
+    if (ensureShellSurface())
+        return true;
 
-    return m_webosShellSurface && m_surface;
+    return handle() != nullptr;
 }
 
 bool NativeAppWindow::prepareForPlaybackSurface()
