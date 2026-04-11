@@ -6,6 +6,9 @@ extern "C" {
 #include <wayland-webos-shell-client-protocol.h>
 }
 
+#include <QImage>
+#include <QMutex>
+#include <QQuickImageProvider>
 #include <QQuickView>
 
 #include <string>
@@ -15,6 +18,7 @@ namespace JellyfinNative {
 class NativeAppWindow final : public QQuickView
 {
     Q_OBJECT
+    Q_PROPERTY(int overlayRevision READ overlayRevision NOTIFY overlayRevisionChanged)
 
 public:
     explicit NativeAppWindow(const QString &appId, QWindow *parent = nullptr);
@@ -23,6 +27,13 @@ public:
     bool prepareForUiSurface();
     bool prepareForPlaybackSurface();
     QString windowId() const;
+    int overlayRevision() const;
+    void clearOverlay();
+    QQuickImageProvider *createOverlayImageProvider();
+    QImage copyOverlayImage() const;
+
+signals:
+    void overlayRevisionChanged();
 
 protected:
     void exposeEvent(QExposeEvent *event) override;
@@ -33,13 +44,19 @@ private:
     bool ensureVideoSurface();
     bool bindGlobals();
     void updateCropRegion();
+    void presentOverlayCopy(const uint8_t *pixels, int width, int height, int stride);
 
     static void registryGlobal(void *data, wl_registry *registry, uint32_t name,
                                const char *interface, uint32_t version);
     static void registryRemove(void *, wl_registry *, uint32_t);
     static void exportedWindowIdAssigned(void *data, wl_webos_exported *, const char *window_id, uint32_t);
+    static void overlayPresentCallback(void *data, const uint8_t *pixels,
+                                       int width, int height, int stride);
 
     QString m_appId;
+    mutable QMutex m_overlayMutex;
+    QImage m_overlayImage;
+    int m_overlayRevision = 0;
     wl_display *m_display = nullptr;
     wl_registry *m_registry = nullptr;
     wl_compositor *m_compositor = nullptr;

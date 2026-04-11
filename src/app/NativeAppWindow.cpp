@@ -4,6 +4,9 @@
 #include <QEventLoop>
 #include <QExposeEvent>
 #include <QGuiApplication>
+#include <QMetaObject>
+#include <QMutexLocker>
+#include <QQuickImageProvider>
 #include <QResizeEvent>
 #include <QThread>
 
@@ -11,7 +14,38 @@
 
 #include <cstring>
 
+extern "C" {
+#include "../../../mpv/video/out/starfish/starfish_ctx.h"
+}
+
 namespace JellyfinNative {
+
+namespace {
+
+class NativeOverlayImageProvider final : public QQuickImageProvider
+{
+public:
+    explicit NativeOverlayImageProvider(const NativeAppWindow *window)
+        : QQuickImageProvider(QQuickImageProvider::Image)
+        , m_window(window)
+    {
+    }
+
+    QImage requestImage(const QString &, QSize *size, const QSize &requestedSize) override
+    {
+        QImage image = m_window->copyOverlayImage();
+        if (requestedSize.isValid() && !image.isNull())
+            image = image.scaled(requestedSize, Qt::IgnoreAspectRatio, Qt::FastTransformation);
+        if (size)
+            *size = image.size();
+        return image;
+    }
+
+private:
+    const NativeAppWindow *m_window;
+};
+
+} // namespace
 
 NativeAppWindow::NativeAppWindow(const QString &appId, QWindow *parent)
     : QQuickView(parent)
@@ -22,10 +56,12 @@ NativeAppWindow::NativeAppWindow(const QString &appId, QWindow *parent)
     setFlags(Qt::FramelessWindowHint | Qt::Window);
     setTitle(QStringLiteral("Jellyfin Native"));
     resize(1920, 1080);
+    starfish_overlay_set_present_cb(&NativeAppWindow::overlayPresentCallback, this);
 }
 
 NativeAppWindow::~NativeAppWindow()
 {
+    starfish_overlay_set_present_cb(nullptr, nullptr);
     if (m_exported)
         wl_webos_exported_destroy(m_exported);
     if (m_webosShellSurface)
@@ -81,6 +117,26 @@ bool NativeAppWindow::prepareForPlaybackSurface()
 QString NativeAppWindow::windowId() const
 {
     return QString::fromStdString(m_windowId);
+}
+
+int NativeAppWindow::overlayRevision() const
+{
+    return m_overlayRevision;
+}
+
+void NativeAppWindow::clearOverlay()
+{
+    {
+        QMutexLocker locker(&m_overlayMutex);
+        m_overlayImage = QImage();
+        m_overlayRevision += 1;
+    }
+    emit overlayRevisionChanged();
+}
+
+QQuickImageProvider *NativeAppWindow::createOverlayImageProvider()
+{
+    return new NativeOverlayImageProvider(this);
 }
 
 void NativeAppWindow::exposeEvent(QExposeEvent *event)
@@ -198,6 +254,41 @@ void NativeAppWindow::updateCropRegion()
     wl_display_flush(m_display);
 }
 
+void NativeAppWindow::presentOverlayCopy(const uint8_t *pixels, int width, int height, int stride)
+{
+    if (!pixels || width <= 0 || height <= 0 || stride < width * 4) {
+        clearOverlay();
+        return;
+    }
+
+    QImage image(width, height, QImage::Format_ARGB32_Premultiplied);
+    image.fill(Qt::transparent);
+    for (int y = 0; y < height; ++y) {
+        const uint8_t *src = pixels + (size_t)y * stride;
+        auto *dst = reinterpret_cast<QRgb *>(image.scanLine(y));
+        for (int x = 0; x < width; ++x) {
+            const uint8_t b = src[x * 4 + 0];
+            const uint8_t g = src[x * 4 + 1];
+            const uint8_t r = src[x * 4 + 2];
+            const uint8_t a = src[x * 4 + 3];
+            dst[x] = qRgba(r, g, b, a);
+        }
+    }
+
+    {
+        QMutexLocker locker(&m_overlayMutex);
+        m_overlayImage = std::move(image);
+        m_overlayRevision += 1;
+    }
+    emit overlayRevisionChanged();
+}
+
+QImage NativeAppWindow::copyOverlayImage() const
+{
+    QMutexLocker locker(&m_overlayMutex);
+    return m_overlayImage.copy();
+}
+
 void NativeAppWindow::registryGlobal(void *data, wl_registry *registry, uint32_t name,
                                      const char *interface, uint32_t version)
 {
@@ -228,6 +319,24 @@ void NativeAppWindow::exportedWindowIdAssigned(void *data, wl_webos_exported *, 
 {
     auto *self = static_cast<NativeAppWindow *>(data);
     self->m_windowId = window_id ? window_id : "";
+}
+
+void NativeAppWindow::overlayPresentCallback(void *data, const uint8_t *pixels,
+                                             int width, int height, int stride)
+{
+    auto *self = static_cast<NativeAppWindow *>(data);
+    if (!self)
+        return;
+
+    const int byteCount = pixels && height > 0 && stride > 0 ? height * stride : 0;
+    QMetaObject::invokeMethod(
+        self,
+        [self, width, height, stride,
+         bytes = QByteArray(reinterpret_cast<const char *>(pixels), byteCount)]() {
+            self->presentOverlayCopy(reinterpret_cast<const uint8_t *>(bytes.constData()),
+                                     width, height, stride);
+        },
+        Qt::QueuedConnection);
 }
 
 const wl_registry_listener NativeAppWindow::s_registryListener = {
