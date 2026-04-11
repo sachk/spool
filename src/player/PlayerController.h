@@ -23,6 +23,10 @@ class PlayerController final : public QObject
     Q_PROPERTY(QString title READ title NOTIFY stateChanged)
     Q_PROPERTY(QString statusText READ statusText NOTIFY stateChanged)
     Q_PROPERTY(QString errorText READ errorText NOTIFY stateChanged)
+    Q_PROPERTY(bool buffering READ buffering NOTIFY stateChanged)
+    Q_PROPERTY(int bufferingPercent READ bufferingPercent NOTIFY stateChanged)
+    Q_PROPERTY(bool seeking READ seeking NOTIFY stateChanged)
+    Q_PROPERTY(bool debugOsdVisible READ debugOsdVisible NOTIFY stateChanged)
     Q_PROPERTY(double positionSeconds READ positionSeconds NOTIFY stateChanged)
     Q_PROPERTY(double durationSeconds READ durationSeconds NOTIFY stateChanged)
 
@@ -35,6 +39,10 @@ public:
     QString title() const;
     QString statusText() const;
     QString errorText() const;
+    bool buffering() const;
+    int bufferingPercent() const;
+    bool seeking() const;
+    bool debugOsdVisible() const;
     double positionSeconds() const;
     double durationSeconds() const;
 
@@ -55,6 +63,7 @@ private:
     void stopProgressReporting(bool failed = false);
     void mpvCommand(const char *command);
     void runPlayerThread(PlaybackSession session);
+    void updatePlaybackStatusText();
 
     NativeAppWindow *m_window = nullptr;
     JellyfinApiFacade *m_api = nullptr;
@@ -65,6 +74,10 @@ private:
     QTimer m_progressTimer;
     bool m_visible = false;
     bool m_paused = false;
+    bool m_buffering = false;
+    int m_bufferingPercent = 0;
+    bool m_seeking = false;
+    bool m_debugOsdVisible = false;
     QString m_title;
     QString m_statusText = QStringLiteral("Ready");
     QString m_errorText;
