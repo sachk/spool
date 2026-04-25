@@ -6,6 +6,8 @@
 #include <QThread>
 #include <QVariant>
 
+#include "../common/JellyfinTypes.h"
+
 #include <functional>
 
 namespace JellyfinNative {
@@ -26,6 +28,11 @@ public:
     QString loadLastServerUrl();
     QString loadLastUsername();
     void saveLoginHints(const QString &serverUrl, const QString &username);
+    
+    AuthSession loadAuthSession();
+    void saveAuthSession(const AuthSession &session);
+    void clearAuthSession();
+
     QString loadDeviceId();
     void saveDeviceId(const QString &deviceId);
 

@@ -137,9 +137,16 @@ void AppController::initialize()
     emit serverUrlChanged();
     emit usernameChanged();
 
-    applyDiscoveredServersCache();
-    applyLibrariesCache();
-    m_discovery->start();
+    AuthSession session = m_database->loadAuthSession();
+    if (!session.accessToken.isEmpty() && !m_serverUrl.isEmpty()) {
+        m_api->setServerUrl(m_serverUrl);
+        m_api->setSession(session);
+        loadLibraries();
+    } else {
+        applyDiscoveredServersCache();
+        applyLibrariesCache();
+        m_discovery->start();
+    }
 }
 
 void AppController::setServerUrl(const QString &serverUrl)
@@ -184,11 +191,12 @@ void AppController::login()
     setErrorText({});
     setBusy(true, QStringLiteral("Signing in…"));
     m_api->setServerUrl(m_serverUrl);
-
+    
     QCoro::runDetached(
         m_api->authenticateByName(m_username, m_password),
-        [this](const AuthSession &) {
+        [this](const AuthSession &session) {
             m_database->saveLoginHints(m_serverUrl, m_username);
+            m_database->saveAuthSession(session);
             setBusy(false);
             loadLibraries();
             QCoro::runDetached(m_api->postCapabilities(), []() {}, [](const std::exception_ptr &) {});
@@ -408,7 +416,15 @@ void AppController::loadLibraries()
         },
         [this](const std::exception_ptr &error) {
             setBusy(false);
-            setErrorText(exceptionMessage(error));
+            const QString msg = exceptionMessage(error);
+            if (msg.contains(QStringLiteral("(401)")) || msg.contains(QStringLiteral("Unauthorized"))) {
+                m_database->clearAuthSession();
+                m_api->setSession({});
+                setPage(QStringLiteral("login"));
+                m_discovery->start();
+            } else {
+                setErrorText(msg);
+            }
         });
 }
 
@@ -441,10 +457,11 @@ void AppController::pollQuickConnect()
 
             QCoro::runDetached(
                 m_api->authenticateWithQuickConnect(m_quickConnectSecret),
-                [this](const AuthSession &) {
+                [this](const AuthSession &session) {
                     qInfo() << "quick connect: authenticated successfully";
                     cancelQuickConnect();
                     m_database->saveLoginHints(m_serverUrl, m_username);
+                    m_database->saveAuthSession(session);
                     loadLibraries();
                     QCoro::runDetached(m_api->postCapabilities(), []() {}, [](const std::exception_ptr &) {});
                 },
