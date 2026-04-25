@@ -133,11 +133,11 @@ void PlayerController::play(const PlaybackSession &session) {
 void PlayerController::togglePause() { mpvCommand("cycle pause"); }
 
 void PlayerController::seekBack() {
-  mpvCommand("seek -10 exact");
+  beginSeekCommand(QByteArrayLiteral("seek -10 relative+keyframes"));
 }
 
 void PlayerController::seekForward() {
-  mpvCommand("seek 30 exact");
+  beginSeekCommand(QByteArrayLiteral("seek 30 relative+keyframes"));
 }
 
 void PlayerController::seek(double seconds) {
@@ -149,9 +149,9 @@ void PlayerController::seek(double seconds) {
                               : qMax(0.0, seconds);
   const QByteArray command =
       QByteArray("seek ") + QByteArray::number(clampedSeconds, 'f', 3) +
-      QByteArray(" absolute+exact");
-  qInfo() << "player: absolute seek" << clampedSeconds;
-  mpvCommand(command.constData());
+      QByteArray(" absolute+keyframes");
+  qInfo() << "player: absolute keyframe seek" << clampedSeconds;
+  beginSeekCommand(command);
 }
 
 void PlayerController::toggleDebugOsd() {
@@ -225,9 +225,39 @@ void PlayerController::stopProgressReporting(bool failed) {
   emit playbackStopped();
 }
 
-void PlayerController::mpvCommand(const char *command) {
-  if (auto *handle = m_mpv.load())
-    mpv_command_string(handle, command);
+bool PlayerController::mpvCommand(const char *command) {
+  auto *handle = m_mpv.load();
+  if (!handle) {
+    qInfo() << "player: mpv command dropped (no handle):" << command;
+    return false;
+  }
+  const int error = mpv_command_string(handle, command);
+  if (error < 0) {
+    qWarning() << "player: mpv_command_string failed" << command
+               << "error=" << error << mpv_error_string(error);
+    return false;
+  }
+  return true;
+}
+
+bool PlayerController::beginSeekCommand(const QByteArray &command) {
+  if (m_seeking) {
+    qInfo() << "player: seek command dropped while seek is active:"
+            << command.constData();
+    return false;
+  }
+
+  m_seeking = true;
+  updatePlaybackStatusText();
+  emit stateChanged();
+
+  if (mpvCommand(command.constData()))
+    return true;
+
+  m_seeking = false;
+  updatePlaybackStatusText();
+  emit stateChanged();
+  return false;
 }
 
 void PlayerController::runPlayerThread(PlaybackSession session) {

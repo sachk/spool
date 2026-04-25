@@ -3,7 +3,7 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 WORKSPACE_ROOT="$(cd "$ROOT/.." && pwd)"
-SDK_ROOT="${WEBOS_SDK_ROOT:-/tmp/webos-sdk/arm-webos-linux-gnueabi_sdk-buildroot}"
+SDK_ROOT="${WEBOS_SDK_ROOT:-$WORKSPACE_ROOT/build/webos-sdk/arm-webos-linux-gnueabi_sdk-buildroot}"
 SYSROOT="$SDK_ROOT/arm-webos-linux-gnueabi/sysroot"
 PREFIX="$SYSROOT/usr/local/webos-native"
 MPV_BUILD="$WORKSPACE_ROOT/mpv/build/webos-libmpv"

@@ -85,7 +85,6 @@ FocusScope {
     Keys.onPressed: (event) => {
         overlay.revealControls()
         if (overlay.isIgnoredPlayerNoise(event)) {
-            console.log("Ignoring overlay noise key press scanCode=" + event.nativeScanCode)
             event.accepted = true
             return
         }
@@ -97,10 +96,8 @@ FocusScope {
 
     Keys.onReleased: (event) => {
         overlay.revealControls()
-        console.log("Player key released: " + event.key + " (nativeScanCode: " + event.nativeScanCode + ")")
 
         if (overlay.isIgnoredPlayerNoise(event)) {
-            console.log("Ignoring overlay noise key release scanCode=" + event.nativeScanCode)
             event.accepted = true
             return
         }
@@ -122,8 +119,6 @@ FocusScope {
                 overflowMenu.close()
             else if (appController.player.backAllowed)
                 appController.player.stopWithReason("overlay-back-key")
-            else
-                console.log("Ignoring early overlay back release during player startup")
             event.accepted = true
         }
     }
@@ -319,6 +314,7 @@ FocusScope {
                 MouseArea {
                     anchors.fill: parent
                     hoverEnabled: true
+                    acceptedButtons: Qt.LeftButton
 
                     function updateScrub(mouse) {
                         const pos = Math.max(0, Math.min(width, mouse.x))

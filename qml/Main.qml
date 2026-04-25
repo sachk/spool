@@ -8,7 +8,6 @@ FocusScope {
     width: 1920
     height: 1080
     focus: true
-    onFocusChanged: console.log("Main FocusScope focus: " + focus)
 
     function isBackEvent(event) {
         const scanCode = Number(event.nativeScanCode || 0)
@@ -25,17 +24,13 @@ FocusScope {
     }
     
     Keys.onPressed: (event) => {
-        console.log("Key pressed: " + event.key + " (nativeScanCode: " + event.nativeScanCode + ", text: '" + event.text + "')")
         if (root.isIgnoredPlayerNoise(event) && appController.player.visible) {
-            console.log("Ignoring player noise key press scanCode=" + event.nativeScanCode)
             event.accepted = true
         }
     }
     
     Keys.onReleased: (event) => {
-        console.log("Key released: " + event.key + " (nativeScanCode: " + event.nativeScanCode + ")")
         if (root.isIgnoredPlayerNoise(event) && appController.player.visible) {
-            console.log("Ignoring player noise key release scanCode=" + event.nativeScanCode)
             event.accepted = true
             return
         }
@@ -43,8 +38,6 @@ FocusScope {
             if (appController.player.visible) {
                 if (appController.player.backAllowed)
                     appController.player.stopWithReason("root-back-key")
-                else
-                    console.log("Ignoring early root back release during player startup")
             } else {
                 appController.back()
             }

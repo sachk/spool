@@ -2,6 +2,7 @@
 
 #include "../common/JellyfinTypes.h"
 
+#include <QByteArray>
 #include <QObject>
 #include <QTimer>
 
@@ -65,7 +66,8 @@ signals:
 private:
     void startProgressReporting();
     void stopProgressReporting(bool failed = false);
-    void mpvCommand(const char *command);
+    bool mpvCommand(const char *command);
+    bool beginSeekCommand(const QByteArray &command);
     void runPlayerThread(PlaybackSession session);
     void updatePlaybackStatusText();
     void joinPlayerThread();
