@@ -41,13 +41,37 @@ PlayerController::PlayerController(NativeAppWindow *window,
                                    JellyfinApiFacade *api, QObject *parent)
     : QObject(parent), m_window(window), m_api(api) {
   m_progressTimer.setInterval(5000);
+  m_uiPositionTimer.setInterval(250);
   m_backGuardTimer.setSingleShot(true);
   m_backGuardTimer.setInterval(1500);
+  m_seekWatchdogTimer.setSingleShot(true);
+  m_seekWatchdogTimer.setInterval(2500);
   connect(&m_backGuardTimer, &QTimer::timeout, this, [this]() {
     if (!m_visible || m_backAllowed)
       return;
     m_backAllowed = true;
     qInfo() << "player: startup back guard released";
+    emit stateChanged();
+  });
+  connect(&m_uiPositionTimer, &QTimer::timeout, this, [this]() {
+    if (!m_visible || m_paused || m_buffering || m_seeking ||
+        !m_positionClock.isValid())
+      return;
+
+    const double elapsed = m_positionClock.elapsed() / 1000.0;
+    if (elapsed <= 0.0)
+      return;
+
+    setPositionSeconds(m_positionSeconds + elapsed);
+  });
+  connect(&m_seekWatchdogTimer, &QTimer::timeout, this, [this]() {
+    if (!m_visible || !m_seeking)
+      return;
+
+    qWarning() << "player: clearing stale seek state";
+    m_seeking = false;
+    m_positionClock.restart();
+    updatePlaybackStatusText();
     emit stateChanged();
   });
   connect(&m_progressTimer, &QTimer::timeout, this, [this]() {
@@ -115,6 +139,7 @@ void PlayerController::play(const PlaybackSession &session) {
   m_errorText.clear();
   m_positionSeconds = 0.0;
   m_durationSeconds = 0.0;
+  m_positionClock.invalidate();
   m_paused = false;
   m_buffering = false;
   m_bufferingPercent = 0;
@@ -122,6 +147,7 @@ void PlayerController::play(const PlaybackSession &session) {
   m_debugOsdVisible = false;
   m_backAllowed = false;
   m_backGuardTimer.start();
+  m_uiPositionTimer.start();
   m_visible = true;
   emit visibleChanged();
   emit stateChanged();
@@ -133,11 +159,13 @@ void PlayerController::play(const PlaybackSession &session) {
 void PlayerController::togglePause() { mpvCommand("cycle pause"); }
 
 void PlayerController::seekBack() {
-  beginSeekCommand(QByteArrayLiteral("seek -10 relative+keyframes"));
+  beginSeekCommand(QByteArrayLiteral("seek -10 relative+keyframes"),
+                   clampedPosition(m_positionSeconds - 10.0));
 }
 
 void PlayerController::seekForward() {
-  beginSeekCommand(QByteArrayLiteral("seek 30 relative+keyframes"));
+  beginSeekCommand(QByteArrayLiteral("seek 30 relative+keyframes"),
+                   clampedPosition(m_positionSeconds + 30.0));
 }
 
 void PlayerController::seek(double seconds) {
@@ -151,7 +179,7 @@ void PlayerController::seek(double seconds) {
       QByteArray("seek ") + QByteArray::number(clampedSeconds, 'f', 3) +
       QByteArray(" absolute+keyframes");
   qInfo() << "player: absolute keyframe seek" << clampedSeconds;
-  beginSeekCommand(command);
+  beginSeekCommand(command, clampedSeconds);
 }
 
 void PlayerController::toggleDebugOsd() {
@@ -206,6 +234,8 @@ void PlayerController::stopProgressReporting(bool failed) {
     return;
 
   m_progressTimer.stop();
+  m_uiPositionTimer.stop();
+  m_seekWatchdogTimer.stop();
 
   const auto session = m_session;
   const qint64 positionTicks = secondsToTicks(m_positionSeconds);
@@ -218,6 +248,7 @@ void PlayerController::stopProgressReporting(bool failed) {
   m_buffering = false;
   m_bufferingPercent = 0;
   m_seeking = false;
+  m_positionClock.invalidate();
   m_debugOsdVisible = false;
   m_statusText = QStringLiteral("Ready");
   emit stateChanged();
@@ -240,7 +271,8 @@ bool PlayerController::mpvCommand(const char *command) {
   return true;
 }
 
-bool PlayerController::beginSeekCommand(const QByteArray &command) {
+bool PlayerController::beginSeekCommand(const QByteArray &command,
+                                        double targetSeconds) {
   if (m_seeking) {
     qInfo() << "player: seek command dropped while seek is active:"
             << command.constData();
@@ -248,6 +280,8 @@ bool PlayerController::beginSeekCommand(const QByteArray &command) {
   }
 
   m_seeking = true;
+  setPositionSeconds(targetSeconds);
+  m_seekWatchdogTimer.start();
   updatePlaybackStatusText();
   emit stateChanged();
 
@@ -255,6 +289,7 @@ bool PlayerController::beginSeekCommand(const QByteArray &command) {
     return true;
 
   m_seeking = false;
+  m_seekWatchdogTimer.stop();
   updatePlaybackStatusText();
   emit stateChanged();
   return false;
@@ -275,7 +310,7 @@ void PlayerController::runPlayerThread(PlaybackSession session) {
   const bool configured =
       setOption(handle, "config", "no") &&
       setOption(handle, "terminal", "no") &&
-      setOption(handle, "msg-level", "all=debug") &&
+      setOption(handle, "msg-level", "all=warn,starfish=info") &&
       setOption(handle, "log-file", kMpvLogPath) &&
       setOption(handle, "ytdl", "no") &&
       setOption(handle, "demuxer-lavf-analyzeduration", "0.1") &&
@@ -341,11 +376,16 @@ void PlayerController::runPlayerThread(PlaybackSession session) {
       });
       break;
     case MPV_EVENT_PLAYBACK_RESTART:
-      QMetaObject::invokeMethod(this, [this]() {
-        qInfo() << "player: playback restart";
-        updatePlaybackStatusText();
-        emit stateChanged();
-      });
+        QMetaObject::invokeMethod(this, [this]() {
+          qInfo() << "player: playback restart";
+          if (m_seeking) {
+            m_seeking = false;
+            m_seekWatchdogTimer.stop();
+          }
+          m_positionClock.restart();
+          updatePlaybackStatusText();
+          emit stateChanged();
+        });
       break;
     case MPV_EVENT_PROPERTY_CHANGE: {
       auto *property = static_cast<mpv_event_property *>(event->data);
@@ -357,6 +397,8 @@ void PlayerController::runPlayerThread(PlaybackSession session) {
         const bool paused = *static_cast<int *>(property->data);
         QMetaObject::invokeMethod(this, [this, paused]() {
           m_paused = paused;
+          if (!m_paused)
+            m_positionClock.restart();
           updatePlaybackStatusText();
           emit stateChanged();
         });
@@ -383,6 +425,12 @@ void PlayerController::runPlayerThread(PlaybackSession session) {
         const bool seeking = *static_cast<int *>(property->data);
         QMetaObject::invokeMethod(this, [this, seeking]() {
           m_seeking = seeking;
+          if (m_seeking)
+            m_seekWatchdogTimer.start();
+          else {
+            m_seekWatchdogTimer.stop();
+            m_positionClock.restart();
+          }
           updatePlaybackStatusText();
           emit stateChanged();
         });
@@ -390,14 +438,14 @@ void PlayerController::runPlayerThread(PlaybackSession session) {
                  property->format == MPV_FORMAT_DOUBLE) {
         const double seconds = *static_cast<double *>(property->data);
         QMetaObject::invokeMethod(this, [this, seconds]() {
-          m_positionSeconds = seconds;
-          emit stateChanged();
+          setPositionSeconds(seconds);
         });
       } else if (strcmp(property->name, "duration") == 0 &&
                  property->format == MPV_FORMAT_DOUBLE) {
         const double seconds = *static_cast<double *>(property->data);
         QMetaObject::invokeMethod(this, [this, seconds]() {
           m_durationSeconds = seconds;
+          setPositionSeconds(m_positionSeconds);
           emit stateChanged();
         });
       }
@@ -447,6 +495,26 @@ void PlayerController::updatePlaybackStatusText() {
   }
 
   m_statusText = m_paused ? QStringLiteral("Paused") : QStringLiteral("Playing");
+}
+
+double PlayerController::clampedPosition(double seconds) const {
+  if (!std::isfinite(seconds))
+    return m_positionSeconds;
+  if (m_durationSeconds > 0.0)
+    return qBound(0.0, seconds, m_durationSeconds);
+  return qMax(0.0, seconds);
+}
+
+void PlayerController::setPositionSeconds(double seconds) {
+  const double clamped = clampedPosition(seconds);
+  if (std::abs(m_positionSeconds - clamped) < 0.05) {
+    m_positionClock.restart();
+    return;
+  }
+
+  m_positionSeconds = clamped;
+  m_positionClock.restart();
+  emit stateChanged();
 }
 
 } // namespace JellyfinNative
