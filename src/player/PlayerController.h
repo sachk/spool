@@ -3,6 +3,7 @@
 #include "../common/JellyfinTypes.h"
 
 #include <QByteArray>
+#include <QElapsedTimer>
 #include <QObject>
 #include <QTimer>
 
@@ -67,10 +68,12 @@ private:
     void startProgressReporting();
     void stopProgressReporting(bool failed = false);
     bool mpvCommand(const char *command);
-    bool beginSeekCommand(const QByteArray &command);
+    bool beginSeekCommand(const QByteArray &command, double targetSeconds);
     void runPlayerThread(PlaybackSession session);
     void updatePlaybackStatusText();
     void joinPlayerThread();
+    void setPositionSeconds(double seconds);
+    double clampedPosition(double seconds) const;
 
     NativeAppWindow *m_window = nullptr;
     JellyfinApiFacade *m_api = nullptr;
@@ -81,6 +84,9 @@ private:
     std::atomic<mpv_handle *> m_mpv { nullptr };
     QTimer m_progressTimer;
     QTimer m_backGuardTimer;
+    QTimer m_uiPositionTimer;
+    QTimer m_seekWatchdogTimer;
+    QElapsedTimer m_positionClock;
     bool m_visible = false;
     bool m_paused = false;
     bool m_buffering = false;
