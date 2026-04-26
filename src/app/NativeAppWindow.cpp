@@ -300,6 +300,32 @@ void NativeAppWindow::presentOverlayCopy(const uint8_t *pixels, int width, int h
         return;
     }
 
+    bool hasVisiblePixel = false;
+    for (int y = 0; y < height && !hasVisiblePixel; ++y) {
+        const uint8_t *src = pixels + (size_t)y * stride;
+        for (int x = 0; x < width; ++x) {
+            if (src[x * 4 + 3] != 0) {
+                hasVisiblePixel = true;
+                break;
+            }
+        }
+    }
+
+    if (!hasVisiblePixel) {
+        bool changed = false;
+        {
+            QMutexLocker locker(&m_overlayMutex);
+            if (!m_overlayImage.isNull()) {
+                m_overlayImage = QImage();
+                m_overlayRevision += 1;
+                changed = true;
+            }
+        }
+        if (changed)
+            emit overlayRevisionChanged();
+        return;
+    }
+
     QImage image(width, height, QImage::Format_ARGB32_Premultiplied);
     image.fill(Qt::transparent);
     for (int y = 0; y < height; ++y) {
