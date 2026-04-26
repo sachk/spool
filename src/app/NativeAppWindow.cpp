@@ -57,10 +57,12 @@ NativeAppWindow::NativeAppWindow(const QString &appId, QWindow *parent)
     setTitle(QStringLiteral("Jellyfin Native"));
     resize(1920, 1080);
     starfish_overlay_set_present_cb(&NativeAppWindow::overlayPresentCallback, this);
+    starfish_exported_set_crop_cb(&NativeAppWindow::exportedCropCallback, this);
 }
 
 NativeAppWindow::~NativeAppWindow()
 {
+    starfish_exported_set_crop_cb(nullptr, nullptr);
     starfish_overlay_set_present_cb(nullptr, nullptr);
     if (m_exported)
         wl_webos_exported_destroy(m_exported);
@@ -236,20 +238,59 @@ void NativeAppWindow::updateCropRegion()
     if (!m_exported || !m_compositor)
         return;
 
+    const int origW = m_cropOrigW > 0 ? m_cropOrigW : width();
+    const int origH = m_cropOrigH > 0 ? m_cropOrigH : height();
+    const int srcX = m_cropSrcW > 0 ? m_cropSrcX : 0;
+    const int srcY = m_cropSrcH > 0 ? m_cropSrcY : 0;
+    const int srcW = m_cropSrcW > 0 ? m_cropSrcW : origW;
+    const int srcH = m_cropSrcH > 0 ? m_cropSrcH : origH;
+    const int dstX = m_cropDstW > 0 ? m_cropDstX : 0;
+    const int dstY = m_cropDstH > 0 ? m_cropDstY : 0;
+    const int dstW = m_cropDstW > 0 ? m_cropDstW : width();
+    const int dstH = m_cropDstH > 0 ? m_cropDstH : height();
+
     wl_region *orig = wl_compositor_create_region(m_compositor);
     wl_region *src = wl_compositor_create_region(m_compositor);
     wl_region *dst = wl_compositor_create_region(m_compositor);
     if (!orig || !src || !dst)
         return;
 
-    wl_region_add(orig, 0, 0, width(), height());
-    wl_region_add(src, 0, 0, width(), height());
-    wl_region_add(dst, 0, 0, width(), height());
+    wl_region_add(orig, 0, 0, origW, origH);
+    wl_region_add(src, srcX, srcY, srcW, srcH);
+    wl_region_add(dst, dstX, dstY, dstW, dstH);
     wl_webos_exported_set_crop_region(m_exported, orig, src, dst);
     wl_region_destroy(dst);
     wl_region_destroy(src);
     wl_region_destroy(orig);
     wl_display_flush(m_display);
+}
+
+void NativeAppWindow::setVideoCrop(int origW, int origH, int srcX, int srcY,
+                                   int srcW, int srcH, int dstX, int dstY,
+                                   int dstW, int dstH)
+{
+    if (origW <= 0 || origH <= 0 || srcW <= 0 || srcH <= 0 || dstW <= 0 || dstH <= 0)
+        return;
+
+    const bool changed = m_cropOrigW != origW || m_cropOrigH != origH ||
+                         m_cropSrcX != srcX || m_cropSrcY != srcY ||
+                         m_cropSrcW != srcW || m_cropSrcH != srcH ||
+                         m_cropDstX != dstX || m_cropDstY != dstY ||
+                         m_cropDstW != dstW || m_cropDstH != dstH;
+    if (!changed)
+        return;
+
+    m_cropOrigW = origW;
+    m_cropOrigH = origH;
+    m_cropSrcX = srcX;
+    m_cropSrcY = srcY;
+    m_cropSrcW = srcW;
+    m_cropSrcH = srcH;
+    m_cropDstX = dstX;
+    m_cropDstY = dstY;
+    m_cropDstW = dstW;
+    m_cropDstH = dstH;
+    updateCropRegion();
 }
 
 void NativeAppWindow::presentOverlayCopy(const uint8_t *pixels, int width, int height, int stride)
@@ -333,6 +374,23 @@ void NativeAppWindow::overlayPresentCallback(void *data, const uint8_t *pixels,
          bytes = QByteArray(reinterpret_cast<const char *>(pixels), byteCount)]() {
             self->presentOverlayCopy(reinterpret_cast<const uint8_t *>(bytes.constData()),
                                      width, height, stride);
+        },
+        Qt::QueuedConnection);
+}
+
+void NativeAppWindow::exportedCropCallback(void *data, int origW, int origH,
+                                           int srcX, int srcY, int srcW, int srcH,
+                                           int dstX, int dstY, int dstW, int dstH)
+{
+    auto *self = static_cast<NativeAppWindow *>(data);
+    if (!self)
+        return;
+
+    QMetaObject::invokeMethod(
+        self,
+        [self, origW, origH, srcX, srcY, srcW, srcH, dstX, dstY, dstW, dstH]() {
+            self->setVideoCrop(origW, origH, srcX, srcY, srcW, srcH,
+                               dstX, dstY, dstW, dstH);
         },
         Qt::QueuedConnection);
 }

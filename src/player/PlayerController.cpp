@@ -70,6 +70,7 @@ PlayerController::PlayerController(NativeAppWindow *window,
 
     qWarning() << "player: clearing stale seek state";
     m_seeking = false;
+    m_requestedSeekTargetSeconds = -1.0;
     m_positionClock.restart();
     updatePlaybackStatusText();
     emit stateChanged();
@@ -159,13 +160,11 @@ void PlayerController::play(const PlaybackSession &session) {
 void PlayerController::togglePause() { mpvCommand("cycle pause"); }
 
 void PlayerController::seekBack() {
-  beginSeekCommand(QByteArrayLiteral("seek -10 relative+keyframes"),
-                   clampedPosition(m_positionSeconds - 10.0));
+  seek(clampedPosition(seekBasePosition() - 10.0));
 }
 
 void PlayerController::seekForward() {
-  beginSeekCommand(QByteArrayLiteral("seek 30 relative+keyframes"),
-                   clampedPosition(m_positionSeconds + 30.0));
+  seek(clampedPosition(seekBasePosition() + 30.0));
 }
 
 void PlayerController::seek(double seconds) {
@@ -248,6 +247,8 @@ void PlayerController::stopProgressReporting(bool failed) {
   m_buffering = false;
   m_bufferingPercent = 0;
   m_seeking = false;
+  m_pendingSeekCommand.clear();
+  m_requestedSeekTargetSeconds = -1.0;
   m_positionClock.invalidate();
   m_debugOsdVisible = false;
   m_statusText = QStringLiteral("Ready");
@@ -274,12 +275,20 @@ bool PlayerController::mpvCommand(const char *command) {
 bool PlayerController::beginSeekCommand(const QByteArray &command,
                                         double targetSeconds) {
   if (m_seeking) {
-    qInfo() << "player: seek command dropped while seek is active:"
+    qInfo() << "player: seek command queued while seek is active:"
             << command.constData();
-    return false;
+    m_pendingSeekCommand = command;
+    m_pendingSeekTargetSeconds = targetSeconds;
+    m_requestedSeekTargetSeconds = targetSeconds;
+    setPositionSeconds(targetSeconds);
+    m_seekWatchdogTimer.start();
+    updatePlaybackStatusText();
+    emit stateChanged();
+    return true;
   }
 
   m_seeking = true;
+  m_requestedSeekTargetSeconds = targetSeconds;
   setPositionSeconds(targetSeconds);
   m_seekWatchdogTimer.start();
   updatePlaybackStatusText();
@@ -289,10 +298,22 @@ bool PlayerController::beginSeekCommand(const QByteArray &command,
     return true;
 
   m_seeking = false;
+  m_requestedSeekTargetSeconds = -1.0;
   m_seekWatchdogTimer.stop();
   updatePlaybackStatusText();
   emit stateChanged();
   return false;
+}
+
+void PlayerController::dispatchPendingSeek() {
+  if (m_pendingSeekCommand.isEmpty() || m_seeking)
+    return;
+
+  const QByteArray command = m_pendingSeekCommand;
+  const double targetSeconds = m_pendingSeekTargetSeconds;
+  m_pendingSeekCommand.clear();
+  m_requestedSeekTargetSeconds = -1.0;
+  beginSeekCommand(command, targetSeconds);
 }
 
 void PlayerController::runPlayerThread(PlaybackSession session) {
@@ -319,6 +340,7 @@ void PlayerController::runPlayerThread(PlaybackSession session) {
       setOption(handle, "cache-pause", "no") &&
       setOption(handle, "demuxer-max-bytes", "32M") &&
       setOption(handle, "demuxer-max-back-bytes", "8M") &&
+      setOption(handle, "initial-audio-sync", "no") &&
       setOption(handle, "force-window", "immediate") &&
       setOption(handle, "vo", "starfish") &&
       setOption(handle, "vd", "starfish") &&
@@ -380,11 +402,13 @@ void PlayerController::runPlayerThread(PlaybackSession session) {
           qInfo() << "player: playback restart";
           if (m_seeking) {
             m_seeking = false;
+            m_requestedSeekTargetSeconds = -1.0;
             m_seekWatchdogTimer.stop();
           }
           m_positionClock.restart();
           updatePlaybackStatusText();
           emit stateChanged();
+          dispatchPendingSeek();
         });
       break;
     case MPV_EVENT_PROPERTY_CHANGE: {
@@ -429,7 +453,9 @@ void PlayerController::runPlayerThread(PlaybackSession session) {
             m_seekWatchdogTimer.start();
           else {
             m_seekWatchdogTimer.stop();
+            m_requestedSeekTargetSeconds = -1.0;
             m_positionClock.restart();
+            dispatchPendingSeek();
           }
           updatePlaybackStatusText();
           emit stateChanged();
@@ -503,6 +529,14 @@ double PlayerController::clampedPosition(double seconds) const {
   if (m_durationSeconds > 0.0)
     return qBound(0.0, seconds, m_durationSeconds);
   return qMax(0.0, seconds);
+}
+
+double PlayerController::seekBasePosition() const {
+  if (!m_pendingSeekCommand.isEmpty())
+    return m_pendingSeekTargetSeconds;
+  if (m_requestedSeekTargetSeconds >= 0.0)
+    return m_requestedSeekTargetSeconds;
+  return m_positionSeconds;
 }
 
 void PlayerController::setPositionSeconds(double seconds) {

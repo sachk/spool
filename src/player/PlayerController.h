@@ -69,6 +69,8 @@ private:
     void stopProgressReporting(bool failed = false);
     bool mpvCommand(const char *command);
     bool beginSeekCommand(const QByteArray &command, double targetSeconds);
+    void dispatchPendingSeek();
+    double seekBasePosition() const;
     void runPlayerThread(PlaybackSession session);
     void updatePlaybackStatusText();
     void joinPlayerThread();
@@ -99,6 +101,9 @@ private:
     QString m_errorText;
     double m_positionSeconds = 0.0;
     double m_durationSeconds = 0.0;
+    QByteArray m_pendingSeekCommand;
+    double m_pendingSeekTargetSeconds = 0.0;
+    double m_requestedSeekTargetSeconds = -1.0;
 };
 
 } // namespace JellyfinNative
