@@ -44,6 +44,8 @@ private:
     bool ensureVideoSurface();
     bool bindGlobals();
     void updateCropRegion();
+    void setVideoCrop(int origW, int origH, int srcX, int srcY, int srcW, int srcH,
+                      int dstX, int dstY, int dstW, int dstH);
     void presentOverlayCopy(const uint8_t *pixels, int width, int height, int stride);
 
     static void registryGlobal(void *data, wl_registry *registry, uint32_t name,
@@ -52,6 +54,9 @@ private:
     static void exportedWindowIdAssigned(void *data, wl_webos_exported *, const char *window_id, uint32_t);
     static void overlayPresentCallback(void *data, const uint8_t *pixels,
                                        int width, int height, int stride);
+    static void exportedCropCallback(void *data, int origW, int origH,
+                                     int srcX, int srcY, int srcW, int srcH,
+                                     int dstX, int dstY, int dstW, int dstH);
 
     QString m_appId;
     mutable QMutex m_overlayMutex;
@@ -67,6 +72,16 @@ private:
     wl_webos_foreign *m_webosForeign = nullptr;
     wl_webos_exported *m_exported = nullptr;
     std::string m_windowId;
+    int m_cropOrigW = 0;
+    int m_cropOrigH = 0;
+    int m_cropSrcX = 0;
+    int m_cropSrcY = 0;
+    int m_cropSrcW = 0;
+    int m_cropSrcH = 0;
+    int m_cropDstX = 0;
+    int m_cropDstY = 0;
+    int m_cropDstW = 0;
+    int m_cropDstH = 0;
 
     static const wl_registry_listener s_registryListener;
     static const wl_webos_exported_listener s_exportedListener;

@@ -91,6 +91,12 @@ FocusScope {
         if (overlay.isBackEvent(event) && overflowMenu.opened) {
             overflowMenu.close()
             event.accepted = true
+        } else if (event.key === Qt.Key_Left) {
+            appController.player.seekBack()
+            event.accepted = true
+        } else if (event.key === Qt.Key_Right) {
+            appController.player.seekForward()
+            event.accepted = true
         }
     }
 
@@ -102,13 +108,7 @@ FocusScope {
             return
         }
 
-        if (event.key === Qt.Key_Left) {
-            appController.player.seekBack()
-            event.accepted = true
-        } else if (event.key === Qt.Key_Right) {
-            appController.player.seekForward()
-            event.accepted = true
-        } else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter || event.key === Qt.Key_Space) {
+        if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter || event.key === Qt.Key_Space) {
             appController.player.togglePause()
             event.accepted = true
         } else if (event.key === Qt.Key_I || event.key === Qt.Key_Info || event.key === Qt.Key_Menu) {
