@@ -28,6 +28,9 @@ class AppController final : public QObject
     Q_PROPERTY(QString quickConnectStatus READ quickConnectStatus NOTIFY quickConnectChanged)
     Q_PROPERTY(bool quickConnectActive READ quickConnectActive NOTIFY quickConnectChanged)
     Q_PROPERTY(QString currentLibraryName READ currentLibraryName NOTIFY currentLibraryNameChanged)
+    Q_PROPERTY(QString currentContentLabel READ currentContentLabel NOTIFY currentLibraryNameChanged)
+    Q_PROPERTY(bool settingsVisible READ settingsVisible NOTIFY settingsVisibleChanged)
+    Q_PROPERTY(bool nightModeEnabled READ nightModeEnabled WRITE setNightModeEnabled NOTIFY nightModeEnabledChanged)
     Q_PROPERTY(JellyfinNative::DiscoveredServerModel *discoveredServers READ discoveredServers CONSTANT)
     Q_PROPERTY(JellyfinNative::LibraryListModel *libraries READ libraries CONSTANT)
     Q_PROPERTY(JellyfinNative::MovieGridModel *movies READ movies CONSTANT)
@@ -51,6 +54,9 @@ public:
     QString quickConnectStatus() const;
     bool quickConnectActive() const;
     QString currentLibraryName() const;
+    QString currentContentLabel() const;
+    bool settingsVisible() const;
+    bool nightModeEnabled() const;
 
     DiscoveredServerModel *discoveredServers();
     LibraryListModel *libraries();
@@ -69,6 +75,10 @@ public:
     Q_INVOKABLE void playMovie(int index);
     Q_INVOKABLE void back();
     Q_INVOKABLE void clearError();
+    Q_INVOKABLE void openSettings();
+    Q_INVOKABLE void closeSettings();
+    Q_INVOKABLE void toggleNightMode();
+    Q_INVOKABLE void setNightModeEnabled(bool enabled);
 
 signals:
     void pageChanged();
@@ -79,6 +89,8 @@ signals:
     void errorTextChanged();
     void quickConnectChanged();
     void currentLibraryNameChanged();
+    void settingsVisibleChanged();
+    void nightModeEnabledChanged();
 
 private:
     void setPage(const QString &page);
@@ -90,6 +102,10 @@ private:
     void loadLibraries();
     void pollQuickConnect();
     void prefetchMoviePosters(const std::vector<MovieItem> &movies);
+    void setCurrentItems(const std::vector<MovieItem> &items, const QString &cacheKey = {});
+    void openSeries(const MovieItem &series);
+    void openSeason(const MovieItem &season);
+    void playMediaItem(const MovieItem &item);
 
     DatabaseManager *m_database = nullptr;
     DiscoveryController *m_discovery = nullptr;
@@ -113,6 +129,12 @@ private:
     int m_quickConnectPollErrors = 0;
     QString m_currentLibraryId;
     QString m_currentLibraryName;
+    QString m_currentContentLabel = QStringLiteral("Movies");
+    QString m_currentViewKind;
+    QString m_currentSeriesId;
+    QString m_currentSeriesName;
+    bool m_settingsVisible = false;
+    bool m_nightModeEnabled = false;
 };
 
 } // namespace JellyfinNative

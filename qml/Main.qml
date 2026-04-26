@@ -104,6 +104,13 @@ FocusScope {
         z: 20
     }
 
+    SettingsPanel {
+        anchors.fill: parent
+        visible: appController.settingsVisible && !appController.player.visible
+        z: 30
+        focus: visible
+    }
+
     Rectangle {
         anchors.fill: parent
         visible: appController.busy

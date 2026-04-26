@@ -26,7 +26,13 @@ struct MovieItem {
     QString overview;
     QString posterUrl;
     QString posterTag;
+    QString itemType;
+    QString seriesId;
+    QString subtitle;
     int year = 0;
+    int seasonNumber = 0;
+    int episodeNumber = 0;
+    bool playable = true;
 };
 
 struct AuthSession {

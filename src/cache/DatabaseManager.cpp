@@ -231,6 +231,18 @@ void DatabaseManager::saveMovies(const QString &libraryId, const QJsonArray &mov
     });
 }
 
+bool DatabaseManager::loadNightModeEnabled()
+{
+    return invokeOnWorker([this]() { return m_worker->value(QStringLiteral("settings/nightMode")); }).toBool();
+}
+
+void DatabaseManager::saveNightModeEnabled(bool enabled)
+{
+    invokeOnWorkerAsync([this, enabled]() {
+        m_worker->setValue(QStringLiteral("settings/nightMode"), enabled);
+    });
+}
+
 } // namespace JellyfinNative
 
 #include "DatabaseManager.moc"

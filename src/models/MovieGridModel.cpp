@@ -33,6 +33,16 @@ QVariant MovieGridModel::data(const QModelIndex &index, int role) const
         return movie.posterTag;
     case YearRole:
         return movie.year;
+    case ItemTypeRole:
+        return movie.itemType;
+    case SubtitleRole:
+        return movie.subtitle;
+    case SeasonNumberRole:
+        return movie.seasonNumber;
+    case EpisodeNumberRole:
+        return movie.episodeNumber;
+    case PlayableRole:
+        return movie.playable;
     default:
         return {};
     }
@@ -47,6 +57,11 @@ QHash<int, QByteArray> MovieGridModel::roleNames() const
         {PosterUrlRole, "posterUrl"},
         {PosterTagRole, "posterTag"},
         {YearRole, "year"},
+        {ItemTypeRole, "itemType"},
+        {SubtitleRole, "subtitle"},
+        {SeasonNumberRole, "seasonNumber"},
+        {EpisodeNumberRole, "episodeNumber"},
+        {PlayableRole, "playable"},
     };
 }
 
@@ -63,6 +78,11 @@ QVariantMap MovieGridModel::get(int index) const
         {QStringLiteral("posterUrl"), movie.posterUrl},
         {QStringLiteral("posterTag"), movie.posterTag},
         {QStringLiteral("year"), movie.year},
+        {QStringLiteral("itemType"), movie.itemType},
+        {QStringLiteral("subtitle"), movie.subtitle},
+        {QStringLiteral("seasonNumber"), movie.seasonNumber},
+        {QStringLiteral("episodeNumber"), movie.episodeNumber},
+        {QStringLiteral("playable"), movie.playable},
     };
 }
 

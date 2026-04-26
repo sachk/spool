@@ -47,10 +47,15 @@ FocusScope {
                 Layout.fillWidth: true
                 elide: Text.ElideRight
             }
+
+            Button {
+                text: "Settings"
+                onClicked: appController.openSettings()
+            }
         }
 
         Label {
-            text: "Movies"
+            text: appController.currentContentLabel
             font.pixelSize: 19
             color: "#8ec7de"
         }
@@ -86,6 +91,9 @@ FocusScope {
                     required property string posterUrl
                     required property string posterTag
                     required property int year
+                    required property string itemType
+                    required property string subtitle
+                    required property bool playable
 
                     width: movieGrid.cellWidth
                     height: movieGrid.cellHeight
@@ -158,7 +166,9 @@ FocusScope {
                     Label {
                         text: libraryPage.currentMovie && libraryPage.currentMovie.year > 0
                               ? String(libraryPage.currentMovie.year)
-                              : "Direct Play"
+                              : (libraryPage.currentMovie && libraryPage.currentMovie.subtitle.length > 0
+                                 ? libraryPage.currentMovie.subtitle
+                                 : (libraryPage.currentMovie && libraryPage.currentMovie.playable ? "Direct Play" : "Open"))
                         font.pixelSize: 19
                         color: "#82daf5"
                     }
@@ -175,7 +185,9 @@ FocusScope {
                         Layout.fillHeight: true
                         text: libraryPage.currentMovie && libraryPage.currentMovie.overview.length > 0
                               ? libraryPage.currentMovie.overview
-                              : "Select a movie to begin playback."
+                              : (libraryPage.currentMovie && libraryPage.currentMovie.playable
+                                 ? "Select an item to begin playback."
+                                 : "Select an item to open it.")
                         wrapMode: Text.Wrap
                         color: "#d8eaf3"
                         font.pixelSize: 21

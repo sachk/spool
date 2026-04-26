@@ -19,11 +19,21 @@ FocusScope {
         anchors.margins: 80
         spacing: 24
 
-        Label {
-            text: "Libraries"
-            font.pixelSize: 54
-            font.weight: Font.DemiBold
-            color: "#f0fbff"
+        RowLayout {
+            Layout.fillWidth: true
+
+            Label {
+                text: "Libraries"
+                font.pixelSize: 54
+                font.weight: Font.DemiBold
+                color: "#f0fbff"
+                Layout.fillWidth: true
+            }
+
+            Button {
+                text: "Settings"
+                onClicked: appController.openSettings()
+            }
         }
 
         Label {

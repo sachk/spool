@@ -45,6 +45,9 @@ public:
     QJsonArray loadMovies(const QString &libraryId);
     void saveMovies(const QString &libraryId, const QJsonArray &movies);
 
+    bool loadNightModeEnabled();
+    void saveNightModeEnabled(bool enabled);
+
 private:
     QVariant invokeOnWorker(const std::function<QVariant()> &callback);
     void invokeOnWorkerAsync(const std::function<void()> &callback);

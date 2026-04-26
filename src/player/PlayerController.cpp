@@ -15,6 +15,7 @@ extern "C" {
 #include <QDebug>
 #include <QtGlobal>
 #include <QMetaObject>
+#include <QPointer>
 
 #include <cmath>
 #include <cstdint>
@@ -25,6 +26,22 @@ namespace JellyfinNative {
 namespace {
 
 constexpr auto kMpvLogPath = "/tmp/com.codex.jellyfinnative-mpv.log";
+constexpr auto kNightModeFilter =
+    "lavfi=[pan=stereo|FL<0.5*FL+1.0*FC+0.25*BL|FR<0.5*FR+1.0*FC+0.25*BR,"
+    "dialoguenhance=original=0.25:enhance=2.0,"
+    "pan=stereo|FL=FL+0.6*FC|FR=FR+0.6*FC,"
+    "compand=attacks=0.02:decays=0.5:points=-80/-80|-45/-35|-30/-25|-20/-18|0/-10:gain=2,"
+    "highpass=f=50:p=2:t=q:w=0.7071,"
+    "equalizer=f=60:t=q:w=1.4:g=-4,"
+    "equalizer=f=98:t=q:w=6.0:g=-9,"
+    "equalizer=f=131:t=q:w=2.5:g=-11,"
+    "equalizer=f=850:t=q:w=3.0:g=-1,"
+    "equalizer=f=2000:t=q:w=2.0:g=5,"
+    "equalizer=f=3200:t=q:w=2.5:g=4.5,"
+    "equalizer=f=4200:t=q:w=2.0:g=3.5,"
+    "treble=f=7500:t=q:w=0.6667:g=3,"
+    "speechnorm=e=12.5:r=0.0001:l=1,"
+    "alimiter=limit=0.95:attack=3:release=50]";
 
 bool setOption(mpv_handle *handle, const char *name, const char *value) {
   const int error = mpv_set_option_string(handle, name, value);
@@ -116,6 +133,8 @@ double PlayerController::positionSeconds() const { return m_positionSeconds; }
 
 double PlayerController::durationSeconds() const { return m_durationSeconds; }
 
+bool PlayerController::nightModeEnabled() const { return m_nightModeEnabled.load(); }
+
 void PlayerController::play(const PlaybackSession &session) {
   qInfo() << "player: play requested" << session.title;
   stopWithReason(QStringLiteral("play/new-session"));
@@ -204,12 +223,39 @@ void PlayerController::stopWithReason(const QString &reason) {
   // does not freeze the UI / main-thread event loop.
   if (m_thread.joinable()) {
     joinPlayerThread(); // finish any previous cleanup first
+    QPointer<PlayerController> self(this);
     m_cleanupThread =
-        std::thread([t = std::move(m_thread)]() mutable { t.join(); });
+        std::thread([self, t = std::move(m_thread)]() mutable {
+          t.join();
+          if (!self)
+            return;
+          QMetaObject::invokeMethod(self, [self]() {
+            if (!self)
+              return;
+            self->m_window->clearOverlay();
+            self->stopProgressReporting(false);
+          }, Qt::QueuedConnection);
+        });
+    return;
   }
 
   m_window->clearOverlay();
   stopProgressReporting(false);
+}
+
+void PlayerController::setNightModeEnabled(bool enabled) {
+  if (m_nightModeEnabled.load() == enabled)
+    return;
+  m_nightModeEnabled = enabled;
+  if (auto *handle = m_mpv.load()) {
+    const char *value = enabled ? kNightModeFilter : "";
+    const int error = mpv_set_property_string(handle, "af", value);
+    if (error < 0) {
+      qWarning() << "player: failed to apply night mode filter"
+                 << mpv_error_string(error);
+    }
+  }
+  emit nightModeEnabledChanged();
 }
 
 void PlayerController::joinPlayerThread() {
@@ -341,6 +387,7 @@ void PlayerController::runPlayerThread(PlaybackSession session) {
       setOption(handle, "demuxer-max-bytes", "32M") &&
       setOption(handle, "demuxer-max-back-bytes", "8M") &&
       setOption(handle, "initial-audio-sync", "no") &&
+      (!m_nightModeEnabled.load() || setOption(handle, "af", kNightModeFilter)) &&
       setOption(handle, "force-window", "immediate") &&
       setOption(handle, "vo", "starfish") &&
       setOption(handle, "vd", "starfish") &&

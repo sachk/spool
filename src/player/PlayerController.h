@@ -32,6 +32,7 @@ class PlayerController final : public QObject
     Q_PROPERTY(bool backAllowed READ backAllowed NOTIFY stateChanged)
     Q_PROPERTY(double positionSeconds READ positionSeconds NOTIFY stateChanged)
     Q_PROPERTY(double durationSeconds READ durationSeconds NOTIFY stateChanged)
+    Q_PROPERTY(bool nightModeEnabled READ nightModeEnabled WRITE setNightModeEnabled NOTIFY nightModeEnabledChanged)
 
 public:
     PlayerController(NativeAppWindow *window, JellyfinApiFacade *api, QObject *parent = nullptr);
@@ -49,6 +50,7 @@ public:
     bool backAllowed() const;
     double positionSeconds() const;
     double durationSeconds() const;
+    bool nightModeEnabled() const;
 
     Q_INVOKABLE void play(const JellyfinNative::PlaybackSession &session);
     Q_INVOKABLE void togglePause();
@@ -58,11 +60,13 @@ public:
     Q_INVOKABLE void toggleDebugOsd();
     Q_INVOKABLE void stop();
     Q_INVOKABLE void stopWithReason(const QString &reason);
+    Q_INVOKABLE void setNightModeEnabled(bool enabled);
 
 signals:
     void visibleChanged();
     void stateChanged();
     void playbackStopped();
+    void nightModeEnabledChanged();
 
 private:
     void startProgressReporting();
@@ -104,6 +108,7 @@ private:
     QByteArray m_pendingSeekCommand;
     double m_pendingSeekTargetSeconds = 0.0;
     double m_requestedSeekTargetSeconds = -1.0;
+    std::atomic_bool m_nightModeEnabled = false;
 };
 
 } // namespace JellyfinNative

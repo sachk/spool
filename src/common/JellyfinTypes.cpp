@@ -32,7 +32,13 @@ QJsonObject toJson(const MovieItem &movie)
         {QStringLiteral("overview"), movie.overview},
         {QStringLiteral("posterUrl"), movie.posterUrl},
         {QStringLiteral("posterTag"), movie.posterTag},
+        {QStringLiteral("itemType"), movie.itemType},
+        {QStringLiteral("seriesId"), movie.seriesId},
+        {QStringLiteral("subtitle"), movie.subtitle},
         {QStringLiteral("year"), movie.year},
+        {QStringLiteral("seasonNumber"), movie.seasonNumber},
+        {QStringLiteral("episodeNumber"), movie.episodeNumber},
+        {QStringLiteral("playable"), movie.playable},
     };
 }
 
@@ -62,7 +68,13 @@ MovieItem movieFromJson(const QJsonObject &object)
         object.value(QStringLiteral("overview")).toString(),
         object.value(QStringLiteral("posterUrl")).toString(),
         object.value(QStringLiteral("posterTag")).toString(),
+        object.value(QStringLiteral("itemType")).toString(QStringLiteral("Movie")),
+        object.value(QStringLiteral("seriesId")).toString(),
+        object.value(QStringLiteral("subtitle")).toString(),
         object.value(QStringLiteral("year")).toInt(),
+        object.value(QStringLiteral("seasonNumber")).toInt(),
+        object.value(QStringLiteral("episodeNumber")).toInt(),
+        object.value(QStringLiteral("playable")).toBool(true),
     };
 }
 

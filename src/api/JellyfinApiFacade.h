@@ -46,6 +46,9 @@ public:
     QCoro::Task<AuthSession> authenticateWithQuickConnect(const QString &secret);
     QCoro::Task<std::vector<LibraryItem>> fetchLibraries();
     QCoro::Task<std::vector<MovieItem>> fetchMovies(const QString &libraryId);
+    QCoro::Task<std::vector<MovieItem>> fetchSeries(const QString &libraryId);
+    QCoro::Task<std::vector<MovieItem>> fetchSeasons(const QString &seriesId);
+    QCoro::Task<std::vector<MovieItem>> fetchEpisodes(const QString &seriesId, const QString &seasonId = {});
     QCoro::Task<PlaybackSession> negotiateDirectPlay(const MovieItem &movie);
     QCoro::Task<void> postCapabilities();
     QCoro::Task<void> reportPlaybackStart(const PlaybackSession &session);
