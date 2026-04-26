@@ -110,6 +110,21 @@ QString AppController::currentLibraryName() const
     return m_currentLibraryName;
 }
 
+QString AppController::currentContentLabel() const
+{
+    return m_currentContentLabel;
+}
+
+bool AppController::settingsVisible() const
+{
+    return m_settingsVisible;
+}
+
+bool AppController::nightModeEnabled() const
+{
+    return m_nightModeEnabled;
+}
+
 DiscoveredServerModel *AppController::discoveredServers()
 {
     return &m_discoveredServers;
@@ -134,8 +149,11 @@ void AppController::initialize()
 {
     m_serverUrl = m_database->loadLastServerUrl();
     m_username = m_database->loadLastUsername();
+    m_nightModeEnabled = m_database->loadNightModeEnabled();
+    m_player->setNightModeEnabled(m_nightModeEnabled);
     emit serverUrlChanged();
     emit usernameChanged();
+    emit nightModeEnabledChanged();
 
     AuthSession session = m_database->loadAuthSession();
     if (!session.accessToken.isEmpty() && !m_serverUrl.isEmpty()) {
@@ -277,36 +295,69 @@ void AppController::openLibrary(int index)
 
     m_currentLibraryId = library.id;
     m_currentLibraryName = library.name;
+    m_currentSeriesId.clear();
+    m_currentSeriesName.clear();
+    m_currentViewKind = library.collectionType == QStringLiteral("tvshows") ? QStringLiteral("series")
+                                                                            : QStringLiteral("movies");
+    m_currentContentLabel = m_currentViewKind == QStringLiteral("series") ? QStringLiteral("TV Shows")
+                                                                          : QStringLiteral("Movies");
     emit currentLibraryNameChanged();
-    applyMoviesCache(library.id);
-    setBusy(true, QStringLiteral("Loading movies…"));
+    applyMoviesCache(m_currentViewKind == QStringLiteral("series")
+                         ? QStringLiteral("series/%1").arg(library.id)
+                         : library.id);
+    setBusy(true, m_currentViewKind == QStringLiteral("series") ? QStringLiteral("Loading shows…")
+                                                                : QStringLiteral("Loading movies…"));
 
-    QCoro::runDetached(
-        m_api->fetchMovies(library.id),
-        [this, library](const std::vector<MovieItem> &movies) {
-            m_movies.setMovies(movies);
-            m_database->saveMovies(library.id, toJsonArray(movies));
-            prefetchMoviePosters(movies);
-            setBusy(false);
-            setPage(QStringLiteral("movies"));
-        },
-        [this](const std::exception_ptr &error) {
-            setBusy(false);
-            setErrorText(exceptionMessage(error));
-            if (m_page != QStringLiteral("movies"))
-                setPage(QStringLiteral("movies"));
-        });
+    if (m_currentViewKind == QStringLiteral("series")) {
+        QCoro::runDetached(
+            m_api->fetchSeries(library.id),
+            [this, library](const std::vector<MovieItem> &items) {
+                setCurrentItems(items, QStringLiteral("series/%1").arg(library.id));
+            },
+            [this](const std::exception_ptr &error) {
+                setBusy(false);
+                setErrorText(exceptionMessage(error));
+                if (m_page != QStringLiteral("movies"))
+                    setPage(QStringLiteral("movies"));
+            });
+    } else {
+        QCoro::runDetached(
+            m_api->fetchMovies(library.id),
+            [this, library](const std::vector<MovieItem> &movies) {
+                setCurrentItems(movies, library.id);
+            },
+            [this](const std::exception_ptr &error) {
+                setBusy(false);
+                setErrorText(exceptionMessage(error));
+                if (m_page != QStringLiteral("movies"))
+                    setPage(QStringLiteral("movies"));
+            });
+    }
 }
 
 void AppController::playMovie(int index)
 {
-    const auto movie = m_movies.movieAt(index);
-    if (movie.id.isEmpty())
+    const auto item = m_movies.movieAt(index);
+    if (item.id.isEmpty())
         return;
 
+    if (item.itemType == QStringLiteral("Series")) {
+        openSeries(item);
+        return;
+    }
+    if (item.itemType == QStringLiteral("Season")) {
+        openSeason(item);
+        return;
+    }
+
+    playMediaItem(item);
+}
+
+void AppController::playMediaItem(const MovieItem &item)
+{
     setBusy(true, QStringLiteral("Negotiating direct play…"));
     QCoro::runDetached(
-        m_api->negotiateDirectPlay(movie),
+        m_api->negotiateDirectPlay(item),
         [this](const PlaybackSession &session) {
             setBusy(false);
             m_player->play(session);
@@ -319,12 +370,21 @@ void AppController::playMovie(int index)
 
 void AppController::back()
 {
+    if (m_settingsVisible) {
+        closeSettings();
+        return;
+    }
+
     if (m_player->visible()) {
         m_player->stop();
         return;
     }
 
     if (m_page == QStringLiteral("movies")) {
+        if (m_currentViewKind == QStringLiteral("episodes")) {
+            openSeries({m_currentSeriesId, m_currentSeriesName, {}, {}, {}, QStringLiteral("Series"), {}, {}, 0, 0, 0, false});
+            return;
+        }
         setPage(QStringLiteral("libraries"));
         return;
     }
@@ -341,6 +401,37 @@ void AppController::back()
 void AppController::clearError()
 {
     setErrorText({});
+}
+
+void AppController::openSettings()
+{
+    if (m_settingsVisible)
+        return;
+    m_settingsVisible = true;
+    emit settingsVisibleChanged();
+}
+
+void AppController::closeSettings()
+{
+    if (!m_settingsVisible)
+        return;
+    m_settingsVisible = false;
+    emit settingsVisibleChanged();
+}
+
+void AppController::toggleNightMode()
+{
+    setNightModeEnabled(!m_nightModeEnabled);
+}
+
+void AppController::setNightModeEnabled(bool enabled)
+{
+    if (m_nightModeEnabled == enabled)
+        return;
+    m_nightModeEnabled = enabled;
+    m_database->saveNightModeEnabled(enabled);
+    m_player->setNightModeEnabled(enabled);
+    emit nightModeEnabledChanged();
 }
 
 void AppController::setPage(const QString &page)
@@ -488,6 +579,70 @@ void AppController::pollQuickConnect()
                 m_quickConnectStatus = QStringLiteral("Waiting for authorization…");
                 emit quickConnectChanged();
             }
+        });
+}
+
+void AppController::setCurrentItems(const std::vector<MovieItem> &items, const QString &cacheKey)
+{
+    m_movies.setMovies(items);
+    if (!cacheKey.isEmpty())
+        m_database->saveMovies(cacheKey, toJsonArray(items));
+    prefetchMoviePosters(items);
+    setBusy(false);
+    setPage(QStringLiteral("movies"));
+}
+
+void AppController::openSeries(const MovieItem &series)
+{
+    if (series.id.isEmpty())
+        return;
+
+    m_currentSeriesId = series.id;
+    m_currentSeriesName = series.title;
+    m_currentViewKind = QStringLiteral("seasons");
+    m_currentLibraryName = series.title;
+    m_currentContentLabel = QStringLiteral("Seasons");
+    emit currentLibraryNameChanged();
+    applyMoviesCache(QStringLiteral("seasons/%1").arg(series.id));
+    setBusy(true, QStringLiteral("Loading seasons…"));
+
+    QCoro::runDetached(
+        m_api->fetchSeasons(series.id),
+        [this, series](const std::vector<MovieItem> &seasons) {
+            if (seasons.empty()) {
+                openSeason({series.id, series.title, {}, {}, {}, QStringLiteral("Series"),
+                            series.id, {}, 0, 0, 0, false});
+                return;
+            }
+            setCurrentItems(seasons, QStringLiteral("seasons/%1").arg(series.id));
+        },
+        [this](const std::exception_ptr &error) {
+            setBusy(false);
+            setErrorText(exceptionMessage(error));
+        });
+}
+
+void AppController::openSeason(const MovieItem &season)
+{
+    const QString seriesId = !season.seriesId.isEmpty() ? season.seriesId : m_currentSeriesId;
+    if (seriesId.isEmpty())
+        return;
+
+    m_currentViewKind = QStringLiteral("episodes");
+    m_currentLibraryName = season.title;
+    m_currentContentLabel = QStringLiteral("Episodes");
+    emit currentLibraryNameChanged();
+    applyMoviesCache(QStringLiteral("episodes/%1/%2").arg(seriesId, season.id));
+    setBusy(true, QStringLiteral("Loading episodes…"));
+
+    QCoro::runDetached(
+        m_api->fetchEpisodes(seriesId, season.itemType == QStringLiteral("Season") ? season.id : QString()),
+        [this, seriesId, season](const std::vector<MovieItem> &episodes) {
+            setCurrentItems(episodes, QStringLiteral("episodes/%1/%2").arg(seriesId, season.id));
+        },
+        [this](const std::exception_ptr &error) {
+            setBusy(false);
+            setErrorText(exceptionMessage(error));
         });
 }
 

@@ -20,6 +20,11 @@ public:
         PosterUrlRole,
         PosterTagRole,
         YearRole,
+        ItemTypeRole,
+        SubtitleRole,
+        SeasonNumberRole,
+        EpisodeNumberRole,
+        PlayableRole,
     };
 
     explicit MovieGridModel(QObject *parent = nullptr);

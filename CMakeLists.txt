@@ -137,6 +137,7 @@ qt_add_qml_module(jellyfin-native
         qml/Main.qml
         qml/PlayerOverlay.qml
         qml/PosterCard.qml
+        qml/SettingsPanel.qml
 )
 
 target_include_directories(jellyfin-native PRIVATE
