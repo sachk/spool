@@ -131,10 +131,13 @@ qt_add_qml_module(jellyfin-native
     URI JellyfinWebOS
     VERSION 1.0
     QML_FILES
+        qml/GlassPanel.qml
+        qml/GlowButton.qml
         qml/LibrariesPage.qml
         qml/LibraryPage.qml
         qml/LoginPage.qml
         qml/Main.qml
+        qml/ModernTextField.qml
         qml/PlayerOverlay.qml
         qml/PosterCard.qml
         qml/SettingsPanel.qml

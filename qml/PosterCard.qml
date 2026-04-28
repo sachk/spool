@@ -14,10 +14,25 @@ Item {
 
     Rectangle {
         anchors.fill: parent
-        radius: 24
-        color: card.selected ? "#1d6285" : "#2b111a24"
-        border.color: card.selected ? "#d6f7ff" : "#23455a"
+        radius: 28
+        color: card.selected ? "#384b6378" : "#38131d24"
+        border.color: card.selected ? "#d6f7ff" : "#2e4a5d"
         border.width: card.selected ? 2 : 1
+        antialiasing: true
+        scale: card.selected ? 1.035 : 1.0
+
+        Behavior on scale { NumberAnimation { duration: 120; easing.type: Easing.OutQuad } }
+        Behavior on color { ColorAnimation { duration: 120 } }
+
+        Rectangle {
+            anchors.fill: parent
+            anchors.margins: -6
+            radius: parent.radius + 6
+            color: "transparent"
+            border.width: card.selected ? 2 : 0
+            border.color: "#5574ffd7"
+            antialiasing: true
+        }
 
         ColumnLayout {
             anchors.fill: parent
@@ -28,14 +43,15 @@ Item {
                 id: posterFrame
                 Layout.fillWidth: true
                 Layout.preferredHeight: 292
-                radius: 18
-                color: "#163445"
+                radius: 20
+                color: "#172b38"
                 clip: true
+                antialiasing: true
 
                 Rectangle {
                     anchors.fill: parent
                     visible: posterImage.status !== Image.Ready
-                    color: "#214355"
+                    color: "#203744"
 
                     Column {
                         anchors.centerIn: parent

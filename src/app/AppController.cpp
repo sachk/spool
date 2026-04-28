@@ -50,6 +50,7 @@ AppController::AppController(DatabaseManager *database,
     m_quickConnectTimer.setInterval(5000);
 
     connect(m_player, &PlayerController::playbackStopped, this, [this]() {
+        qInfo() << "app: playbackStopped page=" << m_page;
         if (m_page != QStringLiteral("movies"))
             setPage(QStringLiteral("movies"));
     });
@@ -370,6 +371,7 @@ void AppController::playMediaItem(const MovieItem &item)
 
 void AppController::back()
 {
+    qInfo() << "app: back pressed, page=" << m_page << "settingsVisible=" << m_settingsVisible;
     if (m_settingsVisible) {
         closeSettings();
         return;
@@ -385,16 +387,19 @@ void AppController::back()
             openSeries({m_currentSeriesId, m_currentSeriesName, {}, {}, {}, QStringLiteral("Series"), {}, {}, 0, 0, 0, false});
             return;
         }
+        qInfo() << "app: back from movies to libraries";
         setPage(QStringLiteral("libraries"));
         return;
     }
 
     if (m_page == QStringLiteral("libraries")) {
+        qInfo() << "app: back from libraries to login";
         setPage(QStringLiteral("login"));
         m_discovery->start();
         return;
     }
 
+    qInfo() << "app: quitting";
     QCoreApplication::quit();
 }
 

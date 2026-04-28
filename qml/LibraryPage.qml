@@ -27,37 +27,39 @@ FocusScope {
 
     ColumnLayout {
         anchors.fill: parent
-        anchors.margins: 48
-        spacing: 14
+        anchors.margins: 54
+        spacing: 16
 
         RowLayout {
             Layout.fillWidth: true
             spacing: 14
 
-            Button {
+            GlowButton {
                 text: "Back"
+                implicitWidth: 130
                 onClicked: appController.back()
             }
 
             Label {
                 text: appController.currentLibraryName
-                font.pixelSize: 42
+                font.pixelSize: 48
                 font.weight: Font.DemiBold
                 color: "#f1fbff"
                 Layout.fillWidth: true
                 elide: Text.ElideRight
             }
 
-            Button {
+            GlowButton {
                 text: "Settings"
+                implicitWidth: 165
                 onClicked: appController.openSettings()
             }
         }
 
         Label {
             text: appController.currentContentLabel
-            font.pixelSize: 19
-            color: "#8ec7de"
+            font.pixelSize: 21
+            color: "#aac7d4"
         }
 
         Item {
@@ -72,8 +74,8 @@ FocusScope {
                 anchors.right: detailPanel.left
                 anchors.rightMargin: libraryPage.contentSpacing
                 model: appController.movies
-                cellWidth: 222
-                cellHeight: 368
+                cellWidth: 232
+                cellHeight: 382
                 clip: true
                 keyNavigationWraps: true
                 currentIndex: -1
@@ -136,26 +138,25 @@ FocusScope {
                 }
             }
 
-            Rectangle {
+            GlassPanel {
                 id: detailPanel
                 anchors.top: parent.top
                 anchors.bottom: parent.bottom
                 anchors.right: parent.right
                 width: libraryPage.sidePanelWidth
                 radius: 28
-                color: "#4b10202d"
-                border.color: "#2a5a73"
-                border.width: 1
+                panelColor: "#8410202d"
+                edgeColor: "#36576b"
 
                 ColumnLayout {
                     anchors.fill: parent
-                    anchors.margins: 20
-                    spacing: 14
+                    anchors.margins: 24
+                    spacing: 16
 
                     Label {
                         text: libraryPage.currentMovie ? libraryPage.currentMovie.title : "Select a movie"
                         wrapMode: Text.Wrap
-                        font.pixelSize: 30
+                        font.pixelSize: 32
                         font.weight: Font.DemiBold
                         color: "#f3fbff"
                         Layout.fillWidth: true
@@ -163,20 +164,32 @@ FocusScope {
                         elide: Text.ElideRight
                     }
 
-                    Label {
-                        text: libraryPage.currentMovie && libraryPage.currentMovie.year > 0
-                              ? String(libraryPage.currentMovie.year)
-                              : (libraryPage.currentMovie && libraryPage.currentMovie.subtitle.length > 0
-                                 ? libraryPage.currentMovie.subtitle
-                                 : (libraryPage.currentMovie && libraryPage.currentMovie.playable ? "Direct Play" : "Open"))
-                        font.pixelSize: 19
-                        color: "#82daf5"
+                    Rectangle {
+                        implicitWidth: metaLabel.implicitWidth + 26
+                        implicitHeight: 38
+                        radius: 19
+                        color: "#273947"
+                        border.width: 1
+                        border.color: "#3d5d70"
+                        antialiasing: true
+
+                        Label {
+                            id: metaLabel
+                            anchors.centerIn: parent
+                            text: libraryPage.currentMovie && libraryPage.currentMovie.year > 0
+                                  ? String(libraryPage.currentMovie.year)
+                                  : (libraryPage.currentMovie && libraryPage.currentMovie.subtitle.length > 0
+                                     ? libraryPage.currentMovie.subtitle
+                                     : (libraryPage.currentMovie && libraryPage.currentMovie.playable ? "Direct Play" : "Open"))
+                            font.pixelSize: 19
+                            color: "#9edff0"
+                        }
                     }
 
                     Rectangle {
                         Layout.fillWidth: true
                         Layout.preferredHeight: 1
-                        color: "#2a5a73"
+                        color: "#38586a"
                         opacity: 0.7
                     }
 
@@ -189,7 +202,7 @@ FocusScope {
                                  ? "Select an item to begin playback."
                                  : "Select an item to open it.")
                         wrapMode: Text.Wrap
-                        color: "#d8eaf3"
+                        color: "#d7e7f0"
                         font.pixelSize: 21
                         verticalAlignment: Text.AlignTop
                     }

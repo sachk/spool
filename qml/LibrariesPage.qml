@@ -16,37 +16,38 @@ FocusScope {
 
     ColumnLayout {
         anchors.fill: parent
-        anchors.margins: 80
-        spacing: 24
+        anchors.margins: 76
+        spacing: 22
 
         RowLayout {
             Layout.fillWidth: true
 
             Label {
                 text: "Libraries"
-                font.pixelSize: 54
+                font.pixelSize: 62
                 font.weight: Font.DemiBold
                 color: "#f0fbff"
                 Layout.fillWidth: true
             }
 
-            Button {
+            GlowButton {
                 text: "Settings"
+                implicitWidth: 170
                 onClicked: appController.openSettings()
             }
         }
 
         Label {
             text: "Choose a Jellyfin library"
-            font.pixelSize: 24
-            color: "#8ec7de"
+            font.pixelSize: 25
+            color: "#aac7d4"
         }
 
         ListView {
             id: libraryList
             Layout.fillWidth: true
             Layout.fillHeight: true
-            spacing: 14
+            spacing: 16
             clip: true
             model: appController.libraries
             keyNavigationWraps: true
@@ -59,34 +60,57 @@ FocusScope {
                     currentIndex = -1
             }
 
-            delegate: Rectangle {
+            delegate: GlassPanel {
                 required property int index
                 required property string name
                 required property string collectionType
 
                 width: libraryList.width
-                height: 96
-                radius: 26
-                color: ListView.isCurrentItem ? "#22668b" : "#44131d28"
-                border.color: ListView.isCurrentItem ? "#d7f8ff" : "#274d62"
-                border.width: 1
+                height: 104
+                radius: 30
+                panelColor: ListView.isCurrentItem ? "#4e526d80" : "#50131d28"
+                edgeColor: ListView.isCurrentItem ? "#d7f8ff" : "#344f62"
+
+                Rectangle {
+                    anchors.left: parent.left
+                    anchors.verticalCenter: parent.verticalCenter
+                    anchors.leftMargin: 18
+                    width: 8
+                    height: parent.height - 40
+                    radius: 4
+                    color: ListView.isCurrentItem ? "#74ffd7" : "#2d607d"
+                    antialiasing: true
+                }
 
                 RowLayout {
                     anchors.fill: parent
-                    anchors.margins: 22
+                    anchors.margins: 24
+                    anchors.leftMargin: 44
                     spacing: 18
 
                     Label {
                         text: name
-                        font.pixelSize: 34
+                        font.pixelSize: 35
                         color: "#eef9ff"
                         Layout.fillWidth: true
                     }
 
-                    Label {
-                        text: collectionType.length > 0 ? collectionType : "library"
-                        font.pixelSize: 20
-                        color: "#8ec7de"
+                    Rectangle {
+                        implicitWidth: typeLabel.implicitWidth + 28
+                        implicitHeight: 38
+                        radius: 19
+                        color: "#263a49"
+                        border.width: 1
+                        border.color: "#405d70"
+                        antialiasing: true
+
+                        Label {
+                            id: typeLabel
+                            anchors.centerIn: parent
+                            text: collectionType.length > 0 ? collectionType : "library"
+                            font.pixelSize: 19
+                            color: "#9edff0"
+                        }
                     }
                 }
 

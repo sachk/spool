@@ -22,26 +22,64 @@ FocusScope {
         const scanCode = Number(event.nativeScanCode || 0)
         return event.key === 0 && (scanCode === 1206 || scanCode === 1207)
     }
-    
-    Keys.onPressed: (event) => {
-        if (root.isIgnoredPlayerNoise(event) && appController.player.visible) {
-            event.accepted = true
-        }
+
+    function isAcceptEvent(event) {
+        return event.key === Qt.Key_Return
+                || event.key === Qt.Key_Enter
+                || event.key === Qt.Key_Space
+                || event.key === Qt.Key_Select
+    }
+
+    function isDirectionalEvent(event) {
+        return event.key === Qt.Key_Left
+                || event.key === Qt.Key_Right
+                || event.key === Qt.Key_Up
+                || event.key === Qt.Key_Down
     }
     
+    Keys.onPressed: (event) => {
+        if (appController.player.visible) {
+            if (root.isIgnoredPlayerNoise(event) || root.isBackEvent(event)) {
+                event.accepted = true
+                return
+            }
+            if (root.isDirectionalEvent(event)) {
+                event.accepted = playerOverlay.handleDirectionalKey(event.key)
+                return
+            }
+        }
+    }
+
     Keys.onReleased: (event) => {
-        if (root.isIgnoredPlayerNoise(event) && appController.player.visible) {
-            event.accepted = true
+        if (appController.player.visible) {
+            if (root.isIgnoredPlayerNoise(event)) {
+                event.accepted = true
+                return
+            }
+            if (root.isBackEvent(event)) {
+                if (playerOverlay.handleBack()) {
+                    event.accepted = true
+                } else if (appController.player.backAllowed) {
+                    appController.player.stopWithReason("root-back-key")
+                    event.accepted = true
+                }
+                return
+            }
+            if (root.isAcceptEvent(event)) {
+                event.accepted = playerOverlay.handleAccept()
+                return
+            }
+            if (playerOverlay.handleShortcutKey(event.key)) {
+                event.accepted = true
+                return
+            }
             return
         }
         if (root.isBackEvent(event)) {
-            if (appController.player.visible) {
-                if (appController.player.backAllowed)
-                    appController.player.stopWithReason("root-back-key")
-            } else {
-                appController.back()
-            }
+            appController.back()
             event.accepted = true
+        } else {
+            console.log("Main unhandled key:", event.key, "scanCode:", event.nativeScanCode)
         }
     }
 
@@ -90,18 +128,20 @@ FocusScope {
     }
 
     PlayerOverlay {
+        id: playerOverlay
         anchors.fill: parent
         visible: appController.player.visible
+        z: 20
     }
 
     Image {
         anchors.fill: parent
-        visible: appController.player.visible && appController.player.debugOsdVisible
+        visible: appController.player.visible
         source: visible ? "image://mpv-overlay/live?" + nativeWindow.overlayRevision : ""
         fillMode: Image.Stretch
         smooth: false
         cache: false
-        z: 20
+        z: 9
     }
 
     SettingsPanel {
