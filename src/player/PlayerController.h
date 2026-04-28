@@ -4,7 +4,9 @@
 
 #include <QByteArray>
 #include <QElapsedTimer>
+#include <QList>
 #include <QObject>
+#include <QStringList>
 #include <QTimer>
 
 #include <atomic>
@@ -29,6 +31,9 @@ class PlayerController final : public QObject
     Q_PROPERTY(int bufferingPercent READ bufferingPercent NOTIFY stateChanged)
     Q_PROPERTY(bool seeking READ seeking NOTIFY stateChanged)
     Q_PROPERTY(bool debugOsdVisible READ debugOsdVisible NOTIFY stateChanged)
+    Q_PROPERTY(bool subtitlesEnabled READ subtitlesEnabled NOTIFY stateChanged)
+    Q_PROPERTY(QStringList subtitleTracks READ subtitleTracks NOTIFY stateChanged)
+    Q_PROPERTY(int selectedSubtitleIndex READ selectedSubtitleIndex NOTIFY stateChanged)
     Q_PROPERTY(bool backAllowed READ backAllowed NOTIFY stateChanged)
     Q_PROPERTY(double positionSeconds READ positionSeconds NOTIFY stateChanged)
     Q_PROPERTY(double durationSeconds READ durationSeconds NOTIFY stateChanged)
@@ -47,6 +52,9 @@ public:
     int bufferingPercent() const;
     bool seeking() const;
     bool debugOsdVisible() const;
+    bool subtitlesEnabled() const;
+    QStringList subtitleTracks() const;
+    int selectedSubtitleIndex() const;
     bool backAllowed() const;
     double positionSeconds() const;
     double durationSeconds() const;
@@ -58,6 +66,8 @@ public:
     Q_INVOKABLE void seekForward();
     Q_INVOKABLE void seek(double seconds);
     Q_INVOKABLE void toggleDebugOsd();
+    Q_INVOKABLE void toggleSubtitles();
+    Q_INVOKABLE void selectSubtitle(int index);
     Q_INVOKABLE void stop();
     Q_INVOKABLE void stopWithReason(const QString &reason);
     Q_INVOKABLE void setNightModeEnabled(bool enabled);
@@ -69,24 +79,30 @@ signals:
     void nightModeEnabledChanged();
 
 private:
+    bool ensureMpv();
+    void teardownMpv();
+    void scheduleMpvTeardown();
+    void runEventLoop();
     void startProgressReporting();
     void stopProgressReporting(bool failed = false);
     bool mpvCommand(const char *command);
     bool beginSeekCommand(const QByteArray &command, double targetSeconds);
     void dispatchPendingSeek();
     double seekBasePosition() const;
-    void runPlayerThread(PlaybackSession session);
     void updatePlaybackStatusText();
-    void joinPlayerThread();
     void setPositionSeconds(double seconds);
     double clampedPosition(double seconds) const;
+    void resetPlaybackUiState();
 
     NativeAppWindow *m_window = nullptr;
     JellyfinApiFacade *m_api = nullptr;
     PlaybackSession m_session;
-    std::thread m_thread;
-    std::thread m_cleanupThread;
-    std::atomic_bool m_stopRequested = false;
+    std::thread m_eventThread;
+    std::atomic_bool m_terminating { false };
+    // Tracks loadfile calls whose FILE_LOADED has not yet arrived. When > 0,
+    // an END_FILE event belongs to a file being replaced and must not tear
+    // down the UI.
+    std::atomic<int> m_pendingFileLoads { 0 };
     std::atomic<mpv_handle *> m_mpv { nullptr };
     QTimer m_progressTimer;
     QTimer m_backGuardTimer;
@@ -99,6 +115,10 @@ private:
     int m_bufferingPercent = 0;
     bool m_seeking = false;
     bool m_debugOsdVisible = false;
+    bool m_subtitlesEnabled = true;
+    QStringList m_subtitleTracks { QStringLiteral("Off") };
+    QList<int> m_subtitleIds { -1 };
+    int m_selectedSubtitleIndex = 0;
     bool m_backAllowed = true;
     QString m_title;
     QString m_statusText = QStringLiteral("Ready");

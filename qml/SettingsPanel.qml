@@ -16,7 +16,7 @@ FocusScope {
 
     Rectangle {
         anchors.fill: parent
-        color: "#b0040910"
+        color: "#c0040910"
 
         MouseArea {
             anchors.fill: parent
@@ -24,18 +24,17 @@ FocusScope {
         }
     }
 
-    Rectangle {
-        width: 560
-        height: 310
+    GlassPanel {
+        width: 660
+        height: 360
         anchors.centerIn: parent
-        radius: 18
-        color: "#111d27"
-        border.width: 1
-        border.color: "#3b7188"
+        radius: 34
+        panelColor: "#e00e1a24"
+        edgeColor: "#496b7e"
 
         ColumnLayout {
             anchors.fill: parent
-            anchors.margins: 30
+            anchors.margins: 34
             spacing: 24
 
             RowLayout {
@@ -43,14 +42,15 @@ FocusScope {
 
                 Label {
                     text: "Settings"
-                    font.pixelSize: 38
+                    font.pixelSize: 44
                     font.weight: Font.DemiBold
                     color: "#effaff"
                     Layout.fillWidth: true
                 }
 
-                Button {
+                GlowButton {
                     text: "Close"
+                    implicitWidth: 135
                     onClicked: appController.closeSettings()
                 }
             }
@@ -58,38 +58,48 @@ FocusScope {
             Rectangle {
                 Layout.fillWidth: true
                 Layout.preferredHeight: 1
-                color: "#2d5a70"
+                color: "#38586a"
             }
 
-            RowLayout {
+            GlassPanel {
                 Layout.fillWidth: true
-                spacing: 18
+                Layout.preferredHeight: 120
+                radius: 26
+                panelColor: "#52131d28"
+                edgeColor: "#36576b"
 
-                ColumnLayout {
-                    Layout.fillWidth: true
-                    spacing: 6
+                RowLayout {
+                    anchors.fill: parent
+                    anchors.margins: 22
+                    spacing: 18
 
-                    Label {
-                        text: "Night mode"
-                        font.pixelSize: 28
-                        color: "#f0fbff"
+                    ColumnLayout {
+                        Layout.fillWidth: true
+                        spacing: 6
+
+                        Label {
+                            text: "Night mode"
+                            font.pixelSize: 30
+                            font.weight: Font.DemiBold
+                            color: "#f0fbff"
+                        }
+
+                        Label {
+                            text: "Dialogue lift and late-night dynamic range"
+                            font.pixelSize: 19
+                            color: "#aac7d4"
+                        }
                     }
 
-                    Label {
-                        text: "Dialogue lift and late-night dynamic range"
-                        font.pixelSize: 18
-                        color: "#91c6d9"
-                    }
-                }
-
-                Switch {
-                    checked: appController.nightModeEnabled
-                    focus: true
-                    onToggled: appController.setNightModeEnabled(checked)
-                    Keys.onReleased: (event) => {
-                        if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
-                            appController.toggleNightMode()
-                            event.accepted = true
+                    Switch {
+                        checked: appController.nightModeEnabled
+                        focus: true
+                        onToggled: appController.setNightModeEnabled(checked)
+                        Keys.onReleased: (event) => {
+                            if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
+                                appController.toggleNightMode()
+                                event.accepted = true
+                            }
                         }
                     }
                 }

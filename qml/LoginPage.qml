@@ -16,14 +16,14 @@ FocusScope {
 
     ColumnLayout {
         anchors.fill: parent
-        anchors.margins: 80
-        spacing: 26
+        anchors.margins: 76
+        spacing: 22
 
         Item { Layout.fillHeight: true; Layout.preferredHeight: 30 }
 
         Label {
             text: "Jellyfin Native"
-            font.pixelSize: 72
+            font.pixelSize: 78
             font.weight: Font.DemiBold
             color: "#f1fbff"
             Layout.alignment: Qt.AlignHCenter
@@ -32,30 +32,26 @@ FocusScope {
         Label {
             text: "Native Qt Quick client for LG webOS"
             font.pixelSize: 26
-            color: "#82daf5"
+            color: "#9edff0"
             Layout.alignment: Qt.AlignHCenter
         }
 
-        Rectangle {
+        GlassPanel {
             Layout.alignment: Qt.AlignHCenter
             Layout.topMargin: 20
-            Layout.preferredWidth: 980
-            Layout.maximumWidth: 980
+            Layout.preferredWidth: 1060
+            Layout.maximumWidth: 1060
             Layout.fillWidth: true
-            implicitHeight: formColumn.implicitHeight + 56
+            implicitHeight: formColumn.implicitHeight + 64
             Layout.preferredHeight: implicitHeight
-            radius: 32
-            color: "#70111d28"
-            border.color: "#2d607d"
-            border.width: 1
 
             ColumnLayout {
                 id: formColumn
                 anchors.fill: parent
-                anchors.margins: 28
-                spacing: 18
+                anchors.margins: 32
+                spacing: 20
 
-                TextField {
+                ModernTextField {
                     id: serverField
                     Layout.fillWidth: true
                     placeholderText: "Server URL"
@@ -73,7 +69,7 @@ FocusScope {
                     Layout.fillWidth: true
                     spacing: 18
 
-                    TextField {
+                    ModernTextField {
                         Layout.fillWidth: true
                         placeholderText: "Username"
                         text: appController.username
@@ -85,7 +81,7 @@ FocusScope {
                         }
                     }
 
-                    TextField {
+                    ModernTextField {
                         Layout.fillWidth: true
                         placeholderText: "Password"
                         echoMode: TextInput.Password
@@ -103,14 +99,15 @@ FocusScope {
                     Layout.fillWidth: true
                     spacing: 16
 
-                    Button {
+                    GlowButton {
                         Layout.fillWidth: true
                         Layout.preferredWidth: 260
                         text: "Sign In"
+                        primary: true
                         onClicked: appController.login()
                     }
 
-                    Button {
+                    GlowButton {
                         Layout.fillWidth: true
                         Layout.preferredWidth: 260
                         text: appController.quickConnectActive ? "Cancel Quick Connect" : "Quick Connect"
@@ -123,14 +120,12 @@ FocusScope {
                     }
                 }
 
-                Rectangle {
+                GlassPanel {
                     Layout.fillWidth: true
                     visible: appController.quickConnectActive
-                    radius: 24
-                    color: "#501a2e40"
-                    border.color: "#76d8ef"
-                    border.width: 1
                     implicitHeight: quickConnectColumn.implicitHeight + 28
+                    panelColor: "#78345566"
+                    edgeColor: "#6cd8ef"
 
                     ColumnLayout {
                         id: quickConnectColumn
@@ -165,7 +160,7 @@ FocusScope {
         Label {
             text: "Detected local servers"
             font.pixelSize: 24
-            color: "#9bc2d4"
+            color: "#b6ccd8"
             Layout.leftMargin: 24
         }
 
@@ -178,7 +173,7 @@ FocusScope {
             model: appController.discoveredServers
             visible: count > 0
 
-            delegate: Rectangle {
+            delegate: GlassPanel {
                 required property int index
                 required property string name
                 required property string address
@@ -186,9 +181,8 @@ FocusScope {
                 width: discoveredList.width
                 height: 76
                 radius: 24
-                color: ListView.isCurrentItem ? "#2a6f92" : "#48131d28"
-                border.color: ListView.isCurrentItem ? "#c8f5ff" : "#2a536a"
-                border.width: 1
+                panelColor: ListView.isCurrentItem ? "#4a496e82" : "#56131d28"
+                edgeColor: ListView.isCurrentItem ? "#c8f5ff" : "#355164"
 
                 RowLayout {
                     anchors.fill: parent
@@ -223,14 +217,12 @@ FocusScope {
             }
         }
 
-        Rectangle {
+        GlassPanel {
             Layout.fillWidth: true
             Layout.preferredHeight: 132
             visible: discoveredList.count === 0
             radius: 24
-            color: "#30131d28"
-            border.color: "#2a536a"
-            border.width: 1
+            panelColor: "#40131d28"
 
             Column {
                 anchors.centerIn: parent
