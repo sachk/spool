@@ -487,16 +487,22 @@ void PlayerController::stopWithReason(const QString &reason) {
 void PlayerController::setNightModeEnabled(bool enabled) {
   if (m_nightModeEnabled.load() == enabled)
     return;
-  m_nightModeEnabled = enabled;
+
   if (auto *handle = m_mpv.load()) {
-    const int error = enabled ? mpv_set_property_string(handle, "af", kNightModeFilter)
-                              : mpv_command_string(handle, "no-osd af clr");
+    const char *enableCommand[] = {"af", "set", kNightModeFilter, nullptr};
+    const char *disableCommand[] = {"af", "clr", nullptr};
+    const int error = mpv_command(handle, enabled ? enableCommand : disableCommand);
     if (error < 0) {
       qWarning() << "player: failed to apply night mode filter"
-                 << mpv_error_string(error);
+                  << mpv_error_string(error);
+      emit stateChanged();
+      return;
     }
   }
+
+  m_nightModeEnabled = enabled;
   emit nightModeEnabledChanged();
+  emit stateChanged();
 }
 
 void PlayerController::startProgressReporting() {
