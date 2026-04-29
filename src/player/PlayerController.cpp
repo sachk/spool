@@ -299,6 +299,8 @@ bool PlayerController::ensureMpv() {
       setOption(handle, "vo", "starfish") &&
       setOption(handle, "vd", "starfish") &&
       setOption(handle, "ao", "starfish,null") &&
+      setOption(handle, "osd-bar", "no") &&
+      setOption(handle, "osd-duration", "0") &&
       setOption(handle, "sid", m_subtitlesEnabled ? "auto" : "no") &&
       setOption(handle, "sub-auto", "all") &&
       setOption(handle, "sub-visibility", "yes") &&
@@ -410,7 +412,7 @@ void PlayerController::play(const PlaybackSession &session) {
   mpv_command_string(handle, "set pause no");
 }
 
-void PlayerController::togglePause() { mpvCommand("cycle pause"); }
+void PlayerController::togglePause() { mpvCommand("no-osd cycle pause"); }
 
 void PlayerController::seekBack() {
   seek(clampedPosition(seekBasePosition() - 10.0));
@@ -428,7 +430,7 @@ void PlayerController::seek(double seconds) {
       m_durationSeconds > 0.0 ? qBound(0.0, seconds, m_durationSeconds)
                               : qMax(0.0, seconds);
   const QByteArray command =
-      QByteArray("seek ") + QByteArray::number(clampedSeconds, 'f', 3) +
+      QByteArray("no-osd seek ") + QByteArray::number(clampedSeconds, 'f', 3) +
       QByteArray(" absolute+keyframes");
   qInfo() << "player: absolute keyframe seek" << clampedSeconds;
   beginSeekCommand(command, clampedSeconds);
@@ -453,9 +455,9 @@ void PlayerController::selectSubtitle(int index) {
     return;
 
   const int trackId = m_subtitleIds[index];
-  const QByteArray command = QByteArray("set sid ") +
+  const QByteArray command = QByteArray("no-osd set sid ") +
                              (trackId < 0 ? QByteArray("no")
-                                          : QByteArray::number(trackId));
+                                           : QByteArray::number(trackId));
   mpvCommand(command.constData());
   m_selectedSubtitleIndex = index;
   m_subtitlesEnabled = trackId >= 0;
@@ -487,8 +489,8 @@ void PlayerController::setNightModeEnabled(bool enabled) {
     return;
   m_nightModeEnabled = enabled;
   if (auto *handle = m_mpv.load()) {
-    const char *value = enabled ? kNightModeFilter : "";
-    const int error = mpv_set_property_string(handle, "af", value);
+    const int error = enabled ? mpv_set_property_string(handle, "af", kNightModeFilter)
+                              : mpv_command_string(handle, "no-osd af clr");
     if (error < 0) {
       qWarning() << "player: failed to apply night mode filter"
                  << mpv_error_string(error);
