@@ -284,7 +284,11 @@ bool PlayerController::ensureMpv() {
   const bool configured =
       setOption(handle, "config", "no") &&
       setOption(handle, "terminal", "no") &&
+#ifdef JELLYFIN_NATIVE_WEBOS
       setOption(handle, "msg-level", "all=warn,starfish=info,sub=v") &&
+#else
+      setOption(handle, "msg-level", "all=warn,sub=v") &&
+#endif
       setOption(handle, "log-file", kMpvLogPath) &&
       setOption(handle, "ytdl", "no") &&
       setOption(handle, "demuxer-lavf-analyzeduration", "1") &&
@@ -295,10 +299,18 @@ bool PlayerController::ensureMpv() {
       setOption(handle, "demuxer-max-back-bytes", "32M") &&
       setOption(handle, "initial-audio-sync", "no") &&
       (!m_nightModeEnabled.load() || setOption(handle, "af", kNightModeFilter)) &&
+#ifdef JELLYFIN_NATIVE_WEBOS
       setOption(handle, "force-window", "no") &&
       setOption(handle, "vo", "starfish") &&
       setOption(handle, "vd", "starfish") &&
       setOption(handle, "ao", "starfish,null") &&
+#else
+      setOption(handle, "force-window", "yes") &&
+      setOption(handle, "vo", "gpu") &&
+      setOption(handle, "gpu-context", "wayland") &&
+      setOption(handle, "hwdec", "auto-safe") &&
+      setOption(handle, "ao", "pipewire,pulse,alsa") &&
+#endif
       setOption(handle, "osd-bar", "no") &&
       setOption(handle, "osd-duration", "0") &&
       setOption(handle, "sid", m_subtitlesEnabled ? "auto" : "no") &&
@@ -377,7 +389,11 @@ void PlayerController::play(const PlaybackSession &session) {
 
   m_session = session;
   m_title = session.title;
+#ifdef JELLYFIN_NATIVE_WEBOS
   m_statusText = QStringLiteral("Preparing libmpv + Starfish...");
+#else
+  m_statusText = QStringLiteral("Preparing libmpv...");
+#endif
   m_errorText.clear();
   m_positionSeconds = 0.0;
   m_durationSeconds = 0.0;

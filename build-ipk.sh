@@ -16,12 +16,6 @@ STAGE_LIB="$APP_DIR/lib"
 STAGE_BIN="$APP_DIR/bin"
 PATCHELF_BIN="$(command -v patchelf)"
 STRIP_BIN="$SDK_ROOT/bin/arm-webos-linux-gnueabi-strip"
-OPENAPI_GENERATOR_CLI="$(command -v openapi-generator-cli || true)"
-OPENAPI_GENERATOR_CLI_JAR=""
-
-if [[ -n "$OPENAPI_GENERATOR_CLI" ]]; then
-  OPENAPI_GENERATOR_CLI_JAR="$(cd "$(dirname "$OPENAPI_GENERATOR_CLI")/.." && pwd)/share/java/openapi-generator-cli.jar"
-fi
 
 # Auto-detect static vs shared Qt: prefer static if available
 QT6_STATIC_PREFIX="$WORKSPACE_ROOT/build/qt6-611-target-static-install"
@@ -130,9 +124,7 @@ cmake -S "$ROOT" -B "$CMAKE_BUILD_DIR" -GNinja \
   -DCMAKE_FIND_ROOT_PATH="$SYSROOT;$QT6_PREFIX" \
   -DCMAKE_PREFIX_PATH="$QT6_PREFIX;$QT6_PREFIX/lib/cmake" \
   -DQt6_DIR="$QT6_PREFIX/lib/cmake/Qt6" \
-  -DQt6OpenApiTools_DIR="$QT6_HOST_PREFIX/lib/cmake/Qt6OpenApiTools" \
   -DQT_HOST_PATH="$QT6_HOST_PREFIX" \
-  -DOPENAPI_GENERATOR_CLI_JAR="$OPENAPI_GENERATOR_CLI_JAR" \
   -DCMAKE_INSTALL_PREFIX=/usr/palm/applications/com.codex.jellyfinwebosnative \
   "${CMAKE_EXTRA_FLAGS[@]}"
 

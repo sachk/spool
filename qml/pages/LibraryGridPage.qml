@@ -55,7 +55,7 @@ FocusScope {
         anchors.fill: parent
         anchors.margins: Metrics.pageMargin(width)
         spacing: 12
-        SectionHeader { Layout.fillWidth: true; title: appController.currentLibraryName.length > 0 ? appController.currentLibraryName : "Movies"; detail: "Sort: Recently Added · Filter: All · View: Posters · Columns: " + columns }
+        SectionHeader { Layout.fillWidth: true; title: appController.currentLibraryName.length > 0 ? appController.currentLibraryName : "Movies" }
         TechMetadataLine { Layout.fillWidth: true; metadata: grid.currentIndex >= 0 ? "Title · Year · Runtime · Rating · H.265 · HDR10 · DTS-HD MA 5.1" : "Technical metadata unavailable" }
         GridView {
             id: grid

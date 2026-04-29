@@ -1,6 +1,37 @@
 #include "MovieGridModel.h"
 
+#include <algorithm>
+
 namespace JellyfinNative {
+
+namespace {
+
+double playbackProgress(const MovieItem &movie)
+{
+    if (movie.resumeTicks <= 0 || movie.runtimeTicks <= 0)
+        return 0.0;
+    return std::clamp(static_cast<double>(movie.resumeTicks) / static_cast<double>(movie.runtimeTicks), 0.0, 1.0);
+}
+
+QString displayTitle(const MovieItem &movie)
+{
+    if (movie.itemType == QStringLiteral("Episode") && !movie.seriesName.isEmpty())
+        return movie.seriesName;
+    return movie.title;
+}
+
+QString displaySubtitle(const MovieItem &movie)
+{
+    if (movie.itemType == QStringLiteral("Episode")) {
+        if (!movie.subtitle.isEmpty() && !movie.title.isEmpty())
+            return QStringLiteral("%1 · %2").arg(movie.subtitle, movie.title);
+        if (!movie.title.isEmpty())
+            return movie.title;
+    }
+    return movie.subtitle;
+}
+
+}
 
 MovieGridModel::MovieGridModel(QObject *parent)
     : QAbstractListModel(parent)
@@ -45,6 +76,16 @@ QVariant MovieGridModel::data(const QModelIndex &index, int role) const
         return movie.episodeNumber;
     case ResumeTicksRole:
         return QVariant::fromValue(movie.resumeTicks);
+    case RuntimeTicksRole:
+        return QVariant::fromValue(movie.runtimeTicks);
+    case ProgressRole:
+        return playbackProgress(movie);
+    case SeriesNameRole:
+        return movie.seriesName;
+    case DisplayTitleRole:
+        return displayTitle(movie);
+    case DisplaySubtitleRole:
+        return displaySubtitle(movie);
     case PlayActionLabelRole:
         return movie.resumeTicks > 0 ? QStringLiteral("Resume") : QStringLiteral("Play");
     case PlayableRole:
@@ -69,6 +110,11 @@ QHash<int, QByteArray> MovieGridModel::roleNames() const
         {SeasonNumberRole, "seasonNumber"},
         {EpisodeNumberRole, "episodeNumber"},
         {ResumeTicksRole, "resumeTicks"},
+        {RuntimeTicksRole, "runtimeTicks"},
+        {ProgressRole, "progress"},
+        {SeriesNameRole, "seriesName"},
+        {DisplayTitleRole, "displayTitle"},
+        {DisplaySubtitleRole, "displaySubtitle"},
         {PlayActionLabelRole, "playActionLabel"},
         {PlayableRole, "playable"},
     };
@@ -93,6 +139,11 @@ QVariantMap MovieGridModel::get(int index) const
         {QStringLiteral("seasonNumber"), movie.seasonNumber},
         {QStringLiteral("episodeNumber"), movie.episodeNumber},
         {QStringLiteral("resumeTicks"), QVariant::fromValue(movie.resumeTicks)},
+        {QStringLiteral("runtimeTicks"), QVariant::fromValue(movie.runtimeTicks)},
+        {QStringLiteral("progress"), playbackProgress(movie)},
+        {QStringLiteral("seriesName"), movie.seriesName},
+        {QStringLiteral("displayTitle"), displayTitle(movie)},
+        {QStringLiteral("displaySubtitle"), displaySubtitle(movie)},
         {QStringLiteral("playActionLabel"), movie.resumeTicks > 0 ? QStringLiteral("Resume") : QStringLiteral("Play")},
         {QStringLiteral("playable"), movie.playable},
     };
