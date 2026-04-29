@@ -72,6 +72,11 @@ MovieItem mediaItemFromJson(const JellyfinApiFacade *api, const QJsonObject &obj
 
     const int indexNumber = object.value(QStringLiteral("IndexNumber")).toInt();
     const int parentIndexNumber = object.value(QStringLiteral("ParentIndexNumber")).toInt();
+    const qint64 resumeTicks = object.value(QStringLiteral("UserData"))
+                                  .toObject()
+                                  .value(QStringLiteral("PlaybackPositionTicks"))
+                                  .toVariant()
+                                  .toLongLong();
 
     return {
         itemId,
@@ -82,9 +87,11 @@ MovieItem mediaItemFromJson(const JellyfinApiFacade *api, const QJsonObject &obj
         itemType,
         object.value(QStringLiteral("SeriesId")).toString(),
         subtitle,
+        object.value(QStringLiteral("Path")).toString(),
         object.value(QStringLiteral("ProductionYear")).toInt(),
         itemType == QStringLiteral("Episode") ? parentIndexNumber : indexNumber,
         itemType == QStringLiteral("Episode") ? indexNumber : 0,
+        resumeTicks,
         playable,
     };
 }
@@ -241,6 +248,8 @@ QCoro::Task<std::vector<LibraryItem>> JellyfinApiFacade::fetchLibraries()
     query.addQueryItem(QStringLiteral("userId"), m_session.userId);
     query.addQueryItem(QStringLiteral("includeHidden"), QStringLiteral("false"));
     query.addQueryItem(QStringLiteral("presetViews"), QStringLiteral("true"));
+    query.addQueryItem(QStringLiteral("enableImageTypes"), QStringLiteral("Primary"));
+    query.addQueryItem(QStringLiteral("imageTypeLimit"), QStringLiteral("1"));
 
     const QJsonArray items =
         (co_await requestJson(HttpMethod::Get, QStringLiteral("/UserViews"), query)).object().value(QStringLiteral("Items")).toArray();
@@ -249,10 +258,14 @@ QCoro::Task<std::vector<LibraryItem>> JellyfinApiFacade::fetchLibraries()
     libraries.reserve(items.size());
     for (const auto &value : items) {
         const auto object = value.toObject();
+        const QString itemId = object.value(QStringLiteral("Id")).toString();
+        const QString imageTag = object.value(QStringLiteral("ImageTags")).toObject().value(QStringLiteral("Primary")).toString();
         libraries.push_back({
-            object.value(QStringLiteral("Id")).toString(),
+            itemId,
             object.value(QStringLiteral("Name")).toString(),
             object.value(QStringLiteral("CollectionType")).toString(),
+            buildImageUrl(itemId, imageTag),
+            imageTag,
         });
     }
 
@@ -266,7 +279,7 @@ QCoro::Task<std::vector<MovieItem>> JellyfinApiFacade::fetchMovies(const QString
     query.addQueryItem(QStringLiteral("parentId"), libraryId);
     query.addQueryItem(QStringLiteral("recursive"), QStringLiteral("true"));
     query.addQueryItem(QStringLiteral("includeItemTypes"), QStringLiteral("Movie"));
-    query.addQueryItem(QStringLiteral("fields"), QStringLiteral("Overview,ProductionYear,ImageTags"));
+    query.addQueryItem(QStringLiteral("fields"), QStringLiteral("Overview,ProductionYear,ImageTags,UserData,Path"));
     query.addQueryItem(QStringLiteral("sortBy"), QStringLiteral("SortName"));
     query.addQueryItem(QStringLiteral("sortOrder"), QStringLiteral("Ascending"));
     query.addQueryItem(QStringLiteral("enableImageTypes"), QStringLiteral("Primary"));
@@ -285,6 +298,11 @@ QCoro::Task<std::vector<MovieItem>> JellyfinApiFacade::fetchMovies(const QString
 
         const QString itemId = object.value(QStringLiteral("Id")).toString();
         const QString posterTag = object.value(QStringLiteral("ImageTags")).toObject().value(QStringLiteral("Primary")).toString();
+        const qint64 resumeTicks = object.value(QStringLiteral("UserData"))
+                                      .toObject()
+                                      .value(QStringLiteral("PlaybackPositionTicks"))
+                                      .toVariant()
+                                      .toLongLong();
         movies.push_back({
             itemId,
             object.value(QStringLiteral("Name")).toString(),
@@ -296,9 +314,11 @@ QCoro::Task<std::vector<MovieItem>> JellyfinApiFacade::fetchMovies(const QString
             object.value(QStringLiteral("ProductionYear")).toInt() > 0
                 ? QString::number(object.value(QStringLiteral("ProductionYear")).toInt())
                 : QStringLiteral("Movie"),
+            object.value(QStringLiteral("Path")).toString(),
             object.value(QStringLiteral("ProductionYear")).toInt(),
             0,
             0,
+            resumeTicks,
             true,
         });
     }
@@ -313,7 +333,7 @@ QCoro::Task<std::vector<MovieItem>> JellyfinApiFacade::fetchSeries(const QString
     query.addQueryItem(QStringLiteral("parentId"), libraryId);
     query.addQueryItem(QStringLiteral("recursive"), QStringLiteral("true"));
     query.addQueryItem(QStringLiteral("includeItemTypes"), QStringLiteral("Series"));
-    query.addQueryItem(QStringLiteral("fields"), QStringLiteral("Overview,ProductionYear,ImageTags"));
+    query.addQueryItem(QStringLiteral("fields"), QStringLiteral("Overview,ProductionYear,ImageTags,UserData,Path"));
     query.addQueryItem(QStringLiteral("sortBy"), QStringLiteral("SortName"));
     query.addQueryItem(QStringLiteral("sortOrder"), QStringLiteral("Ascending"));
     query.addQueryItem(QStringLiteral("enableImageTypes"), QStringLiteral("Primary"));
@@ -338,7 +358,7 @@ QCoro::Task<std::vector<MovieItem>> JellyfinApiFacade::fetchSeasons(const QStrin
 {
     QUrlQuery query;
     query.addQueryItem(QStringLiteral("userId"), m_session.userId);
-    query.addQueryItem(QStringLiteral("fields"), QStringLiteral("Overview,ImageTags"));
+    query.addQueryItem(QStringLiteral("fields"), QStringLiteral("Overview,ImageTags,UserData,Path"));
     query.addQueryItem(QStringLiteral("enableImageTypes"), QStringLiteral("Primary"));
     query.addQueryItem(QStringLiteral("imageTypeLimit"), QStringLiteral("1"));
 
@@ -365,7 +385,7 @@ QCoro::Task<std::vector<MovieItem>> JellyfinApiFacade::fetchEpisodes(const QStri
     query.addQueryItem(QStringLiteral("userId"), m_session.userId);
     if (!seasonId.isEmpty())
         query.addQueryItem(QStringLiteral("seasonId"), seasonId);
-    query.addQueryItem(QStringLiteral("fields"), QStringLiteral("Overview,ImageTags"));
+    query.addQueryItem(QStringLiteral("fields"), QStringLiteral("Overview,ImageTags,UserData,Path"));
 
     const QJsonArray items =
         (co_await requestJson(HttpMethod::Get, QStringLiteral("/Shows/%1/Episodes").arg(seriesId), query))
@@ -392,7 +412,7 @@ QCoro::Task<PlaybackSession> JellyfinApiFacade::negotiateDirectPlay(const MovieI
     const QJsonObject body = {
         {QStringLiteral("UserId"), m_session.userId},
         {QStringLiteral("MaxStreamingBitrate"), 140000000},
-        {QStringLiteral("StartTimeTicks"), 0},
+        {QStringLiteral("StartTimeTicks"), movie.resumeTicks},
         {QStringLiteral("AutoOpenLiveStream"), true},
         {QStringLiteral("EnableDirectPlay"), true},
         {QStringLiteral("EnableDirectStream"), true},

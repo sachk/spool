@@ -17,6 +17,8 @@ public:
         IdRole = Qt::UserRole + 1,
         NameRole,
         CollectionTypeRole,
+        ImageUrlRole,
+        ImageTagRole,
     };
 
     explicit LibraryListModel(QObject *parent = nullptr);

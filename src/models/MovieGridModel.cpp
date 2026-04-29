@@ -37,10 +37,16 @@ QVariant MovieGridModel::data(const QModelIndex &index, int role) const
         return movie.itemType;
     case SubtitleRole:
         return movie.subtitle;
+    case PathRole:
+        return movie.path;
     case SeasonNumberRole:
         return movie.seasonNumber;
     case EpisodeNumberRole:
         return movie.episodeNumber;
+    case ResumeTicksRole:
+        return QVariant::fromValue(movie.resumeTicks);
+    case PlayActionLabelRole:
+        return movie.resumeTicks > 0 ? QStringLiteral("Resume") : QStringLiteral("Play");
     case PlayableRole:
         return movie.playable;
     default:
@@ -59,8 +65,11 @@ QHash<int, QByteArray> MovieGridModel::roleNames() const
         {YearRole, "year"},
         {ItemTypeRole, "itemType"},
         {SubtitleRole, "subtitle"},
+        {PathRole, "path"},
         {SeasonNumberRole, "seasonNumber"},
         {EpisodeNumberRole, "episodeNumber"},
+        {ResumeTicksRole, "resumeTicks"},
+        {PlayActionLabelRole, "playActionLabel"},
         {PlayableRole, "playable"},
     };
 }
@@ -80,8 +89,11 @@ QVariantMap MovieGridModel::get(int index) const
         {QStringLiteral("year"), movie.year},
         {QStringLiteral("itemType"), movie.itemType},
         {QStringLiteral("subtitle"), movie.subtitle},
+        {QStringLiteral("path"), movie.path},
         {QStringLiteral("seasonNumber"), movie.seasonNumber},
         {QStringLiteral("episodeNumber"), movie.episodeNumber},
+        {QStringLiteral("resumeTicks"), QVariant::fromValue(movie.resumeTicks)},
+        {QStringLiteral("playActionLabel"), movie.resumeTicks > 0 ? QStringLiteral("Resume") : QStringLiteral("Play")},
         {QStringLiteral("playable"), movie.playable},
     };
 }

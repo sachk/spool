@@ -384,7 +384,7 @@ void AppController::back()
 
     if (m_page == QStringLiteral("movies")) {
         if (m_currentViewKind == QStringLiteral("episodes")) {
-            openSeries({m_currentSeriesId, m_currentSeriesName, {}, {}, {}, QStringLiteral("Series"), {}, {}, 0, 0, 0, false});
+            openSeries({m_currentSeriesId, m_currentSeriesName, {}, {}, {}, QStringLiteral("Series"), {}, {}, {}, 0, 0, 0, 0, false});
             return;
         }
         qInfo() << "app: back from movies to libraries";

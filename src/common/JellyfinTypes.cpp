@@ -21,6 +21,8 @@ QJsonObject toJson(const LibraryItem &library)
         {QStringLiteral("id"), library.id},
         {QStringLiteral("name"), library.name},
         {QStringLiteral("collectionType"), library.collectionType},
+        {QStringLiteral("imageUrl"), library.imageUrl},
+        {QStringLiteral("imageTag"), library.imageTag},
     };
 }
 
@@ -35,9 +37,11 @@ QJsonObject toJson(const MovieItem &movie)
         {QStringLiteral("itemType"), movie.itemType},
         {QStringLiteral("seriesId"), movie.seriesId},
         {QStringLiteral("subtitle"), movie.subtitle},
+        {QStringLiteral("path"), movie.path},
         {QStringLiteral("year"), movie.year},
         {QStringLiteral("seasonNumber"), movie.seasonNumber},
         {QStringLiteral("episodeNumber"), movie.episodeNumber},
+        {QStringLiteral("resumeTicks"), QString::number(movie.resumeTicks)},
         {QStringLiteral("playable"), movie.playable},
     };
 }
@@ -57,6 +61,8 @@ LibraryItem libraryFromJson(const QJsonObject &object)
         object.value(QStringLiteral("id")).toString(),
         object.value(QStringLiteral("name")).toString(),
         object.value(QStringLiteral("collectionType")).toString(),
+        object.value(QStringLiteral("imageUrl")).toString(),
+        object.value(QStringLiteral("imageTag")).toString(),
     };
 }
 
@@ -71,9 +77,11 @@ MovieItem movieFromJson(const QJsonObject &object)
         object.value(QStringLiteral("itemType")).toString(QStringLiteral("Movie")),
         object.value(QStringLiteral("seriesId")).toString(),
         object.value(QStringLiteral("subtitle")).toString(),
+        object.value(QStringLiteral("path")).toString(),
         object.value(QStringLiteral("year")).toInt(),
         object.value(QStringLiteral("seasonNumber")).toInt(),
         object.value(QStringLiteral("episodeNumber")).toInt(),
+        object.value(QStringLiteral("resumeTicks")).toVariant().toLongLong(),
         object.value(QStringLiteral("playable")).toBool(true),
     };
 }
