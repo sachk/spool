@@ -166,6 +166,7 @@ qt_add_qml_module(jellyfin-native
         qml/primitives/ToggleRow.qml
         qml/shell/AppShell.qml
         qml/shell/DiagnosticsOverlay.qml
+        qml/shell/MediaInfoOverlay.qml
         qml/shell/RouteStack.qml
         qml/shell/ShortcutOverlay.qml
         qml/shell/SideRail.qml

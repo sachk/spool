@@ -25,6 +25,17 @@ QJsonArray toJsonArray(const std::vector<T> &items)
     return array;
 }
 
+QString homeItemSample(const std::vector<MovieItem> &items)
+{
+    QStringList sample;
+    for (const auto &item : items) {
+        sample.push_back(QStringLiteral("%1:%2:%3").arg(item.itemType, item.title).arg(item.resumeTicks));
+        if (sample.size() >= 5)
+            break;
+    }
+    return sample.join(QStringLiteral(" | "));
+}
+
 }
 
 AppController::AppController(DatabaseManager *database,
@@ -139,6 +150,21 @@ LibraryListModel *AppController::libraries()
 MovieGridModel *AppController::movies()
 {
     return &m_movies;
+}
+
+MovieGridModel *AppController::resumeItems()
+{
+    return &m_resumeItems;
+}
+
+MovieGridModel *AppController::nextUpItems()
+{
+    return &m_nextUpItems;
+}
+
+MovieGridModel *AppController::latestItems()
+{
+    return &m_latestItems;
 }
 
 PlayerController *AppController::player()
@@ -288,12 +314,25 @@ void AppController::cancelQuickConnect()
     emit quickConnectChanged();
 }
 
+void AppController::goHome()
+{
+    if (m_page == QStringLiteral("login"))
+        return;
+
+    qInfo() << "app: go home from page=" << m_page << "viewKind=" << m_currentViewKind;
+    ++m_libraryLoadGeneration;
+    setBusy(false);
+    setPage(QStringLiteral("libraries"));
+    refreshHomeRows();
+}
+
 void AppController::openLibrary(int index)
 {
     const auto library = m_libraries.libraryAt(index);
     if (library.id.isEmpty())
         return;
 
+    const int loadGeneration = ++m_libraryLoadGeneration;
     m_currentLibraryId = library.id;
     m_currentLibraryName = library.name;
     m_currentSeriesId.clear();
@@ -312,10 +351,14 @@ void AppController::openLibrary(int index)
     if (m_currentViewKind == QStringLiteral("series")) {
         QCoro::runDetached(
             m_api->fetchSeries(library.id),
-            [this, library](const std::vector<MovieItem> &items) {
+            [this, library, loadGeneration](const std::vector<MovieItem> &items) {
+                if (loadGeneration != m_libraryLoadGeneration)
+                    return;
                 setCurrentItems(items, QStringLiteral("series/%1").arg(library.id));
             },
-            [this](const std::exception_ptr &error) {
+            [this, loadGeneration](const std::exception_ptr &error) {
+                if (loadGeneration != m_libraryLoadGeneration)
+                    return;
                 setBusy(false);
                 setErrorText(exceptionMessage(error));
                 if (m_page != QStringLiteral("movies"))
@@ -324,10 +367,14 @@ void AppController::openLibrary(int index)
     } else {
         QCoro::runDetached(
             m_api->fetchMovies(library.id),
-            [this, library](const std::vector<MovieItem> &movies) {
+            [this, library, loadGeneration](const std::vector<MovieItem> &movies) {
+                if (loadGeneration != m_libraryLoadGeneration)
+                    return;
                 setCurrentItems(movies, library.id);
             },
-            [this](const std::exception_ptr &error) {
+            [this, loadGeneration](const std::exception_ptr &error) {
+                if (loadGeneration != m_libraryLoadGeneration)
+                    return;
                 setBusy(false);
                 setErrorText(exceptionMessage(error));
                 if (m_page != QStringLiteral("movies"))
@@ -351,6 +398,36 @@ void AppController::playMovie(int index)
         return;
     }
 
+    playMediaItem(item);
+}
+
+void AppController::playResumeItem(int index)
+{
+    const auto item = m_resumeItems.movieAt(index);
+    if (!item.id.isEmpty())
+        playMediaItem(item);
+}
+
+void AppController::playNextUpItem(int index)
+{
+    const auto item = m_nextUpItems.movieAt(index);
+    if (!item.id.isEmpty())
+        playMediaItem(item);
+}
+
+void AppController::playLatestItem(int index)
+{
+    const auto item = m_latestItems.movieAt(index);
+    if (item.id.isEmpty())
+        return;
+    if (item.itemType == QStringLiteral("Series")) {
+        openSeries(item);
+        return;
+    }
+    if (item.itemType == QStringLiteral("Season")) {
+        openSeason(item);
+        return;
+    }
     playMediaItem(item);
 }
 
@@ -509,6 +586,7 @@ void AppController::loadLibraries()
             m_database->saveLibraries(toJsonArray(libraries));
             setBusy(false);
             setPage(QStringLiteral("libraries"));
+            refreshHomeRows();
         },
         [this](const std::exception_ptr &error) {
             setBusy(false);
@@ -602,6 +680,7 @@ void AppController::openSeries(const MovieItem &series)
     if (series.id.isEmpty())
         return;
 
+    const int loadGeneration = ++m_libraryLoadGeneration;
     m_currentSeriesId = series.id;
     m_currentSeriesName = series.title;
     m_currentViewKind = QStringLiteral("seasons");
@@ -613,7 +692,9 @@ void AppController::openSeries(const MovieItem &series)
 
     QCoro::runDetached(
         m_api->fetchSeasons(series.id),
-        [this, series](const std::vector<MovieItem> &seasons) {
+        [this, series, loadGeneration](const std::vector<MovieItem> &seasons) {
+            if (loadGeneration != m_libraryLoadGeneration)
+                return;
             if (seasons.empty()) {
                 openSeason({series.id, series.title, {}, {}, {}, QStringLiteral("Series"),
                             series.id, {}, 0, 0, 0, false});
@@ -621,7 +702,9 @@ void AppController::openSeries(const MovieItem &series)
             }
             setCurrentItems(seasons, QStringLiteral("seasons/%1").arg(series.id));
         },
-        [this](const std::exception_ptr &error) {
+        [this, loadGeneration](const std::exception_ptr &error) {
+            if (loadGeneration != m_libraryLoadGeneration)
+                return;
             setBusy(false);
             setErrorText(exceptionMessage(error));
         });
@@ -633,6 +716,7 @@ void AppController::openSeason(const MovieItem &season)
     if (seriesId.isEmpty())
         return;
 
+    const int loadGeneration = ++m_libraryLoadGeneration;
     m_currentViewKind = QStringLiteral("episodes");
     m_currentLibraryName = season.title;
     m_currentContentLabel = QStringLiteral("Episodes");
@@ -642,13 +726,50 @@ void AppController::openSeason(const MovieItem &season)
 
     QCoro::runDetached(
         m_api->fetchEpisodes(seriesId, season.itemType == QStringLiteral("Season") ? season.id : QString()),
-        [this, seriesId, season](const std::vector<MovieItem> &episodes) {
+        [this, seriesId, season, loadGeneration](const std::vector<MovieItem> &episodes) {
+            if (loadGeneration != m_libraryLoadGeneration)
+                return;
             setCurrentItems(episodes, QStringLiteral("episodes/%1/%2").arg(seriesId, season.id));
         },
-        [this](const std::exception_ptr &error) {
+        [this, loadGeneration](const std::exception_ptr &error) {
+            if (loadGeneration != m_libraryLoadGeneration)
+                return;
             setBusy(false);
             setErrorText(exceptionMessage(error));
         });
+}
+
+void AppController::refreshHomeRows()
+{
+    if (!m_api || m_api->session().accessToken.isEmpty())
+        return;
+
+    QCoro::runDetached(
+        m_api->fetchResumeItems(),
+        [this](const std::vector<MovieItem> &items) {
+            qInfo() << "home: resume items" << items.size() << homeItemSample(items);
+            m_resumeItems.setMovies(items);
+            prefetchMoviePosters(items);
+        },
+        [](const std::exception_ptr &error) { qWarning() << "home: resume fetch failed" << exceptionMessage(error); });
+
+    QCoro::runDetached(
+        m_api->fetchNextUpEpisodes(),
+        [this](const std::vector<MovieItem> &items) {
+            qInfo() << "home: next-up items" << items.size() << homeItemSample(items);
+            m_nextUpItems.setMovies(items);
+            prefetchMoviePosters(items);
+        },
+        [](const std::exception_ptr &error) { qWarning() << "home: next-up fetch failed" << exceptionMessage(error); });
+
+    QCoro::runDetached(
+        m_api->fetchLatestItems(),
+        [this](const std::vector<MovieItem> &items) {
+            qInfo() << "home: latest items" << items.size() << homeItemSample(items);
+            m_latestItems.setMovies(items);
+            prefetchMoviePosters(items);
+        },
+        [](const std::exception_ptr &error) { qWarning() << "home: latest fetch failed" << exceptionMessage(error); });
 }
 
 void AppController::prefetchMoviePosters(const std::vector<MovieItem> &movies)

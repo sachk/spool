@@ -47,6 +47,21 @@ QHash<int, QByteArray> LibraryListModel::roleNames() const
     };
 }
 
+QVariantMap LibraryListModel::get(int index) const
+{
+    if (index < 0 || index >= rowCount())
+        return {};
+
+    const auto &library = m_libraries[static_cast<size_t>(index)];
+    return {
+        {QStringLiteral("libraryId"), library.id},
+        {QStringLiteral("name"), library.name},
+        {QStringLiteral("collectionType"), library.collectionType},
+        {QStringLiteral("imageUrl"), library.imageUrl},
+        {QStringLiteral("imageTag"), library.imageTag},
+    };
+}
+
 void LibraryListModel::setLibraries(const std::vector<LibraryItem> &libraries)
 {
     beginResetModel();

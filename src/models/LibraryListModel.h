@@ -27,6 +27,8 @@ public:
     QVariant data(const QModelIndex &index, int role) const override;
     QHash<int, QByteArray> roleNames() const override;
 
+    Q_INVOKABLE QVariantMap get(int index) const;
+
     void setLibraries(const std::vector<LibraryItem> &libraries);
     void clear();
     LibraryItem libraryAt(int index) const;
