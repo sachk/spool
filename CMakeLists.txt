@@ -127,20 +127,52 @@ qt_add_executable(jellyfin-native
     src/player/PlayerController.h
 )
 
+set_source_files_properties(
+    qml/theme/Metrics.qml
+    qml/theme/Theme.qml
+    qml/theme/Typography.qml
+    PROPERTIES QT_QML_SINGLETON_TYPE TRUE
+)
+
 qt_add_qml_module(jellyfin-native
     URI JellyfinWebOS
     VERSION 1.0
     QML_FILES
-        qml/GlassPanel.qml
-        qml/GlowButton.qml
-        qml/LibrariesPage.qml
-        qml/LibraryPage.qml
-        qml/LoginPage.qml
         qml/Main.qml
-        qml/ModernTextField.qml
-        qml/PlayerOverlay.qml
-        qml/PosterCard.qml
-        qml/SettingsPanel.qml
+        qml/pages/HomePage.qml
+        qml/pages/ItemDetailsPage.qml
+        qml/pages/LibrariesPage.qml
+        qml/pages/LibraryGridPage.qml
+        qml/pages/LoginPage.qml
+        qml/pages/PlayerOverlayPage.qml
+        qml/pages/SearchPage.qml
+        qml/pages/SettingsPage.qml
+        qml/primitives/ActionButton.qml
+        qml/primitives/AppText.qml
+        qml/primitives/EmptyPlaceholder.qml
+        qml/primitives/FocusFrame.qml
+        qml/primitives/IconButton.qml
+        qml/primitives/ImageCard.qml
+        qml/primitives/LandscapeCard.qml
+        qml/primitives/MetadataChip.qml
+        qml/primitives/MonoText.qml
+        qml/primitives/PosterCard.qml
+        qml/primitives/SectionHeader.qml
+        qml/primitives/SelectRow.qml
+        qml/primitives/SettingRow.qml
+        qml/primitives/SliderRow.qml
+        qml/primitives/Surface.qml
+        qml/primitives/TechMetadataLine.qml
+        qml/primitives/ToggleRow.qml
+        qml/shell/AppShell.qml
+        qml/shell/DiagnosticsOverlay.qml
+        qml/shell/RouteStack.qml
+        qml/shell/ShortcutOverlay.qml
+        qml/shell/SideRail.qml
+        qml/shell/ToastLayer.qml
+        qml/theme/Metrics.qml
+        qml/theme/Theme.qml
+        qml/theme/Typography.qml
 )
 
 target_include_directories(jellyfin-native PRIVATE

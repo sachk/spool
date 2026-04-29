@@ -22,8 +22,11 @@ public:
         YearRole,
         ItemTypeRole,
         SubtitleRole,
+        PathRole,
         SeasonNumberRole,
         EpisodeNumberRole,
+        ResumeTicksRole,
+        PlayActionLabelRole,
         PlayableRole,
     };
 
