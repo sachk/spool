@@ -281,30 +281,30 @@ FocusScope {
         anchors.left: parent.left
         anchors.right: parent.right
         anchors.bottom: parent.bottom
-        anchors.margins: Math.round(44 * overlay.uiScale)
-        height: Math.round(174 * overlay.uiScale)
+        anchors.margins: Math.round(52 * overlay.uiScale)
+        height: Math.round(236 * overlay.uiScale)
         visible: opacity > 0.01
         opacity: 0
 
         ColumnLayout {
             anchors.fill: parent
-            spacing: Math.round(9 * overlay.uiScale)
+            spacing: Math.round(16 * overlay.uiScale)
 
             RowLayout {
                 Layout.fillWidth: true
-                spacing: Math.round(14 * overlay.uiScale)
+                    spacing: Math.round(20 * overlay.uiScale)
 
                 ColumnLayout {
                     Layout.fillWidth: true
-                    spacing: 3
+                    spacing: Math.round(6 * overlay.uiScale)
                     Text {
                         Layout.fillWidth: true
                         text: appController.player.title
                         color: "#F4F8FA"
-                        font.pixelSize: Math.round(30 * overlay.uiScale)
-                        font.weight: Font.DemiBold
-                        font.hintingPreference: Font.PreferFullHinting
-                        renderType: Text.NativeRendering
+                        font.pixelSize: Math.round(40 * overlay.uiScale)
+                        font.weight: Font.Bold
+                        font.hintingPreference: Font.PreferNoHinting
+                        renderType: Text.QtRendering
                         maximumLineCount: 1
                         elide: Text.ElideRight
                     }
@@ -312,9 +312,10 @@ FocusScope {
                         Layout.fillWidth: true
                         text: appController.player.statusText
                         color: appController.player.buffering || appController.player.seeking ? "#9DE8FF" : "#AAB7BF"
-                        font.pixelSize: Math.round(18 * overlay.uiScale)
-                        font.hintingPreference: Font.PreferFullHinting
-                        renderType: Text.NativeRendering
+                        font.pixelSize: Math.round(24 * overlay.uiScale)
+                        font.weight: Font.Medium
+                        font.hintingPreference: Font.PreferNoHinting
+                        renderType: Text.QtRendering
                         maximumLineCount: 1
                         elide: Text.ElideRight
                     }
@@ -323,17 +324,17 @@ FocusScope {
                 Text {
                     text: appController.player.paused ? "Paused" : "Playing"
                     color: appController.player.paused ? "#FFFFFF" : "#B8C4CA"
-                    font.pixelSize: Math.round(18 * overlay.uiScale)
-                    font.weight: Font.Medium
-                    font.hintingPreference: Font.PreferFullHinting
-                    renderType: Text.NativeRendering
+                    font.pixelSize: Math.round(23 * overlay.uiScale)
+                    font.weight: Font.DemiBold
+                    font.hintingPreference: Font.PreferNoHinting
+                    renderType: Text.QtRendering
                 }
             }
 
             Item {
                 id: timeline
                 Layout.fillWidth: true
-                Layout.preferredHeight: Math.round(58 * overlay.uiScale)
+                Layout.preferredHeight: Math.round(82 * overlay.uiScale)
                 readonly property double ratio: appController.player.durationSeconds > 0 ? Math.max(0, Math.min(1, overlay.positionSeconds() / appController.player.durationSeconds)) : 0
                 readonly property bool focused: overlay.mode === "controls" && overlay.row === "timeline"
 
@@ -342,25 +343,27 @@ FocusScope {
                     anchors.top: parent.top
                     text: overlay.formatClock(overlay.positionSeconds())
                     color: timeline.focused ? "#FFFFFF" : "#B8C4CA"
-                    font.pixelSize: Math.round(17 * overlay.uiScale)
-                    font.hintingPreference: Font.PreferFullHinting
-                    renderType: Text.NativeRendering
+                    font.pixelSize: Math.round(23 * overlay.uiScale)
+                    font.weight: Font.Medium
+                    font.hintingPreference: Font.PreferNoHinting
+                    renderType: Text.QtRendering
                 }
                 Text {
                     anchors.right: parent.right
                     anchors.top: parent.top
                     text: overlay.formatClock(appController.player.durationSeconds)
                     color: "#B8C4CA"
-                    font.pixelSize: Math.round(17 * overlay.uiScale)
-                    font.hintingPreference: Font.PreferFullHinting
-                    renderType: Text.NativeRendering
+                    font.pixelSize: Math.round(23 * overlay.uiScale)
+                    font.weight: Font.Medium
+                    font.hintingPreference: Font.PreferNoHinting
+                    renderType: Text.QtRendering
                 }
                 Rectangle {
                     id: track
                     anchors.left: parent.left
                     anchors.right: parent.right
                     anchors.bottom: parent.bottom
-                    height: timeline.focused ? Math.round(10 * overlay.uiScale) : Math.round(6 * overlay.uiScale)
+                    height: timeline.focused ? Math.round(16 * overlay.uiScale) : Math.round(10 * overlay.uiScale)
                     radius: height / 2
                     color: "#55606A72"
                     border.width: timeline.focused ? 1 : 0
@@ -379,7 +382,7 @@ FocusScope {
                 Rectangle {
                     x: Math.max(0, Math.min(track.width - width, track.width * timeline.ratio - width / 2))
                     anchors.verticalCenter: track.verticalCenter
-                    width: timeline.focused ? Math.round(21 * overlay.uiScale) : Math.round(13 * overlay.uiScale)
+                    width: timeline.focused ? Math.round(32 * overlay.uiScale) : Math.round(22 * overlay.uiScale)
                     height: width
                     radius: width / 2
                     color: "#FFFFFF"
@@ -406,7 +409,7 @@ FocusScope {
             RowLayout {
                 id: actionRow
                 Layout.fillWidth: true
-                spacing: Math.round(8 * overlay.uiScale)
+                spacing: Math.round(12 * overlay.uiScale)
 
                 Repeater {
                     model: overlay.actions.length
@@ -414,17 +417,17 @@ FocusScope {
                         required property int index
                         readonly property bool focused: overlay.mode === "controls" && overlay.row === "actions" && overlay.actionIndex === index
                         readonly property string actionValue: overlay.actions[index].value
-                        Layout.preferredWidth: Math.round(58 * overlay.uiScale)
-                        Layout.preferredHeight: Math.round(48 * overlay.uiScale)
-                        radius: 6
+                        Layout.preferredWidth: Math.round(82 * overlay.uiScale)
+                        Layout.preferredHeight: Math.round(68 * overlay.uiScale)
+                        radius: Math.round(9 * overlay.uiScale)
                         color: focused ? "#2400A4DC" : "transparent"
                         border.width: focused ? 2 : 1
                         border.color: focused ? "#EAF8FF" : "#66717A82"
 
                         Item {
                             anchors.centerIn: parent
-                            width: Math.round(24 * overlay.uiScale)
-                            height: Math.round(24 * overlay.uiScale)
+                            width: Math.round(34 * overlay.uiScale)
+                            height: Math.round(34 * overlay.uiScale)
 
                             readonly property color iconColor: parent.focused ? "#FFFFFF" : "#C9D0D4"
 
@@ -433,21 +436,21 @@ FocusScope {
                                 visible: parent.parent.actionValue === "pause" && appController.player.paused
                                 text: "▶"
                                 color: parent.iconColor
-                                font.pixelSize: Math.round(22 * overlay.uiScale)
-                                font.hintingPreference: Font.PreferFullHinting
-                                renderType: Text.NativeRendering
+                                font.pixelSize: Math.round(31 * overlay.uiScale)
+                                font.hintingPreference: Font.PreferNoHinting
+                                renderType: Text.QtRendering
                                 horizontalAlignment: Text.AlignHCenter
                                 verticalAlignment: Text.AlignVCenter
                             }
                             Row {
                                 anchors.centerIn: parent
                                 visible: parent.parent.actionValue === "pause" && !appController.player.paused
-                                spacing: Math.round(4 * overlay.uiScale)
+                                spacing: Math.round(7 * overlay.uiScale)
                                 Repeater {
                                     model: 2
                                     Rectangle {
-                                        width: Math.round(5 * overlay.uiScale)
-                                        height: Math.round(18 * overlay.uiScale)
+                                        width: Math.round(8 * overlay.uiScale)
+                                        height: Math.round(27 * overlay.uiScale)
                                         radius: 1
                                         color: parent.parent.iconColor
                                     }
@@ -456,27 +459,27 @@ FocusScope {
                             Rectangle {
                                 visible: parent.parent.actionValue === "subtitles"
                                 anchors.centerIn: parent
-                                width: Math.round(22 * overlay.uiScale)
-                                height: Math.round(16 * overlay.uiScale)
+                                width: Math.round(32 * overlay.uiScale)
+                                height: Math.round(24 * overlay.uiScale)
                                 radius: 1
                                 color: "transparent"
                                 border.width: 1
                                 border.color: parent.iconColor
                                 Column {
                                     anchors.centerIn: parent
-                                    spacing: Math.round(2 * overlay.uiScale)
-                                    Rectangle { width: Math.round(12 * overlay.uiScale); height: 1; color: parent.parent.parent.iconColor }
-                                    Rectangle { width: Math.round(16 * overlay.uiScale); height: 1; color: parent.parent.parent.iconColor }
+                                    spacing: Math.round(4 * overlay.uiScale)
+                                    Rectangle { width: Math.round(18 * overlay.uiScale); height: 2; color: parent.parent.parent.iconColor }
+                                    Rectangle { width: Math.round(24 * overlay.uiScale); height: 2; color: parent.parent.parent.iconColor }
                                 }
                             }
                             Row {
                                 anchors.centerIn: parent
                                 visible: parent.parent.actionValue === "debug"
-                                spacing: Math.round(3 * overlay.uiScale)
+                                spacing: Math.round(5 * overlay.uiScale)
                                 Repeater {
                                     model: 3
                                     Rectangle {
-                                        width: Math.round(5 * overlay.uiScale)
+                                        width: Math.round(8 * overlay.uiScale)
                                         height: width
                                         radius: width / 2
                                         color: parent.parent.iconColor
@@ -502,9 +505,10 @@ FocusScope {
                 Text {
                     text: "↑/↓ rows   ←/→ seek/select   OK apply   Back hide"
                     color: "#94A0A7"
-                    font.pixelSize: Math.round(14 * overlay.uiScale)
-                    font.hintingPreference: Font.PreferFullHinting
-                    renderType: Text.NativeRendering
+                    font.pixelSize: Math.round(18 * overlay.uiScale)
+                    font.weight: Font.Medium
+                    font.hintingPreference: Font.PreferNoHinting
+                    renderType: Text.QtRendering
                 }
             }
 
@@ -513,8 +517,9 @@ FocusScope {
                 visible: appController.player.errorText.length > 0
                 text: appController.player.errorText
                 color: "#FFB8BD"
-                font.pixelSize: Math.round(14 * overlay.uiScale)
-                renderType: Text.NativeRendering
+                font.pixelSize: Math.round(18 * overlay.uiScale)
+                font.hintingPreference: Font.PreferNoHinting
+                renderType: Text.QtRendering
                 wrapMode: Text.Wrap
             }
         }
@@ -524,10 +529,10 @@ FocusScope {
         id: menuPanel
         anchors.right: parent.right
         anchors.bottom: hud.top
-        anchors.rightMargin: Math.round(36 * overlay.uiScale)
-        anchors.bottomMargin: Math.round(16 * overlay.uiScale)
-        width: Math.round(360 * overlay.uiScale)
-        height: Math.min(Math.round(parent.height * 0.56), Math.round((menuHeader.implicitHeight + menuList.contentHeight + 38) * overlay.uiScale))
+        anchors.rightMargin: Math.round(52 * overlay.uiScale)
+        anchors.bottomMargin: Math.round(24 * overlay.uiScale)
+        width: Math.round(460 * overlay.uiScale)
+        height: Math.min(Math.round(parent.height * 0.62), Math.round((menuHeader.implicitHeight + menuList.contentHeight + 48) * overlay.uiScale))
         visible: overlay.menuOpen
         opacity: 0
         radius: 8
@@ -540,17 +545,18 @@ FocusScope {
             anchors.right: parent.right
             anchors.top: parent.top
             anchors.bottom: parent.bottom
-            anchors.margins: Math.round(12 * overlay.uiScale)
-            spacing: Math.round(8 * overlay.uiScale)
+            anchors.margins: Math.round(16 * overlay.uiScale)
+            spacing: Math.round(12 * overlay.uiScale)
 
             Text {
                 id: menuHeader
                 Layout.fillWidth: true
                 text: overlay.mode === "subtitles" ? "Subtitles" : "Playback Debug"
                 color: "#F4F8FA"
-                font.pixelSize: Math.round(16 * overlay.uiScale)
+                font.pixelSize: Math.round(22 * overlay.uiScale)
                 font.weight: Font.DemiBold
-                renderType: Text.NativeRendering
+                font.hintingPreference: Font.PreferNoHinting
+                renderType: Text.QtRendering
             }
 
             ListView {
@@ -567,7 +573,7 @@ FocusScope {
                     required property int index
                     required property var modelData
                     width: menuList.width
-                    height: Math.round(34 * overlay.uiScale)
+                    height: Math.round(50 * overlay.uiScale)
                     radius: 5
                     color: overlay.menuIndex === index ? "#2600A4DC" : "transparent"
                     border.width: overlay.menuIndex === index ? 2 : 0
@@ -575,23 +581,26 @@ FocusScope {
 
                     RowLayout {
                         anchors.fill: parent
-                        anchors.leftMargin: 12
-                        anchors.rightMargin: 12
-                        spacing: 10
+                        anchors.leftMargin: Math.round(16 * overlay.uiScale)
+                        anchors.rightMargin: Math.round(16 * overlay.uiScale)
+                        spacing: Math.round(12 * overlay.uiScale)
                         Text {
                             text: overlay.mode === "subtitles" && appController.player.selectedSubtitleIndex === index ? "✓" : ""
                             color: "#80DFFF"
-                            font.pixelSize: Math.round(14 * overlay.uiScale)
-                            renderType: Text.NativeRendering
-                            Layout.preferredWidth: Math.round(20 * overlay.uiScale)
+                            font.pixelSize: Math.round(20 * overlay.uiScale)
+                            font.hintingPreference: Font.PreferNoHinting
+                            renderType: Text.QtRendering
+                            Layout.preferredWidth: Math.round(26 * overlay.uiScale)
                             horizontalAlignment: Text.AlignHCenter
                         }
                         Text {
                             Layout.fillWidth: true
                             text: String(modelData)
                             color: overlay.menuIndex === index ? "#FFFFFF" : "#C9D0D4"
-                            font.pixelSize: Math.round(14 * overlay.uiScale)
-                            renderType: Text.NativeRendering
+                            font.pixelSize: Math.round(19 * overlay.uiScale)
+                            font.weight: Font.Medium
+                            font.hintingPreference: Font.PreferNoHinting
+                            renderType: Text.QtRendering
                             elide: Text.ElideRight
                         }
                     }
