@@ -137,6 +137,7 @@ FocusScope {
         anchors.margins: Metrics.pageMargin(width)
         focus: true
         clip: true
+        keyNavigationEnabled: false
         spacing: 22
         model: sectionModel
 
