@@ -34,6 +34,10 @@ public:
     QImage requestImage(const QString &, QSize *size, const QSize &requestedSize) override
     {
         QImage image = m_window->copyOverlayImage();
+        if (image.isNull()) {
+            image = QImage(1, 1, QImage::Format_ARGB32_Premultiplied);
+            image.fill(Qt::transparent);
+        }
         if (requestedSize.isValid() && !image.isNull())
             image = image.scaled(requestedSize, Qt::IgnoreAspectRatio, Qt::FastTransformation);
         if (size)
@@ -405,12 +409,18 @@ void NativeAppWindow::overlayPresentCallback(void *data, const uint8_t *pixels,
 }
 
 void NativeAppWindow::exportedCropCallback(void *data, int origW, int origH,
-                                           int srcX, int srcY, int srcW, int srcH,
-                                           int dstX, int dstY, int dstW, int dstH)
+                                            int srcX, int srcY, int srcW, int srcH,
+                                            int dstX, int dstY, int dstW, int dstH)
 {
     auto *self = static_cast<NativeAppWindow *>(data);
     if (!self)
         return;
+
+    if (QThread::currentThread() == self->thread()) {
+        self->setVideoCrop(origW, origH, srcX, srcY, srcW, srcH,
+                           dstX, dstY, dstW, dstH);
+        return;
+    }
 
     QMetaObject::invokeMethod(
         self,
@@ -418,7 +428,7 @@ void NativeAppWindow::exportedCropCallback(void *data, int origW, int origH,
             self->setVideoCrop(origW, origH, srcX, srcY, srcW, srcH,
                                dstX, dstY, dstW, dstH);
         },
-        Qt::QueuedConnection);
+        Qt::BlockingQueuedConnection);
 }
 
 const wl_registry_listener NativeAppWindow::s_registryListener = {
