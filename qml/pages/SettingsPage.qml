@@ -11,7 +11,7 @@ FocusScope {
         ListView { Layout.preferredWidth: 230; Layout.fillHeight: true; model: ["General", "Playback", "Appearance", "Libraries", "Network", "Input", "Diagnostics", "Subtitles", "About"]; spacing: 8; delegate: MetadataChip { required property string modelData; text: modelData; width: 220; height: 38 } }
         Flickable { Layout.fillWidth: true; Layout.fillHeight: true; contentHeight: settings.implicitHeight; clip: true
             ColumnLayout { id: settings; width: parent.width; spacing: 10
-                SectionHeader { Layout.fillWidth: true; title: "Settings"; detail: "Appearance · Input · Diagnostics" }
+                SectionHeader { Layout.fillWidth: true; title: "Settings" }
                 SelectRow { Layout.fillWidth: true; title: "Theme"; description: "Neutral Jellyfin dark appliance UI"; options: ["Jellyfin Dark"]; currentIndex: 0 }
                 SelectRow { Layout.fillWidth: true; title: "Accent"; options: ["Jellyfin Blue", "Jellyfin Purple", "Blue-Purple"] }
                 SliderRow { Layout.fillWidth: true; title: "UI Scale"; description: "Runtime type and spacing scale"; value: Metrics.userUiScale; onValueEdited: Metrics.userUiScale = value }

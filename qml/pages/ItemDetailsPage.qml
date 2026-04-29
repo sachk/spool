@@ -63,9 +63,9 @@ FocusScope {
                 ActionButton { id: trailerButton; text: "Trailer"; KeyNavigation.left: moreButton }
             }
             AppText { Layout.fillWidth: true; text: item.overview && item.overview.length > 0 ? item.overview : "No overview is available from Jellyfin for this item."; wrapMode: Text.Wrap; color: Theme.textSecondary; font.pixelSize: Metrics.bodyPx(root.width); maximumLineCount: 7 }
-            SectionHeader { Layout.fillWidth: true; title: "Cast"; detail: "compact" }
+            SectionHeader { Layout.fillWidth: true; title: "Cast" }
             Row { spacing: 10; Repeater { model: ["A. Rao · Captain", "M. Chen · Engineer", "S. Bell · Archivist"]; delegate: MetadataChip { required property string modelData; text: modelData } } }
-            SectionHeader { Layout.fillWidth: true; title: "Related / Episodes"; detail: "lazy artwork" }
+            SectionHeader { Layout.fillWidth: true; title: "Related / Episodes" }
             ListView { Layout.fillWidth: true; Layout.fillHeight: true; orientation: ListView.Horizontal; spacing: Metrics.gap(root.width); model: appController.movies; delegate: Item { required property string title; required property string subtitle; required property string posterUrl; width: 300; height: 220; LandscapeCard { anchors.fill: parent; title: parent.title; subtitle: parent.subtitle; imageUrl: parent.posterUrl } } }
         }
     }

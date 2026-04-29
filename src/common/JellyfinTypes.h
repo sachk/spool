@@ -30,12 +30,14 @@ struct MovieItem {
     QString posterTag;
     QString itemType;
     QString seriesId;
+    QString seriesName;
     QString subtitle;
     QString path;
     int year = 0;
     int seasonNumber = 0;
     int episodeNumber = 0;
     qint64 resumeTicks = 0;
+    qint64 runtimeTicks = 0;
     bool playable = true;
 };
 

@@ -62,7 +62,6 @@ FocusScope {
         if (resumeCount > 0) appendSection("Continue Watching", "landscape", "resumeItems")
         if (nextUpCount > 0) appendSection("Next Up", "landscape", "nextUpItems")
         if (latestCount > 0) appendSection("Recently Added", "poster", "latestItems")
-        if (latestCount > 0) appendSection("Spotlight", "spotlight", "latestItems")
     }
 
     function countFor(source) {
@@ -141,7 +140,7 @@ FocusScope {
         spacing: 22
         model: sectionModel
 
-        header: SectionHeader { width: sections.width; height: implicitHeight + 18; title: "Home"; detail: "Static spotlight · D-pad rows" }
+        header: SectionHeader { width: sections.width; height: implicitHeight + 18; title: "Home" }
 
         delegate: FocusScope {
             id: section
@@ -156,7 +155,7 @@ FocusScope {
             height: !sectionVisible ? 0
                   : kind === "spotlight" ? 238
                   : kind === "poster" ? 360
-                  : 240
+                  : 292
             visible: sectionVisible
             focus: ListView.isCurrentItem && sectionVisible
             onActiveFocusChanged: if (activeFocus && contentLoader.item) contentLoader.item.forceActiveFocus()
@@ -287,11 +286,11 @@ FocusScope {
                         return false
                     }
                     ColumnLayout { anchors.fill: parent; spacing: 10
-                        SectionHeader { id: rowHeader; Layout.fillWidth: true; title: section.title; detail: section.kind === "poster" ? "posters" : "landscape" }
+                        SectionHeader { id: rowHeader; Layout.fillWidth: true; title: section.title }
                         Flickable {
                             id: rowFlick
                             Layout.fillWidth: true
-                            Layout.preferredHeight: section.kind === "poster" ? 304 : 176
+                            Layout.preferredHeight: section.kind === "poster" ? 304 : 228
                             Layout.minimumHeight: Layout.preferredHeight
                             focus: rowScope.focus
                             clip: true
@@ -322,9 +321,10 @@ FocusScope {
                                 LandscapeCard {
                                     anchors.fill: parent
                                     visible: section.kind !== "poster"
-                                    title: mediaDelegate.itemData.title || ""
-                                    subtitle: mediaDelegate.itemData.subtitle || ""
+                                    title: mediaDelegate.itemData.displayTitle || mediaDelegate.itemData.title || ""
+                                    subtitle: mediaDelegate.itemData.displaySubtitle || mediaDelegate.itemData.subtitle || ""
                                     imageUrl: mediaDelegate.itemData.posterUrl || ""
+                                    progress: mediaDelegate.itemData.progress || 0
                                     focused: mediaDelegate.index === rowScope.currentIndex && section.ListView.isCurrentItem
                                 }
                                 MouseArea { anchors.fill: parent; onClicked: { rowScope.currentIndex = index; root.activateAt(section.rowSource, index) } }
@@ -405,11 +405,11 @@ FocusScope {
                     ColumnLayout {
                         anchors.fill: parent
                         spacing: 10
-                        SectionHeader { id: libHeader; Layout.fillWidth: true; title: section.title; detail: "Libraries" }
+                        SectionHeader { id: libHeader; Layout.fillWidth: true; title: section.title }
                         Flickable {
                             id: libRowFlick
                             Layout.fillWidth: true
-                            Layout.preferredHeight: 176
+                            Layout.preferredHeight: 228
                             Layout.minimumHeight: Layout.preferredHeight
                             focus: libRowScope.focus
                             clip: true

@@ -60,7 +60,7 @@ FocusScope {
                 font.pixelSize: Metrics.bodyPx(parent.width)
             }
 
-            SectionHeader { Layout.fillWidth: true; title: "File"; detail: "path · container" }
+            SectionHeader { Layout.fillWidth: true; title: "File" }
             Surface {
                 Layout.fillWidth: true
                 Layout.preferredHeight: 64

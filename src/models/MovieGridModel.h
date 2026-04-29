@@ -26,6 +26,11 @@ public:
         SeasonNumberRole,
         EpisodeNumberRole,
         ResumeTicksRole,
+        RuntimeTicksRole,
+        ProgressRole,
+        SeriesNameRole,
+        DisplayTitleRole,
+        DisplaySubtitleRole,
         PlayActionLabelRole,
         PlayableRole,
     };

@@ -1,4 +1,5 @@
 /build/
+/build-linux-dev/
 /build-arm/
 /app/bin/
 /app/lib/

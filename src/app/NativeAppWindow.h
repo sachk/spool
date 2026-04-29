@@ -1,10 +1,12 @@
 #pragma once
 
+#ifdef JELLYFIN_NATIVE_WEBOS
 extern "C" {
 #include <wayland-client.h>
 #include <wayland-webos-foreign-client-protocol.h>
 #include <wayland-webos-shell-client-protocol.h>
 }
+#endif
 
 #include <QImage>
 #include <QMutex>
@@ -40,6 +42,7 @@ protected:
     void resizeEvent(QResizeEvent *event) override;
 
 private:
+#ifdef JELLYFIN_NATIVE_WEBOS
     bool ensureShellSurface();
     bool ensureVideoSurface();
     bool bindGlobals();
@@ -57,11 +60,13 @@ private:
     static void exportedCropCallback(void *data, int origW, int origH,
                                      int srcX, int srcY, int srcW, int srcH,
                                      int dstX, int dstY, int dstW, int dstH);
+#endif
 
     QString m_appId;
     mutable QMutex m_overlayMutex;
     QImage m_overlayImage;
     int m_overlayRevision = 0;
+#ifdef JELLYFIN_NATIVE_WEBOS
     wl_display *m_display = nullptr;
     wl_registry *m_registry = nullptr;
     wl_compositor *m_compositor = nullptr;
@@ -85,6 +90,7 @@ private:
 
     static const wl_registry_listener s_registryListener;
     static const wl_webos_exported_listener s_exportedListener;
+#endif
 };
 
 } // namespace JellyfinNative

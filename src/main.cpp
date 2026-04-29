@@ -11,10 +11,13 @@ extern "C" {
 #include <signal.h>
 #include <unistd.h>
 
+#ifdef JELLYFIN_NATIVE_WEBOS
 #include <luna-service2/lunaservice.h>
 #include <webos-helpers/libhelpers.h>
+#endif
 }
 
+#ifdef JELLYFIN_NATIVE_WEBOS
 #include <QtPlugin>
 
 Q_IMPORT_PLUGIN(QWaylandIntegrationPlugin)
@@ -23,6 +26,7 @@ Q_IMPORT_PLUGIN(QWaylandWlShellIntegrationPlugin)
 Q_IMPORT_PLUGIN(QJpegPlugin)
 Q_IMPORT_PLUGIN(QWebpPlugin)
 Q_IMPORT_PLUGIN(QSQLiteDriverPlugin)
+#endif
 
 #include <QCoreApplication>
 #include <QDateTime>
@@ -55,7 +59,11 @@ Q_IMPORT_PLUGIN(QSQLiteDriverPlugin)
 namespace {
 
 constexpr auto kAppId = "com.sachk.tern";
+#ifdef JELLYFIN_NATIVE_WEBOS
 constexpr auto kAppLogPath = "/tmp/com.sachk.tern.log";
+#else
+constexpr auto kAppLogPath = "/tmp/com.codex.jellyfinnative-linux.log";
+#endif
 
 FILE *g_logFile = nullptr;
 
@@ -77,6 +85,7 @@ bool resolveAppRoot(char *buffer, size_t size)
     return true;
 }
 
+#ifdef JELLYFIN_NATIVE_WEBOS
 bool ensureWaylandEnv()
 {
     const char *runtimeDir = getenv("XDG_RUNTIME_DIR");
@@ -100,6 +109,7 @@ bool ensureWaylandEnv()
 
     return runtimeDir && runtimeDir[0] && display && display[0];
 }
+#endif
 
 void handleSignal(int)
 {
@@ -161,6 +171,7 @@ void logQmlWarnings(const QList<QQmlError> &warnings)
         logLine("[qml] %s", qPrintable(warning.toString()));
 }
 
+#ifdef JELLYFIN_NATIVE_WEBOS
 bool lunaNoopCallback(LSHandle *, LSMessage *message, void *)
 {
     if (message && LSMessageGetPayload(message))
@@ -195,6 +206,7 @@ bool lunaLifecycleCallback(LSHandle *, LSMessage *message, void *userData)
 
     return true;
 }
+#endif
 
 } // namespace
 
@@ -213,6 +225,9 @@ int main(int argc, char **argv)
     if (!resolveAppRoot(appRoot, sizeof(appRoot)))
         return 1;
 
+    const QString appRootPath = QString::fromUtf8(appRoot);
+
+#ifdef JELLYFIN_NATIVE_WEBOS
     setenv("APPID", kAppId, 1);
     setenv("DISPLAY_ID", "0", 1);
     setenv("STARFISH_AUDIO_HINT", "1", 1);
@@ -232,20 +247,32 @@ int main(int argc, char **argv)
         unsetenv("QT_LOGGING_RULES");
     }
 
-    const QString appRootPath = QString::fromUtf8(appRoot);
     setenv("QT_PLUGIN_PATH", QFile::encodeName(appRootPath + "/qt-plugins").constData(), 1);
     setenv("QT_QPA_PLATFORM_PLUGIN_PATH", QFile::encodeName(appRootPath + "/qt-plugins/platforms").constData(), 1);
     setenv("QML2_IMPORT_PATH", QFile::encodeName(appRootPath + "/qt-qml").constData(), 1);
 
     if (!ensureWaylandEnv())
         return 1;
+#else
+    qputenv("QT_QPA_PLATFORM", qEnvironmentVariableIsSet("QT_QPA_PLATFORM")
+                                  ? qgetenv("QT_QPA_PLATFORM")
+                                  : QByteArrayLiteral("wayland"));
+    if (qEnvironmentVariableIsSet("JELLYFIN_NATIVE_VERBOSE_QT")) {
+        setenv("QT_DEBUG_PLUGINS", "1", 1);
+        setenv("QT_LOGGING_RULES",
+               "qt.qml*=true;qt.qpa*=true;qt.scenegraph*=true;qt.quick*=true;qt.plugin*=true",
+               1);
+    }
+#endif
 
     logLine("app root: %s", appRoot);
     logLine("QT_QPA_PLATFORM=%s", qgetenv("QT_QPA_PLATFORM").constData());
     logLine("QT_PLUGIN_PATH=%s", qgetenv("QT_PLUGIN_PATH").constData());
     logLine("QML2_IMPORT_PATH=%s", qgetenv("QML2_IMPORT_PATH").constData());
+#ifdef JELLYFIN_NATIVE_WEBOS
     logLine("QT_WAYLAND_TEXT_INPUT_PROTOCOL=%s", qgetenv("QT_WAYLAND_TEXT_INPUT_PROTOCOL").constData());
     logLine("QT_IM_MODULE=%s", qgetenv("QT_IM_MODULE").constData());
+#endif
 
     qInstallMessageHandler(qtMessageHandler);
     QLoggingCategory::setFilterRules(QStringLiteral("qt.*.debug=false\nqt.*.info=false"));
@@ -259,9 +286,15 @@ int main(int argc, char **argv)
     QQuickStyle::setStyle(QStringLiteral("Basic"));
 
     QSurfaceFormat format;
+#ifdef JELLYFIN_NATIVE_WEBOS
     format.setRenderableType(QSurfaceFormat::OpenGLES);
     format.setMajorVersion(2);
     format.setMinorVersion(0);
+#else
+    format.setRenderableType(QSurfaceFormat::OpenGL);
+    format.setMajorVersion(3);
+    format.setMinorVersion(3);
+#endif
     format.setAlphaBufferSize(8);
     QSurfaceFormat::setDefaultFormat(format);
 
@@ -291,7 +324,11 @@ int main(int argc, char **argv)
     auto discovery = std::make_unique<JellyfinNative::DiscoveryController>();
     auto api = std::make_unique<JellyfinNative::JellyfinApiFacade>(networkAccessManager);
     api->setDeviceIdentity(deviceId,
+#ifdef JELLYFIN_NATIVE_WEBOS
                            QStringLiteral("LG webOS TV"),
+#else
+                           QStringLiteral("Linux Wayland"),
+#endif
                            QStringLiteral("0.2.0"));
 
     JellyfinNative::NativeAppWindow window(QString::fromLatin1(kAppId));
@@ -325,9 +362,14 @@ int main(int argc, char **argv)
     }
     logLine("startup: QML source loaded in %lld ms",
             static_cast<long long>(startupTimer.elapsed()));
+#ifdef JELLYFIN_NATIVE_WEBOS
     window.showFullScreen();
+#else
+    window.show();
+#endif
     window.requestActivate();
 
+#ifdef JELLYFIN_NATIVE_WEBOS
     std::unique_ptr<HContext> lunaContext(new HContext());
     lunaContext->pub = true;
     lunaContext->multiple = true;
@@ -351,20 +393,33 @@ int main(int argc, char **argv)
     } else {
         logLine("HLunaServiceCall registerRemoteKeyboard OK");
     }
+#endif
 
     QTimer::singleShot(0, &window, [&window]() {
+#ifdef JELLYFIN_NATIVE_WEBOS
         window.showFullScreen();
+#else
+        window.show();
+#endif
         window.requestActivate();
     });
     QTimer::singleShot(300, &window, [&window]() {
+#ifdef JELLYFIN_NATIVE_WEBOS
         window.showFullScreen();
+#else
+        window.show();
+#endif
         window.requestActivate();
     });
     QTimer::singleShot(0, controller.get(), &JellyfinNative::AppController::initialize);
     QTimer::singleShot(0, &window, [&window, &startupTimer]() {
         logLine("startup: event loop entered, first-frame path at %lld ms",
                 static_cast<long long>(startupTimer.elapsed()));
+#ifdef JELLYFIN_NATIVE_WEBOS
         window.showFullScreen();
+#else
+        window.show();
+#endif
         window.requestActivate();
     });
 
