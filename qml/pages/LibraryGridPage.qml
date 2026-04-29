@@ -63,6 +63,7 @@ FocusScope {
             Layout.fillHeight: true
             focus: true
             clip: true
+            keyNavigationEnabled: false
             reuseItems: true
             boundsBehavior: Flickable.StopAtBounds
             model: appController.movies
