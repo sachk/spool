@@ -295,7 +295,7 @@ bool PlayerController::ensureMpv() {
       setOption(handle, "demuxer-max-back-bytes", "32M") &&
       setOption(handle, "initial-audio-sync", "no") &&
       (!m_nightModeEnabled.load() || setOption(handle, "af", kNightModeFilter)) &&
-      setOption(handle, "force-window", "immediate") &&
+      setOption(handle, "force-window", "no") &&
       setOption(handle, "vo", "starfish") &&
       setOption(handle, "vd", "starfish") &&
       setOption(handle, "ao", "starfish,null") &&
@@ -314,6 +314,13 @@ bool PlayerController::ensureMpv() {
       setOption(handle, "sub-shadow-color", "#80000000") &&
       setOption(handle, "audio-file-auto", "no") &&
       setOption(handle, "osc", "no") &&
+      setOption(handle, "load-console", "no") &&
+      setOption(handle, "load-auto-profiles", "no") &&
+      setOption(handle, "load-select", "no") &&
+      setOption(handle, "load-positioning", "no") &&
+      setOption(handle, "load-commands", "no") &&
+      setOption(handle, "load-context-menu", "no") &&
+      setOption(handle, "load-scripts", "no") &&
       setOption(handle, "input-default-bindings", "no") &&
       setOption(handle, "input-vo-keyboard", "no") &&
       setOption(handle, "keep-open", "no") && setOption(handle, "idle", "yes");
@@ -362,8 +369,7 @@ void PlayerController::play(const PlaybackSession &session) {
   qInfo() << "player: prepareForPlaybackSurface completed in"
           << playbackSurfaceTimer.elapsed() << "ms";
 
-  // Surface must be ready before mpv_initialize because force-window=immediate
-  // creates the Starfish VO during init.
+  // Surface must be ready before loadfile creates the Starfish VO.
   if (!ensureMpv())
     return;
 

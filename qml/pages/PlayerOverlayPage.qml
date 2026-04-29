@@ -281,8 +281,8 @@ FocusScope {
         anchors.left: parent.left
         anchors.right: parent.right
         anchors.bottom: parent.bottom
-        anchors.margins: Math.round(36 * overlay.uiScale)
-        height: Math.round(136 * overlay.uiScale)
+        anchors.margins: Math.round(44 * overlay.uiScale)
+        height: Math.round(174 * overlay.uiScale)
         visible: opacity > 0.01
         opacity: 0
 
@@ -301,8 +301,10 @@ FocusScope {
                         Layout.fillWidth: true
                         text: appController.player.title
                         color: "#F4F8FA"
-                        font.pixelSize: Math.round(24 * overlay.uiScale)
+                        font.pixelSize: Math.round(30 * overlay.uiScale)
                         font.weight: Font.DemiBold
+                        font.hintingPreference: Font.PreferFullHinting
+                        renderType: Text.NativeRendering
                         maximumLineCount: 1
                         elide: Text.ElideRight
                     }
@@ -310,7 +312,9 @@ FocusScope {
                         Layout.fillWidth: true
                         text: appController.player.statusText
                         color: appController.player.buffering || appController.player.seeking ? "#9DE8FF" : "#AAB7BF"
-                        font.pixelSize: Math.round(15 * overlay.uiScale)
+                        font.pixelSize: Math.round(18 * overlay.uiScale)
+                        font.hintingPreference: Font.PreferFullHinting
+                        renderType: Text.NativeRendering
                         maximumLineCount: 1
                         elide: Text.ElideRight
                     }
@@ -319,15 +323,17 @@ FocusScope {
                 Text {
                     text: appController.player.paused ? "Paused" : "Playing"
                     color: appController.player.paused ? "#FFFFFF" : "#B8C4CA"
-                    font.pixelSize: Math.round(15 * overlay.uiScale)
+                    font.pixelSize: Math.round(18 * overlay.uiScale)
                     font.weight: Font.Medium
+                    font.hintingPreference: Font.PreferFullHinting
+                    renderType: Text.NativeRendering
                 }
             }
 
             Item {
                 id: timeline
                 Layout.fillWidth: true
-                Layout.preferredHeight: Math.round(42 * overlay.uiScale)
+                Layout.preferredHeight: Math.round(58 * overlay.uiScale)
                 readonly property double ratio: appController.player.durationSeconds > 0 ? Math.max(0, Math.min(1, overlay.positionSeconds() / appController.player.durationSeconds)) : 0
                 readonly property bool focused: overlay.mode === "controls" && overlay.row === "timeline"
 
@@ -336,21 +342,25 @@ FocusScope {
                     anchors.top: parent.top
                     text: overlay.formatClock(overlay.positionSeconds())
                     color: timeline.focused ? "#FFFFFF" : "#B8C4CA"
-                    font.pixelSize: Math.round(14 * overlay.uiScale)
+                    font.pixelSize: Math.round(17 * overlay.uiScale)
+                    font.hintingPreference: Font.PreferFullHinting
+                    renderType: Text.NativeRendering
                 }
                 Text {
                     anchors.right: parent.right
                     anchors.top: parent.top
                     text: overlay.formatClock(appController.player.durationSeconds)
                     color: "#B8C4CA"
-                    font.pixelSize: Math.round(14 * overlay.uiScale)
+                    font.pixelSize: Math.round(17 * overlay.uiScale)
+                    font.hintingPreference: Font.PreferFullHinting
+                    renderType: Text.NativeRendering
                 }
                 Rectangle {
                     id: track
                     anchors.left: parent.left
                     anchors.right: parent.right
                     anchors.bottom: parent.bottom
-                    height: timeline.focused ? Math.round(7 * overlay.uiScale) : Math.round(4 * overlay.uiScale)
+                    height: timeline.focused ? Math.round(10 * overlay.uiScale) : Math.round(6 * overlay.uiScale)
                     radius: height / 2
                     color: "#55606A72"
                     border.width: timeline.focused ? 1 : 0
@@ -369,7 +379,7 @@ FocusScope {
                 Rectangle {
                     x: Math.max(0, Math.min(track.width - width, track.width * timeline.ratio - width / 2))
                     anchors.verticalCenter: track.verticalCenter
-                    width: timeline.focused ? Math.round(15 * overlay.uiScale) : Math.round(9 * overlay.uiScale)
+                    width: timeline.focused ? Math.round(21 * overlay.uiScale) : Math.round(13 * overlay.uiScale)
                     height: width
                     radius: width / 2
                     color: "#FFFFFF"
@@ -404,8 +414,8 @@ FocusScope {
                         required property int index
                         readonly property bool focused: overlay.mode === "controls" && overlay.row === "actions" && overlay.actionIndex === index
                         readonly property string actionValue: overlay.actions[index].value
-                        Layout.preferredWidth: Math.round(42 * overlay.uiScale)
-                        Layout.preferredHeight: Math.round(34 * overlay.uiScale)
+                        Layout.preferredWidth: Math.round(58 * overlay.uiScale)
+                        Layout.preferredHeight: Math.round(48 * overlay.uiScale)
                         radius: 6
                         color: focused ? "#2400A4DC" : "transparent"
                         border.width: focused ? 2 : 1
@@ -413,8 +423,8 @@ FocusScope {
 
                         Item {
                             anchors.centerIn: parent
-                            width: Math.round(18 * overlay.uiScale)
-                            height: Math.round(18 * overlay.uiScale)
+                            width: Math.round(24 * overlay.uiScale)
+                            height: Math.round(24 * overlay.uiScale)
 
                             readonly property color iconColor: parent.focused ? "#FFFFFF" : "#C9D0D4"
 
@@ -423,7 +433,9 @@ FocusScope {
                                 visible: parent.parent.actionValue === "pause" && appController.player.paused
                                 text: "▶"
                                 color: parent.iconColor
-                                font.pixelSize: Math.round(16 * overlay.uiScale)
+                                font.pixelSize: Math.round(22 * overlay.uiScale)
+                                font.hintingPreference: Font.PreferFullHinting
+                                renderType: Text.NativeRendering
                                 horizontalAlignment: Text.AlignHCenter
                                 verticalAlignment: Text.AlignVCenter
                             }
@@ -434,8 +446,8 @@ FocusScope {
                                 Repeater {
                                     model: 2
                                     Rectangle {
-                                        width: Math.round(4 * overlay.uiScale)
-                                        height: Math.round(13 * overlay.uiScale)
+                                        width: Math.round(5 * overlay.uiScale)
+                                        height: Math.round(18 * overlay.uiScale)
                                         radius: 1
                                         color: parent.parent.iconColor
                                     }
@@ -444,8 +456,8 @@ FocusScope {
                             Rectangle {
                                 visible: parent.parent.actionValue === "subtitles"
                                 anchors.centerIn: parent
-                                width: Math.round(16 * overlay.uiScale)
-                                height: Math.round(12 * overlay.uiScale)
+                                width: Math.round(22 * overlay.uiScale)
+                                height: Math.round(16 * overlay.uiScale)
                                 radius: 1
                                 color: "transparent"
                                 border.width: 1
@@ -453,8 +465,8 @@ FocusScope {
                                 Column {
                                     anchors.centerIn: parent
                                     spacing: Math.round(2 * overlay.uiScale)
-                                    Rectangle { width: Math.round(9 * overlay.uiScale); height: 1; color: parent.parent.parent.iconColor }
                                     Rectangle { width: Math.round(12 * overlay.uiScale); height: 1; color: parent.parent.parent.iconColor }
+                                    Rectangle { width: Math.round(16 * overlay.uiScale); height: 1; color: parent.parent.parent.iconColor }
                                 }
                             }
                             Row {
@@ -464,7 +476,7 @@ FocusScope {
                                 Repeater {
                                     model: 3
                                     Rectangle {
-                                        width: Math.round(4 * overlay.uiScale)
+                                        width: Math.round(5 * overlay.uiScale)
                                         height: width
                                         radius: width / 2
                                         color: parent.parent.iconColor
@@ -490,7 +502,9 @@ FocusScope {
                 Text {
                     text: "↑/↓ rows   ←/→ seek/select   OK apply   Back hide"
                     color: "#94A0A7"
-                    font.pixelSize: Math.round(12 * overlay.uiScale)
+                    font.pixelSize: Math.round(14 * overlay.uiScale)
+                    font.hintingPreference: Font.PreferFullHinting
+                    renderType: Text.NativeRendering
                 }
             }
 
@@ -500,6 +514,7 @@ FocusScope {
                 text: appController.player.errorText
                 color: "#FFB8BD"
                 font.pixelSize: Math.round(14 * overlay.uiScale)
+                renderType: Text.NativeRendering
                 wrapMode: Text.Wrap
             }
         }
@@ -535,6 +550,7 @@ FocusScope {
                 color: "#F4F8FA"
                 font.pixelSize: Math.round(16 * overlay.uiScale)
                 font.weight: Font.DemiBold
+                renderType: Text.NativeRendering
             }
 
             ListView {
@@ -566,6 +582,7 @@ FocusScope {
                             text: overlay.mode === "subtitles" && appController.player.selectedSubtitleIndex === index ? "✓" : ""
                             color: "#80DFFF"
                             font.pixelSize: Math.round(14 * overlay.uiScale)
+                            renderType: Text.NativeRendering
                             Layout.preferredWidth: Math.round(20 * overlay.uiScale)
                             horizontalAlignment: Text.AlignHCenter
                         }
@@ -574,6 +591,7 @@ FocusScope {
                             text: String(modelData)
                             color: overlay.menuIndex === index ? "#FFFFFF" : "#C9D0D4"
                             font.pixelSize: Math.round(14 * overlay.uiScale)
+                            renderType: Text.NativeRendering
                             elide: Text.ElideRight
                         }
                     }
