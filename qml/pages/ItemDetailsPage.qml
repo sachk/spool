@@ -59,11 +59,10 @@ FocusScope {
                         }
                     }
                 }
-                ActionButton { id: moreButton; text: "More..."; KeyNavigation.left: playButton; KeyNavigation.right: trailerButton; onClicked: shell.openContextMenu() }
+                ActionButton { id: moreButton; text: "Media info"; KeyNavigation.left: playButton; KeyNavigation.right: trailerButton; onClicked: shell.openMediaInfo(item) }
                 ActionButton { id: trailerButton; text: "Trailer"; KeyNavigation.left: moreButton }
             }
             AppText { Layout.fillWidth: true; text: item.overview && item.overview.length > 0 ? item.overview : "No overview is available from Jellyfin for this item."; wrapMode: Text.Wrap; color: Theme.textSecondary; font.pixelSize: Metrics.bodyPx(root.width); maximumLineCount: 7 }
-            Surface { Layout.fillWidth: true; Layout.preferredHeight: 58; baseColor: Theme.bgRaised; MonoText { anchors.fill: parent; anchors.margins: 14; text: item.path && item.path.length > 0 ? item.path : "File path unavailable"; elide: Text.ElideMiddle; verticalAlignment: Text.AlignVCenter } }
             SectionHeader { Layout.fillWidth: true; title: "Cast"; detail: "compact" }
             Row { spacing: 10; Repeater { model: ["A. Rao · Captain", "M. Chen · Engineer", "S. Bell · Archivist"]; delegate: MetadataChip { required property string modelData; text: modelData } } }
             SectionHeader { Layout.fillWidth: true; title: "Related / Episodes"; detail: "lazy artwork" }

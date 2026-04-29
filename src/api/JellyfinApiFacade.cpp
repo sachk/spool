@@ -38,6 +38,13 @@ bool isQuickConnectPath(const QString &path)
            path == QStringLiteral("/Users/AuthenticateWithQuickConnect");
 }
 
+QJsonArray itemsArrayFromDocument(const QJsonDocument &document)
+{
+    if (document.isArray())
+        return document.array();
+    return document.object().value(QStringLiteral("Items")).toArray();
+}
+
 QString episodeSubtitle(const QJsonObject &object)
 {
     const int season = object.value(QStringLiteral("ParentIndexNumber")).toInt();
@@ -402,6 +409,82 @@ QCoro::Task<std::vector<MovieItem>> JellyfinApiFacade::fetchEpisodes(const QStri
     }
 
     co_return episodes;
+}
+
+QCoro::Task<std::vector<MovieItem>> JellyfinApiFacade::fetchResumeItems(int limit)
+{
+    QUrlQuery query;
+    query.addQueryItem(QStringLiteral("UserId"), m_session.userId);
+    query.addQueryItem(QStringLiteral("limit"), QString::number(limit));
+    query.addQueryItem(QStringLiteral("recursive"), QStringLiteral("true"));
+    query.addQueryItem(QStringLiteral("fields"), QStringLiteral("Overview,ProductionYear,ImageTags,UserData,Path"));
+    query.addQueryItem(QStringLiteral("includeItemTypes"), QStringLiteral("Movie,Episode"));
+    query.addQueryItem(QStringLiteral("enableImageTypes"), QStringLiteral("Primary"));
+    query.addQueryItem(QStringLiteral("imageTypeLimit"), QStringLiteral("1"));
+    query.addQueryItem(QStringLiteral("mediaTypes"), QStringLiteral("Video"));
+
+    const QJsonArray items =
+        itemsArrayFromDocument(co_await requestJson(HttpMethod::Get,
+                                                    QStringLiteral("/Users/%1/Items/Resume").arg(m_session.userId),
+                                                    query));
+
+    std::vector<MovieItem> result;
+    result.reserve(items.size());
+    for (const auto &value : items) {
+        auto item = mediaItemFromJson(this, value.toObject());
+        if (item.playable && item.resumeTicks > 0)
+            result.push_back(item);
+    }
+    co_return result;
+}
+
+QCoro::Task<std::vector<MovieItem>> JellyfinApiFacade::fetchNextUpEpisodes(int limit)
+{
+    QUrlQuery query;
+    query.addQueryItem(QStringLiteral("UserId"), m_session.userId);
+    query.addQueryItem(QStringLiteral("limit"), QString::number(limit));
+    query.addQueryItem(QStringLiteral("fields"), QStringLiteral("Overview,ImageTags,UserData,Path"));
+    query.addQueryItem(QStringLiteral("enableImageTypes"), QStringLiteral("Primary"));
+    query.addQueryItem(QStringLiteral("imageTypeLimit"), QStringLiteral("1"));
+    query.addQueryItem(QStringLiteral("enableResumable"), QStringLiteral("false"));
+
+    const QJsonArray items =
+        itemsArrayFromDocument(co_await requestJson(HttpMethod::Get, QStringLiteral("/Shows/NextUp"), query));
+
+    std::vector<MovieItem> result;
+    result.reserve(items.size());
+    for (const auto &value : items) {
+        auto item = mediaItemFromJson(this, value.toObject());
+        if (item.itemType == QStringLiteral("Episode") && item.playable)
+            result.push_back(item);
+    }
+    co_return result;
+}
+
+QCoro::Task<std::vector<MovieItem>> JellyfinApiFacade::fetchLatestItems(const QString &parentId, int limit)
+{
+    QUrlQuery query;
+    query.addQueryItem(QStringLiteral("limit"), QString::number(limit));
+    query.addQueryItem(QStringLiteral("fields"), QStringLiteral("Overview,ProductionYear,ImageTags,UserData,Path"));
+    query.addQueryItem(QStringLiteral("includeItemTypes"), QStringLiteral("Movie,Series,Episode"));
+    query.addQueryItem(QStringLiteral("enableImageTypes"), QStringLiteral("Primary"));
+    query.addQueryItem(QStringLiteral("imageTypeLimit"), QStringLiteral("1"));
+    query.addQueryItem(QStringLiteral("groupItems"), QStringLiteral("true"));
+    if (!parentId.isEmpty())
+        query.addQueryItem(QStringLiteral("parentId"), parentId);
+
+    const QJsonDocument doc =
+        co_await requestJson(HttpMethod::Get,
+                             QStringLiteral("/Users/%1/Items/Latest").arg(m_session.userId),
+                             query);
+
+    const QJsonArray items = itemsArrayFromDocument(doc);
+
+    std::vector<MovieItem> result;
+    result.reserve(items.size());
+    for (const auto &value : items)
+        result.push_back(mediaItemFromJson(this, value.toObject()));
+    co_return result;
 }
 
 QCoro::Task<PlaybackSession> JellyfinApiFacade::negotiateDirectPlay(const MovieItem &movie)

@@ -5,6 +5,7 @@ import QtQuick.Layouts
 FocusScope {
     id: overlay
     focus: visible
+    onActiveFocusChanged: if (visible && !activeFocus) forceActiveFocus()
 
     property var shell
     property bool mediaInfoVisible: false
@@ -154,8 +155,10 @@ FocusScope {
     function handleBack() {
         if (scrubbing) { scrubbing = false; showControls("timeline"); return true }
         if (menuOpen) { closeMenu(); return true }
-        if (mode !== "hidden") return hideControls()
-        if (appController.player.backAllowed) appController.player.stopWithReason("overlay-back-key")
+        if (mode !== "hidden" && !pinned) { hideControls(); return true }
+        // Hidden, paused, buffering, or any pinned state: back exits playback.
+        if (appController.player.backAllowed)
+            appController.player.stopWithReason("overlay-back-key")
         return true
     }
 

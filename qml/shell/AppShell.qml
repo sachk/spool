@@ -9,7 +9,7 @@ FocusScope {
     id: root
     focus: true
 
-    property string route: appController.page === "login" ? "login" : appController.page === "libraries" ? "libraries" : "libraryGrid"
+    property string route: controllerRoute()
     property var backStack: []
     property string previousRoute: "home"
     property int lastLibraryIndex: 0
@@ -19,11 +19,14 @@ FocusScope {
     property bool shortcutOverlayVisible: false
     property bool diagnosticsVisible: false
     property bool mediaInfoVisible: false
+    property var mediaInfoItem: ({})
     property bool textInputActive: Qt.inputMethod.visible
 
     function controllerRoute() {
         if (appController.page === "login") return "login"
-        if (appController.page === "libraries") return "libraries"
+        // After login, default to Home. The user can drill into Libraries explicitly.
+        if (appController.page === "libraries") return "home"
+        // page === "movies" — we just opened a library or backed out of playback into one.
         return "libraryGrid"
     }
 
@@ -47,20 +50,46 @@ FocusScope {
         routeStack.forceActiveFocus()
     }
 
+    function goHome() {
+        backStack = []
+        previousRoute = "home"
+        appController.goHome()
+        route = "home"
+        routeStack.forceActiveFocus()
+    }
+
     function back() {
         if (shortcutOverlayVisible) { shortcutOverlayVisible = false; return true }
         if (diagnosticsVisible) { diagnosticsVisible = false; return true }
+        if (mediaInfoVisible) { mediaInfoVisible = false; return true }
+        if (appController.player.visible) {
+            if (appController.player.backAllowed) appController.player.stopWithReason("shell-back-fallback")
+            return true
+        }
         if (route === "playerOverlay") { replaceRoute(previousRoute.length > 0 ? previousRoute : "home"); return true }
         if (route === "settings") { appController.closeSettings(); replaceRoute(previousRoute.length > 0 ? previousRoute : "home"); return true }
         if (route === "itemDetails") { replaceRoute("libraryGrid"); return true }
         if (route === "search") { replaceRoute(previousRoute.length > 0 ? previousRoute : "home"); return true }
-        if (route === "home" && appController.page !== "login") { replaceRoute("libraries"); return true }
+        if (route === "libraryGrid") { goHome(); return true }
         appController.back()
         return true
     }
 
     function openContextMenu() {
-        toast.show("Context menu: Play · Details · File info · Copy stream URL")
+        openMediaInfo(currentMediaItem())
+    }
+
+    function openMediaInfo(item) {
+        mediaInfoItem = item || ({})
+        mediaInfoVisible = true
+    }
+
+    function currentMediaItem() {
+        const count = appController.movies.rowCount()
+        if (count <= 0)
+            return ({})
+        const idx = Math.max(0, Math.min(lastGridIndex, count - 1))
+        return appController.movies.get(idx) || ({})
     }
 
     function focusRail() {
@@ -83,7 +112,11 @@ FocusScope {
         }
         if (event.key === Qt.Key_Question) { shortcutOverlayVisible = !shortcutOverlayVisible; return true }
         if (event.key === Qt.Key_Slash) { pushRoute("search"); return true }
-        if (event.key === Qt.Key_I) { mediaInfoVisible = !mediaInfoVisible; return true }
+        if (event.key === Qt.Key_I) {
+            if (mediaInfoVisible) { mediaInfoVisible = false; mediaInfoItem = ({}) }
+            else openMediaInfo(currentMediaItem())
+            return true
+        }
         if (event.key === Qt.Key_M || event.key === Qt.Key_Menu) { openContextMenu(); return true }
         if (event.key === Qt.Key_Backspace || event.key === Qt.Key_Escape || event.key === Qt.Key_Back || event.key === Qt.Key_BrowserBack) return back()
         if (event.key === Qt.Key_H) { event.key = Qt.Key_Left; return false }
@@ -129,9 +162,13 @@ FocusScope {
                 event.accepted = true
             return
         }
-        if (isAcceptKey(event.key) && routeStack.handleNavigationKey(event.key)) {
-            event.accepted = true
-            return
+        if (isAcceptKey(event.key)) {
+            // Don't hijack Enter when the side rail (or anything else) owns focus —
+            // let the focused button handle it natively.
+            if (!sideRail.activeFocus && routeStack.handleNavigationKey(event.key)) {
+                event.accepted = true
+                return
+            }
         }
         if (globalShortcut(event, true))
             event.accepted = true
@@ -151,7 +188,8 @@ FocusScope {
             visible: route !== "login"
             currentRoute: root.route
             onNavigate: (r) => {
-                if (r === "settings") root.pushRoute("settings")
+                if (r === "home") root.goHome()
+                else if (r === "settings") root.pushRoute("settings")
                 else root.pushRoute(r)
             }
             onContentRequested: root.focusContent()
@@ -204,6 +242,13 @@ FocusScope {
         }
     }
 
+    MediaInfoOverlay {
+        anchors.fill: parent
+        visible: root.mediaInfoVisible
+        item: visible ? (root.mediaInfoItem && Object.keys(root.mediaInfoItem).length > 0 ? root.mediaInfoItem : root.currentMediaItem()) : ({})
+        z: 59
+        onClosed: { root.mediaInfoVisible = false; root.mediaInfoItem = ({}) }
+    }
     ShortcutOverlay { anchors.fill: parent; visible: root.shortcutOverlayVisible; z: 60; onClosed: root.shortcutOverlayVisible = false }
     DiagnosticsOverlay { anchors.fill: parent; visible: root.diagnosticsVisible && !appController.player.visible; route: root.route; focusedItemId: String(root.lastGridIndex); z: 61 }
     ToastLayer { id: toast; anchors.fill: parent; z: 70 }

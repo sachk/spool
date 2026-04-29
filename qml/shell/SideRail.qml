@@ -67,7 +67,6 @@ FocusScope {
             id: railRepeater
             model: [
                 { label: "Home", route: "home", icon: "H" },
-                { label: "Libraries", route: "libraries", icon: "L" },
                 { label: "Search", route: "search", icon: "/" },
                 { label: "Settings", route: "settings", icon: "S" }
             ]

@@ -34,6 +34,9 @@ class AppController final : public QObject
     Q_PROPERTY(JellyfinNative::DiscoveredServerModel *discoveredServers READ discoveredServers CONSTANT)
     Q_PROPERTY(JellyfinNative::LibraryListModel *libraries READ libraries CONSTANT)
     Q_PROPERTY(JellyfinNative::MovieGridModel *movies READ movies CONSTANT)
+    Q_PROPERTY(JellyfinNative::MovieGridModel *resumeItems READ resumeItems CONSTANT)
+    Q_PROPERTY(JellyfinNative::MovieGridModel *nextUpItems READ nextUpItems CONSTANT)
+    Q_PROPERTY(JellyfinNative::MovieGridModel *latestItems READ latestItems CONSTANT)
     Q_PROPERTY(JellyfinNative::PlayerController *player READ player CONSTANT)
 
 public:
@@ -61,6 +64,9 @@ public:
     DiscoveredServerModel *discoveredServers();
     LibraryListModel *libraries();
     MovieGridModel *movies();
+    MovieGridModel *resumeItems();
+    MovieGridModel *nextUpItems();
+    MovieGridModel *latestItems();
     PlayerController *player();
 
     Q_INVOKABLE void initialize();
@@ -71,8 +77,12 @@ public:
     Q_INVOKABLE void login();
     Q_INVOKABLE void startQuickConnect();
     Q_INVOKABLE void cancelQuickConnect();
+    Q_INVOKABLE void goHome();
     Q_INVOKABLE void openLibrary(int index);
     Q_INVOKABLE void playMovie(int index);
+    Q_INVOKABLE void playResumeItem(int index);
+    Q_INVOKABLE void playNextUpItem(int index);
+    Q_INVOKABLE void playLatestItem(int index);
     Q_INVOKABLE void back();
     Q_INVOKABLE void clearError();
     Q_INVOKABLE void openSettings();
@@ -100,6 +110,7 @@ private:
     void applyLibrariesCache();
     void applyMoviesCache(const QString &libraryId);
     void loadLibraries();
+    void refreshHomeRows();
     void pollQuickConnect();
     void prefetchMoviePosters(const std::vector<MovieItem> &movies);
     void setCurrentItems(const std::vector<MovieItem> &items, const QString &cacheKey = {});
@@ -114,6 +125,9 @@ private:
     DiscoveredServerModel m_discoveredServers;
     LibraryListModel m_libraries;
     MovieGridModel m_movies;
+    MovieGridModel m_resumeItems;
+    MovieGridModel m_nextUpItems;
+    MovieGridModel m_latestItems;
     QTimer m_quickConnectTimer;
     QString m_page = QStringLiteral("login");
     QString m_serverUrl;
@@ -135,6 +149,7 @@ private:
     QString m_currentSeriesName;
     bool m_settingsVisible = false;
     bool m_nightModeEnabled = false;
+    int m_libraryLoadGeneration = 0;
 };
 
 } // namespace JellyfinNative

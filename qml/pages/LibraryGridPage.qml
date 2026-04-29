@@ -11,6 +11,20 @@ FocusScope {
     Component.onCompleted: grid.forceActiveFocus()
     onActiveFocusChanged: if (activeFocus) grid.forceActiveFocus()
 
+    function activateCurrent() {
+        if (grid.currentIndex < 0)
+            return
+        shell.lastGridIndex = grid.currentIndex
+        const item = appController.movies.get(grid.currentIndex)
+        const t = item ? item.itemType : ""
+        if (t === "Series" || t === "Season") {
+            // Direct navigation: drill into seasons/episodes immediately.
+            appController.playMovie(grid.currentIndex)
+        } else {
+            shell.pushRoute("itemDetails")
+        }
+    }
+
     function handleNavigationKey(key) {
         if (grid.count <= 0)
             return false
@@ -32,10 +46,7 @@ FocusScope {
             return true
         }
         if (key === Qt.Key_Return || key === Qt.Key_Enter || key === Qt.Key_Select) {
-            if (grid.currentIndex < 0)
-                return true
-            shell.lastGridIndex = grid.currentIndex
-            shell.pushRoute("itemDetails")
+            activateCurrent()
             return true
         }
         return false
@@ -73,14 +84,14 @@ FocusScope {
                 width: grid.cellWidth
                 height: grid.cellHeight
                 PosterCard { anchors.left: parent.left; anchors.right: parent.right; anchors.top: parent.top; anchors.rightMargin: Metrics.gap(root.width); title: parent.title; posterUrl: parent.posterUrl; year: parent.year; metadata: parent.subtitle; focused: parent.GridView.isCurrentItem }
-                MouseArea { anchors.fill: parent; onClicked: { grid.currentIndex = index; shell.lastGridIndex = index; shell.lastGridY = grid.contentY; shell.pushRoute("itemDetails") } }
+                MouseArea { anchors.fill: parent; onClicked: { grid.currentIndex = index; shell.lastGridIndex = index; shell.lastGridY = grid.contentY; root.activateCurrent() } }
             }
             onCurrentIndexChanged: shell.lastGridIndex = currentIndex
             Keys.onReleased: (event) => {
                 if (event.key === Qt.Key_Left && currentIndex % columns === 0) { shell.focusRail(); event.accepted = true }
-                else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter || event.key === Qt.Key_Select) { shell.lastGridIndex = currentIndex; shell.pushRoute("itemDetails"); event.accepted = true }
+                else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter || event.key === Qt.Key_Select) { root.activateCurrent(); event.accepted = true }
                 else if (event.key === Qt.Key_Space) { appController.playMovie(currentIndex); event.accepted = true }
-                else if (event.key === Qt.Key_M) { shell.openContextMenu(); event.accepted = true }
+                else if (event.key === Qt.Key_M) { shell.lastGridIndex = currentIndex; shell.openMediaInfo(appController.movies.get(currentIndex)); event.accepted = true }
             }
         }
     }
