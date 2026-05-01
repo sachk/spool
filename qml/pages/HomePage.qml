@@ -327,7 +327,13 @@ FocusScope {
                                     progress: mediaDelegate.itemData.progress || 0
                                     focused: mediaDelegate.index === rowScope.currentIndex && section.ListView.isCurrentItem
                                 }
-                                MouseArea { anchors.fill: parent; onClicked: { rowScope.currentIndex = index; root.activateAt(section.rowSource, index) } }
+                                MouseArea {
+                                    anchors.fill: parent
+                                    onClicked: {
+                                        rowScope.currentIndex = mediaDelegate.index
+                                        root.activateAt(section.rowSource, mediaDelegate.index)
+                                    }
+                                }
                                     }
                                 }
                             }
