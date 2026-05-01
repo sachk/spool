@@ -3,10 +3,16 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 WORKSPACE_ROOT="$(cd "$ROOT/.." && pwd)"
+WEBOS_TOOLS_ROOT="${WEBOS_TOOLS_ROOT:-$ROOT/tools/webos-native}"
+if [[ ! -f "$WEBOS_TOOLS_ROOT/qt6-webos-toolchain.cmake" ]]; then
+  WEBOS_TOOLS_ROOT="$WORKSPACE_ROOT/tools/webos-native"
+fi
 SDK_ROOT="${WEBOS_SDK_ROOT:-$WORKSPACE_ROOT/build/webos-sdk/arm-webos-linux-gnueabi_sdk-buildroot}"
 SYSROOT="$SDK_ROOT/arm-webos-linux-gnueabi/sysroot"
 PREFIX="$SYSROOT/usr/local/webos-native"
-MPV_BUILD="$WORKSPACE_ROOT/mpv/build/webos-libmpv"
+MPV_SRC="${MPV_SRC:-$ROOT/mpv}"
+MPV_BUILD="${MPV_BUILD:-$MPV_SRC/build/webos-libmpv}"
+WEBOS_CROSS_FILE="${WEBOS_CROSS_FILE:-$WORKSPACE_ROOT/build/webos-thirdparty-build/webos.cross.ini}"
 QT6_HOST_PREFIX="$WORKSPACE_ROOT/build/qt6-611-host-install"
 APP_DIR="$ROOT/app"
 BUILD_DIR="$ROOT/build"
@@ -103,8 +109,62 @@ DOVI_INC="$WORKSPACE_ROOT/dovi_tool/dolby_vision/include"
 export CFLAGS="${CFLAGS:-} -I$DOVI_INC"
 export CXXFLAGS="${CXXFLAGS:-} -I$DOVI_INC"
 export LDFLAGS="${LDFLAGS:-} -L$(dirname "$DOVI_LIB")"
+export PKG_CONFIG_PATH="$PREFIX/lib/pkgconfig"
+export PKG_CONFIG_LIBDIR="$PREFIX/lib/pkgconfig:$SYSROOT/usr/lib/pkgconfig:$SYSROOT/usr/share/pkgconfig"
+export PKG_CONFIG_SYSROOT_DIR="$SYSROOT"
 
-meson configure "$MPV_BUILD" -Dzlib=enabled -Dc_link_args="-L$(dirname "$DOVI_LIB") -ldovi" -Dcpp_link_args="-L$(dirname "$DOVI_LIB") -ldovi"
+MPV_SETUP_ARGS=(
+  --cross-file "$WEBOS_CROSS_FILE"
+  --prefix /usr/local
+  --libdir lib
+  --buildtype release
+  -Dcplayer=false
+  -Dlibmpv=true
+  -Dtests=false
+  -Dfuzzers=false
+  -Dmanpage-build=disabled
+  -Dhtml-build=disabled
+  -Dpdf-build=disabled
+  -Djavascript=disabled
+  -Dlua=enabled
+  -Dcplugins=disabled
+  -Dlibarchive=disabled
+  -Dlibavdevice=disabled
+  -Ddvdnav=disabled
+  -Dlibbluray=disabled
+  -Dcdda=disabled
+  -Ddvbin=disabled
+  -Drubberband=disabled
+  -Duchardet=disabled
+  -Dvapoursynth=disabled
+  -Dzimg=disabled
+  -Djack=disabled
+  -Dalsa=disabled
+  -Doss-audio=disabled
+  -Dpipewire=disabled
+  -Dpulse=disabled
+  -Dsdl2-gamepad=disabled
+  -Dsdl2-video=disabled
+  -Dx11=disabled
+  -Dwayland=enabled
+  -Dgl=disabled
+  -Dplain-gl=disabled
+  -Dvulkan=disabled
+  -Dshaderc=disabled
+  -Dspirv-cross=disabled
+  -Djpeg=disabled
+  -Dlcms2=disabled
+  -Dzlib=enabled
+  -Dstarfish=enabled
+  "-Dc_link_args=-L$(dirname "$DOVI_LIB") -ldovi"
+  "-Dcpp_link_args=-L$(dirname "$DOVI_LIB") -ldovi"
+)
+
+if [[ -f "$MPV_BUILD/build.ninja" ]]; then
+  meson setup --reconfigure "$MPV_BUILD" "$MPV_SRC" "${MPV_SETUP_ARGS[@]}"
+else
+  meson setup "$MPV_BUILD" "$MPV_SRC" "${MPV_SETUP_ARGS[@]}"
+fi
 meson compile -C "$MPV_BUILD"
 
 # CMAKE flags: pass BUILD_SHARED_LIBS=OFF when linking against static Qt
@@ -119,7 +179,7 @@ fi
 cmake -S "$ROOT" -B "$CMAKE_BUILD_DIR" -GNinja \
   --fresh \
   -DCMAKE_BUILD_TYPE=Release \
-  -DCMAKE_TOOLCHAIN_FILE="$WORKSPACE_ROOT/tools/webos-native/qt6-webos-toolchain.cmake" \
+  -DCMAKE_TOOLCHAIN_FILE="$WEBOS_TOOLS_ROOT/qt6-webos-toolchain.cmake" \
   -DCMAKE_STAGING_PREFIX="$QT6_PREFIX" \
   -DCMAKE_FIND_ROOT_PATH="$SYSROOT;$QT6_PREFIX" \
   -DCMAKE_PREFIX_PATH="$QT6_PREFIX;$QT6_PREFIX/lib/cmake" \

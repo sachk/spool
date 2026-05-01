@@ -1,0 +1,13 @@
+--- a/src/plugins/platforms/wayland/hardwareintegration/qwaylandclientbufferintegration_p.h
++++ b/src/plugins/platforms/wayland/hardwareintegration/qwaylandclientbufferintegration_p.h
+@@ -23,10 +23,10 @@
+ QT_BEGIN_NAMESPACE
+ 
+ class QWindow;
++class QPlatformOpenGLContext;
+ #if QT_CONFIG(opengl)
+ class QOpenGLContext;
+-class QPlatformOpenGLContext;
+ #endif
+ class QPlatformOffscreenSurface;
+ class QSurfaceFormat;

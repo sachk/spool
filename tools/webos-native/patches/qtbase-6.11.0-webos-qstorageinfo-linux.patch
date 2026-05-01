@@ -1,0 +1,37 @@
+--- a/src/corelib/io/qstorageinfo_linux.cpp
++++ b/src/corelib/io/qstorageinfo_linux.cpp
+@@ -15,6 +15,7 @@
+ #include <sys/ioctl.h>
+ #include <sys/stat.h>
+ #include <sys/statfs.h>
++#include <sys/statvfs.h>
+ 
+ // so we don't have to #include <linux/fs.h>, which is known to cause conflicts
+ #ifndef FSLABEL_MAX
+@@ -194,16 +195,25 @@
+ 
+ void QStorageInfoPrivate::retrieveVolumeInfo()
+ {
++    const QByteArray path = QFile::encodeName(rootPath);
+     struct statfs64 statfs_buf;
+     int result;
+-    QT_EINTR_LOOP(result, statfs64(QFile::encodeName(rootPath).constData(), &statfs_buf));
++    QT_EINTR_LOOP(result, statfs64(path.constData(), &statfs_buf));
+     valid = ready = (result == 0);
+     if (valid) {
+         bytesTotal = statfs_buf.f_blocks * statfs_buf.f_frsize;
+         bytesFree = statfs_buf.f_bfree * statfs_buf.f_frsize;
+         bytesAvailable = statfs_buf.f_bavail * statfs_buf.f_frsize;
+         blockSize = int(statfs_buf.f_bsize);
++#if defined(_STATFS_F_FLAGS)
+         readOnly = (statfs_buf.f_flags & ST_RDONLY) != 0;
++#else
++        struct statvfs64 statvfs_buf;
++        int statvfsResult;
++        QT_EINTR_LOOP(statvfsResult, statvfs64(path.constData(), &statvfs_buf));
++        if (statvfsResult == 0)
++            readOnly = (statvfs_buf.f_flag & ST_RDONLY) != 0;
++#endif
+     }
+ }
+

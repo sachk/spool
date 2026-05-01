@@ -1,0 +1,150 @@
+name: build artifacts
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      webos_toolchain_archive_url:
+        description: "Optional tar archive containing build/webos-sdk and Qt webOS prefixes"
+        required: false
+        type: string
+
+jobs:
+  webos-ipk:
+    name: webOS IPK
+    runs-on: ubuntu-24.04
+    if: ${{ github.event_name != 'pull_request' || vars.WEBOS_TOOLCHAIN_ARCHIVE_URL != '' }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - uses: actions/cache@v4
+        with:
+          path: |
+            build/webos-sdk
+            build/qt6-611-host-install
+            build/qt6-611-target-static-install
+            build/qt6-611-target-install
+            build/webos-thirdparty-build
+            build/third_party
+            .ccache
+            mpv/build/webos-libmpv
+          key: webos-${{ runner.os }}-${{ hashFiles('mpv/meson.build', 'build-ipk.sh', 'tools/webos-native/**') }}
+          restore-keys: |
+            webos-${{ runner.os }}-
+
+      - name: Install host tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ccache cmake curl git jq meson ninja-build nodejs npm patchelf pkg-config rustup
+
+      - name: Restore webOS toolchain archive
+        env:
+          INPUT_URL: ${{ inputs.webos_toolchain_archive_url }}
+          VAR_URL: ${{ vars.WEBOS_TOOLCHAIN_ARCHIVE_URL }}
+        run: |
+          url="${INPUT_URL:-$VAR_URL}"
+          if [ -n "$url" ] && [ ! -x build/webos-sdk/arm-webos-linux-gnueabi_sdk-buildroot/bin/arm-webos-linux-gnueabi-gcc ]; then
+            curl -L --fail "$url" | tar xz
+          fi
+          test -x build/webos-sdk/arm-webos-linux-gnueabi_sdk-buildroot/bin/arm-webos-linux-gnueabi-gcc
+          test -d build/qt6-611-host-install
+          test -d build/qt6-611-target-static-install -o -d build/qt6-611-target-install
+
+      - name: Build IPK
+        run: bash build-ipk.sh
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: jellyfin-native-webos-ipk
+          path: build/*.ipk
+
+  linux-appimage:
+    name: Linux AppImage
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - uses: jurplel/install-qt-action@v4
+        with:
+          version: "6.10.0"
+          modules: qtwayland qtimageformats
+          cache: true
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            ccache cmake curl fuse git libarchive-dev libasound2-dev libass-dev \
+            libavcodec-dev libavfilter-dev libavformat-dev libavutil-dev libbluray-dev \
+            libdrm-dev libegl1-mesa-dev libfontconfig-dev libfreetype-dev libjpeg-dev \
+            liblua5.2-dev libpipewire-0.3-dev libplacebo-dev libpulse-dev libswresample-dev \
+            libswscale-dev libuchardet-dev libva-dev libwayland-dev libxkbcommon-dev \
+            meson ninja-build pkg-config wayland-protocols zlib1g-dev
+
+      - uses: actions/cache@v4
+        with:
+          path: |
+            .ccache
+            ../build/linux-dev/mpv-prefix
+            mpv/build/linux-dev
+            build-linux-dev
+            build/appimage
+          key: linux-${{ runner.os }}-${{ hashFiles('mpv/meson.build', 'tools/build-linux-dev.sh', 'CMakeLists.txt') }}
+          restore-keys: |
+            linux-${{ runner.os }}-
+
+      - name: Build host app
+        run: bash tools/build-linux-dev.sh
+
+      - name: Package AppImage
+        run: bash tools/package-appimage.sh
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: jellyfin-native-linux-appimage
+          path: dist/*.AppImage
+
+  macos-dmg:
+    name: macOS DMG
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - uses: jurplel/install-qt-action@v4
+        with:
+          version: "6.10.0"
+          modules: qtimageformats
+          cache: true
+
+      - name: Install build dependencies
+        run: |
+          brew update
+          brew install ccache cmake create-dmg ffmpeg libarchive libass libbluray libplacebo lua meson mujs ninja pkg-config rubberband uchardet
+
+      - uses: actions/cache@v4
+        with:
+          path: |
+            build/macos
+            ~/Library/Caches/ccache
+          key: macos-${{ runner.os }}-${{ hashFiles('mpv/meson.build', 'tools/build-macos.sh', 'CMakeLists.txt') }}
+          restore-keys: |
+            macos-${{ runner.os }}-
+
+      - name: Build macOS app
+        run: bash tools/build-macos.sh
+
+      - name: Package DMG
+        run: bash tools/package-macos-dmg.sh
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: jellyfin-native-macos-dmg
+          path: dist/*.dmg
