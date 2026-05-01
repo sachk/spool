@@ -21,6 +21,7 @@ FocusScope {
     property bool mediaInfoVisible: false
     property var mediaInfoItem: ({})
     property bool textInputActive: Qt.inputMethod.visible
+    property bool backPressHandled: false
 
     function controllerRoute() {
         if (appController.page === "login") return "login"
@@ -133,15 +134,32 @@ FocusScope {
         return key === Qt.Key_Return || key === Qt.Key_Enter || key === Qt.Key_Select
     }
 
+    function isBackEvent(event) {
+        const scanCode = Number(event.nativeScanCode || 0)
+        return event.key === Qt.Key_Back
+                || event.key === Qt.Key_Escape
+                || event.key === Qt.Key_Backspace
+                || event.key === Qt.Key_BrowserBack
+                || event.key === 0x01200003
+                || (event.key === 0 && scanCode === 420)
+    }
+
     Keys.priority: Keys.BeforeItem
 
     Keys.onPressed: (event) => {
         if (appController.player.visible) {
             const scanCode = Number(event.nativeScanCode || 0)
-            if (isDirectionalKey(event.key) || event.key === Qt.Key_Back || event.key === Qt.Key_Escape || event.key === Qt.Key_Backspace || event.key === Qt.Key_BrowserBack ||
+            if (isDirectionalKey(event.key) || isBackEvent(event) ||
                     (event.key === 0 && (scanCode === 420 || scanCode === 1206 || scanCode === 1207))) {
                 event.accepted = true
             }
+            return
+        }
+
+        if (isBackEvent(event)) {
+            backPressHandled = true
+            back()
+            event.accepted = true
             return
         }
 
@@ -160,6 +178,11 @@ FocusScope {
         if (appController.player.visible) {
             if (playerOverlay.handleReleased(event) || globalShortcut(event, true))
                 event.accepted = true
+            return
+        }
+        if (isBackEvent(event) && backPressHandled) {
+            backPressHandled = false
+            event.accepted = true
             return
         }
         if (isAcceptKey(event.key)) {

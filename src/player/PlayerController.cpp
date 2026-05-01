@@ -362,7 +362,8 @@ bool PlayerController::ensureMpv() {
 }
 
 void PlayerController::play(const PlaybackSession &session) {
-  qInfo() << "player: play requested" << session.title;
+  qInfo() << "player: play requested" << session.title
+          << "startTimeTicks=" << session.startTimeTicks;
 
   if (m_mpv.load()) {
     qInfo() << "player: tearing down stale mpv before play";
@@ -418,7 +419,11 @@ void PlayerController::play(const PlaybackSession &session) {
   auto *handle = m_mpv.load();
   m_pendingFileLoads.fetch_add(1, std::memory_order_acq_rel);
   const QByteArray urlBytes = session.url.toUtf8();
-  const char *loadCommand[] = {"loadfile", urlBytes.constData(), nullptr};
+  if (session.startTimeTicks > 0)
+    qInfo() << "player: stream URL includes resume position seconds="
+            << static_cast<double>(session.startTimeTicks) / 10000000.0;
+  const char *loadCommand[] = {"loadfile", urlBytes.constData(), "replace",
+                               nullptr};
   if (mpv_command(handle, loadCommand) < 0) {
     m_pendingFileLoads.fetch_sub(1, std::memory_order_acq_rel);
     m_errorText = QStringLiteral("libmpv rejected the playback URL.");

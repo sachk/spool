@@ -55,6 +55,7 @@ struct PlaybackSession {
     QString mediaSourceId;
     QString playSessionId;
     QString container;
+    qint64 startTimeTicks = 0;
 };
 
 QJsonObject toJson(const DiscoveredServer &server);
