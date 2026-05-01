@@ -3,7 +3,7 @@ set -euo pipefail
 
 APP_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 WORKSPACE_ROOT="$(cd "$APP_ROOT/.." && pwd)"
-MPV_SRC="$WORKSPACE_ROOT/mpv"
+MPV_SRC="${MPV_SRC:-$APP_ROOT/mpv}"
 MPV_BUILD="${MPV_BUILD:-$MPV_SRC/build/linux-dev}"
 MPV_PREFIX="${MPV_PREFIX:-$WORKSPACE_ROOT/build/linux-dev/mpv-prefix}"
 APP_BUILD="${APP_BUILD:-$APP_ROOT/build-linux-dev}"

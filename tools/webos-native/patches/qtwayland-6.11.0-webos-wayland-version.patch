@@ -1,0 +1,11 @@
+--- a/src/CMakeLists.txt
++++ b/src/CMakeLists.txt
+@@ -20,7 +20,7 @@
+     endif()
+ endforeach()
+ 
+-qt_find_package(Wayland 1.15 PROVIDED_TARGETS ${wayland_libs})
++qt_find_package(Wayland 1.11 PROVIDED_TARGETS ${wayland_libs})
+ 
+ if (NOT WaylandScanner_FOUND OR NOT Wayland_FOUND)
+     message(WARNING "QtWayland is missing required dependencies, nothing will be built. \

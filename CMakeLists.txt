@@ -9,6 +9,9 @@ endif()
 option(JELLYFIN_NATIVE_WEBOS "Build the webOS Starfish/native-surface client" ${JELLYFIN_NATIVE_WEBOS_DEFAULT})
 option(JELLYFIN_NATIVE_DEV_BUILD "Favor faster local development builds over smallest release artifacts" OFF)
 
+set(MPV_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/mpv" CACHE PATH "mpv source tree")
+set(MPV_WEBOS_BUILD_DIR "${MPV_SOURCE_DIR}/build/webos-libmpv" CACHE PATH "webOS libmpv build directory")
+
 if(JELLYFIN_NATIVE_DEV_BUILD)
     set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
     set(CMAKE_INTERPROCEDURAL_OPTIMIZATION OFF)
@@ -70,7 +73,7 @@ if(JELLYFIN_NATIVE_WEBOS)
     set(LUA_LIB "${WEBOS_NATIVE_LIB_DIR}/liblua5.2.so")
     set(SWRESAMPLE_LIB "${WEBOS_NATIVE_LIB_DIR}/libswresample.so")
     set(SWSCALE_LIB "${WEBOS_NATIVE_LIB_DIR}/libswscale.so")
-    set(MPV_LIB "${CMAKE_CURRENT_SOURCE_DIR}/../mpv/build/webos-libmpv/libmpv.so")
+    set(MPV_LIB "${MPV_WEBOS_BUILD_DIR}/libmpv.so")
     if(NOT EXISTS "${MPV_LIB}")
         message(FATAL_ERROR "Expected libmpv at ${MPV_LIB}")
     endif()
@@ -173,8 +176,8 @@ qt_add_qml_module(jellyfin-native
 
 target_include_directories(jellyfin-native PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/third_party/qcoro/include"
-    "${CMAKE_CURRENT_SOURCE_DIR}/../mpv"
-    "${CMAKE_CURRENT_SOURCE_DIR}/../mpv/include"
+    "${MPV_SOURCE_DIR}"
+    "${MPV_SOURCE_DIR}/include"
 )
 
 target_link_libraries(jellyfin-native PRIVATE
@@ -213,7 +216,7 @@ if(JELLYFIN_NATIVE_WEBOS)
     )
 
     target_link_options(jellyfin-native PRIVATE
-        "-Wl,-rpath-link,${CMAKE_CURRENT_SOURCE_DIR}/../mpv/build/webos-libmpv"
+        "-Wl,-rpath-link,${MPV_WEBOS_BUILD_DIR}"
         "-Wl,-rpath-link,${WEBOS_NATIVE_LIB_DIR}"
         "-Wl,-rpath-link,${WEBOS_SYSROOT_LIB_DIR}"
         "-Wl,-rpath-link,${WEBOS_SYSROOT_BASE_LIB_DIR}"
@@ -258,6 +261,18 @@ set_target_properties(jellyfin-native PROPERTIES
     INSTALL_RPATH "$ORIGIN/../lib"
 )
 
+if(APPLE)
+    set_target_properties(jellyfin-native PROPERTIES
+        MACOSX_BUNDLE TRUE
+        MACOSX_BUNDLE_BUNDLE_NAME "Jellyfin Native"
+        MACOSX_BUNDLE_GUI_IDENTIFIER "com.sachk.tern"
+        MACOSX_BUNDLE_BUNDLE_VERSION "0.2.1"
+        MACOSX_BUNDLE_SHORT_VERSION_STRING "0.2.1"
+        INSTALL_RPATH "@executable_path/../Frameworks"
+    )
+endif()
+
 install(TARGETS jellyfin-native
+    BUNDLE DESTINATION .
     RUNTIME DESTINATION bin
 )

@@ -1,0 +1,13 @@
+--- a/src/corelib/plugin/qelfparser_p.cpp
++++ b/src/corelib/plugin/qelfparser_p.cpp
+@@ -20,6 +20,10 @@
+ 
+ QT_BEGIN_NAMESPACE
+ 
++#ifndef EM_AARCH64
++#  define EM_AARCH64 183
++#endif
++
+ using namespace Qt::StringLiterals;
+ 
+ // ### Qt7: propagate the constant and eliminate dead code
