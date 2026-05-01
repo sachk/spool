@@ -280,10 +280,17 @@ FocusScope {
                         if (key === Qt.Key_Return || key === Qt.Key_Enter || key === Qt.Key_Select) {
                             if (currentIndex < 0)
                                 return true
-                            root.activateAt(section.rowSource, currentIndex)
+                            activateCard(currentIndex)
                             return true
                         }
                         return false
+                    }
+
+                    function activateCard(index) {
+                        if (index < 0 || index >= visibleCount)
+                            return
+                        currentIndex = index
+                        root.activateAt(section.rowSource, index)
                     }
                     ColumnLayout { anchors.fill: parent; spacing: 10
                         SectionHeader { id: rowHeader; Layout.fillWidth: true; title: section.title }
@@ -330,8 +337,7 @@ FocusScope {
                                 MouseArea {
                                     anchors.fill: parent
                                     onClicked: {
-                                        rowScope.currentIndex = mediaDelegate.index
-                                        root.activateAt(section.rowSource, mediaDelegate.index)
+                                        rowScope.activateCard(mediaDelegate.index)
                                     }
                                 }
                                     }
@@ -339,7 +345,7 @@ FocusScope {
                             }
                             Keys.onReleased: (event) => {
                                 if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter || event.key === Qt.Key_Select) {
-                                    root.activateAt(section.rowSource, rowScope.currentIndex)
+                                    rowScope.activateCard(rowScope.currentIndex)
                                     event.accepted = true
                                 } else if (event.key === Qt.Key_Space) {
                                     const src = section.rowSource

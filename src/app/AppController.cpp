@@ -62,8 +62,6 @@ AppController::AppController(DatabaseManager *database,
 
     connect(m_player, &PlayerController::playbackStopped, this, [this]() {
         qInfo() << "app: playbackStopped page=" << m_page;
-        if (m_page != QStringLiteral("movies"))
-            setPage(QStringLiteral("movies"));
     });
 }
 
@@ -404,15 +402,23 @@ void AppController::playMovie(int index)
 void AppController::playResumeItem(int index)
 {
     const auto item = m_resumeItems.movieAt(index);
-    if (!item.id.isEmpty())
-        playMediaItem(item);
+    qInfo() << "app: play resume item index=" << index
+            << "type=" << item.itemType << "title=" << item.title
+            << "resumeTicks=" << item.resumeTicks;
+    if (item.id.isEmpty())
+        return;
+    playMediaItem(item);
 }
 
 void AppController::playNextUpItem(int index)
 {
     const auto item = m_nextUpItems.movieAt(index);
-    if (!item.id.isEmpty())
-        playMediaItem(item);
+    qInfo() << "app: play next-up item index=" << index
+            << "type=" << item.itemType << "title=" << item.title
+            << "resumeTicks=" << item.resumeTicks;
+    if (item.id.isEmpty())
+        return;
+    playMediaItem(item);
 }
 
 void AppController::playLatestItem(int index)

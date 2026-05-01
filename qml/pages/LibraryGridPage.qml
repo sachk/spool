@@ -21,7 +21,7 @@ FocusScope {
             // Direct navigation: drill into seasons/episodes immediately.
             appController.playMovie(grid.currentIndex)
         } else {
-            shell.pushRoute("itemDetails")
+            appController.playMovie(grid.currentIndex)
         }
     }
 
