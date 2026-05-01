@@ -730,8 +730,6 @@ PlaybackSession JellyfinApiFacade::buildPlaybackSession(const MovieItem &movie, 
     query.addQueryItem(QStringLiteral("static"), QStringLiteral("true"));
     query.addQueryItem(QStringLiteral("MediaSourceId"), mediaSourceId);
     query.addQueryItem(QStringLiteral("api_key"), m_session.accessToken);
-    if (movie.resumeTicks > 0)
-        query.addQueryItem(QStringLiteral("StartTimeTicks"), QString::number(movie.resumeTicks));
 
     const QString url = QStringLiteral("%1/Videos/%2/stream?%3")
                             .arg(m_serverUrl, movie.id, query.toString(QUrl::FullyEncoded));

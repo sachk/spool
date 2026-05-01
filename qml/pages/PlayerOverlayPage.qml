@@ -17,7 +17,6 @@ FocusScope {
     property int menuIndex: 0
     property bool scrubbing: false
     property double scrubSeconds: 0
-    property double optimisticSeekSeconds: -1
     readonly property real uiScale: Math.max(0.78, Math.min(1.0, height / 1440))
 
     readonly property var actions: [
@@ -31,7 +30,7 @@ FocusScope {
         "Stop playback"
     ]
     readonly property bool menuOpen: mode === "subtitles" || mode === "debug"
-    readonly property bool pinned: appController.player.paused || appController.player.buffering || scrubbing || menuOpen
+    readonly property bool pinned: appController.player.paused || scrubbing || menuOpen
 
     function formatClock(seconds) {
         const total = Math.max(0, Math.floor(seconds || 0))
@@ -47,7 +46,6 @@ FocusScope {
 
     function positionSeconds() {
         if (scrubbing) return scrubSeconds
-        if (optimisticSeekSeconds >= 0) return optimisticSeekSeconds
         return appController.player.positionSeconds
     }
 
@@ -70,10 +68,7 @@ FocusScope {
     }
 
     function seekTo(seconds) {
-        optimisticSeekSeconds = clampSeconds(seconds)
-        scrubSeconds = optimisticSeekSeconds
-        seekCatchupTimer.restart()
-        appController.player.seek(optimisticSeekSeconds)
+        appController.player.seek(clampSeconds(seconds))
     }
 
     function adjustTimeline(delta) {
@@ -231,29 +226,16 @@ FocusScope {
         } else {
             autohideTimer.stop()
             scrubTimer.stop()
-            seekCatchupTimer.stop()
             mode = "hidden"
             row = "timeline"
             scrubbing = false
-            optimisticSeekSeconds = -1
         }
     }
 
     onPinnedChanged: if (visible && mode !== "hidden") showControls(row)
 
-    Connections {
-        target: appController.player
-        function onPositionSecondsChanged() {
-            if (overlay.optimisticSeekSeconds >= 0 && Math.abs(appController.player.positionSeconds - overlay.optimisticSeekSeconds) < 1.2) {
-                overlay.optimisticSeekSeconds = -1
-                seekCatchupTimer.stop()
-            }
-        }
-    }
-
-    Timer { id: autohideTimer; interval: 4200; onTriggered: overlay.hideControls() }
+    Timer { id: autohideTimer; interval: 5000; onTriggered: overlay.hideControls() }
     Timer { id: scrubTimer; interval: 650; onTriggered: overlay.commitScrub() }
-    Timer { id: seekCatchupTimer; interval: 1800; onTriggered: overlay.optimisticSeekSeconds = -1 }
 
     TapHandler { onTapped: overlay.showControls("timeline") }
     HoverHandler { onPointChanged: if (overlay.mode !== "hidden") overlay.showControls(overlay.row) }

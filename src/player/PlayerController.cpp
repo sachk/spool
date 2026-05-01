@@ -188,6 +188,7 @@ PlayerController::PlayerController(NativeAppWindow *window,
     m_positionClock.restart();
     updatePlaybackStatusText();
     emit stateChanged();
+    dispatchPendingSeek();
   });
   connect(&m_progressTimer, &QTimer::timeout, this, [this]() {
     if (!m_visible)
@@ -396,7 +397,12 @@ void PlayerController::play(const PlaybackSession &session) {
   m_statusText = QStringLiteral("Preparing libmpv...");
 #endif
   m_errorText.clear();
-  m_positionSeconds = 0.0;
+  const double startSeconds =
+      session.startTimeTicks > 0
+          ? static_cast<double>(session.startTimeTicks) / 10000000.0
+          : 0.0;
+  m_resumeStartSeconds = startSeconds;
+  m_positionSeconds = startSeconds;
   m_durationSeconds = 0.0;
   m_positionClock.invalidate();
   m_paused = false;
@@ -419,30 +425,19 @@ void PlayerController::play(const PlaybackSession &session) {
   auto *handle = m_mpv.load();
   m_pendingFileLoads.fetch_add(1, std::memory_order_acq_rel);
   const QByteArray urlBytes = session.url.toUtf8();
-  const double startSeconds =
-      session.startTimeTicks > 0
-          ? static_cast<double>(session.startTimeTicks) / 10000000.0
-          : 0.0;
-  const QByteArray loadOptions =
-      startSeconds > 0.0
-          ? QByteArray("start=") + QByteArray::number(startSeconds, 'f', 3)
-          : QByteArray();
-  const char *loadCommandWithStart[] = {"loadfile",
-                                        urlBytes.constData(),
-                                        "replace",
-                                        loadOptions.constData(),
-                                        nullptr};
-  const char *loadCommandFromBeginning[] = {"loadfile",
-                                           urlBytes.constData(),
-                                           "replace",
-                                           nullptr};
-  const char **loadCommand =
-      loadOptions.isEmpty() ? loadCommandFromBeginning : loadCommandWithStart;
-  if (!loadOptions.isEmpty()) {
-    m_positionSeconds = startSeconds;
+  if (startSeconds > 0.0) {
+    const QByteArray startValue = QByteArray::number(startSeconds, 'f', 3);
+    if (!setOption(handle, "start", startValue.constData())) {
+      m_pendingFileLoads.fetch_sub(1, std::memory_order_acq_rel);
+      m_errorText = QStringLiteral("libmpv rejected the resume position.");
+      stopProgressReporting(true);
+      return;
+    }
     qInfo() << "player: instructing mpv to start at resume position seconds="
             << startSeconds;
   }
+  const char *loadCommand[] = {"loadfile", urlBytes.constData(), "replace",
+                               nullptr};
   if (mpv_command(handle, loadCommand) < 0) {
     m_pendingFileLoads.fetch_sub(1, std::memory_order_acq_rel);
     m_errorText = QStringLiteral("libmpv rejected the playback URL.");
@@ -455,11 +450,11 @@ void PlayerController::play(const PlaybackSession &session) {
 void PlayerController::togglePause() { mpvCommand("no-osd cycle pause"); }
 
 void PlayerController::seekBack() {
-  seek(clampedPosition(seekBasePosition() - 10.0));
+  beginRelativeSeekCommand(-10.0);
 }
 
 void PlayerController::seekForward() {
-  seek(clampedPosition(seekBasePosition() + 30.0));
+  beginRelativeSeekCommand(30.0);
 }
 
 void PlayerController::seek(double seconds) {
@@ -588,6 +583,7 @@ void PlayerController::resetPlaybackUiState() {
   m_seeking = false;
   m_pendingSeekCommand.clear();
   m_requestedSeekTargetSeconds = -1.0;
+  m_resumeStartSeconds = 0.0;
   m_positionClock.invalidate();
   m_debugOsdVisible = false;
   m_statusText = QStringLiteral("Ready");
@@ -639,6 +635,19 @@ bool PlayerController::beginSeekCommand(const QByteArray &command,
   updatePlaybackStatusText();
   emit stateChanged();
   return false;
+}
+
+bool PlayerController::beginRelativeSeekCommand(double deltaSeconds) {
+  if (!std::isfinite(deltaSeconds) || deltaSeconds == 0.0)
+    return false;
+
+  const double optimisticTarget = clampedPosition(seekBasePosition() + deltaSeconds);
+  const QByteArray command =
+      QByteArray("no-osd seek ") + QByteArray::number(deltaSeconds, 'f', 3) +
+      QByteArray(" relative+keyframes");
+  qInfo() << "player: relative keyframe seek" << deltaSeconds
+          << "optimisticTarget=" << optimisticTarget;
+  return beginSeekCommand(command, optimisticTarget);
 }
 
 void PlayerController::dispatchPendingSeek() {
@@ -739,7 +748,7 @@ void PlayerController::runEventLoop() {
                  property->format == MPV_FORMAT_DOUBLE) {
         const double seconds = *static_cast<double *>(property->data);
         QMetaObject::invokeMethod(this, [this, seconds]() {
-          setPositionSeconds(seconds);
+          setPositionSeconds(playbackPositionFromMpvTime(seconds));
         });
       } else if (strcmp(property->name, "duration") == 0 &&
                  property->format == MPV_FORMAT_DOUBLE) {
@@ -802,14 +811,20 @@ void PlayerController::runEventLoop() {
     case MPV_EVENT_END_FILE: {
       auto *endFile = static_cast<mpv_event_end_file *>(event->data);
       const bool failed = endFile && endFile->error < 0;
+      const int endFileReason = endFile ? endFile->reason : -1;
+      const int endFileError = endFile ? endFile->error : 0;
       // If a new loadfile is already in flight, this END_FILE belongs to
       // the file being replaced — don't tear the UI down.
       if (m_pendingFileLoads.load(std::memory_order_acquire) > 0) {
         qInfo() << "player: end file for replaced session, ignoring";
         break;
       }
-      QMetaObject::invokeMethod(this, [this, failed]() {
-        qInfo() << "player: end file (main thread) failed=" << failed << "visible=" << m_visible;
+      QMetaObject::invokeMethod(this, [this, failed, endFileReason, endFileError]() {
+        qInfo() << "player: end file (main thread) failed=" << failed
+                << "visible=" << m_visible
+                << "reason=" << endFileReason
+                << "error=" << endFileError
+                << (endFileError < 0 ? mpv_error_string(endFileError) : "");
         if (failed)
           m_errorText = QStringLiteral("Playback ended with an mpv error.");
         stopProgressReporting(failed);
@@ -857,10 +872,12 @@ double PlayerController::clampedPosition(double seconds) const {
 }
 
 double PlayerController::seekBasePosition() const {
-  if (!m_pendingSeekCommand.isEmpty())
+  if (m_seeking && !m_pendingSeekCommand.isEmpty())
     return m_pendingSeekTargetSeconds;
-  if (m_requestedSeekTargetSeconds >= 0.0)
+  if (m_seeking && m_requestedSeekTargetSeconds >= 0.0)
     return m_requestedSeekTargetSeconds;
+  if (m_resumeStartSeconds > 0.0 && m_positionSeconds + 5.0 < m_resumeStartSeconds)
+    return m_resumeStartSeconds + m_positionSeconds;
   return m_positionSeconds;
 }
 
@@ -874,6 +891,19 @@ void PlayerController::setPositionSeconds(double seconds) {
   m_positionSeconds = clamped;
   m_positionClock.restart();
   emit stateChanged();
+}
+
+double PlayerController::playbackPositionFromMpvTime(double seconds) const {
+  if (!std::isfinite(seconds))
+    return m_positionSeconds;
+
+  // Starfish can expose a timeline rebased to 0 after mpv starts a resumed
+  // stream. Keep the app-facing clock on Jellyfin's absolute media timeline so
+  // relative seeks and progress reports stay anchored to the resume point.
+  if (m_resumeStartSeconds > 0.0 && seconds + 5.0 < m_resumeStartSeconds)
+    return m_resumeStartSeconds + seconds;
+
+  return seconds;
 }
 
 } // namespace JellyfinNative
