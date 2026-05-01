@@ -419,11 +419,30 @@ void PlayerController::play(const PlaybackSession &session) {
   auto *handle = m_mpv.load();
   m_pendingFileLoads.fetch_add(1, std::memory_order_acq_rel);
   const QByteArray urlBytes = session.url.toUtf8();
-  if (session.startTimeTicks > 0)
-    qInfo() << "player: stream URL includes resume position seconds="
-            << static_cast<double>(session.startTimeTicks) / 10000000.0;
-  const char *loadCommand[] = {"loadfile", urlBytes.constData(), "replace",
-                               nullptr};
+  const double startSeconds =
+      session.startTimeTicks > 0
+          ? static_cast<double>(session.startTimeTicks) / 10000000.0
+          : 0.0;
+  const QByteArray loadOptions =
+      startSeconds > 0.0
+          ? QByteArray("start=") + QByteArray::number(startSeconds, 'f', 3)
+          : QByteArray();
+  const char *loadCommandWithStart[] = {"loadfile",
+                                        urlBytes.constData(),
+                                        "replace",
+                                        loadOptions.constData(),
+                                        nullptr};
+  const char *loadCommandFromBeginning[] = {"loadfile",
+                                           urlBytes.constData(),
+                                           "replace",
+                                           nullptr};
+  const char **loadCommand =
+      loadOptions.isEmpty() ? loadCommandFromBeginning : loadCommandWithStart;
+  if (!loadOptions.isEmpty()) {
+    m_positionSeconds = startSeconds;
+    qInfo() << "player: instructing mpv to start at resume position seconds="
+            << startSeconds;
+  }
   if (mpv_command(handle, loadCommand) < 0) {
     m_pendingFileLoads.fetch_sub(1, std::memory_order_acq_rel);
     m_errorText = QStringLiteral("libmpv rejected the playback URL.");
