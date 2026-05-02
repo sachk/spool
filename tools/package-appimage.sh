@@ -2,8 +2,8 @@
 set -euo pipefail
 
 APP_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-BUILD_ROOT="${BUILD_ROOT:-$APP_ROOT/build/linux-dev}"
-MPV_PREFIX="${MPV_PREFIX:-$APP_ROOT/../build/linux-dev/mpv-prefix}"
+BUILD_ROOT="${BUILD_ROOT:-$APP_ROOT/build/linux-release/install/bin}"
+MPV_PREFIX="${MPV_PREFIX:-$APP_ROOT/build/linux-release/mpv-prefix}"
 APPDIR="${APPDIR:-$APP_ROOT/build/appimage/AppDir}"
 ARTIFACT_DIR="${ARTIFACT_DIR:-$APP_ROOT/dist}"
 LINUXDEPLOY="${LINUXDEPLOY:-$APP_ROOT/build/appimage/linuxdeploy-x86_64.AppImage}"
