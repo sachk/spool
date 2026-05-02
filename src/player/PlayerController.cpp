@@ -643,10 +643,10 @@ bool PlayerController::beginRelativeSeekCommand(double deltaSeconds) {
 
   const double optimisticTarget = clampedPosition(seekBasePosition() + deltaSeconds);
   const QByteArray command =
-      QByteArray("no-osd seek ") + QByteArray::number(deltaSeconds, 'f', 3) +
-      QByteArray(" relative+keyframes");
+      QByteArray("no-osd seek ") + QByteArray::number(optimisticTarget, 'f', 3) +
+      QByteArray(" absolute+keyframes");
   qInfo() << "player: relative keyframe seek" << deltaSeconds
-          << "optimisticTarget=" << optimisticTarget;
+          << "absoluteTarget=" << optimisticTarget;
   return beginSeekCommand(command, optimisticTarget);
 }
 
@@ -876,8 +876,6 @@ double PlayerController::seekBasePosition() const {
     return m_pendingSeekTargetSeconds;
   if (m_seeking && m_requestedSeekTargetSeconds >= 0.0)
     return m_requestedSeekTargetSeconds;
-  if (m_resumeStartSeconds > 0.0 && m_positionSeconds + 5.0 < m_resumeStartSeconds)
-    return m_resumeStartSeconds + m_positionSeconds;
   return m_positionSeconds;
 }
 
