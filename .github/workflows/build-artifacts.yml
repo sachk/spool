@@ -15,7 +15,7 @@ jobs:
   webos-ipk:
     name: webOS IPK
     runs-on: ubuntu-24.04
-    if: ${{ github.event_name != 'pull_request' || vars.WEBOS_TOOLCHAIN_ARCHIVE_URL != '' }}
+    if: ${{ vars.WEBOS_TOOLCHAIN_ARCHIVE_URL != '' || (github.event_name == 'workflow_dispatch' && github.event.inputs.webos_toolchain_archive_url != '') }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -43,7 +43,7 @@ jobs:
 
       - name: Restore webOS toolchain archive
         env:
-          INPUT_URL: ${{ inputs.webos_toolchain_archive_url }}
+          INPUT_URL: ${{ github.event.inputs.webos_toolchain_archive_url }}
           VAR_URL: ${{ vars.WEBOS_TOOLCHAIN_ARCHIVE_URL }}
         run: |
           url="${INPUT_URL:-$VAR_URL}"
@@ -72,7 +72,7 @@ jobs:
 
       - uses: jurplel/install-qt-action@v4
         with:
-          version: "6.10.0"
+          version: "6.8.3"
           modules: qtwayland qtimageformats
           cache: true
 
@@ -128,6 +128,12 @@ jobs:
         run: |
           brew update
           brew install ccache cmake create-dmg ffmpeg libarchive libass libbluray libplacebo lua meson mujs ninja pkg-config rubberband uchardet
+
+      - name: Make Homebrew dependencies discoverable
+        run: |
+          echo "PKG_CONFIG_PATH=$(brew --prefix)/lib/pkgconfig:$(brew --prefix)/share/pkgconfig:$(brew --prefix libarchive)/lib/pkgconfig" >> "$GITHUB_ENV"
+          echo "LDFLAGS=-L$(brew --prefix)/lib -L$(brew --prefix libarchive)/lib" >> "$GITHUB_ENV"
+          echo "CPPFLAGS=-I$(brew --prefix)/include -I$(brew --prefix libarchive)/include" >> "$GITHUB_ENV"
 
       - uses: actions/cache@v4
         with:

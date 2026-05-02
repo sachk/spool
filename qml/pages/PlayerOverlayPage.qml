@@ -161,13 +161,13 @@ FocusScope {
         if (key === Qt.Key_Up) { row = "timeline"; showControls(row); return true }
         if (key === Qt.Key_Down) { row = "actions"; showControls(row); return true }
         if (key === Qt.Key_Left) {
-            if (row === "timeline") adjustTimeline(-10)
+            if (row === "timeline") appController.player.seekBack()
             else actionIndex = Math.max(0, actionIndex - 1)
             showControls(row)
             return true
         }
         if (key === Qt.Key_Right) {
-            if (row === "timeline") adjustTimeline(30)
+            if (row === "timeline") appController.player.seekForward()
             else actionIndex = Math.min(actions.length - 1, actionIndex + 1)
             showControls(row)
             return true
