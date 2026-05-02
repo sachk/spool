@@ -73,7 +73,7 @@ jobs:
       - uses: jurplel/install-qt-action@v4
         with:
           version: "6.8.3"
-          modules: qtwayland qtimageformats
+          modules: qtimageformats
           cache: true
 
       - name: Install build dependencies
@@ -127,11 +127,13 @@ jobs:
       - name: Install build dependencies
         run: |
           brew update
-          brew install ccache cmake create-dmg ffmpeg libarchive libass libbluray libplacebo lua meson mujs ninja pkg-config rubberband uchardet
+          brew install ccache cmake create-dmg ffmpeg libarchive libass libbluray libplacebo luajit meson mujs ninja pkg-config rubberband uchardet
 
       - name: Make Homebrew dependencies discoverable
         run: |
-          echo "PKG_CONFIG_PATH=$(brew --prefix)/lib/pkgconfig:$(brew --prefix)/share/pkgconfig:$(brew --prefix libarchive)/lib/pkgconfig" >> "$GITHUB_ENV"
+          pkg_paths="$(for dir in "$(brew --prefix)"/opt/*/lib/pkgconfig "$(brew --prefix)"/opt/*/share/pkgconfig; do [ -d "$dir" ] && printf '%s:' "$dir"; done)"
+          pkg_paths="${pkg_paths%:}"
+          echo "PKG_CONFIG_PATH=$(brew --prefix)/lib/pkgconfig:$(brew --prefix)/share/pkgconfig:$pkg_paths" >> "$GITHUB_ENV"
           echo "LDFLAGS=-L$(brew --prefix)/lib -L$(brew --prefix libarchive)/lib" >> "$GITHUB_ENV"
           echo "CPPFLAGS=-I$(brew --prefix)/include -I$(brew --prefix libarchive)/include" >> "$GITHUB_ENV"
 
