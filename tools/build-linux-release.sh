@@ -22,7 +22,6 @@ MPV_SETUP_ARGS=(
   --prefix "$MPV_PREFIX"
   --buildtype release
   --default-library shared
-  -Db_lto=true
   -Dbuild-date=false
   -Dlibmpv=true
   -Dcplayer=true
