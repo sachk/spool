@@ -3,16 +3,28 @@
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/15f4ee454b1dce334612fa6843b3e05cf546efab";
+    libplacebo-src = {
+      url = "git+https://github.com/haasn/libplacebo?submodules=1&rev=27aa71a97f4daed84916936572fa6a2e1c3eedb7";
+      flake = false;
+    };
   };
 
-  outputs = { nixpkgs, ... }:
+  outputs = { nixpkgs, libplacebo-src, ... }:
     let
       systems = [ "x86_64-linux" "aarch64-darwin" "x86_64-darwin" ];
+      libplaceboOverlay = final: prev: {
+        libplacebo = prev.libplacebo.overrideAttrs (_: {
+          version = "master-27aa71a";
+          src = libplacebo-src;
+          patches = [];
+        });
+      };
       forAllSystems = f:
         nixpkgs.lib.genAttrs systems (system:
           f (import nixpkgs {
             inherit system;
             config.allowUnfree = true;
+            overlays = [ libplaceboOverlay ];
           }));
     in
     {
@@ -26,7 +38,6 @@
             libpulseaudio
             libva
             libvdpau
-            libxkbcommon
             mesa
             pipewire
             shaderc
@@ -55,7 +66,9 @@
               ffmpeg-full
               file
               flex
+              fontconfig
               freetype
+              libxkbcommon
               git
               gnumake
               jq
