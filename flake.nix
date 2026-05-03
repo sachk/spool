@@ -131,12 +131,14 @@
               # Strip the webOS buildroot SDK from PATH and unset its env so the
               # native Linux build doesn't pick up the old wayland-scanner /
               # cross toolchain.
-              scrub='PATH=$(printf %s "$PATH" | tr ":" "\n" | grep -v webos-sdk | paste -sd:); export PATH; unset WEBOS_SDK_ROOT'
+              scrub='PATH=$(printf %s "$PATH" | tr ":" "\n" | grep -v webos-sdk | paste -sd:); export PATH; unset WEBOS_SDK_ROOT QT_PLUGIN_PATH QML2_IMPORT_PATH QML_IMPORT_PATH'
               if [ ! -x "$BIN" ] || [ -n "''${JELLYFIN_REBUILD:-}" ]; then
                 nix develop "$REPO_ROOT" -c bash -c "$scrub; exec bash tools/build-linux-release.sh"
               fi
               MPV_LIB="$REPO_ROOT/build/linux-release/mpv-prefix/lib"
               export LD_LIBRARY_PATH="$MPV_LIB''${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+              # libmpv requires C numeric locale or it refuses to start.
+              export LC_NUMERIC=C
               exec nix develop "$REPO_ROOT" -c bash -c "$scrub"'; exec "$@"' _ "$BIN" "$@"
           '';
         in {
