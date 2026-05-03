@@ -21,6 +21,20 @@ jobs:
         with:
           submodules: recursive
 
+      - uses: nixbuild/nix-quick-install-action@v30
+        with:
+          nix_conf: |
+            experimental-features = nix-command flakes
+            keep-env-derivations = true
+            keep-outputs = true
+
+      - uses: nix-community/cache-nix-action@v7
+        with:
+          primary-key: nix-${{ runner.os }}-${{ hashFiles('flake.nix', 'flake.lock') }}
+          restore-prefixes-first-match: nix-${{ runner.os }}-
+          gc-max-store-size-linux: 4G
+          gc-max-store-size-macos: 6G
+
       - uses: actions/cache@v4
         with:
           path: |
@@ -36,11 +50,6 @@ jobs:
           restore-keys: |
             webos-${{ runner.os }}-
 
-      - name: Install host tools
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y ccache cmake curl git jq meson ninja-build nodejs npm patchelf pkg-config rustup
-
       - name: Restore webOS toolchain archive
         env:
           INPUT_URL: ${{ github.event.inputs.webos_toolchain_archive_url }}
@@ -55,7 +64,7 @@ jobs:
           test -d build/qt6-611-target-static-install -o -d build/qt6-611-target-install
 
       - name: Build IPK
-        run: bash build-ipk.sh
+        run: nix develop -c bash build-ipk.sh
 
       - uses: actions/upload-artifact@v4
         with:
@@ -70,22 +79,18 @@ jobs:
         with:
           submodules: recursive
 
-      - uses: jurplel/install-qt-action@v4
+      - uses: nixbuild/nix-quick-install-action@v30
         with:
-          version: "6.11.0"
-          modules: qtimageformats
-          cache: true
+          nix_conf: |
+            experimental-features = nix-command flakes
+            keep-env-derivations = true
+            keep-outputs = true
 
-      - name: Install build dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            ccache cmake curl fuse git libarchive-dev libasound2-dev libass-dev \
-            libavcodec-dev libavfilter-dev libavformat-dev libavutil-dev libbluray-dev \
-            libdrm-dev libegl1-mesa-dev libfontconfig-dev libfreetype-dev libjpeg-dev \
-            liblua5.2-dev libpipewire-0.3-dev libplacebo-dev libpulse-dev libswresample-dev \
-            libswscale-dev libuchardet-dev libva-dev libwayland-dev libxkbcommon-dev \
-            libvulkan-dev meson ninja-build pkg-config wayland-protocols zlib1g-dev
+      - uses: nix-community/cache-nix-action@v7
+        with:
+          primary-key: nix-${{ runner.os }}-${{ hashFiles('flake.nix', 'flake.lock') }}
+          restore-prefixes-first-match: nix-${{ runner.os }}-
+          gc-max-store-size-linux: 4G
 
       - uses: actions/cache@v4
         with:
@@ -98,10 +103,10 @@ jobs:
             linux-${{ runner.os }}-
 
       - name: Build host app
-        run: bash tools/build-linux-release.sh
+        run: nix develop -c bash tools/build-linux-release.sh
 
       - name: Package AppImage
-        run: bash tools/package-appimage.sh
+        run: nix develop -c bash tools/package-appimage.sh
 
       - uses: actions/upload-artifact@v4
         with:
@@ -116,24 +121,18 @@ jobs:
         with:
           submodules: recursive
 
-      - uses: jurplel/install-qt-action@v4
+      - uses: nixbuild/nix-quick-install-action@v30
         with:
-          version: "6.11.0"
-          modules: qtimageformats
-          cache: true
+          nix_conf: |
+            experimental-features = nix-command flakes
+            keep-env-derivations = true
+            keep-outputs = true
 
-      - name: Install build dependencies
-        run: |
-          brew update
-          brew install ccache cmake create-dmg ffmpeg libarchive libass libbluray libplacebo luajit meson mujs ninja pkg-config rubberband uchardet
-
-      - name: Make Homebrew dependencies discoverable
-        run: |
-          pkg_paths="$(for dir in "$(brew --prefix)"/opt/*/lib/pkgconfig "$(brew --prefix)"/opt/*/share/pkgconfig; do [ -d "$dir" ] && printf '%s:' "$dir"; done)"
-          pkg_paths="${pkg_paths%:}"
-          echo "PKG_CONFIG_PATH=$(brew --prefix)/lib/pkgconfig:$(brew --prefix)/share/pkgconfig:$pkg_paths" >> "$GITHUB_ENV"
-          echo "LDFLAGS=-L$(brew --prefix)/lib -L$(brew --prefix libarchive)/lib" >> "$GITHUB_ENV"
-          echo "CPPFLAGS=-I$(brew --prefix)/include -I$(brew --prefix libarchive)/include" >> "$GITHUB_ENV"
+      - uses: nix-community/cache-nix-action@v7
+        with:
+          primary-key: nix-${{ runner.os }}-${{ hashFiles('flake.nix', 'flake.lock') }}
+          restore-prefixes-first-match: nix-${{ runner.os }}-
+          gc-max-store-size-macos: 6G
 
       - uses: actions/cache@v4
         with:
@@ -145,10 +144,10 @@ jobs:
             macos-${{ runner.os }}-
 
       - name: Build macOS app
-        run: bash tools/build-macos.sh
+        run: nix develop -c bash tools/build-macos.sh
 
       - name: Package DMG
-        run: bash tools/package-macos-dmg.sh
+        run: nix develop -c bash tools/package-macos-dmg.sh
 
       - uses: actions/upload-artifact@v4
         with:
