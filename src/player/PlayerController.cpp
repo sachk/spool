@@ -464,10 +464,13 @@ void PlayerController::seek(double seconds) {
   const double clampedSeconds =
       m_durationSeconds > 0.0 ? qBound(0.0, seconds, m_durationSeconds)
                               : qMax(0.0, seconds);
+  // Use absolute+exact so a committed click lands on the requested frame
+  // instead of a possibly-distant keyframe. The optimistic-scrub path uses
+  // keyframes for low latency during drag; commit needs precision.
   const QByteArray command =
       QByteArray("no-osd seek ") + QByteArray::number(clampedSeconds, 'f', 3) +
-      QByteArray(" absolute+keyframes");
-  qInfo() << "player: absolute keyframe seek" << clampedSeconds;
+      QByteArray(" absolute+exact");
+  qInfo() << "player: absolute exact seek" << clampedSeconds;
   beginSeekCommand(command, clampedSeconds);
 }
 
@@ -894,13 +897,6 @@ void PlayerController::setPositionSeconds(double seconds) {
 double PlayerController::playbackPositionFromMpvTime(double seconds) const {
   if (!std::isfinite(seconds))
     return m_positionSeconds;
-
-  // Starfish can expose a timeline rebased to 0 after mpv starts a resumed
-  // stream. Keep the app-facing clock on Jellyfin's absolute media timeline so
-  // relative seeks and progress reports stay anchored to the resume point.
-  if (m_resumeStartSeconds > 0.0 && seconds + 5.0 < m_resumeStartSeconds)
-    return m_resumeStartSeconds + seconds;
-
   return seconds;
 }
 
