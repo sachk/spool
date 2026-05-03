@@ -246,14 +246,18 @@ if(NOT BUILD_SHARED_LIBS)
             Qt6::QJpegPlugin 
             Qt6::QWebpPlugin
     )
-    # Add linker GC to strip unused code from static libs
-    target_link_options(jellyfin-native PRIVATE
-        "-Wl,--gc-sections"
-    )
-    target_compile_options(jellyfin-native PRIVATE
-        "-ffunction-sections"
-        "-fdata-sections"
-    )
+    # Add linker GC to strip unused code from static libs.
+    # macOS ld64 doesn't accept --gc-sections (uses -dead_strip instead, on by
+    # default at -O), so only apply this on non-Apple platforms.
+    if(NOT APPLE)
+        target_link_options(jellyfin-native PRIVATE
+            "-Wl,--gc-sections"
+        )
+        target_compile_options(jellyfin-native PRIVATE
+            "-ffunction-sections"
+            "-fdata-sections"
+        )
+    endif()
 endif()
 
 set_target_properties(jellyfin-native PROPERTIES
