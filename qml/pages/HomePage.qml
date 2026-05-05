@@ -155,7 +155,7 @@ FocusScope {
             height: !sectionVisible ? 0
                   : kind === "spotlight" ? 238
                   : kind === "poster" ? 360
-                  : 292
+                  : 330
             visible: sectionVisible
             focus: ListView.isCurrentItem && sectionVisible
             onActiveFocusChanged: if (activeFocus && contentLoader.item) contentLoader.item.forceActiveFocus()
@@ -297,7 +297,7 @@ FocusScope {
                         Flickable {
                             id: rowFlick
                             Layout.fillWidth: true
-                            Layout.preferredHeight: section.kind === "poster" ? 304 : 228
+                            Layout.preferredHeight: section.kind === "poster" ? 304 : 266
                             Layout.minimumHeight: Layout.preferredHeight
                             focus: rowScope.focus
                             clip: true

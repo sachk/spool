@@ -10,7 +10,7 @@ Item {
     property bool focused: false
 
     implicitWidth: 320
-    implicitHeight: 228
+    implicitHeight: art.height + 8 + titleLabel.implicitHeight + 2 + subtitleLabel.implicitHeight
 
     ImageCard {
         id: art
@@ -47,10 +47,13 @@ Item {
         text: root.title
         font.pixelSize: Metrics.bodyPx(root.Window.window ? root.Window.window.width : 1920)
         font.weight: Font.Medium
+        maximumLineCount: 2
+        wrapMode: Text.Wrap
         elide: Text.ElideRight
     }
 
     MonoText {
+        id: subtitleLabel
         anchors.top: titleLabel.bottom
         anchors.topMargin: 2
         anchors.left: parent.left
