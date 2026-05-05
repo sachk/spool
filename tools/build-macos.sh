@@ -15,6 +15,7 @@ mkdir -p "$MPV_PREFIX" "$APP_BUILD" "$APP_INSTALL"
 
 MPV_SETUP_ARGS=(
   --prefix "$MPV_PREFIX"
+  --libdir lib
   --buildtype release
   --default-library shared
   -Dbuild-date=false
@@ -54,7 +55,36 @@ cmake --build "$APP_BUILD" --parallel
 cmake --install "$APP_BUILD"
 
 if command -v macdeployqt >/dev/null 2>&1 && [[ -d "$APP_INSTALL/jellyfin-native.app" ]]; then
-  macdeployqt "$APP_INSTALL/jellyfin-native.app" -qmldir="$APP_ROOT/qml"
+  # Prefer Apple's /usr/bin/strip — nix's cctools-binutils strip rejects newer
+  # Mach-O load commands (LC_DYLD_CHAINED_FIXUPS, cmd=0x8000001f) emitted by
+  # the Apple SDK toolchain, which makes macdeployqt abort.
+  if [[ -x /usr/bin/strip ]]; then
+    export PATH="/usr/bin:$PATH"
+  fi
+  # macdeployqt locates qmlimportscanner via QT_INSTALL_LIBEXECS from qtpaths,
+  # but on nix's split-output Qt, qtdeclarative's libexec is in a different
+  # store path than qtbase's, so the lookup misses it. Symlink it into the
+  # qtbase libexec dir so macdeployqt can find it.
+  qmlscanner="$(command -v qmlimportscanner || true)"
+  qtpath_libexec=""
+  if command -v qtpaths6 >/dev/null 2>&1; then
+    qtpath_libexec="$(qtpaths6 -query QT_INSTALL_LIBEXECS 2>/dev/null || true)"
+  fi
+  if [[ -z "$qtpath_libexec" ]] && command -v qtpaths >/dev/null 2>&1; then
+    qtpath_libexec="$(qtpaths -query QT_INSTALL_LIBEXECS 2>/dev/null || true)"
+  fi
+  if [[ -n "$qmlscanner" && -n "$qtpath_libexec" && ! -x "$qtpath_libexec/qmlimportscanner" ]]; then
+    if mkdir -p "$qtpath_libexec" 2>/dev/null && ln -sf "$qmlscanner" "$qtpath_libexec/qmlimportscanner" 2>/dev/null; then
+      :
+    else
+      # Read-only nix store — fall back to a writable shadow dir prepended to PATH.
+      shadow="$BUILD_ROOT/qt-libexec-shadow"
+      mkdir -p "$shadow"
+      ln -sf "$qmlscanner" "$shadow/qmlimportscanner"
+      export PATH="$shadow:$PATH"
+    fi
+  fi
+  macdeployqt "$APP_INSTALL/jellyfin-native.app" -qmldir="$APP_ROOT/qml" -no-strip
 fi
 
 printf '%s\n' "$APP_INSTALL/jellyfin-native.app"
