@@ -101,9 +101,11 @@ public:
         mpfbo.w = fbo->width();
         mpfbo.h = fbo->height();
         mpfbo.internal_format = 0;
+        int flipY = 1;
 
         mpv_render_param params[] = {
             {MPV_RENDER_PARAM_OPENGL_FBO, &mpfbo},
+            {MPV_RENDER_PARAM_FLIP_Y, &flipY},
             {MPV_RENDER_PARAM_INVALID, nullptr},
         };
 
@@ -159,9 +161,6 @@ MpvVideoItem::MpvVideoItem(QQuickItem *parent)
     if (s_instance)
         qWarning() << "MpvVideoItem: replacing existing singleton instance";
     s_instance = this;
-    // mpv writes the FBO with GL's bottom-left origin; Qt scene graph samples
-    // it top-down. Mirror vertically to compensate.
-    setMirrorVertically(true);
 }
 
 MpvVideoItem::~MpvVideoItem()

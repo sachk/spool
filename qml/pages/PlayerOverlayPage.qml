@@ -271,6 +271,7 @@ FocusScope {
     MpvVideoItem {
         anchors.fill: parent
         z: -1
+        rotation: 180
     }
 
     TapHandler { onTapped: overlay.showControls("timeline") }
