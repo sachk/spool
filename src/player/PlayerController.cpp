@@ -3,6 +3,7 @@
 #include "../api/JellyfinApiFacade.h"
 #include "../app/NativeAppWindow.h"
 #include "../common/JellyfinTypes.h"
+#include "MpvVideoItem.h"
 
 #include <QCoroTask>
 
@@ -214,6 +215,13 @@ void PlayerController::teardownMpv() {
     return;
   }
 
+#ifndef JELLYFIN_NATIVE_WEBOS
+  // Free the render context that lives on the scene-graph render thread before
+  // we destroy the mpv handle it points at.
+  if (auto *videoItem = MpvVideoItem::instance())
+    videoItem->setMpvHandle(nullptr);
+#endif
+
   m_terminating = false;
   // Ask mpv to shut down, then let the event loop exit on MPV_EVENT_SHUTDOWN.
   mpv_command_string(handle, "quit");
@@ -261,6 +269,10 @@ QStringList PlayerController::subtitleTracks() const { return m_subtitleTracks; 
 
 int PlayerController::selectedSubtitleIndex() const { return m_selectedSubtitleIndex; }
 
+QStringList PlayerController::audioTracks() const { return m_audioTracks; }
+
+int PlayerController::selectedAudioIndex() const { return m_selectedAudioIndex; }
+
 bool PlayerController::backAllowed() const { return m_backAllowed; }
 
 double PlayerController::positionSeconds() const { return m_positionSeconds; }
@@ -306,9 +318,10 @@ bool PlayerController::ensureMpv() {
       setOption(handle, "vd", "starfish") &&
       setOption(handle, "ao", "starfish,null") &&
 #else
-      setOption(handle, "force-window", "yes") &&
-      setOption(handle, "vo", "gpu") &&
-      setOption(handle, "gpu-context", "wayland") &&
+      // Render via libmpv's render API into the embedded MpvVideoItem; no
+      // separate mpv toplevel window.
+      setOption(handle, "force-window", "no") &&
+      setOption(handle, "vo", "libmpv") &&
       setOption(handle, "hwdec", "auto-safe") &&
       setOption(handle, "ao", "pipewire,pulse,alsa") &&
 #endif
@@ -357,6 +370,21 @@ bool PlayerController::ensureMpv() {
 
   m_mpv = handle;
   qInfo() << "player: mpv initialized in" << startupTimer.elapsed() << "ms";
+
+#ifndef JELLYFIN_NATIVE_WEBOS
+  // vo=libmpv requires the embedded MpvVideoItem to host the render context.
+  // Fail loudly if QML hasn't constructed one yet — silently falling back
+  // would leave us with no video at all.
+  auto *videoItem = MpvVideoItem::instance();
+  if (!videoItem) {
+    qFatal("PlayerController: MpvVideoItem instance is missing; "
+           "PlayerOverlayPage must instantiate it before play() is called.");
+    mpv_terminate_destroy(handle);
+    m_mpv = nullptr;
+    return false;
+  }
+  videoItem->setMpvHandle(handle);
+#endif
 
   m_eventThread = std::thread([this]() { runEventLoop(); });
   return true;
@@ -413,6 +441,9 @@ void PlayerController::play(const PlaybackSession &session) {
   m_subtitleTracks = { QStringLiteral("Off") };
   m_subtitleIds = { -1 };
   m_selectedSubtitleIndex = 0;
+  m_audioTracks.clear();
+  m_audioIds.clear();
+  m_selectedAudioIndex = -1;
   m_backAllowed = false;
   m_pendingSeekCommand.clear();
   m_requestedSeekTargetSeconds = -1.0;
@@ -501,6 +532,19 @@ void PlayerController::selectSubtitle(int index) {
   m_subtitlesEnabled = trackId >= 0;
   if (!m_subtitlesEnabled)
     m_window->clearOverlay();
+  emit stateChanged();
+}
+
+void PlayerController::selectAudio(int index) {
+  if (index < 0 || index >= m_audioIds.size())
+    return;
+
+  const int trackId = m_audioIds[index];
+  const QByteArray command = QByteArray("no-osd set aid ") +
+                             (trackId < 0 ? QByteArray("no")
+                                           : QByteArray::number(trackId));
+  mpvCommand(command.constData());
+  m_selectedAudioIndex = index;
   emit stateChanged();
 }
 
@@ -767,45 +811,75 @@ void PlayerController::runEventLoop() {
         QStringList labels{QStringLiteral("Off")};
         QList<int> ids{-1};
         int selected = 0;
+        QStringList audioLabels;
+        QList<int> audioIds;
+        int audioSelected = -1;
 
         if (node && node->format == MPV_FORMAT_NODE_ARRAY && node->u.list) {
           const mpv_node_list *tracks = node->u.list;
           for (int i = 0; i < tracks->num; ++i) {
             const mpv_node *track = &tracks->values[i];
-            if (nodeString(mapValue(track, "type")) != QStringLiteral("sub"))
-              continue;
+            const QString type = nodeString(mapValue(track, "type"));
             const int id = static_cast<int>(nodeInt(mapValue(track, "id"), -1));
             if (id < 0)
               continue;
 
-            const QString language = prettyLanguage(nodeString(mapValue(track, "lang")));
-            const QString title = cleanSubtitleTitle(nodeString(mapValue(track, "title")));
-            const QString codec = prettySubtitleCodec(nodeString(mapValue(track, "codec")));
-            QString label = language.isEmpty() ? QStringLiteral("Subtitle %1").arg(id) : language;
-            if (!title.isEmpty() && title.compare(language, Qt::CaseInsensitive) != 0)
-              label += QStringLiteral(" (%1)").arg(title);
-            if (nodeFlag(mapValue(track, "forced")))
-              label += title.contains(QStringLiteral("forced"), Qt::CaseInsensitive)
-                           ? QString()
-                           : QStringLiteral(" (Forced)");
-            if (nodeFlag(mapValue(track, "external")))
-              label += QStringLiteral(" (External)");
-            if (!codec.isEmpty())
-              label += QStringLiteral(" - %1").arg(codec);
+            if (type == QStringLiteral("sub")) {
+              const QString language = prettyLanguage(nodeString(mapValue(track, "lang")));
+              const QString title = cleanSubtitleTitle(nodeString(mapValue(track, "title")));
+              const QString codec = prettySubtitleCodec(nodeString(mapValue(track, "codec")));
+              QString label = language.isEmpty() ? QStringLiteral("Subtitle %1").arg(id) : language;
+              if (!title.isEmpty() && title.compare(language, Qt::CaseInsensitive) != 0)
+                label += QStringLiteral(" (%1)").arg(title);
+              if (nodeFlag(mapValue(track, "forced")))
+                label += title.contains(QStringLiteral("forced"), Qt::CaseInsensitive)
+                             ? QString()
+                             : QStringLiteral(" (Forced)");
+              if (nodeFlag(mapValue(track, "external")))
+                label += QStringLiteral(" (External)");
+              if (!codec.isEmpty())
+                label += QStringLiteral(" - %1").arg(codec);
 
-            labels.push_back(label);
-            ids.push_back(id);
-            if (nodeFlag(mapValue(track, "selected")))
-              selected = ids.size() - 1;
+              labels.push_back(label);
+              ids.push_back(id);
+              if (nodeFlag(mapValue(track, "selected")))
+                selected = ids.size() - 1;
+            } else if (type == QStringLiteral("audio")) {
+              const QString language = prettyLanguage(nodeString(mapValue(track, "lang")));
+              const QString title = cleanSubtitleTitle(nodeString(mapValue(track, "title")));
+              const QString codec = nodeString(mapValue(track, "codec")).toUpper();
+              const int channels = static_cast<int>(nodeInt(mapValue(track, "audio-channels"), 0));
+              QString label = language.isEmpty() ? QStringLiteral("Audio %1").arg(id) : language;
+              if (!title.isEmpty() && title.compare(language, Qt::CaseInsensitive) != 0)
+                label += QStringLiteral(" (%1)").arg(title);
+              QStringList tail;
+              if (channels > 0)
+                tail.push_back(channels == 1 ? QStringLiteral("Mono")
+                              : channels == 2 ? QStringLiteral("Stereo")
+                                              : QStringLiteral("%1ch").arg(channels));
+              if (!codec.isEmpty())
+                tail.push_back(codec);
+              if (!tail.isEmpty())
+                label += QStringLiteral(" - %1").arg(tail.join(QStringLiteral(", ")));
+
+              audioLabels.push_back(label);
+              audioIds.push_back(id);
+              if (nodeFlag(mapValue(track, "selected")))
+                audioSelected = audioIds.size() - 1;
+            }
           }
         }
 
-        QMetaObject::invokeMethod(this, [this, labels, ids, selected]() {
+        QMetaObject::invokeMethod(this, [this, labels, ids, selected, audioLabels, audioIds, audioSelected]() {
           m_subtitleTracks = labels;
           m_subtitleIds = ids;
           m_selectedSubtitleIndex = selected;
           m_subtitlesEnabled = selected > 0;
-          qInfo() << "player: subtitle tracks" << labels << "selected" << selected;
+          m_audioTracks = audioLabels;
+          m_audioIds = audioIds;
+          m_selectedAudioIndex = audioSelected;
+          qInfo() << "player: subtitle tracks" << labels << "selected" << selected
+                  << "audio tracks" << audioLabels << "selected" << audioSelected;
           emit stateChanged();
         });
       }

@@ -34,6 +34,8 @@ class PlayerController final : public QObject
     Q_PROPERTY(bool subtitlesEnabled READ subtitlesEnabled NOTIFY stateChanged)
     Q_PROPERTY(QStringList subtitleTracks READ subtitleTracks NOTIFY stateChanged)
     Q_PROPERTY(int selectedSubtitleIndex READ selectedSubtitleIndex NOTIFY stateChanged)
+    Q_PROPERTY(QStringList audioTracks READ audioTracks NOTIFY stateChanged)
+    Q_PROPERTY(int selectedAudioIndex READ selectedAudioIndex NOTIFY stateChanged)
     Q_PROPERTY(bool backAllowed READ backAllowed NOTIFY stateChanged)
     Q_PROPERTY(double positionSeconds READ positionSeconds NOTIFY stateChanged)
     Q_PROPERTY(double durationSeconds READ durationSeconds NOTIFY stateChanged)
@@ -55,6 +57,8 @@ public:
     bool subtitlesEnabled() const;
     QStringList subtitleTracks() const;
     int selectedSubtitleIndex() const;
+    QStringList audioTracks() const;
+    int selectedAudioIndex() const;
     bool backAllowed() const;
     double positionSeconds() const;
     double durationSeconds() const;
@@ -68,6 +72,7 @@ public:
     Q_INVOKABLE void toggleDebugOsd();
     Q_INVOKABLE void toggleSubtitles();
     Q_INVOKABLE void selectSubtitle(int index);
+    Q_INVOKABLE void selectAudio(int index);
     Q_INVOKABLE void stop();
     Q_INVOKABLE void stopWithReason(const QString &reason);
     Q_INVOKABLE void setNightModeEnabled(bool enabled);
@@ -121,6 +126,9 @@ private:
     QStringList m_subtitleTracks { QStringLiteral("Off") };
     QList<int> m_subtitleIds { -1 };
     int m_selectedSubtitleIndex = 0;
+    QStringList m_audioTracks;
+    QList<int> m_audioIds;
+    int m_selectedAudioIndex = -1;
     bool m_backAllowed = true;
     QString m_title;
     QString m_statusText = QStringLiteral("Ready");
