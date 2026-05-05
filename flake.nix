@@ -85,6 +85,7 @@
         mesa
         pipewire
         shaderc
+        squashfsTools
         spirv-cross
         wayland
         wayland-scanner

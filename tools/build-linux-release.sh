@@ -14,7 +14,14 @@ export CCACHE_DIR="${CCACHE_DIR:-$WORKSPACE_ROOT/.ccache}"
 export CCACHE_BASEDIR="${CCACHE_BASEDIR:-$WORKSPACE_ROOT}"
 export CCACHE_COMPRESS="${CCACHE_COMPRESS:-1}"
 export CCACHE_SLOPPINESS="${CCACHE_SLOPPINESS:-time_macros,file_macro}"
-export PKG_CONFIG_PATH="$MPV_PREFIX/lib/pkgconfig${PKG_CONFIG_PATH:+:$PKG_CONFIG_PATH}"
+append_pkg_config_path() {
+  local dir="$1"
+  [[ -d "$dir" ]] || return 0
+  case ":${PKG_CONFIG_PATH:-}:" in
+    *":$dir:"*) ;;
+    *) export PKG_CONFIG_PATH="$dir${PKG_CONFIG_PATH:+:$PKG_CONFIG_PATH}" ;;
+  esac
+}
 
 mkdir -p "$MPV_PREFIX" "$APP_BUILD" "$APP_INSTALL" "$CCACHE_DIR"
 
@@ -53,13 +60,24 @@ fi
 meson compile -C "$MPV_BUILD"
 meson install -C "$MPV_BUILD"
 
+append_pkg_config_path "$MPV_PREFIX/lib/pkgconfig"
+while IFS= read -r pc_dir; do
+  append_pkg_config_path "$pc_dir"
+done < <(find "$MPV_PREFIX/lib" -path '*/pkgconfig/mpv.pc' -exec dirname {} \;)
+
+MPV_LIB_DIRS=("$MPV_PREFIX/lib")
+while IFS= read -r lib_dir; do
+  MPV_LIB_DIRS+=("$lib_dir")
+done < <(find "$MPV_PREFIX/lib" -name 'libmpv.so*' -exec dirname {} \; | sort -u)
+MPV_INSTALL_RPATH="$(IFS=';'; printf '%s' "${MPV_LIB_DIRS[*]}")"
+
 cmake -S "$APP_ROOT" -B "$APP_BUILD" -GNinja \
   -DCMAKE_BUILD_TYPE=Release \
   -DJELLYFIN_NATIVE_WEBOS=OFF \
   -DJELLYFIN_NATIVE_DEV_BUILD=OFF \
   -DCMAKE_PREFIX_PATH="$MPV_PREFIX${CMAKE_PREFIX_PATH:+;$CMAKE_PREFIX_PATH}" \
   -DCMAKE_INSTALL_PREFIX="$APP_INSTALL" \
-  -DCMAKE_INSTALL_RPATH="$MPV_PREFIX/lib"
+  -DCMAKE_INSTALL_RPATH="$MPV_INSTALL_RPATH"
 
 cmake --build "$APP_BUILD" --parallel
 cmake --install "$APP_BUILD"
