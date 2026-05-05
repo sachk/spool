@@ -46,6 +46,8 @@ Q_IMPORT_PLUGIN(QSQLiteDriverPlugin)
 #include <QNetworkDiskCache>
 #include <QMetaObject>
 #include <QQuickStyle>
+#include <QQuickWindow>
+#include <QSGRendererInterface>
 #include <QSurfaceFormat>
 #include <QStandardPaths>
 #include <QTimer>
@@ -284,6 +286,13 @@ int main(int argc, char **argv)
     sigaction(SIGTERM, &action, nullptr);
 
     QQuickStyle::setStyle(QStringLiteral("Basic"));
+
+#ifndef JELLYFIN_NATIVE_WEBOS
+    // MpvVideoItem renders into an FBO via libmpv's OpenGL render API; force
+    // Qt Quick to use the OpenGL RHI backend (Qt 6 defaults to Vulkan/Metal
+    // on some platforms).
+    QQuickWindow::setGraphicsApi(QSGRendererInterface::OpenGL);
+#endif
 
     QSurfaceFormat format;
 #ifdef JELLYFIN_NATIVE_WEBOS

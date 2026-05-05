@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Controls.Basic
 import QtQuick.Layouts
+import JellyfinWebOS
 
 FocusScope {
     id: overlay
@@ -11,7 +12,7 @@ FocusScope {
     property bool mediaInfoVisible: false
     property bool diagnosticsVisible: false
 
-    property string mode: "hidden"       // hidden, controls, subtitles, debug
+    property string mode: "hidden"       // hidden, controls, subtitles, audio, debug
     property string row: "timeline"      // timeline, actions
     property int actionIndex: 1
     property int menuIndex: 0
@@ -21,6 +22,7 @@ FocusScope {
 
     readonly property var actions: [
         { label: appController.player.paused ? "Play" : "Pause", value: "pause" },
+        { label: "Audio", value: "audio" },
         { label: "Subtitles", value: "subtitles" },
         { label: "...", value: "debug" }
     ]
@@ -29,7 +31,7 @@ FocusScope {
         appController.player.nightModeEnabled ? "Disable night mode" : "Enable night mode",
         "Stop playback"
     ]
-    readonly property bool menuOpen: mode === "subtitles" || mode === "debug"
+    readonly property bool menuOpen: mode === "subtitles" || mode === "audio" || mode === "debug"
     readonly property bool pinned: appController.player.paused || scrubbing || menuOpen
 
     function formatClock(seconds) {
@@ -119,6 +121,13 @@ FocusScope {
         autohideTimer.stop()
     }
 
+    function openAudio() {
+        mode = "audio"
+        menuIndex = Math.max(0, appController.player.selectedAudioIndex)
+        menuList.positionViewAtBeginning()
+        autohideTimer.stop()
+    }
+
     function openDebugMenu() {
         mode = "debug"
         menuIndex = 0
@@ -132,12 +141,18 @@ FocusScope {
         else if (action === "pause") appController.player.togglePause()
         else if (action === "forward") appController.player.seekForward()
         else if (action === "subtitles") openSubtitles()
+        else if (action === "audio") openAudio()
         else if (action === "debug") openDebugMenu()
     }
 
     function activateMenuItem() {
         if (mode === "subtitles") {
             appController.player.selectSubtitle(menuIndex)
+            closeMenu()
+            return
+        }
+        if (mode === "audio") {
+            appController.player.selectAudio(menuIndex)
             closeMenu()
             return
         }
@@ -158,23 +173,33 @@ FocusScope {
     }
 
     function handleControlsKey(key) {
-        if (key === Qt.Key_Up) { row = "timeline"; showControls(row); return true }
-        if (key === Qt.Key_Down) { row = "actions"; showControls(row); return true }
+        if (key === Qt.Key_Up) {
+            row = row === "actions" ? "timeline" : "back"
+            showControls(row)
+            return true
+        }
+        if (key === Qt.Key_Down) {
+            row = row === "back" ? "timeline" : "actions"
+            showControls(row)
+            return true
+        }
         if (key === Qt.Key_Left) {
             if (row === "timeline") appController.player.seekBack()
-            else actionIndex = Math.max(0, actionIndex - 1)
+            else if (row === "actions") actionIndex = Math.max(0, actionIndex - 1)
             showControls(row)
             return true
         }
         if (key === Qt.Key_Right) {
             if (row === "timeline") appController.player.seekForward()
-            else actionIndex = Math.min(actions.length - 1, actionIndex + 1)
+            else if (row === "actions") actionIndex = Math.min(actions.length - 1, actionIndex + 1)
             showControls(row)
             return true
         }
         if (isAcceptKey(key)) {
             if (row === "timeline") {
                 if (!commitScrub()) appController.player.togglePause()
+            } else if (row === "back") {
+                handleBack()
             } else {
                 activateAction()
             }
@@ -185,7 +210,9 @@ FocusScope {
     }
 
     function handleMenuKey(key) {
-        const count = mode === "subtitles" ? appController.player.subtitleTracks.length : debugOptions.length
+        const count = mode === "subtitles" ? appController.player.subtitleTracks.length
+                    : mode === "audio" ? appController.player.audioTracks.length
+                    : debugOptions.length
         if (key === Qt.Key_Up) { menuIndex = Math.max(0, menuIndex - 1); return true }
         if (key === Qt.Key_Down) { menuIndex = Math.min(Math.max(0, count - 1), menuIndex + 1); return true }
         if (key === Qt.Key_Left || key === Qt.Key_Right) return true
@@ -207,6 +234,7 @@ FocusScope {
         if (handleControlsKey(event.key)) return true
         if (event.key === Qt.Key_I || event.key === Qt.Key_Info) { appController.player.toggleDebugOsd(); showControls(row); return true }
         if (event.key === Qt.Key_S) { openSubtitles(); return true }
+        if (event.key === Qt.Key_A) { openAudio(); return true }
         if (event.key === Qt.Key_Q) { appController.player.stopWithReason("player-q"); return true }
         return false
     }
@@ -237,25 +265,88 @@ FocusScope {
     Timer { id: autohideTimer; interval: 5000; onTriggered: overlay.hideControls() }
     Timer { id: scrubTimer; interval: 650; onTriggered: overlay.commitScrub() }
 
+    // Embedded video surface (desktop / non-Starfish builds). On Starfish the
+    // video lives on a separate exported surface so this item is harmless —
+    // MpvVideoItem just sits unused. z=-1 keeps it behind the HUD.
+    MpvVideoItem {
+        anchors.fill: parent
+        z: -1
+    }
+
     TapHandler { onTapped: overlay.showControls("timeline") }
     HoverHandler { onPointChanged: if (overlay.mode !== "hidden") overlay.showControls(overlay.row) }
 
     states: [
         State { name: "hidden"; when: overlay.mode === "hidden"; PropertyChanges { target: hud; opacity: 0 } },
-        State { name: "controls"; when: overlay.mode === "controls"; PropertyChanges { target: hud; opacity: 1 } },
+        State { name: "controls"; when: overlay.mode === "controls"; PropertyChanges { target: hud; opacity: 1 } PropertyChanges { target: backButton; opacity: 1 } },
         State {
             name: "subtitles"
             when: overlay.mode === "subtitles"
             PropertyChanges { target: hud; opacity: 1 }
+            PropertyChanges { target: backButton; opacity: 1 }
+            PropertyChanges { target: menuPanel; opacity: 1 }
+        },
+        State {
+            name: "audio"
+            when: overlay.mode === "audio"
+            PropertyChanges { target: hud; opacity: 1 }
+            PropertyChanges { target: backButton; opacity: 1 }
             PropertyChanges { target: menuPanel; opacity: 1 }
         },
         State {
             name: "debug"
             when: overlay.mode === "debug"
             PropertyChanges { target: hud; opacity: 1 }
+            PropertyChanges { target: backButton; opacity: 1 }
             PropertyChanges { target: menuPanel; opacity: 1 }
         }
     ]
+
+    Rectangle {
+        id: backButton
+        readonly property bool focused: overlay.mode === "controls" && overlay.row === "back"
+        anchors.right: parent.right
+        anchors.top: parent.top
+        anchors.margins: Math.round(40 * overlay.uiScale)
+        width: Math.round(110 * overlay.uiScale)
+        height: Math.round(60 * overlay.uiScale)
+        radius: Math.round(9 * overlay.uiScale)
+        color: focused ? "#2400A4DC" : "#80101418"
+        border.width: focused ? 2 : 1
+        border.color: focused ? "#EAF8FF" : "#66717A82"
+        opacity: 0
+        visible: opacity > 0.01
+
+        RowLayout {
+            anchors.centerIn: parent
+            spacing: Math.round(8 * overlay.uiScale)
+            Text {
+                text: "←"
+                color: backButton.focused ? "#FFFFFF" : "#C9D0D4"
+                font.pixelSize: Math.round(26 * overlay.uiScale)
+                font.weight: Font.DemiBold
+                font.hintingPreference: Font.PreferNoHinting
+                renderType: Text.QtRendering
+            }
+            Text {
+                text: "Back"
+                color: backButton.focused ? "#FFFFFF" : "#C9D0D4"
+                font.pixelSize: Math.round(20 * overlay.uiScale)
+                font.weight: Font.DemiBold
+                font.hintingPreference: Font.PreferNoHinting
+                renderType: Text.QtRendering
+            }
+        }
+
+        MouseArea {
+            anchors.fill: parent
+            onClicked: {
+                overlay.mode = "controls"
+                overlay.row = "back"
+                overlay.handleBack()
+            }
+        }
+    }
 
     transitions: Transition {
         NumberAnimation { properties: "opacity"; duration: 140; easing.type: Easing.OutCubic }
@@ -441,6 +532,15 @@ FocusScope {
                                     }
                                 }
                             }
+                            Text {
+                                anchors.centerIn: parent
+                                visible: parent.parent.actionValue === "audio"
+                                text: "♪"
+                                color: parent.iconColor
+                                font.pixelSize: Math.round(34 * overlay.uiScale)
+                                font.hintingPreference: Font.PreferNoHinting
+                                renderType: Text.QtRendering
+                            }
                             Rectangle {
                                 visible: parent.parent.actionValue === "subtitles"
                                 anchors.centerIn: parent
@@ -536,7 +636,9 @@ FocusScope {
             Text {
                 id: menuHeader
                 Layout.fillWidth: true
-                text: overlay.mode === "subtitles" ? "Subtitles" : "Playback Debug"
+                text: overlay.mode === "subtitles" ? "Subtitles"
+                    : overlay.mode === "audio" ? "Audio"
+                    : "Playback Debug"
                 color: "#F4F8FA"
                 font.pixelSize: Math.round(22 * overlay.uiScale)
                 font.weight: Font.DemiBold
@@ -549,7 +651,9 @@ FocusScope {
                 Layout.fillWidth: true
                 Layout.fillHeight: true
                 clip: true
-                model: overlay.mode === "subtitles" ? appController.player.subtitleTracks : overlay.debugOptions
+                model: overlay.mode === "subtitles" ? appController.player.subtitleTracks
+                     : overlay.mode === "audio" ? appController.player.audioTracks
+                     : overlay.debugOptions
                 currentIndex: overlay.menuIndex
                 boundsBehavior: Flickable.StopAtBounds
                 highlightMoveDuration: 90
@@ -570,7 +674,8 @@ FocusScope {
                         anchors.rightMargin: Math.round(16 * overlay.uiScale)
                         spacing: Math.round(12 * overlay.uiScale)
                         Text {
-                            text: overlay.mode === "subtitles" && appController.player.selectedSubtitleIndex === index ? "✓" : ""
+                            text: (overlay.mode === "subtitles" && appController.player.selectedSubtitleIndex === index)
+                                || (overlay.mode === "audio" && appController.player.selectedAudioIndex === index) ? "✓" : ""
                             color: "#80DFFF"
                             font.pixelSize: Math.round(20 * overlay.uiScale)
                             font.hintingPreference: Font.PreferNoHinting

@@ -116,6 +116,8 @@ qt_add_executable(jellyfin-native
     src/models/MovieGridModel.h
     src/player/PlayerController.cpp
     src/player/PlayerController.h
+    src/player/MpvVideoItem.cpp
+    src/player/MpvVideoItem.h
 )
 
 if(JELLYFIN_NATIVE_WEBOS)
@@ -176,6 +178,7 @@ qt_add_qml_module(jellyfin-native
 
 target_include_directories(jellyfin-native PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/third_party/qcoro/include"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/player"
     "${MPV_SOURCE_DIR}"
     "${MPV_SOURCE_DIR}/include"
 )
