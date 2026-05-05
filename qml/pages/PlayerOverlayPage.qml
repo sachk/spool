@@ -13,7 +13,7 @@ FocusScope {
     property bool diagnosticsVisible: false
 
     property string mode: "hidden"       // hidden, controls, subtitles, audio, debug
-    property string row: "timeline"      // timeline, actions
+    property string row: "timeline"      // back, timeline, actions
     property int actionIndex: 1
     property int menuIndex: 0
     property bool scrubbing: false
@@ -21,10 +21,12 @@ FocusScope {
     readonly property real uiScale: Math.max(0.78, Math.min(1.0, height / 1440))
 
     readonly property var actions: [
+        { label: "Rewind", value: "back" },
         { label: appController.player.paused ? "Play" : "Pause", value: "pause" },
-        { label: "Audio", value: "audio" },
+        { label: "Fast forward", value: "forward" },
         { label: "Subtitles", value: "subtitles" },
-        { label: "...", value: "debug" }
+        { label: "Audio", value: "audio" },
+        { label: "Settings", value: "debug" }
     ]
     readonly property var debugOptions: [
         appController.player.debugOsdVisible ? "Hide debug stats" : "Show debug stats",
@@ -40,6 +42,15 @@ FocusScope {
         const minutes = Math.floor((total % 3600) / 60)
         const secs = total % 60
         return hours > 0 ? hours + ":" + String(minutes).padStart(2, "0") + ":" + String(secs).padStart(2, "0") : minutes + ":" + String(secs).padStart(2, "0")
+    }
+
+    function actionIcon(value) {
+        if (value === "back") return "fast_rewind"
+        if (value === "pause") return appController.player.paused ? "play_arrow" : "pause"
+        if (value === "forward") return "fast_forward"
+        if (value === "subtitles") return "closed_caption"
+        if (value === "audio") return "audiotrack"
+        return "settings"
     }
 
     function clampSeconds(seconds) {
@@ -279,12 +290,14 @@ FocusScope {
 
     states: [
         State { name: "hidden"; when: overlay.mode === "hidden"; PropertyChanges { target: hud; opacity: 0 } },
-        State { name: "controls"; when: overlay.mode === "controls"; PropertyChanges { target: hud; opacity: 1 } PropertyChanges { target: backButton; opacity: 1 } },
+        State { name: "controls"; when: overlay.mode === "controls"; PropertyChanges { target: hud; opacity: 1 } PropertyChanges { target: backButton; opacity: 1 } PropertyChanges { target: topScrim; opacity: 1 } PropertyChanges { target: bottomScrim; opacity: 1 } },
         State {
             name: "subtitles"
             when: overlay.mode === "subtitles"
             PropertyChanges { target: hud; opacity: 1 }
             PropertyChanges { target: backButton; opacity: 1 }
+            PropertyChanges { target: topScrim; opacity: 1 }
+            PropertyChanges { target: bottomScrim; opacity: 1 }
             PropertyChanges { target: menuPanel; opacity: 1 }
         },
         State {
@@ -292,6 +305,8 @@ FocusScope {
             when: overlay.mode === "audio"
             PropertyChanges { target: hud; opacity: 1 }
             PropertyChanges { target: backButton; opacity: 1 }
+            PropertyChanges { target: topScrim; opacity: 1 }
+            PropertyChanges { target: bottomScrim; opacity: 1 }
             PropertyChanges { target: menuPanel; opacity: 1 }
         },
         State {
@@ -299,44 +314,63 @@ FocusScope {
             when: overlay.mode === "debug"
             PropertyChanges { target: hud; opacity: 1 }
             PropertyChanges { target: backButton; opacity: 1 }
+            PropertyChanges { target: topScrim; opacity: 1 }
+            PropertyChanges { target: bottomScrim; opacity: 1 }
             PropertyChanges { target: menuPanel; opacity: 1 }
         }
     ]
 
     Rectangle {
-        id: backButton
-        readonly property bool focused: overlay.mode === "controls" && overlay.row === "back"
+        id: topScrim
+        anchors.left: parent.left
         anchors.right: parent.right
         anchors.top: parent.top
+        height: Math.round(150 * overlay.uiScale)
+        opacity: 0
+        visible: opacity > 0.01
+        gradient: Gradient {
+            GradientStop { position: 0.0; color: "#B0101010" }
+            GradientStop { position: 1.0; color: "#00101010" }
+        }
+    }
+
+    Rectangle {
+        id: bottomScrim
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.bottom: parent.bottom
+        height: Math.round(360 * overlay.uiScale)
+        opacity: 0
+        visible: opacity > 0.01
+        gradient: Gradient {
+            GradientStop { position: 0.0; color: "#00101010" }
+            GradientStop { position: 1.0; color: "#D0101010" }
+        }
+    }
+
+    Rectangle {
+        id: backButton
+        readonly property bool focused: overlay.mode === "controls" && overlay.row === "back"
+        anchors.left: parent.left
+        anchors.top: parent.top
         anchors.margins: Math.round(40 * overlay.uiScale)
-        width: Math.round(110 * overlay.uiScale)
-        height: Math.round(60 * overlay.uiScale)
-        radius: Math.round(9 * overlay.uiScale)
-        color: focused ? "#2400A4DC" : "#80101418"
-        border.width: focused ? 2 : 1
-        border.color: focused ? "#EAF8FF" : "#66717A82"
+        width: Math.round(64 * overlay.uiScale)
+        height: width
+        radius: width / 2
+        color: focused ? "#3300A4DC" : "transparent"
+        border.width: focused ? 2 : 0
+        border.color: "#EAF8FF"
         opacity: 0
         visible: opacity > 0.01
 
-        RowLayout {
+        Text {
             anchors.centerIn: parent
-            spacing: Math.round(8 * overlay.uiScale)
-            Text {
-                text: "←"
-                color: backButton.focused ? "#FFFFFF" : "#C9D0D4"
-                font.pixelSize: Math.round(26 * overlay.uiScale)
-                font.weight: Font.DemiBold
-                font.hintingPreference: Font.PreferNoHinting
-                renderType: Text.QtRendering
-            }
-            Text {
-                text: "Back"
-                color: backButton.focused ? "#FFFFFF" : "#C9D0D4"
-                font.pixelSize: Math.round(20 * overlay.uiScale)
-                font.weight: Font.DemiBold
-                font.hintingPreference: Font.PreferNoHinting
-                renderType: Text.QtRendering
-            }
+            text: "arrow_back"
+            color: backButton.focused ? "#FFFFFF" : "#EEEEEE"
+            font.family: "Material Icons"
+            font.pixelSize: Math.round(34 * overlay.uiScale)
+            font.hintingPreference: Font.PreferNoHinting
+            renderType: Text.QtRendering
         }
 
         MouseArea {
@@ -486,7 +520,7 @@ FocusScope {
             RowLayout {
                 id: actionRow
                 Layout.fillWidth: true
-                spacing: Math.round(12 * overlay.uiScale)
+                spacing: Math.round(8 * overlay.uiScale)
 
                 Repeater {
                     model: overlay.actions.length
@@ -494,84 +528,23 @@ FocusScope {
                         required property int index
                         readonly property bool focused: overlay.mode === "controls" && overlay.row === "actions" && overlay.actionIndex === index
                         readonly property string actionValue: overlay.actions[index].value
-                        Layout.preferredWidth: Math.round(82 * overlay.uiScale)
-                        Layout.preferredHeight: Math.round(68 * overlay.uiScale)
-                        radius: Math.round(9 * overlay.uiScale)
-                        color: focused ? "#2400A4DC" : "transparent"
-                        border.width: focused ? 2 : 1
-                        border.color: focused ? "#EAF8FF" : "#66717A82"
+                        Layout.preferredWidth: actionValue === "pause" ? Math.round(76 * overlay.uiScale) : Math.round(64 * overlay.uiScale)
+                        Layout.preferredHeight: Math.round(64 * overlay.uiScale)
+                        radius: width / 2
+                        color: focused ? "#3300A4DC" : "transparent"
+                        border.width: focused ? 2 : 0
+                        border.color: "#EAF8FF"
 
-                        Item {
+                        Text {
                             anchors.centerIn: parent
-                            width: Math.round(34 * overlay.uiScale)
-                            height: Math.round(34 * overlay.uiScale)
-
-                            readonly property color iconColor: parent.focused ? "#FFFFFF" : "#C9D0D4"
-
-                            Text {
-                                anchors.centerIn: parent
-                                visible: parent.parent.actionValue === "pause" && appController.player.paused
-                                text: "▶"
-                                color: parent.iconColor
-                                font.pixelSize: Math.round(31 * overlay.uiScale)
-                                font.hintingPreference: Font.PreferNoHinting
-                                renderType: Text.QtRendering
-                                horizontalAlignment: Text.AlignHCenter
-                                verticalAlignment: Text.AlignVCenter
-                            }
-                            Row {
-                                anchors.centerIn: parent
-                                visible: parent.parent.actionValue === "pause" && !appController.player.paused
-                                spacing: Math.round(7 * overlay.uiScale)
-                                Repeater {
-                                    model: 2
-                                    Rectangle {
-                                        width: Math.round(8 * overlay.uiScale)
-                                        height: Math.round(27 * overlay.uiScale)
-                                        radius: 1
-                                        color: parent.parent.iconColor
-                                    }
-                                }
-                            }
-                            Text {
-                                anchors.centerIn: parent
-                                visible: parent.parent.actionValue === "audio"
-                                text: "♪"
-                                color: parent.iconColor
-                                font.pixelSize: Math.round(34 * overlay.uiScale)
-                                font.hintingPreference: Font.PreferNoHinting
-                                renderType: Text.QtRendering
-                            }
-                            Rectangle {
-                                visible: parent.parent.actionValue === "subtitles"
-                                anchors.centerIn: parent
-                                width: Math.round(32 * overlay.uiScale)
-                                height: Math.round(24 * overlay.uiScale)
-                                radius: 1
-                                color: "transparent"
-                                border.width: 1
-                                border.color: parent.iconColor
-                                Column {
-                                    anchors.centerIn: parent
-                                    spacing: Math.round(4 * overlay.uiScale)
-                                    Rectangle { width: Math.round(18 * overlay.uiScale); height: 2; color: parent.parent.parent.iconColor }
-                                    Rectangle { width: Math.round(24 * overlay.uiScale); height: 2; color: parent.parent.parent.iconColor }
-                                }
-                            }
-                            Row {
-                                anchors.centerIn: parent
-                                visible: parent.parent.actionValue === "debug"
-                                spacing: Math.round(5 * overlay.uiScale)
-                                Repeater {
-                                    model: 3
-                                    Rectangle {
-                                        width: Math.round(8 * overlay.uiScale)
-                                        height: width
-                                        radius: width / 2
-                                        color: parent.parent.iconColor
-                                    }
-                                }
-                            }
+                            text: overlay.actionIcon(actionValue)
+                            color: focused ? "#FFFFFF" : "#EEEEEE"
+                            font.family: "Material Icons"
+                            font.pixelSize: Math.round((actionValue === "pause" ? 44 : 38) * overlay.uiScale)
+                            font.hintingPreference: Font.PreferNoHinting
+                            renderType: Text.QtRendering
+                            horizontalAlignment: Text.AlignHCenter
+                            verticalAlignment: Text.AlignVCenter
                         }
 
                         MouseArea {
@@ -587,15 +560,6 @@ FocusScope {
                 }
 
                 Item { Layout.fillWidth: true }
-
-                Text {
-                    text: "↑/↓ rows   ←/→ seek/select   OK apply   Back hide"
-                    color: "#94A0A7"
-                    font.pixelSize: Math.round(18 * overlay.uiScale)
-                    font.weight: Font.Medium
-                    font.hintingPreference: Font.PreferNoHinting
-                    renderType: Text.QtRendering
-                }
             }
 
             Text {
