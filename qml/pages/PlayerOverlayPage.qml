@@ -19,6 +19,9 @@ FocusScope {
     property bool scrubbing: false
     property double scrubSeconds: 0
     readonly property real uiScale: Math.max(0.78, Math.min(1.0, height / 1440))
+    readonly property int actionTargetSize: Math.round(64 * uiScale)
+    property real menuAnchorX: width - Math.round(240 * uiScale)
+    property real menuAnchorY: height - Math.round(170 * uiScale)
 
     readonly property var actions: [
         { label: "Rewind", value: "back" },
@@ -45,12 +48,23 @@ FocusScope {
     }
 
     function actionIcon(value) {
-        if (value === "back") return "fast_rewind"
-        if (value === "pause") return appController.player.paused ? "play_arrow" : "pause"
-        if (value === "forward") return "fast_forward"
-        if (value === "subtitles") return "closed_caption"
-        if (value === "audio") return "audiotrack"
-        return "settings"
+        if (value === "back") return "‹‹"
+        if (value === "forward") return "››"
+        if (value === "subtitles") return "CC"
+        if (value === "audio") return "♪"
+        return "⚙"
+    }
+
+    function actionCenterX(actionValue) {
+        const idx = actions.findIndex(action => action.value === actionValue)
+        if (idx < 0 || actionRow.width <= 0)
+            return width - Math.round(240 * uiScale)
+        return hud.x + actionRow.x + (idx * (actionTargetSize + actionRow.spacing)) + actionTargetSize / 2
+    }
+
+    function setMenuAnchor(actionValue) {
+        menuAnchorX = actionCenterX(actionValue)
+        menuAnchorY = hud.y + actionRow.y
     }
 
     function clampSeconds(seconds) {
@@ -126,6 +140,7 @@ FocusScope {
     }
 
     function openSubtitles() {
+        setMenuAnchor("subtitles")
         mode = "subtitles"
         menuIndex = 0
         menuList.positionViewAtBeginning()
@@ -133,6 +148,7 @@ FocusScope {
     }
 
     function openAudio() {
+        setMenuAnchor("audio")
         mode = "audio"
         menuIndex = Math.max(0, appController.player.selectedAudioIndex)
         menuList.positionViewAtBeginning()
@@ -140,6 +156,7 @@ FocusScope {
     }
 
     function openDebugMenu() {
+        setMenuAnchor("debug")
         mode = "debug"
         menuIndex = 0
         menuList.positionViewAtBeginning()
@@ -365,10 +382,10 @@ FocusScope {
 
         Text {
             anchors.centerIn: parent
-            text: "arrow_back"
+            text: "‹"
             color: backButton.focused ? "#FFFFFF" : "#EEEEEE"
-            font.family: "Material Icons"
-            font.pixelSize: Math.round(34 * overlay.uiScale)
+            font.pixelSize: Math.round(44 * overlay.uiScale)
+            font.weight: Font.Light
             font.hintingPreference: Font.PreferNoHinting
             renderType: Text.QtRendering
         }
@@ -528,23 +545,69 @@ FocusScope {
                         required property int index
                         readonly property bool focused: overlay.mode === "controls" && overlay.row === "actions" && overlay.actionIndex === index
                         readonly property string actionValue: overlay.actions[index].value
-                        Layout.preferredWidth: actionValue === "pause" ? Math.round(76 * overlay.uiScale) : Math.round(64 * overlay.uiScale)
-                        Layout.preferredHeight: Math.round(64 * overlay.uiScale)
-                        radius: width / 2
+                        Layout.preferredWidth: overlay.actionTargetSize
+                        Layout.preferredHeight: overlay.actionTargetSize
+                        radius: Math.round(overlay.actionTargetSize / 2)
                         color: focused ? "#3300A4DC" : "transparent"
                         border.width: focused ? 2 : 0
                         border.color: "#EAF8FF"
 
                         Text {
+                            visible: actionValue !== "pause"
                             anchors.centerIn: parent
                             text: overlay.actionIcon(actionValue)
                             color: focused ? "#FFFFFF" : "#EEEEEE"
-                            font.family: "Material Icons"
-                            font.pixelSize: Math.round((actionValue === "pause" ? 44 : 38) * overlay.uiScale)
+                            font.pixelSize: Math.round(34 * overlay.uiScale)
+                            font.weight: actionValue === "subtitles" ? Font.DemiBold : Font.Normal
                             font.hintingPreference: Font.PreferNoHinting
                             renderType: Text.QtRendering
                             horizontalAlignment: Text.AlignHCenter
                             verticalAlignment: Text.AlignVCenter
+                        }
+
+                        Canvas {
+                            id: playGlyph
+                            visible: actionValue === "pause" && appController.player.paused
+                            anchors.centerIn: parent
+                            width: Math.round(28 * overlay.uiScale)
+                            height: Math.round(30 * overlay.uiScale)
+                            onVisibleChanged: requestPaint()
+                            onWidthChanged: requestPaint()
+                            onHeightChanged: requestPaint()
+                            onPaint: {
+                                const ctx = getContext("2d")
+                                ctx.clearRect(0, 0, width, height)
+                                ctx.fillStyle = focused ? "#FFFFFF" : "#EEEEEE"
+                                ctx.beginPath()
+                                ctx.moveTo(Math.round(width * 0.12), 0)
+                                ctx.lineTo(width, height / 2)
+                                ctx.lineTo(Math.round(width * 0.12), height)
+                                ctx.closePath()
+                                ctx.fill()
+                            }
+
+                            Connections {
+                                target: overlay
+                                function onActionIndexChanged() { playGlyph.requestPaint() }
+                                function onRowChanged() { playGlyph.requestPaint() }
+                                function onModeChanged() { playGlyph.requestPaint() }
+                            }
+                        }
+
+                        Row {
+                            visible: actionValue === "pause" && !appController.player.paused
+                            anchors.centerIn: parent
+                            spacing: Math.round(7 * overlay.uiScale)
+
+                            Repeater {
+                                model: 2
+                                Rectangle {
+                                    width: Math.round(8 * overlay.uiScale)
+                                    height: Math.round(30 * overlay.uiScale)
+                                    radius: Math.round(2 * overlay.uiScale)
+                                    color: focused ? "#FFFFFF" : "#EEEEEE"
+                                }
+                            }
                         }
 
                         MouseArea {
@@ -577,12 +640,11 @@ FocusScope {
 
     Rectangle {
         id: menuPanel
-        anchors.right: parent.right
-        anchors.bottom: hud.top
-        anchors.rightMargin: Math.round(52 * overlay.uiScale)
-        anchors.bottomMargin: Math.round(24 * overlay.uiScale)
-        width: Math.round(460 * overlay.uiScale)
-        height: Math.min(Math.round(parent.height * 0.62), Math.round((menuHeader.implicitHeight + menuList.contentHeight + 48) * overlay.uiScale))
+        readonly property real edgeMargin: Math.round(20 * overlay.uiScale)
+        x: Math.max(edgeMargin, Math.min(parent.width - width - edgeMargin, overlay.menuAnchorX - width / 2))
+        y: Math.max(edgeMargin, Math.min(parent.height - height - edgeMargin, overlay.menuAnchorY - height - Math.round(12 * overlay.uiScale)))
+        width: Math.round(Math.min(parent.width - edgeMargin * 2, 360 * overlay.uiScale))
+        height: Math.min(Math.round(parent.height * 0.48), Math.round(menuHeader.implicitHeight + menuList.contentHeight + 36 * overlay.uiScale))
         visible: overlay.menuOpen
         opacity: 0
         radius: 8
@@ -595,8 +657,8 @@ FocusScope {
             anchors.right: parent.right
             anchors.top: parent.top
             anchors.bottom: parent.bottom
-            anchors.margins: Math.round(16 * overlay.uiScale)
-            spacing: Math.round(12 * overlay.uiScale)
+            anchors.margins: Math.round(12 * overlay.uiScale)
+            spacing: Math.round(8 * overlay.uiScale)
 
             Text {
                 id: menuHeader
@@ -605,7 +667,7 @@ FocusScope {
                     : overlay.mode === "audio" ? "Audio"
                     : "Playback Debug"
                 color: "#F4F8FA"
-                font.pixelSize: Math.round(22 * overlay.uiScale)
+                font.pixelSize: Math.round(18 * overlay.uiScale)
                 font.weight: Font.DemiBold
                 font.hintingPreference: Font.PreferNoHinting
                 renderType: Text.QtRendering
@@ -627,7 +689,7 @@ FocusScope {
                     required property int index
                     required property var modelData
                     width: menuList.width
-                    height: Math.round(50 * overlay.uiScale)
+                    height: Math.round(40 * overlay.uiScale)
                     radius: 5
                     color: overlay.menuIndex === index ? "#2600A4DC" : "transparent"
                     border.width: overlay.menuIndex === index ? 2 : 0
@@ -635,24 +697,24 @@ FocusScope {
 
                     RowLayout {
                         anchors.fill: parent
-                        anchors.leftMargin: Math.round(16 * overlay.uiScale)
-                        anchors.rightMargin: Math.round(16 * overlay.uiScale)
-                        spacing: Math.round(12 * overlay.uiScale)
+                        anchors.leftMargin: Math.round(12 * overlay.uiScale)
+                        anchors.rightMargin: Math.round(12 * overlay.uiScale)
+                        spacing: Math.round(8 * overlay.uiScale)
                         Text {
                             text: (overlay.mode === "subtitles" && appController.player.selectedSubtitleIndex === index)
                                 || (overlay.mode === "audio" && appController.player.selectedAudioIndex === index) ? "✓" : ""
                             color: "#80DFFF"
-                            font.pixelSize: Math.round(20 * overlay.uiScale)
+                            font.pixelSize: Math.round(17 * overlay.uiScale)
                             font.hintingPreference: Font.PreferNoHinting
                             renderType: Text.QtRendering
-                            Layout.preferredWidth: Math.round(26 * overlay.uiScale)
+                            Layout.preferredWidth: Math.round(22 * overlay.uiScale)
                             horizontalAlignment: Text.AlignHCenter
                         }
                         Text {
                             Layout.fillWidth: true
                             text: String(modelData)
                             color: overlay.menuIndex === index ? "#FFFFFF" : "#C9D0D4"
-                            font.pixelSize: Math.round(19 * overlay.uiScale)
+                            font.pixelSize: Math.round(16 * overlay.uiScale)
                             font.weight: Font.Medium
                             font.hintingPreference: Font.PreferNoHinting
                             renderType: Text.QtRendering
