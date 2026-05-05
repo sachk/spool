@@ -20,6 +20,7 @@ mkdir -p "$MPV_PREFIX" "$APP_BUILD" "$APP_INSTALL" "$CCACHE_DIR"
 
 MPV_SETUP_ARGS=(
   --prefix "$MPV_PREFIX"
+  --libdir lib
   --buildtype release
   --default-library shared
   -Db_lto=false
