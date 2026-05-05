@@ -132,7 +132,9 @@
               # native Linux build doesn't pick up the old wayland-scanner /
               # cross toolchain.
               scrub='PATH=$(printf %s "$PATH" | tr ":" "\n" | grep -v webos-sdk | paste -sd:); export PATH; unset WEBOS_SDK_ROOT QT_PLUGIN_PATH QML2_IMPORT_PATH QML_IMPORT_PATH'
-              if [ ! -x "$BIN" ] || [ -n "''${JELLYFIN_REBUILD:-}" ]; then
+              if [ -n "''${JELLYFIN_NO_REBUILD:-}" ] && [ -x "$BIN" ]; then
+                :
+              else
                 nix develop "$REPO_ROOT" -c bash -c "$scrub; exec bash tools/build-linux-release.sh"
               fi
               MPV_LIB="$REPO_ROOT/build/linux-release/mpv-prefix/lib"
