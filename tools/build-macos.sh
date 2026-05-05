@@ -61,30 +61,67 @@ if command -v macdeployqt >/dev/null 2>&1 && [[ -d "$APP_INSTALL/jellyfin-native
   if [[ -x /usr/bin/strip ]]; then
     export PATH="/usr/bin:$PATH"
   fi
-  # macdeployqt locates qmlimportscanner via QT_INSTALL_LIBEXECS from qtpaths,
-  # but on nix's split-output Qt, qtdeclarative's libexec is in a different
-  # store path than qtbase's, so the lookup misses it. Symlink it into the
-  # qtbase libexec dir so macdeployqt can find it.
+
+  # Nix splits Qt tools across outputs. macdeployqt asks QLibraryInfo for
+  # QT_HOST_LIBEXECS/QT_INSTALL_LIBEXECS, which can be empty or point at a
+  # read-only qtbase path that lacks qtdeclarative's qmlimportscanner. Run a
+  # copied macdeployqt with a local qt.conf so that libexec resolves to our
+  # writable tool shadow containing qmlimportscanner.
   qmlscanner="$(command -v qmlimportscanner || true)"
-  qtpath_libexec=""
+  IFS=':;' read -r -a qmlscanner_roots <<< "${CMAKE_PREFIX_PATH:-}"
+  for root in "${qmlscanner_roots[@]}"; do
+    [[ -n "$qmlscanner" ]] && break
+    [[ -z "$root" ]] && continue
+    for candidate in "$root/bin/qmlimportscanner" "$root/libexec/qmlimportscanner"; do
+      if [[ -x "$candidate" ]]; then
+        qmlscanner="$candidate"
+        break
+      fi
+    done
+  done
+  if [[ -z "$qmlscanner" ]]; then
+    while IFS= read -r candidate; do
+      qmlscanner="$candidate"
+      break
+    done < <(find /nix/store -path '*/qtdeclarative-*/bin/qmlimportscanner' -o -path '*/qtdeclarative-*/libexec/qmlimportscanner' 2>/dev/null)
+  fi
+  if [[ -z "$qmlscanner" ]]; then
+    printf 'error: qmlimportscanner is required for macdeployqt QML deployment\n' >&2
+    exit 1
+  fi
+
+  qt_shadow="$BUILD_ROOT/qt-tools-shadow"
+  qt_shadow_bin="$qt_shadow/bin"
+  qt_shadow_libexec="$qt_shadow/libexec"
+  mkdir -p "$qt_shadow_bin" "$qt_shadow_libexec"
+  cp "$(command -v macdeployqt)" "$qt_shadow_bin/macdeployqt"
+  chmod +x "$qt_shadow_bin/macdeployqt"
+  ln -sf "$qmlscanner" "$qt_shadow_libexec/qmlimportscanner"
+
+  qt_prefix=""
+  qt_plugins=""
+  qt_qml=""
   if command -v qtpaths6 >/dev/null 2>&1; then
-    qtpath_libexec="$(qtpaths6 -query QT_INSTALL_LIBEXECS 2>/dev/null || true)"
+    qt_prefix="$(qtpaths6 -query QT_INSTALL_PREFIX 2>/dev/null || true)"
+    qt_plugins="$(qtpaths6 -query QT_INSTALL_PLUGINS 2>/dev/null || true)"
+    qt_qml="$(qtpaths6 -query QT_INSTALL_QML 2>/dev/null || true)"
+  elif command -v qtpaths >/dev/null 2>&1; then
+    qt_prefix="$(qtpaths -query QT_INSTALL_PREFIX 2>/dev/null || true)"
+    qt_plugins="$(qtpaths -query QT_INSTALL_PLUGINS 2>/dev/null || true)"
+    qt_qml="$(qtpaths -query QT_INSTALL_QML 2>/dev/null || true)"
   fi
-  if [[ -z "$qtpath_libexec" ]] && command -v qtpaths >/dev/null 2>&1; then
-    qtpath_libexec="$(qtpaths -query QT_INSTALL_LIBEXECS 2>/dev/null || true)"
-  fi
-  if [[ -n "$qmlscanner" && -n "$qtpath_libexec" && ! -x "$qtpath_libexec/qmlimportscanner" ]]; then
-    if mkdir -p "$qtpath_libexec" 2>/dev/null && ln -sf "$qmlscanner" "$qtpath_libexec/qmlimportscanner" 2>/dev/null; then
-      :
-    else
-      # Read-only nix store — fall back to a writable shadow dir prepended to PATH.
-      shadow="$BUILD_ROOT/qt-libexec-shadow"
-      mkdir -p "$shadow"
-      ln -sf "$qmlscanner" "$shadow/qmlimportscanner"
-      export PATH="$shadow:$PATH"
-    fi
-  fi
-  macdeployqt "$APP_INSTALL/jellyfin-native.app" -qmldir="$APP_ROOT/qml" -no-strip
+
+  cat >"$qt_shadow_bin/qt.conf" <<EOF
+[Paths]
+Prefix=${qt_prefix:-$qt_shadow}
+HostPrefix=$qt_shadow
+HostLibraryExecutables=$qt_shadow_libexec
+LibraryExecutables=$qt_shadow_libexec
+Plugins=${qt_plugins:-}
+QmlImports=${qt_qml:-}
+EOF
+
+  "$qt_shadow_bin/macdeployqt" "$APP_INSTALL/jellyfin-native.app" -qmldir="$APP_ROOT/qml" -no-strip
 fi
 
 printf '%s\n' "$APP_INSTALL/jellyfin-native.app"
