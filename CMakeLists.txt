@@ -156,6 +156,7 @@ qt_add_qml_module(jellyfin-native
         qml/primitives/LandscapeCard.qml
         qml/primitives/MetadataChip.qml
         qml/primitives/MonoText.qml
+        qml/primitives/MaterialIcon.qml
         qml/primitives/PosterCard.qml
         qml/primitives/SectionHeader.qml
         qml/primitives/SelectRow.qml
@@ -174,6 +175,8 @@ qt_add_qml_module(jellyfin-native
         qml/theme/Metrics.qml
         qml/theme/Theme.qml
         qml/theme/Typography.qml
+    RESOURCES
+        qml/fonts/MaterialIcons-Regular.ttf
 )
 
 target_include_directories(jellyfin-native PRIVATE
