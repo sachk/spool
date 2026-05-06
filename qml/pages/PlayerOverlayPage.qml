@@ -48,11 +48,12 @@ FocusScope {
     }
 
     function actionIcon(value) {
-        if (value === "back") return "‹‹"
-        if (value === "forward") return "››"
-        if (value === "subtitles") return "CC"
-        if (value === "audio") return "♪"
-        return "⚙"
+        if (value === "back") return "fast_rewind"
+        if (value === "pause") return appController.player.paused ? "play_arrow" : "pause"
+        if (value === "forward") return "fast_forward"
+        if (value === "subtitles") return "closed_caption"
+        if (value === "audio") return "audiotrack"
+        return "settings"
     }
 
     function actionCenterX(actionValue) {
@@ -345,10 +346,7 @@ FocusScope {
         height: Math.round(150 * overlay.uiScale)
         opacity: 0
         visible: opacity > 0.01
-        gradient: Gradient {
-            GradientStop { position: 0.0; color: "#B0101010" }
-            GradientStop { position: 1.0; color: "#00101010" }
-        }
+        color: "transparent"
     }
 
     Rectangle {
@@ -359,10 +357,7 @@ FocusScope {
         height: Math.round(360 * overlay.uiScale)
         opacity: 0
         visible: opacity > 0.01
-        gradient: Gradient {
-            GradientStop { position: 0.0; color: "#00101010" }
-            GradientStop { position: 1.0; color: "#D0101010" }
-        }
+        color: "transparent"
     }
 
     Rectangle {
@@ -380,14 +375,11 @@ FocusScope {
         opacity: 0
         visible: opacity > 0.01
 
-        Text {
+        MaterialIcon {
             anchors.centerIn: parent
-            text: "‹"
-            color: backButton.focused ? "#FFFFFF" : "#EEEEEE"
-            font.pixelSize: Math.round(44 * overlay.uiScale)
-            font.weight: Font.Light
-            font.hintingPreference: Font.PreferNoHinting
-            renderType: Text.QtRendering
+            name: "arrow_back"
+            iconColor: backButton.focused ? "#FFFFFF" : "#EEEEEE"
+            iconSize: Math.round(34 * overlay.uiScale)
         }
 
         MouseArea {
@@ -552,62 +544,11 @@ FocusScope {
                         border.width: focused ? 2 : 0
                         border.color: "#EAF8FF"
 
-                        Text {
-                            visible: actionValue !== "pause"
+                        MaterialIcon {
                             anchors.centerIn: parent
-                            text: overlay.actionIcon(actionValue)
-                            color: focused ? "#FFFFFF" : "#EEEEEE"
-                            font.pixelSize: Math.round(34 * overlay.uiScale)
-                            font.weight: actionValue === "subtitles" ? Font.DemiBold : Font.Normal
-                            font.hintingPreference: Font.PreferNoHinting
-                            renderType: Text.QtRendering
-                            horizontalAlignment: Text.AlignHCenter
-                            verticalAlignment: Text.AlignVCenter
-                        }
-
-                        Canvas {
-                            id: playGlyph
-                            visible: actionValue === "pause" && appController.player.paused
-                            anchors.centerIn: parent
-                            width: Math.round(28 * overlay.uiScale)
-                            height: Math.round(30 * overlay.uiScale)
-                            onVisibleChanged: requestPaint()
-                            onWidthChanged: requestPaint()
-                            onHeightChanged: requestPaint()
-                            onPaint: {
-                                const ctx = getContext("2d")
-                                ctx.clearRect(0, 0, width, height)
-                                ctx.fillStyle = focused ? "#FFFFFF" : "#EEEEEE"
-                                ctx.beginPath()
-                                ctx.moveTo(Math.round(width * 0.12), 0)
-                                ctx.lineTo(width, height / 2)
-                                ctx.lineTo(Math.round(width * 0.12), height)
-                                ctx.closePath()
-                                ctx.fill()
-                            }
-
-                            Connections {
-                                target: overlay
-                                function onActionIndexChanged() { playGlyph.requestPaint() }
-                                function onRowChanged() { playGlyph.requestPaint() }
-                                function onModeChanged() { playGlyph.requestPaint() }
-                            }
-                        }
-
-                        Row {
-                            visible: actionValue === "pause" && !appController.player.paused
-                            anchors.centerIn: parent
-                            spacing: Math.round(7 * overlay.uiScale)
-
-                            Repeater {
-                                model: 2
-                                Rectangle {
-                                    width: Math.round(8 * overlay.uiScale)
-                                    height: Math.round(30 * overlay.uiScale)
-                                    radius: Math.round(2 * overlay.uiScale)
-                                    color: focused ? "#FFFFFF" : "#EEEEEE"
-                                }
-                            }
+                            name: overlay.actionIcon(actionValue)
+                            iconColor: focused ? "#FFFFFF" : "#EEEEEE"
+                            iconSize: actionValue === "debug" ? Math.round(30 * overlay.uiScale) : Math.round(36 * overlay.uiScale)
                         }
 
                         MouseArea {
