@@ -6,6 +6,21 @@ on:
   pull_request:
   workflow_dispatch:
     inputs:
+      build_linux:
+        description: "Build Linux AppImage"
+        required: true
+        default: true
+        type: boolean
+      build_macos:
+        description: "Build macOS DMG"
+        required: true
+        default: false
+        type: boolean
+      build_webos:
+        description: "Build webOS IPK"
+        required: true
+        default: false
+        type: boolean
       webos_toolchain_archive_url:
         description: "Optional tar archive containing build/webos-sdk and Qt webOS prefixes"
         required: false
@@ -15,7 +30,7 @@ jobs:
   webos-ipk:
     name: webOS IPK
     runs-on: ubuntu-24.04
-    if: ${{ vars.WEBOS_TOOLCHAIN_ARCHIVE_URL != '' || (github.event_name == 'workflow_dispatch' && github.event.inputs.webos_toolchain_archive_url != '') }}
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.build_webos && (vars.WEBOS_TOOLCHAIN_ARCHIVE_URL != '' || inputs.webos_toolchain_archive_url != '') }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -74,6 +89,7 @@ jobs:
   linux-appimage:
     name: Linux AppImage
     runs-on: ubuntu-24.04
+    if: ${{ github.event_name != 'workflow_dispatch' || inputs.build_linux }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -116,6 +132,7 @@ jobs:
   macos-dmg:
     name: macOS DMG
     runs-on: macos-14
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.build_macos }}
     steps:
       - uses: actions/checkout@v4
         with:
