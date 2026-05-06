@@ -27,21 +27,52 @@ prepend_path() {
   esac
 }
 
+copy_elf_deps() {
+  local elf
+  local dep
+  local copied=1
+
+  while (( copied )); do
+    copied=0
+    while IFS= read -r elf; do
+      [[ -f "$elf" ]] || continue
+      while IFS= read -r dep; do
+        [[ -f "$dep" ]] || continue
+        case "$dep" in
+          /nix/store/*|"$MPV_PREFIX"/*) ;;
+          *) continue ;;
+        esac
+        if [[ ! -e "$APPDIR/usr/lib/$(basename "$dep")" ]]; then
+          cp -L "$dep" "$APPDIR/usr/lib/"
+          chmod u+w "$APPDIR/usr/lib/$(basename "$dep")" 2>/dev/null || true
+          copied=1
+        fi
+      done < <(ldd "$elf" 2>/dev/null | awk '/=> \// { print $3 } /^\// { print $1 }')
+    done < <(find "$APPDIR/usr/bin" "$APPDIR/usr/lib" -type f)
+  done
+}
+
 if [[ ! -x "$BUILD_ROOT/jellyfin-native" ]]; then
   echo "error: build output not found at $BUILD_ROOT/jellyfin-native" >&2
   exit 1
 fi
 
-mkdir -p "$APPDIR/usr/bin" "$APPDIR/usr/lib" "$APPDIR/usr/share/applications" \
-  "$APPDIR/usr/share/icons/hicolor/256x256/apps" "$ARTIFACT_DIR" "$(dirname "$LINUXDEPLOY")"
-rm -rf "$APPDIR/usr/bin" "$APPDIR/usr/lib" "$APPDIR/usr/share/applications" \
-  "$APPDIR/usr/share/icons/hicolor/256x256/apps"
+mkdir -p "$ARTIFACT_DIR" "$(dirname "$LINUXDEPLOY")"
+rm -rf "$APPDIR"
 mkdir -p "$APPDIR/usr/bin" "$APPDIR/usr/lib" "$APPDIR/usr/share/applications" \
   "$APPDIR/usr/share/icons/hicolor/256x256/apps"
 
 cp -f "$BUILD_ROOT/jellyfin-native" "$APPDIR/usr/bin/jellyfin-native"
 find "$MPV_PREFIX/lib" -name 'libmpv.so*' -exec cp -a {} "$APPDIR/usr/lib/" \;
 cp -f "$APP_ROOT/app/icon.png" "$APPDIR/usr/share/icons/hicolor/256x256/apps/jellyfin-native.png"
+cp -f "$APP_ROOT/app/icon.png" "$APPDIR/jellyfin-native.png"
+cat > "$APPDIR/AppRun" <<'APPRUN'
+#!/usr/bin/env bash
+HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+export LD_LIBRARY_PATH="$HERE/usr/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+exec "$HERE/usr/bin/jellyfin-native" "$@"
+APPRUN
+chmod +x "$APPDIR/AppRun"
 
 cat > "$APPDIR/usr/share/applications/jellyfin-native.desktop" <<'DESKTOP'
 [Desktop Entry]
@@ -51,6 +82,7 @@ Exec=jellyfin-native
 Icon=jellyfin-native
 Categories=AudioVideo;Video;
 DESKTOP
+cp -f "$APPDIR/usr/share/applications/jellyfin-native.desktop" "$APPDIR/jellyfin-native.desktop"
 
 if [[ ! -x "$LINUXDEPLOY" ]]; then
   curl -L --fail -o "$LINUXDEPLOY" \
@@ -160,7 +192,14 @@ export QML_SOURCES_PATHS="${QML_SOURCES_PATHS:-$APP_ROOT/qml}"
 export APPIMAGE_EXTRACT_AND_RUN="${APPIMAGE_EXTRACT_AND_RUN:-1}"
 export OUTPUT="${OUTPUT:-Jellyfin-Native-x86_64.AppImage}"
 
-"$LINUXDEPLOY" --appdir "$APPDIR" --plugin qt
+copy_elf_deps
+patchelf --set-rpath '$ORIGIN/../lib' "$APPDIR/usr/bin/jellyfin-native"
+while IFS= read -r lib; do
+  file -b "$lib" | grep -q 'ELF' || continue
+  patchelf --set-rpath '$ORIGIN' "$lib" 2>/dev/null || true
+done < <(find "$APPDIR/usr/lib" -type f -name '*.so*')
+
+"$QT_PLUGIN" --appdir "$APPDIR"
 
 APPIMAGETOOL="${APPIMAGETOOL:-}"
 if [[ -z "$APPIMAGETOOL" ]]; then
