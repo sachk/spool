@@ -543,8 +543,17 @@ void PlayerController::selectAudio(int index) {
   const QByteArray command = QByteArray("no-osd set aid ") +
                              (trackId < 0 ? QByteArray("no")
                                            : QByteArray::number(trackId));
-  mpvCommand(command.constData());
+  if (!mpvCommand(command.constData()))
+    return;
   m_selectedAudioIndex = index;
+#ifdef JELLYFIN_NATIVE_WEBOS
+  const double targetSeconds = clampedPosition(seekBasePosition());
+  const QByteArray resyncCommand =
+      QByteArray("no-osd seek ") + QByteArray::number(targetSeconds, 'f', 3) +
+      QByteArray(" absolute+keyframes");
+  qInfo() << "player: webOS audio track resync seek" << targetSeconds;
+  beginSeekCommand(resyncCommand, targetSeconds);
+#endif
   emit stateChanged();
 }
 
