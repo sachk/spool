@@ -27,6 +27,24 @@ prepend_path() {
   esac
 }
 
+is_bundleable_elf_dep() {
+  local dep="$1"
+  local base="${dep##*/}"
+  [[ -f "$dep" ]] || return 1
+  case "$dep" in
+    /nix/store/*-glibc-*|/nix/store/*-glibc-*) return 1 ;;
+  esac
+  case "$base" in
+    ld-linux*.so*|libc.so*|libdl.so*|libm.so*|libpthread.so*|libresolv.so*|librt.so*|libutil.so*)
+      return 1
+      ;;
+  esac
+  case "$dep" in
+    /nix/store/*|"$MPV_PREFIX"/*) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
 copy_elf_deps() {
   local elf
   local dep
@@ -37,11 +55,7 @@ copy_elf_deps() {
     while IFS= read -r elf; do
       [[ -f "$elf" ]] || continue
       while IFS= read -r dep; do
-        [[ -f "$dep" ]] || continue
-        case "$dep" in
-          /nix/store/*|"$MPV_PREFIX"/*) ;;
-          *) continue ;;
-        esac
+        is_bundleable_elf_dep "$dep" || continue
         if [[ ! -e "$APPDIR/usr/lib/$(basename "$dep")" ]]; then
           cp -L "$dep" "$APPDIR/usr/lib/"
           chmod u+w "$APPDIR/usr/lib/$(basename "$dep")" 2>/dev/null || true
@@ -100,6 +114,7 @@ while IFS= read -r lib_dir; do
   append_library_path "$lib_dir"
 done < <(find "$MPV_PREFIX/lib" -name 'libmpv.so*' -exec dirname {} \; | sort -u)
 while IFS= read -r dep; do
+  is_bundleable_elf_dep "$dep" || continue
   append_library_path "$(dirname "$dep")"
 done < <(ldd "$APPDIR/usr/bin/jellyfin-native" "$APPDIR"/usr/lib/libmpv.so* 2>/dev/null | awk '/=> \// { print $3 } /^\// { print $1 }' | sort -u)
 qmlscanner="$(command -v qmlimportscanner || true)"
