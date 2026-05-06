@@ -72,18 +72,34 @@ if command -v macdeployqt >/dev/null 2>&1 && [[ -d "$APP_INSTALL/jellyfin-native
   for root in "${qmlscanner_roots[@]}"; do
     [[ -n "$qmlscanner" ]] && break
     [[ -z "$root" ]] && continue
-    for candidate in "$root/bin/qmlimportscanner" "$root/libexec/qmlimportscanner"; do
+    for candidate in \
+      "$root/bin/qmlimportscanner" \
+      "$root/libexec/qmlimportscanner" \
+      "$root/lib/qt-6/libexec/qmlimportscanner"; do
       if [[ -x "$candidate" ]]; then
         qmlscanner="$candidate"
         break
       fi
     done
   done
+  if [[ -z "$qmlscanner" && -f "$APP_BUILD/build.ninja" ]]; then
+    qmlscanner="$(awk '
+      /qmlimportscanner/ {
+        for (i = 1; i <= NF; ++i) {
+          gsub(/^"|"$/, "", $i)
+          if ($i ~ /\/qmlimportscanner$/) {
+            print $i
+            exit
+          }
+        }
+      }
+    ' "$APP_BUILD/build.ninja")"
+  fi
   if [[ -z "$qmlscanner" ]]; then
     while IFS= read -r candidate; do
       qmlscanner="$candidate"
       break
-    done < <(find /nix/store -path '*/qtdeclarative-*/bin/qmlimportscanner' -o -path '*/qtdeclarative-*/libexec/qmlimportscanner' 2>/dev/null)
+    done < <(find /nix/store -type f -name qmlimportscanner -perm -111 2>/dev/null)
   fi
   if [[ -z "$qmlscanner" ]]; then
     printf 'error: qmlimportscanner is required for macdeployqt QML deployment\n' >&2
