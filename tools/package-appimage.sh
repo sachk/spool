@@ -38,6 +38,9 @@ is_bundleable_elf_dep() {
     ld-linux*.so*|libc.so*|libdl.so*|libm.so*|libpthread.so*|libresolv.so*|librt.so*|libutil.so*)
       return 1
       ;;
+    libGLES*.so*|libglapi*.so*|libgbm*.so*|libvulkan*.so*)
+      return 1
+      ;;
   esac
   case "$dep" in
     /nix/store/*|"$MPV_PREFIX"/*) return 0 ;;
@@ -74,6 +77,7 @@ copy_tree_if_exists() {
   local dst="$2"
   [[ -e "$src" ]] || return 0
   mkdir -p "$(dirname "$dst")"
+  rm -rf "$dst"
   cp -a "$src" "$dst"
   chmod -R u+w "$dst" 2>/dev/null || true
 }
@@ -134,6 +138,12 @@ prune_appdir() {
   find "$APPDIR/usr/plugins/sqldrivers" -maxdepth 1 -type f ! -name 'libqsqlite.so' -delete 2>/dev/null || true
   find "$APPDIR/usr/plugins/platforms" -maxdepth 1 -type f \
     ! -name 'libqxcb.so' ! -name 'libqwayland.so' -delete 2>/dev/null || true
+  find "$APPDIR/usr/lib" -maxdepth 1 -type f \( \
+    -name 'libGLES*.so*' -o \
+    -name 'libglapi*.so*' -o \
+    -name 'libgbm*.so*' -o \
+    -name 'libvulkan*.so*' \
+  \) -delete
 }
 
 set_appdir_rpaths() {
@@ -178,7 +188,36 @@ cat > "$APPDIR/AppRun" <<'APPRUN'
 #!/usr/bin/env bash
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 unset QML2_IMPORT_PATH QML_IMPORT_PATH QT_PLUGIN_PATH QT_QPA_PLATFORM_PLUGIN_PATH
-export LD_LIBRARY_PATH="$HERE/usr/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+if [[ -d /run/opengl-driver/lib ]]; then
+  export LD_LIBRARY_PATH="$HERE/usr/lib:/run/opengl-driver/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+else
+  export LD_LIBRARY_PATH="$HERE/usr/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+fi
+if [[ -z "${__EGL_VENDOR_LIBRARY_DIRS:-}" && -d /run/opengl-driver/share/glvnd/egl_vendor.d ]]; then
+  export __EGL_VENDOR_LIBRARY_DIRS=/run/opengl-driver/share/glvnd/egl_vendor.d
+fi
+if [[ -z "${__EGL_VENDOR_LIBRARY_FILENAMES:-}" && -z "${__EGL_VENDOR_LIBRARY_DIRS:-}" && -d /run/opengl-driver/lib ]]; then
+  egl_vendor_dir="${XDG_RUNTIME_DIR:-/tmp}/jellyfin-native-egl-vendors"
+  mkdir -p "$egl_vendor_dir"
+  rm -f "$egl_vendor_dir"/*.json
+  for egl_vendor in /run/opengl-driver/lib/libEGL_*.so*; do
+    [[ -e "$egl_vendor" ]] || continue
+    egl_name="${egl_vendor##*/}"
+    egl_name="${egl_name#libEGL_}"
+    egl_name="${egl_name%%.so*}"
+    cat > "$egl_vendor_dir/10_${egl_name}.json" <<EOF
+{
+  "file_format_version": "1.0.0",
+  "ICD": {
+    "library_path": "$egl_vendor"
+  }
+}
+EOF
+  done
+  if compgen -G "$egl_vendor_dir/*.json" >/dev/null; then
+    export __EGL_VENDOR_LIBRARY_DIRS="$egl_vendor_dir"
+  fi
+fi
 export QT_PLUGIN_PATH="$HERE/usr/plugins"
 export QT_QPA_PLATFORM_PLUGIN_PATH="$HERE/usr/plugins/platforms"
 export QML2_IMPORT_PATH="$HERE/usr/qml"
@@ -214,8 +253,11 @@ while IFS= read -r lib_dir; do
   append_library_path "$lib_dir"
 done < <(find "$MPV_PREFIX/lib" -name 'libmpv.so*' -exec dirname {} \; | sort -u)
 while IFS= read -r dep; do
-  is_bundleable_elf_dep "$dep" || continue
+  case "$dep" in
+    /nix/store/*-glibc-*|/nix/store/*-glibc-*) continue ;;
+  esac
   append_library_path "$(dirname "$dep")"
+  is_bundleable_elf_dep "$dep" || continue
 done < <(ldd "$APPDIR/usr/bin/jellyfin-native" "$APPDIR"/usr/lib/libmpv.so* 2>/dev/null | awk '/=> \// { print $3 } /^\// { print $1 }' | sort -u)
 qmlscanner="$(command -v qmlimportscanner || true)"
 if [[ -z "$qmlscanner" ]]; then
@@ -302,7 +344,7 @@ EOF
     prepend_path "$(dirname "$qmlscanner")"
   fi
 fi
-export EXTRA_QT_PLUGINS="${EXTRA_QT_PLUGINS:-wayland-shell-integration/libxdg-shell.so;wayland-graphics-integration-client/libqt-plugin-wayland-egl.so}"
+export EXTRA_PLATFORM_PLUGINS="${EXTRA_PLATFORM_PLUGINS:-libqwayland.so}"
 export QML_SOURCES_PATHS="${QML_SOURCES_PATHS:-$APP_ROOT/qml}"
 export APPIMAGE_EXTRACT_AND_RUN="${APPIMAGE_EXTRACT_AND_RUN:-1}"
 export OUTPUT="${OUTPUT:-Jellyfin-Native-x86_64.AppImage}"
@@ -312,6 +354,7 @@ set_appdir_rpaths
 
 "$QT_PLUGIN" --appdir "$APPDIR"
 
+unset EXTRA_PLATFORM_PLUGINS
 bundle_wayland_plugins
 prune_appdir
 copy_elf_deps
