@@ -49,6 +49,9 @@ copy_elf_deps() {
   local elf
   local dep
   local copied=1
+  local roots=("$APPDIR/usr/bin" "$APPDIR/usr/lib")
+  [[ -d "$APPDIR/usr/plugins" ]] && roots+=("$APPDIR/usr/plugins")
+  [[ -d "$APPDIR/usr/qml" ]] && roots+=("$APPDIR/usr/qml")
 
   while (( copied )); do
     copied=0
@@ -62,8 +65,96 @@ copy_elf_deps() {
           copied=1
         fi
       done < <(ldd "$elf" 2>/dev/null | awk '/=> \// { print $3 } /^\// { print $1 }')
-    done < <(find "$APPDIR/usr/bin" "$APPDIR/usr/lib" -type f)
+    done < <(find "${roots[@]}" -type f)
   done
+}
+
+copy_tree_if_exists() {
+  local src="$1"
+  local dst="$2"
+  [[ -e "$src" ]] || return 0
+  mkdir -p "$(dirname "$dst")"
+  cp -a "$src" "$dst"
+  chmod -R u+w "$dst" 2>/dev/null || true
+}
+
+qt_query() {
+  local key="$1"
+  if command -v qtpaths6 >/dev/null 2>&1; then
+    qtpaths6 -query "$key" 2>/dev/null || true
+  elif command -v qtpaths >/dev/null 2>&1; then
+    qtpaths -query "$key" 2>/dev/null || true
+  fi
+}
+
+bundle_wayland_plugins() {
+  local plugins_dir
+  plugins_dir="$(qt_query QT_INSTALL_PLUGINS)"
+  [[ -d "$plugins_dir" ]] || return 0
+
+  copy_tree_if_exists "$plugins_dir/platforms/libqwayland.so" \
+    "$APPDIR/usr/plugins/platforms/libqwayland.so"
+  copy_tree_if_exists "$plugins_dir/wayland-shell-integration" \
+    "$APPDIR/usr/plugins/wayland-shell-integration"
+  copy_tree_if_exists "$plugins_dir/wayland-graphics-integration-client" \
+    "$APPDIR/usr/plugins/wayland-graphics-integration-client"
+  copy_tree_if_exists "$plugins_dir/wayland-decoration-client" \
+    "$APPDIR/usr/plugins/wayland-decoration-client"
+}
+
+prune_appdir() {
+  rm -rf \
+    "$APPDIR/usr/qml/QtQuick/Controls/designer" \
+    "$APPDIR/usr/qml/QtQuick/Controls/FluentWinUI3" \
+    "$APPDIR/usr/qml/QtQuick/Controls/Fusion" \
+    "$APPDIR/usr/qml/QtQuick/Controls/Imagine" \
+    "$APPDIR/usr/qml/QtQuick/Controls/Material" \
+    "$APPDIR/usr/qml/QtQuick/Controls/Universal" \
+    "$APPDIR/usr/qml/QtQuick/Controls/FluentWinUI3.impl" \
+    "$APPDIR/usr/qml/QtQuick/Dialogs/quickimpl/+Fusion" \
+    "$APPDIR/usr/qml/QtQuick/Dialogs/quickimpl/+Imagine" \
+    "$APPDIR/usr/qml/QtQuick/Dialogs/quickimpl/+Material" \
+    "$APPDIR/usr/qml/QtQuick/Dialogs/quickimpl/+Universal" \
+    "$APPDIR/usr/qml/QtQuick/Dialogs/quickimpl/+FluentWinUI3" \
+    "$APPDIR/usr/qml/QtQuick/tooling" \
+    "$APPDIR/usr/qml/QtQuick/Shapes/DesignHelpers" \
+    "$APPDIR/usr/qml/QtQuick/VectorImage/Helpers"
+
+  find "$APPDIR/usr/lib" -maxdepth 1 -type f \( \
+    -name 'libQt6QuickControls2FluentWinUI3*.so*' -o \
+    -name 'libQt6QuickControls2Fusion*.so*' -o \
+    -name 'libQt6QuickControls2Imagine*.so*' -o \
+    -name 'libQt6QuickControls2Material*.so*' -o \
+    -name 'libQt6QuickControls2Universal*.so*' -o \
+    -name 'libQt6QuickDialogs2QuickImpl.so*' -o \
+    -name 'libQt6QuickShapesDesignHelpers.so*' -o \
+    -name 'libQt6QuickVectorImageHelpers.so*' \
+  \) -delete
+
+  find "$APPDIR/usr/plugins/sqldrivers" -maxdepth 1 -type f ! -name 'libqsqlite.so' -delete 2>/dev/null || true
+  find "$APPDIR/usr/plugins/platforms" -maxdepth 1 -type f \
+    ! -name 'libqxcb.so' ! -name 'libqwayland.so' -delete 2>/dev/null || true
+}
+
+set_appdir_rpaths() {
+  local elf rel depth prefix
+  while IFS= read -r elf; do
+    file -b "$elf" | grep -q 'ELF' || continue
+    case "$elf" in
+      "$APPDIR/usr/bin/"*) patchelf --set-rpath '$ORIGIN/../lib' "$elf" 2>/dev/null || true ;;
+      "$APPDIR/usr/lib/"*) patchelf --set-rpath '$ORIGIN' "$elf" 2>/dev/null || true ;;
+      *)
+        rel="${elf#"$APPDIR/usr/"}"
+        depth=$(awk -F/ '{ print NF - 1 }' <<< "$rel")
+        prefix='$ORIGIN'
+        while (( depth > 0 )); do
+          prefix="$prefix/.."
+          depth=$((depth - 1))
+        done
+        patchelf --set-rpath "$prefix/lib:\$ORIGIN" "$elf" 2>/dev/null || true
+        ;;
+    esac
+  done < <(find "$APPDIR/usr" -type f)
 }
 
 if [[ ! -x "$BUILD_ROOT/jellyfin-native" ]]; then
@@ -72,6 +163,9 @@ if [[ ! -x "$BUILD_ROOT/jellyfin-native" ]]; then
 fi
 
 mkdir -p "$ARTIFACT_DIR" "$(dirname "$LINUXDEPLOY")"
+if [[ -d "$APPDIR" ]]; then
+  chmod -R u+w "$APPDIR" 2>/dev/null || true
+fi
 rm -rf "$APPDIR"
 mkdir -p "$APPDIR/usr/bin" "$APPDIR/usr/lib" "$APPDIR/usr/share/applications" \
   "$APPDIR/usr/share/icons/hicolor/256x256/apps"
@@ -83,7 +177,13 @@ cp -f "$APP_ROOT/app/icon.png" "$APPDIR/jellyfin-native.png"
 cat > "$APPDIR/AppRun" <<'APPRUN'
 #!/usr/bin/env bash
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+unset QML2_IMPORT_PATH QML_IMPORT_PATH QT_PLUGIN_PATH QT_QPA_PLATFORM_PLUGIN_PATH
 export LD_LIBRARY_PATH="$HERE/usr/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+export QT_PLUGIN_PATH="$HERE/usr/plugins"
+export QT_QPA_PLATFORM_PLUGIN_PATH="$HERE/usr/plugins/platforms"
+export QML2_IMPORT_PATH="$HERE/usr/qml"
+export QML_IMPORT_PATH="$HERE/usr/qml"
+export QT_QPA_PLATFORM="${QT_QPA_PLATFORM:-wayland;xcb}"
 exec "$HERE/usr/bin/jellyfin-native" "$@"
 APPRUN
 chmod +x "$APPDIR/AppRun"
@@ -208,13 +308,14 @@ export APPIMAGE_EXTRACT_AND_RUN="${APPIMAGE_EXTRACT_AND_RUN:-1}"
 export OUTPUT="${OUTPUT:-Jellyfin-Native-x86_64.AppImage}"
 
 copy_elf_deps
-patchelf --set-rpath '$ORIGIN/../lib' "$APPDIR/usr/bin/jellyfin-native"
-while IFS= read -r lib; do
-  file -b "$lib" | grep -q 'ELF' || continue
-  patchelf --set-rpath '$ORIGIN' "$lib" 2>/dev/null || true
-done < <(find "$APPDIR/usr/lib" -type f -name '*.so*')
+set_appdir_rpaths
 
 "$QT_PLUGIN" --appdir "$APPDIR"
+
+bundle_wayland_plugins
+prune_appdir
+copy_elf_deps
+set_appdir_rpaths
 
 APPIMAGETOOL="${APPIMAGETOOL:-}"
 if [[ -z "$APPIMAGETOOL" ]]; then
