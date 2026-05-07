@@ -7,6 +7,7 @@
 #include "player/PlayerController.h"
 
 extern "C" {
+#include <fcntl.h>
 #include <limits.h>
 #include <signal.h>
 #include <unistd.h>
@@ -48,6 +49,7 @@ Q_IMPORT_PLUGIN(QSQLiteDriverPlugin)
 #include <QQuickStyle>
 #include <QQuickWindow>
 #include <QSGRendererInterface>
+#include <QSocketNotifier>
 #include <QSurfaceFormat>
 #include <QStandardPaths>
 #include <QTimer>
@@ -114,9 +116,21 @@ bool ensureWaylandEnv()
 }
 #endif
 
+// Self-pipe used to deliver SIGINT/SIGTERM into the Qt event loop. Calling
+// QCoreApplication::quit() from a signal handler is async-unsafe — under
+// active playback the main thread can be deep in QML/scene-graph code and
+// the deferred posted event never gets a chance to run, so Ctrl+C is silently
+// ignored. The signal handler instead writes a single byte to the pipe; a
+// QSocketNotifier on the main thread reads it and calls quit() safely.
+int g_signalPipe[2] = {-1, -1};
+
 void handleSignal(int)
 {
-    QCoreApplication::quit();
+    const char byte = 1;
+    // write() is async-signal-safe; ignore the result — if the pipe is full
+    // the previous byte already armed the notifier.
+    ssize_t n = write(g_signalPipe[1], &byte, 1);
+    (void)n;
 }
 
 void logLine(const char *fmt, ...)
@@ -288,9 +302,22 @@ int main(int argc, char **argv)
     qInstallMessageHandler(qtMessageHandler);
     QLoggingCategory::setFilterRules(QStringLiteral("qt.*.debug=false\nqt.*.info=false"));
 
+    if (pipe(g_signalPipe) == 0) {
+        // Non-blocking write so the signal handler never stalls; reads on the
+        // notifier side are also non-blocking via QSocketNotifier semantics.
+        for (int fd : {g_signalPipe[0], g_signalPipe[1]}) {
+            int flags = fcntl(fd, F_GETFL, 0);
+            if (flags >= 0)
+                fcntl(fd, F_SETFL, flags | O_NONBLOCK);
+        }
+    }
+
     struct sigaction action = {};
     action.sa_handler = handleSignal;
     sigemptyset(&action.sa_mask);
+    // SA_RESTART so handler doesn't break long-running syscalls in worker
+    // threads; the self-pipe wakes the event loop regardless.
+    action.sa_flags = SA_RESTART;
     sigaction(SIGINT, &action, nullptr);
     sigaction(SIGTERM, &action, nullptr);
 
@@ -320,6 +347,19 @@ int main(int argc, char **argv)
     app.setApplicationName(QStringLiteral("Jellyfin Native"));
     app.setOrganizationName(QStringLiteral("Codex"));
     app.setApplicationDisplayName(QStringLiteral("Jellyfin Native"));
+
+    std::unique_ptr<QSocketNotifier> signalNotifier;
+    if (g_signalPipe[0] >= 0) {
+        signalNotifier = std::make_unique<QSocketNotifier>(
+            g_signalPipe[0], QSocketNotifier::Read);
+        QObject::connect(signalNotifier.get(), &QSocketNotifier::activated,
+                         &app, [&app](QSocketDescriptor, QSocketNotifier::Type) {
+            char buf[16];
+            while (read(g_signalPipe[0], buf, sizeof(buf)) > 0) {}
+            logLine("signal received, quitting");
+            app.quit();
+        });
+    }
 
     auto *networkAccessManager = new QNetworkAccessManager();
     auto *diskCache = new QNetworkDiskCache(networkAccessManager);
@@ -360,6 +400,21 @@ int main(int argc, char **argv)
     auto player = std::make_unique<JellyfinNative::PlayerController>(&window, api.get());
     auto controller =
         std::make_unique<JellyfinNative::AppController>(&database, discovery.get(), api.get(), player.get());
+
+    // Shutdown sequence (runs while the event loop and scene graph are still
+    // alive, before any of the unique_ptrs below get destructed):
+    //   1. Tear mpv down — stops audio/decode threads and frees the render
+    //      context. mpv_terminate_destroy joins everything synchronously.
+    //   2. Clear the QQuickView's source so QML items unbind from the
+    //      `appController` / `nativeWindow` context properties before those
+    //      objects are destroyed. Otherwise the bindings keep evaluating
+    //      against null pointers and emit a flood of "Cannot read property
+    //      'X' of null" warnings during the unwind.
+    QObject::connect(&app, &QCoreApplication::aboutToQuit, &app, [player = player.get(), &window]() {
+        logLine("aboutToQuit: tearing down mpv");
+        player->teardownMpv();
+        window.setSource(QUrl());
+    });
 
     auto *qmlNetworkFactory = new JellyfinNative::QmlNetworkAccessManagerFactory(
         cachePath + QStringLiteral("/qml-image-cache"), 512LL * 1024LL * 1024LL);
