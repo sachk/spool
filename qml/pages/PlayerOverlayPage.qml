@@ -300,7 +300,6 @@ FocusScope {
     MpvVideoItem {
         anchors.fill: parent
         z: -1
-        rotation: 180
     }
 
     TapHandler { onTapped: overlay.showControls("timeline") }
@@ -385,9 +384,13 @@ FocusScope {
         MouseArea {
             anchors.fill: parent
             onClicked: {
-                overlay.mode = "controls"
-                overlay.row = "back"
-                overlay.handleBack()
+                // The back-button click is an explicit exit gesture; bypass
+                // handleBack's progressive-back logic (which only hides the
+                // controls overlay on the first invocation when `mode ===
+                // "controls"`, leaving the user to click an invisible button
+                // for a no-op).
+                if (appController.player.backAllowed)
+                    appController.player.stopWithReason("overlay-back-button")
             }
         }
     }
