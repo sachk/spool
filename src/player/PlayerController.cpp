@@ -651,9 +651,38 @@ bool PlayerController::mpvCommand(const char *command) {
     qInfo() << "player: mpv command dropped (no handle):" << command;
     return false;
   }
-  const int error = mpv_command_string(handle, command);
+  // Submit asynchronously: the synchronous mpv_command_string takes mpv's
+  // dispatch lock and waits for the core thread, but with vo=libmpv the core
+  // can in turn need the render thread, which dispatches an update back to
+  // this (GUI) thread via QMetaObject::invokeMethod(... Qt::QueuedConnection).
+  // If that update lands on us while we are blocking inside mpv, the chain
+  // deadlocks (observed when toggling stats overlay, which queries vo_passes).
+  // Reply events are silently dropped by the event loop (no userdata).
+  //
+  // mpv_command_node_async refuses MPV_FORMAT_STRING nodes (INVALID_PARAMETER),
+  // so split the command into a NULL-terminated argv on whitespace. None of
+  // our callers embed quoted whitespace in arguments.
+  QByteArray buffer(command);
+  QList<char *> argv;
+  argv.reserve(8);
+  char *cursor = buffer.data();
+  while (*cursor) {
+    while (*cursor == ' ' || *cursor == '\t')
+      ++cursor;
+    if (!*cursor)
+      break;
+    argv.append(cursor);
+    while (*cursor && *cursor != ' ' && *cursor != '\t')
+      ++cursor;
+    if (*cursor) {
+      *cursor = '\0';
+      ++cursor;
+    }
+  }
+  argv.append(nullptr);
+  const int error = mpv_command_async(handle, 0, const_cast<const char **>(argv.data()));
   if (error < 0) {
-    qWarning() << "player: mpv_command_string failed" << command
+    qWarning() << "player: mpv_command_async failed" << command
                << "error=" << error << mpv_error_string(error);
     return false;
   }
