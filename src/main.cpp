@@ -279,9 +279,14 @@ int main(int argc, char **argv)
     if (!ensureWaylandEnv())
         return 1;
 #else
+#ifdef __linux__
+    // Default to wayland on Linux desktop; the user can override via the env.
+    // Don't touch QT_QPA_PLATFORM on macOS — Qt picks "cocoa" automatically
+    // and forcing "wayland" makes the platform-plugin loader fail to start.
     qputenv("QT_QPA_PLATFORM", qEnvironmentVariableIsSet("QT_QPA_PLATFORM")
                                   ? qgetenv("QT_QPA_PLATFORM")
                                   : QByteArrayLiteral("wayland"));
+#endif
     if (qEnvironmentVariableIsSet("JELLYFIN_NATIVE_VERBOSE_QT")) {
         setenv("QT_DEBUG_PLUGINS", "1", 1);
         setenv("QT_LOGGING_RULES",
