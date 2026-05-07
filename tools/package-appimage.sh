@@ -144,6 +144,41 @@ prune_appdir() {
     -name 'libgbm*.so*' -o \
     -name 'libvulkan*.so*' \
   \) -delete
+
+  # Translations: keep only English (linuxdeploy-plugin-qt copies all locales).
+  if [[ -d "$APPDIR/usr/translations" ]]; then
+    find "$APPDIR/usr/translations" -maxdepth 1 -type f -name '*.qm' \
+      ! -name 'qtbase_en*.qm' ! -name 'qt_en*.qm' -delete 2>/dev/null || true
+  fi
+}
+
+# Non-destructive audit: warn if any of the libs the slim ffmpeg overlay was
+# meant to drop have leaked into the bundle anyway. Cheaper than deleting them
+# blind (which could break a transitive non-ffmpeg consumer); fixes belong in
+# the overlay instead.
+audit_unexpected_bloat() {
+  local pattern hits=0
+  for pattern in \
+    'libsmbclient*' '*-private-samba.so*' 'libwbclient.so*' \
+    'libflite*' 'libchromaprint*' 'libjxl*' 'librsvg*' \
+    'libtensorflow*' 'libwhisper*' 'libvmaf*' \
+    'libsrt*' 'librist*' 'libssh.so*' 'librtmp*' 'libzmq*' 'libzvbi*' \
+    'libaribb24*' 'libaribcaption*' 'libfrei0r*' \
+    'libcdio*' 'libcaca*' 'libdvdnav*' 'libdvdread*' 'libdc1394*' 'libv4l*' \
+    'libtheora*' 'libx264*' 'libx265*' 'libaom*' 'libSvtAv1*' 'libvvenc*' \
+    'librav1e*' 'libxavs*' 'libxeve*' 'libvpx*' 'libxvidcore*' \
+    'libgme*' 'libmodplug*' 'libopenmpt*' 'libcodec2*' 'libcelt*' \
+    'libgsm*' 'libilbc*' 'liblc3*' 'libmysofa*' 'libfdk*'
+  do
+    while IFS= read -r leaked; do
+      [[ -e "$leaked" ]] || continue
+      hits=$((hits + 1))
+      echo "warn: unexpected bloat lib in AppDir: ${leaked##*/}" >&2
+    done < <(compgen -G "$APPDIR/usr/lib/$pattern" || true)
+  done
+  if (( hits > 0 )); then
+    echo "warn: $hits libs leaked past the ffmpeg-slim overlay; tighten flake.nix" >&2
+  fi
 }
 
 set_appdir_rpaths() {
@@ -359,6 +394,7 @@ bundle_wayland_plugins
 prune_appdir
 copy_elf_deps
 set_appdir_rpaths
+audit_unexpected_bloat
 
 APPIMAGETOOL="${APPIMAGETOOL:-}"
 if [[ -z "$APPIMAGETOOL" ]]; then

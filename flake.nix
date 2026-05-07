@@ -19,12 +19,118 @@
           patches = [];
         });
       };
+      # Slim ffmpeg-full: keep everything libmpv needs for decoding + rendering on
+      # Linux, but drop encoders, niche protocols, TTS, fingerprinting, image
+      # formats Qt already handles, and other transitive bloat that otherwise
+      # gets pulled into the AppImage via libavcodec.so.62's RPATH/NEEDED list.
+      ffmpegSlimOverlay = final: prev: {
+        ffmpeg-full = prev.ffmpeg-full.override {
+          # ffplay needs SDL2; we don't ship it.
+          buildFfplay = false;
+          withSdl2 = false;
+
+          # Encoders we never use in a playback-only client.
+          withX264 = false;
+          withX265 = false;
+          withAom = false;
+          withSvtav1 = false;
+          withVvenc = false;
+          withRav1e = false;
+          withVpx = false;
+          withXavs = false;
+          withXavs2 = false;
+          withXeve = false;
+          withXevd = false;
+          withKvazaar = false;
+          withFdkAac = false;
+          withOpenh264 = false;
+          withMp3lame = false;
+          withVoAmrwbenc = false;
+          withTwolame = false;
+          withShine = false;
+          withTheora = false;
+
+          # Niche audio codecs (native ffmpeg decoders cover the few streams
+          # Jellyfin actually serves).
+          withOpenmpt = false;
+          withGme = false;
+          withModplug = false;
+          withCodec2 = false;
+          withCelt = false;
+          withGsm = false;
+          withIlbc = false;
+          withLc3 = false;
+          withSpeex = false;
+          withOpencoreAmrnb = false;
+          withOpencoreAmrwb = false;
+          withMysofa = false;
+
+          # Niche video codecs.
+          withDavs2 = false;
+          withUavs3d = false;
+
+          # ARIB / DVB subtitle and teletext stacks.
+          withAribb24 = false;
+          withAribcaption = false;
+          withZvbi = false;
+
+          # Network protocols we don't use.
+          withSrt = false;
+          withRist = false;
+          withSsh = false;
+          withRtmp = false;
+
+          # Removable bloat.
+          withSamba = false;            # libsmbclient pulls ~30 samba libs (~19 MB)
+          withFlite = false;            # TTS voice databases (~23 MB)
+          withChromaprint = false;      # audio fingerprinting
+          withTensorflow = false;       # huge
+          withWhisper = false;          # huge
+          withVmaf = false;
+          withZmq = false;
+          withJxl = false;              # Qt handles JPEG-XL via its own plugin if ever
+          withSvg = false;              # librsvg + cairo + rust deps; Qt has QtSvg
+          withLcevcdec = false;
+          withFrei0r = false;
+          withQrencode = false;
+          withQuirc = false;
+          withOpenjpeg = false;
+          withXvid = false;
+
+          # Capture / disc inputs we never use.
+          withV4l2 = false;
+          withV4l2M2m = false;
+          withDvdnav = false;
+          withDvdread = false;
+          withDc1394 = false;
+          withCdio = false;
+          withCaca = false;
+
+          # GPU / vendor encode paths (most are off by default but be explicit).
+          withAmf = false;
+          withCuda = false;
+          withCudaLLVM = false;
+          withCudaNVCC = false;
+          withNpp = false;
+          withNvcodec = false;
+          withNvdec = false;
+          withNvenc = false;
+          withCuvid = false;
+          withMfx = false;
+          withVpl = false;
+          withOpencl = false;
+          withOpenal = false;
+          withJack = false;
+          withLadspa = false;
+          withBs2b = false;
+        };
+      };
       forAllSystems = f:
         nixpkgs.lib.genAttrs systems (system:
           f (import nixpkgs {
             inherit system;
             config.allowUnfree = true;
-            overlays = [ libplaceboOverlay ];
+            overlays = [ libplaceboOverlay ffmpegSlimOverlay ];
           }));
 
       commonPackages = pkgs: with pkgs; [
