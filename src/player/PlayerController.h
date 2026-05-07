@@ -83,9 +83,13 @@ signals:
     void playbackStopped();
     void nightModeEnabledChanged();
 
+public:
+    // Called from main on aboutToQuit so we tear down before the scene graph
+    // stops accepting render jobs. Safe to call repeatedly.
+    void teardownMpv();
+
 private:
     bool ensureMpv();
-    void teardownMpv();
     void scheduleMpvTeardown();
     void runEventLoop();
     void startProgressReporting();

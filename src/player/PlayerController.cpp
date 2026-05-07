@@ -216,18 +216,24 @@ void PlayerController::teardownMpv() {
   }
 
 #ifndef JELLYFIN_NATIVE_WEBOS
-  // Free the render context that lives on the scene-graph render thread before
-  // we destroy the mpv handle it points at.
+  // Free the render context first; this is thread-safe and decouples us from
+  // the scene-graph render thread (which may already be shutting down).
   if (auto *videoItem = MpvVideoItem::instance())
     videoItem->setMpvHandle(nullptr);
 #endif
 
-  m_terminating = false;
-  // Ask mpv to shut down, then let the event loop exit on MPV_EVENT_SHUTDOWN.
-  mpv_command_string(handle, "quit");
+  // Force the event loop thread to exit promptly — we don't need to wait for
+  // mpv to deliver MPV_EVENT_SHUTDOWN, mpv_terminate_destroy below handles
+  // the full shutdown synchronously and joins all internal mpv threads.
+  m_terminating = true;
   if (m_eventThread.joinable())
     m_eventThread.join();
-  mpv_destroy(handle);
+
+  // mpv_terminate_destroy stops decoding/audio output and joins mpv's
+  // internal threads before returning. Audio cuts off promptly (vs.
+  // mpv_destroy + "quit" which can leave audio playing while pipewire drains
+  // its buffers).
+  mpv_terminate_destroy(handle);
 
   m_terminating = false;
   m_pendingFileLoads = 0;

@@ -27,9 +27,11 @@ public:
     ~MpvVideoItem() override;
 
     // Called from the GUI thread. Pass nullptr to release the current handle
-    // (must happen before PlayerController destroys the mpv_handle). This call
-    // synchronously waits for the render thread to free the render context so
-    // it is safe to mpv_terminate_destroy() the handle on return.
+    // before PlayerController destroys the mpv_handle. The render context is
+    // freed synchronously here via mpv_render_context_free (thread-safe, and
+    // it waits for any in-progress render), so we do not depend on the
+    // scene-graph render thread still being alive — this is safe to call from
+    // QCoreApplication::aboutToQuit on shutdown.
     void setMpvHandle(mpv_handle *handle);
 
     static MpvVideoItem *instance();
@@ -43,6 +45,13 @@ public:
         bool dirty;
     };
     HandleSnapshot takePendingHandle();
+
+    // Published by the renderer in synchronize() once the render context is
+    // created. setMpvHandle(nullptr) atomically claims and frees it. The
+    // renderer's render() also loads this and skips when null, so a free
+    // racing with a render is safe (mpv_render_context_free waits for the
+    // in-progress mpv_render_context_render call to finish).
+    std::atomic<mpv_render_context *> m_renderCtxAtomic{nullptr};
 
 private:
     static MpvVideoItem *s_instance;
