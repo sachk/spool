@@ -53,6 +53,7 @@ Q_IMPORT_PLUGIN(QSQLiteDriverPlugin)
 #include <QTimer>
 #include <QUuid>
 
+#include <clocale>
 #include <cstring>
 #include <cstdarg>
 #include <cstdio>
@@ -222,6 +223,14 @@ int main(int argc, char **argv)
         setvbuf(g_logFile, nullptr, _IOLBF, 0);
 
     logLine("%s starting", kAppId);
+
+    // libmpv parses option strings (and many internal numeric values) with the
+    // C locale assumption — under any other LC_NUMERIC playback fails to start
+    // because option parsing rejects floating-point arguments. Force LC_NUMERIC
+    // to C for both this process and any inherited child env so the user does
+    // not have to set LC_NUMERIC=C themselves.
+    setlocale(LC_NUMERIC, "C");
+    setenv("LC_NUMERIC", "C", 1);
 
     char appRoot[PATH_MAX];
     if (!resolveAppRoot(appRoot, sizeof(appRoot)))
