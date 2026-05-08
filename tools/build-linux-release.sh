@@ -53,6 +53,13 @@ MPV_SETUP_ARGS=(
   -Dsubrandr=disabled
 )
 
+if [[ -f "$MPV_BUILD/meson-info/meson-info.json" ]]; then
+  cached_src="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1])).get("directories",{}).get("source",""))' "$MPV_BUILD/meson-info/meson-info.json" 2>/dev/null || true)"
+  if [[ -n "$cached_src" && "$cached_src" != "$MPV_SRC" ]]; then
+    echo "mpv build dir cached with stale source path ($cached_src != $MPV_SRC); wiping" >&2
+    rm -rf "$MPV_BUILD"
+  fi
+fi
 if [[ -f "$MPV_BUILD/build.ninja" ]]; then
   meson setup --reconfigure "$MPV_BUILD" "$MPV_SRC" "${MPV_SETUP_ARGS[@]}"
 else
