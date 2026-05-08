@@ -50,6 +50,7 @@ MPV_SETUP_ARGS=(
   -Dlua=enabled
   -Drubberband=enabled
   -Duchardet=enabled
+  -Dsubrandr=disabled
 )
 
 if [[ -f "$MPV_BUILD/build.ninja" ]]; then
