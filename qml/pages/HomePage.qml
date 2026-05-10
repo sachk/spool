@@ -76,11 +76,11 @@ FocusScope {
         if (sections.currentItem && sections.currentItem.handleNavigationKey)
             return sections.currentItem.handleNavigationKey(key)
         if (key === Qt.Key_Up) {
-            sections.currentIndex = nextVisibleSection(sections.currentIndex, -1)
+            focusSection(nextVisibleSection(sections.currentIndex, -1))
             return true
         }
         if (key === Qt.Key_Down) {
-            sections.currentIndex = nextVisibleSection(sections.currentIndex, 1)
+            focusSection(nextVisibleSection(sections.currentIndex, 1))
             return true
         }
         return false
@@ -130,6 +130,13 @@ FocusScope {
         return from
     }
 
+    function focusSection(index) {
+        if (index < 0 || index >= sections.count)
+            return
+        sections.currentIndex = index
+        sections.scrollCurrentSectionIntoView()
+    }
+
     ListView {
         id: sections
         anchors.fill: parent
@@ -139,6 +146,34 @@ FocusScope {
         keyNavigationEnabled: false
         spacing: 22
         model: sectionModel
+        maximumFlickVelocity: 7200
+        flickDeceleration: 6200
+
+        Behavior on contentY {
+            NumberAnimation {
+                duration: 90
+                easing.type: Easing.OutCubic
+            }
+        }
+
+        function scrollCurrentSectionIntoView() {
+            const item = currentItem
+            if (!item)
+                return
+
+            const scale = Math.max(0.78, Math.min(1.0, root.height / 1440))
+            const margin = Math.round(20 * scale)
+            const top = Math.max(0, item.y - margin)
+            const bottom = item.y + item.height + margin
+            const viewportTop = contentY
+            const viewportBottom = contentY + height
+            const maxY = Math.max(0, contentHeight - height)
+
+            if (top < viewportTop)
+                contentY = Math.max(0, top)
+            else if (bottom > viewportBottom)
+                contentY = Math.min(maxY, bottom - height)
+        }
 
         header: SectionHeader { width: sections.width; height: implicitHeight + 18; title: "Home" }
 
@@ -186,11 +221,11 @@ FocusScope {
                             return true
                         }
                         if (key === Qt.Key_Up) {
-                            sections.currentIndex = root.nextVisibleSection(sections.currentIndex, -1)
+                            root.focusSection(root.nextVisibleSection(sections.currentIndex, -1))
                             return true
                         }
                         if (key === Qt.Key_Down) {
-                            sections.currentIndex = root.nextVisibleSection(sections.currentIndex, 1)
+                            root.focusSection(root.nextVisibleSection(sections.currentIndex, 1))
                             return true
                         }
                         if ((key === Qt.Key_Return || key === Qt.Key_Enter || key === Qt.Key_Select) && root.spotlightIndex >= 0) {
@@ -270,11 +305,11 @@ FocusScope {
                             return true
                         }
                         if (key === Qt.Key_Up) {
-                            sections.currentIndex = root.nextVisibleSection(sections.currentIndex, -1)
+                            root.focusSection(root.nextVisibleSection(sections.currentIndex, -1))
                             return true
                         }
                         if (key === Qt.Key_Down) {
-                            sections.currentIndex = root.nextVisibleSection(sections.currentIndex, 1)
+                            root.focusSection(root.nextVisibleSection(sections.currentIndex, 1))
                             return true
                         }
                         if (key === Qt.Key_Return || key === Qt.Key_Enter || key === Qt.Key_Select) {
@@ -403,8 +438,8 @@ FocusScope {
                             ensureVisible()
                             return true
                         }
-                        if (key === Qt.Key_Up) { sections.currentIndex = root.nextVisibleSection(sections.currentIndex, -1); return true }
-                        if (key === Qt.Key_Down) { sections.currentIndex = root.nextVisibleSection(sections.currentIndex, 1); return true }
+                        if (key === Qt.Key_Up) { root.focusSection(root.nextVisibleSection(sections.currentIndex, -1)); return true }
+                        if (key === Qt.Key_Down) { root.focusSection(root.nextVisibleSection(sections.currentIndex, 1)); return true }
                         if (key === Qt.Key_Return || key === Qt.Key_Enter || key === Qt.Key_Select) {
                             if (currentIndex >= 0) root.activateAt("libraries", currentIndex)
                             return true
