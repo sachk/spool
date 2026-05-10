@@ -17,6 +17,8 @@ QtObject {
     function pageMargin(w) { return [24, 32, 44, 64][densityForWidth(w)] }
     function gap(w) { return [14, 18, 22, 28][densityForWidth(w)] }
     function basePosterWidth(w) { return [140, 180, 210, 240][densityForWidth(w)] + userPosterSizeBias * 24 }
+    function homePosterWidth(w) { return [140, 180, 156, 180][densityForWidth(w)] + userPosterSizeBias * 18 }
+    function homeLandscapeWidth(w) { return [260, 300, 248, 248][densityForWidth(w)] }
     function autoColumns(w) { return [5, 6, 8, 12][densityForWidth(w)] }
     function columns(w) { return userColumnOverride > 0 ? userColumnOverride : autoColumns(w) }
 
