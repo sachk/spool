@@ -7,3 +7,5 @@
 *.ipk
 *.log
 .DS_Store
+/dist/
+/squashfs-root/
