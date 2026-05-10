@@ -79,6 +79,12 @@ while IFS= read -r lib_dir; do
 done < <(find "$MPV_PREFIX/lib" -name 'libmpv.so*' -exec dirname {} \; | sort -u)
 MPV_INSTALL_RPATH="$(IFS=';'; printf '%s' "${MPV_LIB_DIRS[*]}")"
 
+if [[ -f "$APP_BUILD/CMakeCache.txt" ]] && ! grep -q "^CMAKE_HOME_DIRECTORY:INTERNAL=$APP_ROOT$" "$APP_BUILD/CMakeCache.txt"; then
+  echo "app build dir cached with stale source path; wiping" >&2
+  rm -rf "$APP_BUILD"
+  mkdir -p "$APP_BUILD"
+fi
+
 cmake -S "$APP_ROOT" -B "$APP_BUILD" -GNinja \
   -DCMAKE_BUILD_TYPE=Release \
   -DJELLYFIN_NATIVE_WEBOS=OFF \

@@ -114,9 +114,9 @@ jobs:
             .ccache
             build/linux-release
             build/appimage
-          key: linux-${{ runner.os }}-${{ hashFiles('mpv/meson.build', 'tools/build-linux-release.sh', 'CMakeLists.txt') }}
+          key: linux2-${{ runner.os }}-${{ hashFiles('mpv/meson.build', 'tools/build-linux-release.sh', 'CMakeLists.txt') }}
           restore-keys: |
-            linux-${{ runner.os }}-
+            linux2-${{ runner.os }}-
 
       - name: Build host app
         run: nix develop -c bash tools/build-linux-release.sh
