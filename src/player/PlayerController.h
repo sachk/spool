@@ -89,6 +89,15 @@ public:
     void teardownMpv();
 
 private:
+    enum class MpvOptionApplyMode {
+        Initial,
+        Runtime,
+    };
+
+    enum class MpvRuntimeOption {
+        NightMode,
+    };
+
     bool ensureMpv();
     void scheduleMpvTeardown();
     void runEventLoop();
@@ -104,6 +113,8 @@ private:
     double playbackPositionFromMpvTime(double seconds) const;
     double clampedPosition(double seconds) const;
     void resetPlaybackUiState();
+    bool applyMpvRuntimeOption(MpvRuntimeOption option, MpvOptionApplyMode mode, mpv_handle *handle);
+    bool applyMpvRuntimeOptions(MpvOptionApplyMode mode, mpv_handle *handle);
 
     NativeAppWindow *m_window = nullptr;
     JellyfinApiFacade *m_api = nullptr;

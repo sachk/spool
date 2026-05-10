@@ -49,6 +49,11 @@ bool setOption(mpv_handle *handle, const char *name, const char *value) {
   return error >= 0 || error == MPV_ERROR_OPTION_NOT_FOUND;
 }
 
+bool setMpvProperty(mpv_handle *handle, const char *name, const char *value) {
+  const int error = mpv_set_property_string(handle, name, value);
+  return error >= 0 || error == MPV_ERROR_OPTION_NOT_FOUND;
+}
+
 qint64 secondsToTicks(double seconds) {
   return static_cast<qint64>(seconds * 10000000.0);
 }
@@ -240,11 +245,12 @@ void PlayerController::teardownMpv() {
 }
 
 void PlayerController::scheduleMpvTeardown() {
-  if (!m_mpv.load())
+  auto *scheduledHandle = m_mpv.load();
+  if (!scheduledHandle)
     return;
 
-  QTimer::singleShot(1000, this, [this]() {
-    if (!m_mpv.load())
+  QTimer::singleShot(1000, this, [this, scheduledHandle]() {
+    if (m_mpv.load() != scheduledHandle)
       return;
     qInfo() << "player: deferred mpv teardown";
     teardownMpv();
@@ -287,6 +293,37 @@ double PlayerController::durationSeconds() const { return m_durationSeconds; }
 
 bool PlayerController::nightModeEnabled() const { return m_nightModeEnabled.load(); }
 
+bool PlayerController::applyMpvRuntimeOption(MpvRuntimeOption option,
+                                             MpvOptionApplyMode mode,
+                                             mpv_handle *handle) {
+  if (!handle)
+    return false;
+
+  const char *name = nullptr;
+  QByteArray value;
+  switch (option) {
+  case MpvRuntimeOption::NightMode:
+    name = "af";
+    value = m_nightModeEnabled.load() ? QByteArray(kNightModeFilter)
+                                      : QByteArray();
+    break;
+  }
+
+  const bool ok = mode == MpvOptionApplyMode::Initial
+                      ? setOption(handle, name, value.constData())
+                      : setMpvProperty(handle, name, value.constData());
+  if (!ok) {
+    qWarning() << "player: failed to apply mpv runtime option" << name
+               << "mode=" << (mode == MpvOptionApplyMode::Initial ? "initial" : "runtime");
+  }
+  return ok;
+}
+
+bool PlayerController::applyMpvRuntimeOptions(MpvOptionApplyMode mode,
+                                              mpv_handle *handle) {
+  return applyMpvRuntimeOption(MpvRuntimeOption::NightMode, mode, handle);
+}
+
 bool PlayerController::ensureMpv() {
   if (m_mpv.load())
     return true;
@@ -317,7 +354,7 @@ bool PlayerController::ensureMpv() {
       setOption(handle, "demuxer-max-bytes", "64M") &&
       setOption(handle, "demuxer-max-back-bytes", "32M") &&
       setOption(handle, "initial-audio-sync", "no") &&
-      (!m_nightModeEnabled.load() || setOption(handle, "af", kNightModeFilter)) &&
+      applyMpvRuntimeOptions(MpvOptionApplyMode::Initial, handle) &&
 #ifdef JELLYFIN_NATIVE_WEBOS
       setOption(handle, "force-window", "no") &&
       setOption(handle, "vo", "starfish") &&
@@ -585,19 +622,12 @@ void PlayerController::setNightModeEnabled(bool enabled) {
   if (m_nightModeEnabled.load() == enabled)
     return;
 
+  m_nightModeEnabled = enabled;
   if (auto *handle = m_mpv.load()) {
-    const char *enableCommand[] = {"af", "set", kNightModeFilter, nullptr};
-    const char *disableCommand[] = {"af", "clr", nullptr};
-    const int error = mpv_command(handle, enabled ? enableCommand : disableCommand);
-    if (error < 0) {
-      qWarning() << "player: failed to apply night mode filter"
-                  << mpv_error_string(error);
-      emit stateChanged();
-      return;
-    }
+    applyMpvRuntimeOption(MpvRuntimeOption::NightMode,
+                          MpvOptionApplyMode::Runtime, handle);
   }
 
-  m_nightModeEnabled = enabled;
   emit nightModeEnabledChanged();
   emit stateChanged();
 }
