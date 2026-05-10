@@ -54,6 +54,24 @@ bool setMpvProperty(mpv_handle *handle, const char *name, const char *value) {
   return error >= 0 || error == MPV_ERROR_OPTION_NOT_FOUND;
 }
 
+bool setMpvDoubleProperty(mpv_handle *handle, const char *name, double value,
+                          double *appliedValue = nullptr) {
+  const int error = mpv_set_property(handle, name, MPV_FORMAT_DOUBLE, &value);
+  if (error < 0 && error != MPV_ERROR_OPTION_NOT_FOUND)
+    return false;
+
+  if (appliedValue)
+    *appliedValue = value;
+
+  double readback = 0.0;
+  const int readError =
+      mpv_get_property(handle, name, MPV_FORMAT_DOUBLE, &readback);
+  if (readError >= 0 && appliedValue)
+    *appliedValue = readback;
+
+  return true;
+}
+
 qint64 secondsToTicks(double seconds) {
   return static_cast<qint64>(seconds * 10000000.0);
 }
@@ -303,6 +321,7 @@ bool PlayerController::applyMpvRuntimeOption(MpvRuntimeOption option,
 
   const char *name = nullptr;
   QByteArray value;
+  double doubleValue = 0.0;
   switch (option) {
   case MpvRuntimeOption::NightMode:
     name = "af";
@@ -311,16 +330,26 @@ bool PlayerController::applyMpvRuntimeOption(MpvRuntimeOption option,
     break;
   case MpvRuntimeOption::AudioDelay:
     name = "audio-delay";
-    value = QByteArray::number(static_cast<double>(m_audioDelayMs.load()) / 1000.0, 'f', 3);
+    doubleValue = static_cast<double>(m_audioDelayMs.load()) / 1000.0;
+    value = QByteArray::number(doubleValue, 'f', 3);
     break;
   }
 
+  double appliedDoubleValue = doubleValue;
   const bool ok = mode == MpvOptionApplyMode::Initial
                       ? setOption(handle, name, value.constData())
-                      : setMpvProperty(handle, name, value.constData());
+                      : option == MpvRuntimeOption::AudioDelay
+                            ? setMpvDoubleProperty(handle, name, doubleValue,
+                                                   &appliedDoubleValue)
+                            : setMpvProperty(handle, name, value.constData());
   if (!ok) {
     qWarning() << "player: failed to apply mpv runtime option" << name
                << "mode=" << (mode == MpvOptionApplyMode::Initial ? "initial" : "runtime");
+  } else if (option == MpvRuntimeOption::AudioDelay) {
+    qInfo() << "player: applied audio delay"
+            << "mode=" << (mode == MpvOptionApplyMode::Initial ? "initial" : "runtime")
+            << "requestedMs=" << m_audioDelayMs.load()
+            << "appliedSeconds=" << appliedDoubleValue;
   }
   return ok;
 }
@@ -641,13 +670,19 @@ void PlayerController::setNightModeEnabled(bool enabled) {
 
 void PlayerController::setAudioDelayMs(int delayMs) {
   const int clampedDelayMs = qBound(-2000, delayMs, 2000);
-  if (m_audioDelayMs.load() == clampedDelayMs)
+  if (m_audioDelayMs.load() == clampedDelayMs) {
+    qInfo() << "player: audio delay unchanged" << clampedDelayMs << "ms";
     return;
+  }
 
   m_audioDelayMs = clampedDelayMs;
+  qInfo() << "player: audio delay requested" << clampedDelayMs << "ms"
+          << "visible=" << m_visible;
   if (auto *handle = m_mpv.load()) {
     applyMpvRuntimeOption(MpvRuntimeOption::AudioDelay,
                           MpvOptionApplyMode::Runtime, handle);
+  } else {
+    qInfo() << "player: audio delay stored without active mpv";
   }
 
   emit audioDelayMsChanged();

@@ -533,8 +533,11 @@ void AppController::setNightModeEnabled(bool enabled)
 void AppController::setAudioDelayMs(int delayMs)
 {
     const int clampedDelayMs = std::clamp(delayMs, -2000, 2000);
-    if (m_audioDelayMs == clampedDelayMs)
+    if (m_audioDelayMs == clampedDelayMs) {
+        qInfo() << "app: audio delay unchanged" << clampedDelayMs << "ms";
         return;
+    }
+    qInfo() << "app: audio delay changed" << m_audioDelayMs << "->" << clampedDelayMs << "ms";
     m_audioDelayMs = clampedDelayMs;
     m_database->saveAudioDelayMs(clampedDelayMs);
     m_player->setAudioDelayMs(clampedDelayMs);
