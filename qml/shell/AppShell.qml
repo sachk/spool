@@ -150,17 +150,23 @@ FocusScope {
     }
 
     function isAcceptKey(key) {
-        return key === Qt.Key_Return || key === Qt.Key_Enter || key === Qt.Key_Select
+        return key === Qt.Key_Return || key === Qt.Key_Enter || key === Qt.Key_Select || key === Qt.Key_Space
     }
 
     function isBackEvent(event) {
         const scanCode = Number(event.nativeScanCode || 0)
+        const virtualKey = Number(event.nativeVirtualKey || 0)
+        const key = Number(event.key || 0)
         return event.key === Qt.Key_Back
                 || event.key === Qt.Key_Escape
                 || event.key === Qt.Key_Backspace
                 || event.key === Qt.Key_BrowserBack
                 || event.key === 0x01200003
-                || (event.key === 0 && scanCode === 420)
+                || key === 461
+                || scanCode === 420
+                || scanCode === 461
+                || virtualKey === 420
+                || virtualKey === 461
     }
 
     function isIgnoredPlayerNoise(event) {

@@ -293,6 +293,8 @@ double PlayerController::durationSeconds() const { return m_durationSeconds; }
 
 bool PlayerController::nightModeEnabled() const { return m_nightModeEnabled.load(); }
 
+int PlayerController::audioDelayMs() const { return m_audioDelayMs.load(); }
+
 bool PlayerController::applyMpvRuntimeOption(MpvRuntimeOption option,
                                              MpvOptionApplyMode mode,
                                              mpv_handle *handle) {
@@ -306,6 +308,10 @@ bool PlayerController::applyMpvRuntimeOption(MpvRuntimeOption option,
     name = "af";
     value = m_nightModeEnabled.load() ? QByteArray(kNightModeFilter)
                                       : QByteArray();
+    break;
+  case MpvRuntimeOption::AudioDelay:
+    name = "audio-delay";
+    value = QByteArray::number(static_cast<double>(m_audioDelayMs.load()) / 1000.0, 'f', 3);
     break;
   }
 
@@ -321,7 +327,8 @@ bool PlayerController::applyMpvRuntimeOption(MpvRuntimeOption option,
 
 bool PlayerController::applyMpvRuntimeOptions(MpvOptionApplyMode mode,
                                               mpv_handle *handle) {
-  return applyMpvRuntimeOption(MpvRuntimeOption::NightMode, mode, handle);
+  return applyMpvRuntimeOption(MpvRuntimeOption::NightMode, mode, handle) &&
+         applyMpvRuntimeOption(MpvRuntimeOption::AudioDelay, mode, handle);
 }
 
 bool PlayerController::ensureMpv() {
@@ -629,6 +636,21 @@ void PlayerController::setNightModeEnabled(bool enabled) {
   }
 
   emit nightModeEnabledChanged();
+  emit stateChanged();
+}
+
+void PlayerController::setAudioDelayMs(int delayMs) {
+  const int clampedDelayMs = qBound(-2000, delayMs, 2000);
+  if (m_audioDelayMs.load() == clampedDelayMs)
+    return;
+
+  m_audioDelayMs = clampedDelayMs;
+  if (auto *handle = m_mpv.load()) {
+    applyMpvRuntimeOption(MpvRuntimeOption::AudioDelay,
+                          MpvOptionApplyMode::Runtime, handle);
+  }
+
+  emit audioDelayMsChanged();
   emit stateChanged();
 }
 

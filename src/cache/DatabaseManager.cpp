@@ -243,6 +243,18 @@ void DatabaseManager::saveNightModeEnabled(bool enabled)
     });
 }
 
+int DatabaseManager::loadAudioDelayMs()
+{
+    return invokeOnWorker([this]() { return m_worker->value(QStringLiteral("settings/audioDelayMs")); }).toInt();
+}
+
+void DatabaseManager::saveAudioDelayMs(int delayMs)
+{
+    invokeOnWorkerAsync([this, delayMs]() {
+        m_worker->setValue(QStringLiteral("settings/audioDelayMs"), delayMs);
+    });
+}
+
 } // namespace JellyfinNative
 
 #include "DatabaseManager.moc"

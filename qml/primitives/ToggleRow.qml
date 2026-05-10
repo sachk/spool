@@ -9,10 +9,16 @@ SettingRow {
     signal toggled(bool checked)
     valueText: checked ? "On" : "Off"
 
+    function toggle() {
+        checked = !checked
+        toggled(checked)
+    }
+
+    onClicked: toggle()
+
     Keys.onReleased: (event) => {
         if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter || event.key === Qt.Key_Space) {
-            checked = !checked
-            toggled(checked)
+            toggle()
             event.accepted = true
         }
     }

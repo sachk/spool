@@ -35,6 +35,13 @@ FocusScope {
             contentRequested()
             return true
         }
+        if (key === Qt.Key_Return || key === Qt.Key_Enter || key === Qt.Key_Select || key === Qt.Key_Space) {
+            const item = railRepeater.itemAt(focusedIndex())
+            if (item) {
+                navigate(item.route)
+                return true
+            }
+        }
         if (key === Qt.Key_Up || key === Qt.Key_Down) {
             const next = Math.max(0, Math.min(railRepeater.count - 1, focusedIndex() + (key === Qt.Key_Down ? 1 : -1)))
             const item = railRepeater.itemAt(next)
@@ -83,9 +90,15 @@ FocusScope {
                     id: button
                     anchors.centerIn: parent
                     iconText: modelData.icon
+                    railStyle: true
                     selected: root.currentRoute === modelData.route
                     onClicked: root.navigate(modelData.route)
                     Keys.onReleased: (event) => {
+                        if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter || event.key === Qt.Key_Select || event.key === Qt.Key_Space) {
+                            root.navigate(modelData.route)
+                            event.accepted = true
+                            return
+                        }
                         if (event.key === Qt.Key_Right) {
                             root.contentRequested()
                             event.accepted = true
@@ -95,10 +108,26 @@ FocusScope {
                 Rectangle {
                     anchors.left: parent.left
                     anchors.verticalCenter: parent.verticalCenter
-                    width: 3
-                    height: 24
+                    width: root.currentRoute === modelData.route ? 5 : 3
+                    height: button.activeFocus ? 34 : root.currentRoute === modelData.route ? 26 : 18
+                    radius: width / 2
                     color: Theme.accent
-                    visible: root.currentRoute === modelData.route
+                    opacity: button.activeFocus ? 1.0 : root.currentRoute === modelData.route ? 0.8 : 0.0
+                    visible: opacity > 0
+                    Behavior on height { NumberAnimation { duration: 90; easing.type: Easing.OutCubic } }
+                    Behavior on opacity { NumberAnimation { duration: 90; easing.type: Easing.OutCubic } }
+                }
+                Rectangle {
+                    anchors.right: parent.right
+                    anchors.verticalCenter: parent.verticalCenter
+                    width: 3
+                    height: button.activeFocus ? 30 : 0
+                    radius: width / 2
+                    color: Theme.textPrimary
+                    opacity: button.activeFocus ? 0.9 : 0.0
+                    visible: opacity > 0
+                    Behavior on height { NumberAnimation { duration: 90; easing.type: Easing.OutCubic } }
+                    Behavior on opacity { NumberAnimation { duration: 90; easing.type: Easing.OutCubic } }
                 }
             }
         }

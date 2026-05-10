@@ -31,6 +31,7 @@ class AppController final : public QObject
     Q_PROPERTY(QString currentContentLabel READ currentContentLabel NOTIFY currentLibraryNameChanged)
     Q_PROPERTY(bool settingsVisible READ settingsVisible NOTIFY settingsVisibleChanged)
     Q_PROPERTY(bool nightModeEnabled READ nightModeEnabled WRITE setNightModeEnabled NOTIFY nightModeEnabledChanged)
+    Q_PROPERTY(int audioDelayMs READ audioDelayMs WRITE setAudioDelayMs NOTIFY audioDelayMsChanged)
     Q_PROPERTY(JellyfinNative::DiscoveredServerModel *discoveredServers READ discoveredServers CONSTANT)
     Q_PROPERTY(JellyfinNative::LibraryListModel *libraries READ libraries CONSTANT)
     Q_PROPERTY(JellyfinNative::MovieGridModel *movies READ movies CONSTANT)
@@ -60,6 +61,7 @@ public:
     QString currentContentLabel() const;
     bool settingsVisible() const;
     bool nightModeEnabled() const;
+    int audioDelayMs() const;
 
     DiscoveredServerModel *discoveredServers();
     LibraryListModel *libraries();
@@ -89,6 +91,7 @@ public:
     Q_INVOKABLE void closeSettings();
     Q_INVOKABLE void toggleNightMode();
     Q_INVOKABLE void setNightModeEnabled(bool enabled);
+    Q_INVOKABLE void setAudioDelayMs(int delayMs);
 
 signals:
     void pageChanged();
@@ -101,6 +104,7 @@ signals:
     void currentLibraryNameChanged();
     void settingsVisibleChanged();
     void nightModeEnabledChanged();
+    void audioDelayMsChanged();
 
 private:
     void setPage(const QString &page);
@@ -149,6 +153,7 @@ private:
     QString m_currentSeriesName;
     bool m_settingsVisible = false;
     bool m_nightModeEnabled = false;
+    int m_audioDelayMs = 0;
     int m_libraryLoadGeneration = 0;
 };
 

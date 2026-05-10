@@ -40,6 +40,7 @@ class PlayerController final : public QObject
     Q_PROPERTY(double positionSeconds READ positionSeconds NOTIFY stateChanged)
     Q_PROPERTY(double durationSeconds READ durationSeconds NOTIFY stateChanged)
     Q_PROPERTY(bool nightModeEnabled READ nightModeEnabled WRITE setNightModeEnabled NOTIFY nightModeEnabledChanged)
+    Q_PROPERTY(int audioDelayMs READ audioDelayMs WRITE setAudioDelayMs NOTIFY audioDelayMsChanged)
 
 public:
     PlayerController(NativeAppWindow *window, JellyfinApiFacade *api, QObject *parent = nullptr);
@@ -63,6 +64,7 @@ public:
     double positionSeconds() const;
     double durationSeconds() const;
     bool nightModeEnabled() const;
+    int audioDelayMs() const;
 
     Q_INVOKABLE void play(const JellyfinNative::PlaybackSession &session);
     Q_INVOKABLE void togglePause();
@@ -76,12 +78,14 @@ public:
     Q_INVOKABLE void stop();
     Q_INVOKABLE void stopWithReason(const QString &reason);
     Q_INVOKABLE void setNightModeEnabled(bool enabled);
+    Q_INVOKABLE void setAudioDelayMs(int delayMs);
 
 signals:
     void visibleChanged();
     void stateChanged();
     void playbackStopped();
     void nightModeEnabledChanged();
+    void audioDelayMsChanged();
 
 public:
     // Called from main on aboutToQuit so we tear down before the scene graph
@@ -96,6 +100,7 @@ private:
 
     enum class MpvRuntimeOption {
         NightMode,
+        AudioDelay,
     };
 
     bool ensureMpv();
@@ -155,6 +160,7 @@ private:
     double m_pendingSeekTargetSeconds = 0.0;
     double m_requestedSeekTargetSeconds = -1.0;
     std::atomic_bool m_nightModeEnabled = false;
+    std::atomic<int> m_audioDelayMs = 0;
 };
 
 } // namespace JellyfinNative
