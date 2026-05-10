@@ -191,7 +191,7 @@ QCoro::Task<void> JellyfinApiFacade::probeServer()
     co_await requestJson(HttpMethod::Get, QStringLiteral("/System/Info/Public"));
 }
 
-QCoro::Task<AuthSession> JellyfinApiFacade::authenticateByName(const QString &username, const QString &password)
+QCoro::Task<AuthSession> JellyfinApiFacade::authenticateByName(QString username, QString password)
 {
     const QJsonDocument response =
         co_await requestJson(HttpMethod::Post, QStringLiteral("/Users/AuthenticateByName"), {},
@@ -224,7 +224,7 @@ QCoro::Task<QJsonObject> JellyfinApiFacade::initiateQuickConnect()
     co_return response.object();
 }
 
-QCoro::Task<QJsonObject> JellyfinApiFacade::pollQuickConnect(const QString &secret)
+QCoro::Task<QJsonObject> JellyfinApiFacade::pollQuickConnect(QString secret)
 {
     QUrlQuery query;
     query.addQueryItem(QStringLiteral("secret"), secret);
@@ -232,7 +232,7 @@ QCoro::Task<QJsonObject> JellyfinApiFacade::pollQuickConnect(const QString &secr
     co_return response.object();
 }
 
-QCoro::Task<AuthSession> JellyfinApiFacade::authenticateWithQuickConnect(const QString &secret)
+QCoro::Task<AuthSession> JellyfinApiFacade::authenticateWithQuickConnect(QString secret)
 {
     const QJsonDocument response =
         co_await requestJson(HttpMethod::Post, QStringLiteral("/Users/AuthenticateWithQuickConnect"), {},
@@ -282,7 +282,7 @@ QCoro::Task<std::vector<LibraryItem>> JellyfinApiFacade::fetchLibraries()
     co_return libraries;
 }
 
-QCoro::Task<std::vector<MovieItem>> JellyfinApiFacade::fetchMovies(const QString &libraryId)
+QCoro::Task<std::vector<MovieItem>> JellyfinApiFacade::fetchMovies(QString libraryId)
 {
     QUrlQuery query;
     query.addQueryItem(QStringLiteral("userId"), m_session.userId);
@@ -339,7 +339,7 @@ QCoro::Task<std::vector<MovieItem>> JellyfinApiFacade::fetchMovies(const QString
     co_return movies;
 }
 
-QCoro::Task<std::vector<MovieItem>> JellyfinApiFacade::fetchSeries(const QString &libraryId)
+QCoro::Task<std::vector<MovieItem>> JellyfinApiFacade::fetchSeries(QString libraryId)
 {
     QUrlQuery query;
     query.addQueryItem(QStringLiteral("userId"), m_session.userId);
@@ -367,7 +367,7 @@ QCoro::Task<std::vector<MovieItem>> JellyfinApiFacade::fetchSeries(const QString
     co_return series;
 }
 
-QCoro::Task<std::vector<MovieItem>> JellyfinApiFacade::fetchSeasons(const QString &seriesId)
+QCoro::Task<std::vector<MovieItem>> JellyfinApiFacade::fetchSeasons(QString seriesId)
 {
     QUrlQuery query;
     query.addQueryItem(QStringLiteral("userId"), m_session.userId);
@@ -392,7 +392,7 @@ QCoro::Task<std::vector<MovieItem>> JellyfinApiFacade::fetchSeasons(const QStrin
     co_return seasons;
 }
 
-QCoro::Task<std::vector<MovieItem>> JellyfinApiFacade::fetchEpisodes(const QString &seriesId, const QString &seasonId)
+QCoro::Task<std::vector<MovieItem>> JellyfinApiFacade::fetchEpisodes(QString seriesId, QString seasonId)
 {
     QUrlQuery query;
     query.addQueryItem(QStringLiteral("userId"), m_session.userId);
@@ -467,7 +467,7 @@ QCoro::Task<std::vector<MovieItem>> JellyfinApiFacade::fetchNextUpEpisodes(int l
     co_return result;
 }
 
-QCoro::Task<std::vector<MovieItem>> JellyfinApiFacade::fetchLatestItems(const QString &parentId, int limit)
+QCoro::Task<std::vector<MovieItem>> JellyfinApiFacade::fetchLatestItems(QString parentId, int limit)
 {
     QUrlQuery query;
     query.addQueryItem(QStringLiteral("limit"), QString::number(limit));
@@ -493,7 +493,7 @@ QCoro::Task<std::vector<MovieItem>> JellyfinApiFacade::fetchLatestItems(const QS
     co_return result;
 }
 
-QCoro::Task<PlaybackSession> JellyfinApiFacade::negotiateDirectPlay(const MovieItem &movie)
+QCoro::Task<PlaybackSession> JellyfinApiFacade::negotiateDirectPlay(MovieItem movie)
 {
     QUrlQuery query;
     query.addQueryItem(QStringLiteral("userId"), m_session.userId);
@@ -545,7 +545,7 @@ QCoro::Task<void> JellyfinApiFacade::postCapabilities()
     co_await requestNoContent(HttpMethod::Post, QStringLiteral("/Sessions/Capabilities/Full"), QJsonDocument(body));
 }
 
-QCoro::Task<void> JellyfinApiFacade::reportPlaybackStart(const PlaybackSession &session)
+QCoro::Task<void> JellyfinApiFacade::reportPlaybackStart(PlaybackSession session)
 {
     const QJsonObject body = {
         {QStringLiteral("CanSeek"), true},
@@ -559,7 +559,7 @@ QCoro::Task<void> JellyfinApiFacade::reportPlaybackStart(const PlaybackSession &
     co_await requestNoContent(HttpMethod::Post, QStringLiteral("/Sessions/Playing"), QJsonDocument(body));
 }
 
-QCoro::Task<void> JellyfinApiFacade::reportPlaybackProgress(const PlaybackSession &session, qint64 positionTicks, bool paused)
+QCoro::Task<void> JellyfinApiFacade::reportPlaybackProgress(PlaybackSession session, qint64 positionTicks, bool paused)
 {
     const QJsonObject body = {
         {QStringLiteral("CanSeek"), true},
@@ -574,7 +574,7 @@ QCoro::Task<void> JellyfinApiFacade::reportPlaybackProgress(const PlaybackSessio
     co_await requestNoContent(HttpMethod::Post, QStringLiteral("/Sessions/Playing/Progress"), QJsonDocument(body));
 }
 
-QCoro::Task<void> JellyfinApiFacade::reportPlaybackStopped(const PlaybackSession &session, qint64 positionTicks, bool failed)
+QCoro::Task<void> JellyfinApiFacade::reportPlaybackStopped(PlaybackSession session, qint64 positionTicks, bool failed)
 {
     const QJsonObject body = {
         {QStringLiteral("ItemId"), session.itemId},
@@ -610,8 +610,8 @@ QString JellyfinApiFacade::createAuthorizationHeader(const QString &tokenOverrid
     return QStringLiteral("MediaBrowser %1").arg(parts.join(QStringLiteral(", ")));
 }
 
-QCoro::Task<QJsonDocument> JellyfinApiFacade::requestJson(HttpMethod method, const QString &path, const QUrlQuery &query,
-                                                          const QJsonDocument &body)
+QCoro::Task<QJsonDocument> JellyfinApiFacade::requestJson(HttpMethod method, QString path, QUrlQuery query,
+                                                          QJsonDocument body)
 {
     const QByteArray payload = co_await requestBytes(method, path, query, body);
     if (payload.isEmpty())
@@ -624,13 +624,13 @@ QCoro::Task<QJsonDocument> JellyfinApiFacade::requestJson(HttpMethod method, con
     co_return document;
 }
 
-QCoro::Task<void> JellyfinApiFacade::requestNoContent(HttpMethod method, const QString &path, const QJsonDocument &body)
+QCoro::Task<void> JellyfinApiFacade::requestNoContent(HttpMethod method, QString path, QJsonDocument body)
 {
     co_await requestBytes(method, path, {}, body);
 }
 
-QCoro::Task<QByteArray> JellyfinApiFacade::requestBytes(HttpMethod method, const QString &path, const QUrlQuery &query,
-                                                        const QJsonDocument &body)
+QCoro::Task<QByteArray> JellyfinApiFacade::requestBytes(HttpMethod method, QString path, QUrlQuery query,
+                                                        QJsonDocument body)
 {
     const QNetworkRequest request = createRequest(path, query);
     QNetworkReply *reply = nullptr;

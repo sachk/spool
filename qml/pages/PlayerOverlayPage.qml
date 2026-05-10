@@ -5,8 +5,7 @@ import JellyfinWebOS
 
 FocusScope {
     id: overlay
-    focus: visible
-    onActiveFocusChanged: if (visible && !activeFocus) forceActiveFocus()
+    focus: false
 
     property var shell
     property bool mediaInfoVisible: false
@@ -268,17 +267,11 @@ FocusScope {
         return false
     }
 
-    Keys.onReleased: (event) => {
-        if (handleReleased(event))
-            event.accepted = true
-    }
-
     onVisibleChanged: {
         if (visible) {
             mode = "controls"
             row = "timeline"
             actionIndex = 0
-            forceActiveFocus()
             showControls("timeline")
         } else {
             autohideTimer.stop()
@@ -291,7 +284,7 @@ FocusScope {
 
     onPinnedChanged: if (visible && mode !== "hidden") showControls(row)
 
-    Timer { id: autohideTimer; interval: 5000; onTriggered: overlay.hideControls() }
+    Timer { id: autohideTimer; interval: 3000; onTriggered: overlay.hideControls() }
     Timer { id: scrubTimer; interval: 650; onTriggered: overlay.commitScrub() }
 
     // Embedded video surface (desktop / non-Starfish builds). On Starfish the

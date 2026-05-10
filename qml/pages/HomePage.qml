@@ -348,14 +348,12 @@ FocusScope {
                                     rowScope.activateCard(rowScope.currentIndex)
                                     event.accepted = true
                                 } else if (event.key === Qt.Key_Space) {
-                                    const src = section.rowSource
-                                    if (src === "resumeItems") appController.playResumeItem(rowScope.currentIndex)
-                                    else if (src === "nextUpItems") appController.playNextUpItem(rowScope.currentIndex)
-                                    else if (src === "latestItems") appController.playLatestItem(rowScope.currentIndex)
+                                    rowScope.activateCard(rowScope.currentIndex)
                                     event.accepted = true
                                 } else if (event.key === Qt.Key_M) {
                                     const m2 = root.modelFor(section.rowSource)
-                                    if (m2) shell.openMediaInfo(m2.get(rowScope.currentIndex))
+                                    if (m2 && rowScope.currentIndex >= 0 && rowScope.currentIndex < m2.rowCount())
+                                        shell.openMediaInfo(m2.get(rowScope.currentIndex))
                                     event.accepted = true
                                 }
                             }

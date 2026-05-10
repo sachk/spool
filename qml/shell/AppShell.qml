@@ -22,6 +22,7 @@ FocusScope {
     property var mediaInfoItem: ({})
     property bool textInputActive: Qt.inputMethod.visible
     property bool backPressHandled: false
+    property bool playerBackPressHandled: false
 
     function controllerRoute() {
         if (appController.page === "login") return "login"
@@ -34,6 +35,22 @@ FocusScope {
     Connections {
         target: appController
         function onPageChanged() { root.route = root.controllerRoute() }
+    }
+
+    Connections {
+        target: appController.player
+        function onVisibleChanged() {
+            if (appController.player.visible) {
+                root.playerBackPressHandled = false
+                root.focusPlayerInput()
+            } else {
+                routeStack.forceActiveFocus()
+            }
+        }
+    }
+
+    function focusPlayerInput() {
+        playerInputShield.forceActiveFocus()
     }
 
     function pushRoute(nextRoute) {
@@ -101,6 +118,8 @@ FocusScope {
     }
 
     function focusContent() {
+        if (appController.player.visible)
+            return
         routeStack.forceActiveFocus()
     }
 
@@ -144,15 +163,34 @@ FocusScope {
                 || (event.key === 0 && scanCode === 420)
     }
 
+    function isIgnoredPlayerNoise(event) {
+        const scanCode = Number(event.nativeScanCode || 0)
+        return event.key === 0 && (scanCode === 1206 || scanCode === 1207)
+    }
+
+    function handlePlayerPressed(event) {
+        if (isBackEvent(event)) {
+            playerBackPressHandled = true
+            playerOverlay.handleBack()
+            return true
+        }
+        return isDirectionalKey(event.key) || isAcceptKey(event.key) || event.key === Qt.Key_Space || isIgnoredPlayerNoise(event)
+    }
+
+    function handlePlayerReleased(event) {
+        if (playerBackPressHandled && isBackEvent(event)) {
+            playerBackPressHandled = false
+            return true
+        }
+        return playerOverlay.handleReleased(event) || globalShortcut(event, true)
+    }
+
     Keys.priority: Keys.BeforeItem
 
     Keys.onPressed: (event) => {
         if (appController.player.visible) {
-            const scanCode = Number(event.nativeScanCode || 0)
-            if (isDirectionalKey(event.key) || isBackEvent(event) ||
-                    (event.key === 0 && (scanCode === 420 || scanCode === 1206 || scanCode === 1207))) {
+            if (handlePlayerPressed(event))
                 event.accepted = true
-            }
             return
         }
 
@@ -175,8 +213,13 @@ FocusScope {
     }
 
     Keys.onReleased: (event) => {
+        if (playerBackPressHandled && isBackEvent(event)) {
+            playerBackPressHandled = false
+            event.accepted = true
+            return
+        }
         if (appController.player.visible) {
-            if (playerOverlay.handleReleased(event) || globalShortcut(event, true))
+            if (handlePlayerReleased(event))
                 event.accepted = true
             return
         }
@@ -200,9 +243,11 @@ FocusScope {
     Rectangle { anchors.fill: parent; color: Theme.bg; visible: !appController.player.visible }
 
     RowLayout {
+        id: contentLayer
         anchors.fill: parent
         spacing: 0
         visible: !appController.player.visible
+        enabled: !appController.player.visible
 
         SideRail {
             id: sideRail
@@ -224,7 +269,7 @@ FocusScope {
             Layout.fillHeight: true
             route: root.route
             shell: root
-            focus: true
+            focus: !appController.player.visible
         }
     }
 
@@ -244,6 +289,28 @@ FocusScope {
         mediaInfoVisible: root.mediaInfoVisible
         diagnosticsVisible: root.diagnosticsVisible
         z: 20
+    }
+
+    FocusScope {
+        id: playerInputShield
+        anchors.fill: parent
+        visible: appController.player.visible
+        enabled: visible
+        focus: visible
+        z: 21
+
+        onVisibleChanged: if (visible) forceActiveFocus()
+        onActiveFocusChanged: if (visible && !activeFocus) forceActiveFocus()
+
+        Keys.priority: Keys.BeforeItem
+        Keys.onPressed: (event) => {
+            if (root.handlePlayerPressed(event))
+                event.accepted = true
+        }
+        Keys.onReleased: (event) => {
+            if (root.handlePlayerReleased(event))
+                event.accepted = true
+        }
     }
 
     Rectangle {
@@ -285,7 +352,16 @@ FocusScope {
         visible: appController.errorText.length > 0
         baseColor: "#2A1717"
         z: 80
-        AppText { id: errorText; anchors.fill: parent; anchors.margins: 14; text: appController.errorText; color: "#FFD6D6"; wrapMode: Text.Wrap; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter }
+        AppText {
+            id: errorText
+            anchors.centerIn: parent
+            width: Math.max(0, parent.width - 28)
+            text: appController.errorText
+            color: "#FFD6D6"
+            wrapMode: Text.Wrap
+            horizontalAlignment: Text.AlignHCenter
+            verticalAlignment: Text.AlignVCenter
+        }
         MouseArea { anchors.fill: parent; onClicked: appController.clearError() }
     }
 }
