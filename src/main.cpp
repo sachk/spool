@@ -255,7 +255,8 @@ int main(int argc, char **argv)
 #ifdef JELLYFIN_NATIVE_WEBOS
     setenv("APPID", kAppId, 1);
     setenv("DISPLAY_ID", "0", 1);
-    setenv("STARFISH_AUDIO_HINT", "1", 1);
+    setenv("STARFISH_AUDIO_HINT", "0", 1);
+    setenv("STARFISH_VIDEO_LATENCY_MS", "2500", 0);
     setenv("QT_QPA_PLATFORM", "wayland-egl", 1);
     setenv("QT_WAYLAND_SHELL_INTEGRATION", "wl-shell", 1);
     setenv("QT_WAYLAND_TEXT_INPUT_PROTOCOL", "qt_text_input_method_v1", 1);

@@ -389,13 +389,26 @@ bool PlayerController::ensureMpv() {
       setOption(handle, "cache-pause", "no") &&
       setOption(handle, "demuxer-max-bytes", "64M") &&
       setOption(handle, "demuxer-max-back-bytes", "32M") &&
+#ifdef JELLYFIN_NATIVE_WEBOS
+      setOption(handle, "video-sync", "audio") &&
+#else
+      setOption(handle, "video-sync", "desync") &&
+#endif
+#ifdef JELLYFIN_NATIVE_WEBOS
+      setOption(handle, "initial-audio-sync", "yes") &&
+#else
       setOption(handle, "initial-audio-sync", "no") &&
+#endif
+      setOption(handle, "autosync", "0") &&
       applyMpvRuntimeOptions(MpvOptionApplyMode::Initial, handle) &&
 #ifdef JELLYFIN_NATIVE_WEBOS
       setOption(handle, "force-window", "no") &&
       setOption(handle, "vo", "starfish") &&
       setOption(handle, "vd", "starfish") &&
-      setOption(handle, "ao", "starfish,null") &&
+      setOption(handle, "ao", "alsa,null") &&
+      setOption(handle, "audio-device", "alsa/hw:0,7") &&
+      setOption(handle, "audio-format", "s16") &&
+      setOption(handle, "alsa-mixer-device", "hw:0") &&
 #else
       // Render via libmpv's render API into the embedded MpvVideoItem; no
       // separate mpv toplevel window.
