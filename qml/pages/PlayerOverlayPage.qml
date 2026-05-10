@@ -32,7 +32,7 @@ FocusScope {
     ]
     readonly property var debugOptions: [
         appController.player.debugOsdVisible ? "Hide debug stats" : "Show debug stats",
-        appController.player.nightModeEnabled ? "Disable night mode" : "Enable night mode",
+        appController.nightModeEnabled ? "Disable night mode" : "Enable night mode",
         "Stop playback"
     ]
     readonly property bool menuOpen: mode === "subtitles" || mode === "audio" || mode === "debug"
@@ -185,7 +185,7 @@ FocusScope {
             return
         }
         if (menuIndex === 0) appController.player.toggleDebugOsd()
-        else if (menuIndex === 1) appController.player.setNightModeEnabled(!appController.player.nightModeEnabled)
+        else if (menuIndex === 1) appController.setNightModeEnabled(!appController.nightModeEnabled)
         else if (menuIndex === 2) appController.player.stopWithReason("debug-menu-stop")
         if (mode === "debug") closeMenu()
     }
