@@ -11,10 +11,12 @@ FocusScope {
     property bool mediaInfoVisible: false
     property bool diagnosticsVisible: false
 
-    property string mode: "hidden"       // hidden, controls, subtitles, audio, debug
+    property string mode: "hidden"       // hidden, controls, subtitles, audio, debug, audiosync
     property string row: "timeline"      // back, timeline, actions
     property int actionIndex: 1
     property int menuIndex: 0
+    property string audioSyncRow: "delay"
+    property int audioSyncStepIndex: 2
     property bool scrubbing: false
     property double scrubSeconds: 0
     readonly property real uiScale: Math.max(0.78, Math.min(1.0, height / 1440))
@@ -30,13 +32,28 @@ FocusScope {
         { label: "Audio", value: "audio" },
         { label: "Settings", value: "debug" }
     ]
+    readonly property var audioSyncSteps: [1, 5, 10, 100]
     readonly property var debugOptions: [
+        "Audio sync",
         appController.player.debugOsdVisible ? "Hide debug stats" : "Show debug stats",
         appController.nightModeEnabled ? "Disable night mode" : "Enable night mode",
         "Stop playback"
     ]
-    readonly property bool menuOpen: mode === "subtitles" || mode === "audio" || mode === "debug"
-    readonly property bool pinned: appController.player.paused || scrubbing || menuOpen
+    function isMenuOpen() {
+        return mode === "subtitles" || mode === "audio" || mode === "debug"
+    }
+
+    function isAudioSyncOpen() {
+        return mode === "audiosync"
+    }
+
+    function isPinned() {
+        return appController.player.paused || scrubbing || isMenuOpen() || isAudioSyncOpen()
+    }
+
+    function isControlsActive() {
+        return mode === "controls" || isAudioSyncOpen()
+    }
 
     function formatClock(seconds) {
         const total = Math.max(0, Math.floor(seconds || 0))
@@ -44,6 +61,12 @@ FocusScope {
         const minutes = Math.floor((total % 3600) / 60)
         const secs = total % 60
         return hours > 0 ? hours + ":" + String(minutes).padStart(2, "0") + ":" + String(secs).padStart(2, "0") : minutes + ":" + String(secs).padStart(2, "0")
+    }
+
+    function formatAudioDelay(value) {
+        const ms = clampAudioDelayMs(value)
+        if (ms > 0) return "+" + ms + " ms"
+        return ms + " ms"
     }
 
     function actionIcon(value) {
@@ -79,14 +102,14 @@ FocusScope {
     function showControls(preferredRow) {
         if (mode === "hidden")
             row = preferredRow || "timeline"
-        if (!menuOpen)
+        if (!isMenuOpen() && !isAudioSyncOpen())
             mode = "controls"
-        if (pinned) autohideTimer.stop()
+        if (isPinned()) autohideTimer.stop()
         else autohideTimer.restart()
     }
 
     function hideControls() {
-        if (pinned)
+        if (isPinned())
             return false
         autohideTimer.stop()
         mode = "hidden"
@@ -163,6 +186,12 @@ FocusScope {
         autohideTimer.stop()
     }
 
+    function openAudioSync() {
+        mode = "audiosync"
+        audioSyncRow = "delay"
+        autohideTimer.stop()
+    }
+
     function activateAction() {
         const action = actions[Math.max(0, Math.min(actions.length - 1, actionIndex))].value
         if (action === "back") appController.player.seekBack()
@@ -184,17 +213,75 @@ FocusScope {
             closeMenu()
             return
         }
-        if (menuIndex === 0) appController.player.toggleDebugOsd()
-        else if (menuIndex === 1) appController.setNightModeEnabled(!appController.nightModeEnabled)
-        else if (menuIndex === 2) appController.player.stopWithReason("debug-menu-stop")
+        if (menuIndex === 0) { openAudioSync(); return }
+        else if (menuIndex === 1) appController.player.toggleDebugOsd()
+        else if (menuIndex === 2) appController.setNightModeEnabled(!appController.nightModeEnabled)
+        else if (menuIndex === 3) appController.player.stopWithReason("debug-menu-stop")
         if (mode === "debug") closeMenu()
+    }
+
+    function clampAudioDelayMs(value) {
+        return Math.max(-2000, Math.min(2000, Math.round(value || 0)))
+    }
+
+    function setAudioDelayMs(value) {
+        appController.setAudioDelayMs(clampAudioDelayMs(value))
+    }
+
+    function adjustAudioDelay(direction) {
+        const step = audioSyncSteps[Math.max(0, Math.min(audioSyncSteps.length - 1, audioSyncStepIndex))]
+        setAudioDelayMs(appController.audioDelayMs + direction * step)
+    }
+
+    function handleAudioSyncKey(key) {
+        if (key === Qt.Key_Up) {
+            if (audioSyncRow === "step") audioSyncRow = "delay"
+            else {
+                mode = "controls"
+                row = "actions"
+                actionIndex = 1
+                showControls(row)
+            }
+            return true
+        }
+        if (key === Qt.Key_Down) {
+            if (audioSyncRow === "delay") audioSyncRow = "step"
+            else {
+                mode = "controls"
+                row = "actions"
+                actionIndex = 1
+                showControls(row)
+            }
+            return true
+        }
+        if (key === Qt.Key_Left) {
+            if (audioSyncRow === "delay") adjustAudioDelay(-1)
+            else audioSyncStepIndex = Math.max(0, audioSyncStepIndex - 1)
+            return true
+        }
+        if (key === Qt.Key_Right) {
+            if (audioSyncRow === "delay") adjustAudioDelay(1)
+            else audioSyncStepIndex = Math.min(audioSyncSteps.length - 1, audioSyncStepIndex + 1)
+            return true
+        }
+        if (isAcceptKey(key)) {
+            if (audioSyncRow === "delay") appController.player.togglePause()
+            return true
+        }
+        return false
     }
 
     function handleBack() {
         if (scrubbing) { scrubbing = false; showControls("timeline"); return true }
-        if (menuOpen) { closeMenu(); return true }
-        if (mode !== "hidden" && !pinned) { hideControls(); return true }
-        // Hidden, paused, buffering, or any pinned state: back exits playback.
+        if (isAudioSyncOpen()) { mode = "controls"; showControls("actions"); return true }
+        if (isMenuOpen()) { closeMenu(); return true }
+        if (mode !== "hidden") {
+            autohideTimer.stop()
+            mode = "hidden"
+            row = "timeline"
+            return true
+        }
+        // Hidden controls: back exits playback.
         if (appController.player.backAllowed)
             appController.player.stopWithReason("overlay-back-key")
         return true
@@ -207,6 +294,10 @@ FocusScope {
             return true
         }
         if (key === Qt.Key_Down) {
+            if (row === "actions" && actionIndex === 1) {
+                openAudioSync()
+                return true
+            }
             row = row === "back" ? "timeline" : "actions"
             showControls(row)
             return true
@@ -258,7 +349,8 @@ FocusScope {
             showControls("timeline")
             return true
         }
-        if (menuOpen && handleMenuKey(event.key)) return true
+        if (isAudioSyncOpen() && handleAudioSyncKey(event.key)) return true
+        if (isMenuOpen() && handleMenuKey(event.key)) return true
         if (handleControlsKey(event.key)) return true
         if (event.key === Qt.Key_I || event.key === Qt.Key_Info) { appController.player.toggleDebugOsd(); showControls(row); return true }
         if (event.key === Qt.Key_S) { openSubtitles(); return true }
@@ -279,10 +371,9 @@ FocusScope {
             mode = "hidden"
             row = "timeline"
             scrubbing = false
+            audioSyncRow = "delay"
         }
     }
-
-    onPinnedChanged: if (visible && mode !== "hidden") showControls(row)
 
     Timer { id: autohideTimer; interval: 3000; onTriggered: overlay.hideControls() }
     Timer { id: scrubTimer; interval: 650; onTriggered: overlay.commitScrub() }
@@ -327,6 +418,15 @@ FocusScope {
             PropertyChanges { target: topScrim; opacity: 1 }
             PropertyChanges { target: bottomScrim; opacity: 1 }
             PropertyChanges { target: menuPanel; opacity: 1 }
+        },
+        State {
+            name: "audiosync"
+            when: overlay.isAudioSyncOpen()
+            PropertyChanges { target: hud; opacity: 1 }
+            PropertyChanges { target: backButton; opacity: 1 }
+            PropertyChanges { target: topScrim; opacity: 0 }
+            PropertyChanges { target: bottomScrim; opacity: 0.35 }
+            PropertyChanges { target: audioSyncPanel; opacity: 1 }
         }
     ]
 
@@ -354,7 +454,7 @@ FocusScope {
 
     Rectangle {
         id: backButton
-        readonly property bool focused: overlay.mode === "controls" && overlay.row === "back"
+        readonly property bool focused: overlay.isControlsActive() && overlay.row === "back" && !overlay.isAudioSyncOpen()
         anchors.left: parent.left
         anchors.top: parent.top
         anchors.margins: Math.round(40 * overlay.uiScale)
@@ -452,7 +552,7 @@ FocusScope {
                 Layout.fillWidth: true
                 Layout.preferredHeight: Math.round(82 * overlay.uiScale)
                 readonly property double ratio: appController.player.durationSeconds > 0 ? Math.max(0, Math.min(1, overlay.positionSeconds() / appController.player.durationSeconds)) : 0
-                readonly property bool focused: overlay.mode === "controls" && overlay.row === "timeline"
+                readonly property bool focused: overlay.isControlsActive() && overlay.row === "timeline" && !overlay.isAudioSyncOpen()
 
                 Text {
                     anchors.left: parent.left
@@ -531,7 +631,7 @@ FocusScope {
                     model: overlay.actions.length
                     delegate: Rectangle {
                         required property int index
-                        readonly property bool focused: overlay.mode === "controls" && overlay.row === "actions" && overlay.actionIndex === index
+                        readonly property bool focused: overlay.isControlsActive() && overlay.row === "actions" && overlay.actionIndex === index && !overlay.isAudioSyncOpen()
                         readonly property string actionValue: overlay.actions[index].value
                         Layout.preferredWidth: overlay.actionTargetSize
                         Layout.preferredHeight: overlay.actionTargetSize
@@ -576,13 +676,206 @@ FocusScope {
     }
 
     Rectangle {
+        id: audioSyncPanel
+        anchors.horizontalCenter: parent.horizontalCenter
+        anchors.verticalCenter: parent.verticalCenter
+        width: Math.min(parent.width - Math.round(120 * overlay.uiScale), Math.round(760 * overlay.uiScale))
+        height: Math.round(330 * overlay.uiScale)
+        visible: opacity > 0.01
+        opacity: 0
+        radius: Math.round(12 * overlay.uiScale)
+        color: "#B00B1116"
+        border.width: 1
+        border.color: "#668CA5B5"
+
+        ColumnLayout {
+            anchors.fill: parent
+            anchors.margins: Math.round(24 * overlay.uiScale)
+            spacing: Math.round(18 * overlay.uiScale)
+
+            Text {
+                Layout.fillWidth: true
+                text: "Audio sync"
+                color: "#F4F8FA"
+                font.pixelSize: Math.round(25 * overlay.uiScale)
+                font.weight: Font.DemiBold
+                font.hintingPreference: Font.PreferNoHinting
+                renderType: Text.QtRendering
+            }
+
+            RowLayout {
+                Layout.fillWidth: true
+                Layout.preferredHeight: Math.round(128 * overlay.uiScale)
+                spacing: Math.round(22 * overlay.uiScale)
+
+                Rectangle {
+                    Layout.preferredWidth: Math.round(92 * overlay.uiScale)
+                    Layout.preferredHeight: Math.round(92 * overlay.uiScale)
+                    radius: width / 2
+                    color: overlay.audioSyncRow === "delay" ? "#3300A4DC" : "#331A232A"
+                    border.width: overlay.audioSyncRow === "delay" ? 3 : 1
+                    border.color: overlay.audioSyncRow === "delay" ? "#EAF8FF" : "#56707F"
+
+                    MaterialIcon {
+                        anchors.centerIn: parent
+                        name: "remove"
+                        iconColor: "#FFFFFF"
+                        iconSize: Math.round(42 * overlay.uiScale)
+                    }
+
+                    MouseArea {
+                        anchors.fill: parent
+                        onClicked: {
+                            overlay.audioSyncRow = "delay"
+                            overlay.adjustAudioDelay(-1)
+                        }
+                    }
+                }
+
+                ColumnLayout {
+                    Layout.fillWidth: true
+                    Layout.fillHeight: true
+                    spacing: Math.round(10 * overlay.uiScale)
+
+                    Text {
+                        Layout.fillWidth: true
+                        text: overlay.formatAudioDelay(appController.audioDelayMs)
+                        color: "#FFFFFF"
+                        font.pixelSize: Math.round(58 * overlay.uiScale)
+                        font.weight: Font.Bold
+                        font.hintingPreference: Font.PreferNoHinting
+                        renderType: Text.QtRendering
+                        horizontalAlignment: Text.AlignHCenter
+                    }
+
+                    Item {
+                        Layout.fillWidth: true
+                        Layout.preferredHeight: Math.round(26 * overlay.uiScale)
+
+                        Rectangle {
+                            anchors.left: parent.left
+                            anchors.right: parent.right
+                            anchors.verticalCenter: parent.verticalCenter
+                            height: Math.round(8 * overlay.uiScale)
+                            radius: height / 2
+                            color: "#55606A72"
+                        }
+                        Rectangle {
+                            anchors.left: parent.horizontalCenter
+                            anchors.verticalCenter: parent.verticalCenter
+                            width: Math.abs(appController.audioDelayMs) / 2000 * parent.width / 2
+                            height: Math.round(12 * overlay.uiScale)
+                            radius: height / 2
+                            color: "#00A4DC"
+                            visible: appController.audioDelayMs >= 0
+                        }
+                        Rectangle {
+                            anchors.right: parent.horizontalCenter
+                            anchors.verticalCenter: parent.verticalCenter
+                            width: Math.abs(appController.audioDelayMs) / 2000 * parent.width / 2
+                            height: Math.round(12 * overlay.uiScale)
+                            radius: height / 2
+                            color: "#AA5CC3"
+                            visible: appController.audioDelayMs < 0
+                        }
+                        Rectangle {
+                            x: Math.max(0, Math.min(parent.width - width, ((appController.audioDelayMs + 2000) / 4000) * parent.width - width / 2))
+                            anchors.verticalCenter: parent.verticalCenter
+                            width: Math.round(24 * overlay.uiScale)
+                            height: width
+                            radius: width / 2
+                            color: "#FFFFFF"
+                            border.width: 2
+                            border.color: "#00A4DC"
+                        }
+                    }
+                }
+
+                Rectangle {
+                    Layout.preferredWidth: Math.round(92 * overlay.uiScale)
+                    Layout.preferredHeight: Math.round(92 * overlay.uiScale)
+                    radius: width / 2
+                    color: overlay.audioSyncRow === "delay" ? "#3300A4DC" : "#331A232A"
+                    border.width: overlay.audioSyncRow === "delay" ? 3 : 1
+                    border.color: overlay.audioSyncRow === "delay" ? "#EAF8FF" : "#56707F"
+
+                    MaterialIcon {
+                        anchors.centerIn: parent
+                        name: "add"
+                        iconColor: "#FFFFFF"
+                        iconSize: Math.round(42 * overlay.uiScale)
+                    }
+
+                    MouseArea {
+                        anchors.fill: parent
+                        onClicked: {
+                            overlay.audioSyncRow = "delay"
+                            overlay.adjustAudioDelay(1)
+                        }
+                    }
+                }
+            }
+
+            RowLayout {
+                Layout.fillWidth: true
+                Layout.preferredHeight: Math.round(62 * overlay.uiScale)
+                spacing: Math.round(10 * overlay.uiScale)
+
+                Text {
+                    text: "Step"
+                    color: overlay.audioSyncRow === "step" ? "#FFFFFF" : "#B8C4CA"
+                    font.pixelSize: Math.round(22 * overlay.uiScale)
+                    font.weight: Font.DemiBold
+                    font.hintingPreference: Font.PreferNoHinting
+                    renderType: Text.QtRendering
+                    Layout.preferredWidth: Math.round(88 * overlay.uiScale)
+                    verticalAlignment: Text.AlignVCenter
+                }
+
+                Repeater {
+                    model: overlay.audioSyncSteps.length
+                    delegate: Rectangle {
+                        required property int index
+                        readonly property bool selected: overlay.audioSyncStepIndex === index
+                        readonly property bool focused: overlay.audioSyncRow === "step" && selected
+                        Layout.fillWidth: true
+                        Layout.preferredHeight: Math.round(52 * overlay.uiScale)
+                        radius: Math.round(8 * overlay.uiScale)
+                        color: focused ? "#3300A4DC" : selected ? "#243E5360" : "#221A232A"
+                        border.width: focused ? 3 : selected ? 2 : 1
+                        border.color: focused ? "#EAF8FF" : selected ? "#00A4DC" : "#48606D"
+
+                        Text {
+                            anchors.centerIn: parent
+                            text: overlay.audioSyncSteps[index] + " ms"
+                            color: selected ? "#FFFFFF" : "#C9D0D4"
+                            font.pixelSize: Math.round(21 * overlay.uiScale)
+                            font.weight: Font.DemiBold
+                            font.hintingPreference: Font.PreferNoHinting
+                            renderType: Text.QtRendering
+                        }
+
+                        MouseArea {
+                            anchors.fill: parent
+                            onClicked: {
+                                overlay.audioSyncRow = "step"
+                                overlay.audioSyncStepIndex = index
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    Rectangle {
         id: menuPanel
         readonly property real edgeMargin: Math.round(20 * overlay.uiScale)
         x: Math.max(edgeMargin, Math.min(parent.width - width - edgeMargin, overlay.menuAnchorX - width / 2))
         y: Math.max(edgeMargin, Math.min(parent.height - height - edgeMargin, overlay.menuAnchorY - height - Math.round(12 * overlay.uiScale)))
         width: Math.round(Math.min(parent.width - edgeMargin * 2, 360 * overlay.uiScale))
         height: Math.min(Math.round(parent.height * 0.48), Math.round(menuHeader.implicitHeight + menuList.contentHeight + 36 * overlay.uiScale))
-        visible: overlay.menuOpen
+        visible: overlay.isMenuOpen()
         opacity: 0
         radius: 8
         color: "#E0101418"
