@@ -6,6 +6,7 @@ Button {
     id: root
     property string iconText: ""
     property bool selected: false
+    property bool railStyle: false
     property bool pointerHovered: hover.hovered
 
     width: 44
@@ -15,17 +16,34 @@ Button {
 
     background: Rectangle {
         radius: Theme.radiusSmall
-        color: root.down ? Theme.bgHover : root.selected ? Theme.bgPanel : "transparent"
-        border.width: root.activeFocus || root.selected ? 2 : root.pointerHovered ? 1 : 0
-        border.color: root.activeFocus || root.selected ? Theme.accent : Theme.borderStrong
+        color: root.down ? Theme.bgHover
+              : root.railStyle && root.selected ? Theme.accentPanel
+              : root.selected ? Theme.bgPanel
+              : "transparent"
+        border.width: root.activeFocus ? 3 : root.selected ? 1 : root.pointerHovered ? 1 : 0
+        border.color: root.activeFocus ? Theme.textPrimary
+                    : root.selected ? Theme.accent
+                    : Theme.borderStrong
         antialiasing: true
+
+        Rectangle {
+            anchors.fill: parent
+            anchors.margins: -4
+            radius: parent.radius + 4
+            color: "transparent"
+            border.width: root.railStyle && root.activeFocus ? 2 : 0
+            border.color: Theme.accent
+            opacity: 0.55
+        }
     }
 
     contentItem: AppText {
         text: root.iconText
         font.pixelSize: 20
         font.weight: Font.DemiBold
-        color: root.selected || root.activeFocus ? Theme.textPrimary : Theme.textSecondary
+        color: root.activeFocus ? Theme.textPrimary
+              : root.selected ? Theme.accent
+              : Theme.textSecondary
         horizontalAlignment: Text.AlignHCenter
         verticalAlignment: Text.AlignVCenter
     }

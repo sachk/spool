@@ -47,6 +47,8 @@ public:
 
     bool loadNightModeEnabled();
     void saveNightModeEnabled(bool enabled);
+    int loadAudioDelayMs();
+    void saveAudioDelayMs(int delayMs);
 
 private:
     QVariant invokeOnWorker(const std::function<QVariant()> &callback);

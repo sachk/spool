@@ -135,6 +135,11 @@ bool AppController::nightModeEnabled() const
     return m_nightModeEnabled;
 }
 
+int AppController::audioDelayMs() const
+{
+    return m_audioDelayMs;
+}
+
 DiscoveredServerModel *AppController::discoveredServers()
 {
     return &m_discoveredServers;
@@ -175,10 +180,13 @@ void AppController::initialize()
     m_serverUrl = m_database->loadLastServerUrl();
     m_username = m_database->loadLastUsername();
     m_nightModeEnabled = m_database->loadNightModeEnabled();
+    m_audioDelayMs = m_database->loadAudioDelayMs();
     m_player->setNightModeEnabled(m_nightModeEnabled);
+    m_player->setAudioDelayMs(m_audioDelayMs);
     emit serverUrlChanged();
     emit usernameChanged();
     emit nightModeEnabledChanged();
+    emit audioDelayMsChanged();
 
     AuthSession session = m_database->loadAuthSession();
     if (!session.accessToken.isEmpty() && !m_serverUrl.isEmpty()) {
@@ -520,6 +528,17 @@ void AppController::setNightModeEnabled(bool enabled)
     m_database->saveNightModeEnabled(enabled);
     m_player->setNightModeEnabled(enabled);
     emit nightModeEnabledChanged();
+}
+
+void AppController::setAudioDelayMs(int delayMs)
+{
+    const int clampedDelayMs = std::clamp(delayMs, -2000, 2000);
+    if (m_audioDelayMs == clampedDelayMs)
+        return;
+    m_audioDelayMs = clampedDelayMs;
+    m_database->saveAudioDelayMs(clampedDelayMs);
+    m_player->setAudioDelayMs(clampedDelayMs);
+    emit audioDelayMsChanged();
 }
 
 void AppController::setPage(const QString &page)

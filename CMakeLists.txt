@@ -148,6 +148,7 @@ qt_add_qml_module(jellyfin-native
         qml/pages/SearchPage.qml
         qml/pages/SettingsPage.qml
         qml/primitives/ActionButton.qml
+        qml/primitives/AudioDelayRow.qml
         qml/primitives/AppText.qml
         qml/primitives/EmptyPlaceholder.qml
         qml/primitives/FocusFrame.qml

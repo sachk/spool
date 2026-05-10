@@ -16,9 +16,11 @@ QtObject {
 
     readonly property color jellyfinBlue: "#00A4DC"
     readonly property color jellyfinPurple: "#AA5CC3"
-    readonly property color accent: jellyfinBlue
-    readonly property color accentDim: "#0077A0"
-    readonly property color accentPurple: jellyfinPurple
+    property int accentIndex: 0
+    readonly property color accent: accentIndex === 1 ? jellyfinPurple : accentIndex === 2 ? "#7E7CFF" : jellyfinBlue
+    readonly property color accentDim: accentIndex === 1 ? "#78408A" : accentIndex === 2 ? "#4F4DA8" : "#0077A0"
+    readonly property color accentPurple: accentIndex === 1 ? jellyfinBlue : jellyfinPurple
+    readonly property color accentPanel: accentIndex === 1 ? "#2C1E31" : accentIndex === 2 ? "#20223C" : "#182A32"
 
     readonly property int radiusTiny: 2
     readonly property int radiusSmall: 4

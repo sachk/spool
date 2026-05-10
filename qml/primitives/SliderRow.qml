@@ -7,14 +7,35 @@ SettingRow {
     property real from: 0.75
     property real to: 1.5
     property real step: 0.05
+    property bool handledNavigationPress: false
     signal valueEdited(real value)
     valueText: Number(value).toFixed(2) + "x"
 
+    function adjust(dir) {
+        value = Math.max(from, Math.min(to, Math.round((value + step * dir) / step) * step))
+        valueEdited(value)
+    }
+
+    onClicked: adjust(1)
+
+    function handleNavigationKey(key) {
+        if (key === Qt.Key_Left || key === Qt.Key_Right) {
+            handledNavigationPress = true
+            adjust(key === Qt.Key_Right ? 1 : -1)
+            return true
+        }
+        return false
+    }
+
     Keys.onReleased: (event) => {
         if (event.key === Qt.Key_Left || event.key === Qt.Key_Right) {
+            if (handledNavigationPress) {
+                handledNavigationPress = false
+                event.accepted = true
+                return
+            }
             const dir = event.key === Qt.Key_Right ? 1 : -1
-            value = Math.max(from, Math.min(to, Math.round((value + step * dir) / step) * step))
-            valueEdited(value)
+            adjust(dir)
             event.accepted = true
         }
     }

@@ -8,9 +8,23 @@ Surface {
     property string description: ""
     property string valueText: ""
     property bool rowFocus: activeFocus
+    property int settingIndex: -1
+    property bool pointerActivationEnabled: true
+    signal clicked()
     focused: rowFocus
     focus: true
     implicitHeight: 68
+
+    HoverHandler { id: hover }
+    TapHandler {
+        enabled: root.pointerActivationEnabled
+        onTapped: {
+            root.forceActiveFocus()
+            root.clicked()
+        }
+    }
+
+    hovered: hover.hovered
 
     RowLayout {
         anchors.fill: parent
