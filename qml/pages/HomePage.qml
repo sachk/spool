@@ -267,7 +267,7 @@ FocusScope {
                     property int currentIndex: rowCount > 0 ? 0 : -1
                     readonly property int rowCount: root.countFor(section.rowSource)
                     readonly property int visibleCount: Math.min(rowCount, 24)
-                    readonly property int cardWidth: section.kind === "poster" ? Metrics.basePosterWidth(root.width) : 330
+                    readonly property int cardWidth: section.kind === "poster" ? Metrics.homePosterWidth(root.width) : Metrics.homeLandscapeWidth(root.width)
                     readonly property int cardGap: Metrics.gap(root.width)
                     focus: section.ListView.isCurrentItem
                     onActiveFocusChanged: if (activeFocus) rowFlick.forceActiveFocus()
@@ -403,7 +403,7 @@ FocusScope {
                     id: libRowScope
                     property int currentIndex: libraryCount > 0 ? 0 : -1
                     readonly property int visibleCount: Math.min(libraryCount, 24)
-                    readonly property int cardWidth: 330
+                    readonly property int cardWidth: Metrics.homeLandscapeWidth(root.width)
                     readonly property int cardGap: Metrics.gap(root.width)
                     focus: section.ListView.isCurrentItem
                     onActiveFocusChanged: if (activeFocus) libRowFlick.forceActiveFocus()
