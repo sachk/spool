@@ -39,24 +39,24 @@ public:
     void prefetchImages(const QStringList &urls, int maxConcurrent = 6);
 
     QCoro::Task<void> probeServer();
-    QCoro::Task<AuthSession> authenticateByName(const QString &username, const QString &password);
+    QCoro::Task<AuthSession> authenticateByName(QString username, QString password);
     QCoro::Task<bool> quickConnectEnabled();
     QCoro::Task<QJsonObject> initiateQuickConnect();
-    QCoro::Task<QJsonObject> pollQuickConnect(const QString &secret);
-    QCoro::Task<AuthSession> authenticateWithQuickConnect(const QString &secret);
+    QCoro::Task<QJsonObject> pollQuickConnect(QString secret);
+    QCoro::Task<AuthSession> authenticateWithQuickConnect(QString secret);
     QCoro::Task<std::vector<LibraryItem>> fetchLibraries();
-    QCoro::Task<std::vector<MovieItem>> fetchMovies(const QString &libraryId);
-    QCoro::Task<std::vector<MovieItem>> fetchSeries(const QString &libraryId);
-    QCoro::Task<std::vector<MovieItem>> fetchSeasons(const QString &seriesId);
-    QCoro::Task<std::vector<MovieItem>> fetchEpisodes(const QString &seriesId, const QString &seasonId = {});
+    QCoro::Task<std::vector<MovieItem>> fetchMovies(QString libraryId);
+    QCoro::Task<std::vector<MovieItem>> fetchSeries(QString libraryId);
+    QCoro::Task<std::vector<MovieItem>> fetchSeasons(QString seriesId);
+    QCoro::Task<std::vector<MovieItem>> fetchEpisodes(QString seriesId, QString seasonId = {});
     QCoro::Task<std::vector<MovieItem>> fetchResumeItems(int limit = 24);
     QCoro::Task<std::vector<MovieItem>> fetchNextUpEpisodes(int limit = 24);
-    QCoro::Task<std::vector<MovieItem>> fetchLatestItems(const QString &parentId = {}, int limit = 24);
-    QCoro::Task<PlaybackSession> negotiateDirectPlay(const MovieItem &movie);
+    QCoro::Task<std::vector<MovieItem>> fetchLatestItems(QString parentId = {}, int limit = 24);
+    QCoro::Task<PlaybackSession> negotiateDirectPlay(MovieItem movie);
     QCoro::Task<void> postCapabilities();
-    QCoro::Task<void> reportPlaybackStart(const PlaybackSession &session);
-    QCoro::Task<void> reportPlaybackProgress(const PlaybackSession &session, qint64 positionTicks, bool paused);
-    QCoro::Task<void> reportPlaybackStopped(const PlaybackSession &session, qint64 positionTicks, bool failed);
+    QCoro::Task<void> reportPlaybackStart(PlaybackSession session);
+    QCoro::Task<void> reportPlaybackProgress(PlaybackSession session, qint64 positionTicks, bool paused);
+    QCoro::Task<void> reportPlaybackStopped(PlaybackSession session, qint64 positionTicks, bool failed);
 
 private:
     enum class HttpMethod {
@@ -66,11 +66,11 @@ private:
 
     QNetworkRequest createRequest(const QString &path, const QUrlQuery &query = {}) const;
     QString createAuthorizationHeader(const QString &tokenOverride = {}) const;
-    QCoro::Task<QJsonDocument> requestJson(HttpMethod method, const QString &path, const QUrlQuery &query = {},
-                                           const QJsonDocument &body = {});
-    QCoro::Task<void> requestNoContent(HttpMethod method, const QString &path, const QJsonDocument &body);
-    QCoro::Task<QByteArray> requestBytes(HttpMethod method, const QString &path, const QUrlQuery &query = {},
-                                         const QJsonDocument &body = {});
+    QCoro::Task<QJsonDocument> requestJson(HttpMethod method, QString path, QUrlQuery query = {},
+                                           QJsonDocument body = {});
+    QCoro::Task<void> requestNoContent(HttpMethod method, QString path, QJsonDocument body);
+    QCoro::Task<QByteArray> requestBytes(HttpMethod method, QString path, QUrlQuery query = {},
+                                         QJsonDocument body = {});
 
     QJsonObject buildDeviceProfile() const;
     PlaybackSession buildPlaybackSession(const MovieItem &movie, const QJsonObject &playbackResponse) const;
