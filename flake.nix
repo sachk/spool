@@ -198,6 +198,8 @@
         zip
         libxkbcommon
         expat
+        zimg
+        libsysprof-capture
       ];
 
       linuxPackages = pkgs: with pkgs; [
@@ -217,7 +219,6 @@
         wayland
         wayland-protocols
         wayland-scanner
-        zimg
       ];
 
       darwinPackages = pkgs: with pkgs; [
