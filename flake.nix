@@ -200,6 +200,7 @@
         expat
         zimg
         libsysprof-capture
+        fribidi
       ];
 
       linuxPackages = pkgs: with pkgs; [
