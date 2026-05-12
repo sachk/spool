@@ -149,7 +149,7 @@
 
       buildScript = pkgs:
         if pkgs.stdenv.isDarwin
-        then "tools/build-macos-release.sh"
+        then "tools/build-macos.sh"
         else "tools/build-linux-release.sh";
 
       commonPackages = pkgs: with pkgs; [
