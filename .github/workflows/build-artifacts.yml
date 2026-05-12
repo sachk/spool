@@ -89,7 +89,7 @@ jobs:
   linux-appimage:
     name: Linux AppImage
     runs-on: ubuntu-24.04
-    if: ${{ github.event_name != 'workflow_dispatch' || inputs.build_linux }}
+    if: ${{ false }}
     steps:
       - uses: actions/checkout@v4
         with:

@@ -202,6 +202,7 @@
         libsysprof-capture
         fribidi
         shaderc
+        libdovi
       ];
 
       linuxPackages = pkgs: with pkgs; [
