@@ -1,17 +1,29 @@
 {
-  description = "Jellyfin webOS native build environment";
+  description = "QtFin / Jellyfin native desktop build environment";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/15f4ee454b1dce334612fa6843b3e05cf546efab";
+
     libplacebo-src = {
       url = "git+https://github.com/haasn/libplacebo?submodules=1&rev=27aa71a97f4daed84916936572fa6a2e1c3eedb7";
       flake = false;
     };
+
+    # Starfish-enabled mpv fork. Upstream mpv does not have your -Dstarfish option.
+    mpv-src = {
+      url = "git+ssh://git@github.com/sachk/mpv?ref=webos&submodules=1";
+      flake = false;
+    };
   };
 
-  outputs = { nixpkgs, libplacebo-src, ... }:
+  outputs = { self, nixpkgs, libplacebo-src, mpv-src, ... }:
     let
-      systems = [ "x86_64-linux" "aarch64-darwin" "x86_64-darwin" ];
+      systems = [
+        "x86_64-linux"
+        "aarch64-darwin"
+        "x86_64-darwin"
+      ];
+
       libplaceboOverlay = final: prev: {
         libplacebo = prev.libplacebo.overrideAttrs (_: {
           version = "master-27aa71a";
@@ -19,17 +31,12 @@
           patches = [];
         });
       };
-      # Slim ffmpeg-full: keep everything libmpv needs for decoding + rendering on
-      # Linux, but drop encoders, niche protocols, TTS, fingerprinting, image
-      # formats Qt already handles, and other transitive bloat that otherwise
-      # gets pulled into the AppImage via libavcodec.so.62's RPATH/NEEDED list.
+
       ffmpegSlimOverlay = final: prev: {
         ffmpeg-full = prev.ffmpeg-full.override {
-          # ffplay needs SDL2; we don't ship it.
           buildFfplay = false;
           withSdl2 = false;
 
-          # Encoders we never use in a playback-only client.
           withX264 = false;
           withX265 = false;
           withAom = false;
@@ -50,8 +57,6 @@
           withShine = false;
           withTheora = false;
 
-          # Niche audio codecs (native ffmpeg decoders cover the few streams
-          # Jellyfin actually serves).
           withOpenmpt = false;
           withGme = false;
           withModplug = false;
@@ -65,31 +70,27 @@
           withOpencoreAmrwb = false;
           withMysofa = false;
 
-          # Niche video codecs.
           withDavs2 = false;
           withUavs3d = false;
 
-          # ARIB / DVB subtitle and teletext stacks.
           withAribb24 = false;
           withAribcaption = false;
           withZvbi = false;
 
-          # Network protocols we don't use.
           withSrt = false;
           withRist = false;
           withSsh = false;
           withRtmp = false;
 
-          # Removable bloat.
-          withSamba = false;            # libsmbclient pulls ~30 samba libs (~19 MB)
-          withFlite = false;            # TTS voice databases (~23 MB)
-          withChromaprint = false;      # audio fingerprinting
-          withTensorflow = false;       # huge
-          withWhisper = false;          # huge
+          withSamba = false;
+          withFlite = false;
+          withChromaprint = false;
+          withTensorflow = false;
+          withWhisper = false;
           withVmaf = false;
           withZmq = false;
-          withJxl = false;              # Qt handles JPEG-XL via its own plugin if ever
-          withSvg = false;              # librsvg + cairo + rust deps; Qt has QtSvg
+          withJxl = false;
+          withSvg = false;
           withLcevcdec = false;
           withFrei0r = false;
           withQrencode = false;
@@ -97,7 +98,6 @@
           withOpenjpeg = false;
           withXvid = false;
 
-          # Capture / disc inputs we never use.
           withV4l2 = false;
           withV4l2M2m = false;
           withDvdnav = false;
@@ -106,7 +106,6 @@
           withCdio = false;
           withCaca = false;
 
-          # GPU / vendor encode paths (most are off by default but be explicit).
           withAmf = false;
           withCuda = false;
           withCudaLLVM = false;
@@ -119,19 +118,39 @@
           withMfx = false;
           withVpl = false;
           withOpencl = false;
+
           withOpenal = false;
           withJack = false;
           withLadspa = false;
           withBs2b = false;
         };
       };
+
+      pkgsFor = system:
+        import nixpkgs {
+          inherit system;
+          config.allowUnfree = true;
+          overlays = [
+            libplaceboOverlay
+            ffmpegSlimOverlay
+          ];
+        };
+
       forAllSystems = f:
         nixpkgs.lib.genAttrs systems (system:
-          f (import nixpkgs {
-            inherit system;
-            config.allowUnfree = true;
-            overlays = [ libplaceboOverlay ffmpegSlimOverlay ];
-          }));
+          f (pkgsFor system)
+        );
+
+      platformName = pkgs:
+        if pkgs.stdenv.isDarwin then "macos" else "linux";
+
+      buildDir = pkgs:
+        if pkgs.stdenv.isDarwin then "macos-release" else "linux-release";
+
+      buildScript = pkgs:
+        if pkgs.stdenv.isDarwin
+        then "tools/build-macos-release.sh"
+        else "tools/build-linux-release.sh";
 
       commonPackages = pkgs: with pkgs; [
         autoconf
@@ -147,7 +166,6 @@
         flex
         fontconfig
         freetype
-        libxkbcommon
         git
         gnumake
         jq
@@ -164,7 +182,6 @@
         mujs
         ninja
         nodejs_22
-        patchelf
         perl
         pkg-config
         python3
@@ -180,6 +197,7 @@
         zlib
         zip
       ];
+
       linuxPackages = pkgs: with pkgs; [
         alsa-lib
         appimage-run
@@ -188,73 +206,242 @@
         libpulseaudio
         libva
         libvdpau
+        libxkbcommon
         mesa
+        patchelf
         pipewire
+        qt6.qtwayland
         shaderc
         squashfsTools
         spirv-cross
         wayland
-        wayland-scanner
         wayland-protocols
-        qt6.qtwayland
+        wayland-scanner
         zimg
       ];
+
       darwinPackages = pkgs: with pkgs; [
         apple-sdk_15
         create-dmg
       ];
-      allPackages = pkgs: commonPackages pkgs
+
+      nativePackages = pkgs:
+        commonPackages pkgs
         ++ pkgs.lib.optionals pkgs.stdenv.isLinux (linuxPackages pkgs)
         ++ pkgs.lib.optionals pkgs.stdenv.isDarwin (darwinPackages pkgs);
-    in
-    {
-      devShells = forAllSystems (pkgs: {
-        default = pkgs.mkShell {
-          packages = allPackages pkgs;
-          shellHook = ''
-            export SSL_CERT_FILE=${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt
+
+      shellHookFor = pkgs: ''
+        export SSL_CERT_FILE="${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt"
+        export CURL_CA_BUNDLE="$SSL_CERT_FILE"
+        export NIX_ENFORCE_PURITY=0
+
+        export QTFIN_PLATFORM="${platformName pkgs}"
+        export QTFIN_BUILD_DIR="${buildDir pkgs}"
+        export QTFIN_BUILD_SCRIPT="${buildScript pkgs}"
+
+        ${pkgs.lib.optionalString pkgs.stdenv.isLinux ''
+          export WAYLAND_PROTOCOLS_DIR="${pkgs.wayland-protocols}/share/wayland-protocols"
+          export WEBOS_SDK_ROOT="''${WEBOS_SDK_ROOT:-$PWD/../build/webos-sdk/arm-webos-linux-gnueabi_sdk-buildroot}"
+        ''}
+      '';
+
+      qtfinPackage = pkgs:
+        pkgs.stdenv.mkDerivation {
+          pname = "qtfin";
+          version =
+            if self ? shortRev && self.shortRev != null
+            then self.shortRev
+            else "dirty";
+
+          src = self.outPath;
+
+          nativeBuildInputs =
+            nativePackages pkgs
+            ++ [ pkgs.makeWrapper ]
+            ++ pkgs.lib.optionals (pkgs.qt6 ? wrapQtAppsHook) [
+              pkgs.qt6.wrapQtAppsHook
+            ];
+
+          buildInputs = nativePackages pkgs;
+
+          dontConfigure = true;
+
+          unpackPhase = ''
+            runHook preUnpack
+
+            mkdir source
+            cp -R "$src"/. source/
+            chmod -R u+rwX source
+
+            rm -rf source/mpv
+            mkdir source/mpv
+            cp -R "${mpv-src}"/. source/mpv/
+            chmod -R u+rwX source/mpv
+
+            sourceRoot=source
+
+            runHook postUnpack
+          '';
+
+          buildPhase = ''
+            runHook preBuild
+
+            export HOME="$TMPDIR/home"
+            mkdir -p "$HOME"
+
+            export SSL_CERT_FILE="${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt"
             export CURL_CA_BUNDLE="$SSL_CERT_FILE"
             export NIX_ENFORCE_PURITY=0
-            export WEBOS_SDK_ROOT="$PWD/../build/webos-sdk/arm-webos-linux-gnueabi_sdk-buildroot"
-            ${pkgs.lib.optionalString pkgs.stdenv.isLinux ''
-              export WAYLAND_PROTOCOLS_DIR="${pkgs.wayland-protocols}/share/wayland-protocols"
-            ''}
+
+            export QTFIN_PLATFORM="${platformName pkgs}"
+            export QTFIN_BUILD_DIR="${buildDir pkgs}"
+            export QTFIN_BUILD_SCRIPT="${buildScript pkgs}"
+
+            PATH="$(printf "%s" "$PATH" | tr ":" "\n" | { grep -v "webos-sdk" || true; } | paste -sd: -)"
+            export PATH
+            unset WEBOS_SDK_ROOT QT_PLUGIN_PATH QML2_IMPORT_PATH QML_IMPORT_PATH
+
+            if [ ! -f "$QTFIN_BUILD_SCRIPT" ]; then
+              echo "error: missing platform build script: $QTFIN_BUILD_SCRIPT" >&2
+              exit 1
+            fi
+
+            if [ ! -f CMakeLists.txt ]; then
+              echo "error: missing CMakeLists.txt" >&2
+              exit 1
+            fi
+
+            if [ ! -d mpv ] || [ -z "$(find mpv -mindepth 1 -maxdepth 1 -print -quit)" ]; then
+              echo "error: mpv input was not copied into source/mpv" >&2
+              exit 1
+            fi
+
+            # Nix build sandboxes do not provide /usr/bin/env.
+            # mpv executes helper scripts from source during Meson/Ninja, so
+            # patch build-time shebangs before running your build script.
+            patchShebangs --build .
+
+            bash "$QTFIN_BUILD_SCRIPT"
+
+            runHook postBuild
           '';
+
+          installPhase = ''
+            runHook preInstall
+
+            mkdir -p "$out/bin" "$out/lib"
+
+            if [ -d "build/${buildDir pkgs}/install" ]; then
+              cp -R "build/${buildDir pkgs}/install"/. "$out"/
+            fi
+
+            if [ -d "build/${buildDir pkgs}/mpv-prefix/lib" ]; then
+              mkdir -p "$out/lib/mpv-prefix"
+              cp -R "build/${buildDir pkgs}/mpv-prefix/lib"/. "$out/lib/mpv-prefix"/
+            fi
+
+            find_built_binary() {
+              for candidate in \
+                "$out/bin/jellyfin-native" \
+                "$out/bin/qtfin" \
+                "$out/QtFin.app/Contents/MacOS/QtFin" \
+                "$out/jellyfin-native.app/Contents/MacOS/jellyfin-native" \
+                "build/${buildDir pkgs}/install/bin/jellyfin-native" \
+                "build/${buildDir pkgs}/jellyfin-native" \
+                "build/${buildDir pkgs}/install/bin/qtfin" \
+                "build/${buildDir pkgs}/qtfin" \
+                "build/${buildDir pkgs}/install/QtFin.app/Contents/MacOS/QtFin" \
+                "build/${buildDir pkgs}/QtFin.app/Contents/MacOS/QtFin" \
+                "build/${buildDir pkgs}/install/jellyfin-native.app/Contents/MacOS/jellyfin-native" \
+                "build/${buildDir pkgs}/jellyfin-native.app/Contents/MacOS/jellyfin-native"
+              do
+                if [ -x "$candidate" ]; then
+                  printf '%s\n' "$candidate"
+                  return 0
+                fi
+              done
+
+              return 1
+            }
+
+            target="$(find_built_binary || true)"
+
+            if [ -z "$target" ]; then
+              echo "error: build completed but no runnable QtFin binary was found" >&2
+              echo "looked under build/${buildDir pkgs} and install output" >&2
+              exit 1
+            fi
+
+            case "$target" in
+              "$out"/*)
+                installed_target="$target"
+                ;;
+              *)
+                installed_target="$out/bin/$(basename "$target")"
+                cp "$target" "$installed_target"
+                chmod +x "$installed_target"
+                ;;
+            esac
+
+            if [ "$installed_target" = "$out/bin/qtfin" ]; then
+              mv "$installed_target" "$out/bin/qtfin-real"
+              installed_target="$out/bin/qtfin-real"
+            fi
+
+            ${pkgs.lib.optionalString pkgs.stdenv.isLinux ''
+              makeWrapper "$installed_target" "$out/bin/qtfin" \
+                --set LC_NUMERIC C \
+                --prefix LD_LIBRARY_PATH : "$out/lib/mpv-prefix"
+            ''}
+
+            ${pkgs.lib.optionalString pkgs.stdenv.isDarwin ''
+              makeWrapper "$installed_target" "$out/bin/qtfin" \
+                --set LC_NUMERIC C \
+                --prefix DYLD_LIBRARY_PATH : "$out/lib/mpv-prefix"
+            ''}
+
+            runHook postInstall
+          '';
+
+          meta = with pkgs.lib; {
+            description = "Native Qt Jellyfin client";
+            platforms = [
+              "x86_64-linux"
+              "aarch64-darwin"
+              "x86_64-darwin"
+            ];
+            mainProgram = "qtfin";
+          };
+        };
+    in
+    {
+      packages = forAllSystems (pkgs: rec {
+        default = qtfin;
+        qtfin = qtfinPackage pkgs;
+      });
+
+      apps = forAllSystems (pkgs: {
+        default = {
+          type = "app";
+          program = "${self.packages.${pkgs.stdenv.hostPlatform.system}.default}/bin/qtfin";
+        };
+
+        qtfin = {
+          type = "app";
+          program = "${self.packages.${pkgs.stdenv.hostPlatform.system}.qtfin}/bin/qtfin";
         };
       });
 
-      apps = forAllSystems (pkgs:
-        let
-          runner = pkgs.writeShellScriptBin "jellyfin-native-run" ''
-            export PATH="${pkgs.lib.makeBinPath [ pkgs.nix pkgs.bashInteractive pkgs.coreutils pkgs.gnugrep ]}:$PATH"
-              set -euo pipefail
-              REPO_ROOT="''${JELLYFIN_REPO:-$PWD}"
-              if [ ! -f "$REPO_ROOT/CMakeLists.txt" ] || [ ! -d "$REPO_ROOT/mpv" ]; then
-                echo "error: run from the jellyfin-webos repo root, or set JELLYFIN_REPO" >&2
-                exit 1
-              fi
-              cd "$REPO_ROOT"
-              BIN="$REPO_ROOT/build/linux-release/install/bin/jellyfin-native"
-              # Strip the webOS buildroot SDK from PATH and unset its env so the
-              # native Linux build doesn't pick up the old wayland-scanner /
-              # cross toolchain.
-              scrub='PATH=$(printf %s "$PATH" | tr ":" "\n" | grep -v webos-sdk | paste -sd:); export PATH; unset WEBOS_SDK_ROOT QT_PLUGIN_PATH QML2_IMPORT_PATH QML_IMPORT_PATH'
-              if [ -n "''${JELLYFIN_NO_REBUILD:-}" ] && [ -x "$BIN" ]; then
-                :
-              else
-                nix develop "$REPO_ROOT" -c bash -c "$scrub; exec bash tools/build-linux-release.sh"
-              fi
-              MPV_LIB="$REPO_ROOT/build/linux-release/mpv-prefix/lib"
-              export LD_LIBRARY_PATH="$MPV_LIB''${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
-              # libmpv requires C numeric locale or it refuses to start.
-              export LC_NUMERIC=C
-              exec nix develop "$REPO_ROOT" -c bash -c "$scrub"'; exec "$@"' _ "$BIN" "$@"
-          '';
-        in {
-          default = {
-            type = "app";
-            program = "${runner}/bin/jellyfin-native-run";
-          };
-        });
+      devShells = forAllSystems (pkgs: {
+        default = pkgs.mkShell {
+          packages = nativePackages pkgs;
+          shellHook = shellHookFor pkgs;
+        };
+
+        native = pkgs.mkShell {
+          packages = nativePackages pkgs;
+          shellHook = shellHookFor pkgs;
+        };
+      });
     };
 }
