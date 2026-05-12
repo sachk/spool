@@ -201,6 +201,7 @@
         zimg
         libsysprof-capture
         fribidi
+        shaderc
       ];
 
       linuxPackages = pkgs: with pkgs; [
