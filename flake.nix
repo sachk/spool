@@ -196,17 +196,17 @@
         which
         zlib
         zip
+        libxkbcommon
+        expat
       ];
 
       linuxPackages = pkgs: with pkgs; [
         alsa-lib
         appimage-run
-        expat
         libdrm
         libpulseaudio
         libva
         libvdpau
-        libxkbcommon
         mesa
         patchelf
         pipewire
