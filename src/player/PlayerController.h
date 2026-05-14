@@ -135,6 +135,7 @@ private:
     QTimer m_backGuardTimer;
     QTimer m_uiPositionTimer;
     QTimer m_seekWatchdogTimer;
+    QTimer m_seekRateLimitTimer;
     QElapsedTimer m_positionClock;
     bool m_visible = false;
     bool m_paused = false;
