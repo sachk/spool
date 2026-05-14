@@ -593,7 +593,8 @@ void PlayerController::seek(double seconds) {
 }
 
 void PlayerController::toggleDebugOsd() {
-  mpvCommand("script-binding stats/display-stats-toggle");
+  if (!mpvCommand("script-binding stats/display-stats-toggle"))
+    return;
   m_debugOsdVisible = !m_debugOsdVisible;
   emit stateChanged();
 }
