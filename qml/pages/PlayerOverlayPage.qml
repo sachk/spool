@@ -108,9 +108,17 @@ FocusScope {
         else autohideTimer.restart()
     }
 
+    function maybeRestartAutohide() {
+        if (mode !== "hidden" && !isPinned())
+            autohideTimer.restart()
+    }
+
     function hideControls() {
-        if (isPinned())
+        if (isPinned()) {
+            if (scrubbing)
+                autohideTimer.restart()
             return false
+        }
         autohideTimer.stop()
         mode = "hidden"
         row = "timeline"
@@ -132,8 +140,10 @@ FocusScope {
     function commitScrub() {
         if (!scrubbing)
             return false
+        scrubTimer.stop()
         seekTo(scrubSeconds)
         scrubbing = false
+        maybeRestartAutohide()
         return true
     }
 
@@ -214,10 +224,22 @@ FocusScope {
             return
         }
         if (menuIndex === 0) { openAudioSync(); return }
-        else if (menuIndex === 1) appController.player.toggleDebugOsd()
+        else if (menuIndex === 1) toggleDebugStats()
         else if (menuIndex === 2) appController.setNightModeEnabled(!appController.nightModeEnabled)
         else if (menuIndex === 3) appController.player.stopWithReason("debug-menu-stop")
         if (mode === "debug") closeMenu()
+    }
+
+    function toggleDebugStats() {
+        const showing = !appController.player.debugOsdVisible
+        appController.player.toggleDebugOsd()
+        if (showing) {
+            autohideTimer.stop()
+            mode = "hidden"
+            row = "timeline"
+        } else {
+            showControls(row)
+        }
     }
 
     function clampAudioDelayMs(value) {
@@ -272,7 +294,14 @@ FocusScope {
     }
 
     function handleBack() {
-        if (scrubbing) { scrubbing = false; showControls("timeline"); return true }
+        if (scrubbing) {
+            scrubTimer.stop()
+            scrubbing = false
+            autohideTimer.stop()
+            mode = "hidden"
+            row = "timeline"
+            return true
+        }
         if (isAudioSyncOpen()) { mode = "controls"; showControls("actions"); return true }
         if (isMenuOpen()) { closeMenu(); return true }
         if (mode !== "hidden") {
@@ -342,6 +371,8 @@ FocusScope {
     function handleReleased(event) {
         if (isIgnoredPlayerNoise(event)) return true
         if (isBackEvent(event)) return handleBack()
+        if (event.key === Qt.Key_I || event.key === Qt.Key_Info) { toggleDebugStats(); return true }
+        if (event.key === Qt.Key_Q) { appController.player.stopWithReason("player-q"); return true }
         if (mode === "hidden") {
             if (event.key === Qt.Key_Left) { adjustTimeline(-10); return true }
             if (event.key === Qt.Key_Right) { adjustTimeline(30); return true }
@@ -352,10 +383,8 @@ FocusScope {
         if (isAudioSyncOpen() && handleAudioSyncKey(event.key)) return true
         if (isMenuOpen() && handleMenuKey(event.key)) return true
         if (handleControlsKey(event.key)) return true
-        if (event.key === Qt.Key_I || event.key === Qt.Key_Info) { appController.player.toggleDebugOsd(); showControls(row); return true }
         if (event.key === Qt.Key_S) { openSubtitles(); return true }
         if (event.key === Qt.Key_A) { openAudio(); return true }
-        if (event.key === Qt.Key_Q) { appController.player.stopWithReason("player-q"); return true }
         return false
     }
 
@@ -375,6 +404,8 @@ FocusScope {
         }
     }
 
+    onScrubbingChanged: if (!scrubbing) maybeRestartAutohide()
+
     Timer { id: autohideTimer; interval: 3000; onTriggered: overlay.hideControls() }
     Timer { id: scrubTimer; interval: 650; onTriggered: overlay.commitScrub() }
 
@@ -387,7 +418,7 @@ FocusScope {
     }
 
     TapHandler { onTapped: overlay.showControls("timeline") }
-    HoverHandler { onPointChanged: if (overlay.mode !== "hidden") overlay.showControls(overlay.row) }
+    HoverHandler { onHoveredChanged: if (hovered && overlay.mode !== "hidden") overlay.showControls(overlay.row) }
 
     states: [
         State { name: "hidden"; when: overlay.mode === "hidden"; PropertyChanges { target: hud; opacity: 0 } },
