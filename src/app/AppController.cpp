@@ -36,6 +36,16 @@ QString homeItemSample(const std::vector<MovieItem> &items)
     return sample.join(QStringLiteral(" | "));
 }
 
+bool isSeriesLibrary(const LibraryItem &library)
+{
+    return library.collectionType == QStringLiteral("tvshows");
+}
+
+QString libraryCacheKey(const LibraryItem &library)
+{
+    return isSeriesLibrary(library) ? QStringLiteral("series/%1").arg(library.id) : library.id;
+}
+
 }
 
 AppController::AppController(DatabaseManager *database,
@@ -59,6 +69,8 @@ AppController::AppController(DatabaseManager *database,
 
     connect(&m_quickConnectTimer, &QTimer::timeout, this, &AppController::pollQuickConnect);
     m_quickConnectTimer.setInterval(5000);
+    m_libraryPrefetchTimer.setSingleShot(true);
+    connect(&m_libraryPrefetchTimer, &QTimer::timeout, this, &AppController::startNextLibraryPrefetch);
 
     connect(m_player, &PlayerController::playbackStopped, this, [this]() {
         qInfo() << "app: playbackStopped page=" << m_page;
@@ -606,6 +618,9 @@ void AppController::applyMoviesCache(const QString &libraryId)
 
 void AppController::loadLibraries()
 {
+    m_libraryPrefetchTimer.stop();
+    m_libraryPrefetchQueue.clear();
+    m_libraryPrefetchActive = false;
     setBusy(true, QStringLiteral("Loading libraries…"));
     QCoro::runDetached(
         m_api->fetchLibraries(),
@@ -772,32 +787,139 @@ void AppController::refreshHomeRows()
     if (!m_api || m_api->session().accessToken.isEmpty())
         return;
 
+    const int generation = ++m_homeLoadGeneration;
+    m_homeLoadsPending = 3;
+    m_libraryPrefetchTimer.stop();
+
     QCoro::runDetached(
         m_api->fetchResumeItems(),
-        [this](const std::vector<MovieItem> &items) {
+        [this, generation](const std::vector<MovieItem> &items) {
+            if (generation != m_homeLoadGeneration)
+                return;
             qInfo() << "home: resume items" << items.size() << homeItemSample(items);
             m_resumeItems.setMovies(items);
             prefetchMoviePosters(items);
+            handleHomeRowLoaded(generation);
         },
-        [](const std::exception_ptr &error) { qWarning() << "home: resume fetch failed" << exceptionMessage(error); });
+        [this, generation](const std::exception_ptr &error) {
+            if (generation != m_homeLoadGeneration)
+                return;
+            qWarning() << "home: resume fetch failed" << exceptionMessage(error);
+            handleHomeRowLoaded(generation);
+        });
 
     QCoro::runDetached(
         m_api->fetchNextUpEpisodes(),
-        [this](const std::vector<MovieItem> &items) {
+        [this, generation](const std::vector<MovieItem> &items) {
+            if (generation != m_homeLoadGeneration)
+                return;
             qInfo() << "home: next-up items" << items.size() << homeItemSample(items);
             m_nextUpItems.setMovies(items);
             prefetchMoviePosters(items);
+            handleHomeRowLoaded(generation);
         },
-        [](const std::exception_ptr &error) { qWarning() << "home: next-up fetch failed" << exceptionMessage(error); });
+        [this, generation](const std::exception_ptr &error) {
+            if (generation != m_homeLoadGeneration)
+                return;
+            qWarning() << "home: next-up fetch failed" << exceptionMessage(error);
+            handleHomeRowLoaded(generation);
+        });
 
     QCoro::runDetached(
         m_api->fetchLatestItems(),
-        [this](const std::vector<MovieItem> &items) {
+        [this, generation](const std::vector<MovieItem> &items) {
+            if (generation != m_homeLoadGeneration)
+                return;
             qInfo() << "home: latest items" << items.size() << homeItemSample(items);
             m_latestItems.setMovies(items);
             prefetchMoviePosters(items);
+            handleHomeRowLoaded(generation);
         },
-        [](const std::exception_ptr &error) { qWarning() << "home: latest fetch failed" << exceptionMessage(error); });
+        [this, generation](const std::exception_ptr &error) {
+            if (generation != m_homeLoadGeneration)
+                return;
+            qWarning() << "home: latest fetch failed" << exceptionMessage(error);
+            handleHomeRowLoaded(generation);
+        });
+}
+
+void AppController::handleHomeRowLoaded(int generation)
+{
+    if (generation != m_homeLoadGeneration || m_homeLoadsPending <= 0)
+        return;
+
+    --m_homeLoadsPending;
+    if (m_homeLoadsPending == 0)
+        scheduleLibraryPrefetch(generation);
+}
+
+void AppController::scheduleLibraryPrefetch(int generation)
+{
+    if (generation != m_homeLoadGeneration || !m_api || m_api->session().accessToken.isEmpty())
+        return;
+
+    m_libraryPrefetchQueue.clear();
+    const int count = m_libraries.rowCount();
+    m_libraryPrefetchQueue.reserve(static_cast<size_t>(count));
+    for (int i = 0; i < count; ++i) {
+        const auto library = m_libraries.libraryAt(i);
+        if (library.id.isEmpty())
+            continue;
+        if (m_prefetchedLibraryKeys.contains(libraryCacheKey(library)))
+            continue;
+        m_libraryPrefetchQueue.push_back(library);
+    }
+
+    if (m_libraryPrefetchQueue.empty())
+        return;
+
+    m_libraryPrefetchGeneration = generation;
+    m_libraryPrefetchIndex = 0;
+    m_libraryPrefetchActive = false;
+    qInfo() << "library prefetch: scheduled" << m_libraryPrefetchQueue.size()
+            << "libraries after home load";
+    m_libraryPrefetchTimer.start(500);
+}
+
+void AppController::startNextLibraryPrefetch()
+{
+    if (m_libraryPrefetchActive || m_libraryPrefetchGeneration != m_homeLoadGeneration)
+        return;
+    if (!m_api || m_api->session().accessToken.isEmpty())
+        return;
+    if (m_libraryPrefetchIndex < 0 ||
+        m_libraryPrefetchIndex >= static_cast<int>(m_libraryPrefetchQueue.size()))
+        return;
+
+    const LibraryItem library = m_libraryPrefetchQueue[static_cast<size_t>(m_libraryPrefetchIndex++)];
+    const QString cacheKey = libraryCacheKey(library);
+    const bool seriesLibrary = isSeriesLibrary(library);
+    m_libraryPrefetchActive = true;
+    qInfo() << "library prefetch: fetching" << library.name << cacheKey;
+
+    const auto onDone = [this, cacheKey, library](const std::vector<MovieItem> &items) {
+        if (m_libraryPrefetchGeneration != m_homeLoadGeneration)
+            return;
+        qInfo() << "library prefetch: cached" << library.name << items.size();
+        m_database->saveMovies(cacheKey, toJsonArray(items));
+        m_prefetchedLibraryKeys.insert(cacheKey);
+        prefetchMoviePosters(items);
+        m_libraryPrefetchActive = false;
+        startNextLibraryPrefetch();
+    };
+
+    const auto onError = [this, cacheKey, library](const std::exception_ptr &error) {
+        if (m_libraryPrefetchGeneration != m_homeLoadGeneration)
+            return;
+        qWarning() << "library prefetch: failed" << library.name << cacheKey << exceptionMessage(error);
+        m_libraryPrefetchActive = false;
+        startNextLibraryPrefetch();
+    };
+
+    if (seriesLibrary)
+        QCoro::runDetached(m_api->fetchSeries(library.id), onDone, onError);
+    else
+        QCoro::runDetached(m_api->fetchMovies(library.id), onDone, onError);
 }
 
 void AppController::prefetchMoviePosters(const std::vector<MovieItem> &movies)
