@@ -9,6 +9,7 @@
 #include "../player/PlayerController.h"
 
 #include <QObject>
+#include <QSet>
 #include <QTimer>
 
 namespace JellyfinNative {
@@ -115,6 +116,9 @@ private:
     void applyMoviesCache(const QString &libraryId);
     void loadLibraries();
     void refreshHomeRows();
+    void handleHomeRowLoaded(int generation);
+    void scheduleLibraryPrefetch(int generation);
+    void startNextLibraryPrefetch();
     void pollQuickConnect();
     void prefetchMoviePosters(const std::vector<MovieItem> &movies);
     void setCurrentItems(const std::vector<MovieItem> &items, const QString &cacheKey = {});
@@ -133,6 +137,7 @@ private:
     MovieGridModel m_nextUpItems;
     MovieGridModel m_latestItems;
     QTimer m_quickConnectTimer;
+    QTimer m_libraryPrefetchTimer;
     QString m_page = QStringLiteral("login");
     QString m_serverUrl;
     QString m_username;
@@ -155,6 +160,13 @@ private:
     bool m_nightModeEnabled = false;
     int m_audioDelayMs = 0;
     int m_libraryLoadGeneration = 0;
+    int m_homeLoadGeneration = 0;
+    int m_homeLoadsPending = 0;
+    int m_libraryPrefetchGeneration = 0;
+    int m_libraryPrefetchIndex = 0;
+    bool m_libraryPrefetchActive = false;
+    std::vector<LibraryItem> m_libraryPrefetchQueue;
+    QSet<QString> m_prefetchedLibraryKeys;
 };
 
 } // namespace JellyfinNative
