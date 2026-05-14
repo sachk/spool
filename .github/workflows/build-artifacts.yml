@@ -9,7 +9,7 @@ on:
       build_linux:
         description: "Build Linux AppImage"
         required: true
-        default: false
+        default: true
         type: boolean
       build_macos:
         description: "Build macOS DMG"
@@ -89,7 +89,7 @@ jobs:
   linux-appimage:
     name: Linux AppImage
     runs-on: ubuntu-24.04
-    if: ${{ false }}
+    if: ${{ github.event_name != 'workflow_dispatch' || inputs.build_linux }}
     steps:
       - uses: actions/checkout@v4
         with:

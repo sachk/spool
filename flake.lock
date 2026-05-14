@@ -19,25 +19,6 @@
         "url": "https://github.com/haasn/libplacebo"
       }
     },
-    "mpv-src": {
-      "flake": false,
-      "locked": {
-        "lastModified": 1778486149,
-        "narHash": "sha256-KoiSk3GazA3JCxQ4lCs+l+AuE61oc4IO6Ue0oJCWz3Y=",
-        "ref": "webos",
-        "rev": "ebdfb30e55c8824ab268bc5718765e30cc60d374",
-        "revCount": 55058,
-        "submodules": true,
-        "type": "git",
-        "url": "ssh://git@github.com/sachk/mpv"
-      },
-      "original": {
-        "ref": "webos",
-        "submodules": true,
-        "type": "git",
-        "url": "ssh://git@github.com/sachk/mpv"
-      }
-    },
     "nixpkgs": {
       "locked": {
         "lastModified": 1777578337,
@@ -57,7 +38,6 @@
     "root": {
       "inputs": {
         "libplacebo-src": "libplacebo-src",
-        "mpv-src": "mpv-src",
         "nixpkgs": "nixpkgs"
       }
     }
