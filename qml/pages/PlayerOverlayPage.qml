@@ -303,13 +303,13 @@ FocusScope {
             return true
         }
         if (key === Qt.Key_Left) {
-            if (row === "timeline") appController.player.seekBack()
+            if (row === "timeline") adjustTimeline(-10)
             else if (row === "actions") actionIndex = Math.max(0, actionIndex - 1)
             showControls(row)
             return true
         }
         if (key === Qt.Key_Right) {
-            if (row === "timeline") appController.player.seekForward()
+            if (row === "timeline") adjustTimeline(30)
             else if (row === "actions") actionIndex = Math.min(actions.length - 1, actionIndex + 1)
             showControls(row)
             return true
@@ -343,8 +343,8 @@ FocusScope {
         if (isIgnoredPlayerNoise(event)) return true
         if (isBackEvent(event)) return handleBack()
         if (mode === "hidden") {
-            if (event.key === Qt.Key_Left) { appController.player.seekBack(); showControls("timeline"); return true }
-            if (event.key === Qt.Key_Right) { appController.player.seekForward(); showControls("timeline"); return true }
+            if (event.key === Qt.Key_Left) { adjustTimeline(-10); return true }
+            if (event.key === Qt.Key_Right) { adjustTimeline(30); return true }
             if (isAcceptKey(event.key)) { appController.player.togglePause(); showControls("actions"); return true }
             showControls("timeline")
             return true

@@ -184,6 +184,8 @@ PlayerController::PlayerController(NativeAppWindow *window,
   m_backGuardTimer.setInterval(1500);
   m_seekWatchdogTimer.setSingleShot(true);
   m_seekWatchdogTimer.setInterval(2500);
+  m_seekRateLimitTimer.setSingleShot(true);
+  m_seekRateLimitTimer.setInterval(350);
   connect(&m_backGuardTimer, &QTimer::timeout, this, [this]() {
     if (!m_visible || m_backAllowed)
       return;
@@ -214,6 +216,8 @@ PlayerController::PlayerController(NativeAppWindow *window,
     emit stateChanged();
     dispatchPendingSeek();
   });
+  connect(&m_seekRateLimitTimer, &QTimer::timeout, this,
+          [this]() { dispatchPendingSeek(); });
   connect(&m_progressTimer, &QTimer::timeout, this, [this]() {
     if (!m_visible)
       return;
@@ -389,17 +393,7 @@ bool PlayerController::ensureMpv() {
       setOption(handle, "cache-pause", "no") &&
       setOption(handle, "demuxer-max-bytes", "64M") &&
       setOption(handle, "demuxer-max-back-bytes", "32M") &&
-#ifdef JELLYFIN_NATIVE_WEBOS
-      setOption(handle, "video-sync", "audio") &&
-#else
-      setOption(handle, "video-sync", "desync") &&
-#endif
-#ifdef JELLYFIN_NATIVE_WEBOS
-      setOption(handle, "initial-audio-sync", "yes") &&
-#else
       setOption(handle, "initial-audio-sync", "no") &&
-#endif
-      setOption(handle, "autosync", "0") &&
       applyMpvRuntimeOptions(MpvOptionApplyMode::Initial, handle) &&
 #ifdef JELLYFIN_NATIVE_WEBOS
       setOption(handle, "force-window", "no") &&
@@ -407,8 +401,8 @@ bool PlayerController::ensureMpv() {
       setOption(handle, "vd", "starfish") &&
       setOption(handle, "ao", "alsa,null") &&
       setOption(handle, "audio-device", "alsa/hw:0,7") &&
+      setOption(handle, "audio-channels", "stereo") &&
       setOption(handle, "audio-format", "s16") &&
-      setOption(handle, "alsa-mixer-device", "hw:0") &&
 #else
       // Render via libmpv's render API into the embedded MpvVideoItem; no
       // separate mpv toplevel window.
@@ -539,6 +533,7 @@ void PlayerController::play(const PlaybackSession &session) {
   m_backAllowed = false;
   m_pendingSeekCommand.clear();
   m_requestedSeekTargetSeconds = -1.0;
+  m_seekRateLimitTimer.stop();
   m_backGuardTimer.start();
   m_uiPositionTimer.start();
   m_visible = true;
@@ -745,6 +740,7 @@ void PlayerController::resetPlaybackUiState() {
   m_seeking = false;
   m_pendingSeekCommand.clear();
   m_requestedSeekTargetSeconds = -1.0;
+  m_seekRateLimitTimer.stop();
   m_resumeStartSeconds = 0.0;
   m_positionClock.invalidate();
   m_debugOsdVisible = false;
@@ -797,8 +793,9 @@ bool PlayerController::mpvCommand(const char *command) {
 
 bool PlayerController::beginSeekCommand(const QByteArray &command,
                                         double targetSeconds) {
-  if (m_seeking) {
-    qInfo() << "player: seek command queued while seek is active:"
+  if (m_seeking || m_seekRateLimitTimer.isActive()) {
+    qInfo() << "player: seek command queued while"
+            << (m_seeking ? "seek is active:" : "rate limit is active:")
             << command.constData();
     m_pendingSeekCommand = command;
     m_pendingSeekTargetSeconds = targetSeconds;
@@ -817,8 +814,10 @@ bool PlayerController::beginSeekCommand(const QByteArray &command,
   updatePlaybackStatusText();
   emit stateChanged();
 
-  if (mpvCommand(command.constData()))
+  if (mpvCommand(command.constData())) {
+    m_seekRateLimitTimer.start();
     return true;
+  }
 
   m_seeking = false;
   m_requestedSeekTargetSeconds = -1.0;
@@ -842,7 +841,8 @@ bool PlayerController::beginRelativeSeekCommand(double deltaSeconds) {
 }
 
 void PlayerController::dispatchPendingSeek() {
-  if (m_pendingSeekCommand.isEmpty() || m_seeking)
+  if (m_pendingSeekCommand.isEmpty() || m_seeking ||
+      m_seekRateLimitTimer.isActive())
     return;
 
   const QByteArray command = m_pendingSeekCommand;
