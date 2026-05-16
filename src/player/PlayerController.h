@@ -71,6 +71,9 @@ public:
     Q_INVOKABLE void seekBack();
     Q_INVOKABLE void seekForward();
     Q_INVOKABLE void seek(double seconds);
+    Q_INVOKABLE void beginPreviewSeek();
+    Q_INVOKABLE void previewSeekBy(double deltaSeconds);
+    Q_INVOKABLE void endPreviewSeek();
     void pauseForBackground();
     Q_INVOKABLE void toggleDebugOsd();
     Q_INVOKABLE void toggleSubtitles();
@@ -110,12 +113,13 @@ private:
     void startProgressReporting();
     void stopProgressReporting(bool failed = false);
     bool mpvCommand(const char *command);
-    bool beginSeekCommand(double targetSeconds, const QByteArray &flags);
+    bool beginSeekCommand(double targetSeconds, const QByteArray &flags,
+                          bool markSeeking = true);
     bool beginRelativeSeekCommand(double deltaSeconds);
-    void dispatchPendingSeek();
     double seekBasePosition() const;
     double projectedPositionSeconds() const;
     QByteArray buildSeekCommand(double targetSeconds, const QByteArray &flags) const;
+    void clearPreviewPositionHold();
     void updatePlaybackStatusText();
     void setPositionSeconds(double seconds);
     double playbackPositionFromMpvTime(double seconds) const;
@@ -138,9 +142,8 @@ private:
     QTimer m_backGuardTimer;
     QTimer m_uiPositionTimer;
     QTimer m_seekWatchdogTimer;
-    QTimer m_seekRateLimitTimer;
+    QTimer m_previewSettleTimer;
     QElapsedTimer m_positionClock;
-    QElapsedTimer m_pendingSeekClock;
     bool m_visible = false;
     bool m_paused = false;
     bool m_buffering = false;
@@ -161,8 +164,9 @@ private:
     double m_positionSeconds = 0.0;
     double m_durationSeconds = 0.0;
     double m_resumeStartSeconds = 0.0;
-    QByteArray m_pendingSeekFlags;
-    double m_pendingSeekTargetSeconds = 0.0;
+    bool m_previewSeeking = false;
+    bool m_holdPreviewPosition = false;
+    double m_previewTargetSeconds = 0.0;
     double m_requestedSeekTargetSeconds = -1.0;
     std::atomic_bool m_nightModeEnabled = false;
     std::atomic<int> m_audioDelayMs = 0;
