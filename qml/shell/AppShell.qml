@@ -180,6 +180,8 @@ FocusScope {
             playerOverlay.handleBack()
             return true
         }
+        if (playerOverlay.handlePressed(event))
+            return true
         return isDirectionalKey(event.key) || isAcceptKey(event.key) || event.key === Qt.Key_Space || isIgnoredPlayerNoise(event)
     }
 

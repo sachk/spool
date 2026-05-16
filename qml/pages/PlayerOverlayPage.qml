@@ -19,6 +19,9 @@ FocusScope {
     property int audioSyncStepIndex: 2
     property bool scrubbing: false
     property double scrubSeconds: 0
+    property int seekHoldKey: 0
+    property double seekHoldDelta: 0
+    property double seekHoldElapsedMs: 0
     readonly property real uiScale: Math.max(0.78, Math.min(1.0, height / 1440))
     readonly property int actionTargetSize: Math.round(64 * uiScale)
     property real menuAnchorX: width - Math.round(240 * uiScale)
@@ -91,7 +94,9 @@ FocusScope {
     }
 
     function clampSeconds(seconds) {
-        return Math.max(0, Math.min(appController.player.durationSeconds || 0, seconds || 0))
+        const value = Math.max(0, seconds || 0)
+        const duration = appController.player.durationSeconds || 0
+        return duration > 0 ? Math.min(duration, value) : value
     }
 
     function positionSeconds() {
@@ -135,6 +140,68 @@ FocusScope {
         scrubbing = true
         scrubSeconds = clampSeconds(positionSeconds() + delta)
         scrubTimer.restart()
+    }
+
+    function sendPreviewSeek(delta) {
+        showControls("timeline")
+        row = "timeline"
+        scrubTimer.stop()
+        scrubbing = false
+        appController.player.previewSeekBy(delta)
+    }
+
+    function previewSeek(delta) {
+        appController.player.beginPreviewSeek()
+        sendPreviewSeek(delta)
+        appController.player.endPreviewSeek()
+    }
+
+    function seekHoldStepSeconds() {
+        if (seekHoldDelta < 0)
+            return -10
+        if (seekHoldElapsedMs >= 6000)
+            return 60
+        if (seekHoldElapsedMs >= 4000)
+            return 30
+        return 10
+    }
+
+    function seekHoldIntervalMs() {
+        const elapsed = Math.max(0, Math.min(1000, seekHoldElapsedMs))
+        return Math.round(200 - elapsed * 0.1)
+    }
+
+    function scheduleSeekHoldTick() {
+        seekHoldTimer.interval = seekHoldIntervalMs()
+        seekHoldTimer.restart()
+    }
+
+    function canPreviewSeekFromCurrentMode() {
+        return mode === "hidden" || (mode === "controls" && row === "timeline")
+    }
+
+    function startPreviewSeekHold(key, delta) {
+        if (!canPreviewSeekFromCurrentMode())
+            return false
+        if (seekHoldKey === key)
+            return true
+        stopPreviewSeekHold()
+        seekHoldKey = key
+        seekHoldDelta = delta
+        seekHoldElapsedMs = 0
+        appController.player.beginPreviewSeek()
+        sendPreviewSeek(seekHoldStepSeconds())
+        scheduleSeekHoldTick()
+        return true
+    }
+
+    function stopPreviewSeekHold() {
+        seekHoldTimer.stop()
+        if (seekHoldKey !== 0)
+            appController.player.endPreviewSeek()
+        seekHoldKey = 0
+        seekHoldDelta = 0
+        seekHoldElapsedMs = 0
     }
 
     function commitScrub() {
@@ -332,13 +399,13 @@ FocusScope {
             return true
         }
         if (key === Qt.Key_Left) {
-            if (row === "timeline") adjustTimeline(-10)
+            if (row === "timeline") previewSeek(-10)
             else if (row === "actions") actionIndex = Math.max(0, actionIndex - 1)
             showControls(row)
             return true
         }
         if (key === Qt.Key_Right) {
-            if (row === "timeline") adjustTimeline(30)
+            if (row === "timeline") previewSeek(10)
             else if (row === "actions") actionIndex = Math.min(actions.length - 1, actionIndex + 1)
             showControls(row)
             return true
@@ -370,12 +437,17 @@ FocusScope {
 
     function handleReleased(event) {
         if (isIgnoredPlayerNoise(event)) return true
+        if (seekHoldKey !== 0 && event.key === seekHoldKey) {
+            if (!event.isAutoRepeat)
+                stopPreviewSeekHold()
+            return true
+        }
         if (isBackEvent(event)) return handleBack()
         if (event.key === Qt.Key_I || event.key === Qt.Key_Info) { toggleDebugStats(); return true }
         if (event.key === Qt.Key_Q) { appController.player.stopWithReason("player-q"); return true }
         if (mode === "hidden") {
-            if (event.key === Qt.Key_Left) { adjustTimeline(-10); return true }
-            if (event.key === Qt.Key_Right) { adjustTimeline(30); return true }
+            if (event.key === Qt.Key_Left) { previewSeek(-10); return true }
+            if (event.key === Qt.Key_Right) { previewSeek(10); return true }
             if (isAcceptKey(event.key)) { appController.player.togglePause(); showControls("actions"); return true }
             showControls("timeline")
             return true
@@ -388,6 +460,15 @@ FocusScope {
         return false
     }
 
+    function handlePressed(event) {
+        if (isIgnoredPlayerNoise(event)) return true
+        if (event.key === Qt.Key_Left)
+            return startPreviewSeekHold(event.key, -10)
+        if (event.key === Qt.Key_Right)
+            return startPreviewSeekHold(event.key, 10)
+        return false
+    }
+
     onVisibleChanged: {
         if (visible) {
             mode = "controls"
@@ -397,6 +478,7 @@ FocusScope {
         } else {
             autohideTimer.stop()
             scrubTimer.stop()
+            stopPreviewSeekHold()
             mode = "hidden"
             row = "timeline"
             scrubbing = false
@@ -408,6 +490,20 @@ FocusScope {
 
     Timer { id: autohideTimer; interval: 3000; onTriggered: overlay.hideControls() }
     Timer { id: scrubTimer; interval: 650; onTriggered: overlay.commitScrub() }
+    Timer {
+        id: seekHoldTimer
+        interval: 200
+        repeat: false
+        onTriggered: {
+            if (overlay.seekHoldKey === 0) {
+                stop()
+                return
+            }
+            overlay.seekHoldElapsedMs += interval
+            overlay.sendPreviewSeek(overlay.seekHoldStepSeconds())
+            overlay.scheduleSeekHoldTick()
+        }
+    }
 
     // Embedded video surface (desktop / non-Starfish builds). On Starfish the
     // video lives on a separate exported surface so this item is harmless —
