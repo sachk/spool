@@ -185,7 +185,7 @@ PlayerController::PlayerController(NativeAppWindow *window,
   m_seekWatchdogTimer.setSingleShot(true);
   m_seekWatchdogTimer.setInterval(2500);
   m_seekRateLimitTimer.setSingleShot(true);
-  m_seekRateLimitTimer.setInterval(350);
+  m_seekRateLimitTimer.setInterval(250);
   connect(&m_backGuardTimer, &QTimer::timeout, this, [this]() {
     if (!m_visible || m_backAllowed)
       return;
@@ -531,7 +531,8 @@ void PlayerController::play(const PlaybackSession &session) {
   m_audioIds.clear();
   m_selectedAudioIndex = -1;
   m_backAllowed = false;
-  m_pendingSeekCommand.clear();
+  m_pendingSeekFlags.clear();
+  m_pendingSeekClock.invalidate();
   m_requestedSeekTargetSeconds = -1.0;
   m_seekRateLimitTimer.stop();
   m_backGuardTimer.start();
@@ -585,11 +586,8 @@ void PlayerController::seek(double seconds) {
   // Use absolute+exact so a committed click lands on the requested frame
   // instead of a possibly-distant keyframe. The optimistic-scrub path uses
   // keyframes for low latency during drag; commit needs precision.
-  const QByteArray command =
-      QByteArray("no-osd seek ") + QByteArray::number(clampedSeconds, 'f', 3) +
-      QByteArray(" absolute+exact");
   qInfo() << "player: absolute exact seek" << clampedSeconds;
-  beginSeekCommand(command, clampedSeconds);
+  beginSeekCommand(clampedSeconds, QByteArray("absolute+exact"));
 }
 
 void PlayerController::toggleDebugOsd() {
@@ -636,11 +634,8 @@ void PlayerController::selectAudio(int index) {
   m_selectedAudioIndex = index;
 #ifdef JELLYFIN_NATIVE_WEBOS
   const double targetSeconds = clampedPosition(seekBasePosition());
-  const QByteArray resyncCommand =
-      QByteArray("no-osd seek ") + QByteArray::number(targetSeconds, 'f', 3) +
-      QByteArray(" absolute+keyframes");
   qInfo() << "player: webOS audio track resync seek" << targetSeconds;
-  beginSeekCommand(resyncCommand, targetSeconds);
+  beginSeekCommand(targetSeconds, QByteArray("absolute+keyframes"));
 #endif
   emit stateChanged();
 }
@@ -739,7 +734,8 @@ void PlayerController::resetPlaybackUiState() {
   m_buffering = false;
   m_bufferingPercent = 0;
   m_seeking = false;
-  m_pendingSeekCommand.clear();
+  m_pendingSeekFlags.clear();
+  m_pendingSeekClock.invalidate();
   m_requestedSeekTargetSeconds = -1.0;
   m_seekRateLimitTimer.stop();
   m_resumeStartSeconds = 0.0;
@@ -792,29 +788,36 @@ bool PlayerController::mpvCommand(const char *command) {
   return true;
 }
 
-bool PlayerController::beginSeekCommand(const QByteArray &command,
-                                        double targetSeconds) {
-  if (m_seeking || m_seekRateLimitTimer.isActive()) {
-    qInfo() << "player: seek command queued while"
-            << (m_seeking ? "seek is active:" : "rate limit is active:")
-            << command.constData();
-    m_pendingSeekCommand = command;
-    m_pendingSeekTargetSeconds = targetSeconds;
-    m_requestedSeekTargetSeconds = targetSeconds;
-    setPositionSeconds(targetSeconds);
-    m_seekWatchdogTimer.start();
+QByteArray PlayerController::buildSeekCommand(double targetSeconds,
+                                              const QByteArray &flags) const {
+  return QByteArray("no-osd seek ") + QByteArray::number(targetSeconds, 'f', 3) +
+         QByteArray(" ") + flags;
+}
+
+bool PlayerController::beginSeekCommand(double targetSeconds,
+                                        const QByteArray &flags) {
+  const double clampedTarget = clampedPosition(targetSeconds);
+  if (m_seekRateLimitTimer.isActive()) {
+    qInfo() << "player: seek command queued while rate limit is active:"
+            << buildSeekCommand(clampedTarget, flags).constData();
+    m_pendingSeekFlags = flags;
+    m_pendingSeekTargetSeconds = clampedTarget;
+    m_requestedSeekTargetSeconds = clampedTarget;
+    m_pendingSeekClock.restart();
+    setPositionSeconds(clampedTarget);
     updatePlaybackStatusText();
     emit stateChanged();
     return true;
   }
 
   m_seeking = true;
-  m_requestedSeekTargetSeconds = targetSeconds;
-  setPositionSeconds(targetSeconds);
+  m_requestedSeekTargetSeconds = clampedTarget;
+  setPositionSeconds(clampedTarget);
   m_seekWatchdogTimer.start();
   updatePlaybackStatusText();
   emit stateChanged();
 
+  const QByteArray command = buildSeekCommand(clampedTarget, flags);
   if (mpvCommand(command.constData())) {
     m_seekRateLimitTimer.start();
     return true;
@@ -833,24 +836,31 @@ bool PlayerController::beginRelativeSeekCommand(double deltaSeconds) {
     return false;
 
   const double optimisticTarget = clampedPosition(seekBasePosition() + deltaSeconds);
-  const QByteArray command =
-      QByteArray("no-osd seek ") + QByteArray::number(optimisticTarget, 'f', 3) +
-      QByteArray(" absolute+keyframes");
   qInfo() << "player: relative keyframe seek" << deltaSeconds
           << "absoluteTarget=" << optimisticTarget;
-  return beginSeekCommand(command, optimisticTarget);
+  return beginSeekCommand(optimisticTarget, QByteArray("absolute+keyframes"));
 }
 
 void PlayerController::dispatchPendingSeek() {
-  if (m_pendingSeekCommand.isEmpty() || m_seeking ||
-      m_seekRateLimitTimer.isActive())
+  if (m_pendingSeekFlags.isEmpty() || m_seekRateLimitTimer.isActive())
     return;
+  if (m_pendingSeekClock.isValid() && m_pendingSeekClock.elapsed() > 750) {
+    qInfo() << "player: dropping stale pending seek"
+            << m_pendingSeekTargetSeconds;
+    m_pendingSeekFlags.clear();
+    m_pendingSeekClock.invalidate();
+    m_requestedSeekTargetSeconds = -1.0;
+    updatePlaybackStatusText();
+    emit stateChanged();
+    return;
+  }
 
-  const QByteArray command = m_pendingSeekCommand;
-  const double targetSeconds = m_pendingSeekTargetSeconds;
-  m_pendingSeekCommand.clear();
+  const QByteArray flags = m_pendingSeekFlags;
+  const double targetSeconds = clampedPosition(seekBasePosition());
+  m_pendingSeekFlags.clear();
+  m_pendingSeekClock.invalidate();
   m_requestedSeekTargetSeconds = -1.0;
-  beginSeekCommand(command, targetSeconds);
+  beginSeekCommand(targetSeconds, flags);
 }
 
 void PlayerController::runEventLoop() {
@@ -1094,11 +1104,17 @@ double PlayerController::clampedPosition(double seconds) const {
 }
 
 double PlayerController::seekBasePosition() const {
-  if (m_seeking && !m_pendingSeekCommand.isEmpty())
-    return m_pendingSeekTargetSeconds;
-  if (m_seeking && m_requestedSeekTargetSeconds >= 0.0)
-    return m_requestedSeekTargetSeconds;
-  return m_positionSeconds;
+  return projectedPositionSeconds();
+}
+
+double PlayerController::projectedPositionSeconds() const {
+  double position = m_positionSeconds;
+  if (!m_paused && !m_buffering && m_positionClock.isValid()) {
+    const double elapsed = m_positionClock.elapsed() / 1000.0;
+    if (elapsed > 0.0)
+      position += elapsed;
+  }
+  return clampedPosition(position);
 }
 
 void PlayerController::setPositionSeconds(double seconds) {

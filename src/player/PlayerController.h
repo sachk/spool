@@ -109,10 +109,12 @@ private:
     void startProgressReporting();
     void stopProgressReporting(bool failed = false);
     bool mpvCommand(const char *command);
-    bool beginSeekCommand(const QByteArray &command, double targetSeconds);
+    bool beginSeekCommand(double targetSeconds, const QByteArray &flags);
     bool beginRelativeSeekCommand(double deltaSeconds);
     void dispatchPendingSeek();
     double seekBasePosition() const;
+    double projectedPositionSeconds() const;
+    QByteArray buildSeekCommand(double targetSeconds, const QByteArray &flags) const;
     void updatePlaybackStatusText();
     void setPositionSeconds(double seconds);
     double playbackPositionFromMpvTime(double seconds) const;
@@ -137,6 +139,7 @@ private:
     QTimer m_seekWatchdogTimer;
     QTimer m_seekRateLimitTimer;
     QElapsedTimer m_positionClock;
+    QElapsedTimer m_pendingSeekClock;
     bool m_visible = false;
     bool m_paused = false;
     bool m_buffering = false;
@@ -157,7 +160,7 @@ private:
     double m_positionSeconds = 0.0;
     double m_durationSeconds = 0.0;
     double m_resumeStartSeconds = 0.0;
-    QByteArray m_pendingSeekCommand;
+    QByteArray m_pendingSeekFlags;
     double m_pendingSeekTargetSeconds = 0.0;
     double m_requestedSeekTargetSeconds = -1.0;
     std::atomic_bool m_nightModeEnabled = false;
