@@ -71,6 +71,7 @@ public:
     Q_INVOKABLE void seekBack();
     Q_INVOKABLE void seekForward();
     Q_INVOKABLE void seek(double seconds);
+    void pauseForBackground();
     Q_INVOKABLE void toggleDebugOsd();
     Q_INVOKABLE void toggleSubtitles();
     Q_INVOKABLE void selectSubtitle(int index);
