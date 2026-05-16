@@ -20,8 +20,10 @@ FocusScope {
     property bool scrubbing: false
     property double scrubSeconds: 0
     property int seekHoldKey: 0
+    property int seekHoldReleaseKey: 0
     property double seekHoldDelta: 0
     property double seekHoldElapsedMs: 0
+    property double seekHoldStartMs: 0
     readonly property real uiScale: Math.max(0.78, Math.min(1.0, height / 1440))
     readonly property int actionTargetSize: Math.round(64 * uiScale)
     property real menuAnchorX: width - Math.round(240 * uiScale)
@@ -180,14 +182,25 @@ FocusScope {
         return mode === "hidden" || (mode === "controls" && row === "timeline")
     }
 
+    function seekDeltaForKey(key) {
+        if (key === Qt.Key_Left)
+            return -10
+        if (key === Qt.Key_Right)
+            return 10
+        return 0
+    }
+
     function startPreviewSeekHold(key, delta) {
         if (!canPreviewSeekFromCurrentMode())
             return false
+        seekHoldReleaseTimer.stop()
+        seekHoldReleaseKey = 0
         if (seekHoldKey === key)
             return true
         stopPreviewSeekHold()
         seekHoldKey = key
         seekHoldDelta = delta
+        seekHoldStartMs = Date.now()
         seekHoldElapsedMs = 0
         appController.player.beginPreviewSeek()
         sendPreviewSeek(seekHoldStepSeconds())
@@ -196,12 +209,15 @@ FocusScope {
     }
 
     function stopPreviewSeekHold() {
+        seekHoldReleaseTimer.stop()
         seekHoldTimer.stop()
         if (seekHoldKey !== 0)
             appController.player.endPreviewSeek()
         seekHoldKey = 0
+        seekHoldReleaseKey = 0
         seekHoldDelta = 0
         seekHoldElapsedMs = 0
+        seekHoldStartMs = 0
     }
 
     function commitScrub() {
@@ -438,10 +454,15 @@ FocusScope {
     function handleReleased(event) {
         if (isIgnoredPlayerNoise(event)) return true
         if (seekHoldKey !== 0 && event.key === seekHoldKey) {
-            if (!event.isAutoRepeat)
-                stopPreviewSeekHold()
+            if (!event.isAutoRepeat) {
+                seekHoldReleaseKey = event.key
+                seekHoldReleaseTimer.restart()
+            }
             return true
         }
+        const releaseSeekDelta = seekDeltaForKey(event.key)
+        if (releaseSeekDelta !== 0 && event.isAutoRepeat)
+            return startPreviewSeekHold(event.key, releaseSeekDelta)
         if (isBackEvent(event)) return handleBack()
         if (event.key === Qt.Key_I || event.key === Qt.Key_Info) { toggleDebugStats(); return true }
         if (event.key === Qt.Key_Q) { appController.player.stopWithReason("player-q"); return true }
@@ -499,9 +520,19 @@ FocusScope {
                 stop()
                 return
             }
-            overlay.seekHoldElapsedMs += interval
+            overlay.seekHoldElapsedMs = Math.max(0, Date.now() - overlay.seekHoldStartMs)
             overlay.sendPreviewSeek(overlay.seekHoldStepSeconds())
             overlay.scheduleSeekHoldTick()
+        }
+    }
+    Timer {
+        id: seekHoldReleaseTimer
+        interval: 260
+        repeat: false
+        onTriggered: {
+            if (overlay.seekHoldKey !== 0 && overlay.seekHoldKey === overlay.seekHoldReleaseKey)
+                overlay.stopPreviewSeekHold()
+            overlay.seekHoldReleaseKey = 0
         }
     }
 
