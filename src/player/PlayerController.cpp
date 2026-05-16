@@ -568,6 +568,16 @@ void PlayerController::play(const PlaybackSession &session) {
 
 void PlayerController::togglePause() { mpvCommand("no-osd cycle pause"); }
 
+void PlayerController::pauseForBackground() {
+#ifdef JELLYFIN_NATIVE_WEBOS
+  if (!m_visible || m_paused)
+    return;
+
+  qInfo() << "player: pausing for background/hidden app state";
+  mpvCommand("no-osd set pause yes");
+#endif
+}
+
 void PlayerController::seekBack() {
   beginRelativeSeekCommand(-10.0);
 }
