@@ -120,6 +120,7 @@ private:
     double projectedPositionSeconds() const;
     QByteArray buildSeekCommand(double targetSeconds, const QByteArray &flags) const;
     void clearPreviewPositionHold();
+    bool sendPreviewSeekToMpv(bool force);
     void updatePlaybackStatusText();
     void setPositionSeconds(double seconds);
     double playbackPositionFromMpvTime(double seconds) const;
@@ -166,7 +167,11 @@ private:
     double m_resumeStartSeconds = 0.0;
     bool m_previewSeeking = false;
     bool m_holdPreviewPosition = false;
+    bool m_previewMpvSeekInFlight = false;
+    bool m_previewMpvSeekPending = false;
     double m_previewTargetSeconds = 0.0;
+    double m_lastPreviewMpvTargetSeconds = -1.0;
+    QElapsedTimer m_previewMpvSeekClock;
     double m_requestedSeekTargetSeconds = -1.0;
     std::atomic_bool m_nightModeEnabled = false;
     std::atomic<int> m_audioDelayMs = 0;
