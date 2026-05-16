@@ -304,8 +304,13 @@ FocusScope {
         }
         if (isAudioSyncOpen()) { mode = "controls"; showControls("actions"); return true }
         if (isMenuOpen()) { closeMenu(); return true }
-        // In playback, Back is an exit gesture. Menus/scrubbing still consume it
-        // above, but normal visible controls should not require a second press.
+        if (mode !== "hidden" || hud.opacity > 0.01 || backButton.opacity > 0.01) {
+            autohideTimer.stop()
+            mode = "hidden"
+            row = "timeline"
+            return true
+        }
+        // Hidden controls: back exits playback.
         if (appController.player.backAllowed)
             appController.player.stopWithReason("overlay-back-key")
         return true
