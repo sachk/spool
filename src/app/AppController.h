@@ -33,6 +33,7 @@ class AppController final : public QObject
     Q_PROPERTY(bool settingsVisible READ settingsVisible NOTIFY settingsVisibleChanged)
     Q_PROPERTY(bool nightModeEnabled READ nightModeEnabled WRITE setNightModeEnabled NOTIFY nightModeEnabledChanged)
     Q_PROPERTY(int audioDelayMs READ audioDelayMs WRITE setAudioDelayMs NOTIFY audioDelayMsChanged)
+    Q_PROPERTY(QString audioOutputMode READ audioOutputMode WRITE setAudioOutputMode NOTIFY audioOutputModeChanged)
     Q_PROPERTY(JellyfinNative::DiscoveredServerModel *discoveredServers READ discoveredServers CONSTANT)
     Q_PROPERTY(JellyfinNative::LibraryListModel *libraries READ libraries CONSTANT)
     Q_PROPERTY(JellyfinNative::MovieGridModel *movies READ movies CONSTANT)
@@ -63,6 +64,7 @@ public:
     bool settingsVisible() const;
     bool nightModeEnabled() const;
     int audioDelayMs() const;
+    QString audioOutputMode() const;
 
     DiscoveredServerModel *discoveredServers();
     LibraryListModel *libraries();
@@ -73,11 +75,13 @@ public:
     PlayerController *player();
 
     Q_INVOKABLE void initialize();
+    void shutdown();
     Q_INVOKABLE void setServerUrl(const QString &serverUrl);
     Q_INVOKABLE void setUsername(const QString &username);
     Q_INVOKABLE void setPassword(const QString &password);
     Q_INVOKABLE void chooseDiscoveredServer(int index);
     Q_INVOKABLE void login();
+    Q_INVOKABLE void logout();
     Q_INVOKABLE void startQuickConnect();
     Q_INVOKABLE void cancelQuickConnect();
     Q_INVOKABLE void goHome();
@@ -93,6 +97,7 @@ public:
     Q_INVOKABLE void toggleNightMode();
     Q_INVOKABLE void setNightModeEnabled(bool enabled);
     Q_INVOKABLE void setAudioDelayMs(int delayMs);
+    Q_INVOKABLE void setAudioOutputMode(const QString &mode);
 
 signals:
     void pageChanged();
@@ -106,6 +111,7 @@ signals:
     void settingsVisibleChanged();
     void nightModeEnabledChanged();
     void audioDelayMsChanged();
+    void audioOutputModeChanged();
 
 private:
     void setPage(const QString &page);
@@ -159,6 +165,7 @@ private:
     bool m_settingsVisible = false;
     bool m_nightModeEnabled = false;
     int m_audioDelayMs = 0;
+    QString m_audioOutputMode = QStringLiteral("alsa");
     int m_libraryLoadGeneration = 0;
     int m_homeLoadGeneration = 0;
     int m_homeLoadsPending = 0;

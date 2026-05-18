@@ -255,6 +255,18 @@ void DatabaseManager::saveAudioDelayMs(int delayMs)
     });
 }
 
+QString DatabaseManager::loadAudioOutputMode()
+{
+    return invokeOnWorker([this]() { return m_worker->value(QStringLiteral("settings/audioOutputMode")); }).toString();
+}
+
+void DatabaseManager::saveAudioOutputMode(const QString &mode)
+{
+    invokeOnWorkerAsync([this, mode]() {
+        m_worker->setValue(QStringLiteral("settings/audioOutputMode"), mode);
+    });
+}
+
 } // namespace JellyfinNative
 
 #include "DatabaseManager.moc"

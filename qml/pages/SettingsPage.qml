@@ -11,10 +11,10 @@ FocusScope {
     property var settingsRows: []
     readonly property var categories: [
         { label: "General", target: 0 },
-        { label: "Appearance", target: 3 },
-        { label: "Playback", target: 10 },
-        { label: "Diagnostics", target: 14 },
-        { label: "Input", target: 15 }
+        { label: "Appearance", target: 4 },
+        { label: "Playback", target: 11 },
+        { label: "Diagnostics", target: 16 },
+        { label: "Input", target: 17 }
     ]
     focus: true
 
@@ -205,11 +205,35 @@ FocusScope {
                     onValueEdited: Metrics.userUiScale = value
                     onActiveFocusChanged: if (activeFocus) root.markFocused(settingIndex)
                 }
+                SettingRow {
+                    id: logoutRow
+                    Layout.fillWidth: true
+                    settingIndex: 3
+                    rowFocus: root.currentIndex === settingIndex || activeFocus
+                    title: "Logout"
+                    description: "Clear the saved session and return to sign in"
+                    valueText: "Sign out"
+                    onClicked: appController.logout()
+                    onActiveFocusChanged: if (activeFocus) root.markFocused(settingIndex)
+                    function handleNavigationKey(key) {
+                        if (key === Qt.Key_Return || key === Qt.Key_Enter || key === Qt.Key_Select || key === Qt.Key_Space) {
+                            appController.logout()
+                            return true
+                        }
+                        return false
+                    }
+                    Keys.onReleased: (event) => {
+                        if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter || event.key === Qt.Key_Select || event.key === Qt.Key_Space) {
+                            appController.logout()
+                            event.accepted = true
+                        }
+                    }
+                }
                 SectionHeader { Layout.fillWidth: true; title: "Appearance" }
                 SelectRow {
                     id: posterSizeRow
                     Layout.fillWidth: true
-                    settingIndex: 3
+                    settingIndex: 4
                     rowFocus: root.currentIndex === settingIndex || activeFocus
                     title: "Poster Size"
                     options: ["Compact", "Normal", "Large"]
@@ -220,7 +244,7 @@ FocusScope {
                 SelectRow {
                     id: gridColumnsRow
                     Layout.fillWidth: true
-                    settingIndex: 4
+                    settingIndex: 5
                     rowFocus: root.currentIndex === settingIndex || activeFocus
                     title: "Grid Columns"
                     options: ["Auto", "4", "5", "6", "7", "8", "9"]
@@ -230,7 +254,7 @@ FocusScope {
                 SelectRow {
                     id: railLabelsRow
                     Layout.fillWidth: true
-                    settingIndex: 5
+                    settingIndex: 6
                     rowFocus: root.currentIndex === settingIndex || activeFocus
                     title: "Side Rail Labels"
                     options: ["Never", "On focus", "Always"]
@@ -241,7 +265,7 @@ FocusScope {
                 ToggleRow {
                     id: reducedMotionRow
                     Layout.fillWidth: true
-                    settingIndex: 6
+                    settingIndex: 7
                     rowFocus: root.currentIndex === settingIndex || activeFocus
                     title: "Reduced Motion"
                     checked: Theme.reducedMotion
@@ -251,7 +275,7 @@ FocusScope {
                 SelectRow {
                     id: renderModeRow
                     Layout.fillWidth: true
-                    settingIndex: 7
+                    settingIndex: 8
                     rowFocus: root.currentIndex === settingIndex || activeFocus
                     title: "Text Render Mode"
                     options: ["Auto", "QtRendering", "CurveRendering"]
@@ -262,7 +286,7 @@ FocusScope {
                 ToggleRow {
                     id: antialiasedRow
                     Layout.fillWidth: true
-                    settingIndex: 8
+                    settingIndex: 9
                     rowFocus: root.currentIndex === settingIndex || activeFocus
                     title: "Antialiased Text"
                     checked: Theme.antialiasedText
@@ -272,7 +296,7 @@ FocusScope {
                 SelectRow {
                     id: metadataRow
                     Layout.fillWidth: true
-                    settingIndex: 9
+                    settingIndex: 10
                     rowFocus: root.currentIndex === settingIndex || activeFocus
                     title: "Show Technical Metadata"
                     options: ["Always", "On details only", "Hidden"]
@@ -283,7 +307,7 @@ FocusScope {
                 ToggleRow {
                     id: nightModeRow
                     Layout.fillWidth: true
-                    settingIndex: 10
+                    settingIndex: 11
                     rowFocus: root.currentIndex === settingIndex || activeFocus
                     title: "Night mode"
                     description: "Dialogue lift and late-night dynamic range"
@@ -294,7 +318,7 @@ FocusScope {
                 AudioDelayRow {
                     id: audioDelayRow
                     Layout.fillWidth: true
-                    settingIndex: 11
+                    settingIndex: 12
                     title: "A/V sync"
                     description: "Audio delay in milliseconds"
                     valueMs: appController.audioDelayMs
@@ -302,9 +326,21 @@ FocusScope {
                     onRowFocusChanged: if (rowFocus) root.markFocused(settingIndex)
                 }
                 SelectRow {
+                    id: audioOutputRow
+                    Layout.fillWidth: true
+                    settingIndex: 13
+                    rowFocus: root.currentIndex === settingIndex || activeFocus
+                    title: "Audio output"
+                    description: "Takes effect on the next playback start"
+                    options: ["ALSA", "Starfish"]
+                    currentIndex: appController.audioOutputMode === "starfish" ? 1 : 0
+                    onSelected: (i, v) => appController.setAudioOutputMode(i === 1 ? "starfish" : "alsa")
+                    onActiveFocusChanged: if (activeFocus) root.markFocused(settingIndex)
+                }
+                SelectRow {
                     id: bitrateRow
                     Layout.fillWidth: true
-                    settingIndex: 12
+                    settingIndex: 14
                     rowFocus: root.currentIndex === settingIndex || activeFocus
                     title: "Maximum remote bitrate"
                     options: ["Auto", "20 Mbps", "40 Mbps", "80 Mbps", "Unlimited"]
@@ -313,7 +349,7 @@ FocusScope {
                 ToggleRow {
                     id: remuxRow
                     Layout.fillWidth: true
-                    settingIndex: 13
+                    settingIndex: 15
                     rowFocus: root.currentIndex === settingIndex || activeFocus
                     title: "Prefer remux over transcode"
                     checked: true
@@ -323,7 +359,7 @@ FocusScope {
                 ToggleRow {
                     id: diagnosticsRow
                     Layout.fillWidth: true
-                    settingIndex: 14
+                    settingIndex: 16
                     rowFocus: root.currentIndex === settingIndex || activeFocus
                     title: "Diagnostics overlay"
                     checked: shell.diagnosticsVisible
@@ -334,7 +370,7 @@ FocusScope {
                 ToggleRow {
                     id: shortcutsRow
                     Layout.fillWidth: true
-                    settingIndex: 15
+                    settingIndex: 17
                     rowFocus: root.currentIndex === settingIndex || activeFocus
                     title: "Keyboard shortcuts enabled"
                     checked: true
@@ -343,10 +379,10 @@ FocusScope {
 
                 Component.onCompleted: {
                     root.settingsRows = [
-                        themeRow, accentRow, uiScaleRow, posterSizeRow,
+                        themeRow, accentRow, uiScaleRow, logoutRow, posterSizeRow,
                         gridColumnsRow, railLabelsRow, reducedMotionRow,
                         renderModeRow, antialiasedRow, metadataRow,
-                        nightModeRow, audioDelayRow, bitrateRow,
+                        nightModeRow, audioDelayRow, audioOutputRow, bitrateRow,
                         remuxRow, diagnosticsRow, shortcutsRow
                     ]
                     for (let i = 0; i < root.settingsRows.length; ++i)

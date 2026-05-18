@@ -8,6 +8,10 @@ FocusScope {
     focus: false
 
     property var shell
+    readonly property var player: appController ? appController.player : null
+    readonly property bool hasPlayer: player !== null && player !== undefined
+    readonly property int currentAudioDelayMs: appController ? appController.audioDelayMs : 0
+    readonly property bool nightModeEnabled: appController ? appController.nightModeEnabled : false
     property bool mediaInfoVisible: false
     property bool diagnosticsVisible: false
 
@@ -24,6 +28,8 @@ FocusScope {
     property double seekHoldDelta: 0
     property double seekHoldElapsedMs: 0
     property double seekHoldStartMs: 0
+    property bool seekHoldActive: false
+    property bool seekHoldFirstRepeat: true
     readonly property real uiScale: Math.max(0.78, Math.min(1.0, height / 1440))
     readonly property int actionTargetSize: Math.round(64 * uiScale)
     property real menuAnchorX: width - Math.round(240 * uiScale)
@@ -31,7 +37,7 @@ FocusScope {
 
     readonly property var actions: [
         { label: "Rewind", value: "back" },
-        { label: appController.player.paused ? "Play" : "Pause", value: "pause" },
+        { label: hasPlayer && player.paused ? "Play" : "Pause", value: "pause" },
         { label: "Fast forward", value: "forward" },
         { label: "Subtitles", value: "subtitles" },
         { label: "Audio", value: "audio" },
@@ -40,8 +46,8 @@ FocusScope {
     readonly property var audioSyncSteps: [1, 5, 10, 100]
     readonly property var debugOptions: [
         "Audio sync",
-        appController.player.debugOsdVisible ? "Hide debug stats" : "Show debug stats",
-        appController.nightModeEnabled ? "Disable night mode" : "Enable night mode",
+        hasPlayer && player.debugOsdVisible ? "Hide debug stats" : "Show debug stats",
+        nightModeEnabled ? "Disable night mode" : "Enable night mode",
         "Stop playback"
     ]
     function isMenuOpen() {
@@ -53,7 +59,7 @@ FocusScope {
     }
 
     function isPinned() {
-        return appController.player.paused || scrubbing || isMenuOpen() || isAudioSyncOpen()
+        return (hasPlayer && player.paused) || scrubbing || isMenuOpen() || isAudioSyncOpen()
     }
 
     function isControlsActive() {
@@ -76,7 +82,7 @@ FocusScope {
 
     function actionIcon(value) {
         if (value === "back") return "fast_rewind"
-        if (value === "pause") return appController.player.paused ? "play_arrow" : "pause"
+        if (value === "pause") return hasPlayer && player.paused ? "play_arrow" : "pause"
         if (value === "forward") return "fast_forward"
         if (value === "subtitles") return "closed_caption"
         if (value === "audio") return "audiotrack"
@@ -97,13 +103,13 @@ FocusScope {
 
     function clampSeconds(seconds) {
         const value = Math.max(0, seconds || 0)
-        const duration = appController.player.durationSeconds || 0
+        const duration = hasPlayer ? player.durationSeconds || 0 : 0
         return duration > 0 ? Math.min(duration, value) : value
     }
 
     function positionSeconds() {
         if (scrubbing) return scrubSeconds
-        return appController.player.positionSeconds
+        return hasPlayer ? player.positionSeconds : 0
     }
 
     function showControls(preferredRow) {
@@ -133,7 +139,8 @@ FocusScope {
     }
 
     function seekTo(seconds) {
-        appController.player.seek(clampSeconds(seconds))
+        if (hasPlayer)
+            player.seek(clampSeconds(seconds))
     }
 
     function adjustTimeline(delta) {
@@ -149,32 +156,36 @@ FocusScope {
         row = "timeline"
         scrubTimer.stop()
         scrubbing = false
-        appController.player.previewSeekBy(delta)
+        if (hasPlayer)
+            player.previewSeekBy(delta)
     }
 
     function previewSeek(delta) {
-        appController.player.beginPreviewSeek()
+        if (!hasPlayer)
+            return
+        player.beginPreviewSeek()
         sendPreviewSeek(delta)
-        appController.player.endPreviewSeek()
+        player.endPreviewSeek()
     }
 
     function seekHoldStepSeconds() {
-        if (seekHoldDelta < 0)
-            return -10
-        if (seekHoldElapsedMs >= 6000)
-            return 60
-        if (seekHoldElapsedMs >= 4000)
-            return 30
-        return 10
+        const direction = seekHoldDelta < 0 ? -1 : 1
+        if (seekHoldElapsedMs >= 2600)
+            return direction * 120
+        if (seekHoldElapsedMs >= 1500)
+            return direction * 60
+        if (seekHoldElapsedMs >= 800)
+            return direction * 30
+        return direction * 10
     }
 
     function seekHoldIntervalMs() {
         const elapsed = Math.max(0, Math.min(1000, seekHoldElapsedMs))
-        return Math.round(200 - elapsed * 0.1)
+        return Math.round(80 - elapsed * 0.035)
     }
 
     function scheduleSeekHoldTick() {
-        seekHoldTimer.interval = seekHoldIntervalMs()
+        seekHoldTimer.interval = seekHoldFirstRepeat ? 360 : seekHoldIntervalMs()
         seekHoldTimer.restart()
     }
 
@@ -191,19 +202,22 @@ FocusScope {
     }
 
     function startPreviewSeekHold(key, delta) {
-        if (!canPreviewSeekFromCurrentMode())
+        if (!hasPlayer || !canPreviewSeekFromCurrentMode())
             return false
         seekHoldReleaseTimer.stop()
         seekHoldReleaseKey = 0
-        if (seekHoldKey === key)
+        if (seekHoldKey === key) {
+            if (!seekHoldTimer.running)
+                scheduleSeekHoldTick()
             return true
+        }
         stopPreviewSeekHold()
         seekHoldKey = key
         seekHoldDelta = delta
         seekHoldStartMs = Date.now()
         seekHoldElapsedMs = 0
-        appController.player.beginPreviewSeek()
-        sendPreviewSeek(seekHoldStepSeconds())
+        seekHoldActive = false
+        seekHoldFirstRepeat = true
         scheduleSeekHoldTick()
         return true
     }
@@ -211,13 +225,15 @@ FocusScope {
     function stopPreviewSeekHold() {
         seekHoldReleaseTimer.stop()
         seekHoldTimer.stop()
-        if (seekHoldKey !== 0)
-            appController.player.endPreviewSeek()
+        if (seekHoldKey !== 0 && seekHoldActive && hasPlayer)
+            player.endPreviewSeek()
         seekHoldKey = 0
         seekHoldReleaseKey = 0
         seekHoldDelta = 0
         seekHoldElapsedMs = 0
         seekHoldStartMs = 0
+        seekHoldActive = false
+        seekHoldFirstRepeat = true
     }
 
     function commitScrub() {
@@ -266,7 +282,7 @@ FocusScope {
     function openAudio() {
         setMenuAnchor("audio")
         mode = "audio"
-        menuIndex = Math.max(0, appController.player.selectedAudioIndex)
+        menuIndex = hasPlayer ? Math.max(0, player.selectedAudioIndex) : 0
         menuList.positionViewAtBeginning()
         autohideTimer.stop()
     }
@@ -287,9 +303,11 @@ FocusScope {
 
     function activateAction() {
         const action = actions[Math.max(0, Math.min(actions.length - 1, actionIndex))].value
-        if (action === "back") appController.player.seekBack()
-        else if (action === "pause") appController.player.togglePause()
-        else if (action === "forward") appController.player.seekForward()
+        if (!hasPlayer)
+            return
+        if (action === "back") player.seekBack()
+        else if (action === "pause") player.togglePause()
+        else if (action === "forward") player.seekForward()
         else if (action === "subtitles") openSubtitles()
         else if (action === "audio") openAudio()
         else if (action === "debug") openDebugMenu()
@@ -297,25 +315,27 @@ FocusScope {
 
     function activateMenuItem() {
         if (mode === "subtitles") {
-            appController.player.selectSubtitle(menuIndex)
+            if (hasPlayer) player.selectSubtitle(menuIndex)
             closeMenu()
             return
         }
         if (mode === "audio") {
-            appController.player.selectAudio(menuIndex)
+            if (hasPlayer) player.selectAudio(menuIndex)
             closeMenu()
             return
         }
         if (menuIndex === 0) { openAudioSync(); return }
         else if (menuIndex === 1) toggleDebugStats()
-        else if (menuIndex === 2) appController.setNightModeEnabled(!appController.nightModeEnabled)
-        else if (menuIndex === 3) appController.player.stopWithReason("debug-menu-stop")
+        else if (menuIndex === 2 && appController) appController.setNightModeEnabled(!nightModeEnabled)
+        else if (menuIndex === 3 && hasPlayer) player.stopWithReason("debug-menu-stop")
         if (mode === "debug") closeMenu()
     }
 
     function toggleDebugStats() {
-        const showing = !appController.player.debugOsdVisible
-        appController.player.toggleDebugOsd()
+        if (!hasPlayer)
+            return
+        const showing = !player.debugOsdVisible
+        player.toggleDebugOsd()
         if (showing) {
             autohideTimer.stop()
             mode = "hidden"
@@ -330,12 +350,13 @@ FocusScope {
     }
 
     function setAudioDelayMs(value) {
-        appController.setAudioDelayMs(clampAudioDelayMs(value))
+        if (appController)
+            appController.setAudioDelayMs(clampAudioDelayMs(value))
     }
 
     function adjustAudioDelay(direction) {
         const step = audioSyncSteps[Math.max(0, Math.min(audioSyncSteps.length - 1, audioSyncStepIndex))]
-        setAudioDelayMs(appController.audioDelayMs + direction * step)
+        setAudioDelayMs(currentAudioDelayMs + direction * step)
     }
 
     function handleAudioSyncKey(key) {
@@ -370,7 +391,7 @@ FocusScope {
             return true
         }
         if (isAcceptKey(key)) {
-            if (audioSyncRow === "delay") appController.player.togglePause()
+            if (audioSyncRow === "delay" && hasPlayer) player.togglePause()
             return true
         }
         return false
@@ -394,8 +415,8 @@ FocusScope {
             return true
         }
         // Hidden controls: back exits playback.
-        if (appController.player.backAllowed)
-            appController.player.stopWithReason("overlay-back-key")
+        if (hasPlayer && player.backAllowed)
+            player.stopWithReason("overlay-back-key")
         return true
     }
 
@@ -428,7 +449,7 @@ FocusScope {
         }
         if (isAcceptKey(key)) {
             if (row === "timeline") {
-                if (!commitScrub()) appController.player.togglePause()
+                if (!commitScrub() && hasPlayer) player.togglePause()
             } else if (row === "back") {
                 handleBack()
             } else {
@@ -441,8 +462,8 @@ FocusScope {
     }
 
     function handleMenuKey(key) {
-        const count = mode === "subtitles" ? appController.player.subtitleTracks.length
-                    : mode === "audio" ? appController.player.audioTracks.length
+        const count = mode === "subtitles" && hasPlayer ? player.subtitleTracks.length
+                    : mode === "audio" && hasPlayer ? player.audioTracks.length
                     : debugOptions.length
         if (key === Qt.Key_Up) { menuIndex = Math.max(0, menuIndex - 1); return true }
         if (key === Qt.Key_Down) { menuIndex = Math.min(Math.max(0, count - 1), menuIndex + 1); return true }
@@ -455,21 +476,28 @@ FocusScope {
         if (isIgnoredPlayerNoise(event)) return true
         if (seekHoldKey !== 0 && event.key === seekHoldKey) {
             if (!event.isAutoRepeat) {
-                seekHoldReleaseKey = event.key
-                seekHoldReleaseTimer.restart()
+                if (seekHoldActive) {
+                    seekHoldTimer.stop()
+                    seekHoldReleaseKey = event.key
+                    seekHoldReleaseTimer.restart()
+                } else {
+                    const delta = seekHoldDelta
+                    stopPreviewSeekHold()
+                    previewSeek(delta)
+                }
             }
             return true
         }
         const releaseSeekDelta = seekDeltaForKey(event.key)
         if (releaseSeekDelta !== 0 && event.isAutoRepeat)
-            return startPreviewSeekHold(event.key, releaseSeekDelta)
+            return true
         if (isBackEvent(event)) return handleBack()
         if (event.key === Qt.Key_I || event.key === Qt.Key_Info) { toggleDebugStats(); return true }
-        if (event.key === Qt.Key_Q) { appController.player.stopWithReason("player-q"); return true }
+        if (event.key === Qt.Key_Q && hasPlayer) { player.stopWithReason("player-q"); return true }
         if (mode === "hidden") {
             if (event.key === Qt.Key_Left) { previewSeek(-10); return true }
             if (event.key === Qt.Key_Right) { previewSeek(10); return true }
-            if (isAcceptKey(event.key)) { appController.player.togglePause(); showControls("actions"); return true }
+            if (isAcceptKey(event.key) && hasPlayer) { player.togglePause(); showControls("actions"); return true }
             showControls("timeline")
             return true
         }
@@ -521,6 +549,11 @@ FocusScope {
                 return
             }
             overlay.seekHoldElapsedMs = Math.max(0, Date.now() - overlay.seekHoldStartMs)
+            if (!overlay.seekHoldActive && overlay.hasPlayer) {
+                overlay.seekHoldActive = true
+                overlay.player.beginPreviewSeek()
+            }
+            overlay.seekHoldFirstRepeat = false
             overlay.sendPreviewSeek(overlay.seekHoldStepSeconds())
             overlay.scheduleSeekHoldTick()
         }
@@ -640,8 +673,8 @@ FocusScope {
                 // controls overlay on the first invocation when `mode ===
                 // "controls"`, leaving the user to click an invisible button
                 // for a no-op).
-                if (appController.player.backAllowed)
-                    appController.player.stopWithReason("overlay-back-button")
+                if (overlay.hasPlayer && overlay.player.backAllowed)
+                    overlay.player.stopWithReason("overlay-back-button")
             }
         }
     }
@@ -673,7 +706,7 @@ FocusScope {
                     spacing: Math.round(6 * overlay.uiScale)
                     Text {
                         Layout.fillWidth: true
-                        text: appController.player.title
+                        text: overlay.hasPlayer ? overlay.player.title : ""
                         color: "#F4F8FA"
                         font.pixelSize: Math.round(40 * overlay.uiScale)
                         font.weight: Font.Bold
@@ -684,8 +717,8 @@ FocusScope {
                     }
                     Text {
                         Layout.fillWidth: true
-                        text: appController.player.statusText
-                        color: appController.player.buffering || appController.player.seeking ? "#9DE8FF" : "#AAB7BF"
+                        text: overlay.hasPlayer ? overlay.player.statusText : ""
+                        color: overlay.hasPlayer && (overlay.player.buffering || overlay.player.seeking) ? "#9DE8FF" : "#AAB7BF"
                         font.pixelSize: Math.round(24 * overlay.uiScale)
                         font.weight: Font.Medium
                         font.hintingPreference: Font.PreferNoHinting
@@ -696,8 +729,8 @@ FocusScope {
                 }
 
                 Text {
-                    text: appController.player.paused ? "Paused" : "Playing"
-                    color: appController.player.paused ? "#FFFFFF" : "#B8C4CA"
+                    text: overlay.hasPlayer && overlay.player.paused ? "Paused" : "Playing"
+                    color: overlay.hasPlayer && overlay.player.paused ? "#FFFFFF" : "#B8C4CA"
                     font.pixelSize: Math.round(23 * overlay.uiScale)
                     font.weight: Font.DemiBold
                     font.hintingPreference: Font.PreferNoHinting
@@ -709,7 +742,7 @@ FocusScope {
                 id: timeline
                 Layout.fillWidth: true
                 Layout.preferredHeight: Math.round(82 * overlay.uiScale)
-                readonly property double ratio: appController.player.durationSeconds > 0 ? Math.max(0, Math.min(1, overlay.positionSeconds() / appController.player.durationSeconds)) : 0
+                readonly property double ratio: overlay.hasPlayer && overlay.player.durationSeconds > 0 ? Math.max(0, Math.min(1, overlay.positionSeconds() / overlay.player.durationSeconds)) : 0
                 readonly property bool focused: overlay.isControlsActive() && overlay.row === "timeline" && !overlay.isAudioSyncOpen()
 
                 Text {
@@ -725,7 +758,7 @@ FocusScope {
                 Text {
                     anchors.right: parent.right
                     anchors.top: parent.top
-                    text: overlay.formatClock(appController.player.durationSeconds)
+                    text: overlay.formatClock(overlay.hasPlayer ? overlay.player.durationSeconds : 0)
                     color: "#B8C4CA"
                     font.pixelSize: Math.round(23 * overlay.uiScale)
                     font.weight: Font.Medium
@@ -750,7 +783,7 @@ FocusScope {
                     width: Math.max(track.height, track.width * timeline.ratio)
                     height: track.height
                     radius: height / 2
-                    color: appController.player.buffering ? "#80DFFF" : "#00A4DC"
+                    color: overlay.hasPlayer && overlay.player.buffering ? "#80DFFF" : "#00A4DC"
                     Behavior on width { enabled: !overlay.scrubbing; NumberAnimation { duration: 180; easing.type: Easing.OutCubic } }
                 }
                 Rectangle {
@@ -771,7 +804,7 @@ FocusScope {
                         overlay.row = "timeline"
                         overlay.mode = "controls"
                         overlay.scrubbing = true
-                        overlay.scrubSeconds = overlay.clampSeconds((mouse.x / Math.max(1, width)) * appController.player.durationSeconds)
+                        overlay.scrubSeconds = overlay.clampSeconds((mouse.x / Math.max(1, width)) * (overlay.hasPlayer ? overlay.player.durationSeconds : 0))
                     }
                     onPressed: (mouse) => scrub(mouse)
                     onPositionChanged: (mouse) => { if (overlay.scrubbing) scrub(mouse) }
@@ -822,8 +855,8 @@ FocusScope {
 
             Text {
                 Layout.fillWidth: true
-                visible: appController.player.errorText.length > 0
-                text: appController.player.errorText
+                visible: overlay.hasPlayer && overlay.player.errorText.length > 0
+                text: overlay.hasPlayer ? overlay.player.errorText : ""
                 color: "#FFB8BD"
                 font.pixelSize: Math.round(18 * overlay.uiScale)
                 font.hintingPreference: Font.PreferNoHinting
@@ -897,7 +930,7 @@ FocusScope {
 
                     Text {
                         Layout.fillWidth: true
-                        text: overlay.formatAudioDelay(appController.audioDelayMs)
+                        text: overlay.formatAudioDelay(overlay.currentAudioDelayMs)
                         color: "#FFFFFF"
                         font.pixelSize: Math.round(58 * overlay.uiScale)
                         font.weight: Font.Bold
@@ -921,23 +954,23 @@ FocusScope {
                         Rectangle {
                             anchors.left: parent.horizontalCenter
                             anchors.verticalCenter: parent.verticalCenter
-                            width: Math.abs(appController.audioDelayMs) / 2000 * parent.width / 2
+                            width: Math.abs(overlay.currentAudioDelayMs) / 2000 * parent.width / 2
                             height: Math.round(12 * overlay.uiScale)
                             radius: height / 2
                             color: "#00A4DC"
-                            visible: appController.audioDelayMs >= 0
+                            visible: overlay.currentAudioDelayMs >= 0
                         }
                         Rectangle {
                             anchors.right: parent.horizontalCenter
                             anchors.verticalCenter: parent.verticalCenter
-                            width: Math.abs(appController.audioDelayMs) / 2000 * parent.width / 2
+                            width: Math.abs(overlay.currentAudioDelayMs) / 2000 * parent.width / 2
                             height: Math.round(12 * overlay.uiScale)
                             radius: height / 2
                             color: "#AA5CC3"
-                            visible: appController.audioDelayMs < 0
+                            visible: overlay.currentAudioDelayMs < 0
                         }
                         Rectangle {
-                            x: Math.max(0, Math.min(parent.width - width, ((appController.audioDelayMs + 2000) / 4000) * parent.width - width / 2))
+                            x: Math.max(0, Math.min(parent.width - width, ((overlay.currentAudioDelayMs + 2000) / 4000) * parent.width - width / 2))
                             anchors.verticalCenter: parent.verticalCenter
                             width: Math.round(24 * overlay.uiScale)
                             height: width
@@ -1066,8 +1099,8 @@ FocusScope {
                 Layout.fillWidth: true
                 Layout.fillHeight: true
                 clip: true
-                model: overlay.mode === "subtitles" ? appController.player.subtitleTracks
-                     : overlay.mode === "audio" ? appController.player.audioTracks
+                model: overlay.mode === "subtitles" && overlay.hasPlayer ? overlay.player.subtitleTracks
+                     : overlay.mode === "audio" && overlay.hasPlayer ? overlay.player.audioTracks
                      : overlay.debugOptions
                 currentIndex: overlay.menuIndex
                 boundsBehavior: Flickable.StopAtBounds
@@ -1089,8 +1122,8 @@ FocusScope {
                         anchors.rightMargin: Math.round(12 * overlay.uiScale)
                         spacing: Math.round(8 * overlay.uiScale)
                         Text {
-                            text: (overlay.mode === "subtitles" && appController.player.selectedSubtitleIndex === index)
-                                || (overlay.mode === "audio" && appController.player.selectedAudioIndex === index) ? "✓" : ""
+                            text: (overlay.mode === "subtitles" && overlay.hasPlayer && overlay.player.selectedSubtitleIndex === index)
+                                || (overlay.mode === "audio" && overlay.hasPlayer && overlay.player.selectedAudioIndex === index) ? "✓" : ""
                             color: "#80DFFF"
                             font.pixelSize: Math.round(17 * overlay.uiScale)
                             font.hintingPreference: Font.PreferNoHinting

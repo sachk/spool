@@ -27,7 +27,6 @@ namespace JellyfinNative {
 namespace {
 
 constexpr auto kMpvLogPath = "/tmp/com.codex.jellyfinnative-mpv.log";
-constexpr qint64 kPreviewMpvMinIntervalMs = 150;
 constexpr qint64 kPreviewMpvFreshnessMs = 3000;
 constexpr auto kNightModeFilter =
     "lavfi=[pan=stereo|FL<0.5*FL+1.0*FC+0.25*BL|FR<0.5*FR+1.0*FC+0.25*BR,"
@@ -48,7 +47,11 @@ constexpr auto kNightModeFilter =
 
 bool setOption(mpv_handle *handle, const char *name, const char *value) {
   const int error = mpv_set_option_string(handle, name, value);
-  return error >= 0 || error == MPV_ERROR_OPTION_NOT_FOUND;
+  if (error >= 0 || error == MPV_ERROR_OPTION_NOT_FOUND)
+    return true;
+  qWarning() << "player: failed to set mpv option" << name << "=" << value
+             << mpv_error_string(error);
+  return false;
 }
 
 bool setMpvProperty(mpv_handle *handle, const char *name, const char *value) {
@@ -187,7 +190,7 @@ PlayerController::PlayerController(NativeAppWindow *window,
   m_seekWatchdogTimer.setSingleShot(true);
   m_seekWatchdogTimer.setInterval(2500);
   m_previewSettleTimer.setSingleShot(true);
-  m_previewSettleTimer.setInterval(1200);
+  m_previewSettleTimer.setInterval(400);
   connect(&m_backGuardTimer, &QTimer::timeout, this, [this]() {
     if (!m_visible || m_backAllowed)
       return;
@@ -261,7 +264,9 @@ void PlayerController::teardownMpv() {
   // internal threads before returning. Audio cuts off promptly (vs.
   // mpv_destroy + "quit" which can leave audio playing while pipewire drains
   // its buffers).
+  qInfo() << "player: calling mpv_terminate_destroy";
   mpv_terminate_destroy(handle);
+  qInfo() << "player: mpv_terminate_destroy returned";
 
   m_terminating = false;
   m_pendingFileLoads = 0;
@@ -318,6 +323,8 @@ bool PlayerController::nightModeEnabled() const { return m_nightModeEnabled.load
 
 int PlayerController::audioDelayMs() const { return m_audioDelayMs.load(); }
 
+QString PlayerController::audioOutputMode() const { return m_audioOutputMode; }
+
 bool PlayerController::applyMpvRuntimeOption(MpvRuntimeOption option,
                                              MpvOptionApplyMode mode,
                                              mpv_handle *handle) {
@@ -369,6 +376,14 @@ bool PlayerController::ensureMpv() {
   if (m_mpv.load())
     return true;
 
+#ifdef JELLYFIN_NATIVE_WEBOS
+  const bool useStarfishAudio = m_audioOutputMode == QStringLiteral("starfish");
+  qputenv("STARFISH_AUDIO_HINT", useStarfishAudio ? QByteArrayLiteral("1") : QByteArrayLiteral("0"));
+  qInfo() << "player: configuring webOS audio output"
+          << (useStarfishAudio ? "starfish" : "alsa")
+          << "starfishAudioHint=" << qgetenv("STARFISH_AUDIO_HINT");
+#endif
+
   QElapsedTimer startupTimer;
   startupTimer.start();
   mpv_handle *handle = mpv_create();
@@ -400,10 +415,16 @@ bool PlayerController::ensureMpv() {
       setOption(handle, "force-window", "no") &&
       setOption(handle, "vo", "starfish") &&
       setOption(handle, "vd", "starfish") &&
-      setOption(handle, "ao", "alsa,null") &&
-      setOption(handle, "audio-device", "alsa/hw:0,7") &&
+      setOption(handle, "ao", useStarfishAudio ? "starfish,null" : "alsa,null") &&
+      (useStarfishAudio || setOption(handle, "audio-device", "alsa/hw:0,7")) &&
+      // Starfish VO owns frame presentation timing, so mpv cannot adjust video
+      // scheduling directly. With ALSA audio, resample audio to follow the
+      // display/video clock instead.
+      (useStarfishAudio || setOption(handle, "video-sync", "display-resample")) &&
       setOption(handle, "audio-channels", "stereo") &&
-      setOption(handle, "audio-format", "s16") &&
+      setOption(handle, "audio-format", "s32") &&
+      setOption(handle, "audio-samplerate", "192000") &&
+
 #else
       // Render via libmpv's render API into the embedded MpvVideoItem; no
       // separate mpv toplevel window.
@@ -534,11 +555,13 @@ void PlayerController::play(const PlaybackSession &session) {
   m_backAllowed = false;
   m_previewSeeking = false;
   m_holdPreviewPosition = false;
+  m_resumeAfterPreviewSeek = false;
   m_previewMpvSeekInFlight = false;
   m_previewMpvSeekPending = false;
   m_previewTargetSeconds = startSeconds;
   m_lastPreviewMpvTargetSeconds = -1.0;
   m_previewMpvSeekClock.invalidate();
+  m_seekCommandClock.invalidate();
   m_requestedSeekTargetSeconds = -1.0;
   m_previewSettleTimer.stop();
   m_backGuardTimer.start();
@@ -603,8 +626,14 @@ void PlayerController::seek(double seconds) {
   // instead of a possibly-distant keyframe. The optimistic-scrub path uses
   // keyframes for low latency during drag; commit needs precision.
   qInfo() << "player: absolute exact seek" << clampedSeconds;
+  if (m_resumeAfterPreviewSeek) {
+    m_resumeAfterPreviewSeek = false;
+    if (mpvCommand("no-osd set pause no"))
+      m_paused = false;
+  }
   m_previewSeeking = false;
   m_holdPreviewPosition = false;
+  m_resumeAfterPreviewSeek = false;
   m_previewMpvSeekInFlight = false;
   m_previewMpvSeekPending = false;
   m_previewSettleTimer.stop();
@@ -616,6 +645,11 @@ void PlayerController::beginPreviewSeek() {
   if (!m_visible)
     return;
 
+  if (!m_previewSeeking && !m_paused) {
+    m_resumeAfterPreviewSeek = true;
+    if (mpvCommand("no-osd set pause yes"))
+      m_paused = true;
+  }
   m_previewSeeking = true;
   m_holdPreviewPosition = true;
   m_previewMpvSeekPending = false;
@@ -648,10 +682,14 @@ void PlayerController::endPreviewSeek() {
     return;
 
   m_previewSeeking = false;
-  if (m_holdPreviewPosition)
-    m_previewSettleTimer.start();
   if (m_previewMpvSeekPending)
     sendPreviewSeekToMpv(true);
+  if (m_holdPreviewPosition) {
+    if (m_previewMpvSeekInFlight || m_previewMpvSeekPending)
+      m_previewSettleTimer.start();
+    else
+      clearPreviewPositionHold();
+  }
   updatePlaybackStatusText();
   emit stateChanged();
 }
@@ -759,6 +797,18 @@ void PlayerController::setAudioDelayMs(int delayMs) {
   emit stateChanged();
 }
 
+void PlayerController::setAudioOutputMode(const QString &mode) {
+  const QString normalized = mode == QStringLiteral("starfish") ? QStringLiteral("starfish") : QStringLiteral("alsa");
+  if (m_audioOutputMode == normalized)
+    return;
+
+  m_audioOutputMode = normalized;
+  qInfo() << "player: audio output mode changed" << normalized
+          << "visible=" << m_visible;
+  emit audioOutputModeChanged();
+  emit stateChanged();
+}
+
 void PlayerController::startProgressReporting() {
   if (m_progressTimer.isActive())
     return;
@@ -803,6 +853,7 @@ void PlayerController::resetPlaybackUiState() {
   m_seeking = false;
   m_previewSeeking = false;
   m_holdPreviewPosition = false;
+  m_resumeAfterPreviewSeek = false;
   m_previewMpvSeekInFlight = false;
   m_previewMpvSeekPending = false;
   m_previewTargetSeconds = 0.0;
@@ -810,6 +861,7 @@ void PlayerController::resetPlaybackUiState() {
   m_requestedSeekTargetSeconds = -1.0;
   m_previewSettleTimer.stop();
   m_previewMpvSeekClock.invalidate();
+  m_seekCommandClock.invalidate();
   m_resumeStartSeconds = 0.0;
   m_positionClock.invalidate();
   m_debugOsdVisible = false;
@@ -880,6 +932,7 @@ bool PlayerController::beginSeekCommand(double targetSeconds,
   }
 
   setPositionSeconds(clampedTarget);
+  m_seekCommandClock.restart();
 
   const QByteArray command = buildSeekCommand(clampedTarget, flags);
   if (mpvCommand(command.constData()))
@@ -889,6 +942,7 @@ bool PlayerController::beginSeekCommand(double targetSeconds,
     m_seeking = false;
     m_requestedSeekTargetSeconds = -1.0;
     m_seekWatchdogTimer.stop();
+    m_seekCommandClock.invalidate();
     updatePlaybackStatusText();
     emit stateChanged();
   }
@@ -1000,9 +1054,13 @@ void PlayerController::runEventLoop() {
                  property->format == MPV_FORMAT_DOUBLE) {
         const double seconds = *static_cast<double *>(property->data);
         QMetaObject::invokeMethod(this, [this, seconds]() {
-          if (m_holdPreviewPosition)
+          if (m_holdPreviewPosition || m_seeking ||
+              (m_seekCommandClock.isValid() && m_seekCommandClock.elapsed() < 1500))
             return;
-          setPositionSeconds(playbackPositionFromMpvTime(seconds));
+          const double position = playbackPositionFromMpvTime(seconds);
+          if (position + 2.0 < projectedPositionSeconds())
+            return;
+          setPositionSeconds(position);
         });
       } else if (strcmp(property->name, "duration") == 0 &&
                  property->format == MPV_FORMAT_DOUBLE) {
@@ -1155,10 +1213,49 @@ double PlayerController::clampedPosition(double seconds) const {
   return qMax(0.0, seconds);
 }
 
-double PlayerController::seekBasePosition() const {
-  if (m_holdPreviewPosition)
-    return m_previewTargetSeconds;
+double PlayerController::seekBasePosition() {
+  if (m_holdPreviewPosition) {
+    double position = m_previewTargetSeconds;
+    if (!m_paused && !m_buffering && m_positionClock.isValid()) {
+      const double elapsed = m_positionClock.elapsed() / 1000.0;
+      if (elapsed > 0.0)
+        position += elapsed;
+    }
+    return clampedPosition(position);
+  }
+
+  if (!m_seeking &&
+      (!m_seekCommandClock.isValid() || m_seekCommandClock.elapsed() >= 1500)) {
+    double mpvPosition = 0.0;
+    if (currentMpvPositionSeconds(&mpvPosition)) {
+      const double projectedPosition = projectedPositionSeconds();
+      if (mpvPosition + 2.0 < projectedPosition)
+        return projectedPosition;
+      setPositionSeconds(mpvPosition);
+      return mpvPosition;
+    }
+  }
+
   return projectedPositionSeconds();
+}
+
+bool PlayerController::currentMpvPositionSeconds(double *seconds) const {
+  if (!seconds)
+    return false;
+
+  auto *handle = m_mpv.load();
+  if (!handle)
+    return false;
+
+  double value = 0.0;
+  int error = mpv_get_property(handle, "time-pos", MPV_FORMAT_DOUBLE, &value);
+  if (error < 0 || !std::isfinite(value))
+    error = mpv_get_property(handle, "playback-time", MPV_FORMAT_DOUBLE, &value);
+  if (error < 0 || !std::isfinite(value))
+    return false;
+
+  *seconds = playbackPositionFromMpvTime(value);
+  return true;
 }
 
 double PlayerController::projectedPositionSeconds() const {
@@ -1187,11 +1284,17 @@ void PlayerController::clearPreviewPositionHold() {
   if (!m_holdPreviewPosition && !m_previewSeeking)
     return;
 
+  const double heldPosition = seekBasePosition();
   m_previewSeeking = false;
   m_holdPreviewPosition = false;
   m_previewMpvSeekPending = false;
   m_previewSettleTimer.stop();
-  m_positionClock.restart();
+  setPositionSeconds(heldPosition);
+  if (m_resumeAfterPreviewSeek) {
+    m_resumeAfterPreviewSeek = false;
+    if (mpvCommand("no-osd set pause no"))
+      m_paused = false;
+  }
   updatePlaybackStatusText();
   emit stateChanged();
 }
@@ -1205,8 +1308,6 @@ bool PlayerController::sendPreviewSeekToMpv(bool force) {
       m_previewMpvSeekClock.isValid() ? m_previewMpvSeekClock.elapsed() : kPreviewMpvFreshnessMs;
   const bool freshnessExpired =
       !m_previewMpvSeekClock.isValid() || seekAgeMs >= kPreviewMpvFreshnessMs;
-  const bool intervalElapsed =
-      !m_previewMpvSeekClock.isValid() || seekAgeMs >= kPreviewMpvMinIntervalMs;
   const bool targetChanged =
       m_lastPreviewMpvTargetSeconds < 0.0 ||
       std::abs(m_lastPreviewMpvTargetSeconds - target) >= 0.05;
@@ -1216,7 +1317,7 @@ bool PlayerController::sendPreviewSeekToMpv(bool force) {
     return false;
   }
 
-  if (!force && m_previewMpvSeekInFlight && !intervalElapsed && !freshnessExpired) {
+  if (m_previewMpvSeekInFlight && !freshnessExpired) {
     m_previewMpvSeekPending = true;
     return false;
   }
@@ -1234,7 +1335,6 @@ bool PlayerController::sendPreviewSeekToMpv(bool force) {
   qInfo() << "player: preview seek sent to mpv target=" << target
           << "force=" << force
           << "seekAgeMs=" << seekAgeMs
-          << "intervalElapsed=" << intervalElapsed
           << "freshnessExpired=" << freshnessExpired;
   return true;
 }

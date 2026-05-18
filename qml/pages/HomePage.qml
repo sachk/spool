@@ -6,46 +6,50 @@ import "../primitives"
 FocusScope {
     id: root
     property var shell
-    property int resumeCount: appController.resumeItems.rowCount()
-    property int nextUpCount: appController.nextUpItems.rowCount()
-    property int latestCount: appController.latestItems.rowCount()
-    property int libraryCount: appController.libraries.rowCount()
+    readonly property var resumeModel: appController ? appController.resumeItems : null
+    readonly property var nextUpModel: appController ? appController.nextUpItems : null
+    readonly property var latestModel: appController ? appController.latestItems : null
+    readonly property var libraryModel: appController ? appController.libraries : null
+    property int resumeCount: resumeModel ? resumeModel.rowCount() : 0
+    property int nextUpCount: nextUpModel ? nextUpModel.rowCount() : 0
+    property int latestCount: latestModel ? latestModel.rowCount() : 0
+    property int libraryCount: libraryModel ? libraryModel.rowCount() : 0
     readonly property int spotlightIndex: latestCount > 0 ? 0 : -1
-    property var spotlight: spotlightIndex >= 0 ? appController.latestItems.get(spotlightIndex) : ({})
+    property var spotlight: spotlightIndex >= 0 && latestModel ? latestModel.get(spotlightIndex) : ({})
     focus: true
 
     Connections {
-        target: appController.latestItems
+        target: root.latestModel
         function onModelReset() {
-            root.latestCount = appController.latestItems.rowCount()
+            root.latestCount = root.latestModel ? root.latestModel.rowCount() : 0
             root.rebuildSections()
         }
         function onRowsInserted() {
-            root.latestCount = appController.latestItems.rowCount()
+            root.latestCount = root.latestModel ? root.latestModel.rowCount() : 0
             root.rebuildSections()
         }
         function onRowsRemoved() {
-            root.latestCount = appController.latestItems.rowCount()
+            root.latestCount = root.latestModel ? root.latestModel.rowCount() : 0
             root.rebuildSections()
         }
     }
     Connections {
-        target: appController.libraries
-        function onModelReset() { root.libraryCount = appController.libraries.rowCount(); root.rebuildSections() }
-        function onRowsInserted() { root.libraryCount = appController.libraries.rowCount(); root.rebuildSections() }
-        function onRowsRemoved() { root.libraryCount = appController.libraries.rowCount(); root.rebuildSections() }
+        target: root.libraryModel
+        function onModelReset() { root.libraryCount = root.libraryModel ? root.libraryModel.rowCount() : 0; root.rebuildSections() }
+        function onRowsInserted() { root.libraryCount = root.libraryModel ? root.libraryModel.rowCount() : 0; root.rebuildSections() }
+        function onRowsRemoved() { root.libraryCount = root.libraryModel ? root.libraryModel.rowCount() : 0; root.rebuildSections() }
     }
     Connections {
-        target: appController.resumeItems
-        function onModelReset() { root.resumeCount = appController.resumeItems.rowCount(); root.rebuildSections() }
-        function onRowsInserted() { root.resumeCount = appController.resumeItems.rowCount(); root.rebuildSections() }
-        function onRowsRemoved() { root.resumeCount = appController.resumeItems.rowCount(); root.rebuildSections() }
+        target: root.resumeModel
+        function onModelReset() { root.resumeCount = root.resumeModel ? root.resumeModel.rowCount() : 0; root.rebuildSections() }
+        function onRowsInserted() { root.resumeCount = root.resumeModel ? root.resumeModel.rowCount() : 0; root.rebuildSections() }
+        function onRowsRemoved() { root.resumeCount = root.resumeModel ? root.resumeModel.rowCount() : 0; root.rebuildSections() }
     }
     Connections {
-        target: appController.nextUpItems
-        function onModelReset() { root.nextUpCount = appController.nextUpItems.rowCount(); root.rebuildSections() }
-        function onRowsInserted() { root.nextUpCount = appController.nextUpItems.rowCount(); root.rebuildSections() }
-        function onRowsRemoved() { root.nextUpCount = appController.nextUpItems.rowCount(); root.rebuildSections() }
+        target: root.nextUpModel
+        function onModelReset() { root.nextUpCount = root.nextUpModel ? root.nextUpModel.rowCount() : 0; root.rebuildSections() }
+        function onRowsInserted() { root.nextUpCount = root.nextUpModel ? root.nextUpModel.rowCount() : 0; root.rebuildSections() }
+        function onRowsRemoved() { root.nextUpCount = root.nextUpModel ? root.nextUpModel.rowCount() : 0; root.rebuildSections() }
     }
 
     ListModel { id: sectionModel }
@@ -93,10 +97,10 @@ FocusScope {
     onActiveFocusChanged: if (activeFocus) sections.forceActiveFocus()
 
     function modelFor(source) {
-        if (source === "resumeItems") return appController.resumeItems
-        if (source === "nextUpItems") return appController.nextUpItems
-        if (source === "libraries") return appController.libraries
-        if (source === "latestItems") return appController.latestItems
+        if (source === "resumeItems") return resumeModel
+        if (source === "nextUpItems") return nextUpModel
+        if (source === "libraries") return libraryModel
+        if (source === "latestItems") return latestModel
         return null
     }
 
@@ -410,7 +414,7 @@ FocusScope {
                     onVisibleCountChanged: currentIndex = visibleCount > 0 ? Math.max(0, Math.min(currentIndex, visibleCount - 1)) : -1
 
                     function libraryAt(index) {
-                        return index >= 0 && index < appController.libraries.rowCount() ? appController.libraries.get(index) : ({})
+                        return root.libraryModel && index >= 0 && index < root.libraryModel.rowCount() ? root.libraryModel.get(index) : ({})
                     }
 
                     function ensureVisible() {

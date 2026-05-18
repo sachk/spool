@@ -152,6 +152,11 @@ int AppController::audioDelayMs() const
     return m_audioDelayMs;
 }
 
+QString AppController::audioOutputMode() const
+{
+    return m_audioOutputMode;
+}
+
 DiscoveredServerModel *AppController::discoveredServers()
 {
     return &m_discoveredServers;
@@ -193,12 +198,15 @@ void AppController::initialize()
     m_username = m_database->loadLastUsername();
     m_nightModeEnabled = m_database->loadNightModeEnabled();
     m_audioDelayMs = m_database->loadAudioDelayMs();
+    m_audioOutputMode = m_database->loadAudioOutputMode() == QStringLiteral("starfish") ? QStringLiteral("starfish") : QStringLiteral("alsa");
     m_player->setNightModeEnabled(m_nightModeEnabled);
     m_player->setAudioDelayMs(m_audioDelayMs);
+    m_player->setAudioOutputMode(m_audioOutputMode);
     emit serverUrlChanged();
     emit usernameChanged();
     emit nightModeEnabledChanged();
     emit audioDelayMsChanged();
+    emit audioOutputModeChanged();
 
     AuthSession session = m_database->loadAuthSession();
     if (!session.accessToken.isEmpty() && !m_serverUrl.isEmpty()) {
@@ -268,6 +276,41 @@ void AppController::login()
             setBusy(false);
             setErrorText(exceptionMessage(error));
         });
+}
+
+void AppController::logout()
+{
+    qInfo() << "app: logout requested";
+    m_quickConnectTimer.stop();
+    m_quickConnectCode.clear();
+    m_quickConnectStatus.clear();
+    m_quickConnectSecret.clear();
+    m_quickConnectPollAttempts = 0;
+    m_quickConnectPollErrors = 0;
+    if (m_player->visible())
+        m_player->stopWithReason(QStringLiteral("logout"));
+    m_database->clearAuthSession();
+    m_api->setSession({});
+    m_password.clear();
+    m_libraries.clear();
+    m_movies.clear();
+    m_resumeItems.clear();
+    m_nextUpItems.clear();
+    m_latestItems.clear();
+    m_currentLibraryId.clear();
+    m_currentLibraryName.clear();
+    m_currentContentLabel = QStringLiteral("Movies");
+    m_currentViewKind.clear();
+    m_currentSeriesId.clear();
+    m_currentSeriesName.clear();
+    setBusy(false);
+    setErrorText({});
+    emit passwordChanged();
+    emit quickConnectChanged();
+    emit currentLibraryNameChanged();
+    setPage(QStringLiteral("login"));
+    applyDiscoveredServersCache();
+    m_discovery->start();
 }
 
 void AppController::startQuickConnect()
@@ -496,14 +539,23 @@ void AppController::back()
     }
 
     if (m_page == QStringLiteral("libraries")) {
-        qInfo() << "app: back from libraries to login";
-        setPage(QStringLiteral("login"));
-        m_discovery->start();
+        qInfo() << "app: back ignored on home";
         return;
     }
 
     qInfo() << "app: quitting";
     QCoreApplication::quit();
+}
+
+void AppController::shutdown()
+{
+    qInfo() << "app: shutdown requested";
+    m_quickConnectTimer.stop();
+    m_libraryPrefetchTimer.stop();
+    m_libraryPrefetchQueue.clear();
+    m_libraryPrefetchActive = false;
+    m_discovery->stop();
+    m_player->teardownMpv();
 }
 
 void AppController::clearError()
@@ -554,6 +606,18 @@ void AppController::setAudioDelayMs(int delayMs)
     m_database->saveAudioDelayMs(clampedDelayMs);
     m_player->setAudioDelayMs(clampedDelayMs);
     emit audioDelayMsChanged();
+}
+
+void AppController::setAudioOutputMode(const QString &mode)
+{
+    const QString normalized = mode == QStringLiteral("starfish") ? QStringLiteral("starfish") : QStringLiteral("alsa");
+    if (m_audioOutputMode == normalized)
+        return;
+    qInfo() << "app: audio output mode changed" << m_audioOutputMode << "->" << normalized;
+    m_audioOutputMode = normalized;
+    m_database->saveAudioOutputMode(normalized);
+    m_player->setAudioOutputMode(normalized);
+    emit audioOutputModeChanged();
 }
 
 void AppController::setPage(const QString &page)

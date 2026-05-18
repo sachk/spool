@@ -7,6 +7,7 @@ Surface {
     property string title: ""
     property string description: ""
     property string valueText: ""
+    property bool valueTextVisible: true
     property bool rowFocus: activeFocus
     property int settingIndex: -1
     property bool pointerActivationEnabled: true
@@ -39,6 +40,7 @@ Surface {
         }
 
         MonoText {
+            visible: root.valueTextVisible
             text: root.valueText
             color: Theme.textSecondary
             font.pixelSize: Metrics.metaPx(root.Window.window ? root.Window.window.width : 1920)
