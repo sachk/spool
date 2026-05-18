@@ -41,6 +41,7 @@ class PlayerController final : public QObject
     Q_PROPERTY(double durationSeconds READ durationSeconds NOTIFY stateChanged)
     Q_PROPERTY(bool nightModeEnabled READ nightModeEnabled WRITE setNightModeEnabled NOTIFY nightModeEnabledChanged)
     Q_PROPERTY(int audioDelayMs READ audioDelayMs WRITE setAudioDelayMs NOTIFY audioDelayMsChanged)
+    Q_PROPERTY(QString audioOutputMode READ audioOutputMode WRITE setAudioOutputMode NOTIFY audioOutputModeChanged)
 
 public:
     PlayerController(NativeAppWindow *window, JellyfinApiFacade *api, QObject *parent = nullptr);
@@ -65,6 +66,7 @@ public:
     double durationSeconds() const;
     bool nightModeEnabled() const;
     int audioDelayMs() const;
+    QString audioOutputMode() const;
 
     Q_INVOKABLE void play(const JellyfinNative::PlaybackSession &session);
     Q_INVOKABLE void togglePause();
@@ -83,6 +85,7 @@ public:
     Q_INVOKABLE void stopWithReason(const QString &reason);
     Q_INVOKABLE void setNightModeEnabled(bool enabled);
     Q_INVOKABLE void setAudioDelayMs(int delayMs);
+    Q_INVOKABLE void setAudioOutputMode(const QString &mode);
 
 signals:
     void visibleChanged();
@@ -90,6 +93,7 @@ signals:
     void playbackStopped();
     void nightModeEnabledChanged();
     void audioDelayMsChanged();
+    void audioOutputModeChanged();
 
 public:
     // Called from main on aboutToQuit so we tear down before the scene graph
@@ -116,7 +120,8 @@ private:
     bool beginSeekCommand(double targetSeconds, const QByteArray &flags,
                           bool markSeeking = true);
     bool beginRelativeSeekCommand(double deltaSeconds);
-    double seekBasePosition() const;
+    double seekBasePosition();
+    bool currentMpvPositionSeconds(double *seconds) const;
     double projectedPositionSeconds() const;
     QByteArray buildSeekCommand(double targetSeconds, const QByteArray &flags) const;
     void clearPreviewPositionHold();
@@ -145,6 +150,7 @@ private:
     QTimer m_seekWatchdogTimer;
     QTimer m_previewSettleTimer;
     QElapsedTimer m_positionClock;
+    QElapsedTimer m_seekCommandClock;
     bool m_visible = false;
     bool m_paused = false;
     bool m_buffering = false;
@@ -167,6 +173,7 @@ private:
     double m_resumeStartSeconds = 0.0;
     bool m_previewSeeking = false;
     bool m_holdPreviewPosition = false;
+    bool m_resumeAfterPreviewSeek = false;
     bool m_previewMpvSeekInFlight = false;
     bool m_previewMpvSeekPending = false;
     double m_previewTargetSeconds = 0.0;
@@ -175,6 +182,7 @@ private:
     double m_requestedSeekTargetSeconds = -1.0;
     std::atomic_bool m_nightModeEnabled = false;
     std::atomic<int> m_audioDelayMs = 0;
+    QString m_audioOutputMode = QStringLiteral("alsa");
 };
 
 } // namespace JellyfinNative

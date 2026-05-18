@@ -66,6 +66,7 @@ namespace {
 constexpr auto kAppId = "com.codex.jellyfinwebosnative";
 #ifdef JELLYFIN_NATIVE_WEBOS
 constexpr auto kAppLogPath = "/tmp/com.codex.jellyfinwebosnative.log";
+constexpr auto kWebosFastQuitProperty = "jellyfinWebosFastQuit";
 #else
 constexpr auto kAppLogPath = "/tmp/com.codex.jellyfinnative-linux.log";
 #endif
@@ -219,6 +220,12 @@ bool lunaLifecycleCallback(LSHandle *, LSMessage *message, void *userData)
             window->requestActivate();
             window->raise();
         }, Qt::QueuedConnection);
+    } else if (event == QStringLiteral("close")) {
+        logLine("[ls2-lifecycle] close event received, requesting quit");
+        QMetaObject::invokeMethod(qApp, []() {
+            qApp->setProperty(kWebosFastQuitProperty, true);
+            QCoreApplication::quit();
+        }, Qt::QueuedConnection);
     }
 
     return true;
@@ -245,6 +252,13 @@ int main(int argc, char **argv)
     // not have to set LC_NUMERIC=C themselves.
     setlocale(LC_NUMERIC, "C");
     setenv("LC_NUMERIC", "C", 1);
+    if (setlocale(LC_CTYPE, "C.UTF-8")) {
+        setenv("LANG", "C.UTF-8", 1);
+        setenv("LC_CTYPE", "C.UTF-8", 1);
+    } else if (setlocale(LC_CTYPE, "en_US.UTF-8")) {
+        setenv("LANG", "en_US.UTF-8", 1);
+        setenv("LC_CTYPE", "en_US.UTF-8", 1);
+    }
 
     char appRoot[PATH_MAX];
     if (!resolveAppRoot(appRoot, sizeof(appRoot)))
@@ -257,6 +271,7 @@ int main(int argc, char **argv)
     setenv("DISPLAY_ID", "0", 1);
     setenv("STARFISH_AUDIO_HINT", "0", 1);
     setenv("QT_QPA_PLATFORM", "wayland-egl", 1);
+    setenv("QSG_RHI_BACKEND", "opengl", 1);
     setenv("QT_WAYLAND_SHELL_INTEGRATION", "wl-shell", 1);
     setenv("QT_WAYLAND_TEXT_INPUT_PROTOCOL", "qt_text_input_method_v1", 1);
     unsetenv("QT_IM_MODULE");
@@ -328,12 +343,10 @@ int main(int argc, char **argv)
 
     QQuickStyle::setStyle(QStringLiteral("Basic"));
 
-#ifndef JELLYFIN_NATIVE_WEBOS
     // MpvVideoItem renders into an FBO via libmpv's OpenGL render API; force
     // Qt Quick to use the OpenGL RHI backend (Qt 6 defaults to Vulkan/Metal
     // on some platforms).
     QQuickWindow::setGraphicsApi(QSGRendererInterface::OpenGL);
-#endif
 
     QSurfaceFormat format;
 #ifdef JELLYFIN_NATIVE_WEBOS
@@ -441,10 +454,23 @@ int main(int argc, char **argv)
     //      objects are destroyed. Otherwise the bindings keep evaluating
     //      against null pointers and emit a flood of "Cannot read property
     //      'X' of null" warnings during the unwind.
-    QObject::connect(&app, &QCoreApplication::aboutToQuit, &app, [player = player.get(), &window]() {
-        logLine("aboutToQuit: tearing down mpv");
-        player->teardownMpv();
+    QObject::connect(&app, &QCoreApplication::aboutToQuit, &app, [controller = controller.get(), &window]() {
+        logLine("aboutToQuit: stopping controllers");
+        controller->shutdown();
+#ifdef JELLYFIN_NATIVE_WEBOS
+        if (qApp->property(kWebosFastQuitProperty).toBool()) {
+            // On webOS close, let the process exit instead of
+            // forcing a full QML scene teardown while the window manager may
+            // already be hiding the Wayland surface. That path can block after
+            // mpv has stopped, leaving a stale app process that slows launch.
+            logLine("aboutToQuit: skipping QML source clear for webOS fast quit");
+            window.hide();
+            return;
+        }
+#endif
+        logLine("aboutToQuit: clearing QML source");
         window.setSource(QUrl());
+        logLine("aboutToQuit: QML source cleared");
     });
 
     auto *qmlNetworkFactory = new JellyfinNative::QmlNetworkAccessManagerFactory(
@@ -527,5 +553,7 @@ int main(int argc, char **argv)
         window.requestActivate();
     });
 
-    return app.exec();
+    const int exitCode = app.exec();
+    logLine("app.exec returned: %d", exitCode);
+    return exitCode;
 }

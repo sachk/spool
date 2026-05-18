@@ -23,8 +23,15 @@ FocusScope {
     property bool textInputActive: Qt.inputMethod.visible
     property bool backPressHandled: false
     property bool playerBackPressHandled: false
+    readonly property var player: appController ? appController.player : null
+    readonly property bool hasPlayer: player !== null && player !== undefined
+    readonly property string errorTextValue: appController ? appController.errorText : ""
+    readonly property bool busyValue: appController ? appController.busy : false
+    readonly property string busyTextValue: appController ? appController.busyText : ""
 
     function controllerRoute() {
+        if (!appController)
+            return "home"
         if (appController.page === "login") return "login"
         // After login, default to Home. The user can drill into Libraries explicitly.
         if (appController.page === "libraries") return "home"
@@ -38,9 +45,9 @@ FocusScope {
     }
 
     Connections {
-        target: appController.player
+        target: root.player
         function onVisibleChanged() {
-            if (appController.player.visible) {
+            if (root.hasPlayer && root.player.visible) {
                 root.playerBackPressHandled = false
                 root.focusPlayerInput()
             } else {
@@ -80,8 +87,8 @@ FocusScope {
         if (shortcutOverlayVisible) { shortcutOverlayVisible = false; return true }
         if (diagnosticsVisible) { diagnosticsVisible = false; return true }
         if (mediaInfoVisible) { mediaInfoVisible = false; return true }
-        if (appController.player.visible) {
-            if (appController.player.backAllowed) appController.player.stopWithReason("shell-back-fallback")
+        if (root.hasPlayer && root.player.visible) {
+            if (root.player.backAllowed) root.player.stopWithReason("shell-back-fallback")
             return true
         }
         if (route === "playerOverlay") { replaceRoute(previousRoute.length > 0 ? previousRoute : "home"); return true }
@@ -118,7 +125,7 @@ FocusScope {
     }
 
     function focusContent() {
-        if (appController.player.visible)
+        if (root.hasPlayer && root.player.visible)
             return
         routeStack.forceActiveFocus()
     }
@@ -141,7 +148,7 @@ FocusScope {
         if (event.key === Qt.Key_Backspace || event.key === Qt.Key_Escape || event.key === Qt.Key_Back || event.key === Qt.Key_BrowserBack) return back()
         if (event.key === Qt.Key_H) { event.key = Qt.Key_Left; return false }
         if (event.key === Qt.Key_L) { event.key = Qt.Key_Right; return false }
-        if (event.key === Qt.Key_Q && appController.player.visible) { appController.player.stopWithReason("shortcut-q"); return true }
+        if (event.key === Qt.Key_Q && root.hasPlayer && root.player.visible) { root.player.stopWithReason("shortcut-q"); return true }
         return false
     }
 
@@ -196,7 +203,7 @@ FocusScope {
     Keys.priority: Keys.BeforeItem
 
     Keys.onPressed: (event) => {
-        if (appController.player.visible) {
+        if (root.hasPlayer && root.player.visible) {
             if (handlePlayerPressed(event))
                 event.accepted = true
             return
@@ -226,7 +233,7 @@ FocusScope {
             event.accepted = true
             return
         }
-        if (appController.player.visible) {
+        if (root.hasPlayer && root.player.visible) {
             if (handlePlayerReleased(event))
                 event.accepted = true
             return
@@ -248,14 +255,14 @@ FocusScope {
             event.accepted = true
     }
 
-    Rectangle { anchors.fill: parent; color: Theme.bg; visible: !appController.player.visible }
+    Rectangle { anchors.fill: parent; color: Theme.bg; visible: !(root.hasPlayer && root.player.visible) }
 
     RowLayout {
         id: contentLayer
         anchors.fill: parent
         spacing: 0
-        visible: !appController.player.visible
-        enabled: !appController.player.visible
+        visible: !(root.hasPlayer && root.player.visible)
+        enabled: !(root.hasPlayer && root.player.visible)
 
         SideRail {
             id: sideRail
@@ -277,13 +284,13 @@ FocusScope {
             Layout.fillHeight: true
             route: root.route
             shell: root
-            focus: !appController.player.visible
+            focus: !(root.hasPlayer && root.player.visible)
         }
     }
 
     Image {
         anchors.fill: parent
-        visible: appController.player.visible
+        visible: root.hasPlayer && root.player.visible
         source: visible ? "image://mpv-overlay/live?rev=" + nativeWindow.overlayRevision : ""
         cache: false
         fillMode: Image.Stretch
@@ -293,7 +300,7 @@ FocusScope {
     PlayerOverlayPage {
         id: playerOverlay
         anchors.fill: parent
-        visible: appController.player.visible
+        visible: root.hasPlayer && root.player.visible
         mediaInfoVisible: root.mediaInfoVisible
         diagnosticsVisible: root.diagnosticsVisible
         z: 20
@@ -302,7 +309,7 @@ FocusScope {
     FocusScope {
         id: playerInputShield
         anchors.fill: parent
-        visible: appController.player.visible
+        visible: root.hasPlayer && root.player.visible
         enabled: visible
         focus: visible
         z: 21
@@ -323,7 +330,7 @@ FocusScope {
 
     Rectangle {
         anchors.fill: parent
-        visible: appController.busy && !appController.player.visible
+        visible: root.busyValue && !(root.hasPlayer && root.player.visible)
         color: "#AA0E0E0E"
         z: 40
         Surface {
@@ -335,7 +342,7 @@ FocusScope {
                 anchors.centerIn: parent
                 spacing: 18
                 BusyIndicator { running: true; width: 30; height: 30 }
-                AppText { text: appController.busyText; font.pixelSize: Metrics.bodyPx(root.width) + 2; anchors.verticalCenter: parent.verticalCenter }
+                AppText { text: root.busyTextValue; font.pixelSize: Metrics.bodyPx(root.width) + 2; anchors.verticalCenter: parent.verticalCenter }
             }
         }
     }
@@ -348,7 +355,7 @@ FocusScope {
         onClosed: { root.mediaInfoVisible = false; root.mediaInfoItem = ({}) }
     }
     ShortcutOverlay { anchors.fill: parent; visible: root.shortcutOverlayVisible; z: 60; onClosed: root.shortcutOverlayVisible = false }
-    DiagnosticsOverlay { anchors.fill: parent; visible: root.diagnosticsVisible && !appController.player.visible; route: root.route; focusedItemId: String(root.lastGridIndex); z: 61 }
+    DiagnosticsOverlay { anchors.fill: parent; visible: root.diagnosticsVisible && !(root.hasPlayer && root.player.visible); route: root.route; focusedItemId: String(root.lastGridIndex); z: 61 }
     ToastLayer { id: toast; anchors.fill: parent; z: 70 }
 
     Surface {
@@ -356,20 +363,20 @@ FocusScope {
         anchors.bottom: parent.bottom
         anchors.bottomMargin: 32
         width: Math.min(parent.width * 0.72, 960)
-        height: appController.errorText.length > 0 ? errorText.implicitHeight + 28 : 0
-        visible: appController.errorText.length > 0
+        height: root.errorTextValue.length > 0 ? errorText.implicitHeight + 28 : 0
+        visible: root.errorTextValue.length > 0
         baseColor: "#2A1717"
         z: 80
         AppText {
             id: errorText
             anchors.centerIn: parent
             width: Math.max(0, parent.width - 28)
-            text: appController.errorText
+            text: root.errorTextValue
             color: "#FFD6D6"
             wrapMode: Text.Wrap
             horizontalAlignment: Text.AlignHCenter
             verticalAlignment: Text.AlignVCenter
         }
-        MouseArea { anchors.fill: parent; onClicked: appController.clearError() }
+        MouseArea { anchors.fill: parent; onClicked: if (appController) appController.clearError() }
     }
 }
