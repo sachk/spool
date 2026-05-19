@@ -419,32 +419,6 @@ int main(int argc, char **argv)
     auto controller =
         std::make_unique<JellyfinNative::AppController>(&database, discovery.get(), api.get(), player.get());
 
-#ifdef JELLYFIN_NATIVE_WEBOS
-    auto pausePlayerForBackground = [player = player.get()](const char *reason) {
-        if (!player->visible() || player->paused())
-            return;
-        logLine("player: background pause requested (%s)", reason);
-        player->pauseForBackground();
-    };
-    QObject::connect(&app, &QGuiApplication::applicationStateChanged,
-                     &app, [pausePlayerForBackground](Qt::ApplicationState state) {
-        logLine("application state changed: %d", static_cast<int>(state));
-        if (state != Qt::ApplicationActive)
-            pausePlayerForBackground("application-state");
-    });
-    QObject::connect(&window, &QWindow::visibilityChanged,
-                     &app, [pausePlayerForBackground](QWindow::Visibility visibility) {
-        logLine("window visibility changed: %d", static_cast<int>(visibility));
-        if (visibility == QWindow::Hidden || visibility == QWindow::Minimized)
-            pausePlayerForBackground("window-visibility");
-    });
-    QObject::connect(&window, &QWindow::activeChanged, &app, [&window, pausePlayerForBackground]() {
-        logLine("window active changed: %d", window.isActive() ? 1 : 0);
-        if (!window.isActive())
-            pausePlayerForBackground("window-inactive");
-    });
-#endif
-
     // Shutdown sequence (runs while the event loop and scene graph are still
     // alive, before any of the unique_ptrs below get destructed):
     //   1. Tear mpv down — stops audio/decode threads and frees the render
