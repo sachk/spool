@@ -112,6 +112,11 @@ FocusScope {
         return hasPlayer ? player.positionSeconds : 0
     }
 
+    function positionRatio() {
+        if (!hasPlayer || player.durationSeconds <= 0) return 0
+        return Math.max(0, Math.min(1, positionSeconds() / player.durationSeconds))
+    }
+
     function showControls(preferredRow) {
         if (mode === "hidden")
             row = preferredRow || "timeline"
@@ -731,6 +736,82 @@ FocusScope {
 
     transitions: Transition {
         NumberAnimation { properties: "opacity"; duration: 140; easing.type: Easing.OutCubic }
+    }
+
+    // Trickplay scrubber preview. Shown above the timeline when the user is
+    // actively scrubbing or holding seek. The player returns a sprite-sheet
+    // tile + offset to display from /Videos/<id>/Trickplay/<width>/<n>.jpg.
+    Item {
+        id: trickplayPreview
+        readonly property bool active: overlay.hasPlayer && overlay.player.trickplayAvailable
+                                     && (overlay.scrubbing || overlay.seekHoldActive)
+                                     && overlay.mode !== "hidden"
+        readonly property var trickplayData: active
+            ? overlay.player.trickplayForSeconds(overlay.scrubbing ? overlay.scrubSeconds : overlay.positionSeconds())
+            : ({})
+        readonly property bool dataReady: trickplayData && trickplayData.available === true
+
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.bottom: parent.bottom
+        anchors.bottomMargin: Math.round(310 * overlay.uiScale)
+        height: dataReady ? Math.round((trickplayData.height || 0) * overlay.uiScale * 1.4) : 0
+        visible: dataReady
+        opacity: visible ? 1 : 0
+        z: 22
+        Behavior on opacity { NumberAnimation { duration: 100 } }
+
+        Item {
+            id: thumbContainer
+            readonly property real thumbWidth: trickplayPreview.dataReady ? trickplayPreview.trickplayData.width * overlay.uiScale * 1.4 : 0
+            readonly property real thumbHeight: trickplayPreview.dataReady ? trickplayPreview.trickplayData.height * overlay.uiScale * 1.4 : 0
+            // Position the thumbnail above the timeline scrubber x.
+            x: Math.max(Math.round(52 * overlay.uiScale),
+                       Math.min(parent.width - thumbWidth - Math.round(52 * overlay.uiScale),
+                                overlay.positionRatio() * parent.width - thumbWidth / 2))
+            y: 0
+            width: thumbWidth
+            height: thumbHeight + Math.round(24 * overlay.uiScale)
+
+            Rectangle {
+                id: thumbFrame
+                width: thumbContainer.thumbWidth
+                height: thumbContainer.thumbHeight
+                color: "#000"
+                border.color: "#FFFFFF"
+                border.width: 2
+                radius: 4
+                clip: true
+
+                Image {
+                    id: thumbSheet
+                    source: trickplayPreview.dataReady ? trickplayPreview.trickplayData.url : ""
+                    visible: status === Image.Ready
+                    // Scale the entire sheet so each tile lines up at the
+                    // requested 1.4x. The tile we want lives at (offsetX,
+                    // offsetY) within the unscaled sheet.
+                    x: trickplayPreview.dataReady ? trickplayPreview.trickplayData.offsetX * overlay.uiScale * 1.4 : 0
+                    y: trickplayPreview.dataReady ? trickplayPreview.trickplayData.offsetY * overlay.uiScale * 1.4 : 0
+                    width: trickplayPreview.dataReady ? trickplayPreview.trickplayData.sheetWidth * overlay.uiScale * 1.4 : 0
+                    height: trickplayPreview.dataReady ? trickplayPreview.trickplayData.sheetHeight * overlay.uiScale * 1.4 : 0
+                    fillMode: Image.Stretch
+                    cache: true
+                    asynchronous: true
+                }
+            }
+
+            Text {
+                anchors.horizontalCenter: thumbFrame.horizontalCenter
+                anchors.top: thumbFrame.bottom
+                anchors.topMargin: Math.round(4 * overlay.uiScale)
+                text: overlay.formatClock(overlay.scrubbing ? overlay.scrubSeconds : overlay.positionSeconds())
+                color: "#FFFFFF"
+                font.pixelSize: Math.round(16 * overlay.uiScale)
+                font.weight: Font.Medium
+                font.hintingPreference: Font.PreferNoHinting
+                renderType: Text.QtRendering
+            }
+        }
     }
 
     // Skip Intro / Skip Outro / Skip Recap card. Visible whenever the player

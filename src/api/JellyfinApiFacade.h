@@ -55,6 +55,8 @@ public:
     QCoro::Task<std::vector<MovieItem>> fetchNextUpEpisodes(int limit = 24);
     QCoro::Task<std::vector<MovieItem>> fetchLatestItems(QString parentId = {}, int limit = 24);
     QCoro::Task<std::vector<MediaSegment>> fetchMediaSegments(QString itemId);
+    QCoro::Task<TrickplayInfo> fetchTrickplay(QString itemId, QString mediaSourceId, int preferredWidth = 320);
+    QString trickplayTileUrl(const QString &itemId, int width, int tileIndex) const;
     QCoro::Task<PlaybackSession> negotiateDirectPlay(MovieItem movie);
 
     // SyncPlay REST endpoints. These mirror the calls the official web client

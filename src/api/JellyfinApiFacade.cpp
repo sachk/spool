@@ -14,6 +14,8 @@
 #include <QUrlQuery>
 
 #include <algorithm>
+#include <cmath>
+#include <limits>
 #include <stdexcept>
 
 namespace JellyfinNative {
@@ -546,6 +548,55 @@ QCoro::Task<std::vector<MediaSegment>> JellyfinApiFacade::fetchMediaSegments(QSt
         qInfo() << "api: media segments unavailable for" << itemId << ":" << e.what();
     }
     co_return result;
+}
+
+QCoro::Task<TrickplayInfo> JellyfinApiFacade::fetchTrickplay(QString itemId, QString mediaSourceId, int preferredWidth)
+{
+    Diagnostics::Task task(QStringLiteral("api_fetch_trickplay"), {{QStringLiteral("itemId"), itemId}});
+    TrickplayInfo best;
+    try {
+        QUrlQuery query;
+        query.addQueryItem(QStringLiteral("fields"), QStringLiteral("Trickplay"));
+        const QJsonDocument doc =
+            co_await requestJson(HttpMethod::Get,
+                                 QStringLiteral("/Users/%1/Items/%2").arg(m_session.userId, itemId),
+                                 query);
+        const QJsonObject trickplay = doc.object().value(QStringLiteral("Trickplay")).toObject();
+        // Trickplay = { "<mediaSourceId>": { "<width>": TrickplayInfo, ... }, ... }
+        QJsonObject widths;
+        if (!mediaSourceId.isEmpty() && trickplay.contains(mediaSourceId)) {
+            widths = trickplay.value(mediaSourceId).toObject();
+        } else if (!trickplay.isEmpty()) {
+            widths = trickplay.constBegin().value().toObject();
+        }
+        int bestDiff = std::numeric_limits<int>::max();
+        for (auto it = widths.begin(); it != widths.end(); ++it) {
+            const QJsonObject info = it.value().toObject();
+            const int width = info.value(QStringLiteral("Width")).toInt();
+            const int diff = std::abs(width - preferredWidth);
+            if (diff < bestDiff) {
+                bestDiff = diff;
+                best.width = width;
+                best.height = info.value(QStringLiteral("Height")).toInt();
+                best.tileWidth = info.value(QStringLiteral("TileWidth")).toInt();
+                best.tileHeight = info.value(QStringLiteral("TileHeight")).toInt();
+                best.thumbnailCount = info.value(QStringLiteral("ThumbnailCount")).toInt();
+                best.intervalMs = info.value(QStringLiteral("Interval")).toInt();
+                best.bandwidth = info.value(QStringLiteral("Bandwidth")).toInt();
+            }
+        }
+    } catch (const std::exception &e) {
+        qInfo() << "api: trickplay fetch failed for" << itemId << ":" << e.what();
+    }
+    co_return best;
+}
+
+QString JellyfinApiFacade::trickplayTileUrl(const QString &itemId, int width, int tileIndex) const
+{
+    if (m_serverUrl.isEmpty() || itemId.isEmpty() || width <= 0)
+        return {};
+    return QStringLiteral("%1/Videos/%2/Trickplay/%3/%4.jpg?api_key=%5")
+        .arg(m_serverUrl, itemId, QString::number(width), QString::number(tileIndex), m_session.accessToken);
 }
 
 QCoro::Task<QJsonArray> JellyfinApiFacade::fetchSyncPlayGroups()
