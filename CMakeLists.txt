@@ -46,6 +46,7 @@ set(JELLYFIN_QT_COMPONENTS
     QuickControls2
     Sql
     OpenGL
+    LinguistTools
 )
 if(JELLYFIN_NATIVE_WEBOS)
     set(JELLYFIN_QT_MIN_VERSION 6.11)
@@ -62,7 +63,10 @@ else()
 endif()
 find_package(Qt6 ${JELLYFIN_QT_MIN_VERSION} REQUIRED COMPONENTS ${JELLYFIN_QT_COMPONENTS})
 
-qt_standard_project_setup(REQUIRES ${JELLYFIN_QT_MIN_VERSION})
+qt_standard_project_setup(
+    REQUIRES ${JELLYFIN_QT_MIN_VERSION}
+    I18N_TRANSLATED_LANGUAGES en_US en_GB en_AU
+)
 
 if(JELLYFIN_NATIVE_WEBOS)
     pkg_check_modules(GLIB REQUIRED IMPORTED_TARGET glib-2.0)
@@ -113,6 +117,8 @@ qt_add_executable(jellyfin-native
     src/app/QmlNetworkAccessManagerFactory.h
     src/app/SyncPlayController.cpp
     src/app/SyncPlayController.h
+    src/app/LocalizationManager.cpp
+    src/app/LocalizationManager.h
     src/cache/DatabaseManager.cpp
     src/cache/DatabaseManager.h
     src/common/JellyfinTypes.cpp
@@ -156,6 +162,13 @@ set_source_files_properties(
     qml/theme/Theme.qml
     qml/theme/Typography.qml
     PROPERTIES QT_QML_SINGLETON_TYPE TRUE
+)
+
+qt_add_translations(jellyfin-native
+    TS_FILES
+        i18n/qtfin_en_US.ts
+        i18n/qtfin_en_GB.ts
+    RESOURCE_PREFIX /i18n
 )
 
 qt_add_qml_module(jellyfin-native

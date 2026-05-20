@@ -1,5 +1,6 @@
 #include "api/JellyfinApiFacade.h"
 #include "app/AppController.h"
+#include "app/LocalizationManager.h"
 #include "app/NativeAppWindow.h"
 #include "app/QmlNetworkAccessManagerFactory.h"
 #include "cache/DatabaseManager.h"
@@ -562,8 +563,18 @@ int main(int argc, char **argv)
     QObject::connect(&window, &QQuickView::statusChanged, [](QQuickView::Status status) {
         logLine("view status changed: %d", static_cast<int>(status));
     });
+    auto localization = std::make_unique<JellyfinNative::LocalizationManager>();
+    localization->attachToEngine(window.engine());
+    if (api) {
+        api->setAcceptLanguage(localization->bcp47Locale());
+        QObject::connect(localization.get(), &JellyfinNative::LocalizationManager::localeChanged,
+                         api.get(), [api = api.get(), loc = localization.get()]() {
+            api->setAcceptLanguage(loc->bcp47Locale());
+        });
+    }
     window.rootContext()->setContextProperty(QStringLiteral("appController"), controller.get());
     window.rootContext()->setContextProperty(QStringLiteral("nativeWindow"), &window);
+    window.rootContext()->setContextProperty(QStringLiteral("i18n"), localization.get());
     {
     JellyfinNative::Diagnostics::Phase phase(QStringLiteral("startup"), QStringLiteral("load_qml"));
     window.setSource(QUrl(QStringLiteral("qrc:/qt/qml/JellyfinWebOS/qml/Main.qml")));

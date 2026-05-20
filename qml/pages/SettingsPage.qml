@@ -211,6 +211,37 @@ FocusScope {
                     onActiveFocusChanged: if (activeFocus) root.markFocused(settingIndex)
                 }
                 SelectRow {
+                    id: languageRow
+                    Layout.fillWidth: true
+                    title: qsTrId("settings.language.title")
+                    description: "Restart the app for full effect on cached strings"
+                    options: {
+                        if (!i18n) return ["System default"]
+                        const result = []
+                        const list = i18n.availableLocales
+                        for (let i = 0; i < list.length; ++i)
+                            result.push(i18n.displayNameFor(list[i]))
+                        return result
+                    }
+                    currentIndex: {
+                        if (!i18n) return 0
+                        const list = i18n.availableLocales
+                        for (let i = 0; i < list.length; ++i) {
+                            if ((list[i] === "system" && i18n.useSystemLocale)
+                                || list[i] === i18n.currentLocale)
+                                return i
+                        }
+                        return 0
+                    }
+                    onSelected: (i, v) => {
+                        if (!i18n) return
+                        const list = i18n.availableLocales
+                        if (i >= 0 && i < list.length)
+                            i18n.setLocale(list[i])
+                    }
+                    onActiveFocusChanged: if (activeFocus) root.markFocused(settingIndex)
+                }
+                SelectRow {
                     id: accentRow
                     Layout.fillWidth: true
                     settingIndex: 1
