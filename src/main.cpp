@@ -411,6 +411,7 @@ int main(int argc, char **argv)
     QGuiApplication app(argc, argv);
     logLine("startup: QGuiApplication constructed");
     app.setApplicationName(QStringLiteral("Jellyfin Native"));
+    app.setApplicationVersion(QStringLiteral("0.2.0"));
     app.setOrganizationName(QStringLiteral("Codex"));
     app.setApplicationDisplayName(QStringLiteral("Jellyfin Native"));
 

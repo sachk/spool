@@ -16,7 +16,8 @@ FocusScope {
         { label: "Diagnostics", target: 16 },
         { label: "Input", target: 17 },
         { label: "Button Remap", target: 18 },
-        { label: "SyncPlay", target: 22 }
+        { label: "SyncPlay", target: 22 },
+        { label: "About", target: 24 }
     ]
 
     function buttonActionOptions() {
@@ -562,6 +563,35 @@ FocusScope {
                     onActiveFocusChanged: if (activeFocus) root.markFocused(settingIndex)
                 }
 
+                SectionHeader { Layout.fillWidth: true; title: "About" }
+                SettingRow {
+                    id: aboutVersionRow
+                    Layout.fillWidth: true
+                    title: "Jellyfin Native for webOS"
+                    description: "Qt 6.11 client, native mpv playback"
+                    valueText: "v" + Qt.application.version
+                    pointerActivationEnabled: false
+                    onActiveFocusChanged: if (activeFocus) root.markFocused(settingIndex)
+                }
+                SettingRow {
+                    id: aboutServerRow
+                    Layout.fillWidth: true
+                    title: "Connected server"
+                    description: appController ? appController.serverUrl : ""
+                    valueText: appController && appController.serverUrl.length > 0 ? "Connected" : "Offline"
+                    pointerActivationEnabled: false
+                    onActiveFocusChanged: if (activeFocus) root.markFocused(settingIndex)
+                }
+                SettingRow {
+                    id: aboutLocaleRow
+                    Layout.fillWidth: true
+                    title: "UI locale"
+                    description: i18n ? "Active translation tag" : ""
+                    valueText: i18n ? i18n.currentLocale : "en-US"
+                    pointerActivationEnabled: false
+                    onActiveFocusChanged: if (activeFocus) root.markFocused(settingIndex)
+                }
+
                 Component.onCompleted: {
                     root.settingsRows = [
                         themeRow, accentRow, uiScaleRow, logoutRow, posterSizeRow,
@@ -570,7 +600,8 @@ FocusScope {
                         nightModeRow, audioDelayRow, audioOutputRow, bitrateRow,
                         remuxRow, diagnosticsRow, shortcutsRow,
                         redButtonRow, greenButtonRow, yellowButtonRow, blueButtonRow,
-                        syncPlayStatusRow, syncPlayCreateRow
+                        syncPlayStatusRow, syncPlayCreateRow,
+                        aboutVersionRow, aboutServerRow, aboutLocaleRow
                     ]
                     for (let i = 0; i < root.settingsRows.length; ++i)
                         root.settingsRows[i].settingIndex = i
