@@ -60,6 +60,8 @@ AppController::AppController(DatabaseManager *database,
     , m_api(api)
     , m_player(player)
 {
+    m_syncPlay = new SyncPlayController(api, player, this);
+    connect(m_syncPlay, &SyncPlayController::errorText, this, &AppController::setErrorText);
     connect(m_discovery, &DiscoveryController::serverDiscovered, this, [this](const DiscoveredServer &server) {
         m_discoveredServers.upsertServer(server);
         QJsonArray cache;
@@ -189,6 +191,8 @@ MovieGridModel *AppController::latestItems()
 {
     return &m_latestItems;
 }
+
+SyncPlayController *AppController::syncPlay() { return m_syncPlay; }
 
 PlayerController *AppController::player()
 {

@@ -56,6 +56,19 @@ public:
     QCoro::Task<std::vector<MovieItem>> fetchLatestItems(QString parentId = {}, int limit = 24);
     QCoro::Task<std::vector<MediaSegment>> fetchMediaSegments(QString itemId);
     QCoro::Task<PlaybackSession> negotiateDirectPlay(MovieItem movie);
+
+    // SyncPlay REST endpoints. These mirror the calls the official web client
+    // makes. Realtime sync still requires a WebSocket connection (Qt
+    // WebSockets module not yet built into our static Qt 6.11) — the methods
+    // below provide the group-management half today.
+    QCoro::Task<QJsonArray> fetchSyncPlayGroups();
+    QCoro::Task<void> createSyncPlayGroup(QString name);
+    QCoro::Task<void> joinSyncPlayGroup(QString groupId);
+    QCoro::Task<void> leaveSyncPlayGroup();
+    QCoro::Task<void> syncPlayRequestPlay();
+    QCoro::Task<void> syncPlayRequestPause();
+    QCoro::Task<void> syncPlayRequestSeek(qint64 positionTicks);
+
     QCoro::Task<void> postCapabilities();
     QCoro::Task<void> reportPlaybackStart(PlaybackSession session);
     QCoro::Task<void> reportPlaybackProgress(PlaybackSession session, qint64 positionTicks, bool paused);
