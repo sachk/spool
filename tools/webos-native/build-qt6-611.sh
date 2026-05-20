@@ -18,6 +18,8 @@ QTDECLARATIVE_TARBALL="$SRC_DIR/qtdeclarative-everywhere-src-$QT_VERSION.tar.xz"
 QTWAYLAND_TARBALL="$SRC_DIR/qtwayland-everywhere-src-$QT_VERSION.tar.xz"
 QTOPENAPI_TARBALL="$SRC_DIR/qtopenapi-everywhere-src-$QT_VERSION.tar.xz"
 QTIMAGEFORMATS_TARBALL="$SRC_DIR/qtimageformats-everywhere-src-$QT_VERSION.tar.xz"
+QTVIRTUALKEYBOARD_TARBALL="$SRC_DIR/qtvirtualkeyboard-everywhere-src-$QT_VERSION.tar.xz"
+QTSVG_TARBALL="$SRC_DIR/qtsvg-everywhere-src-$QT_VERSION.tar.xz"
 
 QTBASE_SRC="$SRC_DIR/qtbase-everywhere-src-$QT_VERSION"
 QTSHADERTOOLS_SRC="$SRC_DIR/qtshadertools-everywhere-src-$QT_VERSION"
@@ -25,6 +27,9 @@ QTDECLARATIVE_SRC="$SRC_DIR/qtdeclarative-everywhere-src-$QT_VERSION"
 QTWAYLAND_SRC="$SRC_DIR/qtwayland-everywhere-src-$QT_VERSION"
 QTOPENAPI_SRC="$SRC_DIR/qtopenapi-everywhere-src-$QT_VERSION"
 QTIMAGEFORMATS_SRC="$SRC_DIR/qtimageformats-everywhere-src-$QT_VERSION"
+QTVIRTUALKEYBOARD_SRC="$SRC_DIR/qtvirtualkeyboard-everywhere-src-$QT_VERSION"
+# qtvirtualkeyboard depends on qtsvg for its default-style assets.
+QTSVG_SRC="$SRC_DIR/qtsvg-everywhere-src-$QT_VERSION"
 
 HOST_BUILD_ROOT="$ROOT/build/qt6-611-host"
 HOST_INSTALL="$ROOT/build/qt6-611-host-install"
@@ -110,6 +115,15 @@ apply_local_patches() {
     "$PATCH_DIR/qtwayland-6.11.0-webos-wayland-version.patch" \
     "src/CMakeLists.txt" \
     'qt_find_package(Wayland 1.11 PROVIDED_TARGETS ${wayland_libs})'
+  # In Qt 6.11 the qtwayland client code lives inside qtbase
+  # (src/plugins/platforms/wayland/), not the qtwayland module — patch
+  # it there so the QWaylandInputDevice::Pointer::updateCursor opt-out
+  # we depend on for webOS magic remote cursor handling is built in.
+  apply_patch_if_needed \
+    "$QTBASE_SRC" \
+    "$PATCH_DIR/qtbase-6.11.0-webos-no-cursor-set.patch" \
+    "src/plugins/platforms/wayland/qwaylandinputdevice.cpp" \
+    'JELLYFIN_QT_NO_CURSOR_SURFACE'
 }
 
 fetch_sources() {
@@ -120,6 +134,8 @@ fetch_sources() {
   download_submodule qtwayland "$QTWAYLAND_TARBALL"
   download_submodule qtopenapi "$QTOPENAPI_TARBALL"
   download_submodule qtimageformats "$QTIMAGEFORMATS_TARBALL"
+  download_submodule qtsvg "$QTSVG_TARBALL"
+  download_submodule qtvirtualkeyboard "$QTVIRTUALKEYBOARD_TARBALL"
 
   extract_if_needed "$QTBASE_TARBALL" "$QTBASE_SRC"
   extract_if_needed "$QTSHADERTOOLS_TARBALL" "$QTSHADERTOOLS_SRC"
@@ -127,6 +143,8 @@ fetch_sources() {
   extract_if_needed "$QTWAYLAND_TARBALL" "$QTWAYLAND_SRC"
   extract_if_needed "$QTOPENAPI_TARBALL" "$QTOPENAPI_SRC"
   extract_if_needed "$QTIMAGEFORMATS_TARBALL" "$QTIMAGEFORMATS_SRC"
+  extract_if_needed "$QTSVG_TARBALL" "$QTSVG_SRC"
+  extract_if_needed "$QTVIRTUALKEYBOARD_TARBALL" "$QTVIRTUALKEYBOARD_SRC"
 
   apply_local_patches
 }
@@ -303,6 +321,14 @@ build_all_host_modules() {
   configure_host_module qtwayland "$QTWAYLAND_SRC" \
     -DWaylandScanner_EXECUTABLE="$host_wayland_scanner"
   build_host_module qtwayland
+
+  # Host build of qtsvg + qtvirtualkeyboard so the keyboard module's
+  # tooling/qmltyperegistrar can run during the target qmake/cmake step.
+  configure_host_module qtsvg "$QTSVG_SRC"
+  build_host_module qtsvg
+
+  configure_host_module qtvirtualkeyboard "$QTVIRTUALKEYBOARD_SRC"
+  build_host_module qtvirtualkeyboard
 }
 
 build_all_target_modules() {
@@ -333,6 +359,15 @@ build_all_target_modules() {
 
   configure_target_module qtimageformats "$QTIMAGEFORMATS_SRC"
   build_target_module qtimageformats
+
+  configure_target_module qtsvg "$QTSVG_SRC"
+  build_target_module qtsvg
+
+  # The default keyboard style already moves the active key with the
+  # Up/Down/Left/Right keys, so the magic remote D-pad works without
+  # any extra configure flag.
+  configure_target_module qtvirtualkeyboard "$QTVIRTUALKEYBOARD_SRC"
+  build_target_module qtvirtualkeyboard
 }
 
 show_summary() {

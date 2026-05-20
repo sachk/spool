@@ -60,6 +60,12 @@ NativeAppWindow::NativeAppWindow(const QString &appId, QWindow *parent)
     setFlags(Qt::FramelessWindowHint | Qt::Window);
     setTitle(QStringLiteral("Jellyfin Native"));
     resize(1920, 1080);
+    // Note: cursor suppression on webOS happens in main.cpp via
+    // XCURSOR_PATH=/dev/null. Setting Qt::BlankCursor here would make Qt
+    // call wl_pointer_set_cursor(NULL), which the LSM honours as "hide
+    // cursor" — that hides the LG remote pointer too. Forcing the cursor
+    // theme load to fail makes Qt early-return from updateCursor and
+    // never touch the cursor, leaving the LSM pointer untouched.
     starfish_overlay_set_present_cb(&NativeAppWindow::overlayPresentCallback, this);
     starfish_exported_set_crop_cb(&NativeAppWindow::exportedCropCallback, this);
 }
@@ -93,6 +99,24 @@ bool NativeAppWindow::prepareForUiSurface()
         return true;
 
     return handle() != nullptr;
+}
+
+void NativeAppWindow::bringToFront()
+{
+    // showFullScreen() is a Qt-level call that flips the Qt window state
+    // and ensures we have a shell surface; on its own it does NOT bring
+    // the surface to the foreground on webOS — the LSM only honours
+    // wl_webos_shell_surface_set_state(FULLSCREEN). xbmc does the same
+    // thing on lifecycle relaunch (see CShellSurfaceWebOSShell::SetFullScreen).
+    if (!isVisible())
+        showFullScreen();
+    if (!ensureShellSurface())
+        return;
+    wl_webos_shell_surface_set_state(m_webosShellSurface, WL_WEBOS_SHELL_SURFACE_STATE_FULLSCREEN);
+    if (m_surface)
+        wl_surface_commit(m_surface);
+    if (m_display)
+        wl_display_flush(m_display);
 }
 
 bool NativeAppWindow::prepareForPlaybackSurface()

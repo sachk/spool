@@ -28,6 +28,11 @@ public:
 
     bool prepareForUiSurface();
     bool prepareForPlaybackSurface();
+    // Bring the surface to the foreground. On webOS this re-issues
+    // wl_webos_shell_surface_set_state(FULLSCREEN); on host Qt it
+    // falls back to show()/requestActivate(). Safe to call from the
+    // GUI thread at any point after prepareForUiSurface().
+    void bringToFront();
     QString windowId() const;
     int overlayRevision() const;
     void clearOverlay();
