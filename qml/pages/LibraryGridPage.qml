@@ -15,14 +15,7 @@ FocusScope {
         if (grid.currentIndex < 0)
             return
         shell.lastGridIndex = grid.currentIndex
-        const item = appController.movies.get(grid.currentIndex)
-        const t = item ? item.itemType : ""
-        if (t === "Series" || t === "Season") {
-            // Direct navigation: drill into seasons/episodes immediately.
-            appController.playMovie(grid.currentIndex)
-        } else {
-            appController.playMovie(grid.currentIndex)
-        }
+        shell.pushRoute("itemDetails")
     }
 
     function handleNavigationKey(key) {

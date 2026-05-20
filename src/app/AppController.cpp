@@ -72,8 +72,10 @@ AppController::AppController(DatabaseManager *database,
     m_libraryPrefetchTimer.setSingleShot(true);
     connect(&m_libraryPrefetchTimer, &QTimer::timeout, this, &AppController::startNextLibraryPrefetch);
 
-    connect(m_player, &PlayerController::playbackStopped, this, [this]() {
-        qInfo() << "app: playbackStopped page=" << m_page;
+    connect(m_player, &PlayerController::playbackStopped, this, [this](const QString &itemId, qint64 positionTicks) {
+        qInfo() << "app: playbackStopped page=" << m_page << "itemId=" << itemId << "positionTicks=" << positionTicks;
+        applyPlaybackPosition(itemId, positionTicks);
+        schedulePostPlaybackRefresh();
     });
 }
 
@@ -303,6 +305,7 @@ void AppController::logout()
     m_currentViewKind.clear();
     m_currentSeriesId.clear();
     m_currentSeriesName.clear();
+    m_currentSeasonId.clear();
     setBusy(false);
     setErrorText({});
     emit passwordChanged();
@@ -398,6 +401,7 @@ void AppController::openLibrary(int index)
     m_currentLibraryName = library.name;
     m_currentSeriesId.clear();
     m_currentSeriesName.clear();
+    m_currentSeasonId.clear();
     m_currentViewKind = library.collectionType == QStringLiteral("tvshows") ? QStringLiteral("series")
                                                                             : QStringLiteral("movies");
     m_currentContentLabel = m_currentViewKind == QStringLiteral("series") ? QStringLiteral("TV Shows")
@@ -790,6 +794,7 @@ void AppController::openSeries(const MovieItem &series)
     const int loadGeneration = ++m_libraryLoadGeneration;
     m_currentSeriesId = series.id;
     m_currentSeriesName = series.title;
+    m_currentSeasonId.clear();
     m_currentViewKind = QStringLiteral("seasons");
     m_currentLibraryName = series.title;
     m_currentContentLabel = QStringLiteral("Seasons");
@@ -824,6 +829,8 @@ void AppController::openSeason(const MovieItem &season)
         return;
 
     const int loadGeneration = ++m_libraryLoadGeneration;
+    m_currentSeriesId = seriesId;
+    m_currentSeasonId = season.itemType == QStringLiteral("Season") ? season.id : QString();
     m_currentViewKind = QStringLiteral("episodes");
     m_currentLibraryName = season.title;
     m_currentContentLabel = QStringLiteral("Episodes");
@@ -905,6 +912,79 @@ void AppController::refreshHomeRows()
             qWarning() << "home: latest fetch failed" << exceptionMessage(error);
             handleHomeRowLoaded(generation);
         });
+}
+
+void AppController::schedulePostPlaybackRefresh()
+{
+    const QString viewKind = m_currentViewKind;
+    const QString libraryId = m_currentLibraryId;
+    const QString seriesId = m_currentSeriesId;
+    const QString seasonId = m_currentSeasonId;
+    QTimer::singleShot(1500, this, [this, viewKind, libraryId, seriesId, seasonId]() {
+        if (!m_api || m_api->session().accessToken.isEmpty())
+            return;
+        qInfo() << "app: post-playback data refresh";
+        refreshHomeRows();
+        refreshCurrentItems(viewKind, libraryId, seriesId, seasonId);
+    });
+}
+
+void AppController::refreshCurrentItems(const QString &viewKind,
+                                        const QString &libraryId,
+                                        const QString &seriesId,
+                                        const QString &seasonId)
+{
+    if (viewKind != m_currentViewKind || libraryId != m_currentLibraryId ||
+        seriesId != m_currentSeriesId || seasonId != m_currentSeasonId)
+        return;
+
+    if (viewKind == QStringLiteral("movies") && !libraryId.isEmpty()) {
+        const int loadGeneration = ++m_libraryLoadGeneration;
+        QCoro::runDetached(
+            m_api->fetchMovies(libraryId),
+            [this, loadGeneration, libraryId](const std::vector<MovieItem> &movies) {
+                if (loadGeneration != m_libraryLoadGeneration)
+                    return;
+                m_movies.setMovies(movies);
+                m_database->saveMovies(libraryId, toJsonArray(movies));
+                prefetchMoviePosters(movies);
+            },
+            [this, loadGeneration](const std::exception_ptr &error) {
+                if (loadGeneration != m_libraryLoadGeneration)
+                    return;
+                qWarning() << "app: post-playback movie refresh failed" << exceptionMessage(error);
+            });
+        return;
+    }
+
+    if (viewKind == QStringLiteral("episodes") && !seriesId.isEmpty()) {
+        const int loadGeneration = ++m_libraryLoadGeneration;
+        QCoro::runDetached(
+            m_api->fetchEpisodes(seriesId, seasonId),
+            [this, loadGeneration, seriesId, seasonId](const std::vector<MovieItem> &episodes) {
+                if (loadGeneration != m_libraryLoadGeneration)
+                    return;
+                m_movies.setMovies(episodes);
+                m_database->saveMovies(QStringLiteral("episodes/%1/%2").arg(seriesId, seasonId), toJsonArray(episodes));
+                prefetchMoviePosters(episodes);
+            },
+            [this, loadGeneration](const std::exception_ptr &error) {
+                if (loadGeneration != m_libraryLoadGeneration)
+                    return;
+                qWarning() << "app: post-playback episode refresh failed" << exceptionMessage(error);
+            });
+    }
+}
+
+void AppController::applyPlaybackPosition(const QString &itemId, qint64 positionTicks)
+{
+    if (itemId.isEmpty() || positionTicks < 0)
+        return;
+
+    m_movies.updateResumeTicks(itemId, positionTicks);
+    m_resumeItems.updateResumeTicks(itemId, positionTicks);
+    m_nextUpItems.updateResumeTicks(itemId, positionTicks);
+    m_latestItems.updateResumeTicks(itemId, positionTicks);
 }
 
 void AppController::handleHomeRowLoaded(int generation)

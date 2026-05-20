@@ -27,7 +27,7 @@ namespace JellyfinNative {
 namespace {
 
 constexpr auto kMpvLogPath = "/tmp/com.codex.jellyfinnative-mpv.log";
-constexpr qint64 kPreviewMpvFreshnessMs = 3000;
+constexpr qint64 kSeekTargetFreshnessMs = 10000;
 constexpr auto kNightModeFilter =
     "lavfi=[pan=stereo|FL<0.5*FL+1.0*FC+0.25*BL|FR<0.5*FR+1.0*FC+0.25*BR,"
     "dialoguenhance=original=0.25:enhance=2.0,"
@@ -189,8 +189,6 @@ PlayerController::PlayerController(NativeAppWindow *window,
   m_backGuardTimer.setInterval(1500);
   m_seekWatchdogTimer.setSingleShot(true);
   m_seekWatchdogTimer.setInterval(2500);
-  m_previewSettleTimer.setSingleShot(true);
-  m_previewSettleTimer.setInterval(400);
   connect(&m_backGuardTimer, &QTimer::timeout, this, [this]() {
     if (!m_visible || m_backAllowed)
       return;
@@ -216,12 +214,11 @@ PlayerController::PlayerController(NativeAppWindow *window,
     qWarning() << "player: clearing stale seek state";
     m_seeking = false;
     m_requestedSeekTargetSeconds = -1.0;
+    m_seekCommandClock.invalidate();
     m_positionClock.restart();
     updatePlaybackStatusText();
     emit stateChanged();
   });
-  connect(&m_previewSettleTimer, &QTimer::timeout, this,
-          [this]() { clearPreviewPositionHold(); });
   connect(&m_progressTimer, &QTimer::timeout, this, [this]() {
     if (!m_visible)
       return;
@@ -553,17 +550,8 @@ void PlayerController::play(const PlaybackSession &session) {
   m_audioIds.clear();
   m_selectedAudioIndex = -1;
   m_backAllowed = false;
-  m_previewSeeking = false;
-  m_holdPreviewPosition = false;
-  m_resumeAfterPreviewSeek = false;
-  m_previewMpvSeekInFlight = false;
-  m_previewMpvSeekPending = false;
-  m_previewTargetSeconds = startSeconds;
-  m_lastPreviewMpvTargetSeconds = -1.0;
-  m_previewMpvSeekClock.invalidate();
   m_seekCommandClock.invalidate();
   m_requestedSeekTargetSeconds = -1.0;
-  m_previewSettleTimer.stop();
   m_backGuardTimer.start();
   m_uiPositionTimer.start();
   m_visible = true;
@@ -622,76 +610,13 @@ void PlayerController::seek(double seconds) {
   const double clampedSeconds =
       m_durationSeconds > 0.0 ? qBound(0.0, seconds, m_durationSeconds)
                               : qMax(0.0, seconds);
-  // Use absolute+exact so a committed click lands on the requested frame
-  // instead of a possibly-distant keyframe. The optimistic-scrub path uses
-  // keyframes for low latency during drag; commit needs precision.
+  // Use absolute+exact so a committed click lands on the requested frame.
   qInfo() << "player: absolute exact seek" << clampedSeconds;
-  if (m_resumeAfterPreviewSeek) {
-    m_resumeAfterPreviewSeek = false;
-    if (mpvCommand("no-osd set pause no"))
-      m_paused = false;
-  }
-  m_previewSeeking = false;
-  m_holdPreviewPosition = false;
-  m_resumeAfterPreviewSeek = false;
-  m_previewMpvSeekInFlight = false;
-  m_previewMpvSeekPending = false;
-  m_previewSettleTimer.stop();
-  m_previewMpvSeekClock.invalidate();
   beginSeekCommand(clampedSeconds, QByteArray("absolute+exact"));
 }
 
-void PlayerController::beginPreviewSeek() {
-  if (!m_visible)
-    return;
-
-  if (!m_previewSeeking && !m_paused) {
-    m_resumeAfterPreviewSeek = true;
-    if (mpvCommand("no-osd set pause yes"))
-      m_paused = true;
-  }
-  m_previewSeeking = true;
-  m_holdPreviewPosition = true;
-  m_previewMpvSeekPending = false;
-  m_previewSettleTimer.stop();
-  m_previewTargetSeconds = seekBasePosition();
-  setPositionSeconds(m_previewTargetSeconds);
-  updatePlaybackStatusText();
-  emit stateChanged();
-}
-
 void PlayerController::previewSeekBy(double deltaSeconds) {
-  if (!std::isfinite(deltaSeconds) || deltaSeconds == 0.0)
-    return;
-  if (!m_previewSeeking)
-    beginPreviewSeek();
-  if (!m_visible)
-    return;
-
-  m_previewTargetSeconds = clampedPosition(m_previewTargetSeconds + deltaSeconds);
-  m_holdPreviewPosition = true;
-  setPositionSeconds(m_previewTargetSeconds);
-  const bool sent = sendPreviewSeekToMpv(false);
-  qInfo() << "player: preview seek" << deltaSeconds
-          << "absoluteTarget=" << m_previewTargetSeconds
-          << "mpvSent=" << sent;
-}
-
-void PlayerController::endPreviewSeek() {
-  if (!m_previewSeeking && !m_holdPreviewPosition)
-    return;
-
-  m_previewSeeking = false;
-  if (m_previewMpvSeekPending)
-    sendPreviewSeekToMpv(true);
-  if (m_holdPreviewPosition) {
-    if (m_previewMpvSeekInFlight || m_previewMpvSeekPending)
-      m_previewSettleTimer.start();
-    else
-      clearPreviewPositionHold();
-  }
-  updatePlaybackStatusText();
-  emit stateChanged();
+  beginRelativeSeekCommand(deltaSeconds);
 }
 
 void PlayerController::toggleDebugOsd() {
@@ -737,7 +662,7 @@ void PlayerController::selectAudio(int index) {
     return;
   m_selectedAudioIndex = index;
 #ifdef JELLYFIN_NATIVE_WEBOS
-  const double targetSeconds = clampedPosition(seekBasePosition());
+  const double targetSeconds = clampedPosition(seekAnchorPosition());
   qInfo() << "player: webOS audio track resync seek" << targetSeconds;
   beginSeekCommand(targetSeconds, QByteArray("absolute+keyframes"));
 #endif
@@ -830,7 +755,6 @@ void PlayerController::stopProgressReporting(bool failed) {
   m_progressTimer.stop();
   m_uiPositionTimer.stop();
   m_seekWatchdogTimer.stop();
-  m_previewSettleTimer.stop();
 
   const auto session = m_session;
   const qint64 positionTicks = secondsToTicks(m_positionSeconds);
@@ -842,7 +766,7 @@ void PlayerController::stopProgressReporting(bool failed) {
   m_window->clearOverlay();
   emit stateChanged();
   emit visibleChanged();
-  emit playbackStopped();
+  emit playbackStopped(session.itemId, positionTicks);
 }
 
 void PlayerController::resetPlaybackUiState() {
@@ -851,16 +775,7 @@ void PlayerController::resetPlaybackUiState() {
   m_buffering = false;
   m_bufferingPercent = 0;
   m_seeking = false;
-  m_previewSeeking = false;
-  m_holdPreviewPosition = false;
-  m_resumeAfterPreviewSeek = false;
-  m_previewMpvSeekInFlight = false;
-  m_previewMpvSeekPending = false;
-  m_previewTargetSeconds = 0.0;
-  m_lastPreviewMpvTargetSeconds = -1.0;
   m_requestedSeekTargetSeconds = -1.0;
-  m_previewSettleTimer.stop();
-  m_previewMpvSeekClock.invalidate();
   m_seekCommandClock.invalidate();
   m_resumeStartSeconds = 0.0;
   m_positionClock.invalidate();
@@ -953,10 +868,31 @@ bool PlayerController::beginRelativeSeekCommand(double deltaSeconds) {
   if (!std::isfinite(deltaSeconds) || deltaSeconds == 0.0)
     return false;
 
-  const double optimisticTarget = clampedPosition(seekBasePosition() + deltaSeconds);
+  const double optimisticTarget = clampedPosition(seekAnchorPosition() + deltaSeconds);
   qInfo() << "player: relative keyframe seek" << deltaSeconds
           << "absoluteTarget=" << optimisticTarget;
-  return beginSeekCommand(optimisticTarget, QByteArray("absolute+keyframes"));
+
+  m_seeking = true;
+  m_requestedSeekTargetSeconds = optimisticTarget;
+  m_seekWatchdogTimer.start();
+  setPositionSeconds(optimisticTarget);
+  m_seekCommandClock.restart();
+  updatePlaybackStatusText();
+  emit stateChanged();
+
+  const QByteArray command = QByteArray("no-osd seek ") +
+                             QByteArray::number(deltaSeconds, 'f', 3) +
+                             QByteArray(" relative+keyframes");
+  if (mpvCommand(command.constData()))
+    return true;
+
+  m_seeking = false;
+  m_requestedSeekTargetSeconds = -1.0;
+  m_seekWatchdogTimer.stop();
+  m_seekCommandClock.invalidate();
+  updatePlaybackStatusText();
+  emit stateChanged();
+  return false;
 }
 
 void PlayerController::runEventLoop() {
@@ -987,11 +923,6 @@ void PlayerController::runEventLoop() {
           m_requestedSeekTargetSeconds = -1.0;
           m_seekWatchdogTimer.stop();
         }
-        m_previewMpvSeekInFlight = false;
-        if (m_previewSeeking && m_previewMpvSeekPending)
-          sendPreviewSeekToMpv(false);
-        if (m_holdPreviewPosition && !m_previewSeeking)
-          clearPreviewPositionHold();
         m_positionClock.restart();
         updatePlaybackStatusText();
         emit stateChanged();
@@ -1041,11 +972,6 @@ void PlayerController::runEventLoop() {
             m_seekWatchdogTimer.stop();
             m_requestedSeekTargetSeconds = -1.0;
             m_positionClock.restart();
-            if (m_previewMpvSeekInFlight) {
-              m_previewMpvSeekInFlight = false;
-              if (m_previewSeeking && m_previewMpvSeekPending)
-                sendPreviewSeekToMpv(false);
-            }
           }
           updatePlaybackStatusText();
           emit stateChanged();
@@ -1054,7 +980,7 @@ void PlayerController::runEventLoop() {
                  property->format == MPV_FORMAT_DOUBLE) {
         const double seconds = *static_cast<double *>(property->data);
         QMetaObject::invokeMethod(this, [this, seconds]() {
-          if (m_holdPreviewPosition || m_seeking ||
+          if (m_seeking ||
               (m_seekCommandClock.isValid() && m_seekCommandClock.elapsed() < 1500))
             return;
           const double position = playbackPositionFromMpvTime(seconds);
@@ -1213,19 +1139,16 @@ double PlayerController::clampedPosition(double seconds) const {
   return qMax(0.0, seconds);
 }
 
-double PlayerController::seekBasePosition() {
-  if (m_holdPreviewPosition) {
-    double position = m_previewTargetSeconds;
-    if (!m_paused && !m_buffering && m_positionClock.isValid()) {
-      const double elapsed = m_positionClock.elapsed() / 1000.0;
-      if (elapsed > 0.0)
-        position += elapsed;
-    }
+double PlayerController::seekAnchorPosition() {
+  if (m_requestedSeekTargetSeconds >= 0.0 && m_seekCommandClock.isValid() &&
+      m_seekCommandClock.elapsed() < kSeekTargetFreshnessMs) {
+    double position = m_requestedSeekTargetSeconds;
+    if (!m_paused && !m_buffering)
+      position += m_seekCommandClock.elapsed() / 1000.0;
     return clampedPosition(position);
   }
 
-  if (!m_seeking &&
-      (!m_seekCommandClock.isValid() || m_seekCommandClock.elapsed() >= 1500)) {
+  if (!m_seeking) {
     double mpvPosition = 0.0;
     if (currentMpvPositionSeconds(&mpvPosition)) {
       const double projectedPosition = projectedPositionSeconds();
@@ -1278,65 +1201,6 @@ void PlayerController::setPositionSeconds(double seconds) {
   m_positionSeconds = clamped;
   m_positionClock.restart();
   emit stateChanged();
-}
-
-void PlayerController::clearPreviewPositionHold() {
-  if (!m_holdPreviewPosition && !m_previewSeeking)
-    return;
-
-  const double heldPosition = seekBasePosition();
-  m_previewSeeking = false;
-  m_holdPreviewPosition = false;
-  m_previewMpvSeekPending = false;
-  m_previewSettleTimer.stop();
-  setPositionSeconds(heldPosition);
-  if (m_resumeAfterPreviewSeek) {
-    m_resumeAfterPreviewSeek = false;
-    if (mpvCommand("no-osd set pause no"))
-      m_paused = false;
-  }
-  updatePlaybackStatusText();
-  emit stateChanged();
-}
-
-bool PlayerController::sendPreviewSeekToMpv(bool force) {
-  if (!m_visible)
-    return false;
-
-  const double target = clampedPosition(m_previewTargetSeconds);
-  const qint64 seekAgeMs =
-      m_previewMpvSeekClock.isValid() ? m_previewMpvSeekClock.elapsed() : kPreviewMpvFreshnessMs;
-  const bool freshnessExpired =
-      !m_previewMpvSeekClock.isValid() || seekAgeMs >= kPreviewMpvFreshnessMs;
-  const bool targetChanged =
-      m_lastPreviewMpvTargetSeconds < 0.0 ||
-      std::abs(m_lastPreviewMpvTargetSeconds - target) >= 0.05;
-
-  if (!targetChanged) {
-    m_previewMpvSeekPending = false;
-    return false;
-  }
-
-  if (m_previewMpvSeekInFlight && !freshnessExpired) {
-    m_previewMpvSeekPending = true;
-    return false;
-  }
-
-  const QByteArray command = buildSeekCommand(target, QByteArray("absolute+keyframes"));
-  if (!mpvCommand(command.constData())) {
-    m_previewMpvSeekPending = true;
-    return false;
-  }
-
-  m_previewMpvSeekInFlight = true;
-  m_previewMpvSeekPending = false;
-  m_lastPreviewMpvTargetSeconds = target;
-  m_previewMpvSeekClock.restart();
-  qInfo() << "player: preview seek sent to mpv target=" << target
-          << "force=" << force
-          << "seekAgeMs=" << seekAgeMs
-          << "freshnessExpired=" << freshnessExpired;
-  return true;
 }
 
 double PlayerController::playbackPositionFromMpvTime(double seconds) const {
