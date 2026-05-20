@@ -548,6 +548,54 @@ QCoro::Task<std::vector<MediaSegment>> JellyfinApiFacade::fetchMediaSegments(QSt
     co_return result;
 }
 
+QCoro::Task<QJsonArray> JellyfinApiFacade::fetchSyncPlayGroups()
+{
+    Diagnostics::Task task(QStringLiteral("api_syncplay_list"));
+    try {
+        const QJsonDocument doc =
+            co_await requestJson(HttpMethod::Get, QStringLiteral("/SyncPlay/List"));
+        if (doc.isArray())
+            co_return doc.array();
+        co_return doc.object().value(QStringLiteral("Items")).toArray();
+    } catch (const std::exception &e) {
+        qInfo() << "api: syncplay list failed:" << e.what();
+        co_return QJsonArray();
+    }
+}
+
+QCoro::Task<void> JellyfinApiFacade::createSyncPlayGroup(QString name)
+{
+    const QJsonObject body = {{QStringLiteral("GroupName"), name}};
+    co_await requestNoContent(HttpMethod::Post, QStringLiteral("/SyncPlay/New"), QJsonDocument(body));
+}
+
+QCoro::Task<void> JellyfinApiFacade::joinSyncPlayGroup(QString groupId)
+{
+    const QJsonObject body = {{QStringLiteral("GroupId"), groupId}};
+    co_await requestNoContent(HttpMethod::Post, QStringLiteral("/SyncPlay/Join"), QJsonDocument(body));
+}
+
+QCoro::Task<void> JellyfinApiFacade::leaveSyncPlayGroup()
+{
+    co_await requestNoContent(HttpMethod::Post, QStringLiteral("/SyncPlay/Leave"), QJsonDocument());
+}
+
+QCoro::Task<void> JellyfinApiFacade::syncPlayRequestPlay()
+{
+    co_await requestNoContent(HttpMethod::Post, QStringLiteral("/SyncPlay/Unpause"), QJsonDocument());
+}
+
+QCoro::Task<void> JellyfinApiFacade::syncPlayRequestPause()
+{
+    co_await requestNoContent(HttpMethod::Post, QStringLiteral("/SyncPlay/Pause"), QJsonDocument());
+}
+
+QCoro::Task<void> JellyfinApiFacade::syncPlayRequestSeek(qint64 positionTicks)
+{
+    const QJsonObject body = {{QStringLiteral("PositionTicks"), QJsonValue(static_cast<qint64>(positionTicks))}};
+    co_await requestNoContent(HttpMethod::Post, QStringLiteral("/SyncPlay/Seek"), QJsonDocument(body));
+}
+
 QCoro::Task<PlaybackSession> JellyfinApiFacade::negotiateDirectPlay(MovieItem movie)
 {
     Diagnostics::Task task(QStringLiteral("api_negotiate_direct_play"), {{QStringLiteral("itemId"), movie.id}, {QStringLiteral("title"), movie.title}});

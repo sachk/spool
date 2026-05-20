@@ -7,6 +7,7 @@
 #include "../models/LibraryListModel.h"
 #include "../models/MovieGridModel.h"
 #include "../player/PlayerController.h"
+#include "SyncPlayController.h"
 
 #include <QObject>
 #include <QSet>
@@ -46,6 +47,7 @@ class AppController final : public QObject
     Q_PROPERTY(JellyfinNative::MovieGridModel *nextUpItems READ nextUpItems CONSTANT)
     Q_PROPERTY(JellyfinNative::MovieGridModel *latestItems READ latestItems CONSTANT)
     Q_PROPERTY(JellyfinNative::PlayerController *player READ player CONSTANT)
+    Q_PROPERTY(JellyfinNative::SyncPlayController *syncPlay READ syncPlay CONSTANT)
 
 public:
     AppController(DatabaseManager *database,
@@ -83,6 +85,7 @@ public:
     MovieGridModel *nextUpItems();
     MovieGridModel *latestItems();
     PlayerController *player();
+    SyncPlayController *syncPlay();
 
     Q_INVOKABLE void initialize();
     void shutdown();
@@ -158,6 +161,7 @@ private:
     DiscoveryController *m_discovery = nullptr;
     JellyfinApiFacade *m_api = nullptr;
     PlayerController *m_player = nullptr;
+    SyncPlayController *m_syncPlay = nullptr;
     DiscoveredServerModel m_discoveredServers;
     LibraryListModel m_libraries;
     MovieGridModel m_movies;
