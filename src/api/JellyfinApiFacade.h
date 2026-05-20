@@ -6,6 +6,7 @@
 
 #include <QJsonDocument>
 #include <QNetworkAccessManager>
+#include <QNetworkReply>
 #include <QNetworkRequestFactory>
 #include <QObject>
 #include <QSet>
@@ -37,6 +38,7 @@ public:
     QString buildImageUrl(const QString &itemId, const QString &tag = {}, int maxWidth = 280,
                           int quality = 75, const QString &format = QStringLiteral("webp")) const;
     void prefetchImages(const QStringList &urls, int maxConcurrent = 6);
+    void cancelPrefetches();
 
     QCoro::Task<void> probeServer();
     QCoro::Task<AuthSession> authenticateByName(QString username, QString password);
@@ -86,6 +88,7 @@ private:
     AuthSession m_session;
     QStringList m_prefetchQueue;
     QSet<QString> m_prefetchSeen;
+    QSet<QNetworkReply *> m_prefetchReplies;
     int m_prefetchInFlight = 0;
     int m_prefetchMaxConcurrent = 6;
 };

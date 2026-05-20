@@ -246,23 +246,25 @@ void initialize(const QString &appId, const QString &rootPath)
     if (!kDiagnosticsEnabled)
         return;
     auto &s = state();
-    QMutexLocker locker(&s.mutex);
-    if (s.uptime.isValid())
-        return;
-    s.appId = appId;
-    s.root = rootPath.isEmpty() ? QStandardPaths::writableLocation(QStandardPaths::AppDataLocation) + QStringLiteral("/diagnostics")
-                                : rootPath;
-    if (s.root.isEmpty())
-        s.root = QStringLiteral("/tmp/%1-diagnostics").arg(appId);
-    ensureDir(s.root);
-    ensureDir(s.root + QStringLiteral("/proc"));
-    ensureDir(s.root + QStringLiteral("/stackdump"));
-    ensureDir(s.root + QStringLiteral("/watchdog"));
-    rotateFile(jsonPath(QStringLiteral("lifecycle.jsonl")), 4);
-    rotateFile(s.root + QStringLiteral("/watchdog/watchdog.jsonl"), 4);
-    s.instanceId = QStringLiteral("%1-%2").arg(QCoreApplication::applicationPid()).arg(nowMs());
-    s.uptime.start();
-    s.guiHeartbeatMs = nowMs();
+    {
+        QMutexLocker locker(&s.mutex);
+        if (s.uptime.isValid())
+            return;
+        s.appId = appId;
+        s.root = rootPath.isEmpty() ? QStandardPaths::writableLocation(QStandardPaths::AppDataLocation) + QStringLiteral("/diagnostics")
+                                    : rootPath;
+        if (s.root.isEmpty())
+            s.root = QStringLiteral("/tmp/%1-diagnostics").arg(appId);
+        ensureDir(s.root);
+        ensureDir(s.root + QStringLiteral("/proc"));
+        ensureDir(s.root + QStringLiteral("/stackdump"));
+        ensureDir(s.root + QStringLiteral("/watchdog"));
+        rotateFile(jsonPath(QStringLiteral("lifecycle.jsonl")), 4);
+        rotateFile(s.root + QStringLiteral("/watchdog/watchdog.jsonl"), 4);
+        s.instanceId = QStringLiteral("%1-%2").arg(QCoreApplication::applicationPid()).arg(nowMs());
+        s.uptime.start();
+        s.guiHeartbeatMs = nowMs();
+    }
     writePreviousInstanceReport();
     setInstanceState(QStringLiteral("starting"));
     logEvent(QStringLiteral("lifecycle"), QStringLiteral("diagnostics_started"), {{QStringLiteral("root"), s.root}});

@@ -179,6 +179,7 @@ private:
     int m_libraryPrefetchGeneration = 0;
     int m_libraryPrefetchIndex = 0;
     bool m_libraryPrefetchActive = false;
+    bool m_shuttingDown = false;
     std::vector<LibraryItem> m_libraryPrefetchQueue;
     QSet<QString> m_prefetchedLibraryKeys;
 };

@@ -13,6 +13,7 @@ extern "C" {
 }
 
 #include <QCoreApplication>
+#include <QByteArray>
 #include <QElapsedTimer>
 #include <QDebug>
 #include <QtGlobal>
@@ -20,6 +21,7 @@ extern "C" {
 #include <QPointer>
 
 #include <cmath>
+#include <cstdio>
 #include <cstdint>
 #include <cstring>
 
@@ -45,6 +47,13 @@ constexpr auto kNightModeFilter =
     "treble=f=7500:t=q:w=0.6667:g=3,"
     "speechnorm=e=12.5:r=0.0001:l=1,"
     "alimiter=limit=0.95:attack=3:release=50]";
+
+void rotateLogFile(const char *path) {
+  const QByteArray base(path);
+  std::remove((base + ".2").constData());
+  std::rename((base + ".1").constData(), (base + ".2").constData());
+  std::rename(path, (base + ".1").constData());
+}
 
 bool setOption(mpv_handle *handle, const char *name, const char *value) {
   const int error = mpv_set_option_string(handle, name, value);
@@ -385,6 +394,7 @@ bool PlayerController::ensureMpv() {
 
   QElapsedTimer startupTimer;
   startupTimer.start();
+  rotateLogFile(kMpvLogPath);
   mpv_handle *handle = mpv_create();
   if (!handle) {
     m_errorText = QStringLiteral("mpv_create failed.");
