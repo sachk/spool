@@ -673,6 +673,7 @@ void PlayerController::selectSubtitle(int index) {
   if (index < 0 || index >= m_subtitleIds.size())
     return;
 
+  const int previousIndex = m_selectedSubtitleIndex;
   const int trackId = m_subtitleIds[index];
   const QByteArray command = QByteArray("no-osd set sid ") +
                              (trackId < 0 ? QByteArray("no")
@@ -680,8 +681,17 @@ void PlayerController::selectSubtitle(int index) {
   mpvCommand(command.constData());
   m_selectedSubtitleIndex = index;
   m_subtitlesEnabled = trackId >= 0;
-  if (!m_subtitlesEnabled)
+  if (!m_subtitlesEnabled) {
     m_window->clearOverlay();
+  } else if (previousIndex != index) {
+    // Without this, embedded subs only render from the *next* event after
+    // enabling: a line currently on screen stays invisible until the speaker
+    // finishes their sentence. Re-issuing an exact seek to the current PTS
+    // forces mpv to rewind the subtitle stream and pick up the active event.
+    double position = 0.0;
+    if (currentMpvPositionSeconds(&position))
+      beginSeekCommand(position, QByteArray("absolute+exact"), false);
+  }
   emit stateChanged();
 }
 
