@@ -24,6 +24,7 @@
 - Always use `ssh -tt` when running `luna-send` or other LS2 CLI tools on the TV. Without a forced TTY, those commands can hang or produce no output.
 - Do not write directly to TV partitions or runtime state over SSH.
 - Do not edit files, remove files/directories, patch opkg metadata, modify `/tmp/appinstalld`, or restart system services manually.
+- Do not wipe app/user data as a cleanup shortcut. Removing data that forces login/setup again is disrespectful and wastes time; if the TV is low on space, assume logs/generated diagnostics are the problem first and clean only app-specific logs or generated diagnostics unless the user explicitly approves more.
 - Use supported webOS CLIs/services only (`ares-install`, `ares-launch`, `ApplicationInstallerUtility`, `luna-send`) and stop if those cannot do the operation.
 - Reading logs over SSH is allowed. Prefer current native app logs:
   - `/tmp/com.codex.jellyfinnative-mpv.log`
