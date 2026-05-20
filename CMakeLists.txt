@@ -8,6 +8,9 @@ if(CMAKE_CROSSCOMPILING)
 endif()
 option(JELLYFIN_NATIVE_WEBOS "Build the webOS Starfish/native-surface client" ${JELLYFIN_NATIVE_WEBOS_DEFAULT})
 option(JELLYFIN_NATIVE_DEV_BUILD "Favor faster local development builds over smallest release artifacts" OFF)
+option(JELLYFIN_DIAGNOSTICS "Build debug lifecycle/process/watchdog diagnostics" OFF)
+option(JELLYFIN_DIAGNOSTICS_STACKDUMP "Allow diagnostics to request gdb stack dumps" OFF)
+option(JELLYFIN_DIAGNOSTICS_ABORT_ON_HANG "Abort after watchdog hang diagnostics are written" OFF)
 
 set(MPV_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/mpv" CACHE PATH "mpv source tree")
 set(MPV_WEBOS_BUILD_DIR "${MPV_SOURCE_DIR}/build/webos-libmpv" CACHE PATH "webOS libmpv build directory")
@@ -107,6 +110,8 @@ qt_add_executable(jellyfin-native
     src/common/JellyfinTypes.h
     src/discovery/DiscoveryController.cpp
     src/discovery/DiscoveryController.h
+    src/diagnostics/Diagnostics.cpp
+    src/diagnostics/Diagnostics.h
     src/main.cpp
     src/models/DiscoveredServerModel.cpp
     src/models/DiscoveredServerModel.h
@@ -125,6 +130,16 @@ if(JELLYFIN_NATIVE_WEBOS)
     target_compile_definitions(jellyfin-native PRIVATE JELLYFIN_NATIVE_WEBOS=1)
 else()
     target_sources(jellyfin-native PRIVATE src/app/HostNativeAppWindow.cpp)
+endif()
+
+if(JELLYFIN_DIAGNOSTICS)
+    target_compile_definitions(jellyfin-native PRIVATE JELLYFIN_DIAGNOSTICS=1)
+endif()
+if(JELLYFIN_DIAGNOSTICS_STACKDUMP)
+    target_compile_definitions(jellyfin-native PRIVATE JELLYFIN_DIAGNOSTICS_STACKDUMP=1)
+endif()
+if(JELLYFIN_DIAGNOSTICS_ABORT_ON_HANG)
+    target_compile_definitions(jellyfin-native PRIVATE JELLYFIN_DIAGNOSTICS_ABORT_ON_HANG=1)
 endif()
 
 set_source_files_properties(

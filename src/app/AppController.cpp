@@ -1,6 +1,7 @@
 #include "AppController.h"
 
 #include "../api/JellyfinApiFacade.h"
+#include "../diagnostics/Diagnostics.h"
 #include "../player/PlayerController.h"
 
 #include <QCoroTask>
@@ -196,6 +197,7 @@ PlayerController *AppController::player()
 
 void AppController::initialize()
 {
+    Diagnostics::Task task(QStringLiteral("app_initialize"));
     m_serverUrl = m_database->loadLastServerUrl();
     m_username = m_database->loadLastUsername();
     m_nightModeEnabled = m_database->loadNightModeEnabled();
@@ -506,6 +508,7 @@ void AppController::playLatestItem(int index)
 
 void AppController::playMediaItem(const MovieItem &item)
 {
+    Diagnostics::Task task(QStringLiteral("playback_negotiate"), {{QStringLiteral("itemId"), item.id}, {QStringLiteral("title"), item.title}, {QStringLiteral("type"), item.itemType}});
     setBusy(true, QStringLiteral("Negotiating direct play…"));
     QCoro::runDetached(
         m_api->negotiateDirectPlay(item),
@@ -553,6 +556,7 @@ void AppController::back()
 
 void AppController::shutdown()
 {
+    Diagnostics::Phase phase(QStringLiteral("shutdown"), QStringLiteral("app_controller_shutdown"));
     qInfo() << "app: shutdown requested";
     m_quickConnectTimer.stop();
     m_libraryPrefetchTimer.stop();

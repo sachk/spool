@@ -1,5 +1,7 @@
 #include "DatabaseManager.h"
 
+#include "../diagnostics/Diagnostics.h"
+
 #include <QDir>
 #include <QFileInfo>
 #include <QJsonDocument>
@@ -83,6 +85,7 @@ DatabaseManager::~DatabaseManager()
 
 bool DatabaseManager::initialize(const QString &databasePath)
 {
+    Diagnostics::Phase phase(QStringLiteral("database"), QStringLiteral("initialize"));
     if (m_worker)
         return true;
 
@@ -90,6 +93,7 @@ bool DatabaseManager::initialize(const QString &databasePath)
 
     m_worker = new DatabaseWorker();
     m_worker->moveToThread(&m_thread);
+    m_thread.setObjectName(QStringLiteral("database-worker"));
     m_thread.start();
 
     bool success = false;
@@ -104,6 +108,7 @@ bool DatabaseManager::initialize(const QString &databasePath)
 
 void DatabaseManager::shutdown()
 {
+    Diagnostics::Phase phase(QStringLiteral("shutdown"), QStringLiteral("database_shutdown"));
     if (!m_worker)
         return;
 

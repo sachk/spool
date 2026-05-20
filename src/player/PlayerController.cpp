@@ -3,6 +3,7 @@
 #include "../api/JellyfinApiFacade.h"
 #include "../app/NativeAppWindow.h"
 #include "../common/JellyfinTypes.h"
+#include "../diagnostics/Diagnostics.h"
 #include "MpvVideoItem.h"
 
 #include <QCoroTask>
@@ -236,6 +237,7 @@ PlayerController::~PlayerController() {
 }
 
 void PlayerController::teardownMpv() {
+  Diagnostics::Phase phase(QStringLiteral("shutdown"), QStringLiteral("player_teardown_mpv"));
   mpv_handle *handle = m_mpv.exchange(nullptr);
   if (!handle) {
     if (m_eventThread.joinable())
@@ -496,6 +498,7 @@ bool PlayerController::ensureMpv() {
 }
 
 void PlayerController::play(const PlaybackSession &session) {
+  Diagnostics::Task task(QStringLiteral("player_play"), {{QStringLiteral("itemId"), session.itemId}, {QStringLiteral("title"), session.title}});
   qInfo() << "player: play requested" << session.title
           << "startTimeTicks=" << session.startTimeTicks;
 
@@ -674,6 +677,7 @@ void PlayerController::stop() {
 }
 
 void PlayerController::stopWithReason(const QString &reason) {
+  Diagnostics::Task task(QStringLiteral("player_stop"), {{QStringLiteral("reason"), reason}, {QStringLiteral("visible"), m_visible}});
   qInfo() << "player: stop requested" << reason << "visible" << m_visible;
   if (!m_visible)
     return;
@@ -735,6 +739,7 @@ void PlayerController::setAudioOutputMode(const QString &mode) {
 }
 
 void PlayerController::startProgressReporting() {
+  Diagnostics::logEvent(QStringLiteral("player"), QStringLiteral("progress_reporting_start"), {{QStringLiteral("itemId"), m_session.itemId}});
   if (m_progressTimer.isActive())
     return;
   m_progressTimer.start();
@@ -746,6 +751,7 @@ void PlayerController::startProgressReporting() {
 }
 
 void PlayerController::stopProgressReporting(bool failed) {
+  Diagnostics::Phase phase(QStringLiteral("player"), QStringLiteral("stop_progress_reporting"), {{QStringLiteral("failed"), failed}});
   if (!m_visible && !m_progressTimer.isActive()) {
     qInfo() << "player: stopProgressReporting skipped visible=" << m_visible;
     return;
@@ -896,6 +902,7 @@ bool PlayerController::beginRelativeSeekCommand(double deltaSeconds) {
 }
 
 void PlayerController::runEventLoop() {
+  Diagnostics::ThreadScope threadScope(QStringLiteral("mpv-event"));
   auto *handle = m_mpv.load();
   if (!handle)
     return;
