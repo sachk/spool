@@ -1276,11 +1276,50 @@ void PlayerController::setPositionSeconds(double seconds) {
 
 QString PlayerController::activeSegmentType() const { return m_activeSegmentType; }
 double PlayerController::activeSegmentEndSeconds() const { return m_activeSegmentEndSeconds; }
+bool PlayerController::trickplayAvailable() const {
+  const TrickplayInfo &tp = m_session.trickplay;
+  return tp.intervalMs > 0 && tp.tileWidth > 0 && tp.tileHeight > 0 && tp.width > 0;
+}
 
 void PlayerController::skipActiveSegment() {
   if (m_activeSegmentType.isEmpty() || m_activeSegmentEndSeconds <= 0.0)
     return;
   seek(m_activeSegmentEndSeconds);
+}
+
+QVariantMap PlayerController::trickplayForSeconds(double seconds) const {
+  // Returns { url, width, height, offsetX, offsetY, available } so QML can
+  // paint a single tile sprite from a positioned BorderImage / clipped Image.
+  QVariantMap result;
+  if (!trickplayAvailable() || !m_api) {
+    result.insert(QStringLiteral("available"), false);
+    return result;
+  }
+  const TrickplayInfo &tp = m_session.trickplay;
+  const double currentTimeMs = std::max(0.0, seconds) * 1000.0;
+  const int currentTile = static_cast<int>(std::floor(currentTimeMs / tp.intervalMs));
+  if (tp.thumbnailCount > 0 && currentTile >= tp.thumbnailCount) {
+    result.insert(QStringLiteral("available"), false);
+    return result;
+  }
+  const int tileSize = tp.tileWidth * tp.tileHeight;
+  if (tileSize <= 0) {
+    result.insert(QStringLiteral("available"), false);
+    return result;
+  }
+  const int tileIndex = currentTile / tileSize;
+  const int tileOffset = currentTile % tileSize;
+  const int tileOffsetX = tileOffset % tp.tileWidth;
+  const int tileOffsetY = tileOffset / tp.tileWidth;
+  result.insert(QStringLiteral("available"), true);
+  result.insert(QStringLiteral("url"), m_api->trickplayTileUrl(m_session.itemId, tp.width, tileIndex));
+  result.insert(QStringLiteral("width"), tp.width);
+  result.insert(QStringLiteral("height"), tp.height);
+  result.insert(QStringLiteral("offsetX"), -tileOffsetX * tp.width);
+  result.insert(QStringLiteral("offsetY"), -tileOffsetY * tp.height);
+  result.insert(QStringLiteral("sheetWidth"), tp.width * tp.tileWidth);
+  result.insert(QStringLiteral("sheetHeight"), tp.height * tp.tileHeight);
+  return result;
 }
 
 double PlayerController::playbackPositionFromMpvTime(double seconds) const {

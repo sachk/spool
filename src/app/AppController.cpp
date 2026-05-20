@@ -523,21 +523,32 @@ void AppController::playMediaItem(const MovieItem &item)
     QCoro::runDetached(
         m_api->negotiateDirectPlay(item),
         [this, itemId](const PlaybackSession &session) {
-            // Fire-and-forget: fetch media segments in parallel; pass to the
-            // player once they arrive (skip-intro/outro support).
-            PlaybackSession enriched = session;
+            // Enrich the negotiated session with media segments (skip-intro)
+            // and trickplay (scrubber thumbnails). Both are advisory — if the
+            // server doesn't expose them, playback still starts normally.
             JellyfinApiFacade *api = m_api;
             PlayerController *player = m_player;
+            const QString mediaSourceId = session.mediaSourceId;
+            auto sharedSession = std::make_shared<PlaybackSession>(session);
+            auto pending = std::make_shared<int>(2);
+            auto kickoff = [player, sharedSession, pending]() {
+                if (--(*pending) == 0)
+                    player->play(*sharedSession);
+            };
             QCoro::runDetached(
                 api->fetchMediaSegments(itemId),
-                [player, enriched](const std::vector<MediaSegment> &segments) mutable {
-                    enriched.segments = segments;
-                    player->play(enriched);
+                [sharedSession, kickoff](const std::vector<MediaSegment> &segments) {
+                    sharedSession->segments = segments;
+                    kickoff();
                 },
-                [player, enriched](const std::exception_ptr &) {
-                    // No segments available — start playback regardless.
-                    player->play(enriched);
-                });
+                [kickoff](const std::exception_ptr &) { kickoff(); });
+            QCoro::runDetached(
+                api->fetchTrickplay(itemId, mediaSourceId),
+                [sharedSession, kickoff](const TrickplayInfo &info) {
+                    sharedSession->trickplay = info;
+                    kickoff();
+                },
+                [kickoff](const std::exception_ptr &) { kickoff(); });
             setBusy(false);
         },
         [this](const std::exception_ptr &error) {

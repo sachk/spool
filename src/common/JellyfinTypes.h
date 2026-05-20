@@ -56,6 +56,18 @@ struct MediaSegment {
     qint64 endTicks = 0;
 };
 
+// Per-width trickplay manifest matching Jellyfin's
+// item.Trickplay[mediaSourceId][width] structure.
+struct TrickplayInfo {
+    int width = 0;
+    int height = 0;
+    int tileWidth = 0;     // tiles across in one image
+    int tileHeight = 0;    // tiles down in one image
+    int thumbnailCount = 0;
+    int intervalMs = 0;
+    int bandwidth = 0;
+};
+
 struct PlaybackSession {
     QString itemId;
     QString title;
@@ -65,6 +77,7 @@ struct PlaybackSession {
     QString container;
     qint64 startTimeTicks = 0;
     std::vector<MediaSegment> segments;
+    TrickplayInfo trickplay;
 };
 
 QJsonObject toJson(const DiscoveredServer &server);
