@@ -28,6 +28,7 @@ Q_IMPORT_PLUGIN(QWaylandWlShellIntegrationPlugin)
 Q_IMPORT_PLUGIN(QJpegPlugin)
 Q_IMPORT_PLUGIN(QWebpPlugin)
 Q_IMPORT_PLUGIN(QSQLiteDriverPlugin)
+Q_IMPORT_PLUGIN(QVirtualKeyboardPlugin)
 #endif
 
 #include <QCoreApplication>
@@ -69,12 +70,31 @@ namespace {
 constexpr auto kAppId = "com.codex.jellyfinwebosnative";
 #ifdef JELLYFIN_NATIVE_WEBOS
 constexpr auto kAppLogPath = "/tmp/com.codex.jellyfinwebosnative.log";
-constexpr auto kWebosFastQuitProperty = "jellyfinWebosFastQuit";
 #else
 constexpr auto kAppLogPath = "/tmp/com.codex.jellyfinnative-linux.log";
 #endif
 
 FILE *g_logFile = nullptr;
+
+#ifdef JELLYFIN_NATIVE_WEBOS
+// Window pointer captured for the LS2 lifecycle callback, which runs on
+// the LS2 dispatch thread. We marshal events onto the GUI thread via
+// QMetaObject::invokeMethod against this object.
+JellyfinNative::NativeAppWindow *g_lifecycleWindow = nullptr;
+#endif
+
+void rotateLogFile(const char *path)
+{
+    char older[PATH_MAX];
+    char newer[PATH_MAX];
+    if (snprintf(older, sizeof(older), "%s.2", path) < static_cast<int>(sizeof(older)))
+        unlink(older);
+    if (snprintf(older, sizeof(older), "%s.1", path) < static_cast<int>(sizeof(older)) &&
+        snprintf(newer, sizeof(newer), "%s.2", path) < static_cast<int>(sizeof(newer)))
+        rename(older, newer);
+    if (snprintf(newer, sizeof(newer), "%s.1", path) < static_cast<int>(sizeof(newer)))
+        rename(path, newer);
+}
 
 bool resolveAppRoot(char *buffer, size_t size)
 {
@@ -200,18 +220,24 @@ bool lunaNoopCallback(LSHandle *, LSMessage *message, void *)
     return true;
 }
 
-void requestFastQuit(const char *reason);
-
-bool lunaLifecycleCallback(LSHandle *, LSMessage *message, void *userData)
+// Lifecycle callback for com.webos.service.applicationmanager/registerApp.
+// Runs on the LS2 dispatcher thread, so all work must be queued onto the
+// GUI thread. We only care about two events:
+//   - "relaunch": user picked our icon on the home screen while we were
+//     already running. Re-issue webos_shell SetFullScreen so the LSM
+//     actually brings us to the foreground (Qt's requestActivate/raise
+//     go through wl-shell and are silently ignored by the LSM).
+//   - "close":   user closed us from Recent Apps. Quit cleanly via
+//     QCoreApplication::quit so the aboutToQuit chain (controller
+//     shutdown, mpv teardown, QML source clear) runs normally.
+bool lunaLifecycleCallback(LSHandle *, LSMessage *message, void *)
 {
-    auto *window = static_cast<JellyfinNative::NativeAppWindow *>(userData);
     const char *payload = message ? LSMessageGetPayload(message) : nullptr;
     if (!payload)
         return true;
 
     logLine("[ls2-lifecycle] %s", payload);
 
-    // Parse the event field to detect relaunch
     const QByteArray raw = QByteArray::fromRawData(payload, static_cast<int>(strlen(payload)));
     const QJsonDocument doc = QJsonDocument::fromJson(raw);
     if (!doc.isObject())
@@ -219,37 +245,21 @@ bool lunaLifecycleCallback(LSHandle *, LSMessage *message, void *userData)
 
     const QString event = doc.object().value(QStringLiteral("event")).toString();
     if (event == QStringLiteral("relaunch")) {
-        logLine("[ls2-lifecycle] relaunch detected, bringing window to foreground");
-        QMetaObject::invokeMethod(window, [window]() {
-            window->showFullScreen();
-            window->requestActivate();
-            window->raise();
-        }, Qt::QueuedConnection);
+        if (g_lifecycleWindow) {
+            JellyfinNative::NativeAppWindow *window = g_lifecycleWindow;
+            QMetaObject::invokeMethod(window, [window]() {
+                logLine("[ls2-lifecycle] relaunch -> bringToFront");
+                window->bringToFront();
+            }, Qt::QueuedConnection);
+        }
     } else if (event == QStringLiteral("close")) {
-        logLine("[ls2-lifecycle] close event received, requesting quit");
-        QMetaObject::invokeMethod(qApp, []() { requestFastQuit("lifecycle close"); }, Qt::QueuedConnection);
+        QMetaObject::invokeMethod(qApp, []() {
+            logLine("[ls2-lifecycle] close -> QCoreApplication::quit");
+            QCoreApplication::quit();
+        }, Qt::QueuedConnection);
     }
 
     return true;
-}
-
-void requestFastQuit(const char *reason)
-{
-    if (!qApp)
-        _Exit(0);
-
-    if (qApp->property(kWebosFastQuitProperty).toBool())
-        return;
-
-    logLine("fast quit requested: %s", reason ? reason : "unknown");
-    JellyfinNative::Diagnostics::logEvent(QStringLiteral("lifecycle"), QStringLiteral("fast_quit_requested"),
-                                          {{QStringLiteral("reason"), QString::fromUtf8(reason ? reason : "unknown")}});
-    qApp->setProperty(kWebosFastQuitProperty, true);
-    QTimer::singleShot(1800, qApp, []() {
-        logLine("fast quit watchdog expired, forcing process exit");
-        _Exit(0);
-    });
-    QCoreApplication::quit();
 }
 #endif
 
@@ -259,6 +269,7 @@ int main(int argc, char **argv)
 {
     QElapsedTimer startupTimer;
     startupTimer.start();
+    rotateLogFile(kAppLogPath);
     g_logFile = fopen(kAppLogPath, "w");
     setvbuf(stderr, nullptr, _IOLBF, 0);
     if (g_logFile)
@@ -295,9 +306,22 @@ int main(int argc, char **argv)
     setenv("QSG_RHI_BACKEND", "opengl", 1);
     setenv("QT_WAYLAND_SHELL_INTEGRATION", "wl-shell", 1);
     setenv("QT_WAYLAND_TEXT_INPUT_PROTOCOL", "qt_text_input_method_v1", 1);
-    unsetenv("QT_IM_MODULE");
+    // Use Qt's in-process virtual keyboard as the input method. The webOS
+    // LSM does not reliably hand back text from its native IME for
+    // arbitrary native apps, and the wayland compositor's text-input
+    // protocol path is fragile across webOS versions. QtVirtualKeyboard
+    // renders entirely inside our QML scene and handles D-pad navigation
+    // between keys natively (FEATURE_vkb_arrow_keynavigation), which is
+    // what we want for the magic remote.
+    setenv("QT_IM_MODULE", "qtvirtualkeyboard", 1);
     setenv("QT_QPA_FONTDIR", "/usr/share/fonts", 1);
     setenv("QT_NO_GLIB", "1", 1);
+    // Suppress all client-side wl_pointer.set_cursor calls so the webOS
+    // LSM keeps drawing the magic remote pointer. Honoured by our local
+    // qtwayland patch (qtwayland-6.11.0-webos-no-cursor-set.patch) which
+    // makes Qt's updateCursor return early. xbmc achieves the same thing
+    // by overriding CSeatWebOS::SetCursor to a no-op in its custom QPA.
+    setenv("JELLYFIN_QT_NO_CURSOR_SURFACE", "1", 1);
     if (qEnvironmentVariableIsSet("JELLYFIN_NATIVE_VERBOSE_QT")) {
         setenv("QT_DEBUG_PLUGINS", "1", 1);
         setenv("QT_LOGGING_RULES",
@@ -382,7 +406,9 @@ int main(int argc, char **argv)
     format.setAlphaBufferSize(8);
     QSurfaceFormat::setDefaultFormat(format);
 
+    logLine("startup: constructing QGuiApplication");
     QGuiApplication app(argc, argv);
+    logLine("startup: QGuiApplication constructed");
     app.setApplicationName(QStringLiteral("Jellyfin Native"));
     app.setOrganizationName(QStringLiteral("Codex"));
     app.setApplicationDisplayName(QStringLiteral("Jellyfin Native"));
@@ -474,13 +500,24 @@ int main(int argc, char **argv)
         std::make_unique<JellyfinNative::AppController>(&database, discovery.get(), api.get(), player.get());
 
 #ifdef JELLYFIN_NATIVE_WEBOS
+    // Log state transitions for diagnosis but DO NOT auto-quit when the
+    // window is Hidden/Suspended. webOS briefly flips the application
+    // state during home-key transitions and launch handoff; killing the
+    // process here used to cause an infinite home-relaunch loop where
+    // the LSM kept relaunching us only for us to exit again before any
+    // surface ever made it to the foreground.
+    //
+    // We do pause libmpv when the app goes background while playback is
+    // active — the decode/audio pipeline keeps running otherwise and the
+    // user comes back to find playback drifted. pauseForBackground() is
+    // a no-op if the player isn't visible or is already paused.
     QObject::connect(&app, &QGuiApplication::applicationStateChanged, &app,
                      [player = player.get()](Qt::ApplicationState state) {
         logLine("application state changed: %d", static_cast<int>(state));
-        if (player && player->visible())
-            return;
-        if (state == Qt::ApplicationHidden || state == Qt::ApplicationSuspended)
-            requestFastQuit("non-playback app hidden/suspended");
+        if (state == Qt::ApplicationHidden || state == Qt::ApplicationSuspended) {
+            if (player)
+                player->pauseForBackground();
+        }
     });
 #endif
 
@@ -507,17 +544,6 @@ int main(int argc, char **argv)
             JellyfinNative::Diagnostics::Phase phase(QStringLiteral("shutdown"), QStringLiteral("controller_shutdown"));
             controller->shutdown();
         }
-#ifdef JELLYFIN_NATIVE_WEBOS
-        if (qApp->property(kWebosFastQuitProperty).toBool()) {
-            // On webOS close, let the process exit instead of
-            // forcing a full QML scene teardown while the window manager may
-            // already be hiding the Wayland surface. That path can block after
-            // mpv has stopped, leaving a stale app process that slows launch.
-            logLine("aboutToQuit: skipping QML source clear for webOS fast quit");
-            window.hide();
-            return;
-        }
-#endif
         logLine("aboutToQuit: clearing QML source");
         {
             JellyfinNative::Diagnostics::Phase phase(QStringLiteral("shutdown"), QStringLiteral("clear_qml_source"));
@@ -556,11 +582,13 @@ int main(int argc, char **argv)
     window.requestActivate();
 
 #ifdef JELLYFIN_NATIVE_WEBOS
+    g_lifecycleWindow = &window;
+
     std::unique_ptr<HContext> lunaContext(new HContext());
     lunaContext->pub = true;
     lunaContext->multiple = true;
     lunaContext->callback = &lunaLifecycleCallback;
-    lunaContext->userdata = &window;
+    lunaContext->userdata = nullptr;
     if (HLunaServiceCall("luna://com.webos.service.applicationmanager/registerApp", "{}", lunaContext.get())) {
         logLine("HLunaServiceCall registerApp failed (non-fatal)");
         lunaContext.reset();
@@ -581,32 +609,17 @@ int main(int argc, char **argv)
     }
 #endif
 
-    QTimer::singleShot(0, &window, [&window]() {
-#ifdef JELLYFIN_NATIVE_WEBOS
-        window.showFullScreen();
-#else
-        window.show();
-#endif
-        window.requestActivate();
-    });
-    QTimer::singleShot(300, &window, [&window]() {
-#ifdef JELLYFIN_NATIVE_WEBOS
-        window.showFullScreen();
-#else
-        window.show();
-#endif
-        window.requestActivate();
-    });
     QTimer::singleShot(0, controller.get(), &JellyfinNative::AppController::initialize);
     QTimer::singleShot(0, &window, [&window, &startupTimer]() {
         logLine("startup: event loop entered, first-frame path at %lld ms",
                 static_cast<long long>(startupTimer.elapsed()));
+        JellyfinNative::Diagnostics::setInstanceState(QStringLiteral("running"));
 #ifdef JELLYFIN_NATIVE_WEBOS
-        window.showFullScreen();
+        window.bringToFront();
 #else
         window.show();
-#endif
         window.requestActivate();
+#endif
     });
 
     const int exitCode = app.exec();

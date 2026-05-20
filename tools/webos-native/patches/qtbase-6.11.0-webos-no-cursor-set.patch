@@ -1,0 +1,21 @@
+--- a/src/plugins/platforms/wayland/qwaylandinputdevice.cpp	2026-05-20 19:47:43.528947638 +1000
++++ b/src/plugins/platforms/wayland/qwaylandinputdevice.cpp	2026-05-20 19:47:34.050700172 +1000
+@@ -240,6 +240,18 @@
+     if (mEnterSerial == 0)
+         return;
+ 
++    // webOS opt-out: the LSM owns the on-screen pointer for the magic
++    // remote. Any client-side set_cursor — including BlankCursor, which
++    // sends set_cursor(NULL) and tells the compositor to hide its own
++    // cursor — displaces or hides the LG pointer. When the app exports
++    // JELLYFIN_QT_NO_CURSOR_SURFACE=1 we skip the entire updateCursor
++    // path, mirroring what xbmc's CSeatWebOS::SetCursor no-op achieves
++    // with a custom QPA.
++    static const bool noCursorSurface =
++        qEnvironmentVariableIntValue("JELLYFIN_QT_NO_CURSOR_SURFACE") != 0;
++    if (noCursorSurface)
++        return;
++
+     auto shape = seat()->mCursor.shape;
+ 
+     if (shape == Qt::BlankCursor) {

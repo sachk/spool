@@ -78,6 +78,30 @@ jobs:
           test -d build/qt6-611-host-install
           test -d build/qt6-611-target-static-install -o -d build/qt6-611-target-install
 
+      # The cached Qt or the URL-restored toolchain archive may pre-date a
+      # qtbase / qtwayland patch under tools/webos-native/patches. Probe
+      # the static Qt for every patch marker; if any is missing rerun the
+      # Qt build script so the new patches get applied. build-qt6-611.sh
+      # is idempotent — extract/apply/configure skip when sources are
+      # already up to date and ninja rebuilds only the changed objects.
+      - name: Verify or rebuild patched Qt
+        run: |
+          set -e
+          MARKERS=(JELLYFIN_QT_NO_CURSOR_SURFACE)
+          missing=0
+          for marker in "${MARKERS[@]}"; do
+            if ! grep -rqal "$marker" build/qt6-611-target-static-install/lib build/qt6-611-target-install/lib 2>/dev/null; then
+              echo "patched Qt missing marker: $marker"
+              missing=1
+            fi
+          done
+          if [ "$missing" = 1 ]; then
+            echo "Rebuilding Qt to pick up local patches"
+            nix develop -c bash tools/webos-native/build-qt6-611.sh
+          else
+            echo "All Qt patches verified present"
+          fi
+
       - name: Build IPK
         run: nix develop -c bash build-ipk.sh
 

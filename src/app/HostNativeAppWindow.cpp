@@ -63,6 +63,14 @@ bool NativeAppWindow::prepareForPlaybackSurface()
     return prepareForUiSurface();
 }
 
+void NativeAppWindow::bringToFront()
+{
+    if (!isVisible())
+        show();
+    raise();
+    requestActivate();
+}
+
 QString NativeAppWindow::windowId() const
 {
     return {};

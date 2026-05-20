@@ -39,6 +39,18 @@ else
   exit 1
 fi
 
+# Sanity check: the installed Qt must contain every patch marker from
+# tools/webos-native/patches. A stale cache or pre-patch toolchain
+# archive would otherwise silently ship an unpatched binary.
+QT_PATCH_MARKERS=(JELLYFIN_QT_NO_CURSOR_SURFACE)
+for marker in "${QT_PATCH_MARKERS[@]}"; do
+  if ! grep -rqal "$marker" "$QT6_PREFIX/lib" 2>/dev/null; then
+    echo "error: Qt at $QT6_PREFIX is missing patch marker '$marker'." >&2
+    echo "       Rerun: bash $WEBOS_TOOLS_ROOT/build-qt6-611.sh" >&2
+    exit 1
+  fi
+done
+
 copy_first_match() {
   local pattern="$1"
   local dest="$2"
