@@ -21,7 +21,24 @@ FocusScope {
             spacing: 12
             AppText { text: "Keyboard Shortcuts"; font.pixelSize: Metrics.titlePx(root.width); font.weight: Font.DemiBold }
             Repeater {
-                model: ["/  Search", "?  Shortcut overlay", "i  Media info / technical overlay", "m  Context menu", "Esc / Backspace  Back", "Enter  Activate", "Space  Play / pause", "h j k l  Directional navigation", "g g / G  Top / bottom", "Ctrl+D  Diagnostics", "q  Quit player"]
+                model: [
+                    "/  Search",
+                    "?  Shortcut overlay",
+                    "i  Media info / technical overlay",
+                    "m  Context menu",
+                    "Esc / Backspace  Back",
+                    "Enter  Activate",
+                    "Space  Play / pause",
+                    "h j k l  Directional navigation",
+                    "g g / G  Top / bottom",
+                    "Ctrl+D  Diagnostics",
+                    "s  Open subtitle menu",
+                    "a  Open audio menu",
+                    "t  Skip intro / outro",
+                    "Hold Down  Cycle subtitle tracks",
+                    "Red / Green / Yellow / Blue  Remappable color buttons",
+                    "q  Quit player"
+                ]
                 delegate: MonoText { required property string modelData; Layout.fillWidth: true; text: modelData; font.pixelSize: Metrics.bodyPx(root.width); color: Theme.textSecondary }
             }
         }
