@@ -6,7 +6,14 @@ if(DEFINED ENV{WEBOS_SDK_ROOT} AND NOT "$ENV{WEBOS_SDK_ROOT}" STREQUAL "")
 else()
     get_filename_component(WEBOS_TOOLCHAIN_DIR "${CMAKE_CURRENT_LIST_FILE}" DIRECTORY)
     get_filename_component(WEBOS_REPO_ROOT "${WEBOS_TOOLCHAIN_DIR}/../.." ABSOLUTE)
-    set(WEBOS_SDK_ROOT "${WEBOS_REPO_ROOT}/build/webos-sdk/arm-webos-linux-gnueabi_sdk-buildroot")
+    get_filename_component(WEBOS_WORKSPACE_ROOT "${WEBOS_REPO_ROOT}/.." ABSOLUTE)
+    set(_webos_repo_sdk_root "${WEBOS_REPO_ROOT}/build/webos-sdk/arm-webos-linux-gnueabi_sdk-buildroot")
+    set(_webos_workspace_sdk_root "${WEBOS_WORKSPACE_ROOT}/build/webos-sdk/arm-webos-linux-gnueabi_sdk-buildroot")
+    if(EXISTS "${_webos_workspace_sdk_root}")
+        set(WEBOS_SDK_ROOT "${_webos_workspace_sdk_root}")
+    else()
+        set(WEBOS_SDK_ROOT "${_webos_repo_sdk_root}")
+    endif()
 endif()
 
 set(WEBOS_TOOLCHAIN_BINDIR "${WEBOS_SDK_ROOT}/bin")
@@ -30,4 +37,29 @@ set(ENV{PKG_CONFIG_LIBDIR} "${CMAKE_SYSROOT}/usr/lib/pkgconfig:${CMAKE_SYSROOT}/
 set(ENV{PKG_CONFIG_PATH} "")
 
 get_filename_component(_toolchain_dir "${CMAKE_CURRENT_LIST_FILE}" DIRECTORY)
-set(PKG_CONFIG_EXECUTABLE "${_toolchain_dir}/pkg-config-webos.sh" CACHE FILEPATH "")
+set(PKG_CONFIG_EXECUTABLE "${_toolchain_dir}/pkg-config-webos.sh" CACHE FILEPATH "" FORCE)
+
+# Qt's static CMake packages re-run third-party dependency discovery in
+# downstream projects. Keep those lookups pinned to the webOS SDK sysroot so
+# consumers do not need to repeat the same cache hints at every configure site.
+set(GLESv2_INCLUDE_DIR "${CMAKE_SYSROOT}/usr/include" CACHE PATH "")
+set(GLESv2_LIBRARY "${CMAKE_SYSROOT}/usr/lib/libGLESv2.so" CACHE FILEPATH "")
+set(EGL_INCLUDE_DIR "${CMAKE_SYSROOT}/usr/include" CACHE PATH "")
+set(EGL_LIBRARY "${CMAKE_SYSROOT}/usr/lib/libEGL.so" CACHE FILEPATH "")
+set(XKB_INCLUDE_DIR "${CMAKE_SYSROOT}/usr/include" CACHE PATH "")
+set(XKB_LIBRARY "${CMAKE_SYSROOT}/usr/lib/libxkbcommon.so" CACHE FILEPATH "")
+
+set(FREETYPE_INCLUDE_DIR_freetype2 "${CMAKE_SYSROOT}/usr/include/freetype2" CACHE PATH "")
+set(FREETYPE_INCLUDE_DIR_ft2build "${CMAKE_SYSROOT}/usr/include/freetype2" CACHE PATH "")
+set(FREETYPE_LIBRARY_RELEASE "${CMAKE_SYSROOT}/usr/lib/libfreetype.so" CACHE FILEPATH "")
+set(Fontconfig_INCLUDE_DIR "${CMAKE_SYSROOT}/usr/include" CACHE PATH "")
+set(Fontconfig_LIBRARY "${CMAKE_SYSROOT}/usr/lib/libfontconfig.so" CACHE FILEPATH "")
+
+set(Wayland_Client_INCLUDE_DIR "${CMAKE_SYSROOT}/usr/include" CACHE PATH "")
+set(Wayland_Client_LIBRARY "${CMAKE_SYSROOT}/usr/lib/libwayland-client.so" CACHE FILEPATH "")
+set(Wayland_Server_INCLUDE_DIR "${CMAKE_SYSROOT}/usr/include" CACHE PATH "")
+set(Wayland_Server_LIBRARY "${CMAKE_SYSROOT}/usr/lib/libwayland-server.so" CACHE FILEPATH "")
+set(Wayland_Cursor_INCLUDE_DIR "${CMAKE_SYSROOT}/usr/include" CACHE PATH "")
+set(Wayland_Cursor_LIBRARY "${CMAKE_SYSROOT}/usr/lib/libwayland-cursor.so" CACHE FILEPATH "")
+set(Wayland_Egl_INCLUDE_DIR "${CMAKE_SYSROOT}/usr/include" CACHE PATH "")
+set(Wayland_Egl_LIBRARY "${CMAKE_SYSROOT}/usr/lib/libwayland-egl.so" CACHE FILEPATH "")

@@ -2,7 +2,13 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-SDK_ROOT="${WEBOS_SDK_ROOT:-$ROOT/build/webos-sdk/arm-webos-linux-gnueabi_sdk-buildroot}"
+if [[ -n "${WEBOS_SDK_ROOT:-}" ]]; then
+  SDK_ROOT="$WEBOS_SDK_ROOT"
+elif [[ -d "$ROOT/../build/webos-sdk/arm-webos-linux-gnueabi_sdk-buildroot" ]]; then
+  SDK_ROOT="$ROOT/../build/webos-sdk/arm-webos-linux-gnueabi_sdk-buildroot"
+else
+  SDK_ROOT="$ROOT/build/webos-sdk/arm-webos-linux-gnueabi_sdk-buildroot"
+fi
 SYSROOT="$SDK_ROOT/arm-webos-linux-gnueabi/sysroot"
 
 export PKG_CONFIG_SYSROOT_DIR="$SYSROOT"

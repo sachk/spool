@@ -1,0 +1,10 @@
+diff --git a/src/gui/kernel/qplatformwindow.cpp b/src/gui/kernel/qplatformwindow.cpp
+index da7d9a4073..d83a22d9b7 100644
+--- a/src/gui/kernel/qplatformwindow.cpp
++++ b/src/gui/kernel/qplatformwindow.cpp
+@@ -892,3 +892,5 @@ void QPlatformWindow::setFrameStrutEventsEnabled(bool enabled)
+ */
+ 
+ QT_END_NAMESPACE
++
++#include "moc_qplatformwindow_p.cpp"

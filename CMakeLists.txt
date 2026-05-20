@@ -49,7 +49,14 @@ set(JELLYFIN_QT_COMPONENTS
 )
 if(JELLYFIN_NATIVE_WEBOS)
     set(JELLYFIN_QT_MIN_VERSION 6.11)
-    list(APPEND JELLYFIN_QT_COMPONENTS GuiPrivate WaylandClient)
+    list(APPEND JELLYFIN_QT_COMPONENTS
+        GuiPrivate
+        QuickLayouts
+        VirtualKeyboard
+        VirtualKeyboardQml
+        VirtualKeyboardSettings
+        WaylandClient
+    )
 else()
     set(JELLYFIN_QT_MIN_VERSION 6.11)
 endif()
@@ -195,6 +202,10 @@ qt_add_qml_module(jellyfin-native
         qml/fonts/MaterialIcons-Regular.ttf
 )
 
+if(NOT BUILD_SHARED_LIBS)
+    set_target_properties(jellyfin-native PROPERTIES QT_QML_MODULE_NO_IMPORT_SCAN ON)
+endif()
+
 target_include_directories(jellyfin-native PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/third_party/qcoro/include"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/player"
@@ -254,20 +265,50 @@ if(NOT BUILD_SHARED_LIBS)
 
     if(JELLYFIN_NATIVE_WEBOS)
         qt_import_plugins(jellyfin-native
+            NO_DEFAULT
             INCLUDE
                 Qt6::QWaylandIntegrationPlugin
                 Qt6::QWaylandEglClientBufferPlugin
                 Qt6::QWaylandWlShellIntegrationPlugin
                 Qt6::QSQLiteDriverPlugin
-            EXCLUDE_BY_TYPE imageformats
+                Qt6::QVirtualKeyboardPlugin
+                Qt6::QJpegPlugin
+                Qt6::QWebpPlugin
         )
     endif()
-    # Re-include specific image plugins after the blanket exclude
-    qt_import_plugins(jellyfin-native
-        INCLUDE_BY_TYPE imageformats 
-            Qt6::QJpegPlugin 
-            Qt6::QWebpPlugin
+
+    set(JELLYFIN_STATIC_QML_PLUGINS
+        Qt6::qmlplugin
+        Qt6::modelsplugin
+        Qt6::workerscriptplugin
+        Qt6::qtquick2plugin
+        Qt6::quickwindow
+        Qt6::qquicklayoutsplugin
+        Qt6::qtquicktemplates2plugin
+        Qt6::qtquickcontrols2implplugin
+        Qt6::qtquickcontrols2basicstyleimplplugin
+        Qt6::qtquickcontrols2basicstyleplugin
+        Qt6::qmlfolderlistmodelplugin
+        Qt6::VirtualKeyboardplugin
+        Qt6::qtvkbplugin
+        Qt6::qtvkblayoutsplugin
+        Qt6::qtvkbsettingsplugin
+        Qt6::qtvkbcomponentsplugin
+        Qt6::qtvkbstylesplugin
+        Qt6::qtvkbbuiltinstylesplugin
+        Qt6::qtvkbpluginsplugin
+        Qt6::qtvkbhangulplugin
+        Qt6::qtvkbopenwnnplugin
+        Qt6::qtvkbpinyinplugin
+        Qt6::qtvkbtcimeplugin
+        Qt6::qtvkbthaiplugin
     )
+    foreach(qml_plugin IN LISTS JELLYFIN_STATIC_QML_PLUGINS)
+        if(TARGET ${qml_plugin})
+            target_link_libraries(jellyfin-native PRIVATE ${qml_plugin})
+        endif()
+    endforeach()
+
     # Add linker GC to strip unused code from static libs.
     # macOS ld64 doesn't accept --gc-sections (uses -dead_strip instead, on by
     # default at -O), so only apply this on non-Apple platforms.
