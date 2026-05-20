@@ -42,6 +42,8 @@ class PlayerController final : public QObject
     Q_PROPERTY(bool nightModeEnabled READ nightModeEnabled WRITE setNightModeEnabled NOTIFY nightModeEnabledChanged)
     Q_PROPERTY(int audioDelayMs READ audioDelayMs WRITE setAudioDelayMs NOTIFY audioDelayMsChanged)
     Q_PROPERTY(QString audioOutputMode READ audioOutputMode WRITE setAudioOutputMode NOTIFY audioOutputModeChanged)
+    Q_PROPERTY(QString activeSegmentType READ activeSegmentType NOTIFY stateChanged)
+    Q_PROPERTY(double activeSegmentEndSeconds READ activeSegmentEndSeconds NOTIFY stateChanged)
 
 public:
     PlayerController(NativeAppWindow *window, JellyfinApiFacade *api, QObject *parent = nullptr);
@@ -67,6 +69,9 @@ public:
     bool nightModeEnabled() const;
     int audioDelayMs() const;
     QString audioOutputMode() const;
+    QString activeSegmentType() const;
+    double activeSegmentEndSeconds() const;
+    Q_INVOKABLE void skipActiveSegment();
 
     Q_INVOKABLE void play(const JellyfinNative::PlaybackSession &session);
     Q_INVOKABLE void togglePause();
@@ -173,6 +178,8 @@ private:
     std::atomic_bool m_nightModeEnabled = false;
     std::atomic<int> m_audioDelayMs = 0;
     QString m_audioOutputMode = QStringLiteral("alsa");
+    QString m_activeSegmentType;
+    double m_activeSegmentEndSeconds = 0.0;
 };
 
 } // namespace JellyfinNative

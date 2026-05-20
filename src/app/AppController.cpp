@@ -515,11 +515,26 @@ void AppController::playMediaItem(const MovieItem &item)
 {
     Diagnostics::Task task(QStringLiteral("playback_negotiate"), {{QStringLiteral("itemId"), item.id}, {QStringLiteral("title"), item.title}, {QStringLiteral("type"), item.itemType}});
     setBusy(true, QStringLiteral("Negotiating direct play…"));
+    const QString itemId = item.id;
     QCoro::runDetached(
         m_api->negotiateDirectPlay(item),
-        [this](const PlaybackSession &session) {
+        [this, itemId](const PlaybackSession &session) {
+            // Fire-and-forget: fetch media segments in parallel; pass to the
+            // player once they arrive (skip-intro/outro support).
+            PlaybackSession enriched = session;
+            JellyfinApiFacade *api = m_api;
+            PlayerController *player = m_player;
+            QCoro::runDetached(
+                api->fetchMediaSegments(itemId),
+                [player, enriched](const std::vector<MediaSegment> &segments) mutable {
+                    enriched.segments = segments;
+                    player->play(enriched);
+                },
+                [player, enriched](const std::exception_ptr &) {
+                    // No segments available — start playback regardless.
+                    player->play(enriched);
+                });
             setBusy(false);
-            m_player->play(session);
         },
         [this](const std::exception_ptr &error) {
             setBusy(false);
@@ -657,6 +672,7 @@ QStringList AppController::availableButtonActions() const
         QStringLiteral("skipBack90"),
         QStringLiteral("skipForward90"),
         QStringLiteral("skipBackAndEnableSubs"),
+        QStringLiteral("skipSegment"),
         QStringLiteral("showInfo"),
         QStringLiteral("stop")
     };
@@ -676,6 +692,7 @@ QString AppController::buttonActionLabel(const QString &action) const
     if (action == QStringLiteral("skipBack90")) return QStringLiteral("Skip back 90 s");
     if (action == QStringLiteral("skipForward90")) return QStringLiteral("Skip forward 90 s");
     if (action == QStringLiteral("skipBackAndEnableSubs")) return QStringLiteral("Skip back 10 s + enable subs");
+    if (action == QStringLiteral("skipSegment")) return QStringLiteral("Skip intro / outro");
     if (action == QStringLiteral("showInfo")) return QStringLiteral("Show info");
     if (action == QStringLiteral("stop")) return QStringLiteral("Stop playback");
     return action;

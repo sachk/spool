@@ -828,6 +828,8 @@ void PlayerController::resetPlaybackUiState() {
   m_resumeStartSeconds = 0.0;
   m_positionClock.invalidate();
   m_debugOsdVisible = false;
+  m_activeSegmentType.clear();
+  m_activeSegmentEndSeconds = 0.0;
   m_statusText = QStringLiteral("Ready");
 }
 
@@ -1249,7 +1251,36 @@ void PlayerController::setPositionSeconds(double seconds) {
 
   m_positionSeconds = clamped;
   m_positionClock.restart();
+
+  // Recompute the active media segment (intro / outro / recap) for the new
+  // position. We only emit stateChanged once below — the segment recompute
+  // touches member state directly so the change is published with the same
+  // signal as the position update.
+  QString segmentType;
+  double segmentEndSeconds = 0.0;
+  for (const MediaSegment &segment : m_session.segments) {
+    constexpr double ticksPerSecond = 10000000.0;
+    const double start = segment.startTicks / ticksPerSecond;
+    const double end = segment.endTicks / ticksPerSecond;
+    if (clamped >= start && clamped < end - 0.5) {
+      segmentType = segment.type;
+      segmentEndSeconds = end;
+      break;
+    }
+  }
+  m_activeSegmentType = segmentType;
+  m_activeSegmentEndSeconds = segmentEndSeconds;
+
   emit stateChanged();
+}
+
+QString PlayerController::activeSegmentType() const { return m_activeSegmentType; }
+double PlayerController::activeSegmentEndSeconds() const { return m_activeSegmentEndSeconds; }
+
+void PlayerController::skipActiveSegment() {
+  if (m_activeSegmentType.isEmpty() || m_activeSegmentEndSeconds <= 0.0)
+    return;
+  seek(m_activeSegmentEndSeconds);
 }
 
 double PlayerController::playbackPositionFromMpvTime(double seconds) const {
