@@ -14,8 +14,34 @@ FocusScope {
         { label: "Appearance", target: 4 },
         { label: "Playback", target: 11 },
         { label: "Diagnostics", target: 16 },
-        { label: "Input", target: 17 }
+        { label: "Input", target: 17 },
+        { label: "Button Remap", target: 18 }
     ]
+
+    function buttonActionOptions() {
+        if (!appController) return ["No action"]
+        const result = []
+        const actions = appController.availableButtonActions
+        for (let i = 0; i < actions.length; ++i) {
+            result.push(appController.buttonActionLabel(actions[i]))
+        }
+        return result
+    }
+
+    function buttonActionIndex(currentAction) {
+        if (!appController) return 0
+        const actions = appController.availableButtonActions
+        for (let i = 0; i < actions.length; ++i) {
+            if (actions[i] === currentAction) return i
+        }
+        return 0
+    }
+
+    function actionFromIndex(i) {
+        if (!appController) return "none"
+        const actions = appController.availableButtonActions
+        return (i >= 0 && i < actions.length) ? actions[i] : "none"
+    }
     focus: true
 
     function currentRow() {
@@ -376,6 +402,53 @@ FocusScope {
                     checked: true
                     onActiveFocusChanged: if (activeFocus) root.markFocused(settingIndex)
                 }
+                SectionHeader { Layout.fillWidth: true; title: "Button Remap" }
+                SelectRow {
+                    id: redButtonRow
+                    Layout.fillWidth: true
+                    settingIndex: 18
+                    rowFocus: root.currentIndex === settingIndex || activeFocus
+                    title: "Red button"
+                    description: "TV remote color button"
+                    options: root.buttonActionOptions()
+                    currentIndex: root.buttonActionIndex(appController ? appController.redButtonAction : "none")
+                    onSelected: (i, v) => appController.setRedButtonAction(root.actionFromIndex(i))
+                    onActiveFocusChanged: if (activeFocus) root.markFocused(settingIndex)
+                }
+                SelectRow {
+                    id: greenButtonRow
+                    Layout.fillWidth: true
+                    settingIndex: 19
+                    rowFocus: root.currentIndex === settingIndex || activeFocus
+                    title: "Green button"
+                    description: "Defaults to skip back 10 s + enable subs"
+                    options: root.buttonActionOptions()
+                    currentIndex: root.buttonActionIndex(appController ? appController.greenButtonAction : "none")
+                    onSelected: (i, v) => appController.setGreenButtonAction(root.actionFromIndex(i))
+                    onActiveFocusChanged: if (activeFocus) root.markFocused(settingIndex)
+                }
+                SelectRow {
+                    id: yellowButtonRow
+                    Layout.fillWidth: true
+                    settingIndex: 20
+                    rowFocus: root.currentIndex === settingIndex || activeFocus
+                    title: "Yellow button"
+                    options: root.buttonActionOptions()
+                    currentIndex: root.buttonActionIndex(appController ? appController.yellowButtonAction : "none")
+                    onSelected: (i, v) => appController.setYellowButtonAction(root.actionFromIndex(i))
+                    onActiveFocusChanged: if (activeFocus) root.markFocused(settingIndex)
+                }
+                SelectRow {
+                    id: blueButtonRow
+                    Layout.fillWidth: true
+                    settingIndex: 21
+                    rowFocus: root.currentIndex === settingIndex || activeFocus
+                    title: "Blue button"
+                    options: root.buttonActionOptions()
+                    currentIndex: root.buttonActionIndex(appController ? appController.blueButtonAction : "none")
+                    onSelected: (i, v) => appController.setBlueButtonAction(root.actionFromIndex(i))
+                    onActiveFocusChanged: if (activeFocus) root.markFocused(settingIndex)
+                }
 
                 Component.onCompleted: {
                     root.settingsRows = [
@@ -383,7 +456,8 @@ FocusScope {
                         gridColumnsRow, railLabelsRow, reducedMotionRow,
                         renderModeRow, antialiasedRow, metadataRow,
                         nightModeRow, audioDelayRow, audioOutputRow, bitrateRow,
-                        remuxRow, diagnosticsRow, shortcutsRow
+                        remuxRow, diagnosticsRow, shortcutsRow,
+                        redButtonRow, greenButtonRow, yellowButtonRow, blueButtonRow
                     ]
                     for (let i = 0; i < root.settingsRows.length; ++i)
                         root.settingsRows[i].settingIndex = i

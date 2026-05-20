@@ -272,6 +272,19 @@ void DatabaseManager::saveAudioOutputMode(const QString &mode)
     });
 }
 
+QString DatabaseManager::loadSetting(const QString &key, const QString &defaultValue)
+{
+    const QVariant value = invokeOnWorker([this, key]() { return m_worker->value(key); });
+    if (!value.isValid() || value.toString().isEmpty())
+        return defaultValue;
+    return value.toString();
+}
+
+void DatabaseManager::saveSetting(const QString &key, const QString &value)
+{
+    invokeOnWorkerAsync([this, key, value]() { m_worker->setValue(key, value); });
+}
+
 } // namespace JellyfinNative
 
 #include "DatabaseManager.moc"

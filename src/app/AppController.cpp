@@ -203,6 +203,10 @@ void AppController::initialize()
     m_nightModeEnabled = m_database->loadNightModeEnabled();
     m_audioDelayMs = m_database->loadAudioDelayMs();
     m_audioOutputMode = m_database->loadAudioOutputMode() == QStringLiteral("starfish") ? QStringLiteral("starfish") : QStringLiteral("alsa");
+    m_redButtonAction = m_database->loadSetting(QStringLiteral("input/redButton"), QStringLiteral("none"));
+    m_greenButtonAction = m_database->loadSetting(QStringLiteral("input/greenButton"), QStringLiteral("skipBackAndEnableSubs"));
+    m_yellowButtonAction = m_database->loadSetting(QStringLiteral("input/yellowButton"), QStringLiteral("none"));
+    m_blueButtonAction = m_database->loadSetting(QStringLiteral("input/blueButton"), QStringLiteral("none"));
     m_player->setNightModeEnabled(m_nightModeEnabled);
     m_player->setAudioDelayMs(m_audioDelayMs);
     m_player->setAudioOutputMode(m_audioOutputMode);
@@ -211,6 +215,7 @@ void AppController::initialize()
     emit nightModeEnabledChanged();
     emit audioDelayMsChanged();
     emit audioOutputModeChanged();
+    emit buttonRemapChanged();
 
     AuthSession session = m_database->loadAuthSession();
     if (!session.accessToken.isEmpty() && !m_serverUrl.isEmpty()) {
@@ -631,6 +636,83 @@ void AppController::setAudioOutputMode(const QString &mode)
     m_player->setAudioOutputMode(normalized);
     emit audioOutputModeChanged();
 }
+
+QString AppController::redButtonAction() const { return m_redButtonAction; }
+QString AppController::greenButtonAction() const { return m_greenButtonAction; }
+QString AppController::yellowButtonAction() const { return m_yellowButtonAction; }
+QString AppController::blueButtonAction() const { return m_blueButtonAction; }
+
+QStringList AppController::availableButtonActions() const
+{
+    return {
+        QStringLiteral("none"),
+        QStringLiteral("togglePause"),
+        QStringLiteral("toggleSubs"),
+        QStringLiteral("cycleSubs"),
+        QStringLiteral("cycleAudio"),
+        QStringLiteral("skipBack10"),
+        QStringLiteral("skipForward10"),
+        QStringLiteral("skipBack30"),
+        QStringLiteral("skipForward30"),
+        QStringLiteral("skipBack90"),
+        QStringLiteral("skipForward90"),
+        QStringLiteral("skipBackAndEnableSubs"),
+        QStringLiteral("showInfo"),
+        QStringLiteral("stop")
+    };
+}
+
+QString AppController::buttonActionLabel(const QString &action) const
+{
+    if (action == QStringLiteral("none")) return QStringLiteral("No action");
+    if (action == QStringLiteral("togglePause")) return QStringLiteral("Play / Pause");
+    if (action == QStringLiteral("toggleSubs")) return QStringLiteral("Toggle subtitles");
+    if (action == QStringLiteral("cycleSubs")) return QStringLiteral("Cycle subtitles");
+    if (action == QStringLiteral("cycleAudio")) return QStringLiteral("Cycle audio track");
+    if (action == QStringLiteral("skipBack10")) return QStringLiteral("Skip back 10 s");
+    if (action == QStringLiteral("skipForward10")) return QStringLiteral("Skip forward 10 s");
+    if (action == QStringLiteral("skipBack30")) return QStringLiteral("Skip back 30 s");
+    if (action == QStringLiteral("skipForward30")) return QStringLiteral("Skip forward 30 s");
+    if (action == QStringLiteral("skipBack90")) return QStringLiteral("Skip back 90 s");
+    if (action == QStringLiteral("skipForward90")) return QStringLiteral("Skip forward 90 s");
+    if (action == QStringLiteral("skipBackAndEnableSubs")) return QStringLiteral("Skip back 10 s + enable subs");
+    if (action == QStringLiteral("showInfo")) return QStringLiteral("Show info");
+    if (action == QStringLiteral("stop")) return QStringLiteral("Stop playback");
+    return action;
+}
+
+void AppController::setRedButtonAction(const QString &action)
+{
+    if (m_redButtonAction == action) return;
+    m_redButtonAction = action;
+    m_database->saveSetting(QStringLiteral("input/redButton"), action);
+    emit buttonRemapChanged();
+}
+
+void AppController::setGreenButtonAction(const QString &action)
+{
+    if (m_greenButtonAction == action) return;
+    m_greenButtonAction = action;
+    m_database->saveSetting(QStringLiteral("input/greenButton"), action);
+    emit buttonRemapChanged();
+}
+
+void AppController::setYellowButtonAction(const QString &action)
+{
+    if (m_yellowButtonAction == action) return;
+    m_yellowButtonAction = action;
+    m_database->saveSetting(QStringLiteral("input/yellowButton"), action);
+    emit buttonRemapChanged();
+}
+
+void AppController::setBlueButtonAction(const QString &action)
+{
+    if (m_blueButtonAction == action) return;
+    m_blueButtonAction = action;
+    m_database->saveSetting(QStringLiteral("input/blueButton"), action);
+    emit buttonRemapChanged();
+}
+
 
 void AppController::setPage(const QString &page)
 {
