@@ -557,11 +557,15 @@ void AppController::back()
 void AppController::shutdown()
 {
     Diagnostics::Phase phase(QStringLiteral("shutdown"), QStringLiteral("app_controller_shutdown"));
+    if (m_shuttingDown)
+        return;
+    m_shuttingDown = true;
     qInfo() << "app: shutdown requested";
     m_quickConnectTimer.stop();
     m_libraryPrefetchTimer.stop();
     m_libraryPrefetchQueue.clear();
     m_libraryPrefetchActive = false;
+    m_api->cancelPrefetches();
     m_discovery->stop();
     m_player->teardownMpv();
 }

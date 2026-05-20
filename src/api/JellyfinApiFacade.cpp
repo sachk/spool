@@ -197,6 +197,21 @@ void JellyfinApiFacade::prefetchImages(const QStringList &urls, int maxConcurren
     pumpImagePrefetch();
 }
 
+void JellyfinApiFacade::cancelPrefetches()
+{
+    Diagnostics::logEvent(QStringLiteral("network"), QStringLiteral("prefetch_cancel"),
+                          {{QStringLiteral("queued"), m_prefetchQueue.size()},
+                           {QStringLiteral("inFlight"), m_prefetchReplies.size()}});
+    m_prefetchQueue.clear();
+    m_prefetchSeen.clear();
+
+    const auto replies = m_prefetchReplies;
+    for (QNetworkReply *reply : replies) {
+        if (reply)
+            reply->abort();
+    }
+}
+
 QCoro::Task<void> JellyfinApiFacade::probeServer()
 {
     co_await requestJson(HttpMethod::Get, QStringLiteral("/System/Info/Public"));
@@ -768,6 +783,7 @@ void JellyfinApiFacade::pumpImagePrefetch()
         request.setAttribute(QNetworkRequest::CacheLoadControlAttribute, QNetworkRequest::PreferCache);
 
         auto *reply = m_networkAccessManager->get(request);
+        m_prefetchReplies.insert(reply);
         ++m_prefetchInFlight;
         connect(reply, &QNetworkReply::finished, this, [this, reply, url]() {
             if (reply)
@@ -776,6 +792,7 @@ void JellyfinApiFacade::pumpImagePrefetch()
                 reply->deleteLater();
 
             m_prefetchSeen.remove(url);
+            m_prefetchReplies.remove(reply);
             m_prefetchInFlight = std::max(0, m_prefetchInFlight - 1);
             Diagnostics::logEvent(QStringLiteral("network"), QStringLiteral("prefetch_end"), {{QStringLiteral("url"), diagnosticUrl(url)}, {QStringLiteral("inFlight"), m_prefetchInFlight}});
             pumpImagePrefetch();
