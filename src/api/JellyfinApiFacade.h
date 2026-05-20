@@ -32,6 +32,11 @@ public:
     void setDeviceIdentity(const QString &deviceId, const QString &deviceName, const QString &clientVersion);
     QString deviceId() const;
 
+    // Forwarded into the QNetworkRequestFactory common headers so every API
+    // call hints the server about our locale. Jellyfin uses this to localise
+    // server-returned strings (Continue Watching titles, etc.).
+    void setAcceptLanguage(const QString &bcp47Tag);
+
     void setSession(const AuthSession &session);
     AuthSession session() const;
 

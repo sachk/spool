@@ -146,6 +146,16 @@ QString JellyfinApiFacade::serverUrl() const
     return m_serverUrl;
 }
 
+void JellyfinApiFacade::setAcceptLanguage(const QString &bcp47Tag)
+{
+    if (bcp47Tag.isEmpty())
+        return;
+    QHttpHeaders headers;
+    headers.append(QHttpHeaders::WellKnownHeader::Accept, QStringLiteral("application/json"));
+    headers.append(QHttpHeaders::WellKnownHeader::AcceptLanguage, bcp47Tag);
+    m_requestFactory.setCommonHeaders(headers);
+}
+
 void JellyfinApiFacade::setDeviceIdentity(const QString &deviceId, const QString &deviceName, const QString &clientVersion)
 {
     m_deviceId = deviceId;
