@@ -29,6 +29,7 @@ FocusScope {
     property double seekHoldStartMs: 0
     property bool seekHoldActive: false
     property bool seekHoldFirstRepeat: true
+    property bool downHoldActive: false
     readonly property real uiScale: Math.max(0.78, Math.min(1.0, height / 1440))
     readonly property int actionTargetSize: Math.round(64 * uiScale)
     property real menuAnchorX: width - Math.round(240 * uiScale)
@@ -492,6 +493,14 @@ FocusScope {
 
     function handleReleased(event) {
         if (isIgnoredPlayerNoise(event)) return true
+        if (event.key === Qt.Key_Down) {
+            downHoldTimer.stop()
+            if (downHoldActive) {
+                // Hold consumed the release — don't ALSO move row down.
+                downHoldActive = false
+                return true
+            }
+        }
         if (event.key === Qt.Key_Red || event.key === Qt.Key_Green
             || event.key === Qt.Key_Yellow || event.key === Qt.Key_Blue) {
             if (dispatchRemapAction(actionForColorKey(event.key))) return true
@@ -535,6 +544,14 @@ FocusScope {
             return startPreviewSeekHold(event.key, -10)
         if (event.key === Qt.Key_Right)
             return startPreviewSeekHold(event.key, 10)
+        if (event.key === Qt.Key_Down) {
+            if (!event.isAutoRepeat) {
+                downHoldActive = false
+                downHoldTimer.interval = 450
+                downHoldTimer.restart()
+            }
+            return false  // let the normal release-handler decide what Down means
+        }
         return false
     }
 
@@ -548,6 +565,8 @@ FocusScope {
             autohideTimer.stop()
             scrubTimer.stop()
             stopPreviewSeekHold()
+            downHoldTimer.stop()
+            downHoldActive = false
             mode = "hidden"
             row = "timeline"
             scrubbing = false
@@ -559,6 +578,25 @@ FocusScope {
 
     Timer { id: autohideTimer; interval: 3000; onTriggered: overlay.hideControls() }
     Timer { id: scrubTimer; interval: 650; onTriggered: overlay.commitScrub() }
+    // Long-press of Down cycles subtitles (off -> first -> ... -> off). The
+    // first 450 ms is the "hold detection" window; after that we keep firing
+    // at ~400 ms so the user can flick through tracks quickly.
+    Timer {
+        id: downHoldTimer
+        interval: 450
+        repeat: false
+        onTriggered: {
+            if (!overlay.hasPlayer) {
+                stop()
+                return
+            }
+            overlay.downHoldActive = true
+            overlay.player.cycleSubtitles()
+            overlay.showControls("actions")
+            interval = 400
+            restart()
+        }
+    }
     Timer {
         id: seekHoldTimer
         interval: 200
