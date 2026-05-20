@@ -76,21 +76,26 @@ extract_if_needed() {
 apply_patch_if_needed() {
   local src_dir="$1"
   local patch_file="$2"
-  local probe_file="$3"
-  local probe="$4"
+  # Legacy positional args ($3, $4) used to be a probe_file/probe pair
+  # but trivial single-line probes routinely matched the *unpatched*
+  # source and silently skipped. Detect application state by trying to
+  # reverse-apply the patch instead — that's authoritative.
+  shift 2
 
   if [[ ! -f "$patch_file" ]]; then
     echo "error: missing patch file $patch_file" >&2
     exit 1
   fi
 
-  if grep -Fq "$probe" "$src_dir/$probe_file"; then
-    return 0
-  fi
-
   (
     cd "$src_dir"
-    git apply "$patch_file"
+    if patch -p1 --dry-run --reverse --silent < "$patch_file" >/dev/null 2>&1; then
+      # Reverse-applies cleanly → already applied.
+      return 0
+    fi
+    # Apply for real. Prefer plain patch(1) since tarball extractions
+    # aren't git checkouts.
+    patch -p1 < "$patch_file"
   )
 }
 
@@ -107,9 +112,7 @@ apply_local_patches() {
     "#  define EM_AARCH64 183"
   apply_patch_if_needed \
     "$QTBASE_SRC" \
-    "$PATCH_DIR/qtbase-6.11.0-webos-wayland-no-opengl-forward-decl.patch" \
-    "src/plugins/platforms/wayland/hardwareintegration/qwaylandclientbufferintegration_p.h" \
-    "class QPlatformOpenGLContext;"
+    "$PATCH_DIR/qtbase-6.11.0-webos-wayland-no-opengl-forward-decl.patch"
   apply_patch_if_needed \
     "$QTWAYLAND_SRC" \
     "$PATCH_DIR/qtwayland-6.11.0-webos-wayland-version.patch" \
