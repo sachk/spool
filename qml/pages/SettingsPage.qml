@@ -15,7 +15,8 @@ FocusScope {
         { label: "Playback", target: 11 },
         { label: "Diagnostics", target: 16 },
         { label: "Input", target: 17 },
-        { label: "Button Remap", target: 18 }
+        { label: "Button Remap", target: 18 },
+        { label: "SyncPlay", target: 22 }
     ]
 
     function buttonActionOptions() {
@@ -450,6 +451,86 @@ FocusScope {
                     onActiveFocusChanged: if (activeFocus) root.markFocused(settingIndex)
                 }
 
+                SectionHeader { Layout.fillWidth: true; title: "SyncPlay" }
+                SettingRow {
+                    id: syncPlayStatusRow
+                    Layout.fillWidth: true
+                    settingIndex: 22
+                    rowFocus: root.currentIndex === settingIndex || activeFocus
+                    title: "Status"
+                    description: appController && appController.syncPlay && appController.syncPlay.enabled
+                                 ? "Synced with " + appController.syncPlay.currentGroupName
+                                 : "Not in a group"
+                    valueText: appController && appController.syncPlay && appController.syncPlay.enabled ? "Leave" : "Refresh"
+                    onClicked: {
+                        if (!appController || !appController.syncPlay) return
+                        if (appController.syncPlay.enabled) appController.syncPlay.leaveGroup()
+                        else appController.syncPlay.refreshGroups()
+                    }
+                    function handleNavigationKey(key) {
+                        if (key === Qt.Key_Return || key === Qt.Key_Enter || key === Qt.Key_Select || key === Qt.Key_Space) {
+                            if (!appController || !appController.syncPlay) return true
+                            if (appController.syncPlay.enabled) appController.syncPlay.leaveGroup()
+                            else appController.syncPlay.refreshGroups()
+                            return true
+                        }
+                        return false
+                    }
+                    onActiveFocusChanged: if (activeFocus) root.markFocused(settingIndex)
+                }
+                Repeater {
+                    id: groupRepeater
+                    model: appController && appController.syncPlay ? appController.syncPlay.groups : []
+                    delegate: Surface {
+                        required property int index
+                        required property var modelData
+                        readonly property string groupId: modelData ? modelData.GroupId || "" : ""
+                        readonly property string groupName: modelData ? modelData.GroupName || "Group" : "Group"
+                        readonly property int participantCount: modelData && modelData.Participants ? modelData.Participants.length : 0
+                        Layout.fillWidth: true
+                        Layout.preferredHeight: 56
+                        baseColor: Theme.bgPanel
+
+                        RowLayout {
+                            anchors.fill: parent
+                            anchors.leftMargin: 14
+                            anchors.rightMargin: 14
+                            spacing: 12
+
+                            AppText {
+                                text: groupName
+                                Layout.fillWidth: true
+                                font.weight: Font.Medium
+                            }
+                            AppText {
+                                text: participantCount + " member" + (participantCount === 1 ? "" : "s")
+                                color: Theme.textMuted
+                                font.pixelSize: 13
+                            }
+                            ActionButton {
+                                text: "Join"
+                                onClicked: if (appController && appController.syncPlay) appController.syncPlay.joinGroup(groupId)
+                            }
+                        }
+                    }
+                }
+                SettingRow {
+                    id: syncPlayCreateRow
+                    Layout.fillWidth: true
+                    title: "Create group"
+                    description: "Start a new SyncPlay session"
+                    valueText: "Create"
+                    onClicked: if (appController && appController.syncPlay) appController.syncPlay.createGroup("Group")
+                    function handleNavigationKey(key) {
+                        if (key === Qt.Key_Return || key === Qt.Key_Enter || key === Qt.Key_Select || key === Qt.Key_Space) {
+                            if (appController && appController.syncPlay) appController.syncPlay.createGroup("Group")
+                            return true
+                        }
+                        return false
+                    }
+                    onActiveFocusChanged: if (activeFocus) root.markFocused(settingIndex)
+                }
+
                 Component.onCompleted: {
                     root.settingsRows = [
                         themeRow, accentRow, uiScaleRow, logoutRow, posterSizeRow,
@@ -457,11 +538,16 @@ FocusScope {
                         renderModeRow, antialiasedRow, metadataRow,
                         nightModeRow, audioDelayRow, audioOutputRow, bitrateRow,
                         remuxRow, diagnosticsRow, shortcutsRow,
-                        redButtonRow, greenButtonRow, yellowButtonRow, blueButtonRow
+                        redButtonRow, greenButtonRow, yellowButtonRow, blueButtonRow,
+                        syncPlayStatusRow, syncPlayCreateRow
                     ]
                     for (let i = 0; i < root.settingsRows.length; ++i)
                         root.settingsRows[i].settingIndex = i
                     root.focusRow(root.currentIndex)
+                    // Best-effort refresh on page open so users see existing
+                    // groups without needing to hit "Refresh".
+                    if (appController && appController.syncPlay)
+                        appController.syncPlay.refreshGroups()
                 }
             }
         }
