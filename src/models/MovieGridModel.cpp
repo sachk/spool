@@ -170,4 +170,23 @@ MovieItem MovieGridModel::movieAt(int index) const
     return m_movies[static_cast<size_t>(index)];
 }
 
+bool MovieGridModel::updateResumeTicks(const QString &itemId, qint64 resumeTicks)
+{
+    if (itemId.isEmpty())
+        return false;
+
+    bool updated = false;
+    for (int row = 0; row < rowCount(); ++row) {
+        auto &movie = m_movies[static_cast<size_t>(row)];
+        if (movie.id != itemId || movie.resumeTicks == resumeTicks)
+            continue;
+
+        movie.resumeTicks = resumeTicks;
+        const QModelIndex changed = index(row, 0);
+        emit dataChanged(changed, changed, {ResumeTicksRole, ProgressRole, PlayActionLabelRole});
+        updated = true;
+    }
+    return updated;
+}
+
 } // namespace JellyfinNative

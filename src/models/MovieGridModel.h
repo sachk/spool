@@ -45,6 +45,7 @@ public:
     void setMovies(const std::vector<MovieItem> &movies);
     void clear();
     MovieItem movieAt(int index) const;
+    bool updateResumeTicks(const QString &itemId, qint64 resumeTicks);
 
 private:
     std::vector<MovieItem> m_movies;

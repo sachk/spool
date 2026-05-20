@@ -59,6 +59,7 @@ Q_IMPORT_PLUGIN(QSQLiteDriverPlugin)
 #include <cstring>
 #include <cstdarg>
 #include <cstdio>
+#include <cstdlib>
 #include <memory>
 
 namespace {
@@ -197,6 +198,8 @@ bool lunaNoopCallback(LSHandle *, LSMessage *message, void *)
     return true;
 }
 
+void requestFastQuit(const char *reason);
+
 bool lunaLifecycleCallback(LSHandle *, LSMessage *message, void *userData)
 {
     auto *window = static_cast<JellyfinNative::NativeAppWindow *>(userData);
@@ -222,13 +225,27 @@ bool lunaLifecycleCallback(LSHandle *, LSMessage *message, void *userData)
         }, Qt::QueuedConnection);
     } else if (event == QStringLiteral("close")) {
         logLine("[ls2-lifecycle] close event received, requesting quit");
-        QMetaObject::invokeMethod(qApp, []() {
-            qApp->setProperty(kWebosFastQuitProperty, true);
-            QCoreApplication::quit();
-        }, Qt::QueuedConnection);
+        QMetaObject::invokeMethod(qApp, []() { requestFastQuit("lifecycle close"); }, Qt::QueuedConnection);
     }
 
     return true;
+}
+
+void requestFastQuit(const char *reason)
+{
+    if (!qApp)
+        _Exit(0);
+
+    if (qApp->property(kWebosFastQuitProperty).toBool())
+        return;
+
+    logLine("fast quit requested: %s", reason ? reason : "unknown");
+    qApp->setProperty(kWebosFastQuitProperty, true);
+    QTimer::singleShot(1800, qApp, []() {
+        logLine("fast quit watchdog expired, forcing process exit");
+        _Exit(0);
+    });
+    QCoreApplication::quit();
 }
 #endif
 
@@ -418,6 +435,17 @@ int main(int argc, char **argv)
     auto player = std::make_unique<JellyfinNative::PlayerController>(&window, api.get());
     auto controller =
         std::make_unique<JellyfinNative::AppController>(&database, discovery.get(), api.get(), player.get());
+
+#ifdef JELLYFIN_NATIVE_WEBOS
+    QObject::connect(&app, &QGuiApplication::applicationStateChanged, &app,
+                     [player = player.get()](Qt::ApplicationState state) {
+        logLine("application state changed: %d", static_cast<int>(state));
+        if (player && player->visible())
+            return;
+        if (state == Qt::ApplicationHidden || state == Qt::ApplicationSuspended)
+            requestFastQuit("non-playback app hidden/suspended");
+    });
+#endif
 
     // Shutdown sequence (runs while the event loop and scene graph are still
     // alive, before any of the unique_ptrs below get destructed):

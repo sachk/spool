@@ -73,9 +73,7 @@ public:
     Q_INVOKABLE void seekBack();
     Q_INVOKABLE void seekForward();
     Q_INVOKABLE void seek(double seconds);
-    Q_INVOKABLE void beginPreviewSeek();
     Q_INVOKABLE void previewSeekBy(double deltaSeconds);
-    Q_INVOKABLE void endPreviewSeek();
     void pauseForBackground();
     Q_INVOKABLE void toggleDebugOsd();
     Q_INVOKABLE void toggleSubtitles();
@@ -90,7 +88,7 @@ public:
 signals:
     void visibleChanged();
     void stateChanged();
-    void playbackStopped();
+    void playbackStopped(const QString &itemId, qint64 positionTicks);
     void nightModeEnabledChanged();
     void audioDelayMsChanged();
     void audioOutputModeChanged();
@@ -120,12 +118,10 @@ private:
     bool beginSeekCommand(double targetSeconds, const QByteArray &flags,
                           bool markSeeking = true);
     bool beginRelativeSeekCommand(double deltaSeconds);
-    double seekBasePosition();
+    double seekAnchorPosition();
     bool currentMpvPositionSeconds(double *seconds) const;
     double projectedPositionSeconds() const;
     QByteArray buildSeekCommand(double targetSeconds, const QByteArray &flags) const;
-    void clearPreviewPositionHold();
-    bool sendPreviewSeekToMpv(bool force);
     void updatePlaybackStatusText();
     void setPositionSeconds(double seconds);
     double playbackPositionFromMpvTime(double seconds) const;
@@ -148,7 +144,6 @@ private:
     QTimer m_backGuardTimer;
     QTimer m_uiPositionTimer;
     QTimer m_seekWatchdogTimer;
-    QTimer m_previewSettleTimer;
     QElapsedTimer m_positionClock;
     QElapsedTimer m_seekCommandClock;
     bool m_visible = false;
@@ -171,14 +166,6 @@ private:
     double m_positionSeconds = 0.0;
     double m_durationSeconds = 0.0;
     double m_resumeStartSeconds = 0.0;
-    bool m_previewSeeking = false;
-    bool m_holdPreviewPosition = false;
-    bool m_resumeAfterPreviewSeek = false;
-    bool m_previewMpvSeekInFlight = false;
-    bool m_previewMpvSeekPending = false;
-    double m_previewTargetSeconds = 0.0;
-    double m_lastPreviewMpvTargetSeconds = -1.0;
-    QElapsedTimer m_previewMpvSeekClock;
     double m_requestedSeekTargetSeconds = -1.0;
     std::atomic_bool m_nightModeEnabled = false;
     std::atomic<int> m_audioDelayMs = 0;

@@ -24,7 +24,6 @@ FocusScope {
     property bool scrubbing: false
     property double scrubSeconds: 0
     property int seekHoldKey: 0
-    property int seekHoldReleaseKey: 0
     property double seekHoldDelta: 0
     property double seekHoldElapsedMs: 0
     property double seekHoldStartMs: 0
@@ -151,7 +150,7 @@ FocusScope {
         scrubTimer.restart()
     }
 
-    function sendPreviewSeek(delta) {
+    function seekBy(delta) {
         showControls("timeline")
         row = "timeline"
         scrubTimer.stop()
@@ -161,11 +160,7 @@ FocusScope {
     }
 
     function previewSeek(delta) {
-        if (!hasPlayer)
-            return
-        player.beginPreviewSeek()
-        sendPreviewSeek(delta)
-        player.endPreviewSeek()
+        seekBy(delta)
     }
 
     function seekHoldStepSeconds() {
@@ -204,8 +199,6 @@ FocusScope {
     function startPreviewSeekHold(key, delta) {
         if (!hasPlayer || !canPreviewSeekFromCurrentMode())
             return false
-        seekHoldReleaseTimer.stop()
-        seekHoldReleaseKey = 0
         if (seekHoldKey === key) {
             if (!seekHoldTimer.running)
                 scheduleSeekHoldTick()
@@ -223,12 +216,8 @@ FocusScope {
     }
 
     function stopPreviewSeekHold() {
-        seekHoldReleaseTimer.stop()
         seekHoldTimer.stop()
-        if (seekHoldKey !== 0 && seekHoldActive && hasPlayer)
-            player.endPreviewSeek()
         seekHoldKey = 0
-        seekHoldReleaseKey = 0
         seekHoldDelta = 0
         seekHoldElapsedMs = 0
         seekHoldStartMs = 0
@@ -477,9 +466,7 @@ FocusScope {
         if (seekHoldKey !== 0 && event.key === seekHoldKey) {
             if (!event.isAutoRepeat) {
                 if (seekHoldActive) {
-                    seekHoldTimer.stop()
-                    seekHoldReleaseKey = event.key
-                    seekHoldReleaseTimer.restart()
+                    stopPreviewSeekHold()
                 } else {
                     const delta = seekHoldDelta
                     stopPreviewSeekHold()
@@ -549,26 +536,13 @@ FocusScope {
                 return
             }
             overlay.seekHoldElapsedMs = Math.max(0, Date.now() - overlay.seekHoldStartMs)
-            if (!overlay.seekHoldActive && overlay.hasPlayer) {
+            if (!overlay.seekHoldActive)
                 overlay.seekHoldActive = true
-                overlay.player.beginPreviewSeek()
-            }
             overlay.seekHoldFirstRepeat = false
-            overlay.sendPreviewSeek(overlay.seekHoldStepSeconds())
+            overlay.seekBy(overlay.seekHoldStepSeconds())
             overlay.scheduleSeekHoldTick()
         }
     }
-    Timer {
-        id: seekHoldReleaseTimer
-        interval: 260
-        repeat: false
-        onTriggered: {
-            if (overlay.seekHoldKey !== 0 && overlay.seekHoldKey === overlay.seekHoldReleaseKey)
-                overlay.stopPreviewSeekHold()
-            overlay.seekHoldReleaseKey = 0
-        }
-    }
-
     // Embedded video surface (desktop / non-Starfish builds). On Starfish the
     // video lives on a separate exported surface so this item is harmless —
     // MpvVideoItem just sits unused. z=-1 keeps it behind the HUD.

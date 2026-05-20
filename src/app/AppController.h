@@ -122,6 +122,12 @@ private:
     void applyMoviesCache(const QString &libraryId);
     void loadLibraries();
     void refreshHomeRows();
+    void schedulePostPlaybackRefresh();
+    void refreshCurrentItems(const QString &viewKind,
+                             const QString &libraryId,
+                             const QString &seriesId,
+                             const QString &seasonId);
+    void applyPlaybackPosition(const QString &itemId, qint64 positionTicks);
     void handleHomeRowLoaded(int generation);
     void scheduleLibraryPrefetch(int generation);
     void startNextLibraryPrefetch();
@@ -162,6 +168,7 @@ private:
     QString m_currentViewKind;
     QString m_currentSeriesId;
     QString m_currentSeriesName;
+    QString m_currentSeasonId;
     bool m_settingsVisible = false;
     bool m_nightModeEnabled = false;
     int m_audioDelayMs = 0;

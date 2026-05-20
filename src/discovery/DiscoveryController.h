@@ -3,6 +3,7 @@
 #include "../common/JellyfinTypes.h"
 
 #include <QNetworkAccessManager>
+#include <QNetworkReply>
 #include <QQueue>
 #include <QSet>
 #include <QObject>
@@ -18,6 +19,7 @@ class DiscoveryController final : public QObject
 
 public:
     explicit DiscoveryController(QObject *parent = nullptr);
+    ~DiscoveryController() override;
 
     bool active() const;
 
@@ -45,6 +47,7 @@ private:
     QNetworkAccessManager m_http;
     QQueue<QHostAddress> m_httpProbeQueue;
     QSet<QString> m_enqueuedHttpProbeTargets;
+    QSet<QNetworkReply *> m_httpProbeReplies;
     int m_inFlightHttpProbes = 0;
     bool m_active = false;
 };

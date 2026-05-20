@@ -31,6 +31,11 @@ DiscoveryController::DiscoveryController(QObject *parent)
     m_httpFallbackTimer.setInterval(60000);
 }
 
+DiscoveryController::~DiscoveryController()
+{
+    stop();
+}
+
 bool DiscoveryController::active() const
 {
     return m_active;
@@ -64,6 +69,15 @@ void DiscoveryController::stop()
     m_socket.close();
     m_httpProbeQueue.clear();
     m_enqueuedHttpProbeTargets.clear();
+    const auto replies = m_httpProbeReplies;
+    for (QNetworkReply *reply : replies) {
+        if (!reply)
+            continue;
+        reply->disconnect(this);
+        reply->abort();
+        reply->deleteLater();
+    }
+    m_httpProbeReplies.clear();
     m_inFlightHttpProbes = 0;
     emit activeChanged();
 }
@@ -197,9 +211,11 @@ void DiscoveryController::pumpHttpProbeQueue()
         request.setHeader(QNetworkRequest::UserAgentHeader, QStringLiteral("JellyfinNativeDiscovery/0.1.0"));
 
         QNetworkReply *reply = m_http.get(request);
+        m_httpProbeReplies.insert(reply);
         ++m_inFlightHttpProbes;
 
         connect(reply, &QNetworkReply::finished, this, [this, reply, serverUrl, host]() {
+            m_httpProbeReplies.remove(reply);
             if (reply->error() == QNetworkReply::NoError) {
                 const QByteArray payload = reply->readAll();
                 qInfo() << "http discovery reply" << host;
@@ -207,7 +223,7 @@ void DiscoveryController::pumpHttpProbeQueue()
             }
 
             reply->deleteLater();
-            --m_inFlightHttpProbes;
+            m_inFlightHttpProbes = qMax(0, m_inFlightHttpProbes - 1);
             m_enqueuedHttpProbeTargets.remove(host);
             pumpHttpProbeQueue();
         });
