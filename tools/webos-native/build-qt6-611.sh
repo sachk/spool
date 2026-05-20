@@ -1,25 +1,48 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# Build a private Qt 6.11 tree for native webOS development.
+#
+# Design goals:
+#   - never accidentally link against nixpkgs' Qt while building Qt from source;
+#   - build a full-enough host Qt for Qt's own tools, including Widgets;
+#   - keep the webOS target Qt lean;
+#   - make reruns incremental, but clean obviously poisoned CMake caches;
+#   - provide clear, actionable failures for missing SDK/tooling pieces.
+
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 SDK_ROOT="${WEBOS_SDK_ROOT:-$ROOT/build/webos-sdk/arm-webos-linux-gnueabi_sdk-buildroot}"
 SYSROOT="$SDK_ROOT/arm-webos-linux-gnueabi/sysroot"
 QT_VERSION="${QT_VERSION:-6.11.0}"
-JOBS="${JOBS:-$(nproc)}"
+QT_SERIES="${QT_VERSION%.*}"
 QT_STATIC="${QT_STATIC:-0}"
 PHASE="${1:-all}"
+BUILD_QTOPENAPI="${BUILD_QTOPENAPI:-1}"
+BUILD_QTVIRTUALKEYBOARD="${BUILD_QTVIRTUALKEYBOARD:-1}"
+QT_BUILD_CLEAN_POISONED="${QT_BUILD_CLEAN_POISONED:-1}"
+
+job_count() {
+  if [[ -n "${JOBS:-}" ]]; then
+    printf '%s\n' "$JOBS"
+  elif command -v nproc >/dev/null 2>&1; then
+    nproc
+  elif command -v getconf >/dev/null 2>&1; then
+    getconf _NPROCESSORS_ONLN
+  else
+    printf '4\n'
+  fi
+}
+JOBS="$(job_count)"
 
 SRC_DIR="$ROOT/build/qt6-src"
-MAJOR_MINOR="${QT_VERSION%.*}"
-
 QTBASE_TARBALL="$SRC_DIR/qtbase-everywhere-src-$QT_VERSION.tar.xz"
 QTSHADERTOOLS_TARBALL="$SRC_DIR/qtshadertools-everywhere-src-$QT_VERSION.tar.xz"
 QTDECLARATIVE_TARBALL="$SRC_DIR/qtdeclarative-everywhere-src-$QT_VERSION.tar.xz"
 QTWAYLAND_TARBALL="$SRC_DIR/qtwayland-everywhere-src-$QT_VERSION.tar.xz"
 QTOPENAPI_TARBALL="$SRC_DIR/qtopenapi-everywhere-src-$QT_VERSION.tar.xz"
 QTIMAGEFORMATS_TARBALL="$SRC_DIR/qtimageformats-everywhere-src-$QT_VERSION.tar.xz"
-QTVIRTUALKEYBOARD_TARBALL="$SRC_DIR/qtvirtualkeyboard-everywhere-src-$QT_VERSION.tar.xz"
 QTSVG_TARBALL="$SRC_DIR/qtsvg-everywhere-src-$QT_VERSION.tar.xz"
+QTVIRTUALKEYBOARD_TARBALL="$SRC_DIR/qtvirtualkeyboard-everywhere-src-$QT_VERSION.tar.xz"
 
 QTBASE_SRC="$SRC_DIR/qtbase-everywhere-src-$QT_VERSION"
 QTSHADERTOOLS_SRC="$SRC_DIR/qtshadertools-everywhere-src-$QT_VERSION"
@@ -27,31 +50,150 @@ QTDECLARATIVE_SRC="$SRC_DIR/qtdeclarative-everywhere-src-$QT_VERSION"
 QTWAYLAND_SRC="$SRC_DIR/qtwayland-everywhere-src-$QT_VERSION"
 QTOPENAPI_SRC="$SRC_DIR/qtopenapi-everywhere-src-$QT_VERSION"
 QTIMAGEFORMATS_SRC="$SRC_DIR/qtimageformats-everywhere-src-$QT_VERSION"
-QTVIRTUALKEYBOARD_SRC="$SRC_DIR/qtvirtualkeyboard-everywhere-src-$QT_VERSION"
-# qtvirtualkeyboard depends on qtsvg for its default-style assets.
 QTSVG_SRC="$SRC_DIR/qtsvg-everywhere-src-$QT_VERSION"
+QTVIRTUALKEYBOARD_SRC="$SRC_DIR/qtvirtualkeyboard-everywhere-src-$QT_VERSION"
 
-HOST_BUILD_ROOT="$ROOT/build/qt6-611-host"
-HOST_INSTALL="$ROOT/build/qt6-611-host-install"
+QT_BUILD_TAG="${QT_SERIES//./}"
+HOST_BUILD_ROOT="$ROOT/build/qt6-$QT_BUILD_TAG-host"
+HOST_INSTALL="$ROOT/build/qt6-$QT_BUILD_TAG-host-install"
 
 if [[ "$QT_STATIC" == "1" ]]; then
-  TARGET_BUILD_ROOT="$ROOT/build/qt6-611-target-static"
-  TARGET_STAGING="$ROOT/build/qt6-611-target-static-install"
-  TARGET_PREFIX="${QT_TARGET_PREFIX:-/opt/qt6-webos-6.11-static}"
+  TARGET_BUILD_ROOT="$ROOT/build/qt6-$QT_BUILD_TAG-target-static"
+  TARGET_STAGING="$ROOT/build/qt6-$QT_BUILD_TAG-target-static-install"
+  TARGET_PREFIX="${QT_TARGET_PREFIX:-/opt/qt6-webos-$QT_SERIES-static}"
 else
-  TARGET_BUILD_ROOT="$ROOT/build/qt6-611-target"
-  TARGET_STAGING="$ROOT/build/qt6-611-target-install"
-  TARGET_PREFIX="${QT_TARGET_PREFIX:-/opt/qt6-webos-6.11}"
+  TARGET_BUILD_ROOT="$ROOT/build/qt6-$QT_BUILD_TAG-target"
+  TARGET_STAGING="$ROOT/build/qt6-$QT_BUILD_TAG-target-install"
+  TARGET_PREFIX="${QT_TARGET_PREFIX:-/opt/qt6-webos-$QT_SERIES}"
 fi
+
 TOOLCHAIN_FILE="$ROOT/tools/webos-native/qt6-webos-toolchain.cmake"
+PKG_CONFIG_WEBOS="$ROOT/tools/webos-native/pkg-config-webos.sh"
 PATCH_DIR="$ROOT/tools/webos-native/patches"
 HOST_WAYLAND_SCANNER_DEFAULT="$(command -v wayland-scanner || true)"
 TARGET_WAYLAND_SCANNER_DEFAULT="$SDK_ROOT/bin/wayland-scanner"
 OPENAPI_GENERATOR_CLI_JAR_DEFAULT=""
 
-if [[ -n "$(command -v openapi-generator-cli || true)" ]]; then
-  OPENAPI_GENERATOR_CLI_JAR_DEFAULT="$(dirname "$(dirname "$(readlink -f "$(command -v openapi-generator-cli)")")")/share/java/openapi-generator-cli.jar"
+fresh_flag=()
+if [[ "${QT_BUILD_FRESH:-0}" == "1" ]]; then
+  fresh_flag=(--fresh)
 fi
+
+cmake_registry_flags=(
+  -DCMAKE_FIND_USE_PACKAGE_REGISTRY=FALSE
+  -DCMAKE_FIND_USE_SYSTEM_PACKAGE_REGISTRY=FALSE
+)
+
+log() { printf '\n>>> %s\n' "$*" >&2; }
+die() { printf 'error: %s\n' "$*" >&2; exit 1; }
+
+have() { command -v "$1" >/dev/null 2>&1; }
+require_command() { have "$1" || die "required command '$1' not found in PATH"; }
+
+# Run CMake with Qt-related environment variables stripped. This is the main
+# guard against nixpkgs Qt leaking into the Qt source build through mkShell's
+# CMAKE_PREFIX_PATH or user shell state.
+cmake_clean_env() {
+  env \
+    -u CMAKE_PREFIX_PATH \
+    -u Qt6_DIR \
+    -u Qt6Core_DIR \
+    -u Qt6CoreTools_DIR \
+    -u Qt6Gui_DIR \
+    -u Qt6GuiTools_DIR \
+    -u Qt6Widgets_DIR \
+    -u Qt6WidgetsTools_DIR \
+    -u Qt6Qml_DIR \
+    -u Qt6QmlTools_DIR \
+    -u Qt6Quick_DIR \
+    -u Qt6ShaderTools_DIR \
+    -u Qt6WaylandClient_DIR \
+    -u Qt6WaylandScannerTools_DIR \
+    -u PKG_CONFIG \
+    -u PKG_CONFIG_PATH \
+    -u PKG_CONFIG_LIBDIR \
+    -u PKG_CONFIG_SYSROOT_DIR \
+    -u QT_PLUGIN_PATH \
+    -u QML_IMPORT_PATH \
+    -u QML2_IMPORT_PATH \
+    -u QT_SELECT \
+    "$@"
+}
+
+cmake_configure() { cmake_clean_env cmake "$@"; }
+cmake_build() { cmake_clean_env cmake --build "$@"; }
+cmake_install() { cmake_clean_env cmake --install "$@"; }
+
+find_openapi_generator_jar() {
+  if [[ -n "${OPENAPI_GENERATOR_CLI_JAR:-}" ]]; then
+    [[ -f "$OPENAPI_GENERATOR_CLI_JAR" ]] && printf '%s\n' "$OPENAPI_GENERATOR_CLI_JAR"
+    return 0
+  fi
+
+  if have openapi-generator-cli; then
+    local cli prefix candidate
+    cli="$(readlink -f "$(command -v openapi-generator-cli)" 2>/dev/null || command -v openapi-generator-cli)"
+    prefix="$(dirname "$(dirname "$cli")")"
+    for candidate in \
+      "$prefix/share/java/openapi-generator-cli.jar" \
+      "$prefix/share/java/openapi-generator-cli/openapi-generator-cli.jar" \
+      "$prefix/lib/openapi-generator-cli.jar"; do
+      [[ -f "$candidate" ]] && { printf '%s\n' "$candidate"; return 0; }
+    done
+  fi
+
+  # Nix wrappers sometimes obscure the final jar path. Fall back to a bounded
+  # store-ish search around PATH entries rather than a full filesystem scan.
+  local path_dir root candidate
+  IFS=: read -ra path_dirs <<<"${PATH:-}"
+  for path_dir in "${path_dirs[@]}"; do
+    [[ -n "$path_dir" && -d "$path_dir" ]] || continue
+    root="$(cd "$path_dir/.." 2>/dev/null && pwd -P || true)"
+    [[ -n "$root" && -d "$root" ]] || continue
+    candidate="$(find "$root" -maxdepth 5 -type f -name 'openapi-generator-cli*.jar' -print -quit 2>/dev/null || true)"
+    [[ -n "$candidate" && -f "$candidate" ]] && { printf '%s\n' "$candidate"; return 0; }
+  done
+
+  return 1
+}
+
+OPENAPI_GENERATOR_CLI_JAR_DEFAULT="$(find_openapi_generator_jar || true)"
+
+require_base_tools() {
+  require_command cmake
+  require_command ninja
+  require_command curl
+  require_command tar
+  require_command patch
+  require_command sed
+  require_command find
+}
+
+require_target_sdk() {
+  [[ -f "$TOOLCHAIN_FILE" ]] || die "toolchain file not found at $TOOLCHAIN_FILE"
+  [[ -x "$PKG_CONFIG_WEBOS" ]] || die "webOS pkg-config wrapper not executable: $PKG_CONFIG_WEBOS"
+  [[ -d "$SDK_ROOT" ]] || die "WEBOS_SDK_ROOT does not exist: $SDK_ROOT"
+  [[ -d "$SYSROOT" ]] || die "webOS sysroot does not exist: $SYSROOT"
+}
+
+maybe_clean_poisoned_build_dir() {
+  local dir="$1"
+  [[ "$QT_BUILD_CLEAN_POISONED" == "1" ]] || return 0
+  [[ -f "$dir/CMakeCache.txt" ]] || return 0
+
+  if grep -Eq '/nix/store/[^ ;"]*-qt(base|declarative|tools|wayland|imageformats|svg|virtualkeyboard)-' "$dir/CMakeCache.txt"; then
+    log "Removing poisoned CMake cache: $dir"
+    rm -rf "$dir"
+  fi
+}
+
+clean_host() {
+  rm -rf "$HOST_BUILD_ROOT" "$HOST_INSTALL"
+}
+
+clean_target() {
+  rm -rf "$TARGET_BUILD_ROOT" "$TARGET_STAGING"
+}
 
 download_submodule() {
   local module="$1"
@@ -61,121 +203,123 @@ download_submodule() {
     return 0
   fi
 
-  curl -L --fail \
+  log "Downloading $module $QT_VERSION"
+  curl -L --fail --retry 3 --retry-delay 2 \
     -o "$tarball" \
-    "https://download.qt.io/official_releases/qt/$MAJOR_MINOR/$QT_VERSION/submodules/${module}-everywhere-src-$QT_VERSION.tar.xz"
+    "https://download.qt.io/official_releases/qt/$QT_SERIES/$QT_VERSION/submodules/${module}-everywhere-src-$QT_VERSION.tar.xz"
 }
 
 extract_if_needed() {
   local tarball="$1"
   local src_dir="$2"
-
   [[ -d "$src_dir" ]] || tar -C "$SRC_DIR" -xf "$tarball"
 }
 
 apply_patch_if_needed() {
   local src_dir="$1"
   local patch_file="$2"
-  # Legacy positional args ($3, $4) used to be a probe_file/probe pair
-  # but trivial single-line probes routinely matched the *unpatched*
-  # source and silently skipped. Detect application state by trying to
-  # reverse-apply the patch instead — that's authoritative.
-  shift 2
+  shift 2 || true
 
-  if [[ ! -f "$patch_file" ]]; then
-    echo "error: missing patch file $patch_file" >&2
-    exit 1
-  fi
+  [[ -d "$src_dir" ]] || die "source directory not found: $src_dir"
+  [[ -f "$patch_file" ]] || die "missing patch file: $patch_file"
 
   (
     cd "$src_dir"
     if patch -p1 --dry-run --reverse --silent < "$patch_file" >/dev/null 2>&1; then
-      # Reverse-applies cleanly → already applied.
       return 0
     fi
-    # Apply for real. Prefer plain patch(1) since tarball extractions
-    # aren't git checkouts.
     patch -p1 < "$patch_file"
   )
 }
 
 apply_local_patches() {
-  apply_patch_if_needed \
-    "$QTBASE_SRC" \
-    "$PATCH_DIR/qtbase-6.11.0-webos-qstorageinfo-linux.patch" \
-    "src/corelib/io/qstorageinfo_linux.cpp" \
-    "QT_EINTR_LOOP(statvfsResult, statvfs64(path.constData(), &statvfs_buf));"
-  apply_patch_if_needed \
-    "$QTBASE_SRC" \
-    "$PATCH_DIR/qtbase-6.11.0-webos-qelfparser.patch" \
-    "src/corelib/plugin/qelfparser_p.cpp" \
-    "#  define EM_AARCH64 183"
-  apply_patch_if_needed \
-    "$QTBASE_SRC" \
-    "$PATCH_DIR/qtbase-6.11.0-webos-wayland-no-opengl-forward-decl.patch"
-  apply_patch_if_needed \
-    "$QTWAYLAND_SRC" \
-    "$PATCH_DIR/qtwayland-6.11.0-webos-wayland-version.patch" \
-    "src/CMakeLists.txt" \
-    'qt_find_package(Wayland 1.11 PROVIDED_TARGETS ${wayland_libs})'
-  # In Qt 6.11 the qtwayland client code lives inside qtbase
-  # (src/plugins/platforms/wayland/), not the qtwayland module — patch
-  # it there so the QWaylandInputDevice::Pointer::updateCursor opt-out
-  # we depend on for webOS magic remote cursor handling is built in.
-  apply_patch_if_needed \
-    "$QTBASE_SRC" \
-    "$PATCH_DIR/qtbase-6.11.0-webos-no-cursor-set.patch" \
-    "src/plugins/platforms/wayland/qwaylandinputdevice.cpp" \
-    'JELLYFIN_QT_NO_CURSOR_SURFACE'
+  apply_patch_if_needed "$QTBASE_SRC" "$PATCH_DIR/qtbase-6.11.0-webos-qstorageinfo-linux.patch"
+  apply_patch_if_needed "$QTBASE_SRC" "$PATCH_DIR/qtbase-6.11.0-webos-qelfparser.patch"
+  apply_patch_if_needed "$QTBASE_SRC" "$PATCH_DIR/qtbase-6.11.0-webos-wayland-no-opengl-forward-decl.patch"
+  apply_patch_if_needed "$QTBASE_SRC" "$PATCH_DIR/qtbase-6.11.0-webos-qplatformwindow-private-moc.patch"
+  apply_patch_if_needed "$QTWAYLAND_SRC" "$PATCH_DIR/qtwayland-6.11.0-webos-wayland-version.patch"
+
+  # In Qt 6.11 the client-side wayland platform plugin code is in qtbase, not
+  # qtwayland. This keeps the webOS magic-remote cursor opt-out built in.
+  apply_patch_if_needed "$QTBASE_SRC" "$PATCH_DIR/qtbase-6.11.0-webos-no-cursor-set.patch"
 }
 
 fetch_sources() {
+  require_base_tools
   mkdir -p "$SRC_DIR"
+
   download_submodule qtbase "$QTBASE_TARBALL"
   download_submodule qtshadertools "$QTSHADERTOOLS_TARBALL"
   download_submodule qtdeclarative "$QTDECLARATIVE_TARBALL"
   download_submodule qtwayland "$QTWAYLAND_TARBALL"
-  download_submodule qtopenapi "$QTOPENAPI_TARBALL"
+  if [[ "$BUILD_QTOPENAPI" == "1" ]]; then
+    download_submodule qtopenapi "$QTOPENAPI_TARBALL"
+  fi
   download_submodule qtimageformats "$QTIMAGEFORMATS_TARBALL"
   download_submodule qtsvg "$QTSVG_TARBALL"
-  download_submodule qtvirtualkeyboard "$QTVIRTUALKEYBOARD_TARBALL"
+  if [[ "$BUILD_QTVIRTUALKEYBOARD" == "1" ]]; then
+    download_submodule qtvirtualkeyboard "$QTVIRTUALKEYBOARD_TARBALL"
+  fi
 
   extract_if_needed "$QTBASE_TARBALL" "$QTBASE_SRC"
   extract_if_needed "$QTSHADERTOOLS_TARBALL" "$QTSHADERTOOLS_SRC"
   extract_if_needed "$QTDECLARATIVE_TARBALL" "$QTDECLARATIVE_SRC"
   extract_if_needed "$QTWAYLAND_TARBALL" "$QTWAYLAND_SRC"
-  extract_if_needed "$QTOPENAPI_TARBALL" "$QTOPENAPI_SRC"
+  if [[ "$BUILD_QTOPENAPI" == "1" ]]; then
+    extract_if_needed "$QTOPENAPI_TARBALL" "$QTOPENAPI_SRC"
+  fi
   extract_if_needed "$QTIMAGEFORMATS_TARBALL" "$QTIMAGEFORMATS_SRC"
   extract_if_needed "$QTSVG_TARBALL" "$QTSVG_SRC"
-  extract_if_needed "$QTVIRTUALKEYBOARD_TARBALL" "$QTVIRTUALKEYBOARD_SRC"
+  if [[ "$BUILD_QTVIRTUALKEYBOARD" == "1" ]]; then
+    extract_if_needed "$QTVIRTUALKEYBOARD_TARBALL" "$QTVIRTUALKEYBOARD_SRC"
+  fi
 
   apply_local_patches
 }
 
+host_qtbase_up_to_date() {
+  [[ "${QT_BUILD_FORCE:-0}" != "1" ]] || return 1
+  [[ -f "$HOST_INSTALL/lib/cmake/Qt6/Qt6Config.cmake" ]] || return 1
+  [[ -e "$HOST_INSTALL/lib/libQt6Core.so" || -e "$HOST_INSTALL/lib/libQt6Core.a" ]] || return 1
+  [[ -e "$HOST_INSTALL/lib/libQt6Gui.so" || -e "$HOST_INSTALL/lib/libQt6Gui.a" ]] || return 1
+  [[ -e "$HOST_INSTALL/lib/libQt6Widgets.so" || -e "$HOST_INSTALL/lib/libQt6Widgets.a" ]] || return 1
+  return 0
+}
+
 configure_host_qtbase() {
-  cmake -S "$QTBASE_SRC" -B "$HOST_BUILD_ROOT/qtbase" -GNinja \
-    --fresh \
+  maybe_clean_poisoned_build_dir "$HOST_BUILD_ROOT/qtbase"
+  log "Configuring host qtbase"
+  cmake_configure -S "$QTBASE_SRC" -B "$HOST_BUILD_ROOT/qtbase" -GNinja \
+    "${fresh_flag[@]}" \
+    "${cmake_registry_flags[@]}" \
     -DCMAKE_BUILD_TYPE=Release \
     -DCMAKE_INSTALL_PREFIX="$HOST_INSTALL" \
     -DQT_BUILD_EXAMPLES=OFF \
     -DQT_BUILD_TESTS=OFF \
     -DINPUT_opengl=no \
     -DFEATURE_gui=ON \
+    -DFEATURE_widgets=ON \
+    -DFEATURE_accessibility=ON \
+    -DFEATURE_printsupport=OFF \
     -DFEATURE_network=ON \
     -DFEATURE_sql=ON \
     -DFEATURE_concurrent=ON \
-    -DFEATURE_widgets=OFF \
     -DFEATURE_dbus=OFF \
     -DFEATURE_xml=OFF \
     -DFEATURE_xcb=OFF \
     -DFEATURE_gtk=OFF \
-    -DFEATURE_accessibility=OFF
+    -DFEATURE_glib=OFF \
+    -DFEATURE_system_pcre2=OFF
 }
 
 build_host_qtbase() {
+  if host_qtbase_up_to_date; then
+    log "host qtbase: up to date, skipping"
+    return 0
+  fi
   configure_host_qtbase
-  cmake --build "$HOST_BUILD_ROOT/qtbase" --parallel "$JOBS"
-  cmake --install "$HOST_BUILD_ROOT/qtbase"
+  cmake_build "$HOST_BUILD_ROOT/qtbase" --parallel "$JOBS"
+  cmake_install "$HOST_BUILD_ROOT/qtbase"
 }
 
 configure_host_module() {
@@ -183,11 +327,15 @@ configure_host_module() {
   local src="$2"
   local extra=("${@:3}")
 
-  cmake -S "$src" -B "$HOST_BUILD_ROOT/$name" -GNinja \
-    --fresh \
+  maybe_clean_poisoned_build_dir "$HOST_BUILD_ROOT/$name"
+  log "Configuring host $name"
+  cmake_configure -S "$src" -B "$HOST_BUILD_ROOT/$name" -GNinja \
+    "${fresh_flag[@]}" \
+    "${cmake_registry_flags[@]}" \
     -DCMAKE_BUILD_TYPE=Release \
     -DCMAKE_INSTALL_PREFIX="$HOST_INSTALL" \
     -DCMAKE_PREFIX_PATH="$HOST_INSTALL" \
+    -DQt6_DIR="$HOST_INSTALL/lib/cmake/Qt6" \
     -DQT_BUILD_EXAMPLES=OFF \
     -DQT_BUILD_TESTS=OFF \
     "${extra[@]}"
@@ -195,39 +343,125 @@ configure_host_module() {
 
 build_host_module() {
   local name="$1"
-  cmake --build "$HOST_BUILD_ROOT/$name" --parallel "$JOBS"
-  cmake --install "$HOST_BUILD_ROOT/$name"
+  cmake_build "$HOST_BUILD_ROOT/$name" --parallel "$JOBS"
+  cmake_install "$HOST_BUILD_ROOT/$name"
+}
+
+host_module_up_to_date() {
+  local name="$1"
+  local marker="$2"
+  [[ "${QT_BUILD_FORCE:-0}" != "1" ]] || return 1
+  [[ ",${QT_BUILD_FORCE_MODULES:-}," != *",$name,"* ]] || return 1
+  [[ -e "$HOST_INSTALL/$marker" ]] || return 1
+  return 0
+}
+
+require_openapi_jar() {
+  local jar="${OPENAPI_GENERATOR_CLI_JAR:-$OPENAPI_GENERATOR_CLI_JAR_DEFAULT}"
+  if [[ -z "$jar" || ! -f "$jar" ]]; then
+    cat >&2 <<'OPENAPI_EOF'
+error: OpenAPI generator jar not found.
+
+Fix one of:
+  1. enter the fixed nix source shell, which exports OPENAPI_GENERATOR_CLI_JAR;
+  2. add openapi-generator-cli + jdk17_headless to your shell;
+  3. set OPENAPI_GENERATOR_CLI_JAR=/path/to/openapi-generator-cli.jar;
+  4. or run with BUILD_QTOPENAPI=0 if you do not need QtOpenApi.
+OPENAPI_EOF
+    exit 1
+  fi
+  printf '%s\n' "$jar"
+}
+
+build_all_host_modules() {
+  local host_wayland_scanner="${HOST_WAYLAND_SCANNER:-$HOST_WAYLAND_SCANNER_DEFAULT}"
+  [[ -n "$host_wayland_scanner" && -x "$host_wayland_scanner" ]] || \
+    die "host wayland-scanner not found; add wayland-scanner to the shell or set HOST_WAYLAND_SCANNER"
+
+  if host_module_up_to_date qtshadertools "lib/cmake/Qt6ShaderTools/Qt6ShaderToolsConfig.cmake"; then
+    log "host qtshadertools: up to date, skipping"
+  else
+    configure_host_module qtshadertools "$QTSHADERTOOLS_SRC"
+    build_host_module qtshadertools
+  fi
+
+  if host_module_up_to_date qtdeclarative "lib/cmake/Qt6QmlTools/Qt6QmlToolsConfig.cmake"; then
+    log "host qtdeclarative: up to date, skipping"
+  else
+    configure_host_module qtdeclarative "$QTDECLARATIVE_SRC"
+    build_host_module qtdeclarative
+  fi
+
+  if [[ "$BUILD_QTOPENAPI" == "1" ]]; then
+    local openapi_generator_cli_jar
+    openapi_generator_cli_jar="$(require_openapi_jar)"
+    if host_module_up_to_date qtopenapi "lib/cmake/Qt6OpenApi/Qt6OpenApiConfig.cmake"; then
+      log "host qtopenapi: up to date, skipping"
+    else
+      configure_host_module qtopenapi "$QTOPENAPI_SRC" \
+        -DOPENAPI_GENERATOR_CLI_JAR="$openapi_generator_cli_jar"
+      build_host_module qtopenapi
+    fi
+  else
+    log "host qtopenapi: disabled by BUILD_QTOPENAPI=0"
+  fi
+
+  if host_module_up_to_date qtwayland "lib/cmake/Qt6WaylandClient/Qt6WaylandClientConfig.cmake"; then
+    log "host qtwayland: up to date, skipping"
+  else
+    configure_host_module qtwayland "$QTWAYLAND_SRC" \
+      -DWaylandScanner_EXECUTABLE="$host_wayland_scanner"
+    build_host_module qtwayland
+  fi
+
+  if host_module_up_to_date qtsvg "lib/cmake/Qt6Svg/Qt6SvgConfig.cmake"; then
+    log "host qtsvg: up to date, skipping"
+  else
+    configure_host_module qtsvg "$QTSVG_SRC"
+    build_host_module qtsvg
+  fi
+
+  if [[ "$BUILD_QTVIRTUALKEYBOARD" == "1" ]]; then
+    if host_module_up_to_date qtvirtualkeyboard "lib/cmake/Qt6VirtualKeyboard/Qt6VirtualKeyboardConfig.cmake"; then
+      log "host qtvirtualkeyboard: up to date, skipping"
+    else
+      configure_host_module qtvirtualkeyboard "$QTVIRTUALKEYBOARD_SRC"
+      build_host_module qtvirtualkeyboard
+    fi
+  else
+    log "host qtvirtualkeyboard: disabled by BUILD_QTVIRTUALKEYBOARD=0"
+  fi
 }
 
 configure_target_qtbase() {
+  require_target_sdk
   local target_wayland_scanner="${TARGET_WAYLAND_SCANNER:-$TARGET_WAYLAND_SCANNER_DEFAULT}"
-  if [[ ! -x "$target_wayland_scanner" ]]; then
-    echo "error: target wayland-scanner not found at $target_wayland_scanner; set TARGET_WAYLAND_SCANNER" >&2
-    exit 1
-  fi
+  [[ -x "$target_wayland_scanner" ]] || \
+    die "target wayland-scanner not found at $target_wayland_scanner; set TARGET_WAYLAND_SCANNER"
 
-  local static_flags=()
+  local build_type_flags=()
   if [[ "$QT_STATIC" == "1" ]]; then
-    static_flags=(
+    build_type_flags=(
       -DBUILD_SHARED_LIBS=OFF
       -DCMAKE_BUILD_TYPE=MinSizeRel
       -DCMAKE_INTERPROCEDURAL_OPTIMIZATION=ON
-      -DCMAKE_C_FLAGS_MINSIZEREL="-Os -ffunction-sections -fdata-sections -DNDEBUG"
-      -DCMAKE_CXX_FLAGS_MINSIZEREL="-Os -ffunction-sections -fdata-sections -DNDEBUG"
-      -DCMAKE_EXE_LINKER_FLAGS="-Wl,--gc-sections"
+      "-DCMAKE_C_FLAGS_MINSIZEREL=-Os -ffunction-sections -fdata-sections -DNDEBUG"
+      "-DCMAKE_CXX_FLAGS_MINSIZEREL=-Os -ffunction-sections -fdata-sections -DNDEBUG"
+      -DCMAKE_EXE_LINKER_FLAGS=-Wl,--gc-sections
       -DFEATURE_reduce_exports=ON
     )
-    echo "Building Qt6 target STATIC with size optimizations"
   else
-    static_flags=(
-      -DCMAKE_BUILD_TYPE=Release
-    )
+    build_type_flags=(-DCMAKE_BUILD_TYPE=Release)
   fi
 
-  cmake -S "$QTBASE_SRC" -B "$TARGET_BUILD_ROOT/qtbase" -GNinja \
-    --fresh \
-    "${static_flags[@]}" \
+  maybe_clean_poisoned_build_dir "$TARGET_BUILD_ROOT/qtbase"
+  log "Configuring target qtbase"
+  cmake_configure -S "$QTBASE_SRC" -B "$TARGET_BUILD_ROOT/qtbase" -GNinja \
+    "${fresh_flag[@]}" \
+    "${cmake_registry_flags[@]}" \
+    "${build_type_flags[@]}" \
     -DCMAKE_TOOLCHAIN_FILE="$TOOLCHAIN_FILE" \
+    -DPKG_CONFIG_EXECUTABLE="$PKG_CONFIG_WEBOS" \
     -DQT_HOST_PATH="$HOST_INSTALL" \
     -DQT_HOST_PATH_CMAKE_DIR="$HOST_INSTALL/lib/cmake" \
     -DCMAKE_STAGING_PREFIX="$TARGET_STAGING" \
@@ -250,15 +484,42 @@ configure_target_qtbase() {
     -DFEATURE_gtk=OFF \
     -DFEATURE_accessibility=OFF \
     -DFEATURE_xkbcommon=ON \
+    -DFEATURE_wayland=ON \
+    -DFEATURE_wayland_client=ON \
+    -DFEATURE_wayland_client_wl_shell=ON \
+    -DFEATURE_wayland_client_xdg_shell=ON \
+    -DFEATURE_wayland_egl=ON \
+    -DFEATURE_system_freetype=ON \
+    -DFEATURE_fontconfig=ON \
     -DFEATURE_webp=ON \
+    -DFEATURE_system_pcre2=OFF \
+    -DGLESv2_INCLUDE_DIR="$SYSROOT/usr/include" \
+    -DGLESv2_LIBRARY="$SYSROOT/usr/lib/libGLESv2.so" \
+    -DEGL_INCLUDE_DIR="$SYSROOT/usr/include" \
+    -DEGL_LIBRARY="$SYSROOT/usr/lib/libEGL.so" \
+    -DXKB_INCLUDE_DIR="$SYSROOT/usr/include" \
+    -DXKB_LIBRARY="$SYSROOT/usr/lib/libxkbcommon.so" \
+    -DFREETYPE_INCLUDE_DIR_freetype2="$SYSROOT/usr/include/freetype2" \
+    -DFREETYPE_INCLUDE_DIR_ft2build="$SYSROOT/usr/include/freetype2" \
+    -DFREETYPE_LIBRARY_RELEASE="$SYSROOT/usr/lib/libfreetype.so" \
+    -DFontconfig_INCLUDE_DIR="$SYSROOT/usr/include" \
+    -DFontconfig_LIBRARY="$SYSROOT/usr/lib/libfontconfig.so" \
+    -DWayland_Client_INCLUDE_DIR="$SYSROOT/usr/include" \
+    -DWayland_Client_LIBRARY="$SYSROOT/usr/lib/libwayland-client.so" \
+    -DWayland_Server_INCLUDE_DIR="$SYSROOT/usr/include" \
+    -DWayland_Server_LIBRARY="$SYSROOT/usr/lib/libwayland-server.so" \
+    -DWayland_Cursor_INCLUDE_DIR="$SYSROOT/usr/include" \
+    -DWayland_Cursor_LIBRARY="$SYSROOT/usr/lib/libwayland-cursor.so" \
+    -DWayland_Egl_INCLUDE_DIR="$SYSROOT/usr/include" \
+    -DWayland_Egl_LIBRARY="$SYSROOT/usr/lib/libwayland-egl.so" \
     -DINPUT_openssl=no \
     -DWaylandScanner_EXECUTABLE="$target_wayland_scanner"
 }
 
 build_target_qtbase() {
   configure_target_qtbase
-  cmake --build "$TARGET_BUILD_ROOT/qtbase" --parallel "$JOBS"
-  cmake --install "$TARGET_BUILD_ROOT/qtbase"
+  cmake_build "$TARGET_BUILD_ROOT/qtbase" --parallel "$JOBS"
+  cmake_install "$TARGET_BUILD_ROOT/qtbase"
 }
 
 configure_target_module() {
@@ -271,115 +532,182 @@ configure_target_module() {
   if [[ "$QT_STATIC" == "1" ]]; then
     build_type="MinSizeRel"
     module_flags=(
+      -DBUILD_SHARED_LIBS=OFF
       -DCMAKE_INTERPROCEDURAL_OPTIMIZATION=ON
-      -DCMAKE_C_FLAGS_MINSIZEREL="-Os -ffunction-sections -fdata-sections -DNDEBUG"
-      -DCMAKE_CXX_FLAGS_MINSIZEREL="-Os -ffunction-sections -fdata-sections -DNDEBUG"
-      -DCMAKE_EXE_LINKER_FLAGS="-Wl,--gc-sections"
+      "-DCMAKE_C_FLAGS_MINSIZEREL=-Os -ffunction-sections -fdata-sections -DNDEBUG"
+      "-DCMAKE_CXX_FLAGS_MINSIZEREL=-Os -ffunction-sections -fdata-sections -DNDEBUG"
+      -DCMAKE_EXE_LINKER_FLAGS=-Wl,--gc-sections
     )
   fi
 
-  cmake -S "$src" -B "$TARGET_BUILD_ROOT/$name" -GNinja \
-    --fresh \
+  maybe_clean_poisoned_build_dir "$TARGET_BUILD_ROOT/$name"
+  log "Configuring target $name"
+  cmake_configure -S "$src" -B "$TARGET_BUILD_ROOT/$name" -GNinja \
+    "${fresh_flag[@]}" \
+    "${cmake_registry_flags[@]}" \
     -DCMAKE_BUILD_TYPE="$build_type" \
     "${module_flags[@]}" \
     -DCMAKE_TOOLCHAIN_FILE="$TOOLCHAIN_FILE" \
+    -DPKG_CONFIG_EXECUTABLE="$PKG_CONFIG_WEBOS" \
     -DQT_HOST_PATH="$HOST_INSTALL" \
     -DQT_HOST_PATH_CMAKE_DIR="$HOST_INSTALL/lib/cmake" \
     -DCMAKE_STAGING_PREFIX="$TARGET_STAGING" \
     -DCMAKE_INSTALL_PREFIX="$TARGET_PREFIX" \
     -DCMAKE_PREFIX_PATH="$TARGET_STAGING" \
+    -DQt6_DIR="$TARGET_STAGING/lib/cmake/Qt6" \
     -DQT_BUILD_EXAMPLES=OFF \
     -DQT_BUILD_TESTS=OFF \
+    -DQT_SKIP_AUTO_PLUGIN_INCLUSION=ON \
+    -DQT_SKIP_AUTO_QML_PLUGIN_INCLUSION=ON \
+    -DGLESv2_INCLUDE_DIR="$SYSROOT/usr/include" \
+    -DGLESv2_LIBRARY="$SYSROOT/usr/lib/libGLESv2.so" \
+    -DEGL_INCLUDE_DIR="$SYSROOT/usr/include" \
+    -DEGL_LIBRARY="$SYSROOT/usr/lib/libEGL.so" \
+    -DXKB_INCLUDE_DIR="$SYSROOT/usr/include" \
+    -DXKB_LIBRARY="$SYSROOT/usr/lib/libxkbcommon.so" \
+    -DWayland_Client_INCLUDE_DIR="$SYSROOT/usr/include" \
+    -DWayland_Client_LIBRARY="$SYSROOT/usr/lib/libwayland-client.so" \
+    -DWayland_Server_INCLUDE_DIR="$SYSROOT/usr/include" \
+    -DWayland_Server_LIBRARY="$SYSROOT/usr/lib/libwayland-server.so" \
+    -DWayland_Cursor_INCLUDE_DIR="$SYSROOT/usr/include" \
+    -DWayland_Cursor_LIBRARY="$SYSROOT/usr/lib/libwayland-cursor.so" \
+    -DWayland_Egl_INCLUDE_DIR="$SYSROOT/usr/include" \
+    -DWayland_Egl_LIBRARY="$SYSROOT/usr/lib/libwayland-egl.so" \
     "${extra[@]}"
 }
 
 build_target_module() {
   local name="$1"
-  cmake --build "$TARGET_BUILD_ROOT/$name" --parallel "$JOBS"
-  cmake --install "$TARGET_BUILD_ROOT/$name"
+  cmake_build "$TARGET_BUILD_ROOT/$name" --parallel "$JOBS"
+  cmake_install "$TARGET_BUILD_ROOT/$name"
 }
 
-build_all_host_modules() {
-  local host_wayland_scanner="${HOST_WAYLAND_SCANNER:-$HOST_WAYLAND_SCANNER_DEFAULT}"
-  local openapi_generator_cli_jar="${OPENAPI_GENERATOR_CLI_JAR:-$OPENAPI_GENERATOR_CLI_JAR_DEFAULT}"
-  if [[ -z "$host_wayland_scanner" ]]; then
-    echo "error: host wayland-scanner not found in PATH; add it to shell.nix or set HOST_WAYLAND_SCANNER" >&2
-    exit 1
+target_module_up_to_date() {
+  local name="$1"
+  local marker="$2"
+  [[ "${QT_BUILD_FORCE:-0}" != "1" ]] || return 1
+  [[ ",${QT_BUILD_FORCE_MODULES:-}," != *",$name,"* ]] || return 1
+  [[ -e "$TARGET_STAGING/$marker" ]] || return 1
+  return 0
+}
+
+target_lib_marker() {
+  local lib="$1"
+  if [[ "$QT_STATIC" == "1" ]]; then
+    printf 'lib/lib%s.a\n' "$lib"
+  else
+    printf 'lib/lib%s.so\n' "$lib"
   fi
-  if [[ ! -f "$openapi_generator_cli_jar" ]]; then
-    echo "error: upstream OpenAPI generator jar not found at $openapi_generator_cli_jar; set OPENAPI_GENERATOR_CLI_JAR" >&2
-    exit 1
-  fi
-
-  configure_host_module qtshadertools "$QTSHADERTOOLS_SRC"
-  build_host_module qtshadertools
-
-  configure_host_module qtdeclarative "$QTDECLARATIVE_SRC"
-  build_host_module qtdeclarative
-
-  configure_host_module qtopenapi "$QTOPENAPI_SRC" \
-    -DOPENAPI_GENERATOR_CLI_JAR="$openapi_generator_cli_jar"
-  build_host_module qtopenapi
-
-  configure_host_module qtwayland "$QTWAYLAND_SRC" \
-    -DWaylandScanner_EXECUTABLE="$host_wayland_scanner"
-  build_host_module qtwayland
-
-  # Host build of qtsvg + qtvirtualkeyboard so the keyboard module's
-  # tooling/qmltyperegistrar can run during the target qmake/cmake step.
-  configure_host_module qtsvg "$QTSVG_SRC"
-  build_host_module qtsvg
-
-  configure_host_module qtvirtualkeyboard "$QTVIRTUALKEYBOARD_SRC"
-  build_host_module qtvirtualkeyboard
 }
 
 build_all_target_modules() {
+  require_target_sdk
   local target_wayland_scanner="${TARGET_WAYLAND_SCANNER:-$TARGET_WAYLAND_SCANNER_DEFAULT}"
-  local openapi_generator_cli_jar="${OPENAPI_GENERATOR_CLI_JAR:-$OPENAPI_GENERATOR_CLI_JAR_DEFAULT}"
-  if [[ ! -x "$target_wayland_scanner" ]]; then
-    echo "error: target wayland-scanner not found at $target_wayland_scanner; set TARGET_WAYLAND_SCANNER" >&2
-    exit 1
+  [[ -x "$target_wayland_scanner" ]] || \
+    die "target wayland-scanner not found at $target_wayland_scanner; set TARGET_WAYLAND_SCANNER"
+
+  if target_module_up_to_date qtshadertools "$(target_lib_marker Qt6ShaderTools)"; then
+    log "target qtshadertools: up to date, skipping"
+  else
+    configure_target_module qtshadertools "$QTSHADERTOOLS_SRC"
+    build_target_module qtshadertools
   fi
-  if [[ ! -f "$openapi_generator_cli_jar" ]]; then
-    echo "error: upstream OpenAPI generator jar not found at $openapi_generator_cli_jar; set OPENAPI_GENERATOR_CLI_JAR" >&2
-    exit 1
+
+  if target_module_up_to_date qtdeclarative "$(target_lib_marker Qt6Qml)"; then
+    log "target qtdeclarative: up to date, skipping"
+  else
+    configure_target_module qtdeclarative "$QTDECLARATIVE_SRC"
+    build_target_module qtdeclarative
   fi
 
-  configure_target_module qtshadertools "$QTSHADERTOOLS_SRC"
-  build_target_module qtshadertools
+  if [[ "$BUILD_QTOPENAPI" == "1" ]]; then
+    local openapi_generator_cli_jar
+    openapi_generator_cli_jar="$(require_openapi_jar)"
+    if target_module_up_to_date qtopenapi "$(target_lib_marker Qt6OpenApi)"; then
+      log "target qtopenapi: up to date, skipping"
+    else
+      configure_target_module qtopenapi "$QTOPENAPI_SRC" \
+        -DOPENAPI_GENERATOR_CLI_JAR="$openapi_generator_cli_jar"
+      build_target_module qtopenapi
+    fi
+  else
+    log "target qtopenapi: disabled by BUILD_QTOPENAPI=0"
+  fi
 
-  configure_target_module qtdeclarative "$QTDECLARATIVE_SRC"
-  build_target_module qtdeclarative
+  if target_module_up_to_date qtwayland "$(target_lib_marker Qt6WaylandClient)"; then
+    log "target qtwayland: up to date, skipping"
+  else
+    configure_target_module qtwayland "$QTWAYLAND_SRC" \
+      -DWaylandScanner_EXECUTABLE="$target_wayland_scanner"
+    build_target_module qtwayland
+  fi
 
-  configure_target_module qtopenapi "$QTOPENAPI_SRC" \
-    -DOPENAPI_GENERATOR_CLI_JAR="$openapi_generator_cli_jar"
-  build_target_module qtopenapi
+  local imageformats_marker
+  if [[ "$QT_STATIC" == "1" ]]; then
+    imageformats_marker="plugins/imageformats/libqwebp.a"
+  else
+    imageformats_marker="plugins/imageformats/libqwebp.so"
+  fi
+  if target_module_up_to_date qtimageformats "$imageformats_marker"; then
+    log "target qtimageformats: up to date, skipping"
+  else
+    configure_target_module qtimageformats "$QTIMAGEFORMATS_SRC"
+    build_target_module qtimageformats
+  fi
 
-  configure_target_module qtwayland "$QTWAYLAND_SRC" \
-    -DWaylandScanner_EXECUTABLE="$target_wayland_scanner"
-  build_target_module qtwayland
+  if target_module_up_to_date qtsvg "$(target_lib_marker Qt6Svg)"; then
+    log "target qtsvg: up to date, skipping"
+  else
+    configure_target_module qtsvg "$QTSVG_SRC"
+    build_target_module qtsvg
+  fi
 
-  configure_target_module qtimageformats "$QTIMAGEFORMATS_SRC"
-  build_target_module qtimageformats
+  if [[ "$BUILD_QTVIRTUALKEYBOARD" == "1" ]]; then
+    if target_module_up_to_date qtvirtualkeyboard "$(target_lib_marker Qt6VirtualKeyboard)"; then
+      log "target qtvirtualkeyboard: up to date, skipping"
+    else
+      configure_target_module qtvirtualkeyboard "$QTVIRTUALKEYBOARD_SRC"
+      build_target_module qtvirtualkeyboard
+    fi
+  else
+    log "target qtvirtualkeyboard: disabled by BUILD_QTVIRTUALKEYBOARD=0"
+  fi
+}
 
-  configure_target_module qtsvg "$QTSVG_SRC"
-  build_target_module qtsvg
-
-  # The default keyboard style already moves the active key with the
-  # Up/Down/Left/Right keys, so the magic remote D-pad works without
-  # any extra configure flag.
-  configure_target_module qtvirtualkeyboard "$QTVIRTUALKEYBOARD_SRC"
-  build_target_module qtvirtualkeyboard
+ensure_host() {
+  build_host_qtbase
+  build_all_host_modules
 }
 
 show_summary() {
   echo
-  echo "Host install:"
-  find "$HOST_INSTALL/lib/cmake" -maxdepth 1 -mindepth 1 -type d | sort | sed -n '1,80p'
+  echo "Host install: $HOST_INSTALL"
+  if [[ -d "$HOST_INSTALL/lib/cmake" ]]; then
+    find "$HOST_INSTALL/lib/cmake" -maxdepth 1 -mindepth 1 -type d | sort | sed -n '1,100p'
+  fi
   echo
-  echo "Target install:"
-  find "$TARGET_STAGING/lib/cmake" -maxdepth 1 -mindepth 1 -type d | sort | sed -n '1,120p'
+  echo "Target staging install: $TARGET_STAGING"
+  if [[ -d "$TARGET_STAGING/lib/cmake" ]]; then
+    find "$TARGET_STAGING/lib/cmake" -maxdepth 1 -mindepth 1 -type d | sort | sed -n '1,140p'
+  fi
+}
+
+usage() {
+  cat >&2 <<USAGE_EOF
+usage: $0 [fetch|host|target|all|clean-host|clean-target|clean|summary]
+
+Environment knobs:
+  QT_VERSION=6.11.0
+  QT_STATIC=0|1
+  JOBS=N
+  QT_BUILD_FRESH=1              pass --fresh to CMake configure
+  QT_BUILD_FORCE=1              ignore module install markers
+  QT_BUILD_FORCE_MODULES=a,b    rebuild selected modules
+  QT_BUILD_CLEAN_POISONED=0|1   auto-remove CMake caches that mention nixpkgs Qt
+  BUILD_QTOPENAPI=0|1
+  BUILD_QTVIRTUALKEYBOARD=0|1
+  WEBOS_SDK_ROOT=/path/to/arm-webos-linux-gnueabi_sdk-buildroot
+USAGE_EOF
 }
 
 case "$PHASE" in
@@ -388,28 +716,39 @@ case "$PHASE" in
     ;;
   host)
     fetch_sources
-    build_host_qtbase
-    build_all_host_modules
+    ensure_host
     ;;
   target)
     fetch_sources
-    [[ -f "$HOST_INSTALL/lib/cmake/Qt6/Qt6Config.cmake" ]] || {
-      build_host_qtbase
-      build_all_host_modules
-    }
+    ensure_host
     build_target_qtbase
     build_all_target_modules
     ;;
   all)
     fetch_sources
-    build_host_qtbase
-    build_all_host_modules
+    ensure_host
     build_target_qtbase
     build_all_target_modules
     show_summary
     ;;
+  clean-host)
+    clean_host
+    ;;
+  clean-target)
+    clean_target
+    ;;
+  clean)
+    clean_host
+    clean_target
+    ;;
+  summary)
+    show_summary
+    ;;
+  -h|--help|help)
+    usage
+    ;;
   *)
-    echo "usage: $0 [fetch|host|target|all]" >&2
+    usage
     exit 1
     ;;
 esac

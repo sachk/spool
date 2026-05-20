@@ -13,7 +13,8 @@ PREFIX="$SYSROOT/usr/local/webos-native"
 MPV_SRC="${MPV_SRC:-$ROOT/mpv}"
 MPV_BUILD="${MPV_BUILD:-$MPV_SRC/build/webos-libmpv}"
 WEBOS_CROSS_FILE="${WEBOS_CROSS_FILE:-$WORKSPACE_ROOT/build/webos-thirdparty-build/webos.cross.ini}"
-QT6_HOST_PREFIX="$WORKSPACE_ROOT/build/qt6-611-host-install"
+QT6_HOST_PREFIX="${QT6_HOST_PREFIX:-$ROOT/build/qt6-611-host-install}"
+QT6_WORKSPACE_HOST_PREFIX="$WORKSPACE_ROOT/build/qt6-611-host-install"
 APP_DIR="$ROOT/app"
 BUILD_DIR="$ROOT/build"
 CMAKE_BUILD_DIR="$ROOT/build-arm"
@@ -24,15 +25,29 @@ PATCHELF_BIN="$(command -v patchelf)"
 STRIP_BIN="$SDK_ROOT/bin/arm-webos-linux-gnueabi-strip"
 
 # Auto-detect static vs shared Qt: prefer static if available
-QT6_STATIC_PREFIX="$WORKSPACE_ROOT/build/qt6-611-target-static-install"
-QT6_SHARED_PREFIX="$WORKSPACE_ROOT/build/qt6-611-target-install"
+QT6_STATIC_PREFIX="$ROOT/build/qt6-611-target-static-install"
+QT6_SHARED_PREFIX="$ROOT/build/qt6-611-target-install"
+QT6_WORKSPACE_STATIC_PREFIX="$WORKSPACE_ROOT/build/qt6-611-target-static-install"
+QT6_WORKSPACE_SHARED_PREFIX="$WORKSPACE_ROOT/build/qt6-611-target-install"
 QT_IS_STATIC=0
 if [[ -f "$QT6_STATIC_PREFIX/lib/libQt6Core.a" ]]; then
   QT6_PREFIX="$QT6_STATIC_PREFIX"
   QT_IS_STATIC=1
   echo "Detected STATIC Qt6 build at $QT6_PREFIX"
+  if [[ ! -f "$QT6_HOST_PREFIX/lib/cmake/Qt6CoreTools/Qt6CoreToolsConfig.cmake" \
+        && -f "$QT6_WORKSPACE_HOST_PREFIX/lib/cmake/Qt6CoreTools/Qt6CoreToolsConfig.cmake" ]]; then
+    QT6_HOST_PREFIX="$QT6_WORKSPACE_HOST_PREFIX"
+  fi
+elif [[ -f "$QT6_WORKSPACE_STATIC_PREFIX/lib/libQt6Core.a" ]]; then
+  QT6_PREFIX="$QT6_WORKSPACE_STATIC_PREFIX"
+  QT6_HOST_PREFIX="$QT6_WORKSPACE_HOST_PREFIX"
+  QT_IS_STATIC=1
+  echo "Detected STATIC Qt6 build at $QT6_PREFIX"
 elif [[ -d "$QT6_SHARED_PREFIX" ]]; then
   QT6_PREFIX="$QT6_SHARED_PREFIX"
+  echo "Detected shared Qt6 build at $QT6_PREFIX"
+elif [[ -d "$QT6_WORKSPACE_SHARED_PREFIX" ]]; then
+  QT6_PREFIX="$QT6_WORKSPACE_SHARED_PREFIX"
   echo "Detected shared Qt6 build at $QT6_PREFIX"
 else
   echo "error: no Qt6 install found" >&2
