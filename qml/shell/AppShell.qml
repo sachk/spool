@@ -83,7 +83,15 @@ FocusScope {
         routeStack.forceActiveFocus()
     }
 
+    function releaseTextInput() {
+        // Forcing focus onto the route stack causes the focused TextField to
+        // lose activeFocus, which closes the virtual keyboard cleanly.
+        routeStack.forceActiveFocus()
+        Qt.inputMethod.hide()
+    }
+
     function back() {
+        if (textInputActive) { releaseTextInput(); return true }
         if (shortcutOverlayVisible) { shortcutOverlayVisible = false; return true }
         if (diagnosticsVisible) { diagnosticsVisible = false; return true }
         if (mediaInfoVisible) { mediaInfoVisible = false; return true }
