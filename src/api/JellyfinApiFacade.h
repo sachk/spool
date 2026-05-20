@@ -54,6 +54,7 @@ public:
     QCoro::Task<std::vector<MovieItem>> fetchResumeItems(int limit = 24);
     QCoro::Task<std::vector<MovieItem>> fetchNextUpEpisodes(int limit = 24);
     QCoro::Task<std::vector<MovieItem>> fetchLatestItems(QString parentId = {}, int limit = 24);
+    QCoro::Task<std::vector<MediaSegment>> fetchMediaSegments(QString itemId);
     QCoro::Task<PlaybackSession> negotiateDirectPlay(MovieItem movie);
     QCoro::Task<void> postCapabilities();
     QCoro::Task<void> reportPlaybackStart(PlaybackSession session);

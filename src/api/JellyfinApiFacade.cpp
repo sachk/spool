@@ -519,6 +519,35 @@ QCoro::Task<std::vector<MovieItem>> JellyfinApiFacade::fetchLatestItems(QString 
     co_return result;
 }
 
+QCoro::Task<std::vector<MediaSegment>> JellyfinApiFacade::fetchMediaSegments(QString itemId)
+{
+    Diagnostics::Task task(QStringLiteral("api_fetch_media_segments"), {{QStringLiteral("itemId"), itemId}});
+    std::vector<MediaSegment> result;
+    try {
+        const QJsonDocument doc =
+            co_await requestJson(HttpMethod::Get,
+                                 QStringLiteral("/MediaSegments/%1").arg(itemId));
+        const QJsonArray items = itemsArrayFromDocument(doc);
+        result.reserve(items.size());
+        for (const auto &value : items) {
+            const QJsonObject object = value.toObject();
+            MediaSegment segment;
+            segment.id = object.value(QStringLiteral("Id")).toString();
+            segment.type = object.value(QStringLiteral("Type")).toString();
+            // Jellyfin returns ticks as a JSON number; toVariant().toLongLong() handles ints and doubles.
+            segment.startTicks = object.value(QStringLiteral("StartTicks")).toVariant().toLongLong();
+            segment.endTicks = object.value(QStringLiteral("EndTicks")).toVariant().toLongLong();
+            if (segment.endTicks > segment.startTicks)
+                result.push_back(segment);
+        }
+    } catch (const std::exception &e) {
+        // Servers without the media-segments endpoint return 404. Treat any
+        // failure as "no segments" — playback should keep working.
+        qInfo() << "api: media segments unavailable for" << itemId << ":" << e.what();
+    }
+    co_return result;
+}
+
 QCoro::Task<PlaybackSession> JellyfinApiFacade::negotiateDirectPlay(MovieItem movie)
 {
     Diagnostics::Task task(QStringLiteral("api_negotiate_direct_play"), {{QStringLiteral("itemId"), movie.id}, {QStringLiteral("title"), movie.title}});

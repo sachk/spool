@@ -5,6 +5,7 @@
 #include <QString>
 
 #include <exception>
+#include <vector>
 
 namespace JellyfinNative {
 
@@ -48,6 +49,13 @@ struct AuthSession {
     QString serverId;
 };
 
+struct MediaSegment {
+    QString id;
+    QString type; // "Intro", "Outro", "Recap", "Preview", "Commercial"
+    qint64 startTicks = 0;
+    qint64 endTicks = 0;
+};
+
 struct PlaybackSession {
     QString itemId;
     QString title;
@@ -56,6 +64,7 @@ struct PlaybackSession {
     QString playSessionId;
     QString container;
     qint64 startTimeTicks = 0;
+    std::vector<MediaSegment> segments;
 };
 
 QJsonObject toJson(const DiscoveredServer &server);

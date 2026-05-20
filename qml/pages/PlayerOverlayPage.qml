@@ -486,6 +486,7 @@ FocusScope {
         if (action === "skipBack90") { seekBy(-90); return true }
         if (action === "skipForward90") { seekBy(90); return true }
         if (action === "skipBackAndEnableSubs") { seekBy(-10); player.enableSubtitles(); return true }
+        if (action === "skipSegment") { player.skipActiveSegment(); return true }
         if (action === "showInfo") { toggleDebugStats(); return true }
         if (action === "stop") { player.stopWithReason("remap-stop"); return true }
         return false
@@ -500,6 +501,10 @@ FocusScope {
                 downHoldActive = false
                 return true
             }
+        }
+        if (event.key === Qt.Key_T && hasPlayer && player.activeSegmentType.length > 0) {
+            player.skipActiveSegment()
+            return true
         }
         if (event.key === Qt.Key_Red || event.key === Qt.Key_Green
             || event.key === Qt.Key_Yellow || event.key === Qt.Key_Blue) {
@@ -726,6 +731,72 @@ FocusScope {
 
     transitions: Transition {
         NumberAnimation { properties: "opacity"; duration: 140; easing.type: Easing.OutCubic }
+    }
+
+    // Skip Intro / Skip Outro / Skip Recap card. Visible whenever the player
+    // reports an active media segment. The user can press the dedicated focus
+    // (right-anchored) button, or press T on a keyboard, or activate from
+    // any state by clicking. Auto-dismisses when playback leaves the segment.
+    Rectangle {
+        id: skipSegmentCard
+        readonly property string segmentType: overlay.hasPlayer ? overlay.player.activeSegmentType : ""
+        readonly property string label: segmentType === "Intro" ? "Skip Intro"
+                                      : segmentType === "Outro" ? "Skip Outro"
+                                      : segmentType === "Recap" ? "Skip Recap"
+                                      : segmentType === "Preview" ? "Skip Preview"
+                                      : segmentType.length > 0 ? "Skip " + segmentType
+                                      : ""
+        anchors.right: parent.right
+        anchors.bottom: parent.bottom
+        anchors.rightMargin: Math.round(48 * overlay.uiScale)
+        anchors.bottomMargin: Math.round(220 * overlay.uiScale)
+        width: Math.round(220 * overlay.uiScale)
+        height: Math.round(60 * overlay.uiScale)
+        radius: Math.round(8 * overlay.uiScale)
+        color: "#E000A4DC"
+        border.width: 1
+        border.color: "#80EAF8FF"
+        visible: segmentType.length > 0 && overlay.mode !== "hidden"
+        opacity: visible ? 1 : 0
+        z: 30
+
+        Behavior on opacity { NumberAnimation { duration: 200; easing.type: Easing.OutCubic } }
+
+        RowLayout {
+            anchors.fill: parent
+            anchors.leftMargin: Math.round(16 * overlay.uiScale)
+            anchors.rightMargin: Math.round(16 * overlay.uiScale)
+            spacing: Math.round(10 * overlay.uiScale)
+
+            MaterialIcon {
+                name: "skip_next"
+                iconColor: "#FFFFFF"
+                iconSize: Math.round(24 * overlay.uiScale)
+            }
+
+            Text {
+                Layout.fillWidth: true
+                text: skipSegmentCard.label
+                color: "#FFFFFF"
+                font.pixelSize: Math.round(18 * overlay.uiScale)
+                font.weight: Font.DemiBold
+                font.hintingPreference: Font.PreferNoHinting
+                renderType: Text.QtRendering
+            }
+
+            Text {
+                text: "T"
+                color: "#FFFFFF"
+                font.pixelSize: Math.round(13 * overlay.uiScale)
+                font.weight: Font.Medium
+                opacity: 0.7
+            }
+        }
+
+        MouseArea {
+            anchors.fill: parent
+            onClicked: if (overlay.hasPlayer) overlay.player.skipActiveSegment()
+        }
     }
 
     Item {
