@@ -3,6 +3,7 @@
 #include "app/NativeAppWindow.h"
 #include "app/QmlNetworkAccessManagerFactory.h"
 #include "cache/DatabaseManager.h"
+#include "diagnostics/Diagnostics.h"
 #include "discovery/DiscoveryController.h"
 #include "player/PlayerController.h"
 
@@ -52,6 +53,7 @@ Q_IMPORT_PLUGIN(QSQLiteDriverPlugin)
 #include <QSocketNotifier>
 #include <QSurfaceFormat>
 #include <QStandardPaths>
+#include <QThread>
 #include <QTimer>
 #include <QUuid>
 
@@ -126,9 +128,9 @@ bool ensureWaylandEnv()
 // QSocketNotifier on the main thread reads it and calls quit() safely.
 int g_signalPipe[2] = {-1, -1};
 
-void handleSignal(int)
+void handleSignal(int signalNumber)
 {
-    const char byte = 1;
+    const char byte = static_cast<char>(signalNumber > 0 ? signalNumber : 1);
     // write() is async-signal-safe; ignore the result — if the pipe is full
     // the previous byte already armed the notifier.
     ssize_t n = write(g_signalPipe[1], &byte, 1);
@@ -240,6 +242,8 @@ void requestFastQuit(const char *reason)
         return;
 
     logLine("fast quit requested: %s", reason ? reason : "unknown");
+    JellyfinNative::Diagnostics::logEvent(QStringLiteral("lifecycle"), QStringLiteral("fast_quit_requested"),
+                                          {{QStringLiteral("reason"), QString::fromUtf8(reason ? reason : "unknown")}});
     qApp->setProperty(kWebosFastQuitProperty, true);
     QTimer::singleShot(1800, qApp, []() {
         logLine("fast quit watchdog expired, forcing process exit");
@@ -383,6 +387,29 @@ int main(int argc, char **argv)
     app.setOrganizationName(QStringLiteral("Codex"));
     app.setApplicationDisplayName(QStringLiteral("Jellyfin Native"));
 
+    const QString diagnosticsRoot = qEnvironmentVariableIsSet("JELLYFIN_DIAGNOSTICS_DIR")
+                                        ? QString::fromLocal8Bit(qgetenv("JELLYFIN_DIAGNOSTICS_DIR"))
+                                        : QStandardPaths::writableLocation(QStandardPaths::AppDataLocation) + QStringLiteral("/diagnostics");
+    JellyfinNative::Diagnostics::initialize(QString::fromLatin1(kAppId), diagnosticsRoot);
+    JellyfinNative::Diagnostics::ThreadScope guiThread(QStringLiteral("gui"));
+    JellyfinNative::Diagnostics::EventLoopWatchdog eventLoopWatchdog(&app);
+
+    const QStringList arguments = app.arguments();
+    if (arguments.contains(QStringLiteral("--diagnose-and-exit")) ||
+        arguments.contains(QStringLiteral("--dump-diagnostics"))) {
+        JellyfinNative::Diagnostics::dumpDiagnostics(QStringLiteral("command-line"));
+        JellyfinNative::Diagnostics::shutdown();
+        return 0;
+    }
+    if (qEnvironmentVariableIntValue("JELLYFIN_DIAGNOSTICS_BLOCK_GUI_MS") > 0) {
+        const int blockMs = qEnvironmentVariableIntValue("JELLYFIN_DIAGNOSTICS_BLOCK_GUI_MS");
+        QTimer::singleShot(1000, &app, [blockMs]() {
+            JellyfinNative::Diagnostics::logEvent(QStringLiteral("simulation"), QStringLiteral("block_gui_begin"), {{QStringLiteral("durationMs"), blockMs}});
+            QThread::msleep(static_cast<unsigned long>(blockMs));
+            JellyfinNative::Diagnostics::logEvent(QStringLiteral("simulation"), QStringLiteral("block_gui_end"));
+        });
+    }
+
     std::unique_ptr<QSocketNotifier> signalNotifier;
     if (g_signalPipe[0] >= 0) {
         signalNotifier = std::make_unique<QSocketNotifier>(
@@ -390,7 +417,11 @@ int main(int argc, char **argv)
         QObject::connect(signalNotifier.get(), &QSocketNotifier::activated,
                          &app, [&app](QSocketDescriptor, QSocketNotifier::Type) {
             char buf[16];
-            while (read(g_signalPipe[0], buf, sizeof(buf)) > 0) {}
+            ssize_t count = 0;
+            while ((count = read(g_signalPipe[0], buf, sizeof(buf))) > 0) {
+                for (ssize_t i = 0; i < count; ++i)
+                    JellyfinNative::Diagnostics::noteSignal(static_cast<int>(buf[i]));
+            }
             logLine("signal received, quitting");
             app.quit();
         });
@@ -405,8 +436,11 @@ int main(int argc, char **argv)
     networkAccessManager->setCache(diskCache);
 
     JellyfinNative::DatabaseManager database;
+    {
+    JellyfinNative::Diagnostics::Phase phase(QStringLiteral("startup"), QStringLiteral("database_initialize"));
     if (!database.initialize(QStandardPaths::writableLocation(QStandardPaths::AppDataLocation) + QStringLiteral("/cache.sqlite")))
         return 1;
+    }
 
     QString deviceId = database.loadDeviceId();
     if (deviceId.isEmpty()) {
@@ -425,9 +459,12 @@ int main(int argc, char **argv)
                            QStringLiteral("0.2.0"));
 
     JellyfinNative::NativeAppWindow window(QString::fromLatin1(kAppId));
+    {
+    JellyfinNative::Diagnostics::Phase phase(QStringLiteral("startup"), QStringLiteral("prepare_ui_surface"));
     if (!window.prepareForUiSurface()) {
         logLine("failed to initialize Qt webOS UI surface");
         return 1;
+    }
     }
     logLine("startup: prepareForUiSurface completed in %lld ms",
             static_cast<long long>(startupTimer.elapsed()));
@@ -457,8 +494,19 @@ int main(int argc, char **argv)
     //      against null pointers and emit a flood of "Cannot read property
     //      'X' of null" warnings during the unwind.
     QObject::connect(&app, &QCoreApplication::aboutToQuit, &app, [controller = controller.get(), &window]() {
+        JellyfinNative::Diagnostics::setInstanceState(QStringLiteral("shutting_down"));
+        JellyfinNative::Diagnostics::Phase shutdownPhase(QStringLiteral("shutdown"), QStringLiteral("aboutToQuit"));
         logLine("aboutToQuit: stopping controllers");
-        controller->shutdown();
+        if (qEnvironmentVariableIntValue("JELLYFIN_DIAGNOSTICS_SHUTDOWN_HANG_MS") > 0) {
+            const int hangMs = qEnvironmentVariableIntValue("JELLYFIN_DIAGNOSTICS_SHUTDOWN_HANG_MS");
+            JellyfinNative::Diagnostics::logEvent(QStringLiteral("simulation"), QStringLiteral("shutdown_hang_begin"), {{QStringLiteral("durationMs"), hangMs}});
+            QThread::msleep(static_cast<unsigned long>(hangMs));
+            JellyfinNative::Diagnostics::logEvent(QStringLiteral("simulation"), QStringLiteral("shutdown_hang_end"));
+        }
+        {
+            JellyfinNative::Diagnostics::Phase phase(QStringLiteral("shutdown"), QStringLiteral("controller_shutdown"));
+            controller->shutdown();
+        }
 #ifdef JELLYFIN_NATIVE_WEBOS
         if (qApp->property(kWebosFastQuitProperty).toBool()) {
             // On webOS close, let the process exit instead of
@@ -471,7 +519,10 @@ int main(int argc, char **argv)
         }
 #endif
         logLine("aboutToQuit: clearing QML source");
-        window.setSource(QUrl());
+        {
+            JellyfinNative::Diagnostics::Phase phase(QStringLiteral("shutdown"), QStringLiteral("clear_qml_source"));
+            window.setSource(QUrl());
+        }
         logLine("aboutToQuit: QML source cleared");
     });
 
@@ -487,7 +538,10 @@ int main(int argc, char **argv)
     });
     window.rootContext()->setContextProperty(QStringLiteral("appController"), controller.get());
     window.rootContext()->setContextProperty(QStringLiteral("nativeWindow"), &window);
+    {
+    JellyfinNative::Diagnostics::Phase phase(QStringLiteral("startup"), QStringLiteral("load_qml"));
     window.setSource(QUrl(QStringLiteral("qrc:/qt/qml/JellyfinWebOS/qml/Main.qml")));
+    }
     if (window.status() == QQuickView::Error) {
         logQmlWarnings(window.errors());
         return 1;
@@ -557,5 +611,7 @@ int main(int argc, char **argv)
 
     const int exitCode = app.exec();
     logLine("app.exec returned: %d", exitCode);
+    JellyfinNative::Diagnostics::setInstanceState(QStringLiteral("app_exec_returned"), {{QStringLiteral("exitCode"), exitCode}});
+    JellyfinNative::Diagnostics::shutdown();
     return exitCode;
 }

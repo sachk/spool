@@ -1,5 +1,7 @@
 #include "JellyfinApiFacade.h"
 
+#include "../diagnostics/Diagnostics.h"
+
 #include <QCoroNetwork>
 
 #include <QHttpHeaders>
@@ -7,6 +9,7 @@
 #include <QJsonObject>
 #include <QDebug>
 #include <QNetworkReply>
+#include <QRegularExpression>
 #include <QUrl>
 #include <QUrlQuery>
 
@@ -43,6 +46,14 @@ QJsonArray itemsArrayFromDocument(const QJsonDocument &document)
     if (document.isArray())
         return document.array();
     return document.object().value(QStringLiteral("Items")).toArray();
+}
+
+QString diagnosticUrl(QString url)
+{
+    static const QRegularExpression secretQuery(QStringLiteral("([?&](?:api_key|access_token|token)=)[^&]+"),
+                                                QRegularExpression::CaseInsensitiveOption);
+    url.replace(secretQuery, QStringLiteral("\\1<redacted>"));
+    return url.left(160);
 }
 
 QString episodeSubtitle(const QJsonObject &object)
@@ -495,6 +506,7 @@ QCoro::Task<std::vector<MovieItem>> JellyfinApiFacade::fetchLatestItems(QString 
 
 QCoro::Task<PlaybackSession> JellyfinApiFacade::negotiateDirectPlay(MovieItem movie)
 {
+    Diagnostics::Task task(QStringLiteral("api_negotiate_direct_play"), {{QStringLiteral("itemId"), movie.id}, {QStringLiteral("title"), movie.title}});
     QUrlQuery query;
     query.addQueryItem(QStringLiteral("userId"), m_session.userId);
 
@@ -630,9 +642,11 @@ QCoro::Task<void> JellyfinApiFacade::requestNoContent(HttpMethod method, QString
 }
 
 QCoro::Task<QByteArray> JellyfinApiFacade::requestBytes(HttpMethod method, QString path, QUrlQuery query,
-                                                        QJsonDocument body)
+                                                         QJsonDocument body)
 {
     const QNetworkRequest request = createRequest(path, query);
+    Diagnostics::NetworkRequest diagnosticsRequest(method == HttpMethod::Get ? QStringLiteral("GET") : QStringLiteral("POST"),
+                                                   request.url().toString(QUrl::FullyEncoded));
     QNetworkReply *reply = nullptr;
 
     if (isQuickConnectPath(path)) {
@@ -659,6 +673,7 @@ QCoro::Task<QByteArray> JellyfinApiFacade::requestBytes(HttpMethod method, QStri
     const auto networkError = reply ? reply->error() : QNetworkReply::UnknownNetworkError;
     if (reply)
         reply->deleteLater();
+    diagnosticsRequest.finish(statusCode, networkError == QNetworkReply::NoError ? QString() : errorText);
 
     if (networkError != QNetworkReply::NoError || statusCode >= 400) {
         const QString details = payload.isEmpty() ? errorText : QString::fromUtf8(payload);
@@ -748,6 +763,7 @@ void JellyfinApiFacade::pumpImagePrefetch()
 {
     while (m_prefetchInFlight < m_prefetchMaxConcurrent && !m_prefetchQueue.isEmpty()) {
         const QString url = m_prefetchQueue.takeFirst();
+        Diagnostics::logEvent(QStringLiteral("network"), QStringLiteral("prefetch_begin"), {{QStringLiteral("url"), diagnosticUrl(url)}});
         QNetworkRequest request{QUrl(url)};
         request.setAttribute(QNetworkRequest::CacheLoadControlAttribute, QNetworkRequest::PreferCache);
 
@@ -761,6 +777,7 @@ void JellyfinApiFacade::pumpImagePrefetch()
 
             m_prefetchSeen.remove(url);
             m_prefetchInFlight = std::max(0, m_prefetchInFlight - 1);
+            Diagnostics::logEvent(QStringLiteral("network"), QStringLiteral("prefetch_end"), {{QStringLiteral("url"), diagnosticUrl(url)}, {QStringLiteral("inFlight"), m_prefetchInFlight}});
             pumpImagePrefetch();
         });
     }

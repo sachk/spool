@@ -1,5 +1,7 @@
 #include "DiscoveryController.h"
 
+#include "../diagnostics/Diagnostics.h"
+
 #include <QDebug>
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -43,6 +45,7 @@ bool DiscoveryController::active() const
 
 void DiscoveryController::start()
 {
+    Diagnostics::Task task(QStringLiteral("discovery_start"));
     if (m_active)
         return;
 
@@ -60,6 +63,7 @@ void DiscoveryController::start()
 
 void DiscoveryController::stop()
 {
+    Diagnostics::Phase phase(QStringLiteral("shutdown"), QStringLiteral("discovery_stop"), {{QStringLiteral("active"), m_active}, {QStringLiteral("inFlightHttpProbes"), m_inFlightHttpProbes}});
     if (!m_active)
         return;
 
@@ -136,6 +140,7 @@ void DiscoveryController::handlePendingDatagrams()
 
 void DiscoveryController::startHttpFallbackScan()
 {
+    Diagnostics::Task task(QStringLiteral("discovery_http_fallback_scan"));
     if (!m_active || m_inFlightHttpProbes > 0 || !m_httpProbeQueue.isEmpty())
         return;
 
@@ -213,6 +218,7 @@ void DiscoveryController::pumpHttpProbeQueue()
         QNetworkReply *reply = m_http.get(request);
         m_httpProbeReplies.insert(reply);
         ++m_inFlightHttpProbes;
+        Diagnostics::logEvent(QStringLiteral("network"), QStringLiteral("discovery_probe_begin"), {{QStringLiteral("host"), host}, {QStringLiteral("inFlight"), m_inFlightHttpProbes}});
 
         connect(reply, &QNetworkReply::finished, this, [this, reply, serverUrl, host]() {
             m_httpProbeReplies.remove(reply);
@@ -225,6 +231,7 @@ void DiscoveryController::pumpHttpProbeQueue()
             reply->deleteLater();
             m_inFlightHttpProbes = qMax(0, m_inFlightHttpProbes - 1);
             m_enqueuedHttpProbeTargets.remove(host);
+            Diagnostics::logEvent(QStringLiteral("network"), QStringLiteral("discovery_probe_end"), {{QStringLiteral("host"), host}, {QStringLiteral("inFlight"), m_inFlightHttpProbes}});
             pumpHttpProbeQueue();
         });
     }
