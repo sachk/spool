@@ -34,6 +34,11 @@ class AppController final : public QObject
     Q_PROPERTY(bool nightModeEnabled READ nightModeEnabled WRITE setNightModeEnabled NOTIFY nightModeEnabledChanged)
     Q_PROPERTY(int audioDelayMs READ audioDelayMs WRITE setAudioDelayMs NOTIFY audioDelayMsChanged)
     Q_PROPERTY(QString audioOutputMode READ audioOutputMode WRITE setAudioOutputMode NOTIFY audioOutputModeChanged)
+    Q_PROPERTY(QString redButtonAction READ redButtonAction WRITE setRedButtonAction NOTIFY buttonRemapChanged)
+    Q_PROPERTY(QString greenButtonAction READ greenButtonAction WRITE setGreenButtonAction NOTIFY buttonRemapChanged)
+    Q_PROPERTY(QString yellowButtonAction READ yellowButtonAction WRITE setYellowButtonAction NOTIFY buttonRemapChanged)
+    Q_PROPERTY(QString blueButtonAction READ blueButtonAction WRITE setBlueButtonAction NOTIFY buttonRemapChanged)
+    Q_PROPERTY(QStringList availableButtonActions READ availableButtonActions CONSTANT)
     Q_PROPERTY(JellyfinNative::DiscoveredServerModel *discoveredServers READ discoveredServers CONSTANT)
     Q_PROPERTY(JellyfinNative::LibraryListModel *libraries READ libraries CONSTANT)
     Q_PROPERTY(JellyfinNative::MovieGridModel *movies READ movies CONSTANT)
@@ -65,6 +70,11 @@ public:
     bool nightModeEnabled() const;
     int audioDelayMs() const;
     QString audioOutputMode() const;
+    QString redButtonAction() const;
+    QString greenButtonAction() const;
+    QString yellowButtonAction() const;
+    QString blueButtonAction() const;
+    QStringList availableButtonActions() const;
 
     DiscoveredServerModel *discoveredServers();
     LibraryListModel *libraries();
@@ -98,6 +108,11 @@ public:
     Q_INVOKABLE void setNightModeEnabled(bool enabled);
     Q_INVOKABLE void setAudioDelayMs(int delayMs);
     Q_INVOKABLE void setAudioOutputMode(const QString &mode);
+    Q_INVOKABLE void setRedButtonAction(const QString &action);
+    Q_INVOKABLE void setGreenButtonAction(const QString &action);
+    Q_INVOKABLE void setYellowButtonAction(const QString &action);
+    Q_INVOKABLE void setBlueButtonAction(const QString &action);
+    Q_INVOKABLE QString buttonActionLabel(const QString &action) const;
 
 signals:
     void pageChanged();
@@ -112,6 +127,7 @@ signals:
     void nightModeEnabledChanged();
     void audioDelayMsChanged();
     void audioOutputModeChanged();
+    void buttonRemapChanged();
 
 private:
     void setPage(const QString &page);
@@ -173,6 +189,10 @@ private:
     bool m_nightModeEnabled = false;
     int m_audioDelayMs = 0;
     QString m_audioOutputMode = QStringLiteral("alsa");
+    QString m_redButtonAction = QStringLiteral("none");
+    QString m_greenButtonAction = QStringLiteral("skipBackAndEnableSubs");
+    QString m_yellowButtonAction = QStringLiteral("none");
+    QString m_blueButtonAction = QStringLiteral("none");
     int m_libraryLoadGeneration = 0;
     int m_homeLoadGeneration = 0;
     int m_homeLoadsPending = 0;

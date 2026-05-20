@@ -77,7 +77,10 @@ public:
     void pauseForBackground();
     Q_INVOKABLE void toggleDebugOsd();
     Q_INVOKABLE void toggleSubtitles();
+    Q_INVOKABLE void cycleSubtitles();
+    Q_INVOKABLE void enableSubtitles();
     Q_INVOKABLE void selectSubtitle(int index);
+    Q_INVOKABLE void cycleAudio();
     Q_INVOKABLE void selectAudio(int index);
     Q_INVOKABLE void stop();
     Q_INVOKABLE void stopWithReason(const QString &reason);

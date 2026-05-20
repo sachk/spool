@@ -51,6 +51,8 @@ public:
     void saveAudioDelayMs(int delayMs);
     QString loadAudioOutputMode();
     void saveAudioOutputMode(const QString &mode);
+    QString loadSetting(const QString &key, const QString &defaultValue = {});
+    void saveSetting(const QString &key, const QString &value);
 
 private:
     QVariant invokeOnWorker(const std::function<QVariant()> &callback);

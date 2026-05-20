@@ -647,6 +647,28 @@ void PlayerController::toggleSubtitles() {
   selectSubtitle(m_subtitleTracks.size() > 1 ? 1 : 0);
 }
 
+void PlayerController::cycleSubtitles() {
+  // Off (index 0) -> first track -> second -> ... -> last -> Off.
+  if (m_subtitleTracks.size() <= 1)
+    return;
+  const int next = (m_selectedSubtitleIndex + 1) % m_subtitleTracks.size();
+  selectSubtitle(next);
+}
+
+void PlayerController::enableSubtitles() {
+  if (m_selectedSubtitleIndex > 0)
+    return;
+  if (m_subtitleTracks.size() > 1)
+    selectSubtitle(1);
+}
+
+void PlayerController::cycleAudio() {
+  if (m_audioTracks.size() <= 1)
+    return;
+  const int next = (m_selectedAudioIndex + 1) % m_audioTracks.size();
+  selectAudio(next);
+}
+
 void PlayerController::selectSubtitle(int index) {
   if (index < 0 || index >= m_subtitleIds.size())
     return;

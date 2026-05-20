@@ -461,8 +461,41 @@ FocusScope {
         return false
     }
 
+    function actionForColorKey(key) {
+        if (!appController)
+            return ""
+        if (key === Qt.Key_Red)    return appController.redButtonAction
+        if (key === Qt.Key_Green)  return appController.greenButtonAction
+        if (key === Qt.Key_Yellow) return appController.yellowButtonAction
+        if (key === Qt.Key_Blue)   return appController.blueButtonAction
+        return ""
+    }
+
+    function dispatchRemapAction(action) {
+        if (!hasPlayer || !action || action === "none")
+            return false
+        if (action === "togglePause") { player.togglePause(); showControls("actions"); return true }
+        if (action === "toggleSubs") { player.toggleSubtitles(); return true }
+        if (action === "cycleSubs") { player.cycleSubtitles(); return true }
+        if (action === "cycleAudio") { player.cycleAudio(); return true }
+        if (action === "skipBack10") { seekBy(-10); return true }
+        if (action === "skipForward10") { seekBy(10); return true }
+        if (action === "skipBack30") { seekBy(-30); return true }
+        if (action === "skipForward30") { seekBy(30); return true }
+        if (action === "skipBack90") { seekBy(-90); return true }
+        if (action === "skipForward90") { seekBy(90); return true }
+        if (action === "skipBackAndEnableSubs") { seekBy(-10); player.enableSubtitles(); return true }
+        if (action === "showInfo") { toggleDebugStats(); return true }
+        if (action === "stop") { player.stopWithReason("remap-stop"); return true }
+        return false
+    }
+
     function handleReleased(event) {
         if (isIgnoredPlayerNoise(event)) return true
+        if (event.key === Qt.Key_Red || event.key === Qt.Key_Green
+            || event.key === Qt.Key_Yellow || event.key === Qt.Key_Blue) {
+            if (dispatchRemapAction(actionForColorKey(event.key))) return true
+        }
         if (seekHoldKey !== 0 && event.key === seekHoldKey) {
             if (!event.isAutoRepeat) {
                 if (seekHoldActive) {
