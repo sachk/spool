@@ -196,10 +196,6 @@ FocusScope {
         }
     }
 
-    function previewSeek(delta) {
-        seekBy(delta)
-    }
-
     function seekHoldStepSeconds() {
         const direction = seekHoldDelta < 0 ? -1 : 1
         if (seekHoldElapsedMs >= 2600)
@@ -311,7 +307,7 @@ FocusScope {
         setMenuAnchor("subtitles")
         mode = "subtitles"
         menuIndex = 0
-        menuList.positionViewAtBeginning()
+        menuPanel.positionAtTop()
         autohideTimer.stop()
     }
 
@@ -319,7 +315,7 @@ FocusScope {
         setMenuAnchor("audio")
         mode = "audio"
         menuIndex = hasPlayer ? Math.max(0, player.selectedAudioIndex) : 0
-        menuList.positionViewAtBeginning()
+        menuPanel.positionAtTop()
         autohideTimer.stop()
     }
 
@@ -327,7 +323,7 @@ FocusScope {
         setMenuAnchor("debug")
         mode = "debug"
         menuIndex = 0
-        menuList.positionViewAtBeginning()
+        menuPanel.positionAtTop()
         autohideTimer.stop()
     }
 
@@ -482,13 +478,13 @@ FocusScope {
             return true
         }
         if (key === Qt.Key_Left) {
-            if (row === "timeline") previewSeek(-10)
+            if (row === "timeline") seekBy(-10)
             else if (row === "actions") actionIndex = Math.max(0, actionIndex - 1)
             showControls(row)
             return true
         }
         if (key === Qt.Key_Right) {
-            if (row === "timeline") previewSeek(10)
+            if (row === "timeline") seekBy(10)
             else if (row === "actions") actionIndex = Math.min(actions.length - 1, actionIndex + 1)
             showControls(row)
             return true
@@ -575,7 +571,7 @@ FocusScope {
                 } else {
                     const delta = seekHoldDelta
                     stopPreviewSeekHold()
-                    previewSeek(delta)
+                    seekBy(delta)
                 }
             }
             return true
@@ -587,8 +583,8 @@ FocusScope {
         if (event.key === Qt.Key_I || event.key === Qt.Key_Info) { toggleDebugStats(); return true }
         if (event.key === Qt.Key_Q && hasPlayer) { player.stopWithReason("player-q"); return true }
         if (mode === "hidden") {
-            if (event.key === Qt.Key_Left) { previewSeek(-10); return true }
-            if (event.key === Qt.Key_Right) { previewSeek(10); return true }
+            if (event.key === Qt.Key_Left) { seekBy(-10); return true }
+            if (event.key === Qt.Key_Right) { seekBy(10); return true }
             if (isAcceptKey(event.key) && hasPlayer) { actionIndex = 1; player.togglePause(); showControls("actions"); return true }
             showControls("timeline")
             return true
@@ -811,146 +807,14 @@ FocusScope {
         NumberAnimation { properties: "opacity"; duration: 140; easing.type: Easing.OutCubic }
     }
 
-    // Trickplay scrubber preview. Shown above the timeline when the user is
-    // actively scrubbing or holding seek. The player returns a sprite-sheet
-    // tile + offset to display from /Videos/<id>/Trickplay/<width>/<n>.jpg.
-    Item {
+    PlayerTrickplayPreview {
         id: trickplayPreview
-        readonly property bool active: overlay.hasPlayer && overlay.player.trickplayAvailable
-                                     && (overlay.scrubbing || overlay.seekHoldActive || overlay.previewBurstActive)
-                                     && overlay.mode !== "hidden"
-        readonly property var trickplayData: active
-            ? overlay.player.trickplayForSeconds(overlay.scrubbing ? overlay.scrubSeconds : overlay.positionSeconds())
-            : ({})
-        readonly property bool dataReady: trickplayData && trickplayData.available === true
-
-        anchors.left: parent.left
-        anchors.right: parent.right
-        anchors.bottom: parent.bottom
-        anchors.bottomMargin: dp(310)
-        height: dataReady ? Math.round((trickplayData.height || 0) * overlay.uiScale * 1.4) : 0
-        visible: dataReady
-        opacity: visible ? 1 : 0
-        z: 22
-        Behavior on opacity { NumberAnimation { duration: 100 } }
-
-        Item {
-            id: thumbContainer
-            readonly property real thumbWidth: trickplayPreview.dataReady ? trickplayPreview.trickplayData.width * overlay.uiScale * 1.4 : 0
-            readonly property real thumbHeight: trickplayPreview.dataReady ? trickplayPreview.trickplayData.height * overlay.uiScale * 1.4 : 0
-            // Position the thumbnail above the timeline scrubber x.
-            x: Math.max(dp(52),
-                       Math.min(parent.width - thumbWidth - dp(52),
-                                overlay.positionRatio() * parent.width - thumbWidth / 2))
-            y: 0
-            width: thumbWidth
-            height: thumbHeight + dp(24)
-
-            Rectangle {
-                id: thumbFrame
-                width: thumbContainer.thumbWidth
-                height: thumbContainer.thumbHeight
-                color: "#000"
-                border.color: overlay.colTextStrong
-                border.width: 2
-                radius: 4
-                clip: true
-
-                Image {
-                    id: thumbSheet
-                    source: trickplayPreview.dataReady ? trickplayPreview.trickplayData.url : ""
-                    visible: status === Image.Ready
-                    // Scale the entire sheet so each tile lines up at the
-                    // requested 1.4x. The tile we want lives at (offsetX,
-                    // offsetY) within the unscaled sheet.
-                    x: trickplayPreview.dataReady ? trickplayPreview.trickplayData.offsetX * overlay.uiScale * 1.4 : 0
-                    y: trickplayPreview.dataReady ? trickplayPreview.trickplayData.offsetY * overlay.uiScale * 1.4 : 0
-                    width: trickplayPreview.dataReady ? trickplayPreview.trickplayData.sheetWidth * overlay.uiScale * 1.4 : 0
-                    height: trickplayPreview.dataReady ? trickplayPreview.trickplayData.sheetHeight * overlay.uiScale * 1.4 : 0
-                    fillMode: Image.Stretch
-                    cache: true
-                    asynchronous: true
-                }
-            }
-
-            Text {
-                anchors.horizontalCenter: thumbFrame.horizontalCenter
-                anchors.top: thumbFrame.bottom
-                anchors.topMargin: dp(4)
-                text: overlay.formatClock(overlay.scrubbing ? overlay.scrubSeconds : overlay.positionSeconds())
-                color: overlay.colTextStrong
-                font.pixelSize: dp(16)
-                font.weight: Font.Medium
-                font.hintingPreference: Font.PreferNoHinting
-                renderType: Text.QtRendering
-            }
-        }
+        overlay: parent
     }
 
-    // Skip Intro / Skip Outro / Skip Recap card. Visible whenever the player
-    // reports an active media segment. The user can press the dedicated focus
-    // (right-anchored) button, or press T on a keyboard, or activate from
-    // any state by clicking. Auto-dismisses when playback leaves the segment.
-    Rectangle {
+    PlayerSkipSegmentCard {
         id: skipSegmentCard
-        readonly property string segmentType: overlay.hasPlayer ? overlay.player.activeSegmentType : ""
-        readonly property string label: segmentType === "Intro" ? "Skip Intro"
-                                      : segmentType === "Outro" ? "Skip Outro"
-                                      : segmentType === "Recap" ? "Skip Recap"
-                                      : segmentType === "Preview" ? "Skip Preview"
-                                      : segmentType.length > 0 ? "Skip " + segmentType
-                                      : ""
-        anchors.right: parent.right
-        anchors.bottom: parent.bottom
-        anchors.rightMargin: dp(48)
-        anchors.bottomMargin: dp(220)
-        width: dp(220)
-        height: dp(60)
-        radius: dp(8)
-        color: Qt.alpha(overlay.accent, 0.88)
-        border.width: 1
-        border.color: Qt.alpha(overlay.accentBright, 0.5)
-        visible: segmentType.length > 0 && overlay.mode !== "hidden"
-        opacity: visible ? 1 : 0
-        z: 30
-
-        Behavior on opacity { NumberAnimation { duration: 200; easing.type: Easing.OutCubic } }
-
-        RowLayout {
-            anchors.fill: parent
-            anchors.leftMargin: dp(16)
-            anchors.rightMargin: dp(16)
-            spacing: dp(10)
-
-            MaterialIcon {
-                name: "skip_next"
-                iconColor: overlay.colTextStrong
-                iconSize: dp(24)
-            }
-
-            Text {
-                Layout.fillWidth: true
-                text: skipSegmentCard.label
-                color: overlay.colTextStrong
-                font.pixelSize: dp(18)
-                font.weight: Font.DemiBold
-                font.hintingPreference: Font.PreferNoHinting
-                renderType: Text.QtRendering
-            }
-
-            Text {
-                text: "T"
-                color: overlay.colTextStrong
-                font.pixelSize: dp(13)
-                font.weight: Font.Medium
-                opacity: 0.7
-            }
-        }
-
-        MouseArea {
-            anchors.fill: parent
-            onClicked: if (overlay.hasPlayer) overlay.player.skipActiveSegment()
-        }
+        overlay: parent
     }
 
     Item {
@@ -1168,317 +1032,13 @@ FocusScope {
         }
     }
 
-    Rectangle {
+    PlayerAudioSyncPanel {
         id: audioSyncPanel
-        anchors.horizontalCenter: parent.horizontalCenter
-        anchors.verticalCenter: parent.verticalCenter
-        width: Math.min(parent.width - dp(120), dp(760))
-        height: dp(330)
-        visible: opacity > 0.01
-        opacity: 0
-        radius: dp(16)
-        color: overlay.colPanelBg
-        border.width: 1
-        border.color: overlay.colHairline
-
-        ColumnLayout {
-            anchors.fill: parent
-            anchors.margins: dp(26)
-            spacing: dp(18)
-
-            Text {
-                Layout.fillWidth: true
-                text: "Audio Sync"
-                color: overlay.colTextMuted
-                font.pixelSize: dp(15)
-                font.weight: Font.DemiBold
-                font.capitalization: Font.AllUppercase
-                font.letterSpacing: dp(1.5)
-                font.hintingPreference: Font.PreferNoHinting
-                renderType: Text.QtRendering
-            }
-
-            RowLayout {
-                Layout.fillWidth: true
-                Layout.preferredHeight: dp(128)
-                spacing: dp(22)
-
-                Rectangle {
-                    Layout.preferredWidth: dp(92)
-                    Layout.preferredHeight: dp(92)
-                    radius: width / 2
-                    color: overlay.audioSyncRow === "delay" ? Qt.alpha(overlay.accent, 0.2) : overlay.colFillSubtle
-                    border.width: overlay.audioSyncRow === "delay" ? 2 : 1
-                    border.color: overlay.audioSyncRow === "delay" ? overlay.accentBright : overlay.colHairline
-
-                    MaterialIcon {
-                        anchors.centerIn: parent
-                        name: "remove"
-                        iconColor: overlay.colTextStrong
-                        iconSize: dp(42)
-                    }
-
-                    MouseArea {
-                        anchors.fill: parent
-                        onClicked: {
-                            overlay.audioSyncRow = "delay"
-                            overlay.adjustAudioDelay(-1)
-                        }
-                    }
-                }
-
-                ColumnLayout {
-                    Layout.fillWidth: true
-                    Layout.fillHeight: true
-                    spacing: dp(10)
-
-                    Text {
-                        Layout.fillWidth: true
-                        text: overlay.formatAudioDelay(overlay.currentAudioDelayMs)
-                        color: overlay.colTextStrong
-                        font.pixelSize: dp(58)
-                        font.weight: Font.Bold
-                        font.hintingPreference: Font.PreferNoHinting
-                        renderType: Text.QtRendering
-                        horizontalAlignment: Text.AlignHCenter
-                    }
-
-                    Item {
-                        Layout.fillWidth: true
-                        Layout.preferredHeight: dp(26)
-
-                        Rectangle {
-                            anchors.left: parent.left
-                            anchors.right: parent.right
-                            anchors.verticalCenter: parent.verticalCenter
-                            height: dp(8)
-                            radius: height / 2
-                            color: overlay.colDelayTrack
-                        }
-                        Rectangle {
-                            anchors.left: parent.horizontalCenter
-                            anchors.verticalCenter: parent.verticalCenter
-                            width: Math.abs(overlay.currentAudioDelayMs) / 2000 * parent.width / 2
-                            height: dp(12)
-                            radius: height / 2
-                            color: overlay.accent
-                            visible: overlay.currentAudioDelayMs >= 0
-                        }
-                        Rectangle {
-                            anchors.right: parent.horizontalCenter
-                            anchors.verticalCenter: parent.verticalCenter
-                            width: Math.abs(overlay.currentAudioDelayMs) / 2000 * parent.width / 2
-                            height: dp(12)
-                            radius: height / 2
-                            color: overlay.accentPurple
-                            visible: overlay.currentAudioDelayMs < 0
-                        }
-                        Rectangle {
-                            x: Math.max(0, Math.min(parent.width - width, ((overlay.currentAudioDelayMs + 2000) / 4000) * parent.width - width / 2))
-                            anchors.verticalCenter: parent.verticalCenter
-                            width: dp(24)
-                            height: width
-                            radius: width / 2
-                            color: overlay.colTextStrong
-                            border.width: 2
-                            border.color: overlay.accent
-                        }
-                    }
-                }
-
-                Rectangle {
-                    Layout.preferredWidth: dp(92)
-                    Layout.preferredHeight: dp(92)
-                    radius: width / 2
-                    color: overlay.audioSyncRow === "delay" ? Qt.alpha(overlay.accent, 0.2) : overlay.colFillSubtle
-                    border.width: overlay.audioSyncRow === "delay" ? 2 : 1
-                    border.color: overlay.audioSyncRow === "delay" ? overlay.accentBright : overlay.colHairline
-
-                    MaterialIcon {
-                        anchors.centerIn: parent
-                        name: "add"
-                        iconColor: overlay.colTextStrong
-                        iconSize: dp(42)
-                    }
-
-                    MouseArea {
-                        anchors.fill: parent
-                        onClicked: {
-                            overlay.audioSyncRow = "delay"
-                            overlay.adjustAudioDelay(1)
-                        }
-                    }
-                }
-            }
-
-            RowLayout {
-                Layout.fillWidth: true
-                Layout.preferredHeight: dp(62)
-                spacing: dp(10)
-
-                Text {
-                    text: "Step"
-                    color: overlay.audioSyncRow === "step" ? overlay.colTextStrong : overlay.colTextDim
-                    font.pixelSize: dp(22)
-                    font.weight: Font.DemiBold
-                    font.hintingPreference: Font.PreferNoHinting
-                    renderType: Text.QtRendering
-                    Layout.preferredWidth: dp(88)
-                    verticalAlignment: Text.AlignVCenter
-                }
-
-                Repeater {
-                    model: overlay.audioSyncSteps.length
-                    delegate: Rectangle {
-                        required property int index
-                        readonly property bool selected: overlay.audioSyncStepIndex === index
-                        readonly property bool focused: overlay.audioSyncRow === "step" && selected
-                        Layout.fillWidth: true
-                        Layout.preferredHeight: dp(52)
-                        radius: dp(10)
-                        color: focused ? Qt.alpha(overlay.accent, 0.2) : selected ? Qt.alpha(overlay.accent, 0.15) : overlay.colFillSubtle
-                        border.width: focused ? 2 : selected ? 1 : 1
-                        border.color: focused ? overlay.accentBright : selected ? Qt.alpha(overlay.accent, 0.3) : overlay.colHairlineSoft
-
-                        Text {
-                            anchors.centerIn: parent
-                            text: overlay.audioSyncSteps[index] + " ms"
-                            color: selected ? overlay.colTextStrong : overlay.colTextSubtle
-                            font.pixelSize: dp(21)
-                            font.weight: Font.DemiBold
-                            font.hintingPreference: Font.PreferNoHinting
-                            renderType: Text.QtRendering
-                        }
-
-                        MouseArea {
-                            anchors.fill: parent
-                            onClicked: {
-                                overlay.audioSyncRow = "step"
-                                overlay.audioSyncStepIndex = index
-                            }
-                        }
-                    }
-                }
-            }
-        }
+        overlay: parent
     }
 
-    Rectangle {
+    PlayerOverlayMenu {
         id: menuPanel
-        readonly property real edgeMargin: dp(20)
-        x: Math.max(edgeMargin, Math.min(parent.width - width - edgeMargin, overlay.menuAnchorX - width / 2))
-        y: Math.max(edgeMargin, Math.min(parent.height - height - edgeMargin, overlay.menuAnchorY - height - dp(12)))
-        width: Math.min(parent.width - edgeMargin * 2, dp(380))
-        height: Math.min(Math.round(parent.height * 0.5), Math.round(menuHeaderBlock.implicitHeight + menuList.contentHeight + dp(30)))
-        visible: overlay.isMenuOpen()
-        opacity: 0
-        radius: dp(16)
-        color: overlay.colPanelBg
-        border.width: 1
-        border.color: overlay.colHairline
-
-        ColumnLayout {
-            anchors.left: parent.left
-            anchors.right: parent.right
-            anchors.top: parent.top
-            anchors.bottom: parent.bottom
-            anchors.margins: dp(14)
-            spacing: dp(10)
-
-            ColumnLayout {
-                id: menuHeaderBlock
-                Layout.fillWidth: true
-                spacing: dp(10)
-
-                Text {
-                    Layout.fillWidth: true
-                    Layout.leftMargin: dp(6)
-                    text: overlay.mode === "subtitles" ? "Subtitles"
-                        : overlay.mode === "audio" ? "Audio"
-                        : "Settings"
-                    color: overlay.colTextMuted
-                    font.pixelSize: dp(15)
-                    font.weight: Font.DemiBold
-                    font.capitalization: Font.AllUppercase
-                    font.letterSpacing: dp(1.5)
-                    font.hintingPreference: Font.PreferNoHinting
-                    renderType: Text.QtRendering
-                }
-
-                Rectangle {
-                    Layout.fillWidth: true
-                    Layout.preferredHeight: 1
-                    color: overlay.colHairlineSoft
-                }
-            }
-
-            ListView {
-                id: menuList
-                Layout.fillWidth: true
-                Layout.fillHeight: true
-                clip: true
-                spacing: dp(2)
-                model: overlay.mode === "subtitles" && overlay.hasPlayer ? overlay.player.subtitleTracks
-                     : overlay.mode === "audio" && overlay.hasPlayer ? overlay.player.audioTracks
-                     : overlay.debugOptions
-                currentIndex: overlay.menuIndex
-                boundsBehavior: Flickable.StopAtBounds
-                highlightMoveDuration: 90
-                onCurrentIndexChanged: positionViewAtIndex(currentIndex, ListView.Contain)
-                delegate: Rectangle {
-                    required property int index
-                    required property var modelData
-                    readonly property bool current: overlay.menuIndex === index
-                    readonly property bool isSelected: (overlay.mode === "subtitles" && overlay.hasPlayer && overlay.player.selectedSubtitleIndex === index)
-                                                    || (overlay.mode === "audio" && overlay.hasPlayer && overlay.player.selectedAudioIndex === index)
-                    width: menuList.width
-                    height: dp(46)
-                    radius: dp(10)
-                    color: current ? Qt.alpha(overlay.accent, 0.18) : "transparent"
-
-                    Rectangle {
-                        anchors.left: parent.left
-                        anchors.leftMargin: dp(4)
-                        anchors.verticalCenter: parent.verticalCenter
-                        width: dp(3)
-                        height: parent.height - dp(16)
-                        radius: width / 2
-                        color: overlay.accent
-                        visible: current
-                    }
-
-                    RowLayout {
-                        anchors.fill: parent
-                        anchors.leftMargin: dp(16)
-                        anchors.rightMargin: dp(14)
-                        spacing: dp(10)
-                        Text {
-                            Layout.fillWidth: true
-                            text: String(modelData)
-                            color: current ? overlay.colTextStrong : isSelected ? overlay.colSelectedText : overlay.colTextSubtle
-                            font.pixelSize: dp(17)
-                            font.weight: current || isSelected ? Font.DemiBold : Font.Medium
-                            font.hintingPreference: Font.PreferNoHinting
-                            renderType: Text.QtRendering
-                            elide: Text.ElideRight
-                        }
-                        MaterialIcon {
-                            visible: isSelected
-                            name: "check"
-                            iconColor: current ? overlay.colTextStrong : overlay.accentBright
-                            iconSize: dp(20)
-                        }
-                    }
-
-                    MouseArea {
-                        anchors.fill: parent
-                        onClicked: {
-                            overlay.menuIndex = index
-                            overlay.activateMenuItem()
-                        }
-                    }
-                }
-            }
-        }
+        overlay: parent
     }
 }
