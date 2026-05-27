@@ -389,9 +389,10 @@ bool PlayerController::ensureMpv() {
     return true;
 
 #ifdef JELLYFIN_NATIVE_WEBOS
-  const bool useStarfishPcm = m_audioOutputMode == QStringLiteral("starfish-pcm");
+  const bool useStarfishPcm = m_audioOutputMode == QStringLiteral("starfish") ||
+                              m_audioOutputMode == QStringLiteral("starfish-pcm");
   const bool useStarfishAudio =
-      m_audioOutputMode == QStringLiteral("starfish") || useStarfishPcm;
+      useStarfishPcm;
   qputenv("STARFISH_AUDIO_HINT", useStarfishAudio ? QByteArrayLiteral("1") : QByteArrayLiteral("0"));
   // Selects the Starfish audio ES the fork builds: raw PCM vs the legacy AAC
   // encode path. Read by both ao_starfish and the starfish VO context.
@@ -778,7 +779,7 @@ void PlayerController::setAudioDelayMs(int delayMs) {
 void PlayerController::setAudioOutputMode(const QString &mode) {
   const QString normalized =
       (mode == QStringLiteral("starfish") || mode == QStringLiteral("starfish-pcm"))
-          ? mode
+          ? QStringLiteral("starfish-pcm")
           : QStringLiteral("alsa");
   if (m_audioOutputMode == normalized)
     return;

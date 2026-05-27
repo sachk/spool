@@ -428,11 +428,10 @@ FocusScope {
                     rowFocus: root.currentIndex === settingIndex || activeFocus
                     title: "Audio output"
                     description: "Takes effect on the next playback start"
-                    options: ["ALSA", "Starfish (AAC)", "Starfish (PCM)"]
-                    currentIndex: appController.audioOutputMode === "starfish-pcm" ? 2
-                                  : (appController.audioOutputMode === "starfish" ? 1 : 0)
-                    onSelected: (i, v) => appController.setAudioOutputMode(i === 2 ? "starfish-pcm"
-                                                                          : (i === 1 ? "starfish" : "alsa"))
+                    options: ["ALSA", "Starfish"]
+                    currentIndex: (appController.audioOutputMode === "starfish"
+                                   || appController.audioOutputMode === "starfish-pcm") ? 1 : 0
+                    onSelected: (i, v) => appController.setAudioOutputMode(i === 1 ? "starfish-pcm" : "alsa")
                     onActiveFocusChanged: if (activeFocus) root.markFocused(settingIndex)
                 }
                 SelectRow {
