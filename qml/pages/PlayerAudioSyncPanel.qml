@@ -1,5 +1,6 @@
 import QtQuick
 import QtQuick.Layouts
+import "../theme"
 import "../primitives"
 
 Rectangle {
@@ -51,10 +52,24 @@ Rectangle {
     height: dp(330)
     visible: opacity > 0.01
     opacity: 0
+    scale: opacity > 0.5 ? 1 : 0.97
     radius: dp(16)
     color: overlay.colPanelBg
     border.width: 1
     border.color: overlay.colHairline
+
+    Behavior on scale {
+        enabled: !Theme.reducedMotion
+        NumberAnimation { duration: 160; easing.type: Easing.OutCubic }
+    }
+
+    transform: Translate {
+        y: audioSyncPanel.opacity > 0.5 ? 0 : audioSyncPanel.dp(14)
+        Behavior on y {
+            enabled: !Theme.reducedMotion
+            NumberAnimation { duration: 160; easing.type: Easing.OutCubic }
+        }
+    }
 
     ColumnLayout {
         anchors.fill: parent

@@ -347,11 +347,15 @@ FocusScope {
 
     function activateMenuItem() {
         if (mode === "subtitles") {
+            if (!hasPlayer || player.subtitleTracks.length === 0)
+                return
             if (hasPlayer) player.selectSubtitle(menuIndex)
             closeMenu()
             return
         }
         if (mode === "audio") {
+            if (!hasPlayer || player.audioTracks.length === 0)
+                return
             if (hasPlayer) player.selectAudio(menuIndex)
             closeMenu()
             return
