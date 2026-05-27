@@ -202,6 +202,18 @@
         create-dmg
       ];
 
+      qmlToolWrappers = pkgs:
+        pkgs.runCommand "qt-qml-tool-wrappers" { nativeBuildInputs = [ pkgs.makeWrapper ]; } ''
+          mkdir -p "$out/bin"
+          qml_import_path="${pkgs.qt6.qtdeclarative}/lib/qt-6/qml"
+          makeWrapper ${pkgs.qt6.qtdeclarative}/bin/qmllint "$out/bin/qmllint" \
+            --prefix QML2_IMPORT_PATH : "$qml_import_path"
+          makeWrapper ${pkgs.qt6.qtdeclarative}/bin/qmlformat "$out/bin/qmlformat" \
+            --prefix QML2_IMPORT_PATH : "$qml_import_path"
+          makeWrapper ${pkgs.qt6.qtdeclarative}/libexec/qmlcachegen "$out/bin/qmlcachegen" \
+            --prefix QML2_IMPORT_PATH : "$qml_import_path"
+        '';
+
       # Shell used by tools/webos-native/build-qt6-611.sh. No nixpkgs Qt here.
       sourceBuildPackages = pkgs:
         basePackages pkgs
@@ -218,6 +230,7 @@
           qt6.qtimageformats
           qt6.qttools
           qt6.qtwebsockets
+          (qmlToolWrappers pkgs)
         ])
         ++ pkgs.lib.optionals pkgs.stdenv.isLinux (with pkgs; [
           qt6.qtwayland
@@ -266,7 +279,7 @@
     {
       devShells = forAllSystems (pkgs: {
         default = pkgs.mkShell {
-          packages = sourceBuildPackages pkgs;
+          packages = sourceBuildPackages pkgs ++ [ (qmlToolWrappers pkgs) ];
           shellHook = sourceShellHook pkgs;
         };
 
