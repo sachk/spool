@@ -13,7 +13,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 SDK_ROOT="${WEBOS_SDK_ROOT:-$ROOT/build/webos-sdk/arm-webos-linux-gnueabi_sdk-buildroot}"
 SYSROOT="$SDK_ROOT/arm-webos-linux-gnueabi/sysroot"
-QT_VERSION="${QT_VERSION:-6.11.0}"
+QT_VERSION="${QT_VERSION:-6.11.1}"
 QT_SERIES="${QT_VERSION%.*}"
 QT_STATIC="${QT_STATIC:-0}"
 PHASE="${1:-all}"
@@ -239,15 +239,15 @@ apply_patch_if_needed() {
 }
 
 apply_local_patches() {
-  apply_patch_if_needed "$QTBASE_SRC" "$PATCH_DIR/qtbase-6.11.0-webos-qstorageinfo-linux.patch"
-  apply_patch_if_needed "$QTBASE_SRC" "$PATCH_DIR/qtbase-6.11.0-webos-qelfparser.patch"
-  apply_patch_if_needed "$QTBASE_SRC" "$PATCH_DIR/qtbase-6.11.0-webos-wayland-no-opengl-forward-decl.patch"
-  apply_patch_if_needed "$QTBASE_SRC" "$PATCH_DIR/qtbase-6.11.0-webos-qplatformwindow-private-moc.patch"
-  apply_patch_if_needed "$QTWAYLAND_SRC" "$PATCH_DIR/qtwayland-6.11.0-webos-wayland-version.patch"
+  apply_patch_if_needed "$QTBASE_SRC" "$PATCH_DIR/qtbase-$QT_SERIES-webos-qstorageinfo-linux.patch"
+  apply_patch_if_needed "$QTBASE_SRC" "$PATCH_DIR/qtbase-$QT_SERIES-webos-qelfparser.patch"
+  apply_patch_if_needed "$QTBASE_SRC" "$PATCH_DIR/qtbase-$QT_SERIES-webos-wayland-no-opengl-forward-decl.patch"
+  apply_patch_if_needed "$QTBASE_SRC" "$PATCH_DIR/qtbase-$QT_SERIES-webos-qplatformwindow-private-moc.patch"
+  apply_patch_if_needed "$QTWAYLAND_SRC" "$PATCH_DIR/qtwayland-$QT_SERIES-webos-wayland-version.patch"
 
   # In Qt 6.11 the client-side wayland platform plugin code is in qtbase, not
   # qtwayland. This keeps the webOS magic-remote cursor opt-out built in.
-  apply_patch_if_needed "$QTBASE_SRC" "$PATCH_DIR/qtbase-6.11.0-webos-no-cursor-set.patch"
+  apply_patch_if_needed "$QTBASE_SRC" "$PATCH_DIR/qtbase-$QT_SERIES-webos-no-cursor-set.patch"
 }
 
 fetch_sources() {
@@ -753,7 +753,7 @@ usage() {
 usage: $0 [fetch|host|target|all|clean-host|clean-target|clean|summary]
 
 Environment knobs:
-  QT_VERSION=6.11.0
+  QT_VERSION=6.11.1
   QT_STATIC=0|1
   JOBS=N
   QT_BUILD_FRESH=1              pass --fresh to CMake configure
