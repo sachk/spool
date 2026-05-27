@@ -2,6 +2,8 @@ import QtQuick
 import QtQuick.Controls.Basic
 import QtQuick.Layouts
 import JellyfinWebOS
+import "../theme"
+import "../primitives"
 
 FocusScope {
     id: overlay
@@ -32,9 +34,33 @@ FocusScope {
     property bool downHoldActive: false
     property bool previewBurstActive: false
     readonly property real uiScale: Math.max(0.78, Math.min(1.0, height / 1440))
-    readonly property int actionTargetSize: Math.round(64 * uiScale)
-    property real menuAnchorX: width - Math.round(240 * uiScale)
-    property real menuAnchorY: height - Math.round(170 * uiScale)
+    readonly property color accent: Theme.accent
+    readonly property color accentBright: Qt.lighter(Theme.accent, 1.35)
+    readonly property color accentPurple: Theme.accentPurple
+    readonly property color colText: "#F4F8FA"
+    readonly property color colTextDim: "#B8C4CA"
+    readonly property color colTextMuted: "#8FA0A9"
+    readonly property color colTextSubtle: "#BCC6CB"
+    readonly property color colTextStrong: "#FFFFFF"
+    readonly property color colIconDim: "#EEEEEE"
+    readonly property color colStatus: "#AAB7BF"
+    readonly property color colSelectedText: "#EAF2F6"
+    readonly property color colError: "#FFB8BD"
+    readonly property color colPanelBg: "#F0121519"
+    readonly property color colHairline: "#26FFFFFF"
+    readonly property color colHairlineSoft: "#1AFFFFFF"
+    readonly property color colFillSubtle: "#14FFFFFF"
+    readonly property color colTrackOuter: "#5C0B1117"
+    readonly property color colTrackInner: "#66364249"
+    readonly property color colBackdropSoft: "#30000000"
+    readonly property color colDelayTrack: "#55606A72"
+    readonly property int actionTargetSize: dp(64)
+    property real menuAnchorX: width - dp(240)
+    property real menuAnchorY: height - dp(170)
+
+    function dp(n) {
+        return Math.round(n * uiScale)
+    }
 
     readonly property var actions: [
         { label: "Rewind", value: "back" },
@@ -93,7 +119,7 @@ FocusScope {
     function actionCenterX(actionValue) {
         const idx = actions.findIndex(action => action.value === actionValue)
         if (idx < 0 || actionRow.width <= 0)
-            return width - Math.round(240 * uiScale)
+            return width - dp(240)
         return hud.x + actionRow.x + (idx * (actionTargetSize + actionRow.spacing)) + actionTargetSize / 2
     }
 
@@ -735,7 +761,7 @@ FocusScope {
         anchors.left: parent.left
         anchors.right: parent.right
         anchors.top: parent.top
-        height: Math.round(150 * overlay.uiScale)
+        height: dp(150)
         opacity: 0
         visible: opacity > 0.01
         color: "transparent"
@@ -746,7 +772,7 @@ FocusScope {
         anchors.left: parent.left
         anchors.right: parent.right
         anchors.bottom: parent.bottom
-        height: Math.round(360 * overlay.uiScale)
+        height: dp(360)
         opacity: 0
         visible: opacity > 0.01
         color: "transparent"
@@ -757,21 +783,21 @@ FocusScope {
         readonly property bool focused: overlay.isControlsActive() && overlay.row === "back" && !overlay.isAudioSyncOpen()
         anchors.left: parent.left
         anchors.top: parent.top
-        anchors.margins: Math.round(40 * overlay.uiScale)
-        width: Math.round(64 * overlay.uiScale)
+        anchors.margins: dp(40)
+        width: dp(64)
         height: width
         radius: width / 2
-        color: focused ? "#3300A4DC" : "transparent"
+        color: focused ? Qt.alpha(overlay.accent, 0.2) : "transparent"
         border.width: focused ? 2 : 0
-        border.color: "#EAF8FF"
+        border.color: overlay.accentBright
         opacity: 0
         visible: opacity > 0.01
 
         MaterialIcon {
             anchors.centerIn: parent
             name: "arrow_back"
-            iconColor: backButton.focused ? "#FFFFFF" : "#EEEEEE"
-            iconSize: Math.round(34 * overlay.uiScale)
+            iconColor: backButton.focused ? overlay.colTextStrong : overlay.colIconDim
+            iconSize: dp(34)
         }
 
         MouseArea {
@@ -801,7 +827,7 @@ FocusScope {
         anchors.left: parent.left
         anchors.right: parent.right
         anchors.bottom: parent.bottom
-        anchors.bottomMargin: Math.round(310 * overlay.uiScale)
+        anchors.bottomMargin: dp(310)
         height: dataReady ? Math.round((trickplayData.height || 0) * overlay.uiScale * 1.4) : 0
         visible: dataReady
         opacity: visible ? 1 : 0
@@ -813,19 +839,19 @@ FocusScope {
             readonly property real thumbWidth: trickplayPreview.dataReady ? trickplayPreview.trickplayData.width * overlay.uiScale * 1.4 : 0
             readonly property real thumbHeight: trickplayPreview.dataReady ? trickplayPreview.trickplayData.height * overlay.uiScale * 1.4 : 0
             // Position the thumbnail above the timeline scrubber x.
-            x: Math.max(Math.round(52 * overlay.uiScale),
-                       Math.min(parent.width - thumbWidth - Math.round(52 * overlay.uiScale),
+            x: Math.max(dp(52),
+                       Math.min(parent.width - thumbWidth - dp(52),
                                 overlay.positionRatio() * parent.width - thumbWidth / 2))
             y: 0
             width: thumbWidth
-            height: thumbHeight + Math.round(24 * overlay.uiScale)
+            height: thumbHeight + dp(24)
 
             Rectangle {
                 id: thumbFrame
                 width: thumbContainer.thumbWidth
                 height: thumbContainer.thumbHeight
                 color: "#000"
-                border.color: "#FFFFFF"
+                border.color: overlay.colTextStrong
                 border.width: 2
                 radius: 4
                 clip: true
@@ -850,10 +876,10 @@ FocusScope {
             Text {
                 anchors.horizontalCenter: thumbFrame.horizontalCenter
                 anchors.top: thumbFrame.bottom
-                anchors.topMargin: Math.round(4 * overlay.uiScale)
+                anchors.topMargin: dp(4)
                 text: overlay.formatClock(overlay.scrubbing ? overlay.scrubSeconds : overlay.positionSeconds())
-                color: "#FFFFFF"
-                font.pixelSize: Math.round(16 * overlay.uiScale)
+                color: overlay.colTextStrong
+                font.pixelSize: dp(16)
                 font.weight: Font.Medium
                 font.hintingPreference: Font.PreferNoHinting
                 renderType: Text.QtRendering
@@ -876,14 +902,14 @@ FocusScope {
                                       : ""
         anchors.right: parent.right
         anchors.bottom: parent.bottom
-        anchors.rightMargin: Math.round(48 * overlay.uiScale)
-        anchors.bottomMargin: Math.round(220 * overlay.uiScale)
-        width: Math.round(220 * overlay.uiScale)
-        height: Math.round(60 * overlay.uiScale)
-        radius: Math.round(8 * overlay.uiScale)
-        color: "#E000A4DC"
+        anchors.rightMargin: dp(48)
+        anchors.bottomMargin: dp(220)
+        width: dp(220)
+        height: dp(60)
+        radius: dp(8)
+        color: Qt.alpha(overlay.accent, 0.88)
         border.width: 1
-        border.color: "#80EAF8FF"
+        border.color: Qt.alpha(overlay.accentBright, 0.5)
         visible: segmentType.length > 0 && overlay.mode !== "hidden"
         opacity: visible ? 1 : 0
         z: 30
@@ -892,21 +918,21 @@ FocusScope {
 
         RowLayout {
             anchors.fill: parent
-            anchors.leftMargin: Math.round(16 * overlay.uiScale)
-            anchors.rightMargin: Math.round(16 * overlay.uiScale)
-            spacing: Math.round(10 * overlay.uiScale)
+            anchors.leftMargin: dp(16)
+            anchors.rightMargin: dp(16)
+            spacing: dp(10)
 
             MaterialIcon {
                 name: "skip_next"
-                iconColor: "#FFFFFF"
-                iconSize: Math.round(24 * overlay.uiScale)
+                iconColor: overlay.colTextStrong
+                iconSize: dp(24)
             }
 
             Text {
                 Layout.fillWidth: true
                 text: skipSegmentCard.label
-                color: "#FFFFFF"
-                font.pixelSize: Math.round(18 * overlay.uiScale)
+                color: overlay.colTextStrong
+                font.pixelSize: dp(18)
                 font.weight: Font.DemiBold
                 font.hintingPreference: Font.PreferNoHinting
                 renderType: Text.QtRendering
@@ -914,8 +940,8 @@ FocusScope {
 
             Text {
                 text: "T"
-                color: "#FFFFFF"
-                font.pixelSize: Math.round(13 * overlay.uiScale)
+                color: overlay.colTextStrong
+                font.pixelSize: dp(13)
                 font.weight: Font.Medium
                 opacity: 0.7
             }
@@ -932,27 +958,27 @@ FocusScope {
         anchors.left: parent.left
         anchors.right: parent.right
         anchors.bottom: parent.bottom
-        anchors.margins: Math.round(52 * overlay.uiScale)
-        height: Math.round(236 * overlay.uiScale)
+        anchors.margins: dp(52)
+        height: dp(236)
         visible: opacity > 0.01
         opacity: 0
 
         ColumnLayout {
             anchors.fill: parent
-            spacing: Math.round(16 * overlay.uiScale)
+            spacing: dp(16)
 
             RowLayout {
                 Layout.fillWidth: true
-                    spacing: Math.round(20 * overlay.uiScale)
+                    spacing: dp(20)
 
                 ColumnLayout {
                     Layout.fillWidth: true
-                    spacing: Math.round(6 * overlay.uiScale)
+                    spacing: dp(6)
                     Text {
                         Layout.fillWidth: true
                         text: overlay.hasPlayer ? overlay.player.title : ""
-                        color: "#F4F8FA"
-                        font.pixelSize: Math.round(40 * overlay.uiScale)
+                        color: overlay.colText
+                        font.pixelSize: dp(40)
                         font.weight: Font.Bold
                         font.hintingPreference: Font.PreferNoHinting
                         renderType: Text.QtRendering
@@ -962,8 +988,8 @@ FocusScope {
                     Text {
                         Layout.fillWidth: true
                         text: overlay.hasPlayer ? overlay.player.statusText : ""
-                        color: overlay.hasPlayer && (overlay.player.buffering || overlay.player.seeking) ? "#9DE8FF" : "#AAB7BF"
-                        font.pixelSize: Math.round(24 * overlay.uiScale)
+                        color: overlay.hasPlayer && (overlay.player.buffering || overlay.player.seeking) ? overlay.accentBright : overlay.colStatus
+                        font.pixelSize: dp(24)
                         font.weight: Font.Medium
                         font.hintingPreference: Font.PreferNoHinting
                         renderType: Text.QtRendering
@@ -974,8 +1000,8 @@ FocusScope {
 
                 Text {
                     text: overlay.hasPlayer && overlay.player.paused ? "Paused" : "Playing"
-                    color: overlay.hasPlayer && overlay.player.paused ? "#FFFFFF" : "#B8C4CA"
-                    font.pixelSize: Math.round(23 * overlay.uiScale)
+                    color: overlay.hasPlayer && overlay.player.paused ? overlay.colTextStrong : overlay.colTextDim
+                    font.pixelSize: dp(23)
                     font.weight: Font.DemiBold
                     font.hintingPreference: Font.PreferNoHinting
                     renderType: Text.QtRendering
@@ -985,7 +1011,7 @@ FocusScope {
             Item {
                 id: timeline
                 Layout.fillWidth: true
-                Layout.preferredHeight: Math.round(82 * overlay.uiScale)
+                Layout.preferredHeight: dp(82)
                 readonly property double ratio: overlay.hasPlayer && overlay.player.durationSeconds > 0 ? Math.max(0, Math.min(1, overlay.positionSeconds() / overlay.player.durationSeconds)) : 0
                 readonly property bool focused: overlay.isControlsActive() && overlay.row === "timeline" && !overlay.isAudioSyncOpen()
 
@@ -993,8 +1019,8 @@ FocusScope {
                     anchors.left: parent.left
                     anchors.top: parent.top
                     text: overlay.formatClock(overlay.positionSeconds())
-                    color: timeline.focused ? "#FFFFFF" : "#B8C4CA"
-                    font.pixelSize: Math.round(23 * overlay.uiScale)
+                    color: timeline.focused ? overlay.colTextStrong : overlay.colTextDim
+                    font.pixelSize: dp(23)
                     font.weight: Font.Medium
                     font.hintingPreference: Font.PreferNoHinting
                     renderType: Text.QtRendering
@@ -1003,8 +1029,8 @@ FocusScope {
                     anchors.right: parent.right
                     anchors.top: parent.top
                     text: overlay.formatClock(overlay.hasPlayer ? overlay.player.durationSeconds : 0)
-                    color: "#B8C4CA"
-                    font.pixelSize: Math.round(23 * overlay.uiScale)
+                    color: overlay.colTextDim
+                    font.pixelSize: dp(23)
                     font.weight: Font.Medium
                     font.hintingPreference: Font.PreferNoHinting
                     renderType: Text.QtRendering
@@ -1014,17 +1040,17 @@ FocusScope {
                     anchors.left: parent.left
                     anchors.right: parent.right
                     anchors.bottom: parent.bottom
-                    height: timeline.focused ? Math.round(18 * overlay.uiScale) : Math.round(11 * overlay.uiScale)
+                    height: timeline.focused ? dp(18) : dp(11)
                     radius: height / 2
-                    color: "#5C0B1117"
+                    color: overlay.colTrackOuter
                     antialiasing: true
                     Behavior on height { NumberAnimation { duration: 140; easing.type: Easing.OutCubic } }
 
                     Rectangle {
                         anchors.fill: parent
-                        anchors.margins: Math.max(1, Math.round(2 * overlay.uiScale))
+                        anchors.margins: Math.max(1, dp(2))
                         radius: height / 2
-                        color: "#66364249"
+                        color: overlay.colTrackInner
                         antialiasing: true
                     }
                 }
@@ -1034,18 +1060,18 @@ FocusScope {
                     width: Math.max(track.height, track.width * timeline.ratio)
                     height: track.height
                     radius: height / 2
-                    color: overlay.hasPlayer && overlay.player.buffering ? "#48D5FF" : "#00A4DC"
+                    color: overlay.hasPlayer && overlay.player.buffering ? overlay.accentBright : overlay.accent
                     antialiasing: true
                     Behavior on width { enabled: !overlay.scrubbing; NumberAnimation { duration: 180; easing.type: Easing.OutCubic } }
                 }
                 Rectangle {
                     id: thumbGlow
-                    x: thumb.x - Math.round(5 * overlay.uiScale)
+                    x: thumb.x - dp(5)
                     anchors.verticalCenter: track.verticalCenter
-                    width: thumb.width + Math.round(10 * overlay.uiScale)
+                    width: thumb.width + dp(10)
                     height: width
                     radius: width / 2
-                    color: overlay.scrubbing || timeline.focused ? "#5500A4DC" : "#30000000"
+                    color: overlay.scrubbing || timeline.focused ? Qt.alpha(overlay.accent, 0.33) : overlay.colBackdropSoft
                     antialiasing: true
                     opacity: timeline.focused || overlay.scrubbing ? 1 : 0.55
                     Behavior on opacity { NumberAnimation { duration: 140; easing.type: Easing.OutCubic } }
@@ -1055,10 +1081,10 @@ FocusScope {
                     id: thumb
                     x: Math.max(0, Math.min(track.width - width, track.width * timeline.ratio - width / 2))
                     anchors.verticalCenter: track.verticalCenter
-                    width: timeline.focused ? Math.round(34 * overlay.uiScale) : Math.round(20 * overlay.uiScale)
+                    width: timeline.focused ? dp(34) : dp(20)
                     height: width
                     radius: width / 2
-                    color: "#FFFFFF"
+                    color: overlay.colTextStrong
                     antialiasing: true
                     Behavior on width { NumberAnimation { duration: 140; easing.type: Easing.OutCubic } }
 
@@ -1067,7 +1093,7 @@ FocusScope {
                         width: parent.width * (timeline.focused || overlay.scrubbing ? 0.48 : 0.34)
                         height: width
                         radius: width / 2
-                        color: "#00A4DC"
+                        color: overlay.accent
                         opacity: timeline.focused || overlay.scrubbing ? 1 : 0.8
                         antialiasing: true
                         Behavior on width { NumberAnimation { duration: 140; easing.type: Easing.OutCubic } }
@@ -1092,7 +1118,7 @@ FocusScope {
             RowLayout {
                 id: actionRow
                 Layout.fillWidth: true
-                spacing: Math.round(8 * overlay.uiScale)
+                spacing: dp(8)
 
                 Repeater {
                     model: overlay.actions.length
@@ -1103,15 +1129,15 @@ FocusScope {
                         Layout.preferredWidth: overlay.actionTargetSize
                         Layout.preferredHeight: overlay.actionTargetSize
                         radius: Math.round(overlay.actionTargetSize / 2)
-                        color: focused ? "#3300A4DC" : "transparent"
+                        color: focused ? Qt.alpha(overlay.accent, 0.2) : "transparent"
                         border.width: focused ? 2 : 0
-                        border.color: "#EAF8FF"
+                        border.color: overlay.accentBright
 
                         MaterialIcon {
                             anchors.centerIn: parent
                             name: overlay.actionIcon(actionValue)
-                            iconColor: focused ? "#FFFFFF" : "#EEEEEE"
-                            iconSize: actionValue === "debug" ? Math.round(30 * overlay.uiScale) : Math.round(36 * overlay.uiScale)
+                            iconColor: focused ? overlay.colTextStrong : overlay.colIconDim
+                            iconSize: actionValue === "debug" ? dp(30) : dp(36)
                         }
 
                         MouseArea {
@@ -1133,8 +1159,8 @@ FocusScope {
                 Layout.fillWidth: true
                 visible: overlay.hasPlayer && overlay.player.errorText.length > 0
                 text: overlay.hasPlayer ? overlay.player.errorText : ""
-                color: "#FFB8BD"
-                font.pixelSize: Math.round(18 * overlay.uiScale)
+                color: overlay.colError
+                font.pixelSize: dp(18)
                 font.hintingPreference: Font.PreferNoHinting
                 renderType: Text.QtRendering
                 wrapMode: Text.Wrap
@@ -1146,50 +1172,50 @@ FocusScope {
         id: audioSyncPanel
         anchors.horizontalCenter: parent.horizontalCenter
         anchors.verticalCenter: parent.verticalCenter
-        width: Math.min(parent.width - Math.round(120 * overlay.uiScale), Math.round(760 * overlay.uiScale))
-        height: Math.round(330 * overlay.uiScale)
+        width: Math.min(parent.width - dp(120), dp(760))
+        height: dp(330)
         visible: opacity > 0.01
         opacity: 0
-        radius: Math.round(16 * overlay.uiScale)
-        color: "#F0121519"
+        radius: dp(16)
+        color: overlay.colPanelBg
         border.width: 1
-        border.color: "#26FFFFFF"
+        border.color: overlay.colHairline
 
         ColumnLayout {
             anchors.fill: parent
-            anchors.margins: Math.round(26 * overlay.uiScale)
-            spacing: Math.round(18 * overlay.uiScale)
+            anchors.margins: dp(26)
+            spacing: dp(18)
 
             Text {
                 Layout.fillWidth: true
                 text: "Audio Sync"
-                color: "#8FA0A9"
-                font.pixelSize: Math.round(15 * overlay.uiScale)
+                color: overlay.colTextMuted
+                font.pixelSize: dp(15)
                 font.weight: Font.DemiBold
                 font.capitalization: Font.AllUppercase
-                font.letterSpacing: Math.round(1.5 * overlay.uiScale)
+                font.letterSpacing: dp(1.5)
                 font.hintingPreference: Font.PreferNoHinting
                 renderType: Text.QtRendering
             }
 
             RowLayout {
                 Layout.fillWidth: true
-                Layout.preferredHeight: Math.round(128 * overlay.uiScale)
-                spacing: Math.round(22 * overlay.uiScale)
+                Layout.preferredHeight: dp(128)
+                spacing: dp(22)
 
                 Rectangle {
-                    Layout.preferredWidth: Math.round(92 * overlay.uiScale)
-                    Layout.preferredHeight: Math.round(92 * overlay.uiScale)
+                    Layout.preferredWidth: dp(92)
+                    Layout.preferredHeight: dp(92)
                     radius: width / 2
-                    color: overlay.audioSyncRow === "delay" ? "#3300A4DC" : "#14FFFFFF"
+                    color: overlay.audioSyncRow === "delay" ? Qt.alpha(overlay.accent, 0.2) : overlay.colFillSubtle
                     border.width: overlay.audioSyncRow === "delay" ? 2 : 1
-                    border.color: overlay.audioSyncRow === "delay" ? "#5AD0F5" : "#2EFFFFFF"
+                    border.color: overlay.audioSyncRow === "delay" ? overlay.accentBright : overlay.colHairline
 
                     MaterialIcon {
                         anchors.centerIn: parent
                         name: "remove"
-                        iconColor: "#FFFFFF"
-                        iconSize: Math.round(42 * overlay.uiScale)
+                        iconColor: overlay.colTextStrong
+                        iconSize: dp(42)
                     }
 
                     MouseArea {
@@ -1204,13 +1230,13 @@ FocusScope {
                 ColumnLayout {
                     Layout.fillWidth: true
                     Layout.fillHeight: true
-                    spacing: Math.round(10 * overlay.uiScale)
+                    spacing: dp(10)
 
                     Text {
                         Layout.fillWidth: true
                         text: overlay.formatAudioDelay(overlay.currentAudioDelayMs)
-                        color: "#FFFFFF"
-                        font.pixelSize: Math.round(58 * overlay.uiScale)
+                        color: overlay.colTextStrong
+                        font.pixelSize: dp(58)
                         font.weight: Font.Bold
                         font.hintingPreference: Font.PreferNoHinting
                         renderType: Text.QtRendering
@@ -1219,60 +1245,60 @@ FocusScope {
 
                     Item {
                         Layout.fillWidth: true
-                        Layout.preferredHeight: Math.round(26 * overlay.uiScale)
+                        Layout.preferredHeight: dp(26)
 
                         Rectangle {
                             anchors.left: parent.left
                             anchors.right: parent.right
                             anchors.verticalCenter: parent.verticalCenter
-                            height: Math.round(8 * overlay.uiScale)
+                            height: dp(8)
                             radius: height / 2
-                            color: "#55606A72"
+                            color: overlay.colDelayTrack
                         }
                         Rectangle {
                             anchors.left: parent.horizontalCenter
                             anchors.verticalCenter: parent.verticalCenter
                             width: Math.abs(overlay.currentAudioDelayMs) / 2000 * parent.width / 2
-                            height: Math.round(12 * overlay.uiScale)
+                            height: dp(12)
                             radius: height / 2
-                            color: "#00A4DC"
+                            color: overlay.accent
                             visible: overlay.currentAudioDelayMs >= 0
                         }
                         Rectangle {
                             anchors.right: parent.horizontalCenter
                             anchors.verticalCenter: parent.verticalCenter
                             width: Math.abs(overlay.currentAudioDelayMs) / 2000 * parent.width / 2
-                            height: Math.round(12 * overlay.uiScale)
+                            height: dp(12)
                             radius: height / 2
-                            color: "#AA5CC3"
+                            color: overlay.accentPurple
                             visible: overlay.currentAudioDelayMs < 0
                         }
                         Rectangle {
                             x: Math.max(0, Math.min(parent.width - width, ((overlay.currentAudioDelayMs + 2000) / 4000) * parent.width - width / 2))
                             anchors.verticalCenter: parent.verticalCenter
-                            width: Math.round(24 * overlay.uiScale)
+                            width: dp(24)
                             height: width
                             radius: width / 2
-                            color: "#FFFFFF"
+                            color: overlay.colTextStrong
                             border.width: 2
-                            border.color: "#00A4DC"
+                            border.color: overlay.accent
                         }
                     }
                 }
 
                 Rectangle {
-                    Layout.preferredWidth: Math.round(92 * overlay.uiScale)
-                    Layout.preferredHeight: Math.round(92 * overlay.uiScale)
+                    Layout.preferredWidth: dp(92)
+                    Layout.preferredHeight: dp(92)
                     radius: width / 2
-                    color: overlay.audioSyncRow === "delay" ? "#3300A4DC" : "#14FFFFFF"
+                    color: overlay.audioSyncRow === "delay" ? Qt.alpha(overlay.accent, 0.2) : overlay.colFillSubtle
                     border.width: overlay.audioSyncRow === "delay" ? 2 : 1
-                    border.color: overlay.audioSyncRow === "delay" ? "#5AD0F5" : "#2EFFFFFF"
+                    border.color: overlay.audioSyncRow === "delay" ? overlay.accentBright : overlay.colHairline
 
                     MaterialIcon {
                         anchors.centerIn: parent
                         name: "add"
-                        iconColor: "#FFFFFF"
-                        iconSize: Math.round(42 * overlay.uiScale)
+                        iconColor: overlay.colTextStrong
+                        iconSize: dp(42)
                     }
 
                     MouseArea {
@@ -1287,17 +1313,17 @@ FocusScope {
 
             RowLayout {
                 Layout.fillWidth: true
-                Layout.preferredHeight: Math.round(62 * overlay.uiScale)
-                spacing: Math.round(10 * overlay.uiScale)
+                Layout.preferredHeight: dp(62)
+                spacing: dp(10)
 
                 Text {
                     text: "Step"
-                    color: overlay.audioSyncRow === "step" ? "#FFFFFF" : "#B8C4CA"
-                    font.pixelSize: Math.round(22 * overlay.uiScale)
+                    color: overlay.audioSyncRow === "step" ? overlay.colTextStrong : overlay.colTextDim
+                    font.pixelSize: dp(22)
                     font.weight: Font.DemiBold
                     font.hintingPreference: Font.PreferNoHinting
                     renderType: Text.QtRendering
-                    Layout.preferredWidth: Math.round(88 * overlay.uiScale)
+                    Layout.preferredWidth: dp(88)
                     verticalAlignment: Text.AlignVCenter
                 }
 
@@ -1308,17 +1334,17 @@ FocusScope {
                         readonly property bool selected: overlay.audioSyncStepIndex === index
                         readonly property bool focused: overlay.audioSyncRow === "step" && selected
                         Layout.fillWidth: true
-                        Layout.preferredHeight: Math.round(52 * overlay.uiScale)
-                        radius: Math.round(10 * overlay.uiScale)
-                        color: focused ? "#3300A4DC" : selected ? "#2600A4DC" : "#14FFFFFF"
+                        Layout.preferredHeight: dp(52)
+                        radius: dp(10)
+                        color: focused ? Qt.alpha(overlay.accent, 0.2) : selected ? Qt.alpha(overlay.accent, 0.15) : overlay.colFillSubtle
                         border.width: focused ? 2 : selected ? 1 : 1
-                        border.color: focused ? "#5AD0F5" : selected ? "#4D00A4DC" : "#1FFFFFFF"
+                        border.color: focused ? overlay.accentBright : selected ? Qt.alpha(overlay.accent, 0.3) : overlay.colHairlineSoft
 
                         Text {
                             anchors.centerIn: parent
                             text: overlay.audioSyncSteps[index] + " ms"
-                            color: selected ? "#FFFFFF" : "#BCC6CB"
-                            font.pixelSize: Math.round(21 * overlay.uiScale)
+                            color: selected ? overlay.colTextStrong : overlay.colTextSubtle
+                            font.pixelSize: dp(21)
                             font.weight: Font.DemiBold
                             font.hintingPreference: Font.PreferNoHinting
                             renderType: Text.QtRendering
@@ -1339,42 +1365,42 @@ FocusScope {
 
     Rectangle {
         id: menuPanel
-        readonly property real edgeMargin: Math.round(20 * overlay.uiScale)
+        readonly property real edgeMargin: dp(20)
         x: Math.max(edgeMargin, Math.min(parent.width - width - edgeMargin, overlay.menuAnchorX - width / 2))
-        y: Math.max(edgeMargin, Math.min(parent.height - height - edgeMargin, overlay.menuAnchorY - height - Math.round(12 * overlay.uiScale)))
-        width: Math.round(Math.min(parent.width - edgeMargin * 2, 380 * overlay.uiScale))
-        height: Math.min(Math.round(parent.height * 0.5), Math.round(menuHeaderBlock.implicitHeight + menuList.contentHeight + 30 * overlay.uiScale))
+        y: Math.max(edgeMargin, Math.min(parent.height - height - edgeMargin, overlay.menuAnchorY - height - dp(12)))
+        width: Math.min(parent.width - edgeMargin * 2, dp(380))
+        height: Math.min(Math.round(parent.height * 0.5), Math.round(menuHeaderBlock.implicitHeight + menuList.contentHeight + dp(30)))
         visible: overlay.isMenuOpen()
         opacity: 0
-        radius: Math.round(16 * overlay.uiScale)
-        color: "#F0121519"
+        radius: dp(16)
+        color: overlay.colPanelBg
         border.width: 1
-        border.color: "#26FFFFFF"
+        border.color: overlay.colHairline
 
         ColumnLayout {
             anchors.left: parent.left
             anchors.right: parent.right
             anchors.top: parent.top
             anchors.bottom: parent.bottom
-            anchors.margins: Math.round(14 * overlay.uiScale)
-            spacing: Math.round(10 * overlay.uiScale)
+            anchors.margins: dp(14)
+            spacing: dp(10)
 
             ColumnLayout {
                 id: menuHeaderBlock
                 Layout.fillWidth: true
-                spacing: Math.round(10 * overlay.uiScale)
+                spacing: dp(10)
 
                 Text {
                     Layout.fillWidth: true
-                    Layout.leftMargin: Math.round(6 * overlay.uiScale)
+                    Layout.leftMargin: dp(6)
                     text: overlay.mode === "subtitles" ? "Subtitles"
                         : overlay.mode === "audio" ? "Audio"
                         : "Settings"
-                    color: "#8FA0A9"
-                    font.pixelSize: Math.round(15 * overlay.uiScale)
+                    color: overlay.colTextMuted
+                    font.pixelSize: dp(15)
                     font.weight: Font.DemiBold
                     font.capitalization: Font.AllUppercase
-                    font.letterSpacing: Math.round(1.5 * overlay.uiScale)
+                    font.letterSpacing: dp(1.5)
                     font.hintingPreference: Font.PreferNoHinting
                     renderType: Text.QtRendering
                 }
@@ -1382,7 +1408,7 @@ FocusScope {
                 Rectangle {
                     Layout.fillWidth: true
                     Layout.preferredHeight: 1
-                    color: "#1AFFFFFF"
+                    color: overlay.colHairlineSoft
                 }
             }
 
@@ -1391,7 +1417,7 @@ FocusScope {
                 Layout.fillWidth: true
                 Layout.fillHeight: true
                 clip: true
-                spacing: Math.round(2 * overlay.uiScale)
+                spacing: dp(2)
                 model: overlay.mode === "subtitles" && overlay.hasPlayer ? overlay.player.subtitleTracks
                      : overlay.mode === "audio" && overlay.hasPlayer ? overlay.player.audioTracks
                      : overlay.debugOptions
@@ -1406,31 +1432,31 @@ FocusScope {
                     readonly property bool isSelected: (overlay.mode === "subtitles" && overlay.hasPlayer && overlay.player.selectedSubtitleIndex === index)
                                                     || (overlay.mode === "audio" && overlay.hasPlayer && overlay.player.selectedAudioIndex === index)
                     width: menuList.width
-                    height: Math.round(46 * overlay.uiScale)
-                    radius: Math.round(10 * overlay.uiScale)
-                    color: current ? "#2E00A4DC" : "transparent"
+                    height: dp(46)
+                    radius: dp(10)
+                    color: current ? Qt.alpha(overlay.accent, 0.18) : "transparent"
 
                     Rectangle {
                         anchors.left: parent.left
-                        anchors.leftMargin: Math.round(4 * overlay.uiScale)
+                        anchors.leftMargin: dp(4)
                         anchors.verticalCenter: parent.verticalCenter
-                        width: Math.round(3 * overlay.uiScale)
-                        height: parent.height - Math.round(16 * overlay.uiScale)
+                        width: dp(3)
+                        height: parent.height - dp(16)
                         radius: width / 2
-                        color: "#00A4DC"
+                        color: overlay.accent
                         visible: current
                     }
 
                     RowLayout {
                         anchors.fill: parent
-                        anchors.leftMargin: Math.round(16 * overlay.uiScale)
-                        anchors.rightMargin: Math.round(14 * overlay.uiScale)
-                        spacing: Math.round(10 * overlay.uiScale)
+                        anchors.leftMargin: dp(16)
+                        anchors.rightMargin: dp(14)
+                        spacing: dp(10)
                         Text {
                             Layout.fillWidth: true
                             text: String(modelData)
-                            color: current ? "#FFFFFF" : isSelected ? "#EAF2F6" : "#BCC6CB"
-                            font.pixelSize: Math.round(17 * overlay.uiScale)
+                            color: current ? overlay.colTextStrong : isSelected ? overlay.colSelectedText : overlay.colTextSubtle
+                            font.pixelSize: dp(17)
                             font.weight: current || isSelected ? Font.DemiBold : Font.Medium
                             font.hintingPreference: Font.PreferNoHinting
                             renderType: Text.QtRendering
@@ -1439,8 +1465,8 @@ FocusScope {
                         MaterialIcon {
                             visible: isSelected
                             name: "check"
-                            iconColor: current ? "#FFFFFF" : "#5AD0F5"
-                            iconSize: Math.round(20 * overlay.uiScale)
+                            iconColor: current ? overlay.colTextStrong : overlay.accentBright
+                            iconSize: dp(20)
                         }
                     }
 
