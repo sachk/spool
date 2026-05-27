@@ -207,10 +207,13 @@ void AppController::initialize()
     m_nightModeEnabled = m_database->loadNightModeEnabled();
     m_audioDelayMs = m_database->loadAudioDelayMs();
     const QString storedAudioOutputMode = m_database->loadAudioOutputMode();
-    m_audioOutputMode = (storedAudioOutputMode == QStringLiteral("starfish") ||
-                         storedAudioOutputMode == QStringLiteral("starfish-pcm"))
-                            ? storedAudioOutputMode
-                            : QStringLiteral("alsa");
+    m_audioOutputMode = storedAudioOutputMode == QStringLiteral("starfish")
+                            ? QStringLiteral("starfish-pcm")
+                            : (storedAudioOutputMode == QStringLiteral("starfish-pcm")
+                                   ? storedAudioOutputMode
+                                   : QStringLiteral("alsa"));
+    if (m_audioOutputMode != storedAudioOutputMode)
+        m_database->saveAudioOutputMode(m_audioOutputMode);
     m_redButtonAction = m_database->loadSetting(QStringLiteral("input/redButton"), QStringLiteral("none"));
     m_greenButtonAction = m_database->loadSetting(QStringLiteral("input/greenButton"), QStringLiteral("skipBackAndEnableSubs"));
     m_yellowButtonAction = m_database->loadSetting(QStringLiteral("input/yellowButton"), QStringLiteral("none"));
@@ -666,7 +669,7 @@ void AppController::setAudioOutputMode(const QString &mode)
 {
     const QString normalized =
         (mode == QStringLiteral("starfish") || mode == QStringLiteral("starfish-pcm"))
-            ? mode
+            ? QStringLiteral("starfish-pcm")
             : QStringLiteral("alsa");
     if (m_audioOutputMode == normalized)
         return;
