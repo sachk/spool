@@ -46,6 +46,7 @@ class PlayerController final : public QObject
     Q_PROPERTY(QString activeSegmentType READ activeSegmentType NOTIFY stateChanged)
     Q_PROPERTY(double activeSegmentEndSeconds READ activeSegmentEndSeconds NOTIFY stateChanged)
     Q_PROPERTY(bool trickplayAvailable READ trickplayAvailable NOTIFY stateChanged)
+    Q_PROPERTY(QStringList trickplaySheetUrls READ trickplaySheetUrls NOTIFY stateChanged)
 
 public:
     PlayerController(NativeAppWindow *window, JellyfinApiFacade *api, QObject *parent = nullptr);
@@ -74,6 +75,7 @@ public:
     QString activeSegmentType() const;
     double activeSegmentEndSeconds() const;
     bool trickplayAvailable() const;
+    QStringList trickplaySheetUrls() const;
     Q_INVOKABLE void skipActiveSegment();
     Q_INVOKABLE QVariantMap trickplayForSeconds(double seconds) const;
 

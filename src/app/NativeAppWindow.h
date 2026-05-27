@@ -54,7 +54,7 @@ private:
     void updateCropRegion();
     void setVideoCrop(int origW, int origH, int srcX, int srcY, int srcW, int srcH,
                       int dstX, int dstY, int dstW, int dstH);
-    void presentOverlayCopy(const uint8_t *pixels, int width, int height, int stride);
+    void publishOverlayImage(QImage image);
 
     static void registryGlobal(void *data, wl_registry *registry, uint32_t name,
                                const char *interface, uint32_t version);

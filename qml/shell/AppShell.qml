@@ -192,7 +192,7 @@ FocusScope {
     function handlePlayerPressed(event) {
         if (isBackEvent(event)) {
             playerBackPressHandled = true
-            playerOverlay.handleBack()
+            playerOverlay.handleBack(true)
             return true
         }
         if (playerOverlay.handlePressed(event))

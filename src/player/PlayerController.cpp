@@ -207,15 +207,19 @@ PlayerController::PlayerController(NativeAppWindow *window,
     emit stateChanged();
   });
   connect(&m_uiPositionTimer, &QTimer::timeout, this, [this]() {
-    if (!m_visible || m_paused || m_buffering || m_seeking ||
-        !m_positionClock.isValid())
+    if (!m_visible || m_paused || m_buffering || m_seeking)
       return;
 
-    const double elapsed = m_positionClock.elapsed() / 1000.0;
-    if (elapsed <= 0.0)
+    double mpvPosition = 0.0;
+    if (currentMpvPositionSeconds(&mpvPosition)) {
+      setPositionSeconds(mpvPosition);
+      return;
+    }
+
+    if (!m_positionClock.isValid())
       return;
 
-    setPositionSeconds(m_positionSeconds + elapsed);
+    setPositionSeconds(projectedPositionSeconds());
   });
   connect(&m_seekWatchdogTimer, &QTimer::timeout, this, [this]() {
     if (!m_visible || !m_seeking)
@@ -385,11 +389,17 @@ bool PlayerController::ensureMpv() {
     return true;
 
 #ifdef JELLYFIN_NATIVE_WEBOS
-  const bool useStarfishAudio = m_audioOutputMode == QStringLiteral("starfish");
+  const bool useStarfishPcm = m_audioOutputMode == QStringLiteral("starfish-pcm");
+  const bool useStarfishAudio =
+      m_audioOutputMode == QStringLiteral("starfish") || useStarfishPcm;
   qputenv("STARFISH_AUDIO_HINT", useStarfishAudio ? QByteArrayLiteral("1") : QByteArrayLiteral("0"));
+  // Selects the Starfish audio ES the fork builds: raw PCM vs the legacy AAC
+  // encode path. Read by both ao_starfish and the starfish VO context.
+  qputenv("STARFISH_AUDIO_CODEC", useStarfishPcm ? QByteArrayLiteral("pcm") : QByteArrayLiteral("aac"));
   qInfo() << "player: configuring webOS audio output"
-          << (useStarfishAudio ? "starfish" : "alsa")
-          << "starfishAudioHint=" << qgetenv("STARFISH_AUDIO_HINT");
+          << m_audioOutputMode
+          << "starfishAudioHint=" << qgetenv("STARFISH_AUDIO_HINT")
+          << "starfishAudioCodec=" << qgetenv("STARFISH_AUDIO_CODEC");
 #endif
 
   QElapsedTimer startupTimer;
@@ -431,8 +441,13 @@ bool PlayerController::ensureMpv() {
       // display/video clock instead.
       (useStarfishAudio || setOption(handle, "video-sync", "display-resample")) &&
       setOption(handle, "audio-channels", "stereo") &&
-      setOption(handle, "audio-format", "s32") &&
-      setOption(handle, "audio-samplerate", "192000") &&
+      // PCM mode feeds interleaved S16 straight to Starfish; AAC/ALSA keep s32.
+      setOption(handle, "audio-format", useStarfishPcm ? "s16" : "s32") &&
+      setOption(handle, "audio-samplerate",
+                (useStarfishAudio && !useStarfishPcm) ? "192000" : "48000") &&
+      (useStarfishAudio || setOption(handle, "audio-buffer", "0.050")) &&
+      (useStarfishAudio || setOption(handle, "alsa-buffer-time", "40000")) &&
+      (useStarfishAudio || setOption(handle, "alsa-periods", "8")) &&
 
 #else
       // Render via libmpv's render API into the embedded MpvVideoItem; no
@@ -683,14 +698,6 @@ void PlayerController::selectSubtitle(int index) {
   m_subtitlesEnabled = trackId >= 0;
   if (!m_subtitlesEnabled) {
     m_window->clearOverlay();
-  } else if (previousIndex != index) {
-    // Without this, embedded subs only render from the *next* event after
-    // enabling: a line currently on screen stays invisible until the speaker
-    // finishes their sentence. Re-issuing an exact seek to the current PTS
-    // forces mpv to rewind the subtitle stream and pick up the active event.
-    double position = 0.0;
-    if (currentMpvPositionSeconds(&position))
-      beginSeekCommand(position, QByteArray("absolute+exact"), false);
   }
   emit stateChanged();
 }
@@ -769,7 +776,10 @@ void PlayerController::setAudioDelayMs(int delayMs) {
 }
 
 void PlayerController::setAudioOutputMode(const QString &mode) {
-  const QString normalized = mode == QStringLiteral("starfish") ? QStringLiteral("starfish") : QStringLiteral("alsa");
+  const QString normalized =
+      (mode == QStringLiteral("starfish") || mode == QStringLiteral("starfish-pcm"))
+          ? mode
+          : QStringLiteral("alsa");
   if (m_audioOutputMode == normalized)
     return;
 
@@ -931,8 +941,8 @@ bool PlayerController::beginRelativeSeekCommand(double deltaSeconds) {
   emit stateChanged();
 
   const QByteArray command = QByteArray("no-osd seek ") +
-                             QByteArray::number(deltaSeconds, 'f', 3) +
-                             QByteArray(" relative+keyframes");
+                             QByteArray::number(optimisticTarget, 'f', 3) +
+                             QByteArray(" absolute+keyframes");
   if (mpvCommand(command.constData()))
     return true;
 
@@ -989,8 +999,14 @@ void PlayerController::runEventLoop() {
         const bool paused = *static_cast<int *>(property->data);
         QMetaObject::invokeMethod(this, [this, paused]() {
           m_paused = paused;
-          if (!m_paused)
+          if (m_paused) {
+            double mpvPosition = 0.0;
+            if (currentMpvPositionSeconds(&mpvPosition))
+              setPositionSeconds(mpvPosition);
+            m_positionClock.invalidate();
+          } else {
             m_positionClock.restart();
+          }
           updatePlaybackStatusText();
           emit stateChanged();
         });
@@ -999,8 +1015,16 @@ void PlayerController::runEventLoop() {
         const bool buffering = *static_cast<int *>(property->data);
         QMetaObject::invokeMethod(this, [this, buffering]() {
           m_buffering = buffering;
-          if (!buffering)
+          if (buffering) {
+            double mpvPosition = 0.0;
+            if (currentMpvPositionSeconds(&mpvPosition))
+              setPositionSeconds(mpvPosition);
+            m_positionClock.invalidate();
+          } else {
             m_bufferingPercent = 0;
+            if (!m_paused)
+              m_positionClock.restart();
+          }
           updatePlaybackStatusText();
           emit stateChanged();
         });
@@ -1031,13 +1055,14 @@ void PlayerController::runEventLoop() {
                  property->format == MPV_FORMAT_DOUBLE) {
         const double seconds = *static_cast<double *>(property->data);
         QMetaObject::invokeMethod(this, [this, seconds]() {
+          // Skip while a seek is in flight or just finished; otherwise trust
+          // mpv. We intentionally don't filter "mpv reports < projection" —
+          // that filter let stale optimistic targets persist forever when a
+          // keyframe seek landed short of where we projected.
           if (m_seeking ||
               (m_seekCommandClock.isValid() && m_seekCommandClock.elapsed() < 1500))
             return;
-          const double position = playbackPositionFromMpvTime(seconds);
-          if (position + 2.0 < projectedPositionSeconds())
-            return;
-          setPositionSeconds(position);
+          setPositionSeconds(playbackPositionFromMpvTime(seconds));
         });
       } else if (strcmp(property->name, "duration") == 0 &&
                  property->format == MPV_FORMAT_DOUBLE) {
@@ -1191,6 +1216,9 @@ double PlayerController::clampedPosition(double seconds) const {
 }
 
 double PlayerController::seekAnchorPosition() {
+  // In-flight seek: anchor off the requested target so rapid repeats chain
+  // cleanly (mpv may not have moved yet). Cleared as soon as the seek lands,
+  // so this branch is only active during the brief seek window.
   if (m_requestedSeekTargetSeconds >= 0.0 && m_seekCommandClock.isValid() &&
       m_seekCommandClock.elapsed() < kSeekTargetFreshnessMs) {
     double position = m_requestedSeekTargetSeconds;
@@ -1199,12 +1227,13 @@ double PlayerController::seekAnchorPosition() {
     return clampedPosition(position);
   }
 
+  // No in-flight seek: trust mpv. Earlier versions preferred the projected
+  // position when mpv was >2s behind, but that pinned m_positionSeconds to a
+  // stale optimistic target whenever a keyframe-aligned seek landed short of
+  // it, and the next "+10" would compound the gap.
   if (!m_seeking) {
     double mpvPosition = 0.0;
     if (currentMpvPositionSeconds(&mpvPosition)) {
-      const double projectedPosition = projectedPositionSeconds();
-      if (mpvPosition + 2.0 < projectedPosition)
-        return projectedPosition;
       setPositionSeconds(mpvPosition);
       return mpvPosition;
     }
@@ -1279,6 +1308,24 @@ double PlayerController::activeSegmentEndSeconds() const { return m_activeSegmen
 bool PlayerController::trickplayAvailable() const {
   const TrickplayInfo &tp = m_session.trickplay;
   return tp.intervalMs > 0 && tp.tileWidth > 0 && tp.tileHeight > 0 && tp.width > 0;
+}
+
+QStringList PlayerController::trickplaySheetUrls() const {
+  QStringList urls;
+  if (!trickplayAvailable() || !m_api)
+    return urls;
+
+  const TrickplayInfo &tp = m_session.trickplay;
+  const int tileSize = tp.tileWidth * tp.tileHeight;
+  if (tileSize <= 0)
+    return urls;
+
+  const int thumbnailCount = tp.thumbnailCount > 0 ? tp.thumbnailCount : 1;
+  const int sheetCount = std::max(1, (thumbnailCount + tileSize - 1) / tileSize);
+  urls.reserve(sheetCount);
+  for (int i = 0; i < sheetCount; ++i)
+    urls.push_back(m_api->trickplayTileUrl(m_session.itemId, tp.width, i));
+  return urls;
 }
 
 void PlayerController::skipActiveSegment() {

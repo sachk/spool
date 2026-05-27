@@ -37,7 +37,9 @@ JOBS="$(job_count)"
 SRC_DIR="$ROOT/build/qt6-src"
 QTBASE_TARBALL="$SRC_DIR/qtbase-everywhere-src-$QT_VERSION.tar.xz"
 QTSHADERTOOLS_TARBALL="$SRC_DIR/qtshadertools-everywhere-src-$QT_VERSION.tar.xz"
+QTTOOLS_TARBALL="$SRC_DIR/qttools-everywhere-src-$QT_VERSION.tar.xz"
 QTDECLARATIVE_TARBALL="$SRC_DIR/qtdeclarative-everywhere-src-$QT_VERSION.tar.xz"
+QTWEBSOCKETS_TARBALL="$SRC_DIR/qtwebsockets-everywhere-src-$QT_VERSION.tar.xz"
 QTWAYLAND_TARBALL="$SRC_DIR/qtwayland-everywhere-src-$QT_VERSION.tar.xz"
 QTOPENAPI_TARBALL="$SRC_DIR/qtopenapi-everywhere-src-$QT_VERSION.tar.xz"
 QTIMAGEFORMATS_TARBALL="$SRC_DIR/qtimageformats-everywhere-src-$QT_VERSION.tar.xz"
@@ -46,7 +48,9 @@ QTVIRTUALKEYBOARD_TARBALL="$SRC_DIR/qtvirtualkeyboard-everywhere-src-$QT_VERSION
 
 QTBASE_SRC="$SRC_DIR/qtbase-everywhere-src-$QT_VERSION"
 QTSHADERTOOLS_SRC="$SRC_DIR/qtshadertools-everywhere-src-$QT_VERSION"
+QTTOOLS_SRC="$SRC_DIR/qttools-everywhere-src-$QT_VERSION"
 QTDECLARATIVE_SRC="$SRC_DIR/qtdeclarative-everywhere-src-$QT_VERSION"
+QTWEBSOCKETS_SRC="$SRC_DIR/qtwebsockets-everywhere-src-$QT_VERSION"
 QTWAYLAND_SRC="$SRC_DIR/qtwayland-everywhere-src-$QT_VERSION"
 QTOPENAPI_SRC="$SRC_DIR/qtopenapi-everywhere-src-$QT_VERSION"
 QTIMAGEFORMATS_SRC="$SRC_DIR/qtimageformats-everywhere-src-$QT_VERSION"
@@ -107,6 +111,8 @@ cmake_clean_env() {
     -u Qt6QmlTools_DIR \
     -u Qt6Quick_DIR \
     -u Qt6ShaderTools_DIR \
+    -u Qt6LinguistTools_DIR \
+    -u Qt6WebSockets_DIR \
     -u Qt6WaylandClient_DIR \
     -u Qt6WaylandScannerTools_DIR \
     -u PKG_CONFIG \
@@ -181,7 +187,7 @@ maybe_clean_poisoned_build_dir() {
   [[ "$QT_BUILD_CLEAN_POISONED" == "1" ]] || return 0
   [[ -f "$dir/CMakeCache.txt" ]] || return 0
 
-  if grep -Eq '/nix/store/[^ ;"]*-qt(base|declarative|tools|wayland|imageformats|svg|virtualkeyboard)-' "$dir/CMakeCache.txt"; then
+  if grep -Eq '/nix/store/[^ ;"]*-qt(base|declarative|tools|websockets|wayland|imageformats|svg|virtualkeyboard)-' "$dir/CMakeCache.txt"; then
     log "Removing poisoned CMake cache: $dir"
     rm -rf "$dir"
   fi
@@ -250,7 +256,9 @@ fetch_sources() {
 
   download_submodule qtbase "$QTBASE_TARBALL"
   download_submodule qtshadertools "$QTSHADERTOOLS_TARBALL"
+  download_submodule qttools "$QTTOOLS_TARBALL"
   download_submodule qtdeclarative "$QTDECLARATIVE_TARBALL"
+  download_submodule qtwebsockets "$QTWEBSOCKETS_TARBALL"
   download_submodule qtwayland "$QTWAYLAND_TARBALL"
   if [[ "$BUILD_QTOPENAPI" == "1" ]]; then
     download_submodule qtopenapi "$QTOPENAPI_TARBALL"
@@ -263,7 +271,9 @@ fetch_sources() {
 
   extract_if_needed "$QTBASE_TARBALL" "$QTBASE_SRC"
   extract_if_needed "$QTSHADERTOOLS_TARBALL" "$QTSHADERTOOLS_SRC"
+  extract_if_needed "$QTTOOLS_TARBALL" "$QTTOOLS_SRC"
   extract_if_needed "$QTDECLARATIVE_TARBALL" "$QTDECLARATIVE_SRC"
+  extract_if_needed "$QTWEBSOCKETS_TARBALL" "$QTWEBSOCKETS_SRC"
   extract_if_needed "$QTWAYLAND_TARBALL" "$QTWAYLAND_SRC"
   if [[ "$BUILD_QTOPENAPI" == "1" ]]; then
     extract_if_needed "$QTOPENAPI_TARBALL" "$QTOPENAPI_SRC"
@@ -385,11 +395,34 @@ build_all_host_modules() {
     build_host_module qtshadertools
   fi
 
+  if host_module_up_to_date qttools "lib/cmake/Qt6LinguistTools/Qt6LinguistToolsConfig.cmake"; then
+    log "host qttools: up to date, skipping"
+  else
+    configure_host_module qttools "$QTTOOLS_SRC" \
+      -DFEATURE_linguist=ON \
+      -DFEATURE_assistant=OFF \
+      -DFEATURE_designer=OFF \
+      -DFEATURE_distancefieldgenerator=OFF \
+      -DFEATURE_pixeltool=OFF \
+      -DFEATURE_qdoc=OFF \
+      -DFEATURE_qtattributionsscanner=OFF \
+      -DFEATURE_qtdiag=OFF \
+      -DFEATURE_qtplugininfo=OFF
+    build_host_module qttools
+  fi
+
   if host_module_up_to_date qtdeclarative "lib/cmake/Qt6QmlTools/Qt6QmlToolsConfig.cmake"; then
     log "host qtdeclarative: up to date, skipping"
   else
     configure_host_module qtdeclarative "$QTDECLARATIVE_SRC"
     build_host_module qtdeclarative
+  fi
+
+  if host_module_up_to_date qtwebsockets "lib/cmake/Qt6WebSockets/Qt6WebSocketsConfig.cmake"; then
+    log "host qtwebsockets: up to date, skipping"
+  else
+    configure_host_module qtwebsockets "$QTWEBSOCKETS_SRC"
+    build_host_module qtwebsockets
   fi
 
   if [[ "$BUILD_QTOPENAPI" == "1" ]]; then
@@ -613,11 +646,34 @@ build_all_target_modules() {
     build_target_module qtshadertools
   fi
 
+  if target_module_up_to_date qttools "lib/cmake/Qt6LinguistTools/Qt6LinguistToolsConfig.cmake"; then
+    log "target qttools: up to date, skipping"
+  else
+    configure_target_module qttools "$QTTOOLS_SRC" \
+      -DFEATURE_linguist=ON \
+      -DFEATURE_assistant=OFF \
+      -DFEATURE_designer=OFF \
+      -DFEATURE_distancefieldgenerator=OFF \
+      -DFEATURE_pixeltool=OFF \
+      -DFEATURE_qdoc=OFF \
+      -DFEATURE_qtattributionsscanner=OFF \
+      -DFEATURE_qtdiag=OFF \
+      -DFEATURE_qtplugininfo=OFF
+    build_target_module qttools
+  fi
+
   if target_module_up_to_date qtdeclarative "$(target_lib_marker Qt6Qml)"; then
     log "target qtdeclarative: up to date, skipping"
   else
     configure_target_module qtdeclarative "$QTDECLARATIVE_SRC"
     build_target_module qtdeclarative
+  fi
+
+  if target_module_up_to_date qtwebsockets "$(target_lib_marker Qt6WebSockets)"; then
+    log "target qtwebsockets: up to date, skipping"
+  else
+    configure_target_module qtwebsockets "$QTWEBSOCKETS_SRC"
+    build_target_module qtwebsockets
   fi
 
   if [[ "$BUILD_QTOPENAPI" == "1" ]]; then

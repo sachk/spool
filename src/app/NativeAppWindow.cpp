@@ -154,12 +154,17 @@ int NativeAppWindow::overlayRevision() const
 
 void NativeAppWindow::clearOverlay()
 {
+    bool changed = false;
     {
         QMutexLocker locker(&m_overlayMutex);
+        if (m_overlayImage.isNull())
+            return;
         m_overlayImage = QImage();
         m_overlayRevision += 1;
+        changed = true;
     }
-    emit overlayRevisionChanged();
+    if (changed)
+        emit overlayRevisionChanged();
 }
 
 QQuickImageProvider *NativeAppWindow::createOverlayImageProvider()
@@ -321,53 +326,8 @@ void NativeAppWindow::setVideoCrop(int origW, int origH, int srcX, int srcY,
     updateCropRegion();
 }
 
-void NativeAppWindow::presentOverlayCopy(const uint8_t *pixels, int width, int height, int stride)
+void NativeAppWindow::publishOverlayImage(QImage image)
 {
-    if (!pixels || width <= 0 || height <= 0 || stride < width * 4) {
-        clearOverlay();
-        return;
-    }
-
-    bool hasVisiblePixel = false;
-    for (int y = 0; y < height && !hasVisiblePixel; ++y) {
-        const uint8_t *src = pixels + (size_t)y * stride;
-        for (int x = 0; x < width; ++x) {
-            if (src[x * 4 + 3] != 0) {
-                hasVisiblePixel = true;
-                break;
-            }
-        }
-    }
-
-    if (!hasVisiblePixel) {
-        bool changed = false;
-        {
-            QMutexLocker locker(&m_overlayMutex);
-            if (!m_overlayImage.isNull()) {
-                m_overlayImage = QImage();
-                m_overlayRevision += 1;
-                changed = true;
-            }
-        }
-        if (changed)
-            emit overlayRevisionChanged();
-        return;
-    }
-
-    QImage image(width, height, QImage::Format_ARGB32_Premultiplied);
-    image.fill(Qt::transparent);
-    for (int y = 0; y < height; ++y) {
-        const uint8_t *src = pixels + (size_t)y * stride;
-        auto *dst = reinterpret_cast<QRgb *>(image.scanLine(y));
-        for (int x = 0; x < width; ++x) {
-            const uint8_t b = src[x * 4 + 0];
-            const uint8_t g = src[x * 4 + 1];
-            const uint8_t r = src[x * 4 + 2];
-            const uint8_t a = src[x * 4 + 3];
-            dst[x] = qRgba(r, g, b, a);
-        }
-    }
-
     {
         QMutexLocker locker(&m_overlayMutex);
         m_overlayImage = std::move(image);
@@ -378,8 +338,11 @@ void NativeAppWindow::presentOverlayCopy(const uint8_t *pixels, int width, int h
 
 QImage NativeAppWindow::copyOverlayImage() const
 {
+    // QImage is implicitly shared — returning by value bumps the refcount.
+    // The producer's next assignment replaces m_overlayImage with new storage
+    // while ours stays alive via COW, so we don't need a deep copy here.
     QMutexLocker locker(&m_overlayMutex);
-    return m_overlayImage.copy();
+    return m_overlayImage;
 }
 
 void NativeAppWindow::registryGlobal(void *data, wl_registry *registry, uint32_t name,
@@ -421,13 +384,69 @@ void NativeAppWindow::overlayPresentCallback(void *data, const uint8_t *pixels,
     if (!self)
         return;
 
-    const int byteCount = pixels && height > 0 && stride > 0 ? height * stride : 0;
+    // Reject obviously-invalid buffers and clear the overlay. Callers send a
+    // zeroed (or NULL) buffer when there is no OSD content; we treat both the
+    // same.
+    if (!pixels || width <= 0 || height <= 0 || stride < width * 4) {
+        QMetaObject::invokeMethod(
+            self, [self]() { self->clearOverlay(); }, Qt::QueuedConnection);
+        return;
+    }
+
+    // vo_starfish memsets the buffer to zero before rasterising OSD, so an
+    // all-zero buffer means "no overlay content". Scan in 64-bit chunks so a
+    // 1920x1080 empty frame finishes in a few hundred microseconds instead of
+    // ~8M byte comparisons.
+    const size_t byteCount = static_cast<size_t>(height) * stride;
+    bool hasContent = false;
+    {
+        const auto *words = reinterpret_cast<const uint64_t *>(pixels);
+        const size_t wordCount = byteCount / sizeof(uint64_t);
+        for (size_t i = 0; i < wordCount; ++i) {
+            if (words[i]) {
+                hasContent = true;
+                break;
+            }
+        }
+        if (!hasContent) {
+            for (size_t i = wordCount * sizeof(uint64_t); i < byteCount; ++i) {
+                if (pixels[i]) {
+                    hasContent = true;
+                    break;
+                }
+            }
+        }
+    }
+    if (!hasContent) {
+        QMetaObject::invokeMethod(
+            self, [self]() { self->clearOverlay(); }, Qt::QueuedConnection);
+        return;
+    }
+
+    // QImage::Format_ARGB32_Premultiplied stores pixels in memory as B,G,R,A
+    // on little-endian — the same byte layout vo_starfish writes (IMGFMT_BGRA,
+    // premultiplied). A single per-scanline memcpy is correct; the old
+    // per-pixel unpack-and-repack via qRgba(r,g,b,a) was a no-op that ran
+    // ~2M times per frame on the GUI thread.
+    static_assert(Q_BYTE_ORDER == Q_LITTLE_ENDIAN,
+                  "OSD copy fast-path assumes little-endian QImage layout");
+    QImage image(width, height, QImage::Format_ARGB32_Premultiplied);
+    const int dstStride = image.bytesPerLine();
+    if (dstStride == stride) {
+        memcpy(image.bits(), pixels, byteCount);
+    } else {
+        const int rowBytes = qMin(dstStride, stride);
+        for (int y = 0; y < height; ++y) {
+            memcpy(image.scanLine(y),
+                   pixels + static_cast<size_t>(y) * stride,
+                   rowBytes);
+        }
+    }
+
     QMetaObject::invokeMethod(
         self,
-        [self, width, height, stride,
-         bytes = QByteArray(reinterpret_cast<const char *>(pixels), byteCount)]() {
-            self->presentOverlayCopy(reinterpret_cast<const uint8_t *>(bytes.constData()),
-                                     width, height, stride);
+        [self, image = std::move(image)]() mutable {
+            self->publishOverlayImage(std::move(image));
         },
         Qt::QueuedConnection);
 }
