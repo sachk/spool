@@ -2,6 +2,8 @@
 set -euo pipefail
 
 APP_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+# shellcheck source=tools/lib/build-common.sh
+source "$APP_ROOT/tools/lib/build-common.sh"
 MPV_SRC="${MPV_SRC:-$APP_ROOT/mpv}"
 BUILD_ROOT="${BUILD_ROOT:-$APP_ROOT/build/macos}"
 MPV_BUILD="${MPV_BUILD:-$BUILD_ROOT/mpv}"
@@ -37,22 +39,13 @@ MPV_SETUP_ARGS=(
   -Dvulkan=disabled
 )
 
-if [[ -f "$MPV_BUILD/build.ninja" ]]; then
-  meson setup --reconfigure "$MPV_BUILD" "$MPV_SRC" "${MPV_SETUP_ARGS[@]}"
-else
-  meson setup "$MPV_BUILD" "$MPV_SRC" "${MPV_SETUP_ARGS[@]}"
-fi
-meson compile -C "$MPV_BUILD"
-meson install -C "$MPV_BUILD"
+mpv_meson_build "$MPV_SRC" "$MPV_BUILD" "${MPV_SETUP_ARGS[@]}"
 
-cmake -S "$APP_ROOT" -B "$APP_BUILD" -GNinja \
+cmake_build_app "$APP_ROOT" "$APP_BUILD" \
   -DCMAKE_BUILD_TYPE=Release \
   -DJELLYFIN_NATIVE_WEBOS=OFF \
   -DCMAKE_PREFIX_PATH="$MPV_PREFIX${CMAKE_PREFIX_PATH:+;$CMAKE_PREFIX_PATH}" \
   -DCMAKE_INSTALL_PREFIX="$APP_INSTALL"
-
-cmake --build "$APP_BUILD" --parallel
-cmake --install "$APP_BUILD"
 
 if command -v macdeployqt >/dev/null 2>&1 && [[ -d "$APP_INSTALL/jellyfin-native.app" ]]; then
   # Prefer Apple's /usr/bin/strip — nix's cctools-binutils strip rejects newer
@@ -67,40 +60,7 @@ if command -v macdeployqt >/dev/null 2>&1 && [[ -d "$APP_INSTALL/jellyfin-native
   # read-only qtbase path that lacks qtdeclarative's qmlimportscanner. Run a
   # copied macdeployqt with a local qt.conf so that libexec resolves to our
   # writable tool shadow containing qmlimportscanner.
-  qmlscanner="$(command -v qmlimportscanner || true)"
-  IFS=':;' read -r -a qmlscanner_roots <<< "${CMAKE_PREFIX_PATH:-}"
-  for root in "${qmlscanner_roots[@]}"; do
-    [[ -n "$qmlscanner" ]] && break
-    [[ -z "$root" ]] && continue
-    for candidate in \
-      "$root/bin/qmlimportscanner" \
-      "$root/libexec/qmlimportscanner" \
-      "$root/lib/qt-6/libexec/qmlimportscanner"; do
-      if [[ -x "$candidate" ]]; then
-        qmlscanner="$candidate"
-        break
-      fi
-    done
-  done
-  if [[ -z "$qmlscanner" && -f "$APP_BUILD/build.ninja" ]]; then
-    qmlscanner="$(awk '
-      /qmlimportscanner/ {
-        for (i = 1; i <= NF; ++i) {
-          gsub(/^"|"$/, "", $i)
-          if ($i ~ /\/qmlimportscanner$/) {
-            print $i
-            exit
-          }
-        }
-      }
-    ' "$APP_BUILD/build.ninja")"
-  fi
-  if [[ -z "$qmlscanner" ]]; then
-    while IFS= read -r candidate; do
-      qmlscanner="$candidate"
-      break
-    done < <(find /nix/store -type f -name qmlimportscanner -perm -111 2>/dev/null)
-  fi
+  qmlscanner="$(resolve_qmlimportscanner "$APP_BUILD/build.ninja")"
   if [[ -z "$qmlscanner" ]]; then
     printf 'error: qmlimportscanner is required for macdeployqt QML deployment\n' >&2
     exit 1

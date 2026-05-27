@@ -2,6 +2,8 @@
 set -euo pipefail
 
 APP_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+# shellcheck source=tools/lib/build-common.sh
+source "$APP_ROOT/tools/lib/build-common.sh"
 BUILD_ROOT="${BUILD_ROOT:-$APP_ROOT/build/linux-release/install/bin}"
 MPV_PREFIX="${MPV_PREFIX:-$APP_ROOT/build/linux-release/mpv-prefix}"
 APPDIR="${APPDIR:-$APP_ROOT/build/appimage/AppDir}"
@@ -294,39 +296,7 @@ while IFS= read -r dep; do
   append_library_path "$(dirname "$dep")"
   is_bundleable_elf_dep "$dep" || continue
 done < <(ldd "$APPDIR/usr/bin/jellyfin-native" "$APPDIR"/usr/lib/libmpv.so* 2>/dev/null | awk '/=> \// { print $3 } /^\// { print $1 }' | sort -u)
-qmlscanner="$(command -v qmlimportscanner || true)"
-if [[ -z "$qmlscanner" ]]; then
-  qmlscanner_roots=()
-  if command -v qtpaths6 >/dev/null 2>&1; then
-    qmlscanner_roots+=("$(qtpaths6 -query QT_HOST_LIBEXECS 2>/dev/null || true)")
-    qmlscanner_roots+=("$(qtpaths6 -query QT_INSTALL_LIBEXECS 2>/dev/null || true)")
-  elif command -v qtpaths >/dev/null 2>&1; then
-    qmlscanner_roots+=("$(qtpaths -query QT_HOST_LIBEXECS 2>/dev/null || true)")
-    qmlscanner_roots+=("$(qtpaths -query QT_INSTALL_LIBEXECS 2>/dev/null || true)")
-  fi
-  IFS=':;' read -r -a cmake_prefix_roots <<< "${CMAKE_PREFIX_PATH:-}"
-  qmlscanner_roots+=("${cmake_prefix_roots[@]}")
-  for root in "${qmlscanner_roots[@]}"; do
-    [[ -n "$qmlscanner" ]] && break
-    [[ -n "$root" ]] || continue
-    for candidate in "$root/qmlimportscanner" "$root/bin/qmlimportscanner" "$root/libexec/qmlimportscanner"; do
-      if [[ -x "$candidate" ]]; then
-        qmlscanner="$candidate"
-        break
-      fi
-    done
-  done
-fi
-if [[ -z "$qmlscanner" && -f "$APP_ROOT/build/linux-release/app/build.ninja" ]]; then
-  qmlscanner="$(awk '/qmlimportscanner/ {
-    for (i = 1; i <= NF; ++i) {
-      if ($i ~ /\/qmlimportscanner$/) {
-        print $i
-        exit
-      }
-    }
-  }' "$APP_ROOT/build/linux-release/app/build.ninja")"
-fi
+qmlscanner="$(resolve_qmlimportscanner "$APP_ROOT/build/linux-release/app/build.ninja")"
 if [[ -n "$qmlscanner" ]]; then
   qtpaths6_bin="$(command -v qtpaths6 || true)"
   qtpaths_bin="$(command -v qtpaths || true)"
