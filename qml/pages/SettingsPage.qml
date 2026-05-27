@@ -10,15 +10,45 @@ FocusScope {
     property int categoryIndex: 0
     property var settingsRows: []
     readonly property var categories: [
-        { label: "General", target: 0 },
-        { label: "Appearance", target: 4 },
-        { label: "Playback", target: 11 },
-        { label: "Diagnostics", target: 16 },
-        { label: "Input", target: 17 },
-        { label: "Button Remap", target: 18 },
-        { label: "SyncPlay", target: 22 },
-        { label: "About", target: 24 }
+        { label: "General" },
+        { label: "Appearance" },
+        { label: "Playback" },
+        { label: "Diagnostics" },
+        { label: "Input" },
+        { label: "Button Remap" },
+        { label: "SyncPlay" },
+        { label: "About" }
     ]
+
+    function categoryTarget(index) {
+        const targets = [themeRow, posterSizeRow, nightModeRow, diagnosticsRow,
+                         shortcutsRow, redButtonRow, syncPlayStatusRow, aboutVersionRow]
+        const row = index >= 0 && index < targets.length ? targets[index] : themeRow
+        return row ? Math.max(0, row.settingIndex) : 0
+    }
+
+    function rebuildSettingsRows() {
+        const rows = [
+            themeRow, languageRow, accentRow, uiScaleRow, logoutRow, posterSizeRow,
+            gridColumnsRow, railLabelsRow, reducedMotionRow,
+            renderModeRow, antialiasedRow, metadataRow,
+            nightModeRow, audioDelayRow, audioOutputRow, bitrateRow,
+            remuxRow, diagnosticsRow, shortcutsRow,
+            redButtonRow, greenButtonRow, yellowButtonRow, blueButtonRow,
+            syncPlayStatusRow
+        ]
+        for (let i = 0; i < groupRepeater.count; ++i) {
+            const row = groupRepeater.itemAt(i)
+            if (row)
+                rows.push(row)
+        }
+        rows.push(syncPlayCreateRow, aboutVersionRow, aboutServerRow, aboutLocaleRow)
+        settingsRows = rows
+        for (let i = 0; i < settingsRows.length; ++i)
+            settingsRows[i].settingIndex = i
+        currentIndex = Math.max(0, Math.min(currentIndex, settingsRows.length - 1))
+        syncCategoryForRow(currentIndex)
+    }
 
     function buttonActionOptions() {
         if (!appController) return ["No action"]
@@ -74,16 +104,21 @@ FocusScope {
 
     function activateCategory(index) {
         categoryIndex = Math.max(0, Math.min(categories.length - 1, index))
-        focusRow(categories[categoryIndex].target)
+        focusRow(categoryTarget(categoryIndex))
     }
 
     function syncCategoryForRow(rowIndex) {
         let nextCategory = 0
         for (let i = 0; i < categories.length; ++i) {
-            if (rowIndex >= categories[i].target)
+            if (rowIndex >= categoryTarget(i))
                 nextCategory = i
         }
         categoryIndex = nextCategory
+    }
+
+    Connections {
+        target: appController ? appController.syncPlay : null
+        function onGroupsChanged() { Qt.callLater(root.rebuildSettingsRows) }
     }
 
     function ensureCurrentVisible() {
@@ -214,6 +249,8 @@ FocusScope {
                 SelectRow {
                     id: languageRow
                     Layout.fillWidth: true
+                    settingIndex: 1
+                    rowFocus: root.currentIndex === settingIndex || activeFocus
                     title: qsTrId("settings.language.title")
                     description: "Restart the app for full effect on cached strings"
                     options: {
@@ -391,9 +428,11 @@ FocusScope {
                     rowFocus: root.currentIndex === settingIndex || activeFocus
                     title: "Audio output"
                     description: "Takes effect on the next playback start"
-                    options: ["ALSA", "Starfish"]
-                    currentIndex: appController.audioOutputMode === "starfish" ? 1 : 0
-                    onSelected: (i, v) => appController.setAudioOutputMode(i === 1 ? "starfish" : "alsa")
+                    options: ["ALSA", "Starfish (AAC)", "Starfish (PCM)"]
+                    currentIndex: appController.audioOutputMode === "starfish-pcm" ? 2
+                                  : (appController.audioOutputMode === "starfish" ? 1 : 0)
+                    onSelected: (i, v) => appController.setAudioOutputMode(i === 2 ? "starfish-pcm"
+                                                                          : (i === 1 ? "starfish" : "alsa"))
                     onActiveFocusChanged: if (activeFocus) root.markFocused(settingIndex)
                 }
                 SelectRow {
@@ -516,12 +555,29 @@ FocusScope {
                     delegate: Surface {
                         required property int index
                         required property var modelData
+                        property int settingIndex: -1
                         readonly property string groupId: modelData ? modelData.GroupId || "" : ""
                         readonly property string groupName: modelData ? modelData.GroupName || "Group" : "Group"
                         readonly property int participantCount: modelData && modelData.Participants ? modelData.Participants.length : 0
+                        property bool rowFocus: root.currentIndex === settingIndex || activeFocus
                         Layout.fillWidth: true
                         Layout.preferredHeight: 56
+                        focus: true
+                        focused: rowFocus
                         baseColor: Theme.bgPanel
+
+                        function handleNavigationKey(key) {
+                            if (key === Qt.Key_Return || key === Qt.Key_Enter || key === Qt.Key_Select || key === Qt.Key_Space) {
+                                if (appController && appController.syncPlay)
+                                    appController.syncPlay.joinGroup(groupId)
+                                return true
+                            }
+                            return false
+                        }
+
+                        Component.onCompleted: Qt.callLater(root.rebuildSettingsRows)
+                        Component.onDestruction: Qt.callLater(root.rebuildSettingsRows)
+                        onActiveFocusChanged: if (activeFocus) root.markFocused(settingIndex)
 
                         RowLayout {
                             anchors.fill: parent
@@ -549,6 +605,8 @@ FocusScope {
                 SettingRow {
                     id: syncPlayCreateRow
                     Layout.fillWidth: true
+                    settingIndex: 23
+                    rowFocus: root.currentIndex === settingIndex || activeFocus
                     title: "Create group"
                     description: "Start a new SyncPlay session"
                     valueText: "Create"
@@ -567,6 +625,8 @@ FocusScope {
                 SettingRow {
                     id: aboutVersionRow
                     Layout.fillWidth: true
+                    settingIndex: 24
+                    rowFocus: root.currentIndex === settingIndex || activeFocus
                     title: "Jellyfin Native for webOS"
                     description: "Qt 6.11 client, native mpv playback"
                     valueText: "v" + Qt.application.version
@@ -576,6 +636,8 @@ FocusScope {
                 SettingRow {
                     id: aboutServerRow
                     Layout.fillWidth: true
+                    settingIndex: 25
+                    rowFocus: root.currentIndex === settingIndex || activeFocus
                     title: "Connected server"
                     description: appController ? appController.serverUrl : ""
                     valueText: appController && appController.serverUrl.length > 0 ? "Connected" : "Offline"
@@ -585,6 +647,8 @@ FocusScope {
                 SettingRow {
                     id: aboutLocaleRow
                     Layout.fillWidth: true
+                    settingIndex: 26
+                    rowFocus: root.currentIndex === settingIndex || activeFocus
                     title: "UI locale"
                     description: i18n ? "Active translation tag" : ""
                     valueText: i18n ? i18n.currentLocale : "en-US"
@@ -593,18 +657,7 @@ FocusScope {
                 }
 
                 Component.onCompleted: {
-                    root.settingsRows = [
-                        themeRow, accentRow, uiScaleRow, logoutRow, posterSizeRow,
-                        gridColumnsRow, railLabelsRow, reducedMotionRow,
-                        renderModeRow, antialiasedRow, metadataRow,
-                        nightModeRow, audioDelayRow, audioOutputRow, bitrateRow,
-                        remuxRow, diagnosticsRow, shortcutsRow,
-                        redButtonRow, greenButtonRow, yellowButtonRow, blueButtonRow,
-                        syncPlayStatusRow, syncPlayCreateRow,
-                        aboutVersionRow, aboutServerRow, aboutLocaleRow
-                    ]
-                    for (let i = 0; i < root.settingsRows.length; ++i)
-                        root.settingsRows[i].settingIndex = i
+                    root.rebuildSettingsRows()
                     root.focusRow(root.currentIndex)
                     // Best-effort refresh on page open so users see existing
                     // groups without needing to hit "Refresh".

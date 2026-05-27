@@ -30,6 +30,7 @@ FocusScope {
     property bool seekHoldActive: false
     property bool seekHoldFirstRepeat: true
     property bool downHoldActive: false
+    property bool previewBurstActive: false
     readonly property real uiScale: Math.max(0.78, Math.min(1.0, height / 1440))
     readonly property int actionTargetSize: Math.round(64 * uiScale)
     property real menuAnchorX: width - Math.round(240 * uiScale)
@@ -137,6 +138,7 @@ FocusScope {
                 autohideTimer.restart()
             return false
         }
+        cancelHeldNavigation()
         autohideTimer.stop()
         mode = "hidden"
         row = "timeline"
@@ -161,8 +163,11 @@ FocusScope {
         row = "timeline"
         scrubTimer.stop()
         scrubbing = false
-        if (hasPlayer)
+        if (hasPlayer) {
             player.previewSeekBy(delta)
+            previewBurstActive = true
+            previewBurstTimer.restart()
+        }
     }
 
     function previewSeek(delta) {
@@ -237,8 +242,18 @@ FocusScope {
         scrubTimer.stop()
         seekTo(scrubSeconds)
         scrubbing = false
+        previewBurstActive = false
+        previewBurstTimer.stop()
         maybeRestartAutohide()
         return true
+    }
+
+    function cancelHeldNavigation() {
+        downHoldTimer.stop()
+        downHoldActive = false
+        previewBurstTimer.stop()
+        previewBurstActive = false
+        stopPreviewSeekHold()
     }
 
     function isBackEvent(event) {
@@ -392,7 +407,18 @@ FocusScope {
         return false
     }
 
+    function stopPlayback(reason) {
+        if (hasPlayer && player.backAllowed)
+            player.stopWithReason(reason)
+        return true
+    }
+
+    // Progressive back: peel back the most-nested layer first, only exit
+    // playback once nothing is left to dismiss. The on-screen back button
+    // (mouse click or row="back" activation) is an explicit exit gesture
+    // and should call stopPlayback() directly instead.
     function handleBack() {
+        cancelHeldNavigation()
         if (scrubbing) {
             scrubTimer.stop()
             scrubbing = false
@@ -403,16 +429,13 @@ FocusScope {
         }
         if (isAudioSyncOpen()) { mode = "controls"; showControls("actions"); return true }
         if (isMenuOpen()) { closeMenu(); return true }
-        if (mode !== "hidden" || hud.opacity > 0.01 || backButton.opacity > 0.01) {
+        if (mode !== "hidden") {
             autohideTimer.stop()
             mode = "hidden"
             row = "timeline"
             return true
         }
-        // Hidden controls: back exits playback.
-        if (hasPlayer && player.backAllowed)
-            player.stopWithReason("overlay-back-key")
-        return true
+        return stopPlayback("overlay-back")
     }
 
     function handleControlsKey(key) {
@@ -426,6 +449,8 @@ FocusScope {
                 openAudioSync()
                 return true
             }
+            if (row === "timeline")
+                actionIndex = 1
             row = row === "back" ? "timeline" : "actions"
             showControls(row)
             return true
@@ -443,10 +468,12 @@ FocusScope {
             return true
         }
         if (isAcceptKey(key)) {
+            if (row === "back") {
+                // Explicit exit — don't reshow controls on the way out.
+                return stopPlayback("overlay-back")
+            }
             if (row === "timeline") {
                 if (!commitScrub() && hasPlayer) player.togglePause()
-            } else if (row === "back") {
-                handleBack()
             } else {
                 activateAction()
             }
@@ -536,7 +563,7 @@ FocusScope {
         if (mode === "hidden") {
             if (event.key === Qt.Key_Left) { previewSeek(-10); return true }
             if (event.key === Qt.Key_Right) { previewSeek(10); return true }
-            if (isAcceptKey(event.key) && hasPlayer) { player.togglePause(); showControls("actions"); return true }
+            if (isAcceptKey(event.key) && hasPlayer) { actionIndex = 1; player.togglePause(); showControls("actions"); return true }
             showControls("timeline")
             return true
         }
@@ -550,6 +577,10 @@ FocusScope {
 
     function handlePressed(event) {
         if (isIgnoredPlayerNoise(event)) return true
+        if (event.key !== Qt.Key_Down && downHoldTimer.running) {
+            downHoldTimer.stop()
+            downHoldActive = false
+        }
         if (event.key === Qt.Key_Left)
             return startPreviewSeekHold(event.key, -10)
         if (event.key === Qt.Key_Right)
@@ -569,14 +600,16 @@ FocusScope {
         if (visible) {
             mode = "controls"
             row = "timeline"
-            actionIndex = 0
+            actionIndex = 1
             showControls("timeline")
         } else {
             autohideTimer.stop()
             scrubTimer.stop()
+            previewBurstTimer.stop()
             stopPreviewSeekHold()
             downHoldTimer.stop()
             downHoldActive = false
+            previewBurstActive = false
             mode = "hidden"
             row = "timeline"
             scrubbing = false
@@ -588,6 +621,12 @@ FocusScope {
 
     Timer { id: autohideTimer; interval: 3000; onTriggered: overlay.hideControls() }
     Timer { id: scrubTimer; interval: 650; onTriggered: overlay.commitScrub() }
+    Timer {
+        id: previewBurstTimer
+        interval: 1300
+        repeat: false
+        onTriggered: overlay.previewBurstActive = false
+    }
     // Long-press of Down cycles subtitles (off -> first -> ... -> off). The
     // first 450 ms is the "hold detection" window; after that we keep firing
     // at ~400 ms so the user can flick through tracks quickly.
@@ -624,6 +663,21 @@ FocusScope {
             overlay.scheduleSeekHoldTick()
         }
     }
+
+    Item {
+        id: trickplayPreloadPool
+        visible: false
+        Repeater {
+            model: overlay.visible && overlay.hasPlayer ? overlay.player.trickplaySheetUrls : []
+            delegate: Image {
+                required property string modelData
+                source: modelData
+                asynchronous: true
+                cache: true
+            }
+        }
+    }
+
     // Embedded video surface (desktop / non-Starfish builds). On Starfish the
     // video lives on a separate exported surface so this item is harmless —
     // MpvVideoItem just sits unused. z=-1 keeps it behind the HUD.
@@ -722,15 +776,8 @@ FocusScope {
 
         MouseArea {
             anchors.fill: parent
-            onClicked: {
-                // The back-button click is an explicit exit gesture; bypass
-                // handleBack's progressive-back logic (which only hides the
-                // controls overlay on the first invocation when `mode ===
-                // "controls"`, leaving the user to click an invisible button
-                // for a no-op).
-                if (overlay.hasPlayer && overlay.player.backAllowed)
-                    overlay.player.stopWithReason("overlay-back-button")
-            }
+            // Explicit exit gesture — skip handleBack's progressive layering.
+            onClicked: overlay.stopPlayback("overlay-back")
         }
     }
 
@@ -744,7 +791,7 @@ FocusScope {
     Item {
         id: trickplayPreview
         readonly property bool active: overlay.hasPlayer && overlay.player.trickplayAvailable
-                                     && (overlay.scrubbing || overlay.seekHoldActive)
+                                     && (overlay.scrubbing || overlay.seekHoldActive || overlay.previewBurstActive)
                                      && overlay.mode !== "hidden"
         readonly property var trickplayData: active
             ? overlay.player.trickplayForSeconds(overlay.scrubbing ? overlay.scrubSeconds : overlay.positionSeconds())
@@ -967,12 +1014,19 @@ FocusScope {
                     anchors.left: parent.left
                     anchors.right: parent.right
                     anchors.bottom: parent.bottom
-                    height: timeline.focused ? Math.round(16 * overlay.uiScale) : Math.round(10 * overlay.uiScale)
+                    height: timeline.focused ? Math.round(18 * overlay.uiScale) : Math.round(11 * overlay.uiScale)
                     radius: height / 2
-                    color: "#55606A72"
-                    border.width: timeline.focused ? 1 : 0
-                    border.color: "#B8DDEB"
-                    Behavior on height { NumberAnimation { duration: 100 } }
+                    color: "#5C0B1117"
+                    antialiasing: true
+                    Behavior on height { NumberAnimation { duration: 140; easing.type: Easing.OutCubic } }
+
+                    Rectangle {
+                        anchors.fill: parent
+                        anchors.margins: Math.max(1, Math.round(2 * overlay.uiScale))
+                        radius: height / 2
+                        color: "#66364249"
+                        antialiasing: true
+                    }
                 }
                 Rectangle {
                     anchors.left: track.left
@@ -980,19 +1034,44 @@ FocusScope {
                     width: Math.max(track.height, track.width * timeline.ratio)
                     height: track.height
                     radius: height / 2
-                    color: overlay.hasPlayer && overlay.player.buffering ? "#80DFFF" : "#00A4DC"
+                    color: overlay.hasPlayer && overlay.player.buffering ? "#48D5FF" : "#00A4DC"
+                    antialiasing: true
                     Behavior on width { enabled: !overlay.scrubbing; NumberAnimation { duration: 180; easing.type: Easing.OutCubic } }
                 }
                 Rectangle {
+                    id: thumbGlow
+                    x: thumb.x - Math.round(5 * overlay.uiScale)
+                    anchors.verticalCenter: track.verticalCenter
+                    width: thumb.width + Math.round(10 * overlay.uiScale)
+                    height: width
+                    radius: width / 2
+                    color: overlay.scrubbing || timeline.focused ? "#5500A4DC" : "#30000000"
+                    antialiasing: true
+                    opacity: timeline.focused || overlay.scrubbing ? 1 : 0.55
+                    Behavior on opacity { NumberAnimation { duration: 140; easing.type: Easing.OutCubic } }
+                    Behavior on width { NumberAnimation { duration: 140; easing.type: Easing.OutCubic } }
+                }
+                Rectangle {
+                    id: thumb
                     x: Math.max(0, Math.min(track.width - width, track.width * timeline.ratio - width / 2))
                     anchors.verticalCenter: track.verticalCenter
-                    width: timeline.focused ? Math.round(32 * overlay.uiScale) : Math.round(22 * overlay.uiScale)
+                    width: timeline.focused ? Math.round(34 * overlay.uiScale) : Math.round(20 * overlay.uiScale)
                     height: width
                     radius: width / 2
                     color: "#FFFFFF"
-                    border.width: 2
-                    border.color: overlay.scrubbing ? "#AA5CC3" : "#00A4DC"
-                    Behavior on width { NumberAnimation { duration: 100 } }
+                    antialiasing: true
+                    Behavior on width { NumberAnimation { duration: 140; easing.type: Easing.OutCubic } }
+
+                    Rectangle {
+                        anchors.centerIn: parent
+                        width: parent.width * (timeline.focused || overlay.scrubbing ? 0.48 : 0.34)
+                        height: width
+                        radius: width / 2
+                        color: "#00A4DC"
+                        opacity: timeline.focused || overlay.scrubbing ? 1 : 0.8
+                        antialiasing: true
+                        Behavior on width { NumberAnimation { duration: 140; easing.type: Easing.OutCubic } }
+                    }
                 }
                 MouseArea {
                     anchors.fill: parent
@@ -1071,22 +1150,24 @@ FocusScope {
         height: Math.round(330 * overlay.uiScale)
         visible: opacity > 0.01
         opacity: 0
-        radius: Math.round(12 * overlay.uiScale)
-        color: "#B00B1116"
+        radius: Math.round(16 * overlay.uiScale)
+        color: "#F0121519"
         border.width: 1
-        border.color: "#668CA5B5"
+        border.color: "#26FFFFFF"
 
         ColumnLayout {
             anchors.fill: parent
-            anchors.margins: Math.round(24 * overlay.uiScale)
+            anchors.margins: Math.round(26 * overlay.uiScale)
             spacing: Math.round(18 * overlay.uiScale)
 
             Text {
                 Layout.fillWidth: true
-                text: "Audio sync"
-                color: "#F4F8FA"
-                font.pixelSize: Math.round(25 * overlay.uiScale)
+                text: "Audio Sync"
+                color: "#8FA0A9"
+                font.pixelSize: Math.round(15 * overlay.uiScale)
                 font.weight: Font.DemiBold
+                font.capitalization: Font.AllUppercase
+                font.letterSpacing: Math.round(1.5 * overlay.uiScale)
                 font.hintingPreference: Font.PreferNoHinting
                 renderType: Text.QtRendering
             }
@@ -1100,9 +1181,9 @@ FocusScope {
                     Layout.preferredWidth: Math.round(92 * overlay.uiScale)
                     Layout.preferredHeight: Math.round(92 * overlay.uiScale)
                     radius: width / 2
-                    color: overlay.audioSyncRow === "delay" ? "#3300A4DC" : "#331A232A"
-                    border.width: overlay.audioSyncRow === "delay" ? 3 : 1
-                    border.color: overlay.audioSyncRow === "delay" ? "#EAF8FF" : "#56707F"
+                    color: overlay.audioSyncRow === "delay" ? "#3300A4DC" : "#14FFFFFF"
+                    border.width: overlay.audioSyncRow === "delay" ? 2 : 1
+                    border.color: overlay.audioSyncRow === "delay" ? "#5AD0F5" : "#2EFFFFFF"
 
                     MaterialIcon {
                         anchors.centerIn: parent
@@ -1183,9 +1264,9 @@ FocusScope {
                     Layout.preferredWidth: Math.round(92 * overlay.uiScale)
                     Layout.preferredHeight: Math.round(92 * overlay.uiScale)
                     radius: width / 2
-                    color: overlay.audioSyncRow === "delay" ? "#3300A4DC" : "#331A232A"
-                    border.width: overlay.audioSyncRow === "delay" ? 3 : 1
-                    border.color: overlay.audioSyncRow === "delay" ? "#EAF8FF" : "#56707F"
+                    color: overlay.audioSyncRow === "delay" ? "#3300A4DC" : "#14FFFFFF"
+                    border.width: overlay.audioSyncRow === "delay" ? 2 : 1
+                    border.color: overlay.audioSyncRow === "delay" ? "#5AD0F5" : "#2EFFFFFF"
 
                     MaterialIcon {
                         anchors.centerIn: parent
@@ -1228,15 +1309,15 @@ FocusScope {
                         readonly property bool focused: overlay.audioSyncRow === "step" && selected
                         Layout.fillWidth: true
                         Layout.preferredHeight: Math.round(52 * overlay.uiScale)
-                        radius: Math.round(8 * overlay.uiScale)
-                        color: focused ? "#3300A4DC" : selected ? "#243E5360" : "#221A232A"
-                        border.width: focused ? 3 : selected ? 2 : 1
-                        border.color: focused ? "#EAF8FF" : selected ? "#00A4DC" : "#48606D"
+                        radius: Math.round(10 * overlay.uiScale)
+                        color: focused ? "#3300A4DC" : selected ? "#2600A4DC" : "#14FFFFFF"
+                        border.width: focused ? 2 : selected ? 1 : 1
+                        border.color: focused ? "#5AD0F5" : selected ? "#4D00A4DC" : "#1FFFFFFF"
 
                         Text {
                             anchors.centerIn: parent
                             text: overlay.audioSyncSteps[index] + " ms"
-                            color: selected ? "#FFFFFF" : "#C9D0D4"
+                            color: selected ? "#FFFFFF" : "#BCC6CB"
                             font.pixelSize: Math.round(21 * overlay.uiScale)
                             font.weight: Font.DemiBold
                             font.hintingPreference: Font.PreferNoHinting
@@ -1261,34 +1342,48 @@ FocusScope {
         readonly property real edgeMargin: Math.round(20 * overlay.uiScale)
         x: Math.max(edgeMargin, Math.min(parent.width - width - edgeMargin, overlay.menuAnchorX - width / 2))
         y: Math.max(edgeMargin, Math.min(parent.height - height - edgeMargin, overlay.menuAnchorY - height - Math.round(12 * overlay.uiScale)))
-        width: Math.round(Math.min(parent.width - edgeMargin * 2, 360 * overlay.uiScale))
-        height: Math.min(Math.round(parent.height * 0.48), Math.round(menuHeader.implicitHeight + menuList.contentHeight + 36 * overlay.uiScale))
+        width: Math.round(Math.min(parent.width - edgeMargin * 2, 380 * overlay.uiScale))
+        height: Math.min(Math.round(parent.height * 0.5), Math.round(menuHeaderBlock.implicitHeight + menuList.contentHeight + 30 * overlay.uiScale))
         visible: overlay.isMenuOpen()
         opacity: 0
-        radius: 8
-        color: "#E0101418"
+        radius: Math.round(16 * overlay.uiScale)
+        color: "#F0121519"
         border.width: 1
-        border.color: "#52636E"
+        border.color: "#26FFFFFF"
 
         ColumnLayout {
             anchors.left: parent.left
             anchors.right: parent.right
             anchors.top: parent.top
             anchors.bottom: parent.bottom
-            anchors.margins: Math.round(12 * overlay.uiScale)
-            spacing: Math.round(8 * overlay.uiScale)
+            anchors.margins: Math.round(14 * overlay.uiScale)
+            spacing: Math.round(10 * overlay.uiScale)
 
-            Text {
-                id: menuHeader
+            ColumnLayout {
+                id: menuHeaderBlock
                 Layout.fillWidth: true
-                text: overlay.mode === "subtitles" ? "Subtitles"
-                    : overlay.mode === "audio" ? "Audio"
-                    : "Playback Debug"
-                color: "#F4F8FA"
-                font.pixelSize: Math.round(18 * overlay.uiScale)
-                font.weight: Font.DemiBold
-                font.hintingPreference: Font.PreferNoHinting
-                renderType: Text.QtRendering
+                spacing: Math.round(10 * overlay.uiScale)
+
+                Text {
+                    Layout.fillWidth: true
+                    Layout.leftMargin: Math.round(6 * overlay.uiScale)
+                    text: overlay.mode === "subtitles" ? "Subtitles"
+                        : overlay.mode === "audio" ? "Audio"
+                        : "Settings"
+                    color: "#8FA0A9"
+                    font.pixelSize: Math.round(15 * overlay.uiScale)
+                    font.weight: Font.DemiBold
+                    font.capitalization: Font.AllUppercase
+                    font.letterSpacing: Math.round(1.5 * overlay.uiScale)
+                    font.hintingPreference: Font.PreferNoHinting
+                    renderType: Text.QtRendering
+                }
+
+                Rectangle {
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: 1
+                    color: "#1AFFFFFF"
+                }
             }
 
             ListView {
@@ -1296,6 +1391,7 @@ FocusScope {
                 Layout.fillWidth: true
                 Layout.fillHeight: true
                 clip: true
+                spacing: Math.round(2 * overlay.uiScale)
                 model: overlay.mode === "subtitles" && overlay.hasPlayer ? overlay.player.subtitleTracks
                      : overlay.mode === "audio" && overlay.hasPlayer ? overlay.player.audioTracks
                      : overlay.debugOptions
@@ -1306,37 +1402,45 @@ FocusScope {
                 delegate: Rectangle {
                     required property int index
                     required property var modelData
+                    readonly property bool current: overlay.menuIndex === index
+                    readonly property bool isSelected: (overlay.mode === "subtitles" && overlay.hasPlayer && overlay.player.selectedSubtitleIndex === index)
+                                                    || (overlay.mode === "audio" && overlay.hasPlayer && overlay.player.selectedAudioIndex === index)
                     width: menuList.width
-                    height: Math.round(40 * overlay.uiScale)
-                    radius: 5
-                    color: overlay.menuIndex === index ? "#2600A4DC" : "transparent"
-                    border.width: overlay.menuIndex === index ? 2 : 0
-                    border.color: "#EAF8FF"
+                    height: Math.round(46 * overlay.uiScale)
+                    radius: Math.round(10 * overlay.uiScale)
+                    color: current ? "#2E00A4DC" : "transparent"
+
+                    Rectangle {
+                        anchors.left: parent.left
+                        anchors.leftMargin: Math.round(4 * overlay.uiScale)
+                        anchors.verticalCenter: parent.verticalCenter
+                        width: Math.round(3 * overlay.uiScale)
+                        height: parent.height - Math.round(16 * overlay.uiScale)
+                        radius: width / 2
+                        color: "#00A4DC"
+                        visible: current
+                    }
 
                     RowLayout {
                         anchors.fill: parent
-                        anchors.leftMargin: Math.round(12 * overlay.uiScale)
-                        anchors.rightMargin: Math.round(12 * overlay.uiScale)
-                        spacing: Math.round(8 * overlay.uiScale)
-                        Text {
-                            text: (overlay.mode === "subtitles" && overlay.hasPlayer && overlay.player.selectedSubtitleIndex === index)
-                                || (overlay.mode === "audio" && overlay.hasPlayer && overlay.player.selectedAudioIndex === index) ? "✓" : ""
-                            color: "#80DFFF"
-                            font.pixelSize: Math.round(17 * overlay.uiScale)
-                            font.hintingPreference: Font.PreferNoHinting
-                            renderType: Text.QtRendering
-                            Layout.preferredWidth: Math.round(22 * overlay.uiScale)
-                            horizontalAlignment: Text.AlignHCenter
-                        }
+                        anchors.leftMargin: Math.round(16 * overlay.uiScale)
+                        anchors.rightMargin: Math.round(14 * overlay.uiScale)
+                        spacing: Math.round(10 * overlay.uiScale)
                         Text {
                             Layout.fillWidth: true
                             text: String(modelData)
-                            color: overlay.menuIndex === index ? "#FFFFFF" : "#C9D0D4"
-                            font.pixelSize: Math.round(16 * overlay.uiScale)
-                            font.weight: Font.Medium
+                            color: current ? "#FFFFFF" : isSelected ? "#EAF2F6" : "#BCC6CB"
+                            font.pixelSize: Math.round(17 * overlay.uiScale)
+                            font.weight: current || isSelected ? Font.DemiBold : Font.Medium
                             font.hintingPreference: Font.PreferNoHinting
                             renderType: Text.QtRendering
                             elide: Text.ElideRight
+                        }
+                        MaterialIcon {
+                            visible: isSelected
+                            name: "check"
+                            iconColor: current ? "#FFFFFF" : "#5AD0F5"
+                            iconSize: Math.round(20 * overlay.uiScale)
                         }
                     }
 

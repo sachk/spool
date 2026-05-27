@@ -3,19 +3,13 @@
 #include <QJsonArray>
 #include <QObject>
 #include <QString>
+#include <QWebSocket>
 
 namespace JellyfinNative {
 
 class JellyfinApiFacade;
 class PlayerController;
 
-// SyncPlay group management. The current implementation covers the group
-// lifecycle and local-control-to-server requests (Pause / Unpause / Seek);
-// realtime command receipt depends on the WebSocket channel (/socket) which
-// is gated on Qt6::WebSockets being added to the static webOS Qt build.
-//
-// Once that channel exists, SyncPlayController is the natural place to land
-// the SyncPlayCommand / SyncPlayGroupUpdate dispatch.
 class SyncPlayController final : public QObject
 {
     Q_OBJECT
@@ -33,6 +27,8 @@ public:
     bool enabled() const { return !m_groupId.isEmpty(); }
 
     Q_INVOKABLE void refreshGroups();
+    Q_INVOKABLE void connectSocket();
+    Q_INVOKABLE void disconnectSocket();
     Q_INVOKABLE void createGroup(const QString &name);
     Q_INVOKABLE void joinGroup(const QString &groupId);
     Q_INVOKABLE void leaveGroup();
@@ -46,8 +42,15 @@ signals:
     void errorText(const QString &text);
 
 private:
+    void handleSocketTextMessage(const QString &message);
+    void handleSyncPlayCommand(const QJsonObject &data);
+    void handleSyncPlayGroupUpdate(const QJsonObject &data);
+    void sendKeepAlive();
+    QUrl socketUrl() const;
+
     JellyfinApiFacade *m_api = nullptr;
     PlayerController *m_player = nullptr;
+    QWebSocket m_socket;
     QString m_groupId;
     QString m_groupName;
     QJsonArray m_groups;

@@ -128,7 +128,7 @@ echo "Building libdovi..."
   if command -v rustup >/dev/null 2>&1; then
     CARGO_BIN="rustup run nightly cargo"
   fi
-  $CARGO_BIN build --release --features capi --target arm-unknown-linux-gnueabi
+  $CARGO_BIN build --release --features capi,serde --target arm-unknown-linux-gnueabi
 )
 DOVI_LIB="$WORKSPACE_ROOT/dovi_tool/dolby_vision/target/arm-unknown-linux-gnueabi/release/libdovi.a"
 DOVI_INC="$WORKSPACE_ROOT/dovi_tool/dolby_vision/include"

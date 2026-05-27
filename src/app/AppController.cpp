@@ -206,7 +206,11 @@ void AppController::initialize()
     m_username = m_database->loadLastUsername();
     m_nightModeEnabled = m_database->loadNightModeEnabled();
     m_audioDelayMs = m_database->loadAudioDelayMs();
-    m_audioOutputMode = m_database->loadAudioOutputMode() == QStringLiteral("starfish") ? QStringLiteral("starfish") : QStringLiteral("alsa");
+    const QString storedAudioOutputMode = m_database->loadAudioOutputMode();
+    m_audioOutputMode = (storedAudioOutputMode == QStringLiteral("starfish") ||
+                         storedAudioOutputMode == QStringLiteral("starfish-pcm"))
+                            ? storedAudioOutputMode
+                            : QStringLiteral("alsa");
     m_redButtonAction = m_database->loadSetting(QStringLiteral("input/redButton"), QStringLiteral("none"));
     m_greenButtonAction = m_database->loadSetting(QStringLiteral("input/greenButton"), QStringLiteral("skipBackAndEnableSubs"));
     m_yellowButtonAction = m_database->loadSetting(QStringLiteral("input/yellowButton"), QStringLiteral("none"));
@@ -225,6 +229,7 @@ void AppController::initialize()
     if (!session.accessToken.isEmpty() && !m_serverUrl.isEmpty()) {
         m_api->setServerUrl(m_serverUrl);
         m_api->setSession(session);
+        m_syncPlay->connectSocket();
         loadLibraries();
     } else {
         applyDiscoveredServersCache();
@@ -281,6 +286,7 @@ void AppController::login()
         [this](const AuthSession &session) {
             m_database->saveLoginHints(m_serverUrl, m_username);
             m_database->saveAuthSession(session);
+            m_syncPlay->connectSocket();
             setBusy(false);
             loadLibraries();
             QCoro::runDetached(m_api->postCapabilities(), []() {}, [](const std::exception_ptr &) {});
@@ -303,6 +309,7 @@ void AppController::logout()
     if (m_player->visible())
         m_player->stopWithReason(QStringLiteral("logout"));
     m_database->clearAuthSession();
+    m_syncPlay->disconnectSocket();
     m_api->setSession({});
     m_password.clear();
     m_libraries.clear();
@@ -657,7 +664,10 @@ void AppController::setAudioDelayMs(int delayMs)
 
 void AppController::setAudioOutputMode(const QString &mode)
 {
-    const QString normalized = mode == QStringLiteral("starfish") ? QStringLiteral("starfish") : QStringLiteral("alsa");
+    const QString normalized =
+        (mode == QStringLiteral("starfish") || mode == QStringLiteral("starfish-pcm"))
+            ? mode
+            : QStringLiteral("alsa");
     if (m_audioOutputMode == normalized)
         return;
     qInfo() << "app: audio output mode changed" << m_audioOutputMode << "->" << normalized;
@@ -869,6 +879,7 @@ void AppController::pollQuickConnect()
                     cancelQuickConnect();
                     m_database->saveLoginHints(m_serverUrl, m_username);
                     m_database->saveAuthSession(session);
+                    m_syncPlay->connectSocket();
                     loadLibraries();
                     QCoro::runDetached(m_api->postCapabilities(), []() {}, [](const std::exception_ptr &) {});
                 },

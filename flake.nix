@@ -12,6 +12,7 @@
   outputs = { nixpkgs, libplacebo-src, ... }:
     let
       systems = [ "x86_64-linux" "aarch64-darwin" "x86_64-darwin" ];
+
       libplaceboOverlay = final: prev: {
         libplacebo = prev.libplacebo.overrideAttrs (_: {
           version = "master-27aa71a";
@@ -19,17 +20,15 @@
           patches = [];
         });
       };
-      # Slim ffmpeg-full: keep everything libmpv needs for decoding + rendering on
-      # Linux, but drop encoders, niche protocols, TTS, fingerprinting, image
-      # formats Qt already handles, and other transitive bloat that otherwise
-      # gets pulled into the AppImage via libavcodec.so.62's RPATH/NEEDED list.
+
+      # Slim ffmpeg-full: keep what libmpv needs for playback, but drop bloat
+      # that otherwise gets pulled into the Linux/AppImage closure.
       ffmpegSlimOverlay = final: prev: {
         ffmpeg-full = prev.ffmpeg-full.override {
-          # ffplay needs SDL2; we don't ship it.
           buildFfplay = false;
           withSdl2 = false;
 
-          # Encoders we never use in a playback-only client.
+          # Encoders not needed by a playback-only client.
           withX264 = false;
           withX265 = false;
           withAom = false;
@@ -50,8 +49,7 @@
           withShine = false;
           withTheora = false;
 
-          # Niche audio codecs (native ffmpeg decoders cover the few streams
-          # Jellyfin actually serves).
+          # Niche audio codecs.
           withOpenmpt = false;
           withGme = false;
           withModplug = false;
@@ -65,31 +63,27 @@
           withOpencoreAmrwb = false;
           withMysofa = false;
 
-          # Niche video codecs.
+          # Niche video codecs / protocols / subsystems.
           withDavs2 = false;
           withUavs3d = false;
-
-          # ARIB / DVB subtitle and teletext stacks.
           withAribb24 = false;
           withAribcaption = false;
           withZvbi = false;
-
-          # Network protocols we don't use.
           withSrt = false;
           withRist = false;
           withSsh = false;
           withRtmp = false;
 
           # Removable bloat.
-          withSamba = false;            # libsmbclient pulls ~30 samba libs (~19 MB)
-          withFlite = false;            # TTS voice databases (~23 MB)
-          withChromaprint = false;      # audio fingerprinting
-          withTensorflow = false;       # huge
-          withWhisper = false;          # huge
+          withSamba = false;
+          withFlite = false;
+          withChromaprint = false;
+          withTensorflow = false;
+          withWhisper = false;
           withVmaf = false;
           withZmq = false;
-          withJxl = false;              # Qt handles JPEG-XL via its own plugin if ever
-          withSvg = false;              # librsvg + cairo + rust deps; Qt has QtSvg
+          withJxl = false;
+          withSvg = false;
           withLcevcdec = false;
           withFrei0r = false;
           withQrencode = false;
@@ -106,7 +100,7 @@
           withCdio = false;
           withCaca = false;
 
-          # GPU / vendor encode paths (most are off by default but be explicit).
+          # GPU/vendor encode paths.
           withAmf = false;
           withCuda = false;
           withCudaLLVM = false;
@@ -125,6 +119,7 @@
           withBs2b = false;
         };
       };
+
       forAllSystems = f:
         nixpkgs.lib.genAttrs systems (system:
           f (import nixpkgs {
@@ -133,7 +128,9 @@
             overlays = [ libplaceboOverlay ffmpegSlimOverlay ];
           }));
 
-      commonPackages = pkgs: with pkgs; [
+      # Shared build/media dependencies. Intentionally contains no qt6.* packages.
+      # The Qt source build must not see nixpkgs Qt through CMAKE_PREFIX_PATH.
+      basePackages = pkgs: with pkgs; [
         autoconf
         automake
         bashInteractive
@@ -144,10 +141,10 @@
         curl
         ffmpeg-full
         file
+        findutils
         flex
         fontconfig
         freetype
-        libxkbcommon
         git
         gnumake
         jq
@@ -158,29 +155,30 @@
         libffi
         libplacebo
         libtool
+        libuchardet
+        libxkbcommon
         lua5_2
         luajit
         meson
         mujs
         ninja
         nodejs_22
+        openapi-generator-cli
+        jdk17_headless
         patchelf
+        pcre2
         perl
         pkg-config
         python3
-        qt6.qtbase
-        qt6.qtdeclarative
-        qt6.qtimageformats
-        qt6.qttools
         rubberband
         rustup
-        libuchardet
         unzip
         which
         zlib
         zip
       ];
-      linuxPackages = pkgs: with pkgs; [
+
+      sourceLinuxPackages = pkgs: with pkgs; [
         alsa-lib
         appimage-run
         expat
@@ -196,59 +194,122 @@
         wayland
         wayland-scanner
         wayland-protocols
-        qt6.qtwayland
         zimg
       ];
+
       darwinPackages = pkgs: with pkgs; [
         apple-sdk_15
         create-dmg
       ];
-      allPackages = pkgs: commonPackages pkgs
-        ++ pkgs.lib.optionals pkgs.stdenv.isLinux (linuxPackages pkgs)
+
+      # Shell used by tools/webos-native/build-qt6-611.sh. No nixpkgs Qt here.
+      sourceBuildPackages = pkgs:
+        basePackages pkgs
+        ++ pkgs.lib.optionals pkgs.stdenv.isLinux (sourceLinuxPackages pkgs)
         ++ pkgs.lib.optionals pkgs.stdenv.isDarwin (darwinPackages pkgs);
+
+      # Shell used by local native Linux app builds / nix run. This may use
+      # nixpkgs Qt, but the Qt source-build script should not be run from it.
+      nativePackages = pkgs:
+        sourceBuildPackages pkgs
+        ++ (with pkgs; [
+          qt6.qtbase
+          qt6.qtdeclarative
+          qt6.qtimageformats
+          qt6.qttools
+          qt6.qtwebsockets
+        ])
+        ++ pkgs.lib.optionals pkgs.stdenv.isLinux (with pkgs; [
+          qt6.qtwayland
+        ]);
+
+      commonShellHook = pkgs: ''
+        export SSL_CERT_FILE=${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt
+        export CURL_CA_BUNDLE="$SSL_CERT_FILE"
+        export NIX_ENFORCE_PURITY=0
+
+        # Your historical tree has sometimes used ../build for the SDK and
+        # sometimes repo-local build/. Prefer an existing SDK, otherwise default
+        # to repo-local build/ to match the build script's fallback.
+        if [ -d "$PWD/../build/webos-sdk/arm-webos-linux-gnueabi_sdk-buildroot" ]; then
+          export WEBOS_SDK_ROOT="$PWD/../build/webos-sdk/arm-webos-linux-gnueabi_sdk-buildroot"
+        else
+          export WEBOS_SDK_ROOT="$PWD/build/webos-sdk/arm-webos-linux-gnueabi_sdk-buildroot"
+        fi
+
+        ${pkgs.lib.optionalString pkgs.stdenv.isLinux ''
+          export WAYLAND_PROTOCOLS_DIR="${pkgs.wayland-protocols}/share/wayland-protocols"
+        ''}
+      '';
+
+      sourceShellHook = pkgs: commonShellHook pkgs + ''
+        # Keep the Qt source build hermetic with respect to Qt. mkShell's setup
+        # hooks may set broad CMake/QML paths; the build script strips these too,
+        # but clearing them here makes interactive diagnostics less confusing.
+        unset Qt6_DIR Qt6Core_DIR Qt6Gui_DIR Qt6Widgets_DIR Qt6Qml_DIR Qt6Quick_DIR
+        unset Qt6CoreTools_DIR Qt6GuiTools_DIR Qt6WidgetsTools_DIR Qt6QmlTools_DIR
+        unset Qt6ShaderTools_DIR Qt6WaylandClient_DIR Qt6WaylandScannerTools_DIR
+        unset QT_PLUGIN_PATH QML_IMPORT_PATH QML2_IMPORT_PATH QT_SELECT
+        export QT_BUILD_CLEAN_POISONED=1
+
+        if [ -z "''${OPENAPI_GENERATOR_CLI_JAR:-}" ]; then
+          OPENAPI_GENERATOR_CLI_JAR="$(${pkgs.findutils}/bin/find ${pkgs.openapi-generator-cli} -type f -name 'openapi-generator-cli*.jar' -print -quit 2>/dev/null || true)"
+          export OPENAPI_GENERATOR_CLI_JAR
+        fi
+      '';
+
+      nativeShellHook = pkgs: commonShellHook pkgs + ''
+        # This shell intentionally includes nixpkgs Qt for native Linux/macOS
+        # development. Do not use it for tools/webos-native/build-qt6-611.sh.
+      '';
     in
     {
       devShells = forAllSystems (pkgs: {
         default = pkgs.mkShell {
-          packages = allPackages pkgs;
-          shellHook = ''
-            export SSL_CERT_FILE=${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt
-            export CURL_CA_BUNDLE="$SSL_CERT_FILE"
-            export NIX_ENFORCE_PURITY=0
-            export WEBOS_SDK_ROOT="$PWD/../build/webos-sdk/arm-webos-linux-gnueabi_sdk-buildroot"
-            ${pkgs.lib.optionalString pkgs.stdenv.isLinux ''
-              export WAYLAND_PROTOCOLS_DIR="${pkgs.wayland-protocols}/share/wayland-protocols"
-            ''}
-          '';
+          packages = sourceBuildPackages pkgs;
+          shellHook = sourceShellHook pkgs;
+        };
+
+        qt-source = pkgs.mkShell {
+          packages = sourceBuildPackages pkgs;
+          shellHook = sourceShellHook pkgs;
+        };
+
+        native = pkgs.mkShell {
+          packages = nativePackages pkgs;
+          shellHook = nativeShellHook pkgs;
         };
       });
 
       apps = forAllSystems (pkgs:
         let
           runner = pkgs.writeShellScriptBin "jellyfin-native-run" ''
-            export PATH="${pkgs.lib.makeBinPath [ pkgs.nix pkgs.bashInteractive pkgs.coreutils pkgs.gnugrep ]}:$PATH"
-              set -euo pipefail
-              REPO_ROOT="''${JELLYFIN_REPO:-$PWD}"
-              if [ ! -f "$REPO_ROOT/CMakeLists.txt" ] || [ ! -d "$REPO_ROOT/mpv" ]; then
-                echo "error: run from the jellyfin-webos repo root, or set JELLYFIN_REPO" >&2
-                exit 1
-              fi
-              cd "$REPO_ROOT"
-              BIN="$REPO_ROOT/build/linux-release/install/bin/jellyfin-native"
-              # Strip the webOS buildroot SDK from PATH and unset its env so the
-              # native Linux build doesn't pick up the old wayland-scanner /
-              # cross toolchain.
-              scrub='PATH=$(printf %s "$PATH" | tr ":" "\n" | grep -v webos-sdk | paste -sd:); export PATH; unset WEBOS_SDK_ROOT QT_PLUGIN_PATH QML2_IMPORT_PATH QML_IMPORT_PATH'
-              if [ -n "''${JELLYFIN_NO_REBUILD:-}" ] && [ -x "$BIN" ]; then
-                :
-              else
-                nix develop "$REPO_ROOT" -c bash -c "$scrub; exec bash tools/build-linux-release.sh"
-              fi
-              MPV_LIB="$REPO_ROOT/build/linux-release/mpv-prefix/lib"
-              export LD_LIBRARY_PATH="$MPV_LIB''${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
-              # libmpv requires C numeric locale or it refuses to start.
-              export LC_NUMERIC=C
-              exec nix develop "$REPO_ROOT" -c bash -c "$scrub"'; exec "$@"' _ "$BIN" "$@"
+            export PATH="${pkgs.lib.makeBinPath [ pkgs.nix pkgs.bashInteractive pkgs.coreutils pkgs.gnugrep pkgs.gnused ]}:$PATH"
+            set -euo pipefail
+
+            REPO_ROOT="''${JELLYFIN_REPO:-$PWD}"
+            if [ ! -f "$REPO_ROOT/CMakeLists.txt" ] || [ ! -d "$REPO_ROOT/mpv" ]; then
+              echo "error: run from the jellyfin-webos repo root, or set JELLYFIN_REPO" >&2
+              exit 1
+            fi
+            cd "$REPO_ROOT"
+
+            BIN="$REPO_ROOT/build/linux-release/install/bin/jellyfin-native"
+
+            # Strip webOS cross state so native Linux builds do not pick up the
+            # old SDK wayland-scanner/cross toolchain.
+            scrub='PATH=$(printf %s "$PATH" | tr ":" "\n" | grep -v webos-sdk | paste -sd:); export PATH; unset WEBOS_SDK_ROOT QT_PLUGIN_PATH QML2_IMPORT_PATH QML_IMPORT_PATH'
+
+            if [ -n "''${JELLYFIN_NO_REBUILD:-}" ] && [ -x "$BIN" ]; then
+              :
+            else
+              nix develop "$REPO_ROOT#native" -c bash -c "$scrub; exec bash tools/build-linux-release.sh"
+            fi
+
+            MPV_LIB="$REPO_ROOT/build/linux-release/mpv-prefix/lib"
+            export LD_LIBRARY_PATH="$MPV_LIB''${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+            export LC_NUMERIC=C
+            exec nix develop "$REPO_ROOT#native" -c bash -c "$scrub"'; exec "$@"' _ "$BIN" "$@"
           '';
         in {
           default = {

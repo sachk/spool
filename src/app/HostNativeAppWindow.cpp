@@ -83,12 +83,17 @@ int NativeAppWindow::overlayRevision() const
 
 void NativeAppWindow::clearOverlay()
 {
+    bool changed = false;
     {
         QMutexLocker locker(&m_overlayMutex);
+        if (m_overlayImage.isNull())
+            return;
         m_overlayImage = QImage();
         m_overlayRevision += 1;
+        changed = true;
     }
-    emit overlayRevisionChanged();
+    if (changed)
+        emit overlayRevisionChanged();
 }
 
 QQuickImageProvider *NativeAppWindow::createOverlayImageProvider()

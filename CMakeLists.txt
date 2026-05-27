@@ -47,6 +47,7 @@ set(JELLYFIN_QT_COMPONENTS
     Sql
     OpenGL
     LinguistTools
+    WebSockets
 )
 if(JELLYFIN_NATIVE_WEBOS)
     set(JELLYFIN_QT_MIN_VERSION 6.11)
@@ -240,6 +241,7 @@ target_link_libraries(jellyfin-native PRIVATE
     Qt6::QuickControls2
     Qt6::Sql
     Qt6::OpenGL
+    Qt6::WebSockets
 )
 
 if(JELLYFIN_NATIVE_WEBOS)
@@ -305,6 +307,7 @@ if(NOT BUILD_SHARED_LIBS)
         Qt6::qtquickcontrols2basicstyleimplplugin
         Qt6::qtquickcontrols2basicstyleplugin
         Qt6::qmlfolderlistmodelplugin
+        Qt6::qmlwebsocketsplugin
         Qt6::VirtualKeyboardplugin
         Qt6::qtvkbplugin
         Qt6::qtvkblayoutsplugin
