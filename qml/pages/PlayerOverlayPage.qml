@@ -760,7 +760,10 @@ FocusScope {
         height: dp(150)
         opacity: 0
         visible: opacity > 0.01
-        color: "transparent"
+        gradient: Gradient {
+            GradientStop { position: 0.0; color: "#99000000" }
+            GradientStop { position: 1.0; color: "transparent" }
+        }
     }
 
     Rectangle {
@@ -771,7 +774,10 @@ FocusScope {
         height: dp(360)
         opacity: 0
         visible: opacity > 0.01
-        color: "transparent"
+        gradient: Gradient {
+            GradientStop { position: 0.0; color: "transparent" }
+            GradientStop { position: 1.0; color: "#CC000000" }
+        }
     }
 
     Rectangle {
@@ -877,6 +883,8 @@ FocusScope {
                 Layout.fillWidth: true
                 Layout.preferredHeight: dp(82)
                 readonly property double ratio: overlay.hasPlayer && overlay.player.durationSeconds > 0 ? Math.max(0, Math.min(1, overlay.positionSeconds() / overlay.player.durationSeconds)) : 0
+                readonly property bool hasActiveSegment: overlay.hasPlayer && overlay.player.activeSegmentType.length > 0 && overlay.player.durationSeconds > 0
+                readonly property double activeSegmentRatio: hasActiveSegment ? Math.max(0, Math.min(1, overlay.player.activeSegmentEndSeconds / overlay.player.durationSeconds)) : 0
                 readonly property bool focused: overlay.isControlsActive() && overlay.row === "timeline" && !overlay.isAudioSyncOpen()
 
                 Text {
@@ -927,6 +935,17 @@ FocusScope {
                     color: overlay.hasPlayer && overlay.player.buffering ? overlay.accentBright : overlay.accent
                     antialiasing: true
                     Behavior on width { enabled: !overlay.scrubbing; NumberAnimation { duration: 180; easing.type: Easing.OutCubic } }
+                }
+                Rectangle {
+                    x: Math.max(0, Math.min(track.width - width, track.width * timeline.activeSegmentRatio - width / 2))
+                    anchors.verticalCenter: track.verticalCenter
+                    width: Math.max(1, dp(3))
+                    height: track.height + dp(12)
+                    radius: width / 2
+                    color: overlay.accentBright
+                    antialiasing: true
+                    opacity: 0.95
+                    visible: timeline.hasActiveSegment
                 }
                 Rectangle {
                     id: thumbGlow
