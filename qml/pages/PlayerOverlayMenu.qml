@@ -1,5 +1,6 @@
 import QtQuick
 import QtQuick.Layouts
+import "../theme"
 import "../primitives"
 
 Rectangle {
@@ -17,16 +18,32 @@ Rectangle {
         menuList.positionViewAtBeginning()
     }
 
+    readonly property bool trackMenuMode: overlay.mode === "subtitles" || overlay.mode === "audio"
+
     x: Math.max(edgeMargin, Math.min(parent.width - width - edgeMargin, overlay.menuAnchorX - width / 2))
     y: Math.max(edgeMargin, Math.min(parent.height - height - edgeMargin, overlay.menuAnchorY - height - dp(12)))
     width: Math.min(parent.width - edgeMargin * 2, dp(380))
-    height: Math.min(Math.round(parent.height * 0.5), Math.round(menuHeaderBlock.implicitHeight + menuList.contentHeight + dp(30)))
+    height: Math.min(Math.round(parent.height * 0.5), Math.round(menuHeaderBlock.implicitHeight + (menuBody.showPlaceholder ? dp(56) : menuList.contentHeight) + dp(30)))
     visible: overlay.isMenuOpen()
     opacity: 0
+    scale: opacity > 0.5 ? 1 : 0.97
     radius: dp(16)
     color: overlay.colPanelBg
     border.width: 1
     border.color: overlay.colHairline
+
+    Behavior on scale {
+        enabled: !Theme.reducedMotion
+        NumberAnimation { duration: 160; easing.type: Easing.OutCubic }
+    }
+
+    transform: Translate {
+        y: menuPanel.opacity > 0.5 ? 0 : menuPanel.dp(14)
+        Behavior on y {
+            enabled: !Theme.reducedMotion
+            NumberAnimation { duration: 160; easing.type: Easing.OutCubic }
+        }
+    }
 
     ColumnLayout {
         anchors.fill: parent
@@ -61,44 +78,95 @@ Rectangle {
             }
         }
 
-        ListView {
-            id: menuList
+        Item {
+            id: menuBody
 
             Layout.fillWidth: true
             Layout.fillHeight: true
-            clip: true
-            spacing: dp(2)
-            model: overlay.mode === "subtitles" && overlay.hasPlayer ? overlay.player.subtitleTracks
-                 : overlay.mode === "audio" && overlay.hasPlayer ? overlay.player.audioTracks
-                 : overlay.debugOptions
-            currentIndex: overlay.menuIndex
-            boundsBehavior: Flickable.StopAtBounds
-            highlightMoveDuration: 90
-            onCurrentIndexChanged: positionViewAtIndex(currentIndex, ListView.Contain)
+            readonly property bool showPlaceholder: menuPanel.trackMenuMode && menuList.count === 0
 
-            delegate: Rectangle {
-                required property int index
-                required property var modelData
+            ListView {
+                id: menuList
 
-                readonly property bool current: overlay.menuIndex === index
-                readonly property bool isSelected: (overlay.mode === "subtitles" && overlay.hasPlayer && overlay.player.selectedSubtitleIndex === index)
-                                                || (overlay.mode === "audio" && overlay.hasPlayer && overlay.player.selectedAudioIndex === index)
+                anchors.fill: parent
+                clip: true
+                spacing: dp(2)
+                model: overlay.mode === "subtitles" && overlay.hasPlayer ? overlay.player.subtitleTracks
+                     : overlay.mode === "audio" && overlay.hasPlayer ? overlay.player.audioTracks
+                     : overlay.debugOptions
+                currentIndex: overlay.menuIndex
+                boundsBehavior: Flickable.StopAtBounds
+                highlightMoveDuration: 90
+                visible: !menuBody.showPlaceholder
+                onCurrentIndexChanged: positionViewAtIndex(currentIndex, ListView.Contain)
 
-                width: menuList.width
+                delegate: Rectangle {
+                    required property int index
+                    required property var modelData
+
+                    readonly property bool current: overlay.menuIndex === index
+                    readonly property bool isSelected: (overlay.mode === "subtitles" && overlay.hasPlayer && overlay.player.selectedSubtitleIndex === index)
+                                                    || (overlay.mode === "audio" && overlay.hasPlayer && overlay.player.selectedAudioIndex === index)
+
+                    width: menuList.width
+                    height: dp(46)
+                    radius: dp(10)
+                    color: current ? Qt.alpha(overlay.accent, 0.18) : "transparent"
+
+                    Rectangle {
+                        anchors.left: parent.left
+                        anchors.leftMargin: dp(4)
+                        anchors.verticalCenter: parent.verticalCenter
+                        width: dp(3)
+                        height: parent.height - dp(16)
+                        radius: width / 2
+                        color: overlay.accent
+                        visible: current
+                    }
+
+                    RowLayout {
+                        anchors.fill: parent
+                        anchors.leftMargin: dp(16)
+                        anchors.rightMargin: dp(14)
+                        spacing: dp(10)
+
+                        Text {
+                            Layout.fillWidth: true
+                            text: String(modelData)
+                            color: current ? overlay.colTextStrong : isSelected ? overlay.colSelectedText : overlay.colTextSubtle
+                            font.pixelSize: dp(17)
+                            font.weight: current || isSelected ? Font.DemiBold : Font.Medium
+                            font.hintingPreference: Font.PreferNoHinting
+                            renderType: Text.QtRendering
+                            elide: Text.ElideRight
+                        }
+
+                        MaterialIcon {
+                            visible: isSelected
+                            name: "check"
+                            iconColor: current ? overlay.colTextStrong : overlay.accentBright
+                            iconSize: dp(20)
+                        }
+                    }
+
+                    MouseArea {
+                        anchors.fill: parent
+                        onClicked: {
+                            overlay.menuIndex = index
+                            overlay.activateMenuItem()
+                        }
+                    }
+                }
+            }
+
+            Rectangle {
+                anchors.left: parent.left
+                anchors.right: parent.right
+                anchors.top: parent.top
                 height: dp(46)
                 radius: dp(10)
-                color: current ? Qt.alpha(overlay.accent, 0.18) : "transparent"
-
-                Rectangle {
-                    anchors.left: parent.left
-                    anchors.leftMargin: dp(4)
-                    anchors.verticalCenter: parent.verticalCenter
-                    width: dp(3)
-                    height: parent.height - dp(16)
-                    radius: width / 2
-                    color: overlay.accent
-                    visible: current
-                }
+                color: "transparent"
+                visible: menuBody.showPlaceholder
 
                 RowLayout {
                     anchors.fill: parent
@@ -108,28 +176,13 @@ Rectangle {
 
                     Text {
                         Layout.fillWidth: true
-                        text: String(modelData)
-                        color: current ? overlay.colTextStrong : isSelected ? overlay.colSelectedText : overlay.colTextSubtle
+                        text: overlay.mode === "subtitles" ? "No subtitles available" : "No audio tracks"
+                        color: overlay.colTextMuted
                         font.pixelSize: dp(17)
-                        font.weight: current || isSelected ? Font.DemiBold : Font.Medium
+                        font.weight: Font.Medium
                         font.hintingPreference: Font.PreferNoHinting
                         renderType: Text.QtRendering
                         elide: Text.ElideRight
-                    }
-
-                    MaterialIcon {
-                        visible: isSelected
-                        name: "check"
-                        iconColor: current ? overlay.colTextStrong : overlay.accentBright
-                        iconSize: dp(20)
-                    }
-                }
-
-                MouseArea {
-                    anchors.fill: parent
-                    onClicked: {
-                        overlay.menuIndex = index
-                        overlay.activateMenuItem()
                     }
                 }
             }
