@@ -182,7 +182,11 @@ qt_add_qml_module(jellyfin-native
         qml/pages/LibrariesPage.qml
         qml/pages/LibraryGridPage.qml
         qml/pages/LoginPage.qml
+        qml/pages/PlayerAudioSyncPanel.qml
+        qml/pages/PlayerOverlayMenu.qml
         qml/pages/PlayerOverlayPage.qml
+        qml/pages/PlayerSkipSegmentCard.qml
+        qml/pages/PlayerTrickplayPreview.qml
         qml/pages/SearchPage.qml
         qml/pages/SettingsPage.qml
         qml/primitives/ActionButton.qml
