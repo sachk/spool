@@ -27,9 +27,128 @@ on:
         type: string
 
 jobs:
+  # Cheap gate that runs on every push/PR (no Nix, ~seconds). It validates the
+  # shell scripts — including the macOS ones we cannot fully exercise on a Linux
+  # runner — so a syntax/wiring error fails here before any heavy or expensive
+  # (10x-cost macOS) runner is started. The build jobs `needs: lint`.
+  lint:
+    name: Lint scripts
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Syntax-check shell scripts
+        run: |
+          mapfile -t scripts < <(git ls-files '*.sh' | sort -u)
+          printf 'checking %d scripts\n' "${#scripts[@]}"
+          for s in "${scripts[@]}"; do
+            bash -n "$s"
+          done
+
+      - name: Verify shared build library sources and exports its helpers
+        run: |
+          source tools/lib/build-common.sh
+          for fn in mpv_meson_build cmake_build_app resolve_qmlimportscanner; do
+            declare -F "$fn" >/dev/null || { echo "missing helper: $fn" >&2; exit 1; }
+          done
+          echo "build-common.sh OK"
+
+  linux-appimage:
+    name: Linux AppImage
+    runs-on: ubuntu-24.04
+    needs: lint
+    if: ${{ github.event_name != 'workflow_dispatch' || inputs.build_linux }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - uses: nixbuild/nix-quick-install-action@v30
+        with:
+          nix_conf: |
+            experimental-features = nix-command flakes
+            keep-env-derivations = true
+            keep-outputs = true
+
+      - uses: nix-community/cache-nix-action@v7
+        with:
+          primary-key: nix-${{ runner.os }}-${{ hashFiles('flake.lock') }}
+          restore-prefixes-first-match: nix-${{ runner.os }}-
+          gc-max-store-size-linux: 8G
+
+      - uses: actions/cache@v4
+        with:
+          path: |
+            .ccache
+            build/linux-release
+            build/appimage
+          key: linux2-${{ runner.os }}-${{ hashFiles('mpv/meson.build', 'tools/build-linux-release.sh', 'tools/lib/build-common.sh', 'CMakeLists.txt') }}
+          restore-keys: |
+            linux2-${{ runner.os }}-
+
+      # The default dev shell has no Qt on purpose (it is the hermetic Qt-source
+      # build shell). The native app build needs nixpkgs Qt, so use .#native.
+      - name: Build host app
+        run: nix develop .#native -c bash tools/build-linux-release.sh
+
+      - name: Package AppImage
+        run: nix develop .#native -c bash tools/package-appimage.sh
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: jellyfin-native-linux-appimage
+          path: dist/*.AppImage
+
+  macos-dmg:
+    name: macOS DMG
+    runs-on: macos-14
+    needs: lint
+    # macOS runners cost ~10x Linux minutes, so the DMG is built only on manual
+    # dispatch. Every push/PR still gets the lint gate (which checks these
+    # scripts) plus the Linux build for shared CMake/mpv coverage.
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.build_macos }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - uses: nixbuild/nix-quick-install-action@v30
+        with:
+          nix_conf: |
+            experimental-features = nix-command flakes
+            keep-env-derivations = true
+            keep-outputs = true
+
+      - uses: nix-community/cache-nix-action@v7
+        with:
+          primary-key: nix-${{ runner.os }}-${{ hashFiles('flake.lock') }}
+          restore-prefixes-first-match: nix-${{ runner.os }}-
+          gc-max-store-size-macos: 8G
+
+      - uses: actions/cache@v4
+        with:
+          path: |
+            build/macos
+            ~/Library/Caches/ccache
+          key: macos-${{ runner.os }}-${{ hashFiles('mpv/meson.build', 'tools/build-macos.sh', 'tools/lib/build-common.sh', 'CMakeLists.txt') }}
+          restore-keys: |
+            macos-${{ runner.os }}-
+
+      - name: Build macOS app
+        run: nix develop .#native -c bash tools/build-macos.sh
+
+      - name: Package DMG
+        run: nix develop .#native -c bash tools/package-macos-dmg.sh
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: jellyfin-native-macos-dmg
+          path: dist/*.dmg
+
   webos-ipk:
     name: webOS IPK
     runs-on: ubuntu-24.04
+    needs: lint
     if: ${{ github.event_name == 'workflow_dispatch' && inputs.build_webos && (vars.WEBOS_TOOLCHAIN_ARCHIVE_URL != '' || inputs.webos_toolchain_archive_url != '') }}
     steps:
       - uses: actions/checkout@v4
@@ -102,6 +221,8 @@ jobs:
             echo "All Qt patches verified present"
           fi
 
+      # build-ipk.sh uses the default dev shell on purpose: the webOS target
+      # links the cross-built static Qt, and that build must not see nixpkgs Qt.
       - name: Build IPK
         run: nix develop -c bash build-ipk.sh
 
@@ -109,88 +230,3 @@ jobs:
         with:
           name: jellyfin-native-webos-ipk
           path: build/*.ipk
-
-  linux-appimage:
-    name: Linux AppImage
-    runs-on: ubuntu-24.04
-    if: ${{ github.event_name != 'workflow_dispatch' || inputs.build_linux }}
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          submodules: recursive
-
-      - uses: nixbuild/nix-quick-install-action@v30
-        with:
-          nix_conf: |
-            experimental-features = nix-command flakes
-            keep-env-derivations = true
-            keep-outputs = true
-
-      - uses: nix-community/cache-nix-action@v7
-        with:
-          primary-key: nix-${{ runner.os }}-${{ hashFiles('flake.lock') }}
-          restore-prefixes-first-match: nix-${{ runner.os }}-
-          gc-max-store-size-linux: 8G
-
-      - uses: actions/cache@v4
-        with:
-          path: |
-            .ccache
-            build/linux-release
-            build/appimage
-          key: linux2-${{ runner.os }}-${{ hashFiles('mpv/meson.build', 'tools/build-linux-release.sh', 'CMakeLists.txt') }}
-          restore-keys: |
-            linux2-${{ runner.os }}-
-
-      - name: Build host app
-        run: nix develop -c bash tools/build-linux-release.sh
-
-      - name: Package AppImage
-        run: nix develop -c bash tools/package-appimage.sh
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: jellyfin-native-linux-appimage
-          path: dist/*.AppImage
-
-  macos-dmg:
-    name: macOS DMG
-    runs-on: macos-14
-    if: ${{ github.event_name == 'workflow_dispatch' && inputs.build_macos }}
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          submodules: recursive
-
-      - uses: nixbuild/nix-quick-install-action@v30
-        with:
-          nix_conf: |
-            experimental-features = nix-command flakes
-            keep-env-derivations = true
-            keep-outputs = true
-
-      - uses: nix-community/cache-nix-action@v7
-        with:
-          primary-key: nix-${{ runner.os }}-${{ hashFiles('flake.lock') }}
-          restore-prefixes-first-match: nix-${{ runner.os }}-
-          gc-max-store-size-macos: 8G
-
-      - uses: actions/cache@v4
-        with:
-          path: |
-            build/macos
-            ~/Library/Caches/ccache
-          key: macos-${{ runner.os }}-${{ hashFiles('mpv/meson.build', 'tools/build-macos.sh', 'CMakeLists.txt') }}
-          restore-keys: |
-            macos-${{ runner.os }}-
-
-      - name: Build macOS app
-        run: nix develop -c bash tools/build-macos.sh
-
-      - name: Package DMG
-        run: nix develop -c bash tools/package-macos-dmg.sh
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: jellyfin-native-macos-dmg
-          path: dist/*.dmg
