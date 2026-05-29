@@ -9,6 +9,7 @@ out=""
 plot=1
 wait_for_process=0
 stop_on_exit=0
+wait_for_absent=0
 
 usage() {
   cat <<'EOF'
@@ -28,6 +29,9 @@ Options:
   --stop-on-exit    stop after the first observed app process exits
   --process-lifetime
                     shorthand for --wait-for-process --stop-on-exit
+  --new-process-lifetime
+                    wait for any current app process to exit, then capture the
+                    next process until it exits
   --no-plot         skip SVG graph generation
   -h, --help        show this help
 EOF
@@ -43,6 +47,7 @@ while [[ $# -gt 0 ]]; do
     --wait-for-process) wait_for_process=1; shift ;;
     --stop-on-exit) stop_on_exit=1; shift ;;
     --process-lifetime) wait_for_process=1; stop_on_exit=1; shift ;;
+    --new-process-lifetime) wait_for_absent=1; wait_for_process=1; stop_on_exit=1; shift ;;
     --no-plot) plot=0; shift ;;
     -h|--help) usage; exit 0 ;;
     *) echo "unknown option: $1" >&2; usage >&2; exit 2 ;;
@@ -62,10 +67,11 @@ trap 'rm -f "$tmp"' EXIT
 echo "Writing $out"
 
 ssh -F /dev/null -o BatchMode=yes "$host" \
-  "APP_ID='$app_id' INTERVAL='$interval' DURATION='$duration' WAIT_FOR_PROCESS='$wait_for_process' STOP_ON_EXIT='$stop_on_exit' sh -s" >"$tmp" <<'REMOTE'
+  "APP_ID='$app_id' INTERVAL='$interval' DURATION='$duration' WAIT_FOR_ABSENT='$wait_for_absent' WAIT_FOR_PROCESS='$wait_for_process' STOP_ON_EXIT='$stop_on_exit' sh -s" >"$tmp" <<'REMOTE'
 app_id=${APP_ID:-com.codex.jellyfinwebosnative}
 interval=${INTERVAL:-1}
 duration=${DURATION:-0}
+wait_for_absent=${WAIT_FOR_ABSENT:-0}
 wait_for_process=${WAIT_FOR_PROCESS:-0}
 stop_on_exit=${STOP_ON_EXIT:-0}
 start=$(date +%s)
@@ -74,8 +80,18 @@ observed_pid=
 printf '%s\n' 'epoch,pid,vmrss_kb,vmsize_kb,vmdata_kb,vmswap_kb,pss_kb,threads,mem_total_kb,mem_free_kb,mem_available_kb,buffers_kb,cached_kb,swap_total_kb,swap_free_kb'
 
 find_pid() {
-  ps | awk -v app="$app_id" '
-    index($0, app) && $1 ~ /^[0-9]+$/ { pid=$1 }
+  (ps -ef 2>/dev/null || ps 2>/dev/null) | awk -v app="$app_id" '
+    BEGIN {
+      path = "/applications/" app "/"
+      app_json = "\"appId\":\"" app "\""
+    }
+    index($0, path) || index($0, app_json) {
+      if ($2 ~ /^[0-9]+$/) {
+        pid=$2
+      } else if ($1 ~ /^[0-9]+$/) {
+        pid=$1
+      }
+    }
     END { if (pid) print pid }
   '
 }
@@ -90,6 +106,12 @@ meminfo_value() {
   key=$1
   awk -v k="$key" '$1 == k ":" { print $2; found=1; exit } END { if (!found) print "" }' /proc/meminfo 2>/dev/null
 }
+
+if [ "$wait_for_absent" = "1" ]; then
+  while [ -n "$(find_pid)" ]; do
+    sleep "$interval"
+  done
+fi
 
 while :; do
   now=$(date +%s)
