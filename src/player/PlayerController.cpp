@@ -717,9 +717,7 @@ void PlayerController::selectAudio(int index) {
     return;
   m_selectedAudioIndex = index;
 #ifdef JELLYFIN_NATIVE_WEBOS
-  const double targetSeconds = clampedPosition(seekAnchorPosition());
-  qInfo() << "player: webOS audio track resync seek" << targetSeconds;
-  beginSeekCommand(targetSeconds, QByteArray("absolute+keyframes"));
+  qInfo() << "player: webOS audio track changed" << index << "trackId" << trackId;
 #endif
   emit stateChanged();
 }
