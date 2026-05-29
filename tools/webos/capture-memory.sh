@@ -7,6 +7,8 @@ interval="1"
 duration="0"
 out=""
 plot=1
+wait_for_process=0
+stop_on_exit=0
 
 usage() {
   cat <<'EOF'
@@ -21,6 +23,11 @@ Options:
   --interval SEC    sample interval (default: 1)
   --duration SEC    stop after SEC; 0 means until Ctrl-C (default: 0)
   --out PATH        output CSV path (default: build/memory/<timestamp>.csv)
+  --wait-for-process
+                    wait until the app process exists before writing samples
+  --stop-on-exit    stop after the first observed app process exits
+  --process-lifetime
+                    shorthand for --wait-for-process --stop-on-exit
   --no-plot         skip SVG graph generation
   -h, --help        show this help
 EOF
@@ -33,6 +40,9 @@ while [[ $# -gt 0 ]]; do
     --interval) interval="$2"; shift 2 ;;
     --duration) duration="$2"; shift 2 ;;
     --out) out="$2"; shift 2 ;;
+    --wait-for-process) wait_for_process=1; shift ;;
+    --stop-on-exit) stop_on_exit=1; shift ;;
+    --process-lifetime) wait_for_process=1; stop_on_exit=1; shift ;;
     --no-plot) plot=0; shift ;;
     -h|--help) usage; exit 0 ;;
     *) echo "unknown option: $1" >&2; usage >&2; exit 2 ;;
@@ -52,11 +62,14 @@ trap 'rm -f "$tmp"' EXIT
 echo "Writing $out"
 
 ssh -F /dev/null -o BatchMode=yes "$host" \
-  "APP_ID='$app_id' INTERVAL='$interval' DURATION='$duration' sh -s" >"$tmp" <<'REMOTE'
+  "APP_ID='$app_id' INTERVAL='$interval' DURATION='$duration' WAIT_FOR_PROCESS='$wait_for_process' STOP_ON_EXIT='$stop_on_exit' sh -s" >"$tmp" <<'REMOTE'
 app_id=${APP_ID:-com.codex.jellyfinwebosnative}
 interval=${INTERVAL:-1}
 duration=${DURATION:-0}
+wait_for_process=${WAIT_FOR_PROCESS:-0}
+stop_on_exit=${STOP_ON_EXIT:-0}
 start=$(date +%s)
+observed_pid=
 
 printf '%s\n' 'epoch,pid,vmrss_kb,vmsize_kb,vmdata_kb,vmswap_kb,pss_kb,threads,mem_total_kb,mem_free_kb,mem_available_kb,buffers_kb,cached_kb,swap_total_kb,swap_free_kb'
 
@@ -85,6 +98,22 @@ while :; do
   fi
 
   pid=$(find_pid)
+  if [ -z "$observed_pid" ]; then
+    if [ -z "$pid" ] && [ "$wait_for_process" = "1" ]; then
+      sleep "$interval"
+      continue
+    fi
+    if [ -n "$pid" ]; then
+      observed_pid=$pid
+      start=$now
+    fi
+  elif [ "$stop_on_exit" = "1" ]; then
+    if [ ! -r "/proc/$observed_pid/status" ]; then
+      break
+    fi
+    pid=$observed_pid
+  fi
+
   vmrss= vmsize= vmdata= vmswap= pss= threads=
   if [ -n "$pid" ] && [ -r "/proc/$pid/status" ]; then
     vmrss=$(status_value VmRSS "/proc/$pid/status")
