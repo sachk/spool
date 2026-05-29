@@ -391,16 +391,17 @@ bool PlayerController::ensureMpv() {
 #ifdef JELLYFIN_NATIVE_WEBOS
   const bool useStarfishPcm = m_audioOutputMode == QStringLiteral("starfish") ||
                               m_audioOutputMode == QStringLiteral("starfish-pcm");
-  const bool useStarfishAudio =
-      useStarfishPcm;
+  const bool useStarfishAudio = useStarfishPcm;
   qputenv("STARFISH_AUDIO_HINT", useStarfishAudio ? QByteArrayLiteral("1") : QByteArrayLiteral("0"));
+  qputenv("WEBOS_ALSA_NO_HW_PAUSE", useStarfishAudio ? QByteArrayLiteral("0") : QByteArrayLiteral("1"));
   // Selects the Starfish audio ES the fork builds: raw PCM vs the legacy AAC
   // encode path. Read by both ao_starfish and the starfish VO context.
   qputenv("STARFISH_AUDIO_CODEC", useStarfishPcm ? QByteArrayLiteral("pcm") : QByteArrayLiteral("aac"));
   qInfo() << "player: configuring webOS audio output"
           << m_audioOutputMode
           << "starfishAudioHint=" << qgetenv("STARFISH_AUDIO_HINT")
-          << "starfishAudioCodec=" << qgetenv("STARFISH_AUDIO_CODEC");
+          << "starfishAudioCodec=" << qgetenv("STARFISH_AUDIO_CODEC")
+          << "webosAlsaNoHwPause=" << qgetenv("WEBOS_ALSA_NO_HW_PAUSE");
 #endif
 
   QElapsedTimer startupTimer;
@@ -445,7 +446,8 @@ bool PlayerController::ensureMpv() {
       // PCM mode feeds interleaved S16 straight to Starfish; AAC/ALSA keep s32.
       setOption(handle, "audio-format", useStarfishPcm ? "s16" : "s32") &&
       setOption(handle, "audio-samplerate",
-                (useStarfishAudio && !useStarfishPcm) ? "192000" : "48000") &&
+                useStarfishPcm ? "48000" :
+                    ((useStarfishAudio && !useStarfishPcm) ? "192000" : "48000")) &&
       (useStarfishAudio || setOption(handle, "audio-buffer", "0.050")) &&
       (useStarfishAudio || setOption(handle, "alsa-buffer-time", "40000")) &&
       (useStarfishAudio || setOption(handle, "alsa-periods", "8")) &&
