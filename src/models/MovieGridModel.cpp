@@ -31,6 +31,23 @@ QString displaySubtitle(const MovieItem &movie)
     return movie.subtitle;
 }
 
+QVariantList peopleVariantList(const std::vector<PersonItem> &people)
+{
+    QVariantList result;
+    result.reserve(static_cast<qsizetype>(people.size()));
+    for (const PersonItem &person : people) {
+        result.push_back(QVariantMap{
+            {QStringLiteral("personId"), person.id},
+            {QStringLiteral("name"), person.name},
+            {QStringLiteral("type"), person.type},
+            {QStringLiteral("role"), person.role},
+            {QStringLiteral("imageUrl"), person.imageUrl},
+            {QStringLiteral("imageTag"), person.imageTag},
+        });
+    }
+    return result;
+}
+
 }
 
 MovieGridModel::MovieGridModel(QObject *parent)
@@ -82,6 +99,8 @@ QVariant MovieGridModel::data(const QModelIndex &index, int role) const
         return playbackProgress(movie);
     case SeriesNameRole:
         return movie.seriesName;
+    case SeriesPosterUrlRole:
+        return movie.seriesPosterUrl;
     case DisplayTitleRole:
         return displayTitle(movie);
     case DisplaySubtitleRole:
@@ -90,6 +109,10 @@ QVariant MovieGridModel::data(const QModelIndex &index, int role) const
         return movie.resumeTicks > 0 ? QStringLiteral("Resume") : QStringLiteral("Play");
     case PlayableRole:
         return movie.playable;
+    case FavoriteRole:
+        return movie.favorite;
+    case PlayedRole:
+        return movie.played;
     case BackdropUrlRole:
         return movie.backdropUrl;
     case LogoUrlRole:
@@ -114,6 +137,8 @@ QVariant MovieGridModel::data(const QModelIndex &index, int role) const
         return movie.premiereDate;
     case EndDateRole:
         return movie.endDate;
+    case PeopleRole:
+        return peopleVariantList(movie.people);
     default:
         return {};
     }
@@ -137,10 +162,13 @@ QHash<int, QByteArray> MovieGridModel::roleNames() const
         {RuntimeTicksRole, "runtimeTicks"},
         {ProgressRole, "progress"},
         {SeriesNameRole, "seriesName"},
+        {SeriesPosterUrlRole, "seriesPosterUrl"},
         {DisplayTitleRole, "displayTitle"},
         {DisplaySubtitleRole, "displaySubtitle"},
         {PlayActionLabelRole, "playActionLabel"},
         {PlayableRole, "playable"},
+        {FavoriteRole, "favorite"},
+        {PlayedRole, "played"},
         {BackdropUrlRole, "backdropUrl"},
         {LogoUrlRole, "logoUrl"},
         {BannerUrlRole, "bannerUrl"},
@@ -153,6 +181,7 @@ QHash<int, QByteArray> MovieGridModel::roleNames() const
         {CriticRatingRole, "criticRating"},
         {PremiereDateRole, "premiereDate"},
         {EndDateRole, "endDate"},
+        {PeopleRole, "people"},
     };
 }
 
@@ -178,10 +207,13 @@ QVariantMap MovieGridModel::get(int index) const
         {QStringLiteral("runtimeTicks"), QVariant::fromValue(movie.runtimeTicks)},
         {QStringLiteral("progress"), playbackProgress(movie)},
         {QStringLiteral("seriesName"), movie.seriesName},
+        {QStringLiteral("seriesPosterUrl"), movie.seriesPosterUrl},
         {QStringLiteral("displayTitle"), displayTitle(movie)},
         {QStringLiteral("displaySubtitle"), displaySubtitle(movie)},
         {QStringLiteral("playActionLabel"), movie.resumeTicks > 0 ? QStringLiteral("Resume") : QStringLiteral("Play")},
         {QStringLiteral("playable"), movie.playable},
+        {QStringLiteral("favorite"), movie.favorite},
+        {QStringLiteral("played"), movie.played},
         {QStringLiteral("backdropUrl"), movie.backdropUrl},
         {QStringLiteral("logoUrl"), movie.logoUrl},
         {QStringLiteral("bannerUrl"), movie.bannerUrl},
@@ -194,6 +226,7 @@ QVariantMap MovieGridModel::get(int index) const
         {QStringLiteral("criticRating"), movie.criticRating},
         {QStringLiteral("premiereDate"), movie.premiereDate},
         {QStringLiteral("endDate"), movie.endDate},
+        {QStringLiteral("people"), peopleVariantList(movie.people)},
     };
 }
 
@@ -232,6 +265,46 @@ bool MovieGridModel::updateResumeTicks(const QString &itemId, qint64 resumeTicks
         movie.resumeTicks = resumeTicks;
         const QModelIndex changed = index(row, 0);
         emit dataChanged(changed, changed, {ResumeTicksRole, ProgressRole, PlayActionLabelRole});
+        updated = true;
+    }
+    return updated;
+}
+
+bool MovieGridModel::updateFavorite(const QString &itemId, bool favorite)
+{
+    if (itemId.isEmpty())
+        return false;
+
+    bool updated = false;
+    for (int row = 0; row < rowCount(); ++row) {
+        auto &movie = m_movies[static_cast<size_t>(row)];
+        if (movie.id != itemId || movie.favorite == favorite)
+            continue;
+
+        movie.favorite = favorite;
+        const QModelIndex changed = index(row, 0);
+        emit dataChanged(changed, changed, {FavoriteRole});
+        updated = true;
+    }
+    return updated;
+}
+
+bool MovieGridModel::updatePlayed(const QString &itemId, bool played)
+{
+    if (itemId.isEmpty())
+        return false;
+
+    bool updated = false;
+    for (int row = 0; row < rowCount(); ++row) {
+        auto &movie = m_movies[static_cast<size_t>(row)];
+        if (movie.id != itemId || movie.played == played)
+            continue;
+
+        movie.played = played;
+        if (played)
+            movie.resumeTicks = 0;
+        const QModelIndex changed = index(row, 0);
+        emit dataChanged(changed, changed, {PlayedRole, ResumeTicksRole, ProgressRole, PlayActionLabelRole});
         updated = true;
     }
     return updated;

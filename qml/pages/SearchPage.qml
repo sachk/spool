@@ -69,7 +69,24 @@ FocusScope {
         shell.openDetails(appController.searchResults, results.currentIndex, "search", "search")
     }
 
+    function currentResultRow() {
+        return results.currentItem
+    }
+
+    function handlePressedKey(key) {
+        if (!results.activeFocus)
+            return false
+        const row = currentResultRow()
+        return row && row.handleAcceptPressed ? row.handleAcceptPressed(key) : false
+    }
+
     function handleNavigationKey(key) {
+        const acceptKey = key === Qt.Key_Return || key === Qt.Key_Enter || key === Qt.Key_Select || key === Qt.Key_Space
+        if (results.activeFocus && !acceptKey) {
+            const menuRow = currentResultRow()
+            if (menuRow && menuRow.handleNavigationKey && menuRow.handleNavigationKey(key))
+                return true
+        }
         if (key === Qt.Key_Left && !field.editing) { shell.focusRail(); return true }
         if (key === Qt.Key_Down && field.activeFocus) {
             if (resultCount > 0) {
@@ -82,7 +99,12 @@ FocusScope {
             field.focusRow()
             return true
         }
-        if ((key === Qt.Key_Return || key === Qt.Key_Enter || key === Qt.Key_Select) && results.activeFocus) {
+        if (acceptKey && results.activeFocus) {
+            const row = currentResultRow()
+            if (row && row.handleAcceptReleased && row.handleAcceptReleased(key))
+                return true
+            if (row && row.handleNavigationKey && row.handleNavigationKey(key))
+                return true
             activateCurrent()
             return true
         }
@@ -143,6 +165,7 @@ FocusScope {
             visible: root.resultCount > 0
 
             delegate: Surface {
+                id: resultDelegate
                 required property int index
                 required property string title
                 required property string displayTitle
@@ -152,10 +175,18 @@ FocusScope {
                 required property string posterUrl
                 required property string itemType
                 required property int year
+                required property string movieId
+                required property bool favorite
+                required property bool played
+                readonly property var itemData: appController.searchResults.get(index)
 
                 width: results.width
                 height: 118
                 focused: ListView.isCurrentItem && results.activeFocus
+
+                function handleAcceptPressed(key) { return actions.handleAcceptPressed(key) }
+                function handleAcceptReleased(key) { return actions.handleAcceptReleased(key) }
+                function handleNavigationKey(key) { return actions.handleNavigationKey(key) }
 
                 RowLayout {
                     anchors.fill: parent
@@ -206,12 +237,18 @@ FocusScope {
                     }
                 }
 
-                MouseArea {
+                MediaItemActions {
+                    id: actions
                     anchors.fill: parent
-                    onClicked: {
+                    item: resultDelegate.itemData
+                    focused: resultDelegate.focused
+                    onActivated: {
                         results.currentIndex = index
                         root.activateCurrent()
                     }
+                    onFavoriteToggled: (favorite) => appController.setFavorite(resultDelegate.movieId || "", favorite)
+                    onPlayedToggled: (played) => appController.setPlayed(resultDelegate.movieId || "", played)
+                    onMediaInfoRequested: shell.openMediaInfo(resultDelegate.itemData)
                 }
             }
 
@@ -222,7 +259,12 @@ FocusScope {
                 } else if (event.key === Qt.Key_Left) {
                     shell.focusRail()
                     event.accepted = true
-                } else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter || event.key === Qt.Key_Select) {
+                } else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter || event.key === Qt.Key_Select || event.key === Qt.Key_Space) {
+                    const row = root.currentResultRow()
+                    if (row && row.handleAcceptReleased && row.handleAcceptReleased(event.key)) {
+                        event.accepted = true
+                        return
+                    }
                     root.activateCurrent()
                     event.accepted = true
                 } else if (event.key === Qt.Key_M && currentIndex >= 0) {

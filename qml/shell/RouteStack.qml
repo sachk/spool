@@ -13,6 +13,12 @@ FocusScope {
         return false
     }
 
+    function handlePressedKey(key) {
+        if (loader.item && loader.item.handlePressedKey)
+            return loader.item.handlePressedKey(key)
+        return false
+    }
+
     Loader {
         id: loader
         anchors.fill: parent
@@ -22,6 +28,7 @@ FocusScope {
                          : route === "libraries" ? librariesComponent
                          : route === "libraryGrid" ? gridComponent
                          : route === "itemDetails" ? detailsComponent
+                         : route === "personDetails" ? personComponent
                          : route === "search" ? searchComponent
                          : route === "settings" ? settingsComponent
                          : route === "playerOverlay" ? playerComponent
@@ -34,6 +41,7 @@ FocusScope {
     Component { id: librariesComponent; LibrariesPage { shell: root.shell } }
     Component { id: gridComponent; LibraryGridPage { shell: root.shell } }
     Component { id: detailsComponent; ItemDetailsPage { shell: root.shell } }
+    Component { id: personComponent; PersonDetailsPage { shell: root.shell } }
     Component { id: searchComponent; SearchPage { shell: root.shell } }
     Component { id: settingsComponent; SettingsPage { shell: root.shell } }
     Component { id: playerComponent; PlayerOverlayPage { shell: root.shell } }

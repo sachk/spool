@@ -62,6 +62,9 @@ public:
     QCoro::Task<std::vector<MovieItem>> fetchLatestItems(QString parentId = {}, int limit = 24);
     QCoro::Task<std::vector<MovieItem>> searchItems(QString searchTerm, int limit = 80);
     QCoro::Task<std::vector<MovieItem>> fetchSimilarItems(QString itemId, int limit = 24);
+    QCoro::Task<std::vector<MovieItem>> fetchItemsByPerson(QString personId, int limit = 80);
+    QCoro::Task<void> setItemFavorite(QString itemId, bool favorite);
+    QCoro::Task<void> setItemPlayed(QString itemId, bool played);
     QCoro::Task<std::vector<MediaSegment>> fetchMediaSegments(QString itemId);
     QCoro::Task<TrickplayInfo> fetchTrickplay(QString itemId, QString mediaSourceId, int preferredWidth = 320);
     QString trickplayTileUrl(const QString &itemId, int width, int tileIndex) const;
@@ -88,6 +91,7 @@ private:
     enum class HttpMethod {
         Get,
         Post,
+        Delete,
     };
 
     QNetworkRequest createRequest(const QString &path, const QUrlQuery &query = {}) const;

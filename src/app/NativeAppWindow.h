@@ -21,6 +21,7 @@ class NativeAppWindow final : public QQuickView
 {
     Q_OBJECT
     Q_PROPERTY(int overlayRevision READ overlayRevision NOTIFY overlayRevisionChanged)
+    Q_PROPERTY(bool tvPlatform READ tvPlatform CONSTANT)
 
 public:
     explicit NativeAppWindow(const QString &appId, QWindow *parent = nullptr);
@@ -35,6 +36,14 @@ public:
     void bringToFront();
     QString windowId() const;
     int overlayRevision() const;
+    bool tvPlatform() const
+    {
+#ifdef JELLYFIN_NATIVE_WEBOS
+        return true;
+#else
+        return false;
+#endif
+    }
     void clearOverlay();
     QQuickImageProvider *createOverlayImageProvider();
     QImage copyOverlayImage() const;
@@ -54,7 +63,8 @@ private:
     void updateCropRegion();
     void setVideoCrop(int origW, int origH, int srcX, int srcY, int srcW, int srcH,
                       int dstX, int dstY, int dstW, int dstH);
-    void publishOverlayImage(QImage image);
+    void scheduleOverlayImage(QImage image);
+    void publishPendingOverlayImage();
 
     static void registryGlobal(void *data, wl_registry *registry, uint32_t name,
                                const char *interface, uint32_t version);
@@ -70,6 +80,8 @@ private:
     QString m_appId;
     mutable QMutex m_overlayMutex;
     QImage m_overlayImage;
+    QImage m_pendingOverlayImage;
+    bool m_overlayPublishQueued = false;
     int m_overlayRevision = 0;
 #ifdef JELLYFIN_NATIVE_WEBOS
     wl_display *m_display = nullptr;

@@ -26,8 +26,13 @@ FocusScope {
     readonly property string titleArt: item.logoUrl || item.bannerUrl || ""
     readonly property bool showSeasonsRow: typeText === "Series" && seasonCount > 0
     readonly property bool showSimilarRow: similarCount > 0
+    readonly property var people: item.people || []
+    readonly property bool showPeopleRow: people.length > 0
     property int seasonCount: appController && appController.detailSeasons ? appController.detailSeasons.rowCount() : 0
     property int similarCount: appController && appController.detailSimilarItems ? appController.detailSimilarItems.rowCount() : 0
+    property bool favoriteState: false
+    property bool playedState: false
+    property bool overflowOpen: false
     property string loadedDetailKey: ""
     focus: true
 
@@ -97,6 +102,109 @@ FocusScope {
         }
     }
 
+    component IconAction: FocusScope {
+        id: iconRoot
+        property string iconName: "menu"
+        property string label: ""
+        property bool checked: false
+        property bool enabledButton: true
+        signal activated()
+
+        width: 50
+        height: 50
+        focus: true
+        opacity: enabledButton ? 1.0 : 0.45
+
+        Rectangle {
+            anchors.fill: parent
+            radius: Theme.radiusMedium
+            color: iconRoot.checked ? Theme.accentPanel : "#B51B1B1B"
+            border.width: iconRoot.activeFocus ? 2 : 1
+            border.color: iconRoot.activeFocus ? Theme.accent : iconRoot.checked ? Theme.accentDim : Theme.border
+            antialiasing: true
+        }
+
+        MaterialIcon {
+            anchors.centerIn: parent
+            name: iconRoot.iconName
+            iconSize: 24
+            iconColor: iconRoot.checked ? Theme.accent : Theme.textPrimary
+        }
+
+        MouseArea {
+            anchors.fill: parent
+            enabled: iconRoot.enabledButton
+            onClicked: iconRoot.activated()
+        }
+
+        Keys.onReleased: (event) => {
+            if (!iconRoot.enabledButton)
+                return
+            if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter || event.key === Qt.Key_Select || event.key === Qt.Key_Space) {
+                iconRoot.activated()
+                event.accepted = true
+            }
+        }
+    }
+
+    component MenuOption: FocusScope {
+        id: optionRoot
+        property string iconName: "info"
+        property string label: ""
+        signal activated()
+
+        width: parent ? parent.width : 280
+        height: 48
+        focus: true
+
+        Rectangle {
+            anchors.fill: parent
+            radius: Theme.radiusSmall
+            color: optionRoot.activeFocus ? "#2A3034" : "transparent"
+            border.width: optionRoot.activeFocus ? 1 : 0
+            border.color: Theme.accent
+        }
+
+        Row {
+            anchors.left: parent.left
+            anchors.right: parent.right
+            anchors.verticalCenter: parent.verticalCenter
+            anchors.leftMargin: 12
+            anchors.rightMargin: 12
+            spacing: 10
+
+            MaterialIcon {
+                anchors.verticalCenter: parent.verticalCenter
+                name: optionRoot.iconName
+                iconSize: 21
+                iconColor: Theme.textSecondary
+            }
+
+            AppText {
+                anchors.verticalCenter: parent.verticalCenter
+                width: parent.width - 48
+                text: optionRoot.label
+                color: Theme.textPrimary
+                font.pixelSize: Metrics.metaPx(root.width) + 1
+                font.weight: Font.Medium
+                elide: Text.ElideRight
+                maximumLineCount: 1
+            }
+        }
+
+        MouseArea {
+            anchors.fill: parent
+            onClicked: optionRoot.activated()
+        }
+
+        Keys.onReleased: (event) => {
+            if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter || event.key === Qt.Key_Select || event.key === Qt.Key_Space) {
+                optionRoot.activated()
+                event.accepted = true
+            }
+        }
+    }
+
     component InfoLine: RowLayout {
         id: infoRoot
         property string label: ""
@@ -132,10 +240,11 @@ FocusScope {
         property int cardWidth: root.rowPosterWidth
         property int currentIndex: 0
         readonly property int rowCount: rowModel && rowModel.rowCount ? rowModel.rowCount() : 0
+        readonly property int cardHeight: Math.round(cardWidth * 1.5 + 60)
         signal activated(int index)
 
         Layout.fillWidth: true
-        Layout.preferredHeight: visible && rowCount > 0 ? listView.height + rowHeader.implicitHeight + 16 : 0
+        Layout.preferredHeight: visible && rowCount > 0 ? rowHeader.implicitHeight + cardHeight + 18 : 0
         visible: rowCount > 0
         focus: true
 
@@ -150,9 +259,22 @@ FocusScope {
                 listView.positionViewAtIndex(listView.currentIndex, ListView.Contain)
         }
 
+        function currentCard() {
+            return listView.currentItem
+        }
+
+        function handlePressedKey(key) {
+            const card = currentCard()
+            return card && card.handleAcceptPressed ? card.handleAcceptPressed(key) : false
+        }
+
         function handleNavigationKey(key) {
             if (rowCount <= 0)
                 return false
+            const acceptKey = key === Qt.Key_Return || key === Qt.Key_Enter || key === Qt.Key_Select || key === Qt.Key_Space
+            const card = currentCard()
+            if (!acceptKey && card && card.handleNavigationKey && card.handleNavigationKey(key))
+                return true
             if (key === Qt.Key_Left) {
                 if (listView.currentIndex <= 0) shell.focusRail()
                 else listView.currentIndex = listView.currentIndex - 1
@@ -166,8 +288,12 @@ FocusScope {
                 ensureVisible()
                 return true
             }
-            if (key === Qt.Key_Return || key === Qt.Key_Enter || key === Qt.Key_Select || key === Qt.Key_Space) {
+            if (acceptKey) {
                 currentIndex = listView.currentIndex
+                if (card && card.handleAcceptReleased && card.handleAcceptReleased(key))
+                    return true
+                if (card && card.handleNavigationKey && card.handleNavigationKey(key))
+                    return true
                 activated(listView.currentIndex)
                 return true
             }
@@ -187,7 +313,7 @@ FocusScope {
             ListView {
                 id: listView
                 Layout.fillWidth: true
-                Layout.preferredHeight: rowRoot.cardWidth * 1.5 + 56
+                Layout.preferredHeight: rowRoot.cardHeight
                 focus: true
                 keyNavigationEnabled: false
                 clip: true
@@ -197,35 +323,32 @@ FocusScope {
                 model: rowRoot.rowModel
                 currentIndex: rowRoot.rowCount > 0 ? Math.max(0, Math.min(rowRoot.currentIndex, rowRoot.rowCount - 1)) : -1
 
-                delegate: Item {
+                delegate: MediaItemCard {
                     id: posterDelegate
                     required property int index
                     required property string title
                     required property string posterUrl
+                    required property string seriesPosterUrl
                     required property int year
                     required property string subtitle
                     required property string displayTitle
                     required property string displaySubtitle
+                    required property string movieId
+                    readonly property var itemData: rowRoot.rowModel.get(index)
                     width: rowRoot.cardWidth
                     height: listView.height
-
-                    PosterCard {
-                        anchors.fill: parent
-                        title: posterDelegate.displayTitle || posterDelegate.title
-                        posterUrl: posterDelegate.posterUrl
-                        year: posterDelegate.year
-                        metadata: posterDelegate.displaySubtitle || posterDelegate.subtitle
-                        focused: posterDelegate.index === listView.currentIndex && listView.activeFocus
+                    item: itemData
+                    kind: "poster"
+                    useSeriesPoster: true
+                    focused: posterDelegate.index === listView.currentIndex && listView.activeFocus
+                    onActivated: {
+                        listView.currentIndex = posterDelegate.index
+                        rowRoot.currentIndex = posterDelegate.index
+                        rowRoot.activated(posterDelegate.index)
                     }
-
-                    MouseArea {
-                        anchors.fill: parent
-                        onClicked: {
-                            listView.currentIndex = posterDelegate.index
-                            rowRoot.currentIndex = posterDelegate.index
-                            rowRoot.activated(posterDelegate.index)
-                        }
-                    }
+                    onFavoriteToggled: (favorite) => appController.setFavorite(posterDelegate.movieId || "", favorite)
+                    onPlayedToggled: (played) => appController.setPlayed(posterDelegate.movieId || "", played)
+                    onMediaInfoRequested: shell.openMediaInfo(posterDelegate.itemData)
                 }
 
                 Keys.onReleased: (event) => {
@@ -236,18 +359,169 @@ FocusScope {
         }
     }
 
+    component PeopleRow: FocusScope {
+        id: peopleRoot
+        property string title: "Cast & Crew"
+        property var peopleModel: []
+        property int currentIndex: 0
+        readonly property int rowCount: peopleModel ? peopleModel.length : 0
+        readonly property int cardWidth: Math.min(156, Math.max(124, root.width * 0.084))
+        readonly property int cardHeight: Math.round(cardWidth * 1.32 + 58)
+        signal activated(var person)
+
+        Layout.fillWidth: true
+        Layout.preferredHeight: visible && rowCount > 0 ? peopleHeader.implicitHeight + cardHeight + 18 : 0
+        visible: rowCount > 0
+        focus: true
+
+        function focusList() {
+            peopleList.forceActiveFocus()
+            peopleList.currentIndex = rowCount > 0 ? Math.max(0, Math.min(currentIndex, rowCount - 1)) : -1
+            ensureVisible()
+        }
+
+        function ensureVisible() {
+            if (peopleList.currentIndex >= 0)
+                peopleList.positionViewAtIndex(peopleList.currentIndex, ListView.Contain)
+        }
+
+        function handlePressedKey(key) {
+            return false
+        }
+
+        function handleNavigationKey(key) {
+            if (rowCount <= 0)
+                return false
+            if (key === Qt.Key_Left) {
+                if (peopleList.currentIndex <= 0) shell.focusRail()
+                else peopleList.currentIndex = peopleList.currentIndex - 1
+                currentIndex = peopleList.currentIndex
+                ensureVisible()
+                return true
+            }
+            if (key === Qt.Key_Right) {
+                peopleList.currentIndex = Math.min(rowCount - 1, peopleList.currentIndex + 1)
+                currentIndex = peopleList.currentIndex
+                ensureVisible()
+                return true
+            }
+            if (key === Qt.Key_Return || key === Qt.Key_Enter || key === Qt.Key_Select || key === Qt.Key_Space) {
+                currentIndex = peopleList.currentIndex
+                activated(peopleModel[peopleList.currentIndex] || ({}))
+                return true
+            }
+            return false
+        }
+
+        ColumnLayout {
+            anchors.fill: parent
+            spacing: 10
+
+            SectionHeader {
+                id: peopleHeader
+                Layout.fillWidth: true
+                title: peopleRoot.title
+            }
+
+            ListView {
+                id: peopleList
+                Layout.fillWidth: true
+                Layout.preferredHeight: peopleRoot.cardHeight
+                focus: true
+                keyNavigationEnabled: false
+                clip: true
+                orientation: ListView.Horizontal
+                boundsBehavior: Flickable.StopAtBounds
+                spacing: root.rowGap
+                model: peopleRoot.peopleModel
+                currentIndex: peopleRoot.rowCount > 0 ? Math.max(0, Math.min(peopleRoot.currentIndex, peopleRoot.rowCount - 1)) : -1
+
+                delegate: Item {
+                    id: personDelegate
+                    required property int index
+                    required property var modelData
+                    width: peopleRoot.cardWidth
+                    height: peopleList.height
+
+                    ImageCard {
+                        id: personImage
+                        anchors.top: parent.top
+                        anchors.left: parent.left
+                        anchors.right: parent.right
+                        height: width * 1.18
+                        imageUrl: modelData.imageUrl || ""
+                        fallbackText: modelData.type || "Person"
+                        focused: personDelegate.index === peopleList.currentIndex && peopleList.activeFocus
+                        retainWhileLoading: true
+                    }
+
+                    AppText {
+                        anchors.top: personImage.bottom
+                        anchors.topMargin: 8
+                        anchors.left: parent.left
+                        anchors.right: parent.right
+                        text: modelData.name || ""
+                        font.pixelSize: Metrics.metaPx(root.width) + 1
+                        font.weight: Font.Medium
+                        color: personDelegate.index === peopleList.currentIndex && peopleList.activeFocus ? Theme.textPrimary : Theme.textSecondary
+                        maximumLineCount: 1
+                        elide: Text.ElideRight
+                    }
+
+                    MonoText {
+                        anchors.left: parent.left
+                        anchors.right: parent.right
+                        anchors.bottom: parent.bottom
+                        text: modelData.role || modelData.type || ""
+                        color: Theme.textMuted
+                        font.pixelSize: Metrics.metaPx(root.width) - 1
+                        maximumLineCount: 1
+                        elide: Text.ElideRight
+                    }
+
+                    MouseArea {
+                        anchors.fill: parent
+                        onClicked: {
+                            peopleList.currentIndex = personDelegate.index
+                            peopleRoot.currentIndex = personDelegate.index
+                            peopleRoot.activated(personDelegate.modelData)
+                        }
+                    }
+                }
+
+                Keys.onReleased: (event) => {
+                    if (peopleRoot.handleNavigationKey(event.key))
+                        event.accepted = true
+                }
+            }
+        }
+    }
+
     Component.onCompleted: {
+        syncUserState()
         updateDetailCounts()
         Qt.callLater(refreshDetailRows)
         Qt.callLater(focusDefaultAction)
     }
 
     onActiveFocusChanged: if (activeFocus) focusDefaultAction()
-    onItemChanged: Qt.callLater(refreshDetailRows)
+    onItemChanged: {
+        overflowOpen = false
+        syncUserState()
+        Qt.callLater(refreshDetailRows)
+    }
 
     Connections {
         target: appController
         function onDetailRowsChanged() { root.updateDetailCounts() }
+        function onItemFavoriteChanged(itemId, favorite) {
+            if ((root.item.movieId || "") === itemId)
+                root.favoriteState = favorite
+        }
+        function onItemPlayedChanged(itemId, played) {
+            if ((root.item.movieId || "") === itemId)
+                root.playedState = played
+        }
     }
 
     Connections {
@@ -290,16 +564,66 @@ FocusScope {
             appController.loadDetailRows(itemId, typeText)
     }
 
+    function syncUserState() {
+        favoriteState = Boolean(item.favorite)
+        playedState = Boolean(item.played)
+    }
+
     function focusDefaultAction() {
         if (showPrimaryAction && primaryAction.enabledButton)
             primaryAction.forceActiveFocus()
         else
-            infoAction.forceActiveFocus()
+            playedAction.forceActiveFocus()
+    }
+
+    function orderedActions() {
+        const actions = []
+        if (showPrimaryAction)
+            actions.push(primaryAction)
+        actions.push(playedAction)
+        actions.push(favoriteAction)
+        actions.push(menuAction)
+        return actions
+    }
+
+    function focusedActionIndex() {
+        const actions = orderedActions()
+        for (let i = 0; i < actions.length; ++i) {
+            if (actions[i].activeFocus)
+                return i
+        }
+        return -1
+    }
+
+    function focusActionIndex(index) {
+        const actions = orderedActions()
+        if (actions.length === 0)
+            return false
+        actions[Math.max(0, Math.min(index, actions.length - 1))].forceActiveFocus()
+        return true
+    }
+
+    function focusNextAction(delta) {
+        const actions = orderedActions()
+        const current = focusedActionIndex()
+        if (current < 0)
+            return focusActionIndex(0)
+        const next = current + delta
+        if (next < 0)
+            return false
+        if (next >= actions.length)
+            return true
+        actions[next].forceActiveFocus()
+        return true
     }
 
     function focusFirstContentRow() {
         if (showSeasonsRow) {
             seasonsRow.focusList()
+            return true
+        }
+        if (showPeopleRow) {
+            peopleRow.focusList()
             return true
         }
         if (showSimilarRow) {
@@ -320,6 +644,10 @@ FocusScope {
             appController.playNextUpItem(selectedIndex)
         } else if (detailSource === "latest") {
             appController.playLatestItem(selectedIndex)
+        } else if (detailSource.indexOf("latestLibrary:") === 0) {
+            appController.playLatestLibraryItem(parseInt(detailSource.split(":")[1], 10), selectedIndex)
+        } else if (detailSource === "person") {
+            appController.playPersonItem(selectedIndex)
         } else if (detailSource === "similar") {
             appController.playDetailSimilarItem(selectedIndex)
         } else {
@@ -328,14 +656,51 @@ FocusScope {
     }
 
     function openMediaInfo() {
+        overflowOpen = false
         if (shell)
             shell.openMediaInfo(item)
+    }
+
+    function toggleFavorite() {
+        if (!item.movieId || !appController)
+            return
+        favoriteState = !favoriteState
+        appController.setFavorite(item.movieId, favoriteState)
+    }
+
+    function togglePlayed() {
+        if (!item.movieId || !appController)
+            return
+        playedState = !playedState
+        appController.setPlayed(item.movieId, playedState)
+    }
+
+    function toggleOverflow() {
+        overflowOpen = !overflowOpen
+        if (overflowOpen)
+            Qt.callLater(function() { mediaInfoOption.forceActiveFocus() })
+        else
+            menuAction.forceActiveFocus()
     }
 
     function openSimilarItem(index) {
         if (index < 0 || !appController)
             return
-        appController.playDetailSimilarItem(index)
+        shell.openDetails(appController.detailSimilarItems, index, "similar", shell.detailsReturnRoute || "libraryGrid")
+    }
+
+    function openPerson(person) {
+        if (!person || !person.personId || !shell)
+            return
+        shell.openPerson(person)
+    }
+
+    function handlePressedKey(key) {
+        if (seasonsRow.activeFocus)
+            return seasonsRow.handlePressedKey(key)
+        if (similarRow.activeFocus)
+            return similarRow.handlePressedKey(key)
+        return false
     }
 
     function primaryLabel() {
@@ -418,9 +783,41 @@ FocusScope {
     }
 
     function handleNavigationKey(key) {
+        if (mediaInfoOption.activeFocus) {
+            if (key === Qt.Key_Up || key === Qt.Key_Left || key === Qt.Key_Right) {
+                overflowOpen = false
+                menuAction.forceActiveFocus()
+                return true
+            }
+            if (key === Qt.Key_Down) {
+                if (focusFirstContentRow())
+                    overflowOpen = false
+                return true
+            }
+            if (key === Qt.Key_Return || key === Qt.Key_Enter || key === Qt.Key_Select) {
+                openMediaInfo()
+                return true
+            }
+        }
+
         if (seasonsRow.activeFocus) {
             if (key === Qt.Key_Up) {
                 focusDefaultAction()
+                return true
+            }
+            if (key === Qt.Key_Down) {
+                if (showPeopleRow) peopleRow.focusList()
+                else if (showSimilarRow)
+                    similarRow.focusList()
+                return true
+            }
+            return seasonsRow.handleNavigationKey(key)
+        }
+
+        if (peopleRow.activeFocus) {
+            if (key === Qt.Key_Up) {
+                if (showSeasonsRow) seasonsRow.focusList()
+                else focusDefaultAction()
                 return true
             }
             if (key === Qt.Key_Down) {
@@ -428,12 +825,13 @@ FocusScope {
                     similarRow.focusList()
                 return true
             }
-            return seasonsRow.handleNavigationKey(key)
+            return peopleRow.handleNavigationKey(key)
         }
 
         if (similarRow.activeFocus) {
             if (key === Qt.Key_Up) {
-                if (showSeasonsRow) seasonsRow.focusList()
+                if (showPeopleRow) peopleRow.focusList()
+                else if (showSeasonsRow) seasonsRow.focusList()
                 else focusDefaultAction()
                 return true
             }
@@ -443,15 +841,19 @@ FocusScope {
         }
 
         if (key === Qt.Key_Left) {
-            if (infoAction.activeFocus && showPrimaryAction) primaryAction.forceActiveFocus()
-            else shell.focusRail()
+            if (!focusNextAction(-1))
+                shell.focusRail()
             return true
         }
         if (key === Qt.Key_Right) {
-            if (primaryAction.activeFocus) infoAction.forceActiveFocus()
+            focusNextAction(1)
             return true
         }
         if (key === Qt.Key_Down) {
+            if (overflowOpen && menuAction.activeFocus) {
+                mediaInfoOption.forceActiveFocus()
+                return true
+            }
             focusFirstContentRow()
             return true
         }
@@ -460,7 +862,9 @@ FocusScope {
             return true
         }
         if (key === Qt.Key_Return || key === Qt.Key_Enter || key === Qt.Key_Select) {
-            if (infoAction.activeFocus) openMediaInfo()
+            if (playedAction.activeFocus) togglePlayed()
+            else if (favoriteAction.activeFocus) toggleFavorite()
+            else if (menuAction.activeFocus) toggleOverflow()
             else activatePrimary()
             return true
         }
@@ -558,10 +962,19 @@ FocusScope {
                         Layout.alignment: Qt.AlignTop
                         Layout.preferredHeight: Math.min(parent.height, infoColumn.implicitHeight + 44)
                         radius: Theme.radiusMedium
-                        color: "#CC151515"
+                        color: "#D4111111"
                         border.width: 1
-                        border.color: "#44FFFFFF"
+                        border.color: "#33FFFFFF"
                         antialiasing: true
+
+                        Rectangle {
+                            anchors.left: parent.left
+                            anchors.right: parent.right
+                            anchors.top: parent.top
+                            height: 2
+                            color: Theme.accent
+                            opacity: 0.85
+                        }
 
                         ColumnLayout {
                             id: infoColumn
@@ -627,6 +1040,7 @@ FocusScope {
                             }
 
                             Row {
+                                id: actionRow
                                 spacing: 10
                                 topPadding: 3
 
@@ -640,12 +1054,59 @@ FocusScope {
                                     onActivated: root.activatePrimary()
                                 }
 
-                                DetailAction {
-                                    id: infoAction
-                                    iconName: "info"
-                                    label: "Media info"
+                                IconAction {
+                                    id: playedAction
+                                    iconName: root.playedState ? "check_circle" : "radio_button_unchecked"
+                                    label: root.playedState ? "Mark unplayed" : "Mark played"
+                                    checked: root.playedState
                                     enabledButton: root.selectedIndex >= 0
-                                    onActivated: root.openMediaInfo()
+                                    onActivated: root.togglePlayed()
+                                }
+
+                                IconAction {
+                                    id: favoriteAction
+                                    iconName: root.favoriteState ? "favorite" : "favorite_border"
+                                    label: root.favoriteState ? "Remove favourite" : "Add favourite"
+                                    checked: root.favoriteState
+                                    enabledButton: root.selectedIndex >= 0
+                                    onActivated: root.toggleFavorite()
+                                }
+
+                                IconAction {
+                                    id: menuAction
+                                    iconName: "menu"
+                                    label: "More"
+                                    checked: root.overflowOpen
+                                    enabledButton: root.selectedIndex >= 0
+                                    onActivated: root.toggleOverflow()
+                                }
+                            }
+
+                            Rectangle {
+                                id: overflowMenu
+                                Layout.preferredWidth: 292
+                                Layout.preferredHeight: root.overflowOpen ? menuColumn.implicitHeight + 14 : 0
+                                Layout.alignment: Qt.AlignLeft
+                                visible: root.overflowOpen
+                                radius: Theme.radiusMedium
+                                color: "#F01A1A1A"
+                                border.width: 1
+                                border.color: Theme.borderStrong
+                                clip: true
+
+                                Column {
+                                    id: menuColumn
+                                    anchors.left: parent.left
+                                    anchors.right: parent.right
+                                    anchors.top: parent.top
+                                    anchors.margins: 7
+
+                                    MenuOption {
+                                        id: mediaInfoOption
+                                        iconName: "info"
+                                        label: "Media info"
+                                        onActivated: root.openMediaInfo()
+                                    }
                                 }
                             }
 
@@ -687,6 +1148,14 @@ FocusScope {
                     cardWidth: root.rowPosterWidth
                     visible: root.showSeasonsRow
                     onActivated: (index) => appController.openDetailSeason(index)
+                }
+
+                PeopleRow {
+                    id: peopleRow
+                    title: "Cast & Crew"
+                    peopleModel: root.people
+                    visible: root.showPeopleRow
+                    onActivated: (person) => root.openPerson(person)
                 }
 
                 DetailPosterRow {

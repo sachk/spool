@@ -172,7 +172,10 @@ FocusScope {
         return false
     }
 
-    Component.onCompleted: focusRow(0)
+    Component.onCompleted: Qt.callLater(function() {
+        root.rebuildSettingsRows()
+        root.focusRow(0)
+    })
     onActiveFocusChanged: if (activeFocus) focusRow(currentIndex)
 
     RowLayout {
@@ -231,7 +234,7 @@ FocusScope {
                 width: parent.width
                 spacing: 10
 
-                SectionHeader { Layout.fillWidth: true; title: "Settings" }
+                SectionHeader { Layout.fillWidth: true; title: "Preferences" }
                 SectionHeader { Layout.fillWidth: true; title: "General" }
 
                 SettingRow {
@@ -422,7 +425,7 @@ FocusScope {
                     Layout.fillWidth: true
                     settingIndex: 11
                     rowFocus: root.currentIndex === settingIndex || activeFocus
-                    title: "Night mode"
+                    title: "Night Mode"
                     description: "Dialogue lift and late-night dynamic range"
                     checked: appController.nightModeEnabled
                     onToggled: appController.setNightModeEnabled(checked)
@@ -432,7 +435,7 @@ FocusScope {
                     id: audioDelayRow
                     Layout.fillWidth: true
                     settingIndex: 12
-                    title: "A/V sync"
+                    title: "A/V Sync"
                     description: "Audio delay in milliseconds"
                     valueMs: appController.audioDelayMs
                     onValueEdited: (value) => appController.setAudioDelayMs(value)
@@ -443,7 +446,7 @@ FocusScope {
                     Layout.fillWidth: true
                     settingIndex: 13
                     rowFocus: root.currentIndex === settingIndex || activeFocus
-                    title: "Audio output"
+                    title: "Audio Output"
                     description: "Takes effect on the next playback start"
                     options: ["ALSA", "Starfish"]
                     currentIndex: (appController.audioOutputMode === "starfish"
@@ -457,7 +460,7 @@ FocusScope {
                     Layout.fillWidth: true
                     settingIndex: 16
                     rowFocus: root.currentIndex === settingIndex || activeFocus
-                    title: "Diagnostics overlay"
+                    title: "Diagnostics Overlay"
                     checked: shell.diagnosticsVisible
                     onToggled: shell.diagnosticsVisible = checked
                     onActiveFocusChanged: if (activeFocus) root.markFocused(settingIndex)
@@ -469,7 +472,7 @@ FocusScope {
                     Layout.fillWidth: true
                     settingIndex: 18
                     rowFocus: root.currentIndex === settingIndex || activeFocus
-                    title: "Red button"
+                    title: "Red Button"
                     description: "TV remote color button"
                     options: root.buttonActionOptions()
                     currentIndex: root.buttonActionIndex(appController ? appController.redButtonAction : "none")
@@ -481,7 +484,7 @@ FocusScope {
                     Layout.fillWidth: true
                     settingIndex: 19
                     rowFocus: root.currentIndex === settingIndex || activeFocus
-                    title: "Green button"
+                    title: "Green Button"
                     description: "Defaults to skip back 10 s + enable subs"
                     options: root.buttonActionOptions()
                     currentIndex: root.buttonActionIndex(appController ? appController.greenButtonAction : "none")
@@ -493,7 +496,7 @@ FocusScope {
                     Layout.fillWidth: true
                     settingIndex: 20
                     rowFocus: root.currentIndex === settingIndex || activeFocus
-                    title: "Yellow button"
+                    title: "Yellow Button"
                     options: root.buttonActionOptions()
                     currentIndex: root.buttonActionIndex(appController ? appController.yellowButtonAction : "none")
                     onSelected: (i, v) => appController.setYellowButtonAction(root.actionFromIndex(i))
@@ -504,7 +507,7 @@ FocusScope {
                     Layout.fillWidth: true
                     settingIndex: 21
                     rowFocus: root.currentIndex === settingIndex || activeFocus
-                    title: "Blue button"
+                    title: "Blue Button"
                     options: root.buttonActionOptions()
                     currentIndex: root.buttonActionIndex(appController ? appController.blueButtonAction : "none")
                     onSelected: (i, v) => appController.setBlueButtonAction(root.actionFromIndex(i))
@@ -517,7 +520,7 @@ FocusScope {
                     Layout.fillWidth: true
                     settingIndex: 22
                     rowFocus: root.currentIndex === settingIndex || activeFocus
-                    title: "Status"
+                    title: "SyncPlay Status"
                     description: appController && appController.syncPlay && appController.syncPlay.enabled
                                  ? "Synced with " + appController.syncPlay.currentGroupName
                                  : "Not in a group"
@@ -596,7 +599,7 @@ FocusScope {
                     Layout.fillWidth: true
                     settingIndex: 23
                     rowFocus: root.currentIndex === settingIndex || activeFocus
-                    title: "Create group"
+                    title: "Create Group"
                     description: "Start a new SyncPlay session"
                     valueText: "Create"
                     onClicked: if (appController && appController.syncPlay) appController.syncPlay.createGroup("Group")
@@ -627,7 +630,7 @@ FocusScope {
                     Layout.fillWidth: true
                     settingIndex: 25
                     rowFocus: root.currentIndex === settingIndex || activeFocus
-                    title: "Connected server"
+                    title: "Connected Server"
                     description: appController ? appController.serverUrl : ""
                     valueText: appController && appController.serverUrl.length > 0 ? "Connected" : "Offline"
                     pointerActivationEnabled: false
@@ -638,7 +641,7 @@ FocusScope {
                     Layout.fillWidth: true
                     settingIndex: 26
                     rowFocus: root.currentIndex === settingIndex || activeFocus
-                    title: "UI locale"
+                    title: "UI Locale"
                     description: i18n ? "Active translation tag" : ""
                     valueText: i18n ? i18n.currentLocale : "en-US"
                     pointerActivationEnabled: false
