@@ -15,9 +15,9 @@ FocusScope {
     readonly property string parentText: item.itemType === "Episode" && item.seriesName ? item.seriesName : ""
     readonly property string typeText: item.itemType || "Media"
     readonly property string subtitleText: item.displaySubtitle || item.subtitle || ""
-    readonly property bool canPlay: typeText === "Series" || typeText === "Season" || item.playable === undefined || item.playable
+    readonly property bool canPlay: item.playable === undefined || item.playable
+    readonly property bool showPrimaryAction: selectedIndex >= 0 && canPlay
     readonly property bool hasProgress: Number(item.resumeTicks || 0) > 0 && Number(item.runtimeTicks || 0) > 0
-    readonly property bool relatedVisible: itemCount > 1
     readonly property int contentMargin: Metrics.pageMargin(width)
     readonly property int posterWidth: Math.min(360, Math.max(220, width * 0.21))
     focus: true
@@ -90,10 +90,6 @@ FocusScope {
 
     Component.onCompleted: Qt.callLater(focusDefaultAction)
     onActiveFocusChanged: if (activeFocus) focusDefaultAction()
-    onSelectedIndexChanged: {
-        if (relatedList)
-            relatedList.currentIndex = selectedIndex
-    }
 
     Keys.onReleased: (event) => {
         if (event.key === Qt.Key_Back || event.key === Qt.Key_Escape || event.key === Qt.Key_Backspace) {
@@ -103,7 +99,7 @@ FocusScope {
     }
 
     function focusDefaultAction() {
-        if (primaryAction.enabledButton)
+        if (showPrimaryAction && primaryAction.enabledButton)
             primaryAction.forceActiveFocus()
         else
             infoAction.forceActiveFocus()
@@ -130,20 +126,11 @@ FocusScope {
             shell.openMediaInfo(item)
     }
 
-    function openRelated(index) {
-        if (!shell || index < 0 || index >= itemCount)
-            return
-        shell.openDetails(itemModel, index, detailSource, shell.detailsReturnRoute)
-    }
-
     function primaryLabel() {
-        if (typeText === "Series") return "Seasons"
-        if (typeText === "Season") return "Episodes"
         return item.playActionLabel || "Play"
     }
 
     function primaryIcon() {
-        if (typeText === "Series" || typeText === "Season") return "list"
         return "play_arrow"
     }
 
@@ -175,21 +162,19 @@ FocusScope {
         return parts
     }
 
+    function metadataLine() {
+        return metadataParts().join(" · ")
+    }
+
     function handleNavigationKey(key) {
         if (key === Qt.Key_Left) {
-            if (infoAction.activeFocus) primaryAction.forceActiveFocus()
+            if (infoAction.activeFocus && showPrimaryAction) primaryAction.forceActiveFocus()
             else shell.focusRail()
             return true
         }
         if (key === Qt.Key_Right) {
             if (primaryAction.activeFocus) infoAction.forceActiveFocus()
             return true
-        }
-        if (key === Qt.Key_Down) {
-            if (relatedVisible) {
-                relatedList.forceActiveFocus()
-                return true
-            }
         }
         if (key === Qt.Key_Up) {
             focusDefaultAction()
@@ -239,11 +224,11 @@ FocusScope {
         ColumnLayout {
             id: contentColumn
             width: parent.width
-            spacing: 24
+            spacing: 0
 
             Item {
                 Layout.fillWidth: true
-                Layout.preferredHeight: Math.max(430, Math.round(root.height * 0.52))
+                Layout.preferredHeight: Math.max(500, Math.round(root.height * 0.72))
 
                 RowLayout {
                     anchors.left: parent.left
@@ -252,7 +237,7 @@ FocusScope {
                     anchors.bottom: parent.bottom
                     anchors.leftMargin: root.contentMargin
                     anchors.rightMargin: root.contentMargin
-                    anchors.topMargin: Math.round(root.height * 0.07)
+                    anchors.topMargin: Math.round(root.height * 0.08)
                     spacing: Math.round(root.width * 0.045)
 
                     ImageCard {
@@ -291,16 +276,9 @@ FocusScope {
                             elide: Text.ElideRight
                         }
 
-                        Flow {
+                        TechMetadataLine {
                             Layout.fillWidth: true
-                            spacing: 8
-                            Repeater {
-                                model: root.metadataParts()
-                                delegate: MetadataChip {
-                                    required property string modelData
-                                    text: modelData
-                                }
-                            }
+                            metadata: root.metadataLine()
                         }
 
                         ColumnLayout {
@@ -340,7 +318,8 @@ FocusScope {
                                 iconName: root.primaryIcon()
                                 label: root.primaryLabel()
                                 primary: true
-                                enabledButton: root.selectedIndex >= 0 && root.canPlay
+                                visible: root.showPrimaryAction
+                                enabledButton: root.showPrimaryAction
                                 onActivated: root.activatePrimary()
                             }
 
@@ -352,143 +331,17 @@ FocusScope {
                                 onActivated: root.openMediaInfo()
                             }
                         }
-                    }
-                }
-            }
 
-            ColumnLayout {
-                Layout.fillWidth: true
-                Layout.leftMargin: root.contentMargin
-                Layout.rightMargin: root.contentMargin
-                spacing: 12
-                visible: (root.item.overview && root.item.overview.length > 0) ||
-                         (root.item.path && root.item.path.length > 0)
-
-                SectionHeader {
-                    Layout.fillWidth: true
-                    title: "Overview"
-                    visible: root.item.overview && root.item.overview.length > 0
-                }
-
-                AppText {
-                    Layout.fillWidth: true
-                    visible: root.item.overview && root.item.overview.length > 0
-                    text: root.item.overview || ""
-                    color: Theme.textSecondary
-                    wrapMode: Text.Wrap
-                    font.pixelSize: Metrics.bodyPx(root.width)
-                    lineHeight: 1.14
-                    maximumLineCount: 7
-                }
-
-                Surface {
-                    Layout.fillWidth: true
-                    Layout.preferredHeight: fileText.implicitHeight + 28
-                    baseColor: "#141414"
-                    border.color: Theme.border
-                    visible: root.item.path && root.item.path.length > 0
-
-                    ColumnLayout {
-                        anchors.fill: parent
-                        anchors.margins: 14
-                        spacing: 4
-
-                        MonoText {
-                            text: "File"
-                            color: Theme.textMuted
-                            font.pixelSize: Metrics.metaPx(root.width)
-                        }
-
-                        MonoText {
-                            id: fileText
+                        AppText {
                             Layout.fillWidth: true
-                            text: root.item.path || ""
+                            visible: root.item.overview && root.item.overview.length > 0
+                            text: root.item.overview || ""
                             color: Theme.textSecondary
-                            elide: Text.ElideMiddle
-                            maximumLineCount: 1
+                            wrapMode: Text.Wrap
+                            font.pixelSize: Metrics.bodyPx(root.width)
+                            lineHeight: 1.14
+                            maximumLineCount: 6
                         }
-                    }
-                }
-            }
-
-            SectionHeader {
-                Layout.fillWidth: true
-                Layout.leftMargin: root.contentMargin
-                Layout.rightMargin: root.contentMargin
-                visible: root.relatedVisible
-                title: root.detailSource === "search" ? "Search Results" : "More From This List"
-            }
-
-            ListView {
-                id: relatedList
-                Layout.fillWidth: true
-                Layout.preferredHeight: Math.round(250 * Math.max(0.86, Math.min(1.08, root.height / 1080)))
-                Layout.leftMargin: root.contentMargin
-                Layout.rightMargin: root.contentMargin
-                visible: root.relatedVisible
-                focus: true
-                orientation: ListView.Horizontal
-                spacing: Metrics.gap(root.width)
-                clip: true
-                keyNavigationEnabled: false
-                model: root.itemModel
-                currentIndex: root.selectedIndex
-
-                function activateCurrent() {
-                    if (currentIndex < 0)
-                        return
-                    root.openRelated(currentIndex)
-                }
-
-                delegate: Item {
-                    required property int index
-                    required property string title
-                    required property string displayTitle
-                    required property string displaySubtitle
-                    required property string subtitle
-                    required property string posterUrl
-                    required property double progress
-                    width: Metrics.homeLandscapeWidth(root.width)
-                    height: relatedList.height
-
-                    LandscapeCard {
-                        anchors.fill: parent
-                        title: parent.displayTitle || parent.title
-                        subtitle: parent.displaySubtitle || parent.subtitle
-                        imageUrl: parent.posterUrl
-                        progress: parent.progress || 0
-                        focused: parent.ListView.isCurrentItem && relatedList.activeFocus
-                    }
-
-                    MouseArea {
-                        anchors.fill: parent
-                        onClicked: {
-                            relatedList.currentIndex = index
-                            root.openRelated(index)
-                        }
-                    }
-                }
-
-                Keys.onReleased: (event) => {
-                    if (event.key === Qt.Key_Left) {
-                        if (currentIndex <= 0) shell.focusRail()
-                        else currentIndex = currentIndex - 1
-                        event.accepted = true
-                    } else if (event.key === Qt.Key_Right) {
-                        currentIndex = Math.min(count - 1, currentIndex + 1)
-                        event.accepted = true
-                    } else if (event.key === Qt.Key_Up) {
-                        root.focusDefaultAction()
-                        event.accepted = true
-                    } else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter || event.key === Qt.Key_Select) {
-                        activateCurrent()
-                        event.accepted = true
-                    } else if (event.key === Qt.Key_Space) {
-                        activateCurrent()
-                        event.accepted = true
-                    } else if (event.key === Qt.Key_M && currentIndex >= 0) {
-                        shell.openMediaInfo(root.itemModel.get(currentIndex))
-                        event.accepted = true
                     }
                 }
             }

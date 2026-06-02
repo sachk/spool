@@ -66,6 +66,11 @@ FocusScope {
         if (results.currentIndex < 0 || resultCount <= 0)
             return
         shell.lastSearchIndex = results.currentIndex
+        const item = appController.searchResults.get(results.currentIndex)
+        if (item.itemType === "Series") {
+            appController.playSearchResult(results.currentIndex)
+            return
+        }
         shell.openDetails(appController.searchResults, results.currentIndex, "search", "search")
     }
 

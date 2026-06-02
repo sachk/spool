@@ -15,6 +15,11 @@ FocusScope {
         if (grid.currentIndex < 0)
             return
         shell.lastGridIndex = grid.currentIndex
+        const item = appController.movies.get(grid.currentIndex)
+        if (item.itemType === "Series" || item.itemType === "Season") {
+            appController.playMovie(grid.currentIndex)
+            return
+        }
         shell.openDetails(appController.movies, grid.currentIndex, "movies", "libraryGrid")
     }
 
