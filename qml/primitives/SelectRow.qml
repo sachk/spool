@@ -6,8 +6,9 @@ SettingRow {
     property var options: []
     property int currentIndex: 0
     property bool handledNavigationPress: false
+    readonly property string selectedText: options.length > 0 ? String(options[Math.max(0, Math.min(options.length - 1, currentIndex))]) : ""
     signal selected(int index, string value)
-    valueText: options.length > 0 ? String(options[Math.max(0, Math.min(options.length - 1, currentIndex))]) : ""
+    valueText: selectedText
     valueTextVisible: false
 
     function move(dir) {
@@ -23,29 +24,44 @@ SettingRow {
         anchors.right: parent.right
         anchors.rightMargin: 14
         anchors.verticalCenter: parent.verticalCenter
-        spacing: 6
+        spacing: 8
 
-        Repeater {
-            model: root.options.length
-            delegate: Rectangle {
-                required property int index
-                readonly property bool selected: index === root.currentIndex
-                width: Math.max(label.implicitWidth + 22, 44)
-                height: 30
-                radius: 15
-                color: selected ? Theme.accentPanel : "#24151C24"
-                border.width: selected ? 2 : 1
-                border.color: selected ? Theme.accent : Theme.border
+        MaterialIcon {
+            anchors.verticalCenter: parent.verticalCenter
+            name: "chevron_left"
+            iconSize: 20
+            iconColor: root.enabled && root.options.length > 1 ? Theme.textSecondary : Theme.textDisabled
+        }
 
-                AppText {
-                    id: label
-                    anchors.centerIn: parent
-                    text: String(root.options[index])
-                    color: selected ? Theme.textPrimary : Theme.textSecondary
-                    font.pixelSize: Metrics.metaPx(root.Window.window ? root.Window.window.width : 1920)
-                    font.weight: selected ? Font.DemiBold : Font.Medium
-                }
+        Rectangle {
+            width: Math.min(Math.max(valueLabel.implicitWidth + 28, 112), Math.max(112, root.width * 0.42))
+            height: 32
+            radius: Theme.radiusMedium
+            color: root.activeFocus ? Theme.accentPanel : Theme.bgRaised
+            border.width: root.activeFocus ? 2 : 1
+            border.color: root.activeFocus ? Theme.accent : Theme.border
+            antialiasing: true
+
+            AppText {
+                id: valueLabel
+                anchors.fill: parent
+                anchors.leftMargin: 14
+                anchors.rightMargin: 14
+                text: root.selectedText
+                color: Theme.textPrimary
+                font.pixelSize: Metrics.metaPx(root.Window.window ? root.Window.window.width : 1920)
+                font.weight: Font.Medium
+                horizontalAlignment: Text.AlignHCenter
+                verticalAlignment: Text.AlignVCenter
+                elide: Text.ElideRight
             }
+        }
+
+        MaterialIcon {
+            anchors.verticalCenter: parent.verticalCenter
+            name: "chevron_right"
+            iconSize: 20
+            iconColor: root.enabled && root.options.length > 1 ? Theme.textSecondary : Theme.textDisabled
         }
     }
 
