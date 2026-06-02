@@ -46,6 +46,9 @@ class AppController final : public QObject
     Q_PROPERTY(JellyfinNative::MovieGridModel *resumeItems READ resumeItems CONSTANT)
     Q_PROPERTY(JellyfinNative::MovieGridModel *nextUpItems READ nextUpItems CONSTANT)
     Q_PROPERTY(JellyfinNative::MovieGridModel *latestItems READ latestItems CONSTANT)
+    Q_PROPERTY(JellyfinNative::MovieGridModel *searchResults READ searchResults CONSTANT)
+    Q_PROPERTY(bool searchBusy READ searchBusy NOTIFY searchChanged)
+    Q_PROPERTY(QString searchQuery READ searchQuery NOTIFY searchChanged)
     Q_PROPERTY(JellyfinNative::PlayerController *player READ player CONSTANT)
     Q_PROPERTY(JellyfinNative::SyncPlayController *syncPlay READ syncPlay CONSTANT)
 
@@ -84,6 +87,9 @@ public:
     MovieGridModel *resumeItems();
     MovieGridModel *nextUpItems();
     MovieGridModel *latestItems();
+    MovieGridModel *searchResults();
+    bool searchBusy() const;
+    QString searchQuery() const;
     PlayerController *player();
     SyncPlayController *syncPlay();
 
@@ -103,6 +109,9 @@ public:
     Q_INVOKABLE void playResumeItem(int index);
     Q_INVOKABLE void playNextUpItem(int index);
     Q_INVOKABLE void playLatestItem(int index);
+    Q_INVOKABLE void search(const QString &query);
+    Q_INVOKABLE void clearSearch();
+    Q_INVOKABLE void playSearchResult(int index);
     Q_INVOKABLE void back();
     Q_INVOKABLE void clearError();
     Q_INVOKABLE void openSettings();
@@ -131,6 +140,7 @@ signals:
     void audioDelayMsChanged();
     void audioOutputModeChanged();
     void buttonRemapChanged();
+    void searchChanged();
 
 private:
     void setPage(const QString &page);
@@ -168,6 +178,7 @@ private:
     MovieGridModel m_resumeItems;
     MovieGridModel m_nextUpItems;
     MovieGridModel m_latestItems;
+    MovieGridModel m_searchResults;
     QTimer m_quickConnectTimer;
     QTimer m_libraryPrefetchTimer;
     QString m_page = QStringLiteral("login");
@@ -197,6 +208,9 @@ private:
     QString m_greenButtonAction = QStringLiteral("skipBackAndEnableSubs");
     QString m_yellowButtonAction = QStringLiteral("none");
     QString m_blueButtonAction = QStringLiteral("none");
+    QString m_searchQuery;
+    bool m_searchBusy = false;
+    int m_searchGeneration = 0;
     int m_libraryLoadGeneration = 0;
     int m_homeLoadGeneration = 0;
     int m_homeLoadsPending = 0;

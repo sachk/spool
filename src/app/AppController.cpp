@@ -192,6 +192,21 @@ MovieGridModel *AppController::latestItems()
     return &m_latestItems;
 }
 
+MovieGridModel *AppController::searchResults()
+{
+    return &m_searchResults;
+}
+
+bool AppController::searchBusy() const
+{
+    return m_searchBusy;
+}
+
+QString AppController::searchQuery() const
+{
+    return m_searchQuery;
+}
+
 SyncPlayController *AppController::syncPlay() { return m_syncPlay; }
 
 PlayerController *AppController::player()
@@ -320,6 +335,10 @@ void AppController::logout()
     m_resumeItems.clear();
     m_nextUpItems.clear();
     m_latestItems.clear();
+    ++m_searchGeneration;
+    m_searchResults.clear();
+    m_searchQuery.clear();
+    m_searchBusy = false;
     m_currentLibraryId.clear();
     m_currentLibraryName.clear();
     m_currentContentLabel = QStringLiteral("Movies");
@@ -332,6 +351,7 @@ void AppController::logout()
     emit passwordChanged();
     emit quickConnectChanged();
     emit currentLibraryNameChanged();
+    emit searchChanged();
     setPage(QStringLiteral("login"));
     applyDiscoveredServersCache();
     m_discovery->start();
@@ -512,6 +532,67 @@ void AppController::playNextUpItem(int index)
 void AppController::playLatestItem(int index)
 {
     const auto item = m_latestItems.movieAt(index);
+    if (item.id.isEmpty())
+        return;
+    if (item.itemType == QStringLiteral("Series")) {
+        openSeries(item);
+        return;
+    }
+    if (item.itemType == QStringLiteral("Season")) {
+        openSeason(item);
+        return;
+    }
+    playMediaItem(item);
+}
+
+void AppController::search(const QString &query)
+{
+    const QString trimmed = query.trimmed();
+    const int generation = ++m_searchGeneration;
+    m_searchQuery = trimmed;
+
+    if (trimmed.size() < 2 || !m_api || m_api->session().accessToken.isEmpty()) {
+        m_searchBusy = false;
+        m_searchResults.clear();
+        emit searchChanged();
+        return;
+    }
+
+    m_searchBusy = true;
+    emit searchChanged();
+
+    QCoro::runDetached(
+        m_api->searchItems(trimmed),
+        [this, generation](const std::vector<MovieItem> &items) {
+            if (generation != m_searchGeneration)
+                return;
+            m_searchResults.setMovies(items);
+            prefetchMoviePosters(items);
+            m_searchBusy = false;
+            emit searchChanged();
+        },
+        [this, generation](const std::exception_ptr &error) {
+            if (generation != m_searchGeneration)
+                return;
+            m_searchResults.clear();
+            m_searchBusy = false;
+            emit searchChanged();
+            setErrorText(exceptionMessage(error));
+        });
+}
+
+void AppController::clearSearch()
+{
+    ++m_searchGeneration;
+    m_searchQuery.clear();
+    m_searchBusy = false;
+    m_searchResults.clear();
+    emit searchChanged();
+}
+
+void AppController::playSearchResult(int index)
+{
+    const auto item = m_searchResults.movieAt(index);
     if (item.id.isEmpty())
         return;
     if (item.itemType == QStringLiteral("Series")) {
@@ -1121,6 +1202,7 @@ void AppController::applyPlaybackPosition(const QString &itemId, qint64 position
     m_resumeItems.updateResumeTicks(itemId, positionTicks);
     m_nextUpItems.updateResumeTicks(itemId, positionTicks);
     m_latestItems.updateResumeTicks(itemId, positionTicks);
+    m_searchResults.updateResumeTicks(itemId, positionTicks);
 }
 
 void AppController::handleHomeRowLoaded(int generation)

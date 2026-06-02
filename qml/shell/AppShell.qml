@@ -16,6 +16,10 @@ FocusScope {
     property int lastGridIndex: 0
     property real lastGridY: 0
     property int lastSearchIndex: 0
+    property var detailsModel: appController ? appController.movies : null
+    property int detailsIndex: 0
+    property string detailsSource: "movies"
+    property string detailsReturnRoute: "libraryGrid"
     property bool shortcutOverlayVisible: false
     property bool diagnosticsVisible: false
     property bool mediaInfoVisible: false
@@ -69,6 +73,23 @@ FocusScope {
         routeStack.forceActiveFocus()
     }
 
+    function openDetails(model, index, source, returnRoute) {
+        detailsModel = model || (appController ? appController.movies : null)
+        detailsIndex = Math.max(0, index)
+        detailsSource = source || "movies"
+        detailsReturnRoute = returnRoute || route || "libraryGrid"
+        if (detailsSource === "movies")
+            lastGridIndex = detailsIndex
+        else if (detailsSource === "search")
+            lastSearchIndex = detailsIndex
+
+        if (route === "itemDetails") {
+            routeStack.forceActiveFocus()
+            return
+        }
+        pushRoute("itemDetails")
+    }
+
     function replaceRoute(nextRoute) {
         previousRoute = route
         route = nextRoute
@@ -101,7 +122,7 @@ FocusScope {
         }
         if (route === "playerOverlay") { replaceRoute(previousRoute.length > 0 ? previousRoute : "home"); return true }
         if (route === "settings") { appController.closeSettings(); replaceRoute(previousRoute.length > 0 ? previousRoute : "home"); return true }
-        if (route === "itemDetails") { replaceRoute("libraryGrid"); return true }
+        if (route === "itemDetails") { replaceRoute(detailsReturnRoute.length > 0 ? detailsReturnRoute : "libraryGrid"); return true }
         if (route === "search") { replaceRoute(previousRoute.length > 0 ? previousRoute : "home"); return true }
         if (route === "libraryGrid") { goHome(); return true }
         appController.back()
@@ -118,6 +139,20 @@ FocusScope {
     }
 
     function currentMediaItem() {
+        if (route === "itemDetails" && detailsModel && detailsModel.rowCount) {
+            const detailsCount = detailsModel.rowCount()
+            if (detailsCount > 0) {
+                const detailsIdx = Math.max(0, Math.min(detailsIndex, detailsCount - 1))
+                return detailsModel.get(detailsIdx) || ({})
+            }
+        }
+        if (route === "search" && appController && appController.searchResults) {
+            const searchCount = appController.searchResults.rowCount()
+            if (searchCount > 0) {
+                const searchIdx = Math.max(0, Math.min(lastSearchIndex, searchCount - 1))
+                return appController.searchResults.get(searchIdx) || ({})
+            }
+        }
         const count = appController.movies.rowCount()
         if (count <= 0)
             return ({})
