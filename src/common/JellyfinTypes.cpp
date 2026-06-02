@@ -6,6 +6,30 @@
 
 namespace JellyfinNative {
 
+namespace {
+
+QJsonArray stringListToJsonArray(const QStringList &items)
+{
+    QJsonArray array;
+    for (const QString &item : items)
+        array.push_back(item);
+    return array;
+}
+
+QStringList stringListFromJsonArray(const QJsonArray &array)
+{
+    QStringList items;
+    items.reserve(array.size());
+    for (const QJsonValue &value : array) {
+        const QString item = value.toString();
+        if (!item.isEmpty())
+            items.push_back(item);
+    }
+    return items;
+}
+
+}
+
 QJsonObject toJson(const DiscoveredServer &server)
 {
     return {
@@ -45,6 +69,18 @@ QJsonObject toJson(const MovieItem &movie)
         {QStringLiteral("resumeTicks"), QString::number(movie.resumeTicks)},
         {QStringLiteral("runtimeTicks"), QString::number(movie.runtimeTicks)},
         {QStringLiteral("playable"), movie.playable},
+        {QStringLiteral("backdropUrl"), movie.backdropUrl},
+        {QStringLiteral("logoUrl"), movie.logoUrl},
+        {QStringLiteral("bannerUrl"), movie.bannerUrl},
+        {QStringLiteral("thumbUrl"), movie.thumbUrl},
+        {QStringLiteral("genres"), stringListToJsonArray(movie.genres)},
+        {QStringLiteral("tags"), stringListToJsonArray(movie.tags)},
+        {QStringLiteral("studios"), stringListToJsonArray(movie.studios)},
+        {QStringLiteral("officialRating"), movie.officialRating},
+        {QStringLiteral("communityRating"), movie.communityRating},
+        {QStringLiteral("criticRating"), movie.criticRating},
+        {QStringLiteral("premiereDate"), movie.premiereDate},
+        {QStringLiteral("endDate"), movie.endDate},
     };
 }
 
@@ -87,6 +123,18 @@ MovieItem movieFromJson(const QJsonObject &object)
         object.value(QStringLiteral("resumeTicks")).toVariant().toLongLong(),
         object.value(QStringLiteral("runtimeTicks")).toVariant().toLongLong(),
         object.value(QStringLiteral("playable")).toBool(true),
+        object.value(QStringLiteral("backdropUrl")).toString(),
+        object.value(QStringLiteral("logoUrl")).toString(),
+        object.value(QStringLiteral("bannerUrl")).toString(),
+        object.value(QStringLiteral("thumbUrl")).toString(),
+        stringListFromJsonArray(object.value(QStringLiteral("genres")).toArray()),
+        stringListFromJsonArray(object.value(QStringLiteral("tags")).toArray()),
+        stringListFromJsonArray(object.value(QStringLiteral("studios")).toArray()),
+        object.value(QStringLiteral("officialRating")).toString(),
+        object.value(QStringLiteral("communityRating")).toDouble(),
+        object.value(QStringLiteral("criticRating")).toDouble(),
+        object.value(QStringLiteral("premiereDate")).toString(),
+        object.value(QStringLiteral("endDate")).toString(),
     };
 }
 

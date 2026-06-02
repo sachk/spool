@@ -47,6 +47,9 @@ class AppController final : public QObject
     Q_PROPERTY(JellyfinNative::MovieGridModel *nextUpItems READ nextUpItems CONSTANT)
     Q_PROPERTY(JellyfinNative::MovieGridModel *latestItems READ latestItems CONSTANT)
     Q_PROPERTY(JellyfinNative::MovieGridModel *searchResults READ searchResults CONSTANT)
+    Q_PROPERTY(JellyfinNative::MovieGridModel *detailSeasons READ detailSeasons CONSTANT)
+    Q_PROPERTY(JellyfinNative::MovieGridModel *detailSimilarItems READ detailSimilarItems CONSTANT)
+    Q_PROPERTY(bool detailRowsBusy READ detailRowsBusy NOTIFY detailRowsChanged)
     Q_PROPERTY(bool searchBusy READ searchBusy NOTIFY searchChanged)
     Q_PROPERTY(QString searchQuery READ searchQuery NOTIFY searchChanged)
     Q_PROPERTY(JellyfinNative::PlayerController *player READ player CONSTANT)
@@ -88,6 +91,9 @@ public:
     MovieGridModel *nextUpItems();
     MovieGridModel *latestItems();
     MovieGridModel *searchResults();
+    MovieGridModel *detailSeasons();
+    MovieGridModel *detailSimilarItems();
+    bool detailRowsBusy() const;
     bool searchBusy() const;
     QString searchQuery() const;
     PlayerController *player();
@@ -112,6 +118,9 @@ public:
     Q_INVOKABLE void search(const QString &query);
     Q_INVOKABLE void clearSearch();
     Q_INVOKABLE void playSearchResult(int index);
+    Q_INVOKABLE void loadDetailRows(const QString &itemId, const QString &itemType);
+    Q_INVOKABLE void openDetailSeason(int index);
+    Q_INVOKABLE void playDetailSimilarItem(int index);
     Q_INVOKABLE void back();
     Q_INVOKABLE void clearError();
     Q_INVOKABLE void openSettings();
@@ -141,6 +150,7 @@ signals:
     void audioOutputModeChanged();
     void buttonRemapChanged();
     void searchChanged();
+    void detailRowsChanged();
 
 private:
     void setPage(const QString &page);
@@ -162,6 +172,7 @@ private:
     void startNextLibraryPrefetch();
     void pollQuickConnect();
     void prefetchMoviePosters(const std::vector<MovieItem> &movies);
+    void finishDetailRowLoad(int generation);
     void setCurrentItems(const std::vector<MovieItem> &items, const QString &cacheKey = {});
     void openSeries(const MovieItem &series);
     void openSeason(const MovieItem &season);
@@ -179,6 +190,8 @@ private:
     MovieGridModel m_nextUpItems;
     MovieGridModel m_latestItems;
     MovieGridModel m_searchResults;
+    MovieGridModel m_detailSeasons;
+    MovieGridModel m_detailSimilarItems;
     QTimer m_quickConnectTimer;
     QTimer m_libraryPrefetchTimer;
     QString m_page = QStringLiteral("login");
@@ -211,6 +224,9 @@ private:
     QString m_searchQuery;
     bool m_searchBusy = false;
     int m_searchGeneration = 0;
+    bool m_detailRowsBusy = false;
+    int m_detailRowsGeneration = 0;
+    int m_detailRowsPending = 0;
     int m_libraryLoadGeneration = 0;
     int m_homeLoadGeneration = 0;
     int m_homeLoadsPending = 0;

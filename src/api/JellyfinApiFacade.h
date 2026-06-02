@@ -41,7 +41,8 @@ public:
     AuthSession session() const;
 
     QString buildImageUrl(const QString &itemId, const QString &tag = {}, int maxWidth = 280,
-                          int quality = 75, const QString &format = QStringLiteral("webp")) const;
+                          int quality = 75, const QString &format = QStringLiteral("webp"),
+                          const QString &imageType = QStringLiteral("Primary")) const;
     void prefetchImages(const QStringList &urls, int maxConcurrent = 6);
     void cancelPrefetches();
 
@@ -60,6 +61,7 @@ public:
     QCoro::Task<std::vector<MovieItem>> fetchNextUpEpisodes(int limit = 24);
     QCoro::Task<std::vector<MovieItem>> fetchLatestItems(QString parentId = {}, int limit = 24);
     QCoro::Task<std::vector<MovieItem>> searchItems(QString searchTerm, int limit = 80);
+    QCoro::Task<std::vector<MovieItem>> fetchSimilarItems(QString itemId, int limit = 24);
     QCoro::Task<std::vector<MediaSegment>> fetchMediaSegments(QString itemId);
     QCoro::Task<TrickplayInfo> fetchTrickplay(QString itemId, QString mediaSourceId, int preferredWidth = 320);
     QString trickplayTileUrl(const QString &itemId, int width, int tileIndex) const;

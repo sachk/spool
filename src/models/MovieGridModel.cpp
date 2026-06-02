@@ -90,6 +90,30 @@ QVariant MovieGridModel::data(const QModelIndex &index, int role) const
         return movie.resumeTicks > 0 ? QStringLiteral("Resume") : QStringLiteral("Play");
     case PlayableRole:
         return movie.playable;
+    case BackdropUrlRole:
+        return movie.backdropUrl;
+    case LogoUrlRole:
+        return movie.logoUrl;
+    case BannerUrlRole:
+        return movie.bannerUrl;
+    case ThumbUrlRole:
+        return movie.thumbUrl;
+    case GenresRole:
+        return movie.genres;
+    case TagsRole:
+        return movie.tags;
+    case StudiosRole:
+        return movie.studios;
+    case OfficialRatingRole:
+        return movie.officialRating;
+    case CommunityRatingRole:
+        return movie.communityRating;
+    case CriticRatingRole:
+        return movie.criticRating;
+    case PremiereDateRole:
+        return movie.premiereDate;
+    case EndDateRole:
+        return movie.endDate;
     default:
         return {};
     }
@@ -117,6 +141,18 @@ QHash<int, QByteArray> MovieGridModel::roleNames() const
         {DisplaySubtitleRole, "displaySubtitle"},
         {PlayActionLabelRole, "playActionLabel"},
         {PlayableRole, "playable"},
+        {BackdropUrlRole, "backdropUrl"},
+        {LogoUrlRole, "logoUrl"},
+        {BannerUrlRole, "bannerUrl"},
+        {ThumbUrlRole, "thumbUrl"},
+        {GenresRole, "genres"},
+        {TagsRole, "tags"},
+        {StudiosRole, "studios"},
+        {OfficialRatingRole, "officialRating"},
+        {CommunityRatingRole, "communityRating"},
+        {CriticRatingRole, "criticRating"},
+        {PremiereDateRole, "premiereDate"},
+        {EndDateRole, "endDate"},
     };
 }
 
@@ -146,6 +182,18 @@ QVariantMap MovieGridModel::get(int index) const
         {QStringLiteral("displaySubtitle"), displaySubtitle(movie)},
         {QStringLiteral("playActionLabel"), movie.resumeTicks > 0 ? QStringLiteral("Resume") : QStringLiteral("Play")},
         {QStringLiteral("playable"), movie.playable},
+        {QStringLiteral("backdropUrl"), movie.backdropUrl},
+        {QStringLiteral("logoUrl"), movie.logoUrl},
+        {QStringLiteral("bannerUrl"), movie.bannerUrl},
+        {QStringLiteral("thumbUrl"), movie.thumbUrl},
+        {QStringLiteral("genres"), movie.genres},
+        {QStringLiteral("tags"), movie.tags},
+        {QStringLiteral("studios"), movie.studios},
+        {QStringLiteral("officialRating"), movie.officialRating},
+        {QStringLiteral("communityRating"), movie.communityRating},
+        {QStringLiteral("criticRating"), movie.criticRating},
+        {QStringLiteral("premiereDate"), movie.premiereDate},
+        {QStringLiteral("endDate"), movie.endDate},
     };
 }
 
