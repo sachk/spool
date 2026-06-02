@@ -33,6 +33,18 @@ public:
         DisplaySubtitleRole,
         PlayActionLabelRole,
         PlayableRole,
+        BackdropUrlRole,
+        LogoUrlRole,
+        BannerUrlRole,
+        ThumbUrlRole,
+        GenresRole,
+        TagsRole,
+        StudiosRole,
+        OfficialRatingRole,
+        CommunityRatingRole,
+        CriticRatingRole,
+        PremiereDateRole,
+        EndDateRole,
     };
 
     explicit MovieGridModel(QObject *parent = nullptr);

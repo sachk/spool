@@ -117,8 +117,7 @@ FocusScope {
             return
         }
         if (source === "latestItems") {
-            // Latest items are playable directly (Movie/Episode) or browsable (Series).
-            appController.playLatestItem(index)
+            shell.openDetails(root.latestModel, index, "latest", "home")
             return
         }
     }
@@ -233,7 +232,7 @@ FocusScope {
                             return true
                         }
                         if ((key === Qt.Key_Return || key === Qt.Key_Enter || key === Qt.Key_Select) && root.spotlightIndex >= 0) {
-                            appController.playLatestItem(root.spotlightIndex)
+                            shell.openDetails(root.latestModel, root.spotlightIndex, "latest", "home")
                             return true
                         }
                         return false
@@ -247,7 +246,7 @@ FocusScope {
                             TechMetadataLine { Layout.fillWidth: true; visible: Boolean(root.spotlight.subtitle); metadata: root.spotlight.subtitle || "" }
                             AppText { Layout.fillWidth: true; visible: Boolean(root.spotlight.overview); text: root.spotlight.overview || ""; color: Theme.textSecondary; wrapMode: Text.Wrap; maximumLineCount: 3 }
                             Row { spacing: 10; visible: root.spotlightIndex >= 0
-                                ActionButton { id: spotlightPlay; text: root.spotlight.playActionLabel || "Play"; kind: "primary"; onClicked: if (root.spotlightIndex >= 0) appController.playLatestItem(root.spotlightIndex) }
+                                ActionButton { id: spotlightPlay; text: "Details"; kind: "primary"; onClicked: if (root.spotlightIndex >= 0) shell.openDetails(root.latestModel, root.spotlightIndex, "latest", "home") }
                                 ActionButton { text: "Media info"; onClicked: shell.openMediaInfo(root.spotlight) }
                             }
                         }
@@ -257,7 +256,7 @@ FocusScope {
                             shell.focusRail()
                             event.accepted = true
                         } else if ((event.key === Qt.Key_Return || event.key === Qt.Key_Enter || event.key === Qt.Key_Select || event.key === Qt.Key_Space) && root.spotlightIndex >= 0) {
-                            appController.playLatestItem(root.spotlightIndex)
+                            shell.openDetails(root.latestModel, root.spotlightIndex, "latest", "home")
                             event.accepted = true
                         }
                     }

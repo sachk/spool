@@ -3,6 +3,7 @@
 #include <QJsonArray>
 #include <QJsonObject>
 #include <QString>
+#include <QStringList>
 
 #include <exception>
 #include <vector>
@@ -40,6 +41,18 @@ struct MovieItem {
     qint64 resumeTicks = 0;
     qint64 runtimeTicks = 0;
     bool playable = true;
+    QString backdropUrl;
+    QString logoUrl;
+    QString bannerUrl;
+    QString thumbUrl;
+    QStringList genres;
+    QStringList tags;
+    QStringList studios;
+    QString officialRating;
+    double communityRating = 0.0;
+    double criticRating = 0.0;
+    QString premiereDate;
+    QString endDate;
 };
 
 struct AuthSession {
