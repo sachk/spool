@@ -236,6 +236,21 @@
           qt6.qtwayland
         ]);
 
+      nativeQtPackages = pkgs:
+        (with pkgs; [
+          qt6.qtbase
+          qt6.qtdeclarative
+          qt6.qtimageformats
+          qt6.qtwebsockets
+        ])
+        ++ pkgs.lib.optionals pkgs.stdenv.isLinux (with pkgs; [
+          qt6.qtwayland
+        ]);
+
+      nativeRuntimePackages = pkgs:
+        nativeQtPackages pkgs
+        ++ pkgs.lib.optionals pkgs.stdenv.isLinux (sourceLinuxPackages pkgs);
+
       commonShellHook = pkgs: ''
         export SSL_CERT_FILE=${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt
         export CURL_CA_BUNDLE="$SSL_CERT_FILE"
@@ -296,6 +311,13 @@
 
       apps = forAllSystems (pkgs:
         let
+          qtPluginPath =
+            pkgs.lib.makeSearchPath pkgs.qt6.qtbase.qtPluginPrefix
+              (nativeQtPackages pkgs);
+          qmlImportPath =
+            pkgs.lib.makeSearchPath pkgs.qt6.qtbase.qtQmlPrefix
+              (nativeQtPackages pkgs);
+          nativeRuntimeLibPath = pkgs.lib.makeLibraryPath (nativeRuntimePackages pkgs);
           runner = pkgs.writeShellScriptBin "jellyfin-native-run" ''
             export PATH="${pkgs.lib.makeBinPath [ pkgs.nix pkgs.bashInteractive pkgs.coreutils pkgs.gnugrep pkgs.gnused ]}:$PATH"
             set -euo pipefail
@@ -319,10 +341,10 @@
               nix develop "$REPO_ROOT#native" -c bash -c "$scrub; exec bash tools/build-linux-release.sh"
             fi
 
-            MPV_LIB="$REPO_ROOT/build/linux-release/mpv-prefix/lib"
-            export LD_LIBRARY_PATH="$MPV_LIB''${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+            export MPV_LIB="$REPO_ROOT/build/linux-release/mpv-prefix/lib"
+            runtime_env='export LD_LIBRARY_PATH="$MPV_LIB:${nativeRuntimeLibPath}''${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"; export QT_PLUGIN_PATH="${qtPluginPath}"; export QML2_IMPORT_PATH="${qmlImportPath}"; export QML_IMPORT_PATH="$QML2_IMPORT_PATH"'
             export LC_NUMERIC=C
-            exec nix develop "$REPO_ROOT#native" -c bash -c "$scrub"'; exec "$@"' _ "$BIN" "$@"
+            exec nix develop "$REPO_ROOT#native" -c bash -c "$scrub; $runtime_env"'; exec "$@"' _ "$BIN" "$@"
           '';
         in {
           default = {
