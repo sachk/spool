@@ -28,6 +28,26 @@ QStringList stringListFromJsonArray(const QJsonArray &array)
     return items;
 }
 
+QJsonArray peopleToJsonArray(const std::vector<PersonItem> &people)
+{
+    QJsonArray array;
+    for (const PersonItem &person : people)
+        array.push_back(toJson(person));
+    return array;
+}
+
+std::vector<PersonItem> peopleFromJsonArray(const QJsonArray &array)
+{
+    std::vector<PersonItem> people;
+    people.reserve(array.size());
+    for (const QJsonValue &value : array) {
+        PersonItem person = personFromJson(value.toObject());
+        if (!person.id.isEmpty() || !person.name.isEmpty())
+            people.push_back(person);
+    }
+    return people;
+}
+
 }
 
 QJsonObject toJson(const DiscoveredServer &server)
@@ -50,6 +70,18 @@ QJsonObject toJson(const LibraryItem &library)
     };
 }
 
+QJsonObject toJson(const PersonItem &person)
+{
+    return {
+        {QStringLiteral("id"), person.id},
+        {QStringLiteral("name"), person.name},
+        {QStringLiteral("type"), person.type},
+        {QStringLiteral("role"), person.role},
+        {QStringLiteral("imageUrl"), person.imageUrl},
+        {QStringLiteral("imageTag"), person.imageTag},
+    };
+}
+
 QJsonObject toJson(const MovieItem &movie)
 {
     return {
@@ -61,6 +93,7 @@ QJsonObject toJson(const MovieItem &movie)
         {QStringLiteral("itemType"), movie.itemType},
         {QStringLiteral("seriesId"), movie.seriesId},
         {QStringLiteral("seriesName"), movie.seriesName},
+        {QStringLiteral("seriesPosterUrl"), movie.seriesPosterUrl},
         {QStringLiteral("subtitle"), movie.subtitle},
         {QStringLiteral("path"), movie.path},
         {QStringLiteral("year"), movie.year},
@@ -69,6 +102,8 @@ QJsonObject toJson(const MovieItem &movie)
         {QStringLiteral("resumeTicks"), QString::number(movie.resumeTicks)},
         {QStringLiteral("runtimeTicks"), QString::number(movie.runtimeTicks)},
         {QStringLiteral("playable"), movie.playable},
+        {QStringLiteral("favorite"), movie.favorite},
+        {QStringLiteral("played"), movie.played},
         {QStringLiteral("backdropUrl"), movie.backdropUrl},
         {QStringLiteral("logoUrl"), movie.logoUrl},
         {QStringLiteral("bannerUrl"), movie.bannerUrl},
@@ -81,6 +116,7 @@ QJsonObject toJson(const MovieItem &movie)
         {QStringLiteral("criticRating"), movie.criticRating},
         {QStringLiteral("premiereDate"), movie.premiereDate},
         {QStringLiteral("endDate"), movie.endDate},
+        {QStringLiteral("people"), peopleToJsonArray(movie.people)},
     };
 }
 
@@ -104,6 +140,18 @@ LibraryItem libraryFromJson(const QJsonObject &object)
     };
 }
 
+PersonItem personFromJson(const QJsonObject &object)
+{
+    return {
+        object.value(QStringLiteral("id")).toString(),
+        object.value(QStringLiteral("name")).toString(),
+        object.value(QStringLiteral("type")).toString(),
+        object.value(QStringLiteral("role")).toString(),
+        object.value(QStringLiteral("imageUrl")).toString(),
+        object.value(QStringLiteral("imageTag")).toString(),
+    };
+}
+
 MovieItem movieFromJson(const QJsonObject &object)
 {
     return {
@@ -115,6 +163,7 @@ MovieItem movieFromJson(const QJsonObject &object)
         object.value(QStringLiteral("itemType")).toString(QStringLiteral("Movie")),
         object.value(QStringLiteral("seriesId")).toString(),
         object.value(QStringLiteral("seriesName")).toString(),
+        object.value(QStringLiteral("seriesPosterUrl")).toString(),
         object.value(QStringLiteral("subtitle")).toString(),
         object.value(QStringLiteral("path")).toString(),
         object.value(QStringLiteral("year")).toInt(),
@@ -123,6 +172,8 @@ MovieItem movieFromJson(const QJsonObject &object)
         object.value(QStringLiteral("resumeTicks")).toVariant().toLongLong(),
         object.value(QStringLiteral("runtimeTicks")).toVariant().toLongLong(),
         object.value(QStringLiteral("playable")).toBool(true),
+        object.value(QStringLiteral("favorite")).toBool(false),
+        object.value(QStringLiteral("played")).toBool(false),
         object.value(QStringLiteral("backdropUrl")).toString(),
         object.value(QStringLiteral("logoUrl")).toString(),
         object.value(QStringLiteral("bannerUrl")).toString(),
@@ -135,6 +186,7 @@ MovieItem movieFromJson(const QJsonObject &object)
         object.value(QStringLiteral("criticRating")).toDouble(),
         object.value(QStringLiteral("premiereDate")).toString(),
         object.value(QStringLiteral("endDate")).toString(),
+        peopleFromJsonArray(object.value(QStringLiteral("people")).toArray()),
     };
 }
 

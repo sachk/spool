@@ -12,6 +12,9 @@
 #include <QObject>
 #include <QSet>
 #include <QTimer>
+#include <QVariantList>
+
+#include <memory>
 
 namespace JellyfinNative {
 
@@ -46,10 +49,13 @@ class AppController final : public QObject
     Q_PROPERTY(JellyfinNative::MovieGridModel *resumeItems READ resumeItems CONSTANT)
     Q_PROPERTY(JellyfinNative::MovieGridModel *nextUpItems READ nextUpItems CONSTANT)
     Q_PROPERTY(JellyfinNative::MovieGridModel *latestItems READ latestItems CONSTANT)
+    Q_PROPERTY(QVariantList latestLibraryRows READ latestLibraryRows NOTIFY latestLibraryRowsChanged)
     Q_PROPERTY(JellyfinNative::MovieGridModel *searchResults READ searchResults CONSTANT)
     Q_PROPERTY(JellyfinNative::MovieGridModel *detailSeasons READ detailSeasons CONSTANT)
     Q_PROPERTY(JellyfinNative::MovieGridModel *detailSimilarItems READ detailSimilarItems CONSTANT)
     Q_PROPERTY(bool detailRowsBusy READ detailRowsBusy NOTIFY detailRowsChanged)
+    Q_PROPERTY(JellyfinNative::MovieGridModel *personItems READ personItems CONSTANT)
+    Q_PROPERTY(bool personItemsBusy READ personItemsBusy NOTIFY personItemsChanged)
     Q_PROPERTY(bool searchBusy READ searchBusy NOTIFY searchChanged)
     Q_PROPERTY(QString searchQuery READ searchQuery NOTIFY searchChanged)
     Q_PROPERTY(JellyfinNative::PlayerController *player READ player CONSTANT)
@@ -90,10 +96,13 @@ public:
     MovieGridModel *resumeItems();
     MovieGridModel *nextUpItems();
     MovieGridModel *latestItems();
+    QVariantList latestLibraryRows() const;
     MovieGridModel *searchResults();
     MovieGridModel *detailSeasons();
     MovieGridModel *detailSimilarItems();
+    MovieGridModel *personItems();
     bool detailRowsBusy() const;
+    bool personItemsBusy() const;
     bool searchBusy() const;
     QString searchQuery() const;
     PlayerController *player();
@@ -115,12 +124,18 @@ public:
     Q_INVOKABLE void playResumeItem(int index);
     Q_INVOKABLE void playNextUpItem(int index);
     Q_INVOKABLE void playLatestItem(int index);
+    Q_INVOKABLE QObject *latestLibraryItems(int rowIndex);
+    Q_INVOKABLE void playLatestLibraryItem(int rowIndex, int itemIndex);
     Q_INVOKABLE void search(const QString &query);
     Q_INVOKABLE void clearSearch();
     Q_INVOKABLE void playSearchResult(int index);
     Q_INVOKABLE void loadDetailRows(const QString &itemId, const QString &itemType);
     Q_INVOKABLE void openDetailSeason(int index);
     Q_INVOKABLE void playDetailSimilarItem(int index);
+    Q_INVOKABLE void loadPersonItems(const QString &personId);
+    Q_INVOKABLE void playPersonItem(int index);
+    Q_INVOKABLE void setFavorite(const QString &itemId, bool favorite);
+    Q_INVOKABLE void setPlayed(const QString &itemId, bool played);
     Q_INVOKABLE void back();
     Q_INVOKABLE void clearError();
     Q_INVOKABLE void openSettings();
@@ -151,8 +166,18 @@ signals:
     void buttonRemapChanged();
     void searchChanged();
     void detailRowsChanged();
+    void latestLibraryRowsChanged();
+    void personItemsChanged();
+    void itemFavoriteChanged(const QString &itemId, bool favorite);
+    void itemPlayedChanged(const QString &itemId, bool played);
 
 private:
+    struct LatestLibrarySection {
+        int order = 0;
+        LibraryItem library;
+        std::unique_ptr<MovieGridModel> model;
+    };
+
     void setPage(const QString &page);
     void setBusy(bool busy, const QString &busyText = {});
     void setErrorText(const QString &errorText);
@@ -167,6 +192,10 @@ private:
                              const QString &seriesId,
                              const QString &seasonId);
     void applyPlaybackPosition(const QString &itemId, qint64 positionTicks);
+    void applyFavoriteState(const QString &itemId, bool favorite);
+    void applyPlayedState(const QString &itemId, bool played);
+    void clearLatestLibraryRows();
+    void addLatestLibraryRow(int generation, int order, const LibraryItem &library, const std::vector<MovieItem> &items);
     void handleHomeRowLoaded(int generation);
     void scheduleLibraryPrefetch(int generation);
     void startNextLibraryPrefetch();
@@ -192,6 +221,8 @@ private:
     MovieGridModel m_searchResults;
     MovieGridModel m_detailSeasons;
     MovieGridModel m_detailSimilarItems;
+    MovieGridModel m_personItems;
+    std::vector<LatestLibrarySection> m_latestLibrarySections;
     QTimer m_quickConnectTimer;
     QTimer m_libraryPrefetchTimer;
     QString m_page = QStringLiteral("login");
@@ -227,6 +258,8 @@ private:
     bool m_detailRowsBusy = false;
     int m_detailRowsGeneration = 0;
     int m_detailRowsPending = 0;
+    bool m_personItemsBusy = false;
+    int m_personItemsGeneration = 0;
     int m_libraryLoadGeneration = 0;
     int m_homeLoadGeneration = 0;
     int m_homeLoadsPending = 0;

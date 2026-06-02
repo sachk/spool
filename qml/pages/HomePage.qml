@@ -9,10 +9,12 @@ FocusScope {
     readonly property var resumeModel: appController ? appController.resumeItems : null
     readonly property var nextUpModel: appController ? appController.nextUpItems : null
     readonly property var latestModel: appController ? appController.latestItems : null
+    property var latestRows: appController ? appController.latestLibraryRows : []
     readonly property var libraryModel: appController ? appController.libraries : null
     property int resumeCount: resumeModel ? resumeModel.rowCount() : 0
     property int nextUpCount: nextUpModel ? nextUpModel.rowCount() : 0
     property int latestCount: latestModel ? latestModel.rowCount() : 0
+    property int latestLibraryRowCount: latestRows ? latestRows.length : 0
     property int libraryCount: libraryModel ? libraryModel.rowCount() : 0
     readonly property int spotlightIndex: latestCount > 0 ? 0 : -1
     property var spotlight: spotlightIndex >= 0 && latestModel ? latestModel.get(spotlightIndex) : ({})
@@ -30,6 +32,14 @@ FocusScope {
         }
         function onRowsRemoved() {
             root.latestCount = root.latestModel ? root.latestModel.rowCount() : 0
+            root.rebuildSections()
+        }
+    }
+    Connections {
+        target: appController
+        function onLatestLibraryRowsChanged() {
+            root.latestRows = appController ? appController.latestLibraryRows : []
+            root.latestLibraryRowCount = root.latestRows ? root.latestRows.length : 0
             root.rebuildSections()
         }
     }
@@ -54,8 +64,8 @@ FocusScope {
 
     ListModel { id: sectionModel }
 
-    function appendSection(title, kind, source) {
-        sectionModel.append({ title: title, kind: kind, source: source })
+    function appendSection(title, kind, source, rowIndex) {
+        sectionModel.append({ title: title, kind: kind, source: source, rowIndex: rowIndex === undefined ? -1 : rowIndex })
     }
 
     function rebuildSections() {
@@ -65,15 +75,30 @@ FocusScope {
         if (libraryCount > 0) appendSection("Libraries", "library", "libraries")
         if (resumeCount > 0) appendSection("Continue Watching", "landscape", "resumeItems")
         if (nextUpCount > 0) appendSection("Next Up", "landscape", "nextUpItems")
-        if (latestCount > 0) appendSection("Recently Added", "poster", "latestItems")
+        for (let i = 0; i < latestLibraryRowCount; ++i) {
+            const row = latestRows[i]
+            if (row && row.count > 0)
+                appendSection(row.title || ("Recently Added in " + (row.libraryName || "Library")),
+                              row.kind || "poster", "latestLibrary", Number(row.rowIndex || i))
+        }
     }
 
-    function countFor(source) {
+    function countFor(source, rowIndex) {
         if (source === "resumeItems") return resumeCount
         if (source === "nextUpItems") return nextUpCount
         if (source === "libraries") return libraryCount
         if (source === "latestItems") return latestCount
+        if (source === "latestLibrary") {
+            const model = appController ? appController.latestLibraryItems(rowIndex) : null
+            return model && model.rowCount ? model.rowCount() : 0
+        }
         return 0
+    }
+
+    function handlePressedKey(key) {
+        if (sections.currentItem && sections.currentItem.handlePressedKey)
+            return sections.currentItem.handlePressedKey(key)
+        return false
     }
 
     function handleNavigationKey(key) {
@@ -96,16 +121,17 @@ FocusScope {
     }
     onActiveFocusChanged: if (activeFocus) sections.forceActiveFocus()
 
-    function modelFor(source) {
+    function modelFor(source, rowIndex) {
         if (source === "resumeItems") return resumeModel
         if (source === "nextUpItems") return nextUpModel
         if (source === "libraries") return libraryModel
         if (source === "latestItems") return latestModel
+        if (source === "latestLibrary") return appController ? appController.latestLibraryItems(rowIndex) : null
         return null
     }
 
-    function activateAt(source, index) {
-        const m = modelFor(source)
+    function activateAt(source, index, rowIndex) {
+        const m = modelFor(source, rowIndex)
         if (!m || index < 0 || index >= m.rowCount())
             return
         if (source === "resumeItems") { appController.playResumeItem(index); return }
@@ -118,6 +144,10 @@ FocusScope {
         }
         if (source === "latestItems") {
             shell.openDetails(root.latestModel, index, "latest", "home")
+            return
+        }
+        if (source === "latestLibrary") {
+            shell.openDetails(m, index, "latestLibrary:" + rowIndex, "home")
             return
         }
     }
@@ -186,8 +216,9 @@ FocusScope {
             required property string title
             required property string kind
             required property string source
+            required property int rowIndex
             readonly property string rowSource: source
-            readonly property int sectionCount: kind === "spotlight" ? 1 : root.countFor(rowSource)
+            readonly property int sectionCount: kind === "spotlight" ? 1 : root.countFor(rowSource, rowIndex)
             readonly property bool sectionVisible: sectionCount > 0
             width: sections.width
             height: !sectionVisible ? 0
@@ -201,6 +232,12 @@ FocusScope {
             function handleNavigationKey(key) {
                 if (contentLoader.item && contentLoader.item.handleNavigationKey)
                     return contentLoader.item.handleNavigationKey(key)
+                return false
+            }
+
+            function handlePressedKey(key) {
+                if (contentLoader.item && contentLoader.item.handlePressedKey)
+                    return contentLoader.item.handlePressedKey(key)
                 return false
             }
 
@@ -268,7 +305,7 @@ FocusScope {
                 FocusScope {
                     id: rowScope
                     property int currentIndex: rowCount > 0 ? 0 : -1
-                    readonly property int rowCount: root.countFor(section.rowSource)
+                    readonly property int rowCount: root.countFor(section.rowSource, section.rowIndex)
                     readonly property int visibleCount: Math.min(rowCount, 24)
                     readonly property int cardWidth: section.kind === "poster" ? Metrics.homePosterWidth(root.width) : Metrics.homeLandscapeWidth(root.width)
                     readonly property int cardGap: Metrics.gap(root.width)
@@ -277,8 +314,19 @@ FocusScope {
                     onRowCountChanged: currentIndex = rowCount > 0 ? Math.max(0, Math.min(currentIndex, visibleCount - 1)) : -1
 
                     function itemAt(index) {
-                        const m = root.modelFor(section.rowSource)
+                        const m = root.modelFor(section.rowSource, section.rowIndex)
                         return m && index >= 0 && index < m.rowCount() ? m.get(index) : ({})
+                    }
+
+                    function currentCard() {
+                        if (currentIndex < 0 || currentIndex >= rowContent.children.length)
+                            return null
+                        return rowContent.children[currentIndex]
+                    }
+
+                    function handlePressedKey(key) {
+                        const card = currentCard()
+                        return card && card.handleAcceptPressed ? card.handleAcceptPressed(key) : false
                     }
 
                     function ensureVisible() {
@@ -294,6 +342,10 @@ FocusScope {
                     }
 
                     function handleNavigationKey(key) {
+                        const acceptKey = key === Qt.Key_Return || key === Qt.Key_Enter || key === Qt.Key_Select || key === Qt.Key_Space
+                        const card = currentCard()
+                        if (!acceptKey && card && card.handleNavigationKey && card.handleNavigationKey(key))
+                            return true
                         if (key === Qt.Key_Left) {
                             if (visibleCount <= 0 || currentIndex <= 0) shell.focusRail()
                             else currentIndex = currentIndex - 1
@@ -315,8 +367,12 @@ FocusScope {
                             root.focusSection(root.nextVisibleSection(sections.currentIndex, 1))
                             return true
                         }
-                        if (key === Qt.Key_Return || key === Qt.Key_Enter || key === Qt.Key_Select) {
+                        if (acceptKey) {
                             if (currentIndex < 0)
+                                return true
+                            if (card && card.handleAcceptReleased && card.handleAcceptReleased(key))
+                                return true
+                            if (card && card.handleNavigationKey && card.handleNavigationKey(key))
                                 return true
                             activateCard(currentIndex)
                             return true
@@ -328,7 +384,7 @@ FocusScope {
                         if (index < 0 || index >= visibleCount)
                             return
                         currentIndex = index
-                        root.activateAt(section.rowSource, index)
+                        root.activateAt(section.rowSource, index, section.rowIndex)
                     }
                     ColumnLayout { anchors.fill: parent; spacing: 10
                         SectionHeader { id: rowHeader; Layout.fillWidth: true; title: section.title }
@@ -348,48 +404,34 @@ FocusScope {
                                 spacing: rowScope.cardGap
                                 Repeater {
                                     model: rowScope.visibleCount
-                                    delegate: Item {
+                                    delegate: MediaItemCard {
                                 id: mediaDelegate
                                 required property int index
                                 readonly property var itemData: rowScope.itemAt(index)
+                                item: itemData
+                                kind: section.kind === "poster" ? "poster" : "landscape"
+                                useSeriesPoster: section.rowSource === "latestLibrary"
+                                focused: mediaDelegate.index === rowScope.currentIndex && section.ListView.isCurrentItem
                                 width: rowScope.cardWidth
                                 height: rowFlick.height
-                                PosterCard {
-                                    anchors.fill: parent
-                                    visible: section.kind === "poster"
-                                    title: mediaDelegate.itemData.title || ""
-                                    posterUrl: mediaDelegate.itemData.posterUrl || ""
-                                    year: mediaDelegate.itemData.year || 0
-                                    metadata: mediaDelegate.itemData.subtitle || ""
-                                    focused: mediaDelegate.index === rowScope.currentIndex && section.ListView.isCurrentItem
-                                }
-                                LandscapeCard {
-                                    anchors.fill: parent
-                                    visible: section.kind !== "poster"
-                                    title: mediaDelegate.itemData.displayTitle || mediaDelegate.itemData.title || ""
-                                    subtitle: mediaDelegate.itemData.displaySubtitle || mediaDelegate.itemData.subtitle || ""
-                                    imageUrl: mediaDelegate.itemData.posterUrl || ""
-                                    progress: mediaDelegate.itemData.progress || 0
-                                    focused: mediaDelegate.index === rowScope.currentIndex && section.ListView.isCurrentItem
-                                }
-                                MouseArea {
-                                    anchors.fill: parent
-                                    onClicked: {
-                                        rowScope.activateCard(mediaDelegate.index)
-                                    }
-                                }
+                                onActivated: rowScope.activateCard(mediaDelegate.index)
+                                onFavoriteToggled: (favorite) => appController.setFavorite(mediaDelegate.itemData.movieId || "", favorite)
+                                onPlayedToggled: (played) => appController.setPlayed(mediaDelegate.itemData.movieId || "", played)
+                                onMediaInfoRequested: shell.openMediaInfo(mediaDelegate.itemData)
                                     }
                                 }
                             }
                             Keys.onReleased: (event) => {
-                                if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter || event.key === Qt.Key_Select) {
-                                    rowScope.activateCard(rowScope.currentIndex)
-                                    event.accepted = true
-                                } else if (event.key === Qt.Key_Space) {
+                                if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter || event.key === Qt.Key_Select || event.key === Qt.Key_Space) {
+                                    const card = rowScope.currentCard()
+                                    if (card && card.handleAcceptReleased && card.handleAcceptReleased(event.key)) {
+                                        event.accepted = true
+                                        return
+                                    }
                                     rowScope.activateCard(rowScope.currentIndex)
                                     event.accepted = true
                                 } else if (event.key === Qt.Key_M) {
-                                    const m2 = root.modelFor(section.rowSource)
+                                    const m2 = root.modelFor(section.rowSource, section.rowIndex)
                                     if (m2 && rowScope.currentIndex >= 0 && rowScope.currentIndex < m2.rowCount())
                                         shell.openMediaInfo(m2.get(rowScope.currentIndex))
                                     event.accepted = true

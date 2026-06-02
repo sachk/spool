@@ -182,6 +182,7 @@ qt_add_qml_module(jellyfin-native
         qml/pages/LibrariesPage.qml
         qml/pages/LibraryGridPage.qml
         qml/pages/LoginPage.qml
+        qml/pages/PersonDetailsPage.qml
         qml/pages/PlayerAudioSyncPanel.qml
         qml/pages/PlayerOverlayMenu.qml
         qml/pages/PlayerOverlayPage.qml
@@ -197,6 +198,8 @@ qt_add_qml_module(jellyfin-native
         qml/primitives/IconButton.qml
         qml/primitives/ImageCard.qml
         qml/primitives/LandscapeCard.qml
+        qml/primitives/MediaItemActions.qml
+        qml/primitives/MediaItemCard.qml
         qml/primitives/MetadataChip.qml
         qml/primitives/MonoText.qml
         qml/primitives/MaterialIcon.qml

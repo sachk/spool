@@ -230,6 +230,7 @@
           qt6.qtimageformats
           qt6.qttools
           qt6.qtwebsockets
+          gammaray
           (qmlToolWrappers pkgs)
         ])
         ++ pkgs.lib.optionals pkgs.stdenv.isLinux (with pkgs; [

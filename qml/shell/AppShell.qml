@@ -24,6 +24,7 @@ FocusScope {
     property bool diagnosticsVisible: false
     property bool mediaInfoVisible: false
     property var mediaInfoItem: ({})
+    property var personItem: ({})
     property bool textInputActive: Qt.inputMethod.visible
     property bool backPressHandled: false
     property bool playerBackPressHandled: false
@@ -123,6 +124,7 @@ FocusScope {
         if (route === "playerOverlay") { replaceRoute(previousRoute.length > 0 ? previousRoute : "home"); return true }
         if (route === "settings") { appController.closeSettings(); replaceRoute(previousRoute.length > 0 ? previousRoute : "home"); return true }
         if (route === "itemDetails") { replaceRoute(detailsReturnRoute.length > 0 ? detailsReturnRoute : "libraryGrid"); return true }
+        if (route === "personDetails") { replaceRoute(previousRoute.length > 0 ? previousRoute : "itemDetails"); return true }
         if (route === "search") { replaceRoute(previousRoute.length > 0 ? previousRoute : "home"); return true }
         if (route === "libraryGrid") { goHome(); return true }
         appController.back()
@@ -136,6 +138,17 @@ FocusScope {
     function openMediaInfo(item) {
         mediaInfoItem = item || ({})
         mediaInfoVisible = true
+    }
+
+    function openPerson(person) {
+        personItem = person || ({})
+        if (appController && personItem.personId)
+            appController.loadPersonItems(personItem.personId)
+        if (route === "personDetails") {
+            routeStack.forceActiveFocus()
+            return
+        }
+        pushRoute("personDetails")
     }
 
     function currentMediaItem() {
@@ -266,6 +279,10 @@ FocusScope {
                 return
             }
             if (routeStack.handleNavigationKey(event.key))
+                event.accepted = true
+        }
+        if (isAcceptKey(event.key) && !sideRail.activeFocus) {
+            if (routeStack.handlePressedKey(event.key))
                 event.accepted = true
         }
     }

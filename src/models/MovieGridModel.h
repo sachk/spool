@@ -29,10 +29,13 @@ public:
         RuntimeTicksRole,
         ProgressRole,
         SeriesNameRole,
+        SeriesPosterUrlRole,
         DisplayTitleRole,
         DisplaySubtitleRole,
         PlayActionLabelRole,
         PlayableRole,
+        FavoriteRole,
+        PlayedRole,
         BackdropUrlRole,
         LogoUrlRole,
         BannerUrlRole,
@@ -45,6 +48,7 @@ public:
         CriticRatingRole,
         PremiereDateRole,
         EndDateRole,
+        PeopleRole,
     };
 
     explicit MovieGridModel(QObject *parent = nullptr);
@@ -58,6 +62,8 @@ public:
     void clear();
     MovieItem movieAt(int index) const;
     bool updateResumeTicks(const QString &itemId, qint64 resumeTicks);
+    bool updateFavorite(const QString &itemId, bool favorite);
+    bool updatePlayed(const QString &itemId, bool played);
 
 private:
     std::vector<MovieItem> m_movies;
