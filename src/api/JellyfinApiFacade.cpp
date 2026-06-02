@@ -531,6 +531,43 @@ QCoro::Task<std::vector<MovieItem>> JellyfinApiFacade::fetchLatestItems(QString 
     co_return result;
 }
 
+QCoro::Task<std::vector<MovieItem>> JellyfinApiFacade::searchItems(QString searchTerm, int limit)
+{
+    searchTerm = searchTerm.trimmed();
+    if (searchTerm.isEmpty())
+        co_return std::vector<MovieItem>{};
+
+    QUrlQuery query;
+    query.addQueryItem(QStringLiteral("userId"), m_session.userId);
+    query.addQueryItem(QStringLiteral("recursive"), QStringLiteral("true"));
+    query.addQueryItem(QStringLiteral("searchTerm"), searchTerm);
+    query.addQueryItem(QStringLiteral("includeItemTypes"), QStringLiteral("Movie,Series,Episode"));
+    query.addQueryItem(QStringLiteral("mediaTypes"), QStringLiteral("Video"));
+    query.addQueryItem(QStringLiteral("fields"), QStringLiteral("Overview,ProductionYear,ImageTags,UserData,Path,RunTimeTicks,SeriesInfo"));
+    query.addQueryItem(QStringLiteral("sortBy"), QStringLiteral("SortName"));
+    query.addQueryItem(QStringLiteral("sortOrder"), QStringLiteral("Ascending"));
+    query.addQueryItem(QStringLiteral("enableImageTypes"), QStringLiteral("Primary"));
+    query.addQueryItem(QStringLiteral("imageTypeLimit"), QStringLiteral("1"));
+    query.addQueryItem(QStringLiteral("limit"), QString::number(std::clamp(limit, 1, 200)));
+
+    const QJsonArray items =
+        (co_await requestJson(HttpMethod::Get, QStringLiteral("/Items"), query)).object().value(QStringLiteral("Items")).toArray();
+
+    std::vector<MovieItem> result;
+    result.reserve(items.size());
+    for (const auto &value : items) {
+        const auto object = value.toObject();
+        const QString itemType = object.value(QStringLiteral("Type")).toString();
+        if (itemType == QStringLiteral("Movie") ||
+            itemType == QStringLiteral("Series") ||
+            itemType == QStringLiteral("Episode")) {
+            result.push_back(mediaItemFromJson(this, object));
+        }
+    }
+
+    co_return result;
+}
+
 QCoro::Task<std::vector<MediaSegment>> JellyfinApiFacade::fetchMediaSegments(QString itemId)
 {
     Diagnostics::Task task(QStringLiteral("api_fetch_media_segments"), {{QStringLiteral("itemId"), itemId}});

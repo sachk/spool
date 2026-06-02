@@ -7,25 +7,83 @@ import "../primitives"
 FocusScope {
     id: root
     property var shell
-    property string query: ""
+    property string query: appController ? appController.searchQuery : ""
+    property int resultCount: appController && appController.searchResults ? appController.searchResults.rowCount() : 0
     focus: true
 
-    Component.onCompleted: field.focusRow()
+    Component.onCompleted: {
+        field.text = root.query
+        refreshResultCount()
+        field.focusRow()
+    }
+
+    Connections {
+        target: appController
+        function onSearchChanged() {
+            root.query = appController.searchQuery
+            root.refreshResultCount()
+        }
+    }
+
+    Connections {
+        target: appController ? appController.searchResults : null
+        function onModelReset() { root.refreshResultCount() }
+        function onRowsInserted() { root.refreshResultCount() }
+        function onRowsRemoved() { root.refreshResultCount() }
+    }
+
+    Timer {
+        id: searchTimer
+        interval: 260
+        repeat: false
+        onTriggered: appController.search(root.query)
+    }
+
+    function refreshResultCount() {
+        resultCount = appController && appController.searchResults ? appController.searchResults.rowCount() : 0
+        if (results)
+            results.currentIndex = resultCount > 0 ? Math.max(0, Math.min(shell.lastSearchIndex, resultCount - 1)) : -1
+    }
+
+    function setQuery(text) {
+        query = text.trimmed()
+        shell.lastSearchIndex = 0
+        if (query.length < 2) {
+            searchTimer.stop()
+            appController.search(query)
+            return
+        }
+        searchTimer.restart()
+    }
+
+    function runSearchNow() {
+        searchTimer.stop()
+        if (query.length >= 2)
+            appController.search(query)
+    }
+
+    function activateCurrent() {
+        if (results.currentIndex < 0 || resultCount <= 0)
+            return
+        shell.lastSearchIndex = results.currentIndex
+        shell.openDetails(appController.searchResults, results.currentIndex, "search", "search")
+    }
 
     function handleNavigationKey(key) {
         if (key === Qt.Key_Left && !field.editing) { shell.focusRail(); return true }
         if (key === Qt.Key_Down && field.activeFocus) {
-            if (results.count > 0) { results.forceActiveFocus(); results.currentIndex = Math.max(0, results.currentIndex) }
+            if (resultCount > 0) {
+                results.forceActiveFocus()
+                results.currentIndex = Math.max(0, results.currentIndex)
+            }
             return true
         }
         if (key === Qt.Key_Up && results.activeFocus && results.currentIndex <= 0) {
             field.focusRow()
             return true
         }
-        if ((key === Qt.Key_Return || key === Qt.Key_Enter || key === Qt.Key_Select) && results.activeFocus && results.currentIndex >= 0) {
-            shell.lastSearchIndex = results.currentIndex
-            shell.lastGridIndex = results.currentIndex
-            shell.pushRoute("itemDetails")
+        if ((key === Qt.Key_Return || key === Qt.Key_Enter || key === Qt.Key_Select) && results.activeFocus) {
+            activateCurrent()
             return true
         }
         return false
@@ -36,34 +94,39 @@ FocusScope {
         anchors.margins: Metrics.pageMargin(width)
         spacing: 16
 
-        SectionHeader { Layout.fillWidth: true; title: "Search" }
+        RowLayout {
+            Layout.fillWidth: true
+            spacing: 12
+
+            SectionHeader {
+                Layout.fillWidth: true
+                title: "Search"
+            }
+
+            BusyIndicator {
+                Layout.preferredWidth: 28
+                Layout.preferredHeight: 28
+                running: appController && appController.searchBusy
+                visible: running
+            }
+
+            MonoText {
+                visible: root.query.length >= 2 && !appController.searchBusy
+                text: root.resultCount + " result" + (root.resultCount === 1 ? "" : "s")
+                color: Theme.textMuted
+            }
+        }
 
         TextFieldRow {
             id: field
             Layout.fillWidth: true
             Layout.preferredHeight: 64
-            label: "Search this library"
-            placeholderText: "Title, actor, genre…"
+            label: "Search Jellyfin"
+            placeholderText: "Titles, series, episodes"
             inputMethodHints: Qt.ImhNoPredictiveText | Qt.ImhNoAutoUppercase
-            onTextEdited: root.query = text
+            onTextEdited: (text) => root.setQuery(text)
+            onAccepted: root.runSearchNow()
             KeyNavigation.down: results
-        }
-
-        // Quick suggestion chips. Selecting one populates the field.
-        RowLayout {
-            Layout.fillWidth: true
-            spacing: 8
-            Repeater {
-                model: ["resume", "hdr10", "unwatched", "direct play"]
-                delegate: MetadataChip {
-                    required property string modelData
-                    text: modelData
-                    MouseArea {
-                        anchors.fill: parent
-                        onClicked: { field.text = modelData; root.query = modelData }
-                    }
-                }
-            }
         }
 
         ListView {
@@ -72,47 +135,98 @@ FocusScope {
             Layout.fillHeight: true
             focus: false
             keyNavigationEnabled: false
-            currentIndex: count > 0 ? Math.max(0, Math.min(shell.lastSearchIndex, count - 1)) : -1
+            currentIndex: root.resultCount > 0 ? Math.max(0, Math.min(shell.lastSearchIndex, root.resultCount - 1)) : -1
             spacing: 10
             clip: true
-            model: appController.movies
+            model: appController.searchResults
             KeyNavigation.up: field
+            visible: root.resultCount > 0
 
             delegate: Surface {
                 required property int index
                 required property string title
+                required property string displayTitle
+                required property string displaySubtitle
                 required property string subtitle
+                required property string overview
+                required property string posterUrl
+                required property string itemType
                 required property int year
+
                 width: results.width
-                height: 92
+                height: 118
                 focused: ListView.isCurrentItem && results.activeFocus
-                visible: root.query.length === 0 || title.toLowerCase().indexOf(root.query.toLowerCase()) >= 0
-                opacity: visible ? 1 : 0
-                Behavior on opacity { NumberAnimation { duration: 120 } }
 
                 RowLayout {
                     anchors.fill: parent
-                    anchors.margins: 14
+                    anchors.margins: 12
+                    spacing: 14
+
+                    ImageCard {
+                        Layout.preferredWidth: 154
+                        Layout.preferredHeight: 86
+                        imageUrl: posterUrl
+                        fallbackText: itemType.length > 0 ? itemType : "Item"
+                        aspectRatio: 16 / 9
+                        focused: false
+                        retainWhileLoading: true
+                    }
+
                     ColumnLayout {
                         Layout.fillWidth: true
-                        AppText { text: title; font.weight: Font.Medium }
-                        TechMetadataLine { Layout.fillWidth: true; metadata: subtitle }
+                        spacing: 4
+
+                        AppText {
+                            Layout.fillWidth: true
+                            text: displayTitle || title
+                            font.pixelSize: Metrics.bodyPx(root.width) + 1
+                            font.weight: Font.DemiBold
+                            elide: Text.ElideRight
+                            maximumLineCount: 1
+                        }
+
+                        TechMetadataLine {
+                            Layout.fillWidth: true
+                            metadata: displaySubtitle || subtitle || itemType
+                        }
+
+                        AppText {
+                            Layout.fillWidth: true
+                            visible: overview.length > 0
+                            text: overview
+                            color: Theme.textMuted
+                            font.pixelSize: Metrics.metaPx(root.width)
+                            elide: Text.ElideRight
+                            maximumLineCount: 1
+                        }
                     }
-                    MetadataChip { text: year > 0 ? String(year) : "item" }
+
+                    MetadataChip {
+                        text: year > 0 ? String(year) : itemType
+                    }
                 }
+
                 MouseArea {
                     anchors.fill: parent
-                    onClicked: { results.currentIndex = index; shell.lastSearchIndex = index; shell.lastGridIndex = index; shell.pushRoute("itemDetails") }
+                    onClicked: {
+                        results.currentIndex = index
+                        root.activateCurrent()
+                    }
                 }
             }
 
             Keys.onReleased: (event) => {
-                if (event.key === Qt.Key_Up && currentIndex <= 0) { field.focusRow(); event.accepted = true }
-                else if (event.key === Qt.Key_Left) { shell.focusRail(); event.accepted = true }
-                else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter || event.key === Qt.Key_Select) {
-                    shell.lastSearchIndex = currentIndex
-                    shell.lastGridIndex = currentIndex
-                    shell.pushRoute("itemDetails")
+                if (event.key === Qt.Key_Up && currentIndex <= 0) {
+                    field.focusRow()
+                    event.accepted = true
+                } else if (event.key === Qt.Key_Left) {
+                    shell.focusRail()
+                    event.accepted = true
+                } else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter || event.key === Qt.Key_Select) {
+                    root.activateCurrent()
+                    event.accepted = true
+                } else if (event.key === Qt.Key_M && currentIndex >= 0) {
+                    shell.openMediaInfo(appController.searchResults.get(currentIndex))
                     event.accepted = true
                 }
             }
@@ -120,9 +234,9 @@ FocusScope {
 
         EmptyPlaceholder {
             Layout.fillWidth: true
-            visible: results.count === 0
-            title: "Type to search"
-            detail: "Press Select on the field to open the keyboard."
+            visible: root.resultCount === 0 && !(appController && appController.searchBusy)
+            title: root.query.length < 2 ? "Start typing" : "No results"
+            detail: root.query.length < 2 ? "Enter at least two characters." : "Try another title, series, or episode name."
         }
     }
 }

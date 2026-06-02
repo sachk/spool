@@ -15,7 +15,7 @@ FocusScope {
         if (grid.currentIndex < 0)
             return
         shell.lastGridIndex = grid.currentIndex
-        shell.pushRoute("itemDetails")
+        shell.openDetails(appController.movies, grid.currentIndex, "movies", "libraryGrid")
     }
 
     function handleNavigationKey(key) {
