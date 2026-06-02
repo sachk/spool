@@ -15,14 +15,13 @@ FocusScope {
         { label: "Playback" },
         { label: "Diagnostics" },
         { label: "Input" },
-        { label: "Button Remap" },
         { label: "SyncPlay" },
         { label: "About" }
     ]
 
     function categoryTarget(index) {
         const targets = [themeRow, posterSizeRow, nightModeRow, diagnosticsRow,
-                         shortcutsRow, redButtonRow, syncPlayStatusRow, aboutVersionRow]
+                         redButtonRow, syncPlayStatusRow, aboutVersionRow]
         const row = index >= 0 && index < targets.length ? targets[index] : themeRow
         return row ? Math.max(0, row.settingIndex) : 0
     }
@@ -32,8 +31,8 @@ FocusScope {
             themeRow, languageRow, accentRow, uiScaleRow, logoutRow, posterSizeRow,
             gridColumnsRow, railLabelsRow, reducedMotionRow,
             renderModeRow, antialiasedRow, metadataRow,
-            nightModeRow, audioDelayRow, audioOutputRow, bitrateRow,
-            remuxRow, diagnosticsRow, shortcutsRow,
+            nightModeRow, audioDelayRow, audioOutputRow,
+            diagnosticsRow,
             redButtonRow, greenButtonRow, yellowButtonRow, blueButtonRow,
             syncPlayStatusRow
         ]
@@ -251,8 +250,8 @@ FocusScope {
                     Layout.fillWidth: true
                     settingIndex: 1
                     rowFocus: root.currentIndex === settingIndex || activeFocus
-                    title: qsTrId("settings.language.title")
-                    description: "Restart the app for full effect on cached strings"
+                    title: "Language"
+                    description: "Restart the app to update cached server text"
                     options: {
                         if (!i18n) return ["System default"]
                         const result = []
@@ -344,6 +343,15 @@ FocusScope {
                     rowFocus: root.currentIndex === settingIndex || activeFocus
                     title: "Grid Columns"
                     options: ["Auto", "4", "5", "6", "7", "8", "9"]
+                    currentIndex: {
+                        if (Metrics.userColumnOverride <= 0) return 0
+                        const columns = [4, 5, 6, 7, 8, 9]
+                        for (let i = 0; i < columns.length; ++i) {
+                            if (columns[i] === Metrics.userColumnOverride)
+                                return i + 1
+                        }
+                        return 0
+                    }
                     onSelected: (i, v) => Metrics.userColumnOverride = i === 0 ? 0 : Number(v)
                     onActiveFocusChanged: if (activeFocus) root.markFocused(settingIndex)
                 }
@@ -354,7 +362,11 @@ FocusScope {
                     rowFocus: root.currentIndex === settingIndex || activeFocus
                     title: "Side Rail Labels"
                     options: ["Never", "On focus", "Always"]
-                    currentIndex: 1
+                    currentIndex: {
+                        if (Theme.sideRailLabels === "Never") return 0
+                        if (Theme.sideRailLabels === "Always") return 2
+                        return 1
+                    }
                     onSelected: (i, v) => Theme.sideRailLabels = v
                     onActiveFocusChanged: if (activeFocus) root.markFocused(settingIndex)
                 }
@@ -374,9 +386,9 @@ FocusScope {
                     settingIndex: 8
                     rowFocus: root.currentIndex === settingIndex || activeFocus
                     title: "Text Render Mode"
-                    options: ["Auto", "QtRendering", "CurveRendering"]
-                    currentIndex: 1
-                    onSelected: (i, v) => Theme.normalTextRenderType = v === "CurveRendering" ? Text.CurveRendering : Text.QtRendering
+                    options: ["Qt", "Curve"]
+                    currentIndex: Theme.normalTextRenderType === Text.CurveRendering ? 1 : 0
+                    onSelected: (i, v) => Theme.normalTextRenderType = i === 1 ? Text.CurveRendering : Text.QtRendering
                     onActiveFocusChanged: if (activeFocus) root.markFocused(settingIndex)
                 }
                 ToggleRow {
@@ -396,6 +408,11 @@ FocusScope {
                     rowFocus: root.currentIndex === settingIndex || activeFocus
                     title: "Show Technical Metadata"
                     options: ["Always", "On details only", "Hidden"]
+                    currentIndex: {
+                        if (Theme.technicalMetadataMode === "On details only") return 1
+                        if (Theme.technicalMetadataMode === "Hidden") return 2
+                        return 0
+                    }
                     onSelected: (i, v) => Theme.technicalMetadataMode = v
                     onActiveFocusChanged: if (activeFocus) root.markFocused(settingIndex)
                 }
@@ -434,24 +451,6 @@ FocusScope {
                     onSelected: (i, v) => appController.setAudioOutputMode(i === 1 ? "starfish-pcm" : "alsa")
                     onActiveFocusChanged: if (activeFocus) root.markFocused(settingIndex)
                 }
-                SelectRow {
-                    id: bitrateRow
-                    Layout.fillWidth: true
-                    settingIndex: 14
-                    rowFocus: root.currentIndex === settingIndex || activeFocus
-                    title: "Maximum remote bitrate"
-                    options: ["Auto", "20 Mbps", "40 Mbps", "80 Mbps", "Unlimited"]
-                    onActiveFocusChanged: if (activeFocus) root.markFocused(settingIndex)
-                }
-                ToggleRow {
-                    id: remuxRow
-                    Layout.fillWidth: true
-                    settingIndex: 15
-                    rowFocus: root.currentIndex === settingIndex || activeFocus
-                    title: "Prefer remux over transcode"
-                    checked: true
-                    onActiveFocusChanged: if (activeFocus) root.markFocused(settingIndex)
-                }
                 SectionHeader { Layout.fillWidth: true; title: "Diagnostics" }
                 ToggleRow {
                     id: diagnosticsRow
@@ -464,15 +463,6 @@ FocusScope {
                     onActiveFocusChanged: if (activeFocus) root.markFocused(settingIndex)
                 }
                 SectionHeader { Layout.fillWidth: true; title: "Input" }
-                ToggleRow {
-                    id: shortcutsRow
-                    Layout.fillWidth: true
-                    settingIndex: 17
-                    rowFocus: root.currentIndex === settingIndex || activeFocus
-                    title: "Keyboard shortcuts enabled"
-                    checked: true
-                    onActiveFocusChanged: if (activeFocus) root.markFocused(settingIndex)
-                }
                 SectionHeader { Layout.fillWidth: true; title: "Button Remap" }
                 SelectRow {
                     id: redButtonRow
