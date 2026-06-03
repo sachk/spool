@@ -5,6 +5,7 @@ import "../theme"
 Button {
     id: root
     property string iconText: ""
+    property string iconName: ""
     property bool selected: false
     property bool railStyle: false
     property bool pointerHovered: hover.hovered
@@ -37,15 +38,29 @@ Button {
         }
     }
 
-    contentItem: AppText {
-        text: root.iconText
-        font.pixelSize: 20
-        font.weight: Font.DemiBold
-        color: root.activeFocus ? Theme.textPrimary
-              : root.selected ? Theme.accent
-              : Theme.textSecondary
-        horizontalAlignment: Text.AlignHCenter
-        verticalAlignment: Text.AlignVCenter
+    contentItem: Item {
+        MaterialIcon {
+            anchors.centerIn: parent
+            visible: root.iconName.length > 0
+            name: root.iconName
+            iconSize: root.railStyle ? 24 : 22
+            iconColor: root.activeFocus ? Theme.textPrimary
+                       : root.selected ? Theme.accent
+                       : Theme.textSecondary
+        }
+
+        AppText {
+            anchors.fill: parent
+            visible: root.iconName.length === 0
+            text: root.iconText
+            font.pixelSize: 20
+            font.weight: Font.DemiBold
+            color: root.activeFocus ? Theme.textPrimary
+                  : root.selected ? Theme.accent
+                  : Theme.textSecondary
+            horizontalAlignment: Text.AlignHCenter
+            verticalAlignment: Text.AlignVCenter
+        }
     }
 
     HoverHandler { id: hover }
