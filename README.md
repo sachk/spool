@@ -10,3 +10,23 @@
   Models: C++ QAbstractListModel exposed to QML, not ad hoc QML data blobs. QAbstractListModel is the standard one-dimensional model base, and both GridView and ListView are designed to consume C++ models like that efficiently.
   10-foot / remote navigation: build around GridView / ListView + FocusScope + KeyNavigation + Keys. KeyNavigation is specifically for arrow/tab-based focus jumps, and FocusScope exists to keep reusable focus regions sane, which is exactly the problem space for D-pad TV UIs.
   HTTP asset caching: QNetworkDiskCache for posters, backdrops, and image responses. It is basic, but it plugs directly into QNetworkAccessManager; just remember it is basic by design and defaults to a 50 MB limit, so you will probably want to raise that.
+
+# Name
+
+## Fast Jellyfin client for LG TVs and desktop
+
+// Download link box
+
+// quick headline Features dot points
+
+// links to below sections
+
+// screenshots
+
+// full feature list
+
+// usage information
+
+// technical information
+
+// thank yous (kodi)
