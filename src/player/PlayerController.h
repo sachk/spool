@@ -43,6 +43,7 @@ class PlayerController final : public QObject
     Q_PROPERTY(bool nightModeEnabled READ nightModeEnabled WRITE setNightModeEnabled NOTIFY nightModeEnabledChanged)
     Q_PROPERTY(int audioDelayMs READ audioDelayMs WRITE setAudioDelayMs NOTIFY audioDelayMsChanged)
     Q_PROPERTY(QString audioOutputMode READ audioOutputMode WRITE setAudioOutputMode NOTIFY audioOutputModeChanged)
+    Q_PROPERTY(int volume READ volume WRITE setVolume NOTIFY volumeChanged)
     Q_PROPERTY(QString activeSegmentType READ activeSegmentType NOTIFY stateChanged)
     Q_PROPERTY(double activeSegmentEndSeconds READ activeSegmentEndSeconds NOTIFY stateChanged)
     Q_PROPERTY(bool trickplayAvailable READ trickplayAvailable NOTIFY stateChanged)
@@ -72,6 +73,7 @@ public:
     bool nightModeEnabled() const;
     int audioDelayMs() const;
     QString audioOutputMode() const;
+    int volume() const;
     QString activeSegmentType() const;
     double activeSegmentEndSeconds() const;
     bool trickplayAvailable() const;
@@ -98,6 +100,8 @@ public:
     Q_INVOKABLE void setNightModeEnabled(bool enabled);
     Q_INVOKABLE void setAudioDelayMs(int delayMs);
     Q_INVOKABLE void setAudioOutputMode(const QString &mode);
+    Q_INVOKABLE void setVolume(int volume);
+    Q_INVOKABLE void adjustVolume(int delta);
     void setSubtitlePreferences(const JellyfinNative::SubtitlePreferences &preferences);
 
 signals:
@@ -107,6 +111,7 @@ signals:
     void nightModeEnabledChanged();
     void audioDelayMsChanged();
     void audioOutputModeChanged();
+    void volumeChanged();
 
 public:
     // Called from main on aboutToQuit so we tear down before the scene graph
@@ -185,6 +190,7 @@ private:
     double m_requestedSeekTargetSeconds = -1.0;
     std::atomic_bool m_nightModeEnabled = false;
     std::atomic<int> m_audioDelayMs = 0;
+    std::atomic<int> m_volume = 100;
     QString m_audioOutputMode = QStringLiteral("alsa");
     SubtitlePreferences m_subtitlePreferences;
     QString m_activeSegmentType;

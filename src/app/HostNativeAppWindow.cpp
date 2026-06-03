@@ -71,6 +71,16 @@ void NativeAppWindow::bringToFront()
     requestActivate();
 }
 
+void NativeAppWindow::toggleFullScreen()
+{
+    if (fullScreen())
+        showNormal();
+    else
+        showFullScreen();
+    requestActivate();
+    emit fullScreenChanged();
+}
+
 QString NativeAppWindow::windowId() const
 {
     return {};

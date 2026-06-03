@@ -12,6 +12,8 @@ FocusScope {
     property var shell
     readonly property var player: appController ? appController.player : null
     readonly property bool hasPlayer: player !== null && player !== undefined
+    readonly property bool smartTvPlatform: nativeWindow ? nativeWindow.smartTvPlatform : true
+    readonly property bool desktopControlsAvailable: !smartTvPlatform
     readonly property int currentAudioDelayMs: appController ? appController.audioDelayMs : 0
     readonly property bool nightModeEnabled: appController ? appController.nightModeEnabled : false
     property bool mediaInfoVisible: false
@@ -62,14 +64,22 @@ FocusScope {
         return Math.round(n * uiScale)
     }
 
-    readonly property var actions: [
-        { label: "Rewind", value: "back" },
-        { label: hasPlayer && player.paused ? "Play" : "Pause", value: "pause" },
-        { label: "Fast forward", value: "forward" },
-        { label: "Subtitles", value: "subtitles" },
-        { label: "Audio", value: "audio" },
-        { label: "Settings", value: "debug" }
-    ]
+    // Only offer the audio-track button when there's an actual choice to make.
+    readonly property bool audioSelectable: hasPlayer && player.audioTracks.length > 1
+    readonly property var actions: {
+        const list = [
+            { label: "Rewind", value: "back" },
+            { label: hasPlayer && player.paused ? "Play" : "Pause", value: "pause" },
+            { label: "Fast forward", value: "forward" },
+            { label: "Subtitles", value: "subtitles" }
+        ]
+        if (audioSelectable)
+            list.push({ label: "Audio", value: "audio" })
+        if (desktopControlsAvailable)
+            list.push({ label: nativeWindow.fullScreen ? "Exit full screen" : "Full screen", value: "fullscreen" })
+        list.push({ label: "Settings", value: "debug" })
+        return list
+    }
     readonly property var audioSyncSteps: [1, 5, 10, 100]
     readonly property var debugOptions: [
         "Audio sync",
@@ -122,6 +132,7 @@ FocusScope {
         if (value === "forward") return "fast_forward"
         if (value === "subtitles") return "closed_caption"
         if (value === "audio") return "audiotrack"
+        if (value === "fullscreen") return nativeWindow.fullScreen ? "fullscreen_exit" : "fullscreen"
         return "settings"
     }
 
@@ -342,6 +353,29 @@ FocusScope {
         autohideTimer.stop()
     }
 
+    function wheelVolumeDelta(event) {
+        const rawSteps = event.angleDelta.y !== 0 ? event.angleDelta.y / 120
+                       : event.pixelDelta.y !== 0 ? event.pixelDelta.y / 80
+                       : 0
+        if (rawSteps === 0)
+            return 0
+        const roundedSteps = Math.round(rawSteps)
+        const steps = roundedSteps !== 0 ? roundedSteps : (rawSteps > 0 ? 1 : -1)
+        return steps * 5
+    }
+
+    function adjustVolumeFromWheel(event) {
+        if (!desktopControlsAvailable || !hasPlayer)
+            return
+        const delta = wheelVolumeDelta(event)
+        if (delta === 0)
+            return
+        player.adjustVolume(delta)
+        row = "actions"
+        showControls("actions")
+        event.accepted = true
+    }
+
     function activateAction() {
         const action = actions[Math.max(0, Math.min(actions.length - 1, actionIndex))].value
         if (!hasPlayer)
@@ -351,6 +385,7 @@ FocusScope {
         else if (action === "forward") player.seekForward()
         else if (action === "subtitles") openSubtitles()
         else if (action === "audio") openAudio()
+        else if (action === "fullscreen" && nativeWindow) nativeWindow.toggleFullScreen()
         else if (action === "debug") openDebugMenu()
     }
 
@@ -723,6 +758,11 @@ FocusScope {
 
     TapHandler { onTapped: overlay.showControls("timeline") }
     HoverHandler { onHoveredChanged: if (hovered && overlay.mode !== "hidden") overlay.showControls(overlay.row) }
+    WheelHandler {
+        target: null
+        acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
+        onWheel: (event) => overlay.adjustVolumeFromWheel(event)
+    }
 
     states: [
         State { name: "hidden"; when: overlay.mode === "hidden"; PropertyChanges { target: hud; opacity: 0 } },
@@ -1059,6 +1099,67 @@ FocusScope {
                 }
 
                 Item { Layout.fillWidth: true }
+
+                RowLayout {
+                    visible: overlay.desktopControlsAvailable
+                    Layout.alignment: Qt.AlignVCenter
+                    Layout.preferredWidth: visible ? dp(300) : 0
+                    spacing: dp(10)
+
+                    MaterialIcon {
+                        name: overlay.hasPlayer && overlay.player.volume === 0 ? "volume_off" : "volume_up"
+                        iconColor: overlay.colIconDim
+                        iconSize: dp(30)
+                    }
+
+                    Slider {
+                        id: volumeSlider
+                        Layout.preferredWidth: dp(210)
+                        from: 0
+                        to: 100
+                        stepSize: 1
+                        value: overlay.hasPlayer ? overlay.player.volume : 100
+                        focusPolicy: Qt.NoFocus
+
+                        background: Rectangle {
+                            x: volumeSlider.leftPadding
+                            y: volumeSlider.topPadding + volumeSlider.availableHeight / 2 - height / 2
+                            width: volumeSlider.availableWidth
+                            height: dp(7)
+                            radius: height / 2
+                            color: overlay.colTrackOuter
+
+                            Rectangle {
+                                width: volumeSlider.visualPosition * parent.width
+                                height: parent.height
+                                radius: parent.radius
+                                color: overlay.accent
+                            }
+                        }
+
+                        handle: Rectangle {
+                            x: volumeSlider.leftPadding + volumeSlider.visualPosition * (volumeSlider.availableWidth - width)
+                            y: volumeSlider.topPadding + volumeSlider.availableHeight / 2 - height / 2
+                            width: dp(22)
+                            height: width
+                            radius: width / 2
+                            color: overlay.colTextStrong
+                            border.width: 2
+                            border.color: overlay.accent
+                        }
+
+                        onMoved: if (overlay.hasPlayer) overlay.player.setVolume(Math.round(value))
+                    }
+
+                    Text {
+                        text: overlay.hasPlayer ? Math.round(overlay.player.volume) + "%" : "100%"
+                        color: overlay.colTextDim
+                        font.pixelSize: dp(20)
+                        font.weight: Font.DemiBold
+                        font.hintingPreference: Font.PreferNoHinting
+                        renderType: Text.QtRendering
+                    }
+                }
             }
 
             Text {

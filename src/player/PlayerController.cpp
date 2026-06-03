@@ -464,6 +464,8 @@ int PlayerController::audioDelayMs() const { return m_audioDelayMs.load(); }
 
 QString PlayerController::audioOutputMode() const { return m_audioOutputMode; }
 
+int PlayerController::volume() const { return m_volume.load(); }
+
 bool PlayerController::applyMpvRuntimeOption(MpvRuntimeOption option,
                                              MpvOptionApplyMode mode,
                                              mpv_handle *handle) {
@@ -678,6 +680,7 @@ bool PlayerController::ensureMpv() {
   mpv_observe_property(handle, 0, "seeking", MPV_FORMAT_FLAG);
   mpv_observe_property(handle, 0, "time-pos", MPV_FORMAT_DOUBLE);
   mpv_observe_property(handle, 0, "duration", MPV_FORMAT_DOUBLE);
+  mpv_observe_property(handle, 0, "volume", MPV_FORMAT_DOUBLE);
   mpv_observe_property(handle, 0, "track-list", MPV_FORMAT_NODE);
 
   m_mpv = handle;
@@ -970,6 +973,24 @@ void PlayerController::setAudioOutputMode(const QString &mode) {
   emit stateChanged();
 }
 
+void PlayerController::setVolume(int volume) {
+  const int clampedVolume = qBound(0, volume, 100);
+  if (m_volume.load() == clampedVolume)
+    return;
+
+  m_volume = clampedVolume;
+  const QByteArray command =
+      QByteArray("no-osd set volume ") + QByteArray::number(clampedVolume);
+  mpvCommand(command.constData());
+  emit volumeChanged();
+}
+
+void PlayerController::adjustVolume(int delta) {
+  if (delta == 0)
+    return;
+  setVolume(m_volume.load() + delta);
+}
+
 void PlayerController::setSubtitlePreferences(const SubtitlePreferences &preferences) {
   m_subtitlePreferences = preferences;
   qInfo() << "player: subtitle preferences changed"
@@ -1260,6 +1281,16 @@ void PlayerController::runEventLoop() {
           m_durationSeconds = seconds;
           setPositionSeconds(m_positionSeconds);
           emit stateChanged();
+        });
+      } else if (strcmp(property->name, "volume") == 0 &&
+                 property->format == MPV_FORMAT_DOUBLE) {
+        const auto volume = static_cast<int>(std::round(*static_cast<double *>(property->data)));
+        QMetaObject::invokeMethod(this, [this, volume]() {
+          const int clampedVolume = qBound(0, volume, 100);
+          if (m_volume.load() == clampedVolume)
+            return;
+          m_volume = clampedVolume;
+          emit volumeChanged();
         });
       } else if (strcmp(property->name, "track-list") == 0 &&
                  property->format == MPV_FORMAT_NODE) {
