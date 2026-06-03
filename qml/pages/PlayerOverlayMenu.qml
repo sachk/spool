@@ -9,6 +9,7 @@ Rectangle {
     required property var overlay
     readonly property real uiScale: overlay ? overlay.uiScale : 1
     readonly property real edgeMargin: dp(20)
+    readonly property bool instantOpen: overlay && overlay.mode === "debug"
 
     function dp(n) {
         return Math.round(n * uiScale)
@@ -26,21 +27,21 @@ Rectangle {
     height: Math.min(Math.round(parent.height * 0.5), Math.round(menuHeaderBlock.implicitHeight + (menuBody.showPlaceholder ? dp(56) : menuList.contentHeight) + dp(30)))
     visible: overlay.isMenuOpen()
     opacity: 0
-    scale: opacity > 0.5 ? 1 : 0.97
+    scale: instantOpen || opacity > 0.5 ? 1 : 0.97
     radius: dp(16)
     color: overlay.colPanelBg
     border.width: 1
     border.color: overlay.colHairline
 
     Behavior on scale {
-        enabled: !Theme.reducedMotion
+        enabled: !Theme.reducedMotion && !menuPanel.instantOpen
         NumberAnimation { duration: 160; easing.type: Easing.OutCubic }
     }
 
     transform: Translate {
-        y: menuPanel.opacity > 0.5 ? 0 : menuPanel.dp(14)
+        y: menuPanel.instantOpen || menuPanel.opacity > 0.5 ? 0 : menuPanel.dp(14)
         Behavior on y {
-            enabled: !Theme.reducedMotion
+            enabled: !Theme.reducedMotion && !menuPanel.instantOpen
             NumberAnimation { duration: 160; easing.type: Easing.OutCubic }
         }
     }
@@ -99,6 +100,8 @@ Rectangle {
                 highlightMoveDuration: 90
                 visible: !menuBody.showPlaceholder
                 onCurrentIndexChanged: positionViewAtIndex(currentIndex, ListView.Contain)
+
+                FastWheelHandler { flickable: menuList }
 
                 delegate: Rectangle {
                     required property int index

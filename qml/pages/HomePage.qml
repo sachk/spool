@@ -177,11 +177,13 @@ FocusScope {
         focus: true
         clip: true
         keyNavigationEnabled: false
-        spacing: 22
+        spacing: 14
         model: sectionModel
         maximumFlickVelocity: 7200
         flickDeceleration: 6200
         onCurrentIndexChanged: scrollCurrentSectionIntoView()
+
+        FastWheelHandler { flickable: sections }
 
         Behavior on contentY {
             NumberAnimation {
@@ -224,8 +226,9 @@ FocusScope {
             width: sections.width
             height: !sectionVisible ? 0
                   : kind === "spotlight" ? 238
-                  : kind === "poster" ? 360
-                  : 330
+                  : kind === "library" ? 276
+                  : kind === "poster" ? 338
+                  : 304
             visible: sectionVisible
             focus: ListView.isCurrentItem && sectionVisible
             onActiveFocusChanged: if (activeFocus && contentLoader.item) contentLoader.item.forceActiveFocus()
@@ -400,6 +403,7 @@ FocusScope {
                             boundsBehavior: Flickable.StopAtBounds
                             contentWidth: rowContent.width
                             contentHeight: height
+                            FastWheelHandler { flickable: rowFlick; horizontal: true }
                             Row {
                                 id: rowContent
                                 height: rowFlick.height
@@ -509,6 +513,7 @@ FocusScope {
                             boundsBehavior: Flickable.StopAtBounds
                             contentWidth: libRowContent.width
                             contentHeight: height
+                            FastWheelHandler { flickable: libRowFlick; horizontal: true }
                             Row {
                                 id: libRowContent
                                 height: libRowFlick.height

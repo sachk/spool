@@ -389,6 +389,11 @@ QString AppController::currentViewKind() const
     return m_currentViewKind;
 }
 
+QString AppController::currentLibraryId() const
+{
+    return m_currentLibraryId;
+}
+
 QString AppController::currentLibraryCollectionType() const
 {
     return m_currentLibraryCollectionType;

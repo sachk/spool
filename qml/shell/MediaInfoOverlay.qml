@@ -314,6 +314,7 @@ FocusScope {
                 boundsBehavior: Flickable.StopAtBounds
                 contentWidth: width
                 contentHeight: infoColumn.implicitHeight
+                FastWheelHandler { flickable: infoFlick }
 
                 ColumnLayout {
                     id: infoColumn

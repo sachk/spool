@@ -95,6 +95,7 @@ FocusScope {
             root.currentIndex = currentIndex
             root.ensureVisible()
         }
+        FastWheelHandler { flickable: peopleList; horizontal: true }
 
         delegate: Item {
             id: personDelegate

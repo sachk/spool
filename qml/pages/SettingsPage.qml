@@ -240,6 +240,7 @@ FocusScope {
             currentIndex: root.categoryIndex
             keyNavigationEnabled: false
             onCurrentIndexChanged: if (currentIndex >= 0) positionViewAtIndex(currentIndex, ListView.Contain)
+            FastWheelHandler { flickable: categoryList }
 
             delegate: Surface {
                 required property int index
@@ -276,6 +277,7 @@ FocusScope {
             boundsBehavior: Flickable.StopAtBounds
 
             Behavior on contentY { NumberAnimation { duration: 90; easing.type: Easing.OutCubic } }
+            FastWheelHandler { flickable: settingsFlick }
 
             ColumnLayout {
                 id: settings

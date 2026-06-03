@@ -127,6 +127,7 @@ FocusScope {
             root.currentIndex = currentIndex
             root.ensureVisible()
         }
+        FastWheelHandler { flickable: listView; horizontal: true }
 
         delegate: MediaItemCard {
             id: posterDelegate
