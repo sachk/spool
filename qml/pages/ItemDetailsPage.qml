@@ -307,6 +307,8 @@ FocusScope {
     }
 
     function focusDefaultAction() {
+        if (detailsFlick)
+            detailsFlick.contentY = 0
         if (showPrimaryAction && primaryAction.enabledButton)
             primaryAction.forceActiveFocus()
         else
@@ -358,19 +360,23 @@ FocusScope {
         if (showSeasonsRow) {
             if (seasonsNavigable) {
                 seasonsRow.focusList()
+                ensureDetailsItemVisible(seasonsRow)
                 return true
             }
             if (showPeopleRow) {
                 peopleRow.focusList()
+                ensureDetailsItemVisible(peopleRow)
                 return true
             }
         }
         if (showPeopleRow) {
             peopleRow.focusList()
+            ensureDetailsItemVisible(peopleRow)
             return true
         }
         if (showSimilarRow) {
             similarRow.focusList()
+            ensureDetailsItemVisible(similarRow)
             return true
         }
         return false
@@ -444,6 +450,21 @@ FocusScope {
         if (!person || !person.personId || !shell)
             return
         shell.openPerson(person)
+    }
+
+    function ensureDetailsItemVisible(item) {
+        if (!item || !detailsFlick || !contentColumn)
+            return
+        Qt.callLater(function() {
+            const mapped = item.mapToItem(contentColumn, 0, 0)
+            const top = Math.max(0, mapped.y - 18)
+            const bottom = mapped.y + item.height + 18
+            const maxY = Math.max(0, detailsFlick.contentHeight - detailsFlick.height)
+            if (top < detailsFlick.contentY)
+                detailsFlick.contentY = Math.max(0, top)
+            else if (bottom > detailsFlick.contentY + detailsFlick.height)
+                detailsFlick.contentY = Math.min(maxY, bottom - detailsFlick.height)
+        })
     }
 
     function handlePressedKey(key) {
@@ -557,9 +578,13 @@ FocusScope {
                 return true
             }
             if (key === Qt.Key_Down) {
-                if (showPeopleRow) peopleRow.focusList()
-                else if (showSimilarRow)
+                if (showPeopleRow) {
+                    peopleRow.focusList()
+                    ensureDetailsItemVisible(peopleRow)
+                } else if (showSimilarRow) {
                     similarRow.focusList()
+                    ensureDetailsItemVisible(similarRow)
+                }
                 return true
             }
             return seasonsRow.handleNavigationKey(key)
@@ -567,13 +592,19 @@ FocusScope {
 
         if (peopleRow.activeFocus) {
             if (key === Qt.Key_Up) {
-                if (seasonsNavigable) seasonsRow.focusList()
-                else focusDefaultAction()
+                if (seasonsNavigable) {
+                    seasonsRow.focusList()
+                    ensureDetailsItemVisible(seasonsRow)
+                } else {
+                    focusDefaultAction()
+                }
                 return true
             }
             if (key === Qt.Key_Down) {
-                if (showSimilarRow)
+                if (showSimilarRow) {
                     similarRow.focusList()
+                    ensureDetailsItemVisible(similarRow)
+                }
                 return true
             }
             return peopleRow.handleNavigationKey(key)
@@ -581,9 +612,15 @@ FocusScope {
 
         if (similarRow.activeFocus) {
             if (key === Qt.Key_Up) {
-                if (showPeopleRow) peopleRow.focusList()
-                else if (seasonsNavigable) seasonsRow.focusList()
-                else focusDefaultAction()
+                if (showPeopleRow) {
+                    peopleRow.focusList()
+                    ensureDetailsItemVisible(peopleRow)
+                } else if (seasonsNavigable) {
+                    seasonsRow.focusList()
+                    ensureDetailsItemVisible(seasonsRow)
+                } else {
+                    focusDefaultAction()
+                }
                 return true
             }
             if (key === Qt.Key_Down)

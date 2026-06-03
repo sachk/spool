@@ -181,6 +181,7 @@ FocusScope {
         model: sectionModel
         maximumFlickVelocity: 7200
         flickDeceleration: 6200
+        onCurrentIndexChanged: scrollCurrentSectionIntoView()
 
         Behavior on contentY {
             NumberAnimation {
@@ -311,6 +312,7 @@ FocusScope {
                     readonly property int cardGap: Metrics.gap(root.width)
                     focus: section.ListView.isCurrentItem
                     onActiveFocusChanged: if (activeFocus) rowFlick.forceActiveFocus()
+                    onCurrentIndexChanged: ensureVisible()
                     onRowCountChanged: currentIndex = rowCount > 0 ? Math.max(0, Math.min(currentIndex, visibleCount - 1)) : -1
 
                     function itemAt(index) {
@@ -452,6 +454,7 @@ FocusScope {
                     readonly property int cardGap: Metrics.gap(root.width)
                     focus: section.ListView.isCurrentItem
                     onActiveFocusChanged: if (activeFocus) libRowFlick.forceActiveFocus()
+                    onCurrentIndexChanged: ensureVisible()
                     onVisibleCountChanged: currentIndex = visibleCount > 0 ? Math.max(0, Math.min(currentIndex, visibleCount - 1)) : -1
 
                     function libraryAt(index) {
