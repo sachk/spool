@@ -211,7 +211,7 @@ FocusScope {
                 contentY = Math.min(maxY, bottom - height)
         }
 
-        header: SectionHeader { width: sections.width; height: implicitHeight + 18; title: "Home" }
+        header: SectionHeader { width: sections.width; height: implicitHeight + 18; title: "My Media" }
 
         delegate: FocusScope {
             id: section

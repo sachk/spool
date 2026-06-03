@@ -56,26 +56,16 @@ FocusScope {
 
     ColumnLayout {
         anchors.fill: parent
-        anchors.topMargin: 12
+        anchors.topMargin: 8
         anchors.bottomMargin: 12
-        spacing: 8
-
-        Item {
-            Layout.fillWidth: true
-            Layout.preferredHeight: 44
-            Rectangle {
-                anchors.centerIn: parent
-                width: 30; height: 30; radius: 6
-                gradient: Gradient { GradientStop { position: 0; color: Theme.jellyfinBlue } GradientStop { position: 1; color: Theme.jellyfinPurple } }
-            }
-        }
+        spacing: 6
 
         Repeater {
             id: railRepeater
             model: [
-                { label: "Home", route: "home", icon: "H" },
-                { label: "Search", route: "search", icon: "/" },
-                { label: "Settings", route: "settings", icon: "S" }
+                { label: "My Media", route: "home", icon: "home" },
+                { label: "Search", route: "search", icon: "search" },
+                { label: "Settings", route: "settings", icon: "settings" }
             ]
 
             delegate: Item {
@@ -89,7 +79,7 @@ FocusScope {
                 IconButton {
                     id: button
                     anchors.centerIn: parent
-                    iconText: modelData.icon
+                    iconName: modelData.icon
                     railStyle: true
                     selected: root.currentRoute === modelData.route
                     onClicked: root.navigate(modelData.route)
@@ -133,5 +123,15 @@ FocusScope {
         }
 
         Item { Layout.fillHeight: true }
+
+        Item {
+            Layout.fillWidth: true
+            Layout.preferredHeight: 44
+            Rectangle {
+                anchors.centerIn: parent
+                width: 30; height: 30; radius: 6
+                gradient: Gradient { GradientStop { position: 0; color: Theme.jellyfinBlue } GradientStop { position: 1; color: Theme.jellyfinPurple } }
+            }
+        }
     }
 }
