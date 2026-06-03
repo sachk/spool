@@ -346,12 +346,19 @@ FocusScope {
                     id: uiScaleRow
                     Layout.fillWidth: true
                     settingIndex: 2
-                    rowFocus: root.currentIndex === settingIndex || activeFocus
+                    selected: root.currentIndex === settingIndex
                     title: "UI Scale"
                     description: "Runtime type and spacing scale"
+                    from: 0.75
+                    to: 1.5
+                    step: 0.05
+                    decimals: 2
+                    unitText: "x"
+                    valueBoxWidth: 78
+                    sliderPreferredWidth: 280
                     value: Metrics.userUiScale
                     onValueEdited: Metrics.userUiScale = value
-                    onActiveFocusChanged: if (activeFocus) root.markFocused(settingIndex)
+                    onRowFocusChanged: if (rowFocus) root.markFocused(settingIndex)
                 }
                 SettingRow {
                     id: logoutRow
@@ -481,14 +488,22 @@ FocusScope {
                     onToggled: appController.setNightModeEnabled(checked)
                     onActiveFocusChanged: if (activeFocus) root.markFocused(settingIndex)
                 }
-                AudioDelayRow {
+                SliderRow {
                     id: audioDelayRow
                     Layout.fillWidth: true
                     settingIndex: 12
+                    selected: root.currentIndex === settingIndex
                     title: "A/V Sync"
                     description: "Audio delay in milliseconds"
-                    valueMs: appController.audioDelayMs
-                    onValueEdited: (value) => appController.setAudioDelayMs(value)
+                    from: -2000
+                    to: 2000
+                    step: 10
+                    decimals: 0
+                    unitText: "ms"
+                    valueBoxWidth: 92
+                    sliderPreferredWidth: 340
+                    value: appController.audioDelayMs
+                    onValueEdited: (value) => appController.setAudioDelayMs(Math.round(value))
                     onRowFocusChanged: if (rowFocus) root.markFocused(settingIndex)
                 }
                 SelectRow {
@@ -622,17 +637,18 @@ FocusScope {
                 SliderRow {
                     id: subtitleVerticalPositionRow
                     Layout.fillWidth: true
-                    rowFocus: root.currentIndex === settingIndex || activeFocus
+                    selected: root.currentIndex === settingIndex
                     title: "Vertical Position"
                     description: "Negative values place subtitles near the bottom"
                     from: -16
                     to: 16
                     step: 1
                     decimals: 0
-                    valueSuffix: ""
+                    unitText: ""
+                    valueBoxWidth: 72
                     value: appController ? appController.subtitleVerticalPosition : -3
                     onValueEdited: (value) => appController.setSubtitleVerticalPosition(value)
-                    onActiveFocusChanged: if (activeFocus) root.markFocused(settingIndex)
+                    onRowFocusChanged: if (rowFocus) root.markFocused(settingIndex)
                 }
                 SectionHeader { Layout.fillWidth: true; title: "Diagnostics" }
                 ToggleRow {
