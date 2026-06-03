@@ -200,9 +200,11 @@ qt_add_qml_module(jellyfin-native
         qml/primitives/LandscapeCard.qml
         qml/primitives/MediaItemActions.qml
         qml/primitives/MediaItemCard.qml
+        qml/primitives/MediaPosterScrollerRow.qml
         qml/primitives/MetadataChip.qml
         qml/primitives/MonoText.qml
         qml/primitives/MaterialIcon.qml
+        qml/primitives/PersonScrollerRow.qml
         qml/primitives/PosterCard.qml
         qml/primitives/SectionHeader.qml
         qml/primitives/SelectRow.qml

@@ -13,7 +13,6 @@ FocusScope {
     readonly property int contentMargin: Metrics.pageMargin(width)
     readonly property int portraitWidth: Math.min(176, Math.max(128, width * 0.1))
     readonly property int knownForCardWidth: width >= 1600 ? 170 : 145
-    readonly property int knownForCardHeight: Math.round(knownForCardWidth * 1.5 + 68)
     focus: true
 
     Component.onCompleted: {
@@ -54,14 +53,8 @@ FocusScope {
             Qt.callLater(focusKnownFor)
     }
 
-    function itemAt(index) {
-        return appController && appController.personItems && index >= 0 && index < appController.personItems.rowCount()
-             ? appController.personItems.get(index)
-             : ({})
-    }
-
     function currentCard() {
-        return knownFor.currentItem
+        return knownFor.currentCard ? knownFor.currentCard() : null
     }
 
     function handlePressedKey(key) {
@@ -74,38 +67,10 @@ FocusScope {
             shell.openDetails(appController.personItems, currentIndex, "person", "personDetails")
     }
 
-    function ensureVisible() {
-        if (knownFor.currentIndex >= 0)
-            knownFor.positionViewAtIndex(knownFor.currentIndex, ListView.Contain)
-    }
-
     function handleNavigationKey(key) {
-        const acceptKey = key === Qt.Key_Return || key === Qt.Key_Enter || key === Qt.Key_Select || key === Qt.Key_Space
-        const card = currentCard()
-        if (!acceptKey && card && card.handleNavigationKey && card.handleNavigationKey(key))
-            return true
-        if (key === Qt.Key_Left) {
-            if (currentIndex <= 0) shell.focusRail()
-            else currentIndex = currentIndex - 1
-            knownFor.currentIndex = currentIndex
-            ensureVisible()
-            return true
-        }
-        if (key === Qt.Key_Right) {
-            currentIndex = Math.min(itemCount - 1, currentIndex + 1)
-            knownFor.currentIndex = currentIndex
-            ensureVisible()
-            return true
-        }
-        if (acceptKey) {
-            if (card && card.handleAcceptReleased && card.handleAcceptReleased(key))
-                return true
-            if (card && card.handleNavigationKey && card.handleNavigationKey(key))
-                return true
-            openCurrent()
-            return true
-        }
-        return false
+        if (itemCount <= 0)
+            return false
+        return knownFor.handleNavigationKey ? knownFor.handleNavigationKey(key) : false
     }
 
     Rectangle { anchors.fill: parent; color: Theme.bg }
@@ -123,6 +88,7 @@ FocusScope {
             x: root.contentMargin
             y: root.contentMargin
             width: personFlick.width - root.contentMargin * 2
+            height: implicitHeight
             spacing: 22
 
             RowLayout {
@@ -161,48 +127,20 @@ FocusScope {
                 }
             }
 
-            SectionHeader {
-                Layout.fillWidth: true
-                title: "Known For"
-            }
-
-            ListView {
+            MediaPosterScrollerRow {
                 id: knownFor
                 Layout.fillWidth: true
-                Layout.preferredHeight: root.itemCount > 0 ? root.knownForCardHeight : 0
-                visible: root.itemCount > 0
-                focus: true
-                keyNavigationEnabled: false
-                clip: true
-                orientation: ListView.Horizontal
-                boundsBehavior: Flickable.StopAtBounds
-                spacing: Metrics.gap(root.width)
-                model: appController ? appController.personItems : null
+                title: "Known For"
+                rowModel: appController ? appController.personItems : null
+                shell: root.shell
+                cardWidth: root.knownForCardWidth
+                rowGap: Metrics.gap(root.width)
+                enabledRow: root.itemCount > 0
                 currentIndex: root.currentIndex
-
-                delegate: MediaItemCard {
-                    required property int index
-                    required property string movieId
-                    readonly property var itemData: root.itemAt(index)
-                    width: root.knownForCardWidth
-                    height: root.knownForCardHeight
-                    item: itemData
-                    kind: "poster"
-                    useSeriesPoster: true
-                    focused: ListView.isCurrentItem && knownFor.activeFocus
-                    onActivated: {
-                        knownFor.currentIndex = index
-                        root.currentIndex = index
-                        root.openCurrent()
-                    }
-                    onFavoriteToggled: (favorite) => appController.setFavorite(movieId || "", favorite)
-                    onPlayedToggled: (played) => appController.setPlayed(movieId || "", played)
-                    onMediaInfoRequested: shell.openMediaInfo(itemData)
-                }
-
-                Keys.onReleased: (event) => {
-                    if (root.handleNavigationKey(event.key))
-                        event.accepted = true
+                onCurrentIndexChanged: root.currentIndex = knownFor.currentIndex
+                onActivated: (index) => {
+                    root.currentIndex = index
+                    root.openCurrent()
                 }
             }
 
