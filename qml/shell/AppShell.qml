@@ -122,6 +122,7 @@ FocusScope {
             if (root.player.backAllowed) root.player.stopWithReason("shell-back-fallback")
             return true
         }
+        if (routeStack.handleBack()) return true
         if (route === "playerOverlay") { replaceRoute(previousRoute.length > 0 ? previousRoute : "home"); return true }
         if (route === "settings") { appController.closeSettings(); replaceRoute(previousRoute.length > 0 ? previousRoute : "home"); return true }
         if (route === "itemDetails") { replaceRoute(detailsReturnRoute.length > 0 ? detailsReturnRoute : "libraryGrid"); return true }

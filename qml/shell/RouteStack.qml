@@ -19,6 +19,12 @@ FocusScope {
         return false
     }
 
+    function handleBack() {
+        if (loader.item && loader.item.handleBack)
+            return loader.item.handleBack()
+        return false
+    }
+
     Loader {
         id: loader
         anchors.fill: parent
