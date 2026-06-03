@@ -554,11 +554,14 @@ FocusScope {
         }
 
         if (libraryButton.activeFocus || sortButton.activeFocus || filterButton.activeFocus || clearFiltersButton.activeFocus) {
+            if (key === Qt.Key_Up) {
+                shell.focusNavBar()
+                return true
+            }
             if (key === Qt.Key_Left) {
                 if (sortButton.activeFocus) libraryButton.forceActiveFocus()
                 else if (filterButton.activeFocus) sortButton.forceActiveFocus()
                 else if (clearFiltersButton.activeFocus) filterButton.forceActiveFocus()
-                else shell.focusRail()
                 return true
             }
             if (key === Qt.Key_Right) {
@@ -587,8 +590,8 @@ FocusScope {
         if (!acceptKey && card && card.handleNavigationKey && card.handleNavigationKey(key))
             return true
         if (key === Qt.Key_Left) {
-            if (grid.currentIndex % columns === 0) shell.focusRail()
-            else grid.currentIndex = Math.max(0, grid.currentIndex - 1)
+            if (grid.currentIndex % columns !== 0)
+                grid.currentIndex = Math.max(0, grid.currentIndex - 1)
             return true
         }
         if (key === Qt.Key_Right) {
@@ -826,7 +829,7 @@ FocusScope {
                 }
             }
             Keys.onReleased: (event) => {
-                if (event.key === Qt.Key_Left && currentIndex % columns === 0) { shell.focusRail(); event.accepted = true }
+                if (event.key === Qt.Key_Up && currentIndex < columns) { shell.focusNavBar(); event.accepted = true }
                 else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter || event.key === Qt.Key_Select || event.key === Qt.Key_Space) {
                     const card = root.currentCard()
                     if (card && card.handleAcceptReleased && card.handleAcceptReleased(event.key)) {

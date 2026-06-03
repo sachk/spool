@@ -14,6 +14,7 @@ QtObject {
     }
 
     function railWidth(w) { return [48, 52, 56, 64][densityForWidth(w)] }
+    function topBarHeight(w) { return [52, 56, 62, 72][densityForWidth(w)] }
     function pageMargin(w) { return [24, 32, 44, 64][densityForWidth(w)] }
     function gap(w) { return [14, 18, 22, 28][densityForWidth(w)] }
     function basePosterWidth(w) { return [140, 180, 210, 240][densityForWidth(w)] + userPosterSizeBias * 24 }

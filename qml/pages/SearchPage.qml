@@ -87,7 +87,7 @@ FocusScope {
             if (menuRow && menuRow.handleNavigationKey && menuRow.handleNavigationKey(key))
                 return true
         }
-        if (key === Qt.Key_Left && !field.editing) { shell.focusRail(); return true }
+        if (key === Qt.Key_Up && field.activeFocus && !field.editing) { shell.focusNavBar(); return true }
         if (key === Qt.Key_Down && field.activeFocus) {
             if (resultCount > 0) {
                 results.forceActiveFocus()
@@ -258,9 +258,6 @@ FocusScope {
             Keys.onReleased: (event) => {
                 if (event.key === Qt.Key_Up && currentIndex <= 0) {
                     field.focusRow()
-                    event.accepted = true
-                } else if (event.key === Qt.Key_Left) {
-                    shell.focusRail()
                     event.accepted = true
                 } else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter || event.key === Qt.Key_Select || event.key === Qt.Key_Space) {
                     const row = root.currentResultRow()

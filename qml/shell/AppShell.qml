@@ -114,6 +114,7 @@ FocusScope {
 
     function back() {
         if (textInputActive) { releaseTextInput(); return true }
+        if (navBar.visible && navBar.syncPlayMenuOpen) { navBar.closeSyncPlayMenu(); return true }
         if (shortcutOverlayVisible) { shortcutOverlayVisible = false; return true }
         if (diagnosticsVisible) { diagnosticsVisible = false; return true }
         if (mediaInfoVisible) { mediaInfoVisible = false; return true }
@@ -173,11 +174,11 @@ FocusScope {
         return appController.movies.get(idx) || ({})
     }
 
-    function focusRail() {
+    function focusNavBar() {
         if (route === "login")
             return
-        sideRail.forceActiveFocus()
-        sideRail.focusCurrent()
+        navBar.forceActiveFocus()
+        navBar.focusCurrent()
     }
 
     function focusContent() {
@@ -187,8 +188,8 @@ FocusScope {
     }
 
     function dispatchNavigationKey(key) {
-        if (sideRail.visible && sideRail.activeFocus)
-            return sideRail.handleNavigationKey(key)
+        if (navBar.visible && navBar.activeFocus)
+            return navBar.handleNavigationKey(key)
         return routeStack.handleNavigationKey(key)
     }
 
@@ -308,7 +309,7 @@ FocusScope {
             if (dispatchNavigationKey(event.key))
                 event.accepted = true
         }
-        if (isAcceptKey(event.key) && !sideRail.activeFocus) {
+        if (isAcceptKey(event.key) && !navBar.activeFocus) {
             if (routeStack.handlePressedKey(event.key))
                 event.accepted = true
         }
@@ -331,9 +332,9 @@ FocusScope {
             return
         }
         if (isAcceptKey(event.key)) {
-            // Don't hijack Enter when the side rail (or anything else) owns focus —
+            // Don't hijack Enter when the nav bar (or anything else) owns focus —
             // let the focused button handle it natively.
-            if (!sideRail.activeFocus && routeStack.handleNavigationKey(event.key)) {
+            if (!navBar.activeFocus && routeStack.handleNavigationKey(event.key)) {
                 event.accepted = true
                 return
             }
@@ -344,18 +345,19 @@ FocusScope {
 
     Rectangle { anchors.fill: parent; color: Theme.bg; visible: !(root.hasPlayer && root.player.visible) }
 
-    RowLayout {
+    ColumnLayout {
         id: contentLayer
         anchors.fill: parent
         spacing: 0
         visible: !(root.hasPlayer && root.player.visible)
         enabled: !(root.hasPlayer && root.player.visible)
 
-        SideRail {
-            id: sideRail
-            Layout.fillHeight: true
-            Layout.preferredWidth: route === "login" ? 0 : Metrics.railWidth(root.width)
+        TopBar {
+            id: navBar
+            Layout.fillWidth: true
+            Layout.preferredHeight: route === "login" ? 0 : Metrics.topBarHeight(root.width)
             visible: route !== "login"
+            z: 1
             currentRoute: root.route
             onNavigate: (r) => {
                 if (r === "home") root.goHome()

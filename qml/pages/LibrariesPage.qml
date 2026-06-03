@@ -12,12 +12,16 @@ FocusScope {
             return false
         const columns = Math.max(1, Math.floor(grid.width / Math.max(1, grid.cellWidth)))
         if (key === Qt.Key_Left) {
-            if (grid.currentIndex % columns === 0) shell.focusRail()
-            else grid.currentIndex = Math.max(0, grid.currentIndex - 1)
+            if (grid.currentIndex % columns !== 0)
+                grid.currentIndex = Math.max(0, grid.currentIndex - 1)
             return true
         }
         if (key === Qt.Key_Right) { grid.currentIndex = Math.min(grid.count - 1, grid.currentIndex + 1); return true }
-        if (key === Qt.Key_Up) { grid.currentIndex = Math.max(0, grid.currentIndex - columns); return true }
+        if (key === Qt.Key_Up) {
+            if (grid.currentIndex < columns) shell.focusNavBar()
+            else grid.currentIndex = Math.max(0, grid.currentIndex - columns)
+            return true
+        }
         if (key === Qt.Key_Down) { grid.currentIndex = Math.min(grid.count - 1, grid.currentIndex + columns); return true }
         if (key === Qt.Key_Return || key === Qt.Key_Enter || key === Qt.Key_Select) {
             if (grid.currentIndex < 0)
@@ -79,8 +83,8 @@ FocusScope {
         }
         Keys.onReleased: (event) => {
             const columns = Math.max(1, Math.floor(width / Math.max(1, cellWidth)))
-            if (event.key === Qt.Key_Left && currentIndex % columns === 0) {
-                shell.focusRail()
+            if (event.key === Qt.Key_Up && currentIndex < columns) {
+                shell.focusNavBar()
                 event.accepted = true
             } else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter || event.key === Qt.Key_Select) {
                 shell.lastLibraryIndex = currentIndex

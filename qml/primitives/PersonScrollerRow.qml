@@ -43,12 +43,8 @@ FocusScope {
         if (rowCount <= 0)
             return false
         if (key === Qt.Key_Left) {
-            if (peopleList.currentIndex <= 0) {
-                if (shell)
-                    shell.focusRail()
-            } else {
+            if (peopleList.currentIndex > 0)
                 peopleList.currentIndex = peopleList.currentIndex - 1
-            }
             currentIndex = peopleList.currentIndex
             ensureVisible()
             return true
