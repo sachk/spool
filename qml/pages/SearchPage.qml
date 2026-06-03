@@ -163,6 +163,7 @@ FocusScope {
             model: appController.searchResults
             KeyNavigation.up: field
             visible: root.resultCount > 0
+            onCurrentIndexChanged: if (currentIndex >= 0) positionViewAtIndex(currentIndex, ListView.Contain)
 
             delegate: Surface {
                 id: resultDelegate

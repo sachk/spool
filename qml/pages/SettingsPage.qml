@@ -145,6 +145,7 @@ FocusScope {
     function focusCategory(index) {
         categoryIndex = Math.max(0, Math.min(categories.length - 1, index))
         categoryList.forceActiveFocus()
+        categoryList.positionViewAtIndex(categoryIndex, ListView.Contain)
     }
 
     function activateCategory(index) {
@@ -238,6 +239,7 @@ FocusScope {
             focus: false
             currentIndex: root.categoryIndex
             keyNavigationEnabled: false
+            onCurrentIndexChanged: if (currentIndex >= 0) positionViewAtIndex(currentIndex, ListView.Contain)
 
             delegate: Surface {
                 required property int index

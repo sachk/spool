@@ -127,6 +127,7 @@ FocusScope {
                     keyNavigationEnabled: true
                     model: appController.discoveredServers
                     KeyNavigation.left: signInButton
+                    onCurrentIndexChanged: if (currentIndex >= 0) positionViewAtIndex(currentIndex, ListView.Contain)
                     delegate: Surface {
                         required property int index
                         required property string name

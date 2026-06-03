@@ -91,6 +91,10 @@ FocusScope {
         spacing: root.rowGap
         model: root.peopleModel
         currentIndex: root.rowCount > 0 ? Math.max(0, Math.min(root.currentIndex, root.rowCount - 1)) : -1
+        onCurrentIndexChanged: {
+            root.currentIndex = currentIndex
+            root.ensureVisible()
+        }
 
         delegate: Item {
             id: personDelegate
