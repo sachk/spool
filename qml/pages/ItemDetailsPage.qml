@@ -696,6 +696,7 @@ FocusScope {
         contentHeight: Math.max(height, contentColumn.implicitHeight + root.contentMargin)
         clip: true
         boundsBehavior: Flickable.StopAtBounds
+        FastWheelHandler { flickable: detailsFlick }
 
         ColumnLayout {
             id: contentColumn

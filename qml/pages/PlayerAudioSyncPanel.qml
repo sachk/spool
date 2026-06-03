@@ -8,6 +8,7 @@ Rectangle {
 
     required property var overlay
     readonly property real uiScale: overlay ? overlay.uiScale : 1
+    readonly property bool instantOpen: overlay && overlay.isAudioSyncOpen()
 
     function dp(n) {
         return Math.round(n * uiScale)
@@ -52,21 +53,21 @@ Rectangle {
     height: dp(330)
     visible: opacity > 0.01
     opacity: 0
-    scale: opacity > 0.5 ? 1 : 0.97
+    scale: instantOpen || opacity > 0.5 ? 1 : 0.97
     radius: dp(16)
     color: overlay.colPanelBg
     border.width: 1
     border.color: overlay.colHairline
 
     Behavior on scale {
-        enabled: !Theme.reducedMotion
+        enabled: !Theme.reducedMotion && !audioSyncPanel.instantOpen
         NumberAnimation { duration: 160; easing.type: Easing.OutCubic }
     }
 
     transform: Translate {
-        y: audioSyncPanel.opacity > 0.5 ? 0 : audioSyncPanel.dp(14)
+        y: audioSyncPanel.instantOpen || audioSyncPanel.opacity > 0.5 ? 0 : audioSyncPanel.dp(14)
         Behavior on y {
-            enabled: !Theme.reducedMotion
+            enabled: !Theme.reducedMotion && !audioSyncPanel.instantOpen
             NumberAnimation { duration: 160; easing.type: Easing.OutCubic }
         }
     }

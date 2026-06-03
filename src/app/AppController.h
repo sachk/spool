@@ -37,6 +37,7 @@ class AppController final : public QObject
     Q_PROPERTY(QString currentLibraryName READ currentLibraryName NOTIFY currentLibraryNameChanged)
     Q_PROPERTY(QString currentContentLabel READ currentContentLabel NOTIFY currentLibraryNameChanged)
     Q_PROPERTY(QString currentViewKind READ currentViewKind NOTIFY currentLibraryNameChanged)
+    Q_PROPERTY(QString currentLibraryId READ currentLibraryId NOTIFY currentLibraryNameChanged)
     Q_PROPERTY(QString currentLibraryCollectionType READ currentLibraryCollectionType NOTIFY currentLibraryNameChanged)
     Q_PROPERTY(QVariantMap libraryQuery READ libraryQuery NOTIFY libraryQueryChanged)
     Q_PROPERTY(QVariantMap libraryFilterOptions READ libraryFilterOptions NOTIFY libraryFilterOptionsChanged)
@@ -104,6 +105,7 @@ public:
     QString currentLibraryName() const;
     QString currentContentLabel() const;
     QString currentViewKind() const;
+    QString currentLibraryId() const;
     QString currentLibraryCollectionType() const;
     QVariantMap libraryQuery() const;
     QVariantMap libraryFilterOptions() const;

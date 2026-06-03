@@ -86,11 +86,20 @@ FocusScope {
     }
 
     function isPinned() {
-        return (hasPlayer && player.paused) || scrubbing || isMenuOpen() || isAudioSyncOpen()
+        return scrubbing || isMenuOpen() || isAudioSyncOpen()
     }
 
     function isControlsActive() {
         return mode === "controls" || isAudioSyncOpen()
+    }
+
+    function autohideDelayMs() {
+        return row === "actions" ? 5200 : 3000
+    }
+
+    function restartAutohide() {
+        autohideTimer.interval = autohideDelayMs()
+        autohideTimer.restart()
     }
 
     function formatClock(seconds) {
@@ -150,12 +159,12 @@ FocusScope {
         if (!isMenuOpen() && !isAudioSyncOpen())
             mode = "controls"
         if (isPinned()) autohideTimer.stop()
-        else autohideTimer.restart()
+        else restartAutohide()
     }
 
     function maybeRestartAutohide() {
         if (mode !== "hidden" && !isPinned())
-            autohideTimer.restart()
+            restartAutohide()
     }
 
     function hideControls() {
@@ -813,9 +822,19 @@ FocusScope {
         }
     }
 
-    transitions: Transition {
-        NumberAnimation { properties: "opacity"; duration: 140; easing.type: Easing.OutCubic }
-    }
+    transitions: [
+        Transition {
+            to: "debug"
+            NumberAnimation { properties: "opacity"; duration: 0 }
+        },
+        Transition {
+            to: "audiosync"
+            NumberAnimation { properties: "opacity"; duration: 0 }
+        },
+        Transition {
+            NumberAnimation { properties: "opacity"; duration: 140; easing.type: Easing.OutCubic }
+        }
+    ]
 
     PlayerTrickplayPreview {
         id: trickplayPreview

@@ -41,6 +41,7 @@ FocusScope {
         keyNavigationEnabled: false
         currentIndex: count > 0 ? Math.max(0, Math.min(shell.lastLibraryIndex, count - 1)) : -1
         onCurrentIndexChanged: if (currentIndex >= 0) positionViewAtIndex(currentIndex, GridView.Contain)
+        FastWheelHandler { flickable: grid }
         header: Item { width: grid.width; height: 158; ColumnLayout { anchors.fill: parent; spacing: 12; SectionHeader { Layout.fillWidth: true; title: "Libraries" } RowLayout { Layout.fillWidth: true; Repeater { model: ["Total Items", "Recently Added", "Server", "Active Users"]; delegate: MetadataChip { required property string modelData; text: modelData; Layout.preferredHeight: 34 } } } } }
         delegate: Surface {
             required property int index

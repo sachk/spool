@@ -128,6 +128,7 @@ FocusScope {
                     model: appController.discoveredServers
                     KeyNavigation.left: signInButton
                     onCurrentIndexChanged: if (currentIndex >= 0) positionViewAtIndex(currentIndex, ListView.Contain)
+                    FastWheelHandler { flickable: discoveredList }
                     delegate: Surface {
                         required property int index
                         required property string name

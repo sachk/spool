@@ -194,6 +194,7 @@ qt_add_qml_module(jellyfin-native
         qml/primitives/AudioDelayRow.qml
         qml/primitives/AppText.qml
         qml/primitives/EmptyPlaceholder.qml
+        qml/primitives/FastWheelHandler.qml
         qml/primitives/FocusFrame.qml
         qml/primitives/IconButton.qml
         qml/primitives/ImageCard.qml
