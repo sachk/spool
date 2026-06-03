@@ -35,12 +35,19 @@ FocusScope {
         height: 42
         focus: true
 
+        HoverHandler { id: hover }
+
         Rectangle {
             anchors.fill: parent
-            radius: Theme.radiusSmall
-            color: buttonRoot.checked || buttonRoot.activeFocus ? Theme.accentPanel : "transparent"
+            radius: height / 2
+            color: buttonRoot.checked ? Theme.accentPanel
+                  : (buttonRoot.activeFocus || hover.hovered) ? Theme.bgHover
+                  : Theme.bgRaised
             border.width: buttonRoot.activeFocus ? 2 : 1
-            border.color: buttonRoot.activeFocus ? Theme.textPrimary : buttonRoot.checked ? Theme.accent : "#55FFFFFF"
+            border.color: buttonRoot.activeFocus ? Theme.textPrimary
+                        : buttonRoot.checked ? Theme.accent
+                        : Theme.border
+            antialiasing: true
         }
 
         Row {
@@ -175,7 +182,6 @@ FocusScope {
         const count = appController.movies ? appController.movies.count : 0
         const parts = []
         if (count > 0) parts.push(count + (total > count ? " of " + total : "") + " items")
-        parts.push("Sorted by " + currentSortBy())
         if (activeFilterCount > 0) parts.push(activeFilterCount + " filter" + (activeFilterCount === 1 ? "" : "s"))
         return parts.join(" · ")
     }
@@ -243,6 +249,14 @@ FocusScope {
 
     function currentSortOrder() {
         return libraryQuery && libraryQuery.sortOrder ? String(libraryQuery.sortOrder) : "Ascending"
+    }
+
+    function currentSortLabel() {
+        const by = currentSortBy()
+        for (let i = 0; i < sortEntries.length; ++i)
+            if (sortEntries[i].value === by)
+                return sortEntries[i].label
+        return "Sort"
     }
 
     function buildSortEntries() {
@@ -385,6 +399,16 @@ FocusScope {
         sortOpen = false
         filtersOpen = false
         grid.forceActiveFocus()
+    }
+
+    // Consume Back when a toolbar menu is open so it dismisses the menu rather
+    // than navigating out of the library.
+    function handleBack() {
+        if (libraryOpen || sortOpen || filtersOpen) {
+            closeMenus()
+            return true
+        }
+        return false
     }
 
     function activateLibraryIndex(index) {
@@ -690,8 +714,8 @@ FocusScope {
 
             ToolbarButton {
                 id: sortButton
-                iconName: "sort_by_alpha"
-                label: "Sort"
+                iconName: root.currentSortOrder() === "Descending" ? "south" : "north"
+                label: root.currentSortLabel()
                 checked: root.sortOpen
                 onActivated: root.openSortMenu()
             }
