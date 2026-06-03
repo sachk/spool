@@ -14,6 +14,7 @@
 #include <QVariantMap>
 
 #include <algorithm>
+#include <utility>
 
 namespace JellyfinNative {
 
@@ -22,15 +23,6 @@ namespace {
 constexpr int kLibraryPageSize = 100;
 constexpr int kLibraryPrefetchDistance = 200;
 constexpr int kBackgroundLibraryPrefetchLimit = 3;
-
-template<typename T>
-QJsonArray toJsonArray(const std::vector<T> &items)
-{
-    QJsonArray array;
-    for (const auto &item : items)
-        array.push_back(toJson(item));
-    return array;
-}
 
 QString homeItemSample(const std::vector<MovieItem> &items)
 {
@@ -87,11 +79,6 @@ QString libraryCacheKey(const LibraryItem &library)
     if (library.collectionType == QStringLiteral("movies"))
         return library.id;
     return QStringLiteral("library/%1/%2").arg(library.collectionType, library.id);
-}
-
-QStringList recentLibraryIds(DatabaseManager *database)
-{
-    return database->loadSetting(QStringLiteral("library/recentOrder")).split(QLatin1Char('|'), Qt::SkipEmptyParts);
 }
 
 QString normalizedChoice(const QString &value, const QStringList &allowed, const QString &fallback)
@@ -518,7 +505,6 @@ void AppController::initialize()
         loadLibraries();
     } else {
         applyDiscoveredServersCache();
-        applyLibrariesCache();
         m_discovery->start();
     }
 }
@@ -727,13 +713,20 @@ void AppController::openLibrary(int index)
     resetCurrentItemsPaging(cacheKey);
     recordLibraryUse(library);
     emit currentLibraryNameChanged();
-    applyMoviesCache(cacheKey);
-    m_currentItemsNextStartIndex = m_movies.rowCount();
-    m_currentItemsTotalCount = m_movies.rowCount();
-    m_currentItemsHasMore = m_movies.rowCount() >= kLibraryPageSize;
+    const int cachedCount = applyPrefetchedLibraryPage(cacheKey);
+    const bool hasWarmCache = cachedCount > 0;
+    m_currentItemsNextStartIndex = cachedCount;
+    m_currentItemsTotalCount = cachedCount;
+    m_currentItemsHasMore = cachedCount >= kLibraryPageSize;
     m_currentItemsLoadingMore = true;
     emit currentItemsPagingChanged();
-    setBusy(true, QStringLiteral("Loading %1…").arg(m_currentContentLabel.toLower()));
+    if (hasWarmCache) {
+        setBusy(false);
+        setPage(QStringLiteral("movies"));
+        qInfo() << "library open: showing cached page while refreshing" << library.name << cachedCount;
+    } else {
+        setBusy(true, QStringLiteral("Loading %1…").arg(m_currentContentLabel.toLower()));
+    }
 
     QCoro::runDetached(
         m_api->fetchLibraryPage(library.id, library.collectionType, 0, kLibraryPageSize),
@@ -742,12 +735,16 @@ void AppController::openLibrary(int index)
                 return;
             setCurrentItemsPage(page, cacheKey, false);
         },
-        [this, loadGeneration](const std::exception_ptr &error) {
+        [this, loadGeneration, hasWarmCache](const std::exception_ptr &error) {
             if (loadGeneration != m_libraryLoadGeneration)
                 return;
             setBusy(false);
             setCurrentItemsLoadingMore(false);
-            setErrorText(exceptionMessage(error));
+            const QString message = exceptionMessage(error);
+            if (hasWarmCache)
+                qWarning() << "library open: background refresh failed" << message;
+            else
+                setErrorText(message);
             if (m_page != QStringLiteral("movies"))
                 setPage(QStringLiteral("movies"));
         });
@@ -1642,25 +1639,16 @@ void AppController::applyDiscoveredServersCache()
     m_discoveredServers.setServers(parsed);
 }
 
-void AppController::applyLibrariesCache()
+int AppController::applyPrefetchedLibraryPage(const QString &cacheKey)
 {
-    const auto libraries = m_database->loadLibraries();
-    std::vector<LibraryItem> parsed;
-    parsed.reserve(libraries.size());
-    for (const auto &value : libraries)
-        parsed.push_back(libraryFromJson(value.toObject()));
-    m_libraries.setLibraries(parsed);
-}
-
-void AppController::applyMoviesCache(const QString &libraryId)
-{
-    const auto movies = m_database->loadMovies(libraryId);
-    std::vector<MovieItem> parsed;
-    parsed.reserve(movies.size());
-    for (const auto &value : movies)
-        parsed.push_back(movieFromJson(value.toObject()));
-    m_movies.setMovies(parsed);
-    prefetchMoviePosters(parsed);
+    const auto prefetchedPage = m_prefetchedLibraryPages.constFind(cacheKey);
+    if (prefetchedPage != m_prefetchedLibraryPages.constEnd()) {
+        m_movies.setMovies(prefetchedPage.value().items);
+        prefetchMoviePosters(prefetchedPage.value().items);
+        return m_movies.rowCount();
+    }
+    m_movies.clear();
+    return 0;
 }
 
 void AppController::loadLibraries()
@@ -1673,7 +1661,6 @@ void AppController::loadLibraries()
         m_api->fetchLibraries(),
         [this](const std::vector<LibraryItem> &libraries) {
             m_libraries.setLibraries(libraries);
-            m_database->saveLibraries(toJsonArray(libraries));
             setBusy(false);
             setPage(QStringLiteral("libraries"));
             refreshHomeRows();
@@ -1761,8 +1748,6 @@ void AppController::setCurrentItems(const std::vector<MovieItem> &items, const Q
 {
     resetCurrentItemsPaging(cacheKey);
     m_movies.setMovies(items);
-    if (!cacheKey.isEmpty())
-        m_database->saveMovies(cacheKey, toJsonArray(items));
     prefetchMoviePosters(items);
     setBusy(false);
     setPage(QStringLiteral("movies"));
@@ -1772,12 +1757,8 @@ void AppController::setCurrentItemsPage(const PagedMovieItems &page, const QStri
 {
     if (!append) {
         m_movies.setMovies(page.items);
-        if (!cacheKey.isEmpty())
-            m_database->saveMovies(cacheKey, toJsonArray(page.items));
     } else {
         m_movies.appendMovies(page.items);
-        if (!cacheKey.isEmpty())
-            m_database->saveMovies(cacheKey, toJsonArray(m_movies.movies()));
     }
 
     const int loadedCount = m_movies.rowCount();
@@ -1823,12 +1804,10 @@ void AppController::recordLibraryUse(const LibraryItem &library)
     if (library.id.isEmpty())
         return;
 
-    QStringList ids = recentLibraryIds(m_database);
-    ids.removeAll(library.id);
-    ids.prepend(library.id);
-    while (ids.size() > 12)
-        ids.removeLast();
-    m_database->saveSetting(QStringLiteral("library/recentOrder"), ids.join(QLatin1Char('|')));
+    m_recentLibraryIds.removeAll(library.id);
+    m_recentLibraryIds.prepend(library.id);
+    while (m_recentLibraryIds.size() > 12)
+        m_recentLibraryIds.removeLast();
 }
 
 void AppController::openSeries(const MovieItem &series)
@@ -1844,7 +1823,8 @@ void AppController::openSeries(const MovieItem &series)
     m_currentLibraryName = series.title;
     m_currentContentLabel = QStringLiteral("Seasons");
     emit currentLibraryNameChanged();
-    applyMoviesCache(QStringLiteral("seasons/%1").arg(series.id));
+    resetCurrentItemsPaging(QStringLiteral("seasons/%1").arg(series.id));
+    m_movies.clear();
     setBusy(true, QStringLiteral("Loading seasons…"));
 
     QCoro::runDetached(
@@ -1885,7 +1865,8 @@ void AppController::openSeason(const MovieItem &season)
     m_currentLibraryName = season.title;
     m_currentContentLabel = QStringLiteral("Episodes");
     emit currentLibraryNameChanged();
-    applyMoviesCache(QStringLiteral("episodes/%1/%2").arg(seriesId, season.id));
+    resetCurrentItemsPaging(QStringLiteral("episodes/%1/%2").arg(seriesId, season.id));
+    m_movies.clear();
     setBusy(true, QStringLiteral("Loading episodes…"));
 
     QCoro::runDetached(
@@ -2029,7 +2010,6 @@ void AppController::refreshCurrentItems(const QString &viewKind,
                 if (loadGeneration != m_libraryLoadGeneration)
                     return;
                 m_movies.setMovies(episodes);
-                m_database->saveMovies(QStringLiteral("episodes/%1/%2").arg(seriesId, seasonId), toJsonArray(episodes));
                 prefetchMoviePosters(episodes);
             },
             [this, loadGeneration](const std::exception_ptr &error) {
@@ -2163,7 +2143,6 @@ void AppController::scheduleLibraryPrefetch(int generation)
     m_libraryPrefetchQueue.clear();
     const int count = m_libraries.rowCount();
     m_libraryPrefetchQueue.reserve(kBackgroundLibraryPrefetchLimit);
-    const QStringList recentIds = recentLibraryIds(m_database);
     std::vector<LibraryItem> selectedLibraries;
     selectedLibraries.reserve(kBackgroundLibraryPrefetchLimit);
     QSet<QString> selectedIds;
@@ -2179,7 +2158,7 @@ void AppController::scheduleLibraryPrefetch(int generation)
         selectedLibraries.push_back(library);
     };
 
-    for (const QString &recentId : recentIds) {
+    for (const QString &recentId : std::as_const(m_recentLibraryIds)) {
         for (int i = 0; i < count; ++i) {
             const auto library = m_libraries.libraryAt(i);
             if (library.id == recentId) {
@@ -2195,8 +2174,29 @@ void AppController::scheduleLibraryPrefetch(int generation)
     }
 
     for (const LibraryItem &library : selectedLibraries) {
-        if (!m_prefetchedLibraryKeys.contains(libraryCacheKey(library)))
+        const QString cacheKey = libraryCacheKey(library);
+        if (!m_prefetchedLibraryKeys.contains(cacheKey))
             m_libraryPrefetchQueue.push_back(library);
+    }
+
+    QSet<QString> selectedCacheKeys;
+    selectedCacheKeys.reserve(static_cast<qsizetype>(selectedLibraries.size()));
+    for (const LibraryItem &library : selectedLibraries)
+        selectedCacheKeys.insert(libraryCacheKey(library));
+
+    QSet<QString> retainedPrefetchKeys;
+    retainedPrefetchKeys.reserve(m_prefetchedLibraryKeys.size());
+    for (const QString &cacheKey : std::as_const(m_prefetchedLibraryKeys)) {
+        if (selectedCacheKeys.contains(cacheKey))
+            retainedPrefetchKeys.insert(cacheKey);
+    }
+    m_prefetchedLibraryKeys = retainedPrefetchKeys;
+
+    for (auto it = m_prefetchedLibraryPages.begin(); it != m_prefetchedLibraryPages.end();) {
+        if (selectedCacheKeys.contains(it.key()))
+            ++it;
+        else
+            it = m_prefetchedLibraryPages.erase(it);
     }
 
     if (m_libraryPrefetchQueue.empty())
@@ -2229,7 +2229,7 @@ void AppController::startNextLibraryPrefetch()
         if (m_libraryPrefetchGeneration != m_homeLoadGeneration)
             return;
         qInfo() << "library prefetch: cached" << library.name << page.items.size();
-        m_database->saveMovies(cacheKey, toJsonArray(page.items));
+        m_prefetchedLibraryPages.insert(cacheKey, page);
         m_prefetchedLibraryKeys.insert(cacheKey);
         m_libraryPrefetchActive = false;
         startNextLibraryPrefetch();

@@ -207,35 +207,6 @@ void DatabaseManager::saveDiscoveredServers(const QJsonArray &servers)
     });
 }
 
-QJsonArray DatabaseManager::loadLibraries()
-{
-    const auto value = invokeOnWorker([this]() { return m_worker->value(QStringLiteral("cache/libraries")); });
-    return QJsonDocument::fromJson(value.toByteArray()).array();
-}
-
-void DatabaseManager::saveLibraries(const QJsonArray &libraries)
-{
-    const QByteArray encoded = QJsonDocument(libraries).toJson(QJsonDocument::Compact);
-    invokeOnWorkerAsync([this, encoded]() {
-        m_worker->setValue(QStringLiteral("cache/libraries"), QString::fromUtf8(encoded));
-    });
-}
-
-QJsonArray DatabaseManager::loadMovies(const QString &libraryId)
-{
-    const auto value =
-        invokeOnWorker([this, libraryId]() { return m_worker->value(QStringLiteral("cache/movies/%1").arg(libraryId)); });
-    return QJsonDocument::fromJson(value.toByteArray()).array();
-}
-
-void DatabaseManager::saveMovies(const QString &libraryId, const QJsonArray &movies)
-{
-    const QByteArray encoded = QJsonDocument(movies).toJson(QJsonDocument::Compact);
-    invokeOnWorkerAsync([this, libraryId, encoded]() {
-        m_worker->setValue(QStringLiteral("cache/movies/%1").arg(libraryId), QString::fromUtf8(encoded));
-    });
-}
-
 bool DatabaseManager::loadNightModeEnabled()
 {
     return invokeOnWorker([this]() { return m_worker->value(QStringLiteral("settings/nightMode")); }).toBool();

@@ -241,10 +241,16 @@ FocusScope {
         property int currentIndex: 0
         readonly property int rowCount: rowModel && rowModel.rowCount ? rowModel.rowCount() : 0
         readonly property int cardHeight: Math.round(cardWidth * 1.5 + 60)
+        readonly property int headerHeight: 34
+        readonly property int rowHeight: rowCount > 0 ? headerHeight + 10 + cardHeight : 0
         signal activated(int index)
 
         Layout.fillWidth: true
-        Layout.preferredHeight: visible && rowCount > 0 ? rowHeader.implicitHeight + cardHeight + 18 : 0
+        Layout.preferredHeight: visible ? rowHeight : 0
+        Layout.minimumHeight: visible ? rowHeight : 0
+        Layout.maximumHeight: visible ? rowHeight : 0
+        implicitHeight: visible ? rowHeight : 0
+        height: visible ? rowHeight : 0
         visible: rowCount > 0
         focus: true
 
@@ -300,61 +306,62 @@ FocusScope {
             return false
         }
 
-        ColumnLayout {
-            anchors.fill: parent
-            spacing: 10
+        SectionHeader {
+            id: rowHeader
+            anchors.left: parent.left
+            anchors.right: parent.right
+            anchors.top: parent.top
+            height: rowRoot.headerHeight
+            title: rowRoot.title
+        }
 
-            SectionHeader {
-                id: rowHeader
-                Layout.fillWidth: true
-                title: rowRoot.title
+        ListView {
+            id: listView
+            anchors.left: parent.left
+            anchors.right: parent.right
+            anchors.top: rowHeader.bottom
+            anchors.topMargin: 10
+            height: rowRoot.cardHeight
+            focus: true
+            keyNavigationEnabled: false
+            clip: true
+            orientation: ListView.Horizontal
+            boundsBehavior: Flickable.StopAtBounds
+            spacing: root.rowGap
+            model: rowRoot.rowModel
+            currentIndex: rowRoot.rowCount > 0 ? Math.max(0, Math.min(rowRoot.currentIndex, rowRoot.rowCount - 1)) : -1
+
+            delegate: MediaItemCard {
+                id: posterDelegate
+                required property int index
+                required property string title
+                required property string posterUrl
+                required property string seriesPosterUrl
+                required property int year
+                required property string subtitle
+                required property string displayTitle
+                required property string displaySubtitle
+                required property string movieId
+                readonly property var itemData: rowRoot.rowModel.get(index)
+                width: rowRoot.cardWidth
+                height: listView.height
+                item: itemData
+                kind: "poster"
+                useSeriesPoster: true
+                focused: posterDelegate.index === listView.currentIndex && listView.activeFocus
+                onActivated: {
+                    listView.currentIndex = posterDelegate.index
+                    rowRoot.currentIndex = posterDelegate.index
+                    rowRoot.activated(posterDelegate.index)
+                }
+                onFavoriteToggled: (favorite) => appController.setFavorite(posterDelegate.movieId || "", favorite)
+                onPlayedToggled: (played) => appController.setPlayed(posterDelegate.movieId || "", played)
+                onMediaInfoRequested: shell.openMediaInfo(posterDelegate.itemData)
             }
 
-            ListView {
-                id: listView
-                Layout.fillWidth: true
-                Layout.preferredHeight: rowRoot.cardHeight
-                focus: true
-                keyNavigationEnabled: false
-                clip: true
-                orientation: ListView.Horizontal
-                boundsBehavior: Flickable.StopAtBounds
-                spacing: root.rowGap
-                model: rowRoot.rowModel
-                currentIndex: rowRoot.rowCount > 0 ? Math.max(0, Math.min(rowRoot.currentIndex, rowRoot.rowCount - 1)) : -1
-
-                delegate: MediaItemCard {
-                    id: posterDelegate
-                    required property int index
-                    required property string title
-                    required property string posterUrl
-                    required property string seriesPosterUrl
-                    required property int year
-                    required property string subtitle
-                    required property string displayTitle
-                    required property string displaySubtitle
-                    required property string movieId
-                    readonly property var itemData: rowRoot.rowModel.get(index)
-                    width: rowRoot.cardWidth
-                    height: listView.height
-                    item: itemData
-                    kind: "poster"
-                    useSeriesPoster: true
-                    focused: posterDelegate.index === listView.currentIndex && listView.activeFocus
-                    onActivated: {
-                        listView.currentIndex = posterDelegate.index
-                        rowRoot.currentIndex = posterDelegate.index
-                        rowRoot.activated(posterDelegate.index)
-                    }
-                    onFavoriteToggled: (favorite) => appController.setFavorite(posterDelegate.movieId || "", favorite)
-                    onPlayedToggled: (played) => appController.setPlayed(posterDelegate.movieId || "", played)
-                    onMediaInfoRequested: shell.openMediaInfo(posterDelegate.itemData)
-                }
-
-                Keys.onReleased: (event) => {
-                    if (rowRoot.handleNavigationKey(event.key))
-                        event.accepted = true
-                }
+            Keys.onReleased: (event) => {
+                if (rowRoot.handleNavigationKey(event.key))
+                    event.accepted = true
             }
         }
     }
@@ -366,11 +373,17 @@ FocusScope {
         property int currentIndex: 0
         readonly property int rowCount: peopleModel ? peopleModel.length : 0
         readonly property int cardWidth: Math.min(156, Math.max(124, root.width * 0.084))
-        readonly property int cardHeight: Math.round(cardWidth * 1.32 + 58)
+        readonly property int cardHeight: Math.round(cardWidth * 1.18 + 48)
+        readonly property int headerHeight: 34
+        readonly property int rowHeight: rowCount > 0 ? headerHeight + 10 + cardHeight : 0
         signal activated(var person)
 
         Layout.fillWidth: true
-        Layout.preferredHeight: visible && rowCount > 0 ? peopleHeader.implicitHeight + cardHeight + 18 : 0
+        Layout.preferredHeight: visible ? rowHeight : 0
+        Layout.minimumHeight: visible ? rowHeight : 0
+        Layout.maximumHeight: visible ? rowHeight : 0
+        implicitHeight: visible ? rowHeight : 0
+        height: visible ? rowHeight : 0
         visible: rowCount > 0
         focus: true
 
@@ -413,86 +426,89 @@ FocusScope {
             return false
         }
 
-        ColumnLayout {
-            anchors.fill: parent
-            spacing: 10
+        SectionHeader {
+            id: peopleHeader
+            anchors.left: parent.left
+            anchors.right: parent.right
+            anchors.top: parent.top
+            height: peopleRoot.headerHeight
+            title: peopleRoot.title
+        }
 
-            SectionHeader {
-                id: peopleHeader
-                Layout.fillWidth: true
-                title: peopleRoot.title
+        ListView {
+            id: peopleList
+            anchors.left: parent.left
+            anchors.right: parent.right
+            anchors.top: peopleHeader.bottom
+            anchors.topMargin: 10
+            height: peopleRoot.cardHeight
+            focus: true
+            keyNavigationEnabled: false
+            clip: true
+            orientation: ListView.Horizontal
+            boundsBehavior: Flickable.StopAtBounds
+            spacing: root.rowGap
+            model: peopleRoot.peopleModel
+            currentIndex: peopleRoot.rowCount > 0 ? Math.max(0, Math.min(peopleRoot.currentIndex, peopleRoot.rowCount - 1)) : -1
+
+            delegate: Item {
+                id: personDelegate
+                required property int index
+                required property var modelData
+                width: peopleRoot.cardWidth
+                height: peopleList.height
+
+                ImageCard {
+                    id: personImage
+                    anchors.top: parent.top
+                    anchors.left: parent.left
+                    anchors.right: parent.right
+                    height: width * 1.18
+                    imageUrl: modelData.imageUrl || ""
+                    fallbackText: modelData.type || "Person"
+                    focused: personDelegate.index === peopleList.currentIndex && peopleList.activeFocus
+                    retainWhileLoading: true
+                }
+
+                AppText {
+                    id: personName
+                    anchors.top: personImage.bottom
+                    anchors.topMargin: 8
+                    anchors.left: parent.left
+                    anchors.right: parent.right
+                    text: modelData.name || ""
+                    font.pixelSize: Metrics.metaPx(root.width) + 1
+                    font.weight: Font.Medium
+                    color: personDelegate.index === peopleList.currentIndex && peopleList.activeFocus ? Theme.textPrimary : Theme.textSecondary
+                    maximumLineCount: 1
+                    elide: Text.ElideRight
+                }
+
+                MonoText {
+                    anchors.left: parent.left
+                    anchors.right: parent.right
+                    anchors.top: personName.bottom
+                    anchors.topMargin: 2
+                    text: modelData.role || modelData.type || ""
+                    color: Theme.textMuted
+                    font.pixelSize: Metrics.metaPx(root.width) - 1
+                    maximumLineCount: 1
+                    elide: Text.ElideRight
+                }
+
+                MouseArea {
+                    anchors.fill: parent
+                    onClicked: {
+                        peopleList.currentIndex = personDelegate.index
+                        peopleRoot.currentIndex = personDelegate.index
+                        peopleRoot.activated(personDelegate.modelData)
+                    }
+                }
             }
 
-            ListView {
-                id: peopleList
-                Layout.fillWidth: true
-                Layout.preferredHeight: peopleRoot.cardHeight
-                focus: true
-                keyNavigationEnabled: false
-                clip: true
-                orientation: ListView.Horizontal
-                boundsBehavior: Flickable.StopAtBounds
-                spacing: root.rowGap
-                model: peopleRoot.peopleModel
-                currentIndex: peopleRoot.rowCount > 0 ? Math.max(0, Math.min(peopleRoot.currentIndex, peopleRoot.rowCount - 1)) : -1
-
-                delegate: Item {
-                    id: personDelegate
-                    required property int index
-                    required property var modelData
-                    width: peopleRoot.cardWidth
-                    height: peopleList.height
-
-                    ImageCard {
-                        id: personImage
-                        anchors.top: parent.top
-                        anchors.left: parent.left
-                        anchors.right: parent.right
-                        height: width * 1.18
-                        imageUrl: modelData.imageUrl || ""
-                        fallbackText: modelData.type || "Person"
-                        focused: personDelegate.index === peopleList.currentIndex && peopleList.activeFocus
-                        retainWhileLoading: true
-                    }
-
-                    AppText {
-                        anchors.top: personImage.bottom
-                        anchors.topMargin: 8
-                        anchors.left: parent.left
-                        anchors.right: parent.right
-                        text: modelData.name || ""
-                        font.pixelSize: Metrics.metaPx(root.width) + 1
-                        font.weight: Font.Medium
-                        color: personDelegate.index === peopleList.currentIndex && peopleList.activeFocus ? Theme.textPrimary : Theme.textSecondary
-                        maximumLineCount: 1
-                        elide: Text.ElideRight
-                    }
-
-                    MonoText {
-                        anchors.left: parent.left
-                        anchors.right: parent.right
-                        anchors.bottom: parent.bottom
-                        text: modelData.role || modelData.type || ""
-                        color: Theme.textMuted
-                        font.pixelSize: Metrics.metaPx(root.width) - 1
-                        maximumLineCount: 1
-                        elide: Text.ElideRight
-                    }
-
-                    MouseArea {
-                        anchors.fill: parent
-                        onClicked: {
-                            peopleList.currentIndex = personDelegate.index
-                            peopleRoot.currentIndex = personDelegate.index
-                            peopleRoot.activated(personDelegate.modelData)
-                        }
-                    }
-                }
-
-                Keys.onReleased: (event) => {
-                    if (peopleRoot.handleNavigationKey(event.key))
-                        event.accepted = true
-                }
+            Keys.onReleased: (event) => {
+                if (peopleRoot.handleNavigationKey(event.key))
+                    event.accepted = true
             }
         }
     }
@@ -916,7 +932,7 @@ FocusScope {
 
             Item {
                 Layout.fillWidth: true
-                Layout.preferredHeight: Math.max(610, Math.round(root.height * 0.70))
+                Layout.preferredHeight: Math.max(500, Math.min(660, Math.round(root.height * 0.64)))
 
                 Image {
                     id: titleArtImage
@@ -1139,6 +1155,7 @@ FocusScope {
                 Layout.fillWidth: true
                 Layout.leftMargin: root.contentMargin
                 Layout.rightMargin: root.contentMargin
+                Layout.topMargin: 18
                 spacing: 28
 
                 DetailPosterRow {

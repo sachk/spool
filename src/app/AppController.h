@@ -10,6 +10,7 @@
 #include "SyncPlayController.h"
 
 #include <QObject>
+#include <QHash>
 #include <QJsonObject>
 #include <QSet>
 #include <QTimer>
@@ -231,8 +232,7 @@ private:
     void setBusy(bool busy, const QString &busyText = {});
     void setErrorText(const QString &errorText);
     void applyDiscoveredServersCache();
-    void applyLibrariesCache();
-    void applyMoviesCache(const QString &libraryId);
+    int applyPrefetchedLibraryPage(const QString &cacheKey);
     void loadLibraries();
     void refreshHomeRows();
     void schedulePostPlaybackRefresh();
@@ -335,7 +335,9 @@ private:
     int m_libraryPrefetchIndex = 0;
     bool m_libraryPrefetchActive = false;
     bool m_shuttingDown = false;
+    QStringList m_recentLibraryIds;
     std::vector<LibraryItem> m_libraryPrefetchQueue;
+    QHash<QString, PagedMovieItems> m_prefetchedLibraryPages;
     QSet<QString> m_prefetchedLibraryKeys;
 };
 

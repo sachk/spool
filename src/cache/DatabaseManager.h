@@ -39,12 +39,6 @@ public:
     QJsonArray loadDiscoveredServers();
     void saveDiscoveredServers(const QJsonArray &servers);
 
-    QJsonArray loadLibraries();
-    void saveLibraries(const QJsonArray &libraries);
-
-    QJsonArray loadMovies(const QString &libraryId);
-    void saveMovies(const QString &libraryId, const QJsonArray &movies);
-
     bool loadNightModeEnabled();
     void saveNightModeEnabled(bool enabled);
     int loadAudioDelayMs();
