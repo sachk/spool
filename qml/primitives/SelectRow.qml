@@ -29,13 +29,13 @@ SettingRow {
         MaterialIcon {
             anchors.verticalCenter: parent.verticalCenter
             name: "chevron_left"
-            iconSize: 20
+            iconSize: Math.max(18, Metrics.metaPx(root.Window.window ? root.Window.window.width : 1920) + 6)
             iconColor: root.enabled && root.options.length > 1 ? Theme.textSecondary : Theme.textDisabled
         }
 
         Rectangle {
             width: Math.min(Math.max(valueLabel.implicitWidth + 28, 112), Math.max(112, root.width * 0.42))
-            height: 32
+            height: Math.max(32, Metrics.metaPx(root.Window.window ? root.Window.window.width : 1920) + 18)
             radius: Theme.radiusMedium
             color: root.activeFocus ? Theme.accentPanel : Theme.bgRaised
             border.width: root.activeFocus ? 2 : 1
@@ -60,7 +60,7 @@ SettingRow {
         MaterialIcon {
             anchors.verticalCenter: parent.verticalCenter
             name: "chevron_right"
-            iconSize: 20
+            iconSize: Math.max(18, Metrics.metaPx(root.Window.window ? root.Window.window.width : 1920) + 6)
             iconColor: root.enabled && root.options.length > 1 ? Theme.textSecondary : Theme.textDisabled
         }
     }
