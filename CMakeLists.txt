@@ -226,6 +226,10 @@ qt_add_qml_module(jellyfin-native
         qml/fonts/MaterialIcons-Regular.ttf
 )
 
+set_target_properties(jellyfin-native PROPERTIES
+    QT_QMLCACHEGEN_DIRECT_CALLS ON
+)
+
 if(NOT BUILD_SHARED_LIBS)
     set_target_properties(jellyfin-native PROPERTIES QT_QML_MODULE_NO_IMPORT_SCAN ON)
 endif()
