@@ -1858,10 +1858,17 @@ void AppController::openSeries(const MovieItem &series)
 void AppController::openSeason(const MovieItem &season)
 {
     const QString seriesId = !season.seriesId.isEmpty() ? season.seriesId : m_currentSeriesId;
-    if (seriesId.isEmpty())
+    if (seriesId.isEmpty()) {
+        qWarning() << "season open: missing series id" << season.id << season.title << season.itemType;
         return;
+    }
 
     const int loadGeneration = ++m_libraryLoadGeneration;
+    qInfo() << "season open: loading episodes"
+            << "series=" << seriesId
+            << "season=" << season.id
+            << "type=" << season.itemType
+            << "title=" << season.title;
     m_currentSeriesId = seriesId;
     m_currentSeasonId = season.itemType == QStringLiteral("Season") ? season.id : QString();
     m_currentViewKind = QStringLiteral("episodes");
@@ -1877,11 +1884,16 @@ void AppController::openSeason(const MovieItem &season)
         [this, seriesId, season, loadGeneration](const std::vector<MovieItem> &episodes) {
             if (loadGeneration != m_libraryLoadGeneration)
                 return;
+            qInfo() << "season open: episodes loaded"
+                    << "series=" << seriesId
+                    << "season=" << season.id
+                    << "count=" << episodes.size();
             setCurrentItems(episodes, QStringLiteral("episodes/%1/%2").arg(seriesId, season.id));
         },
         [this, loadGeneration](const std::exception_ptr &error) {
             if (loadGeneration != m_libraryLoadGeneration)
                 return;
+            qWarning() << "season open: episodes fetch failed" << exceptionMessage(error);
             setBusy(false);
             setErrorText(exceptionMessage(error));
         });
