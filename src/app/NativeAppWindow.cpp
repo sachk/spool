@@ -157,6 +157,7 @@ void NativeAppWindow::clearOverlay()
     bool changed = false;
     {
         QMutexLocker locker(&m_overlayMutex);
+        m_pendingOverlayImage = QImage();
         if (m_overlayImage.isNull())
             return;
         m_overlayImage = QImage();
@@ -326,14 +327,40 @@ void NativeAppWindow::setVideoCrop(int origW, int origH, int srcX, int srcY,
     updateCropRegion();
 }
 
-void NativeAppWindow::publishOverlayImage(QImage image)
+void NativeAppWindow::scheduleOverlayImage(QImage image)
 {
+    bool shouldQueue = false;
     {
         QMutexLocker locker(&m_overlayMutex);
+        m_pendingOverlayImage = std::move(image);
+        if (!m_overlayPublishQueued) {
+            m_overlayPublishQueued = true;
+            shouldQueue = true;
+        }
+    }
+
+    if (shouldQueue) {
+        QMetaObject::invokeMethod(
+            this, [this]() { publishPendingOverlayImage(); }, Qt::QueuedConnection);
+    }
+}
+
+void NativeAppWindow::publishPendingOverlayImage()
+{
+    bool changed = false;
+    {
+        QMutexLocker locker(&m_overlayMutex);
+        QImage image = std::move(m_pendingOverlayImage);
+        m_pendingOverlayImage = QImage();
+        m_overlayPublishQueued = false;
+        if (image.isNull() && m_overlayImage.isNull())
+            return;
         m_overlayImage = std::move(image);
         m_overlayRevision += 1;
+        changed = true;
     }
-    emit overlayRevisionChanged();
+    if (changed)
+        emit overlayRevisionChanged();
 }
 
 QImage NativeAppWindow::copyOverlayImage() const
@@ -388,8 +415,7 @@ void NativeAppWindow::overlayPresentCallback(void *data, const uint8_t *pixels,
     // zeroed (or NULL) buffer when there is no OSD content; we treat both the
     // same.
     if (!pixels || width <= 0 || height <= 0 || stride < width * 4) {
-        QMetaObject::invokeMethod(
-            self, [self]() { self->clearOverlay(); }, Qt::QueuedConnection);
+        self->scheduleOverlayImage(QImage());
         return;
     }
 
@@ -418,8 +444,7 @@ void NativeAppWindow::overlayPresentCallback(void *data, const uint8_t *pixels,
         }
     }
     if (!hasContent) {
-        QMetaObject::invokeMethod(
-            self, [self]() { self->clearOverlay(); }, Qt::QueuedConnection);
+        self->scheduleOverlayImage(QImage());
         return;
     }
 
@@ -443,12 +468,7 @@ void NativeAppWindow::overlayPresentCallback(void *data, const uint8_t *pixels,
         }
     }
 
-    QMetaObject::invokeMethod(
-        self,
-        [self, image = std::move(image)]() mutable {
-            self->publishOverlayImage(std::move(image));
-        },
-        Qt::QueuedConnection);
+    self->scheduleOverlayImage(std::move(image));
 }
 
 void NativeAppWindow::exportedCropCallback(void *data, int origW, int origH,
