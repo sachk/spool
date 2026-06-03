@@ -15,7 +15,7 @@ FocusScope {
     property bool loading: false
     property string emptyText: "Loading..."
     property bool useSeriesPoster: true
-    readonly property int rowCount: rowModel && rowModel.rowCount ? rowModel.rowCount() : 0
+    readonly property int rowCount: modelCount()
     readonly property int headerHeight: 34
     readonly property int cardHeight: Math.round(cardWidth * 1.5 + 60)
     readonly property bool rowVisible: enabledRow && (rowCount > 0 || reserveWhenEmpty)
@@ -36,6 +36,16 @@ FocusScope {
         listView.currentIndex = rowCount > 0 ? Math.max(0, Math.min(currentIndex, rowCount - 1)) : -1
         ensureVisible()
         return true
+    }
+
+    function modelCount() {
+        if (!rowModel)
+            return 0
+        if (rowModel.count !== undefined)
+            return rowModel.count
+        if (rowModel.rowCount)
+            return rowModel.rowCount()
+        return 0
     }
 
     function ensureVisible() {

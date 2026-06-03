@@ -11,6 +11,7 @@ namespace JellyfinNative {
 class MovieGridModel final : public QAbstractListModel
 {
     Q_OBJECT
+    Q_PROPERTY(int count READ count NOTIFY countChanged)
 
 public:
     enum Roles {
@@ -54,6 +55,7 @@ public:
     explicit MovieGridModel(QObject *parent = nullptr);
 
     int rowCount(const QModelIndex &parent = {}) const override;
+    int count() const;
     QVariant data(const QModelIndex &index, int role) const override;
     QHash<int, QByteArray> roleNames() const override;
     Q_INVOKABLE QVariantMap get(int index) const;
@@ -66,6 +68,9 @@ public:
     bool updateResumeTicks(const QString &itemId, qint64 resumeTicks);
     bool updateFavorite(const QString &itemId, bool favorite);
     bool updatePlayed(const QString &itemId, bool played);
+
+signals:
+    void countChanged();
 
 private:
     std::vector<MovieItem> m_movies;
