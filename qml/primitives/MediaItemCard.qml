@@ -9,8 +9,10 @@ Item {
     property bool focused: false
     property bool useSeriesPoster: false
     property string fallbackTitle: item.itemType || "Media"
+    property string longPressAction: "menu"
 
     signal activated()
+    signal detailsRequested()
     signal favoriteToggled(bool favorite)
     signal playedToggled(bool played)
     signal mediaInfoRequested()
@@ -69,7 +71,9 @@ Item {
         id: actions
         item: root.item
         focused: root.focused
+        longPressAction: root.longPressAction
         onActivated: root.activated()
+        onDetailsRequested: root.detailsRequested()
         onFavoriteToggled: (favorite) => root.favoriteToggled(favorite)
         onPlayedToggled: (played) => root.playedToggled(played)
         onMediaInfoRequested: root.mediaInfoRequested()

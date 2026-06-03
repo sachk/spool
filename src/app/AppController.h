@@ -36,6 +36,11 @@ class AppController final : public QObject
     Q_PROPERTY(bool quickConnectActive READ quickConnectActive NOTIFY quickConnectChanged)
     Q_PROPERTY(QString currentLibraryName READ currentLibraryName NOTIFY currentLibraryNameChanged)
     Q_PROPERTY(QString currentContentLabel READ currentContentLabel NOTIFY currentLibraryNameChanged)
+    Q_PROPERTY(QString currentViewKind READ currentViewKind NOTIFY currentLibraryNameChanged)
+    Q_PROPERTY(QString currentLibraryCollectionType READ currentLibraryCollectionType NOTIFY currentLibraryNameChanged)
+    Q_PROPERTY(QVariantMap libraryQuery READ libraryQuery NOTIFY libraryQueryChanged)
+    Q_PROPERTY(QVariantMap libraryFilterOptions READ libraryFilterOptions NOTIFY libraryFilterOptionsChanged)
+    Q_PROPERTY(int libraryFilterActiveCount READ libraryFilterActiveCount NOTIFY libraryQueryChanged)
     Q_PROPERTY(bool settingsVisible READ settingsVisible NOTIFY settingsVisibleChanged)
     Q_PROPERTY(bool nightModeEnabled READ nightModeEnabled WRITE setNightModeEnabled NOTIFY nightModeEnabledChanged)
     Q_PROPERTY(int audioDelayMs READ audioDelayMs WRITE setAudioDelayMs NOTIFY audioDelayMsChanged)
@@ -98,6 +103,11 @@ public:
     bool quickConnectActive() const;
     QString currentLibraryName() const;
     QString currentContentLabel() const;
+    QString currentViewKind() const;
+    QString currentLibraryCollectionType() const;
+    QVariantMap libraryQuery() const;
+    QVariantMap libraryFilterOptions() const;
+    int libraryFilterActiveCount() const;
     bool settingsVisible() const;
     bool nightModeEnabled() const;
     int audioDelayMs() const;
@@ -165,6 +175,12 @@ public:
     Q_INVOKABLE void playSearchResult(int index);
     Q_INVOKABLE void loadMoreCurrentItems();
     Q_INVOKABLE void maybeLoadMoreCurrentItems(int visibleIndex);
+    Q_INVOKABLE void setLibrarySort(const QString &sortBy, const QString &sortOrder);
+    Q_INVOKABLE void setLibraryQueryListValue(const QString &key, const QString &value, bool enabled);
+    Q_INVOKABLE void setLibraryQueryBoolValue(const QString &key, bool enabled);
+    Q_INVOKABLE void setLibraryQueryNullableBoolValue(const QString &key, const QVariant &value);
+    Q_INVOKABLE void clearLibraryFilters();
+    Q_INVOKABLE void refreshCurrentLibrary();
     Q_INVOKABLE void loadDetailRows(const QString &itemId, const QString &itemType);
     Q_INVOKABLE void openDetailSeason(int index);
     Q_INVOKABLE void playDetailSimilarItem(int index);
@@ -217,6 +233,8 @@ signals:
     void detailRowsChanged();
     void latestLibraryRowsChanged();
     void currentItemsPagingChanged();
+    void libraryQueryChanged();
+    void libraryFilterOptionsChanged();
     void personItemsChanged();
     void itemFavoriteChanged(const QString &itemId, bool favorite);
     void itemPlayedChanged(const QString &itemId, bool played);
@@ -255,6 +273,8 @@ private:
     void setCurrentItemsPage(const PagedMovieItems &page, const QString &cacheKey, bool append);
     void resetCurrentItemsPaging(const QString &cacheKey = {});
     void setCurrentItemsLoadingMore(bool loading);
+    void setLibraryQuery(const QVariantMap &query);
+    void loadLibraryFilterOptions(int generation, const LibraryItem &library);
     void openSeries(const MovieItem &series);
     void openSeason(const MovieItem &season);
     void playMediaItem(const MovieItem &item);
@@ -339,6 +359,9 @@ private:
     std::vector<LibraryItem> m_libraryPrefetchQueue;
     QHash<QString, PagedMovieItems> m_prefetchedLibraryPages;
     QSet<QString> m_prefetchedLibraryKeys;
+    QHash<QString, QVariantMap> m_libraryQueries;
+    QVariantMap m_libraryQuery;
+    QVariantMap m_libraryFilterOptions;
 };
 
 } // namespace JellyfinNative
