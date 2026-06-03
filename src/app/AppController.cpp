@@ -19,6 +19,10 @@ namespace JellyfinNative {
 
 namespace {
 
+constexpr int kLibraryPageSize = 100;
+constexpr int kLibraryPrefetchDistance = 200;
+constexpr int kBackgroundLibraryPrefetchLimit = 3;
+
 template<typename T>
 QJsonArray toJsonArray(const std::vector<T> &items)
 {
@@ -44,6 +48,19 @@ bool isSeriesLibrary(const LibraryItem &library)
     return library.collectionType == QStringLiteral("tvshows");
 }
 
+QString libraryContentLabel(const LibraryItem &library)
+{
+    if (library.collectionType == QStringLiteral("tvshows"))
+        return QStringLiteral("TV Shows");
+    if (library.collectionType == QStringLiteral("movies"))
+        return QStringLiteral("Movies");
+    if (library.collectionType == QStringLiteral("musicvideos"))
+        return QStringLiteral("Music Videos");
+    if (library.collectionType == QStringLiteral("homevideos"))
+        return QStringLiteral("Home Videos");
+    return library.name.isEmpty() ? QStringLiteral("Library") : library.name;
+}
+
 bool showsLatestLibraryRow(const LibraryItem &library)
 {
     static const QSet<QString> excluded = {
@@ -65,7 +82,103 @@ int latestLibraryLimit(const LibraryItem &library)
 
 QString libraryCacheKey(const LibraryItem &library)
 {
-    return isSeriesLibrary(library) ? QStringLiteral("series/%1").arg(library.id) : library.id;
+    if (isSeriesLibrary(library))
+        return QStringLiteral("series/%1").arg(library.id);
+    if (library.collectionType == QStringLiteral("movies"))
+        return library.id;
+    return QStringLiteral("library/%1/%2").arg(library.collectionType, library.id);
+}
+
+QStringList recentLibraryIds(DatabaseManager *database)
+{
+    return database->loadSetting(QStringLiteral("library/recentOrder")).split(QLatin1Char('|'), Qt::SkipEmptyParts);
+}
+
+QString normalizedChoice(const QString &value, const QStringList &allowed, const QString &fallback)
+{
+    return allowed.contains(value) ? value : fallback;
+}
+
+QString normalizedSubtitleMode(const QString &mode)
+{
+    return normalizedChoice(mode,
+                            {QStringLiteral("Default"),
+                             QStringLiteral("Smart"),
+                             QStringLiteral("OnlyForced"),
+                             QStringLiteral("Always"),
+                             QStringLiteral("None")},
+                            QStringLiteral("Default"));
+}
+
+QString normalizedSubtitleBurnIn(const QString &mode)
+{
+    return normalizedChoice(mode,
+                            {QString(), QStringLiteral("onlyimageformats"),
+                             QStringLiteral("allcomplexformats"), QStringLiteral("all")},
+                            QString());
+}
+
+QString normalizedSubtitleStyling(const QString &styling)
+{
+    return normalizedChoice(styling,
+                            {QStringLiteral("Auto"), QStringLiteral("Custom"), QStringLiteral("Native")},
+                            QStringLiteral("Auto"));
+}
+
+QString normalizedSubtitleTextSize(const QString &size)
+{
+    return normalizedChoice(size,
+                            {QStringLiteral("smaller"), QStringLiteral("small"), QString(),
+                             QStringLiteral("large"), QStringLiteral("larger"), QStringLiteral("extralarge")},
+                            QString());
+}
+
+QString normalizedSubtitleTextWeight(const QString &weight)
+{
+    return normalizedChoice(weight,
+                            {QStringLiteral("normal"), QStringLiteral("bold")},
+                            QStringLiteral("normal"));
+}
+
+QString normalizedSubtitleFont(const QString &font)
+{
+    return normalizedChoice(font,
+                            {QString(), QStringLiteral("typewriter"), QStringLiteral("print"),
+                             QStringLiteral("console"), QStringLiteral("cursive"), QStringLiteral("casual"),
+                             QStringLiteral("smallcaps")},
+                            QString());
+}
+
+QString normalizedSubtitleDropShadow(const QString &shadow)
+{
+    return normalizedChoice(shadow,
+                            {QStringLiteral("none"), QStringLiteral("raised"), QStringLiteral("depressed"),
+                             QStringLiteral("uniform"), QString()},
+                            QString());
+}
+
+QString normalizedSubtitleColor(QString color)
+{
+    color = color.trimmed().toLower();
+    if (!color.startsWith(QLatin1Char('#')) || color.size() != 7)
+        return QStringLiteral("#ffffff");
+    for (int i = 1; i < color.size(); ++i) {
+        const QChar ch = color.at(i);
+        if (!ch.isDigit() && (ch < QLatin1Char('a') || ch > QLatin1Char('f')))
+            return QStringLiteral("#ffffff");
+    }
+    return color;
+}
+
+bool loadBoolSetting(DatabaseManager *database, const QString &key, bool fallback)
+{
+    const QString value = database->loadSetting(key, fallback ? QStringLiteral("true")
+                                                             : QStringLiteral("false"))
+                              .trimmed()
+                              .toLower();
+    return value == QStringLiteral("true") ||
+           value == QStringLiteral("1") ||
+           value == QStringLiteral("yes");
 }
 
 }
@@ -183,6 +296,72 @@ QString AppController::audioOutputMode() const
     return m_audioOutputMode;
 }
 
+QStringList AppController::subtitleLanguageOptions() const
+{
+    return m_subtitleLanguageLabels;
+}
+
+int AppController::subtitleLanguageIndex() const
+{
+    const int index = m_subtitleLanguageCodes.indexOf(m_subtitlePreferences.language);
+    return index >= 0 ? index : 0;
+}
+
+QString AppController::subtitleMode() const
+{
+    return m_subtitlePreferences.mode;
+}
+
+QString AppController::subtitleBurnIn() const
+{
+    return m_subtitlePreferences.burnInMode;
+}
+
+bool AppController::subtitleRenderPgs() const
+{
+    return m_subtitlePreferences.renderPgs;
+}
+
+bool AppController::subtitleAlwaysBurnIn() const
+{
+    return m_subtitlePreferences.alwaysBurnInWhenTranscoding;
+}
+
+QString AppController::subtitleStyling() const
+{
+    return m_subtitlePreferences.styling;
+}
+
+QString AppController::subtitleTextSize() const
+{
+    return m_subtitlePreferences.textSize;
+}
+
+QString AppController::subtitleTextWeight() const
+{
+    return m_subtitlePreferences.textWeight;
+}
+
+QString AppController::subtitleFont() const
+{
+    return m_subtitlePreferences.font;
+}
+
+QString AppController::subtitleTextColor() const
+{
+    return m_subtitlePreferences.textColor;
+}
+
+QString AppController::subtitleDropShadow() const
+{
+    return m_subtitlePreferences.dropShadow;
+}
+
+int AppController::subtitleVerticalPosition() const
+{
+    return m_subtitlePreferences.verticalPosition;
+}
+
 DiscoveredServerModel *AppController::discoveredServers()
 {
     return &m_discoveredServers;
@@ -242,6 +421,21 @@ MovieGridModel *AppController::searchResults()
     return &m_searchResults;
 }
 
+bool AppController::currentItemsLoadingMore() const
+{
+    return m_currentItemsLoadingMore;
+}
+
+bool AppController::currentItemsHasMore() const
+{
+    return m_currentItemsHasMore;
+}
+
+int AppController::currentItemsTotalCount() const
+{
+    return m_currentItemsTotalCount;
+}
+
 MovieGridModel *AppController::detailSeasons()
 {
     return &m_detailSeasons;
@@ -292,31 +486,34 @@ void AppController::initialize()
     m_nightModeEnabled = m_database->loadNightModeEnabled();
     m_audioDelayMs = m_database->loadAudioDelayMs();
     const QString storedAudioOutputMode = m_database->loadAudioOutputMode();
-    m_audioOutputMode = storedAudioOutputMode == QStringLiteral("starfish")
+    m_audioOutputMode = (storedAudioOutputMode == QStringLiteral("starfish") ||
+                         storedAudioOutputMode == QStringLiteral("starfish-pcm"))
                             ? QStringLiteral("starfish-pcm")
-                            : (storedAudioOutputMode == QStringLiteral("starfish-pcm")
-                                   ? storedAudioOutputMode
-                                   : QStringLiteral("alsa"));
+                            : QStringLiteral("alsa");
     if (m_audioOutputMode != storedAudioOutputMode)
         m_database->saveAudioOutputMode(m_audioOutputMode);
     m_redButtonAction = m_database->loadSetting(QStringLiteral("input/redButton"), QStringLiteral("none"));
     m_greenButtonAction = m_database->loadSetting(QStringLiteral("input/greenButton"), QStringLiteral("skipBackAndEnableSubs"));
     m_yellowButtonAction = m_database->loadSetting(QStringLiteral("input/yellowButton"), QStringLiteral("none"));
     m_blueButtonAction = m_database->loadSetting(QStringLiteral("input/blueButton"), QStringLiteral("none"));
+    loadSubtitlePreferences();
     m_player->setNightModeEnabled(m_nightModeEnabled);
     m_player->setAudioDelayMs(m_audioDelayMs);
     m_player->setAudioOutputMode(m_audioOutputMode);
+    applySubtitlePreferencesToPlayer();
     emit serverUrlChanged();
     emit usernameChanged();
     emit nightModeEnabledChanged();
     emit audioDelayMsChanged();
     emit audioOutputModeChanged();
+    emit subtitleSettingsChanged();
     emit buttonRemapChanged();
 
     AuthSession session = m_database->loadAuthSession();
     if (!session.accessToken.isEmpty() && !m_serverUrl.isEmpty()) {
         m_api->setServerUrl(m_serverUrl);
         m_api->setSession(session);
+        loadSubtitleRemoteSettings();
         m_syncPlay->connectSocket();
         loadLibraries();
     } else {
@@ -374,6 +571,7 @@ void AppController::login()
         [this](const AuthSession &session) {
             m_database->saveLoginHints(m_serverUrl, m_username);
             m_database->saveAuthSession(session);
+            loadSubtitleRemoteSettings();
             m_syncPlay->connectSocket();
             setBusy(false);
             loadLibraries();
@@ -399,6 +597,7 @@ void AppController::logout()
     m_database->clearAuthSession();
     m_syncPlay->disconnectSocket();
     m_api->setSession({});
+    m_userConfiguration = {};
     m_password.clear();
     m_libraries.clear();
     m_movies.clear();
@@ -415,12 +614,14 @@ void AppController::logout()
     m_detailSeasons.clear();
     m_detailSimilarItems.clear();
     m_currentLibraryId.clear();
+    m_currentLibraryCollectionType.clear();
     m_currentLibraryName.clear();
     m_currentContentLabel = QStringLiteral("Movies");
     m_currentViewKind.clear();
     m_currentSeriesId.clear();
     m_currentSeriesName.clear();
     m_currentSeasonId.clear();
+    resetCurrentItemsPaging();
     setBusy(false);
     setErrorText({});
     emit passwordChanged();
@@ -515,54 +716,41 @@ void AppController::openLibrary(int index)
 
     const int loadGeneration = ++m_libraryLoadGeneration;
     m_currentLibraryId = library.id;
+    m_currentLibraryCollectionType = library.collectionType;
     m_currentLibraryName = library.name;
     m_currentSeriesId.clear();
     m_currentSeriesName.clear();
     m_currentSeasonId.clear();
-    m_currentViewKind = library.collectionType == QStringLiteral("tvshows") ? QStringLiteral("series")
-                                                                            : QStringLiteral("movies");
-    m_currentContentLabel = m_currentViewKind == QStringLiteral("series") ? QStringLiteral("TV Shows")
-                                                                          : QStringLiteral("Movies");
+    m_currentViewKind = QStringLiteral("library");
+    m_currentContentLabel = libraryContentLabel(library);
+    const QString cacheKey = libraryCacheKey(library);
+    resetCurrentItemsPaging(cacheKey);
+    recordLibraryUse(library);
     emit currentLibraryNameChanged();
-    applyMoviesCache(m_currentViewKind == QStringLiteral("series")
-                         ? QStringLiteral("series/%1").arg(library.id)
-                         : library.id);
-    setBusy(true, m_currentViewKind == QStringLiteral("series") ? QStringLiteral("Loading shows…")
-                                                                : QStringLiteral("Loading movies…"));
+    applyMoviesCache(cacheKey);
+    m_currentItemsNextStartIndex = m_movies.rowCount();
+    m_currentItemsTotalCount = m_movies.rowCount();
+    m_currentItemsHasMore = m_movies.rowCount() >= kLibraryPageSize;
+    m_currentItemsLoadingMore = true;
+    emit currentItemsPagingChanged();
+    setBusy(true, QStringLiteral("Loading %1…").arg(m_currentContentLabel.toLower()));
 
-    if (m_currentViewKind == QStringLiteral("series")) {
-        QCoro::runDetached(
-            m_api->fetchSeries(library.id),
-            [this, library, loadGeneration](const std::vector<MovieItem> &items) {
-                if (loadGeneration != m_libraryLoadGeneration)
-                    return;
-                setCurrentItems(items, QStringLiteral("series/%1").arg(library.id));
-            },
-            [this, loadGeneration](const std::exception_ptr &error) {
-                if (loadGeneration != m_libraryLoadGeneration)
-                    return;
-                setBusy(false);
-                setErrorText(exceptionMessage(error));
-                if (m_page != QStringLiteral("movies"))
-                    setPage(QStringLiteral("movies"));
-            });
-    } else {
-        QCoro::runDetached(
-            m_api->fetchMovies(library.id),
-            [this, library, loadGeneration](const std::vector<MovieItem> &movies) {
-                if (loadGeneration != m_libraryLoadGeneration)
-                    return;
-                setCurrentItems(movies, library.id);
-            },
-            [this, loadGeneration](const std::exception_ptr &error) {
-                if (loadGeneration != m_libraryLoadGeneration)
-                    return;
-                setBusy(false);
-                setErrorText(exceptionMessage(error));
-                if (m_page != QStringLiteral("movies"))
-                    setPage(QStringLiteral("movies"));
-            });
-    }
+    QCoro::runDetached(
+        m_api->fetchLibraryPage(library.id, library.collectionType, 0, kLibraryPageSize),
+        [this, cacheKey, loadGeneration](const PagedMovieItems &page) {
+            if (loadGeneration != m_libraryLoadGeneration)
+                return;
+            setCurrentItemsPage(page, cacheKey, false);
+        },
+        [this, loadGeneration](const std::exception_ptr &error) {
+            if (loadGeneration != m_libraryLoadGeneration)
+                return;
+            setBusy(false);
+            setCurrentItemsLoadingMore(false);
+            setErrorText(exceptionMessage(error));
+            if (m_page != QStringLiteral("movies"))
+                setPage(QStringLiteral("movies"));
+        });
 }
 
 void AppController::playMovie(int index)
@@ -710,6 +898,48 @@ void AppController::playSearchResult(int index)
         return;
     }
     playMediaItem(item);
+}
+
+void AppController::maybeLoadMoreCurrentItems(int visibleIndex)
+{
+    if (visibleIndex < 0)
+        return;
+    if (visibleIndex + kLibraryPrefetchDistance < m_movies.rowCount())
+        return;
+    loadMoreCurrentItems();
+}
+
+void AppController::loadMoreCurrentItems()
+{
+    if (m_currentItemsLoadingMore || !m_currentItemsHasMore)
+        return;
+    if (!m_api || m_api->session().accessToken.isEmpty())
+        return;
+    if (m_currentViewKind != QStringLiteral("library"))
+        return;
+
+    const int startIndex = std::max(m_currentItemsNextStartIndex, m_movies.rowCount());
+    const int loadGeneration = m_libraryLoadGeneration;
+    const QString libraryId = m_currentLibraryId;
+    const QString collectionType = m_currentLibraryCollectionType;
+    const QString cacheKey = m_currentItemsCacheKey;
+    setCurrentItemsLoadingMore(true);
+
+    const auto onDone = [this, loadGeneration, cacheKey](const PagedMovieItems &page) {
+        if (loadGeneration != m_libraryLoadGeneration)
+            return;
+        setCurrentItemsPage(page, cacheKey, true);
+    };
+    const auto onError = [this, loadGeneration](const std::exception_ptr &error) {
+        if (loadGeneration != m_libraryLoadGeneration)
+            return;
+        setCurrentItemsLoadingMore(false);
+        setErrorText(exceptionMessage(error));
+    };
+
+    QCoro::runDetached(m_api->fetchLibraryPage(libraryId, collectionType, startIndex, kLibraryPageSize),
+                       onDone,
+                       onError);
 }
 
 void AppController::loadDetailRows(const QString &itemId, const QString &itemType)
@@ -1031,6 +1261,137 @@ void AppController::setAudioOutputMode(const QString &mode)
     emit audioOutputModeChanged();
 }
 
+void AppController::setSubtitleLanguageIndex(int index)
+{
+    if (index < 0 || index >= m_subtitleLanguageCodes.size())
+        return;
+    const QString language = m_subtitleLanguageCodes.at(index);
+    if (m_subtitlePreferences.language == language)
+        return;
+    m_subtitlePreferences.language = language;
+    saveSubtitlePreferences();
+    saveSubtitleUserConfiguration();
+    applySubtitlePreferencesToPlayer();
+    emit subtitleSettingsChanged();
+}
+
+void AppController::setSubtitleMode(const QString &mode)
+{
+    const QString normalized = normalizedSubtitleMode(mode);
+    if (m_subtitlePreferences.mode == normalized)
+        return;
+    m_subtitlePreferences.mode = normalized;
+    saveSubtitlePreferences();
+    saveSubtitleUserConfiguration();
+    applySubtitlePreferencesToPlayer();
+    emit subtitleSettingsChanged();
+}
+
+void AppController::setSubtitleBurnIn(const QString &mode)
+{
+    const QString normalized = normalizedSubtitleBurnIn(mode);
+    if (m_subtitlePreferences.burnInMode == normalized)
+        return;
+    m_subtitlePreferences.burnInMode = normalized;
+    saveSubtitlePreferences();
+    emit subtitleSettingsChanged();
+}
+
+void AppController::setSubtitleRenderPgs(bool enabled)
+{
+    if (m_subtitlePreferences.renderPgs == enabled)
+        return;
+    m_subtitlePreferences.renderPgs = enabled;
+    saveSubtitlePreferences();
+    emit subtitleSettingsChanged();
+}
+
+void AppController::setSubtitleAlwaysBurnIn(bool enabled)
+{
+    if (m_subtitlePreferences.alwaysBurnInWhenTranscoding == enabled)
+        return;
+    m_subtitlePreferences.alwaysBurnInWhenTranscoding = enabled;
+    saveSubtitlePreferences();
+    emit subtitleSettingsChanged();
+}
+
+void AppController::setSubtitleStyling(const QString &styling)
+{
+    const QString normalized = normalizedSubtitleStyling(styling);
+    if (m_subtitlePreferences.styling == normalized)
+        return;
+    m_subtitlePreferences.styling = normalized;
+    saveSubtitlePreferences();
+    applySubtitlePreferencesToPlayer();
+    emit subtitleSettingsChanged();
+}
+
+void AppController::setSubtitleTextSize(const QString &size)
+{
+    const QString normalized = normalizedSubtitleTextSize(size);
+    if (m_subtitlePreferences.textSize == normalized)
+        return;
+    m_subtitlePreferences.textSize = normalized;
+    saveSubtitlePreferences();
+    applySubtitlePreferencesToPlayer();
+    emit subtitleSettingsChanged();
+}
+
+void AppController::setSubtitleTextWeight(const QString &weight)
+{
+    const QString normalized = normalizedSubtitleTextWeight(weight);
+    if (m_subtitlePreferences.textWeight == normalized)
+        return;
+    m_subtitlePreferences.textWeight = normalized;
+    saveSubtitlePreferences();
+    applySubtitlePreferencesToPlayer();
+    emit subtitleSettingsChanged();
+}
+
+void AppController::setSubtitleFont(const QString &font)
+{
+    const QString normalized = normalizedSubtitleFont(font);
+    if (m_subtitlePreferences.font == normalized)
+        return;
+    m_subtitlePreferences.font = normalized;
+    saveSubtitlePreferences();
+    applySubtitlePreferencesToPlayer();
+    emit subtitleSettingsChanged();
+}
+
+void AppController::setSubtitleTextColor(const QString &color)
+{
+    const QString normalized = normalizedSubtitleColor(color);
+    if (m_subtitlePreferences.textColor == normalized)
+        return;
+    m_subtitlePreferences.textColor = normalized;
+    saveSubtitlePreferences();
+    applySubtitlePreferencesToPlayer();
+    emit subtitleSettingsChanged();
+}
+
+void AppController::setSubtitleDropShadow(const QString &shadow)
+{
+    const QString normalized = normalizedSubtitleDropShadow(shadow);
+    if (m_subtitlePreferences.dropShadow == normalized)
+        return;
+    m_subtitlePreferences.dropShadow = normalized;
+    saveSubtitlePreferences();
+    applySubtitlePreferencesToPlayer();
+    emit subtitleSettingsChanged();
+}
+
+void AppController::setSubtitleVerticalPosition(int position)
+{
+    const int clamped = std::clamp(position, -16, 16);
+    if (m_subtitlePreferences.verticalPosition == clamped)
+        return;
+    m_subtitlePreferences.verticalPosition = clamped;
+    saveSubtitlePreferences();
+    applySubtitlePreferencesToPlayer();
+    emit subtitleSettingsChanged();
+}
+
 QString AppController::redButtonAction() const { return m_redButtonAction; }
 QString AppController::greenButtonAction() const { return m_greenButtonAction; }
 QString AppController::yellowButtonAction() const { return m_yellowButtonAction; }
@@ -1107,6 +1468,138 @@ void AppController::setBlueButtonAction(const QString &action)
     m_blueButtonAction = action;
     m_database->saveSetting(QStringLiteral("input/blueButton"), action);
     emit buttonRemapChanged();
+}
+
+void AppController::loadSubtitlePreferences()
+{
+    SubtitlePreferences preferences;
+    preferences.language = m_database->loadSetting(QStringLiteral("subtitles/language"), QString());
+    preferences.mode = normalizedSubtitleMode(
+        m_database->loadSetting(QStringLiteral("subtitles/mode"), QStringLiteral("Default")));
+    preferences.burnInMode = normalizedSubtitleBurnIn(
+        m_database->loadSetting(QStringLiteral("subtitles/burnIn"), QString()));
+    preferences.renderPgs = loadBoolSetting(m_database, QStringLiteral("subtitles/renderPgs"), false);
+    preferences.alwaysBurnInWhenTranscoding =
+        loadBoolSetting(m_database, QStringLiteral("subtitles/alwaysBurnInWhenTranscoding"), false);
+    preferences.styling = normalizedSubtitleStyling(
+        m_database->loadSetting(QStringLiteral("subtitles/styling"), QStringLiteral("Auto")));
+    preferences.textSize = normalizedSubtitleTextSize(
+        m_database->loadSetting(QStringLiteral("subtitles/textSize"), QString()));
+    preferences.textWeight = normalizedSubtitleTextWeight(
+        m_database->loadSetting(QStringLiteral("subtitles/textWeight"), QStringLiteral("normal")));
+    preferences.font = normalizedSubtitleFont(
+        m_database->loadSetting(QStringLiteral("subtitles/font"), QString()));
+    preferences.textColor = normalizedSubtitleColor(
+        m_database->loadSetting(QStringLiteral("subtitles/textColor"), QStringLiteral("#ffffff")));
+    preferences.dropShadow = normalizedSubtitleDropShadow(
+        m_database->loadSetting(QStringLiteral("subtitles/dropShadow"), QString()));
+    preferences.textBackground =
+        m_database->loadSetting(QStringLiteral("subtitles/textBackground"), QStringLiteral("transparent"));
+    preferences.verticalPosition =
+        std::clamp(m_database->loadSetting(QStringLiteral("subtitles/verticalPosition"), QStringLiteral("-3")).toInt(),
+                   -16,
+                   16);
+    m_subtitlePreferences = preferences;
+}
+
+void AppController::saveSubtitlePreferences()
+{
+    m_database->saveSetting(QStringLiteral("subtitles/language"), m_subtitlePreferences.language);
+    m_database->saveSetting(QStringLiteral("subtitles/mode"), m_subtitlePreferences.mode);
+    m_database->saveSetting(QStringLiteral("subtitles/burnIn"), m_subtitlePreferences.burnInMode);
+    m_database->saveSetting(QStringLiteral("subtitles/renderPgs"),
+                            m_subtitlePreferences.renderPgs ? QStringLiteral("true") : QStringLiteral("false"));
+    m_database->saveSetting(QStringLiteral("subtitles/alwaysBurnInWhenTranscoding"),
+                            m_subtitlePreferences.alwaysBurnInWhenTranscoding ? QStringLiteral("true")
+                                                                              : QStringLiteral("false"));
+    m_database->saveSetting(QStringLiteral("subtitles/styling"), m_subtitlePreferences.styling);
+    m_database->saveSetting(QStringLiteral("subtitles/textSize"), m_subtitlePreferences.textSize);
+    m_database->saveSetting(QStringLiteral("subtitles/textWeight"), m_subtitlePreferences.textWeight);
+    m_database->saveSetting(QStringLiteral("subtitles/font"), m_subtitlePreferences.font);
+    m_database->saveSetting(QStringLiteral("subtitles/textColor"), m_subtitlePreferences.textColor);
+    m_database->saveSetting(QStringLiteral("subtitles/dropShadow"), m_subtitlePreferences.dropShadow);
+    m_database->saveSetting(QStringLiteral("subtitles/textBackground"), m_subtitlePreferences.textBackground);
+    m_database->saveSetting(QStringLiteral("subtitles/verticalPosition"),
+                            QString::number(m_subtitlePreferences.verticalPosition));
+}
+
+void AppController::loadSubtitleRemoteSettings()
+{
+    if (!m_api || m_api->session().accessToken.isEmpty())
+        return;
+
+    QCoro::runDetached(
+        m_api->fetchCultures(),
+        [this](const QJsonArray &cultures) {
+            QStringList codes{QString()};
+            QStringList labels{QStringLiteral("Any language")};
+            QSet<QString> seen{QString()};
+
+            for (const QJsonValue &value : cultures) {
+                const QJsonObject culture = value.toObject();
+                const QString code = culture.value(QStringLiteral("ThreeLetterISOLanguageName")).toString();
+                if (code.isEmpty() || seen.contains(code))
+                    continue;
+                QString label = culture.value(QStringLiteral("DisplayName")).toString();
+                if (label.isEmpty())
+                    label = code.toUpper();
+                seen.insert(code);
+                codes.push_back(code);
+                labels.push_back(label);
+            }
+
+            if (!m_subtitlePreferences.language.isEmpty() && !seen.contains(m_subtitlePreferences.language)) {
+                codes.push_back(m_subtitlePreferences.language);
+                labels.push_back(m_subtitlePreferences.language.toUpper());
+            }
+
+            m_subtitleLanguageCodes = codes;
+            m_subtitleLanguageLabels = labels;
+            emit subtitleSettingsChanged();
+        },
+        [this](const std::exception_ptr &error) {
+            qWarning() << "subtitles: culture list failed" << exceptionMessage(error);
+        });
+
+    QCoro::runDetached(
+        m_api->fetchUserConfiguration(),
+        [this](const QJsonObject &configuration) {
+            m_userConfiguration = configuration;
+            m_subtitlePreferences.language =
+                configuration.value(QStringLiteral("SubtitleLanguagePreference")).toString();
+            m_subtitlePreferences.mode = normalizedSubtitleMode(
+                configuration.value(QStringLiteral("SubtitleMode")).toString(QStringLiteral("Default")));
+            saveSubtitlePreferences();
+            applySubtitlePreferencesToPlayer();
+            emit subtitleSettingsChanged();
+        },
+        [this](const std::exception_ptr &error) {
+            qWarning() << "subtitles: user configuration failed" << exceptionMessage(error);
+        });
+}
+
+void AppController::saveSubtitleUserConfiguration()
+{
+    if (!m_api || m_api->session().accessToken.isEmpty())
+        return;
+
+    QJsonObject configuration = m_userConfiguration;
+    configuration.insert(QStringLiteral("SubtitleLanguagePreference"), m_subtitlePreferences.language);
+    configuration.insert(QStringLiteral("SubtitleMode"), m_subtitlePreferences.mode);
+    m_userConfiguration = configuration;
+
+    QCoro::runDetached(
+        m_api->updateUserConfiguration(configuration),
+        []() {},
+        [this](const std::exception_ptr &error) {
+            setErrorText(exceptionMessage(error));
+        });
+}
+
+void AppController::applySubtitlePreferencesToPlayer()
+{
+    if (m_player)
+        m_player->setSubtitlePreferences(m_subtitlePreferences);
 }
 
 
@@ -1233,6 +1726,7 @@ void AppController::pollQuickConnect()
                     cancelQuickConnect();
                     m_database->saveLoginHints(m_serverUrl, m_username);
                     m_database->saveAuthSession(session);
+                    loadSubtitleRemoteSettings();
                     m_syncPlay->connectSocket();
                     loadLibraries();
                     QCoro::runDetached(m_api->postCapabilities(), []() {}, [](const std::exception_ptr &) {});
@@ -1265,12 +1759,76 @@ void AppController::pollQuickConnect()
 
 void AppController::setCurrentItems(const std::vector<MovieItem> &items, const QString &cacheKey)
 {
+    resetCurrentItemsPaging(cacheKey);
     m_movies.setMovies(items);
     if (!cacheKey.isEmpty())
         m_database->saveMovies(cacheKey, toJsonArray(items));
     prefetchMoviePosters(items);
     setBusy(false);
     setPage(QStringLiteral("movies"));
+}
+
+void AppController::setCurrentItemsPage(const PagedMovieItems &page, const QString &cacheKey, bool append)
+{
+    if (!append) {
+        m_movies.setMovies(page.items);
+        if (!cacheKey.isEmpty())
+            m_database->saveMovies(cacheKey, toJsonArray(page.items));
+    } else {
+        m_movies.appendMovies(page.items);
+        if (!cacheKey.isEmpty())
+            m_database->saveMovies(cacheKey, toJsonArray(m_movies.movies()));
+    }
+
+    const int loadedCount = m_movies.rowCount();
+    const int pageEnd = page.startIndex + static_cast<int>(page.items.size());
+    const bool hasServerTotal = page.totalRecordCount > 0;
+    m_currentItemsCacheKey = cacheKey;
+    m_currentItemsNextStartIndex = std::max(loadedCount, pageEnd);
+    m_currentItemsTotalCount = hasServerTotal ? std::max(page.totalRecordCount, m_currentItemsNextStartIndex)
+                                              : m_currentItemsNextStartIndex;
+    m_currentItemsHasMore = hasServerTotal
+                                ? m_currentItemsNextStartIndex < m_currentItemsTotalCount
+                                : page.items.size() >= static_cast<size_t>(std::max(1, page.limit));
+    if (page.items.empty())
+        m_currentItemsHasMore = false;
+    m_currentItemsLoadingMore = false;
+
+    prefetchMoviePosters(page.items);
+    setBusy(false);
+    setPage(QStringLiteral("movies"));
+    emit currentItemsPagingChanged();
+}
+
+void AppController::resetCurrentItemsPaging(const QString &cacheKey)
+{
+    m_currentItemsCacheKey = cacheKey;
+    m_currentItemsLoadingMore = false;
+    m_currentItemsHasMore = false;
+    m_currentItemsTotalCount = 0;
+    m_currentItemsNextStartIndex = 0;
+    emit currentItemsPagingChanged();
+}
+
+void AppController::setCurrentItemsLoadingMore(bool loading)
+{
+    if (m_currentItemsLoadingMore == loading)
+        return;
+    m_currentItemsLoadingMore = loading;
+    emit currentItemsPagingChanged();
+}
+
+void AppController::recordLibraryUse(const LibraryItem &library)
+{
+    if (library.id.isEmpty())
+        return;
+
+    QStringList ids = recentLibraryIds(m_database);
+    ids.removeAll(library.id);
+    ids.prepend(library.id);
+    while (ids.size() > 12)
+        ids.removeLast();
+    m_database->saveSetting(QStringLiteral("library/recentOrder"), ids.join(QLatin1Char('|')));
 }
 
 void AppController::openSeries(const MovieItem &series)
@@ -1444,21 +2002,21 @@ void AppController::refreshCurrentItems(const QString &viewKind,
         seriesId != m_currentSeriesId || seasonId != m_currentSeasonId)
         return;
 
-    if (viewKind == QStringLiteral("movies") && !libraryId.isEmpty()) {
+    if (viewKind == QStringLiteral("library") && !libraryId.isEmpty()) {
         const int loadGeneration = ++m_libraryLoadGeneration;
+        const QString collectionType = m_currentLibraryCollectionType;
+        const QString cacheKey = m_currentItemsCacheKey;
         QCoro::runDetached(
-            m_api->fetchMovies(libraryId),
-            [this, loadGeneration, libraryId](const std::vector<MovieItem> &movies) {
+            m_api->fetchLibraryPage(libraryId, collectionType, 0, kLibraryPageSize),
+            [this, loadGeneration, cacheKey](const PagedMovieItems &page) {
                 if (loadGeneration != m_libraryLoadGeneration)
                     return;
-                m_movies.setMovies(movies);
-                m_database->saveMovies(libraryId, toJsonArray(movies));
-                prefetchMoviePosters(movies);
+                setCurrentItemsPage(page, cacheKey, false);
             },
             [this, loadGeneration](const std::exception_ptr &error) {
                 if (loadGeneration != m_libraryLoadGeneration)
                     return;
-                qWarning() << "app: post-playback movie refresh failed" << exceptionMessage(error);
+                qWarning() << "app: post-playback library refresh failed" << exceptionMessage(error);
             });
         return;
     }
@@ -1604,14 +2162,41 @@ void AppController::scheduleLibraryPrefetch(int generation)
 
     m_libraryPrefetchQueue.clear();
     const int count = m_libraries.rowCount();
-    m_libraryPrefetchQueue.reserve(static_cast<size_t>(count));
+    m_libraryPrefetchQueue.reserve(kBackgroundLibraryPrefetchLimit);
+    const QStringList recentIds = recentLibraryIds(m_database);
+    std::vector<LibraryItem> selectedLibraries;
+    selectedLibraries.reserve(kBackgroundLibraryPrefetchLimit);
+    QSet<QString> selectedIds;
+
+    auto trySelectLibrary = [&selectedLibraries, &selectedIds](const LibraryItem &library) {
+        if (selectedLibraries.size() >= static_cast<size_t>(kBackgroundLibraryPrefetchLimit))
+            return;
+        if (library.id.isEmpty() || selectedIds.contains(library.id))
+            return;
+        if (!showsLatestLibraryRow(library))
+            return;
+        selectedIds.insert(library.id);
+        selectedLibraries.push_back(library);
+    };
+
+    for (const QString &recentId : recentIds) {
+        for (int i = 0; i < count; ++i) {
+            const auto library = m_libraries.libraryAt(i);
+            if (library.id == recentId) {
+                trySelectLibrary(library);
+                break;
+            }
+        }
+    }
+
     for (int i = 0; i < count; ++i) {
         const auto library = m_libraries.libraryAt(i);
-        if (library.id.isEmpty())
-            continue;
-        if (m_prefetchedLibraryKeys.contains(libraryCacheKey(library)))
-            continue;
-        m_libraryPrefetchQueue.push_back(library);
+        trySelectLibrary(library);
+    }
+
+    for (const LibraryItem &library : selectedLibraries) {
+        if (!m_prefetchedLibraryKeys.contains(libraryCacheKey(library)))
+            m_libraryPrefetchQueue.push_back(library);
     }
 
     if (m_libraryPrefetchQueue.empty())
@@ -1622,7 +2207,7 @@ void AppController::scheduleLibraryPrefetch(int generation)
     m_libraryPrefetchActive = false;
     qInfo() << "library prefetch: scheduled" << m_libraryPrefetchQueue.size()
             << "libraries after home load";
-    m_libraryPrefetchTimer.start(500);
+    m_libraryPrefetchTimer.start(1500);
 }
 
 void AppController::startNextLibraryPrefetch()
@@ -1637,17 +2222,15 @@ void AppController::startNextLibraryPrefetch()
 
     const LibraryItem library = m_libraryPrefetchQueue[static_cast<size_t>(m_libraryPrefetchIndex++)];
     const QString cacheKey = libraryCacheKey(library);
-    const bool seriesLibrary = isSeriesLibrary(library);
     m_libraryPrefetchActive = true;
     qInfo() << "library prefetch: fetching" << library.name << cacheKey;
 
-    const auto onDone = [this, cacheKey, library](const std::vector<MovieItem> &items) {
+    const auto onDone = [this, cacheKey, library](const PagedMovieItems &page) {
         if (m_libraryPrefetchGeneration != m_homeLoadGeneration)
             return;
-        qInfo() << "library prefetch: cached" << library.name << items.size();
-        m_database->saveMovies(cacheKey, toJsonArray(items));
+        qInfo() << "library prefetch: cached" << library.name << page.items.size();
+        m_database->saveMovies(cacheKey, toJsonArray(page.items));
         m_prefetchedLibraryKeys.insert(cacheKey);
-        prefetchMoviePosters(items);
         m_libraryPrefetchActive = false;
         startNextLibraryPrefetch();
     };
@@ -1660,30 +2243,30 @@ void AppController::startNextLibraryPrefetch()
         startNextLibraryPrefetch();
     };
 
-    if (seriesLibrary)
-        QCoro::runDetached(m_api->fetchSeries(library.id), onDone, onError);
-    else
-        QCoro::runDetached(m_api->fetchMovies(library.id), onDone, onError);
+    QCoro::runDetached(m_api->fetchLibraryPage(library.id, library.collectionType, 0, kLibraryPageSize),
+                       onDone,
+                       onError);
 }
 
 void AppController::prefetchMoviePosters(const std::vector<MovieItem> &movies)
 {
     QStringList urls;
-    urls.reserve(std::min<size_t>(movies.size() * 2, 36));
+    constexpr qsizetype maxUrls = 24;
+    urls.reserve(std::min<qsizetype>(static_cast<qsizetype>(movies.size() * 2), maxUrls));
 
     for (const auto &movie : movies) {
         if (!movie.posterUrl.isEmpty())
             urls.push_back(movie.posterUrl);
-        if (!movie.backdropUrl.isEmpty() && urls.size() < 36)
+        if (!movie.backdropUrl.isEmpty() && urls.size() < maxUrls)
             urls.push_back(movie.backdropUrl);
-        if (!movie.logoUrl.isEmpty() && urls.size() < 36)
+        if (!movie.logoUrl.isEmpty() && urls.size() < maxUrls)
             urls.push_back(movie.logoUrl);
-        if (urls.size() >= 36)
+        if (urls.size() >= maxUrls)
             break;
     }
 
     if (!urls.isEmpty())
-        m_api->prefetchImages(urls, 6);
+        m_api->prefetchImages(urls, 3);
 }
 
 } // namespace JellyfinNative

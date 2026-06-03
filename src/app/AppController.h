@@ -10,6 +10,7 @@
 #include "SyncPlayController.h"
 
 #include <QObject>
+#include <QJsonObject>
 #include <QSet>
 #include <QTimer>
 #include <QVariantList>
@@ -38,6 +39,19 @@ class AppController final : public QObject
     Q_PROPERTY(bool nightModeEnabled READ nightModeEnabled WRITE setNightModeEnabled NOTIFY nightModeEnabledChanged)
     Q_PROPERTY(int audioDelayMs READ audioDelayMs WRITE setAudioDelayMs NOTIFY audioDelayMsChanged)
     Q_PROPERTY(QString audioOutputMode READ audioOutputMode WRITE setAudioOutputMode NOTIFY audioOutputModeChanged)
+    Q_PROPERTY(QStringList subtitleLanguageOptions READ subtitleLanguageOptions NOTIFY subtitleSettingsChanged)
+    Q_PROPERTY(int subtitleLanguageIndex READ subtitleLanguageIndex NOTIFY subtitleSettingsChanged)
+    Q_PROPERTY(QString subtitleMode READ subtitleMode NOTIFY subtitleSettingsChanged)
+    Q_PROPERTY(QString subtitleBurnIn READ subtitleBurnIn NOTIFY subtitleSettingsChanged)
+    Q_PROPERTY(bool subtitleRenderPgs READ subtitleRenderPgs NOTIFY subtitleSettingsChanged)
+    Q_PROPERTY(bool subtitleAlwaysBurnIn READ subtitleAlwaysBurnIn NOTIFY subtitleSettingsChanged)
+    Q_PROPERTY(QString subtitleStyling READ subtitleStyling NOTIFY subtitleSettingsChanged)
+    Q_PROPERTY(QString subtitleTextSize READ subtitleTextSize NOTIFY subtitleSettingsChanged)
+    Q_PROPERTY(QString subtitleTextWeight READ subtitleTextWeight NOTIFY subtitleSettingsChanged)
+    Q_PROPERTY(QString subtitleFont READ subtitleFont NOTIFY subtitleSettingsChanged)
+    Q_PROPERTY(QString subtitleTextColor READ subtitleTextColor NOTIFY subtitleSettingsChanged)
+    Q_PROPERTY(QString subtitleDropShadow READ subtitleDropShadow NOTIFY subtitleSettingsChanged)
+    Q_PROPERTY(int subtitleVerticalPosition READ subtitleVerticalPosition NOTIFY subtitleSettingsChanged)
     Q_PROPERTY(QString redButtonAction READ redButtonAction WRITE setRedButtonAction NOTIFY buttonRemapChanged)
     Q_PROPERTY(QString greenButtonAction READ greenButtonAction WRITE setGreenButtonAction NOTIFY buttonRemapChanged)
     Q_PROPERTY(QString yellowButtonAction READ yellowButtonAction WRITE setYellowButtonAction NOTIFY buttonRemapChanged)
@@ -51,6 +65,9 @@ class AppController final : public QObject
     Q_PROPERTY(JellyfinNative::MovieGridModel *latestItems READ latestItems CONSTANT)
     Q_PROPERTY(QVariantList latestLibraryRows READ latestLibraryRows NOTIFY latestLibraryRowsChanged)
     Q_PROPERTY(JellyfinNative::MovieGridModel *searchResults READ searchResults CONSTANT)
+    Q_PROPERTY(bool currentItemsLoadingMore READ currentItemsLoadingMore NOTIFY currentItemsPagingChanged)
+    Q_PROPERTY(bool currentItemsHasMore READ currentItemsHasMore NOTIFY currentItemsPagingChanged)
+    Q_PROPERTY(int currentItemsTotalCount READ currentItemsTotalCount NOTIFY currentItemsPagingChanged)
     Q_PROPERTY(JellyfinNative::MovieGridModel *detailSeasons READ detailSeasons CONSTANT)
     Q_PROPERTY(JellyfinNative::MovieGridModel *detailSimilarItems READ detailSimilarItems CONSTANT)
     Q_PROPERTY(bool detailRowsBusy READ detailRowsBusy NOTIFY detailRowsChanged)
@@ -84,6 +101,19 @@ public:
     bool nightModeEnabled() const;
     int audioDelayMs() const;
     QString audioOutputMode() const;
+    QStringList subtitleLanguageOptions() const;
+    int subtitleLanguageIndex() const;
+    QString subtitleMode() const;
+    QString subtitleBurnIn() const;
+    bool subtitleRenderPgs() const;
+    bool subtitleAlwaysBurnIn() const;
+    QString subtitleStyling() const;
+    QString subtitleTextSize() const;
+    QString subtitleTextWeight() const;
+    QString subtitleFont() const;
+    QString subtitleTextColor() const;
+    QString subtitleDropShadow() const;
+    int subtitleVerticalPosition() const;
     QString redButtonAction() const;
     QString greenButtonAction() const;
     QString yellowButtonAction() const;
@@ -98,6 +128,9 @@ public:
     MovieGridModel *latestItems();
     QVariantList latestLibraryRows() const;
     MovieGridModel *searchResults();
+    bool currentItemsLoadingMore() const;
+    bool currentItemsHasMore() const;
+    int currentItemsTotalCount() const;
     MovieGridModel *detailSeasons();
     MovieGridModel *detailSimilarItems();
     MovieGridModel *personItems();
@@ -129,6 +162,8 @@ public:
     Q_INVOKABLE void search(const QString &query);
     Q_INVOKABLE void clearSearch();
     Q_INVOKABLE void playSearchResult(int index);
+    Q_INVOKABLE void loadMoreCurrentItems();
+    Q_INVOKABLE void maybeLoadMoreCurrentItems(int visibleIndex);
     Q_INVOKABLE void loadDetailRows(const QString &itemId, const QString &itemType);
     Q_INVOKABLE void openDetailSeason(int index);
     Q_INVOKABLE void playDetailSimilarItem(int index);
@@ -144,6 +179,18 @@ public:
     Q_INVOKABLE void setNightModeEnabled(bool enabled);
     Q_INVOKABLE void setAudioDelayMs(int delayMs);
     Q_INVOKABLE void setAudioOutputMode(const QString &mode);
+    Q_INVOKABLE void setSubtitleLanguageIndex(int index);
+    Q_INVOKABLE void setSubtitleMode(const QString &mode);
+    Q_INVOKABLE void setSubtitleBurnIn(const QString &mode);
+    Q_INVOKABLE void setSubtitleRenderPgs(bool enabled);
+    Q_INVOKABLE void setSubtitleAlwaysBurnIn(bool enabled);
+    Q_INVOKABLE void setSubtitleStyling(const QString &styling);
+    Q_INVOKABLE void setSubtitleTextSize(const QString &size);
+    Q_INVOKABLE void setSubtitleTextWeight(const QString &weight);
+    Q_INVOKABLE void setSubtitleFont(const QString &font);
+    Q_INVOKABLE void setSubtitleTextColor(const QString &color);
+    Q_INVOKABLE void setSubtitleDropShadow(const QString &shadow);
+    Q_INVOKABLE void setSubtitleVerticalPosition(int position);
     Q_INVOKABLE void setRedButtonAction(const QString &action);
     Q_INVOKABLE void setGreenButtonAction(const QString &action);
     Q_INVOKABLE void setYellowButtonAction(const QString &action);
@@ -163,10 +210,12 @@ signals:
     void nightModeEnabledChanged();
     void audioDelayMsChanged();
     void audioOutputModeChanged();
+    void subtitleSettingsChanged();
     void buttonRemapChanged();
     void searchChanged();
     void detailRowsChanged();
     void latestLibraryRowsChanged();
+    void currentItemsPagingChanged();
     void personItemsChanged();
     void itemFavoriteChanged(const QString &itemId, bool favorite);
     void itemPlayedChanged(const QString &itemId, bool played);
@@ -203,9 +252,18 @@ private:
     void prefetchMoviePosters(const std::vector<MovieItem> &movies);
     void finishDetailRowLoad(int generation);
     void setCurrentItems(const std::vector<MovieItem> &items, const QString &cacheKey = {});
+    void setCurrentItemsPage(const PagedMovieItems &page, const QString &cacheKey, bool append);
+    void resetCurrentItemsPaging(const QString &cacheKey = {});
+    void setCurrentItemsLoadingMore(bool loading);
     void openSeries(const MovieItem &series);
     void openSeason(const MovieItem &season);
     void playMediaItem(const MovieItem &item);
+    void loadSubtitlePreferences();
+    void saveSubtitlePreferences();
+    void loadSubtitleRemoteSettings();
+    void saveSubtitleUserConfiguration();
+    void applySubtitlePreferencesToPlayer();
+    void recordLibraryUse(const LibraryItem &library);
 
     DatabaseManager *m_database = nullptr;
     DiscoveryController *m_discovery = nullptr;
@@ -238,16 +296,26 @@ private:
     int m_quickConnectPollAttempts = 0;
     int m_quickConnectPollErrors = 0;
     QString m_currentLibraryId;
+    QString m_currentLibraryCollectionType;
     QString m_currentLibraryName;
     QString m_currentContentLabel = QStringLiteral("Movies");
     QString m_currentViewKind;
     QString m_currentSeriesId;
     QString m_currentSeriesName;
     QString m_currentSeasonId;
+    QString m_currentItemsCacheKey;
+    bool m_currentItemsLoadingMore = false;
+    bool m_currentItemsHasMore = false;
+    int m_currentItemsTotalCount = 0;
+    int m_currentItemsNextStartIndex = 0;
     bool m_settingsVisible = false;
     bool m_nightModeEnabled = false;
     int m_audioDelayMs = 0;
     QString m_audioOutputMode = QStringLiteral("alsa");
+    SubtitlePreferences m_subtitlePreferences;
+    QStringList m_subtitleLanguageCodes { QString() };
+    QStringList m_subtitleLanguageLabels { QStringLiteral("Any language") };
+    QJsonObject m_userConfiguration;
     QString m_redButtonAction = QStringLiteral("none");
     QString m_greenButtonAction = QStringLiteral("skipBackAndEnableSubs");
     QString m_yellowButtonAction = QStringLiteral("none");

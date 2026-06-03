@@ -52,7 +52,14 @@ public:
     QCoro::Task<QJsonObject> initiateQuickConnect();
     QCoro::Task<QJsonObject> pollQuickConnect(QString secret);
     QCoro::Task<AuthSession> authenticateWithQuickConnect(QString secret);
+    QCoro::Task<QJsonObject> fetchUserConfiguration();
+    QCoro::Task<void> updateUserConfiguration(QJsonObject configuration);
+    QCoro::Task<QJsonArray> fetchCultures();
     QCoro::Task<std::vector<LibraryItem>> fetchLibraries();
+    QCoro::Task<PagedMovieItems> fetchLibraryPage(QString libraryId, QString collectionType = {},
+                                                  int startIndex = 0, int limit = 72);
+    QCoro::Task<PagedMovieItems> fetchMoviesPage(QString libraryId, int startIndex = 0, int limit = 100);
+    QCoro::Task<PagedMovieItems> fetchSeriesPage(QString libraryId, int startIndex = 0, int limit = 100);
     QCoro::Task<std::vector<MovieItem>> fetchMovies(QString libraryId);
     QCoro::Task<std::vector<MovieItem>> fetchSeries(QString libraryId);
     QCoro::Task<std::vector<MovieItem>> fetchSeasons(QString seriesId);

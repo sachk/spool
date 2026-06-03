@@ -24,6 +24,7 @@ extern "C" {
 #include <cstdio>
 #include <cstdint>
 #include <cstring>
+#include <malloc.h>
 
 namespace JellyfinNative {
 
@@ -47,6 +48,23 @@ constexpr auto kNightModeFilter =
     "treble=f=7500:t=q:w=0.6667:g=3,"
     "speechnorm=e=12.5:r=0.0001:l=1,"
     "alimiter=limit=0.95:attack=3:release=50]";
+
+const char *endFileReasonName(int reason) {
+  switch (reason) {
+  case MPV_END_FILE_REASON_EOF:
+    return "eof";
+  case MPV_END_FILE_REASON_STOP:
+    return "stop";
+  case MPV_END_FILE_REASON_QUIT:
+    return "quit";
+  case MPV_END_FILE_REASON_ERROR:
+    return "error";
+  case MPV_END_FILE_REASON_REDIRECT:
+    return "redirect";
+  default:
+    return "unknown";
+  }
+}
 
 void rotateLogFile(const char *path) {
   const QByteArray base(path);
@@ -87,6 +105,81 @@ bool setMpvDoubleProperty(mpv_handle *handle, const char *name, double value,
   return true;
 }
 
+QByteArray mpvBool(bool value) {
+  return value ? QByteArrayLiteral("yes") : QByteArrayLiteral("no");
+}
+
+QByteArray mpvArgbColor(const QString &rgb, QByteArray fallback) {
+  QString color = rgb.trimmed();
+  if (color.startsWith(QLatin1Char('#')))
+    color.remove(0, 1);
+  if (color.size() != 6)
+    return fallback;
+
+  for (const QChar ch : color) {
+    if (!ch.isDigit() &&
+        (ch.toLower() < QLatin1Char('a') || ch.toLower() > QLatin1Char('f')))
+      return fallback;
+  }
+
+  return QByteArrayLiteral("#FF") + color.toUpper().toLatin1();
+}
+
+QByteArray subtitleFontSize(const QString &value) {
+  if (value == QStringLiteral("smaller"))
+    return QByteArrayLiteral("44");
+  if (value == QStringLiteral("small"))
+    return QByteArrayLiteral("50");
+  if (value == QStringLiteral("large"))
+    return QByteArrayLiteral("66");
+  if (value == QStringLiteral("larger"))
+    return QByteArrayLiteral("76");
+  if (value == QStringLiteral("extralarge"))
+    return QByteArrayLiteral("84");
+  return QByteArrayLiteral("55");
+}
+
+QByteArray subtitleFontFamily(const QString &value) {
+  if (value == QStringLiteral("typewriter"))
+    return QByteArrayLiteral("Courier New");
+  if (value == QStringLiteral("print"))
+    return QByteArrayLiteral("Georgia");
+  if (value == QStringLiteral("console"))
+    return QByteArrayLiteral("Consolas");
+  if (value == QStringLiteral("cursive"))
+    return QByteArrayLiteral("Lucida Handwriting");
+  if (value == QStringLiteral("casual"))
+    return QByteArrayLiteral("Segoe Print");
+  if (value == QStringLiteral("smallcaps"))
+    return QByteArrayLiteral("Copperplate Gothic");
+  return QByteArrayLiteral("sans-serif");
+}
+
+struct SubtitleShadowOptions {
+  QByteArray borderSize = QByteArrayLiteral("3.5");
+  QByteArray shadowOffset = QByteArrayLiteral("1");
+  QByteArray shadowColor = QByteArrayLiteral("#80000000");
+};
+
+SubtitleShadowOptions subtitleShadowOptions(const QString &value) {
+  SubtitleShadowOptions options;
+  if (value == QStringLiteral("none")) {
+    options.shadowOffset = QByteArrayLiteral("0");
+    options.shadowColor = QByteArrayLiteral("#00000000");
+  } else if (value == QStringLiteral("raised")) {
+    options.shadowOffset = QByteArrayLiteral("1");
+    options.shadowColor = QByteArrayLiteral("#A0000000");
+  } else if (value == QStringLiteral("depressed")) {
+    options.shadowOffset = QByteArrayLiteral("-1");
+    options.shadowColor = QByteArrayLiteral("#A0000000");
+  } else if (value == QStringLiteral("uniform")) {
+    options.borderSize = QByteArrayLiteral("4.5");
+    options.shadowOffset = QByteArrayLiteral("0");
+    options.shadowColor = QByteArrayLiteral("#00000000");
+  }
+  return options;
+}
+
 qint64 secondsToTicks(double seconds) {
   return static_cast<qint64>(seconds * 10000000.0);
 }
@@ -122,6 +215,44 @@ int64_t nodeInt(const mpv_node *node, int64_t fallback = 0) {
   if (node->format == MPV_FORMAT_STRING && node->u.string)
     return QByteArray(node->u.string).toLongLong();
   return fallback;
+}
+
+// Targeted playback memory accounting. heaptrack can't produce deep call stacks
+// on this target (every unwinder crashes), so instead of attributing by stack we
+// quantify the known big buffers directly: process RSS (and the anon/heap part),
+// glibc's live-vs-free heap totals (mallinfo), and mpv's own demuxer cache size.
+// The gap between malloc_inuse and demux_cache localises non-cache heap growth.
+void logMemoryStats(mpv_handle *handle) {
+  (void)handle;
+  long vmrss = 0, rssAnon = 0, vmdata = 0, vmswap = 0;
+  if (FILE *f = fopen("/proc/self/status", "r")) {
+    char line[256];
+    while (fgets(line, sizeof(line), f)) {
+      long v;
+      if (sscanf(line, "VmRSS: %ld kB", &v) == 1) vmrss = v;
+      else if (sscanf(line, "RssAnon: %ld kB", &v) == 1) rssAnon = v;
+      else if (sscanf(line, "VmData: %ld kB", &v) == 1) vmdata = v;
+      else if (sscanf(line, "VmSwap: %ld kB", &v) == 1) vmswap = v;
+    }
+    fclose(f);
+  }
+
+#if defined(__GLIBC__) && (__GLIBC__ > 2 || (__GLIBC__ == 2 && __GLIBC_MINOR__ >= 33))
+  struct mallinfo2 mi = mallinfo2();
+#else
+  struct mallinfo mi = mallinfo();
+#endif
+  const long long mallInUse = (long long)mi.uordblks;   // live (non-mmap) heap
+  const long long mallFree = (long long)mi.fordblks;    // freed, retained in arena
+  const long long mallArena = (long long)mi.arena;      // total main-arena size
+  const long long mallMmap = (long long)mi.hblkhd;      // large allocs via mmap
+
+  const long long MB = 1024 * 1024;
+  qInfo().nospace()
+      << "player: memstats rss=" << vmrss / 1024 << "M anon=" << rssAnon / 1024
+      << "M vmdata=" << vmdata / 1024 << "M swap=" << vmswap / 1024
+      << "M | malloc_inuse=" << mallInUse / MB << "M arena_free=" << mallFree / MB
+      << "M arena=" << mallArena / MB << "M mmap=" << mallMmap / MB;
 }
 
 bool nodeFlag(const mpv_node *node) {
@@ -210,12 +341,6 @@ PlayerController::PlayerController(NativeAppWindow *window,
     if (!m_visible || m_paused || m_buffering || m_seeking)
       return;
 
-    double mpvPosition = 0.0;
-    if (currentMpvPositionSeconds(&mpvPosition)) {
-      setPositionSeconds(mpvPosition);
-      return;
-    }
-
     if (!m_positionClock.isValid())
       return;
 
@@ -236,6 +361,8 @@ PlayerController::PlayerController(NativeAppWindow *window,
   connect(&m_progressTimer, &QTimer::timeout, this, [this]() {
     if (!m_visible)
       return;
+
+    logMemoryStats(m_mpv.load());
 
     const auto session = m_session;
     QCoro::runDetached(
@@ -351,6 +478,12 @@ bool PlayerController::applyMpvRuntimeOption(MpvRuntimeOption option,
     name = "af";
     value = m_nightModeEnabled.load() ? QByteArray(kNightModeFilter)
                                       : QByteArray();
+#ifdef JELLYFIN_NATIVE_WEBOS
+    if (m_audioOutputMode == QStringLiteral("alsa") && !value.isEmpty()) {
+      qWarning() << "player: night mode disabled for webOS ALSA split-clock";
+      value.clear();
+    }
+#endif
     break;
   case MpvRuntimeOption::AudioDelay:
     name = "audio-delay";
@@ -381,7 +514,64 @@ bool PlayerController::applyMpvRuntimeOption(MpvRuntimeOption option,
 bool PlayerController::applyMpvRuntimeOptions(MpvOptionApplyMode mode,
                                               mpv_handle *handle) {
   return applyMpvRuntimeOption(MpvRuntimeOption::NightMode, mode, handle) &&
-         applyMpvRuntimeOption(MpvRuntimeOption::AudioDelay, mode, handle);
+         applyMpvRuntimeOption(MpvRuntimeOption::AudioDelay, mode, handle) &&
+         applyMpvSubtitleOptions(mode, handle);
+}
+
+bool PlayerController::applyMpvSubtitleOptions(MpvOptionApplyMode mode,
+                                               mpv_handle *handle) {
+  if (!handle)
+    return false;
+
+  auto applyString = [mode, handle](const char *name, const QByteArray &value) {
+    return mode == MpvOptionApplyMode::Initial
+               ? setOption(handle, name, value.constData())
+               : setMpvProperty(handle, name, value.constData());
+  };
+
+  const SubtitlePreferences prefs = m_subtitlePreferences;
+  const QString subtitleMode =
+      prefs.mode.isEmpty() ? QStringLiteral("Default") : prefs.mode;
+  const bool noSubtitles = subtitleMode == QStringLiteral("None");
+  const bool onlyForced = subtitleMode == QStringLiteral("OnlyForced");
+  const bool alwaysPlay = subtitleMode == QStringLiteral("Always");
+  const bool smart = subtitleMode == QStringLiteral("Smart");
+  const bool nativeStyling = prefs.styling == QStringLiteral("Native");
+  const int vertical = qBound(-16, prefs.verticalPosition, 16);
+  const int margin = vertical < 0 ? std::abs(vertical + 1) * 20 : vertical * 20;
+  const SubtitleShadowOptions shadow = subtitleShadowOptions(prefs.dropShadow);
+
+  bool ok = true;
+  ok &= applyString("sid", !m_subtitlesEnabled || noSubtitles ? QByteArrayLiteral("no")
+                                                              : QByteArrayLiteral("auto"));
+  ok &= applyString("slang", prefs.language.toUtf8());
+  ok &= applyString("sub-auto", QByteArrayLiteral("all"));
+  ok &= applyString("sub-visibility", mpvBool(!noSubtitles));
+  ok &= applyString("sub-forced-events-only", mpvBool(onlyForced));
+  ok &= applyString("subs-with-matching-audio", mpvBool(alwaysPlay));
+  ok &= applyString("subs-fallback", mpvBool(!noSubtitles && !onlyForced && !smart));
+  ok &= applyString("subs-fallback-forced", QByteArrayLiteral("yes"));
+  ok &= applyString("sub-ass", QByteArrayLiteral("yes"));
+  ok &= applyString("sub-ass-override", nativeStyling ? QByteArrayLiteral("no")
+                                                      : QByteArrayLiteral("force"));
+  ok &= applyString("sub-use-margins", QByteArrayLiteral("yes"));
+  ok &= applyString("sub-font", subtitleFontFamily(prefs.font));
+  ok &= applyString("sub-font-size", subtitleFontSize(prefs.textSize));
+  ok &= applyString("sub-bold", mpvBool(prefs.textWeight == QStringLiteral("bold")));
+  ok &= applyString("sub-pos", vertical < 0 ? QByteArrayLiteral("100")
+                                            : QByteArrayLiteral("0"));
+  ok &= applyString("sub-margin-y", QByteArray::number(margin));
+  ok &= applyString("sub-color", mpvArgbColor(prefs.textColor, QByteArrayLiteral("#FFFFFFFF")));
+  ok &= applyString("sub-border-size", shadow.borderSize);
+  ok &= applyString("sub-border-color", QByteArrayLiteral("#FF000000"));
+  ok &= applyString("sub-shadow-offset", shadow.shadowOffset);
+  ok &= applyString("sub-shadow-color", shadow.shadowColor);
+
+  if (!ok) {
+    qWarning() << "player: failed to apply subtitle preferences"
+               << "mode=" << (mode == MpvOptionApplyMode::Initial ? "initial" : "runtime");
+  }
+  return ok;
 }
 
 bool PlayerController::ensureMpv() {
@@ -462,19 +652,6 @@ bool PlayerController::ensureMpv() {
 #endif
       setOption(handle, "osd-bar", "no") &&
       setOption(handle, "osd-duration", "0") &&
-      setOption(handle, "sid", m_subtitlesEnabled ? "auto" : "no") &&
-      setOption(handle, "sub-auto", "all") &&
-      setOption(handle, "sub-visibility", "yes") &&
-      setOption(handle, "sub-ass", "yes") &&
-      setOption(handle, "sub-ass-override", "force") &&
-      setOption(handle, "sub-use-margins", "yes") &&
-      setOption(handle, "sub-font-size", "55") &&
-      setOption(handle, "sub-margin-y", "40") &&
-      setOption(handle, "sub-color", "#FFFFFFFF") &&
-      setOption(handle, "sub-border-size", "3.5") &&
-      setOption(handle, "sub-border-color", "#FF000000") &&
-      setOption(handle, "sub-shadow-offset", "1") &&
-      setOption(handle, "sub-shadow-color", "#80000000") &&
       setOption(handle, "audio-file-auto", "no") &&
       setOption(handle, "osc", "no") &&
       setOption(handle, "load-console", "no") &&
@@ -614,7 +791,10 @@ void PlayerController::play(const PlaybackSession &session) {
   mpv_command_string(handle, "set pause no");
 }
 
-void PlayerController::togglePause() { mpvCommand("no-osd cycle pause"); }
+void PlayerController::togglePause() {
+  qInfo() << "player: toggle pause requested";
+  mpvCommand("no-osd cycle pause");
+}
 
 void PlayerController::pauseForBackground() {
 #ifdef JELLYFIN_NATIVE_WEBOS
@@ -736,8 +916,7 @@ void PlayerController::stopWithReason(const QString &reason) {
   // immediately, regardless of how long Starfish takes to unload.
   stopProgressReporting(false);
 
-  if (auto *handle = m_mpv.load())
-    mpv_command_string(handle, "stop");
+  mpvCommand("stop");
   scheduleMpvTeardown();
 }
 
@@ -788,6 +967,17 @@ void PlayerController::setAudioOutputMode(const QString &mode) {
   qInfo() << "player: audio output mode changed" << normalized
           << "visible=" << m_visible;
   emit audioOutputModeChanged();
+  emit stateChanged();
+}
+
+void PlayerController::setSubtitlePreferences(const SubtitlePreferences &preferences) {
+  m_subtitlePreferences = preferences;
+  qInfo() << "player: subtitle preferences changed"
+          << "mode=" << preferences.mode
+          << "language=" << preferences.language
+          << "styling=" << preferences.styling;
+  if (auto *handle = m_mpv.load())
+    applyMpvSubtitleOptions(MpvOptionApplyMode::Runtime, handle);
   emit stateChanged();
 }
 
@@ -999,11 +1189,11 @@ void PlayerController::runEventLoop() {
           property->format == MPV_FORMAT_FLAG) {
         const bool paused = *static_cast<int *>(property->data);
         QMetaObject::invokeMethod(this, [this, paused]() {
+          if (m_paused != paused)
+            qInfo() << "player: pause state changed" << paused;
           m_paused = paused;
           if (m_paused) {
-            double mpvPosition = 0.0;
-            if (currentMpvPositionSeconds(&mpvPosition))
-              setPositionSeconds(mpvPosition);
+            setPositionSeconds(projectedPositionSeconds());
             m_positionClock.invalidate();
           } else {
             m_positionClock.restart();
@@ -1017,9 +1207,7 @@ void PlayerController::runEventLoop() {
         QMetaObject::invokeMethod(this, [this, buffering]() {
           m_buffering = buffering;
           if (buffering) {
-            double mpvPosition = 0.0;
-            if (currentMpvPositionSeconds(&mpvPosition))
-              setPositionSeconds(mpvPosition);
+            setPositionSeconds(projectedPositionSeconds());
             m_positionClock.invalidate();
           } else {
             m_bufferingPercent = 0;
@@ -1168,6 +1356,7 @@ void PlayerController::runEventLoop() {
         qInfo() << "player: end file (main thread) failed=" << failed
                 << "visible=" << m_visible
                 << "reason=" << endFileReason
+                << endFileReasonName(endFileReason)
                 << "error=" << endFileError
                 << (endFileError < 0 ? mpv_error_string(endFileError) : "");
         if (failed)
@@ -1228,18 +1417,9 @@ double PlayerController::seekAnchorPosition() {
     return clampedPosition(position);
   }
 
-  // No in-flight seek: trust mpv. Earlier versions preferred the projected
-  // position when mpv was >2s behind, but that pinned m_positionSeconds to a
-  // stale optimistic target whenever a keyframe-aligned seek landed short of
-  // it, and the next "+10" would compound the gap.
-  if (!m_seeking) {
-    double mpvPosition = 0.0;
-    if (currentMpvPositionSeconds(&mpvPosition)) {
-      setPositionSeconds(mpvPosition);
-      return mpvPosition;
-    }
-  }
-
+  // No in-flight seek: use the latest async time-pos property update plus a
+  // local clock projection. Avoid synchronous mpv_get_property calls on the UI
+  // thread; when mpv wedges in a native backend those can stall the whole app.
   return projectedPositionSeconds();
 }
 

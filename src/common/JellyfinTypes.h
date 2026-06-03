@@ -94,6 +94,29 @@ struct TrickplayInfo {
     int bandwidth = 0;
 };
 
+struct SubtitlePreferences {
+    QString language;
+    QString mode = QStringLiteral("Default");
+    QString burnInMode;
+    bool renderPgs = false;
+    bool alwaysBurnInWhenTranscoding = false;
+    QString styling = QStringLiteral("Auto");
+    QString textSize;
+    QString textWeight = QStringLiteral("normal");
+    QString font;
+    QString textColor = QStringLiteral("#ffffff");
+    QString dropShadow;
+    QString textBackground = QStringLiteral("transparent");
+    int verticalPosition = -3;
+};
+
+struct PagedMovieItems {
+    std::vector<MovieItem> items;
+    int totalRecordCount = 0;
+    int startIndex = 0;
+    int limit = 0;
+};
+
 struct PlaybackSession {
     QString itemId;
     QString title;

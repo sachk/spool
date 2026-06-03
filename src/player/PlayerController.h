@@ -98,6 +98,7 @@ public:
     Q_INVOKABLE void setNightModeEnabled(bool enabled);
     Q_INVOKABLE void setAudioDelayMs(int delayMs);
     Q_INVOKABLE void setAudioOutputMode(const QString &mode);
+    void setSubtitlePreferences(const JellyfinNative::SubtitlePreferences &preferences);
 
 signals:
     void visibleChanged();
@@ -142,6 +143,7 @@ private:
     double clampedPosition(double seconds) const;
     void resetPlaybackUiState();
     bool applyMpvRuntimeOption(MpvRuntimeOption option, MpvOptionApplyMode mode, mpv_handle *handle);
+    bool applyMpvSubtitleOptions(MpvOptionApplyMode mode, mpv_handle *handle);
     bool applyMpvRuntimeOptions(MpvOptionApplyMode mode, mpv_handle *handle);
 
     NativeAppWindow *m_window = nullptr;
@@ -184,6 +186,7 @@ private:
     std::atomic_bool m_nightModeEnabled = false;
     std::atomic<int> m_audioDelayMs = 0;
     QString m_audioOutputMode = QStringLiteral("alsa");
+    SubtitlePreferences m_subtitlePreferences;
     QString m_activeSegmentType;
     double m_activeSegmentEndSeconds = 0.0;
 };

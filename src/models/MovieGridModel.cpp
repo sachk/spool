@@ -237,6 +237,18 @@ void MovieGridModel::setMovies(const std::vector<MovieItem> &movies)
     endResetModel();
 }
 
+void MovieGridModel::appendMovies(const std::vector<MovieItem> &movies)
+{
+    if (movies.empty())
+        return;
+
+    const int first = rowCount();
+    const int last = first + static_cast<int>(movies.size()) - 1;
+    beginInsertRows({}, first, last);
+    m_movies.insert(m_movies.end(), movies.begin(), movies.end());
+    endInsertRows();
+}
+
 void MovieGridModel::clear()
 {
     beginResetModel();
@@ -249,6 +261,11 @@ MovieItem MovieGridModel::movieAt(int index) const
     if (index < 0 || index >= rowCount())
         return {};
     return m_movies[static_cast<size_t>(index)];
+}
+
+const std::vector<MovieItem> &MovieGridModel::movies() const
+{
+    return m_movies;
 }
 
 bool MovieGridModel::updateResumeTicks(const QString &itemId, qint64 resumeTicks)
