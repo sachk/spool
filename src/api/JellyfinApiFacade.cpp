@@ -171,7 +171,7 @@ MovieItem mediaItemFromJson(const JellyfinApiFacade *api, const QJsonObject &obj
         itemId,
         object.value(QStringLiteral("Name")).toString(),
         object.value(QStringLiteral("Overview")).toString(),
-        api->buildImageUrl(itemId, posterTag),
+        posterTag.isEmpty() ? QString() : api->buildImageUrl(itemId, posterTag),
         posterTag,
         itemType,
         seriesId,
