@@ -957,40 +957,43 @@ void AppController::loadDetailRows(const QString &itemId, const QString &itemTyp
 
     const bool loadSeasons = itemType == QStringLiteral("Series");
     m_detailRowsPending = loadSeasons ? 2 : 1;
+    qInfo() << "detail rows: loading" << itemType << itemId << "seasons=" << loadSeasons;
 
     if (loadSeasons) {
         QCoro::runDetached(
             m_api->fetchSeasons(itemId),
-            [this, generation](const std::vector<MovieItem> &seasons) {
+            [this, generation, itemId](const std::vector<MovieItem> &seasons) {
                 if (generation != m_detailRowsGeneration)
                     return;
+                qInfo() << "detail rows: seasons loaded" << itemId << seasons.size();
                 m_detailSeasons.setMovies(seasons);
                 prefetchMoviePosters(seasons);
                 emit detailRowsChanged();
                 finishDetailRowLoad(generation);
             },
-            [this, generation](const std::exception_ptr &error) {
+            [this, generation, itemId](const std::exception_ptr &error) {
                 if (generation != m_detailRowsGeneration)
                     return;
-                qWarning() << "detail rows: seasons fetch failed" << exceptionMessage(error);
+                qWarning() << "detail rows: seasons fetch failed" << itemId << exceptionMessage(error);
                 finishDetailRowLoad(generation);
             });
     }
 
     QCoro::runDetached(
         m_api->fetchSimilarItems(itemId),
-        [this, generation](const std::vector<MovieItem> &items) {
+        [this, generation, itemId](const std::vector<MovieItem> &items) {
             if (generation != m_detailRowsGeneration)
                 return;
+            qInfo() << "detail rows: similar loaded" << itemId << items.size();
             m_detailSimilarItems.setMovies(items);
             prefetchMoviePosters(items);
             emit detailRowsChanged();
             finishDetailRowLoad(generation);
         },
-        [this, generation](const std::exception_ptr &error) {
+        [this, generation, itemId](const std::exception_ptr &error) {
             if (generation != m_detailRowsGeneration)
                 return;
-            qWarning() << "detail rows: similar fetch failed" << exceptionMessage(error);
+            qWarning() << "detail rows: similar fetch failed" << itemId << exceptionMessage(error);
             finishDetailRowLoad(generation);
         });
 }

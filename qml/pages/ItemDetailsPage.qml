@@ -24,7 +24,10 @@ FocusScope {
     readonly property int rowGap: Math.max(14, Metrics.gap(width))
     readonly property string backgroundArt: item.backdropUrl || item.thumbUrl || item.posterUrl || ""
     readonly property string titleArt: item.logoUrl || item.bannerUrl || ""
-    readonly property bool showSeasonsRow: typeText === "Series" && seasonCount > 0
+    readonly property bool loadingDetailRows: appController ? appController.detailRowsBusy : false
+    readonly property bool reserveSeasonsRow: typeText === "Series" && seasonCount === 0 && loadingDetailRows
+    readonly property bool showSeasonsRow: typeText === "Series" && (seasonCount > 0 || reserveSeasonsRow)
+    readonly property bool seasonsNavigable: seasonCount > 0
     readonly property bool showSimilarRow: similarCount > 0
     readonly property var people: item.people || []
     readonly property bool showPeopleRow: people.length > 0
@@ -44,17 +47,17 @@ FocusScope {
         property bool enabledButton: true
         signal activated()
 
-        width: Math.min(Math.max(actionLabel.implicitWidth + 74, 150), 260)
-        height: 50
+        width: Math.min(Math.max(actionLabel.implicitWidth + 76, 138), 240)
+        height: 46
         focus: true
         opacity: enabledButton ? 1.0 : 0.45
 
         Rectangle {
             anchors.fill: parent
-            radius: Theme.radiusMedium
-            color: actionRoot.primary ? Theme.accentPanel : "#B51B1B1B"
+            radius: Theme.radiusSmall
+            color: actionRoot.primary ? Theme.accent : "transparent"
             border.width: actionRoot.activeFocus ? 2 : 1
-            border.color: actionRoot.activeFocus ? Theme.accent : Theme.border
+            border.color: actionRoot.activeFocus ? Theme.textPrimary : actionRoot.primary ? Theme.accent : "#55FFFFFF"
             antialiasing: true
         }
 
@@ -70,7 +73,7 @@ FocusScope {
                 anchors.verticalCenter: parent.verticalCenter
                 name: actionRoot.iconName
                 iconSize: 23
-                iconColor: actionRoot.enabledButton ? Theme.textPrimary : Theme.textDisabled
+                iconColor: actionRoot.enabledButton ? actionRoot.primary ? "#061017" : Theme.textPrimary : Theme.textDisabled
             }
 
             AppText {
@@ -78,7 +81,7 @@ FocusScope {
                 anchors.verticalCenter: parent.verticalCenter
                 width: Math.max(0, actionRoot.width - 64)
                 text: actionRoot.label
-                color: actionRoot.enabledButton ? Theme.textPrimary : Theme.textDisabled
+                color: actionRoot.enabledButton ? actionRoot.primary ? "#061017" : Theme.textPrimary : Theme.textDisabled
                 font.pixelSize: Metrics.metaPx(root.width) + 1
                 font.weight: actionRoot.primary ? Font.DemiBold : Font.Medium
                 elide: Text.ElideRight
@@ -110,17 +113,17 @@ FocusScope {
         property bool enabledButton: true
         signal activated()
 
-        width: 50
-        height: 50
+        width: 46
+        height: 46
         focus: true
         opacity: enabledButton ? 1.0 : 0.45
 
         Rectangle {
             anchors.fill: parent
-            radius: Theme.radiusMedium
-            color: iconRoot.checked ? Theme.accentPanel : "#B51B1B1B"
+            radius: 23
+            color: iconRoot.checked ? Theme.accentPanel : "transparent"
             border.width: iconRoot.activeFocus ? 2 : 1
-            border.color: iconRoot.activeFocus ? Theme.accent : iconRoot.checked ? Theme.accentDim : Theme.border
+            border.color: iconRoot.activeFocus ? Theme.textPrimary : iconRoot.checked ? Theme.accent : "#55FFFFFF"
             antialiasing: true
         }
 
@@ -230,286 +233,6 @@ FocusScope {
             wrapMode: Text.Wrap
             maximumLineCount: 2
             elide: Text.ElideRight
-        }
-    }
-
-    component DetailPosterRow: FocusScope {
-        id: rowRoot
-        property string title: ""
-        property var rowModel
-        property int cardWidth: root.rowPosterWidth
-        property int currentIndex: 0
-        readonly property int rowCount: rowModel && rowModel.rowCount ? rowModel.rowCount() : 0
-        readonly property int cardHeight: Math.round(cardWidth * 1.5 + 60)
-        readonly property int headerHeight: 34
-        readonly property int rowHeight: rowCount > 0 ? headerHeight + 10 + cardHeight : 0
-        signal activated(int index)
-
-        Layout.fillWidth: true
-        Layout.preferredHeight: visible ? rowHeight : 0
-        Layout.minimumHeight: visible ? rowHeight : 0
-        Layout.maximumHeight: visible ? rowHeight : 0
-        implicitHeight: visible ? rowHeight : 0
-        height: visible ? rowHeight : 0
-        visible: rowCount > 0
-        focus: true
-
-        function focusList() {
-            listView.forceActiveFocus()
-            listView.currentIndex = rowCount > 0 ? Math.max(0, Math.min(currentIndex, rowCount - 1)) : -1
-            ensureVisible()
-        }
-
-        function ensureVisible() {
-            if (listView.currentIndex >= 0)
-                listView.positionViewAtIndex(listView.currentIndex, ListView.Contain)
-        }
-
-        function currentCard() {
-            return listView.currentItem
-        }
-
-        function handlePressedKey(key) {
-            const card = currentCard()
-            return card && card.handleAcceptPressed ? card.handleAcceptPressed(key) : false
-        }
-
-        function handleNavigationKey(key) {
-            if (rowCount <= 0)
-                return false
-            const acceptKey = key === Qt.Key_Return || key === Qt.Key_Enter || key === Qt.Key_Select || key === Qt.Key_Space
-            const card = currentCard()
-            if (!acceptKey && card && card.handleNavigationKey && card.handleNavigationKey(key))
-                return true
-            if (key === Qt.Key_Left) {
-                if (listView.currentIndex <= 0) shell.focusRail()
-                else listView.currentIndex = listView.currentIndex - 1
-                currentIndex = listView.currentIndex
-                ensureVisible()
-                return true
-            }
-            if (key === Qt.Key_Right) {
-                listView.currentIndex = Math.min(rowCount - 1, listView.currentIndex + 1)
-                currentIndex = listView.currentIndex
-                ensureVisible()
-                return true
-            }
-            if (acceptKey) {
-                currentIndex = listView.currentIndex
-                if (card && card.handleAcceptReleased && card.handleAcceptReleased(key))
-                    return true
-                if (card && card.handleNavigationKey && card.handleNavigationKey(key))
-                    return true
-                activated(listView.currentIndex)
-                return true
-            }
-            return false
-        }
-
-        SectionHeader {
-            id: rowHeader
-            anchors.left: parent.left
-            anchors.right: parent.right
-            anchors.top: parent.top
-            height: rowRoot.headerHeight
-            title: rowRoot.title
-        }
-
-        ListView {
-            id: listView
-            anchors.left: parent.left
-            anchors.right: parent.right
-            anchors.top: rowHeader.bottom
-            anchors.topMargin: 10
-            height: rowRoot.cardHeight
-            focus: true
-            keyNavigationEnabled: false
-            clip: true
-            orientation: ListView.Horizontal
-            boundsBehavior: Flickable.StopAtBounds
-            spacing: root.rowGap
-            model: rowRoot.rowModel
-            currentIndex: rowRoot.rowCount > 0 ? Math.max(0, Math.min(rowRoot.currentIndex, rowRoot.rowCount - 1)) : -1
-
-            delegate: MediaItemCard {
-                id: posterDelegate
-                required property int index
-                required property string title
-                required property string posterUrl
-                required property string seriesPosterUrl
-                required property int year
-                required property string subtitle
-                required property string displayTitle
-                required property string displaySubtitle
-                required property string movieId
-                readonly property var itemData: rowRoot.rowModel.get(index)
-                width: rowRoot.cardWidth
-                height: listView.height
-                item: itemData
-                kind: "poster"
-                useSeriesPoster: true
-                focused: posterDelegate.index === listView.currentIndex && listView.activeFocus
-                onActivated: {
-                    listView.currentIndex = posterDelegate.index
-                    rowRoot.currentIndex = posterDelegate.index
-                    rowRoot.activated(posterDelegate.index)
-                }
-                onFavoriteToggled: (favorite) => appController.setFavorite(posterDelegate.movieId || "", favorite)
-                onPlayedToggled: (played) => appController.setPlayed(posterDelegate.movieId || "", played)
-                onMediaInfoRequested: shell.openMediaInfo(posterDelegate.itemData)
-            }
-
-            Keys.onReleased: (event) => {
-                if (rowRoot.handleNavigationKey(event.key))
-                    event.accepted = true
-            }
-        }
-    }
-
-    component PeopleRow: FocusScope {
-        id: peopleRoot
-        property string title: "Cast & Crew"
-        property var peopleModel: []
-        property int currentIndex: 0
-        readonly property int rowCount: peopleModel ? peopleModel.length : 0
-        readonly property int cardWidth: Math.min(156, Math.max(124, root.width * 0.084))
-        readonly property int cardHeight: Math.round(cardWidth * 1.18 + 48)
-        readonly property int headerHeight: 34
-        readonly property int rowHeight: rowCount > 0 ? headerHeight + 10 + cardHeight : 0
-        signal activated(var person)
-
-        Layout.fillWidth: true
-        Layout.preferredHeight: visible ? rowHeight : 0
-        Layout.minimumHeight: visible ? rowHeight : 0
-        Layout.maximumHeight: visible ? rowHeight : 0
-        implicitHeight: visible ? rowHeight : 0
-        height: visible ? rowHeight : 0
-        visible: rowCount > 0
-        focus: true
-
-        function focusList() {
-            peopleList.forceActiveFocus()
-            peopleList.currentIndex = rowCount > 0 ? Math.max(0, Math.min(currentIndex, rowCount - 1)) : -1
-            ensureVisible()
-        }
-
-        function ensureVisible() {
-            if (peopleList.currentIndex >= 0)
-                peopleList.positionViewAtIndex(peopleList.currentIndex, ListView.Contain)
-        }
-
-        function handlePressedKey(key) {
-            return false
-        }
-
-        function handleNavigationKey(key) {
-            if (rowCount <= 0)
-                return false
-            if (key === Qt.Key_Left) {
-                if (peopleList.currentIndex <= 0) shell.focusRail()
-                else peopleList.currentIndex = peopleList.currentIndex - 1
-                currentIndex = peopleList.currentIndex
-                ensureVisible()
-                return true
-            }
-            if (key === Qt.Key_Right) {
-                peopleList.currentIndex = Math.min(rowCount - 1, peopleList.currentIndex + 1)
-                currentIndex = peopleList.currentIndex
-                ensureVisible()
-                return true
-            }
-            if (key === Qt.Key_Return || key === Qt.Key_Enter || key === Qt.Key_Select || key === Qt.Key_Space) {
-                currentIndex = peopleList.currentIndex
-                activated(peopleModel[peopleList.currentIndex] || ({}))
-                return true
-            }
-            return false
-        }
-
-        SectionHeader {
-            id: peopleHeader
-            anchors.left: parent.left
-            anchors.right: parent.right
-            anchors.top: parent.top
-            height: peopleRoot.headerHeight
-            title: peopleRoot.title
-        }
-
-        ListView {
-            id: peopleList
-            anchors.left: parent.left
-            anchors.right: parent.right
-            anchors.top: peopleHeader.bottom
-            anchors.topMargin: 10
-            height: peopleRoot.cardHeight
-            focus: true
-            keyNavigationEnabled: false
-            clip: true
-            orientation: ListView.Horizontal
-            boundsBehavior: Flickable.StopAtBounds
-            spacing: root.rowGap
-            model: peopleRoot.peopleModel
-            currentIndex: peopleRoot.rowCount > 0 ? Math.max(0, Math.min(peopleRoot.currentIndex, peopleRoot.rowCount - 1)) : -1
-
-            delegate: Item {
-                id: personDelegate
-                required property int index
-                required property var modelData
-                width: peopleRoot.cardWidth
-                height: peopleList.height
-
-                ImageCard {
-                    id: personImage
-                    anchors.top: parent.top
-                    anchors.left: parent.left
-                    anchors.right: parent.right
-                    height: width * 1.18
-                    imageUrl: modelData.imageUrl || ""
-                    fallbackText: modelData.type || "Person"
-                    focused: personDelegate.index === peopleList.currentIndex && peopleList.activeFocus
-                    retainWhileLoading: true
-                }
-
-                AppText {
-                    id: personName
-                    anchors.top: personImage.bottom
-                    anchors.topMargin: 8
-                    anchors.left: parent.left
-                    anchors.right: parent.right
-                    text: modelData.name || ""
-                    font.pixelSize: Metrics.metaPx(root.width) + 1
-                    font.weight: Font.Medium
-                    color: personDelegate.index === peopleList.currentIndex && peopleList.activeFocus ? Theme.textPrimary : Theme.textSecondary
-                    maximumLineCount: 1
-                    elide: Text.ElideRight
-                }
-
-                MonoText {
-                    anchors.left: parent.left
-                    anchors.right: parent.right
-                    anchors.top: personName.bottom
-                    anchors.topMargin: 2
-                    text: modelData.role || modelData.type || ""
-                    color: Theme.textMuted
-                    font.pixelSize: Metrics.metaPx(root.width) - 1
-                    maximumLineCount: 1
-                    elide: Text.ElideRight
-                }
-
-                MouseArea {
-                    anchors.fill: parent
-                    onClicked: {
-                        peopleList.currentIndex = personDelegate.index
-                        peopleRoot.currentIndex = personDelegate.index
-                        peopleRoot.activated(personDelegate.modelData)
-                    }
-                }
-            }
-
-            Keys.onReleased: (event) => {
-                if (peopleRoot.handleNavigationKey(event.key))
-                    event.accepted = true
-            }
         }
     }
 
@@ -635,8 +358,14 @@ FocusScope {
 
     function focusFirstContentRow() {
         if (showSeasonsRow) {
-            seasonsRow.focusList()
-            return true
+            if (seasonsNavigable) {
+                seasonsRow.focusList()
+                return true
+            }
+            if (showPeopleRow) {
+                peopleRow.focusList()
+                return true
+            }
         }
         if (showPeopleRow) {
             peopleRow.focusList()
@@ -832,7 +561,7 @@ FocusScope {
 
         if (peopleRow.activeFocus) {
             if (key === Qt.Key_Up) {
-                if (showSeasonsRow) seasonsRow.focusList()
+                if (seasonsNavigable) seasonsRow.focusList()
                 else focusDefaultAction()
                 return true
             }
@@ -847,7 +576,7 @@ FocusScope {
         if (similarRow.activeFocus) {
             if (key === Qt.Key_Up) {
                 if (showPeopleRow) peopleRow.focusList()
-                else if (showSeasonsRow) seasonsRow.focusList()
+                else if (seasonsNavigable) seasonsRow.focusList()
                 else focusDefaultAction()
                 return true
             }
@@ -928,6 +657,7 @@ FocusScope {
         ColumnLayout {
             id: contentColumn
             width: detailsFlick.width
+            height: implicitHeight
             spacing: 0
 
             Item {
@@ -972,33 +702,18 @@ FocusScope {
                         retainWhileLoading: true
                     }
 
-                    Rectangle {
+                    Item {
                         id: infoPanel
                         Layout.fillWidth: true
                         Layout.alignment: Qt.AlignTop
-                        Layout.preferredHeight: Math.min(parent.height, infoColumn.implicitHeight + 44)
-                        radius: Theme.radiusMedium
-                        color: "#D4111111"
-                        border.width: 1
-                        border.color: "#33FFFFFF"
-                        antialiasing: true
-
-                        Rectangle {
-                            anchors.left: parent.left
-                            anchors.right: parent.right
-                            anchors.top: parent.top
-                            height: 2
-                            color: Theme.accent
-                            opacity: 0.85
-                        }
+                        Layout.preferredHeight: Math.min(parent.height, infoColumn.implicitHeight)
 
                         ColumnLayout {
                             id: infoColumn
                             anchors.left: parent.left
                             anchors.right: parent.right
                             anchors.top: parent.top
-                            anchors.margins: 22
-                            spacing: 12
+                            spacing: 13
 
                             AppText {
                                 Layout.fillWidth: true
@@ -1151,42 +866,69 @@ FocusScope {
                 }
             }
 
-            ColumnLayout {
+            Item {
+                id: detailRowsArea
                 Layout.fillWidth: true
-                Layout.leftMargin: root.contentMargin
-                Layout.rightMargin: root.contentMargin
-                Layout.topMargin: 18
-                spacing: 28
+                readonly property int rowSpacing: 28
+                readonly property int visibleRowCount: (seasonsRow.visible ? 1 : 0)
+                                                       + (peopleRow.visible ? 1 : 0)
+                                                       + (similarRow.visible ? 1 : 0)
+                readonly property int rowsHeight: seasonsRow.height + peopleRow.height + similarRow.height
+                                                  + Math.max(0, visibleRowCount - 1) * rowSpacing
+                readonly property int peopleY: 18 + (seasonsRow.visible ? seasonsRow.height + rowSpacing : 0)
+                readonly property int similarY: peopleY + (peopleRow.visible ? peopleRow.height + rowSpacing : 0)
+                Layout.preferredHeight: 18 + rowsHeight + root.contentMargin
+                implicitHeight: 18 + rowsHeight + root.contentMargin
+                height: implicitHeight
 
-                DetailPosterRow {
+                MediaPosterScrollerRow {
                     id: seasonsRow
+                    anchors.left: parent.left
+                    anchors.right: parent.right
+                    anchors.leftMargin: root.contentMargin
+                    anchors.rightMargin: root.contentMargin
+                    y: 18
                     title: "Seasons"
                     rowModel: appController ? appController.detailSeasons : null
+                    shell: root.shell
                     cardWidth: root.rowPosterWidth
-                    visible: root.showSeasonsRow
+                    rowGap: root.rowGap
+                    enabledRow: root.showSeasonsRow
+                    reserveWhenEmpty: root.reserveSeasonsRow
+                    loading: root.reserveSeasonsRow
+                    emptyText: "Loading seasons..."
                     onActivated: (index) => appController.openDetailSeason(index)
                 }
 
-                PeopleRow {
+                PersonScrollerRow {
                     id: peopleRow
+                    anchors.left: parent.left
+                    anchors.right: parent.right
+                    anchors.leftMargin: root.contentMargin
+                    anchors.rightMargin: root.contentMargin
+                    y: detailRowsArea.peopleY
                     title: "Cast & Crew"
                     peopleModel: root.people
-                    visible: root.showPeopleRow
+                    shell: root.shell
+                    rowGap: root.rowGap
+                    enabledRow: root.showPeopleRow
                     onActivated: (person) => root.openPerson(person)
                 }
 
-                DetailPosterRow {
+                MediaPosterScrollerRow {
                     id: similarRow
+                    anchors.left: parent.left
+                    anchors.right: parent.right
+                    anchors.leftMargin: root.contentMargin
+                    anchors.rightMargin: root.contentMargin
+                    y: detailRowsArea.similarY
                     title: "More Like This"
                     rowModel: appController ? appController.detailSimilarItems : null
+                    shell: root.shell
                     cardWidth: root.rowPosterWidth
-                    visible: root.showSimilarRow
+                    rowGap: root.rowGap
+                    enabledRow: root.showSimilarRow
                     onActivated: (index) => root.openSimilarItem(index)
-                }
-
-                Item {
-                    Layout.fillWidth: true
-                    Layout.preferredHeight: root.contentMargin
                 }
             }
         }
