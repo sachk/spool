@@ -104,7 +104,12 @@ copy_qml_module() {
 
 mkdir -p "$BUILD_DIR" "$STAGE_LIB" "$STAGE_BIN"
 rm -rf "$INSTALL_DIR" "$APP_DIR/qt-plugins" "$APP_DIR/qt-qml"
-rm -f "$STAGE_LIB"/* "$STAGE_BIN"/jellyfin-native "$STAGE_BIN"/qt.conf
+# -rf so the optional lib/heaptrack/ subdir (and any prior bundle artifacts in
+# bin: the shim, jellyfin-native.real, heaptrack driver) are cleaned even when
+# this build is not bundling heaptrack.
+rm -rf "$STAGE_LIB"/* \
+       "$STAGE_BIN"/jellyfin-native "$STAGE_BIN"/jellyfin-native.real \
+       "$STAGE_BIN"/heaptrack "$STAGE_BIN"/qt.conf
 
 if [[ "$QT_IS_STATIC" == "0" ]]; then
   mkdir -p "$APP_DIR/qt-plugins/platforms" \
@@ -133,8 +138,13 @@ echo "Building libdovi..."
 DOVI_LIB="$WORKSPACE_ROOT/dovi_tool/dolby_vision/target/arm-unknown-linux-gnueabi/release/libdovi.a"
 DOVI_INC="$WORKSPACE_ROOT/dovi_tool/dolby_vision/include"
 
-export CFLAGS="${CFLAGS:-} -I$DOVI_INC"
-export CXXFLAGS="${CXXFLAGS:-} -I$DOVI_INC"
+# Emit unwind tables + keep frame pointers so heaptrack's (crash-safe, non-
+# libunwind) backtracer can produce deep call stacks for memory profiling.
+# libunwind segfaults on this target, so .ARM.exidx/.eh_frame is the only path
+# to per-function heap attribution. Negligible size/perf cost.
+HEAPTRACK_UNWIND_FLAGS="${HEAPTRACK_UNWIND_FLAGS:--fasynchronous-unwind-tables -funwind-tables -fno-omit-frame-pointer -g}"
+export CFLAGS="${CFLAGS:-} -I$DOVI_INC $HEAPTRACK_UNWIND_FLAGS"
+export CXXFLAGS="${CXXFLAGS:-} -I$DOVI_INC $HEAPTRACK_UNWIND_FLAGS"
 export LDFLAGS="${LDFLAGS:-} -L$(dirname "$DOVI_LIB")"
 export PKG_CONFIG_PATH="$PREFIX/lib/pkgconfig"
 export PKG_CONFIG_LIBDIR="$PREFIX/lib/pkgconfig:$SYSROOT/usr/lib/pkgconfig:$SYSROOT/usr/share/pkgconfig"
@@ -185,6 +195,10 @@ MPV_SETUP_ARGS=(
   -Dstarfish=enabled
   "-Dc_link_args=-L$(dirname "$DOVI_LIB") -ldovi"
   "-Dcpp_link_args=-L$(dirname "$DOVI_LIB") -ldovi"
+  # Explicit c_args/cpp_args: meson --reconfigure does not re-read CFLAGS env,
+  # so pass the unwind flags here too (deep heaptrack stacks need them in libmpv).
+  "-Dc_args=$HEAPTRACK_UNWIND_FLAGS"
+  "-Dcpp_args=$HEAPTRACK_UNWIND_FLAGS"
 )
 
 if [[ -f "$MPV_BUILD/build.ninja" ]]; then
@@ -335,6 +349,31 @@ if [[ "$QT_IS_STATIC" == "1" ]]; then
 [Paths]
 QmlImports = ../qt-qml
 QTCONF
+fi
+
+# --- Optional: bundle heaptrack memory recorder + launch shim --------------
+# Controlled by BUNDLE_HEAPTRACK (default: auto -- bundle iff the cross-built
+# recorder exists, built via tools/webos-native/build-heaptrack.sh). The shim
+# replaces the binary at main=bin/jellyfin-native but is a transparent
+# passthrough unless a runtime marker file is present, so a normal launch is
+# unaffected and profiling can never break playback.
+HEAPTRACK_INSTALL="${HEAPTRACK_INSTALL:-$ROOT/build/webos-heaptrack/install}"
+HEAPTRACK_SHIM="$ROOT/tools/webos/heaptrack-launch-shim.sh"
+if [[ "${BUNDLE_HEAPTRACK:-auto}" != "0" && -f "$HEAPTRACK_INSTALL/lib/heaptrack/libheaptrack_preload.so" ]]; then
+  echo "Bundling heaptrack memory recorder + launch shim"
+  mv -f "$STAGE_BIN/jellyfin-native" "$STAGE_BIN/jellyfin-native.real"
+  install -m 0755 "$HEAPTRACK_SHIM" "$STAGE_BIN/jellyfin-native"
+  mkdir -p "$STAGE_LIB/heaptrack/libexec"
+  cp -f "$HEAPTRACK_INSTALL/lib/heaptrack/libheaptrack_preload.so" "$STAGE_LIB/heaptrack/"
+  cp -f "$HEAPTRACK_INSTALL/bin/heaptrack" "$STAGE_BIN/heaptrack" 2>/dev/null || true
+  cp -f "$HEAPTRACK_INSTALL/lib/heaptrack/libexec/heaptrack_env" "$STAGE_LIB/heaptrack/libexec/" 2>/dev/null || true
+  # The preload (app/lib/heaptrack/) finds the bundled libstdc++ in app/lib via
+  # $ORIGIN/.. ; the shim also exports LD_LIBRARY_PATH as a belt-and-suspenders.
+  "$PATCHELF_BIN" --force-rpath --set-rpath '$ORIGIN/..' "$STAGE_LIB/heaptrack/libheaptrack_preload.so" 2>/dev/null || true
+  # Preserve an unstripped symbol source for desktop heaptrack_interpret.
+  cp -f "$INSTALL_DIR/bin/jellyfin-native" "$BUILD_DIR/jellyfin-native.unstripped" 2>/dev/null || true
+else
+  echo "Skipping heaptrack bundle (run tools/webos-native/build-heaptrack.sh to enable)"
 fi
 
 rm -f "$BUILD_DIR"/*.ipk

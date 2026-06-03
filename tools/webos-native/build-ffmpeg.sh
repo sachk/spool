@@ -109,7 +109,7 @@ cd "$SRC_DIR"
   --enable-bsf=aac_adtstoasc \
   --enable-bsf=h264_mp4toannexb \
   --enable-bsf=hevc_mp4toannexb \
-  --extra-cflags="--sysroot=$SYSROOT -I$PREFIX/include" \
+  --extra-cflags="--sysroot=$SYSROOT -I$PREFIX/include ${FFMPEG_DIAG_CFLAGS:--fasynchronous-unwind-tables -funwind-tables -g}" \
   --extra-ldflags="--sysroot=$SYSROOT -L$PREFIX/lib -Wl,-rpath-link,$PREFIX/lib"
 
 make -j"$(getconf _NPROCESSORS_ONLN)"

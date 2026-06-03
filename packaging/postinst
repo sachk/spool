@@ -1,7 +1,17 @@
 #!/bin/sh
 
 APP_ID="com.sachk.tern"
-APP_BIN="/media/developer/apps/usr/palm/applications/$APP_ID/bin/jellyfin-native"
+APP_DIR="/media/developer/apps/usr/palm/applications/$APP_ID"
+# LS2 dev-mode roles match a process by its exeName. When the heaptrack launch
+# shim is bundled, bin/jellyfin-native is a shell shim that exec()s the real
+# binary (bin/jellyfin-native.real) -- so the process that opens the Starfish
+# LS2 client is .real, and the role must name *that* exe or the SMP library's
+# anonymous registration is denied (LSRegisterPubPriv FAILED -> black screen).
+if [ -x "$APP_DIR/bin/jellyfin-native.real" ]; then
+  APP_BIN="$APP_DIR/bin/jellyfin-native.real"
+else
+  APP_BIN="$APP_DIR/bin/jellyfin-native"
+fi
 
 for DIR in /var/palm/ls2-dev/roles/pub /var/palm/ls2-dev/roles/prv; do
   mkdir -p "$DIR" 2>/dev/null
