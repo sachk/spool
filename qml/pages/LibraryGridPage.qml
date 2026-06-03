@@ -84,11 +84,40 @@ FocusScope {
             model: appController.movies
             cellWidth: Math.floor((width - Metrics.gap(root.width) * (columns - 1)) / columns)
             cellHeight: cellWidth * 1.5 + 64
-            Component.onCompleted: restoreIndex()
-            onCountChanged: restoreIndex()
+            Component.onCompleted: {
+                restoreIndex()
+                requestMoreIfNeeded()
+            }
+            onCountChanged: {
+                restoreIndex()
+                requestMoreIfNeeded()
+            }
+            onContentYChanged: loadMoreDebounce.restart()
 
             function restoreIndex() {
                 currentIndex = count > 0 ? Math.max(0, Math.min(shell.lastGridIndex, count - 1)) : -1
+            }
+
+            function lastLikelyVisibleIndex() {
+                if (count <= 0 || cellHeight <= 0 || columns <= 0)
+                    return -1
+                const firstRow = Math.max(0, Math.floor(contentY / cellHeight))
+                const visibleRows = Math.ceil(height / cellHeight) + 3
+                return Math.min(count - 1, (firstRow + visibleRows) * columns - 1)
+            }
+
+            function requestMoreIfNeeded() {
+                if (!appController || count <= 0)
+                    return
+                const visibleTail = Math.max(currentIndex, lastLikelyVisibleIndex())
+                appController.maybeLoadMoreCurrentItems(visibleTail)
+            }
+
+            Timer {
+                id: loadMoreDebounce
+                interval: 80
+                repeat: false
+                onTriggered: grid.requestMoreIfNeeded()
             }
 
             delegate: Item {
@@ -134,7 +163,10 @@ FocusScope {
                     onMediaInfoRequested: shell.openMediaInfo(gridDelegate.itemData)
                 }
             }
-            onCurrentIndexChanged: shell.lastGridIndex = currentIndex
+            onCurrentIndexChanged: {
+                shell.lastGridIndex = currentIndex
+                loadMoreDebounce.restart()
+            }
             Keys.onReleased: (event) => {
                 if (event.key === Qt.Key_Left && currentIndex % columns === 0) { shell.focusRail(); event.accepted = true }
                 else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter || event.key === Qt.Key_Select || event.key === Qt.Key_Space) {

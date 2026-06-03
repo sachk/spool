@@ -143,7 +143,10 @@ MovieItem mediaItemFromJson(const JellyfinApiFacade *api, const QJsonObject &obj
     const QString thumbTag = imageTags.value(QStringLiteral("Thumb")).toString();
     const QString backdropTag = firstString(object.value(QStringLiteral("BackdropImageTags")).toArray());
     QString subtitle;
-    bool playable = itemType == QStringLiteral("Movie") || itemType == QStringLiteral("Episode");
+    bool playable = itemType == QStringLiteral("Movie") ||
+                    itemType == QStringLiteral("Episode") ||
+                    itemType == QStringLiteral("MusicVideo") ||
+                    itemType == QStringLiteral("Video");
 
     if (itemType == QStringLiteral("Series")) {
         const int year = object.value(QStringLiteral("ProductionYear")).toInt();
@@ -373,6 +376,34 @@ QCoro::Task<AuthSession> JellyfinApiFacade::authenticateWithQuickConnect(QString
     co_return session;
 }
 
+QCoro::Task<QJsonObject> JellyfinApiFacade::fetchUserConfiguration()
+{
+    if (m_session.userId.isEmpty())
+        co_return QJsonObject();
+
+    const QJsonDocument response =
+        co_await requestJson(HttpMethod::Get, QStringLiteral("/Users/%1").arg(m_session.userId));
+    co_return response.object().value(QStringLiteral("Configuration")).toObject();
+}
+
+QCoro::Task<void> JellyfinApiFacade::updateUserConfiguration(QJsonObject configuration)
+{
+    if (m_session.userId.isEmpty())
+        co_return;
+
+    co_await requestNoContent(HttpMethod::Post,
+                              QStringLiteral("/Users/%1/Configuration").arg(m_session.userId),
+                              QJsonDocument(configuration));
+}
+
+QCoro::Task<QJsonArray> JellyfinApiFacade::fetchCultures()
+{
+    const QJsonDocument response =
+        co_await requestJson(HttpMethod::Get, QStringLiteral("/Localization/Options"));
+    co_return response.isArray() ? response.array()
+                                 : response.object().value(QStringLiteral("Items")).toArray();
+}
+
 QCoro::Task<std::vector<LibraryItem>> JellyfinApiFacade::fetchLibraries()
 {
     QUrlQuery query;
@@ -403,62 +434,74 @@ QCoro::Task<std::vector<LibraryItem>> JellyfinApiFacade::fetchLibraries()
     co_return libraries;
 }
 
-QCoro::Task<std::vector<MovieItem>> JellyfinApiFacade::fetchMovies(QString libraryId)
+QCoro::Task<PagedMovieItems> JellyfinApiFacade::fetchLibraryPage(QString libraryId, QString collectionType,
+                                                                 int startIndex, int limit)
 {
     QUrlQuery query;
     query.addQueryItem(QStringLiteral("userId"), m_session.userId);
     query.addQueryItem(QStringLiteral("parentId"), libraryId);
     query.addQueryItem(QStringLiteral("recursive"), QStringLiteral("true"));
-    query.addQueryItem(QStringLiteral("includeItemTypes"), QStringLiteral("Movie"));
+    if (collectionType == QStringLiteral("movies")) {
+        query.addQueryItem(QStringLiteral("includeItemTypes"), QStringLiteral("Movie"));
+    } else if (collectionType == QStringLiteral("tvshows")) {
+        query.addQueryItem(QStringLiteral("includeItemTypes"), QStringLiteral("Series"));
+    } else {
+        query.addQueryItem(QStringLiteral("includeItemTypes"), QStringLiteral("Movie,Series,Episode,MusicVideo,Video"));
+        query.addQueryItem(QStringLiteral("mediaTypes"), QStringLiteral("Video"));
+    }
     query.addQueryItem(QStringLiteral("fields"), detailItemFields());
     query.addQueryItem(QStringLiteral("sortBy"), QStringLiteral("SortName"));
     query.addQueryItem(QStringLiteral("sortOrder"), QStringLiteral("Ascending"));
     query.addQueryItem(QStringLiteral("enableImageTypes"), QStringLiteral("Primary,Backdrop,Logo,Banner,Thumb"));
     query.addQueryItem(QStringLiteral("imageTypeLimit"), QStringLiteral("3"));
-    query.addQueryItem(QStringLiteral("limit"), QStringLiteral("500"));
+    query.addQueryItem(QStringLiteral("startIndex"), QString::number(std::max(0, startIndex)));
+    query.addQueryItem(QStringLiteral("limit"), QString::number(std::clamp(limit, 1, 100)));
 
-    const QJsonArray items =
-        (co_await requestJson(HttpMethod::Get, QStringLiteral("/Items"), query)).object().value(QStringLiteral("Items")).toArray();
+    const QJsonObject response =
+        (co_await requestJson(HttpMethod::Get, QStringLiteral("/Items"), query)).object();
+    const QJsonArray items = response.value(QStringLiteral("Items")).toArray();
 
     std::vector<MovieItem> movies;
     movies.reserve(items.size());
     for (const auto &value : items) {
         const auto object = value.toObject();
-        if (object.value(QStringLiteral("Type")).toString() != QStringLiteral("Movie"))
+        const QString itemType = object.value(QStringLiteral("Type")).toString();
+        if (itemType != QStringLiteral("Movie") &&
+            itemType != QStringLiteral("Series") &&
+            itemType != QStringLiteral("Episode") &&
+            itemType != QStringLiteral("MusicVideo") &&
+            itemType != QStringLiteral("Video"))
             continue;
 
         movies.push_back(mediaItemFromJson(this, object));
     }
 
-    co_return movies;
+    co_return PagedMovieItems{
+        movies,
+        response.value(QStringLiteral("TotalRecordCount")).toInt(0),
+        std::max(0, startIndex),
+        std::clamp(limit, 1, 100),
+    };
+}
+
+QCoro::Task<PagedMovieItems> JellyfinApiFacade::fetchMoviesPage(QString libraryId, int startIndex, int limit)
+{
+    co_return co_await fetchLibraryPage(libraryId, QStringLiteral("movies"), startIndex, limit);
+}
+
+QCoro::Task<PagedMovieItems> JellyfinApiFacade::fetchSeriesPage(QString libraryId, int startIndex, int limit)
+{
+    co_return co_await fetchLibraryPage(libraryId, QStringLiteral("tvshows"), startIndex, limit);
+}
+
+QCoro::Task<std::vector<MovieItem>> JellyfinApiFacade::fetchMovies(QString libraryId)
+{
+    co_return (co_await fetchMoviesPage(libraryId, 0, 100)).items;
 }
 
 QCoro::Task<std::vector<MovieItem>> JellyfinApiFacade::fetchSeries(QString libraryId)
 {
-    QUrlQuery query;
-    query.addQueryItem(QStringLiteral("userId"), m_session.userId);
-    query.addQueryItem(QStringLiteral("parentId"), libraryId);
-    query.addQueryItem(QStringLiteral("recursive"), QStringLiteral("true"));
-    query.addQueryItem(QStringLiteral("includeItemTypes"), QStringLiteral("Series"));
-    query.addQueryItem(QStringLiteral("fields"), detailItemFields());
-    query.addQueryItem(QStringLiteral("sortBy"), QStringLiteral("SortName"));
-    query.addQueryItem(QStringLiteral("sortOrder"), QStringLiteral("Ascending"));
-    query.addQueryItem(QStringLiteral("enableImageTypes"), QStringLiteral("Primary,Backdrop,Logo,Banner,Thumb"));
-    query.addQueryItem(QStringLiteral("imageTypeLimit"), QStringLiteral("3"));
-    query.addQueryItem(QStringLiteral("limit"), QStringLiteral("500"));
-
-    const QJsonArray items =
-        (co_await requestJson(HttpMethod::Get, QStringLiteral("/Items"), query)).object().value(QStringLiteral("Items")).toArray();
-
-    std::vector<MovieItem> series;
-    series.reserve(items.size());
-    for (const auto &value : items) {
-        const auto object = value.toObject();
-        if (object.value(QStringLiteral("Type")).toString() == QStringLiteral("Series"))
-            series.push_back(mediaItemFromJson(this, object));
-    }
-
-    co_return series;
+    co_return (co_await fetchSeriesPage(libraryId, 0, 100)).items;
 }
 
 QCoro::Task<std::vector<MovieItem>> JellyfinApiFacade::fetchSeasons(QString seriesId)

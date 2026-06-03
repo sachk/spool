@@ -7,9 +7,11 @@ SettingRow {
     property real from: 0.75
     property real to: 1.5
     property real step: 0.05
+    property int decimals: 2
+    property string valueSuffix: "x"
     property bool handledNavigationPress: false
     signal valueEdited(real value)
-    valueText: Number(value).toFixed(2) + "x"
+    valueText: Number(value).toFixed(decimals) + valueSuffix
 
     function adjust(dir) {
         value = Math.max(from, Math.min(to, Math.round((value + step * dir) / step) * step))

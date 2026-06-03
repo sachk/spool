@@ -59,8 +59,10 @@ public:
     Q_INVOKABLE QVariantMap get(int index) const;
 
     void setMovies(const std::vector<MovieItem> &movies);
+    void appendMovies(const std::vector<MovieItem> &movies);
     void clear();
     MovieItem movieAt(int index) const;
+    const std::vector<MovieItem> &movies() const;
     bool updateResumeTicks(const QString &itemId, qint64 resumeTicks);
     bool updateFavorite(const QString &itemId, bool favorite);
     bool updatePlayed(const QString &itemId, bool played);

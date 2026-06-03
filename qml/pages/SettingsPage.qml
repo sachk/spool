@@ -13,15 +13,32 @@ FocusScope {
         { label: "General" },
         { label: "Appearance" },
         { label: "Playback" },
+        { label: "Subtitles" },
         { label: "Diagnostics" },
         { label: "Input" },
         { label: "SyncPlay" },
         { label: "About" }
     ]
+    readonly property var subtitleModeValues: ["Default", "Smart", "OnlyForced", "Always", "None"]
+    readonly property var subtitleModeOptions: ["Default", "Smart", "Only forced", "Always play", "None"]
+    readonly property var subtitleBurnInValues: ["", "onlyimageformats", "allcomplexformats", "all"]
+    readonly property var subtitleBurnInOptions: ["Auto", "Only image formats", "All complex formats", "All"]
+    readonly property var subtitleStylingValues: ["Auto", "Custom", "Native"]
+    readonly property var subtitleStylingOptions: ["Auto", "Custom", "Native"]
+    readonly property var subtitleTextSizeValues: ["smaller", "small", "", "large", "larger", "extralarge"]
+    readonly property var subtitleTextSizeOptions: ["Smaller", "Small", "Normal", "Large", "Larger", "Extra large"]
+    readonly property var subtitleTextWeightValues: ["normal", "bold"]
+    readonly property var subtitleTextWeightOptions: ["Normal", "Bold"]
+    readonly property var subtitleFontValues: ["", "typewriter", "print", "console", "cursive", "casual", "smallcaps"]
+    readonly property var subtitleFontOptions: ["Default", "Typewriter", "Print", "Console", "Cursive", "Casual", "Small caps"]
+    readonly property var subtitleTextColorValues: ["#ffffff", "#d3d3d3", "#808080", "#ffff00", "#008000", "#00ffff", "#0000ff", "#ff00ff", "#ff0000", "#000000"]
+    readonly property var subtitleTextColorOptions: ["White", "Light gray", "Gray", "Yellow", "Green", "Cyan", "Blue", "Magenta", "Red", "Black"]
+    readonly property var subtitleDropShadowValues: ["none", "raised", "depressed", "uniform", ""]
+    readonly property var subtitleDropShadowOptions: ["None", "Raised", "Depressed", "Uniform", "Drop shadow"]
 
     function categoryTarget(index) {
-        const targets = [themeRow, posterSizeRow, nightModeRow, diagnosticsRow,
-                         redButtonRow, syncPlayStatusRow, aboutVersionRow]
+        const targets = [themeRow, posterSizeRow, nightModeRow, subtitleLanguageRow,
+                         diagnosticsRow, redButtonRow, syncPlayStatusRow, aboutVersionRow]
         const row = index >= 0 && index < targets.length ? targets[index] : themeRow
         return row ? Math.max(0, row.settingIndex) : 0
     }
@@ -32,6 +49,9 @@ FocusScope {
             gridColumnsRow, railLabelsRow, reducedMotionRow,
             renderModeRow, antialiasedRow, metadataRow,
             nightModeRow, audioDelayRow, audioOutputRow,
+            subtitleLanguageRow, subtitleModeRow, subtitleBurnInRow, subtitleRenderPgsRow,
+            subtitleAlwaysBurnInRow, subtitleStylingRow, subtitleTextSizeRow, subtitleTextWeightRow,
+            subtitleFontRow, subtitleTextColorRow, subtitleDropShadowRow, subtitleVerticalPositionRow,
             diagnosticsRow,
             redButtonRow, greenButtonRow, yellowButtonRow, blueButtonRow,
             syncPlayStatusRow
@@ -72,6 +92,32 @@ FocusScope {
         if (!appController) return "none"
         const actions = appController.availableButtonActions
         return (i >= 0 && i < actions.length) ? actions[i] : "none"
+    }
+
+    function valueIndex(values, currentValue) {
+        for (let i = 0; i < values.length; ++i) {
+            if (values[i] === currentValue)
+                return i
+        }
+        return 0
+    }
+
+    function valueFromIndex(values, index) {
+        return index >= 0 && index < values.length ? values[index] : values[0]
+    }
+
+    function subtitleModeDescription(mode) {
+        if (mode === "Smart") return "Show subtitles when audio is not in your preferred language"
+        if (mode === "OnlyForced") return "Show only forced subtitle tracks"
+        if (mode === "Always") return "Show subtitles whenever a matching track is available"
+        if (mode === "None") return "Do not automatically show subtitles"
+        return "Use the Jellyfin account default"
+    }
+
+    function subtitleStylingDescription(styling) {
+        if (styling === "Custom") return "Use the subtitle appearance values below"
+        if (styling === "Native") return "Respect embedded subtitle styling when available"
+        return "Use custom styling when it improves readability"
     }
     focus: true
 
@@ -452,6 +498,136 @@ FocusScope {
                     currentIndex: (appController.audioOutputMode === "starfish"
                                    || appController.audioOutputMode === "starfish-pcm") ? 1 : 0
                     onSelected: (i, v) => appController.setAudioOutputMode(i === 1 ? "starfish-pcm" : "alsa")
+                    onActiveFocusChanged: if (activeFocus) root.markFocused(settingIndex)
+                }
+                SectionHeader { Layout.fillWidth: true; title: "Subtitles" }
+                SelectRow {
+                    id: subtitleLanguageRow
+                    Layout.fillWidth: true
+                    rowFocus: root.currentIndex === settingIndex || activeFocus
+                    title: "Preferred Language"
+                    options: appController ? appController.subtitleLanguageOptions : ["Any language"]
+                    currentIndex: appController ? appController.subtitleLanguageIndex : 0
+                    onSelected: (i, v) => appController.setSubtitleLanguageIndex(i)
+                    onActiveFocusChanged: if (activeFocus) root.markFocused(settingIndex)
+                }
+                SelectRow {
+                    id: subtitleModeRow
+                    Layout.fillWidth: true
+                    rowFocus: root.currentIndex === settingIndex || activeFocus
+                    title: "Playback Mode"
+                    description: root.subtitleModeDescription(appController ? appController.subtitleMode : "Default")
+                    options: root.subtitleModeOptions
+                    currentIndex: root.valueIndex(root.subtitleModeValues, appController ? appController.subtitleMode : "Default")
+                    onSelected: (i, v) => appController.setSubtitleMode(root.valueFromIndex(root.subtitleModeValues, i))
+                    onActiveFocusChanged: if (activeFocus) root.markFocused(settingIndex)
+                }
+                SelectRow {
+                    id: subtitleBurnInRow
+                    Layout.fillWidth: true
+                    rowFocus: root.currentIndex === settingIndex || activeFocus
+                    title: "Burn Subtitles"
+                    description: "Used when transcoding is enabled"
+                    options: root.subtitleBurnInOptions
+                    currentIndex: root.valueIndex(root.subtitleBurnInValues, appController ? appController.subtitleBurnIn : "")
+                    onSelected: (i, v) => appController.setSubtitleBurnIn(root.valueFromIndex(root.subtitleBurnInValues, i))
+                    onActiveFocusChanged: if (activeFocus) root.markFocused(settingIndex)
+                }
+                ToggleRow {
+                    id: subtitleRenderPgsRow
+                    Layout.fillWidth: true
+                    rowFocus: root.currentIndex === settingIndex || activeFocus
+                    title: "Render PGS Subtitles"
+                    description: "Prefer local rendering for image subtitles"
+                    checked: appController ? appController.subtitleRenderPgs : false
+                    onToggled: appController.setSubtitleRenderPgs(checked)
+                    onActiveFocusChanged: if (activeFocus) root.markFocused(settingIndex)
+                }
+                ToggleRow {
+                    id: subtitleAlwaysBurnInRow
+                    Layout.fillWidth: true
+                    rowFocus: root.currentIndex === settingIndex || activeFocus
+                    title: "Always Burn In"
+                    description: "When playback falls back to transcoding"
+                    checked: appController ? appController.subtitleAlwaysBurnIn : false
+                    onToggled: appController.setSubtitleAlwaysBurnIn(checked)
+                    onActiveFocusChanged: if (activeFocus) root.markFocused(settingIndex)
+                }
+                SectionHeader { Layout.fillWidth: true; title: "Subtitle Appearance" }
+                SelectRow {
+                    id: subtitleStylingRow
+                    Layout.fillWidth: true
+                    rowFocus: root.currentIndex === settingIndex || activeFocus
+                    title: "Styling"
+                    description: root.subtitleStylingDescription(appController ? appController.subtitleStyling : "Auto")
+                    options: root.subtitleStylingOptions
+                    currentIndex: root.valueIndex(root.subtitleStylingValues, appController ? appController.subtitleStyling : "Auto")
+                    onSelected: (i, v) => appController.setSubtitleStyling(root.valueFromIndex(root.subtitleStylingValues, i))
+                    onActiveFocusChanged: if (activeFocus) root.markFocused(settingIndex)
+                }
+                SelectRow {
+                    id: subtitleTextSizeRow
+                    Layout.fillWidth: true
+                    rowFocus: root.currentIndex === settingIndex || activeFocus
+                    title: "Text Size"
+                    options: root.subtitleTextSizeOptions
+                    currentIndex: root.valueIndex(root.subtitleTextSizeValues, appController ? appController.subtitleTextSize : "")
+                    onSelected: (i, v) => appController.setSubtitleTextSize(root.valueFromIndex(root.subtitleTextSizeValues, i))
+                    onActiveFocusChanged: if (activeFocus) root.markFocused(settingIndex)
+                }
+                SelectRow {
+                    id: subtitleTextWeightRow
+                    Layout.fillWidth: true
+                    rowFocus: root.currentIndex === settingIndex || activeFocus
+                    title: "Text Weight"
+                    options: root.subtitleTextWeightOptions
+                    currentIndex: root.valueIndex(root.subtitleTextWeightValues, appController ? appController.subtitleTextWeight : "normal")
+                    onSelected: (i, v) => appController.setSubtitleTextWeight(root.valueFromIndex(root.subtitleTextWeightValues, i))
+                    onActiveFocusChanged: if (activeFocus) root.markFocused(settingIndex)
+                }
+                SelectRow {
+                    id: subtitleFontRow
+                    Layout.fillWidth: true
+                    rowFocus: root.currentIndex === settingIndex || activeFocus
+                    title: "Font"
+                    options: root.subtitleFontOptions
+                    currentIndex: root.valueIndex(root.subtitleFontValues, appController ? appController.subtitleFont : "")
+                    onSelected: (i, v) => appController.setSubtitleFont(root.valueFromIndex(root.subtitleFontValues, i))
+                    onActiveFocusChanged: if (activeFocus) root.markFocused(settingIndex)
+                }
+                SelectRow {
+                    id: subtitleTextColorRow
+                    Layout.fillWidth: true
+                    rowFocus: root.currentIndex === settingIndex || activeFocus
+                    title: "Text Color"
+                    options: root.subtitleTextColorOptions
+                    currentIndex: root.valueIndex(root.subtitleTextColorValues, appController ? appController.subtitleTextColor : "#ffffff")
+                    onSelected: (i, v) => appController.setSubtitleTextColor(root.valueFromIndex(root.subtitleTextColorValues, i))
+                    onActiveFocusChanged: if (activeFocus) root.markFocused(settingIndex)
+                }
+                SelectRow {
+                    id: subtitleDropShadowRow
+                    Layout.fillWidth: true
+                    rowFocus: root.currentIndex === settingIndex || activeFocus
+                    title: "Drop Shadow"
+                    options: root.subtitleDropShadowOptions
+                    currentIndex: root.valueIndex(root.subtitleDropShadowValues, appController ? appController.subtitleDropShadow : "")
+                    onSelected: (i, v) => appController.setSubtitleDropShadow(root.valueFromIndex(root.subtitleDropShadowValues, i))
+                    onActiveFocusChanged: if (activeFocus) root.markFocused(settingIndex)
+                }
+                SliderRow {
+                    id: subtitleVerticalPositionRow
+                    Layout.fillWidth: true
+                    rowFocus: root.currentIndex === settingIndex || activeFocus
+                    title: "Vertical Position"
+                    description: "Negative values place subtitles near the bottom"
+                    from: -16
+                    to: 16
+                    step: 1
+                    decimals: 0
+                    valueSuffix: ""
+                    value: appController ? appController.subtitleVerticalPosition : -3
+                    onValueEdited: (value) => appController.setSubtitleVerticalPosition(value)
                     onActiveFocusChanged: if (activeFocus) root.markFocused(settingIndex)
                 }
                 SectionHeader { Layout.fillWidth: true; title: "Diagnostics" }
