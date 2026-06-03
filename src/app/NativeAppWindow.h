@@ -22,6 +22,8 @@ class NativeAppWindow final : public QQuickView
     Q_OBJECT
     Q_PROPERTY(int overlayRevision READ overlayRevision NOTIFY overlayRevisionChanged)
     Q_PROPERTY(bool tvPlatform READ tvPlatform CONSTANT)
+    Q_PROPERTY(bool smartTvPlatform READ smartTvPlatform CONSTANT)
+    Q_PROPERTY(bool fullScreen READ fullScreen NOTIFY fullScreenChanged)
 
 public:
     explicit NativeAppWindow(const QString &appId, QWindow *parent = nullptr);
@@ -36,7 +38,11 @@ public:
     void bringToFront();
     QString windowId() const;
     int overlayRevision() const;
-    bool tvPlatform() const
+    bool fullScreen() const
+    {
+        return visibility() == QWindow::FullScreen || windowStates().testFlag(Qt::WindowFullScreen);
+    }
+    bool smartTvPlatform() const
     {
 #ifdef JELLYFIN_NATIVE_WEBOS
         return true;
@@ -44,12 +50,18 @@ public:
         return false;
 #endif
     }
+    bool tvPlatform() const
+    {
+        return smartTvPlatform();
+    }
+    Q_INVOKABLE void toggleFullScreen();
     void clearOverlay();
     QQuickImageProvider *createOverlayImageProvider();
     QImage copyOverlayImage() const;
 
 signals:
     void overlayRevisionChanged();
+    void fullScreenChanged();
 
 protected:
     void exposeEvent(QExposeEvent *event) override;

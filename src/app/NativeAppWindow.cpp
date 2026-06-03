@@ -119,6 +119,13 @@ void NativeAppWindow::bringToFront()
         wl_display_flush(m_display);
 }
 
+void NativeAppWindow::toggleFullScreen()
+{
+    if (!fullScreen())
+        showFullScreen();
+    emit fullScreenChanged();
+}
+
 bool NativeAppWindow::prepareForPlaybackSurface()
 {
     if (!prepareForUiSurface())
