@@ -17,6 +17,6 @@
   "inspectable": true,
   "transparent": false,
   "handlesRelaunch": true,
-  "requiredMemory": 500,
+  "requiredMemory": 300,
   "nativeLifeCycleInterfaceVersion": 2
 }

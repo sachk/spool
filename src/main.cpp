@@ -71,8 +71,12 @@ namespace {
 constexpr auto kAppId = "com.codex.jellyfinwebosnative";
 #ifdef JELLYFIN_NATIVE_WEBOS
 constexpr auto kAppLogPath = "/tmp/com.codex.jellyfinwebosnative.log";
+constexpr qint64 kNetworkDiskCacheBytes = 96LL * 1024LL * 1024LL;
+constexpr qint64 kQmlImageDiskCacheBytes = 160LL * 1024LL * 1024LL;
 #else
 constexpr auto kAppLogPath = "/tmp/com.codex.jellyfinnative-linux.log";
+constexpr qint64 kNetworkDiskCacheBytes = 256LL * 1024LL * 1024LL;
+constexpr qint64 kQmlImageDiskCacheBytes = 256LL * 1024LL * 1024LL;
 #endif
 
 FILE *g_logFile = nullptr;
@@ -254,6 +258,11 @@ bool lunaLifecycleCallback(LSHandle *, LSMessage *message, void *)
             }, Qt::QueuedConnection);
         }
     } else if (event == QStringLiteral("close")) {
+        const QString reason = doc.object().value(QStringLiteral("reason")).toString();
+        if (reason == QStringLiteral("memoryReclaim")) {
+            logLine("[ls2-lifecycle] memoryReclaim close ignored");
+            return true;
+        }
         QMetaObject::invokeMethod(qApp, []() {
             logLine("[ls2-lifecycle] close -> QCoreApplication::quit");
             QCoreApplication::quit();
@@ -460,7 +469,7 @@ int main(int argc, char **argv)
     const QString cachePath = QStandardPaths::writableLocation(QStandardPaths::CacheLocation);
     QDir().mkpath(cachePath);
     diskCache->setCacheDirectory(cachePath + QStringLiteral("/network-cache"));
-    diskCache->setMaximumCacheSize(256LL * 1024LL * 1024LL);
+    diskCache->setMaximumCacheSize(kNetworkDiskCacheBytes);
     networkAccessManager->setCache(diskCache);
 
     JellyfinNative::DatabaseManager database;
@@ -555,7 +564,7 @@ int main(int argc, char **argv)
     });
 
     auto *qmlNetworkFactory = new JellyfinNative::QmlNetworkAccessManagerFactory(
-        cachePath + QStringLiteral("/qml-image-cache"), 512LL * 1024LL * 1024LL);
+        cachePath + QStringLiteral("/qml-image-cache"), kQmlImageDiskCacheBytes);
     window.engine()->setNetworkAccessManagerFactory(qmlNetworkFactory);
     window.engine()->addImageProvider(QStringLiteral("mpv-overlay"),
                                       window.createOverlayImageProvider());
@@ -578,7 +587,11 @@ int main(int argc, char **argv)
     window.rootContext()->setContextProperty(QStringLiteral("i18n"), localization.get());
     {
     JellyfinNative::Diagnostics::Phase phase(QStringLiteral("startup"), QStringLiteral("load_qml"));
-    window.setSource(QUrl(QStringLiteral("qrc:/qt/qml/JellyfinWebOS/qml/Main.qml")));
+    // Load through the module registry (not a raw qrc: URL) so the engine uses
+    // the qmlcachegen AOT units instead of recompiling every QML file at runtime
+    // (which retained ~47MB of QtQml compiler buffers on the private heap and
+    // pushed us into webOS memoryReclaim).
+    window.loadFromModule("JellyfinWebOS", "Main");
     }
     if (window.status() == QQuickView::Error) {
         logQmlWarnings(window.errors());
