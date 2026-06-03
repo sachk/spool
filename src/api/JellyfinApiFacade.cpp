@@ -54,7 +54,7 @@ QString detailItemFields()
 {
     return QStringLiteral("Overview,ProductionYear,PremiereDate,EndDate,ImageTags,BackdropImageTags,"
                           "UserData,Path,RunTimeTicks,SeriesInfo,Genres,Tags,Studios,OfficialRating,"
-                          "CommunityRating,CriticRating,People,PrimaryImageAspectRatio");
+                          "CommunityRating,CriticRating,People,PrimaryImageAspectRatio,MediaSources");
 }
 
 QString diagnosticUrl(QString url)
@@ -98,6 +98,97 @@ QStringList stringsFromJsonArray(const QJsonArray &array)
     return result;
 }
 
+QString includeItemTypesForCollection(QString collectionType)
+{
+    if (collectionType == QStringLiteral("movies"))
+        return QStringLiteral("Movie");
+    if (collectionType == QStringLiteral("tvshows"))
+        return QStringLiteral("Series");
+    return QStringLiteral("Movie,Series,Episode,MusicVideo,Video");
+}
+
+QStringList queryStringList(const QVariantMap &options, const QString &key)
+{
+    QStringList result;
+    const QVariant value = options.value(key);
+    if (value.typeId() == QMetaType::QStringList) {
+        result = value.toStringList();
+    } else if (value.typeId() == QMetaType::QVariantList) {
+        const QVariantList list = value.toList();
+        result.reserve(list.size());
+        for (const QVariant &item : list) {
+            const QString text = item.toString();
+            if (!text.isEmpty())
+                result.push_back(text);
+        }
+    } else {
+        const QString text = value.toString();
+        if (!text.isEmpty())
+            result = text.split(QLatin1Char(','), Qt::SkipEmptyParts);
+    }
+    result.removeAll(QString());
+    return result;
+}
+
+void addJoinedQueryItem(QUrlQuery &query, const QVariantMap &options, const QString &key,
+                        const QString &queryKey, QLatin1Char delimiter)
+{
+    const QStringList values = queryStringList(options, key);
+    if (!values.isEmpty())
+        query.addQueryItem(queryKey, values.join(delimiter));
+}
+
+void addOptionalBoolQueryItem(QUrlQuery &query, const QVariantMap &options,
+                              const QString &key, const QString &queryKey)
+{
+    if (!options.contains(key))
+        return;
+    const QVariant value = options.value(key);
+    if (!value.isValid() || value.isNull())
+        return;
+    query.addQueryItem(queryKey, value.toBool() ? QStringLiteral("true") : QStringLiteral("false"));
+}
+
+void addLibraryQueryOptions(QUrlQuery &query, const QVariantMap &options)
+{
+    const QString sortBy = options.value(QStringLiteral("sortBy"), QStringLiteral("SortName")).toString();
+    const QString sortOrder = options.value(QStringLiteral("sortOrder"), QStringLiteral("Ascending")).toString();
+    query.addQueryItem(QStringLiteral("sortBy"), sortBy.isEmpty() ? QStringLiteral("SortName") : sortBy);
+    query.addQueryItem(QStringLiteral("sortOrder"), sortOrder.isEmpty() ? QStringLiteral("Ascending") : sortOrder);
+
+    addJoinedQueryItem(query, options, QStringLiteral("filters"), QStringLiteral("filters"), QLatin1Char(','));
+    addJoinedQueryItem(query, options, QStringLiteral("genres"), QStringLiteral("genres"), QLatin1Char('|'));
+    addJoinedQueryItem(query, options, QStringLiteral("officialRatings"), QStringLiteral("officialRatings"), QLatin1Char('|'));
+    addJoinedQueryItem(query, options, QStringLiteral("tags"), QStringLiteral("tags"), QLatin1Char('|'));
+    addJoinedQueryItem(query, options, QStringLiteral("years"), QStringLiteral("years"), QLatin1Char(','));
+    addJoinedQueryItem(query, options, QStringLiteral("studioIds"), QStringLiteral("studioIds"), QLatin1Char('|'));
+    addJoinedQueryItem(query, options, QStringLiteral("seriesStatus"), QStringLiteral("seriesStatus"), QLatin1Char(','));
+    addJoinedQueryItem(query, options, QStringLiteral("videoTypes"), QStringLiteral("videoTypes"), QLatin1Char(','));
+
+    addOptionalBoolQueryItem(query, options, QStringLiteral("isHd"), QStringLiteral("isHd"));
+    addOptionalBoolQueryItem(query, options, QStringLiteral("is4K"), QStringLiteral("is4K"));
+    addOptionalBoolQueryItem(query, options, QStringLiteral("is3D"), QStringLiteral("is3D"));
+    addOptionalBoolQueryItem(query, options, QStringLiteral("hasSubtitles"), QStringLiteral("hasSubtitles"));
+    addOptionalBoolQueryItem(query, options, QStringLiteral("hasTrailer"), QStringLiteral("hasTrailer"));
+    addOptionalBoolQueryItem(query, options, QStringLiteral("hasSpecialFeature"), QStringLiteral("hasSpecialFeature"));
+    addOptionalBoolQueryItem(query, options, QStringLiteral("hasThemeSong"), QStringLiteral("hasThemeSong"));
+    addOptionalBoolQueryItem(query, options, QStringLiteral("hasThemeVideo"), QStringLiteral("hasThemeVideo"));
+    addOptionalBoolQueryItem(query, options, QStringLiteral("isMissing"), QStringLiteral("isMissing"));
+    addOptionalBoolQueryItem(query, options, QStringLiteral("isUnaired"), QStringLiteral("isUnaired"));
+
+    const QVariant specialEpisode = options.value(QStringLiteral("specialEpisode"));
+    if (specialEpisode.isValid() && !specialEpisode.isNull() && specialEpisode.toBool())
+        query.addQueryItem(QStringLiteral("parentIndexNumber"), QStringLiteral("0"));
+
+    const QString alphabet = options.value(QStringLiteral("alphabet")).toString();
+    if (!alphabet.isEmpty()) {
+        if (alphabet == QStringLiteral("#"))
+            query.addQueryItem(QStringLiteral("nameLessThan"), QStringLiteral("A"));
+        else
+            query.addQueryItem(QStringLiteral("nameStartsWith"), alphabet);
+    }
+}
+
 QStringList studioNamesFromJsonArray(const QJsonArray &array)
 {
     QStringList result;
@@ -128,6 +219,70 @@ std::vector<PersonItem> peopleFromApiJson(const JellyfinApiFacade *api, const QJ
             people.push_back(person);
     }
     return people;
+}
+
+std::vector<MediaStreamInfo> mediaStreamsFromApiJson(const QJsonArray &array)
+{
+    std::vector<MediaStreamInfo> streams;
+    streams.reserve(array.size());
+    for (const QJsonValue &value : array) {
+        const QJsonObject object = value.toObject();
+        MediaStreamInfo stream;
+        stream.index = object.value(QStringLiteral("Index")).toInt(-1);
+        stream.type = object.value(QStringLiteral("Type")).toString();
+        stream.codec = object.value(QStringLiteral("Codec")).toString();
+        stream.profile = object.value(QStringLiteral("Profile")).toString();
+        stream.displayTitle = object.value(QStringLiteral("DisplayTitle")).toString();
+        stream.title = object.value(QStringLiteral("Title")).toString();
+        stream.language = object.value(QStringLiteral("Language")).toString();
+        stream.pixelFormat = object.value(QStringLiteral("PixelFormat")).toString();
+        stream.videoRange = object.value(QStringLiteral("VideoRange")).toString();
+        stream.colorPrimaries = object.value(QStringLiteral("ColorPrimaries")).toString();
+        stream.colorTransfer = object.value(QStringLiteral("ColorTransfer")).toString();
+        stream.colorSpace = object.value(QStringLiteral("ColorSpace")).toString();
+        stream.aspectRatio = object.value(QStringLiteral("AspectRatio")).toString();
+        stream.width = object.value(QStringLiteral("Width")).toInt();
+        stream.height = object.value(QStringLiteral("Height")).toInt();
+        stream.frameRate = object.value(QStringLiteral("AverageFrameRate")).toDouble();
+        if (stream.frameRate <= 0.0)
+            stream.frameRate = object.value(QStringLiteral("RealFrameRate")).toDouble();
+        stream.bitRate = object.value(QStringLiteral("BitRate")).toInt();
+        stream.bitDepth = object.value(QStringLiteral("BitDepth")).toInt();
+        stream.channels = object.value(QStringLiteral("Channels")).toInt();
+        stream.sampleRate = object.value(QStringLiteral("SampleRate")).toInt();
+        stream.isDefault = object.value(QStringLiteral("IsDefault")).toBool(false);
+        stream.isForced = object.value(QStringLiteral("IsForced")).toBool(false);
+        stream.isExternal = object.value(QStringLiteral("IsExternal")).toBool(false);
+        stream.isInterlaced = object.value(QStringLiteral("IsInterlaced")).toBool(false);
+        if (!stream.type.isEmpty() || !stream.codec.isEmpty())
+            streams.push_back(stream);
+    }
+    return streams;
+}
+
+std::vector<MediaSourceInfo> mediaSourcesFromApiJson(const QJsonArray &array)
+{
+    std::vector<MediaSourceInfo> sources;
+    sources.reserve(array.size());
+    for (const QJsonValue &value : array) {
+        const QJsonObject object = value.toObject();
+        MediaSourceInfo source;
+        source.id = object.value(QStringLiteral("Id")).toString();
+        source.name = object.value(QStringLiteral("Name")).toString();
+        source.path = object.value(QStringLiteral("Path")).toString();
+        source.container = cleanContainerName(object.value(QStringLiteral("Container")).toString());
+        source.protocol = object.value(QStringLiteral("Protocol")).toString();
+        source.videoType = object.value(QStringLiteral("VideoType")).toString();
+        source.size = object.value(QStringLiteral("Size")).toVariant().toLongLong();
+        source.bitRate = object.value(QStringLiteral("Bitrate")).toInt();
+        if (source.bitRate <= 0)
+            source.bitRate = object.value(QStringLiteral("BitRate")).toInt();
+        source.runtimeTicks = object.value(QStringLiteral("RunTimeTicks")).toVariant().toLongLong();
+        source.streams = mediaStreamsFromApiJson(object.value(QStringLiteral("MediaStreams")).toArray());
+        if (!source.id.isEmpty() || !source.container.isEmpty() || !source.streams.empty())
+            sources.push_back(source);
+    }
+    return sources;
 }
 
 MovieItem mediaItemFromJson(const JellyfinApiFacade *api, const QJsonObject &object)
@@ -202,6 +357,7 @@ MovieItem mediaItemFromJson(const JellyfinApiFacade *api, const QJsonObject &obj
         object.value(QStringLiteral("PremiereDate")).toString(),
         object.value(QStringLiteral("EndDate")).toString(),
         peopleFromApiJson(api, object.value(QStringLiteral("People")).toArray()),
+        mediaSourcesFromApiJson(object.value(QStringLiteral("MediaSources")).toArray()),
     };
 }
 
@@ -435,23 +591,18 @@ QCoro::Task<std::vector<LibraryItem>> JellyfinApiFacade::fetchLibraries()
 }
 
 QCoro::Task<PagedMovieItems> JellyfinApiFacade::fetchLibraryPage(QString libraryId, QString collectionType,
-                                                                 int startIndex, int limit)
+                                                                 int startIndex, int limit,
+                                                                 QVariantMap queryOptions)
 {
     QUrlQuery query;
     query.addQueryItem(QStringLiteral("userId"), m_session.userId);
     query.addQueryItem(QStringLiteral("parentId"), libraryId);
     query.addQueryItem(QStringLiteral("recursive"), QStringLiteral("true"));
-    if (collectionType == QStringLiteral("movies")) {
-        query.addQueryItem(QStringLiteral("includeItemTypes"), QStringLiteral("Movie"));
-    } else if (collectionType == QStringLiteral("tvshows")) {
-        query.addQueryItem(QStringLiteral("includeItemTypes"), QStringLiteral("Series"));
-    } else {
-        query.addQueryItem(QStringLiteral("includeItemTypes"), QStringLiteral("Movie,Series,Episode,MusicVideo,Video"));
+    query.addQueryItem(QStringLiteral("includeItemTypes"), includeItemTypesForCollection(collectionType));
+    if (collectionType != QStringLiteral("movies") && collectionType != QStringLiteral("tvshows"))
         query.addQueryItem(QStringLiteral("mediaTypes"), QStringLiteral("Video"));
-    }
     query.addQueryItem(QStringLiteral("fields"), detailItemFields());
-    query.addQueryItem(QStringLiteral("sortBy"), QStringLiteral("SortName"));
-    query.addQueryItem(QStringLiteral("sortOrder"), QStringLiteral("Ascending"));
+    addLibraryQueryOptions(query, queryOptions);
     query.addQueryItem(QStringLiteral("enableImageTypes"), QStringLiteral("Primary,Backdrop,Logo,Banner,Thumb"));
     query.addQueryItem(QStringLiteral("imageTypeLimit"), QStringLiteral("3"));
     query.addQueryItem(QStringLiteral("startIndex"), QString::number(std::max(0, startIndex)));
@@ -482,6 +633,64 @@ QCoro::Task<PagedMovieItems> JellyfinApiFacade::fetchLibraryPage(QString library
         std::max(0, startIndex),
         std::clamp(limit, 1, 100),
     };
+}
+
+QCoro::Task<QVariantMap> JellyfinApiFacade::fetchLibraryFilterOptions(QString libraryId, QString collectionType)
+{
+    QVariantMap options;
+    if (libraryId.isEmpty())
+        co_return options;
+
+    const QString includeItemTypes = includeItemTypesForCollection(collectionType);
+
+    QUrlQuery filterQuery;
+    filterQuery.addQueryItem(QStringLiteral("userId"), m_session.userId);
+    filterQuery.addQueryItem(QStringLiteral("parentId"), libraryId);
+    filterQuery.addQueryItem(QStringLiteral("includeItemTypes"), includeItemTypes);
+
+    const QJsonObject filters =
+        (co_await requestJson(HttpMethod::Get, QStringLiteral("/Items/Filters"), filterQuery)).object();
+    options.insert(QStringLiteral("genres"),
+                   stringsFromJsonArray(filters.value(QStringLiteral("Genres")).toArray()));
+    options.insert(QStringLiteral("officialRatings"),
+                   stringsFromJsonArray(filters.value(QStringLiteral("OfficialRatings")).toArray()));
+    options.insert(QStringLiteral("tags"),
+                   stringsFromJsonArray(filters.value(QStringLiteral("Tags")).toArray()));
+
+    QVariantList years;
+    const QJsonArray yearsArray = filters.value(QStringLiteral("Years")).toArray();
+    years.reserve(yearsArray.size());
+    for (const QJsonValue &value : yearsArray) {
+        const int year = value.toInt();
+        if (year > 0)
+            years.push_back(year);
+    }
+    options.insert(QStringLiteral("years"), years);
+
+    QUrlQuery studiosQuery;
+    studiosQuery.addQueryItem(QStringLiteral("userId"), m_session.userId);
+    studiosQuery.addQueryItem(QStringLiteral("parentId"), libraryId);
+    studiosQuery.addQueryItem(QStringLiteral("includeItemTypes"), includeItemTypes);
+    studiosQuery.addQueryItem(QStringLiteral("sortBy"), QStringLiteral("SortName"));
+    studiosQuery.addQueryItem(QStringLiteral("sortOrder"), QStringLiteral("Ascending"));
+
+    const QJsonArray studioItems =
+        (co_await requestJson(HttpMethod::Get, QStringLiteral("/Studios"), studiosQuery))
+            .object()
+            .value(QStringLiteral("Items"))
+            .toArray();
+    QVariantList studios;
+    studios.reserve(studioItems.size());
+    for (const QJsonValue &value : studioItems) {
+        const QJsonObject studio = value.toObject();
+        const QString id = studio.value(QStringLiteral("Id")).toString();
+        const QString name = studio.value(QStringLiteral("Name")).toString();
+        if (!id.isEmpty() && !name.isEmpty())
+            studios.push_back(QVariantMap{{QStringLiteral("id"), id}, {QStringLiteral("name"), name}});
+    }
+    options.insert(QStringLiteral("studios"), studios);
+
+    co_return options;
 }
 
 QCoro::Task<PagedMovieItems> JellyfinApiFacade::fetchMoviesPage(QString libraryId, int startIndex, int limit)

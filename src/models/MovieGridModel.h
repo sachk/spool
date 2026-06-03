@@ -50,6 +50,7 @@ public:
         PremiereDateRole,
         EndDateRole,
         PeopleRole,
+        MediaSourcesRole,
     };
 
     explicit MovieGridModel(QObject *parent = nullptr);

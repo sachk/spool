@@ -14,6 +14,7 @@
 #include <QString>
 #include <QStringList>
 #include <QUrlQuery>
+#include <QVariantMap>
 
 #include <vector>
 
@@ -57,7 +58,9 @@ public:
     QCoro::Task<QJsonArray> fetchCultures();
     QCoro::Task<std::vector<LibraryItem>> fetchLibraries();
     QCoro::Task<PagedMovieItems> fetchLibraryPage(QString libraryId, QString collectionType = {},
-                                                  int startIndex = 0, int limit = 72);
+                                                  int startIndex = 0, int limit = 72,
+                                                  QVariantMap queryOptions = {});
+    QCoro::Task<QVariantMap> fetchLibraryFilterOptions(QString libraryId, QString collectionType = {});
     QCoro::Task<PagedMovieItems> fetchMoviesPage(QString libraryId, int startIndex = 0, int limit = 100);
     QCoro::Task<PagedMovieItems> fetchSeriesPage(QString libraryId, int startIndex = 0, int limit = 100);
     QCoro::Task<std::vector<MovieItem>> fetchMovies(QString libraryId);

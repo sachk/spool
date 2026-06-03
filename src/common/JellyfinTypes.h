@@ -33,6 +33,46 @@ struct PersonItem {
     QString imageTag;
 };
 
+struct MediaStreamInfo {
+    int index = -1;
+    QString type;
+    QString codec;
+    QString profile;
+    QString displayTitle;
+    QString title;
+    QString language;
+    QString pixelFormat;
+    QString videoRange;
+    QString colorPrimaries;
+    QString colorTransfer;
+    QString colorSpace;
+    QString aspectRatio;
+    int width = 0;
+    int height = 0;
+    double frameRate = 0.0;
+    int bitRate = 0;
+    int bitDepth = 0;
+    int channels = 0;
+    int sampleRate = 0;
+    bool isDefault = false;
+    bool isForced = false;
+    bool isExternal = false;
+    bool isInterlaced = false;
+};
+
+struct MediaSourceInfo {
+    QString id;
+    QString name;
+    QString path;
+    QString container;
+    QString protocol;
+    QString videoType;
+    qint64 size = 0;
+    int bitRate = 0;
+    qint64 runtimeTicks = 0;
+    std::vector<MediaStreamInfo> streams;
+};
+
 struct MovieItem {
     QString id;
     QString title;
@@ -66,6 +106,7 @@ struct MovieItem {
     QString premiereDate;
     QString endDate;
     std::vector<PersonItem> people;
+    std::vector<MediaSourceInfo> mediaSources;
 };
 
 struct AuthSession {
