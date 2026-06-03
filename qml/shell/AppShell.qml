@@ -186,6 +186,12 @@ FocusScope {
         routeStack.forceActiveFocus()
     }
 
+    function dispatchNavigationKey(key) {
+        if (sideRail.visible && sideRail.activeFocus)
+            return sideRail.handleNavigationKey(key)
+        return routeStack.handleNavigationKey(key)
+    }
+
     function globalShortcut(event, released) {
         if (!released || textInputActive)
             return false
@@ -202,8 +208,8 @@ FocusScope {
         }
         if (event.key === Qt.Key_M || event.key === Qt.Key_Menu) { openContextMenu(); return true }
         if (event.key === Qt.Key_Backspace || event.key === Qt.Key_Escape || event.key === Qt.Key_Back || event.key === Qt.Key_BrowserBack) return back()
-        if (event.key === Qt.Key_H) { event.key = Qt.Key_Left; return false }
-        if (event.key === Qt.Key_L) { event.key = Qt.Key_Right; return false }
+        if (event.key === Qt.Key_H) return dispatchNavigationKey(Qt.Key_Left)
+        if (event.key === Qt.Key_L) return dispatchNavigationKey(Qt.Key_Right)
         if (event.key === Qt.Key_Q && root.hasPlayer && root.player.visible) { root.player.stopWithReason("shortcut-q"); return true }
         return false
     }
@@ -273,12 +279,7 @@ FocusScope {
         }
 
         if (isDirectionalKey(event.key)) {
-            if (sideRail.visible && sideRail.activeFocus) {
-                if (sideRail.handleNavigationKey(event.key))
-                    event.accepted = true
-                return
-            }
-            if (routeStack.handleNavigationKey(event.key))
+            if (dispatchNavigationKey(event.key))
                 event.accepted = true
         }
         if (isAcceptKey(event.key) && !sideRail.activeFocus) {
