@@ -48,6 +48,138 @@ std::vector<PersonItem> peopleFromJsonArray(const QJsonArray &array)
     return people;
 }
 
+QJsonObject toJson(const MediaStreamInfo &stream)
+{
+    return {
+        {QStringLiteral("index"), stream.index},
+        {QStringLiteral("type"), stream.type},
+        {QStringLiteral("codec"), stream.codec},
+        {QStringLiteral("profile"), stream.profile},
+        {QStringLiteral("displayTitle"), stream.displayTitle},
+        {QStringLiteral("title"), stream.title},
+        {QStringLiteral("language"), stream.language},
+        {QStringLiteral("pixelFormat"), stream.pixelFormat},
+        {QStringLiteral("videoRange"), stream.videoRange},
+        {QStringLiteral("colorPrimaries"), stream.colorPrimaries},
+        {QStringLiteral("colorTransfer"), stream.colorTransfer},
+        {QStringLiteral("colorSpace"), stream.colorSpace},
+        {QStringLiteral("aspectRatio"), stream.aspectRatio},
+        {QStringLiteral("width"), stream.width},
+        {QStringLiteral("height"), stream.height},
+        {QStringLiteral("frameRate"), stream.frameRate},
+        {QStringLiteral("bitRate"), stream.bitRate},
+        {QStringLiteral("bitDepth"), stream.bitDepth},
+        {QStringLiteral("channels"), stream.channels},
+        {QStringLiteral("sampleRate"), stream.sampleRate},
+        {QStringLiteral("isDefault"), stream.isDefault},
+        {QStringLiteral("isForced"), stream.isForced},
+        {QStringLiteral("isExternal"), stream.isExternal},
+        {QStringLiteral("isInterlaced"), stream.isInterlaced},
+    };
+}
+
+MediaStreamInfo mediaStreamFromJson(const QJsonObject &object)
+{
+    return {
+        object.value(QStringLiteral("index")).toInt(-1),
+        object.value(QStringLiteral("type")).toString(),
+        object.value(QStringLiteral("codec")).toString(),
+        object.value(QStringLiteral("profile")).toString(),
+        object.value(QStringLiteral("displayTitle")).toString(),
+        object.value(QStringLiteral("title")).toString(),
+        object.value(QStringLiteral("language")).toString(),
+        object.value(QStringLiteral("pixelFormat")).toString(),
+        object.value(QStringLiteral("videoRange")).toString(),
+        object.value(QStringLiteral("colorPrimaries")).toString(),
+        object.value(QStringLiteral("colorTransfer")).toString(),
+        object.value(QStringLiteral("colorSpace")).toString(),
+        object.value(QStringLiteral("aspectRatio")).toString(),
+        object.value(QStringLiteral("width")).toInt(),
+        object.value(QStringLiteral("height")).toInt(),
+        object.value(QStringLiteral("frameRate")).toDouble(),
+        object.value(QStringLiteral("bitRate")).toInt(),
+        object.value(QStringLiteral("bitDepth")).toInt(),
+        object.value(QStringLiteral("channels")).toInt(),
+        object.value(QStringLiteral("sampleRate")).toInt(),
+        object.value(QStringLiteral("isDefault")).toBool(false),
+        object.value(QStringLiteral("isForced")).toBool(false),
+        object.value(QStringLiteral("isExternal")).toBool(false),
+        object.value(QStringLiteral("isInterlaced")).toBool(false),
+    };
+}
+
+QJsonArray mediaStreamsToJsonArray(const std::vector<MediaStreamInfo> &streams)
+{
+    QJsonArray array;
+    for (const MediaStreamInfo &stream : streams)
+        array.push_back(toJson(stream));
+    return array;
+}
+
+std::vector<MediaStreamInfo> mediaStreamsFromJsonArray(const QJsonArray &array)
+{
+    std::vector<MediaStreamInfo> streams;
+    streams.reserve(array.size());
+    for (const QJsonValue &value : array) {
+        MediaStreamInfo stream = mediaStreamFromJson(value.toObject());
+        if (!stream.type.isEmpty() || !stream.codec.isEmpty())
+            streams.push_back(stream);
+    }
+    return streams;
+}
+
+QJsonObject toJson(const MediaSourceInfo &source)
+{
+    return {
+        {QStringLiteral("id"), source.id},
+        {QStringLiteral("name"), source.name},
+        {QStringLiteral("path"), source.path},
+        {QStringLiteral("container"), source.container},
+        {QStringLiteral("protocol"), source.protocol},
+        {QStringLiteral("videoType"), source.videoType},
+        {QStringLiteral("size"), QString::number(source.size)},
+        {QStringLiteral("bitRate"), source.bitRate},
+        {QStringLiteral("runtimeTicks"), QString::number(source.runtimeTicks)},
+        {QStringLiteral("streams"), mediaStreamsToJsonArray(source.streams)},
+    };
+}
+
+MediaSourceInfo mediaSourceFromJson(const QJsonObject &object)
+{
+    return {
+        object.value(QStringLiteral("id")).toString(),
+        object.value(QStringLiteral("name")).toString(),
+        object.value(QStringLiteral("path")).toString(),
+        object.value(QStringLiteral("container")).toString(),
+        object.value(QStringLiteral("protocol")).toString(),
+        object.value(QStringLiteral("videoType")).toString(),
+        object.value(QStringLiteral("size")).toVariant().toLongLong(),
+        object.value(QStringLiteral("bitRate")).toInt(),
+        object.value(QStringLiteral("runtimeTicks")).toVariant().toLongLong(),
+        mediaStreamsFromJsonArray(object.value(QStringLiteral("streams")).toArray()),
+    };
+}
+
+QJsonArray mediaSourcesToJsonArray(const std::vector<MediaSourceInfo> &sources)
+{
+    QJsonArray array;
+    for (const MediaSourceInfo &source : sources)
+        array.push_back(toJson(source));
+    return array;
+}
+
+std::vector<MediaSourceInfo> mediaSourcesFromJsonArray(const QJsonArray &array)
+{
+    std::vector<MediaSourceInfo> sources;
+    sources.reserve(array.size());
+    for (const QJsonValue &value : array) {
+        MediaSourceInfo source = mediaSourceFromJson(value.toObject());
+        if (!source.id.isEmpty() || !source.container.isEmpty() || !source.streams.empty())
+            sources.push_back(source);
+    }
+    return sources;
+}
+
 }
 
 QJsonObject toJson(const DiscoveredServer &server)
@@ -117,6 +249,7 @@ QJsonObject toJson(const MovieItem &movie)
         {QStringLiteral("premiereDate"), movie.premiereDate},
         {QStringLiteral("endDate"), movie.endDate},
         {QStringLiteral("people"), peopleToJsonArray(movie.people)},
+        {QStringLiteral("mediaSources"), mediaSourcesToJsonArray(movie.mediaSources)},
     };
 }
 
@@ -187,6 +320,7 @@ MovieItem movieFromJson(const QJsonObject &object)
         object.value(QStringLiteral("premiereDate")).toString(),
         object.value(QStringLiteral("endDate")).toString(),
         peopleFromJsonArray(object.value(QStringLiteral("people")).toArray()),
+        mediaSourcesFromJsonArray(object.value(QStringLiteral("mediaSources")).toArray()),
     };
 }
 

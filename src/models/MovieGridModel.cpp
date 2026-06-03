@@ -48,6 +48,62 @@ QVariantList peopleVariantList(const std::vector<PersonItem> &people)
     return result;
 }
 
+QVariantList mediaStreamsVariantList(const std::vector<MediaStreamInfo> &streams)
+{
+    QVariantList result;
+    result.reserve(static_cast<qsizetype>(streams.size()));
+    for (const MediaStreamInfo &stream : streams) {
+        result.push_back(QVariantMap{
+            {QStringLiteral("index"), stream.index},
+            {QStringLiteral("type"), stream.type},
+            {QStringLiteral("codec"), stream.codec},
+            {QStringLiteral("profile"), stream.profile},
+            {QStringLiteral("displayTitle"), stream.displayTitle},
+            {QStringLiteral("title"), stream.title},
+            {QStringLiteral("language"), stream.language},
+            {QStringLiteral("pixelFormat"), stream.pixelFormat},
+            {QStringLiteral("videoRange"), stream.videoRange},
+            {QStringLiteral("colorPrimaries"), stream.colorPrimaries},
+            {QStringLiteral("colorTransfer"), stream.colorTransfer},
+            {QStringLiteral("colorSpace"), stream.colorSpace},
+            {QStringLiteral("aspectRatio"), stream.aspectRatio},
+            {QStringLiteral("width"), stream.width},
+            {QStringLiteral("height"), stream.height},
+            {QStringLiteral("frameRate"), stream.frameRate},
+            {QStringLiteral("bitRate"), stream.bitRate},
+            {QStringLiteral("bitDepth"), stream.bitDepth},
+            {QStringLiteral("channels"), stream.channels},
+            {QStringLiteral("sampleRate"), stream.sampleRate},
+            {QStringLiteral("isDefault"), stream.isDefault},
+            {QStringLiteral("isForced"), stream.isForced},
+            {QStringLiteral("isExternal"), stream.isExternal},
+            {QStringLiteral("isInterlaced"), stream.isInterlaced},
+        });
+    }
+    return result;
+}
+
+QVariantList mediaSourcesVariantList(const std::vector<MediaSourceInfo> &sources)
+{
+    QVariantList result;
+    result.reserve(static_cast<qsizetype>(sources.size()));
+    for (const MediaSourceInfo &source : sources) {
+        result.push_back(QVariantMap{
+            {QStringLiteral("id"), source.id},
+            {QStringLiteral("name"), source.name},
+            {QStringLiteral("path"), source.path},
+            {QStringLiteral("container"), source.container},
+            {QStringLiteral("protocol"), source.protocol},
+            {QStringLiteral("videoType"), source.videoType},
+            {QStringLiteral("size"), QVariant::fromValue(source.size)},
+            {QStringLiteral("bitRate"), source.bitRate},
+            {QStringLiteral("runtimeTicks"), QVariant::fromValue(source.runtimeTicks)},
+            {QStringLiteral("streams"), mediaStreamsVariantList(source.streams)},
+        });
+    }
+    return result;
+}
+
 }
 
 MovieGridModel::MovieGridModel(QObject *parent)
@@ -144,6 +200,8 @@ QVariant MovieGridModel::data(const QModelIndex &index, int role) const
         return movie.endDate;
     case PeopleRole:
         return peopleVariantList(movie.people);
+    case MediaSourcesRole:
+        return mediaSourcesVariantList(movie.mediaSources);
     default:
         return {};
     }
@@ -187,6 +245,7 @@ QHash<int, QByteArray> MovieGridModel::roleNames() const
         {PremiereDateRole, "premiereDate"},
         {EndDateRole, "endDate"},
         {PeopleRole, "people"},
+        {MediaSourcesRole, "mediaSources"},
     };
 }
 
@@ -232,6 +291,7 @@ QVariantMap MovieGridModel::get(int index) const
         {QStringLiteral("premiereDate"), movie.premiereDate},
         {QStringLiteral("endDate"), movie.endDate},
         {QStringLiteral("people"), peopleVariantList(movie.people)},
+        {QStringLiteral("mediaSources"), mediaSourcesVariantList(movie.mediaSources)},
     };
 }
 
