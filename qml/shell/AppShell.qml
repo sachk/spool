@@ -192,7 +192,33 @@ FocusScope {
         return routeStack.handleNavigationKey(key)
     }
 
+    function setUiScale(value) {
+        const step = 0.05
+        const rounded = Math.round(Number(value || 1.0) / step) * step
+        Metrics.userUiScale = Math.max(0.75, Math.min(1.5, rounded))
+    }
+
+    function handleZoomShortcut(event) {
+        if (!(event.modifiers & Qt.ControlModifier))
+            return false
+        if (event.key === Qt.Key_Plus || event.key === Qt.Key_Equal) {
+            setUiScale(Metrics.userUiScale + 0.05)
+            return true
+        }
+        if (event.key === Qt.Key_Minus || event.key === Qt.Key_Underscore) {
+            setUiScale(Metrics.userUiScale - 0.05)
+            return true
+        }
+        if (event.key === Qt.Key_0) {
+            setUiScale(1.0)
+            return true
+        }
+        return false
+    }
+
     function globalShortcut(event, released) {
+        if (released && handleZoomShortcut(event))
+            return true
         if (!released || textInputActive)
             return false
         if (event.modifiers & Qt.ControlModifier && event.key === Qt.Key_D) {
