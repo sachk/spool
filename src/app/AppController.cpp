@@ -81,6 +81,127 @@ QString libraryCacheKey(const LibraryItem &library)
     return QStringLiteral("library/%1/%2").arg(library.collectionType, library.id);
 }
 
+QVariantMap defaultLibraryQuery(const LibraryItem &library)
+{
+    Q_UNUSED(library);
+    return {
+        {QStringLiteral("sortBy"), QStringLiteral("SortName")},
+        {QStringLiteral("sortOrder"), QStringLiteral("Ascending")},
+    };
+}
+
+QStringList queryStringList(const QVariantMap &query, const QString &key)
+{
+    const QVariant value = query.value(key);
+    if (value.typeId() == QMetaType::QStringList)
+        return value.toStringList();
+
+    QStringList result;
+    const QVariantList list = value.toList();
+    result.reserve(list.size());
+    for (const QVariant &item : list) {
+        const QString text = item.toString();
+        if (!text.isEmpty())
+            result.push_back(text);
+    }
+    return result;
+}
+
+QVariantList queryVariantList(const QVariantMap &query, const QString &key)
+{
+    QVariantList result;
+    for (const QString &value : queryStringList(query, key))
+        result.push_back(value);
+    return result;
+}
+
+bool queryHasValue(const QVariantMap &query, const QString &key)
+{
+    const QVariant value = query.value(key);
+    if (!value.isValid() || value.isNull())
+        return false;
+    if (value.typeId() == QMetaType::QString || value.typeId() == QMetaType::QByteArray)
+        return !value.toString().isEmpty();
+    if (value.typeId() == QMetaType::QStringList)
+        return !value.toStringList().isEmpty();
+    if (value.typeId() == QMetaType::QVariantList)
+        return !value.toList().isEmpty();
+    return value.toBool();
+}
+
+int activeLibraryFilterCount(const QVariantMap &query)
+{
+    static const QStringList listKeys = {
+        QStringLiteral("filters"),
+        QStringLiteral("genres"),
+        QStringLiteral("officialRatings"),
+        QStringLiteral("tags"),
+        QStringLiteral("years"),
+        QStringLiteral("studioIds"),
+        QStringLiteral("seriesStatus"),
+        QStringLiteral("videoTypes"),
+    };
+    static const QStringList valueKeys = {
+        QStringLiteral("isHd"),
+        QStringLiteral("is4K"),
+        QStringLiteral("is3D"),
+        QStringLiteral("hasSubtitles"),
+        QStringLiteral("hasTrailer"),
+        QStringLiteral("hasSpecialFeature"),
+        QStringLiteral("hasThemeSong"),
+        QStringLiteral("hasThemeVideo"),
+        QStringLiteral("specialEpisode"),
+        QStringLiteral("isMissing"),
+        QStringLiteral("isUnaired"),
+        QStringLiteral("alphabet"),
+    };
+
+    int count = 0;
+    for (const QString &key : listKeys)
+        count += queryStringList(query, key).size();
+    for (const QString &key : valueKeys) {
+        if (queryHasValue(query, key))
+            ++count;
+    }
+    return count;
+}
+
+QString libraryQuerySignature(const QVariantMap &query, const LibraryItem &library)
+{
+    const QVariantMap defaults = defaultLibraryQuery(library);
+    if (activeLibraryFilterCount(query) == 0 &&
+        query.value(QStringLiteral("sortBy"), defaults.value(QStringLiteral("sortBy"))).toString() ==
+            defaults.value(QStringLiteral("sortBy")).toString() &&
+        query.value(QStringLiteral("sortOrder"), defaults.value(QStringLiteral("sortOrder"))).toString() ==
+            defaults.value(QStringLiteral("sortOrder")).toString()) {
+        return {};
+    }
+
+    QStringList parts;
+    const QStringList keys = query.keys();
+    for (const QString &key : keys) {
+        const QVariant value = query.value(key);
+        if (!queryHasValue(query, key))
+            continue;
+        if (value.typeId() == QMetaType::QStringList || value.typeId() == QMetaType::QVariantList) {
+            QStringList values = queryStringList(query, key);
+            values.sort();
+            parts.push_back(QStringLiteral("%1=%2").arg(key, values.join(QLatin1Char(','))));
+        } else {
+            parts.push_back(QStringLiteral("%1=%2").arg(key, value.toString()));
+        }
+    }
+    parts.sort();
+    return parts.join(QLatin1Char('&'));
+}
+
+QString libraryCacheKey(const LibraryItem &library, const QVariantMap &query)
+{
+    const QString baseKey = libraryCacheKey(library);
+    const QString signature = libraryQuerySignature(query, library);
+    return signature.isEmpty() ? baseKey : QStringLiteral("%1?%2").arg(baseKey, signature);
+}
+
 QString normalizedChoice(const QString &value, const QStringList &allowed, const QString &fallback)
 {
     return allowed.contains(value) ? value : fallback;
@@ -261,6 +382,31 @@ QString AppController::currentLibraryName() const
 QString AppController::currentContentLabel() const
 {
     return m_currentContentLabel;
+}
+
+QString AppController::currentViewKind() const
+{
+    return m_currentViewKind;
+}
+
+QString AppController::currentLibraryCollectionType() const
+{
+    return m_currentLibraryCollectionType;
+}
+
+QVariantMap AppController::libraryQuery() const
+{
+    return m_libraryQuery;
+}
+
+QVariantMap AppController::libraryFilterOptions() const
+{
+    return m_libraryFilterOptions;
+}
+
+int AppController::libraryFilterActiveCount() const
+{
+    return activeLibraryFilterCount(m_libraryQuery);
 }
 
 bool AppController::settingsVisible() const
@@ -599,6 +745,9 @@ void AppController::logout()
     m_detailRowsBusy = false;
     m_detailSeasons.clear();
     m_detailSimilarItems.clear();
+    m_libraryQueries.clear();
+    m_libraryQuery.clear();
+    m_libraryFilterOptions.clear();
     m_currentLibraryId.clear();
     m_currentLibraryCollectionType.clear();
     m_currentLibraryName.clear();
@@ -613,6 +762,8 @@ void AppController::logout()
     emit passwordChanged();
     emit quickConnectChanged();
     emit currentLibraryNameChanged();
+    emit libraryQueryChanged();
+    emit libraryFilterOptionsChanged();
     emit searchChanged();
     emit detailRowsChanged();
     setPage(QStringLiteral("login"));
@@ -709,7 +860,11 @@ void AppController::openLibrary(int index)
     m_currentSeasonId.clear();
     m_currentViewKind = QStringLiteral("library");
     m_currentContentLabel = libraryContentLabel(library);
-    const QString cacheKey = libraryCacheKey(library);
+    setLibraryQuery(m_libraryQueries.value(library.id, defaultLibraryQuery(library)));
+    m_libraryFilterOptions.clear();
+    emit libraryFilterOptionsChanged();
+    loadLibraryFilterOptions(loadGeneration, library);
+    const QString cacheKey = libraryCacheKey(library, m_libraryQuery);
     resetCurrentItemsPaging(cacheKey);
     recordLibraryUse(library);
     emit currentLibraryNameChanged();
@@ -729,7 +884,7 @@ void AppController::openLibrary(int index)
     }
 
     QCoro::runDetached(
-        m_api->fetchLibraryPage(library.id, library.collectionType, 0, kLibraryPageSize),
+        m_api->fetchLibraryPage(library.id, library.collectionType, 0, kLibraryPageSize, m_libraryQuery),
         [this, cacheKey, loadGeneration](const PagedMovieItems &page) {
             if (loadGeneration != m_libraryLoadGeneration)
                 return;
@@ -920,6 +1075,7 @@ void AppController::loadMoreCurrentItems()
     const QString libraryId = m_currentLibraryId;
     const QString collectionType = m_currentLibraryCollectionType;
     const QString cacheKey = m_currentItemsCacheKey;
+    const QVariantMap query = m_libraryQuery;
     setCurrentItemsLoadingMore(true);
 
     const auto onDone = [this, loadGeneration, cacheKey](const PagedMovieItems &page) {
@@ -934,9 +1090,128 @@ void AppController::loadMoreCurrentItems()
         setErrorText(exceptionMessage(error));
     };
 
-    QCoro::runDetached(m_api->fetchLibraryPage(libraryId, collectionType, startIndex, kLibraryPageSize),
+    QCoro::runDetached(m_api->fetchLibraryPage(libraryId, collectionType, startIndex, kLibraryPageSize, query),
                        onDone,
                        onError);
+}
+
+void AppController::setLibraryQuery(const QVariantMap &query)
+{
+    if (m_libraryQuery == query)
+        return;
+    m_libraryQuery = query;
+    if (!m_currentLibraryId.isEmpty())
+        m_libraryQueries.insert(m_currentLibraryId, m_libraryQuery);
+    emit libraryQueryChanged();
+}
+
+void AppController::setLibrarySort(const QString &sortBy, const QString &sortOrder)
+{
+    QVariantMap query = m_libraryQuery;
+    query.insert(QStringLiteral("sortBy"), sortBy.isEmpty() ? QStringLiteral("SortName") : sortBy);
+    query.insert(QStringLiteral("sortOrder"), sortOrder == QStringLiteral("Descending")
+                                      ? QStringLiteral("Descending")
+                                      : QStringLiteral("Ascending"));
+    setLibraryQuery(query);
+    refreshCurrentLibrary();
+}
+
+void AppController::setLibraryQueryListValue(const QString &key, const QString &value, bool enabled)
+{
+    if (key.isEmpty() || value.isEmpty())
+        return;
+
+    QVariantMap query = m_libraryQuery;
+    QStringList values = queryStringList(query, key);
+    values.removeAll(value);
+    if (enabled)
+        values.push_back(value);
+    values.removeDuplicates();
+
+    if (values.isEmpty())
+        query.remove(key);
+    else
+        query.insert(key, values);
+    setLibraryQuery(query);
+    refreshCurrentLibrary();
+}
+
+void AppController::setLibraryQueryBoolValue(const QString &key, bool enabled)
+{
+    if (key.isEmpty())
+        return;
+
+    QVariantMap query = m_libraryQuery;
+    if (enabled)
+        query.insert(key, true);
+    else
+        query.remove(key);
+    setLibraryQuery(query);
+    refreshCurrentLibrary();
+}
+
+void AppController::setLibraryQueryNullableBoolValue(const QString &key, const QVariant &value)
+{
+    if (key.isEmpty())
+        return;
+
+    QVariantMap query = m_libraryQuery;
+    if (!value.isValid() || value.isNull())
+        query.remove(key);
+    else
+        query.insert(key, value.toBool());
+    setLibraryQuery(query);
+    refreshCurrentLibrary();
+}
+
+void AppController::clearLibraryFilters()
+{
+    if (m_currentLibraryId.isEmpty())
+        return;
+
+    QVariantMap query;
+    query.insert(QStringLiteral("sortBy"),
+                 m_libraryQuery.value(QStringLiteral("sortBy"), QStringLiteral("SortName")).toString());
+    query.insert(QStringLiteral("sortOrder"),
+                 m_libraryQuery.value(QStringLiteral("sortOrder"), QStringLiteral("Ascending")).toString());
+    setLibraryQuery(query);
+    refreshCurrentLibrary();
+}
+
+void AppController::refreshCurrentLibrary()
+{
+    if (m_currentViewKind != QStringLiteral("library") || m_currentLibraryId.isEmpty())
+        return;
+    if (!m_api || m_api->session().accessToken.isEmpty())
+        return;
+
+    const int loadGeneration = ++m_libraryLoadGeneration;
+    const QString libraryId = m_currentLibraryId;
+    const QString collectionType = m_currentLibraryCollectionType;
+    const QVariantMap query = m_libraryQuery;
+
+    LibraryItem library;
+    library.id = libraryId;
+    library.collectionType = collectionType;
+    const QString cacheKey = libraryCacheKey(library, query);
+    resetCurrentItemsPaging(cacheKey);
+    m_movies.clear();
+    setBusy(true, QStringLiteral("Loading %1…").arg(m_currentContentLabel.toLower()));
+
+    QCoro::runDetached(
+        m_api->fetchLibraryPage(libraryId, collectionType, 0, kLibraryPageSize, query),
+        [this, loadGeneration, cacheKey](const PagedMovieItems &page) {
+            if (loadGeneration != m_libraryLoadGeneration)
+                return;
+            setCurrentItemsPage(page, cacheKey, false);
+        },
+        [this, loadGeneration](const std::exception_ptr &error) {
+            if (loadGeneration != m_libraryLoadGeneration)
+                return;
+            setBusy(false);
+            setCurrentItemsLoadingMore(false);
+            setErrorText(exceptionMessage(error));
+        });
 }
 
 void AppController::loadDetailRows(const QString &itemId, const QString &itemType)
@@ -1802,6 +2077,28 @@ void AppController::setCurrentItemsLoadingMore(bool loading)
     emit currentItemsPagingChanged();
 }
 
+void AppController::loadLibraryFilterOptions(int generation, const LibraryItem &library)
+{
+    if (!m_api || m_api->session().accessToken.isEmpty() || library.id.isEmpty())
+        return;
+
+    QCoro::runDetached(
+        m_api->fetchLibraryFilterOptions(library.id, library.collectionType),
+        [this, generation, library](const QVariantMap &options) {
+            if (generation != m_libraryLoadGeneration || library.id != m_currentLibraryId)
+                return;
+            m_libraryFilterOptions = options;
+            emit libraryFilterOptionsChanged();
+        },
+        [this, generation, library](const std::exception_ptr &error) {
+            if (generation != m_libraryLoadGeneration || library.id != m_currentLibraryId)
+                return;
+            qWarning() << "library filters: failed" << library.name << exceptionMessage(error);
+            m_libraryFilterOptions.clear();
+            emit libraryFilterOptionsChanged();
+        });
+}
+
 void AppController::recordLibraryUse(const LibraryItem &library)
 {
     if (library.id.isEmpty())
@@ -2002,8 +2299,9 @@ void AppController::refreshCurrentItems(const QString &viewKind,
         const int loadGeneration = ++m_libraryLoadGeneration;
         const QString collectionType = m_currentLibraryCollectionType;
         const QString cacheKey = m_currentItemsCacheKey;
+        const QVariantMap query = m_libraryQuery;
         QCoro::runDetached(
-            m_api->fetchLibraryPage(libraryId, collectionType, 0, kLibraryPageSize),
+            m_api->fetchLibraryPage(libraryId, collectionType, 0, kLibraryPageSize, query),
             [this, loadGeneration, cacheKey](const PagedMovieItems &page) {
                 if (loadGeneration != m_libraryLoadGeneration)
                     return;

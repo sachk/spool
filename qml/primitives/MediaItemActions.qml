@@ -11,13 +11,16 @@ FocusScope {
     property bool menuOpen: false
     property bool pendingAccept: false
     property bool longPressOpened: false
+    property bool pointerLongPress: false
     property int menuIndex: 0
     property bool favoriteState: Boolean(item && item.favorite)
     property bool playedState: Boolean(item && item.played)
+    property string longPressAction: "menu"
     readonly property bool actionable: Boolean(item && item.movieId)
     readonly property bool hovered: hover.hovered
 
     signal activated()
+    signal detailsRequested()
     signal favoriteToggled(bool favorite)
     signal playedToggled(bool played)
     signal mediaInfoRequested()
@@ -33,7 +36,7 @@ FocusScope {
             return false
         pendingAccept = true
         longPressOpened = false
-        if (tvPlatform && actionable)
+        if (tvPlatform && (actionable || longPressAction === "details"))
             holdTimer.restart()
         return true
     }
@@ -206,10 +209,15 @@ FocusScope {
 
     Timer {
         id: holdTimer
-        interval: 560
+        interval: 520
         repeat: false
         onTriggered: {
-            root.longPressOpened = root.openMenu()
+            if (root.longPressAction === "details") {
+                root.longPressOpened = true
+                root.detailsRequested()
+            } else {
+                root.longPressOpened = root.openMenu()
+            }
         }
     }
 
@@ -218,11 +226,23 @@ FocusScope {
     MouseArea {
         anchors.fill: parent
         acceptedButtons: Qt.LeftButton
-        pressAndHoldInterval: 560
-        onClicked: root.activated()
+        pressAndHoldInterval: 520
+        onPressed: root.pointerLongPress = false
+        onClicked: {
+            if (!root.pointerLongPress)
+                root.activated()
+            root.pointerLongPress = false
+        }
         onPressAndHold: {
-            if (root.tvPlatform)
+            if (!root.tvPlatform)
+                return
+            root.pointerLongPress = true
+            if (root.longPressAction === "details") {
+                root.longPressOpened = true
+                root.detailsRequested()
+            } else {
                 root.openMenu()
+            }
         }
     }
 
