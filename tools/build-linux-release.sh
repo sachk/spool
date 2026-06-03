@@ -36,7 +36,8 @@ MPV_SETUP_ARGS=(
   -Dbuild-date=false
   -Dlibmpv=true
   -Dcplayer=true
-  -Dstarfish=disabled
+  # starfish: webOS-only VO patch; the option does not exist in upstream mpv,
+  # so it must not be passed on native Linux/macOS builds.
   -Dwayland=enabled
   -Degl=enabled
   -Degl-wayland=enabled
