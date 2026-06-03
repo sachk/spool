@@ -522,8 +522,12 @@ QCoro::Task<std::vector<MovieItem>> JellyfinApiFacade::fetchSeasons(QString seri
     seasons.reserve(items.size());
     for (const auto &value : items) {
         const auto object = value.toObject();
-        if (object.value(QStringLiteral("Type")).toString() == QStringLiteral("Season"))
-            seasons.push_back(mediaItemFromJson(this, object));
+        if (object.value(QStringLiteral("Type")).toString() == QStringLiteral("Season")) {
+            auto season = mediaItemFromJson(this, object);
+            if (season.seriesId.isEmpty())
+                season.seriesId = seriesId;
+            seasons.push_back(season);
+        }
     }
 
     co_return seasons;
