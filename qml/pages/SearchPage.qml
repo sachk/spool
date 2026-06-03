@@ -46,7 +46,7 @@ FocusScope {
     }
 
     function setQuery(text) {
-        query = text.trimmed()
+        query = String(text || "").trim()
         shell.lastSearchIndex = 0
         if (query.length < 2) {
             searchTimer.stop()
@@ -164,6 +164,8 @@ FocusScope {
             KeyNavigation.up: field
             visible: root.resultCount > 0
             onCurrentIndexChanged: if (currentIndex >= 0) positionViewAtIndex(currentIndex, ListView.Contain)
+
+            FastWheelHandler { flickable: results }
 
             delegate: Surface {
                 id: resultDelegate
