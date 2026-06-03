@@ -62,6 +62,11 @@ int MovieGridModel::rowCount(const QModelIndex &parent) const
     return static_cast<int>(m_movies.size());
 }
 
+int MovieGridModel::count() const
+{
+    return rowCount();
+}
+
 QVariant MovieGridModel::data(const QModelIndex &index, int role) const
 {
     if (!index.isValid() || index.row() < 0 || index.row() >= rowCount())
@@ -232,9 +237,12 @@ QVariantMap MovieGridModel::get(int index) const
 
 void MovieGridModel::setMovies(const std::vector<MovieItem> &movies)
 {
+    const int oldCount = rowCount();
     beginResetModel();
     m_movies = movies;
     endResetModel();
+    if (rowCount() != oldCount)
+        emit countChanged();
 }
 
 void MovieGridModel::appendMovies(const std::vector<MovieItem> &movies)
@@ -247,13 +255,17 @@ void MovieGridModel::appendMovies(const std::vector<MovieItem> &movies)
     beginInsertRows({}, first, last);
     m_movies.insert(m_movies.end(), movies.begin(), movies.end());
     endInsertRows();
+    emit countChanged();
 }
 
 void MovieGridModel::clear()
 {
+    const int oldCount = rowCount();
     beginResetModel();
     m_movies.clear();
     endResetModel();
+    if (oldCount != 0)
+        emit countChanged();
 }
 
 MovieItem MovieGridModel::movieAt(int index) const

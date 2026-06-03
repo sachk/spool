@@ -31,8 +31,8 @@ FocusScope {
     readonly property bool showSimilarRow: similarCount > 0
     readonly property var people: item.people || []
     readonly property bool showPeopleRow: people.length > 0
-    property int seasonCount: appController && appController.detailSeasons ? appController.detailSeasons.rowCount() : 0
-    property int similarCount: appController && appController.detailSimilarItems ? appController.detailSimilarItems.rowCount() : 0
+    readonly property int seasonCount: appController && appController.detailSeasons ? appController.detailSeasons.count : 0
+    readonly property int similarCount: appController && appController.detailSimilarItems ? appController.detailSimilarItems.count : 0
     property bool favoriteState: false
     property bool playedState: false
     property bool overflowOpen: false
@@ -285,8 +285,6 @@ FocusScope {
     }
 
     function updateDetailCounts() {
-        seasonCount = appController && appController.detailSeasons ? appController.detailSeasons.rowCount() : 0
-        similarCount = appController && appController.detailSimilarItems ? appController.detailSimilarItems.rowCount() : 0
         seasonsRow.currentIndex = seasonCount > 0 ? Math.max(0, Math.min(seasonsRow.currentIndex, seasonCount - 1)) : 0
         similarRow.currentIndex = similarCount > 0 ? Math.max(0, Math.min(similarRow.currentIndex, similarCount - 1)) : 0
     }
@@ -432,6 +430,14 @@ FocusScope {
         if (index < 0 || !appController)
             return
         shell.openDetails(appController.detailSimilarItems, index, "similar", shell.detailsReturnRoute || "libraryGrid")
+    }
+
+    function openSeasonRow(index) {
+        if (index < 0 || index >= seasonCount || !appController)
+            return
+        appController.openDetailSeason(index)
+        if (shell)
+            shell.replaceRoute("libraryGrid")
     }
 
     function openPerson(person) {
@@ -897,7 +903,7 @@ FocusScope {
                     reserveWhenEmpty: root.reserveSeasonsRow
                     loading: root.reserveSeasonsRow
                     emptyText: "Loading seasons..."
-                    onActivated: (index) => appController.openDetailSeason(index)
+                    onActivated: (index) => root.openSeasonRow(index)
                 }
 
                 PersonScrollerRow {
