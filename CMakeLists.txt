@@ -220,8 +220,9 @@ qt_add_qml_module(jellyfin-native
         qml/shell/MediaInfoOverlay.qml
         qml/shell/RouteStack.qml
         qml/shell/ShortcutOverlay.qml
-        qml/shell/SideRail.qml
+        qml/shell/SyncPlayMenu.qml
         qml/shell/ToastLayer.qml
+        qml/shell/TopBar.qml
         qml/theme/Metrics.qml
         qml/theme/Theme.qml
         qml/theme/Typography.qml

@@ -105,11 +105,11 @@ FocusScope {
         if (sections.currentItem && sections.currentItem.handleNavigationKey)
             return sections.currentItem.handleNavigationKey(key)
         if (key === Qt.Key_Up) {
-            focusSection(nextVisibleSection(sections.currentIndex, -1))
+            focusSectionOrBar(-1)
             return true
         }
         if (key === Qt.Key_Down) {
-            focusSection(nextVisibleSection(sections.currentIndex, 1))
+            focusSectionOrBar(1)
             return true
         }
         return false
@@ -168,6 +168,17 @@ FocusScope {
             return
         sections.currentIndex = index
         sections.scrollCurrentSectionIntoView()
+    }
+
+    // Move between sections; pressing Up on the topmost section returns to the
+    // top navigation bar.
+    function focusSectionOrBar(dir) {
+        const next = nextVisibleSection(sections.currentIndex, dir)
+        if (next === sections.currentIndex) {
+            if (dir < 0) shell.focusNavBar()
+            return
+        }
+        focusSection(next)
     }
 
     ListView {
@@ -260,16 +271,12 @@ FocusScope {
                     focus: true
                     focused: section.ListView.isCurrentItem
                     function handleNavigationKey(key) {
-                        if (key === Qt.Key_Left) {
-                            shell.focusRail()
-                            return true
-                        }
                         if (key === Qt.Key_Up) {
-                            root.focusSection(root.nextVisibleSection(sections.currentIndex, -1))
+                            root.focusSectionOrBar(-1)
                             return true
                         }
                         if (key === Qt.Key_Down) {
-                            root.focusSection(root.nextVisibleSection(sections.currentIndex, 1))
+                            root.focusSectionOrBar(1)
                             return true
                         }
                         if ((key === Qt.Key_Return || key === Qt.Key_Enter || key === Qt.Key_Select) && root.spotlightIndex >= 0) {
@@ -293,10 +300,7 @@ FocusScope {
                         }
                     }
                     Keys.onReleased: (event) => {
-                        if (event.key === Qt.Key_Left) {
-                            shell.focusRail()
-                            event.accepted = true
-                        } else if ((event.key === Qt.Key_Return || event.key === Qt.Key_Enter || event.key === Qt.Key_Select || event.key === Qt.Key_Space) && root.spotlightIndex >= 0) {
+                        if ((event.key === Qt.Key_Return || event.key === Qt.Key_Enter || event.key === Qt.Key_Select || event.key === Qt.Key_Space) && root.spotlightIndex >= 0) {
                             shell.openDetails(root.latestModel, root.spotlightIndex, "latest", "home")
                             event.accepted = true
                         }
@@ -352,8 +356,8 @@ FocusScope {
                         if (!acceptKey && card && card.handleNavigationKey && card.handleNavigationKey(key))
                             return true
                         if (key === Qt.Key_Left) {
-                            if (visibleCount <= 0 || currentIndex <= 0) shell.focusRail()
-                            else currentIndex = currentIndex - 1
+                            if (visibleCount > 0 && currentIndex > 0)
+                                currentIndex = currentIndex - 1
                             ensureVisible()
                             return true
                         }
@@ -365,11 +369,11 @@ FocusScope {
                             return true
                         }
                         if (key === Qt.Key_Up) {
-                            root.focusSection(root.nextVisibleSection(sections.currentIndex, -1))
+                            root.focusSectionOrBar(-1)
                             return true
                         }
                         if (key === Qt.Key_Down) {
-                            root.focusSection(root.nextVisibleSection(sections.currentIndex, 1))
+                            root.focusSectionOrBar(1)
                             return true
                         }
                         if (acceptKey) {
@@ -479,8 +483,8 @@ FocusScope {
 
                     function handleNavigationKey(key) {
                         if (key === Qt.Key_Left) {
-                            if (visibleCount <= 0 || currentIndex <= 0) shell.focusRail()
-                            else currentIndex = currentIndex - 1
+                            if (visibleCount > 0 && currentIndex > 0)
+                                currentIndex = currentIndex - 1
                             ensureVisible()
                             return true
                         }
@@ -490,8 +494,8 @@ FocusScope {
                             ensureVisible()
                             return true
                         }
-                        if (key === Qt.Key_Up) { root.focusSection(root.nextVisibleSection(sections.currentIndex, -1)); return true }
-                        if (key === Qt.Key_Down) { root.focusSection(root.nextVisibleSection(sections.currentIndex, 1)); return true }
+                        if (key === Qt.Key_Up) { root.focusSectionOrBar(-1); return true }
+                        if (key === Qt.Key_Down) { root.focusSectionOrBar(1); return true }
                         if (key === Qt.Key_Return || key === Qt.Key_Enter || key === Qt.Key_Select) {
                             if (currentIndex >= 0) root.activateAt("libraries", currentIndex)
                             return true

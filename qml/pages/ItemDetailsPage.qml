@@ -629,8 +629,7 @@ FocusScope {
         }
 
         if (key === Qt.Key_Left) {
-            if (!focusNextAction(-1))
-                shell.focusRail()
+            focusNextAction(-1)
             return true
         }
         if (key === Qt.Key_Right) {
@@ -646,7 +645,7 @@ FocusScope {
             return true
         }
         if (key === Qt.Key_Up) {
-            focusDefaultAction()
+            shell.focusNavBar()
             return true
         }
         if (key === Qt.Key_Return || key === Qt.Key_Enter || key === Qt.Key_Select) {

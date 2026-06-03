@@ -70,12 +70,8 @@ FocusScope {
         if (!acceptKey && card && card.handleNavigationKey && card.handleNavigationKey(key))
             return true
         if (key === Qt.Key_Left) {
-            if (listView.currentIndex <= 0) {
-                if (shell)
-                    shell.focusRail()
-            } else {
+            if (listView.currentIndex > 0)
                 listView.currentIndex = listView.currentIndex - 1
-            }
             currentIndex = listView.currentIndex
             ensureVisible()
             return true

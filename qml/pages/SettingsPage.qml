@@ -16,7 +16,6 @@ FocusScope {
         { label: "Subtitles" },
         { label: "Diagnostics" },
         { label: "Input" },
-        { label: "SyncPlay" },
         { label: "About" }
     ]
     readonly property var subtitleModeValues: ["Default", "Smart", "OnlyForced", "Always", "None"]
@@ -38,7 +37,7 @@ FocusScope {
 
     function categoryTarget(index) {
         const targets = [themeRow, posterSizeRow, nightModeRow, subtitleLanguageRow,
-                         diagnosticsRow, redButtonRow, syncPlayStatusRow, aboutVersionRow]
+                         diagnosticsRow, redButtonRow, aboutVersionRow]
         const row = index >= 0 && index < targets.length ? targets[index] : themeRow
         return row ? Math.max(0, row.settingIndex) : 0
     }
@@ -53,15 +52,9 @@ FocusScope {
             subtitleAlwaysBurnInRow, subtitleStylingRow, subtitleTextSizeRow, subtitleTextWeightRow,
             subtitleFontRow, subtitleTextColorRow, subtitleDropShadowRow, subtitleVerticalPositionRow,
             diagnosticsRow,
-            redButtonRow, greenButtonRow, yellowButtonRow, blueButtonRow,
-            syncPlayStatusRow
+            redButtonRow, greenButtonRow, yellowButtonRow, blueButtonRow
         ]
-        for (let i = 0; i < groupRepeater.count; ++i) {
-            const row = groupRepeater.itemAt(i)
-            if (row)
-                rows.push(row)
-        }
-        rows.push(syncPlayCreateRow, aboutVersionRow, aboutServerRow, aboutLocaleRow)
+        rows.push(aboutVersionRow, aboutServerRow, aboutLocaleRow)
         settingsRows = rows
         for (let i = 0; i < settingsRows.length; ++i)
             settingsRows[i].settingIndex = i
@@ -183,16 +176,13 @@ FocusScope {
 
     function handleNavigationKey(key) {
         if (categoryList.activeFocus) {
-            if (key === Qt.Key_Left) {
-                shell.focusRail()
-                return true
-            }
             if (key === Qt.Key_Right || key === Qt.Key_Return || key === Qt.Key_Enter || key === Qt.Key_Select) {
                 activateCategory(categoryIndex)
                 return true
             }
             if (key === Qt.Key_Up) {
-                focusCategory(categoryIndex - 1)
+                if (categoryIndex <= 0) shell.focusNavBar()
+                else focusCategory(categoryIndex - 1)
                 return true
             }
             if (key === Qt.Key_Down) {
@@ -209,7 +199,8 @@ FocusScope {
             return true
         }
         if (key === Qt.Key_Up) {
-            focusRow(currentIndex - 1)
+            if (currentIndex <= 0) shell.focusNavBar()
+            else focusRow(currentIndex - 1)
             return true
         }
         if (key === Qt.Key_Down) {
@@ -710,105 +701,6 @@ FocusScope {
                     onActiveFocusChanged: if (activeFocus) root.markFocused(settingIndex)
                 }
 
-                SectionHeader { Layout.fillWidth: true; title: "SyncPlay" }
-                SettingRow {
-                    id: syncPlayStatusRow
-                    Layout.fillWidth: true
-                    settingIndex: 22
-                    rowFocus: root.currentIndex === settingIndex || activeFocus
-                    title: "SyncPlay Status"
-                    description: appController && appController.syncPlay && appController.syncPlay.enabled
-                                 ? "Synced with " + appController.syncPlay.currentGroupName
-                                 : "Not in a group"
-                    valueText: appController && appController.syncPlay && appController.syncPlay.enabled ? "Leave" : "Refresh"
-                    onClicked: {
-                        if (!appController || !appController.syncPlay) return
-                        if (appController.syncPlay.enabled) appController.syncPlay.leaveGroup()
-                        else appController.syncPlay.refreshGroups()
-                    }
-                    function handleNavigationKey(key) {
-                        if (key === Qt.Key_Return || key === Qt.Key_Enter || key === Qt.Key_Select || key === Qt.Key_Space) {
-                            if (!appController || !appController.syncPlay) return true
-                            if (appController.syncPlay.enabled) appController.syncPlay.leaveGroup()
-                            else appController.syncPlay.refreshGroups()
-                            return true
-                        }
-                        return false
-                    }
-                    onActiveFocusChanged: if (activeFocus) root.markFocused(settingIndex)
-                }
-                Repeater {
-                    id: groupRepeater
-                    model: appController && appController.syncPlay ? appController.syncPlay.groups : []
-                    delegate: Surface {
-                        required property int index
-                        required property var modelData
-                        property int settingIndex: -1
-                        readonly property string groupId: modelData ? modelData.GroupId || "" : ""
-                        readonly property string groupName: modelData ? modelData.GroupName || "Group" : "Group"
-                        readonly property int participantCount: modelData && modelData.Participants ? modelData.Participants.length : 0
-                        property bool rowFocus: root.currentIndex === settingIndex || activeFocus
-                        Layout.fillWidth: true
-                        Layout.preferredHeight: 56
-                        focus: true
-                        focused: rowFocus
-                        baseColor: Theme.bgPanel
-
-                        function handleNavigationKey(key) {
-                            if (key === Qt.Key_Return || key === Qt.Key_Enter || key === Qt.Key_Select || key === Qt.Key_Space) {
-                                if (appController && appController.syncPlay)
-                                    appController.syncPlay.joinGroup(groupId)
-                                return true
-                            }
-                            return false
-                        }
-
-                        Component.onCompleted: Qt.callLater(root.rebuildSettingsRows)
-                        Component.onDestruction: Qt.callLater(root.rebuildSettingsRows)
-                        onActiveFocusChanged: if (activeFocus) root.markFocused(settingIndex)
-
-                        RowLayout {
-                            anchors.fill: parent
-                            anchors.leftMargin: 14
-                            anchors.rightMargin: 14
-                            spacing: 12
-
-                            AppText {
-                                text: groupName
-                                Layout.fillWidth: true
-                                font.weight: Font.Medium
-                            }
-                            AppText {
-                                text: participantCount + " member" + (participantCount === 1 ? "" : "s")
-                                color: Theme.textMuted
-                                font.pixelSize: 13
-                            }
-                            ActionButton {
-                                text: "Join"
-                                onClicked: if (appController && appController.syncPlay) appController.syncPlay.joinGroup(groupId)
-                            }
-                        }
-                    }
-                }
-                SettingRow {
-                    id: syncPlayCreateRow
-                    Layout.fillWidth: true
-                    settingIndex: 23
-                    rowFocus: root.currentIndex === settingIndex || activeFocus
-                    title: "Create Group"
-                    description: "Start a new SyncPlay session"
-                    valueText: "Create"
-                    onClicked: if (appController && appController.syncPlay) appController.syncPlay.createGroup("Group")
-                    function handleNavigationKey(key) {
-                        if (key === Qt.Key_Return || key === Qt.Key_Enter || key === Qt.Key_Select || key === Qt.Key_Space) {
-                            if (appController && appController.syncPlay) appController.syncPlay.createGroup("Group")
-                            return true
-                        }
-                        return false
-                    }
-                    onActiveFocusChanged: if (activeFocus) root.markFocused(settingIndex)
-                }
-
                 SectionHeader { Layout.fillWidth: true; title: "About" }
                 SettingRow {
                     id: aboutVersionRow
@@ -847,10 +739,6 @@ FocusScope {
                 Component.onCompleted: {
                     root.rebuildSettingsRows()
                     root.focusRow(root.currentIndex)
-                    // Best-effort refresh on page open so users see existing
-                    // groups without needing to hit "Refresh".
-                    if (appController && appController.syncPlay)
-                        appController.syncPlay.refreshGroups()
                 }
             }
         }
