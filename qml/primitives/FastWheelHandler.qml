@@ -5,8 +5,12 @@ WheelHandler {
 
     required property var flickable
     property bool horizontal: false
-    property real multiplier: 2.6
-    property int stepPixels: 260
+    // Touchpad: pixelDelta is already in device pixels, so this is a gentle gain.
+    property real touchpadMultiplier: 1.6
+    // Mouse wheel: pixels travelled per notch (one notch == 120 angle units).
+    // Kept deliberately modest so a single notch is a comfortable nudge rather
+    // than a full-screen jump.
+    property int stepPixels: 120
 
     target: null
     acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
@@ -25,16 +29,21 @@ WheelHandler {
         const angleDelta = root.horizontal
                 ? (event.angleDelta.x !== 0 ? event.angleDelta.x : event.angleDelta.y)
                 : (event.angleDelta.y !== 0 ? event.angleDelta.y : event.angleDelta.x)
-        const delta = pixelDelta !== 0 ? pixelDelta : angleDelta / 120 * root.stepPixels
+        // High-resolution devices (touchpads) report pixelDelta and scroll
+        // smoothly; classic mouse wheels report angleDelta in 120-unit notches
+        // and get a fixed, modest step per notch.
+        const delta = pixelDelta !== 0
+                ? pixelDelta * root.touchpadMultiplier
+                : angleDelta / 120 * root.stepPixels
         if (delta === 0)
             return
 
         if (root.horizontal) {
             const maxX = Math.max(0, flickable.contentWidth - flickable.width)
-            flickable.contentX = clamp(flickable.contentX - delta * root.multiplier, 0, maxX)
+            flickable.contentX = clamp(flickable.contentX - delta, 0, maxX)
         } else {
             const maxY = Math.max(0, flickable.contentHeight - flickable.height)
-            flickable.contentY = clamp(flickable.contentY - delta * root.multiplier, 0, maxY)
+            flickable.contentY = clamp(flickable.contentY - delta, 0, maxY)
         }
         event.accepted = true
     }
