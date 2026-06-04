@@ -9,6 +9,8 @@ FocusScope {
     property int currentIndex: 0
     property int categoryIndex: 0
     property var settingsRows: []
+    readonly property bool smartTvPlatform: nativeWindow ? nativeWindow.smartTvPlatform : true
+    readonly property bool gpuNextDiagnosticsAvailable: !smartTvPlatform
     readonly property var categories: [
         { label: "General" },
         { label: "Appearance" },
@@ -51,9 +53,9 @@ FocusScope {
             subtitleLanguageRow, subtitleModeRow, subtitleBurnInRow, subtitleRenderPgsRow,
             subtitleAlwaysBurnInRow, subtitleStylingRow, subtitleTextSizeRow, subtitleTextWeightRow,
             subtitleFontRow, subtitleTextColorRow, subtitleDropShadowRow, subtitleVerticalPositionRow,
-            diagnosticsRow,
+            diagnosticsRow, gpuNextToneMappingRow,
             redButtonRow, greenButtonRow, yellowButtonRow, blueButtonRow
-        ]
+        ].filter(row => row && row.visible !== false)
         rows.push(aboutVersionRow, aboutServerRow, aboutLocaleRow)
         settingsRows = rows
         for (let i = 0; i < settingsRows.length; ++i)
@@ -650,6 +652,18 @@ FocusScope {
                     title: "Diagnostics Overlay"
                     checked: shell.diagnosticsVisible
                     onToggled: shell.diagnosticsVisible = checked
+                    onActiveFocusChanged: if (activeFocus) root.markFocused(settingIndex)
+                }
+                ToggleRow {
+                    id: gpuNextToneMappingRow
+                    Layout.fillWidth: true
+                    settingIndex: 17
+                    visible: root.gpuNextDiagnosticsAvailable
+                    rowFocus: root.currentIndex === settingIndex || activeFocus
+                    title: "GPU-next Tone Mapping View"
+                    description: "False-colour libplacebo tone-mapping diagnostic"
+                    checked: appController ? appController.toneMappingVisualizationEnabled : false
+                    onToggled: if (appController) appController.setToneMappingVisualizationEnabled(checked)
                     onActiveFocusChanged: if (activeFocus) root.markFocused(settingIndex)
                 }
                 SectionHeader { Layout.fillWidth: true; title: "Input" }

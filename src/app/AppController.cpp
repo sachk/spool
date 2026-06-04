@@ -424,6 +424,11 @@ bool AppController::nightModeEnabled() const
     return m_nightModeEnabled;
 }
 
+bool AppController::toneMappingVisualizationEnabled() const
+{
+    return m_toneMappingVisualizationEnabled;
+}
+
 int AppController::audioDelayMs() const
 {
     return m_audioDelayMs;
@@ -632,6 +637,9 @@ void AppController::initialize()
     m_serverUrl = m_database->loadLastServerUrl();
     m_username = m_database->loadLastUsername();
     m_nightModeEnabled = m_database->loadNightModeEnabled();
+    m_toneMappingVisualizationEnabled =
+        m_database->loadSetting(QStringLiteral("settings/toneMappingVisualization"),
+                                QStringLiteral("false")) == QStringLiteral("true");
     m_audioDelayMs = m_database->loadAudioDelayMs();
     const QString storedAudioOutputMode = m_database->loadAudioOutputMode();
     m_audioOutputMode = (storedAudioOutputMode == QStringLiteral("starfish") ||
@@ -646,12 +654,14 @@ void AppController::initialize()
     m_blueButtonAction = m_database->loadSetting(QStringLiteral("input/blueButton"), QStringLiteral("none"));
     loadSubtitlePreferences();
     m_player->setNightModeEnabled(m_nightModeEnabled);
+    m_player->setToneMappingVisualizationEnabled(m_toneMappingVisualizationEnabled);
     m_player->setAudioDelayMs(m_audioDelayMs);
     m_player->setAudioOutputMode(m_audioOutputMode);
     applySubtitlePreferencesToPlayer();
     emit serverUrlChanged();
     emit usernameChanged();
     emit nightModeEnabledChanged();
+    emit toneMappingVisualizationEnabledChanged();
     emit audioDelayMsChanged();
     emit audioOutputModeChanged();
     emit subtitleSettingsChanged();
@@ -1508,6 +1518,17 @@ void AppController::setNightModeEnabled(bool enabled)
     m_database->saveNightModeEnabled(enabled);
     m_player->setNightModeEnabled(enabled);
     emit nightModeEnabledChanged();
+}
+
+void AppController::setToneMappingVisualizationEnabled(bool enabled)
+{
+    if (m_toneMappingVisualizationEnabled == enabled)
+        return;
+    m_toneMappingVisualizationEnabled = enabled;
+    m_database->saveSetting(QStringLiteral("settings/toneMappingVisualization"),
+                            enabled ? QStringLiteral("true") : QStringLiteral("false"));
+    m_player->setToneMappingVisualizationEnabled(enabled);
+    emit toneMappingVisualizationEnabledChanged();
 }
 
 void AppController::setAudioDelayMs(int delayMs)

@@ -44,6 +44,9 @@ class PlayerController final : public QObject
     Q_PROPERTY(bool hasChapters READ hasChapters NOTIFY chaptersChanged)
     Q_PROPERTY(int currentChapter READ currentChapter NOTIFY stateChanged)
     Q_PROPERTY(bool nightModeEnabled READ nightModeEnabled WRITE setNightModeEnabled NOTIFY nightModeEnabledChanged)
+    Q_PROPERTY(bool toneMappingVisualizationEnabled READ toneMappingVisualizationEnabled
+               WRITE setToneMappingVisualizationEnabled
+               NOTIFY toneMappingVisualizationEnabledChanged)
     Q_PROPERTY(int audioDelayMs READ audioDelayMs WRITE setAudioDelayMs NOTIFY audioDelayMsChanged)
     Q_PROPERTY(QString audioOutputMode READ audioOutputMode WRITE setAudioOutputMode NOTIFY audioOutputModeChanged)
     Q_PROPERTY(int volume READ volume WRITE setVolume NOTIFY volumeChanged)
@@ -77,6 +80,7 @@ public:
     bool hasChapters() const;
     int currentChapter() const;
     bool nightModeEnabled() const;
+    bool toneMappingVisualizationEnabled() const;
     int audioDelayMs() const;
     QString audioOutputMode() const;
     int volume() const;
@@ -106,6 +110,7 @@ public:
     Q_INVOKABLE void stop();
     Q_INVOKABLE void stopWithReason(const QString &reason);
     Q_INVOKABLE void setNightModeEnabled(bool enabled);
+    Q_INVOKABLE void setToneMappingVisualizationEnabled(bool enabled);
     Q_INVOKABLE void setAudioDelayMs(int delayMs);
     Q_INVOKABLE void setAudioOutputMode(const QString &mode);
     Q_INVOKABLE void setVolume(int volume);
@@ -118,6 +123,7 @@ signals:
     void chaptersChanged();
     void playbackStopped(const QString &itemId, qint64 positionTicks);
     void nightModeEnabledChanged();
+    void toneMappingVisualizationEnabledChanged();
     void audioDelayMsChanged();
     void audioOutputModeChanged();
     void volumeChanged();
@@ -135,6 +141,7 @@ private:
 
     enum class MpvRuntimeOption {
         NightMode,
+        ToneMappingVisualization,
         AudioDelay,
     };
 
@@ -200,6 +207,7 @@ private:
     double m_resumeStartSeconds = 0.0;
     double m_requestedSeekTargetSeconds = -1.0;
     std::atomic_bool m_nightModeEnabled = false;
+    std::atomic_bool m_toneMappingVisualizationEnabled = false;
     std::atomic<int> m_audioDelayMs = 0;
     std::atomic<int> m_volume = 100;
     QString m_audioOutputMode = QStringLiteral("alsa");

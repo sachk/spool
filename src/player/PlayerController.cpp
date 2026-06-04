@@ -478,6 +478,10 @@ int PlayerController::currentChapter() const { return m_currentChapter; }
 
 bool PlayerController::nightModeEnabled() const { return m_nightModeEnabled.load(); }
 
+bool PlayerController::toneMappingVisualizationEnabled() const {
+  return m_toneMappingVisualizationEnabled.load();
+}
+
 int PlayerController::audioDelayMs() const { return m_audioDelayMs.load(); }
 
 QString PlayerController::audioOutputMode() const { return m_audioOutputMode; }
@@ -504,6 +508,10 @@ bool PlayerController::applyMpvRuntimeOption(MpvRuntimeOption option,
       value.clear();
     }
 #endif
+    break;
+  case MpvRuntimeOption::ToneMappingVisualization:
+    name = "tone-mapping-visualize";
+    value = mpvBool(m_toneMappingVisualizationEnabled.load());
     break;
   case MpvRuntimeOption::AudioDelay:
     name = "audio-delay";
@@ -534,6 +542,8 @@ bool PlayerController::applyMpvRuntimeOption(MpvRuntimeOption option,
 bool PlayerController::applyMpvRuntimeOptions(MpvOptionApplyMode mode,
                                               mpv_handle *handle) {
   return applyMpvRuntimeOption(MpvRuntimeOption::NightMode, mode, handle) &&
+         applyMpvRuntimeOption(MpvRuntimeOption::ToneMappingVisualization,
+                               mode, handle) &&
          applyMpvRuntimeOption(MpvRuntimeOption::AudioDelay, mode, handle) &&
          applyMpvSubtitleOptions(mode, handle);
 }
@@ -966,6 +976,20 @@ void PlayerController::setNightModeEnabled(bool enabled) {
   }
 
   emit nightModeEnabledChanged();
+  emit stateChanged();
+}
+
+void PlayerController::setToneMappingVisualizationEnabled(bool enabled) {
+  if (m_toneMappingVisualizationEnabled.load() == enabled)
+    return;
+
+  m_toneMappingVisualizationEnabled = enabled;
+  if (auto *handle = m_mpv.load()) {
+    applyMpvRuntimeOption(MpvRuntimeOption::ToneMappingVisualization,
+                          MpvOptionApplyMode::Runtime, handle);
+  }
+
+  emit toneMappingVisualizationEnabledChanged();
   emit stateChanged();
 }
 
