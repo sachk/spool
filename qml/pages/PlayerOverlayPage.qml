@@ -70,9 +70,13 @@ FocusScope {
         const list = [
             { label: "Rewind", value: "back" },
             { label: hasPlayer && player.paused ? "Play" : "Pause", value: "pause" },
-            { label: "Fast forward", value: "forward" },
-            { label: "Subtitles", value: "subtitles" }
+            { label: "Fast forward", value: "forward" }
         ]
+        if (hasPlayer && player.hasChapters) {
+            list.push({ label: "Previous chapter", value: "prevChapter" })
+            list.push({ label: "Next chapter", value: "nextChapter" })
+        }
+        list.push({ label: "Subtitles", value: "subtitles" })
         if (audioSelectable)
             list.push({ label: "Audio", value: "audio" })
         if (desktopControlsAvailable)
@@ -130,6 +134,8 @@ FocusScope {
         if (value === "back") return "fast_rewind"
         if (value === "pause") return hasPlayer && player.paused ? "play_arrow" : "pause"
         if (value === "forward") return "fast_forward"
+        if (value === "prevChapter") return "skip_previous"
+        if (value === "nextChapter") return "skip_next"
         if (value === "subtitles") return "closed_caption"
         if (value === "audio") return "audiotrack"
         if (value === "fullscreen") return nativeWindow.fullScreen ? "fullscreen_exit" : "fullscreen"
@@ -383,6 +389,8 @@ FocusScope {
         if (action === "back") player.seekBack()
         else if (action === "pause") player.togglePause()
         else if (action === "forward") player.seekForward()
+        else if (action === "prevChapter") player.previousChapter()
+        else if (action === "nextChapter") player.nextChapter()
         else if (action === "subtitles") openSubtitles()
         else if (action === "audio") openAudio()
         else if (action === "fullscreen" && nativeWindow) nativeWindow.toggleFullScreen()
@@ -998,6 +1006,23 @@ FocusScope {
                     color: overlay.hasPlayer && overlay.player.buffering ? overlay.accentBright : overlay.accent
                     antialiasing: true
                     Behavior on width { enabled: !overlay.scrubbing; NumberAnimation { duration: 180; easing.type: Easing.OutCubic } }
+                }
+                Repeater {
+                    model: overlay.hasPlayer ? overlay.player.chapters : []
+                    delegate: Rectangle {
+                        required property var modelData
+                        readonly property double startRatio: overlay.hasPlayer && overlay.player.durationSeconds > 0
+                            ? Math.max(0, Math.min(1, (modelData.start || 0) / overlay.player.durationSeconds)) : 0
+                        visible: startRatio > 0.002 && startRatio < 0.998
+                        x: Math.max(0, Math.min(track.width - width, track.width * startRatio - width / 2))
+                        anchors.verticalCenter: track.verticalCenter
+                        width: Math.max(1, dp(2))
+                        height: track.height
+                        radius: width / 2
+                        color: overlay.colTextStrong
+                        opacity: 0.5
+                        antialiasing: true
+                    }
                 }
                 Rectangle {
                     x: Math.max(0, Math.min(track.width - width, track.width * timeline.activeSegmentRatio - width / 2))
