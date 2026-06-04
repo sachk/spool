@@ -74,6 +74,8 @@ public:
     QCoro::Task<std::vector<MovieItem>> fetchSearchSuggestions(int limit = 20);
     QCoro::Task<std::vector<MovieItem>> fetchSimilarItems(QString itemId, int limit = 24);
     QCoro::Task<std::vector<MovieItem>> fetchItemsByPerson(QString personId, int limit = 80);
+    QCoro::Task<std::vector<MovieItem>> fetchItemsByGenre(QString genre, int limit = 200);
+    QCoro::Task<std::vector<MovieItem>> fetchItemsByStudio(QString studio, int limit = 200);
     QCoro::Task<void> setItemFavorite(QString itemId, bool favorite);
     QCoro::Task<void> setItemPlayed(QString itemId, bool played);
     QCoro::Task<std::vector<MediaSegment>> fetchMediaSegments(QString itemId);

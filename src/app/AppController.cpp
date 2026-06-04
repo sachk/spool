@@ -2263,6 +2263,80 @@ void AppController::openSeason(const MovieItem &season)
         });
 }
 
+void AppController::openGenre(const QString &genre)
+{
+    const QString name = genre.trimmed();
+    if (name.isEmpty() || !m_api || m_api->session().accessToken.isEmpty())
+        return;
+
+    const int loadGeneration = ++m_libraryLoadGeneration;
+    m_currentSeriesId.clear();
+    m_currentSeriesName.clear();
+    m_currentSeasonId.clear();
+    m_currentLibraryId.clear();
+    m_currentLibraryCollectionType.clear();
+    m_currentViewKind = QStringLiteral("genre");
+    m_currentLibraryName = name;
+    m_currentContentLabel = QStringLiteral("Titles");
+    setLibraryQuery(QVariantMap());
+    emit currentLibraryNameChanged();
+    const QString cacheKey = QStringLiteral("genre/%1").arg(name);
+    resetCurrentItemsPaging(cacheKey);
+    m_movies.clear();
+    setBusy(true, QStringLiteral("Loading %1…").arg(name));
+
+    QCoro::runDetached(
+        m_api->fetchItemsByGenre(name),
+        [this, cacheKey, loadGeneration](const std::vector<MovieItem> &items) {
+            if (loadGeneration != m_libraryLoadGeneration)
+                return;
+            setCurrentItems(items, cacheKey);
+        },
+        [this, loadGeneration](const std::exception_ptr &error) {
+            if (loadGeneration != m_libraryLoadGeneration)
+                return;
+            setBusy(false);
+            setErrorText(exceptionMessage(error));
+        });
+}
+
+void AppController::openStudio(const QString &studio)
+{
+    const QString name = studio.trimmed();
+    if (name.isEmpty() || !m_api || m_api->session().accessToken.isEmpty())
+        return;
+
+    const int loadGeneration = ++m_libraryLoadGeneration;
+    m_currentSeriesId.clear();
+    m_currentSeriesName.clear();
+    m_currentSeasonId.clear();
+    m_currentLibraryId.clear();
+    m_currentLibraryCollectionType.clear();
+    m_currentViewKind = QStringLiteral("studio");
+    m_currentLibraryName = name;
+    m_currentContentLabel = QStringLiteral("Titles");
+    setLibraryQuery(QVariantMap());
+    emit currentLibraryNameChanged();
+    const QString cacheKey = QStringLiteral("studio/%1").arg(name);
+    resetCurrentItemsPaging(cacheKey);
+    m_movies.clear();
+    setBusy(true, QStringLiteral("Loading %1…").arg(name));
+
+    QCoro::runDetached(
+        m_api->fetchItemsByStudio(name),
+        [this, cacheKey, loadGeneration](const std::vector<MovieItem> &items) {
+            if (loadGeneration != m_libraryLoadGeneration)
+                return;
+            setCurrentItems(items, cacheKey);
+        },
+        [this, loadGeneration](const std::exception_ptr &error) {
+            if (loadGeneration != m_libraryLoadGeneration)
+                return;
+            setBusy(false);
+            setErrorText(exceptionMessage(error));
+        });
+}
+
 void AppController::refreshHomeRows()
 {
     if (!m_api || m_api->session().accessToken.isEmpty())

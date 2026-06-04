@@ -191,6 +191,8 @@ public:
     Q_INVOKABLE void refreshCurrentLibrary();
     Q_INVOKABLE void loadDetailRows(const QString &itemId, const QString &itemType);
     Q_INVOKABLE void openDetailSeason(int index);
+    Q_INVOKABLE void openGenre(const QString &genre);
+    Q_INVOKABLE void openStudio(const QString &studio);
     Q_INVOKABLE void playDetailSimilarItem(int index, bool fromStart = false);
     Q_INVOKABLE void loadPersonItems(const QString &personId);
     Q_INVOKABLE void playPersonItem(int index, bool fromStart = false);
