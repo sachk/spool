@@ -319,6 +319,8 @@ FocusScope {
         const actions = []
         if (showPrimaryAction)
             actions.push(primaryAction)
+        if (showPrimaryAction && hasProgress)
+            actions.push(restartAction)
         actions.push(playedAction)
         actions.push(favoriteAction)
         actions.push(menuAction)
@@ -382,25 +384,26 @@ FocusScope {
         return false
     }
 
-    function activatePrimary() {
+    function activatePrimary(fromStart) {
         if (selectedIndex < 0 || !canPlay)
             return
+        const start = fromStart === true
         if (detailSource === "search") {
-            appController.playSearchResult(selectedIndex)
+            appController.playSearchResult(selectedIndex, start)
         } else if (detailSource === "resume") {
-            appController.playResumeItem(selectedIndex)
+            appController.playResumeItem(selectedIndex, start)
         } else if (detailSource === "nextup") {
-            appController.playNextUpItem(selectedIndex)
+            appController.playNextUpItem(selectedIndex, start)
         } else if (detailSource === "latest") {
-            appController.playLatestItem(selectedIndex)
+            appController.playLatestItem(selectedIndex, start)
         } else if (detailSource.indexOf("latestLibrary:") === 0) {
-            appController.playLatestLibraryItem(parseInt(detailSource.split(":")[1], 10), selectedIndex)
+            appController.playLatestLibraryItem(parseInt(detailSource.split(":")[1], 10), selectedIndex, start)
         } else if (detailSource === "person") {
-            appController.playPersonItem(selectedIndex)
+            appController.playPersonItem(selectedIndex, start)
         } else if (detailSource === "similar") {
-            appController.playDetailSimilarItem(selectedIndex)
+            appController.playDetailSimilarItem(selectedIndex, start)
         } else {
-            appController.playMovie(selectedIndex)
+            appController.playMovie(selectedIndex, start)
         }
     }
 
@@ -652,7 +655,8 @@ FocusScope {
             if (playedAction.activeFocus) togglePlayed()
             else if (favoriteAction.activeFocus) toggleFavorite()
             else if (menuAction.activeFocus) toggleOverflow()
-            else activatePrimary()
+            else if (restartAction.activeFocus) activatePrimary(true)
+            else activatePrimary(false)
             return true
         }
         return false
@@ -825,7 +829,16 @@ FocusScope {
                                     primary: true
                                     visible: root.showPrimaryAction
                                     enabledButton: root.showPrimaryAction
-                                    onActivated: root.activatePrimary()
+                                    onActivated: root.activatePrimary(false)
+                                }
+
+                                DetailAction {
+                                    id: restartAction
+                                    iconName: "replay"
+                                    label: "Play from beginning"
+                                    visible: root.showPrimaryAction && root.hasProgress
+                                    enabledButton: root.showPrimaryAction && root.hasProgress
+                                    onActivated: root.activatePrimary(true)
                                 }
 
                                 IconAction {
