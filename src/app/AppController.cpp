@@ -920,12 +920,10 @@ void AppController::openLibrary(int index)
         });
 }
 
-void AppController::playMovie(int index, bool fromStart)
+void AppController::playOrOpen(const MovieItem &item, bool fromStart)
 {
-    const auto item = m_movies.movieAt(index);
     if (item.id.isEmpty())
         return;
-
     if (item.itemType == QStringLiteral("Series")) {
         openSeries(item);
         return;
@@ -934,8 +932,12 @@ void AppController::playMovie(int index, bool fromStart)
         openSeason(item);
         return;
     }
-
     playMediaItem(item, fromStart);
+}
+
+void AppController::playMovie(int index, bool fromStart)
+{
+    playOrOpen(m_movies.movieAt(index), fromStart);
 }
 
 void AppController::playResumeItem(int index, bool fromStart)
@@ -962,18 +964,7 @@ void AppController::playNextUpItem(int index, bool fromStart)
 
 void AppController::playLatestItem(int index, bool fromStart)
 {
-    const auto item = m_latestItems.movieAt(index);
-    if (item.id.isEmpty())
-        return;
-    if (item.itemType == QStringLiteral("Series")) {
-        openSeries(item);
-        return;
-    }
-    if (item.itemType == QStringLiteral("Season")) {
-        openSeason(item);
-        return;
-    }
-    playMediaItem(item, fromStart);
+    playOrOpen(m_latestItems.movieAt(index), fromStart);
 }
 
 QObject *AppController::latestLibraryItems(int rowIndex)
@@ -992,18 +983,7 @@ void AppController::playLatestLibraryItem(int rowIndex, int itemIndex, bool from
     if (!model)
         return;
 
-    const auto item = model->movieAt(itemIndex);
-    if (item.id.isEmpty())
-        return;
-    if (item.itemType == QStringLiteral("Series")) {
-        openSeries(item);
-        return;
-    }
-    if (item.itemType == QStringLiteral("Season")) {
-        openSeason(item);
-        return;
-    }
-    playMediaItem(item, fromStart);
+    playOrOpen(model->movieAt(itemIndex), fromStart);
 }
 
 void AppController::search(const QString &query)
@@ -1086,34 +1066,12 @@ void AppController::loadSearchSuggestions()
 
 void AppController::playSuggestionItem(int index, bool fromStart)
 {
-    const auto item = m_searchSuggestions.movieAt(index);
-    if (item.id.isEmpty())
-        return;
-    if (item.itemType == QStringLiteral("Series")) {
-        openSeries(item);
-        return;
-    }
-    if (item.itemType == QStringLiteral("Season")) {
-        openSeason(item);
-        return;
-    }
-    playMediaItem(item, fromStart);
+    playOrOpen(m_searchSuggestions.movieAt(index), fromStart);
 }
 
 void AppController::playSearchResult(int index, bool fromStart)
 {
-    const auto item = m_searchResults.movieAt(index);
-    if (item.id.isEmpty())
-        return;
-    if (item.itemType == QStringLiteral("Series")) {
-        openSeries(item);
-        return;
-    }
-    if (item.itemType == QStringLiteral("Season")) {
-        openSeason(item);
-        return;
-    }
-    playMediaItem(item, fromStart);
+    playOrOpen(m_searchResults.movieAt(index), fromStart);
 }
 
 void AppController::maybeLoadMoreCurrentItems(int visibleIndex)
@@ -1347,18 +1305,7 @@ void AppController::openDetailSeason(int index)
 
 void AppController::playDetailSimilarItem(int index, bool fromStart)
 {
-    const auto item = m_detailSimilarItems.movieAt(index);
-    if (item.id.isEmpty())
-        return;
-    if (item.itemType == QStringLiteral("Series")) {
-        openSeries(item);
-        return;
-    }
-    if (item.itemType == QStringLiteral("Season")) {
-        openSeason(item);
-        return;
-    }
-    playMediaItem(item, fromStart);
+    playOrOpen(m_detailSimilarItems.movieAt(index), fromStart);
 }
 
 void AppController::loadPersonItems(const QString &personId)
@@ -1396,18 +1343,7 @@ void AppController::loadPersonItems(const QString &personId)
 
 void AppController::playPersonItem(int index, bool fromStart)
 {
-    const auto item = m_personItems.movieAt(index);
-    if (item.id.isEmpty())
-        return;
-    if (item.itemType == QStringLiteral("Series")) {
-        openSeries(item);
-        return;
-    }
-    if (item.itemType == QStringLiteral("Season")) {
-        openSeason(item);
-        return;
-    }
-    playMediaItem(item, fromStart);
+    playOrOpen(m_personItems.movieAt(index), fromStart);
 }
 
 void AppController::setFavorite(const QString &itemId, bool favorite)
