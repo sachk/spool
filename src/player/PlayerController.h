@@ -40,6 +40,9 @@ class PlayerController final : public QObject
     Q_PROPERTY(bool backAllowed READ backAllowed NOTIFY stateChanged)
     Q_PROPERTY(double positionSeconds READ positionSeconds NOTIFY stateChanged)
     Q_PROPERTY(double durationSeconds READ durationSeconds NOTIFY stateChanged)
+    Q_PROPERTY(QVariantList chapters READ chapters NOTIFY chaptersChanged)
+    Q_PROPERTY(bool hasChapters READ hasChapters NOTIFY chaptersChanged)
+    Q_PROPERTY(int currentChapter READ currentChapter NOTIFY stateChanged)
     Q_PROPERTY(bool nightModeEnabled READ nightModeEnabled WRITE setNightModeEnabled NOTIFY nightModeEnabledChanged)
     Q_PROPERTY(int audioDelayMs READ audioDelayMs WRITE setAudioDelayMs NOTIFY audioDelayMsChanged)
     Q_PROPERTY(QString audioOutputMode READ audioOutputMode WRITE setAudioOutputMode NOTIFY audioOutputModeChanged)
@@ -70,6 +73,9 @@ public:
     bool backAllowed() const;
     double positionSeconds() const;
     double durationSeconds() const;
+    QVariantList chapters() const;
+    bool hasChapters() const;
+    int currentChapter() const;
     bool nightModeEnabled() const;
     int audioDelayMs() const;
     QString audioOutputMode() const;
@@ -95,6 +101,8 @@ public:
     Q_INVOKABLE void selectSubtitle(int index);
     Q_INVOKABLE void cycleAudio();
     Q_INVOKABLE void selectAudio(int index);
+    Q_INVOKABLE void nextChapter();
+    Q_INVOKABLE void previousChapter();
     Q_INVOKABLE void stop();
     Q_INVOKABLE void stopWithReason(const QString &reason);
     Q_INVOKABLE void setNightModeEnabled(bool enabled);
@@ -107,6 +115,7 @@ public:
 signals:
     void visibleChanged();
     void stateChanged();
+    void chaptersChanged();
     void playbackStopped(const QString &itemId, qint64 positionTicks);
     void nightModeEnabledChanged();
     void audioDelayMsChanged();
@@ -180,6 +189,8 @@ private:
     QStringList m_audioTracks;
     QList<int> m_audioIds;
     int m_selectedAudioIndex = -1;
+    QVariantList m_chapters;  // [{ title: QString, start: double seconds }]
+    int m_currentChapter = -1;
     bool m_backAllowed = true;
     QString m_title;
     QString m_statusText = QStringLiteral("Ready");

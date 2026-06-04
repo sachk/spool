@@ -217,6 +217,18 @@ int64_t nodeInt(const mpv_node *node, int64_t fallback = 0) {
   return fallback;
 }
 
+double nodeDouble(const mpv_node *node, double fallback = 0.0) {
+  if (!node)
+    return fallback;
+  if (node->format == MPV_FORMAT_DOUBLE)
+    return node->u.double_;
+  if (node->format == MPV_FORMAT_INT64)
+    return static_cast<double>(node->u.int64);
+  if (node->format == MPV_FORMAT_STRING && node->u.string)
+    return QByteArray(node->u.string).toDouble();
+  return fallback;
+}
+
 // Targeted playback memory accounting. heaptrack can't produce deep call stacks
 // on this target (every unwinder crashes), so instead of attributing by stack we
 // quantify the known big buffers directly: process RSS (and the anon/heap part),
@@ -458,6 +470,12 @@ double PlayerController::positionSeconds() const { return m_positionSeconds; }
 
 double PlayerController::durationSeconds() const { return m_durationSeconds; }
 
+QVariantList PlayerController::chapters() const { return m_chapters; }
+
+bool PlayerController::hasChapters() const { return m_chapters.size() > 1; }
+
+int PlayerController::currentChapter() const { return m_currentChapter; }
+
 bool PlayerController::nightModeEnabled() const { return m_nightModeEnabled.load(); }
 
 int PlayerController::audioDelayMs() const { return m_audioDelayMs.load(); }
@@ -682,6 +700,8 @@ bool PlayerController::ensureMpv() {
   mpv_observe_property(handle, 0, "duration", MPV_FORMAT_DOUBLE);
   mpv_observe_property(handle, 0, "volume", MPV_FORMAT_DOUBLE);
   mpv_observe_property(handle, 0, "track-list", MPV_FORMAT_NODE);
+  mpv_observe_property(handle, 0, "chapter-list", MPV_FORMAT_NODE);
+  mpv_observe_property(handle, 0, "chapter", MPV_FORMAT_INT64);
 
   m_mpv = handle;
   qInfo() << "player: mpv initialized in" << startupTimer.elapsed() << "ms";
@@ -905,6 +925,18 @@ void PlayerController::selectAudio(int index) {
   emit stateChanged();
 }
 
+void PlayerController::nextChapter() {
+  if (m_chapters.size() <= 1)
+    return;
+  mpvCommand("add chapter 1");
+}
+
+void PlayerController::previousChapter() {
+  if (m_chapters.size() <= 1)
+    return;
+  mpvCommand("add chapter -1");
+}
+
 void PlayerController::stop() {
   stopWithReason(QStringLiteral("unspecified"));
 }
@@ -1053,6 +1085,11 @@ void PlayerController::resetPlaybackUiState() {
   m_activeSegmentType.clear();
   m_activeSegmentEndSeconds = 0.0;
   m_statusText = QStringLiteral("Ready");
+  if (!m_chapters.isEmpty()) {
+    m_chapters.clear();
+    emit chaptersChanged();
+  }
+  m_currentChapter = -1;
 }
 
 bool PlayerController::mpvCommand(const char *command) {
@@ -1367,6 +1404,39 @@ void PlayerController::runEventLoop() {
           m_selectedAudioIndex = audioSelected;
           qInfo() << "player: subtitle tracks" << labels << "selected" << selected
                   << "audio tracks" << audioLabels << "selected" << audioSelected;
+          emit stateChanged();
+        });
+      } else if (strcmp(property->name, "chapter-list") == 0 &&
+                 property->format == MPV_FORMAT_NODE) {
+        const auto *node = static_cast<mpv_node *>(property->data);
+        QVariantList chapters;
+        if (node && node->format == MPV_FORMAT_NODE_ARRAY && node->u.list) {
+          const mpv_node_list *list = node->u.list;
+          for (int i = 0; i < list->num; ++i) {
+            const mpv_node *ch = &list->values[i];
+            QString title = nodeString(mapValue(ch, "title"));
+            const double start = nodeDouble(mapValue(ch, "time"), 0.0);
+            if (title.isEmpty())
+              title = QStringLiteral("Chapter %1").arg(i + 1);
+            QVariantMap entry;
+            entry.insert(QStringLiteral("title"), title);
+            entry.insert(QStringLiteral("start"), start);
+            chapters.push_back(entry);
+          }
+        }
+        QMetaObject::invokeMethod(this, [this, chapters]() {
+          m_chapters = chapters;
+          qInfo() << "player: chapters" << chapters.size();
+          emit chaptersChanged();
+          emit stateChanged();
+        });
+      } else if (strcmp(property->name, "chapter") == 0 &&
+                 property->format == MPV_FORMAT_INT64) {
+        const int chapter = static_cast<int>(*static_cast<int64_t *>(property->data));
+        QMetaObject::invokeMethod(this, [this, chapter]() {
+          if (m_currentChapter == chapter)
+            return;
+          m_currentChapter = chapter;
           emit stateChanged();
         });
       }
