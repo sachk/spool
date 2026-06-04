@@ -910,7 +910,7 @@ void AppController::openLibrary(int index)
         });
 }
 
-void AppController::playMovie(int index)
+void AppController::playMovie(int index, bool fromStart)
 {
     const auto item = m_movies.movieAt(index);
     if (item.id.isEmpty())
@@ -925,32 +925,32 @@ void AppController::playMovie(int index)
         return;
     }
 
-    playMediaItem(item);
+    playMediaItem(item, fromStart);
 }
 
-void AppController::playResumeItem(int index)
+void AppController::playResumeItem(int index, bool fromStart)
 {
     const auto item = m_resumeItems.movieAt(index);
     qInfo() << "app: play resume item index=" << index
             << "type=" << item.itemType << "title=" << item.title
-            << "resumeTicks=" << item.resumeTicks;
+            << "resumeTicks=" << item.resumeTicks << "fromStart=" << fromStart;
     if (item.id.isEmpty())
         return;
-    playMediaItem(item);
+    playMediaItem(item, fromStart);
 }
 
-void AppController::playNextUpItem(int index)
+void AppController::playNextUpItem(int index, bool fromStart)
 {
     const auto item = m_nextUpItems.movieAt(index);
     qInfo() << "app: play next-up item index=" << index
             << "type=" << item.itemType << "title=" << item.title
-            << "resumeTicks=" << item.resumeTicks;
+            << "resumeTicks=" << item.resumeTicks << "fromStart=" << fromStart;
     if (item.id.isEmpty())
         return;
-    playMediaItem(item);
+    playMediaItem(item, fromStart);
 }
 
-void AppController::playLatestItem(int index)
+void AppController::playLatestItem(int index, bool fromStart)
 {
     const auto item = m_latestItems.movieAt(index);
     if (item.id.isEmpty())
@@ -963,7 +963,7 @@ void AppController::playLatestItem(int index)
         openSeason(item);
         return;
     }
-    playMediaItem(item);
+    playMediaItem(item, fromStart);
 }
 
 QObject *AppController::latestLibraryItems(int rowIndex)
@@ -973,7 +973,7 @@ QObject *AppController::latestLibraryItems(int rowIndex)
     return m_latestLibrarySections[static_cast<size_t>(rowIndex)].model.get();
 }
 
-void AppController::playLatestLibraryItem(int rowIndex, int itemIndex)
+void AppController::playLatestLibraryItem(int rowIndex, int itemIndex, bool fromStart)
 {
     if (rowIndex < 0 || rowIndex >= static_cast<int>(m_latestLibrarySections.size()))
         return;
@@ -993,7 +993,7 @@ void AppController::playLatestLibraryItem(int rowIndex, int itemIndex)
         openSeason(item);
         return;
     }
-    playMediaItem(item);
+    playMediaItem(item, fromStart);
 }
 
 void AppController::search(const QString &query)
@@ -1041,7 +1041,7 @@ void AppController::clearSearch()
     emit searchChanged();
 }
 
-void AppController::playSearchResult(int index)
+void AppController::playSearchResult(int index, bool fromStart)
 {
     const auto item = m_searchResults.movieAt(index);
     if (item.id.isEmpty())
@@ -1054,7 +1054,7 @@ void AppController::playSearchResult(int index)
         openSeason(item);
         return;
     }
-    playMediaItem(item);
+    playMediaItem(item, fromStart);
 }
 
 void AppController::maybeLoadMoreCurrentItems(int visibleIndex)
@@ -1286,7 +1286,7 @@ void AppController::openDetailSeason(int index)
     openSeason(item);
 }
 
-void AppController::playDetailSimilarItem(int index)
+void AppController::playDetailSimilarItem(int index, bool fromStart)
 {
     const auto item = m_detailSimilarItems.movieAt(index);
     if (item.id.isEmpty())
@@ -1299,7 +1299,7 @@ void AppController::playDetailSimilarItem(int index)
         openSeason(item);
         return;
     }
-    playMediaItem(item);
+    playMediaItem(item, fromStart);
 }
 
 void AppController::loadPersonItems(const QString &personId)
@@ -1335,7 +1335,7 @@ void AppController::loadPersonItems(const QString &personId)
         });
 }
 
-void AppController::playPersonItem(int index)
+void AppController::playPersonItem(int index, bool fromStart)
 {
     const auto item = m_personItems.movieAt(index);
     if (item.id.isEmpty())
@@ -1348,7 +1348,7 @@ void AppController::playPersonItem(int index)
         openSeason(item);
         return;
     }
-    playMediaItem(item);
+    playMediaItem(item, fromStart);
 }
 
 void AppController::setFavorite(const QString &itemId, bool favorite)
@@ -1381,13 +1381,16 @@ void AppController::setPlayed(const QString &itemId, bool played)
         });
 }
 
-void AppController::playMediaItem(const MovieItem &item)
+void AppController::playMediaItem(const MovieItem &item, bool fromStart)
 {
     Diagnostics::Task task(QStringLiteral("playback_negotiate"), {{QStringLiteral("itemId"), item.id}, {QStringLiteral("title"), item.title}, {QStringLiteral("type"), item.itemType}});
     setBusy(true, QStringLiteral("Negotiating direct play…"));
-    const QString itemId = item.id;
+    MovieItem playItem = item;
+    if (fromStart)
+        playItem.resumeTicks = 0;
+    const QString itemId = playItem.id;
     QCoro::runDetached(
-        m_api->negotiateDirectPlay(item),
+        m_api->negotiateDirectPlay(playItem),
         [this, itemId](const PlaybackSession &session) {
             // Enrich the negotiated session with media segments (skip-intro)
             // and trickplay (scrubber thumbnails). Both are advisory — if the
