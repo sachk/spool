@@ -44,6 +44,9 @@ class AppController final : public QObject
     Q_PROPERTY(int libraryFilterActiveCount READ libraryFilterActiveCount NOTIFY libraryQueryChanged)
     Q_PROPERTY(bool settingsVisible READ settingsVisible NOTIFY settingsVisibleChanged)
     Q_PROPERTY(bool nightModeEnabled READ nightModeEnabled WRITE setNightModeEnabled NOTIFY nightModeEnabledChanged)
+    Q_PROPERTY(bool toneMappingVisualizationEnabled READ toneMappingVisualizationEnabled
+               WRITE setToneMappingVisualizationEnabled
+               NOTIFY toneMappingVisualizationEnabledChanged)
     Q_PROPERTY(int audioDelayMs READ audioDelayMs WRITE setAudioDelayMs NOTIFY audioDelayMsChanged)
     Q_PROPERTY(QString audioOutputMode READ audioOutputMode WRITE setAudioOutputMode NOTIFY audioOutputModeChanged)
     Q_PROPERTY(QStringList subtitleLanguageOptions READ subtitleLanguageOptions NOTIFY subtitleSettingsChanged)
@@ -114,6 +117,7 @@ public:
     int libraryFilterActiveCount() const;
     bool settingsVisible() const;
     bool nightModeEnabled() const;
+    bool toneMappingVisualizationEnabled() const;
     int audioDelayMs() const;
     QString audioOutputMode() const;
     QStringList subtitleLanguageOptions() const;
@@ -204,6 +208,7 @@ public:
     Q_INVOKABLE void closeSettings();
     Q_INVOKABLE void toggleNightMode();
     Q_INVOKABLE void setNightModeEnabled(bool enabled);
+    Q_INVOKABLE void setToneMappingVisualizationEnabled(bool enabled);
     Q_INVOKABLE void setAudioDelayMs(int delayMs);
     Q_INVOKABLE void setAudioOutputMode(const QString &mode);
     Q_INVOKABLE void setSubtitleLanguageIndex(int index);
@@ -235,6 +240,7 @@ signals:
     void currentLibraryNameChanged();
     void settingsVisibleChanged();
     void nightModeEnabledChanged();
+    void toneMappingVisualizationEnabledChanged();
     void audioDelayMsChanged();
     void audioOutputModeChanged();
     void subtitleSettingsChanged();
@@ -344,6 +350,7 @@ private:
     int m_currentItemsNextStartIndex = 0;
     bool m_settingsVisible = false;
     bool m_nightModeEnabled = false;
+    bool m_toneMappingVisualizationEnabled = false;
     int m_audioDelayMs = 0;
     QString m_audioOutputMode = QStringLiteral("alsa");
     SubtitlePreferences m_subtitlePreferences;
