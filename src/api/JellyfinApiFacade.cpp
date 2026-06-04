@@ -882,6 +882,34 @@ QCoro::Task<std::vector<MovieItem>> JellyfinApiFacade::searchItems(QString searc
     co_return result;
 }
 
+QCoro::Task<std::vector<MovieItem>> JellyfinApiFacade::fetchSearchSuggestions(int limit)
+{
+    QUrlQuery query;
+    query.addQueryItem(QStringLiteral("userId"), m_session.userId);
+    query.addQueryItem(QStringLiteral("recursive"), QStringLiteral("true"));
+    query.addQueryItem(QStringLiteral("includeItemTypes"), QStringLiteral("Movie,Series"));
+    query.addQueryItem(QStringLiteral("mediaTypes"), QStringLiteral("Video"));
+    query.addQueryItem(QStringLiteral("fields"), detailItemFields());
+    query.addQueryItem(QStringLiteral("sortBy"), QStringLiteral("IsFavoriteOrLiked,Random"));
+    query.addQueryItem(QStringLiteral("enableImageTypes"), QStringLiteral("Primary,Backdrop,Logo,Banner,Thumb"));
+    query.addQueryItem(QStringLiteral("imageTypeLimit"), QStringLiteral("3"));
+    query.addQueryItem(QStringLiteral("enableTotalRecordCount"), QStringLiteral("false"));
+    query.addQueryItem(QStringLiteral("limit"), QString::number(std::clamp(limit, 1, 60)));
+
+    const QJsonArray items =
+        (co_await requestJson(HttpMethod::Get, QStringLiteral("/Items"), query)).object().value(QStringLiteral("Items")).toArray();
+
+    std::vector<MovieItem> result;
+    result.reserve(items.size());
+    for (const auto &value : items) {
+        const auto object = value.toObject();
+        const QString itemType = object.value(QStringLiteral("Type")).toString();
+        if (itemType == QStringLiteral("Movie") || itemType == QStringLiteral("Series"))
+            result.push_back(mediaItemFromJson(this, object));
+    }
+    co_return result;
+}
+
 QCoro::Task<std::vector<MovieItem>> JellyfinApiFacade::fetchSimilarItems(QString itemId, int limit)
 {
     if (itemId.isEmpty())

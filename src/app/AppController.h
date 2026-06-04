@@ -72,6 +72,8 @@ class AppController final : public QObject
     Q_PROPERTY(JellyfinNative::MovieGridModel *latestItems READ latestItems CONSTANT)
     Q_PROPERTY(QVariantList latestLibraryRows READ latestLibraryRows NOTIFY latestLibraryRowsChanged)
     Q_PROPERTY(JellyfinNative::MovieGridModel *searchResults READ searchResults CONSTANT)
+    Q_PROPERTY(JellyfinNative::MovieGridModel *searchSuggestions READ searchSuggestions CONSTANT)
+    Q_PROPERTY(bool searchSuggestionsBusy READ searchSuggestionsBusy NOTIFY searchSuggestionsChanged)
     Q_PROPERTY(bool currentItemsLoadingMore READ currentItemsLoadingMore NOTIFY currentItemsPagingChanged)
     Q_PROPERTY(bool currentItemsHasMore READ currentItemsHasMore NOTIFY currentItemsPagingChanged)
     Q_PROPERTY(int currentItemsTotalCount READ currentItemsTotalCount NOTIFY currentItemsPagingChanged)
@@ -141,6 +143,8 @@ public:
     MovieGridModel *latestItems();
     QVariantList latestLibraryRows() const;
     MovieGridModel *searchResults();
+    MovieGridModel *searchSuggestions();
+    bool searchSuggestionsBusy() const;
     bool currentItemsLoadingMore() const;
     bool currentItemsHasMore() const;
     int currentItemsTotalCount() const;
@@ -175,6 +179,8 @@ public:
     Q_INVOKABLE void search(const QString &query);
     Q_INVOKABLE void clearSearch();
     Q_INVOKABLE void playSearchResult(int index, bool fromStart = false);
+    Q_INVOKABLE void loadSearchSuggestions();
+    Q_INVOKABLE void playSuggestionItem(int index, bool fromStart = false);
     Q_INVOKABLE void loadMoreCurrentItems();
     Q_INVOKABLE void maybeLoadMoreCurrentItems(int visibleIndex);
     Q_INVOKABLE void setLibrarySort(const QString &sortBy, const QString &sortOrder);
@@ -232,6 +238,7 @@ signals:
     void subtitleSettingsChanged();
     void buttonRemapChanged();
     void searchChanged();
+    void searchSuggestionsChanged();
     void detailRowsChanged();
     void latestLibraryRowsChanged();
     void currentItemsPagingChanged();
@@ -299,6 +306,7 @@ private:
     MovieGridModel m_nextUpItems;
     MovieGridModel m_latestItems;
     MovieGridModel m_searchResults;
+    MovieGridModel m_searchSuggestions;
     MovieGridModel m_detailSeasons;
     MovieGridModel m_detailSimilarItems;
     MovieGridModel m_personItems;
@@ -345,6 +353,9 @@ private:
     QString m_searchQuery;
     bool m_searchBusy = false;
     int m_searchGeneration = 0;
+    bool m_searchSuggestionsBusy = false;
+    int m_searchSuggestionsGeneration = 0;
+    bool m_searchSuggestionsLoaded = false;
     bool m_detailRowsBusy = false;
     int m_detailRowsGeneration = 0;
     int m_detailRowsPending = 0;

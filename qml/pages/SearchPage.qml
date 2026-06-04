@@ -9,11 +9,16 @@ FocusScope {
     property var shell
     property string query: appController ? appController.searchQuery : ""
     property int resultCount: appController && appController.searchResults ? appController.searchResults.rowCount() : 0
+    property int suggestionCount: appController && appController.searchSuggestions ? appController.searchSuggestions.rowCount() : 0
+    readonly property bool showSuggestions: query.length < 2 && suggestionCount > 0
     focus: true
 
     Component.onCompleted: {
         field.text = root.query
         refreshResultCount()
+        refreshSuggestionCount()
+        if (appController)
+            appController.loadSearchSuggestions()
         field.focusRow()
     }
 
@@ -23,6 +28,16 @@ FocusScope {
             root.query = appController.searchQuery
             root.refreshResultCount()
         }
+        function onSearchSuggestionsChanged() {
+            root.refreshSuggestionCount()
+        }
+    }
+
+    Connections {
+        target: appController ? appController.searchSuggestions : null
+        function onModelReset() { root.refreshSuggestionCount() }
+        function onRowsInserted() { root.refreshSuggestionCount() }
+        function onRowsRemoved() { root.refreshSuggestionCount() }
     }
 
     Connections {
@@ -43,6 +58,16 @@ FocusScope {
         resultCount = appController && appController.searchResults ? appController.searchResults.rowCount() : 0
         if (results)
             results.currentIndex = resultCount > 0 ? Math.max(0, Math.min(shell.lastSearchIndex, resultCount - 1)) : -1
+    }
+
+    function refreshSuggestionCount() {
+        suggestionCount = appController && appController.searchSuggestions ? appController.searchSuggestions.rowCount() : 0
+    }
+
+    function activateSuggestion(index) {
+        if (index < 0 || suggestionCount <= 0)
+            return
+        shell.openDetails(appController.searchSuggestions, index, "suggestion", "search")
     }
 
     function setQuery(text) {
@@ -74,6 +99,8 @@ FocusScope {
     }
 
     function handlePressedKey(key) {
+        if (suggestionsRow.activeFocus)
+            return suggestionsRow.handlePressedKey ? suggestionsRow.handlePressedKey(key) : false
         if (!results.activeFocus)
             return false
         const row = currentResultRow()
@@ -82,6 +109,13 @@ FocusScope {
 
     function handleNavigationKey(key) {
         const acceptKey = key === Qt.Key_Return || key === Qt.Key_Enter || key === Qt.Key_Select || key === Qt.Key_Space
+        if (suggestionsRow.activeFocus) {
+            if (suggestionsRow.handleNavigationKey(key))
+                return true
+            if (key === Qt.Key_Up) { field.focusRow(); return true }
+            if (key === Qt.Key_Down) return true
+            return false
+        }
         if (results.activeFocus && !acceptKey) {
             const menuRow = currentResultRow()
             if (menuRow && menuRow.handleNavigationKey && menuRow.handleNavigationKey(key))
@@ -92,6 +126,8 @@ FocusScope {
             if (resultCount > 0) {
                 results.forceActiveFocus()
                 results.currentIndex = Math.max(0, results.currentIndex)
+            } else if (showSuggestions) {
+                suggestionsRow.focusList()
             }
             return true
         }
@@ -149,6 +185,21 @@ FocusScope {
             onTextEdited: (text) => root.setQuery(text)
             onAccepted: root.runSearchNow()
             KeyNavigation.down: results
+        }
+
+        MediaPosterScrollerRow {
+            id: suggestionsRow
+            Layout.fillWidth: true
+            Layout.preferredHeight: implicitHeight
+            title: "Suggestions"
+            rowModel: appController ? appController.searchSuggestions : null
+            shell: root.shell
+            cardWidth: Math.min(176, Math.max(132, root.width * 0.096))
+            enabledRow: root.query.length < 2
+            reserveWhenEmpty: root.query.length < 2 && appController && appController.searchSuggestionsBusy
+            loading: appController && appController.searchSuggestionsBusy
+            emptyText: "Loading suggestions..."
+            onActivated: (index) => root.activateSuggestion(index)
         }
 
         ListView {
@@ -277,6 +328,8 @@ FocusScope {
         EmptyPlaceholder {
             Layout.fillWidth: true
             visible: root.resultCount === 0 && !(appController && appController.searchBusy)
+                     && !root.showSuggestions
+                     && !(root.query.length < 2 && appController && appController.searchSuggestionsBusy)
             title: root.query.length < 2 ? "Start typing" : "No results"
             detail: root.query.length < 2 ? "Enter at least two characters." : "Try another title, series, or episode name."
         }

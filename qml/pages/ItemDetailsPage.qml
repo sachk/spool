@@ -402,6 +402,8 @@ FocusScope {
             appController.playPersonItem(selectedIndex, start)
         } else if (detailSource === "similar") {
             appController.playDetailSimilarItem(selectedIndex, start)
+        } else if (detailSource === "suggestion") {
+            appController.playSuggestionItem(selectedIndex, start)
         } else {
             appController.playMovie(selectedIndex, start)
         }
