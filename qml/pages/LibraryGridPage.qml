@@ -19,6 +19,9 @@ FocusScope {
     readonly property var libraryQuery: appController ? appController.libraryQuery : ({})
     readonly property var filterOptions: appController ? appController.libraryFilterOptions : ({})
     readonly property int activeFilterCount: appController ? appController.libraryFilterActiveCount : 0
+    // Genre/studio tag pages reuse this grid but have no library switcher,
+    // sort or filter controls — they are a fixed, server-filtered listing.
+    readonly property bool isTagView: appController && (appController.currentViewKind === "genre" || appController.currentViewKind === "studio")
     focus: true
     Component.onCompleted: grid.forceActiveFocus()
     onActiveFocusChanged: if (activeFocus) grid.forceActiveFocus()
@@ -385,7 +388,7 @@ FocusScope {
     }
 
     function openLibraryMenu() {
-        if (libraryCount() <= 0)
+        if (root.isTagView || libraryCount() <= 0)
             return
         sortOpen = false
         filtersOpen = false
@@ -589,7 +592,7 @@ FocusScope {
                 return true
             }
             if (key === Qt.Key_Right) {
-                if (libraryButton.activeFocus) sortButton.forceActiveFocus()
+                if (libraryButton.activeFocus && sortButton.visible) sortButton.forceActiveFocus()
                 else if (sortButton.activeFocus) filterButton.forceActiveFocus()
                 else if (filterButton.activeFocus && clearFiltersButton.visible) clearFiltersButton.forceActiveFocus()
                 return true
@@ -691,6 +694,7 @@ FocusScope {
 
                     MaterialIcon {
                         anchors.verticalCenter: parent.verticalCenter
+                        visible: !root.isTagView
                         name: root.libraryOpen ? "expand_less" : "expand_more"
                         iconSize: 24
                         iconColor: root.libraryOpen || libraryButton.activeFocus ? Theme.textPrimary : Theme.textSecondary
@@ -714,6 +718,7 @@ FocusScope {
 
             ToolbarButton {
                 id: sortButton
+                visible: !root.isTagView
                 iconName: root.currentSortOrder() === "Descending" ? "south" : "north"
                 label: root.currentSortLabel()
                 checked: root.sortOpen
@@ -722,6 +727,7 @@ FocusScope {
 
             ToolbarButton {
                 id: filterButton
+                visible: !root.isTagView
                 iconName: "filter_list"
                 label: "Filter"
                 checked: root.filtersOpen
@@ -733,7 +739,7 @@ FocusScope {
                 id: clearFiltersButton
                 iconName: "filter_list_off"
                 label: "Clear"
-                visible: root.activeFilterCount > 0
+                visible: !root.isTagView && root.activeFilterCount > 0
                 onActivated: {
                     shell.lastGridIndex = 0
                     appController.clearLibraryFilters()
