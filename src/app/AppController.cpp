@@ -559,6 +559,16 @@ MovieGridModel *AppController::searchResults()
     return &m_searchResults;
 }
 
+MovieGridModel *AppController::searchSuggestions()
+{
+    return &m_searchSuggestions;
+}
+
+bool AppController::searchSuggestionsBusy() const
+{
+    return m_searchSuggestionsBusy;
+}
+
 bool AppController::currentItemsLoadingMore() const
 {
     return m_currentItemsLoadingMore;
@@ -1039,6 +1049,55 @@ void AppController::clearSearch()
     m_searchBusy = false;
     m_searchResults.clear();
     emit searchChanged();
+}
+
+void AppController::loadSearchSuggestions()
+{
+    if (!m_api || m_api->session().accessToken.isEmpty())
+        return;
+    // Suggestions are stable for a session; load them once and reuse.
+    if (m_searchSuggestionsLoaded || m_searchSuggestionsBusy)
+        return;
+
+    const int generation = ++m_searchSuggestionsGeneration;
+    m_searchSuggestionsBusy = true;
+    emit searchSuggestionsChanged();
+
+    QCoro::runDetached(
+        m_api->fetchSearchSuggestions(),
+        [this, generation](const std::vector<MovieItem> &items) {
+            if (generation != m_searchSuggestionsGeneration)
+                return;
+            m_searchSuggestions.setMovies(items);
+            prefetchMoviePosters(items);
+            m_searchSuggestionsBusy = false;
+            m_searchSuggestionsLoaded = true;
+            emit searchSuggestionsChanged();
+        },
+        [this, generation](const std::exception_ptr &error) {
+            if (generation != m_searchSuggestionsGeneration)
+                return;
+            m_searchSuggestions.clear();
+            m_searchSuggestionsBusy = false;
+            emit searchSuggestionsChanged();
+            qWarning() << "search: suggestions fetch failed" << exceptionMessage(error);
+        });
+}
+
+void AppController::playSuggestionItem(int index, bool fromStart)
+{
+    const auto item = m_searchSuggestions.movieAt(index);
+    if (item.id.isEmpty())
+        return;
+    if (item.itemType == QStringLiteral("Series")) {
+        openSeries(item);
+        return;
+    }
+    if (item.itemType == QStringLiteral("Season")) {
+        openSeason(item);
+        return;
+    }
+    playMediaItem(item, fromStart);
 }
 
 void AppController::playSearchResult(int index, bool fromStart)
@@ -2351,6 +2410,7 @@ void AppController::applyPlaybackPosition(const QString &itemId, qint64 position
     m_nextUpItems.updateResumeTicks(itemId, positionTicks);
     m_latestItems.updateResumeTicks(itemId, positionTicks);
     m_searchResults.updateResumeTicks(itemId, positionTicks);
+    m_searchSuggestions.updateResumeTicks(itemId, positionTicks);
     m_detailSimilarItems.updateResumeTicks(itemId, positionTicks);
     m_personItems.updateResumeTicks(itemId, positionTicks);
     for (LatestLibrarySection &section : m_latestLibrarySections) {
@@ -2369,6 +2429,7 @@ void AppController::applyFavoriteState(const QString &itemId, bool favorite)
     m_nextUpItems.updateFavorite(itemId, favorite);
     m_latestItems.updateFavorite(itemId, favorite);
     m_searchResults.updateFavorite(itemId, favorite);
+    m_searchSuggestions.updateFavorite(itemId, favorite);
     m_detailSeasons.updateFavorite(itemId, favorite);
     m_detailSimilarItems.updateFavorite(itemId, favorite);
     m_personItems.updateFavorite(itemId, favorite);
@@ -2389,6 +2450,7 @@ void AppController::applyPlayedState(const QString &itemId, bool played)
     m_nextUpItems.updatePlayed(itemId, played);
     m_latestItems.updatePlayed(itemId, played);
     m_searchResults.updatePlayed(itemId, played);
+    m_searchSuggestions.updatePlayed(itemId, played);
     m_detailSeasons.updatePlayed(itemId, played);
     m_detailSimilarItems.updatePlayed(itemId, played);
     m_personItems.updatePlayed(itemId, played);
