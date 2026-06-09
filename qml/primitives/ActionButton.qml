@@ -1,8 +1,8 @@
 import QtQuick
-import QtQuick.Controls.Basic
+import QtQuick.Templates as T
 import "../theme"
 
-Button {
+T.Button {
     id: root
     property string kind: "secondary"
     property bool pointerHovered: hover.hovered

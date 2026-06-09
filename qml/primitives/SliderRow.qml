@@ -1,9 +1,9 @@
 import QtQuick
-import QtQuick.Controls.Basic
 import QtQuick.Layouts
+import QtQuick.Templates as T
 import "../theme"
 
-Surface {
+T.Control {
     id: root
 
     property string title: ""
@@ -24,11 +24,20 @@ Surface {
 
     signal valueEdited(real value)
 
-    focused: rowFocus
     focus: true
+    focusPolicy: Qt.StrongFocus
     implicitHeight: Math.max(74, contentRow.implicitHeight + 24)
+    leftPadding: 12
+    rightPadding: 12
+    topPadding: 12
+    bottomPadding: 12
     readonly property int textWidth: root.Window.window ? root.Window.window.width : 1920
     readonly property int valueFontPx: Metrics.metaPx(textWidth) + 1
+
+    background: Surface {
+        focused: root.rowFocus
+        hovered: hover.hovered
+    }
 
     function clamp(value) {
         return Math.max(from, Math.min(to, Number(value)))
@@ -75,16 +84,12 @@ Surface {
     }
 
     HoverHandler { id: hover }
-    hovered: hover.hovered
-
     TapHandler {
         onTapped: root.forceActiveFocus()
     }
 
-    RowLayout {
+    contentItem: RowLayout {
         id: contentRow
-        anchors.fill: parent
-        anchors.margins: 12
         spacing: 14
 
         ColumnLayout {
@@ -111,7 +116,7 @@ Surface {
             }
         }
 
-        TextField {
+        T.TextField {
             id: valueField
             Layout.preferredWidth: root.valueBoxWidth
             Layout.preferredHeight: 30
@@ -156,7 +161,7 @@ Surface {
             verticalAlignment: Text.AlignVCenter
         }
 
-        Slider {
+        T.Slider {
             id: valueSlider
             Layout.preferredWidth: Math.min(root.sliderPreferredWidth, Math.max(180, root.width * 0.28))
             from: root.from

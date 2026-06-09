@@ -1,11 +1,11 @@
 import QtQuick
-import QtQuick.Controls.Basic
+import QtQuick.Templates as T
 import "../theme"
 
-// TV-friendly text input. The wrapper FocusScope is the D-pad target; the
+// TV-friendly text input. The wrapper control is the D-pad target; the
 // internal TextField only grabs focus (and the virtual keyboard) when the
 // user presses Select on the row. Back releases focus and dismisses the IM.
-FocusScope {
+T.Control {
     id: row
 
     property alias text: field.text
@@ -18,6 +18,7 @@ FocusScope {
     signal textEdited(string text)
     signal accepted()
 
+    focusPolicy: Qt.StrongFocus
     implicitHeight: 56
     implicitWidth: 320
 
@@ -39,8 +40,7 @@ FocusScope {
         }
     }
 
-    Rectangle {
-        anchors.fill: parent
+    background: Rectangle {
         radius: Theme.radiusMedium
         color: row.editing ? Theme.bgRaised : Theme.bgPanel
         border.width: (row.activeFocus || row.editing) ? Theme.focusBorderWidth : 1
@@ -59,7 +59,7 @@ FocusScope {
         }
     }
 
-    TextField {
+    T.TextField {
         id: field
         anchors.fill: parent
         anchors.leftMargin: 12

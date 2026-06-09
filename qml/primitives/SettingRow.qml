@@ -1,8 +1,9 @@
 import QtQuick
 import QtQuick.Layouts
+import QtQuick.Templates as T
 import "../theme"
 
-Surface {
+T.Control {
     id: root
     property string title: ""
     property string description: ""
@@ -12,9 +13,18 @@ Surface {
     property int settingIndex: -1
     property bool pointerActivationEnabled: true
     signal clicked()
-    focused: rowFocus
+    focusPolicy: Qt.StrongFocus
     focus: true
     implicitHeight: Math.max(68, textColumn.implicitHeight + 28)
+    leftPadding: 14
+    rightPadding: 14
+    topPadding: 14
+    bottomPadding: 14
+
+    background: Surface {
+        focused: root.rowFocus
+        hovered: hover.hovered
+    }
 
     HoverHandler { id: hover }
     TapHandler {
@@ -25,11 +35,7 @@ Surface {
         }
     }
 
-    hovered: hover.hovered
-
-    RowLayout {
-        anchors.fill: parent
-        anchors.margins: 14
+    contentItem: RowLayout {
         spacing: 18
 
         ColumnLayout {
