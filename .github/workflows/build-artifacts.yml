@@ -164,42 +164,16 @@ jobs:
           INPUT_URL: ${{ inputs.webos_toolchain_archive_url || '' }}
           VAR_URL: ${{ vars.WEBOS_TOOLCHAIN_ARCHIVE_URL }}
         run: |
-          url="${INPUT_URL:-$VAR_URL}"
-          if [ -n "$url" ] && [ ! -x build/webos-sdk/arm-webos-linux-gnueabi_sdk-buildroot/bin/arm-webos-linux-gnueabi-gcc ]; then
-            curl -L --fail "$url" | tar xz
+          if [ -n "${INPUT_URL:-$VAR_URL}" ]; then
+            export WEBOS_TOOLCHAIN_ARCHIVE_URL="${INPUT_URL:-$VAR_URL}"
           fi
+          nix develop -c bash tools/webos-native/restore-toolchain.sh
           test -x build/webos-sdk/arm-webos-linux-gnueabi_sdk-buildroot/bin/arm-webos-linux-gnueabi-gcc
-          test -d build/qt6-611-host-install
-          test -d build/qt6-611-target-static-install -o -d build/qt6-611-target-install
 
-      # The cached Qt or the URL-restored toolchain archive may pre-date a
-      # qtbase / qtwayland patch under tools/webos-native/patches. Probe
-      # the static Qt for every patch marker; if any is missing rerun the
-      # Qt build script so the new patches get applied. build-qt6-611.sh
-      # is idempotent — extract/apply/configure skip when sources are
-      # already up to date and ninja rebuilds only the changed objects.
-      - name: Verify or rebuild patched Qt
-        run: |
-          set -e
-          MARKERS=(JELLYFIN_QT_NO_CURSOR_SURFACE)
-          missing=0
-          for marker in "${MARKERS[@]}"; do
-            if ! grep -rqal "$marker" build/qt6-611-target-static-install/lib build/qt6-611-target-install/lib 2>/dev/null; then
-              echo "patched Qt missing marker: $marker"
-              missing=1
-            fi
-          done
-          if [ "$missing" = 1 ]; then
-            echo "Rebuilding Qt to pick up local patches"
-            nix develop -c bash tools/webos-native/build-qt6-611.sh
-          else
-            echo "All Qt patches verified present"
-          fi
-
-      # build-ipk.sh uses the default dev shell on purpose: the webOS target
+      # build-webos.sh uses the default dev shell on purpose: the webOS target
       # links the cross-built static Qt, and that build must not see nixpkgs Qt.
       - name: Build IPK
-        run: nix develop -c bash build-ipk.sh
+        run: nix develop -c bash tools/webos-native/build-webos.sh all
 
       - name: Validate IPK
         run: |
