@@ -43,7 +43,7 @@ jobs:
       - name: Verify shared build library sources and exports its helpers
         run: |
           source tools/lib/build-common.sh
-          for fn in mpv_meson_build cmake_build_app resolve_qmlimportscanner; do
+          for fn in mpv_meson_build cmake_build_app resolve_qmlimportscanner stage_elf_shared_library; do
             declare -F "$fn" >/dev/null || { echo "missing helper: $fn" >&2; exit 1; }
           done
           echo "build-common.sh OK"
