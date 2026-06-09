@@ -102,7 +102,7 @@ FocusScope {
         Keys.onReleased: (event) => {
             if (!actionRoot.enabledButton)
                 return
-            if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter || event.key === Qt.Key_Select || event.key === Qt.Key_Space) {
+            if (InputKeys.isAccept(event.key)) {
                 actionRoot.activated()
                 event.accepted = true
             }
@@ -147,7 +147,7 @@ FocusScope {
         Keys.onReleased: (event) => {
             if (!iconRoot.enabledButton)
                 return
-            if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter || event.key === Qt.Key_Select || event.key === Qt.Key_Space) {
+            if (InputKeys.isAccept(event.key)) {
                 iconRoot.activated()
                 event.accepted = true
             }
@@ -205,7 +205,7 @@ FocusScope {
         }
 
         Keys.onReleased: (event) => {
-            if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter || event.key === Qt.Key_Select || event.key === Qt.Key_Space) {
+            if (InputKeys.isAccept(event.key)) {
                 optionRoot.activated()
                 event.accepted = true
             }
@@ -282,7 +282,7 @@ FocusScope {
     }
 
     Keys.onReleased: (event) => {
-        if (event.key === Qt.Key_Back || event.key === Qt.Key_Escape || event.key === Qt.Key_Backspace) {
+        if (InputKeys.isBack(event.key, true, false)) {
             shell.back()
             event.accepted = true
         }
@@ -618,7 +618,7 @@ FocusScope {
                     overflowOpen = false
                 return true
             }
-            if (key === Qt.Key_Return || key === Qt.Key_Enter || key === Qt.Key_Select) {
+            if (InputKeys.isAccept(key, false)) {
                 openMediaInfo()
                 return true
             }
@@ -734,7 +734,7 @@ FocusScope {
             shell.focusNavBar()
             return true
         }
-        if (key === Qt.Key_Return || key === Qt.Key_Enter || key === Qt.Key_Select) {
+        if (InputKeys.isAccept(key, false)) {
             if (playedAction.activeFocus) togglePlayed()
             else if (favoriteAction.activeFocus) toggleFavorite()
             else if (menuAction.activeFocus) toggleOverflow()

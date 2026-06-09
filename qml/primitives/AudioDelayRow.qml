@@ -138,7 +138,7 @@ Surface {
                     }
                     root.adjust(event.key === Qt.Key_Right ? 1 : -1)
                     event.accepted = true
-                } else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter || event.key === Qt.Key_Select) {
+                } else if (InputKeys.isAccept(event.key, false)) {
                     root.forceActiveFocus()
                     event.accepted = true
                 }
@@ -157,7 +157,7 @@ Surface {
             event.accepted = true
         } else if (event.key === Qt.Key_Up || event.key === Qt.Key_Down) {
             event.accepted = false
-        } else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter || event.key === Qt.Key_Select) {
+        } else if (InputKeys.isAccept(event.key, false)) {
             delaySlider.forceActiveFocus()
             event.accepted = true
         }

@@ -23,7 +23,7 @@ FocusScope {
             return true
         }
         if (key === Qt.Key_Down) { grid.currentIndex = Math.min(grid.count - 1, grid.currentIndex + columns); return true }
-        if (key === Qt.Key_Return || key === Qt.Key_Enter || key === Qt.Key_Select) {
+        if (InputKeys.isAccept(key, false)) {
             if (grid.currentIndex < 0)
                 return true
             shell.lastLibraryIndex = grid.currentIndex
@@ -86,7 +86,7 @@ FocusScope {
             if (event.key === Qt.Key_Up && currentIndex < columns) {
                 shell.focusNavBar()
                 event.accepted = true
-            } else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter || event.key === Qt.Key_Select) {
+            } else if (InputKeys.isAccept(event.key, false)) {
                 shell.lastLibraryIndex = currentIndex
                 appController.openLibrary(currentIndex)
                 shell.replaceRoute("libraryGrid")

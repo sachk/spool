@@ -65,7 +65,7 @@ FocusScope {
     function handleNavigationKey(key) {
         if (rowCount <= 0)
             return false
-        const acceptKey = key === Qt.Key_Return || key === Qt.Key_Enter || key === Qt.Key_Select || key === Qt.Key_Space
+        const acceptKey = InputKeys.isAccept(key)
         const card = currentCard()
         if (!acceptKey && card && card.handleNavigationKey && card.handleNavigationKey(key))
             return true

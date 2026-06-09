@@ -178,7 +178,7 @@ FocusScope {
 
     function handleNavigationKey(key) {
         if (categoryList.activeFocus) {
-            if (key === Qt.Key_Right || key === Qt.Key_Return || key === Qt.Key_Enter || key === Qt.Key_Select) {
+            if (key === Qt.Key_Right || InputKeys.isAccept(key, false)) {
                 activateCategory(categoryIndex)
                 return true
             }
@@ -364,14 +364,14 @@ FocusScope {
                     onClicked: appController.logout()
                     onActiveFocusChanged: if (activeFocus) root.markFocused(settingIndex)
                     function handleNavigationKey(key) {
-                        if (key === Qt.Key_Return || key === Qt.Key_Enter || key === Qt.Key_Select || key === Qt.Key_Space) {
+                        if (InputKeys.isAccept(key)) {
                             appController.logout()
                             return true
                         }
                         return false
                     }
                     Keys.onReleased: (event) => {
-                        if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter || event.key === Qt.Key_Select || event.key === Qt.Key_Space) {
+                        if (InputKeys.isAccept(event.key)) {
                             appController.logout()
                             event.accepted = true
                         }

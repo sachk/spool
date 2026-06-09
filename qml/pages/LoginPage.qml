@@ -14,7 +14,7 @@ FocusScope {
     Keys.onPressed: (event) => {
         // Submit form from any focused control via Enter when the row currently
         // owns focus (not the embedded TextField, which handles its own input).
-        if (event.key === Qt.Key_MediaPlay || event.key === Qt.Key_Play) {
+        if (InputKeys.isMedia(event.key)) {
             appController.login()
             event.accepted = true
         }
@@ -140,7 +140,7 @@ FocusScope {
                         MouseArea { anchors.fill: parent; onClicked: { discoveredList.currentIndex = index; appController.chooseDiscoveredServer(index) } }
                     }
                     Keys.onPressed: (event) => {
-                        if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter || event.key === Qt.Key_Select) {
+                        if (InputKeys.isAccept(event.key, false)) {
                             appController.chooseDiscoveredServer(currentIndex)
                             event.accepted = true
                         }

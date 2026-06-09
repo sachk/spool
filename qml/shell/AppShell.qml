@@ -235,55 +235,28 @@ FocusScope {
             return true
         }
         if (event.key === Qt.Key_M || event.key === Qt.Key_Menu) { openContextMenu(); return true }
-        if (event.key === Qt.Key_Backspace || event.key === Qt.Key_Escape || event.key === Qt.Key_Back || event.key === Qt.Key_BrowserBack) return back()
+        if (InputKeys.isBack(event.key)) return back()
         if (event.key === Qt.Key_H) return dispatchNavigationKey(Qt.Key_Left)
         if (event.key === Qt.Key_L) return dispatchNavigationKey(Qt.Key_Right)
         if (event.key === Qt.Key_Q && root.hasPlayer && root.player.visible) { root.player.stopWithReason("shortcut-q"); return true }
         return false
     }
 
-    function isDirectionalKey(key) {
-        return key === Qt.Key_Left || key === Qt.Key_Right || key === Qt.Key_Up || key === Qt.Key_Down
-    }
-
-    function isAcceptKey(key) {
-        return key === Qt.Key_Return || key === Qt.Key_Enter || key === Qt.Key_Select || key === Qt.Key_Space
-    }
-
-    function isBackEvent(event) {
-        const scanCode = Number(event.nativeScanCode || 0)
-        const virtualKey = Number(event.nativeVirtualKey || 0)
-        const key = Number(event.key || 0)
-        return event.key === Qt.Key_Back
-                || event.key === Qt.Key_Escape
-                || event.key === Qt.Key_Backspace
-                || event.key === Qt.Key_BrowserBack
-                || event.key === 0x01200003
-                || key === 461
-                || scanCode === 420
-                || scanCode === 461
-                || virtualKey === 420
-                || virtualKey === 461
-    }
-
-    function isIgnoredPlayerNoise(event) {
-        const scanCode = Number(event.nativeScanCode || 0)
-        return event.key === 0 && (scanCode === 1206 || scanCode === 1207)
-    }
-
     function handlePlayerPressed(event) {
-        if (isBackEvent(event)) {
+        if (InputKeys.isBackEvent(event)) {
             playerBackPressHandled = true
             playerOverlay.handleBack(true)
             return true
         }
         if (playerOverlay.handlePressed(event))
             return true
-        return isDirectionalKey(event.key) || isAcceptKey(event.key) || event.key === Qt.Key_Space || isIgnoredPlayerNoise(event)
+        return InputKeys.isDirection(event.key)
+                || InputKeys.isAccept(event.key)
+                || InputKeys.isIgnoredPlayerNoise(event)
     }
 
     function handlePlayerReleased(event) {
-        if (playerBackPressHandled && isBackEvent(event)) {
+        if (playerBackPressHandled && InputKeys.isBackEvent(event)) {
             playerBackPressHandled = false
             return true
         }
@@ -299,25 +272,25 @@ FocusScope {
             return
         }
 
-        if (isBackEvent(event)) {
+        if (InputKeys.isBackEvent(event)) {
             backPressHandled = true
             back()
             event.accepted = true
             return
         }
 
-        if (isDirectionalKey(event.key)) {
+        if (InputKeys.isDirection(event.key)) {
             if (dispatchNavigationKey(event.key))
                 event.accepted = true
         }
-        if (isAcceptKey(event.key) && !navBar.activeFocus) {
+        if (InputKeys.isAccept(event.key) && !navBar.activeFocus) {
             if (routeStack.handlePressedKey(event.key))
                 event.accepted = true
         }
     }
 
     Keys.onReleased: (event) => {
-        if (playerBackPressHandled && isBackEvent(event)) {
+        if (playerBackPressHandled && InputKeys.isBackEvent(event)) {
             playerBackPressHandled = false
             event.accepted = true
             return
@@ -327,12 +300,12 @@ FocusScope {
                 event.accepted = true
             return
         }
-        if (isBackEvent(event) && backPressHandled) {
+        if (InputKeys.isBackEvent(event) && backPressHandled) {
             backPressHandled = false
             event.accepted = true
             return
         }
-        if (isAcceptKey(event.key)) {
+        if (InputKeys.isAccept(event.key)) {
             // Don't hijack Enter when the nav bar (or anything else) owns focus —
             // let the focused button handle it natively.
             if (!navBar.activeFocus && routeStack.handleNavigationKey(event.key)) {
