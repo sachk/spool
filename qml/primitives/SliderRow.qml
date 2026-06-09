@@ -21,6 +21,7 @@ T.Control {
     property int valueBoxWidth: 86
     property int sliderPreferredWidth: 300
     property real controlValue: value
+    property int metricsWidth: 1920
 
     signal valueEdited(real value)
 
@@ -31,8 +32,7 @@ T.Control {
     rightPadding: 12
     topPadding: 12
     bottomPadding: 12
-    readonly property int textWidth: root.Window.window ? root.Window.window.width : 1920
-    readonly property int valueFontPx: Metrics.metaPx(textWidth) + 1
+    readonly property int valueFontPx: Metrics.metaPx(metricsWidth) + 1
 
     background: Surface {
         focused: root.rowFocus
@@ -99,7 +99,7 @@ T.Control {
             AppText {
                 Layout.fillWidth: true
                 text: root.title
-                font.pixelSize: Metrics.bodyPx(root.textWidth)
+                font.pixelSize: Metrics.bodyPx(root.metricsWidth)
                 font.weight: Font.Medium
                 maximumLineCount: 1
                 elide: Text.ElideRight
@@ -110,7 +110,7 @@ T.Control {
                 visible: text.length > 0
                 text: root.description
                 color: Theme.textMuted
-                font.pixelSize: Metrics.metaPx(root.textWidth)
+                font.pixelSize: Metrics.metaPx(root.metricsWidth)
                 maximumLineCount: 1
                 elide: Text.ElideRight
             }

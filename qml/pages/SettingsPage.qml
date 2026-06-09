@@ -41,6 +41,10 @@ FocusScope {
         metricsWidth: root.width
     }
 
+    component SettingsSliderRow: SliderRow {
+        metricsWidth: root.width
+    }
+
     function categoryTarget(index) {
         const targets = [themeRow, posterSizeRow, nightModeRow, subtitleLanguageRow,
                          diagnosticsRow, redButtonRow, aboutVersionRow]
@@ -339,7 +343,7 @@ FocusScope {
                     onSelected: (i, v) => Theme.accentIndex = i
                     onActiveFocusChanged: if (activeFocus) root.markFocused(settingIndex)
                 }
-                SliderRow {
+                SettingsSliderRow {
                     id: uiScaleRow
                     Layout.fillWidth: true
                     selected: root.currentIndex === settingIndex
@@ -475,7 +479,7 @@ FocusScope {
                     onToggled: appController.setNightModeEnabled(checked)
                     onActiveFocusChanged: if (activeFocus) root.markFocused(settingIndex)
                 }
-                SliderRow {
+                SettingsSliderRow {
                     id: audioDelayRow
                     Layout.fillWidth: true
                     selected: root.currentIndex === settingIndex
@@ -619,7 +623,7 @@ FocusScope {
                     onSelected: (i, v) => appController.setSubtitleDropShadow(root.valueFromIndex(root.subtitleDropShadowValues, i))
                     onActiveFocusChanged: if (activeFocus) root.markFocused(settingIndex)
                 }
-                SliderRow {
+                SettingsSliderRow {
                     id: subtitleVerticalPositionRow
                     Layout.fillWidth: true
                     selected: root.currentIndex === settingIndex
