@@ -37,7 +37,7 @@ make linux \
   CC="$CC --sysroot=$SYSROOT" \
   AR="$AR" \
   RANLIB="$RANLIB" \
-  MYCFLAGS="-fPIC -O2 -DLUA_USE_POSIX" \
+  MYCFLAGS="-fPIC -O2" \
   MYLDFLAGS="--sysroot=$SYSROOT"
 
 "$SDK_BIN/arm-webos-linux-gnueabi-gcc" \
