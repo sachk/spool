@@ -15,6 +15,7 @@ extern "C" {
 #include <QByteArray>
 #include <QElapsedTimer>
 #include <QDebug>
+#include <QLocale>
 #include <QtGlobal>
 #include <QMetaObject>
 #include <QPointer>
@@ -282,24 +283,25 @@ bool nodeFlag(const mpv_node *node) {
 
 QString prettyLanguage(QString lang) {
   lang = lang.trimmed().toLower();
-  if (lang == QStringLiteral("eng") || lang == QStringLiteral("en"))
-    return QStringLiteral("English");
-  if (lang == QStringLiteral("jpn") || lang == QStringLiteral("ja"))
-    return QStringLiteral("Japanese");
-  if (lang == QStringLiteral("spa") || lang == QStringLiteral("es"))
-    return QStringLiteral("Spanish");
-  if (lang == QStringLiteral("fre") || lang == QStringLiteral("fra") || lang == QStringLiteral("fr"))
-    return QStringLiteral("French");
-  if (lang == QStringLiteral("ger") || lang == QStringLiteral("deu") || lang == QStringLiteral("de"))
-    return QStringLiteral("German");
-  if (lang == QStringLiteral("ita") || lang == QStringLiteral("it"))
-    return QStringLiteral("Italian");
-  if (lang == QStringLiteral("por") || lang == QStringLiteral("pt"))
-    return QStringLiteral("Portuguese");
-  if (lang == QStringLiteral("dut") || lang == QStringLiteral("nld") || lang == QStringLiteral("nl"))
-    return QStringLiteral("Dutch");
   if (lang == QStringLiteral("und") || lang.isEmpty())
     return {};
+
+  const QLocale::Language language = QLocale::codeToLanguage(QStringView(lang));
+  if (language != QLocale::AnyLanguage)
+    return QLocale::languageToString(language);
+
+  const int hyphen = lang.indexOf(QLatin1Char('-'));
+  const int underscore = lang.indexOf(QLatin1Char('_'));
+  const int regionSeparator =
+      hyphen < 0 ? underscore : (underscore < 0 ? hyphen : qMin(hyphen, underscore));
+  if (regionSeparator > 0) {
+    const QString languageCode = lang.left(regionSeparator);
+    const QLocale::Language regionLanguage =
+        QLocale::codeToLanguage(QStringView(languageCode));
+    if (regionLanguage != QLocale::AnyLanguage)
+      return QLocale::languageToString(regionLanguage);
+  }
+
   return lang.toUpper();
 }
 
