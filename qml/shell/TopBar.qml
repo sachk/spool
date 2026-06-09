@@ -18,6 +18,7 @@ FocusScope {
     readonly property bool syncActive: syncPlay ? syncPlay.enabled : false
     readonly property var syncGroups: syncPlay ? syncPlay.groups : []
     readonly property bool syncAvailable: syncGroups && syncGroups.length > 0
+    readonly property string selectedRoute: currentRoute === "libraryGrid" ? "libraries" : currentRoute
 
     // Index space: [0 .. railRepeater.count-1] are nav buttons, the trailing
     // index is the SyncPlay button.
@@ -45,7 +46,7 @@ FocusScope {
     function focusCurrent() {
         for (let i = 0; i < railRepeater.count; ++i) {
             const item = railRepeater.itemAt(i)
-            if (item && item.route === currentRoute) {
+            if (item && item.route === selectedRoute) {
                 item.forceButtonFocus()
                 return
             }
@@ -120,6 +121,7 @@ FocusScope {
             id: railRepeater
             model: [
                 { label: "My Media", route: "home", icon: "home" },
+                { label: "Libraries", route: "libraries", icon: "video_library" },
                 { label: "Search", route: "search", icon: "search" },
                 { label: "Settings", route: "settings", icon: "settings" }
             ]
@@ -139,7 +141,7 @@ FocusScope {
                     iconName: modelData.icon
                     accessibleName: modelData.label
                     railStyle: true
-                    selected: root.currentRoute === modelData.route
+                    selected: root.selectedRoute === modelData.route
                     onClicked: root.navigate(modelData.route)
                     Keys.onReleased: (event) => {
                         if (InputKeys.isAccept(event.key)) {
@@ -152,11 +154,11 @@ FocusScope {
                     anchors.bottom: parent.bottom
                     anchors.bottomMargin: 4
                     anchors.horizontalCenter: parent.horizontalCenter
-                    width: button.activeFocus ? 30 : (root.currentRoute === modelData.route ? 22 : 0)
+                    width: button.activeFocus ? 30 : (root.selectedRoute === modelData.route ? 22 : 0)
                     height: 3
                     radius: 1.5
                     color: Theme.accent
-                    opacity: button.activeFocus ? 1.0 : (root.currentRoute === modelData.route ? 0.85 : 0.0)
+                    opacity: button.activeFocus ? 1.0 : (root.selectedRoute === modelData.route ? 0.85 : 0.0)
                     visible: opacity > 0
                     Behavior on width { NumberAnimation { duration: 90; easing.type: Easing.OutCubic } }
                     Behavior on opacity { NumberAnimation { duration: 90; easing.type: Easing.OutCubic } }
