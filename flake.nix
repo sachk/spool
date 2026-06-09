@@ -7,9 +7,17 @@
       url = "git+https://github.com/haasn/libplacebo?submodules=1&rev=27aa71a97f4daed84916936572fa6a2e1c3eedb7";
       flake = false;
     };
+    mpv-src = {
+      url = "github:sachk/mpv/1313bdd9aba8eb7014cb02688d45a7b7adc9b3e7";
+      flake = false;
+    };
+    mpv-webos-src = {
+      url = "github:sachk/mpv/4528e21ae48575d572dda5b7b952eba2ad0c47d9";
+      flake = false;
+    };
   };
 
-  outputs = { nixpkgs, libplacebo-src, ... }:
+  outputs = { nixpkgs, libplacebo-src, mpv-src, mpv-webos-src, ... }:
     let
       systems = [ "x86_64-linux" "aarch64-darwin" "x86_64-darwin" ];
 
