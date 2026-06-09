@@ -25,12 +25,8 @@ FocusScope {
     signal playedToggled(bool played)
     signal mediaInfoRequested()
 
-    function isAcceptKey(key) {
-        return key === Qt.Key_Return || key === Qt.Key_Enter || key === Qt.Key_Select || key === Qt.Key_Space
-    }
-
     function handleAcceptPressed(key) {
-        if (!isAcceptKey(key))
+        if (!InputKeys.isAccept(key))
             return false
         if (menuOpen)
             return false
@@ -61,7 +57,7 @@ FocusScope {
     }
 
     function handleAcceptReleased(key) {
-        if (!isAcceptKey(key) || !pendingAccept)
+        if (!InputKeys.isAccept(key) || !pendingAccept)
             return false
         holdTimer.stop()
         const opened = longPressOpened
@@ -106,7 +102,7 @@ FocusScope {
     function handleNavigationKey(key) {
         if (!menuOpen)
             return false
-        if (key === Qt.Key_Back || key === Qt.Key_Escape || key === Qt.Key_Left || key === Qt.Key_Right) {
+        if (InputKeys.isBack(key, false, false) || InputKeys.isHorizontal(key)) {
             closeMenu()
             return true
         }
@@ -118,7 +114,7 @@ FocusScope {
             menuIndex = Math.min(2, menuIndex + 1)
             return true
         }
-        if (isAcceptKey(key)) {
+        if (InputKeys.isAccept(key)) {
             activateMenuIndex(menuIndex)
             return true
         }

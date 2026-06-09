@@ -93,9 +93,7 @@ FocusScope {
     }
 
     Keys.onReleased: (event) => {
-        if (event.key === Qt.Key_Back || event.key === Qt.Key_Escape ||
-                event.key === Qt.Key_Backspace || event.key === Qt.Key_BrowserBack ||
-                event.key === Qt.Key_I) {
+        if (InputKeys.isBack(event.key) || event.key === Qt.Key_I) {
             root.closed()
             event.accepted = true
         }

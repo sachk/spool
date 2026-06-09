@@ -178,6 +178,7 @@ if(JELLYFIN_DIAGNOSTICS_ABORT_ON_HANG)
 endif()
 
 set_source_files_properties(
+    qml/primitives/InputKeys.qml
     qml/theme/Metrics.qml
     qml/theme/Theme.qml
     qml/theme/Typography.qml
@@ -218,6 +219,7 @@ qt_add_qml_module(jellyfin-native
         qml/primitives/FocusFrame.qml
         qml/primitives/IconButton.qml
         qml/primitives/ImageCard.qml
+        qml/primitives/InputKeys.qml
         qml/primitives/LandscapeCard.qml
         qml/primitives/MediaItemActions.qml
         qml/primitives/MediaItemCard.qml

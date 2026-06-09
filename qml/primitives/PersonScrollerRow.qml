@@ -55,7 +55,7 @@ FocusScope {
             ensureVisible()
             return true
         }
-        if (key === Qt.Key_Return || key === Qt.Key_Enter || key === Qt.Key_Select || key === Qt.Key_Space) {
+        if (InputKeys.isAccept(key)) {
             currentIndex = peopleList.currentIndex
             activated(peopleModel[peopleList.currentIndex] || ({}))
             return true

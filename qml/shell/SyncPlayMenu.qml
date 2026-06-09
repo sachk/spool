@@ -214,12 +214,10 @@ FocusScope {
                 }
 
                 Keys.onReleased: (event) => {
-                    if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter
-                            || event.key === Qt.Key_Select || event.key === Qt.Key_Space) {
+                    if (InputKeys.isAccept(event.key)) {
                         menu.activate(menu.currentIndex)
                         event.accepted = true
-                    } else if (event.key === Qt.Key_Escape || event.key === Qt.Key_Back
-                            || event.key === Qt.Key_Backspace) {
+                    } else if (InputKeys.isBack(event.key, true, false)) {
                         menu.requestClose()
                         event.accepted = true
                     }

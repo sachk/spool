@@ -304,25 +304,6 @@ FocusScope {
         stopPreviewSeekHold()
     }
 
-    function isBackEvent(event) {
-        const scanCode = Number(event.nativeScanCode || 0)
-        return event.key === Qt.Key_Back
-                || event.key === Qt.Key_Escape
-                || event.key === Qt.Key_Backspace
-                || event.key === Qt.Key_BrowserBack
-                || event.key === 0x01200003
-                || (event.key === 0 && scanCode === 420)
-    }
-
-    function isIgnoredPlayerNoise(event) {
-        const scanCode = Number(event.nativeScanCode || 0)
-        return event.key === 0 && (scanCode === 1206 || scanCode === 1207)
-    }
-
-    function isAcceptKey(key) {
-        return key === Qt.Key_Return || key === Qt.Key_Enter || key === Qt.Key_Select || key === Qt.Key_Space
-    }
-
     function closeMenu() {
         mode = "controls"
         menuIndex = 0
@@ -478,7 +459,7 @@ FocusScope {
             else audioSyncStepIndex = Math.min(audioSyncSteps.length - 1, audioSyncStepIndex + 1)
             return true
         }
-        if (isAcceptKey(key)) {
+        if (InputKeys.isAccept(key)) {
             if (audioSyncRow === "delay" && hasPlayer) player.togglePause()
             return true
         }
@@ -545,7 +526,7 @@ FocusScope {
             showControls(row)
             return true
         }
-        if (isAcceptKey(key)) {
+        if (InputKeys.isAccept(key)) {
             if (row === "back") {
                 // Explicit exit — don't reshow controls on the way out.
                 return stopPlayback("overlay-back")
@@ -568,7 +549,7 @@ FocusScope {
         if (key === Qt.Key_Up) { menuIndex = Math.max(0, menuIndex - 1); return true }
         if (key === Qt.Key_Down) { menuIndex = Math.min(Math.max(0, count - 1), menuIndex + 1); return true }
         if (key === Qt.Key_Left || key === Qt.Key_Right) return true
-        if (isAcceptKey(key)) { activateMenuItem(); return true }
+        if (InputKeys.isAccept(key)) { activateMenuItem(); return true }
         return false
     }
 
@@ -603,7 +584,7 @@ FocusScope {
     }
 
     function handleReleased(event) {
-        if (isIgnoredPlayerNoise(event)) return true
+        if (InputKeys.isIgnoredPlayerNoise(event)) return true
         if (event.key === Qt.Key_Down) {
             downHoldTimer.stop()
             if (downHoldActive) {
@@ -616,8 +597,7 @@ FocusScope {
             player.skipActiveSegment()
             return true
         }
-        if (event.key === Qt.Key_Red || event.key === Qt.Key_Green
-            || event.key === Qt.Key_Yellow || event.key === Qt.Key_Blue) {
+        if (InputKeys.isColor(event.key)) {
             if (dispatchRemapAction(actionForColorKey(event.key))) return true
         }
         if (seekHoldKey !== 0 && event.key === seekHoldKey) {
@@ -635,13 +615,13 @@ FocusScope {
         const releaseSeekDelta = seekDeltaForKey(event.key)
         if (releaseSeekDelta !== 0 && event.isAutoRepeat)
             return true
-        if (isBackEvent(event)) return handleBack()
+        if (InputKeys.isBackEvent(event)) return handleBack()
         if (event.key === Qt.Key_I || event.key === Qt.Key_Info) { toggleDebugStats(); return true }
         if (event.key === Qt.Key_Q && hasPlayer) { player.stopWithReason("player-q"); return true }
         if (mode === "hidden") {
             if (event.key === Qt.Key_Left) { seekBy(-10); return true }
             if (event.key === Qt.Key_Right) { seekBy(10); return true }
-            if (isAcceptKey(event.key) && hasPlayer) { actionIndex = 1; player.togglePause(); showControls("actions"); return true }
+            if (InputKeys.isAccept(event.key) && hasPlayer) { actionIndex = 1; player.togglePause(); showControls("actions"); return true }
             showControls("timeline")
             return true
         }
@@ -654,7 +634,7 @@ FocusScope {
     }
 
     function handlePressed(event) {
-        if (isIgnoredPlayerNoise(event)) return true
+        if (InputKeys.isIgnoredPlayerNoise(event)) return true
         if (event.key !== Qt.Key_Down && downHoldTimer.running) {
             downHoldTimer.stop()
             downHoldActive = false

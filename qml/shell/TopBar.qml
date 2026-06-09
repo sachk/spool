@@ -19,10 +19,6 @@ FocusScope {
     readonly property var syncGroups: syncPlay ? syncPlay.groups : []
     readonly property bool syncAvailable: syncGroups && syncGroups.length > 0
 
-    function isAcceptKey(key) {
-        return key === Qt.Key_Return || key === Qt.Key_Enter || key === Qt.Key_Select || key === Qt.Key_Space
-    }
-
     // Index space: [0 .. railRepeater.count-1] are nav buttons, the trailing
     // index is the SyncPlay button.
     function focusedIndex() {
@@ -86,7 +82,7 @@ FocusScope {
         }
         if (key === Qt.Key_Up)
             return true
-        if (isAcceptKey(key)) {
+        if (InputKeys.isAccept(key)) {
             const idx = focusedIndex()
             if (idx >= railRepeater.count) {
                 openSyncMenu()
@@ -145,7 +141,7 @@ FocusScope {
                     selected: root.currentRoute === modelData.route
                     onClicked: root.navigate(modelData.route)
                     Keys.onReleased: (event) => {
-                        if (root.isAcceptKey(event.key)) {
+                        if (InputKeys.isAccept(event.key)) {
                             root.navigate(modelData.route)
                             event.accepted = true
                         }
@@ -182,7 +178,7 @@ FocusScope {
                 selected: syncMenu.menuOpen
                 onClicked: root.openSyncMenu()
                 Keys.onReleased: (event) => {
-                    if (root.isAcceptKey(event.key)) {
+                    if (InputKeys.isAccept(event.key)) {
                         root.openSyncMenu()
                         event.accepted = true
                     }

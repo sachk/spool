@@ -46,7 +46,7 @@ FocusScope {
     function handleNavigationKey(key) {
         if (rowCount <= 0)
             return false
-        const acceptKey = key === Qt.Key_Return || key === Qt.Key_Enter || key === Qt.Key_Select || key === Qt.Key_Space
+        const acceptKey = InputKeys.isAccept(key)
         if (key === Qt.Key_Left) {
             if (listView.currentIndex > 0)
                 listView.currentIndex = listView.currentIndex - 1

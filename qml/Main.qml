@@ -31,8 +31,7 @@ FocusScope {
         // so they hide the panel rather than propagating up and triggering
         // a back-stack pop.
         Keys.onPressed: (event) => {
-            if (event.key === Qt.Key_Back || event.key === Qt.Key_Escape
-                || event.key === Qt.Key_BrowserBack) {
+            if (InputKeys.isBack(event.key, false)) {
                 Qt.inputMethod.hide()
                 event.accepted = true
             }

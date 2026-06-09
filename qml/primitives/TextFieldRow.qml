@@ -33,8 +33,7 @@ FocusScope {
     }
 
     Keys.onPressed: (event) => {
-        if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter
-            || event.key === Qt.Key_Select || event.key === Qt.Key_Space) {
+        if (InputKeys.isAccept(event.key)) {
             row.focusField()
             event.accepted = true
         }
@@ -82,8 +81,7 @@ FocusScope {
         // the user can cleanly exit the keyboard with the TV remote's Back.
         Keys.priority: Keys.BeforeItem
         Keys.onPressed: (event) => {
-            if (event.key === Qt.Key_Back || event.key === Qt.Key_Escape
-                || event.key === Qt.Key_BrowserBack) {
+            if (InputKeys.isBack(event.key, false)) {
                 row.focusRow()
                 event.accepted = true
                 return

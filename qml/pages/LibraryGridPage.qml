@@ -86,7 +86,7 @@ FocusScope {
 
         MouseArea { anchors.fill: parent; onClicked: buttonRoot.activated() }
         Keys.onReleased: (event) => {
-            if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter || event.key === Qt.Key_Select || event.key === Qt.Key_Space) {
+            if (InputKeys.isAccept(event.key)) {
                 buttonRoot.activated()
                 event.accepted = true
             }
@@ -499,7 +499,7 @@ FocusScope {
 
     function handleNavigationKey(key) {
         if (libraryList.activeFocus) {
-            if (key === Qt.Key_Back || key === Qt.Key_Escape || key === Qt.Key_Left) {
+            if (InputKeys.isBack(key, false, false) || key === Qt.Key_Left) {
                 closeMenus()
                 return true
             }
@@ -517,7 +517,7 @@ FocusScope {
                 }
                 return true
             }
-            if (key === Qt.Key_Return || key === Qt.Key_Enter || key === Qt.Key_Select || key === Qt.Key_Space) {
+            if (InputKeys.isAccept(key)) {
                 activateLibraryIndex(libraryIndex)
                 return true
             }
@@ -525,7 +525,7 @@ FocusScope {
         }
 
         if (sortList.activeFocus) {
-            if (key === Qt.Key_Back || key === Qt.Key_Escape || key === Qt.Key_Left) {
+            if (InputKeys.isBack(key, false, false) || key === Qt.Key_Left) {
                 closeMenus()
                 return true
             }
@@ -543,7 +543,7 @@ FocusScope {
                 }
                 return true
             }
-            if (key === Qt.Key_Return || key === Qt.Key_Enter || key === Qt.Key_Select || key === Qt.Key_Space) {
+            if (InputKeys.isAccept(key)) {
                 activateSortEntry(sortEntries[sortIndex])
                 return true
             }
@@ -551,7 +551,7 @@ FocusScope {
         }
 
         if (filterList.activeFocus) {
-            if (key === Qt.Key_Back || key === Qt.Key_Escape || key === Qt.Key_Left) {
+            if (InputKeys.isBack(key, false, false) || key === Qt.Key_Left) {
                 closeMenus()
                 return true
             }
@@ -573,7 +573,7 @@ FocusScope {
                 }
                 return true
             }
-            if (key === Qt.Key_Return || key === Qt.Key_Enter || key === Qt.Key_Select || key === Qt.Key_Space) {
+            if (InputKeys.isAccept(key)) {
                 activateFilterEntry(filterEntries[filterIndex])
                 return true
             }
@@ -601,7 +601,7 @@ FocusScope {
                 grid.forceActiveFocus()
                 return true
             }
-            if (key === Qt.Key_Return || key === Qt.Key_Enter || key === Qt.Key_Select || key === Qt.Key_Space) {
+            if (InputKeys.isAccept(key)) {
                 if (libraryButton.activeFocus) openLibraryMenu()
                 else if (sortButton.activeFocus) openSortMenu()
                 else if (filterButton.activeFocus) openFilterMenu()
@@ -612,7 +612,7 @@ FocusScope {
 
         if (grid.count <= 0)
             return false
-        const acceptKey = key === Qt.Key_Return || key === Qt.Key_Enter || key === Qt.Key_Select || key === Qt.Key_Space
+        const acceptKey = InputKeys.isAccept(key)
         const card = currentCard()
         if (!acceptKey && card && card.handleNavigationKey && card.handleNavigationKey(key))
             return true
@@ -860,7 +860,7 @@ FocusScope {
             }
             Keys.onReleased: (event) => {
                 if (event.key === Qt.Key_Up && currentIndex < columns) { shell.focusNavBar(); event.accepted = true }
-                else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter || event.key === Qt.Key_Select || event.key === Qt.Key_Space) {
+                else if (InputKeys.isAccept(event.key)) {
                     const card = root.currentCard()
                     if (card && card.handleAcceptReleased && card.handleAcceptReleased(event.key)) {
                         event.accepted = true

@@ -7,7 +7,7 @@ FocusScope {
     id: root
     signal closed()
     focus: visible
-    Keys.onReleased: (event) => { if (event.key === Qt.Key_Escape || event.key === Qt.Key_Back || event.key === Qt.Key_Question) { closed(); event.accepted = true } }
+    Keys.onReleased: (event) => { if (InputKeys.isBack(event.key, false, false) || event.key === Qt.Key_Question) { closed(); event.accepted = true } }
 
     Rectangle { anchors.fill: parent; color: "#AA000000"; MouseArea { anchors.fill: parent; onClicked: root.closed() } }
     Surface {

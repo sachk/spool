@@ -279,7 +279,7 @@ FocusScope {
                             root.focusSectionOrBar(1)
                             return true
                         }
-                        if ((key === Qt.Key_Return || key === Qt.Key_Enter || key === Qt.Key_Select) && root.spotlightIndex >= 0) {
+                        if (InputKeys.isAccept(key, false) && root.spotlightIndex >= 0) {
                             shell.openDetails(root.latestModel, root.spotlightIndex, "latest", "home")
                             return true
                         }
@@ -300,7 +300,7 @@ FocusScope {
                         }
                     }
                     Keys.onReleased: (event) => {
-                        if ((event.key === Qt.Key_Return || event.key === Qt.Key_Enter || event.key === Qt.Key_Select || event.key === Qt.Key_Space) && root.spotlightIndex >= 0) {
+                        if (InputKeys.isAccept(event.key) && root.spotlightIndex >= 0) {
                             shell.openDetails(root.latestModel, root.spotlightIndex, "latest", "home")
                             event.accepted = true
                         }
@@ -351,7 +351,7 @@ FocusScope {
                     }
 
                     function handleNavigationKey(key) {
-                        const acceptKey = key === Qt.Key_Return || key === Qt.Key_Enter || key === Qt.Key_Select || key === Qt.Key_Space
+                        const acceptKey = InputKeys.isAccept(key)
                         const card = currentCard()
                         if (!acceptKey && card && card.handleNavigationKey && card.handleNavigationKey(key))
                             return true
@@ -432,7 +432,7 @@ FocusScope {
                                 }
                             }
                             Keys.onReleased: (event) => {
-                                if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter || event.key === Qt.Key_Select || event.key === Qt.Key_Space) {
+                                if (InputKeys.isAccept(event.key)) {
                                     const card = rowScope.currentCard()
                                     if (card && card.handleAcceptReleased && card.handleAcceptReleased(event.key)) {
                                         event.accepted = true
@@ -496,7 +496,7 @@ FocusScope {
                         }
                         if (key === Qt.Key_Up) { root.focusSectionOrBar(-1); return true }
                         if (key === Qt.Key_Down) { root.focusSectionOrBar(1); return true }
-                        if (key === Qt.Key_Return || key === Qt.Key_Enter || key === Qt.Key_Select) {
+                        if (InputKeys.isAccept(key, false)) {
                             if (currentIndex >= 0) root.activateAt("libraries", currentIndex)
                             return true
                         }
@@ -542,7 +542,7 @@ FocusScope {
                                 }
                             }
                             Keys.onReleased: (event) => {
-                                if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter || event.key === Qt.Key_Select) {
+                                if (InputKeys.isAccept(event.key, false)) {
                                     if (libRowScope.currentIndex >= 0) root.activateAt("libraries", libRowScope.currentIndex)
                                     event.accepted = true
                                 }
