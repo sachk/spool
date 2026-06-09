@@ -10,6 +10,11 @@ T.Button {
     implicitWidth: Math.max(132, label.implicitWidth + 34)
     implicitHeight: 44
     focusPolicy: Qt.StrongFocus
+    Accessible.role: Accessible.Button
+    Accessible.name: text
+    Accessible.focusable: enabled
+    Accessible.focused: activeFocus
+    Accessible.onPressAction: clicked()
 
     background: Rectangle {
         radius: Theme.radiusMedium
