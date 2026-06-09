@@ -193,6 +193,7 @@ FocusScope {
         if (route === "itemDetails") { replaceRoute(detailsRoute && detailsRoute.returnRoute ? detailsRoute.returnRoute : (detailsReturnRoute.length > 0 ? detailsReturnRoute : "libraryGrid")); return true }
         if (route === "personDetails") { replaceRoute(previousRoute.length > 0 ? previousRoute : "itemDetails"); return true }
         if (route === "search") { replaceRoute(previousRoute.length > 0 ? previousRoute : "home"); return true }
+        if (route === "libraries") { goHome(); return true }
         if (route === "libraryGrid") { goHome(); return true }
         appController.back()
         return true
