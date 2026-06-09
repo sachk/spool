@@ -1129,8 +1129,18 @@ QString JellyfinApiFacade::trickplayTileUrl(const QString &itemId, int width, in
 {
     if (m_serverUrl.isEmpty() || itemId.isEmpty() || width <= 0)
         return {};
-    return QStringLiteral("%1/Videos/%2/Trickplay/%3/%4.jpg?api_key=%5")
-        .arg(m_serverUrl, itemId, QString::number(width), QString::number(tileIndex), m_session.accessToken);
+
+    QUrl url(m_serverUrl);
+    QString path = url.path();
+    if (path.endsWith(QLatin1Char('/')))
+        path.chop(1);
+    url.setPath(QStringLiteral("%1/Videos/%2/Trickplay/%3/%4.jpg")
+                    .arg(path, itemId, QString::number(width), QString::number(tileIndex)));
+
+    QUrlQuery query;
+    query.addQueryItem(QStringLiteral("api_key"), m_session.accessToken);
+    url.setQuery(query);
+    return url.toString(QUrl::FullyEncoded);
 }
 
 QCoro::Task<QJsonArray> JellyfinApiFacade::fetchSyncPlayGroups()
@@ -1431,12 +1441,17 @@ PlaybackSession JellyfinApiFacade::buildPlaybackSession(const MovieItem &movie, 
     query.addQueryItem(QStringLiteral("MediaSourceId"), mediaSourceId);
     query.addQueryItem(QStringLiteral("api_key"), m_session.accessToken);
 
-    const QString url = QStringLiteral("%1/Videos/%2/stream?%3")
-                            .arg(m_serverUrl, movie.id, query.toString(QUrl::FullyEncoded));
+    QUrl url(m_serverUrl);
+    QString path = url.path();
+    if (path.endsWith(QLatin1Char('/')))
+        path.chop(1);
+    url.setPath(QStringLiteral("%1/Videos/%2/stream").arg(path, movie.id));
+    url.setQuery(query);
+
     return {
         movie.id,
         movie.title,
-        url,
+        url.toString(QUrl::FullyEncoded),
         mediaSourceId,
         playbackResponse.value(QStringLiteral("PlaySessionId")).toString(),
         container,
