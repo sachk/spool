@@ -241,10 +241,6 @@ set_target_properties(jellyfin-native PROPERTIES
     QT_QMLCACHEGEN_DIRECT_CALLS ON
 )
 
-if(NOT BUILD_SHARED_LIBS)
-    set_target_properties(jellyfin-native PROPERTIES QT_QML_MODULE_NO_IMPORT_SCAN ON)
-endif()
-
 target_include_directories(jellyfin-native PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/third_party/qcoro/include"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/player"
@@ -317,38 +313,9 @@ if(NOT BUILD_SHARED_LIBS)
         )
     endif()
 
-    set(JELLYFIN_STATIC_QML_PLUGINS
-        Qt6::qmlplugin
-        Qt6::modelsplugin
-        Qt6::workerscriptplugin
-        Qt6::qtquick2plugin
-        Qt6::quickwindow
-        Qt6::qquicklayoutsplugin
-        Qt6::qtquicktemplates2plugin
-        Qt6::qtquickcontrols2implplugin
-        Qt6::qtquickcontrols2basicstyleimplplugin
-        Qt6::qtquickcontrols2basicstyleplugin
-        Qt6::qmlfolderlistmodelplugin
-        Qt6::qmlwebsocketsplugin
-        Qt6::VirtualKeyboardplugin
-        Qt6::qtvkbplugin
-        Qt6::qtvkblayoutsplugin
-        Qt6::qtvkbsettingsplugin
-        Qt6::qtvkbcomponentsplugin
-        Qt6::qtvkbstylesplugin
-        Qt6::qtvkbbuiltinstylesplugin
-        Qt6::qtvkbpluginsplugin
-        Qt6::qtvkbhangulplugin
-        Qt6::qtvkbopenwnnplugin
-        Qt6::qtvkbpinyinplugin
-        Qt6::qtvkbtcimeplugin
-        Qt6::qtvkbthaiplugin
-    )
-    foreach(qml_plugin IN LISTS JELLYFIN_STATIC_QML_PLUGINS)
-        if(TARGET ${qml_plugin})
-            target_link_libraries(jellyfin-native PRIVATE ${qml_plugin})
-        endif()
-    endforeach()
+    # Let qmlimportscanner derive the static QML plugin link set from the
+    # application's imports. New imports now fail when their plugin is absent.
+    qt_import_qml_plugins(jellyfin-native)
 
     # Add linker GC to strip unused code from static libs.
     # macOS ld64 doesn't accept --gc-sections (uses -dead_strip instead, on by
