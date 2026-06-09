@@ -15,7 +15,7 @@
 #include <cstring>
 
 extern "C" {
-#include "../../mpv/video/out/starfish/starfish_ctx.h"
+#include "video/out/starfish/starfish_ctx.h"
 }
 
 namespace JellyfinNative {
