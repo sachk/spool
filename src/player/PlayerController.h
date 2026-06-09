@@ -147,6 +147,13 @@ private:
         AudioDelay,
     };
 
+    enum class PositionSource {
+        Projection,
+        Mpv,
+        Seek,
+        Lifecycle,
+    };
+
     bool ensureMpv();
     void scheduleMpvTeardown();
     void runEventLoop();
@@ -157,20 +164,13 @@ private:
                           bool markSeeking = true);
     bool beginRelativeSeekCommand(double deltaSeconds);
     double seekAnchorPosition();
-    bool currentMpvPositionSeconds(double *seconds) const;
     double projectedPositionSeconds() const;
-    void snapshotPlaybackPosition(const char *reason);
     void requestMpvPositionRefresh(const char *reason);
-    void handleMpvPositionUpdate(double seconds, const char *source,
-                                 bool allowRegression = false);
-    void rememberTrustedPosition(double seconds);
-    void rememberForwardProgressPosition(double seconds);
     void restoreTrustedPosition(const char *reason);
-    bool mpvPositionLooksStale(double seconds) const;
+    bool positionRegressionAllowed(PositionSource source) const;
     QByteArray buildSeekCommand(double targetSeconds, const QByteArray &flags) const;
     void updatePlaybackStatusText();
-    void setPositionSeconds(double seconds);
-    double playbackPositionFromMpvTime(double seconds) const;
+    void setPositionSeconds(double seconds, PositionSource source);
     double clampedPosition(double seconds) const;
     void resetPlaybackUiState();
     bool applyMpvRuntimeOption(MpvRuntimeOption option, MpvOptionApplyMode mode, mpv_handle *handle);
