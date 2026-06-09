@@ -286,7 +286,6 @@ FocusScope {
                 SettingRow {
                     id: themeRow
                     Layout.fillWidth: true
-                    settingIndex: 0
                     rowFocus: root.currentIndex === settingIndex || activeFocus
                     title: "Theme"
                     description: "Fixed dark TV interface"
@@ -297,7 +296,6 @@ FocusScope {
                 SelectRow {
                     id: languageRow
                     Layout.fillWidth: true
-                    settingIndex: 1
                     rowFocus: root.currentIndex === settingIndex || activeFocus
                     title: "Language"
                     description: "Restart the app to update cached server text"
@@ -330,7 +328,6 @@ FocusScope {
                 SelectRow {
                     id: accentRow
                     Layout.fillWidth: true
-                    settingIndex: 1
                     rowFocus: root.currentIndex === settingIndex || activeFocus
                     title: "Accent"
                     options: ["Jellyfin Blue", "Jellyfin Purple", "Blue-Purple"]
@@ -341,7 +338,6 @@ FocusScope {
                 SliderRow {
                     id: uiScaleRow
                     Layout.fillWidth: true
-                    settingIndex: 2
                     selected: root.currentIndex === settingIndex
                     title: "UI Scale"
                     description: "Runtime type and spacing scale"
@@ -359,7 +355,6 @@ FocusScope {
                 SettingRow {
                     id: logoutRow
                     Layout.fillWidth: true
-                    settingIndex: 3
                     rowFocus: root.currentIndex === settingIndex || activeFocus
                     title: "Logout"
                     description: "Clear the saved session and return to sign in"
@@ -384,7 +379,6 @@ FocusScope {
                 SelectRow {
                     id: posterSizeRow
                     Layout.fillWidth: true
-                    settingIndex: 4
                     rowFocus: root.currentIndex === settingIndex || activeFocus
                     title: "Poster Size"
                     options: ["Compact", "Normal", "Large"]
@@ -395,7 +389,6 @@ FocusScope {
                 SelectRow {
                     id: gridColumnsRow
                     Layout.fillWidth: true
-                    settingIndex: 5
                     rowFocus: root.currentIndex === settingIndex || activeFocus
                     title: "Grid Columns"
                     options: ["Auto", "4", "5", "6", "7", "8", "9"]
@@ -414,7 +407,6 @@ FocusScope {
                 SelectRow {
                     id: railLabelsRow
                     Layout.fillWidth: true
-                    settingIndex: 6
                     rowFocus: root.currentIndex === settingIndex || activeFocus
                     title: "Side Rail Labels"
                     options: ["Never", "On focus", "Always"]
@@ -429,7 +421,6 @@ FocusScope {
                 ToggleRow {
                     id: reducedMotionRow
                     Layout.fillWidth: true
-                    settingIndex: 7
                     rowFocus: root.currentIndex === settingIndex || activeFocus
                     title: "Reduced Motion"
                     checked: Theme.reducedMotion
@@ -439,7 +430,6 @@ FocusScope {
                 SelectRow {
                     id: renderModeRow
                     Layout.fillWidth: true
-                    settingIndex: 8
                     rowFocus: root.currentIndex === settingIndex || activeFocus
                     title: "Text Render Mode"
                     options: ["Qt", "Curve"]
@@ -450,7 +440,6 @@ FocusScope {
                 ToggleRow {
                     id: antialiasedRow
                     Layout.fillWidth: true
-                    settingIndex: 9
                     rowFocus: root.currentIndex === settingIndex || activeFocus
                     title: "Antialiased Text"
                     checked: Theme.antialiasedText
@@ -460,7 +449,6 @@ FocusScope {
                 SelectRow {
                     id: metadataRow
                     Layout.fillWidth: true
-                    settingIndex: 10
                     rowFocus: root.currentIndex === settingIndex || activeFocus
                     title: "Show Technical Metadata"
                     options: ["Always", "On details only", "Hidden"]
@@ -476,7 +464,6 @@ FocusScope {
                 ToggleRow {
                     id: nightModeRow
                     Layout.fillWidth: true
-                    settingIndex: 11
                     rowFocus: root.currentIndex === settingIndex || activeFocus
                     title: "Night Mode"
                     description: "Dialogue lift and late-night dynamic range"
@@ -487,7 +474,6 @@ FocusScope {
                 SliderRow {
                     id: audioDelayRow
                     Layout.fillWidth: true
-                    settingIndex: 12
                     selected: root.currentIndex === settingIndex
                     title: "A/V Sync"
                     description: "Audio delay in milliseconds"
@@ -505,7 +491,6 @@ FocusScope {
                 SelectRow {
                     id: audioOutputRow
                     Layout.fillWidth: true
-                    settingIndex: 13
                     rowFocus: root.currentIndex === settingIndex || activeFocus
                     title: "Audio Output"
                     description: "Takes effect on the next playback start"
@@ -650,7 +635,6 @@ FocusScope {
                 ToggleRow {
                     id: diagnosticsRow
                     Layout.fillWidth: true
-                    settingIndex: 16
                     rowFocus: root.currentIndex === settingIndex || activeFocus
                     title: "Diagnostics Overlay"
                     checked: shell.diagnosticsVisible
@@ -660,7 +644,6 @@ FocusScope {
                 ToggleRow {
                     id: gpuNextToneMappingRow
                     Layout.fillWidth: true
-                    settingIndex: 17
                     visible: root.gpuNextDiagnosticsAvailable
                     rowFocus: root.currentIndex === settingIndex || activeFocus
                     title: "GPU-next Tone Mapping View"
@@ -674,7 +657,6 @@ FocusScope {
                 SelectRow {
                     id: redButtonRow
                     Layout.fillWidth: true
-                    settingIndex: 18
                     rowFocus: root.currentIndex === settingIndex || activeFocus
                     title: "Red Button"
                     description: "TV remote color button"
@@ -686,7 +668,6 @@ FocusScope {
                 SelectRow {
                     id: greenButtonRow
                     Layout.fillWidth: true
-                    settingIndex: 19
                     rowFocus: root.currentIndex === settingIndex || activeFocus
                     title: "Green Button"
                     description: "Defaults to skip back 10 s + enable subs"
@@ -698,7 +679,6 @@ FocusScope {
                 SelectRow {
                     id: yellowButtonRow
                     Layout.fillWidth: true
-                    settingIndex: 20
                     rowFocus: root.currentIndex === settingIndex || activeFocus
                     title: "Yellow Button"
                     options: root.buttonActionOptions()
@@ -709,7 +689,6 @@ FocusScope {
                 SelectRow {
                     id: blueButtonRow
                     Layout.fillWidth: true
-                    settingIndex: 21
                     rowFocus: root.currentIndex === settingIndex || activeFocus
                     title: "Blue Button"
                     options: root.buttonActionOptions()
@@ -722,7 +701,6 @@ FocusScope {
                 SettingRow {
                     id: aboutVersionRow
                     Layout.fillWidth: true
-                    settingIndex: 24
                     rowFocus: root.currentIndex === settingIndex || activeFocus
                     title: "Jellyfin Native for webOS"
                     description: "Qt 6.11 client, native mpv playback"
@@ -733,7 +711,6 @@ FocusScope {
                 SettingRow {
                     id: aboutServerRow
                     Layout.fillWidth: true
-                    settingIndex: 25
                     rowFocus: root.currentIndex === settingIndex || activeFocus
                     title: "Connected Server"
                     description: appController ? appController.serverUrl : ""
@@ -744,7 +721,6 @@ FocusScope {
                 SettingRow {
                     id: aboutLocaleRow
                     Layout.fillWidth: true
-                    settingIndex: 26
                     rowFocus: root.currentIndex === settingIndex || activeFocus
                     title: "UI Locale"
                     description: i18n ? "Active translation tag" : ""
