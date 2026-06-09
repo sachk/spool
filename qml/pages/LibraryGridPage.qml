@@ -485,7 +485,7 @@ FocusScope {
         if (grid.currentIndex < 0)
             return
         shell.lastGridIndex = grid.currentIndex
-        shell.openDetails(appController.movies, grid.currentIndex, "movies", "libraryGrid")
+        shell.openDetailsAt(appController.movies, grid.currentIndex, "movies", "libraryGrid")
     }
 
     function currentCard() {

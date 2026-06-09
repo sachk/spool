@@ -81,7 +81,7 @@ FocusScope {
 
     function openCurrent() {
         if (currentIndex >= 0)
-            shell.openDetails(appController.personItems, currentIndex, "person", "personDetails")
+            shell.openDetailsAt(appController.personItems, currentIndex, "person", "personDetails")
     }
 
     function handleNavigationKey(key) {

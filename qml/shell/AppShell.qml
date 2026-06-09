@@ -20,6 +20,7 @@ FocusScope {
     property int detailsIndex: 0
     property string detailsSource: "movies"
     property string detailsReturnRoute: "libraryGrid"
+    property var detailsRoute: ({ itemId: "", itemType: "", source: "movies", returnRoute: "libraryGrid", focusIndex: 0 })
     property bool shortcutOverlayVisible: false
     property bool diagnosticsVisible: false
     property bool mediaInfoVisible: false
@@ -74,21 +75,85 @@ FocusScope {
         routeStack.forceActiveFocus()
     }
 
-    function openDetails(model, index, source, returnRoute) {
-        detailsModel = model || (appController ? appController.movies : null)
-        detailsIndex = Math.max(0, index)
-        detailsSource = source || "movies"
-        detailsReturnRoute = returnRoute || route || "libraryGrid"
+    function itemIdFor(item) {
+        return item ? String(item.movieId || item.itemId || item.id || "") : ""
+    }
+
+    function itemTypeFor(item) {
+        return item ? String(item.itemType || item.type || "") : ""
+    }
+
+    function modelCount(model) {
+        return model && model.rowCount ? model.rowCount() : 0
+    }
+
+    function modelItem(model, index) {
+        return model && model.get && index >= 0 && index < modelCount(model) ? model.get(index) : ({})
+    }
+
+    function modelIndexForItemId(model, itemId, fallbackIndex) {
+        const count = modelCount(model)
+        const id = String(itemId || "")
+        if (id.length > 0) {
+            for (let i = 0; i < count; ++i) {
+                if (itemIdFor(model.get(i)) === id)
+                    return i
+            }
+        }
+        return count > 0 ? Math.max(0, Math.min(Number(fallbackIndex || 0), count - 1)) : -1
+    }
+
+    function detailsIndexForModel(model) {
+        return modelIndexForItemId(model, detailsRoute ? detailsRoute.itemId : "", detailsIndex)
+    }
+
+    function openDetailsRoute(request) {
+        const nextModel = request && request.model ? request.model : (appController ? appController.movies : null)
+        const focusIndex = Math.max(0, Number(request && request.focusIndex !== undefined ? request.focusIndex : 0))
+        const requestedItemId = request ? String(request.itemId || "") : ""
+        const fallbackItem = modelItem(nextModel, focusIndex)
+        const itemId = requestedItemId.length > 0 ? requestedItemId : itemIdFor(fallbackItem)
+        if (itemId.length <= 0) {
+            console.warn("details route ignored: missing item id", request ? request.source : "", focusIndex)
+            return false
+        }
+
+        detailsModel = nextModel
+        detailsIndex = focusIndex
+        detailsSource = request && request.source ? String(request.source) : "movies"
+        detailsReturnRoute = request && request.returnRoute ? String(request.returnRoute) : (route || "libraryGrid")
+        detailsRoute = {
+            itemId: itemId,
+            itemType: request && request.itemType ? String(request.itemType) : itemTypeFor(fallbackItem),
+            source: detailsSource,
+            returnRoute: detailsReturnRoute,
+            focusIndex: focusIndex
+        }
         if (detailsSource === "movies")
-            lastGridIndex = detailsIndex
-        else if (detailsSource === "search")
-            lastSearchIndex = detailsIndex
+            lastGridIndex = focusIndex
+        else if (detailsSource === "search" || detailsSource === "suggestion")
+            lastSearchIndex = focusIndex
 
         if (route === "itemDetails") {
             routeStack.forceActiveFocus()
-            return
+            return true
         }
         pushRoute("itemDetails")
+        return true
+    }
+
+    function openDetailsAt(model, index, source, returnRoute) {
+        const nextModel = model || (appController ? appController.movies : null)
+        const focusIndex = Math.max(0, Number(index || 0))
+        const item = modelItem(nextModel, focusIndex)
+        return openDetailsRoute({
+            model: nextModel,
+            itemId: itemIdFor(item),
+            itemType: itemTypeFor(item),
+            source: source || "movies",
+            returnRoute: returnRoute || route || "libraryGrid",
+            focusIndex: focusIndex
+        })
     }
 
     function replaceRoute(nextRoute) {
@@ -125,7 +190,7 @@ FocusScope {
         if (routeStack.handleBack()) return true
         if (route === "playerOverlay") { replaceRoute(previousRoute.length > 0 ? previousRoute : "home"); return true }
         if (route === "settings") { appController.closeSettings(); replaceRoute(previousRoute.length > 0 ? previousRoute : "home"); return true }
-        if (route === "itemDetails") { replaceRoute(detailsReturnRoute.length > 0 ? detailsReturnRoute : "libraryGrid"); return true }
+        if (route === "itemDetails") { replaceRoute(detailsRoute && detailsRoute.returnRoute ? detailsRoute.returnRoute : (detailsReturnRoute.length > 0 ? detailsReturnRoute : "libraryGrid")); return true }
         if (route === "personDetails") { replaceRoute(previousRoute.length > 0 ? previousRoute : "itemDetails"); return true }
         if (route === "search") { replaceRoute(previousRoute.length > 0 ? previousRoute : "home"); return true }
         if (route === "libraryGrid") { goHome(); return true }
@@ -157,7 +222,7 @@ FocusScope {
         if (route === "itemDetails" && detailsModel && detailsModel.rowCount) {
             const detailsCount = detailsModel.rowCount()
             if (detailsCount > 0) {
-                const detailsIdx = Math.max(0, Math.min(detailsIndex, detailsCount - 1))
+                const detailsIdx = detailsIndexForModel(detailsModel)
                 return detailsModel.get(detailsIdx) || ({})
             }
         }
@@ -418,7 +483,7 @@ FocusScope {
         onClosed: { root.mediaInfoVisible = false; root.mediaInfoItem = ({}) }
     }
     ShortcutOverlay { anchors.fill: parent; visible: root.shortcutOverlayVisible; z: 60; onClosed: root.shortcutOverlayVisible = false }
-    DiagnosticsOverlay { anchors.fill: parent; visible: root.diagnosticsVisible && !(root.hasPlayer && root.player.visible); route: root.route; focusedItemId: String(root.lastGridIndex); z: 61 }
+    DiagnosticsOverlay { anchors.fill: parent; visible: root.diagnosticsVisible && !(root.hasPlayer && root.player.visible); route: root.route; focusedItemId: root.itemIdFor(root.currentMediaItem()); z: 61 }
     ToastLayer { id: toast; anchors.fill: parent; z: 70 }
 
     Surface {

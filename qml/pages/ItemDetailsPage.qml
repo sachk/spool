@@ -8,9 +8,9 @@ FocusScope {
     property var shell
     readonly property var itemModel: shell && shell.detailsModel ? shell.detailsModel : appController.movies
     readonly property int itemCount: itemModel && itemModel.rowCount ? itemModel.rowCount() : 0
-    readonly property int selectedIndex: itemCount > 0 ? Math.max(0, Math.min(shell ? shell.detailsIndex : 0, itemCount - 1)) : -1
+    readonly property int selectedIndex: itemCount > 0 && shell ? shell.detailsIndexForModel(itemModel) : -1
     readonly property var item: selectedIndex >= 0 && itemModel ? itemModel.get(selectedIndex) : ({})
-    readonly property string detailSource: shell ? shell.detailsSource : "movies"
+    readonly property string detailSource: shell && shell.detailsRoute ? shell.detailsRoute.source : "movies"
     readonly property string titleText: item.displayTitle || item.title || item.seriesName || "Selected item"
     readonly property string parentText: item.itemType === "Episode" && item.seriesName ? item.seriesName : ""
     readonly property string typeText: item.itemType || "Media"
@@ -475,7 +475,7 @@ FocusScope {
     function openSimilarItem(index) {
         if (index < 0 || !appController)
             return
-        shell.openDetails(appController.detailSimilarItems, index, "similar", shell.detailsReturnRoute || "libraryGrid")
+        shell.openDetailsAt(appController.detailSimilarItems, index, "similar", shell.detailsReturnRoute || "libraryGrid")
     }
 
     function openSeasonRow(index) {
