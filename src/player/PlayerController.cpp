@@ -1,12 +1,11 @@
 #include "PlayerController.h"
 
 #include "../api/JellyfinApiFacade.h"
+#include "../common/AsyncTask.h"
 #include "../app/NativeAppWindow.h"
 #include "../common/JellyfinTypes.h"
 #include "../diagnostics/Diagnostics.h"
 #include "MpvVideoItem.h"
-
-#include <QCoroTask>
 
 extern "C" {
 #include <mpv/client.h>
@@ -381,10 +380,10 @@ PlayerController::PlayerController(NativeAppWindow *window,
     logMemoryStats(m_mpv.load());
 
     const auto session = m_session;
-    QCoro::runDetached(
+    Async::runScoped(this,
         m_api->reportPlaybackProgress(
             session, secondsToTicks(m_positionSeconds), m_paused),
-        []() {}, [](const std::exception_ptr &) {});
+        []() {}, [](const std::exception_ptr &) {}, "playback progress report");
   });
 }
 
@@ -1104,9 +1103,9 @@ void PlayerController::startProgressReporting() {
   m_progressTimer.start();
 
   const auto session = m_session;
-  QCoro::runDetached(
+  Async::runScoped(this,
       m_api->reportPlaybackStart(session), []() {},
-      [](const std::exception_ptr &) {});
+      [](const std::exception_ptr &) {}, "playback start report");
 }
 
 void PlayerController::stopProgressReporting(bool failed) {
@@ -1123,9 +1122,9 @@ void PlayerController::stopProgressReporting(bool failed) {
 
   const auto session = m_session;
   const qint64 positionTicks = secondsToTicks(m_positionSeconds);
-  QCoro::runDetached(
+  Async::runScoped(this,
       m_api->reportPlaybackStopped(session, positionTicks, failed), []() {},
-      [](const std::exception_ptr &) {});
+      [](const std::exception_ptr &) {}, "playback stop report");
 
   resetPlaybackUiState();
   m_window->clearOverlay();

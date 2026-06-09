@@ -13,6 +13,7 @@ if(CMAKE_CROSSCOMPILING)
     set(JELLYFIN_NATIVE_WEBOS_DEFAULT ON)
 endif()
 option(JELLYFIN_NATIVE_WEBOS "Build the webOS Starfish/native-surface client" ${JELLYFIN_NATIVE_WEBOS_DEFAULT})
+option(JELLYFIN_USE_BUNDLED_QCORO "Use the temporary bundled QCoro compatibility shim" ${JELLYFIN_NATIVE_WEBOS})
 option(JELLYFIN_NATIVE_DEV_BUILD "Favor faster local development builds over smallest release artifacts" OFF)
 option(JELLYFIN_DIAGNOSTICS "Build debug lifecycle/process/watchdog diagnostics" OFF)
 option(JELLYFIN_DIAGNOSTICS_STACKDUMP "Allow diagnostics to request gdb stack dumps" OFF)
@@ -44,9 +45,6 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
-list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/third_party/qcoro/cmake")
-include("${CMAKE_CURRENT_SOURCE_DIR}/third_party/qcoro/cmake/QCoroConfig.cmake")
-
 find_package(PkgConfig REQUIRED)
 
 set(JELLYFIN_QT_COMPONENTS
@@ -75,6 +73,11 @@ else()
     set(JELLYFIN_QT_MIN_VERSION 6.11)
 endif()
 find_package(Qt6 ${JELLYFIN_QT_MIN_VERSION} REQUIRED COMPONENTS ${JELLYFIN_QT_COMPONENTS})
+if(JELLYFIN_USE_BUNDLED_QCORO)
+    include("${CMAKE_CURRENT_SOURCE_DIR}/third_party/qcoro/cmake/QCoroConfig.cmake")
+else()
+    find_package(QCoro6 0.12 REQUIRED COMPONENTS Core Network)
+endif()
 
 qt_standard_project_setup(
     REQUIRES ${JELLYFIN_QT_MIN_VERSION}
@@ -136,6 +139,7 @@ qt_add_executable(jellyfin-native
     src/cache/DatabaseManager.h
     src/common/JellyfinTypes.cpp
     src/common/JellyfinTypes.h
+    src/common/AsyncTask.h
     src/discovery/DiscoveryController.cpp
     src/discovery/DiscoveryController.h
     src/diagnostics/Diagnostics.cpp
@@ -158,6 +162,9 @@ if(JELLYFIN_NATIVE_WEBOS)
     target_compile_definitions(jellyfin-native PRIVATE JELLYFIN_NATIVE_WEBOS=1)
 else()
     target_sources(jellyfin-native PRIVATE src/app/HostNativeAppWindow.cpp)
+endif()
+if(JELLYFIN_USE_BUNDLED_QCORO)
+    target_compile_definitions(jellyfin-native PRIVATE JELLYFIN_USE_BUNDLED_QCORO=1)
 endif()
 
 if(JELLYFIN_DIAGNOSTICS)
@@ -248,7 +255,6 @@ set_target_properties(jellyfin-native PROPERTIES
 )
 
 target_include_directories(jellyfin-native PRIVATE
-    "${CMAKE_CURRENT_SOURCE_DIR}/third_party/qcoro/include"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/player"
     "${MPV_ACTIVE_SOURCE_DIR}"
     "${MPV_ACTIVE_SOURCE_DIR}/include"

@@ -1,10 +1,9 @@
 #include "SyncPlayController.h"
 
 #include "../api/JellyfinApiFacade.h"
+#include "../common/AsyncTask.h"
 #include "../common/JellyfinTypes.h"
 #include "../player/PlayerController.h"
-
-#include <QCoroTask>
 
 #include <QDateTime>
 #include <QDebug>
@@ -42,7 +41,7 @@ void SyncPlayController::refreshGroups()
     if (!m_api)
         return;
     connectSocket();
-    QCoro::runDetached(
+    Async::runScoped(this,
         m_api->fetchSyncPlayGroups(),
         [this](const QJsonArray &groups) {
             m_groups = groups;
@@ -82,7 +81,7 @@ void SyncPlayController::createGroup(const QString &name)
     if (!m_api)
         return;
     connectSocket();
-    QCoro::runDetached(
+    Async::runScoped(this,
         m_api->createSyncPlayGroup(name),
         [this]() { refreshGroups(); },
         [this](const std::exception_ptr &error) { emit errorText(exceptionMessage(error)); });
@@ -93,7 +92,7 @@ void SyncPlayController::joinGroup(const QString &groupId)
     if (!m_api || groupId.isEmpty())
         return;
     connectSocket();
-    QCoro::runDetached(
+    Async::runScoped(this,
         m_api->joinSyncPlayGroup(groupId),
         [this, groupId]() {
             m_groupId = groupId;
@@ -113,7 +112,7 @@ void SyncPlayController::leaveGroup()
 {
     if (!m_api || m_groupId.isEmpty())
         return;
-    QCoro::runDetached(
+    Async::runScoped(this,
         m_api->leaveSyncPlayGroup(),
         [this]() {
             m_groupId.clear();
@@ -127,8 +126,8 @@ void SyncPlayController::requestPause()
 {
     if (!m_api || m_groupId.isEmpty())
         return;
-    QCoro::runDetached(m_api->syncPlayRequestPause(),
-                       []() {}, [](const std::exception_ptr &) {});
+    Async::runScoped(this, m_api->syncPlayRequestPause(),
+                     []() {}, [](const std::exception_ptr &) {}, "SyncPlay pause request");
 }
 
 void SyncPlayController::handleSocketTextMessage(const QString &message)
@@ -220,8 +219,8 @@ void SyncPlayController::requestPlay()
 {
     if (!m_api || m_groupId.isEmpty())
         return;
-    QCoro::runDetached(m_api->syncPlayRequestPlay(),
-                       []() {}, [](const std::exception_ptr &) {});
+    Async::runScoped(this, m_api->syncPlayRequestPlay(),
+                     []() {}, [](const std::exception_ptr &) {}, "SyncPlay play request");
 }
 
 void SyncPlayController::requestSeekSeconds(double seconds)
@@ -229,8 +228,8 @@ void SyncPlayController::requestSeekSeconds(double seconds)
     if (!m_api || m_groupId.isEmpty())
         return;
     const qint64 ticks = static_cast<qint64>(seconds * 10000000.0);
-    QCoro::runDetached(m_api->syncPlayRequestSeek(ticks),
-                       []() {}, [](const std::exception_ptr &) {});
+    Async::runScoped(this, m_api->syncPlayRequestSeek(ticks),
+                     []() {}, [](const std::exception_ptr &) {}, "SyncPlay seek request");
 }
 
 } // namespace JellyfinNative

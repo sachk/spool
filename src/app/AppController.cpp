@@ -1,10 +1,9 @@
 #include "AppController.h"
 
 #include "../api/JellyfinApiFacade.h"
+#include "../common/AsyncTask.h"
 #include "../diagnostics/Diagnostics.h"
 #include "../player/PlayerController.h"
-
-#include <QCoroTask>
 
 #include <QCoreApplication>
 #include <QDebug>
@@ -723,7 +722,7 @@ void AppController::login()
     setBusy(true, QStringLiteral("Signing in…"));
     m_api->setServerUrl(m_serverUrl);
     
-    QCoro::runDetached(
+    Async::runScoped(this,
         m_api->authenticateByName(m_username, m_password),
         [this](const AuthSession &session) {
             m_database->saveLoginHints(m_serverUrl, m_username);
@@ -732,7 +731,7 @@ void AppController::login()
             m_syncPlay->connectSocket();
             setBusy(false);
             loadLibraries();
-            QCoro::runDetached(m_api->postCapabilities(), []() {}, [](const std::exception_ptr &) {});
+            Async::runScoped(this, m_api->postCapabilities(), []() {}, [](const std::exception_ptr &) {});
         },
         [this](const std::exception_ptr &error) {
             setBusy(false);
@@ -810,7 +809,7 @@ void AppController::startQuickConnect()
     m_quickConnectPollErrors = 0;
     qInfo() << "quick connect: starting for" << m_serverUrl;
 
-    QCoro::runDetached(
+    Async::runScoped(this,
         m_api->quickConnectEnabled(),
         [this](bool enabled) {
             if (!enabled) {
@@ -819,7 +818,7 @@ void AppController::startQuickConnect()
                 return;
             }
 
-            QCoro::runDetached(
+            Async::runScoped(this,
                 m_api->initiateQuickConnect(),
                 [this](const QJsonObject &result) {
                     setBusy(false);
@@ -908,7 +907,7 @@ void AppController::openLibrary(int index)
         setBusy(true, QStringLiteral("Loading %1…").arg(m_currentContentLabel.toLower()));
     }
 
-    QCoro::runDetached(
+    Async::runScoped(this,
         m_api->fetchLibraryPage(library.id, library.collectionType, 0, kLibraryPageSize, m_libraryQuery),
         [this, cacheKey, loadGeneration](const PagedMovieItems &page) {
             if (loadGeneration != m_libraryLoadGeneration)
@@ -1012,7 +1011,7 @@ void AppController::search(const QString &query)
     m_searchBusy = true;
     emit searchChanged();
 
-    QCoro::runDetached(
+    Async::runScoped(this,
         m_api->searchItems(trimmed),
         [this, generation](const std::vector<MovieItem> &items) {
             if (generation != m_searchGeneration)
@@ -1053,7 +1052,7 @@ void AppController::loadSearchSuggestions()
     m_searchSuggestionsBusy = true;
     emit searchSuggestionsChanged();
 
-    QCoro::runDetached(
+    Async::runScoped(this,
         m_api->fetchSearchSuggestions(),
         [this, generation](const std::vector<MovieItem> &items) {
             if (generation != m_searchSuggestionsGeneration)
@@ -1122,7 +1121,7 @@ void AppController::loadMoreCurrentItems()
         setErrorText(exceptionMessage(error));
     };
 
-    QCoro::runDetached(m_api->fetchLibraryPage(libraryId, collectionType, startIndex, kLibraryPageSize, query),
+    Async::runScoped(this, m_api->fetchLibraryPage(libraryId, collectionType, startIndex, kLibraryPageSize, query),
                        onDone,
                        onError);
 }
@@ -1230,7 +1229,7 @@ void AppController::refreshCurrentLibrary()
     m_movies.clear();
     setBusy(true, QStringLiteral("Loading %1…").arg(m_currentContentLabel.toLower()));
 
-    QCoro::runDetached(
+    Async::runScoped(this,
         m_api->fetchLibraryPage(libraryId, collectionType, 0, kLibraryPageSize, query),
         [this, loadGeneration, cacheKey](const PagedMovieItems &page) {
             if (loadGeneration != m_libraryLoadGeneration)
@@ -1267,7 +1266,7 @@ void AppController::loadDetailRows(const QString &itemId, const QString &itemTyp
     qInfo() << "detail rows: loading" << itemType << itemId << "seasons=" << loadSeasons;
 
     if (loadSeasons) {
-        QCoro::runDetached(
+        Async::runScoped(this,
             m_api->fetchSeasons(itemId),
             [this, generation, itemId](const std::vector<MovieItem> &seasons) {
                 if (generation != m_detailRowsGeneration)
@@ -1286,7 +1285,7 @@ void AppController::loadDetailRows(const QString &itemId, const QString &itemTyp
             });
     }
 
-    QCoro::runDetached(
+    Async::runScoped(this,
         m_api->fetchSimilarItems(itemId),
         [this, generation, itemId](const std::vector<MovieItem> &items) {
             if (generation != m_detailRowsGeneration)
@@ -1331,7 +1330,7 @@ void AppController::loadPersonItems(const QString &personId)
     m_personItemsBusy = true;
     emit personItemsChanged();
 
-    QCoro::runDetached(
+    Async::runScoped(this,
         m_api->fetchItemsByPerson(personId),
         [this, generation](const std::vector<MovieItem> &items) {
             if (generation != m_personItemsGeneration)
@@ -1362,7 +1361,7 @@ void AppController::setFavorite(const QString &itemId, bool favorite)
         return;
 
     applyFavoriteState(itemId, favorite);
-    QCoro::runDetached(
+    Async::runScoped(this,
         m_api->setItemFavorite(itemId, favorite),
         []() {},
         [this, itemId, favorite](const std::exception_ptr &error) {
@@ -1377,7 +1376,7 @@ void AppController::setPlayed(const QString &itemId, bool played)
         return;
 
     applyPlayedState(itemId, played);
-    QCoro::runDetached(
+    Async::runScoped(this,
         m_api->setItemPlayed(itemId, played),
         []() {},
         [this, itemId, played](const std::exception_ptr &error) {
@@ -1394,7 +1393,7 @@ void AppController::playMediaItem(const MovieItem &item, bool fromStart)
     if (fromStart)
         playItem.resumeTicks = 0;
     const QString itemId = playItem.id;
-    QCoro::runDetached(
+    Async::runScoped(this,
         m_api->negotiateDirectPlay(playItem),
         [this, itemId](const PlaybackSession &session) {
             // Enrich the negotiated session with media segments (skip-intro)
@@ -1409,14 +1408,14 @@ void AppController::playMediaItem(const MovieItem &item, bool fromStart)
                 if (--(*pending) == 0)
                     player->play(*sharedSession);
             };
-            QCoro::runDetached(
+            Async::runScoped(this,
                 api->fetchMediaSegments(itemId),
                 [sharedSession, kickoff](const std::vector<MediaSegment> &segments) {
                     sharedSession->segments = segments;
                     kickoff();
                 },
                 [kickoff](const std::exception_ptr &) { kickoff(); });
-            QCoro::runDetached(
+            Async::runScoped(this,
                 api->fetchTrickplay(itemId, mediaSourceId),
                 [sharedSession, kickoff](const TrickplayInfo &info) {
                     sharedSession->trickplay = info;
@@ -1827,7 +1826,7 @@ void AppController::loadSubtitleRemoteSettings()
     if (!m_api || m_api->session().accessToken.isEmpty())
         return;
 
-    QCoro::runDetached(
+    Async::runScoped(this,
         m_api->fetchCultures(),
         [this](const QJsonArray &cultures) {
             QStringList codes{QString()};
@@ -1860,7 +1859,7 @@ void AppController::loadSubtitleRemoteSettings()
             qWarning() << "subtitles: culture list failed" << exceptionMessage(error);
         });
 
-    QCoro::runDetached(
+    Async::runScoped(this,
         m_api->fetchUserConfiguration(),
         [this](const QJsonObject &configuration) {
             m_userConfiguration = configuration;
@@ -1887,7 +1886,7 @@ void AppController::saveSubtitleUserConfiguration()
     configuration.insert(QStringLiteral("SubtitleMode"), m_subtitlePreferences.mode);
     m_userConfiguration = configuration;
 
-    QCoro::runDetached(
+    Async::runScoped(this,
         m_api->updateUserConfiguration(configuration),
         []() {},
         [this](const std::exception_ptr &error) {
@@ -1959,7 +1958,7 @@ void AppController::loadLibraries()
     m_libraryPrefetchQueue.clear();
     m_libraryPrefetchActive = false;
     setBusy(true, QStringLiteral("Loading libraries…"));
-    QCoro::runDetached(
+    Async::runScoped(this,
         m_api->fetchLibraries(),
         [this](const std::vector<LibraryItem> &libraries) {
             m_libraries.setLibraries(libraries);
@@ -1994,7 +1993,7 @@ void AppController::pollQuickConnect()
         return;
     }
 
-    QCoro::runDetached(
+    Async::runScoped(this,
         m_api->pollQuickConnect(m_quickConnectSecret),
         [this](const QJsonObject &result) {
             m_quickConnectPollErrors = 0;
@@ -2008,7 +2007,7 @@ void AppController::pollQuickConnect()
             m_quickConnectStatus = QStringLiteral("Authorized. Signing in…");
             emit quickConnectChanged();
 
-            QCoro::runDetached(
+            Async::runScoped(this,
                 m_api->authenticateWithQuickConnect(m_quickConnectSecret),
                 [this](const AuthSession &session) {
                     qInfo() << "quick connect: authenticated successfully";
@@ -2018,7 +2017,7 @@ void AppController::pollQuickConnect()
                     loadSubtitleRemoteSettings();
                     m_syncPlay->connectSocket();
                     loadLibraries();
-                    QCoro::runDetached(m_api->postCapabilities(), []() {}, [](const std::exception_ptr &) {});
+                    Async::runScoped(this, m_api->postCapabilities(), []() {}, [](const std::exception_ptr &) {});
                 },
                 [this](const std::exception_ptr &error) {
                     qWarning() << "quick connect: token exchange failed" << exceptionMessage(error);
@@ -2106,7 +2105,7 @@ void AppController::loadLibraryFilterOptions(int generation, const LibraryItem &
     if (!m_api || m_api->session().accessToken.isEmpty() || library.id.isEmpty())
         return;
 
-    QCoro::runDetached(
+    Async::runScoped(this,
         m_api->fetchLibraryFilterOptions(library.id, library.collectionType),
         [this, generation, library](const QVariantMap &options) {
             if (generation != m_libraryLoadGeneration || library.id != m_currentLibraryId)
@@ -2151,7 +2150,7 @@ void AppController::openSeries(const MovieItem &series)
     m_movies.clear();
     setBusy(true, QStringLiteral("Loading seasons…"));
 
-    QCoro::runDetached(
+    Async::runScoped(this,
         m_api->fetchSeasons(series.id),
         [this, series, loadGeneration](const std::vector<MovieItem> &seasons) {
             if (loadGeneration != m_libraryLoadGeneration)
@@ -2200,7 +2199,7 @@ void AppController::openSeason(const MovieItem &season)
     m_movies.clear();
     setBusy(true, QStringLiteral("Loading episodes…"));
 
-    QCoro::runDetached(
+    Async::runScoped(this,
         m_api->fetchEpisodes(seriesId, season.itemType == QStringLiteral("Season") ? season.id : QString()),
         [this, seriesId, season, loadGeneration](const std::vector<MovieItem> &episodes) {
             if (loadGeneration != m_libraryLoadGeneration)
@@ -2242,7 +2241,7 @@ void AppController::openGenre(const QString &genre)
     m_movies.clear();
     setBusy(true, QStringLiteral("Loading %1…").arg(name));
 
-    QCoro::runDetached(
+    Async::runScoped(this,
         m_api->fetchItemsByGenre(name),
         [this, cacheKey, loadGeneration](const std::vector<MovieItem> &items) {
             if (loadGeneration != m_libraryLoadGeneration)
@@ -2279,7 +2278,7 @@ void AppController::openStudio(const QString &studio)
     m_movies.clear();
     setBusy(true, QStringLiteral("Loading %1…").arg(name));
 
-    QCoro::runDetached(
+    Async::runScoped(this,
         m_api->fetchItemsByStudio(name),
         [this, cacheKey, loadGeneration](const std::vector<MovieItem> &items) {
             if (loadGeneration != m_libraryLoadGeneration)
@@ -2315,7 +2314,7 @@ void AppController::refreshHomeRows()
 
     m_homeLoadsPending = 2 + static_cast<int>(latestLibraries.size());
 
-    QCoro::runDetached(
+    Async::runScoped(this,
         m_api->fetchResumeItems(),
         [this, generation](const std::vector<MovieItem> &items) {
             if (generation != m_homeLoadGeneration)
@@ -2332,7 +2331,7 @@ void AppController::refreshHomeRows()
             handleHomeRowLoaded(generation);
         });
 
-    QCoro::runDetached(
+    Async::runScoped(this,
         m_api->fetchNextUpEpisodes(),
         [this, generation](const std::vector<MovieItem> &items) {
             if (generation != m_homeLoadGeneration)
@@ -2351,7 +2350,7 @@ void AppController::refreshHomeRows()
 
     for (int order = 0; order < static_cast<int>(latestLibraries.size()); ++order) {
         const LibraryItem library = latestLibraries[static_cast<size_t>(order)];
-        QCoro::runDetached(
+        Async::runScoped(this,
             m_api->fetchLatestItems(library.id, latestLibraryLimit(library)),
             [this, generation, order, library](const std::vector<MovieItem> &items) {
                 if (generation != m_homeLoadGeneration)
@@ -2398,7 +2397,7 @@ void AppController::refreshCurrentItems(const QString &viewKind,
         const QString collectionType = m_currentLibraryCollectionType;
         const QString cacheKey = m_currentItemsCacheKey;
         const QVariantMap query = m_libraryQuery;
-        QCoro::runDetached(
+        Async::runScoped(this,
             m_api->fetchLibraryPage(libraryId, collectionType, 0, kLibraryPageSize, query),
             [this, loadGeneration, cacheKey](const PagedMovieItems &page) {
                 if (loadGeneration != m_libraryLoadGeneration)
@@ -2415,7 +2414,7 @@ void AppController::refreshCurrentItems(const QString &viewKind,
 
     if (viewKind == QStringLiteral("episodes") && !seriesId.isEmpty()) {
         const int loadGeneration = ++m_libraryLoadGeneration;
-        QCoro::runDetached(
+        Async::runScoped(this,
             m_api->fetchEpisodes(seriesId, seasonId),
             [this, loadGeneration, seriesId, seasonId](const std::vector<MovieItem> &episodes) {
                 if (loadGeneration != m_libraryLoadGeneration)
@@ -2657,7 +2656,7 @@ void AppController::startNextLibraryPrefetch()
         startNextLibraryPrefetch();
     };
 
-    QCoro::runDetached(m_api->fetchLibraryPage(library.id, library.collectionType, 0, kLibraryPageSize),
+    Async::runScoped(this, m_api->fetchLibraryPage(library.id, library.collectionType, 0, kLibraryPageSize),
                        onDone,
                        onError);
 }

@@ -1347,7 +1347,11 @@ QCoro::Task<QByteArray> JellyfinApiFacade::requestBytes(HttpMethod method, QStri
         break;
     }
 
+#ifdef JELLYFIN_USE_BUNDLED_QCORO
     reply = co_await QCoro::waitFor(reply);
+#else
+    reply = co_await reply;
+#endif
     const QByteArray payload = reply ? reply->readAll() : QByteArray{};
     const QString errorText = reply ? reply->errorString() : QStringLiteral("Network reply disappeared");
     const int statusCode =
