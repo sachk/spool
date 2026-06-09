@@ -4,6 +4,7 @@ set -euo pipefail
 APP_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 # shellcheck source=tools/lib/build-common.sh
 source "$APP_ROOT/tools/lib/build-common.sh"
+ensure_native_shell "$APP_ROOT" "$APP_ROOT/tools/build-linux-release.sh" "$@"
 MPV_SRC="${MPV_SRC:-$APP_ROOT/mpv}"
 BUILD_ROOT="${BUILD_ROOT:-$APP_ROOT/build/linux-release}"
 MPV_BUILD="${MPV_BUILD:-$BUILD_ROOT/mpv}"

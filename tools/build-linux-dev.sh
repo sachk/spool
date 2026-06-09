@@ -4,6 +4,7 @@ set -euo pipefail
 APP_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 # shellcheck source=tools/lib/build-common.sh
 source "$APP_ROOT/tools/lib/build-common.sh"
+ensure_native_shell "$APP_ROOT" "$APP_ROOT/tools/build-linux-dev.sh" "$@"
 MPV_SRC="${MPV_SRC:-$APP_ROOT/mpv}"
 BUILD_ROOT="${BUILD_ROOT:-$APP_ROOT/build/linux-dev}"
 MPV_BUILD="${MPV_BUILD:-$BUILD_ROOT/mpv}"
@@ -11,11 +12,6 @@ MPV_PREFIX="${MPV_PREFIX:-$BUILD_ROOT/mpv-prefix}"
 APP_BUILD="${APP_BUILD:-$BUILD_ROOT/app}"
 APP_INSTALL="${APP_INSTALL:-$BUILD_ROOT/install}"
 RUN_APP="${RUN_APP:-0}"
-
-if [[ -z "${IN_NIX_SHELL:-}" ]]; then
-  cd "$APP_ROOT"
-  exec nix develop .#native -c bash tools/build-linux-dev.sh
-fi
 
 setup_native_ccache "$APP_ROOT"
 mkdir -p "$MPV_PREFIX" "$APP_BUILD" "$APP_INSTALL"

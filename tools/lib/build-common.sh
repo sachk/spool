@@ -5,6 +5,23 @@
 # Source this file ("source tools/lib/build-common.sh"); do not execute it.
 # It defines functions only and changes no global state.
 
+ensure_native_shell() {
+  local root="$1"
+  local script="$2"
+  shift 2
+
+  if [[ "${JELLYFIN_NATIVE_SHELL:-0}" == "1" ]]; then
+    return 0
+  fi
+  command -v nix >/dev/null 2>&1 || {
+    echo "error: native build requires Nix; run from the repository root" >&2
+    return 1
+  }
+
+  cd "$root"
+  exec nix develop "$root#native" -c bash "$script" "$@"
+}
+
 read_project_version() {
   local root="$1"
   local version_file="$root/VERSION"
