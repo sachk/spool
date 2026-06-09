@@ -75,6 +75,9 @@ private:
     void updateCropRegion();
     void setVideoCrop(int origW, int origH, int srcX, int srcY, int srcW, int srcH,
                       int dstX, int dstY, int dstW, int dstH);
+    void scheduleVideoCrop(int origW, int origH, int srcX, int srcY, int srcW, int srcH,
+                           int dstX, int dstY, int dstW, int dstH);
+    void publishPendingVideoCrop();
     void scheduleOverlayImage(QImage image);
     void publishPendingOverlayImage();
 
@@ -106,6 +109,22 @@ private:
     wl_webos_foreign *m_webosForeign = nullptr;
     wl_webos_exported *m_exported = nullptr;
     std::string m_windowId;
+    struct CropRegion {
+        int origW = 0;
+        int origH = 0;
+        int srcX = 0;
+        int srcY = 0;
+        int srcW = 0;
+        int srcH = 0;
+        int dstX = 0;
+        int dstY = 0;
+        int dstW = 0;
+        int dstH = 0;
+        bool valid = false;
+    };
+    QMutex m_cropMutex;
+    CropRegion m_pendingCrop;
+    bool m_cropUpdateQueued = false;
     int m_cropOrigW = 0;
     int m_cropOrigH = 0;
     int m_cropSrcX = 0;
