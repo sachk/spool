@@ -136,7 +136,7 @@ jobs:
     name: webOS IPK
     runs-on: [self-hosted, linux, X64]
     needs: lint
-    if: ${{ github.event_name == 'workflow_dispatch' && inputs.build_webos && (vars.WEBOS_TOOLCHAIN_ARCHIVE_URL != '' || inputs.webos_toolchain_archive_url != '') }}
+    if: ${{ github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.build_webos) }}
     steps:
       - uses: actions/checkout@v6
         with:
@@ -161,7 +161,7 @@ jobs:
 
       - name: Restore webOS toolchain archive
         env:
-          INPUT_URL: ${{ github.event.inputs.webos_toolchain_archive_url }}
+          INPUT_URL: ${{ inputs.webos_toolchain_archive_url || '' }}
           VAR_URL: ${{ vars.WEBOS_TOOLCHAIN_ARCHIVE_URL }}
         run: |
           url="${INPUT_URL:-$VAR_URL}"
@@ -200,6 +200,51 @@ jobs:
       # links the cross-built static Qt, and that build must not see nixpkgs Qt.
       - name: Build IPK
         run: nix develop -c bash build-ipk.sh
+
+      - name: Validate IPK
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          ipks=(build/*.ipk)
+          if [ "${#ipks[@]}" -ne 1 ]; then
+            printf 'expected exactly one IPK, found %d\n' "${#ipks[@]}" >&2
+            exit 1
+          fi
+          ipk="${ipks[0]}"
+          test -s "$ipk"
+
+          work="$(mktemp -d)"
+          trap 'rm -rf "$work"' EXIT
+          ar t "$ipk" | tee "$work/members.txt"
+          grep -qx debian-binary "$work/members.txt"
+          grep -Eq '^control\.tar\.' "$work/members.txt"
+          grep -Eq '^data\.tar\.' "$work/members.txt"
+
+          repo="$PWD"
+          (cd "$work" && ar x "$repo/$ipk")
+          data_tar="$(find "$work" -maxdepth 1 -name 'data.tar.*' -print -quit)"
+          test -n "$data_tar"
+          tar -tf "$data_tar" | tee "$work/data-files.txt" >/dev/null
+          grep -Eq '(^|/)appinfo\.json$' "$work/data-files.txt"
+          grep -Eq '(^|/)bin/jellyfin-native$' "$work/data-files.txt"
+
+          mkdir "$work/data"
+          tar -xf "$data_tar" -C "$work/data"
+          appinfo="$(find "$work/data" -name appinfo.json -print -quit)"
+          test -n "$appinfo"
+          python3 - "$appinfo" <<'PY'
+          import json
+          import re
+          import sys
+
+          with open(sys.argv[1], encoding="utf-8") as handle:
+              appinfo = json.load(handle)
+
+          assert appinfo["id"] == "com.sachk.tern", appinfo.get("id")
+          assert appinfo["main"] == "bin/jellyfin-native", appinfo.get("main")
+          assert re.fullmatch(r"\d+\.\d+\.\d+", appinfo["version"]), appinfo.get("version")
+          print(f"Validated {appinfo['id']} {appinfo['version']} IPK")
+          PY
 
       - uses: actions/upload-artifact@v7
         with:
