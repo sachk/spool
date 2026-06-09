@@ -11,10 +11,14 @@ set -euo pipefail
 #   - provide clear, actionable failures for missing SDK/tooling pieces.
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+# shellcheck source=tools/lib/manifest-sources.sh
+source "$ROOT/tools/lib/manifest-sources.sh"
+QT_MANIFEST="${QT_MANIFEST:-$ROOT/tools/manifests/qt-webos-6.11.json}"
 SDK_ROOT="${WEBOS_SDK_ROOT:-$ROOT/build/webos-sdk/arm-webos-linux-gnueabi_sdk-buildroot}"
 SYSROOT="$SDK_ROOT/arm-webos-linux-gnueabi/sysroot"
-QT_VERSION="${QT_VERSION:-6.11.1}"
+QT_VERSION="${QT_VERSION:-$(manifest_qt_field "$QT_MANIFEST" qtVersion)}"
 QT_SERIES="${QT_VERSION%.*}"
+QT_BASE_URL="${QT_BASE_URL:-$(manifest_qt_field "$QT_MANIFEST" baseUrl)}"
 QT_STATIC="${QT_STATIC:-0}"
 PHASE="${1:-all}"
 BUILD_QTOPENAPI="${BUILD_QTOPENAPI:-1}"
@@ -204,21 +208,23 @@ clean_target() {
 download_submodule() {
   local module="$1"
   local tarball="$2"
-
-  if [[ -f "$tarball" ]]; then
-    return 0
-  fi
+  local expected
+  expected="$(manifest_qt_module_sha256 "$QT_MANIFEST" "$module")"
 
   log "Downloading $module $QT_VERSION"
-  curl -L --fail --retry 3 --retry-delay 2 \
-    -o "$tarball" \
-    "https://download.qt.io/official_releases/qt/$QT_SERIES/$QT_VERSION/submodules/${module}-everywhere-src-$QT_VERSION.tar.xz"
+  download_verified \
+    "$QT_BASE_URL/${module}-everywhere-src-$QT_VERSION.tar.xz" \
+    "$expected" \
+    "$tarball"
 }
 
 extract_if_needed() {
   local tarball="$1"
   local src_dir="$2"
-  [[ -d "$src_dir" ]] || tar -C "$SRC_DIR" -xf "$tarball"
+  local module expected
+  module="$(basename "$tarball" "-everywhere-src-$QT_VERSION.tar.xz")"
+  expected="$(manifest_qt_module_sha256 "$QT_MANIFEST" "$module")"
+  extract_verified_source "$tarball" "$expected" "$src_dir"
 }
 
 apply_patch_if_needed() {

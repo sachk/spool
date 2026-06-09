@@ -2,21 +2,23 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+# shellcheck source=tools/lib/manifest-sources.sh
+source "$ROOT/tools/lib/manifest-sources.sh"
+MANIFEST="${WEBOS_THIRD_PARTY_MANIFEST:-$ROOT/tools/manifests/webos-third-party.json}"
 SDK_ROOT="${WEBOS_SDK_ROOT:-$ROOT/build/webos-sdk/arm-webos-linux-gnueabi_sdk-buildroot}"
 SDK_BIN="$SDK_ROOT/bin"
 SYSROOT="$SDK_ROOT/arm-webos-linux-gnueabi/sysroot"
 TARGET_PREFIX="${WEBOS_TARGET_PREFIX:-/usr/local/webos-native}"
 PREFIX="${WEBOS_NATIVE_PREFIX:-$SYSROOT$TARGET_PREFIX}"
-SRC_ARCHIVE="${FFMPEG_ARCHIVE:-$ROOT/experiments/optionc-webos-ipk/vendor/ffmpeg-8.1.tar.xz}"
+FFMPEG_URL="${FFMPEG_URL:-$(manifest_source_field "$MANIFEST" ffmpeg url)}"
+FFMPEG_SHA256="${FFMPEG_SHA256:-$(manifest_source_field "$MANIFEST" ffmpeg sha256)}"
+SRC_ARCHIVE="${FFMPEG_ARCHIVE:-$ROOT/build/downloads/ffmpeg-8.1.tar.xz}"
 SRC_DIR="${FFMPEG_SRC_DIR:-$ROOT/build/ffmpeg-src}"
 BUILD_DIR="${FFMPEG_BUILD_DIR:-$ROOT/build/ffmpeg-build}"
 
 mkdir -p "$ROOT/build"
 
-if [[ ! -f "$SRC_ARCHIVE" ]]; then
-  printf 'Missing FFmpeg source archive: %s\n' "$SRC_ARCHIVE" >&2
-  exit 1
-fi
+download_verified "$FFMPEG_URL" "$FFMPEG_SHA256" "$SRC_ARCHIVE"
 
 rm -rf "$SRC_DIR" "$BUILD_DIR"
 mkdir -p "$SRC_DIR" "$BUILD_DIR"

@@ -265,14 +265,7 @@
         export CURL_CA_BUNDLE="$SSL_CERT_FILE"
         export NIX_ENFORCE_PURITY=0
 
-        # Your historical tree has sometimes used ../build for the SDK and
-        # sometimes repo-local build/. Prefer an existing SDK, otherwise default
-        # to repo-local build/ to match the build script's fallback.
-        if [ -d "$PWD/../build/webos-sdk/arm-webos-linux-gnueabi_sdk-buildroot" ]; then
-          export WEBOS_SDK_ROOT="$PWD/../build/webos-sdk/arm-webos-linux-gnueabi_sdk-buildroot"
-        else
-          export WEBOS_SDK_ROOT="$PWD/build/webos-sdk/arm-webos-linux-gnueabi_sdk-buildroot"
-        fi
+        export WEBOS_SDK_ROOT="''${WEBOS_SDK_ROOT:-$PWD/build/webos-sdk/arm-webos-linux-gnueabi_sdk-buildroot}"
 
         ${pkgs.lib.optionalString pkgs.stdenv.isLinux ''
           export WAYLAND_PROTOCOLS_DIR="${pkgs.wayland-protocols}/share/wayland-protocols"

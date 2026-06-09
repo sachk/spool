@@ -2,69 +2,69 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-WORKSPACE_ROOT="$(cd "$ROOT/.." && pwd)"
 WEBOS_TOOLS_ROOT="${WEBOS_TOOLS_ROOT:-$ROOT/tools/webos-native}"
-if [[ ! -f "$WEBOS_TOOLS_ROOT/qt6-webos-toolchain.cmake" ]]; then
-  WEBOS_TOOLS_ROOT="$WORKSPACE_ROOT/tools/webos-native"
-fi
-SDK_ROOT="${WEBOS_SDK_ROOT:-$WORKSPACE_ROOT/build/webos-sdk/arm-webos-linux-gnueabi_sdk-buildroot}"
+PHASE="${1:-all}"
+DO_BUILD=0
+DO_STAGE=0
+DO_PACKAGE=0
+case "$PHASE" in
+  app) DO_BUILD=1 ;;
+  stage) DO_STAGE=1 ;;
+  package) DO_PACKAGE=1 ;;
+  all)
+    DO_BUILD=1
+    DO_STAGE=1
+    DO_PACKAGE=1
+    ;;
+  *)
+    echo "usage: $0 [app|stage|package|all]" >&2
+    exit 2
+    ;;
+esac
+
+SDK_ROOT="${WEBOS_SDK_ROOT:-$ROOT/build/webos-sdk/arm-webos-linux-gnueabi_sdk-buildroot}"
 SYSROOT="$SDK_ROOT/arm-webos-linux-gnueabi/sysroot"
 PREFIX="$SYSROOT/usr/local/webos-native"
 MPV_SRC="${MPV_SRC:-$ROOT/mpv_webos}"
 MPV_BUILD="${MPV_BUILD:-$MPV_SRC/build/webos-libmpv}"
-WEBOS_CROSS_FILE="${WEBOS_CROSS_FILE:-$WORKSPACE_ROOT/build/webos-thirdparty-build/webos.cross.ini}"
+WEBOS_CROSS_FILE="${WEBOS_CROSS_FILE:-$ROOT/build/webos-thirdparty-build/webos.cross.ini}"
 QT6_HOST_PREFIX="${QT6_HOST_PREFIX:-$ROOT/build/qt6-611-host-install}"
-QT6_WORKSPACE_HOST_PREFIX="$WORKSPACE_ROOT/build/qt6-611-host-install"
-APP_DIR="$ROOT/app"
+APP_SOURCE_DIR="$ROOT/app"
 BUILD_DIR="$ROOT/build"
-CMAKE_BUILD_DIR="$ROOT/build-arm"
+CMAKE_BUILD_DIR="${WEBOS_APP_BUILD_DIR:-$ROOT/build/webos/app}"
 INSTALL_DIR="$CMAKE_BUILD_DIR/install"
+APP_DIR="${WEBOS_STAGE_DIR:-$ROOT/build/webos/stage/app}"
 STAGE_LIB="$APP_DIR/lib"
 STAGE_BIN="$APP_DIR/bin"
-PATCHELF_BIN="$(command -v patchelf)"
 STRIP_BIN="$SDK_ROOT/bin/arm-webos-linux-gnueabi-strip"
 
 # Auto-detect static vs shared Qt: prefer static if available
 QT6_STATIC_PREFIX="$ROOT/build/qt6-611-target-static-install"
 QT6_SHARED_PREFIX="$ROOT/build/qt6-611-target-install"
-QT6_WORKSPACE_STATIC_PREFIX="$WORKSPACE_ROOT/build/qt6-611-target-static-install"
-QT6_WORKSPACE_SHARED_PREFIX="$WORKSPACE_ROOT/build/qt6-611-target-install"
 QT_IS_STATIC=0
-if [[ -f "$QT6_STATIC_PREFIX/lib/libQt6Core.a" ]]; then
-  QT6_PREFIX="$QT6_STATIC_PREFIX"
-  QT_IS_STATIC=1
-  echo "Detected STATIC Qt6 build at $QT6_PREFIX"
-  if [[ ! -f "$QT6_HOST_PREFIX/lib/cmake/Qt6CoreTools/Qt6CoreToolsConfig.cmake" \
-        && -f "$QT6_WORKSPACE_HOST_PREFIX/lib/cmake/Qt6CoreTools/Qt6CoreToolsConfig.cmake" ]]; then
-    QT6_HOST_PREFIX="$QT6_WORKSPACE_HOST_PREFIX"
-  fi
-elif [[ -f "$QT6_WORKSPACE_STATIC_PREFIX/lib/libQt6Core.a" ]]; then
-  QT6_PREFIX="$QT6_WORKSPACE_STATIC_PREFIX"
-  QT6_HOST_PREFIX="$QT6_WORKSPACE_HOST_PREFIX"
-  QT_IS_STATIC=1
-  echo "Detected STATIC Qt6 build at $QT6_PREFIX"
-elif [[ -d "$QT6_SHARED_PREFIX" ]]; then
-  QT6_PREFIX="$QT6_SHARED_PREFIX"
-  echo "Detected shared Qt6 build at $QT6_PREFIX"
-elif [[ -d "$QT6_WORKSPACE_SHARED_PREFIX" ]]; then
-  QT6_PREFIX="$QT6_WORKSPACE_SHARED_PREFIX"
-  echo "Detected shared Qt6 build at $QT6_PREFIX"
-else
-  echo "error: no Qt6 install found" >&2
-  exit 1
-fi
-
-# Sanity check: the installed Qt must contain every patch marker from
-# tools/webos-native/patches. A stale cache or pre-patch toolchain
-# archive would otherwise silently ship an unpatched binary.
-QT_PATCH_MARKERS=(JELLYFIN_QT_NO_CURSOR_SURFACE)
-for marker in "${QT_PATCH_MARKERS[@]}"; do
-  if ! grep -rqal "$marker" "$QT6_PREFIX/lib" 2>/dev/null; then
-    echo "error: Qt at $QT6_PREFIX is missing patch marker '$marker'." >&2
-    echo "       Rerun: bash $WEBOS_TOOLS_ROOT/build-qt6-611.sh" >&2
+if (( DO_BUILD || DO_STAGE )); then
+  if [[ -f "$QT6_STATIC_PREFIX/lib/libQt6Core.a" ]]; then
+    QT6_PREFIX="$QT6_STATIC_PREFIX"
+    QT_IS_STATIC=1
+    echo "Detected STATIC Qt6 build at $QT6_PREFIX"
+  elif [[ -d "$QT6_SHARED_PREFIX" ]]; then
+    QT6_PREFIX="$QT6_SHARED_PREFIX"
+    echo "Detected shared Qt6 build at $QT6_PREFIX"
+  else
+    echo "error: no Qt6 install found under $ROOT/build" >&2
     exit 1
   fi
-done
+
+  # Reject stale cached Qt prefixes that predate required local patches.
+  QT_PATCH_MARKERS=(JELLYFIN_QT_NO_CURSOR_SURFACE)
+  for marker in "${QT_PATCH_MARKERS[@]}"; do
+    if ! grep -rqal "$marker" "$QT6_PREFIX/lib" 2>/dev/null; then
+      echo "error: Qt at $QT6_PREFIX is missing patch marker '$marker'." >&2
+      echo "       Rerun: bash $WEBOS_TOOLS_ROOT/build-qt6-611.sh" >&2
+      exit 1
+    fi
+  done
+fi
 
 copy_first_match() {
   local pattern="$1"
@@ -102,27 +102,17 @@ copy_qml_module() {
   cp -a "$source" "$target"
 }
 
-mkdir -p "$BUILD_DIR" "$STAGE_LIB" "$STAGE_BIN"
-rm -rf "$INSTALL_DIR" "$APP_DIR/qt-plugins" "$APP_DIR/qt-qml"
-# -rf so the optional lib/heaptrack/ subdir (and any prior bundle artifacts in
-# bin: the shim, jellyfin-native.real, heaptrack driver) are cleaned even when
-# this build is not bundling heaptrack.
-rm -rf "$STAGE_LIB"/* \
-       "$STAGE_BIN"/jellyfin-native "$STAGE_BIN"/jellyfin-native.real \
-       "$STAGE_BIN"/heaptrack "$STAGE_BIN"/qt.conf
-
-if [[ "$QT_IS_STATIC" == "0" ]]; then
-  mkdir -p "$APP_DIR/qt-plugins/platforms" \
-           "$APP_DIR/qt-plugins/wayland-shell-integration" \
-           "$APP_DIR/qt-plugins/wayland-graphics-integration-client" \
-           "$APP_DIR/qt-plugins/imageformats" \
-           "$APP_DIR/qt-plugins/sqldrivers"
+if (( DO_BUILD )); then
+DOVI_TOOL_ROOT="${DOVI_TOOL_ROOT:-$ROOT/build/third_party/dovi_tool}"
+if [[ ! -f "$DOVI_TOOL_ROOT/dolby_vision/Cargo.toml" ]]; then
+  echo "error: verified dovi_tool source not found at $DOVI_TOOL_ROOT" >&2
+  echo "       Run: bash tools/webos-native/build-third-party.sh fetch" >&2
+  exit 1
 fi
-mkdir -p "$APP_DIR/qt-qml"
 
 echo "Building libdovi..."
 (
-  cd "$WORKSPACE_ROOT/dovi_tool/dolby_vision"
+  cd "$DOVI_TOOL_ROOT/dolby_vision"
   rustup target add arm-unknown-linux-gnueabi || true
   export CARGO_TARGET_ARM_UNKNOWN_LINUX_GNUEABI_LINKER="$SDK_ROOT/bin/arm-webos-linux-gnueabi-gcc"
   export CC_arm_unknown_linux_gnueabi="$SDK_ROOT/bin/arm-webos-linux-gnueabi-gcc"
@@ -135,8 +125,8 @@ echo "Building libdovi..."
   fi
   $CARGO_BIN build --release --features capi,serde --target arm-unknown-linux-gnueabi
 )
-DOVI_LIB="$WORKSPACE_ROOT/dovi_tool/dolby_vision/target/arm-unknown-linux-gnueabi/release/libdovi.a"
-DOVI_INC="$WORKSPACE_ROOT/dovi_tool/dolby_vision/include"
+DOVI_LIB="$DOVI_TOOL_ROOT/dolby_vision/target/arm-unknown-linux-gnueabi/release/libdovi.a"
+DOVI_INC="$DOVI_TOOL_ROOT/dolby_vision/include"
 
 # Emit unwind tables + keep frame pointers so heaptrack's (crash-safe, non-
 # libunwind) backtracer can produce deep call stacks for memory profiling.
@@ -231,7 +221,27 @@ cmake -S "$ROOT" -B "$CMAKE_BUILD_DIR" -GNinja \
 
 cmake --build "$CMAKE_BUILD_DIR" --parallel
 cmake --install "$CMAKE_BUILD_DIR" --prefix "$INSTALL_DIR"
+fi
 
+if (( DO_STAGE )); then
+rm -rf "$APP_DIR"
+mkdir -p "$BUILD_DIR" "$STAGE_LIB" "$STAGE_BIN" "$APP_DIR/qt-qml"
+cp -f "$APP_SOURCE_DIR/appinfo.json" "$APP_DIR/appinfo.json"
+cp -f "$APP_SOURCE_DIR/icon.png" "$APP_DIR/icon.png"
+PATCHELF_BIN="$(command -v patchelf)"
+
+if [[ "$QT_IS_STATIC" == "0" ]]; then
+  mkdir -p "$APP_DIR/qt-plugins/platforms" \
+           "$APP_DIR/qt-plugins/wayland-shell-integration" \
+           "$APP_DIR/qt-plugins/wayland-graphics-integration-client" \
+           "$APP_DIR/qt-plugins/imageformats" \
+           "$APP_DIR/qt-plugins/sqldrivers"
+fi
+
+[[ -x "$INSTALL_DIR/bin/jellyfin-native" ]] || {
+  echo "error: app install missing; run '$0 app' first" >&2
+  exit 1
+}
 cp -f "$INSTALL_DIR/bin/jellyfin-native" "$STAGE_BIN/jellyfin-native"
 
 # mpv + ffmpeg shared libs are always needed (not statically linked)
@@ -375,7 +385,13 @@ if [[ "${BUNDLE_HEAPTRACK:-auto}" != "0" && -f "$HEAPTRACK_INSTALL/lib/heaptrack
 else
   echo "Skipping heaptrack bundle (run tools/webos-native/build-heaptrack.sh to enable)"
 fi
+fi
 
+if (( DO_PACKAGE )); then
+[[ -f "$APP_DIR/appinfo.json" && -x "$STAGE_BIN/jellyfin-native" ]] || {
+  echo "error: staged webOS app missing; run '$0 stage' first" >&2
+  exit 1
+}
 rm -f "$BUILD_DIR"/*.ipk
 npx -y -p @webos-tools/cli@3.2.3 ares-package "$APP_DIR" --outdir "$BUILD_DIR"
 
@@ -398,4 +414,5 @@ if [ -f "$PACKAGING_DIR/postinst" ] || [ -f "$PACKAGING_DIR/prerm" ]; then
     ar rc "$IPK" debian-binary control.tar.gz data.tar.gz
   )
   rm -rf "$REPACK_DIR"
+fi
 fi
