@@ -22,6 +22,9 @@ namespace {
 constexpr int kLibraryPageSize = 100;
 constexpr int kLibraryPrefetchDistance = 200;
 constexpr int kBackgroundLibraryPrefetchLimit = 3;
+constexpr int kQuickConnectPollIntervalMs = 5'000;
+constexpr int kQuickConnectMaxPollAttempts = 36;
+constexpr int kQuickConnectMaxPollErrors = 6;
 
 QString homeItemSample(const std::vector<MovieItem> &items)
 {
@@ -312,7 +315,7 @@ AppController::AppController(DatabaseManager *database,
     });
 
     connect(&m_quickConnectTimer, &QTimer::timeout, this, &AppController::pollQuickConnect);
-    m_quickConnectTimer.setInterval(5000);
+    m_quickConnectTimer.setInterval(kQuickConnectPollIntervalMs);
     m_libraryPrefetchTimer.setSingleShot(true);
     connect(&m_libraryPrefetchTimer, &QTimer::timeout, this, &AppController::startNextLibraryPrefetch);
 
@@ -1980,7 +1983,7 @@ void AppController::pollQuickConnect()
         return;
 
     m_quickConnectPollAttempts += 1;
-    if (m_quickConnectPollAttempts > 36) {
+    if (m_quickConnectPollAttempts > kQuickConnectMaxPollAttempts) {
         qWarning() << "quick connect: timed out after polls" << m_quickConnectPollAttempts;
         cancelQuickConnect();
         setErrorText(QStringLiteral("Quick Connect timed out."));
@@ -2026,7 +2029,7 @@ void AppController::pollQuickConnect()
 
             if (message.contains(QStringLiteral("(401)")) ||
                 message.contains(QStringLiteral("(404)")) ||
-                m_quickConnectPollErrors >= 6) {
+                m_quickConnectPollErrors >= kQuickConnectMaxPollErrors) {
                 cancelQuickConnect();
                 setErrorText(message);
                 return;
