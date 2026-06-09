@@ -10,21 +10,14 @@ MPV_BUILD="${MPV_BUILD:-$BUILD_ROOT/mpv}"
 MPV_PREFIX="${MPV_PREFIX:-$BUILD_ROOT/mpv-prefix}"
 APP_BUILD="${APP_BUILD:-$BUILD_ROOT/app}"
 APP_INSTALL="${APP_INSTALL:-$BUILD_ROOT/install}"
+DEPLOY_APP="${DEPLOY_APP:-1}"
 
-export PKG_CONFIG_PATH="$MPV_PREFIX/lib/pkgconfig${PKG_CONFIG_PATH:+:$PKG_CONFIG_PATH}"
-
+setup_native_ccache "$APP_ROOT"
 mkdir -p "$MPV_PREFIX" "$APP_BUILD" "$APP_INSTALL"
 
+native_mpv_common_args "$MPV_PREFIX" release false
 MPV_SETUP_ARGS=(
-  --prefix "$MPV_PREFIX"
-  --libdir lib
-  --buildtype release
-  --default-library shared
-  -Dbuild-date=false
-  -Dlibmpv=true
-  -Dcplayer=false
-  # starfish: webOS-only VO patch; the option does not exist in upstream mpv,
-  # so it must not be passed on native Linux/macOS builds.
+  "${MPV_NATIVE_ARGS[@]}"
   -Dcoreaudio=enabled
   -Dcocoa=disabled
   -Dgl-cocoa=disabled
@@ -40,7 +33,9 @@ MPV_SETUP_ARGS=(
   -Dvulkan=disabled
 )
 
+clean_mpv_install_prefix "$MPV_PREFIX"
 mpv_meson_build "$MPV_SRC" "$MPV_BUILD" "${MPV_SETUP_ARGS[@]}"
+append_colon_path PKG_CONFIG_PATH "$MPV_PREFIX/lib/pkgconfig"
 
 cmake_build_app "$APP_ROOT" "$APP_BUILD" \
   -DCMAKE_BUILD_TYPE=Release \
@@ -48,7 +43,16 @@ cmake_build_app "$APP_ROOT" "$APP_BUILD" \
   -DCMAKE_PREFIX_PATH="$MPV_PREFIX${CMAKE_PREFIX_PATH:+;$CMAKE_PREFIX_PATH}" \
   -DCMAKE_INSTALL_PREFIX="$APP_INSTALL"
 
-if command -v macdeployqt >/dev/null 2>&1 && [[ -d "$APP_INSTALL/jellyfin-native.app" ]]; then
+if [[ "$DEPLOY_APP" == "1" ]]; then
+  command -v macdeployqt >/dev/null 2>&1 || {
+    echo "error: DEPLOY_APP=1 requires macdeployqt" >&2
+    exit 1
+  }
+  [[ -d "$APP_INSTALL/jellyfin-native.app" ]] || {
+    echo "error: app bundle missing at $APP_INSTALL/jellyfin-native.app" >&2
+    exit 1
+  }
+
   # Prefer Apple's /usr/bin/strip — nix's cctools-binutils strip rejects newer
   # Mach-O load commands (LC_DYLD_CHAINED_FIXUPS, cmd=0x8000001f) emitted by
   # the Apple SDK toolchain, which makes macdeployqt abort.

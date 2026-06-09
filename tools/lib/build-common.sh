@@ -5,6 +5,49 @@
 # Source this file ("source tools/lib/build-common.sh"); do not execute it.
 # It defines functions only and changes no global state.
 
+append_colon_path() {
+  local variable="$1"
+  local dir="$2"
+  local current="${!variable:-}"
+  [[ -d "$dir" ]] || return 0
+  case ":$current:" in
+    *":$dir:"*) ;;
+    *) printf -v "$variable" '%s%s%s' "$dir" "${current:+:}" "$current" ;;
+  esac
+  export "$variable"
+}
+
+setup_native_ccache() {
+  local root="$1"
+  export CCACHE_DIR="${CCACHE_DIR:-$root/.ccache}"
+  export CCACHE_BASEDIR="${CCACHE_BASEDIR:-$root}"
+  export CCACHE_COMPRESS="${CCACHE_COMPRESS:-1}"
+  export CCACHE_SLOPPINESS="${CCACHE_SLOPPINESS:-time_macros,file_macro}"
+  mkdir -p "$CCACHE_DIR"
+}
+
+native_mpv_common_args() {
+  local prefix="$1"
+  local build_type="$2"
+  local cplayer="$3"
+  MPV_NATIVE_ARGS=(
+    --prefix "$prefix"
+    --libdir lib
+    --buildtype "$build_type"
+    --default-library shared
+    -Db_lto=false
+    -Dbuild-date=false
+    -Dlibmpv=true
+    "-Dcplayer=$cplayer"
+  )
+}
+
+clean_mpv_install_prefix() {
+  local prefix="$1"
+  rm -f "$prefix"/lib/libmpv.so*
+  rm -f "$prefix/lib/pkgconfig/mpv.pc"
+}
+
 # mpv_meson_build SRC BUILD_DIR [meson setup args...]
 #
 # Configure + compile + install an mpv tree. Wipes BUILD_DIR first if it was
