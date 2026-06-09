@@ -1,0 +1,14 @@
+diff --git a/dolby_vision/Cargo.toml b/dolby_vision/Cargo.toml
+index 84a1e4f..b5c780c 100644
+--- a/dolby_vision/Cargo.toml
++++ b/dolby_vision/Cargo.toml
+@@ -46,7 +46,9 @@ rustflags = "-Cpanic=abort"
+ name = "dovi"
+ 
+ [lib]
++name = "dovi"
+ doctest = false
++crate-type = ["rlib", "staticlib"]
+ 
+ [[bench]]
+ name = "bench_main"

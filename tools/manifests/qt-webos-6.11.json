@@ -1,0 +1,46 @@
+{
+  "schemaVersion": 1,
+  "qtVersion": "6.11.1",
+  "series": "6.11",
+  "baseUrl": "https://download.qt.io/official_releases/qt/6.11/6.11.1/submodules",
+  "modules": [
+    {"name": "qtbase", "sha256": "d9594a31228aa23ad6b531719a29b45f0f3989fe6c136d45767ea179f233c1ac"},
+    {"name": "qtshadertools", "sha256": "2075052f9b23bcf9de045bbd180037084942f82cce870aab14a1454902c982fc"},
+    {"name": "qttools", "sha256": "8e61835a679c93fa9c6065b142353c2071ba68e297898937c32a03777fcaf50d"},
+    {"name": "qtdeclarative", "sha256": "52e670f670b0304f534b24f98c47ceb8a41bb710464414ebc9527ec71cc86aa4"},
+    {"name": "qtwebsockets", "sha256": "243e3aa11924c8c5c1645e892f62d013caa3766c57512ca926d5b58146646fbf"},
+    {"name": "qtwayland", "sha256": "95788aa502f75441d4edf65932b235f76523084e13dbbb7b9ee2d207b32bd9b3"},
+    {"name": "qtopenapi", "sha256": "440d04bec92de754df3dc0861fb5a9ec26f0b332fb67b35c35cdad5b7849f45b"},
+    {"name": "qtimageformats", "sha256": "b2bf6c6845ac175ed7f819145483ba4676f617aaa6a5012c8efee63c8bbac413"},
+    {"name": "qtsvg", "sha256": "7f3cf02f4824bf03c2c5859ea6db173bf1482a1daf24e6cdf7bc78cfa26a8a94"},
+    {"name": "qtvirtualkeyboard", "sha256": "a1c6967b326243b2ca8d50bc7b7f7852c3975d9aa6ce4b186ebdf35bb1007e1c"}
+  ],
+  "patches": [
+    "tools/webos-native/patches/qtbase-6.11-webos-qstorageinfo-linux.patch",
+    "tools/webos-native/patches/qtbase-6.11-webos-qelfparser.patch",
+    "tools/webos-native/patches/qtbase-6.11-webos-wayland-no-opengl-forward-decl.patch",
+    "tools/webos-native/patches/qtbase-6.11-webos-qplatformwindow-private-moc.patch",
+    "tools/webos-native/patches/qtbase-6.11-webos-no-cursor-set.patch",
+    "tools/webos-native/patches/qtwayland-6.11-webos-wayland-version.patch"
+  ],
+  "toolchain": {
+    "triplet": "arm-webos-linux-gnueabi",
+    "sdkLayout": "arm-webos-linux-gnueabi_sdk-buildroot",
+    "buildrootVersion": "2025.02.1",
+    "gccVersion": "14.2.0"
+  },
+  "outputs": {
+    "hostPrefix": "build/qt6-611-host-install",
+    "sharedTargetPrefix": "build/qt6-611-target-install",
+    "staticTargetPrefix": "build/qt6-611-target-static-install"
+  },
+  "configure": {
+    "host": ["release", "examples=off", "tests=off", "opengl=off"],
+    "targetShared": ["release", "examples=off", "tests=off", "shared"],
+    "targetStatic": ["release", "examples=off", "tests=off", "static"]
+  },
+  "submodules": {
+    "mpv": "1313bdd9aba8eb7014cb02688d45a7b7adc9b3e7",
+    "mpv_webos": "4528e21ae48575d572dda5b7b952eba2ad0c47d9"
+  }
+}

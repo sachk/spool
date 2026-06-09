@@ -1,0 +1,40 @@
+{
+  "schemaVersion": 1,
+  "axes": {
+    "hostOs": ["linux", "macos"],
+    "targetOs": ["linux", "macos", "webos"],
+    "qtSource": ["nixpkgs", "source", "cached-archive"],
+    "qtLinkage": ["shared", "static"],
+    "mediaBackend": ["libmpv-render", "webos-starfish"],
+    "packageFormat": ["appimage", "dmg", "ipk"]
+  },
+  "targets": {
+    "linux-appimage": {
+      "hostOs": "linux",
+      "targetOs": "linux",
+      "qtSource": "nixpkgs",
+      "qtLinkage": "shared",
+      "mediaBackend": "libmpv-render",
+      "mpvSubmodule": "mpv",
+      "packageFormat": "appimage"
+    },
+    "macos-dmg": {
+      "hostOs": "macos",
+      "targetOs": "macos",
+      "qtSource": "nixpkgs",
+      "qtLinkage": "shared",
+      "mediaBackend": "libmpv-render",
+      "mpvSubmodule": "mpv",
+      "packageFormat": "dmg"
+    },
+    "webos-ipk": {
+      "hostOs": "linux",
+      "targetOs": "webos",
+      "qtSource": "cached-archive",
+      "qtLinkage": "static",
+      "mediaBackend": "webos-starfish",
+      "mpvSubmodule": "mpv_webos",
+      "packageFormat": "ipk"
+    }
+  }
+}
