@@ -9,11 +9,13 @@ T.Button {
     property bool selected: false
     property bool railStyle: false
     property bool pointerHovered: hover.hovered
+    property string accessibleName: ""
 
     width: 44
     height: 44
     text: iconText
     focusPolicy: Qt.StrongFocus
+    Accessible.name: accessibleName.length > 0 ? accessibleName : iconText
 
     background: Rectangle {
         radius: Theme.radiusSmall

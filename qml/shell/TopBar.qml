@@ -137,6 +137,7 @@ FocusScope {
                     id: button
                     anchors.centerIn: parent
                     iconName: modelData.icon
+                    accessibleName: modelData.label
                     railStyle: true
                     selected: root.currentRoute === modelData.route
                     onClicked: root.navigate(modelData.route)
@@ -174,6 +175,7 @@ FocusScope {
                 id: syncButton
                 anchors.centerIn: parent
                 iconName: "groups"
+                accessibleName: "SyncPlay"
                 railStyle: true
                 selected: syncMenu.menuOpen
                 onClicked: root.openSyncMenu()
