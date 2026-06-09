@@ -238,6 +238,7 @@
           qt6.qtbase
           qt6.qtdeclarative
           qt6.qtimageformats
+          qt6Packages.qcoro
           qt6.qttools
           qt6.qtvirtualkeyboard
           qt6.qtwebsockets
