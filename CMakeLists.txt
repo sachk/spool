@@ -57,6 +57,9 @@ set(JELLYFIN_QT_COMPONENTS
     Sql
     OpenGL
     LinguistTools
+    VirtualKeyboard
+    VirtualKeyboardQml
+    VirtualKeyboardSettings
     WebSockets
 )
 if(JELLYFIN_NATIVE_WEBOS)
@@ -64,9 +67,6 @@ if(JELLYFIN_NATIVE_WEBOS)
     list(APPEND JELLYFIN_QT_COMPONENTS
         GuiPrivate
         QuickLayouts
-        VirtualKeyboard
-        VirtualKeyboardQml
-        VirtualKeyboardSettings
         WaylandClient
     )
 else()
@@ -192,7 +192,13 @@ qt_add_translations(jellyfin-native
     RESOURCE_PREFIX /i18n
 )
 
+set(JELLYFIN_QML_MODULE_OPTIONS)
+if(QT6_IS_SHARED_LIBS_BUILD)
+    list(APPEND JELLYFIN_QML_MODULE_OPTIONS NO_IMPORT_SCAN)
+endif()
+
 qt_add_qml_module(jellyfin-native
+    ${JELLYFIN_QML_MODULE_OPTIONS}
     URI JellyfinWebOS
     VERSION 1.0
     QML_FILES
@@ -308,8 +314,10 @@ else()
     target_link_libraries(jellyfin-native PRIVATE PkgConfig::MPV)
 endif()
 
-# Static Qt: import plugins that the linker can't auto-discover
-if(NOT BUILD_SHARED_LIBS)
+# Static Qt: import plugins that the linker can't auto-discover. BUILD_SHARED_LIBS
+# controls this project's libraries, not whether the imported Qt build is static.
+get_target_property(JELLYFIN_QT_CORE_TARGET_TYPE Qt6::Core TYPE)
+if(JELLYFIN_QT_CORE_TARGET_TYPE STREQUAL "STATIC_LIBRARY")
     find_library(XKBCOMMON_LIB xkbcommon REQUIRED)
     target_link_libraries(jellyfin-native PRIVATE ${XKBCOMMON_LIB})
 
