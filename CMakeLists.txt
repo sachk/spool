@@ -12,8 +12,14 @@ option(JELLYFIN_DIAGNOSTICS "Build debug lifecycle/process/watchdog diagnostics"
 option(JELLYFIN_DIAGNOSTICS_STACKDUMP "Allow diagnostics to request gdb stack dumps" OFF)
 option(JELLYFIN_DIAGNOSTICS_ABORT_ON_HANG "Abort after watchdog hang diagnostics are written" OFF)
 
-set(MPV_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/mpv" CACHE PATH "mpv source tree")
-set(MPV_WEBOS_BUILD_DIR "${MPV_SOURCE_DIR}/build/webos-libmpv" CACHE PATH "webOS libmpv build directory")
+set(MPV_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/mpv" CACHE PATH "desktop mpv source tree")
+set(MPV_WEBOS_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/mpv_webos" CACHE PATH "webOS mpv source tree")
+set(MPV_WEBOS_BUILD_DIR "${MPV_WEBOS_SOURCE_DIR}/build/webos-libmpv" CACHE PATH "webOS libmpv build directory")
+if(JELLYFIN_NATIVE_WEBOS)
+    set(MPV_ACTIVE_SOURCE_DIR "${MPV_WEBOS_SOURCE_DIR}")
+else()
+    set(MPV_ACTIVE_SOURCE_DIR "${MPV_SOURCE_DIR}")
+endif()
 
 if(JELLYFIN_NATIVE_DEV_BUILD)
     set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
@@ -242,8 +248,8 @@ endif()
 target_include_directories(jellyfin-native PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/third_party/qcoro/include"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/player"
-    "${MPV_SOURCE_DIR}"
-    "${MPV_SOURCE_DIR}/include"
+    "${MPV_ACTIVE_SOURCE_DIR}"
+    "${MPV_ACTIVE_SOURCE_DIR}/include"
 )
 
 target_link_libraries(jellyfin-native PRIVATE
