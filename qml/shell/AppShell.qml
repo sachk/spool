@@ -459,7 +459,7 @@ FocusScope {
     Rectangle {
         anchors.fill: parent
         visible: root.busyValue && !(root.hasPlayer && root.player.visible)
-        color: "#AA0E0E0E"
+        color: Theme.busyScrim
         z: 40
         Surface {
             anchors.centerIn: parent
@@ -493,14 +493,14 @@ FocusScope {
         width: Math.min(parent.width * 0.72, 960)
         height: root.errorTextValue.length > 0 ? errorText.implicitHeight + 28 : 0
         visible: root.errorTextValue.length > 0
-        baseColor: "#2A1717"
+        baseColor: Theme.errorPanel
         z: 80
         AppText {
             id: errorText
             anchors.centerIn: parent
             width: Math.max(0, parent.width - 28)
             text: root.errorTextValue
-            color: "#FFD6D6"
+            color: Theme.errorText
             wrapMode: Text.Wrap
             horizontalAlignment: Text.AlignHCenter
             verticalAlignment: Text.AlignVCenter

@@ -194,7 +194,7 @@ FocusScope {
                     anchors.top: parent.top
                     anchors.rightMargin: 7
                     anchors.topMargin: 7
-                    color: root.syncActive ? Theme.accent : "#3FB950"
+                    color: root.syncActive ? Theme.accent : Theme.success
                     border.width: 2
                     border.color: Theme.bgRaised
                 }

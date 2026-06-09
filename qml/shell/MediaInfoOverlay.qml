@@ -251,7 +251,7 @@ FocusScope {
         return parts.join(" · ")
     }
 
-    Rectangle { anchors.fill: parent; color: "#CC000000" }
+    Rectangle { anchors.fill: parent; color: Theme.overlayScrimStrong }
     MouseArea { anchors.fill: parent; onClicked: root.closed() }
 
     Surface {

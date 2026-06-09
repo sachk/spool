@@ -9,7 +9,7 @@ FocusScope {
     focus: visible
     Keys.onReleased: (event) => { if (InputKeys.isBack(event.key, false, false) || event.key === Qt.Key_Question) { closed(); event.accepted = true } }
 
-    Rectangle { anchors.fill: parent; color: "#AA000000"; MouseArea { anchors.fill: parent; onClicked: root.closed() } }
+    Rectangle { anchors.fill: parent; color: Theme.overlayScrim; MouseArea { anchors.fill: parent; onClicked: root.closed() } }
     Surface {
         anchors.centerIn: parent
         width: Math.min(860, parent.width - 96)

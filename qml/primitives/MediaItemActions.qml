@@ -135,7 +135,7 @@ T.Control {
             radius: 18
             color: buttonRoot.checked ? Theme.accentPanel : "#D9141414"
             border.width: 1
-            border.color: buttonRoot.checked ? Theme.accent : "#55FFFFFF"
+            border.color: buttonRoot.checked ? Theme.accent : Theme.controlOutline
             antialiasing: true
         }
 
@@ -164,7 +164,7 @@ T.Control {
         Rectangle {
             anchors.fill: parent
             radius: Theme.radiusSmall
-            color: root.menuIndex === rowRoot.optionIndex ? "#30383D" : "transparent"
+            color: root.menuIndex === rowRoot.optionIndex ? Theme.focusedFill : "transparent"
             border.width: root.menuIndex === rowRoot.optionIndex ? 1 : 0
             border.color: Theme.accent
         }
@@ -280,7 +280,7 @@ T.Control {
         visible: menuOpen
         z: 8
         radius: Theme.radiusMedium
-        color: "#F0181818"
+        color: Theme.floatingPanel
         border.width: 1
         border.color: Theme.borderStrong
         clip: true
