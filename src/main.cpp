@@ -528,6 +528,12 @@ int main(int argc, char **argv)
         if (state == Qt::ApplicationHidden || state == Qt::ApplicationSuspended) {
             if (player)
                 player->pauseForBackground();
+        } else if (state == Qt::ApplicationInactive) {
+            if (player)
+                player->prepareForBackground();
+        } else if (state == Qt::ApplicationActive) {
+            if (player)
+                player->resyncForForeground();
         }
     });
 #endif
