@@ -2,7 +2,6 @@
 set -euo pipefail
 
 APP_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-WORKSPACE_ROOT="$(cd "$APP_ROOT/.." && pwd)"
 # shellcheck source=tools/lib/build-common.sh
 source "$APP_ROOT/tools/lib/build-common.sh"
 MPV_SRC="${MPV_SRC:-$APP_ROOT/mpv}"
@@ -12,32 +11,12 @@ MPV_PREFIX="${MPV_PREFIX:-$BUILD_ROOT/mpv-prefix}"
 APP_BUILD="${APP_BUILD:-$BUILD_ROOT/app}"
 APP_INSTALL="${APP_INSTALL:-$BUILD_ROOT/install}"
 
-export CCACHE_DIR="${CCACHE_DIR:-$WORKSPACE_ROOT/.ccache}"
-export CCACHE_BASEDIR="${CCACHE_BASEDIR:-$WORKSPACE_ROOT}"
-export CCACHE_COMPRESS="${CCACHE_COMPRESS:-1}"
-export CCACHE_SLOPPINESS="${CCACHE_SLOPPINESS:-time_macros,file_macro}"
-append_pkg_config_path() {
-  local dir="$1"
-  [[ -d "$dir" ]] || return 0
-  case ":${PKG_CONFIG_PATH:-}:" in
-    *":$dir:"*) ;;
-    *) export PKG_CONFIG_PATH="$dir${PKG_CONFIG_PATH:+:$PKG_CONFIG_PATH}" ;;
-  esac
-}
+setup_native_ccache "$APP_ROOT"
+mkdir -p "$MPV_PREFIX" "$APP_BUILD" "$APP_INSTALL"
 
-mkdir -p "$MPV_PREFIX" "$APP_BUILD" "$APP_INSTALL" "$CCACHE_DIR"
-
+native_mpv_common_args "$MPV_PREFIX" release true
 MPV_SETUP_ARGS=(
-  --prefix "$MPV_PREFIX"
-  --libdir lib
-  --buildtype release
-  --default-library shared
-  -Db_lto=false
-  -Dbuild-date=false
-  -Dlibmpv=true
-  -Dcplayer=true
-  # starfish: webOS-only VO patch; the option does not exist in upstream mpv,
-  # so it must not be passed on native Linux/macOS builds.
+  "${MPV_NATIVE_ARGS[@]}"
   -Dwayland=enabled
   -Degl=enabled
   -Degl-wayland=enabled
@@ -56,11 +35,12 @@ MPV_SETUP_ARGS=(
   -Dsubrandr=disabled
 )
 
+clean_mpv_install_prefix "$MPV_PREFIX"
 mpv_meson_build "$MPV_SRC" "$MPV_BUILD" "${MPV_SETUP_ARGS[@]}"
 
-append_pkg_config_path "$MPV_PREFIX/lib/pkgconfig"
+append_colon_path PKG_CONFIG_PATH "$MPV_PREFIX/lib/pkgconfig"
 while IFS= read -r pc_dir; do
-  append_pkg_config_path "$pc_dir"
+  append_colon_path PKG_CONFIG_PATH "$pc_dir"
 done < <(find "$MPV_PREFIX/lib" -path '*/pkgconfig/mpv.pc' -exec dirname {} \;)
 
 MPV_LIB_DIRS=("$MPV_PREFIX/lib")
