@@ -109,7 +109,7 @@ FocusScope {
         Rectangle {
             anchors.fill: parent
             radius: Theme.radiusSmall
-            color: rowRoot.activeFocus ? "#30383D" : "transparent"
+            color: rowRoot.activeFocus ? Theme.focusedFill : "transparent"
             border.width: rowRoot.activeFocus ? 1 : 0
             border.color: Theme.accent
         }

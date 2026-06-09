@@ -61,7 +61,7 @@ FocusScope {
             radius: Theme.radiusSmall
             color: actionRoot.primary ? Theme.accent : "transparent"
             border.width: actionRoot.activeFocus ? 2 : 1
-            border.color: actionRoot.activeFocus ? Theme.textPrimary : actionRoot.primary ? Theme.accent : "#55FFFFFF"
+            border.color: actionRoot.activeFocus ? Theme.textPrimary : actionRoot.primary ? Theme.accent : Theme.controlOutline
             antialiasing: true
         }
 
@@ -77,7 +77,7 @@ FocusScope {
                 anchors.verticalCenter: parent.verticalCenter
                 name: actionRoot.iconName
                 iconSize: 23
-                iconColor: actionRoot.enabledButton ? actionRoot.primary ? "#061017" : Theme.textPrimary : Theme.textDisabled
+                iconColor: actionRoot.enabledButton ? actionRoot.primary ? Theme.onAccent : Theme.textPrimary : Theme.textDisabled
             }
 
             AppText {
@@ -85,7 +85,7 @@ FocusScope {
                 anchors.verticalCenter: parent.verticalCenter
                 width: Math.max(0, actionRoot.width - 64)
                 text: actionRoot.label
-                color: actionRoot.enabledButton ? actionRoot.primary ? "#061017" : Theme.textPrimary : Theme.textDisabled
+                color: actionRoot.enabledButton ? actionRoot.primary ? Theme.onAccent : Theme.textPrimary : Theme.textDisabled
                 font.pixelSize: Metrics.metaPx(root.width) + 1
                 font.weight: actionRoot.primary ? Font.DemiBold : Font.Medium
                 elide: Text.ElideRight
@@ -127,7 +127,7 @@ FocusScope {
             radius: 23
             color: iconRoot.checked ? Theme.accentPanel : "transparent"
             border.width: iconRoot.activeFocus ? 2 : 1
-            border.color: iconRoot.activeFocus ? Theme.textPrimary : iconRoot.checked ? Theme.accent : "#55FFFFFF"
+            border.color: iconRoot.activeFocus ? Theme.textPrimary : iconRoot.checked ? Theme.accent : Theme.controlOutline
             antialiasing: true
         }
 
