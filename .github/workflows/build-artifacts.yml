@@ -1,9 +1,8 @@
 name: build artifacts
 
 on:
-  push:
-    branches: [master]
-  pull_request:
+  # Keep artifact builds opt-in until a self-hosted runner is configured.
+  # GitHub Actions is also disabled remotely via `gh workflow disable`.
   workflow_dispatch:
     inputs:
       build_linux:
