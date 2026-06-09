@@ -15,16 +15,8 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-WORKSPACE_ROOT="$(cd "$ROOT/.." && pwd)"
 
-# webOS SDK (same discovery order as the toolchain file / build-third-party.sh).
-if [[ -n "${WEBOS_SDK_ROOT:-}" ]]; then
-  SDK_ROOT="$WEBOS_SDK_ROOT"
-elif [[ -d "$WORKSPACE_ROOT/build/webos-sdk/arm-webos-linux-gnueabi_sdk-buildroot" ]]; then
-  SDK_ROOT="$WORKSPACE_ROOT/build/webos-sdk/arm-webos-linux-gnueabi_sdk-buildroot"
-else
-  SDK_ROOT="$ROOT/build/webos-sdk/arm-webos-linux-gnueabi_sdk-buildroot"
-fi
+SDK_ROOT="${WEBOS_SDK_ROOT:-$ROOT/build/webos-sdk/arm-webos-linux-gnueabi_sdk-buildroot}"
 TOOLCHAIN_FILE="$ROOT/tools/webos-native/qt6-webos-toolchain.cmake"
 
 BUILD_ROOT="${HEAPTRACK_BUILD_ROOT:-$ROOT/build/webos-heaptrack}"

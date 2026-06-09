@@ -2,6 +2,10 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+# shellcheck source=tools/lib/manifest-sources.sh
+source "$ROOT/tools/lib/manifest-sources.sh"
+MANIFEST="${WEBOS_THIRD_PARTY_MANIFEST:-$ROOT/tools/manifests/webos-third-party.json}"
+PHASE="${1:-all}"
 SDK_ROOT="${WEBOS_SDK_ROOT:-$ROOT/build/webos-sdk/arm-webos-linux-gnueabi_sdk-buildroot}"
 SDK_BIN="$SDK_ROOT/bin"
 SYSROOT="$SDK_ROOT/arm-webos-linux-gnueabi/sysroot"
@@ -13,31 +17,38 @@ CROSS_FILE="$BUILD_ROOT/webos.cross.ini"
 
 mkdir -p "$SRC_ROOT" "$BUILD_ROOT" "$PREFIX"
 
+fetch_sources() {
+  local path url sha archive
+
+  prepare_manifest_source "$ROOT" "$MANIFEST" fribidi "$SRC_ROOT/fribidi"
+  prepare_manifest_source "$ROOT" "$MANIFEST" harfbuzz "$SRC_ROOT/harfbuzz"
+  prepare_manifest_source "$ROOT" "$MANIFEST" libass "$SRC_ROOT/libass"
+  prepare_manifest_source "$ROOT" "$MANIFEST" libplacebo "$SRC_ROOT/libplacebo"
+  prepare_manifest_source "$ROOT" "$MANIFEST" dovi_tool "$SRC_ROOT/dovi_tool"
+
+  while IFS=$'\t' read -r path url sha; do
+    [[ -n "$path" ]] || continue
+    archive="$ROOT/build/downloads/libplacebo-${path//\//-}-$sha.archive"
+    download_verified "$url" "$sha" "$archive"
+    extract_verified_source "$archive" "$sha" "$SRC_ROOT/libplacebo/$path"
+  done < <(manifest_vendored_sources "$MANIFEST" libplacebo)
+}
+
+fetch_sources
+
+if [[ "$PHASE" == "fetch" ]]; then
+  echo "Fetched verified webOS third-party sources into $SRC_ROOT"
+  exit 0
+fi
+
+if [[ "$PHASE" != "all" && "$PHASE" != "build" ]]; then
+  echo "usage: $0 [fetch|build|all]" >&2
+  exit 2
+fi
+
 if [[ ! -x "$SDK_BIN/arm-webos-linux-gnueabi-gcc" ]]; then
   printf 'Missing webOS SDK compiler under %s\n' "$SDK_BIN" >&2
   exit 1
-fi
-
-clone_if_missing() {
-  local dir="$1"
-  local url="$2"
-  if [[ ! -d "$SRC_ROOT/$dir/.git" && ! -f "$SRC_ROOT/$dir/meson.build" ]]; then
-    git clone --depth 1 "$url" "$SRC_ROOT/$dir"
-  fi
-}
-
-clone_if_missing fribidi https://github.com/fribidi/fribidi.git
-clone_if_missing harfbuzz https://github.com/harfbuzz/harfbuzz.git
-clone_if_missing libass https://github.com/libass/libass.git
-clone_if_missing libplacebo https://github.com/haasn/libplacebo.git
-
-if [[ -f "$SRC_ROOT/libplacebo/.gitmodules" ]]; then
-  git -C "$SRC_ROOT/libplacebo" submodule update --init --depth 1 \
-    3rdparty/fast_float \
-    3rdparty/glad \
-    3rdparty/jinja \
-    3rdparty/markupsafe \
-    3rdparty/Vulkan-Headers
 fi
 
 cat >"$CROSS_FILE" <<EOF

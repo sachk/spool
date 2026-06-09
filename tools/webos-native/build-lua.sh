@@ -2,22 +2,24 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+# shellcheck source=tools/lib/manifest-sources.sh
+source "$ROOT/tools/lib/manifest-sources.sh"
+MANIFEST="${WEBOS_THIRD_PARTY_MANIFEST:-$ROOT/tools/manifests/webos-third-party.json}"
 SDK_ROOT="${WEBOS_SDK_ROOT:-$ROOT/build/webos-sdk/arm-webos-linux-gnueabi_sdk-buildroot}"
 SDK_BIN="$SDK_ROOT/bin"
 SYSROOT="$SDK_ROOT/arm-webos-linux-gnueabi/sysroot"
 TARGET_PREFIX="${WEBOS_TARGET_PREFIX:-/usr/local/webos-native}"
 PREFIX="${WEBOS_NATIVE_PREFIX:-$SYSROOT$TARGET_PREFIX}"
-LUA_VERSION="${LUA_VERSION:-5.2.4}"
-LUA_URL="${LUA_URL:-https://www.lua.org/ftp/lua-${LUA_VERSION}.tar.gz}"
-ARCHIVE="${LUA_ARCHIVE:-$ROOT/build/lua-${LUA_VERSION}.tar.gz}"
+LUA_VERSION="${LUA_VERSION:-$(manifest_source_field "$MANIFEST" lua version)}"
+LUA_URL="${LUA_URL:-$(manifest_source_field "$MANIFEST" lua url)}"
+LUA_SHA256="${LUA_SHA256:-$(manifest_source_field "$MANIFEST" lua sha256)}"
+ARCHIVE="${LUA_ARCHIVE:-$ROOT/build/downloads/lua-${LUA_VERSION}.tar.gz}"
 SRC_DIR="${LUA_SRC_DIR:-$ROOT/build/lua-src}"
 BUILD_DIR="${LUA_BUILD_DIR:-$ROOT/build/lua-build}"
 
 mkdir -p "$ROOT/build" "$PREFIX/include" "$PREFIX/lib/pkgconfig"
 
-if [[ ! -f "$ARCHIVE" ]]; then
-  curl -L "$LUA_URL" -o "$ARCHIVE"
-fi
+download_verified "$LUA_URL" "$LUA_SHA256" "$ARCHIVE"
 
 rm -rf "$SRC_DIR" "$BUILD_DIR"
 mkdir -p "$SRC_DIR" "$BUILD_DIR"
