@@ -4,6 +4,7 @@ set -euo pipefail
 APP_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 # shellcheck source=tools/lib/build-common.sh
 source "$APP_ROOT/tools/lib/build-common.sh"
+ensure_native_shell "$APP_ROOT" "$APP_ROOT/tools/package-macos-dmg.sh" "$@"
 APP_VERSION="$(read_project_version "$APP_ROOT")"
 BUILD_ROOT="${BUILD_ROOT:-$APP_ROOT/build/macos}"
 APP_BUNDLE="${APP_BUNDLE:-$BUILD_ROOT/install/jellyfin-native.app}"
