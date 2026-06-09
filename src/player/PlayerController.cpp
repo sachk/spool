@@ -32,6 +32,7 @@ namespace {
 
 constexpr auto kMpvLogPath = "/tmp/com.codex.jellyfinnative-mpv.log";
 constexpr qint64 kSeekTargetFreshnessMs = 10000;
+constexpr qint64 kMpvPostSeekRegressionMs = 5000;
 constexpr double kPositionRegressionToleranceSeconds = 3.0;
 constexpr uint64_t kTimePosRefreshReply = 0x6a666e7074730001ULL;
 constexpr uint64_t kPlaybackTimeRefreshReply = 0x6a666e7074730002ULL;
@@ -359,9 +360,7 @@ PlayerController::PlayerController(NativeAppWindow *window,
     if (!m_positionClock.isValid())
       return;
 
-    const double position = projectedPositionSeconds();
-    rememberForwardProgressPosition(position);
-    setPositionSeconds(position);
+    setPositionSeconds(projectedPositionSeconds(), PositionSource::Projection);
   });
   connect(&m_seekWatchdogTimer, &QTimer::timeout, this, [this]() {
     if (!m_visible || !m_seeking)
@@ -839,7 +838,10 @@ void PlayerController::togglePause() {
 
 void PlayerController::prepareForBackground() {
 #ifdef JELLYFIN_NATIVE_WEBOS
-  snapshotPlaybackPosition("background");
+  const double position = projectedPositionSeconds();
+  qInfo() << "player: playback position snapshot background"
+          << "position=" << position;
+  setPositionSeconds(position, PositionSource::Lifecycle);
 #endif
 }
 
@@ -1219,14 +1221,12 @@ bool PlayerController::beginSeekCommand(double targetSeconds,
     emit stateChanged();
   }
 
-  setPositionSeconds(clampedTarget);
+  setPositionSeconds(clampedTarget, PositionSource::Seek);
   m_seekCommandClock.restart();
 
   const QByteArray command = buildSeekCommand(clampedTarget, flags);
-  if (mpvCommand(command.constData())) {
-    rememberTrustedPosition(clampedTarget);
+  if (mpvCommand(command.constData()))
     return true;
-  }
 
   if (markSeeking) {
     m_seeking = false;
@@ -1250,7 +1250,7 @@ bool PlayerController::beginRelativeSeekCommand(double deltaSeconds) {
   m_seeking = true;
   m_requestedSeekTargetSeconds = optimisticTarget;
   m_seekWatchdogTimer.start();
-  setPositionSeconds(optimisticTarget);
+  setPositionSeconds(optimisticTarget, PositionSource::Seek);
   m_seekCommandClock.restart();
   updatePlaybackStatusText();
   emit stateChanged();
@@ -1258,10 +1258,8 @@ bool PlayerController::beginRelativeSeekCommand(double deltaSeconds) {
   const QByteArray command = QByteArray("no-osd seek ") +
                              QByteArray::number(optimisticTarget, 'f', 3) +
                              QByteArray(" absolute+keyframes");
-  if (mpvCommand(command.constData())) {
-    rememberTrustedPosition(optimisticTarget);
+  if (mpvCommand(command.constData()))
     return true;
-  }
 
   m_seeking = false;
   m_requestedSeekTargetSeconds = -1.0;
@@ -1317,7 +1315,7 @@ void PlayerController::runEventLoop() {
 
       const double seconds = *static_cast<double *>(property->data);
       QMetaObject::invokeMethod(this, [this, seconds]() {
-        handleMpvPositionUpdate(seconds, "async-position-refresh");
+        setPositionSeconds(seconds, PositionSource::Mpv);
       });
       break;
     }
@@ -1335,8 +1333,7 @@ void PlayerController::runEventLoop() {
           const double positionBeforeStateChange = projectedPositionSeconds();
           m_paused = paused;
           if (m_paused) {
-            rememberForwardProgressPosition(positionBeforeStateChange);
-            setPositionSeconds(positionBeforeStateChange);
+            setPositionSeconds(positionBeforeStateChange, PositionSource::Projection);
             m_positionClock.invalidate();
           } else {
             restoreTrustedPosition("unpause");
@@ -1353,8 +1350,7 @@ void PlayerController::runEventLoop() {
           const double positionBeforeStateChange = projectedPositionSeconds();
           m_buffering = buffering;
           if (buffering) {
-            rememberForwardProgressPosition(positionBeforeStateChange);
-            setPositionSeconds(positionBeforeStateChange);
+            setPositionSeconds(positionBeforeStateChange, PositionSource::Projection);
             m_positionClock.invalidate();
           } else {
             m_bufferingPercent = 0;
@@ -1393,21 +1389,20 @@ void PlayerController::runEventLoop() {
                  property->format == MPV_FORMAT_DOUBLE) {
         const double seconds = *static_cast<double *>(property->data);
         QMetaObject::invokeMethod(this, [this, seconds]() {
-          // Skip while a seek is in flight or just finished; otherwise trust
-          // mpv. We intentionally don't filter "mpv reports < projection" —
-          // that filter let stale optimistic targets persist forever when a
-          // keyframe seek landed short of where we projected.
+          // While a seek is in flight, keep the optimistic target visible.
+          // Once it settles, mpv updates go through the same stale-regression
+          // guard as foreground refresh replies.
           if (m_seeking ||
               (m_seekCommandClock.isValid() && m_seekCommandClock.elapsed() < 1500))
             return;
-          handleMpvPositionUpdate(seconds, "time-pos");
+          setPositionSeconds(seconds, PositionSource::Mpv);
         });
       } else if (strcmp(property->name, "duration") == 0 &&
                  property->format == MPV_FORMAT_DOUBLE) {
         const double seconds = *static_cast<double *>(property->data);
         QMetaObject::invokeMethod(this, [this, seconds]() {
           m_durationSeconds = seconds;
-          setPositionSeconds(m_positionSeconds);
+          setPositionSeconds(m_positionSeconds, PositionSource::Lifecycle);
           emit stateChanged();
         });
       } else if (strcmp(property->name, "volume") == 0 &&
@@ -1616,41 +1611,6 @@ double PlayerController::seekAnchorPosition() {
   return projectedPositionSeconds();
 }
 
-bool PlayerController::currentMpvPositionSeconds(double *seconds) const {
-  if (!seconds)
-    return false;
-
-  auto *handle = m_mpv.load();
-  if (!handle)
-    return false;
-
-  double value = 0.0;
-  int error = mpv_get_property(handle, "time-pos", MPV_FORMAT_DOUBLE, &value);
-  if (error < 0 || !std::isfinite(value))
-    error = mpv_get_property(handle, "playback-time", MPV_FORMAT_DOUBLE, &value);
-  if (error < 0 || !std::isfinite(value))
-    return false;
-
-  *seconds = playbackPositionFromMpvTime(value);
-  return true;
-}
-
-void PlayerController::snapshotPlaybackPosition(const char *reason) {
-  if (!m_visible)
-    return;
-
-  double position = projectedPositionSeconds();
-  if (m_lastTrustedPositionClock.isValid() &&
-      position + kPositionRegressionToleranceSeconds < m_lastTrustedPositionSeconds)
-    position = m_lastTrustedPositionSeconds;
-
-  qInfo() << "player: playback position snapshot"
-          << (reason ? reason : "unknown")
-          << "position=" << position;
-  rememberTrustedPosition(position);
-  setPositionSeconds(position);
-}
-
 void PlayerController::requestMpvPositionRefresh(const char *reason) {
   auto *handle = m_mpv.load();
   if (!m_visible || !handle)
@@ -1671,47 +1631,6 @@ void PlayerController::requestMpvPositionRefresh(const char *reason) {
                << mpv_error_string(error);
 }
 
-void PlayerController::handleMpvPositionUpdate(double seconds, const char *source,
-                                               bool allowRegression) {
-  if (!std::isfinite(seconds))
-    return;
-
-  const double position = clampedPosition(playbackPositionFromMpvTime(seconds));
-  if (!allowRegression && mpvPositionLooksStale(position)) {
-    qWarning() << "player: ignoring stale mpv position"
-               << (source ? source : "unknown")
-               << "position=" << position
-               << "ui=" << m_positionSeconds
-               << "trusted=" << m_lastTrustedPositionSeconds;
-    restoreTrustedPosition(source);
-    return;
-  }
-
-  rememberTrustedPosition(position);
-  setPositionSeconds(position);
-  if (m_positionRegressionAllowedClock.isValid() &&
-      m_positionRegressionAllowedClock.elapsed() < kSeekTargetFreshnessMs)
-    m_positionRegressionAllowedClock.invalidate();
-}
-
-void PlayerController::rememberTrustedPosition(double seconds) {
-  if (!std::isfinite(seconds))
-    return;
-
-  m_lastTrustedPositionSeconds = clampedPosition(seconds);
-  m_lastTrustedPositionClock.restart();
-}
-
-void PlayerController::rememberForwardProgressPosition(double seconds) {
-  if (!std::isfinite(seconds))
-    return;
-
-  const double position = clampedPosition(seconds);
-  if (!m_lastTrustedPositionClock.isValid() ||
-      position + kPositionRegressionToleranceSeconds >= m_lastTrustedPositionSeconds)
-    rememberTrustedPosition(position);
-}
-
 void PlayerController::restoreTrustedPosition(const char *reason) {
   if (!m_lastTrustedPositionClock.isValid())
     return;
@@ -1724,25 +1643,19 @@ void PlayerController::restoreTrustedPosition(const char *reason) {
           << (reason ? reason : "unknown")
           << "from=" << m_positionSeconds
           << "to=" << trusted;
-  setPositionSeconds(trusted);
+  setPositionSeconds(trusted, PositionSource::Lifecycle);
 }
 
-bool PlayerController::mpvPositionLooksStale(double seconds) const {
-  if (!std::isfinite(seconds))
+bool PlayerController::positionRegressionAllowed(PositionSource source) const {
+  if (source == PositionSource::Seek)
     return true;
 
-  if (m_positionRegressionAllowedClock.isValid() &&
-      m_positionRegressionAllowedClock.elapsed() < kSeekTargetFreshnessMs)
-    return false;
-
-  if (m_lastTrustedPositionClock.isValid() &&
-      m_lastTrustedPositionSeconds > kPositionRegressionToleranceSeconds &&
-      seconds + kPositionRegressionToleranceSeconds < m_lastTrustedPositionSeconds)
+  if (source == PositionSource::Mpv && m_seekCommandClock.isValid() &&
+      m_seekCommandClock.elapsed() < kMpvPostSeekRegressionMs)
     return true;
 
-  const double projected = projectedPositionSeconds();
-  return projected > kPositionRegressionToleranceSeconds &&
-         seconds + kPositionRegressionToleranceSeconds < projected;
+  return m_positionRegressionAllowedClock.isValid() &&
+         m_positionRegressionAllowedClock.elapsed() < kSeekTargetFreshnessMs;
 }
 
 double PlayerController::projectedPositionSeconds() const {
@@ -1755,8 +1668,26 @@ double PlayerController::projectedPositionSeconds() const {
   return clampedPosition(position);
 }
 
-void PlayerController::setPositionSeconds(double seconds) {
-  const double clamped = clampedPosition(seconds);
+void PlayerController::setPositionSeconds(double seconds, PositionSource source) {
+  double clamped = clampedPosition(seconds);
+  if (!positionRegressionAllowed(source) && m_lastTrustedPositionClock.isValid() &&
+      m_lastTrustedPositionSeconds > kPositionRegressionToleranceSeconds &&
+      clamped + kPositionRegressionToleranceSeconds < m_lastTrustedPositionSeconds) {
+    if (source == PositionSource::Mpv) {
+      qWarning() << "player: ignoring stale mpv position"
+                 << "position=" << clamped
+                 << "ui=" << m_positionSeconds
+                 << "trusted=" << m_lastTrustedPositionSeconds;
+    }
+    clamped = clampedPosition(m_lastTrustedPositionSeconds);
+  }
+
+  m_lastTrustedPositionSeconds = clamped;
+  m_lastTrustedPositionClock.restart();
+  if (source == PositionSource::Mpv && m_positionRegressionAllowedClock.isValid() &&
+      m_positionRegressionAllowedClock.elapsed() < kSeekTargetFreshnessMs)
+    m_positionRegressionAllowedClock.invalidate();
+
   if (std::abs(m_positionSeconds - clamped) < 0.05) {
     m_positionClock.restart();
     return;
@@ -1851,12 +1782,6 @@ QVariantMap PlayerController::trickplayForSeconds(double seconds) const {
   result.insert(QStringLiteral("sheetWidth"), tp.width * tp.tileWidth);
   result.insert(QStringLiteral("sheetHeight"), tp.height * tp.tileHeight);
   return result;
-}
-
-double PlayerController::playbackPositionFromMpvTime(double seconds) const {
-  if (!std::isfinite(seconds))
-    return m_positionSeconds;
-  return seconds;
 }
 
 } // namespace JellyfinNative
