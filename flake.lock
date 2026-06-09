@@ -19,6 +19,40 @@
         "url": "https://github.com/haasn/libplacebo"
       }
     },
+    "mpv-src": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1780551348,
+        "narHash": "sha256-rMV/wUWtTY/XEBfx7SIdTb7ywPNrd/ZMHKVq40191yQ=",
+        "owner": "sachk",
+        "repo": "mpv",
+        "rev": "1313bdd9aba8eb7014cb02688d45a7b7adc9b3e7",
+        "type": "github"
+      },
+      "original": {
+        "owner": "sachk",
+        "repo": "mpv",
+        "rev": "1313bdd9aba8eb7014cb02688d45a7b7adc9b3e7",
+        "type": "github"
+      }
+    },
+    "mpv-webos-src": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1780979268,
+        "narHash": "sha256-WP++HYeOzOqE7JaEGDE3THD3+yXt7u+51EgA9DxiWwg=",
+        "owner": "sachk",
+        "repo": "mpv",
+        "rev": "4528e21ae48575d572dda5b7b952eba2ad0c47d9",
+        "type": "github"
+      },
+      "original": {
+        "owner": "sachk",
+        "repo": "mpv",
+        "rev": "4528e21ae48575d572dda5b7b952eba2ad0c47d9",
+        "type": "github"
+      }
+    },
     "nixpkgs": {
       "locked": {
         "lastModified": 1777578337,
@@ -38,6 +72,8 @@
     "root": {
       "inputs": {
         "libplacebo-src": "libplacebo-src",
+        "mpv-src": "mpv-src",
+        "mpv-webos-src": "mpv-webos-src",
         "nixpkgs": "nixpkgs"
       }
     }
