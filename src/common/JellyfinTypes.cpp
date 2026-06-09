@@ -1,6 +1,7 @@
 #include "JellyfinTypes.h"
 
 #include <QJsonValue>
+#include <QRegularExpression>
 
 #include <stdexcept>
 
@@ -336,6 +337,21 @@ QString exceptionMessage(const std::exception_ptr &exception)
     } catch (...) {
         return QStringLiteral("Unknown error");
     }
+}
+
+QString normalizedAudioOutputMode(const QString &mode)
+{
+    return (mode == QStringLiteral("starfish") || mode == QStringLiteral("starfish-pcm"))
+        ? QStringLiteral("starfish-pcm")
+        : QStringLiteral("alsa");
+}
+
+QString sanitizedDiagnosticUrl(QString url, qsizetype maxLength)
+{
+    static const QRegularExpression secretQuery(QStringLiteral("([?&](?:api_key|access_token|token)=)[^&]+"),
+                                                QRegularExpression::CaseInsensitiveOption);
+    url.replace(secretQuery, QStringLiteral("\\1<redacted>"));
+    return maxLength >= 0 ? url.left(maxLength) : url;
 }
 
 } // namespace JellyfinNative

@@ -641,10 +641,7 @@ void AppController::initialize()
                                 QStringLiteral("false")) == QStringLiteral("true");
     m_audioDelayMs = m_database->loadAudioDelayMs();
     const QString storedAudioOutputMode = m_database->loadAudioOutputMode();
-    m_audioOutputMode = (storedAudioOutputMode == QStringLiteral("starfish") ||
-                         storedAudioOutputMode == QStringLiteral("starfish-pcm"))
-                            ? QStringLiteral("starfish-pcm")
-                            : QStringLiteral("alsa");
+    m_audioOutputMode = normalizedAudioOutputMode(storedAudioOutputMode);
     if (m_audioOutputMode != storedAudioOutputMode)
         m_database->saveAudioOutputMode(m_audioOutputMode);
     m_redButtonAction = m_database->loadSetting(QStringLiteral("input/redButton"), QStringLiteral("none"));
@@ -1546,10 +1543,7 @@ void AppController::setAudioDelayMs(int delayMs)
 
 void AppController::setAudioOutputMode(const QString &mode)
 {
-    const QString normalized =
-        (mode == QStringLiteral("starfish") || mode == QStringLiteral("starfish-pcm"))
-            ? QStringLiteral("starfish-pcm")
-            : QStringLiteral("alsa");
+    const QString normalized = normalizedAudioOutputMode(mode);
     if (m_audioOutputMode == normalized)
         return;
     qInfo() << "app: audio output mode changed" << m_audioOutputMode << "->" << normalized;
