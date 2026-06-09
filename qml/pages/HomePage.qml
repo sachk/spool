@@ -197,6 +197,7 @@ FocusScope {
         FastWheelHandler { flickable: sections }
 
         Behavior on contentY {
+            enabled: !Theme.reducedMotion
             NumberAnimation {
                 duration: 90
                 easing.type: Easing.OutCubic

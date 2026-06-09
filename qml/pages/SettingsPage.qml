@@ -269,7 +269,10 @@ FocusScope {
             clip: true
             boundsBehavior: Flickable.StopAtBounds
 
-            Behavior on contentY { NumberAnimation { duration: 90; easing.type: Easing.OutCubic } }
+            Behavior on contentY {
+                enabled: !Theme.reducedMotion
+                NumberAnimation { duration: 90; easing.type: Easing.OutCubic }
+            }
             FastWheelHandler { flickable: settingsFlick }
 
             ColumnLayout {
