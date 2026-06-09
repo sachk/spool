@@ -1,5 +1,7 @@
 #include "Diagnostics.h"
 
+#include "../common/JellyfinTypes.h"
+
 #include <QAbstractEventDispatcher>
 #include <QCoreApplication>
 #include <QDateTime>
@@ -12,7 +14,6 @@
 #include <QLoggingCategory>
 #include <QMutex>
 #include <QProcess>
-#include <QRegularExpression>
 #include <QStandardPaths>
 #include <QTextStream>
 #include <QThread>
@@ -134,13 +135,6 @@ QJsonObject baseObject(const QString &category, const QString &event)
     object.insert(QStringLiteral("category"), category);
     object.insert(QStringLiteral("event"), event);
     return object;
-}
-
-QString sanitizedUrl(QString url)
-{
-    QRegularExpression re(QStringLiteral("([?&](?:api_key|access_token|token)=)[^&]+"), QRegularExpression::CaseInsensitiveOption);
-    url.replace(re, QStringLiteral("\\1<redacted>"));
-    return url;
 }
 
 void writeJsonFile(const QString &path, const QJsonObject &object)
@@ -439,7 +433,7 @@ ThreadScope::~ThreadScope()
 }
 
 NetworkRequest::NetworkRequest(QString method, QString url)
-    : m_id(QStringLiteral("net-%1-%2").arg(QCoreApplication::applicationPid()).arg(nowMs())), m_method(std::move(method)), m_url(sanitizedUrl(std::move(url))), m_startedMs(nowMs())
+    : m_id(QStringLiteral("net-%1-%2").arg(QCoreApplication::applicationPid()).arg(nowMs())), m_method(std::move(method)), m_url(sanitizedDiagnosticUrl(std::move(url))), m_startedMs(nowMs())
 {
     logEvent(QStringLiteral("network"), QStringLiteral("request_begin"), {{QStringLiteral("requestId"), m_id}, {QStringLiteral("method"), m_method}, {QStringLiteral("url"), m_url}});
 }

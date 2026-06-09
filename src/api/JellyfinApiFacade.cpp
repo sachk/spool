@@ -9,7 +9,6 @@
 #include <QJsonObject>
 #include <QDebug>
 #include <QNetworkReply>
-#include <QRegularExpression>
 #include <QUrl>
 #include <QUrlQuery>
 
@@ -55,14 +54,6 @@ QString detailItemFields()
     return QStringLiteral("Overview,ProductionYear,PremiereDate,EndDate,ImageTags,BackdropImageTags,"
                           "UserData,Path,RunTimeTicks,SeriesInfo,Genres,Tags,Studios,OfficialRating,"
                           "CommunityRating,CriticRating,People,PrimaryImageAspectRatio,MediaSources");
-}
-
-QString diagnosticUrl(QString url)
-{
-    static const QRegularExpression secretQuery(QStringLiteral("([?&](?:api_key|access_token|token)=)[^&]+"),
-                                                QRegularExpression::CaseInsensitiveOption);
-    url.replace(secretQuery, QStringLiteral("\\1<redacted>"));
-    return url.left(160);
 }
 
 QString episodeSubtitle(const QJsonObject &object)
@@ -1449,7 +1440,7 @@ void JellyfinApiFacade::pumpImagePrefetch()
 {
     while (m_prefetchInFlight < m_prefetchMaxConcurrent && !m_prefetchQueue.isEmpty()) {
         const QString url = m_prefetchQueue.takeFirst();
-        Diagnostics::logEvent(QStringLiteral("network"), QStringLiteral("prefetch_begin"), {{QStringLiteral("url"), diagnosticUrl(url)}});
+        Diagnostics::logEvent(QStringLiteral("network"), QStringLiteral("prefetch_begin"), {{QStringLiteral("url"), sanitizedDiagnosticUrl(url, 160)}});
         QNetworkRequest request{QUrl(url)};
         request.setAttribute(QNetworkRequest::CacheLoadControlAttribute, QNetworkRequest::PreferCache);
 
@@ -1465,7 +1456,7 @@ void JellyfinApiFacade::pumpImagePrefetch()
             m_prefetchSeen.remove(url);
             m_prefetchReplies.remove(reply);
             m_prefetchInFlight = std::max(0, m_prefetchInFlight - 1);
-            Diagnostics::logEvent(QStringLiteral("network"), QStringLiteral("prefetch_end"), {{QStringLiteral("url"), diagnosticUrl(url)}, {QStringLiteral("inFlight"), m_prefetchInFlight}});
+            Diagnostics::logEvent(QStringLiteral("network"), QStringLiteral("prefetch_end"), {{QStringLiteral("url"), sanitizedDiagnosticUrl(url, 160)}, {QStringLiteral("inFlight"), m_prefetchInFlight}});
             pumpImagePrefetch();
         });
     }

@@ -181,5 +181,7 @@ PersonItem personFromJson(const QJsonObject &object);
 MovieItem movieFromJson(const QJsonObject &object);
 
 QString exceptionMessage(const std::exception_ptr &exception);
+QString normalizedAudioOutputMode(const QString &mode);
+QString sanitizedDiagnosticUrl(QString url, qsizetype maxLength = -1);
 
 } // namespace JellyfinNative

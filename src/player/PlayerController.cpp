@@ -1053,10 +1053,7 @@ void PlayerController::setAudioDelayMs(int delayMs) {
 }
 
 void PlayerController::setAudioOutputMode(const QString &mode) {
-  const QString normalized =
-      (mode == QStringLiteral("starfish") || mode == QStringLiteral("starfish-pcm"))
-          ? QStringLiteral("starfish-pcm")
-          : QStringLiteral("alsa");
+  const QString normalized = normalizedAudioOutputMode(mode);
   if (m_audioOutputMode == normalized)
     return;
 
