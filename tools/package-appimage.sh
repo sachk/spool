@@ -379,18 +379,22 @@ EOF
     prepend_path "$qt_shadow"
     append_colon_path QML_IMPORT_PATH "$qml_import_dir"
     append_colon_path QML2_IMPORT_PATH "$qml_import_dir"
-    IFS=':' read -r -a nix_qml_roots <<< "${NIXPKGS_QT6_QML_IMPORT_PATH:-}"
-    for qml_root in "${nix_qml_roots[@]}"; do
-      [[ -d "$qml_root/QtQuick/VirtualKeyboard" ]] || continue
-      virtual_keyboard_qml_root="$qml_root"
-      append_colon_path QML_IMPORT_PATH "$qml_root"
-      append_colon_path QML2_IMPORT_PATH "$qml_root"
-      break
-    done
   else
     prepend_path "$(dirname "$qmlscanner")"
   fi
 fi
+
+qml_roots=("${JELLYFIN_QT_VIRTUAL_KEYBOARD_QML_ROOT:-}")
+IFS=':' read -r -a nix_qml_roots <<< "${NIXPKGS_QT6_QML_IMPORT_PATH:-}"
+qml_roots+=("${nix_qml_roots[@]}")
+for qml_root in "${qml_roots[@]}"; do
+  [[ -n "$qml_root" && -d "$qml_root/QtQuick/VirtualKeyboard" ]] || continue
+  virtual_keyboard_qml_root="$qml_root"
+  append_colon_path QML_IMPORT_PATH "$qml_root"
+  append_colon_path QML2_IMPORT_PATH "$qml_root"
+  break
+done
+
 export EXTRA_PLATFORM_PLUGINS="${EXTRA_PLATFORM_PLUGINS:-libqwayland.so}"
 export QML_SOURCES_PATHS="${QML_SOURCES_PATHS:-$APP_ROOT/qml}"
 export APPIMAGE_EXTRACT_AND_RUN="${APPIMAGE_EXTRACT_AND_RUN:-1}"

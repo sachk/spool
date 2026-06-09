@@ -297,6 +297,7 @@
         # This shell intentionally includes nixpkgs Qt for native Linux/macOS
         # development. Do not use it for tools/webos-native/build-qt6-611.sh.
         export JELLYFIN_NATIVE_SHELL=1
+        export JELLYFIN_QT_VIRTUAL_KEYBOARD_QML_ROOT="${pkgs.qt6.qtvirtualkeyboard}/${pkgs.qt6.qtbase.qtQmlPrefix}"
       '';
     in
     {
