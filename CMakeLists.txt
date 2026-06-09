@@ -1,6 +1,12 @@
 cmake_minimum_required(VERSION 3.22)
 
-project(JellyfinNativeWebOS LANGUAGES CXX)
+file(READ "${CMAKE_CURRENT_LIST_DIR}/VERSION" JELLYFIN_VERSION)
+string(STRIP "${JELLYFIN_VERSION}" JELLYFIN_VERSION)
+if(NOT JELLYFIN_VERSION MATCHES "^[0-9]+\\.[0-9]+\\.[0-9]+$")
+    message(FATAL_ERROR "VERSION must contain a semantic version such as 0.2.1")
+endif()
+
+project(JellyfinNativeWebOS VERSION "${JELLYFIN_VERSION}" LANGUAGES CXX)
 
 set(JELLYFIN_NATIVE_WEBOS_DEFAULT OFF)
 if(CMAKE_CROSSCOMPILING)
@@ -335,14 +341,17 @@ set_target_properties(jellyfin-native PROPERTIES
     OUTPUT_NAME "jellyfin-native"
     INSTALL_RPATH "$ORIGIN/../lib"
 )
+target_compile_definitions(jellyfin-native PRIVATE
+    JELLYFIN_VERSION="${PROJECT_VERSION}"
+)
 
 if(APPLE)
     set_target_properties(jellyfin-native PROPERTIES
         MACOSX_BUNDLE TRUE
         MACOSX_BUNDLE_BUNDLE_NAME "Jellyfin Native"
         MACOSX_BUNDLE_GUI_IDENTIFIER "com.sachk.tern"
-        MACOSX_BUNDLE_BUNDLE_VERSION "0.2.1"
-        MACOSX_BUNDLE_SHORT_VERSION_STRING "0.2.1"
+        MACOSX_BUNDLE_BUNDLE_VERSION "${PROJECT_VERSION}"
+        MACOSX_BUNDLE_SHORT_VERSION_STRING "${PROJECT_VERSION}"
         INSTALL_RPATH "@executable_path/../Frameworks"
     )
 endif()

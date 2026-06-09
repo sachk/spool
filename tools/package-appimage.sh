@@ -7,6 +7,7 @@ source "$APP_ROOT/tools/lib/build-common.sh"
 # shellcheck source=tools/lib/manifest-sources.sh
 source "$APP_ROOT/tools/lib/manifest-sources.sh"
 TOOL_MANIFEST="${LINUXDEPLOY_MANIFEST:-$APP_ROOT/tools/manifests/linuxdeploy.json}"
+APP_VERSION="$(read_project_version "$APP_ROOT")"
 BUILD_ROOT="${BUILD_ROOT:-$APP_ROOT/build/linux-release/install/bin}"
 MPV_PREFIX="${MPV_PREFIX:-$APP_ROOT/build/linux-release/mpv-prefix}"
 APPDIR="${APPDIR:-$APP_ROOT/build/appimage/AppDir}"
@@ -392,7 +393,7 @@ fi
 export EXTRA_PLATFORM_PLUGINS="${EXTRA_PLATFORM_PLUGINS:-libqwayland.so}"
 export QML_SOURCES_PATHS="${QML_SOURCES_PATHS:-$APP_ROOT/qml}"
 export APPIMAGE_EXTRACT_AND_RUN="${APPIMAGE_EXTRACT_AND_RUN:-1}"
-export OUTPUT="${OUTPUT:-Jellyfin-Native-x86_64.AppImage}"
+export OUTPUT="${OUTPUT:-Jellyfin-Native-${APP_VERSION}-x86_64.AppImage}"
 
 copy_elf_deps libQt6WebSockets.so.6
 set_appdir_rpaths

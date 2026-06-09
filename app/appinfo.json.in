@@ -1,6 +1,6 @@
 {
   "id": "com.sachk.tern",
-  "version": "0.2.1",
+  "version": "@VERSION@",
   "vendor": "sachk",
   "type": "native",
   "main": "bin/jellyfin-native",

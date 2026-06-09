@@ -226,7 +226,10 @@ fi
 if (( DO_STAGE )); then
 rm -rf "$APP_DIR"
 mkdir -p "$BUILD_DIR" "$STAGE_LIB" "$STAGE_BIN" "$APP_DIR/qt-qml"
-cp -f "$APP_SOURCE_DIR/appinfo.json" "$APP_DIR/appinfo.json"
+python3 "$ROOT/tools/render-appinfo.py" \
+  "$APP_SOURCE_DIR/appinfo.json.in" \
+  "$ROOT/VERSION" \
+  "$APP_DIR/appinfo.json"
 cp -f "$APP_SOURCE_DIR/icon.png" "$APP_DIR/icon.png"
 PATCHELF_BIN="$(command -v patchelf)"
 
