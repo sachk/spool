@@ -4,12 +4,16 @@ set -euo pipefail
 APP_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 # shellcheck source=tools/lib/build-common.sh
 source "$APP_ROOT/tools/lib/build-common.sh"
+# shellcheck source=tools/lib/manifest-sources.sh
+source "$APP_ROOT/tools/lib/manifest-sources.sh"
+TOOL_MANIFEST="${LINUXDEPLOY_MANIFEST:-$APP_ROOT/tools/manifests/linuxdeploy.json}"
 BUILD_ROOT="${BUILD_ROOT:-$APP_ROOT/build/linux-release/install/bin}"
 MPV_PREFIX="${MPV_PREFIX:-$APP_ROOT/build/linux-release/mpv-prefix}"
 APPDIR="${APPDIR:-$APP_ROOT/build/appimage/AppDir}"
 ARTIFACT_DIR="${ARTIFACT_DIR:-$APP_ROOT/dist}"
 LINUXDEPLOY="${LINUXDEPLOY:-$APP_ROOT/build/appimage/linuxdeploy-x86_64.AppImage}"
 QT_PLUGIN="${QT_PLUGIN:-$APP_ROOT/build/appimage/linuxdeploy-plugin-qt-x86_64.AppImage}"
+APPIMAGE_RUNTIME="${APPIMAGE_RUNTIME:-$APP_ROOT/build/appimage/runtime-x86_64}"
 
 append_library_path() {
   local dir="$1"
@@ -40,7 +44,7 @@ is_bundleable_elf_dep() {
     ld-linux*.so*|libc.so*|libdl.so*|libm.so*|libpthread.so*|libresolv.so*|librt.so*|libutil.so*)
       return 1
       ;;
-    libGLES*.so*|libglapi*.so*|libgbm*.so*|libvulkan*.so*)
+    libGLES*.so*|libglapi*.so*|libgbm*.so*)
       return 1
       ;;
   esac
@@ -51,6 +55,7 @@ is_bundleable_elf_dep() {
 }
 
 copy_elf_deps() {
+  local deferred_dep="${1:-}"
   local elf
   local dep
   local copied=1
@@ -63,6 +68,9 @@ copy_elf_deps() {
     while IFS= read -r elf; do
       [[ -f "$elf" ]] || continue
       while IFS= read -r dep; do
+        if [[ -n "$deferred_dep" && "${dep##*/}" == "$deferred_dep" ]]; then
+          continue
+        fi
         is_bundleable_elf_dep "$dep" || continue
         if [[ ! -e "$APPDIR/usr/lib/$(basename "$dep")" ]]; then
           cp -L "$dep" "$APPDIR/usr/lib/"
@@ -143,8 +151,7 @@ prune_appdir() {
   find "$APPDIR/usr/lib" -maxdepth 1 -type f \( \
     -name 'libGLES*.so*' -o \
     -name 'libglapi*.so*' -o \
-    -name 'libgbm*.so*' -o \
-    -name 'libvulkan*.so*' \
+    -name 'libgbm*.so*' \
   \) -delete
 
   # Translations: keep only English (linuxdeploy-plugin-qt copies all locales).
@@ -274,18 +281,26 @@ Categories=AudioVideo;Video;
 DESKTOP
 cp -f "$APPDIR/usr/share/applications/jellyfin-native.desktop" "$APPDIR/jellyfin-native.desktop"
 
-if [[ ! -x "$LINUXDEPLOY" ]]; then
-  curl -L --fail -o "$LINUXDEPLOY" \
-    https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
-  chmod +x "$LINUXDEPLOY"
-fi
-if [[ ! -x "$QT_PLUGIN" ]]; then
-  curl -L --fail -o "$QT_PLUGIN" \
-    https://github.com/linuxdeploy/linuxdeploy-plugin-qt/releases/download/continuous/linuxdeploy-plugin-qt-x86_64.AppImage
-  chmod +x "$QT_PLUGIN"
-fi
+download_verified \
+  "$(manifest_tool_field "$TOOL_MANIFEST" linuxdeploy url)" \
+  "$(manifest_tool_field "$TOOL_MANIFEST" linuxdeploy sha256)" \
+  "$LINUXDEPLOY"
+chmod +x "$LINUXDEPLOY"
+download_verified \
+  "$(manifest_tool_field "$TOOL_MANIFEST" linuxdeploy-plugin-qt url)" \
+  "$(manifest_tool_field "$TOOL_MANIFEST" linuxdeploy-plugin-qt sha256)" \
+  "$QT_PLUGIN"
+chmod +x "$QT_PLUGIN"
+download_verified \
+  "$(manifest_tool_field "$TOOL_MANIFEST" type2-runtime url)" \
+  "$(manifest_tool_field "$TOOL_MANIFEST" type2-runtime sha256)" \
+  "$APPIMAGE_RUNTIME"
 
 append_library_path "$MPV_PREFIX/lib"
+IFS=':' read -r -a cmake_library_dirs <<< "${CMAKE_LIBRARY_PATH:-}"
+for lib_dir in "${cmake_library_dirs[@]}"; do
+  append_library_path "$lib_dir"
+done
 while IFS= read -r lib_dir; do
   append_library_path "$lib_dir"
 done < <(find "$MPV_PREFIX/lib" -name 'libmpv.so*' -exec dirname {} \; | sort -u)
@@ -297,9 +312,15 @@ while IFS= read -r dep; do
   is_bundleable_elf_dep "$dep" || continue
 done < <(ldd "$APPDIR/usr/bin/jellyfin-native" "$APPDIR"/usr/lib/libmpv.so* 2>/dev/null | awk '/=> \// { print $3 } /^\// { print $1 }' | sort -u)
 qmlscanner="$(resolve_qmlimportscanner "$APP_ROOT/build/linux-release/app/build.ninja")"
+virtual_keyboard_qml_root=""
 if [[ -n "$qmlscanner" ]]; then
   qtpaths6_bin="$(command -v qtpaths6 || true)"
   qtpaths_bin="$(command -v qtpaths || true)"
+  qmake_bin="$(command -v qmake || true)"
+  qt_host_lib_dir=""
+  if [[ -n "$qmake_bin" ]]; then
+    qt_host_lib_dir="$("$qmake_bin" -query QT_INSTALL_LIBS)"
+  fi
   qml_import_dir="$(cd "$(dirname "$qmlscanner")/.." && pwd)/lib/qt-6/qml"
   if [[ -d "$qml_import_dir" ]]; then
     qt_shadow="$APP_ROOT/build/appimage/qt-shadow/bin"
@@ -318,12 +339,22 @@ done
 exec "$qmlscanner" "\${args[@]}"
 EOF
     chmod +x "$qt_shadow/qmlimportscanner"
+    if [[ -n "$qmake_bin" ]]; then
+      cat > "$qt_shadow/qmake" <<EOF
+#!/usr/bin/env bash
+export LD_LIBRARY_PATH="$qt_host_lib_dir\${LD_LIBRARY_PATH:+:\$LD_LIBRARY_PATH}"
+exec "$qmake_bin" "\$@"
+EOF
+      chmod +x "$qt_shadow/qmake"
+      export QMAKE="$qt_shadow/qmake"
+    fi
     if [[ -n "$qtpaths6_bin" ]]; then
       cat > "$qt_shadow/qtpaths6" <<EOF
 #!/usr/bin/env bash
 if [[ "\$1" == "-query" && "\$2" == "QT_INSTALL_QML" ]]; then
   printf '%s\n' "$qml_import_dir"
 else
+  export LD_LIBRARY_PATH="$qt_host_lib_dir\${LD_LIBRARY_PATH:+:\$LD_LIBRARY_PATH}"
   exec "$qtpaths6_bin" "\$@"
 fi
 EOF
@@ -335,6 +366,7 @@ EOF
 if [[ "\$1" == "-query" && "\$2" == "QT_INSTALL_QML" ]]; then
   printf '%s\n' "$qml_import_dir"
 else
+  export LD_LIBRARY_PATH="$qt_host_lib_dir\${LD_LIBRARY_PATH:+:\$LD_LIBRARY_PATH}"
   exec "$qtpaths_bin" "\$@"
 fi
 EOF
@@ -343,8 +375,16 @@ EOF
       ln -sf qtpaths6 "$qt_shadow/qtpaths"
     fi
     prepend_path "$qt_shadow"
-    export QML_IMPORT_PATH="$qml_import_dir${QML_IMPORT_PATH:+:$QML_IMPORT_PATH}"
-    export QML2_IMPORT_PATH="$qml_import_dir${QML2_IMPORT_PATH:+:$QML2_IMPORT_PATH}"
+    append_colon_path QML_IMPORT_PATH "$qml_import_dir"
+    append_colon_path QML2_IMPORT_PATH "$qml_import_dir"
+    IFS=':' read -r -a nix_qml_roots <<< "${NIXPKGS_QT6_QML_IMPORT_PATH:-}"
+    for qml_root in "${nix_qml_roots[@]}"; do
+      [[ -d "$qml_root/QtQuick/VirtualKeyboard" ]] || continue
+      virtual_keyboard_qml_root="$qml_root"
+      append_colon_path QML_IMPORT_PATH "$qml_root"
+      append_colon_path QML2_IMPORT_PATH "$qml_root"
+      break
+    done
   else
     prepend_path "$(dirname "$qmlscanner")"
   fi
@@ -354,12 +394,23 @@ export QML_SOURCES_PATHS="${QML_SOURCES_PATHS:-$APP_ROOT/qml}"
 export APPIMAGE_EXTRACT_AND_RUN="${APPIMAGE_EXTRACT_AND_RUN:-1}"
 export OUTPUT="${OUTPUT:-Jellyfin-Native-x86_64.AppImage}"
 
-copy_elf_deps
+copy_elf_deps libQt6WebSockets.so.6
 set_appdir_rpaths
 
 "$QT_PLUGIN" --appdir "$APPDIR"
 
 unset EXTRA_PLATFORM_PLUGINS
+if [[ -z "$virtual_keyboard_qml_root" ]]; then
+  echo "error: QtQuick.VirtualKeyboard QML module was not found" >&2
+  exit 1
+fi
+copy_tree_if_exists \
+  "$virtual_keyboard_qml_root/QtQuick/VirtualKeyboard" \
+  "$APPDIR/usr/qml/QtQuick/VirtualKeyboard"
+[[ -f "$APPDIR/usr/qml/QtQuick/VirtualKeyboard/qmldir" ]] || {
+  echo "error: QtQuick.VirtualKeyboard QML module was not staged" >&2
+  exit 1
+}
 bundle_wayland_plugins
 prune_appdir
 copy_elf_deps
@@ -369,17 +420,24 @@ audit_unexpected_bloat
 APPIMAGETOOL="${APPIMAGETOOL:-}"
 if [[ -z "$APPIMAGETOOL" ]]; then
   linuxdeploy_extract="$APP_ROOT/build/appimage/linuxdeploy-extracted"
-  if [[ ! -x "$linuxdeploy_extract/plugins/linuxdeploy-plugin-appimage/appimagetool-prefix/usr/bin/appimagetool" ]]; then
+  linuxdeploy_sha="$(manifest_tool_field "$TOOL_MANIFEST" linuxdeploy sha256)"
+  linuxdeploy_marker="$linuxdeploy_extract/.linuxdeploy-sha256"
+  if [[ ! -x "$linuxdeploy_extract/plugins/linuxdeploy-plugin-appimage/appimagetool-prefix/usr/bin/appimagetool" ]] \
+      || [[ ! -f "$linuxdeploy_marker" ]] \
+      || [[ "$(<"$linuxdeploy_marker")" != "$linuxdeploy_sha" ]]; then
     rm -rf "$linuxdeploy_extract" "$APP_ROOT/build/appimage/squashfs-root"
     (
       cd "$APP_ROOT/build/appimage"
       "$LINUXDEPLOY" --appimage-extract >/dev/null
       mv squashfs-root "$linuxdeploy_extract"
+      printf '%s\n' "$linuxdeploy_sha" >"$linuxdeploy_marker"
     )
   fi
   APPIMAGETOOL="$linuxdeploy_extract/plugins/linuxdeploy-plugin-appimage/appimagetool-prefix/usr/bin/appimagetool"
 fi
 
 prepend_path "$(dirname "$APPIMAGETOOL")"
-ARCH="${ARCH:-x86_64}" "$APPIMAGETOOL" "$APPDIR" "$ARTIFACT_DIR/$OUTPUT"
+ARCH="${ARCH:-x86_64}" "$APPIMAGETOOL" \
+  --runtime-file "$APPIMAGE_RUNTIME" \
+  "$APPDIR" "$ARTIFACT_DIR/$OUTPUT"
 printf '%s\n' "$ARTIFACT_DIR/$OUTPUT"

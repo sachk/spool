@@ -190,8 +190,10 @@
         alsa-lib
         appimage-run
         expat
+        libICE
         libdrm
         libpulseaudio
+        libSM
         libva
         libvdpau
         mesa

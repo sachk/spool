@@ -46,6 +46,20 @@ else:
 ' "$manifest" "$module"
 }
 
+manifest_tool_field() {
+  local manifest="$1"
+  local tool_name="$2"
+  local field="$3"
+  python3 -c '
+import json
+import sys
+
+with open(sys.argv[1], encoding="utf-8") as handle:
+    data = json.load(handle)
+print(data["tools"][sys.argv[2]][sys.argv[3]])
+' "$manifest" "$tool_name" "$field"
+}
+
 manifest_source_patches() {
   local manifest="$1"
   local source_name="$2"
@@ -94,7 +108,8 @@ download_verified() {
   local destination="$3"
 
   mkdir -p "$(dirname "$destination")"
-  if [[ -f "$destination" ]] && verify_sha256 "$destination" "$expected"; then
+  if [[ -f "$destination" ]] \
+      && verify_sha256 "$destination" "$expected" >/dev/null 2>&1; then
     return 0
   fi
 
