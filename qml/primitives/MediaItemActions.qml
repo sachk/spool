@@ -1,8 +1,9 @@
 import QtQuick
 import QtQuick.Layouts
+import QtQuick.Templates as T
 import "../theme"
 
-FocusScope {
+T.Control {
     id: root
 
     property var item: ({})
@@ -17,7 +18,6 @@ FocusScope {
     property bool playedState: Boolean(item && item.played)
     property string longPressAction: "menu"
     readonly property bool actionable: Boolean(item && item.movieId)
-    readonly property bool hovered: hover.hovered
 
     signal activated()
     signal detailsRequested()
@@ -217,7 +217,7 @@ FocusScope {
         }
     }
 
-    HoverHandler { id: hover }
+    hoverEnabled: true
 
     MouseArea {
         anchors.fill: parent

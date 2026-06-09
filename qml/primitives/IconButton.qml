@@ -1,8 +1,8 @@
 import QtQuick
-import QtQuick.Controls.Basic
+import QtQuick.Templates as T
 import "../theme"
 
-Button {
+T.Button {
     id: root
     property string iconText: ""
     property string iconName: ""
