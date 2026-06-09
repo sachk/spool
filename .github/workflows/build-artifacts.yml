@@ -26,13 +26,9 @@ on:
         type: string
 
 jobs:
-  # Cheap gate that runs on every push/PR (no Nix, ~seconds). It validates the
-  # shell scripts — including the macOS ones we cannot fully exercise on a Linux
-  # runner — so a syntax/wiring error fails here before any heavy or expensive
-  # (10x-cost macOS) runner is started. The build jobs `needs: lint`.
   lint:
     name: Lint scripts
-    runs-on: ubuntu-24.04
+    runs-on: [self-hosted, linux, X64]
     steps:
       - uses: actions/checkout@v4
 
@@ -54,7 +50,7 @@ jobs:
 
   linux-appimage:
     name: Linux AppImage
-    runs-on: ubuntu-24.04
+    runs-on: [self-hosted, linux, X64]
     needs: lint
     if: ${{ github.event_name != 'workflow_dispatch' || inputs.build_linux }}
     steps:
@@ -146,7 +142,7 @@ jobs:
 
   webos-ipk:
     name: webOS IPK
-    runs-on: ubuntu-24.04
+    runs-on: [self-hosted, linux, X64]
     needs: lint
     if: ${{ github.event_name == 'workflow_dispatch' && inputs.build_webos && (vars.WEBOS_TOOLCHAIN_ARCHIVE_URL != '' || inputs.webos_toolchain_archive_url != '') }}
     steps:
