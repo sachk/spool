@@ -313,43 +313,51 @@ MovieItem mediaItemFromJson(const JellyfinApiFacade *api, const QJsonObject &obj
     const qint64 resumeTicks = userData.value(QStringLiteral("PlaybackPositionTicks")).toVariant().toLongLong();
     const qint64 runtimeTicks = object.value(QStringLiteral("RunTimeTicks")).toVariant().toLongLong();
 
-    return {
-        itemId,
-        object.value(QStringLiteral("Name")).toString(),
-        object.value(QStringLiteral("Overview")).toString(),
-        posterTag.isEmpty() ? QString() : api->buildImageUrl(itemId, posterTag),
-        posterTag,
-        itemType,
-        seriesId,
-        object.value(QStringLiteral("SeriesName")).toString(),
-        !seriesId.isEmpty() && !seriesPrimaryImageTag.isEmpty()
-            ? api->buildImageUrl(seriesId, seriesPrimaryImageTag, 360, 80)
-            : QString(),
-        subtitle,
-        object.value(QStringLiteral("Path")).toString(),
-        object.value(QStringLiteral("ProductionYear")).toInt(),
-        itemType == QStringLiteral("Episode") ? parentIndexNumber : indexNumber,
-        itemType == QStringLiteral("Episode") ? indexNumber : 0,
-        resumeTicks,
-        runtimeTicks,
-        playable,
-        userData.value(QStringLiteral("IsFavorite")).toBool(false),
-        userData.value(QStringLiteral("Played")).toBool(false),
-        backdropTag.isEmpty() ? QString() : api->buildImageUrl(itemId, backdropTag, 1920, 82, QStringLiteral("webp"), QStringLiteral("Backdrop")),
-        logoTag.isEmpty() ? QString() : api->buildImageUrl(itemId, logoTag, 720, 90, QStringLiteral("png"), QStringLiteral("Logo")),
-        bannerTag.isEmpty() ? QString() : api->buildImageUrl(itemId, bannerTag, 1000, 86, QStringLiteral("webp"), QStringLiteral("Banner")),
-        thumbTag.isEmpty() ? QString() : api->buildImageUrl(itemId, thumbTag, 720, 82, QStringLiteral("webp"), QStringLiteral("Thumb")),
-        stringsFromJsonArray(object.value(QStringLiteral("Genres")).toArray()),
-        stringsFromJsonArray(object.value(QStringLiteral("Tags")).toArray()),
-        studioNamesFromJsonArray(object.value(QStringLiteral("Studios")).toArray()),
-        object.value(QStringLiteral("OfficialRating")).toString(),
-        object.value(QStringLiteral("CommunityRating")).toDouble(),
-        object.value(QStringLiteral("CriticRating")).toDouble(),
-        object.value(QStringLiteral("PremiereDate")).toString(),
-        object.value(QStringLiteral("EndDate")).toString(),
-        peopleFromApiJson(api, object.value(QStringLiteral("People")).toArray()),
-        mediaSourcesFromApiJson(object.value(QStringLiteral("MediaSources")).toArray()),
-    };
+    MovieItem item;
+    item.id = itemId;
+    item.title = object.value(QStringLiteral("Name")).toString();
+    item.overview = object.value(QStringLiteral("Overview")).toString();
+    item.posterUrl = posterTag.isEmpty() ? QString() : api->buildImageUrl(itemId, posterTag);
+    item.posterTag = posterTag;
+    item.itemType = itemType;
+    item.seriesId = seriesId;
+    item.seriesName = object.value(QStringLiteral("SeriesName")).toString();
+    item.seriesPosterUrl = !seriesId.isEmpty() && !seriesPrimaryImageTag.isEmpty()
+        ? api->buildImageUrl(seriesId, seriesPrimaryImageTag, 360, 80)
+        : QString();
+    item.subtitle = subtitle;
+    item.path = object.value(QStringLiteral("Path")).toString();
+    item.year = object.value(QStringLiteral("ProductionYear")).toInt();
+    item.seasonNumber = itemType == QStringLiteral("Episode") ? parentIndexNumber : indexNumber;
+    item.episodeNumber = itemType == QStringLiteral("Episode") ? indexNumber : 0;
+    item.resumeTicks = resumeTicks;
+    item.runtimeTicks = runtimeTicks;
+    item.playable = playable;
+    item.favorite = userData.value(QStringLiteral("IsFavorite")).toBool(false);
+    item.played = userData.value(QStringLiteral("Played")).toBool(false);
+    item.backdropUrl = backdropTag.isEmpty()
+        ? QString()
+        : api->buildImageUrl(itemId, backdropTag, 1920, 82, QStringLiteral("webp"), QStringLiteral("Backdrop"));
+    item.logoUrl = logoTag.isEmpty()
+        ? QString()
+        : api->buildImageUrl(itemId, logoTag, 720, 90, QStringLiteral("png"), QStringLiteral("Logo"));
+    item.bannerUrl = bannerTag.isEmpty()
+        ? QString()
+        : api->buildImageUrl(itemId, bannerTag, 1000, 86, QStringLiteral("webp"), QStringLiteral("Banner"));
+    item.thumbUrl = thumbTag.isEmpty()
+        ? QString()
+        : api->buildImageUrl(itemId, thumbTag, 720, 82, QStringLiteral("webp"), QStringLiteral("Thumb"));
+    item.genres = stringsFromJsonArray(object.value(QStringLiteral("Genres")).toArray());
+    item.tags = stringsFromJsonArray(object.value(QStringLiteral("Tags")).toArray());
+    item.studios = studioNamesFromJsonArray(object.value(QStringLiteral("Studios")).toArray());
+    item.officialRating = object.value(QStringLiteral("OfficialRating")).toString();
+    item.communityRating = object.value(QStringLiteral("CommunityRating")).toDouble();
+    item.criticRating = object.value(QStringLiteral("CriticRating")).toDouble();
+    item.premiereDate = object.value(QStringLiteral("PremiereDate")).toString();
+    item.endDate = object.value(QStringLiteral("EndDate")).toString();
+    item.people = peopleFromApiJson(api, object.value(QStringLiteral("People")).toArray());
+    item.mediaSources = mediaSourcesFromApiJson(object.value(QStringLiteral("MediaSources")).toArray());
+    return item;
 }
 
 }
