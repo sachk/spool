@@ -334,6 +334,51 @@ void NativeAppWindow::setVideoCrop(int origW, int origH, int srcX, int srcY,
     updateCropRegion();
 }
 
+void NativeAppWindow::scheduleVideoCrop(int origW, int origH, int srcX, int srcY,
+                                        int srcW, int srcH, int dstX, int dstY,
+                                        int dstW, int dstH)
+{
+    if (origW <= 0 || origH <= 0 || srcW <= 0 || srcH <= 0 || dstW <= 0 || dstH <= 0)
+        return;
+
+    if (QThread::currentThread() == thread()) {
+        setVideoCrop(origW, origH, srcX, srcY, srcW, srcH,
+                     dstX, dstY, dstW, dstH);
+        return;
+    }
+
+    bool shouldQueue = false;
+    {
+        QMutexLocker locker(&m_cropMutex);
+        m_pendingCrop = {origW, origH, srcX, srcY, srcW, srcH, dstX, dstY, dstW, dstH, true};
+        if (!m_cropUpdateQueued) {
+            m_cropUpdateQueued = true;
+            shouldQueue = true;
+        }
+    }
+
+    if (shouldQueue) {
+        QMetaObject::invokeMethod(
+            this, [this]() { publishPendingVideoCrop(); }, Qt::QueuedConnection);
+    }
+}
+
+void NativeAppWindow::publishPendingVideoCrop()
+{
+    CropRegion crop;
+    {
+        QMutexLocker locker(&m_cropMutex);
+        crop = m_pendingCrop;
+        m_pendingCrop = CropRegion();
+        m_cropUpdateQueued = false;
+    }
+    if (!crop.valid)
+        return;
+
+    setVideoCrop(crop.origW, crop.origH, crop.srcX, crop.srcY, crop.srcW, crop.srcH,
+                 crop.dstX, crop.dstY, crop.dstW, crop.dstH);
+}
+
 void NativeAppWindow::scheduleOverlayImage(QImage image)
 {
     bool shouldQueue = false;
@@ -486,19 +531,8 @@ void NativeAppWindow::exportedCropCallback(void *data, int origW, int origH,
     if (!self)
         return;
 
-    if (QThread::currentThread() == self->thread()) {
-        self->setVideoCrop(origW, origH, srcX, srcY, srcW, srcH,
-                           dstX, dstY, dstW, dstH);
-        return;
-    }
-
-    QMetaObject::invokeMethod(
-        self,
-        [self, origW, origH, srcX, srcY, srcW, srcH, dstX, dstY, dstW, dstH]() {
-            self->setVideoCrop(origW, origH, srcX, srcY, srcW, srcH,
-                               dstX, dstY, dstW, dstH);
-        },
-        Qt::BlockingQueuedConnection);
+    self->scheduleVideoCrop(origW, origH, srcX, srcY, srcW, srcH,
+                            dstX, dstY, dstW, dstH);
 }
 
 const wl_registry_listener NativeAppWindow::s_registryListener = {
