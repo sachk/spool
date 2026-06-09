@@ -37,6 +37,10 @@ FocusScope {
     readonly property var subtitleDropShadowValues: ["none", "raised", "depressed", "uniform", ""]
     readonly property var subtitleDropShadowOptions: ["None", "Raised", "Depressed", "Uniform", "Drop shadow"]
 
+    component SettingsSelectRow: SelectRow {
+        metricsWidth: root.width
+    }
+
     function categoryTarget(index) {
         const targets = [themeRow, posterSizeRow, nightModeRow, subtitleLanguageRow,
                          diagnosticsRow, redButtonRow, aboutVersionRow]
@@ -293,7 +297,7 @@ FocusScope {
                     pointerActivationEnabled: false
                     onActiveFocusChanged: if (activeFocus) root.markFocused(settingIndex)
                 }
-                SelectRow {
+                SettingsSelectRow {
                     id: languageRow
                     Layout.fillWidth: true
                     rowFocus: root.currentIndex === settingIndex || activeFocus
@@ -325,7 +329,7 @@ FocusScope {
                     }
                     onActiveFocusChanged: if (activeFocus) root.markFocused(settingIndex)
                 }
-                SelectRow {
+                SettingsSelectRow {
                     id: accentRow
                     Layout.fillWidth: true
                     rowFocus: root.currentIndex === settingIndex || activeFocus
@@ -376,7 +380,7 @@ FocusScope {
                     }
                 }
                 SectionHeader { Layout.fillWidth: true; title: "Appearance" }
-                SelectRow {
+                SettingsSelectRow {
                     id: posterSizeRow
                     Layout.fillWidth: true
                     rowFocus: root.currentIndex === settingIndex || activeFocus
@@ -386,7 +390,7 @@ FocusScope {
                     onSelected: (i, v) => Metrics.userPosterSizeBias = i - 1
                     onActiveFocusChanged: if (activeFocus) root.markFocused(settingIndex)
                 }
-                SelectRow {
+                SettingsSelectRow {
                     id: gridColumnsRow
                     Layout.fillWidth: true
                     rowFocus: root.currentIndex === settingIndex || activeFocus
@@ -404,7 +408,7 @@ FocusScope {
                     onSelected: (i, v) => Metrics.userColumnOverride = i === 0 ? 0 : Number(v)
                     onActiveFocusChanged: if (activeFocus) root.markFocused(settingIndex)
                 }
-                SelectRow {
+                SettingsSelectRow {
                     id: railLabelsRow
                     Layout.fillWidth: true
                     rowFocus: root.currentIndex === settingIndex || activeFocus
@@ -427,7 +431,7 @@ FocusScope {
                     onToggled: Theme.reducedMotion = checked
                     onActiveFocusChanged: if (activeFocus) root.markFocused(settingIndex)
                 }
-                SelectRow {
+                SettingsSelectRow {
                     id: renderModeRow
                     Layout.fillWidth: true
                     rowFocus: root.currentIndex === settingIndex || activeFocus
@@ -446,7 +450,7 @@ FocusScope {
                     onToggled: Theme.antialiasedText = checked
                     onActiveFocusChanged: if (activeFocus) root.markFocused(settingIndex)
                 }
-                SelectRow {
+                SettingsSelectRow {
                     id: metadataRow
                     Layout.fillWidth: true
                     rowFocus: root.currentIndex === settingIndex || activeFocus
@@ -488,7 +492,7 @@ FocusScope {
                     onValueEdited: (value) => appController.setAudioDelayMs(Math.round(value))
                     onRowFocusChanged: if (rowFocus) root.markFocused(settingIndex)
                 }
-                SelectRow {
+                SettingsSelectRow {
                     id: audioOutputRow
                     Layout.fillWidth: true
                     rowFocus: root.currentIndex === settingIndex || activeFocus
@@ -501,7 +505,7 @@ FocusScope {
                     onActiveFocusChanged: if (activeFocus) root.markFocused(settingIndex)
                 }
                 SectionHeader { Layout.fillWidth: true; title: "Subtitles" }
-                SelectRow {
+                SettingsSelectRow {
                     id: subtitleLanguageRow
                     Layout.fillWidth: true
                     rowFocus: root.currentIndex === settingIndex || activeFocus
@@ -511,7 +515,7 @@ FocusScope {
                     onSelected: (i, v) => appController.setSubtitleLanguageIndex(i)
                     onActiveFocusChanged: if (activeFocus) root.markFocused(settingIndex)
                 }
-                SelectRow {
+                SettingsSelectRow {
                     id: subtitleModeRow
                     Layout.fillWidth: true
                     rowFocus: root.currentIndex === settingIndex || activeFocus
@@ -522,7 +526,7 @@ FocusScope {
                     onSelected: (i, v) => appController.setSubtitleMode(root.valueFromIndex(root.subtitleModeValues, i))
                     onActiveFocusChanged: if (activeFocus) root.markFocused(settingIndex)
                 }
-                SelectRow {
+                SettingsSelectRow {
                     id: subtitleBurnInRow
                     Layout.fillWidth: true
                     rowFocus: root.currentIndex === settingIndex || activeFocus
@@ -554,7 +558,7 @@ FocusScope {
                     onActiveFocusChanged: if (activeFocus) root.markFocused(settingIndex)
                 }
                 SectionHeader { Layout.fillWidth: true; title: "Subtitle Appearance" }
-                SelectRow {
+                SettingsSelectRow {
                     id: subtitleStylingRow
                     Layout.fillWidth: true
                     rowFocus: root.currentIndex === settingIndex || activeFocus
@@ -565,7 +569,7 @@ FocusScope {
                     onSelected: (i, v) => appController.setSubtitleStyling(root.valueFromIndex(root.subtitleStylingValues, i))
                     onActiveFocusChanged: if (activeFocus) root.markFocused(settingIndex)
                 }
-                SelectRow {
+                SettingsSelectRow {
                     id: subtitleTextSizeRow
                     Layout.fillWidth: true
                     rowFocus: root.currentIndex === settingIndex || activeFocus
@@ -575,7 +579,7 @@ FocusScope {
                     onSelected: (i, v) => appController.setSubtitleTextSize(root.valueFromIndex(root.subtitleTextSizeValues, i))
                     onActiveFocusChanged: if (activeFocus) root.markFocused(settingIndex)
                 }
-                SelectRow {
+                SettingsSelectRow {
                     id: subtitleTextWeightRow
                     Layout.fillWidth: true
                     rowFocus: root.currentIndex === settingIndex || activeFocus
@@ -585,7 +589,7 @@ FocusScope {
                     onSelected: (i, v) => appController.setSubtitleTextWeight(root.valueFromIndex(root.subtitleTextWeightValues, i))
                     onActiveFocusChanged: if (activeFocus) root.markFocused(settingIndex)
                 }
-                SelectRow {
+                SettingsSelectRow {
                     id: subtitleFontRow
                     Layout.fillWidth: true
                     rowFocus: root.currentIndex === settingIndex || activeFocus
@@ -595,7 +599,7 @@ FocusScope {
                     onSelected: (i, v) => appController.setSubtitleFont(root.valueFromIndex(root.subtitleFontValues, i))
                     onActiveFocusChanged: if (activeFocus) root.markFocused(settingIndex)
                 }
-                SelectRow {
+                SettingsSelectRow {
                     id: subtitleTextColorRow
                     Layout.fillWidth: true
                     rowFocus: root.currentIndex === settingIndex || activeFocus
@@ -605,7 +609,7 @@ FocusScope {
                     onSelected: (i, v) => appController.setSubtitleTextColor(root.valueFromIndex(root.subtitleTextColorValues, i))
                     onActiveFocusChanged: if (activeFocus) root.markFocused(settingIndex)
                 }
-                SelectRow {
+                SettingsSelectRow {
                     id: subtitleDropShadowRow
                     Layout.fillWidth: true
                     rowFocus: root.currentIndex === settingIndex || activeFocus
@@ -654,7 +658,7 @@ FocusScope {
                 }
                 SectionHeader { Layout.fillWidth: true; title: "Input" }
                 SectionHeader { Layout.fillWidth: true; title: "Button Remap" }
-                SelectRow {
+                SettingsSelectRow {
                     id: redButtonRow
                     Layout.fillWidth: true
                     rowFocus: root.currentIndex === settingIndex || activeFocus
@@ -665,7 +669,7 @@ FocusScope {
                     onSelected: (i, v) => appController.setRedButtonAction(root.actionFromIndex(i))
                     onActiveFocusChanged: if (activeFocus) root.markFocused(settingIndex)
                 }
-                SelectRow {
+                SettingsSelectRow {
                     id: greenButtonRow
                     Layout.fillWidth: true
                     rowFocus: root.currentIndex === settingIndex || activeFocus
@@ -676,7 +680,7 @@ FocusScope {
                     onSelected: (i, v) => appController.setGreenButtonAction(root.actionFromIndex(i))
                     onActiveFocusChanged: if (activeFocus) root.markFocused(settingIndex)
                 }
-                SelectRow {
+                SettingsSelectRow {
                     id: yellowButtonRow
                     Layout.fillWidth: true
                     rowFocus: root.currentIndex === settingIndex || activeFocus
@@ -686,7 +690,7 @@ FocusScope {
                     onSelected: (i, v) => appController.setYellowButtonAction(root.actionFromIndex(i))
                     onActiveFocusChanged: if (activeFocus) root.markFocused(settingIndex)
                 }
-                SelectRow {
+                SettingsSelectRow {
                     id: blueButtonRow
                     Layout.fillWidth: true
                     rowFocus: root.currentIndex === settingIndex || activeFocus

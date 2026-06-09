@@ -6,6 +6,7 @@ SettingRow {
     property var options: []
     property int currentIndex: 0
     property bool handledNavigationPress: false
+    property real metricsWidth: 1920
     readonly property string selectedText: options.length > 0 ? String(options[Math.max(0, Math.min(options.length - 1, currentIndex))]) : ""
     signal selected(int index, string value)
     valueText: selectedText
@@ -29,13 +30,13 @@ SettingRow {
         MaterialIcon {
             anchors.verticalCenter: parent.verticalCenter
             name: "chevron_left"
-            iconSize: Math.max(18, Metrics.metaPx(root.Window.window ? root.Window.window.width : 1920) + 6)
+            iconSize: Math.max(18, Metrics.metaPx(root.metricsWidth) + 6)
             iconColor: root.enabled && root.options.length > 1 ? Theme.textSecondary : Theme.textDisabled
         }
 
         Rectangle {
             width: Math.min(Math.max(valueLabel.implicitWidth + 28, 112), Math.max(112, root.width * 0.42))
-            height: Math.max(32, Metrics.metaPx(root.Window.window ? root.Window.window.width : 1920) + 18)
+            height: Math.max(32, Metrics.metaPx(root.metricsWidth) + 18)
             radius: Theme.radiusMedium
             color: root.activeFocus ? Theme.accentPanel : Theme.bgRaised
             border.width: root.activeFocus ? 2 : 1
@@ -49,7 +50,7 @@ SettingRow {
                 anchors.rightMargin: 14
                 text: root.selectedText
                 color: Theme.textPrimary
-                font.pixelSize: Metrics.metaPx(root.Window.window ? root.Window.window.width : 1920)
+                font.pixelSize: Metrics.metaPx(root.metricsWidth)
                 font.weight: Font.Medium
                 horizontalAlignment: Text.AlignHCenter
                 verticalAlignment: Text.AlignVCenter
@@ -60,7 +61,7 @@ SettingRow {
         MaterialIcon {
             anchors.verticalCenter: parent.verticalCenter
             name: "chevron_right"
-            iconSize: Math.max(18, Metrics.metaPx(root.Window.window ? root.Window.window.width : 1920) + 6)
+            iconSize: Math.max(18, Metrics.metaPx(root.metricsWidth) + 6)
             iconColor: root.enabled && root.options.length > 1 ? Theme.textSecondary : Theme.textDisabled
         }
     }
