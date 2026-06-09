@@ -58,19 +58,11 @@ jobs:
         with:
           submodules: recursive
 
-      - uses: nixbuild/nix-quick-install-action@v30
-        with:
-          nix_conf: |
-            experimental-features = nix-command flakes
-            keep-env-derivations = true
-            keep-outputs = true
-
-      - uses: nix-community/cache-nix-action@v7
-        with:
-          primary-key: nix-${{ runner.os }}-${{ hashFiles('flake.lock') }}
-          restore-prefixes-first-match: nix-${{ runner.os }}-
-          gc-max-store-size-linux: 8G
-
+      # This self-hosted runner is NixOS and already provides Nix system-wide
+      # with a persistent store. The Linux and webOS jobs therefore use the
+      # host's nix directly and skip nix-quick-install-action /
+      # cache-nix-action, which exist to provision and cache Nix on an
+      # ephemeral Ubuntu runner (and fail here: /nix is read-only, no sudo).
       - uses: actions/cache@v4
         with:
           path: |
@@ -150,20 +142,8 @@ jobs:
         with:
           submodules: recursive
 
-      - uses: nixbuild/nix-quick-install-action@v30
-        with:
-          nix_conf: |
-            experimental-features = nix-command flakes
-            keep-env-derivations = true
-            keep-outputs = true
-
-      - uses: nix-community/cache-nix-action@v7
-        with:
-          primary-key: nix-${{ runner.os }}-${{ hashFiles('flake.lock') }}
-          restore-prefixes-first-match: nix-${{ runner.os }}-
-          gc-max-store-size-linux: 8G
-          gc-max-store-size-macos: 8G
-
+      # See the Linux job: this self-hosted NixOS runner provides Nix natively,
+      # so we skip nix-quick-install-action / cache-nix-action here too.
       - uses: actions/cache@v4
         with:
           path: |
