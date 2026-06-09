@@ -67,7 +67,7 @@ FocusScope {
     function activateSuggestion(index) {
         if (index < 0 || suggestionCount <= 0)
             return
-        shell.openDetails(appController.searchSuggestions, index, "suggestion", "search")
+        shell.openDetailsAt(appController.searchSuggestions, index, "suggestion", "search")
     }
 
     function setQuery(text) {
@@ -91,7 +91,7 @@ FocusScope {
         if (results.currentIndex < 0 || resultCount <= 0)
             return
         shell.lastSearchIndex = results.currentIndex
-        shell.openDetails(appController.searchResults, results.currentIndex, "search", "search")
+        shell.openDetailsAt(appController.searchResults, results.currentIndex, "search", "search")
     }
 
     function currentResultRow() {
