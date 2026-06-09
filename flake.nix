@@ -237,6 +237,7 @@
           qt6.qtdeclarative
           qt6.qtimageformats
           qt6.qttools
+          qt6.qtvirtualkeyboard
           qt6.qtwebsockets
           gammaray
           (qmlToolWrappers pkgs)
@@ -250,6 +251,7 @@
           qt6.qtbase
           qt6.qtdeclarative
           qt6.qtimageformats
+          qt6.qtvirtualkeyboard
           qt6.qtwebsockets
         ])
         ++ pkgs.lib.optionals pkgs.stdenv.isLinux (with pkgs; [
