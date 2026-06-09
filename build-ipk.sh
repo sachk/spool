@@ -3,6 +3,8 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 WEBOS_TOOLS_ROOT="${WEBOS_TOOLS_ROOT:-$ROOT/tools/webos-native}"
+# shellcheck source=tools/lib/build-common.sh
+source "$ROOT/tools/lib/build-common.sh"
 PHASE="${1:-all}"
 DO_BUILD=0
 DO_STAGE=0
@@ -37,6 +39,7 @@ APP_DIR="${WEBOS_STAGE_DIR:-$ROOT/build/webos/stage/app}"
 STAGE_LIB="$APP_DIR/lib"
 STAGE_BIN="$APP_DIR/bin"
 STRIP_BIN="$SDK_ROOT/bin/arm-webos-linux-gnueabi-strip"
+READELF_BIN="${WEBOS_READELF_BIN:-$SDK_ROOT/bin/arm-webos-linux-gnueabi-readelf}"
 
 # Auto-detect static vs shared Qt: prefer static if available
 QT6_STATIC_PREFIX="$ROOT/build/qt6-611-target-static-install"
@@ -247,39 +250,29 @@ fi
 }
 cp -f "$INSTALL_DIR/bin/jellyfin-native" "$STAGE_BIN/jellyfin-native"
 
-# mpv + ffmpeg shared libs are always needed (not statically linked)
-cp -f "$MPV_BUILD/libmpv.so.2.5.0" "$STAGE_LIB/libmpv.so.2.5.0"
-ln -sf libmpv.so.2.5.0 "$STAGE_LIB/libmpv.so.2"
-ln -sf libmpv.so.2 "$STAGE_LIB/libmpv.so"
+# mpv + ffmpeg shared libs are always needed (not statically linked). Stage
+# their real files and derive compatibility symlinks from each ELF SONAME so
+# patch-level dependency upgrades do not require edits here.
+MPV_STAGED_LIBRARY="$(stage_elf_shared_library \
+  "$MPV_BUILD/libmpv.so.*" "$STAGE_LIB" "$READELF_BIN")"
 
-for lib in \
-  "$PREFIX/lib/libavcodec.so.62" \
-  "$PREFIX/lib/libavfilter.so.11" \
-  "$PREFIX/lib/libavformat.so.62" \
-  "$PREFIX/lib/libavutil.so.60" \
-  "$PREFIX/lib/liblua5.2.so.0.0.0" \
-  "$PREFIX/lib/libswresample.so.6" \
-  "$PREFIX/lib/libswscale.so.9" \
-  "$SYSROOT/usr/lib/libAcbAPI.so.1" \
-  "$SYSROOT/usr/lib/libstdc++.so.6.0.33" \
-  "$SYSROOT/lib/libgcc_s.so.1" \
-  "$SYSROOT/usr/lib/libpcre2-16.so.0.13.0"
+for pattern in \
+  "$PREFIX/lib/libavcodec.so.*" \
+  "$PREFIX/lib/libavfilter.so.*" \
+  "$PREFIX/lib/libavformat.so.*" \
+  "$PREFIX/lib/libavutil.so.*" \
+  "$PREFIX/lib/liblua5.2.so.*" \
+  "$PREFIX/lib/libswresample.so.*" \
+  "$PREFIX/lib/libswscale.so.*" \
+  "$SYSROOT/usr/lib/libAcbAPI.so.*" \
+  "$SYSROOT/usr/lib/libstdc++.so.*" \
+  "$SYSROOT/lib/libgcc_s.so.*" \
+  "$SYSROOT/usr/lib/libpcre2-16.so.*" \
+  "$SYSROOT/usr/lib/libjpeg.so.*" \
+  "$SYSROOT/usr/lib/libpng16.so.*"
 do
-  cp -f "$lib" "$STAGE_LIB/"
+  stage_elf_shared_library "$pattern" "$STAGE_LIB" "$READELF_BIN" >/dev/null
 done
-
-cp -L "$SYSROOT/usr/lib/libjpeg.so.8.2.2" "$STAGE_LIB/"
-cp -L "$SYSROOT/usr/lib/libpng16.so.16.46.0" "$STAGE_LIB/"
-
-ln -sf libstdc++.so.6.0.33 "$STAGE_LIB/libstdc++.so.6"
-ln -sf liblua5.2.so.0.0.0 "$STAGE_LIB/liblua5.2.so.0"
-ln -sf liblua5.2.so.0 "$STAGE_LIB/liblua5.2.so"
-ln -sf libpcre2-16.so.0.13.0 "$STAGE_LIB/libpcre2-16.so.0"
-ln -sf libpcre2-16.so.0 "$STAGE_LIB/libpcre2-16.so"
-ln -sf libjpeg.so.8.2.2 "$STAGE_LIB/libjpeg.so.8"
-ln -sf libjpeg.so.8 "$STAGE_LIB/libjpeg.so"
-ln -sf libpng16.so.16.46.0 "$STAGE_LIB/libpng16.so.16"
-ln -sf libpng16.so.16 "$STAGE_LIB/libpng.so"
 
 if [[ "$QT_IS_STATIC" == "0" ]]; then
   # --- Shared Qt: copy Qt shared libs, plugins, patchelf ---
@@ -350,7 +343,7 @@ if [[ "$QT_IS_STATIC" == "0" ]]; then
 fi
 
 # patchelf on mpv (always needed)
-"$PATCHELF_BIN" --force-rpath --set-rpath '$ORIGIN' "$STAGE_LIB/libmpv.so.2.5.0"
+"$PATCHELF_BIN" --force-rpath --set-rpath '$ORIGIN' "$MPV_STAGED_LIBRARY"
 "$PATCHELF_BIN" --force-rpath --set-rpath '$ORIGIN/../lib' "$STAGE_BIN/jellyfin-native"
 
 # strip binary to reduce size

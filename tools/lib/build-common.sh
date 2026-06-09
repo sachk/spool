@@ -1,6 +1,5 @@
 #!/usr/bin/env bash
-# Shared helpers for the native (non-webOS) build and packaging scripts:
-# tools/build-linux-release.sh, tools/build-macos.sh, tools/package-appimage.sh.
+# Shared helpers for native build and packaging scripts.
 #
 # Source this file ("source tools/lib/build-common.sh"); do not execute it.
 # It defines functions only and changes no global state.
@@ -37,6 +36,70 @@ read_project_version() {
     return 1
   }
   printf '%s\n' "$version"
+}
+
+# stage_elf_shared_library GLOB DESTINATION READELF
+#
+# Copy the newest matching ELF shared library by its real filename, then create
+# its SONAME and unversioned linker aliases. Prints the staged real file path.
+stage_elf_shared_library() {
+  local pattern="$1"
+  local destination="$2"
+  local readelf_bin="$3"
+  local matches=()
+  local candidate
+  local candidate_soname
+  local index
+  local source
+  local real_source
+  local real_name
+  local soname
+  local unversioned_name
+
+  mapfile -t matches < <(compgen -G "$pattern" | sort -V)
+  if (( ${#matches[@]} == 0 )); then
+    echo "error: no shared library matched $pattern" >&2
+    return 1
+  fi
+
+  source=""
+  real_source=""
+  soname=""
+  for (( index = ${#matches[@]} - 1; index >= 0; --index )); do
+    candidate="${matches[$index]}"
+    [[ -e "$candidate" ]] || continue
+    real_source="$(readlink -f "$candidate")"
+    [[ -f "$real_source" ]] || continue
+    candidate_soname="$("$readelf_bin" -d "$real_source" 2>/dev/null \
+      | sed -n 's/.*(SONAME).*\[\(.*\)\].*/\1/p' \
+      | head -n 1 || true)"
+    if [[ -n "$candidate_soname" ]]; then
+      source="$candidate"
+      soname="$candidate_soname"
+      break
+    fi
+  done
+
+  if [[ -z "$soname" ]]; then
+    echo "error: no ELF shared library with a SONAME matched $pattern" >&2
+    return 1
+  fi
+
+  real_name="$(basename "$real_source")"
+  mkdir -p "$destination"
+  cp -f "$real_source" "$destination/$real_name"
+  if [[ "$soname" != "$real_name" ]]; then
+    ln -sfn "$real_name" "$destination/$soname"
+  fi
+
+  if [[ "$soname" == *.so.* ]]; then
+    unversioned_name="${soname%%.so.*}.so"
+    if [[ "$unversioned_name" != "$soname" ]]; then
+      ln -sfn "$soname" "$destination/$unversioned_name"
+    fi
+  fi
+
+  printf '%s\n' "$destination/$real_name"
 }
 
 append_colon_path() {
