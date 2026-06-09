@@ -5,6 +5,23 @@
 # Source this file ("source tools/lib/build-common.sh"); do not execute it.
 # It defines functions only and changes no global state.
 
+read_project_version() {
+  local root="$1"
+  local version_file="$root/VERSION"
+  local version
+
+  [[ -f "$version_file" ]] || {
+    echo "error: version file not found at $version_file" >&2
+    return 1
+  }
+  version="$(tr -d '[:space:]' <"$version_file")"
+  [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || {
+    echo "error: invalid project version in $version_file: $version" >&2
+    return 1
+  }
+  printf '%s\n' "$version"
+}
+
 append_colon_path() {
   local variable="$1"
   local dir="$2"

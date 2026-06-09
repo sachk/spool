@@ -69,6 +69,7 @@ Q_IMPORT_PLUGIN(QVirtualKeyboardPlugin)
 namespace {
 
 constexpr auto kAppId = "com.codex.jellyfinwebosnative";
+constexpr auto kAppVersion = JELLYFIN_VERSION;
 #ifdef JELLYFIN_NATIVE_WEBOS
 constexpr auto kAppLogPath = "/tmp/com.codex.jellyfinwebosnative.log";
 constexpr qint64 kNetworkDiskCacheBytes = 96LL * 1024LL * 1024LL;
@@ -277,6 +278,13 @@ bool lunaLifecycleCallback(LSHandle *, LSMessage *message, void *)
 
 int main(int argc, char **argv)
 {
+    for (int i = 1; i < argc; ++i) {
+        if (strcmp(argv[i], "--version") == 0 || strcmp(argv[i], "-v") == 0) {
+            printf("Jellyfin Native %s\n", kAppVersion);
+            return 0;
+        }
+    }
+
     QElapsedTimer startupTimer;
     startupTimer.start();
     rotateLogFile(kAppLogPath);
@@ -420,7 +428,7 @@ int main(int argc, char **argv)
     QGuiApplication app(argc, argv);
     logLine("startup: QGuiApplication constructed");
     app.setApplicationName(QStringLiteral("Jellyfin Native"));
-    app.setApplicationVersion(QStringLiteral("0.2.0"));
+    app.setApplicationVersion(QString::fromLatin1(kAppVersion));
     app.setOrganizationName(QStringLiteral("Codex"));
     app.setApplicationDisplayName(QStringLiteral("Jellyfin Native"));
 
@@ -493,7 +501,7 @@ int main(int argc, char **argv)
 #else
                            QStringLiteral("Linux Wayland"),
 #endif
-                           QStringLiteral("0.2.0"));
+                           QString::fromLatin1(kAppVersion));
 
     JellyfinNative::NativeAppWindow window(QString::fromLatin1(kAppId));
     {

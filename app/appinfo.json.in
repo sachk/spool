@@ -1,6 +1,6 @@
 {
   "id": "com.codex.jellyfinwebosnative",
-  "version": "0.2.1",
+  "version": "@VERSION@",
   "vendor": "Codex",
   "type": "native",
   "main": "bin/jellyfin-native",
