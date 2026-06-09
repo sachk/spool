@@ -97,7 +97,9 @@ public:
     Q_INVOKABLE void seekForward();
     Q_INVOKABLE void seek(double seconds);
     Q_INVOKABLE void previewSeekBy(double deltaSeconds);
+    void prepareForBackground();
     void pauseForBackground();
+    void resyncForForeground();
     Q_INVOKABLE void toggleDebugOsd();
     Q_INVOKABLE void toggleSubtitles();
     Q_INVOKABLE void cycleSubtitles();
@@ -157,6 +159,14 @@ private:
     double seekAnchorPosition();
     bool currentMpvPositionSeconds(double *seconds) const;
     double projectedPositionSeconds() const;
+    void snapshotPlaybackPosition(const char *reason);
+    void requestMpvPositionRefresh(const char *reason);
+    void handleMpvPositionUpdate(double seconds, const char *source,
+                                 bool allowRegression = false);
+    void rememberTrustedPosition(double seconds);
+    void rememberForwardProgressPosition(double seconds);
+    void restoreTrustedPosition(const char *reason);
+    bool mpvPositionLooksStale(double seconds) const;
     QByteArray buildSeekCommand(double targetSeconds, const QByteArray &flags) const;
     void updatePlaybackStatusText();
     void setPositionSeconds(double seconds);
@@ -183,6 +193,8 @@ private:
     QTimer m_seekWatchdogTimer;
     QElapsedTimer m_positionClock;
     QElapsedTimer m_seekCommandClock;
+    QElapsedTimer m_lastTrustedPositionClock;
+    QElapsedTimer m_positionRegressionAllowedClock;
     bool m_visible = false;
     bool m_paused = false;
     bool m_buffering = false;
@@ -206,6 +218,7 @@ private:
     double m_durationSeconds = 0.0;
     double m_resumeStartSeconds = 0.0;
     double m_requestedSeekTargetSeconds = -1.0;
+    double m_lastTrustedPositionSeconds = 0.0;
     std::atomic_bool m_nightModeEnabled = false;
     std::atomic_bool m_toneMappingVisualizationEnabled = false;
     std::atomic<int> m_audioDelayMs = 0;
