@@ -15,6 +15,8 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+# shellcheck source=tools/lib/build-common.sh
+source "$ROOT/tools/lib/build-common.sh"
 
 SDK_ROOT="${WEBOS_SDK_ROOT:-$ROOT/build/webos-sdk/arm-webos-linux-gnueabi_sdk-buildroot}"
 TOOLCHAIN_FILE="$ROOT/tools/webos-native/qt6-webos-toolchain.cmake"
@@ -23,6 +25,9 @@ BUILD_ROOT="${HEAPTRACK_BUILD_ROOT:-$ROOT/build/webos-heaptrack}"
 SRC_DIR="$BUILD_ROOT/src"
 BUILD_DIR="$BUILD_ROOT/build"
 PREFIX="${HEAPTRACK_PREFIX:-$BUILD_ROOT/install}"
+WEBOS_BUILD_MEMORY_PER_JOB_MIB="${WEBOS_BUILD_MEMORY_PER_JOB_MIB:-1536}"
+WEBOS_BUILD_MEMORY_RESERVE_MIB="${WEBOS_BUILD_MEMORY_RESERVE_MIB:-2048}"
+WEBOS_BUILD_JOBS="$(recommended_parallel_jobs "$WEBOS_BUILD_MEMORY_PER_JOB_MIB" "$WEBOS_BUILD_MEMORY_RESERVE_MIB")"
 
 if [[ ! -x "$SDK_ROOT/bin/arm-webos-linux-gnueabi-g++" ]]; then
   echo "error: webOS SDK compiler not found under $SDK_ROOT/bin" >&2
@@ -60,7 +65,8 @@ cmake -S "$SRC_DIR" -B "$BUILD_DIR" -G "Unix Makefiles" \
 
 # With GUI/print/interpret off this builds only the recorder pieces
 # (libheaptrack_preload.so + heaptrack_env helper + the driver script).
-cmake --build "$BUILD_DIR" -j"$(nproc)"
+describe_parallel_jobs "$WEBOS_BUILD_JOBS" "heaptrack" "$WEBOS_BUILD_MEMORY_PER_JOB_MIB" "$WEBOS_BUILD_MEMORY_RESERVE_MIB"
+cmake --build "$BUILD_DIR" --parallel "$WEBOS_BUILD_JOBS"
 cmake --install "$BUILD_DIR"
 
 preload="$PREFIX/lib/heaptrack/libheaptrack_preload.so"

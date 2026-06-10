@@ -2,6 +2,8 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+# shellcheck source=tools/lib/build-common.sh
+source "$ROOT/tools/lib/build-common.sh"
 # shellcheck source=tools/lib/manifest-sources.sh
 source "$ROOT/tools/lib/manifest-sources.sh"
 MANIFEST="${WEBOS_THIRD_PARTY_MANIFEST:-$ROOT/tools/manifests/webos-third-party.json}"
@@ -15,6 +17,9 @@ FFMPEG_SHA256="${FFMPEG_SHA256:-$(manifest_source_field "$MANIFEST" ffmpeg sha25
 SRC_ARCHIVE="${FFMPEG_ARCHIVE:-$ROOT/build/downloads/ffmpeg-8.1.tar.xz}"
 SRC_DIR="${FFMPEG_SRC_DIR:-$ROOT/build/ffmpeg-src}"
 BUILD_DIR="${FFMPEG_BUILD_DIR:-$ROOT/build/ffmpeg-build}"
+WEBOS_BUILD_MEMORY_PER_JOB_MIB="${WEBOS_BUILD_MEMORY_PER_JOB_MIB:-1536}"
+WEBOS_BUILD_MEMORY_RESERVE_MIB="${WEBOS_BUILD_MEMORY_RESERVE_MIB:-2048}"
+WEBOS_BUILD_JOBS="$(recommended_parallel_jobs "$WEBOS_BUILD_MEMORY_PER_JOB_MIB" "$WEBOS_BUILD_MEMORY_RESERVE_MIB")"
 
 mkdir -p "$ROOT/build"
 
@@ -28,6 +33,7 @@ export PKG_CONFIG_LIBDIR="$PREFIX/lib/pkgconfig:$SYSROOT/usr/lib/pkgconfig:$SYSR
 export PKG_CONFIG_SYSROOT_DIR="$SYSROOT"
 
 cd "$SRC_DIR"
+describe_parallel_jobs "$WEBOS_BUILD_JOBS" "FFmpeg" "$WEBOS_BUILD_MEMORY_PER_JOB_MIB" "$WEBOS_BUILD_MEMORY_RESERVE_MIB"
 
 ./configure \
   --prefix="$TARGET_PREFIX" \
@@ -114,7 +120,7 @@ cd "$SRC_DIR"
   --extra-cflags="--sysroot=$SYSROOT -I$PREFIX/include ${FFMPEG_DIAG_CFLAGS:--fasynchronous-unwind-tables -funwind-tables -g}" \
   --extra-ldflags="--sysroot=$SYSROOT -L$PREFIX/lib -Wl,-rpath-link,$PREFIX/lib"
 
-make -j"$(getconf _NPROCESSORS_ONLN)"
+make -j"$WEBOS_BUILD_JOBS"
 make DESTDIR="$SYSROOT" install
 
 printf '\nInstalled FFmpeg into %s\n' "$PREFIX"

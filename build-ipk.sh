@@ -40,6 +40,9 @@ STAGE_LIB="$APP_DIR/lib"
 STAGE_BIN="$APP_DIR/bin"
 STRIP_BIN="$SDK_ROOT/bin/arm-webos-linux-gnueabi-strip"
 READELF_BIN="${WEBOS_READELF_BIN:-$SDK_ROOT/bin/arm-webos-linux-gnueabi-readelf}"
+WEBOS_BUILD_MEMORY_PER_JOB_MIB="${WEBOS_BUILD_MEMORY_PER_JOB_MIB:-1536}"
+WEBOS_BUILD_MEMORY_RESERVE_MIB="${WEBOS_BUILD_MEMORY_RESERVE_MIB:-2048}"
+WEBOS_BUILD_JOBS="$(recommended_parallel_jobs "$WEBOS_BUILD_MEMORY_PER_JOB_MIB" "$WEBOS_BUILD_MEMORY_RESERVE_MIB")"
 
 # Auto-detect static vs shared Qt: prefer static if available
 QT6_STATIC_PREFIX="$ROOT/build/qt6-611-target-static-install"
@@ -106,6 +109,8 @@ copy_qml_module() {
 }
 
 if (( DO_BUILD )); then
+describe_parallel_jobs "$WEBOS_BUILD_JOBS" "webOS app" "$WEBOS_BUILD_MEMORY_PER_JOB_MIB" "$WEBOS_BUILD_MEMORY_RESERVE_MIB"
+
 DOVI_TOOL_ROOT="${DOVI_TOOL_ROOT:-$ROOT/build/third_party/dovi_tool}"
 if [[ ! -f "$DOVI_TOOL_ROOT/dolby_vision/Cargo.toml" ]]; then
   echo "error: verified dovi_tool source not found at $DOVI_TOOL_ROOT" >&2
@@ -121,12 +126,13 @@ echo "Building libdovi..."
   export CC_arm_unknown_linux_gnueabi="$SDK_ROOT/bin/arm-webos-linux-gnueabi-gcc"
   export CXX_arm_unknown_linux_gnueabi="$SDK_ROOT/bin/arm-webos-linux-gnueabi-g++"
   export AR_arm_unknown_linux_gnueabi="$SDK_ROOT/bin/arm-webos-linux-gnueabi-ar"
+  export CARGO_BUILD_JOBS="${CARGO_BUILD_JOBS:-$WEBOS_BUILD_JOBS}"
   
   CARGO_BIN="cargo"
   if command -v rustup >/dev/null 2>&1; then
     CARGO_BIN="rustup run nightly cargo"
   fi
-  $CARGO_BIN build --release --features capi,serde --target arm-unknown-linux-gnueabi
+  $CARGO_BIN build --release --features capi,serde --target arm-unknown-linux-gnueabi --jobs "$WEBOS_BUILD_JOBS"
 )
 DOVI_LIB="$DOVI_TOOL_ROOT/dolby_vision/target/arm-unknown-linux-gnueabi/release/libdovi.a"
 DOVI_INC="$DOVI_TOOL_ROOT/dolby_vision/include"
@@ -199,7 +205,7 @@ if [[ -f "$MPV_BUILD/build.ninja" ]]; then
 else
   meson setup "$MPV_BUILD" "$MPV_SRC" "${MPV_SETUP_ARGS[@]}"
 fi
-meson compile -C "$MPV_BUILD"
+meson compile -C "$MPV_BUILD" -j "$WEBOS_BUILD_JOBS"
 
 # CMAKE flags: pass BUILD_SHARED_LIBS=OFF when linking against static Qt
 CMAKE_EXTRA_FLAGS=()
@@ -222,7 +228,7 @@ cmake -S "$ROOT" -B "$CMAKE_BUILD_DIR" -GNinja \
   -DCMAKE_INSTALL_PREFIX=/usr/palm/applications/com.codex.jellyfinwebosnative \
   "${CMAKE_EXTRA_FLAGS[@]}"
 
-cmake --build "$CMAKE_BUILD_DIR" --parallel
+cmake --build "$CMAKE_BUILD_DIR" --parallel "$WEBOS_BUILD_JOBS"
 cmake --install "$CMAKE_BUILD_DIR" --prefix "$INSTALL_DIR"
 fi
 
