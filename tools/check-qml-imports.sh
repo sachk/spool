@@ -23,6 +23,7 @@ add_import_path() {
 
 scanner_prefix="$(cd "$(dirname "$scanner")/.." && pwd)"
 add_import_path "$scanner_prefix/lib/qt-6/qml"
+add_import_path "${JELLYFIN_QT_VIRTUAL_KEYBOARD_QML_ROOT:-}"
 
 roots=()
 IFS=':;' read -r -a roots <<<"${CMAKE_PREFIX_PATH:-}"
