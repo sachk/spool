@@ -270,7 +270,18 @@
         export CURL_CA_BUNDLE="$SSL_CERT_FILE"
         export NIX_ENFORCE_PURITY=0
 
-        export WEBOS_SDK_ROOT="''${WEBOS_SDK_ROOT:-$PWD/build/webos-sdk/arm-webos-linux-gnueabi_sdk-buildroot}"
+        if [ -z "''${WEBOS_SDK_ROOT:-}" ]; then
+          repo_sdk="$PWD/build/webos-sdk/arm-webos-linux-gnueabi_sdk-buildroot"
+          workspace_sdk="$PWD/../build/webos-sdk/arm-webos-linux-gnueabi_sdk-buildroot"
+          if [ -x "$repo_sdk/bin/arm-webos-linux-gnueabi-gcc" ]; then
+            export WEBOS_SDK_ROOT="$repo_sdk"
+          elif [ -x "$workspace_sdk/bin/arm-webos-linux-gnueabi-gcc" ]; then
+            export WEBOS_SDK_ROOT="$workspace_sdk"
+          else
+            export WEBOS_SDK_ROOT="$repo_sdk"
+          fi
+          unset repo_sdk workspace_sdk
+        fi
 
         ${pkgs.lib.optionalString pkgs.stdenv.isLinux ''
           export WAYLAND_PROTOCOLS_DIR="${pkgs.wayland-protocols}/share/wayland-protocols"
