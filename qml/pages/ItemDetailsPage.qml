@@ -77,7 +77,7 @@ FocusScope {
                 anchors.verticalCenter: parent.verticalCenter
                 name: actionRoot.iconName
                 iconSize: 23
-                iconColor: actionRoot.enabledButton ? actionRoot.primary ? Theme.onAccent : Theme.textPrimary : Theme.textDisabled
+                iconColor: actionRoot.enabledButton ? actionRoot.primary ? Theme.accentText : Theme.textPrimary : Theme.textDisabled
             }
 
             AppText {
@@ -85,7 +85,7 @@ FocusScope {
                 anchors.verticalCenter: parent.verticalCenter
                 width: Math.max(0, actionRoot.width - 64)
                 text: actionRoot.label
-                color: actionRoot.enabledButton ? actionRoot.primary ? Theme.onAccent : Theme.textPrimary : Theme.textDisabled
+                color: actionRoot.enabledButton ? actionRoot.primary ? Theme.accentText : Theme.textPrimary : Theme.textDisabled
                 font.pixelSize: Metrics.metaPx(root.width) + 1
                 font.weight: actionRoot.primary ? Font.DemiBold : Font.Medium
                 elide: Text.ElideRight
