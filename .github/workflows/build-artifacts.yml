@@ -197,6 +197,7 @@ jobs:
       # build-webos.sh uses the default dev shell on purpose: the webOS target
       # links the cross-built static Qt, and that build must not see nixpkgs Qt.
       - name: Build webOS dependencies
+        if: ${{ steps.webos-cache.outputs.cache-hit != 'true' }}
         run: |
           for phase in fetch qt-host qt-target dependencies; do
             nix develop -c bash tools/webos-native/build-webos.sh "$phase"
