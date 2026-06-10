@@ -81,6 +81,12 @@ if (( DO_BUILD || DO_STAGE )); then
     echo "       Rerun: bash $WEBOS_TOOLS_ROOT/build-qt6-611.sh" >&2
     exit 1
   fi
+
+  if [[ ! -f "$QT6_PREFIX/lib/cmake/QCoro6/QCoro6Config.cmake" ]]; then
+    echo "error: target QCoro is missing from $QT6_PREFIX." >&2
+    echo "       Run: bash $WEBOS_TOOLS_ROOT/build-qcoro.sh" >&2
+    exit 1
+  fi
 fi
 
 copy_first_match() {

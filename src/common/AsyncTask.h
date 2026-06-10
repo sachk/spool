@@ -40,19 +40,11 @@ template<typename T, typename Success, typename Failure>
 void runDetached(QCoro::Task<T> task, Success success, Failure failure,
                  const char *operation = "detached task")
 {
-#ifdef JELLYFIN_USE_BUNDLED_QCORO
-    QCoro::runDetached(
-        std::move(task), std::move(success),
-        [failure = std::move(failure), operation](const std::exception_ptr &error) mutable {
-            detail::reportFailure(operation, failure, error);
-        });
-#else
     std::move(task).then(
         std::move(success),
         [failure = std::move(failure), operation](const std::exception &) mutable {
             detail::reportFailure(operation, failure, std::current_exception());
         });
-#endif
 }
 
 template<typename Context, typename T, typename Success, typename Failure>
