@@ -11,6 +11,8 @@ set -euo pipefail
 #   - provide clear, actionable failures for missing SDK/tooling pieces.
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+# shellcheck source=tools/lib/build-common.sh
+source "$ROOT/tools/lib/build-common.sh"
 # shellcheck source=tools/lib/manifest-sources.sh
 source "$ROOT/tools/lib/manifest-sources.sh"
 QT_MANIFEST="${QT_MANIFEST:-$ROOT/tools/manifests/qt-webos-6.11.json}"
@@ -24,19 +26,9 @@ PHASE="${1:-all}"
 BUILD_QTOPENAPI="${BUILD_QTOPENAPI:-1}"
 BUILD_QTVIRTUALKEYBOARD="${BUILD_QTVIRTUALKEYBOARD:-1}"
 QT_BUILD_CLEAN_POISONED="${QT_BUILD_CLEAN_POISONED:-1}"
-
-job_count() {
-  if [[ -n "${JOBS:-}" ]]; then
-    printf '%s\n' "$JOBS"
-  elif command -v nproc >/dev/null 2>&1; then
-    nproc
-  elif command -v getconf >/dev/null 2>&1; then
-    getconf _NPROCESSORS_ONLN
-  else
-    printf '4\n'
-  fi
-}
-JOBS="$(job_count)"
+QT_BUILD_MEMORY_PER_JOB_MIB="${QT_BUILD_MEMORY_PER_JOB_MIB:-1536}"
+QT_BUILD_MEMORY_RESERVE_MIB="${QT_BUILD_MEMORY_RESERVE_MIB:-2048}"
+JOBS="$(recommended_parallel_jobs "$QT_BUILD_MEMORY_PER_JOB_MIB" "$QT_BUILD_MEMORY_RESERVE_MIB")"
 
 SRC_DIR="$ROOT/build/qt6-src"
 QTBASE_TARBALL="$SRC_DIR/qtbase-everywhere-src-$QT_VERSION.tar.xz"
@@ -761,7 +753,9 @@ usage: $0 [fetch|host|target|all|clean-host|clean-target|clean|summary]
 Environment knobs:
   QT_VERSION=6.11.1
   QT_STATIC=0|1
-  JOBS=N
+  JOBS=N                       explicit parallel job count
+  QT_BUILD_MEMORY_PER_JOB_MIB=1536
+  QT_BUILD_MEMORY_RESERVE_MIB=2048
   QT_BUILD_FRESH=1              pass --fresh to CMake configure
   QT_BUILD_FORCE=1              ignore module install markers
   QT_BUILD_FORCE_MODULES=a,b    rebuild selected modules
@@ -777,16 +771,19 @@ case "$PHASE" in
     fetch_sources
     ;;
   host)
+    describe_parallel_jobs "$JOBS" "Qt build" "$QT_BUILD_MEMORY_PER_JOB_MIB" "$QT_BUILD_MEMORY_RESERVE_MIB"
     fetch_sources
     ensure_host
     ;;
   target)
+    describe_parallel_jobs "$JOBS" "Qt build" "$QT_BUILD_MEMORY_PER_JOB_MIB" "$QT_BUILD_MEMORY_RESERVE_MIB"
     fetch_sources
     ensure_host
     build_target_qtbase
     build_all_target_modules
     ;;
   all)
+    describe_parallel_jobs "$JOBS" "Qt build" "$QT_BUILD_MEMORY_PER_JOB_MIB" "$QT_BUILD_MEMORY_RESERVE_MIB"
     fetch_sources
     ensure_host
     build_target_qtbase

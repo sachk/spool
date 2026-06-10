@@ -2,6 +2,8 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+# shellcheck source=tools/lib/build-common.sh
+source "$ROOT/tools/lib/build-common.sh"
 # shellcheck source=tools/lib/manifest-sources.sh
 source "$ROOT/tools/lib/manifest-sources.sh"
 MANIFEST="${WEBOS_THIRD_PARTY_MANIFEST:-$ROOT/tools/manifests/webos-third-party.json}"
@@ -14,6 +16,9 @@ PREFIX="${WEBOS_NATIVE_PREFIX:-$SYSROOT$TARGET_PREFIX}"
 SRC_ROOT="${WEBOS_NATIVE_SRC_ROOT:-$ROOT/build/third_party}"
 BUILD_ROOT="${WEBOS_NATIVE_BUILD_ROOT:-$ROOT/build/webos-thirdparty-build}"
 CROSS_FILE="$BUILD_ROOT/webos.cross.ini"
+WEBOS_BUILD_MEMORY_PER_JOB_MIB="${WEBOS_BUILD_MEMORY_PER_JOB_MIB:-1536}"
+WEBOS_BUILD_MEMORY_RESERVE_MIB="${WEBOS_BUILD_MEMORY_RESERVE_MIB:-2048}"
+WEBOS_BUILD_JOBS="$(recommended_parallel_jobs "$WEBOS_BUILD_MEMORY_PER_JOB_MIB" "$WEBOS_BUILD_MEMORY_RESERVE_MIB")"
 
 mkdir -p "$SRC_ROOT" "$BUILD_ROOT" "$PREFIX"
 
@@ -45,6 +50,8 @@ if [[ "$PHASE" != "all" && "$PHASE" != "build" ]]; then
   echo "usage: $0 [fetch|build|all]" >&2
   exit 2
 fi
+
+describe_parallel_jobs "$WEBOS_BUILD_JOBS" "webOS third-party" "$WEBOS_BUILD_MEMORY_PER_JOB_MIB" "$WEBOS_BUILD_MEMORY_RESERVE_MIB"
 
 if [[ ! -x "$SDK_BIN/arm-webos-linux-gnueabi-gcc" ]]; then
   printf 'Missing webOS SDK compiler under %s\n' "$SDK_BIN" >&2
@@ -87,7 +94,7 @@ build_meson() {
     --cross-file "$CROSS_FILE" \
     --prefix "$TARGET_PREFIX" \
     "$@"
-  meson compile -C "$build_dir"
+  meson compile -C "$build_dir" -j "$WEBOS_BUILD_JOBS"
   DESTDIR="$SYSROOT" meson install -C "$build_dir"
 }
 

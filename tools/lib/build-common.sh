@@ -123,6 +123,200 @@ setup_native_ccache() {
   mkdir -p "$CCACHE_DIR"
 }
 
+is_positive_integer() {
+  [[ "${1:-}" =~ ^[1-9][0-9]*$ ]]
+}
+
+logical_cpu_count() {
+  if is_positive_integer "${JELLYFIN_BUILD_LOGICAL_CPUS:-}"; then
+    printf '%s\n' "$JELLYFIN_BUILD_LOGICAL_CPUS"
+  elif command -v nproc >/dev/null 2>&1; then
+    nproc
+  elif command -v getconf >/dev/null 2>&1; then
+    getconf _NPROCESSORS_ONLN
+  elif command -v sysctl >/dev/null 2>&1; then
+    sysctl -n hw.logicalcpu 2>/dev/null || printf '1\n'
+  else
+    printf '1\n'
+  fi
+}
+
+physical_cpu_count() {
+  local logical physical
+
+  if is_positive_integer "${JELLYFIN_BUILD_PHYSICAL_CPUS:-}"; then
+    printf '%s\n' "$JELLYFIN_BUILD_PHYSICAL_CPUS"
+    return 0
+  fi
+
+  if command -v sysctl >/dev/null 2>&1; then
+    physical="$(sysctl -n hw.physicalcpu 2>/dev/null || true)"
+    if is_positive_integer "$physical"; then
+      printf '%s\n' "$physical"
+      return 0
+    fi
+  fi
+
+  if [[ -r /proc/cpuinfo ]]; then
+    physical="$(awk '
+      /^physical id[ \t]*:/ {
+        split($0, value, ":")
+        gsub(/^[ \t]+|[ \t]+$/, "", value[2])
+        socket = value[2]
+      }
+      /^core id[ \t]*:/ {
+        split($0, value, ":")
+        gsub(/^[ \t]+|[ \t]+$/, "", value[2])
+        core = value[2]
+      }
+      /^$/ {
+        if (socket != "" && core != "") {
+          seen[socket ":" core] = 1
+        }
+        socket = ""
+        core = ""
+      }
+      END {
+        for (key in seen) {
+          count++
+        }
+        if (count > 0) {
+          print count
+        }
+      }' /proc/cpuinfo)"
+    if is_positive_integer "$physical"; then
+      printf '%s\n' "$physical"
+      return 0
+    fi
+  fi
+
+  logical="$(logical_cpu_count)"
+  if (( logical > 1 )); then
+    printf '%s\n' "$(((logical + 1) / 2))"
+  else
+    printf '1\n'
+  fi
+}
+
+memory_bytes_file_to_mib() {
+  local file="$1"
+  local bytes
+
+  [[ -r "$file" ]] || return 1
+  bytes="$(tr -d '[:space:]' < "$file")"
+  [[ "$bytes" =~ ^[0-9]+$ ]] || return 1
+  # Very large cgroup values mean "effectively unlimited"; avoid overflowing
+  # shell arithmetic and fall back to the host memory total instead.
+  (( ${#bytes} <= 15 )) || return 1
+  (( bytes > 0 )) || return 1
+  printf '%s\n' "$(((bytes + 1048575) / 1048576))"
+}
+
+memory_limit_mib() {
+  local memory_mib memory_bytes
+
+  if is_positive_integer "${JELLYFIN_BUILD_MEMORY_LIMIT_MIB:-}"; then
+    printf '%s\n' "$JELLYFIN_BUILD_MEMORY_LIMIT_MIB"
+    return 0
+  fi
+
+  memory_mib="$(memory_bytes_file_to_mib /sys/fs/cgroup/memory.max || true)"
+  if is_positive_integer "$memory_mib"; then
+    printf '%s\n' "$memory_mib"
+    return 0
+  fi
+
+  memory_mib="$(memory_bytes_file_to_mib /sys/fs/cgroup/memory/memory.limit_in_bytes || true)"
+  if is_positive_integer "$memory_mib"; then
+    printf '%s\n' "$memory_mib"
+    return 0
+  fi
+
+  if [[ -r /proc/meminfo ]]; then
+    memory_mib="$(awk '/^MemTotal:/ { print int(($2 + 1023) / 1024); exit }' /proc/meminfo)"
+    if is_positive_integer "$memory_mib"; then
+      printf '%s\n' "$memory_mib"
+      return 0
+    fi
+  fi
+
+  if command -v sysctl >/dev/null 2>&1; then
+    memory_bytes="$(sysctl -n hw.memsize 2>/dev/null || true)"
+    if [[ "$memory_bytes" =~ ^[0-9]+$ ]] && (( ${#memory_bytes} <= 15 )) && (( memory_bytes > 0 )); then
+      printf '%s\n' "$(((memory_bytes + 1048575) / 1048576))"
+      return 0
+    fi
+  fi
+
+  printf '4096\n'
+}
+
+recommended_parallel_jobs() {
+  local per_job_mib="${1:-${JELLYFIN_BUILD_MEMORY_PER_JOB_MIB:-1536}}"
+  local reserve_mib="${2:-${JELLYFIN_BUILD_MEMORY_RESERVE_MIB:-2048}}"
+  local min_jobs="${JELLYFIN_BUILD_MIN_JOBS:-1}"
+  local max_jobs="${JELLYFIN_BUILD_MAX_JOBS:-}"
+  local logical physical memory_mib memory_jobs jobs
+
+  if [[ -n "${JOBS:-}" ]]; then
+    is_positive_integer "$JOBS" || {
+      echo "error: JOBS must be a positive integer, got '$JOBS'" >&2
+      return 1
+    }
+    printf '%s\n' "$JOBS"
+    return 0
+  fi
+
+  is_positive_integer "$per_job_mib" || per_job_mib=1536
+  is_positive_integer "$reserve_mib" || reserve_mib=2048
+  is_positive_integer "$min_jobs" || min_jobs=1
+  if [[ -n "$max_jobs" ]] && ! is_positive_integer "$max_jobs"; then
+    echo "error: JELLYFIN_BUILD_MAX_JOBS must be a positive integer, got '$max_jobs'" >&2
+    return 1
+  fi
+
+  logical="$(logical_cpu_count)"
+  physical="$(physical_cpu_count)"
+  memory_mib="$(memory_limit_mib)"
+
+  if (( memory_mib > reserve_mib )); then
+    memory_jobs="$(((memory_mib - reserve_mib) / per_job_mib))"
+  else
+    memory_jobs=1
+  fi
+  (( memory_jobs >= 1 )) || memory_jobs=1
+
+  jobs="$logical"
+  if (( memory_mib < 16384 && physical > 0 && jobs > physical )); then
+    jobs="$physical"
+  fi
+  if (( jobs > memory_jobs )); then
+    jobs="$memory_jobs"
+  fi
+  if [[ -n "$max_jobs" ]] && (( jobs > max_jobs )); then
+    jobs="$max_jobs"
+  fi
+  if (( jobs < min_jobs )); then
+    jobs="$min_jobs"
+  fi
+  if (( jobs > logical )); then
+    jobs="$logical"
+  fi
+
+  printf '%s\n' "$jobs"
+}
+
+describe_parallel_jobs() {
+  local jobs="$1"
+  local label="${2:-build}"
+  local per_job_mib="${3:-${JELLYFIN_BUILD_MEMORY_PER_JOB_MIB:-1536}}"
+  local reserve_mib="${4:-${JELLYFIN_BUILD_MEMORY_RESERVE_MIB:-2048}}"
+
+  printf 'Using %s parallel %s jobs (logical CPUs: %s, physical cores: %s, memory limit: %s MiB, per-job: %s MiB, reserve: %s MiB)\n' \
+    "$jobs" "$label" "$(logical_cpu_count)" "$(physical_cpu_count)" "$(memory_limit_mib)" \
+    "$per_job_mib" "$reserve_mib" >&2
+}
+
 native_mpv_common_args() {
   local prefix="$1"
   local build_type="$2"
@@ -171,7 +365,9 @@ mpv_meson_build() {
   else
     meson setup "$build" "$src" "${setup_args[@]}"
   fi
-  meson compile -C "$build"
+  local jobs
+  jobs="$(recommended_parallel_jobs)"
+  meson compile -C "$build" -j "$jobs"
   meson install -C "$build"
 }
 
@@ -193,7 +389,9 @@ cmake_build_app() {
   mkdir -p "$build"
 
   cmake -S "$src" -B "$build" -GNinja "${cmake_args[@]}"
-  cmake --build "$build" --parallel
+  local jobs
+  jobs="$(recommended_parallel_jobs)"
+  cmake --build "$build" --parallel "$jobs"
   cmake --install "$build"
 }
 
