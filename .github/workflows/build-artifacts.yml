@@ -58,6 +58,9 @@ jobs:
       - name: Evaluate Nix flake
         run: nix flake check --no-build --no-write-lock-file
 
+      - name: Scan QML imports
+        run: nix develop .#native -c bash tools/check-qml-imports.sh
+
       - name: Verify shared build library sources and exports its helpers
         run: |
           source tools/lib/build-common.sh
