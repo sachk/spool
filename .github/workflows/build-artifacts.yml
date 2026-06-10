@@ -53,7 +53,7 @@ jobs:
         run: |
           mapfile -t scripts < <(git ls-files '*.py' | sort -u)
           printf 'checking %d scripts\n' "${#scripts[@]}"
-          python3 -m py_compile "${scripts[@]}"
+          nix develop -c python3 -m py_compile "${scripts[@]}"
 
       - name: Evaluate Nix flake
         run: nix flake check --no-build --no-write-lock-file
