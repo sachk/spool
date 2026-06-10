@@ -5,6 +5,8 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 WEBOS_TOOLS_ROOT="${WEBOS_TOOLS_ROOT:-$ROOT/tools/webos-native}"
 # shellcheck source=tools/lib/build-common.sh
 source "$ROOT/tools/lib/build-common.sh"
+# shellcheck source=tools/webos-native/nixos-sdk-compat.sh
+source "$ROOT/tools/webos-native/nixos-sdk-compat.sh"
 PHASE="${1:-all}"
 DO_BUILD=0
 DO_STAGE=0
@@ -49,6 +51,8 @@ QT6_STATIC_PREFIX="$ROOT/build/qt6-611-target-static-install"
 QT6_SHARED_PREFIX="$ROOT/build/qt6-611-target-install"
 QT_IS_STATIC=0
 if (( DO_BUILD || DO_STAGE )); then
+  ensure_webos_sdk_host_tools "$SDK_ROOT"
+
   if [[ -f "$QT6_STATIC_PREFIX/lib/libQt6Core.a" ]]; then
     QT6_PREFIX="$QT6_STATIC_PREFIX"
     QT_IS_STATIC=1
@@ -148,6 +152,11 @@ export LDFLAGS="${LDFLAGS:-} -L$(dirname "$DOVI_LIB")"
 export PKG_CONFIG_PATH="$PREFIX/lib/pkgconfig"
 export PKG_CONFIG_LIBDIR="$PREFIX/lib/pkgconfig:$SYSROOT/usr/lib/pkgconfig:$SYSROOT/usr/share/pkgconfig"
 export PKG_CONFIG_SYSROOT_DIR="$SYSROOT"
+# Host desktop sessions commonly export QML import paths for the system Qt/KDE
+# stack. The webOS build must scan only the cross-built Qt prefix supplied below;
+# otherwise qmlimportscanner can wander into Qt source/test fixtures and print
+# parser errors for intentionally invalid QML files.
+unset QML_IMPORT_PATH QML2_IMPORT_PATH NIXPKGS_QT6_QML_IMPORT_PATH
 
 MPV_SETUP_ARGS=(
   --cross-file "$WEBOS_CROSS_FILE"

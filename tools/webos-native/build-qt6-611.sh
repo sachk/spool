@@ -15,6 +15,8 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 source "$ROOT/tools/lib/build-common.sh"
 # shellcheck source=tools/lib/manifest-sources.sh
 source "$ROOT/tools/lib/manifest-sources.sh"
+# shellcheck source=tools/webos-native/nixos-sdk-compat.sh
+source "$ROOT/tools/webos-native/nixos-sdk-compat.sh"
 QT_MANIFEST="${QT_MANIFEST:-$ROOT/tools/manifests/qt-webos-6.11.json}"
 SDK_ROOT="${WEBOS_SDK_ROOT:-$ROOT/build/webos-sdk/arm-webos-linux-gnueabi_sdk-buildroot}"
 SYSROOT="$SDK_ROOT/arm-webos-linux-gnueabi/sysroot"
@@ -176,6 +178,7 @@ require_target_sdk() {
   [[ -x "$PKG_CONFIG_WEBOS" ]] || die "webOS pkg-config wrapper not executable: $PKG_CONFIG_WEBOS"
   [[ -d "$SDK_ROOT" ]] || die "WEBOS_SDK_ROOT does not exist: $SDK_ROOT"
   [[ -d "$SYSROOT" ]] || die "webOS sysroot does not exist: $SYSROOT"
+  ensure_webos_sdk_host_tools "$SDK_ROOT"
 }
 
 maybe_clean_poisoned_build_dir() {
