@@ -13,7 +13,7 @@ QtObject {
     readonly property color textSecondary: "#A0A0A0"
     readonly property color textMuted: "#6A6A6A"
     readonly property color textDisabled: "#4A4A4A"
-    readonly property color onAccent: "#061017"
+    readonly property color accentText: "#061017"
 
     readonly property color jellyfinBlue: "#00A4DC"
     readonly property color jellyfinPurple: "#AA5CC3"
