@@ -19,6 +19,22 @@ webos_sdk_nix_dynamic_linker() {
   return 1
 }
 
+webos_sdk_compiler_works() {
+  local cxx="$1"
+  local object
+  object="$(mktemp)"
+  rm -f "$object"
+
+  if printf 'int main() { return 0; }\n' \
+      | "$cxx" -x c++ -c -o "$object" - >/dev/null 2>&1; then
+    rm -f "$object"
+    return 0
+  fi
+
+  rm -f "$object"
+  return 1
+}
+
 ensure_webos_sdk_host_tools() {
   local sdk_root="$1"
   local sdk_bin="$sdk_root/bin"
@@ -26,7 +42,7 @@ ensure_webos_sdk_host_tools() {
 
   [[ -x "$cxx" ]] || webos_sdk_compat_die "Missing webOS SDK compiler under $sdk_bin"
 
-  if "$cxx" --version >/dev/null 2>&1; then
+  if webos_sdk_compiler_works "$cxx"; then
     return 0
   fi
 
@@ -105,12 +121,16 @@ ensure_webos_sdk_host_tools() {
     patchelf --set-interpreter "$dynamic_linker" --set-rpath "$rpath" "$real_tool"
     patched=$((patched + 1))
   done < <(
-    find "$sdk_root/bin" "$sdk_root/libexec" \
+    find \
+      "$sdk_root/bin" \
+      "$sdk_root/libexec" \
+      "$sdk_root/lib/gcc" \
+      "$sdk_root/arm-webos-linux-gnueabi/bin" \
       \( -type f -o -type l \) -perm /111 -print 2>/dev/null
   )
 
   [[ "$patched" -gt 0 ]] || webos_sdk_compat_die "found no dynamically linked webOS SDK host tools to patch"
 
-  "$cxx" --version >/dev/null 2>&1 || \
-    webos_sdk_compat_die "webOS SDK compiler is still not executable after NixOS compatibility patching"
+  webos_sdk_compiler_works "$cxx" || \
+    webos_sdk_compat_die "webOS SDK compiler still cannot compile after NixOS compatibility patching"
 }
