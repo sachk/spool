@@ -36,6 +36,9 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
+      - name: Check commit whitespace
+        run: git show --check --format= HEAD
+
       - name: Syntax-check shell scripts
         run: |
           mapfile -t scripts < <(git ls-files '*.sh' | sort -u)
@@ -43,6 +46,12 @@ jobs:
           for s in "${scripts[@]}"; do
             bash -n "$s"
           done
+
+      - name: Syntax-check Python scripts
+        run: |
+          mapfile -t scripts < <(git ls-files '*.py' | sort -u)
+          printf 'checking %d scripts\n' "${#scripts[@]}"
+          python3 -m py_compile "${scripts[@]}"
 
       - name: Verify shared build library sources and exports its helpers
         run: |
