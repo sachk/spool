@@ -162,7 +162,8 @@ jobs:
 
       # See the Linux job: this self-hosted NixOS runner provides Nix natively,
       # so we skip nix-quick-install-action / cache-nix-action here too.
-      - uses: actions/cache@v5
+      - uses: actions/cache/restore@v5
+        id: webos-cache
         with:
           path: |
             build/webos-sdk
@@ -192,8 +193,33 @@ jobs:
 
       # build-webos.sh uses the default dev shell on purpose: the webOS target
       # links the cross-built static Qt, and that build must not see nixpkgs Qt.
+      - name: Build webOS dependencies
+        run: |
+          for phase in fetch qt-host qt-target dependencies; do
+            nix develop -c bash tools/webos-native/build-webos.sh "$phase"
+          done
+
+      - name: Save webOS dependency cache
+        if: ${{ steps.webos-cache.outputs.cache-hit != 'true' }}
+        uses: actions/cache/save@v5
+        with:
+          path: |
+            build/webos-sdk
+            build/qt6-611-host-install
+            build/qt6-611-target-static-install
+            build/qt6-611-target-install
+            build/webos-thirdparty-build
+            build/webos-qcoro
+            build/third_party
+            .ccache
+            mpv_webos/build/webos-libmpv
+          key: ${{ steps.webos-cache.outputs.cache-primary-key }}
+
       - name: Build IPK
-        run: nix develop -c bash tools/webos-native/build-webos.sh all
+        run: |
+          for phase in app stage package; do
+            nix develop -c bash tools/webos-native/build-webos.sh "$phase"
+          done
 
       - name: Validate IPK
         shell: nix develop -c bash -euo pipefail {0}
