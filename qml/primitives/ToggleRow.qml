@@ -24,7 +24,7 @@ SettingRow {
     onClicked: toggle()
 
     Keys.onReleased: (event) => {
-        if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter || event.key === Qt.Key_Space) {
+        if (InputKeys.isAccept(event.key)) {
             toggle()
             event.accepted = true
         }
