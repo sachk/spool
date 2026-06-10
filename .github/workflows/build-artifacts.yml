@@ -196,6 +196,7 @@ jobs:
         run: nix develop -c bash tools/webos-native/build-webos.sh all
 
       - name: Validate IPK
+        shell: nix develop -c bash -euo pipefail {0}
         run: |
           set -euo pipefail
           shopt -s nullglob
@@ -227,7 +228,7 @@ jobs:
           tar -xf "$data_tar" -C "$work/data"
           appinfo="$(find "$work/data" -name appinfo.json -print -quit)"
           test -n "$appinfo"
-          nix develop -c python3 - "$appinfo" <<'PY'
+          python3 - "$appinfo" <<'PY'
           import json
           import re
           import sys
@@ -244,7 +245,7 @@ jobs:
           binary="$(find "$work/data" -path '*/bin/jellyfin-native.real' -type f -print -quit)"
           test -n "$binary"
           test -x "$binary"
-          nix develop -c python3 - "$binary" <<'PY'
+          python3 - "$binary" <<'PY'
           import struct
           import sys
 
