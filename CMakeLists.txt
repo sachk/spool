@@ -67,6 +67,7 @@ if(JELLYFIN_NATIVE_WEBOS)
     list(APPEND JELLYFIN_QT_COMPONENTS
         GuiPrivate
         QuickLayouts
+        Svg
         WaylandClient
     )
 else()
@@ -333,6 +334,34 @@ if(JELLYFIN_QT_CORE_TARGET_TYPE STREQUAL "STATIC_LIBRARY")
                 Qt6::QJpegPlugin
                 Qt6::QWebpPlugin
         )
+
+        # Qt VirtualKeyboard's QML qmldir files name nested static plugin link
+        # targets. Import their generated package files before qmlimportscanner
+        # asks CMake to link them, otherwise Qt warns that the targets are not
+        # visible in this scope and silently omits the plugins.
+        foreach(plugin IN ITEMS
+            VirtualKeyboardplugin
+            qtvkbplugin
+            qtvkbsettingsplugin
+            qtvkbcomponentsplugin
+            qtvkblayoutsplugin
+            qtvkbbuiltinstylesplugin
+            qtvkbstylesplugin
+            qtvkbhangulplugin
+            qtvkbhunspellplugin
+            qtvkbopenwnnplugin
+            qtvkbpinyinplugin
+            qtvkbtcimeplugin
+            qtvkbthaiplugin
+            qtvkbpluginsplugin
+        )
+            if(NOT TARGET Qt6::${plugin})
+                find_package(Qt6${plugin} CONFIG QUIET
+                    PATHS "${Qt6Qml_DIR}/QmlPlugins"
+                    NO_DEFAULT_PATH
+                )
+            endif()
+        endforeach()
     endif()
 
     # Let qmlimportscanner derive the static QML plugin link set from the
