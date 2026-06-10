@@ -30,6 +30,13 @@ BUILD_QTVIRTUALKEYBOARD="${BUILD_QTVIRTUALKEYBOARD:-1}"
 QT_BUILD_CLEAN_POISONED="${QT_BUILD_CLEAN_POISONED:-1}"
 QT_BUILD_MEMORY_PER_JOB_MIB="${QT_BUILD_MEMORY_PER_JOB_MIB:-1536}"
 QT_BUILD_MEMORY_RESERVE_MIB="${QT_BUILD_MEMORY_RESERVE_MIB:-2048}"
+QT_TARGET_BUILD_WITH_PCH="${QT_TARGET_BUILD_WITH_PCH:-OFF}"
+if [[ -z "${QT_BUILD_PRUNE_COMPLETED+x}" ]]; then
+  case "${CI:-}" in
+    1|true|TRUE|yes|YES) QT_BUILD_PRUNE_COMPLETED=1 ;;
+    *) QT_BUILD_PRUNE_COMPLETED=0 ;;
+  esac
+fi
 JOBS="$(recommended_parallel_jobs "$QT_BUILD_MEMORY_PER_JOB_MIB" "$QT_BUILD_MEMORY_RESERVE_MIB")"
 
 SRC_DIR="$ROOT/build/qt6-src"
@@ -91,6 +98,13 @@ die() { printf 'error: %s\n' "$*" >&2; exit 1; }
 
 have() { command -v "$1" >/dev/null 2>&1; }
 require_command() { have "$1" || die "required command '$1' not found in PATH"; }
+
+prune_completed_build_dir() {
+  local dir="$1"
+  [[ "$QT_BUILD_PRUNE_COMPLETED" == "1" ]] || return 0
+  log "Removing completed build directory $dir"
+  rm -rf -- "$dir"
+}
 
 # Run CMake with Qt-related environment variables stripped. This is the main
 # guard against nixpkgs Qt leaking into the Qt source build through mkShell's
@@ -359,6 +373,7 @@ build_host_qtbase() {
   configure_host_qtbase
   cmake_build "$HOST_BUILD_ROOT/qtbase" --parallel "$JOBS"
   cmake_install "$HOST_BUILD_ROOT/qtbase"
+  prune_completed_build_dir "$HOST_BUILD_ROOT/qtbase"
 }
 
 configure_host_module() {
@@ -384,6 +399,7 @@ build_host_module() {
   local name="$1"
   cmake_build "$HOST_BUILD_ROOT/$name" --parallel "$JOBS"
   cmake_install "$HOST_BUILD_ROOT/$name"
+  prune_completed_build_dir "$HOST_BUILD_ROOT/$name"
 }
 
 host_module_up_to_date() {
@@ -556,6 +572,7 @@ configure_target_qtbase() {
     -DQT_HOST_PATH_CMAKE_DIR="$HOST_INSTALL/lib/cmake" \
     -DCMAKE_STAGING_PREFIX="$TARGET_STAGING" \
     -DCMAKE_INSTALL_PREFIX="$TARGET_PREFIX" \
+    -DBUILD_WITH_PCH="$QT_TARGET_BUILD_WITH_PCH" \
     -DQT_BUILD_EXAMPLES=OFF \
     -DQT_BUILD_TESTS=OFF \
     -DINPUT_opengl=es2 \
@@ -611,6 +628,7 @@ build_target_qtbase() {
   configure_target_qtbase
   cmake_build "$TARGET_BUILD_ROOT/qtbase" --parallel "$JOBS"
   cmake_install "$TARGET_BUILD_ROOT/qtbase"
+  prune_completed_build_dir "$TARGET_BUILD_ROOT/qtbase"
 }
 
 configure_target_module() {
@@ -646,6 +664,7 @@ configure_target_module() {
     -DCMAKE_INSTALL_PREFIX="$TARGET_PREFIX" \
     -DCMAKE_PREFIX_PATH="$TARGET_STAGING" \
     -DQt6_DIR="$TARGET_STAGING/lib/cmake/Qt6" \
+    -DBUILD_WITH_PCH="$QT_TARGET_BUILD_WITH_PCH" \
     -DQT_BUILD_EXAMPLES=OFF \
     -DQT_BUILD_TESTS=OFF \
     -DQT_SKIP_AUTO_PLUGIN_INCLUSION=ON \
@@ -671,6 +690,7 @@ build_target_module() {
   local name="$1"
   cmake_build "$TARGET_BUILD_ROOT/$name" --parallel "$JOBS"
   cmake_install "$TARGET_BUILD_ROOT/$name"
+  prune_completed_build_dir "$TARGET_BUILD_ROOT/$name"
 }
 
 target_module_up_to_date() {
@@ -816,6 +836,8 @@ Environment knobs:
   JOBS=N                       explicit parallel job count
   QT_BUILD_MEMORY_PER_JOB_MIB=1536
   QT_BUILD_MEMORY_RESERVE_MIB=2048
+  QT_TARGET_BUILD_WITH_PCH=ON|OFF
+  QT_BUILD_PRUNE_COMPLETED=0|1 remove completed Qt build trees (defaults to 1 in CI)
   QT_BUILD_FRESH=1              pass --fresh to CMake configure
   QT_BUILD_FORCE=1              ignore module install markers
   QT_BUILD_FORCE_MODULES=a,b    rebuild selected modules
