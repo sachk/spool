@@ -74,6 +74,13 @@ if (( DO_BUILD || DO_STAGE )); then
       exit 1
     fi
   done
+
+  QT_GUI_CONFIG="$QT6_PREFIX/include/QtGui/qtgui-config.h"
+  if ! grep -q '^#define QT_FEATURE_accessibility 1$' "$QT_GUI_CONFIG" 2>/dev/null; then
+    echo "error: Qt at $QT6_PREFIX was built without accessibility support." >&2
+    echo "       Rerun: bash $WEBOS_TOOLS_ROOT/build-qt6-611.sh" >&2
+    exit 1
+  fi
 fi
 
 copy_first_match() {

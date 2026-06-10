@@ -516,7 +516,8 @@ configure_target_qtbase() {
     -DFEATURE_icu=OFF \
     -DFEATURE_xcb=OFF \
     -DFEATURE_gtk=OFF \
-    -DFEATURE_accessibility=OFF \
+    -DFEATURE_accessibility=ON \
+    -DFEATURE_accessibility_atspi_bridge=OFF \
     -DFEATURE_xkbcommon=ON \
     -DFEATURE_wayland=ON \
     -DFEATURE_wayland_client=ON \
