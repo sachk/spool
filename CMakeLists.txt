@@ -254,6 +254,21 @@ set_target_properties(jellyfin-native PROPERTIES
     QT_QMLCACHEGEN_DIRECT_CALLS ON
 )
 
+# qmlimportscanner also scans the target's SOURCE_DIR recursively. This project
+# keeps build trees and vendored sources below the repository root, so exclude
+# them and let the generated QRC files provide the application's exact QML set.
+set_property(TARGET jellyfin-native APPEND PROPERTY
+    QT_QML_IMPORT_SCANNER_EXTRA_ARGS
+        -exclude build
+        -exclude build-arm
+        -exclude build-linux-dev
+        -exclude dist
+        -exclude mpv
+        -exclude mpv_webos
+        -exclude squashfs-root
+        -exclude third_party
+)
+
 target_include_directories(jellyfin-native PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/src/player"
     "${MPV_ACTIVE_SOURCE_DIR}"

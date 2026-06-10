@@ -183,11 +183,15 @@ require_target_sdk() {
 
 maybe_clean_poisoned_build_dir() {
   local dir="$1"
+  local expected_source="$2"
   [[ "$QT_BUILD_CLEAN_POISONED" == "1" ]] || return 0
   [[ -f "$dir/CMakeCache.txt" ]] || return 0
 
-  if grep -Eq '/nix/store/[^ ;"]*-qt(base|declarative|tools|websockets|wayland|imageformats|svg|virtualkeyboard)-' "$dir/CMakeCache.txt"; then
-    log "Removing poisoned CMake cache: $dir"
+  if ! grep -Fqx "CMAKE_HOME_DIRECTORY:INTERNAL=$expected_source" "$dir/CMakeCache.txt"; then
+    log "Removing stale-source CMake cache: $dir"
+    rm -rf "$dir"
+  elif grep -Eq '/nix/store/[^ ;"]*-qt(base|declarative|tools|websockets|wayland|imageformats|svg|virtualkeyboard)-' "$dir/CMakeCache.txt"; then
+    log "Removing nixpkgs-poisoned CMake cache: $dir"
     rm -rf "$dir"
   fi
 }
@@ -244,11 +248,33 @@ apply_local_patches() {
   apply_patch_if_needed "$QTBASE_SRC" "$PATCH_DIR/qtbase-$QT_SERIES-webos-qelfparser.patch"
   apply_patch_if_needed "$QTBASE_SRC" "$PATCH_DIR/qtbase-$QT_SERIES-webos-wayland-no-opengl-forward-decl.patch"
   apply_patch_if_needed "$QTBASE_SRC" "$PATCH_DIR/qtbase-$QT_SERIES-webos-qplatformwindow-private-moc.patch"
+  apply_patch_if_needed "$QTDECLARATIVE_SRC" \
+    "$PATCH_DIR/qtdeclarative-$QT_SERIES-qmlimportscanner-exclude-subtrees.patch"
   apply_patch_if_needed "$QTWAYLAND_SRC" "$PATCH_DIR/qtwayland-$QT_SERIES-webos-wayland-version.patch"
 
   # In Qt 6.11 the client-side wayland platform plugin code is in qtbase, not
   # qtwayland. This keeps the webOS magic-remote cursor opt-out built in.
   apply_patch_if_needed "$QTBASE_SRC" "$PATCH_DIR/qtbase-$QT_SERIES-webos-no-cursor-set.patch"
+}
+
+qt_prefix_matches_version() {
+  local prefix="$1"
+  local version_file="$prefix/lib/cmake/Qt6/Qt6ConfigVersionImpl.cmake"
+  [[ -f "$version_file" ]] || return 1
+  grep -Fqx "set(PACKAGE_VERSION \"$QT_VERSION\")" "$version_file"
+}
+
+clean_mismatched_qt_prefix() {
+  local prefix="$1"
+  local build_root="$2"
+  local label="$3"
+  local version_file="$prefix/lib/cmake/Qt6/Qt6ConfigVersionImpl.cmake"
+
+  [[ -f "$version_file" ]] || return 0
+  if ! qt_prefix_matches_version "$prefix"; then
+    log "Removing $label built for a different Qt patch release"
+    rm -rf "$build_root" "$prefix"
+  fi
 }
 
 fetch_sources() {
@@ -290,6 +316,7 @@ fetch_sources() {
 
 host_qtbase_up_to_date() {
   [[ "${QT_BUILD_FORCE:-0}" != "1" ]] || return 1
+  qt_prefix_matches_version "$HOST_INSTALL" || return 1
   [[ -f "$HOST_INSTALL/lib/cmake/Qt6/Qt6Config.cmake" ]] || return 1
   [[ -e "$HOST_INSTALL/lib/libQt6Core.so" || -e "$HOST_INSTALL/lib/libQt6Core.a" ]] || return 1
   [[ -e "$HOST_INSTALL/lib/libQt6Gui.so" || -e "$HOST_INSTALL/lib/libQt6Gui.a" ]] || return 1
@@ -298,7 +325,8 @@ host_qtbase_up_to_date() {
 }
 
 configure_host_qtbase() {
-  maybe_clean_poisoned_build_dir "$HOST_BUILD_ROOT/qtbase"
+  clean_mismatched_qt_prefix "$HOST_INSTALL" "$HOST_BUILD_ROOT" "host Qt prefix"
+  maybe_clean_poisoned_build_dir "$HOST_BUILD_ROOT/qtbase" "$QTBASE_SRC"
   log "Configuring host qtbase"
   cmake_configure -S "$QTBASE_SRC" -B "$HOST_BUILD_ROOT/qtbase" -GNinja \
     "${fresh_flag[@]}" \
@@ -338,7 +366,7 @@ configure_host_module() {
   local src="$2"
   local extra=("${@:3}")
 
-  maybe_clean_poisoned_build_dir "$HOST_BUILD_ROOT/$name"
+  maybe_clean_poisoned_build_dir "$HOST_BUILD_ROOT/$name" "$src"
   log "Configuring host $name"
   cmake_configure -S "$src" -B "$HOST_BUILD_ROOT/$name" -GNinja \
     "${fresh_flag[@]}" \
@@ -365,6 +393,32 @@ host_module_up_to_date() {
   [[ ",${QT_BUILD_FORCE_MODULES:-}," != *",$name,"* ]] || return 1
   [[ -e "$HOST_INSTALL/$marker" ]] || return 1
   return 0
+}
+
+qmlimportscanner_excludes_subtrees() {
+  local scanner="$HOST_INSTALL/libexec/qmlimportscanner"
+  [[ -x "$scanner" ]] || return 1
+
+  local fixture output
+  fixture="$(mktemp -d)"
+  output="$fixture/imports.json"
+  mkdir -p "$fixture/build/nested"
+  printf 'import Excluded.Module\n' >"$fixture/build/nested/Excluded.qml"
+
+  if ! "$scanner" \
+      -rootPath "$fixture" \
+      -exclude build \
+      >"$output" 2>/dev/null; then
+    rm -rf "$fixture"
+    return 1
+  fi
+
+  if grep -q 'Excluded.Module' "$output"; then
+    rm -rf "$fixture"
+    return 1
+  fi
+
+  rm -rf "$fixture"
 }
 
 require_openapi_jar() {
@@ -412,7 +466,8 @@ build_all_host_modules() {
     build_host_module qttools
   fi
 
-  if host_module_up_to_date qtdeclarative "lib/cmake/Qt6QmlTools/Qt6QmlToolsConfig.cmake"; then
+  if host_module_up_to_date qtdeclarative "lib/cmake/Qt6QmlTools/Qt6QmlToolsConfig.cmake" \
+      && qmlimportscanner_excludes_subtrees; then
     log "host qtdeclarative: up to date, skipping"
   else
     configure_host_module qtdeclarative "$QTDECLARATIVE_SRC"
@@ -469,6 +524,7 @@ build_all_host_modules() {
 
 configure_target_qtbase() {
   require_target_sdk
+  clean_mismatched_qt_prefix "$TARGET_STAGING" "$TARGET_BUILD_ROOT" "target Qt prefix"
   local target_wayland_scanner="${TARGET_WAYLAND_SCANNER:-$TARGET_WAYLAND_SCANNER_DEFAULT}"
   [[ -x "$target_wayland_scanner" ]] || \
     die "target wayland-scanner not found at $target_wayland_scanner; set TARGET_WAYLAND_SCANNER"
@@ -488,7 +544,7 @@ configure_target_qtbase() {
     build_type_flags=(-DCMAKE_BUILD_TYPE=Release)
   fi
 
-  maybe_clean_poisoned_build_dir "$TARGET_BUILD_ROOT/qtbase"
+  maybe_clean_poisoned_build_dir "$TARGET_BUILD_ROOT/qtbase" "$QTBASE_SRC"
   log "Configuring target qtbase"
   cmake_configure -S "$QTBASE_SRC" -B "$TARGET_BUILD_ROOT/qtbase" -GNinja \
     "${fresh_flag[@]}" \
@@ -575,7 +631,7 @@ configure_target_module() {
     )
   fi
 
-  maybe_clean_poisoned_build_dir "$TARGET_BUILD_ROOT/$name"
+  maybe_clean_poisoned_build_dir "$TARGET_BUILD_ROOT/$name" "$src"
   log "Configuring target $name"
   cmake_configure -S "$src" -B "$TARGET_BUILD_ROOT/$name" -GNinja \
     "${fresh_flag[@]}" \
