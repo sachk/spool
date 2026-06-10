@@ -6,6 +6,8 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 source "$ROOT/tools/lib/build-common.sh"
 # shellcheck source=tools/lib/manifest-sources.sh
 source "$ROOT/tools/lib/manifest-sources.sh"
+# shellcheck source=tools/webos-native/nixos-sdk-compat.sh
+source "$ROOT/tools/webos-native/nixos-sdk-compat.sh"
 MANIFEST="${WEBOS_THIRD_PARTY_MANIFEST:-$ROOT/tools/manifests/webos-third-party.json}"
 PHASE="${1:-all}"
 SDK_ROOT="${WEBOS_SDK_ROOT:-$ROOT/build/webos-sdk/arm-webos-linux-gnueabi_sdk-buildroot}"
@@ -57,6 +59,7 @@ if [[ ! -x "$SDK_BIN/arm-webos-linux-gnueabi-gcc" ]]; then
   printf 'Missing webOS SDK compiler under %s\n' "$SDK_BIN" >&2
   exit 1
 fi
+ensure_webos_sdk_host_tools "$SDK_ROOT"
 
 cat >"$CROSS_FILE" <<EOF
 [binaries]
