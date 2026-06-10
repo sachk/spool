@@ -227,7 +227,7 @@ jobs:
           tar -xf "$data_tar" -C "$work/data"
           appinfo="$(find "$work/data" -name appinfo.json -print -quit)"
           test -n "$appinfo"
-          python3 - "$appinfo" <<'PY'
+          nix develop -c python3 - "$appinfo" <<'PY'
           import json
           import re
           import sys
@@ -244,7 +244,7 @@ jobs:
           binary="$(find "$work/data" -path '*/bin/jellyfin-native.real' -type f -print -quit)"
           test -n "$binary"
           test -x "$binary"
-          python3 - "$binary" <<'PY'
+          nix develop -c python3 - "$binary" <<'PY'
           import struct
           import sys
 
