@@ -30,6 +30,11 @@ if a patch stops applying.
   `set_cursor` in the Wayland QPA, so the app never displaces or hides the
   LSM-owned magic-remote pointer (mirrors xbmc's no-op `SetCursor`).
 
+`qtdeclarative-6.11-qmlimportscanner-exclude-subtrees.patch`
+- Makes `qmlimportscanner -exclude <directory>` ignore the complete directory
+  subtree. Upstream's iterator otherwise descends into excluded in-tree build
+  directories and parses Qt's intentionally invalid QML parser fixtures.
+
 `qtwayland-6.11-webos-wayland-version.patch`
 - Lowers the Wayland package version gate from `1.15` to `1.11` so QtWayland
   can target the older Wayland stack shipped in the webOS SDK sysroot.
