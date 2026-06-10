@@ -205,6 +205,7 @@ jobs:
           tar -tf "$data_tar" | tee "$work/data-files.txt" >/dev/null
           grep -Eq '(^|/)appinfo\.json$' "$work/data-files.txt"
           grep -Eq '(^|/)bin/jellyfin-native$' "$work/data-files.txt"
+          grep -Eq '(^|/)bin/jellyfin-native\.real$' "$work/data-files.txt"
 
           mkdir "$work/data"
           tar -xf "$data_tar" -C "$work/data"
@@ -222,6 +223,25 @@ jobs:
           assert appinfo["main"] == "bin/jellyfin-native", appinfo.get("main")
           assert re.fullmatch(r"\d+\.\d+\.\d+", appinfo["version"]), appinfo.get("version")
           print(f"Validated {appinfo['id']} {appinfo['version']} IPK")
+          PY
+
+          binary="$(find "$work/data" -path '*/bin/jellyfin-native.real' -type f -print -quit)"
+          test -n "$binary"
+          test -x "$binary"
+          python3 - "$binary" <<'PY'
+          import struct
+          import sys
+
+          with open(sys.argv[1], "rb") as handle:
+              header = handle.read(20)
+
+          assert header[:4] == b"\x7fELF", "app binary is not ELF"
+          assert header[4] == 1, "app binary is not 32-bit ELF"
+          assert header[5] == 1, "app binary is not little-endian ELF"
+          elf_type, machine = struct.unpack_from("<HH", header, 16)
+          assert elf_type in (2, 3), f"unexpected ELF type: {elf_type}"
+          assert machine == 40, f"app binary is not ARM ELF: machine={machine}"
+          print("Validated 32-bit little-endian ARM app binary")
           PY
 
       - uses: actions/upload-artifact@v7
