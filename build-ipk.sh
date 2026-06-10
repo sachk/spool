@@ -138,18 +138,26 @@ fi
 echo "Building libdovi..."
 (
   cd "$DOVI_TOOL_ROOT/dolby_vision"
-  rustup target add arm-unknown-linux-gnueabi || true
+  DOVI_RUST_TOOLCHAIN="${DOVI_RUST_TOOLCHAIN:-1.89.0}"
+  DOVI_RUST_TARGET="arm-unknown-linux-gnueabi"
   export CARGO_TARGET_ARM_UNKNOWN_LINUX_GNUEABI_LINKER="$SDK_ROOT/bin/arm-webos-linux-gnueabi-gcc"
   export CC_arm_unknown_linux_gnueabi="$SDK_ROOT/bin/arm-webos-linux-gnueabi-gcc"
   export CXX_arm_unknown_linux_gnueabi="$SDK_ROOT/bin/arm-webos-linux-gnueabi-g++"
   export AR_arm_unknown_linux_gnueabi="$SDK_ROOT/bin/arm-webos-linux-gnueabi-ar"
   export CARGO_BUILD_JOBS="${CARGO_BUILD_JOBS:-$WEBOS_BUILD_JOBS}"
-  
-  CARGO_BIN="cargo"
+
+  CARGO_CMD=(cargo)
   if command -v rustup >/dev/null 2>&1; then
-    CARGO_BIN="rustup run nightly cargo"
+    rustup toolchain install "$DOVI_RUST_TOOLCHAIN" \
+      --profile minimal \
+      --target "$DOVI_RUST_TARGET"
+    CARGO_CMD=(rustup run "$DOVI_RUST_TOOLCHAIN" cargo)
   fi
-  $CARGO_BIN build --release --features capi,serde --target arm-unknown-linux-gnueabi --jobs "$WEBOS_BUILD_JOBS"
+  "${CARGO_CMD[@]}" build \
+    --release \
+    --features capi,serde \
+    --target "$DOVI_RUST_TARGET" \
+    --jobs "$WEBOS_BUILD_JOBS"
 )
 DOVI_LIB="$DOVI_TOOL_ROOT/dolby_vision/target/arm-unknown-linux-gnueabi/release/libdovi.a"
 DOVI_INC="$DOVI_TOOL_ROOT/dolby_vision/include"
