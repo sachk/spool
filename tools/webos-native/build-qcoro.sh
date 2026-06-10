@@ -74,7 +74,17 @@ if [[ "$QT_STATIC" != "1" ]]; then
   shared_flag=ON
 fi
 
-rm -rf "$BUILD_DIR"
+if [[ "${QCORO_BUILD_FRESH:-0}" == "1" ]]; then
+  rm -rf "$BUILD_DIR"
+elif [[ -f "$BUILD_DIR/CMakeCache.txt" ]]; then
+  if ! grep -Fqx "CMAKE_HOME_DIRECTORY:INTERNAL=$SOURCE_DIR" "$BUILD_DIR/CMakeCache.txt" \
+      || ! grep -Fqx "CMAKE_TOOLCHAIN_FILE:FILEPATH=$TOOLCHAIN_FILE" "$BUILD_DIR/CMakeCache.txt" \
+      || ! grep -Eq "^Qt6_DIR:[^=]*=$QT_TARGET_PREFIX/lib/cmake/Qt6$" "$BUILD_DIR/CMakeCache.txt"; then
+    echo "QCoro build cache targets a different source, toolchain, or Qt prefix; wiping" >&2
+    rm -rf "$BUILD_DIR"
+  fi
+fi
+
 cmake -S "$SOURCE_DIR" -B "$BUILD_DIR" -GNinja \
   -DCMAKE_BUILD_TYPE=Release \
   -DCMAKE_TOOLCHAIN_FILE="$TOOLCHAIN_FILE" \
