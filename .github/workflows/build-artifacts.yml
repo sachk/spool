@@ -168,11 +168,13 @@ jobs:
             build/qt6-611-target-static-install
             build/qt6-611-target-install
             build/webos-thirdparty-build
+            build/webos-qcoro
             build/third_party
             .ccache
-            mpv/build/webos-libmpv
-          key: webos-${{ runner.os }}-${{ hashFiles('mpv/meson.build', 'build-ipk.sh', 'tools/webos-native/**') }}
+            mpv_webos/build/webos-libmpv
+          key: webos2-${{ runner.os }}-${{ hashFiles('mpv_webos/meson.build', 'build-ipk.sh', 'tools/webos-native/**') }}
           restore-keys: |
+            webos2-${{ runner.os }}-
             webos-${{ runner.os }}-
 
       - name: Restore webOS toolchain archive
