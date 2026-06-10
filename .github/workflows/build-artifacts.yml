@@ -53,6 +53,9 @@ jobs:
           printf 'checking %d scripts\n' "${#scripts[@]}"
           python3 -m py_compile "${scripts[@]}"
 
+      - name: Evaluate Nix flake
+        run: nix flake check --no-build --no-write-lock-file
+
       - name: Verify shared build library sources and exports its helpers
         run: |
           source tools/lib/build-common.sh
