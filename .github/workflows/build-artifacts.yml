@@ -174,7 +174,7 @@ jobs:
             build/third_party
             .ccache
             mpv_webos/build/webos-libmpv
-          key: webos2-${{ runner.os }}-${{ hashFiles('mpv_webos/meson.build', 'build-ipk.sh', 'tools/webos-native/**') }}
+          key: webos2-${{ runner.os }}-${{ hashFiles('flake.lock', 'mpv_webos/meson.build', 'build-ipk.sh', 'tools/lib/*.sh', 'tools/manifests/qt-webos-6.11.json', 'tools/manifests/webos-third-party.json', 'tools/webos-native/**') }}
           restore-keys: |
             webos2-${{ runner.os }}-
             webos-${{ runner.os }}-
