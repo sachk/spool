@@ -170,6 +170,7 @@ private:
     bool applyMpvRuntimeOption(MpvRuntimeOption option, MpvOptionApplyMode mode, mpv_handle *handle);
     bool applyMpvSubtitleOptions(MpvOptionApplyMode mode, mpv_handle *handle);
     bool applyMpvRuntimeOptions(MpvOptionApplyMode mode, mpv_handle *handle);
+    void handleVideoRenderError(const QString &message);
 
     NativeAppWindow *m_window = nullptr;
     JellyfinApiFacade *m_api = nullptr;
