@@ -101,7 +101,7 @@ archive containing app version `0.2.1` and a 32-bit ARM EABI5 executable.
 
 - [ ] Finish route regression coverage for details opened from library, search,
   latest, resume, person, genre, studio, and similar-item views.
-- [ ] Move `ItemDetailsPage` fully onto Theme/Metrics and shared icon controls.
+- [x] Move `ItemDetailsPage` fully onto Theme/Metrics and shared icon controls.
 - [ ] Give Search and More Like This dedicated controller models; remove the
   client-side visibility-filtered movie-model workaround.
 - [ ] Consolidate the duplicated Home horizontal-row implementations and model
