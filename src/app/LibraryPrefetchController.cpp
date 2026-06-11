@@ -44,7 +44,7 @@ LibraryPrefetchController::LibraryPrefetchController(JellyfinApiFacade *api,
 }
 
 void LibraryPrefetchController::stop() {
-  ++m_generation;
+  m_generation.invalidate();
   m_timer.stop();
   m_queue.clear();
   m_index = 0;
@@ -52,13 +52,12 @@ void LibraryPrefetchController::stop() {
 }
 
 void LibraryPrefetchController::schedule(
-    int generation, const std::vector<LibraryItem> &libraries,
+    const std::vector<LibraryItem> &libraries,
     const QStringList &recentLibraryIds) {
   stop();
   if (!m_api || m_api->session().accessToken.isEmpty())
     return;
 
-  m_generation = generation;
   std::vector<LibraryItem> selected;
   selected.reserve(kBackgroundLibraryPrefetchLimit);
   QSet<QString> selectedIds;
@@ -143,19 +142,18 @@ void LibraryPrefetchController::startNext() {
   if (m_index < 0 || m_index >= static_cast<int>(m_queue.size()))
     return;
 
-  const int generation = m_generation;
+  const RequestGeneration::Token generation = m_generation.next();
   const LibraryItem library = m_queue[static_cast<size_t>(m_index++)];
   const QString key = cacheKey(library);
   m_active = true;
   qInfo() << "library prefetch: fetching" << library.name << key;
 
-  Async::runScoped(
+  Async::runLatest(
       this,
       m_api->fetchLibraryPage(library.id, library.collectionType, 0,
                               kLibraryPageSize),
-      [this, generation, key, library](const PagedMovieItems &page) {
-        if (generation != m_generation)
-          return;
+      m_generation, generation,
+      [this, key, library](const PagedMovieItems &page) {
         qInfo() << "library prefetch: cached" << library.name
                 << page.items.size();
         m_pages.insert(key, page);
@@ -163,9 +161,7 @@ void LibraryPrefetchController::startNext() {
         m_active = false;
         startNext();
       },
-      [this, generation, key, library](const std::exception_ptr &error) {
-        if (generation != m_generation)
-          return;
+      [this, key, library](const std::exception_ptr &error) {
         qWarning() << "library prefetch: failed" << library.name << key
                    << exceptionMessage(error);
         m_active = false;
