@@ -4,6 +4,7 @@ import QtQuick.Layouts
 import "../theme"
 import "../primitives"
 import "../pages"
+import "RoutePolicy.js" as RoutePolicy
 
 FocusScope {
     id: root
@@ -76,31 +77,23 @@ FocusScope {
     }
 
     function itemIdFor(item) {
-        return item ? String(item.movieId || item.itemId || item.id || "") : ""
+        return RoutePolicy.itemIdFor(item)
     }
 
     function itemTypeFor(item) {
-        return item ? String(item.itemType || item.type || "") : ""
+        return RoutePolicy.itemTypeFor(item)
     }
 
     function modelCount(model) {
-        return model && model.rowCount ? model.rowCount() : 0
+        return RoutePolicy.modelCount(model)
     }
 
     function modelItem(model, index) {
-        return model && model.get && index >= 0 && index < modelCount(model) ? model.get(index) : ({})
+        return RoutePolicy.modelItem(model, index)
     }
 
     function modelIndexForItemId(model, itemId, fallbackIndex) {
-        const count = modelCount(model)
-        const id = String(itemId || "")
-        if (id.length > 0) {
-            for (let i = 0; i < count; ++i) {
-                if (itemIdFor(model.get(i)) === id)
-                    return i
-            }
-        }
-        return count > 0 ? Math.max(0, Math.min(Number(fallbackIndex || 0), count - 1)) : -1
+        return RoutePolicy.modelIndexForItemId(model, itemId, fallbackIndex)
     }
 
     function detailsIndexForModel(model) {
@@ -108,31 +101,30 @@ FocusScope {
     }
 
     function openDetailsRoute(request) {
-        const nextModel = request && request.model ? request.model : (appController ? appController.movies : null)
-        const focusIndex = Math.max(0, Number(request && request.focusIndex !== undefined ? request.focusIndex : 0))
-        const requestedItemId = request ? String(request.itemId || "") : ""
-        const fallbackItem = modelItem(nextModel, focusIndex)
-        const itemId = requestedItemId.length > 0 ? requestedItemId : itemIdFor(fallbackItem)
-        if (itemId.length <= 0) {
+        const normalized = RoutePolicy.normalizeDetailsRoute(
+                    request, appController ? appController.movies : null, route)
+        if (!normalized) {
+            const focusIndex = Math.max(0, Number(request && request.focusIndex !== undefined
+                                                  ? request.focusIndex : 0))
             console.warn("details route ignored: missing item id", request ? request.source : "", focusIndex)
             return false
         }
 
-        detailsModel = nextModel
-        detailsIndex = focusIndex
-        detailsSource = request && request.source ? String(request.source) : "movies"
-        detailsReturnRoute = request && request.returnRoute ? String(request.returnRoute) : (route || "libraryGrid")
+        detailsModel = normalized.model
+        detailsIndex = normalized.focusIndex
+        detailsSource = normalized.source
+        detailsReturnRoute = normalized.returnRoute
         detailsRoute = {
-            itemId: itemId,
-            itemType: request && request.itemType ? String(request.itemType) : itemTypeFor(fallbackItem),
+            itemId: normalized.itemId,
+            itemType: normalized.itemType,
             source: detailsSource,
             returnRoute: detailsReturnRoute,
-            focusIndex: focusIndex
+            focusIndex: detailsIndex
         }
         if (detailsSource === "movies")
-            lastGridIndex = focusIndex
+            lastGridIndex = detailsIndex
         else if (detailsSource === "search" || detailsSource === "suggestion")
-            lastSearchIndex = focusIndex
+            lastSearchIndex = detailsIndex
 
         if (route === "itemDetails") {
             routeStack.forceActiveFocus()
@@ -144,16 +136,9 @@ FocusScope {
 
     function openDetailsAt(model, index, source, returnRoute) {
         const nextModel = model || (appController ? appController.movies : null)
-        const focusIndex = Math.max(0, Number(index || 0))
-        const item = modelItem(nextModel, focusIndex)
-        return openDetailsRoute({
-            model: nextModel,
-            itemId: itemIdFor(item),
-            itemType: itemTypeFor(item),
-            source: source || "movies",
-            returnRoute: returnRoute || route || "libraryGrid",
-            focusIndex: focusIndex
-        })
+        const request = RoutePolicy.detailsRouteAt(nextModel, index, source,
+                                                   returnRoute, route)
+        return request ? openDetailsRoute(request) : false
     }
 
     function replaceRoute(nextRoute) {
