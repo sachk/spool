@@ -238,6 +238,7 @@ qt_add_qml_module(jellyfin-native
         qml/primitives/EmptyPlaceholder.qml
         qml/primitives/FastWheelHandler.qml
         qml/primitives/FocusFrame.qml
+        qml/primitives/HomeHorizontalRow.qml
         qml/primitives/IconButton.qml
         qml/primitives/ImageCard.qml
         qml/primitives/InputKeys.qml
@@ -247,6 +248,7 @@ qt_add_qml_module(jellyfin-native
         qml/primitives/MediaPosterScrollerRow.qml
         qml/primitives/MetadataChip.qml
         qml/primitives/MonoText.qml
+        qml/primitives/ModelCountObserver.qml
         qml/primitives/MaterialIcon.qml
         qml/primitives/PersonScrollerRow.qml
         qml/primitives/PosterCard.qml
