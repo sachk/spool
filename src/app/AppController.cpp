@@ -1209,13 +1209,13 @@ void AppController::setPlayed(const QString &itemId, bool played)
 void AppController::playMediaItem(const MovieItem &item, bool fromStart)
 {
     Diagnostics::Task task(QStringLiteral("playback_negotiate"), {{QStringLiteral("itemId"), item.id}, {QStringLiteral("title"), item.title}, {QStringLiteral("type"), item.itemType}});
-    setBusy(true, QStringLiteral("Negotiating direct play…"));
+    setBusy(true, QStringLiteral("Negotiating playback…"));
     MovieItem playItem = item;
     if (fromStart)
         playItem.resumeTicks = 0;
     const QString itemId = playItem.id;
     Async::runScoped(this,
-        m_api->negotiateDirectPlay(playItem),
+        m_api->negotiatePlayback(playItem),
         [this, itemId](const PlaybackSession &session) {
             // Enrich the negotiated session with media segments (skip-intro)
             // and trickplay (scrubber thumbnails). Both are advisory — if the

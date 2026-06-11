@@ -1,6 +1,7 @@
 #include "JellyfinApiFacade.h"
 
 #include "../diagnostics/Diagnostics.h"
+#include "PlaybackNegotiation.h"
 
 #include <QCoroNetwork>
 #include <QCoroTimer>
@@ -420,6 +421,14 @@ void JellyfinApiFacade::setSession(const AuthSession &session)
 {
     m_session = session;
     m_authExpirationReported = false;
+}
+
+void JellyfinApiFacade::setPlaybackPreferences(qint64 maxStreamingBitrate,
+                                               bool preferRemux)
+{
+    m_maxStreamingBitrate =
+        std::clamp<qint64>(maxStreamingBitrate, 1'000'000, 1'000'000'000);
+    m_preferRemux = preferRemux;
 }
 
 AuthSession JellyfinApiFacade::session() const
@@ -1212,20 +1221,20 @@ QCoro::Task<void> JellyfinApiFacade::syncPlayRequestSeek(qint64 positionTicks)
     co_await requestNoContent(HttpMethod::Post, QStringLiteral("/SyncPlay/Seek"), QJsonDocument(body));
 }
 
-QCoro::Task<PlaybackSession> JellyfinApiFacade::negotiateDirectPlay(MovieItem movie)
+QCoro::Task<PlaybackSession> JellyfinApiFacade::negotiatePlayback(MovieItem movie)
 {
-    Diagnostics::Task task(QStringLiteral("api_negotiate_direct_play"), {{QStringLiteral("itemId"), movie.id}, {QStringLiteral("title"), movie.title}});
+    Diagnostics::Task task(QStringLiteral("api_negotiate_playback"), {{QStringLiteral("itemId"), movie.id}, {QStringLiteral("title"), movie.title}});
     QUrlQuery query;
     query.addQueryItem(QStringLiteral("userId"), m_session.userId);
 
     const QJsonObject body = {
         {QStringLiteral("UserId"), m_session.userId},
-        {QStringLiteral("MaxStreamingBitrate"), 140000000},
+        {QStringLiteral("MaxStreamingBitrate"), m_maxStreamingBitrate},
         {QStringLiteral("StartTimeTicks"), movie.resumeTicks},
         {QStringLiteral("AutoOpenLiveStream"), true},
         {QStringLiteral("EnableDirectPlay"), true},
         {QStringLiteral("EnableDirectStream"), true},
-        {QStringLiteral("EnableTranscoding"), false},
+        {QStringLiteral("EnableTranscoding"), true},
         {QStringLiteral("AllowVideoStreamCopy"), true},
         {QStringLiteral("AllowAudioStreamCopy"), true},
         {QStringLiteral("DeviceProfile"), buildDeviceProfile()},
@@ -1271,9 +1280,9 @@ QCoro::Task<void> JellyfinApiFacade::reportPlaybackStart(PlaybackSession session
         {QStringLiteral("CanSeek"), true},
         {QStringLiteral("ItemId"), session.itemId},
         {QStringLiteral("MediaSourceId"), session.mediaSourceId},
-        {QStringLiteral("PlayMethod"), QStringLiteral("DirectPlay")},
+        {QStringLiteral("PlayMethod"), session.playMethod},
         {QStringLiteral("PlaySessionId"), session.playSessionId},
-        {QStringLiteral("PositionTicks"), 0},
+        {QStringLiteral("PositionTicks"), session.startTimeTicks},
     };
 
     co_await requestNoContent(HttpMethod::Post, QStringLiteral("/Sessions/Playing"), QJsonDocument(body));
@@ -1285,7 +1294,7 @@ QCoro::Task<void> JellyfinApiFacade::reportPlaybackProgress(PlaybackSession sess
         {QStringLiteral("CanSeek"), true},
         {QStringLiteral("ItemId"), session.itemId},
         {QStringLiteral("MediaSourceId"), session.mediaSourceId},
-        {QStringLiteral("PlayMethod"), QStringLiteral("DirectPlay")},
+        {QStringLiteral("PlayMethod"), session.playMethod},
         {QStringLiteral("PlaySessionId"), session.playSessionId},
         {QStringLiteral("PositionTicks"), positionTicks},
         {QStringLiteral("IsPaused"), paused},
@@ -1454,25 +1463,7 @@ bool JellyfinApiFacade::shouldExpireSession(const QString &path) const
 
 QJsonObject JellyfinApiFacade::buildDeviceProfile() const
 {
-    // Unrestricted direct play — mpv handles any container/codec.
-    // Matches jellyfin-mpv-shim's approach so the server always marks
-    // SupportsDirectPlay / SupportsDirectStream as true.
-    return {
-        {QStringLiteral("Name"), QStringLiteral("JellyfinNativeWebOS")},
-        {QStringLiteral("MaxStreamingBitrate"), 140000000},
-        {QStringLiteral("MaxStaticBitrate"), 140000000},
-        {QStringLiteral("MusicStreamingTranscodingBitrate"), 1280000},
-        {QStringLiteral("DirectPlayProfiles"),
-         QJsonArray{
-             QJsonObject{{QStringLiteral("Type"), QStringLiteral("Video")}},
-             QJsonObject{{QStringLiteral("Type"), QStringLiteral("Audio")}},
-         }},
-        {QStringLiteral("TranscodingProfiles"), QJsonArray{}},
-        {QStringLiteral("ContainerProfiles"), QJsonArray{}},
-        {QStringLiteral("CodecProfiles"), QJsonArray{}},
-        {QStringLiteral("SubtitleProfiles"), QJsonArray{}},
-        {QStringLiteral("ResponseProfiles"), QJsonArray{}},
-    };
+    return PlaybackNegotiation::buildDeviceProfile(m_maxStreamingBitrate);
 }
 
 PlaybackSession JellyfinApiFacade::buildPlaybackSession(const MovieItem &movie, const QJsonObject &playbackResponse) const
@@ -1481,46 +1472,21 @@ PlaybackSession JellyfinApiFacade::buildPlaybackSession(const MovieItem &movie, 
     if (mediaSources.isEmpty())
         throw std::runtime_error("No media sources returned by Jellyfin");
 
-    // Pick the best source: prefer highest bitrate that supports direct play,
-    // matching jellyfin-mpv-shim's get_best_media_source logic.
-    QJsonObject selectedSource;
-    qint64 bestWeight = -1;
-    for (const auto &value : mediaSources) {
-        const auto candidate = value.toObject();
-        const qint64 weight =
-            (candidate.value(QStringLiteral("SupportsDirectPlay")).toBool() ? 50000000LL : 0) +
-            (candidate.value(QStringLiteral("SupportsDirectStream")).toBool() ? 25000000LL : 0) +
-            candidate.value(QStringLiteral("Bitrate")).toInteger(0) / 1000;
-        if (weight > bestWeight) {
-            bestWeight = weight;
-            selectedSource = candidate;
-        }
-    }
-    if (selectedSource.isEmpty())
-        throw std::runtime_error("No playable media source available");
+    const PlaybackSelection selection =
+        PlaybackNegotiation::selectSource(mediaSources, m_preferRemux);
+    const QJsonObject selectedSource = selection.source;
 
     const QString mediaSourceId = requireString(selectedSource, QStringLiteral("Id"));
     const QString container = cleanContainerName(selectedSource.value(QStringLiteral("Container")).toString());
 
-    // Build URL matching jellyfin-mpv-shim: /Videos/{id}/stream?static=true&MediaSourceId=...&api_key=...
-    QUrlQuery query;
-    query.addQueryItem(QStringLiteral("static"), QStringLiteral("true"));
-    query.addQueryItem(QStringLiteral("MediaSourceId"), mediaSourceId);
-    query.addQueryItem(QStringLiteral("api_key"), m_session.accessToken);
-
-    QUrl url(m_serverUrl);
-    QString path = url.path();
-    if (path.endsWith(QLatin1Char('/')))
-        path.chop(1);
-    url.setPath(QStringLiteral("%1/Videos/%2/stream").arg(path, movie.id));
-    url.setQuery(query);
-
     return {
         movie.id,
         movie.title,
-        url.toString(QUrl::FullyEncoded),
+        PlaybackNegotiation::buildUrl(m_serverUrl, movie.id,
+                                      m_session.accessToken, selection),
         mediaSourceId,
         playbackResponse.value(QStringLiteral("PlaySessionId")).toString(),
+        selection.playMethod,
         container,
         movie.resumeTicks,
     };
