@@ -152,6 +152,8 @@ qt_add_executable(jellyfin-native
     src/player/PlayerController.h
     src/player/PlaybackTimeline.cpp
     src/player/PlaybackTimeline.h
+    src/player/PlaybackTrackParser.cpp
+    src/player/PlaybackTrackParser.h
     src/player/MpvVideoItem.cpp
     src/player/MpvVideoItem.h
 )
@@ -335,6 +337,20 @@ if(BUILD_TESTING AND NOT CMAKE_CROSSCOMPILING)
     )
     target_link_libraries(playback-timeline-tests PRIVATE Qt6::Core)
     add_test(NAME playback-timeline COMMAND playback-timeline-tests)
+
+    add_executable(playback-track-parser-tests
+        tests/player/PlaybackTrackParserTest.cpp
+        src/player/PlaybackTrackParser.cpp
+        src/player/PlaybackTrackParser.h
+    )
+    target_include_directories(playback-track-parser-tests PRIVATE
+        "${CMAKE_CURRENT_SOURCE_DIR}/src"
+    )
+    target_link_libraries(playback-track-parser-tests PRIVATE
+        Qt6::Core
+        PkgConfig::MPV
+    )
+    add_test(NAME playback-track-parser COMMAND playback-track-parser-tests)
 endif()
 
 # Static Qt: import plugins that the linker can't auto-discover. BUILD_SHARED_LIBS
