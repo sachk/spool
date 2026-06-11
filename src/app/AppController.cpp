@@ -224,6 +224,8 @@ AppController::AppController(DatabaseManager *database,
     m_settings = new SettingsController(database, api, player, this);
     m_session = new SessionController(database, api, this);
     m_prefetch = new LibraryPrefetchController(api, this);
+    connect(m_api, &JellyfinApiFacade::authenticationExpired,
+            m_session, &SessionController::expireSession);
     connect(m_syncPlay, &SyncPlayController::errorText, this, &AppController::setErrorText);
     connect(m_quickConnect, &QuickConnectController::changed,
             this, &AppController::quickConnectChanged);
@@ -1282,7 +1284,7 @@ void AppController::shutdown()
     qInfo() << "app: shutdown requested";
     m_quickConnect->cancel();
     m_prefetch->stop();
-    m_api->cancelPrefetches();
+    m_api->cancelRequests();
     m_discovery->stop();
     m_player->teardownMpv();
 }

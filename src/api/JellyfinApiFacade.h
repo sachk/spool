@@ -1,6 +1,7 @@
 #pragma once
 
 #include "../common/JellyfinTypes.h"
+#include "HttpRequestPolicy.h"
 
 #include <QCoroTask>
 
@@ -26,6 +27,7 @@ class JellyfinApiFacade final : public QObject
 
 public:
     explicit JellyfinApiFacade(QNetworkAccessManager *networkAccessManager, QObject *parent = nullptr);
+    ~JellyfinApiFacade() override;
 
     void setServerUrl(const QString &serverUrl);
     QString serverUrl() const;
@@ -46,6 +48,7 @@ public:
                           const QString &imageType = QStringLiteral("Primary")) const;
     void prefetchImages(const QStringList &urls, int maxConcurrent = 6);
     void cancelPrefetches();
+    void cancelRequests();
 
     QCoro::Task<void> probeServer();
     QCoro::Task<AuthSession> authenticateByName(QString username, QString password);
@@ -100,6 +103,9 @@ public:
     QCoro::Task<void> reportPlaybackProgress(PlaybackSession session, qint64 positionTicks, bool paused);
     QCoro::Task<void> reportPlaybackStopped(PlaybackSession session, qint64 positionTicks, bool failed);
 
+signals:
+    void authenticationExpired(const QString &message);
+
 private:
     enum class HttpMethod {
         Get,
@@ -118,6 +124,8 @@ private:
     QJsonObject buildDeviceProfile() const;
     PlaybackSession buildPlaybackSession(const MovieItem &movie, const QJsonObject &playbackResponse) const;
     void pumpImagePrefetch();
+    HttpOperation operationFor(HttpMethod method, const QString &path) const;
+    bool shouldExpireSession(const QString &path) const;
 
     QNetworkAccessManager *m_networkAccessManager = nullptr;
     QRestAccessManager m_rest;
@@ -130,8 +138,11 @@ private:
     QStringList m_prefetchQueue;
     QSet<QString> m_prefetchSeen;
     QSet<QNetworkReply *> m_prefetchReplies;
+    QSet<QNetworkReply *> m_activeReplies;
     int m_prefetchInFlight = 0;
     int m_prefetchMaxConcurrent = 6;
+    bool m_authExpirationReported = false;
+    bool m_shuttingDown = false;
 };
 
 } // namespace JellyfinNative

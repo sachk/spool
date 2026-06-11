@@ -123,6 +123,7 @@ endif()
 qt_add_executable(jellyfin-native
     src/api/JellyfinApiFacade.cpp
     src/api/JellyfinApiFacade.h
+    src/api/HttpRequestPolicy.h
     src/app/AppController.cpp
     src/app/AppController.h
     src/app/LibraryPrefetchController.cpp
@@ -403,6 +404,16 @@ if(BUILD_TESTING AND NOT CMAKE_CROSSCOMPILING)
         "${CMAKE_CURRENT_SOURCE_DIR}/src"
     )
     add_test(NAME request-generation COMMAND request-generation-tests)
+
+    add_executable(http-request-policy-tests
+        tests/api/HttpRequestPolicyTest.cpp
+        src/api/HttpRequestPolicy.h
+    )
+    target_include_directories(http-request-policy-tests PRIVATE
+        "${CMAKE_CURRENT_SOURCE_DIR}/src"
+    )
+    target_link_libraries(http-request-policy-tests PRIVATE Qt6::Core Qt6::Network)
+    add_test(NAME http-request-policy COMMAND http-request-policy-tests)
 
     find_program(QMLTESTRUNNER_EXECUTABLE NAMES qmltestrunner)
     if(QMLTESTRUNNER_EXECUTABLE)

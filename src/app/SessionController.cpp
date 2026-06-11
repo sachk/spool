@@ -92,6 +92,14 @@ void SessionController::logout() {
   emit loggedOut();
 }
 
+void SessionController::expireSession(const QString &message) {
+  if (m_api->session().accessToken.isEmpty())
+    return;
+  qWarning() << "session: authentication expired";
+  logout();
+  emit errorOccurred(message);
+}
+
 bool SessionController::handleUnauthorized(const std::exception_ptr &error) {
   const QString message = exceptionMessage(error);
   if (!message.contains(QStringLiteral("(401)")) &&
@@ -99,8 +107,8 @@ bool SessionController::handleUnauthorized(const std::exception_ptr &error) {
     return false;
   }
 
-  qWarning() << "session: authentication expired" << message;
-  logout();
+  if (!m_api->session().accessToken.isEmpty())
+    expireSession(QStringLiteral("Your Jellyfin session has expired. Sign in again."));
   return true;
 }
 
