@@ -42,6 +42,7 @@ public:
 
     void setSession(const AuthSession &session);
     AuthSession session() const;
+    void setPlaybackPreferences(qint64 maxStreamingBitrate, bool preferRemux);
 
     QString buildImageUrl(const QString &itemId, const QString &tag = {}, int maxWidth = 280,
                           int quality = 75, const QString &format = QStringLiteral("webp"),
@@ -84,7 +85,7 @@ public:
     QCoro::Task<std::vector<MediaSegment>> fetchMediaSegments(QString itemId);
     QCoro::Task<TrickplayInfo> fetchTrickplay(QString itemId, QString mediaSourceId, int preferredWidth = 320);
     QString trickplayTileUrl(const QString &itemId, int width, int tileIndex) const;
-    QCoro::Task<PlaybackSession> negotiateDirectPlay(MovieItem movie);
+    QCoro::Task<PlaybackSession> negotiatePlayback(MovieItem movie);
 
     // SyncPlay REST endpoints. These mirror the calls the official web client
     // makes. Realtime sync still requires a WebSocket connection (Qt
@@ -141,6 +142,8 @@ private:
     QSet<QNetworkReply *> m_activeReplies;
     int m_prefetchInFlight = 0;
     int m_prefetchMaxConcurrent = 6;
+    qint64 m_maxStreamingBitrate = 120'000'000;
+    bool m_preferRemux = true;
     bool m_authExpirationReported = false;
     bool m_shuttingDown = false;
 };

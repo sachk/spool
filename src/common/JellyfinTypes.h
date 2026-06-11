@@ -164,6 +164,7 @@ struct PlaybackSession {
     QString url;
     QString mediaSourceId;
     QString playSessionId;
+    QString playMethod = QStringLiteral("DirectPlay");
     QString container;
     qint64 startTimeTicks = 0;
     std::vector<MediaSegment> segments;

@@ -123,6 +123,8 @@ endif()
 qt_add_executable(jellyfin-native
     src/api/JellyfinApiFacade.cpp
     src/api/JellyfinApiFacade.h
+    src/api/PlaybackNegotiation.cpp
+    src/api/PlaybackNegotiation.h
     src/api/HttpRequestPolicy.h
     src/app/AppController.cpp
     src/app/AppController.h
@@ -427,6 +429,17 @@ if(BUILD_TESTING AND NOT CMAKE_CROSSCOMPILING)
     )
     target_link_libraries(http-request-policy-tests PRIVATE Qt6::Core Qt6::Network)
     add_test(NAME http-request-policy COMMAND http-request-policy-tests)
+
+    add_executable(playback-negotiation-tests
+        tests/api/PlaybackNegotiationTest.cpp
+        src/api/PlaybackNegotiation.cpp
+        src/api/PlaybackNegotiation.h
+    )
+    target_include_directories(playback-negotiation-tests PRIVATE
+        "${CMAKE_CURRENT_SOURCE_DIR}/src"
+    )
+    target_link_libraries(playback-negotiation-tests PRIVATE Qt6::Core)
+    add_test(NAME playback-negotiation COMMAND playback-negotiation-tests)
 
     add_executable(database-manager-tests
         tests/cache/DatabaseManagerTest.cpp

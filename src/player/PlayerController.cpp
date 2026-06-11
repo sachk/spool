@@ -590,6 +590,7 @@ void PlayerController::handleVideoRenderError(const QString &message) {
 void PlayerController::play(const PlaybackSession &session) {
   Diagnostics::Task task(QStringLiteral("player_play"), {{QStringLiteral("itemId"), session.itemId}, {QStringLiteral("title"), session.title}});
   qInfo() << "player: play requested" << session.title
+          << "method=" << session.playMethod
           << "startTimeTicks=" << session.startTimeTicks;
 
   if (m_mpvLifecycle.handle()) {
