@@ -8,6 +8,8 @@ FocusScope {
     id: root
     property var shell
     focus: true
+    Accessible.role: Accessible.Pane
+    Accessible.name: "Sign in to Jellyfin"
 
     function focusServer() { serverRow.focusRow() }
 

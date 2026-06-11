@@ -18,6 +18,8 @@ FocusScope {
     visible: menuOpen
     implicitHeight: panel.implicitHeight
     height: implicitHeight
+    Accessible.role: Accessible.PopupMenu
+    Accessible.name: "SyncPlay"
 
     function defaultGroupName() {
         const name = appController && appController.username ? String(appController.username) : ""
@@ -151,6 +153,10 @@ FocusScope {
                 model: menu.entries
                 currentIndex: menu.currentIndex
                 spacing: 2
+                Accessible.role: Accessible.List
+                Accessible.name: "SyncPlay groups and actions"
+                Accessible.focusable: menu.entries.length > 0
+                Accessible.focused: activeFocus
 
                 delegate: Rectangle {
                     id: row
@@ -164,6 +170,12 @@ FocusScope {
                     color: current ? Theme.accentPanel
                           : (hover.hovered && actionable) ? Theme.bgHover
                           : "transparent"
+                    Accessible.role: row.actionable ? Accessible.MenuItem : Accessible.StaticText
+                    Accessible.name: row.modelData.label || ""
+                    Accessible.description: row.modelData.sub || ""
+                    Accessible.focusable: row.actionable
+                    Accessible.focused: row.current
+                    Accessible.onPressAction: if (row.actionable) menu.activate(row.index)
 
                     RowLayout {
                         anchors.fill: parent

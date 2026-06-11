@@ -14,6 +14,8 @@ FocusScope {
     readonly property int portraitWidth: Math.min(176, Math.max(128, width * 0.1))
     readonly property int knownForCardWidth: width >= 1600 ? 170 : 145
     focus: true
+    Accessible.role: Accessible.Pane
+    Accessible.name: (person.name || "Person") + " details"
 
     Component.onCompleted: {
         loadPerson()

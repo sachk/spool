@@ -30,6 +30,8 @@ FocusScope {
     readonly property bool seasonsNavigable: seasonCount > 0
     readonly property bool showSimilarRow: similarCount > 0
     readonly property var people: item.people || []
+    Accessible.role: Accessible.Pane
+    Accessible.name: titleText + " details"
     readonly property bool showPeopleRow: people.length > 0
     readonly property var genreList: item.genres || []
     readonly property var studioList: item.studios || []

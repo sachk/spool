@@ -19,6 +19,8 @@ FocusScope {
     readonly property int spotlightIndex: latestCount > 0 ? 0 : -1
     property var spotlight: spotlightIndex >= 0 && latestModel ? latestModel.get(spotlightIndex) : ({})
     focus: true
+    Accessible.role: Accessible.Pane
+    Accessible.name: "My Media"
 
     ModelCountObserver {
         id: latestCountObserver

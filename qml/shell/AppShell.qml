@@ -9,6 +9,8 @@ import "RoutePolicy.js" as RoutePolicy
 FocusScope {
     id: root
     focus: true
+    Accessible.role: Accessible.Application
+    Accessible.name: "Jellyfin"
 
     property string route: controllerRoute()
     property var backStack: []
@@ -35,6 +37,15 @@ FocusScope {
     readonly property string errorTextValue: appController ? appController.errorText : ""
     readonly property bool busyValue: appController ? appController.busy : false
     readonly property string busyTextValue: appController ? appController.busyText : ""
+
+    onBusyValueChanged: {
+        if (busyValue && busyTextValue.length > 0)
+            Accessible.announce(busyTextValue)
+    }
+    onErrorTextValueChanged: {
+        if (errorTextValue.length > 0)
+            Accessible.announce(errorTextValue, Accessible.Assertive)
+    }
 
     function controllerRoute() {
         if (!appController)
@@ -452,6 +463,8 @@ FocusScope {
             width: Math.min(620, parent.width - 96)
             height: 104
             elevated: true
+            Accessible.role: Accessible.AlertMessage
+            Accessible.name: root.busyTextValue
             Row {
                 anchors.centerIn: parent
                 spacing: 18
@@ -481,6 +494,8 @@ FocusScope {
         visible: root.errorTextValue.length > 0
         baseColor: Theme.errorPanel
         z: 80
+        Accessible.role: Accessible.AlertMessage
+        Accessible.name: root.errorTextValue
         AppText {
             id: errorText
             anchors.centerIn: parent

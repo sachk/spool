@@ -6,6 +6,8 @@ import "../primitives"
 FocusScope {
     id: root
     property var shell
+    Accessible.role: Accessible.Pane
+    Accessible.name: "Settings"
     property int currentIndex: 0
     property int categoryIndex: 0
     property var settingsRows: []
