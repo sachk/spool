@@ -5,6 +5,7 @@
 #include "../diagnostics/Diagnostics.h"
 #include "../player/PlayerController.h"
 #include "QuickConnectController.h"
+#include "SessionController.h"
 #include "SettingsController.h"
 
 #include <QCoreApplication>
@@ -219,6 +220,7 @@ AppController::AppController(DatabaseManager *database,
     m_syncPlay = new SyncPlayController(api, player, this);
     m_quickConnect = new QuickConnectController(api, this);
     m_settings = new SettingsController(database, api, player, this);
+    m_session = new SessionController(database, api, this);
     connect(m_syncPlay, &SyncPlayController::errorText, this, &AppController::setErrorText);
     connect(m_quickConnect, &QuickConnectController::changed,
             this, &AppController::quickConnectChanged);
@@ -242,15 +244,27 @@ AppController::AppController(DatabaseManager *database,
             this, &AppController::buttonRemapChanged);
     connect(m_settings, &SettingsController::errorOccurred,
             this, &AppController::setErrorText);
-    connect(m_quickConnect, &QuickConnectController::authenticated, this,
-            [this](const AuthSession &session) {
-                m_database->saveLoginHints(m_serverUrl, m_username);
-                m_database->saveAuthSession(session);
+    connect(m_session, &SessionController::serverUrlChanged,
+            this, &AppController::serverUrlChanged);
+    connect(m_session, &SessionController::usernameChanged,
+            this, &AppController::usernameChanged);
+    connect(m_session, &SessionController::passwordChanged,
+            this, &AppController::passwordChanged);
+    connect(m_session, &SessionController::busyChanged,
+            this, &AppController::setBusy);
+    connect(m_session, &SessionController::errorOccurred,
+            this, &AppController::setErrorText);
+    connect(m_session, &SessionController::authenticatedChanged, this,
+            [this](const AuthSession &) {
                 m_settings->loadRemote();
                 m_syncPlay->connectSocket();
                 loadLibraries();
-                Async::runScoped(this, m_api->postCapabilities(), []() {},
-                                 [](const std::exception_ptr &) {});
+            });
+    connect(m_session, &SessionController::loggedOut,
+            this, &AppController::resetApplicationState);
+    connect(m_quickConnect, &QuickConnectController::authenticated, this,
+            [this](const AuthSession &session) {
+                m_session->acceptSession(session);
             });
     connect(m_discovery, &DiscoveryController::serverDiscovered, this, [this](const DiscoveredServer &server) {
         m_discoveredServers.upsertServer(server);
@@ -277,17 +291,17 @@ QString AppController::page() const
 
 QString AppController::serverUrl() const
 {
-    return m_serverUrl;
+    return m_session->serverUrl();
 }
 
 QString AppController::username() const
 {
-    return m_username;
+    return m_session->username();
 }
 
 QString AppController::password() const
 {
-    return m_password;
+    return m_session->password();
 }
 
 bool AppController::busy() const
@@ -579,20 +593,8 @@ PlayerController *AppController::player()
 void AppController::initialize()
 {
     Diagnostics::Task task(QStringLiteral("app_initialize"));
-    m_serverUrl = m_database->loadLastServerUrl();
-    m_username = m_database->loadLastUsername();
     m_settings->loadLocal();
-    emit serverUrlChanged();
-    emit usernameChanged();
-
-    AuthSession session = m_database->loadAuthSession();
-    if (!session.accessToken.isEmpty() && !m_serverUrl.isEmpty()) {
-        m_api->setServerUrl(m_serverUrl);
-        m_api->setSession(session);
-        m_settings->loadRemote();
-        m_syncPlay->connectSocket();
-        loadLibraries();
-    } else {
+    if (!m_session->initialize()) {
         applyDiscoveredServersCache();
         m_discovery->start();
     }
@@ -600,26 +602,17 @@ void AppController::initialize()
 
 void AppController::setServerUrl(const QString &serverUrl)
 {
-    if (m_serverUrl == serverUrl)
-        return;
-    m_serverUrl = serverUrl.trimmed();
-    emit serverUrlChanged();
+    m_session->setServerUrl(serverUrl);
 }
 
 void AppController::setUsername(const QString &username)
 {
-    if (m_username == username)
-        return;
-    m_username = username;
-    emit usernameChanged();
+    m_session->setUsername(username);
 }
 
 void AppController::setPassword(const QString &password)
 {
-    if (m_password == password)
-        return;
-    m_password = password;
-    emit passwordChanged();
+    m_session->setPassword(password);
 }
 
 void AppController::chooseDiscoveredServer(int index)
@@ -632,30 +625,8 @@ void AppController::chooseDiscoveredServer(int index)
 
 void AppController::login()
 {
-    if (m_serverUrl.isEmpty() || m_username.isEmpty()) {
-        setErrorText(QStringLiteral("Server and username are required."));
-        return;
-    }
-
     setErrorText({});
-    setBusy(true, QStringLiteral("Signing in…"));
-    m_api->setServerUrl(m_serverUrl);
-    
-    Async::runScoped(this,
-        m_api->authenticateByName(m_username, m_password),
-        [this](const AuthSession &session) {
-            m_database->saveLoginHints(m_serverUrl, m_username);
-            m_database->saveAuthSession(session);
-            m_settings->loadRemote();
-            m_syncPlay->connectSocket();
-            setBusy(false);
-            loadLibraries();
-            Async::runScoped(this, m_api->postCapabilities(), []() {}, [](const std::exception_ptr &) {});
-        },
-        [this](const std::exception_ptr &error) {
-            setBusy(false);
-            setErrorText(exceptionMessage(error));
-        });
+    m_session->login();
 }
 
 void AppController::logout()
@@ -664,11 +635,13 @@ void AppController::logout()
     m_quickConnect->cancel();
     if (m_player->visible())
         m_player->stopWithReason(QStringLiteral("logout"));
-    m_database->clearAuthSession();
+    m_session->logout();
+}
+
+void AppController::resetApplicationState()
+{
     m_syncPlay->disconnectSocket();
-    m_api->setSession({});
     m_settings->clearRemote();
-    m_password.clear();
     m_libraries.clear();
     m_movies.clear();
     m_resumeItems.clear();
@@ -697,7 +670,6 @@ void AppController::logout()
     resetCurrentItemsPaging();
     setBusy(false);
     setErrorText({});
-    emit passwordChanged();
     emit currentLibraryNameChanged();
     emit libraryQueryChanged();
     emit libraryFilterOptionsChanged();
@@ -711,7 +683,7 @@ void AppController::logout()
 void AppController::startQuickConnect()
 {
     setErrorText({});
-    m_quickConnect->start(m_serverUrl);
+    m_quickConnect->start(serverUrl());
 }
 
 void AppController::cancelQuickConnect()
@@ -1548,15 +1520,8 @@ void AppController::loadLibraries()
         },
         [this](const std::exception_ptr &error) {
             setBusy(false);
-            const QString msg = exceptionMessage(error);
-            if (msg.contains(QStringLiteral("(401)")) || msg.contains(QStringLiteral("Unauthorized"))) {
-                m_database->clearAuthSession();
-                m_api->setSession({});
-                setPage(QStringLiteral("login"));
-                m_discovery->start();
-            } else {
-                setErrorText(msg);
-            }
+            if (!m_session->handleUnauthorized(error))
+                setErrorText(exceptionMessage(error));
         });
 }
 
