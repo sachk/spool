@@ -3,6 +3,7 @@
 #include "../diagnostics/Diagnostics.h"
 
 #include <QCoroNetwork>
+#include <QCoroTimer>
 
 #include <QHttpHeaders>
 #include <QJsonArray>
@@ -367,11 +368,17 @@ JellyfinApiFacade::JellyfinApiFacade(QNetworkAccessManager *networkAccessManager
     , m_networkAccessManager(networkAccessManager)
     , m_rest(networkAccessManager, this)
 {
-    m_requestFactory.setTransferTimeout(std::chrono::seconds(30));
+    m_requestFactory.setTransferTimeout(
+        std::chrono::milliseconds(HttpRequestPolicy::transferTimeoutMs()));
 
     QHttpHeaders headers;
     headers.append(QHttpHeaders::WellKnownHeader::Accept, QStringLiteral("application/json"));
     m_requestFactory.setCommonHeaders(headers);
+}
+
+JellyfinApiFacade::~JellyfinApiFacade()
+{
+    cancelRequests();
 }
 
 void JellyfinApiFacade::setServerUrl(const QString &serverUrl)
@@ -412,6 +419,7 @@ QString JellyfinApiFacade::deviceId() const
 void JellyfinApiFacade::setSession(const AuthSession &session)
 {
     m_session = session;
+    m_authExpirationReported = false;
 }
 
 AuthSession JellyfinApiFacade::session() const
@@ -459,6 +467,19 @@ void JellyfinApiFacade::cancelPrefetches()
     m_prefetchSeen.clear();
 
     const auto replies = m_prefetchReplies;
+    for (QNetworkReply *reply : replies) {
+        if (reply)
+            reply->abort();
+    }
+}
+
+void JellyfinApiFacade::cancelRequests()
+{
+    if (m_shuttingDown)
+        return;
+    m_shuttingDown = true;
+    cancelPrefetches();
+    const auto replies = m_activeReplies;
     for (QNetworkReply *reply : replies) {
         if (reply)
             reply->abort();
@@ -1331,54 +1352,104 @@ QCoro::Task<void> JellyfinApiFacade::requestNoContent(HttpMethod method, QString
 QCoro::Task<QByteArray> JellyfinApiFacade::requestBytes(HttpMethod method, QString path, QUrlQuery query,
                                                          QJsonDocument body)
 {
-    const QNetworkRequest request = createRequest(path, query);
     const QString methodName = method == HttpMethod::Get ? QStringLiteral("GET")
                              : method == HttpMethod::Post ? QStringLiteral("POST")
                                                           : QStringLiteral("DELETE");
-    Diagnostics::NetworkRequest diagnosticsRequest(methodName, request.url().toString(QUrl::FullyEncoded));
-    QNetworkReply *reply = nullptr;
+    const HttpOperation operation = operationFor(method, path);
+    const int maximumAttempts = HttpRequestPolicy::maximumAttempts(operation);
 
-    if (isQuickConnectPath(path)) {
-        qInfo() << "api:" << methodName << request.url().toString(QUrl::FullyEncoded)
-                << "deviceId" << m_deviceId;
+    for (int attempt = 1; attempt <= maximumAttempts; ++attempt) {
+        if (m_shuttingDown)
+            throw std::runtime_error("Request canceled during shutdown");
+
+        const QNetworkRequest request = createRequest(path, query);
+        Diagnostics::NetworkRequest diagnosticsRequest(
+            methodName, request.url().toString(QUrl::FullyEncoded));
+        QNetworkReply *reply = nullptr;
+
+        if (isQuickConnectPath(path)) {
+            qInfo() << "api:" << methodName
+                    << request.url().toString(QUrl::FullyEncoded)
+                    << "deviceId" << m_deviceId;
+        }
+
+        switch (method) {
+        case HttpMethod::Get:
+            reply = m_rest.get(request);
+            break;
+        case HttpMethod::Post:
+            reply = body.isNull() ? m_rest.post(request, QByteArray{})
+                                  : m_rest.post(request, body);
+            break;
+        case HttpMethod::Delete:
+            reply = m_rest.deleteResource(request);
+            break;
+        }
+
+        m_activeReplies.insert(reply);
+        reply = co_await reply;
+        m_activeReplies.remove(reply);
+        const QByteArray payload = reply ? reply->readAll() : QByteArray{};
+        const QString errorText =
+            reply ? reply->errorString() : QStringLiteral("Network reply disappeared");
+        const int statusCode =
+            reply ? reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt() : 500;
+        const auto networkError =
+            reply ? reply->error() : QNetworkReply::UnknownNetworkError;
+        if (reply)
+            reply->deleteLater();
+        diagnosticsRequest.finish(
+            statusCode,
+            networkError == QNetworkReply::NoError ? QString() : errorText);
+
+        if (networkError == QNetworkReply::NoError && statusCode < 400) {
+            if (isQuickConnectPath(path)) {
+                qInfo() << "api:" << path << "ok" << statusCode
+                        << QString::fromUtf8(payload.left(256));
+            }
+            co_return payload;
+        }
+
+        const QString details =
+            payload.isEmpty() ? errorText : QString::fromUtf8(payload);
+        if (statusCode == 401 && shouldExpireSession(path) &&
+            !m_authExpirationReported) {
+            m_authExpirationReported = true;
+            emit authenticationExpired(
+                QStringLiteral("Your Jellyfin session has expired. Sign in again."));
+        }
+
+        if (!HttpRequestPolicy::shouldRetry(operation, attempt, statusCode,
+                                            networkError)) {
+            if (isQuickConnectPath(path))
+                qWarning() << "api:" << path << "failed" << statusCode << details;
+            throw std::runtime_error(
+                QStringLiteral("%1 (%2)").arg(details).arg(statusCode).toStdString());
+        }
+
+        const int delayMs = HttpRequestPolicy::retryDelayMs(attempt);
+        qWarning() << "api:" << methodName << path << "attempt" << attempt
+                   << "failed with" << statusCode << errorText
+                   << "- retrying in" << delayMs << "ms";
+        co_await QCoro::sleepFor(std::chrono::milliseconds(delayMs));
     }
 
-    switch (method) {
-    case HttpMethod::Get:
-        reply = m_rest.get(request);
-        break;
-    case HttpMethod::Post:
-        reply = body.isNull() ? m_rest.post(request, QByteArray{})
-                              : m_rest.post(request, body);
-        break;
-    case HttpMethod::Delete:
-        reply = m_rest.deleteResource(request);
-        break;
-    }
+    throw std::runtime_error("HTTP retry policy exhausted");
+}
 
-    reply = co_await reply;
-    const QByteArray payload = reply ? reply->readAll() : QByteArray{};
-    const QString errorText = reply ? reply->errorString() : QStringLiteral("Network reply disappeared");
-    const int statusCode =
-        reply ? reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt() : 500;
-    const auto networkError = reply ? reply->error() : QNetworkReply::UnknownNetworkError;
-    if (reply)
-        reply->deleteLater();
-    diagnosticsRequest.finish(statusCode, networkError == QNetworkReply::NoError ? QString() : errorText);
+HttpOperation JellyfinApiFacade::operationFor(HttpMethod method,
+                                               const QString &path) const
+{
+    if (path.startsWith(QStringLiteral("/Sessions/Playing")))
+        return HttpOperation::PlaybackReport;
+    return method == HttpMethod::Get ? HttpOperation::Read
+                                     : HttpOperation::Mutation;
+}
 
-    if (networkError != QNetworkReply::NoError || statusCode >= 400) {
-        const QString details = payload.isEmpty() ? errorText : QString::fromUtf8(payload);
-        if (isQuickConnectPath(path))
-            qWarning() << "api:" << path << "failed" << statusCode << details;
-        throw std::runtime_error(QStringLiteral("%1 (%2)").arg(details).arg(statusCode).toStdString());
-    }
-
-    if (isQuickConnectPath(path)) {
-        qInfo() << "api:" << path << "ok" << statusCode
-                << QString::fromUtf8(payload.left(256));
-    }
-
-    co_return payload;
+bool JellyfinApiFacade::shouldExpireSession(const QString &path) const
+{
+    return !m_session.accessToken.isEmpty() && !isQuickConnectPath(path) &&
+           !path.startsWith(QStringLiteral("/Users/Authenticate"));
 }
 
 QJsonObject JellyfinApiFacade::buildDeviceProfile() const

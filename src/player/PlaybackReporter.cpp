@@ -69,6 +69,8 @@ void PlaybackReporter::sendStop(const PlaybackSession &session,
       []() {},
       [this, session, positionTicks, failed,
        attempt](const std::exception_ptr &error) {
+        qWarning() << "player: playback stop report attempt" << attempt
+                   << "failed:" << exceptionMessage(error);
         emit reportFailed(QStringLiteral("playback stop"),
                           exceptionMessage(error));
         if (attempt >= kMaxStopReportAttempts)
@@ -103,6 +105,8 @@ void PlaybackReporter::sendStart() {
         m_startInFlight = false;
         if (m_active)
           m_startRetryTimer.start();
+        qWarning() << "player: playback start report failed:"
+                   << exceptionMessage(error);
         emit reportFailed(QStringLiteral("playback start"),
                           exceptionMessage(error));
       },
@@ -135,6 +139,8 @@ void PlaybackReporter::sendProgress() {
         m_progressPending = true;
         if (m_active)
           m_progressRetryTimer.start();
+        qWarning() << "player: playback progress report failed:"
+                   << exceptionMessage(error);
         emit reportFailed(QStringLiteral("playback progress"),
                           exceptionMessage(error));
       },

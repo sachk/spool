@@ -472,7 +472,7 @@ int main(int argc, char **argv)
         });
     }
 
-    auto *networkAccessManager = new QNetworkAccessManager();
+    auto *networkAccessManager = new QNetworkAccessManager(&app);
     auto *diskCache = new QNetworkDiskCache(networkAccessManager);
     const QString cachePath = QStandardPaths::writableLocation(QStandardPaths::CacheLocation);
     QDir().mkpath(cachePath);

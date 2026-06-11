@@ -30,6 +30,7 @@ public:
   void login();
   void acceptSession(const AuthSession &session);
   void logout();
+  void expireSession(const QString &message);
   bool handleUnauthorized(const std::exception_ptr &error);
 
 signals:
