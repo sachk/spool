@@ -175,6 +175,8 @@ qt_add_executable(jellyfin-native
     src/player/PlaybackTrackParser.h
     src/player/MpvVideoItem.cpp
     src/player/MpvVideoItem.h
+    src/player/MpvOptionProfile.cpp
+    src/player/MpvOptionProfile.h
 )
 
 if(JELLYFIN_NATIVE_WEBOS)
@@ -384,6 +386,17 @@ if(BUILD_TESTING AND NOT CMAKE_CROSSCOMPILING)
     )
     target_link_libraries(playback-position-tracker-tests PRIVATE Qt6::Core)
     add_test(NAME playback-position-tracker COMMAND playback-position-tracker-tests)
+
+    add_executable(mpv-option-profile-tests
+        tests/player/MpvOptionProfileTest.cpp
+        src/player/MpvOptionProfile.cpp
+        src/player/MpvOptionProfile.h
+    )
+    target_include_directories(mpv-option-profile-tests PRIVATE
+        "${CMAKE_CURRENT_SOURCE_DIR}/src"
+    )
+    target_link_libraries(mpv-option-profile-tests PRIVATE Qt6::Core)
+    add_test(NAME mpv-option-profile COMMAND mpv-option-profile-tests)
 
     add_executable(navigation-state-tests
         tests/app/NavigationStateTest.cpp
