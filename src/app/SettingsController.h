@@ -22,6 +22,8 @@ public:
   bool visible() const;
   bool nightModeEnabled() const;
   bool toneMappingVisualizationEnabled() const;
+  int maxStreamingBitrateMbps() const;
+  bool preferRemux() const;
   int audioDelayMs() const;
   QString audioOutputMode() const;
   QStringList subtitleLanguageOptions() const;
@@ -52,6 +54,8 @@ public:
   void toggleNightMode();
   void setNightModeEnabled(bool enabled);
   void setToneMappingVisualizationEnabled(bool enabled);
+  void setMaxStreamingBitrateMbps(int bitrateMbps);
+  void setPreferRemux(bool enabled);
   void setAudioDelayMs(int delayMs);
   void setAudioOutputMode(const QString &mode);
   void setSubtitleLanguageIndex(int index);
@@ -75,6 +79,7 @@ signals:
   void visibleChanged();
   void nightModeChanged();
   void toneMappingVisualizationChanged();
+  void playbackPreferencesChanged();
   void audioDelayChanged();
   void audioOutputModeChanged();
   void subtitleSettingsChanged();
@@ -93,6 +98,8 @@ private:
   bool m_visible = false;
   bool m_nightModeEnabled = false;
   bool m_toneMappingVisualizationEnabled = false;
+  int m_maxStreamingBitrateMbps = 120;
+  bool m_preferRemux = true;
   int m_audioDelayMs = 0;
   QString m_audioOutputMode = QStringLiteral("alsa");
   SubtitlePreferences m_subtitlePreferences;

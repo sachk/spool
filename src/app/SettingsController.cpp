@@ -115,6 +115,12 @@ bool SettingsController::toneMappingVisualizationEnabled() const {
   return m_toneMappingVisualizationEnabled;
 }
 
+int SettingsController::maxStreamingBitrateMbps() const {
+  return m_maxStreamingBitrateMbps;
+}
+
+bool SettingsController::preferRemux() const { return m_preferRemux; }
+
 int SettingsController::audioDelayMs() const { return m_audioDelayMs; }
 
 QString SettingsController::audioOutputMode() const {
@@ -242,6 +248,15 @@ void SettingsController::loadLocal() {
   m_nightModeEnabled = m_database->loadNightModeEnabled();
   m_toneMappingVisualizationEnabled = loadBoolSetting(
       m_database, QStringLiteral("settings/toneMappingVisualization"), false);
+  m_maxStreamingBitrateMbps =
+      std::clamp(m_database
+                     ->loadSetting(
+                         QStringLiteral("playback/maxStreamingBitrateMbps"),
+                         QStringLiteral("120"))
+                     .toInt(),
+                 5, 1000);
+  m_preferRemux = loadBoolSetting(
+      m_database, QStringLiteral("playback/preferRemux"), true);
   m_audioDelayMs = m_database->loadAudioDelayMs();
   const QString storedAudioOutputMode = m_database->loadAudioOutputMode();
   m_audioOutputMode = normalizedAudioOutputMode(storedAudioOutputMode);
@@ -261,12 +276,16 @@ void SettingsController::loadLocal() {
   m_player->setNightModeEnabled(m_nightModeEnabled);
   m_player->setToneMappingVisualizationEnabled(
       m_toneMappingVisualizationEnabled);
+  m_api->setPlaybackPreferences(
+      static_cast<qint64>(m_maxStreamingBitrateMbps) * 1'000'000,
+      m_preferRemux);
   m_player->setAudioDelayMs(m_audioDelayMs);
   m_player->setAudioOutputMode(m_audioOutputMode);
   applySubtitlePreferencesToPlayer();
 
   emit nightModeChanged();
   emit toneMappingVisualizationChanged();
+  emit playbackPreferencesChanged();
   emit audioDelayChanged();
   emit audioOutputModeChanged();
   emit subtitleSettingsChanged();
@@ -373,6 +392,31 @@ void SettingsController::setToneMappingVisualizationEnabled(bool enabled) {
                                   : QStringLiteral("false"));
   m_player->setToneMappingVisualizationEnabled(enabled);
   emit toneMappingVisualizationChanged();
+}
+
+void SettingsController::setMaxStreamingBitrateMbps(int bitrateMbps) {
+  const int clamped = std::clamp(bitrateMbps, 5, 1000);
+  if (m_maxStreamingBitrateMbps == clamped)
+    return;
+  m_maxStreamingBitrateMbps = clamped;
+  m_database->saveSetting(QStringLiteral("playback/maxStreamingBitrateMbps"),
+                          QString::number(clamped));
+  m_api->setPlaybackPreferences(static_cast<qint64>(clamped) * 1'000'000,
+                                m_preferRemux);
+  emit playbackPreferencesChanged();
+}
+
+void SettingsController::setPreferRemux(bool enabled) {
+  if (m_preferRemux == enabled)
+    return;
+  m_preferRemux = enabled;
+  m_database->saveSetting(QStringLiteral("playback/preferRemux"),
+                          enabled ? QStringLiteral("true")
+                                  : QStringLiteral("false"));
+  m_api->setPlaybackPreferences(
+      static_cast<qint64>(m_maxStreamingBitrateMbps) * 1'000'000,
+      m_preferRemux);
+  emit playbackPreferencesChanged();
 }
 
 void SettingsController::setAudioDelayMs(int delayMs) {

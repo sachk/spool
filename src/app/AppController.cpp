@@ -244,6 +244,8 @@ AppController::AppController(DatabaseManager *database,
             this, &AppController::nightModeEnabledChanged);
     connect(m_settings, &SettingsController::toneMappingVisualizationChanged,
             this, &AppController::toneMappingVisualizationEnabledChanged);
+    connect(m_settings, &SettingsController::playbackPreferencesChanged,
+            this, &AppController::playbackPreferencesChanged);
     connect(m_settings, &SettingsController::audioDelayChanged,
             this, &AppController::audioDelayMsChanged);
     connect(m_settings, &SettingsController::audioOutputModeChanged,
@@ -394,6 +396,16 @@ bool AppController::nightModeEnabled() const
 bool AppController::toneMappingVisualizationEnabled() const
 {
     return m_settings->toneMappingVisualizationEnabled();
+}
+
+int AppController::maxStreamingBitrateMbps() const
+{
+    return m_settings->maxStreamingBitrateMbps();
+}
+
+bool AppController::preferRemux() const
+{
+    return m_settings->preferRemux();
 }
 
 int AppController::audioDelayMs() const
@@ -1330,6 +1342,16 @@ void AppController::setNightModeEnabled(bool enabled)
 void AppController::setToneMappingVisualizationEnabled(bool enabled)
 {
     m_settings->setToneMappingVisualizationEnabled(enabled);
+}
+
+void AppController::setMaxStreamingBitrateMbps(int bitrateMbps)
+{
+    m_settings->setMaxStreamingBitrateMbps(bitrateMbps);
+}
+
+void AppController::setPreferRemux(bool enabled)
+{
+    m_settings->setPreferRemux(enabled);
 }
 
 void AppController::setAudioDelayMs(int delayMs)

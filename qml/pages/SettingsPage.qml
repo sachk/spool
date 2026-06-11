@@ -59,7 +59,8 @@ FocusScope {
             themeRow, languageRow, accentRow, uiScaleRow, logoutRow, posterSizeRow,
             gridColumnsRow, railLabelsRow, reducedMotionRow,
             renderModeRow, antialiasedRow, metadataRow,
-            nightModeRow, audioDelayRow, audioOutputRow,
+            nightModeRow, streamingBitrateRow, preferRemuxRow, audioDelayRow,
+            audioOutputRow,
             subtitleLanguageRow, subtitleModeRow, subtitleBurnInRow, subtitleRenderPgsRow,
             subtitleAlwaysBurnInRow, subtitleStylingRow, subtitleTextSizeRow, subtitleTextWeightRow,
             subtitleFontRow, subtitleTextColorRow, subtitleDropShadowRow, subtitleVerticalPositionRow,
@@ -479,6 +480,33 @@ FocusScope {
                     description: "Dialogue lift and late-night dynamic range"
                     checked: appController.nightModeEnabled
                     onToggled: appController.setNightModeEnabled(checked)
+                    onActiveFocusChanged: if (activeFocus) root.markFocused(settingIndex)
+                }
+                SettingsSliderRow {
+                    id: streamingBitrateRow
+                    Layout.fillWidth: true
+                    selected: root.currentIndex === settingIndex
+                    title: "Streaming Bitrate Limit"
+                    description: "Maximum bitrate before Jellyfin transcodes"
+                    from: 5
+                    to: 1000
+                    step: 5
+                    decimals: 0
+                    unitText: "Mbps"
+                    valueBoxWidth: 112
+                    sliderPreferredWidth: 340
+                    value: appController.maxStreamingBitrateMbps
+                    onValueEdited: (value) => appController.setMaxStreamingBitrateMbps(Math.round(value))
+                    onRowFocusChanged: if (rowFocus) root.markFocused(settingIndex)
+                }
+                ToggleRow {
+                    id: preferRemuxRow
+                    Layout.fillWidth: true
+                    rowFocus: root.currentIndex === settingIndex || activeFocus
+                    title: "Prefer Remux"
+                    description: "Copy compatible streams before transcoding"
+                    checked: appController.preferRemux
+                    onToggled: appController.setPreferRemux(checked)
                     onActiveFocusChanged: if (activeFocus) root.markFocused(settingIndex)
                 }
                 SettingsSliderRow {
