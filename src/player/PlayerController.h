@@ -1,6 +1,7 @@
 #pragma once
 
 #include "../common/JellyfinTypes.h"
+#include "MpvLifecycle.h"
 #include "PlaybackPositionTracker.h"
 #include "PlaybackReporter.h"
 #include "PlaybackTimeline.h"
@@ -13,7 +14,6 @@
 #include <QVariant>
 
 #include <atomic>
-#include <thread>
 
 struct mpv_handle;
 
@@ -151,7 +151,7 @@ private:
 
     bool ensureMpv();
     void scheduleMpvTeardown();
-    void runEventLoop();
+    void handleMpvEvent(mpv_event *event);
     void startProgressReporting();
     void stopProgressReporting(bool failed = false);
     bool mpvCommand(const char *command);
@@ -175,13 +175,7 @@ private:
     JellyfinApiFacade *m_api = nullptr;
     PlaybackSession m_session;
     PlaybackReporter m_reporter;
-    std::thread m_eventThread;
-    std::atomic_bool m_terminating { false };
-    // Tracks loadfile calls whose FILE_LOADED has not yet arrived. When > 0,
-    // an END_FILE event belongs to a file being replaced and must not tear
-    // down the UI.
-    std::atomic<int> m_pendingFileLoads { 0 };
-    std::atomic<mpv_handle *> m_mpv { nullptr };
+    MpvLifecycle m_mpvLifecycle;
     QTimer m_progressTimer;
     QTimer m_backGuardTimer;
     QTimer m_uiPositionTimer;

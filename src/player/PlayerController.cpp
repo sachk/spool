@@ -264,7 +264,7 @@ PlayerController::PlayerController(NativeAppWindow *window,
     if (!m_visible)
       return;
 
-    logMemoryStats(m_mpv.load());
+    logMemoryStats(m_mpvLifecycle.handle());
 
     m_reporter.reportProgress(secondsToTicks(m_positionTracker.position()),
                               m_paused);
@@ -284,46 +284,23 @@ PlayerController::~PlayerController() {
 
 void PlayerController::teardownMpv() {
   Diagnostics::Phase phase(QStringLiteral("shutdown"), QStringLiteral("player_teardown_mpv"));
-  mpv_handle *handle = m_mpv.exchange(nullptr);
-  if (!handle) {
-    if (m_eventThread.joinable())
-      m_eventThread.join();
-    return;
-  }
-
+  m_mpvLifecycle.destroy([](mpv_handle *) {
 #ifndef JELLYFIN_NATIVE_WEBOS
-  // Free the render context first; this is thread-safe and decouples us from
-  // the scene-graph render thread (which may already be shutting down).
-  if (auto *videoItem = MpvVideoItem::instance())
-    videoItem->setMpvHandle(nullptr);
+    // Free the render context first; this is thread-safe and decouples us from
+    // the scene-graph render thread (which may already be shutting down).
+    if (auto *videoItem = MpvVideoItem::instance())
+      videoItem->setMpvHandle(nullptr);
 #endif
-
-  // Force the event loop thread to exit promptly — we don't need to wait for
-  // mpv to deliver MPV_EVENT_SHUTDOWN, mpv_terminate_destroy below handles
-  // the full shutdown synchronously and joins all internal mpv threads.
-  m_terminating = true;
-  if (m_eventThread.joinable())
-    m_eventThread.join();
-
-  // mpv_terminate_destroy stops decoding/audio output and joins mpv's
-  // internal threads before returning. Audio cuts off promptly (vs.
-  // mpv_destroy + "quit" which can leave audio playing while pipewire drains
-  // its buffers).
-  qInfo() << "player: calling mpv_terminate_destroy";
-  mpv_terminate_destroy(handle);
-  qInfo() << "player: mpv_terminate_destroy returned";
-
-  m_terminating = false;
-  m_pendingFileLoads = 0;
+  });
 }
 
 void PlayerController::scheduleMpvTeardown() {
-  auto *scheduledHandle = m_mpv.load();
+  auto *scheduledHandle = m_mpvLifecycle.handle();
   if (!scheduledHandle)
     return;
 
   QTimer::singleShot(1000, this, [this, scheduledHandle]() {
-    if (m_mpv.load() != scheduledHandle)
+    if (m_mpvLifecycle.handle() != scheduledHandle)
       return;
     qInfo() << "player: deferred mpv teardown";
     teardownMpv();
@@ -503,7 +480,7 @@ bool PlayerController::applyMpvSubtitleOptions(MpvOptionApplyMode mode,
 }
 
 bool PlayerController::ensureMpv() {
-  if (m_mpv.load())
+  if (m_mpvLifecycle.handle())
     return true;
 
 #ifdef JELLYFIN_NATIVE_WEBOS
@@ -611,7 +588,6 @@ bool PlayerController::ensureMpv() {
   mpv_observe_property(handle, 0, "chapter-list", MPV_FORMAT_NODE);
   mpv_observe_property(handle, 0, "chapter", MPV_FORMAT_INT64);
 
-  m_mpv = handle;
   qInfo() << "player: mpv initialized in" << startupTimer.elapsed() << "ms";
 
 #ifndef JELLYFIN_NATIVE_WEBOS
@@ -623,13 +599,22 @@ bool PlayerController::ensureMpv() {
     qFatal("PlayerController: MpvVideoItem instance is missing; "
            "PlayerOverlayPage must instantiate it before play() is called.");
     mpv_terminate_destroy(handle);
-    m_mpv = nullptr;
     return false;
   }
   videoItem->setMpvHandle(handle);
 #endif
 
-  m_eventThread = std::thread([this]() { runEventLoop(); });
+  if (!m_mpvLifecycle.adopt(
+          handle, [this](mpv_event *event) { handleMpvEvent(event); })) {
+#ifndef JELLYFIN_NATIVE_WEBOS
+    if (auto *videoItem = MpvVideoItem::instance())
+      videoItem->setMpvHandle(nullptr);
+#endif
+    mpv_terminate_destroy(handle);
+    m_errorText = QStringLiteral("Failed to start the libmpv event loop.");
+    emit stateChanged();
+    return false;
+  }
   return true;
 }
 
@@ -638,7 +623,7 @@ void PlayerController::play(const PlaybackSession &session) {
   qInfo() << "player: play requested" << session.title
           << "startTimeTicks=" << session.startTimeTicks;
 
-  if (m_mpv.load()) {
+  if (m_mpvLifecycle.handle()) {
     qInfo() << "player: tearing down stale mpv before play";
     teardownMpv();
   }
@@ -693,13 +678,13 @@ void PlayerController::play(const PlaybackSession &session) {
   emit visibleChanged();
   emit stateChanged();
 
-  auto *handle = m_mpv.load();
-  m_pendingFileLoads.fetch_add(1, std::memory_order_acq_rel);
+  auto *handle = m_mpvLifecycle.handle();
+  m_mpvLifecycle.beginFileLoad();
   const QByteArray urlBytes = session.url.toUtf8();
   if (startSeconds > 0.0) {
     const QByteArray startValue = QByteArray::number(startSeconds, 'f', 3);
     if (!setOption(handle, "start", startValue.constData())) {
-      m_pendingFileLoads.fetch_sub(1, std::memory_order_acq_rel);
+      m_mpvLifecycle.cancelFileLoad();
       m_errorText = QStringLiteral("libmpv rejected the resume position.");
       stopProgressReporting(true);
       return;
@@ -710,7 +695,7 @@ void PlayerController::play(const PlaybackSession &session) {
   const char *loadCommand[] = {"loadfile", urlBytes.constData(), "replace",
                                nullptr};
   if (mpv_command(handle, loadCommand) < 0) {
-    m_pendingFileLoads.fetch_sub(1, std::memory_order_acq_rel);
+    m_mpvLifecycle.cancelFileLoad();
     m_errorText = QStringLiteral("libmpv rejected the playback URL.");
     stopProgressReporting(true);
     return;
@@ -894,7 +879,7 @@ void PlayerController::setNightModeEnabled(bool enabled) {
     return;
 
   m_nightModeEnabled = enabled;
-  if (auto *handle = m_mpv.load()) {
+  if (auto *handle = m_mpvLifecycle.handle()) {
     applyMpvRuntimeOption(MpvRuntimeOption::NightMode,
                           MpvOptionApplyMode::Runtime, handle);
   }
@@ -908,7 +893,7 @@ void PlayerController::setToneMappingVisualizationEnabled(bool enabled) {
     return;
 
   m_toneMappingVisualizationEnabled = enabled;
-  if (auto *handle = m_mpv.load()) {
+  if (auto *handle = m_mpvLifecycle.handle()) {
     applyMpvRuntimeOption(MpvRuntimeOption::ToneMappingVisualization,
                           MpvOptionApplyMode::Runtime, handle);
   }
@@ -927,7 +912,7 @@ void PlayerController::setAudioDelayMs(int delayMs) {
   m_audioDelayMs = clampedDelayMs;
   qInfo() << "player: audio delay requested" << clampedDelayMs << "ms"
           << "visible=" << m_visible;
-  if (auto *handle = m_mpv.load()) {
+  if (auto *handle = m_mpvLifecycle.handle()) {
     applyMpvRuntimeOption(MpvRuntimeOption::AudioDelay,
                           MpvOptionApplyMode::Runtime, handle);
   } else {
@@ -974,7 +959,7 @@ void PlayerController::setSubtitlePreferences(const SubtitlePreferences &prefere
           << "mode=" << preferences.mode
           << "language=" << preferences.language
           << "styling=" << preferences.styling;
-  if (auto *handle = m_mpv.load())
+  if (auto *handle = m_mpvLifecycle.handle())
     applyMpvSubtitleOptions(MpvOptionApplyMode::Runtime, handle);
   emit stateChanged();
 }
@@ -1029,7 +1014,7 @@ void PlayerController::resetPlaybackUiState() {
 }
 
 bool PlayerController::mpvCommand(const char *command) {
-  auto *handle = m_mpv.load();
+  auto *handle = m_mpvLifecycle.handle();
   if (!handle) {
     qInfo() << "player: mpv command dropped (no handle):" << command;
     return false;
@@ -1136,20 +1121,13 @@ bool PlayerController::beginRelativeSeekCommand(double deltaSeconds) {
   return false;
 }
 
-void PlayerController::runEventLoop() {
-  Diagnostics::ThreadScope threadScope(QStringLiteral("mpv-event"));
-  auto *handle = m_mpv.load();
-  if (!handle)
+void PlayerController::handleMpvEvent(mpv_event *event) {
+  if (!event)
     return;
 
-  while (!m_terminating.load()) {
-    mpv_event *event = mpv_wait_event(handle, 0.1);
-    if (!event)
-      continue;
-
-    switch (event->event_id) {
+  switch (event->event_id) {
     case MPV_EVENT_FILE_LOADED:
-      m_pendingFileLoads.fetch_sub(1, std::memory_order_acq_rel);
+      m_mpvLifecycle.completeFileLoad();
       QMetaObject::invokeMethod(this, [this]() {
         qInfo() << "player: file loaded";
         updatePlaybackStatusText();
@@ -1332,7 +1310,7 @@ void PlayerController::runEventLoop() {
       const int endFileError = endFile ? endFile->error : 0;
       // If a new loadfile is already in flight, this END_FILE belongs to
       // the file being replaced — don't tear the UI down.
-      if (m_pendingFileLoads.load(std::memory_order_acquire) > 0) {
+      if (m_mpvLifecycle.hasPendingFileLoads()) {
         qInfo() << "player: end file for replaced session, ignoring";
         break;
       }
@@ -1351,7 +1329,7 @@ void PlayerController::runEventLoop() {
       break;
     }
     case MPV_EVENT_SHUTDOWN:
-      m_terminating = true;
+      m_mpvLifecycle.requestEventLoopStop();
       QMetaObject::invokeMethod(this, [this]() {
         qInfo() << "player: mpv shutdown";
         if (m_visible)
@@ -1360,7 +1338,6 @@ void PlayerController::runEventLoop() {
       break;
     default:
       break;
-    }
   }
 }
 
@@ -1390,7 +1367,7 @@ double PlayerController::seekAnchorPosition() {
 }
 
 void PlayerController::requestMpvPositionRefresh(const char *reason) {
-  auto *handle = m_mpv.load();
+  auto *handle = m_mpvLifecycle.handle();
   if (!m_visible || !handle)
     return;
 
