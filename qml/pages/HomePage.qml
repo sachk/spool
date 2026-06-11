@@ -11,30 +11,36 @@ FocusScope {
     readonly property var latestModel: appController ? appController.latestItems : null
     property var latestRows: appController ? appController.latestLibraryRows : []
     readonly property var libraryModel: appController ? appController.libraries : null
-    property int resumeCount: resumeModel ? resumeModel.rowCount() : 0
-    property int nextUpCount: nextUpModel ? nextUpModel.rowCount() : 0
-    property int latestCount: latestModel ? latestModel.rowCount() : 0
+    readonly property int resumeCount: resumeCountObserver.count
+    readonly property int nextUpCount: nextUpCountObserver.count
+    readonly property int latestCount: latestCountObserver.count
     property int latestLibraryRowCount: latestRows ? latestRows.length : 0
-    property int libraryCount: libraryModel ? libraryModel.rowCount() : 0
+    readonly property int libraryCount: libraryCountObserver.count
     readonly property int spotlightIndex: latestCount > 0 ? 0 : -1
     property var spotlight: spotlightIndex >= 0 && latestModel ? latestModel.get(spotlightIndex) : ({})
     focus: true
 
-    Connections {
-        target: root.latestModel
-        function onModelReset() {
-            root.latestCount = root.latestModel ? root.latestModel.rowCount() : 0
-            root.rebuildSections()
-        }
-        function onRowsInserted() {
-            root.latestCount = root.latestModel ? root.latestModel.rowCount() : 0
-            root.rebuildSections()
-        }
-        function onRowsRemoved() {
-            root.latestCount = root.latestModel ? root.latestModel.rowCount() : 0
-            root.rebuildSections()
-        }
+    ModelCountObserver {
+        id: latestCountObserver
+        sourceModel: root.latestModel
+        onCountChanged: root.rebuildSections()
     }
+    ModelCountObserver {
+        id: libraryCountObserver
+        sourceModel: root.libraryModel
+        onCountChanged: root.rebuildSections()
+    }
+    ModelCountObserver {
+        id: resumeCountObserver
+        sourceModel: root.resumeModel
+        onCountChanged: root.rebuildSections()
+    }
+    ModelCountObserver {
+        id: nextUpCountObserver
+        sourceModel: root.nextUpModel
+        onCountChanged: root.rebuildSections()
+    }
+
     Connections {
         target: appController
         function onLatestLibraryRowsChanged() {
@@ -43,25 +49,6 @@ FocusScope {
             root.rebuildSections()
         }
     }
-    Connections {
-        target: root.libraryModel
-        function onModelReset() { root.libraryCount = root.libraryModel ? root.libraryModel.rowCount() : 0; root.rebuildSections() }
-        function onRowsInserted() { root.libraryCount = root.libraryModel ? root.libraryModel.rowCount() : 0; root.rebuildSections() }
-        function onRowsRemoved() { root.libraryCount = root.libraryModel ? root.libraryModel.rowCount() : 0; root.rebuildSections() }
-    }
-    Connections {
-        target: root.resumeModel
-        function onModelReset() { root.resumeCount = root.resumeModel ? root.resumeModel.rowCount() : 0; root.rebuildSections() }
-        function onRowsInserted() { root.resumeCount = root.resumeModel ? root.resumeModel.rowCount() : 0; root.rebuildSections() }
-        function onRowsRemoved() { root.resumeCount = root.resumeModel ? root.resumeModel.rowCount() : 0; root.rebuildSections() }
-    }
-    Connections {
-        target: root.nextUpModel
-        function onModelReset() { root.nextUpCount = root.nextUpModel ? root.nextUpModel.rowCount() : 0; root.rebuildSections() }
-        function onRowsInserted() { root.nextUpCount = root.nextUpModel ? root.nextUpModel.rowCount() : 0; root.rebuildSections() }
-        function onRowsRemoved() { root.nextUpCount = root.nextUpModel ? root.nextUpModel.rowCount() : 0; root.rebuildSections() }
-    }
-
     ListModel { id: sectionModel }
 
     function appendSection(title, kind, source, rowIndex) {
@@ -260,9 +247,7 @@ FocusScope {
             Loader {
                 id: contentLoader
                 anchors.fill: parent
-                sourceComponent: section.kind === "spotlight" ? spotlightComponent
-                                : section.kind === "library" ? libraryRowComponent
-                                : rowComponent
+                sourceComponent: section.kind === "spotlight" ? spotlightComponent : rowComponent
                 onLoaded: if (section.ListView.isCurrentItem) item.forceActiveFocus()
             }
 
@@ -311,244 +296,42 @@ FocusScope {
 
             Component {
                 id: rowComponent
-                FocusScope {
-                    id: rowScope
-                    property int currentIndex: rowCount > 0 ? 0 : -1
-                    readonly property int rowCount: root.countFor(section.rowSource, section.rowIndex)
-                    readonly property int visibleCount: Math.min(rowCount, 24)
-                    readonly property int cardWidth: section.kind === "poster" ? Metrics.homePosterWidth(root.width) : Metrics.homeLandscapeWidth(root.width)
-                    readonly property int cardGap: Metrics.gap(root.width)
+                HomeHorizontalRow {
+                    title: section.title
+                    rowModel: root.modelFor(section.rowSource, section.rowIndex)
+                    shell: root.shell
+                    rowKind: section.kind
+                    useSeriesPoster: section.rowSource === "latestLibrary"
+                    cardWidth: section.kind === "poster"
+                               ? Metrics.homePosterWidth(root.width)
+                               : Metrics.homeLandscapeWidth(root.width)
+                    cardGap: Metrics.gap(root.width)
                     focus: section.ListView.isCurrentItem
-                    onActiveFocusChanged: if (activeFocus) rowFlick.forceActiveFocus()
-                    onCurrentIndexChanged: ensureVisible()
-                    onRowCountChanged: currentIndex = rowCount > 0 ? Math.max(0, Math.min(currentIndex, visibleCount - 1)) : -1
-
-                    function itemAt(index) {
-                        const m = root.modelFor(section.rowSource, section.rowIndex)
-                        return m && index >= 0 && index < m.rowCount() ? m.get(index) : ({})
-                    }
-
-                    function currentCard() {
-                        if (currentIndex < 0 || currentIndex >= rowContent.children.length)
-                            return null
-                        return rowContent.children[currentIndex]
-                    }
-
-                    function handlePressedKey(key) {
-                        const card = currentCard()
-                        return card && card.handleAcceptPressed ? card.handleAcceptPressed(key) : false
-                    }
-
-                    function ensureVisible() {
-                        if (currentIndex < 0)
-                            return
-                        const targetX = currentIndex * (cardWidth + cardGap)
-                        const left = rowFlick.contentX
-                        const right = left + rowFlick.width - cardWidth
-                        if (targetX < left)
-                            rowFlick.contentX = targetX
-                        else if (targetX > right)
-                            rowFlick.contentX = Math.min(rowFlick.contentWidth - rowFlick.width, targetX - rowFlick.width + cardWidth)
-                    }
-
-                    function handleNavigationKey(key) {
-                        const acceptKey = InputKeys.isAccept(key)
-                        const card = currentCard()
-                        if (!acceptKey && card && card.handleNavigationKey && card.handleNavigationKey(key))
-                            return true
-                        if (key === Qt.Key_Left) {
-                            if (visibleCount > 0 && currentIndex > 0)
-                                currentIndex = currentIndex - 1
-                            ensureVisible()
-                            return true
-                        }
-                        if (key === Qt.Key_Right) {
-                            if (visibleCount <= 0)
-                                return true
-                            currentIndex = Math.min(visibleCount - 1, currentIndex + 1)
-                            ensureVisible()
-                            return true
-                        }
-                        if (key === Qt.Key_Up) {
-                            root.focusSectionOrBar(-1)
-                            return true
-                        }
-                        if (key === Qt.Key_Down) {
-                            root.focusSectionOrBar(1)
-                            return true
-                        }
-                        if (acceptKey) {
-                            if (currentIndex < 0)
-                                return true
-                            if (card && card.handleAcceptReleased && card.handleAcceptReleased(key))
-                                return true
-                            if (card && card.handleNavigationKey && card.handleNavigationKey(key))
-                                return true
-                            activateCard(currentIndex)
-                            return true
-                        }
-                        return false
-                    }
-
-                    function activateCard(index) {
-                        if (index < 0 || index >= visibleCount)
-                            return
-                        currentIndex = index
-                        root.activateAt(section.rowSource, index, section.rowIndex)
-                    }
-                    ColumnLayout { anchors.fill: parent; spacing: 10
-                        SectionHeader { id: rowHeader; Layout.fillWidth: true; title: section.title }
-                        Flickable {
-                            id: rowFlick
-                            Layout.fillWidth: true
-                            Layout.preferredHeight: section.kind === "poster" ? 304 : 266
-                            Layout.minimumHeight: Layout.preferredHeight
-                            focus: rowScope.focus
-                            clip: true
-                            boundsBehavior: Flickable.StopAtBounds
-                            contentWidth: rowContent.width
-                            contentHeight: height
-                            FastWheelHandler { flickable: rowFlick; horizontal: true }
-                            Row {
-                                id: rowContent
-                                height: rowFlick.height
-                                spacing: rowScope.cardGap
-                                Repeater {
-                                    model: rowScope.visibleCount
-                                    delegate: MediaItemCard {
-                                id: mediaDelegate
-                                required property int index
-                                readonly property var itemData: rowScope.itemAt(index)
-                                item: itemData
-                                kind: section.kind === "poster" ? "poster" : "landscape"
-                                useSeriesPoster: section.rowSource === "latestLibrary"
-                                focused: mediaDelegate.index === rowScope.currentIndex && section.ListView.isCurrentItem
-                                width: rowScope.cardWidth
-                                height: rowFlick.height
-                                onActivated: rowScope.activateCard(mediaDelegate.index)
-                                onFavoriteToggled: (favorite) => appController.setFavorite(mediaDelegate.itemData.movieId || "", favorite)
-                                onPlayedToggled: (played) => appController.setPlayed(mediaDelegate.itemData.movieId || "", played)
-                                onMediaInfoRequested: shell.openMediaInfo(mediaDelegate.itemData)
-                                    }
-                                }
-                            }
-                            Keys.onReleased: (event) => {
-                                if (InputKeys.isAccept(event.key)) {
-                                    const card = rowScope.currentCard()
-                                    if (card && card.handleAcceptReleased && card.handleAcceptReleased(event.key)) {
-                                        event.accepted = true
-                                        return
-                                    }
-                                    rowScope.activateCard(rowScope.currentIndex)
-                                    event.accepted = true
-                                } else if (event.key === Qt.Key_M) {
-                                    const m2 = root.modelFor(section.rowSource, section.rowIndex)
-                                    if (m2 && rowScope.currentIndex >= 0 && rowScope.currentIndex < m2.rowCount())
-                                        shell.openMediaInfo(m2.get(rowScope.currentIndex))
-                                    event.accepted = true
-                                }
-                            }
+                    onMoveVertical: (direction) => root.focusSectionOrBar(direction)
+                    onActivated: (index) => root.activateAt(section.rowSource,
+                                                            index,
+                                                            section.rowIndex)
+                    onFavoriteToggled: (index, favorite) => {
+                        const model = root.modelFor(section.rowSource,
+                                                    section.rowIndex)
+                        if (model && index >= 0 && index < model.rowCount()) {
+                            const item = model.get(index)
+                            appController.setFavorite(item.movieId || "", favorite)
                         }
                     }
-                }
-            }
-
-            Component {
-                id: libraryRowComponent
-                FocusScope {
-                    id: libRowScope
-                    property int currentIndex: libraryCount > 0 ? 0 : -1
-                    readonly property int visibleCount: Math.min(libraryCount, 24)
-                    readonly property int cardWidth: Metrics.homeLandscapeWidth(root.width)
-                    readonly property int cardGap: Metrics.gap(root.width)
-                    focus: section.ListView.isCurrentItem
-                    onActiveFocusChanged: if (activeFocus) libRowFlick.forceActiveFocus()
-                    onCurrentIndexChanged: ensureVisible()
-                    onVisibleCountChanged: currentIndex = visibleCount > 0 ? Math.max(0, Math.min(currentIndex, visibleCount - 1)) : -1
-
-                    function libraryAt(index) {
-                        return root.libraryModel && index >= 0 && index < root.libraryModel.rowCount() ? root.libraryModel.get(index) : ({})
+                    onPlayedToggled: (index, played) => {
+                        const model = root.modelFor(section.rowSource,
+                                                    section.rowIndex)
+                        if (model && index >= 0 && index < model.rowCount()) {
+                            const item = model.get(index)
+                            appController.setPlayed(item.movieId || "", played)
+                        }
                     }
-
-                    function ensureVisible() {
-                        if (currentIndex < 0)
-                            return
-                        const targetX = currentIndex * (cardWidth + cardGap)
-                        const left = libRowFlick.contentX
-                        const right = left + libRowFlick.width - cardWidth
-                        if (targetX < left)
-                            libRowFlick.contentX = targetX
-                        else if (targetX > right)
-                            libRowFlick.contentX = Math.min(libRowFlick.contentWidth - libRowFlick.width, targetX - libRowFlick.width + cardWidth)
-                    }
-
-                    function handleNavigationKey(key) {
-                        if (key === Qt.Key_Left) {
-                            if (visibleCount > 0 && currentIndex > 0)
-                                currentIndex = currentIndex - 1
-                            ensureVisible()
-                            return true
-                        }
-                        if (key === Qt.Key_Right) {
-                            if (visibleCount <= 0) return true
-                            currentIndex = Math.min(visibleCount - 1, currentIndex + 1)
-                            ensureVisible()
-                            return true
-                        }
-                        if (key === Qt.Key_Up) { root.focusSectionOrBar(-1); return true }
-                        if (key === Qt.Key_Down) { root.focusSectionOrBar(1); return true }
-                        if (InputKeys.isAccept(key, false)) {
-                            if (currentIndex >= 0) root.activateAt("libraries", currentIndex)
-                            return true
-                        }
-                        return false
-                    }
-
-                    ColumnLayout {
-                        anchors.fill: parent
-                        spacing: 10
-                        SectionHeader { id: libHeader; Layout.fillWidth: true; title: section.title }
-                        Flickable {
-                            id: libRowFlick
-                            Layout.fillWidth: true
-                            Layout.preferredHeight: 228
-                            Layout.minimumHeight: Layout.preferredHeight
-                            focus: libRowScope.focus
-                            clip: true
-                            boundsBehavior: Flickable.StopAtBounds
-                            contentWidth: libRowContent.width
-                            contentHeight: height
-                            FastWheelHandler { flickable: libRowFlick; horizontal: true }
-                            Row {
-                                id: libRowContent
-                                height: libRowFlick.height
-                                spacing: libRowScope.cardGap
-                                Repeater {
-                                    model: libRowScope.visibleCount
-                                    delegate: Item {
-                                id: libDelegate
-                                required property int index
-                                readonly property var itemData: libRowScope.libraryAt(index)
-                                width: libRowScope.cardWidth
-                                height: libRowFlick.height
-                                LandscapeCard {
-                                    anchors.fill: parent
-                                    title: libDelegate.itemData.name || ""
-                                    subtitle: libDelegate.itemData.collectionType || ""
-                                    imageUrl: libDelegate.itemData.imageUrl || ""
-                                    focused: libDelegate.index === libRowScope.currentIndex && section.ListView.isCurrentItem
-                                }
-                                MouseArea { anchors.fill: parent; onClicked: { libRowScope.currentIndex = libDelegate.index; root.activateAt("libraries", libDelegate.index) } }
-                                    }
-                                }
-                            }
-                            Keys.onReleased: (event) => {
-                                if (InputKeys.isAccept(event.key, false)) {
-                                    if (libRowScope.currentIndex >= 0) root.activateAt("libraries", libRowScope.currentIndex)
-                                    event.accepted = true
-                                }
-                            }
-                        }
+                    onMediaInfoRequested: (index) => {
+                        const model = root.modelFor(section.rowSource,
+                                                    section.rowIndex)
+                        if (model && index >= 0 && index < model.rowCount())
+                            shell.openMediaInfo(model.get(index))
                     }
                 }
             }
