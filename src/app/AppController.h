@@ -11,7 +11,6 @@
 
 #include <QObject>
 #include <QHash>
-#include <QJsonObject>
 #include <QSet>
 #include <QTimer>
 #include <QVariantList>
@@ -22,6 +21,7 @@ namespace JellyfinNative {
 
 class JellyfinApiFacade;
 class QuickConnectController;
+class SettingsController;
 class AppController final : public QObject
 {
     Q_OBJECT
@@ -297,11 +297,6 @@ private:
     void playMediaItem(const MovieItem &item, bool fromStart = false);
     // Series/Season open their child listing; everything else plays directly.
     void playOrOpen(const MovieItem &item, bool fromStart = false);
-    void loadSubtitlePreferences();
-    void saveSubtitlePreferences();
-    void loadSubtitleRemoteSettings();
-    void saveSubtitleUserConfiguration();
-    void applySubtitlePreferencesToPlayer();
     void recordLibraryUse(const LibraryItem &library);
 
     DatabaseManager *m_database = nullptr;
@@ -310,6 +305,7 @@ private:
     PlayerController *m_player = nullptr;
     SyncPlayController *m_syncPlay = nullptr;
     QuickConnectController *m_quickConnect = nullptr;
+    SettingsController *m_settings = nullptr;
     DiscoveredServerModel m_discoveredServers;
     LibraryListModel m_libraries;
     MovieGridModel m_movies;
@@ -343,19 +339,6 @@ private:
     bool m_currentItemsHasMore = false;
     int m_currentItemsTotalCount = 0;
     int m_currentItemsNextStartIndex = 0;
-    bool m_settingsVisible = false;
-    bool m_nightModeEnabled = false;
-    bool m_toneMappingVisualizationEnabled = false;
-    int m_audioDelayMs = 0;
-    QString m_audioOutputMode = QStringLiteral("alsa");
-    SubtitlePreferences m_subtitlePreferences;
-    QStringList m_subtitleLanguageCodes { QString() };
-    QStringList m_subtitleLanguageLabels { QStringLiteral("Any language") };
-    QJsonObject m_userConfiguration;
-    QString m_redButtonAction = QStringLiteral("none");
-    QString m_greenButtonAction = QStringLiteral("skipBackAndEnableSubs");
-    QString m_yellowButtonAction = QStringLiteral("none");
-    QString m_blueButtonAction = QStringLiteral("none");
     QString m_searchQuery;
     bool m_searchBusy = false;
     int m_searchGeneration = 0;
