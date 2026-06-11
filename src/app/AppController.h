@@ -19,6 +19,7 @@
 namespace JellyfinNative {
 
 class JellyfinApiFacade;
+class ContentModelController;
 class LibraryPrefetchController;
 class QuickConnectController;
 class SettingsController;
@@ -296,7 +297,6 @@ private:
     void addLatestLibraryRow(RequestGeneration::Token generation, int order,
                              const LibraryItem &library, const std::vector<MovieItem> &items);
     void handleHomeRowLoaded(RequestGeneration::Token generation);
-    void finishDetailRowLoad(RequestGeneration::Token generation);
     void setCurrentItems(const std::vector<MovieItem> &items, const QString &cacheKey = {});
     void setCurrentItemsPage(const PagedMovieItems &page, const QString &cacheKey, bool append);
     void resetCurrentItemsPaging(const QString &cacheKey = {});
@@ -315,6 +315,7 @@ private:
     JellyfinApiFacade *m_api = nullptr;
     PlayerController *m_player = nullptr;
     SyncPlayController *m_syncPlay = nullptr;
+    ContentModelController *m_content = nullptr;
     QuickConnectController *m_quickConnect = nullptr;
     SettingsController *m_settings = nullptr;
     SessionController *m_session = nullptr;
@@ -325,11 +326,6 @@ private:
     MovieGridModel m_resumeItems;
     MovieGridModel m_nextUpItems;
     MovieGridModel m_latestItems;
-    MovieGridModel m_searchResults;
-    MovieGridModel m_searchSuggestions;
-    MovieGridModel m_detailSeasons;
-    MovieGridModel m_detailSimilarItems;
-    MovieGridModel m_personItems;
     std::vector<LatestLibrarySection> m_latestLibrarySections;
     NavigationState m_navigation;
     bool m_busy = false;
@@ -340,17 +336,6 @@ private:
     bool m_currentItemsHasMore = false;
     int m_currentItemsTotalCount = 0;
     int m_currentItemsNextStartIndex = 0;
-    QString m_searchQuery;
-    bool m_searchBusy = false;
-    RequestGeneration m_searchGeneration;
-    bool m_searchSuggestionsBusy = false;
-    RequestGeneration m_searchSuggestionsGeneration;
-    bool m_searchSuggestionsLoaded = false;
-    bool m_detailRowsBusy = false;
-    RequestGeneration m_detailRowsGeneration;
-    int m_detailRowsPending = 0;
-    bool m_personItemsBusy = false;
-    RequestGeneration m_personItemsGeneration;
     RequestGeneration m_libraryLoadGeneration;
     RequestGeneration m_homeLoadGeneration;
     int m_homeLoadsPending = 0;

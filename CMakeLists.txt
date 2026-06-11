@@ -128,6 +128,8 @@ qt_add_executable(jellyfin-native
     src/api/HttpRequestPolicy.h
     src/app/AppController.cpp
     src/app/AppController.h
+    src/app/ContentModelController.cpp
+    src/app/ContentModelController.h
     src/app/LibraryPrefetchController.cpp
     src/app/LibraryPrefetchController.h
     src/app/NavigationState.cpp

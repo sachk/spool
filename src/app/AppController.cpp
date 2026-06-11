@@ -4,6 +4,7 @@
 #include "../common/AsyncTask.h"
 #include "../diagnostics/Diagnostics.h"
 #include "../player/PlayerController.h"
+#include "ContentModelController.h"
 #include "LibraryPrefetchController.h"
 #include "QuickConnectController.h"
 #include "SessionController.h"
@@ -224,6 +225,7 @@ AppController::AppController(DatabaseManager *database,
     m_settings = new SettingsController(database, api, player, this);
     m_session = new SessionController(database, api, this);
     m_prefetch = new LibraryPrefetchController(api, this);
+    m_content = new ContentModelController(api, m_prefetch, this);
     m_prefetch->configureImagePrefetch(
         database->loadSetting(QStringLiteral("network/imagePrefetchAhead"),
                               QStringLiteral("16")).toInt(),
@@ -232,6 +234,16 @@ AppController::AppController(DatabaseManager *database,
     connect(m_api, &JellyfinApiFacade::authenticationExpired,
             m_session, &SessionController::expireSession);
     connect(m_syncPlay, &SyncPlayController::errorText, this, &AppController::setErrorText);
+    connect(m_content, &ContentModelController::searchChanged,
+            this, &AppController::searchChanged);
+    connect(m_content, &ContentModelController::searchSuggestionsChanged,
+            this, &AppController::searchSuggestionsChanged);
+    connect(m_content, &ContentModelController::detailRowsChanged,
+            this, &AppController::detailRowsChanged);
+    connect(m_content, &ContentModelController::personItemsChanged,
+            this, &AppController::personItemsChanged);
+    connect(m_content, &ContentModelController::errorOccurred,
+            this, &AppController::setErrorText);
     connect(m_quickConnect, &QuickConnectController::changed,
             this, &AppController::quickConnectChanged);
     connect(m_quickConnect, &QuickConnectController::busyChanged,
@@ -539,17 +551,17 @@ QVariantList AppController::latestLibraryRows() const
 
 MovieGridModel *AppController::searchResults()
 {
-    return &m_searchResults;
+    return m_content->searchResults();
 }
 
 MovieGridModel *AppController::searchSuggestions()
 {
-    return &m_searchSuggestions;
+    return m_content->searchSuggestions();
 }
 
 bool AppController::searchSuggestionsBusy() const
 {
-    return m_searchSuggestionsBusy;
+    return m_content->searchSuggestionsBusy();
 }
 
 bool AppController::currentItemsLoadingMore() const
@@ -569,37 +581,37 @@ int AppController::currentItemsTotalCount() const
 
 MovieGridModel *AppController::detailSeasons()
 {
-    return &m_detailSeasons;
+    return m_content->detailSeasons();
 }
 
 MovieGridModel *AppController::detailSimilarItems()
 {
-    return &m_detailSimilarItems;
+    return m_content->detailSimilarItems();
 }
 
 MovieGridModel *AppController::personItems()
 {
-    return &m_personItems;
+    return m_content->personItems();
 }
 
 bool AppController::detailRowsBusy() const
 {
-    return m_detailRowsBusy;
+    return m_content->detailRowsBusy();
 }
 
 bool AppController::personItemsBusy() const
 {
-    return m_personItemsBusy;
+    return m_content->personItemsBusy();
 }
 
 bool AppController::searchBusy() const
 {
-    return m_searchBusy;
+    return m_content->searchBusy();
 }
 
 QString AppController::searchQuery() const
 {
-    return m_searchQuery;
+    return m_content->searchQuery();
 }
 
 SyncPlayController *AppController::syncPlay() { return m_syncPlay; }
@@ -669,22 +681,7 @@ void AppController::resetApplicationState()
     m_nextUpItems.clear();
     m_latestItems.clear();
     clearLatestLibraryRows();
-    m_searchGeneration.invalidate();
-    m_searchSuggestionsGeneration.invalidate();
-    m_searchResults.clear();
-    m_searchSuggestions.clear();
-    m_searchQuery.clear();
-    m_searchBusy = false;
-    m_searchSuggestionsBusy = false;
-    m_searchSuggestionsLoaded = false;
-    m_detailRowsGeneration.invalidate();
-    m_detailRowsPending = 0;
-    m_detailRowsBusy = false;
-    m_detailSeasons.clear();
-    m_detailSimilarItems.clear();
-    m_personItemsGeneration.invalidate();
-    m_personItems.clear();
-    m_personItemsBusy = false;
+    m_content->reset();
     m_libraryLoadGeneration.invalidate();
     m_homeLoadGeneration.invalidate();
     m_homeLoadsPending = 0;
@@ -696,10 +693,6 @@ void AppController::resetApplicationState()
     emit currentLibraryNameChanged();
     emit libraryQueryChanged();
     emit libraryFilterOptionsChanged();
-    emit searchChanged();
-    emit searchSuggestionsChanged();
-    emit detailRowsChanged();
-    emit personItemsChanged();
     if (!pageWasLogin)
         emit pageChanged();
     applyDiscoveredServersCache();
@@ -846,84 +839,27 @@ void AppController::playLatestLibraryItem(int rowIndex, int itemIndex, bool from
 
 void AppController::search(const QString &query)
 {
-    const QString trimmed = query.trimmed();
-    const RequestGeneration::Token generation = m_searchGeneration.next();
-    m_searchQuery = trimmed;
-
-    if (trimmed.size() < 2 || !m_api || m_api->session().accessToken.isEmpty()) {
-        m_searchBusy = false;
-        m_searchResults.clear();
-        emit searchChanged();
-        return;
-    }
-
-    m_searchBusy = true;
-    emit searchChanged();
-
-    Async::runLatest(this,
-        m_api->searchItems(trimmed),
-        m_searchGeneration, generation,
-        [this](const std::vector<MovieItem> &items) {
-            m_searchResults.setMovies(items);
-            m_prefetch->prefetchPosters(items);
-            m_searchBusy = false;
-            emit searchChanged();
-        },
-        [this](const std::exception_ptr &error) {
-            m_searchResults.clear();
-            m_searchBusy = false;
-            emit searchChanged();
-            setErrorText(exceptionMessage(error));
-        });
+    m_content->search(query);
 }
 
 void AppController::clearSearch()
 {
-    m_searchGeneration.invalidate();
-    m_searchQuery.clear();
-    m_searchBusy = false;
-    m_searchResults.clear();
-    emit searchChanged();
+    m_content->clearSearch();
 }
 
 void AppController::loadSearchSuggestions()
 {
-    if (!m_api || m_api->session().accessToken.isEmpty())
-        return;
-    // Suggestions are stable for a session; load them once and reuse.
-    if (m_searchSuggestionsLoaded || m_searchSuggestionsBusy)
-        return;
-
-    const RequestGeneration::Token generation = m_searchSuggestionsGeneration.next();
-    m_searchSuggestionsBusy = true;
-    emit searchSuggestionsChanged();
-
-    Async::runLatest(this,
-        m_api->fetchSearchSuggestions(),
-        m_searchSuggestionsGeneration, generation,
-        [this](const std::vector<MovieItem> &items) {
-            m_searchSuggestions.setMovies(items);
-            m_prefetch->prefetchPosters(items);
-            m_searchSuggestionsBusy = false;
-            m_searchSuggestionsLoaded = true;
-            emit searchSuggestionsChanged();
-        },
-        [this](const std::exception_ptr &error) {
-            m_searchSuggestions.clear();
-            m_searchSuggestionsBusy = false;
-            emit searchSuggestionsChanged();
-            qWarning() << "search: suggestions fetch failed" << exceptionMessage(error);
-        });
+    m_content->loadSearchSuggestions();
 }
 
 void AppController::playSuggestionItem(int index, bool fromStart)
 {
-    playOrOpen(m_searchSuggestions.movieAt(index), fromStart);
+    playOrOpen(m_content->suggestionAt(index), fromStart);
 }
 
 void AppController::playSearchResult(int index, bool fromStart)
 {
-    playOrOpen(m_searchResults.movieAt(index), fromStart);
+    playOrOpen(m_content->searchResultAt(index), fromStart);
 }
 
 void AppController::maybeLoadMoreCurrentItems(int visibleIndex)
@@ -1089,60 +1025,12 @@ void AppController::refreshCurrentLibrary()
 
 void AppController::loadDetailRows(const QString &itemId, const QString &itemType)
 {
-    const RequestGeneration::Token generation = m_detailRowsGeneration.next();
-    m_detailRowsPending = 0;
-    m_detailRowsBusy = false;
-    m_detailSeasons.clear();
-    m_detailSimilarItems.clear();
-
-    if (itemId.isEmpty() || !m_api || m_api->session().accessToken.isEmpty()) {
-        emit detailRowsChanged();
-        return;
-    }
-
-    m_detailRowsBusy = true;
-    emit detailRowsChanged();
-
-    const bool loadSeasons = itemType == QStringLiteral("Series");
-    m_detailRowsPending = loadSeasons ? 2 : 1;
-    qInfo() << "detail rows: loading" << itemType << itemId << "seasons=" << loadSeasons;
-
-    if (loadSeasons) {
-        Async::runLatest(this,
-            m_api->fetchSeasons(itemId),
-            m_detailRowsGeneration, generation,
-            [this, generation, itemId](const std::vector<MovieItem> &seasons) {
-                qInfo() << "detail rows: seasons loaded" << itemId << seasons.size();
-                m_detailSeasons.setMovies(seasons);
-                m_prefetch->prefetchPosters(seasons);
-                emit detailRowsChanged();
-                finishDetailRowLoad(generation);
-            },
-            [this, generation, itemId](const std::exception_ptr &error) {
-                qWarning() << "detail rows: seasons fetch failed" << itemId << exceptionMessage(error);
-                finishDetailRowLoad(generation);
-            });
-    }
-
-    Async::runLatest(this,
-        m_api->fetchSimilarItems(itemId),
-        m_detailRowsGeneration, generation,
-        [this, generation, itemId](const std::vector<MovieItem> &items) {
-            qInfo() << "detail rows: similar loaded" << itemId << items.size();
-            m_detailSimilarItems.setMovies(items);
-            m_prefetch->prefetchPosters(items);
-            emit detailRowsChanged();
-            finishDetailRowLoad(generation);
-        },
-        [this, generation, itemId](const std::exception_ptr &error) {
-            qWarning() << "detail rows: similar fetch failed" << itemId << exceptionMessage(error);
-            finishDetailRowLoad(generation);
-        });
+    m_content->loadDetailRows(itemId, itemType);
 }
 
 void AppController::openDetailSeason(int index)
 {
-    const auto item = m_detailSeasons.movieAt(index);
+    const auto item = m_content->detailSeasonAt(index);
     if (item.id.isEmpty())
         return;
     openSeason(item);
@@ -1150,42 +1038,17 @@ void AppController::openDetailSeason(int index)
 
 void AppController::playDetailSimilarItem(int index, bool fromStart)
 {
-    playOrOpen(m_detailSimilarItems.movieAt(index), fromStart);
+    playOrOpen(m_content->detailSimilarItemAt(index), fromStart);
 }
 
 void AppController::loadPersonItems(const QString &personId)
 {
-    const RequestGeneration::Token generation = m_personItemsGeneration.next();
-    m_personItems.clear();
-    if (personId.isEmpty() || !m_api || m_api->session().accessToken.isEmpty()) {
-        m_personItemsBusy = false;
-        emit personItemsChanged();
-        return;
-    }
-
-    m_personItemsBusy = true;
-    emit personItemsChanged();
-
-    Async::runLatest(this,
-        m_api->fetchItemsByPerson(personId),
-        m_personItemsGeneration, generation,
-        [this](const std::vector<MovieItem> &items) {
-            m_personItems.setMovies(items);
-            m_prefetch->prefetchPosters(items);
-            m_personItemsBusy = false;
-            emit personItemsChanged();
-        },
-        [this](const std::exception_ptr &error) {
-            m_personItems.clear();
-            m_personItemsBusy = false;
-            emit personItemsChanged();
-            setErrorText(exceptionMessage(error));
-        });
+    m_content->loadPersonItems(personId);
 }
 
 void AppController::playPersonItem(int index, bool fromStart)
 {
-    playOrOpen(m_personItems.movieAt(index), fromStart);
+    playOrOpen(m_content->personItemAt(index), fromStart);
 }
 
 void AppController::setFavorite(const QString &itemId, bool favorite)
@@ -1877,10 +1740,7 @@ void AppController::applyPlaybackPosition(const QString &itemId, qint64 position
     m_resumeItems.updateResumeTicks(itemId, positionTicks);
     m_nextUpItems.updateResumeTicks(itemId, positionTicks);
     m_latestItems.updateResumeTicks(itemId, positionTicks);
-    m_searchResults.updateResumeTicks(itemId, positionTicks);
-    m_searchSuggestions.updateResumeTicks(itemId, positionTicks);
-    m_detailSimilarItems.updateResumeTicks(itemId, positionTicks);
-    m_personItems.updateResumeTicks(itemId, positionTicks);
+    m_content->updateResumeTicks(itemId, positionTicks);
     for (LatestLibrarySection &section : m_latestLibrarySections) {
         if (section.model)
             section.model->updateResumeTicks(itemId, positionTicks);
@@ -1896,11 +1756,7 @@ void AppController::applyFavoriteState(const QString &itemId, bool favorite)
     m_resumeItems.updateFavorite(itemId, favorite);
     m_nextUpItems.updateFavorite(itemId, favorite);
     m_latestItems.updateFavorite(itemId, favorite);
-    m_searchResults.updateFavorite(itemId, favorite);
-    m_searchSuggestions.updateFavorite(itemId, favorite);
-    m_detailSeasons.updateFavorite(itemId, favorite);
-    m_detailSimilarItems.updateFavorite(itemId, favorite);
-    m_personItems.updateFavorite(itemId, favorite);
+    m_content->updateFavorite(itemId, favorite);
     for (LatestLibrarySection &section : m_latestLibrarySections) {
         if (section.model)
             section.model->updateFavorite(itemId, favorite);
@@ -1917,11 +1773,7 @@ void AppController::applyPlayedState(const QString &itemId, bool played)
     m_resumeItems.updatePlayed(itemId, played);
     m_nextUpItems.updatePlayed(itemId, played);
     m_latestItems.updatePlayed(itemId, played);
-    m_searchResults.updatePlayed(itemId, played);
-    m_searchSuggestions.updatePlayed(itemId, played);
-    m_detailSeasons.updatePlayed(itemId, played);
-    m_detailSimilarItems.updatePlayed(itemId, played);
-    m_personItems.updatePlayed(itemId, played);
+    m_content->updatePlayed(itemId, played);
     for (LatestLibrarySection &section : m_latestLibrarySections) {
         if (section.model)
             section.model->updatePlayed(itemId, played);
@@ -1972,18 +1824,6 @@ void AppController::handleHomeRowLoaded(RequestGeneration::Token generation)
     --m_homeLoadsPending;
     if (m_homeLoadsPending == 0)
         m_prefetch->schedule(m_libraries.libraries(), m_recentLibraryIds);
-}
-
-void AppController::finishDetailRowLoad(RequestGeneration::Token generation)
-{
-    if (!m_detailRowsGeneration.isCurrent(generation) || m_detailRowsPending <= 0)
-        return;
-
-    --m_detailRowsPending;
-    if (m_detailRowsPending == 0) {
-        m_detailRowsBusy = false;
-        emit detailRowsChanged();
-    }
 }
 
 } // namespace JellyfinNative
