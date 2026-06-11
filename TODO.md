@@ -138,8 +138,10 @@ archive containing app version `0.2.1` and a 32-bit ARM EABI5 executable.
 
 ### Larger Refactors
 
+- [x] Extract media-segment activation and trickplay tile calculations from
+  `PlayerController` into a tested `PlaybackTimeline` component.
 - [ ] Split `PlayerController` into mpv lifecycle, position tracking, track
-  parsing, trickplay, segments, and reporting components.
+  parsing, and reporting components.
 - [ ] Split `AppController` navigation, session, settings, prefetch, and Quick
   Connect responsibilities.
 - [ ] Extract shared behavior from the webOS and desktop

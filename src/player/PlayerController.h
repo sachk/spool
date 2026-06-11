@@ -1,6 +1,7 @@
 #pragma once
 
 #include "../common/JellyfinTypes.h"
+#include "PlaybackTimeline.h"
 
 #include <QByteArray>
 #include <QElapsedTimer>
@@ -225,8 +226,7 @@ private:
     std::atomic<int> m_volume = 100;
     QString m_audioOutputMode = QStringLiteral("alsa");
     SubtitlePreferences m_subtitlePreferences;
-    QString m_activeSegmentType;
-    double m_activeSegmentEndSeconds = 0.0;
+    PlaybackTimeline m_timeline;
 };
 
 } // namespace JellyfinNative

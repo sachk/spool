@@ -17,6 +17,7 @@ option(JELLYFIN_NATIVE_DEV_BUILD "Favor faster local development builds over sma
 option(JELLYFIN_DIAGNOSTICS "Build debug lifecycle/process/watchdog diagnostics" OFF)
 option(JELLYFIN_DIAGNOSTICS_STACKDUMP "Allow diagnostics to request gdb stack dumps" OFF)
 option(JELLYFIN_DIAGNOSTICS_ABORT_ON_HANG "Abort after watchdog hang diagnostics are written" OFF)
+include(CTest)
 
 set(MPV_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/mpv" CACHE PATH "desktop mpv source tree")
 set(MPV_WEBOS_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/mpv_webos" CACHE PATH "webOS mpv source tree")
@@ -149,6 +150,8 @@ qt_add_executable(jellyfin-native
     src/models/MovieGridModel.h
     src/player/PlayerController.cpp
     src/player/PlayerController.h
+    src/player/PlaybackTimeline.cpp
+    src/player/PlaybackTimeline.h
     src/player/MpvVideoItem.cpp
     src/player/MpvVideoItem.h
 )
@@ -319,6 +322,19 @@ if(JELLYFIN_NATIVE_WEBOS)
     )
 else()
     target_link_libraries(jellyfin-native PRIVATE PkgConfig::MPV)
+endif()
+
+if(BUILD_TESTING AND NOT CMAKE_CROSSCOMPILING)
+    add_executable(playback-timeline-tests
+        tests/player/PlaybackTimelineTest.cpp
+        src/player/PlaybackTimeline.cpp
+        src/player/PlaybackTimeline.h
+    )
+    target_include_directories(playback-timeline-tests PRIVATE
+        "${CMAKE_CURRENT_SOURCE_DIR}/src"
+    )
+    target_link_libraries(playback-timeline-tests PRIVATE Qt6::Core)
+    add_test(NAME playback-timeline COMMAND playback-timeline-tests)
 endif()
 
 # Static Qt: import plugins that the linker can't auto-discover. BUILD_SHARED_LIBS

@@ -769,6 +769,7 @@ void PlayerController::play(const PlaybackSession &session) {
     return;
 
   m_session = session;
+  m_timeline.setSession(session);
   m_title = session.title;
 #ifdef JELLYFIN_NATIVE_WEBOS
   m_statusText = QStringLiteral("Preparing libmpv + Starfish...");
@@ -1145,8 +1146,7 @@ void PlayerController::resetPlaybackUiState() {
   m_resumeStartSeconds = 0.0;
   m_positionClock.invalidate();
   m_debugOsdVisible = false;
-  m_activeSegmentType.clear();
-  m_activeSegmentEndSeconds = 0.0;
+  m_timeline.clear();
   m_statusText = QStringLiteral("Ready");
   m_lastTrustedPositionSeconds = 0.0;
   if (!m_chapters.isEmpty()) {
@@ -1694,33 +1694,19 @@ void PlayerController::setPositionSeconds(double seconds, PositionSource source)
   m_positionSeconds = clamped;
   m_positionClock.restart();
 
-  // Recompute the active media segment (intro / outro / recap) for the new
-  // position. We only emit stateChanged once below — the segment recompute
-  // touches member state directly so the change is published with the same
-  // signal as the position update.
-  QString segmentType;
-  double segmentEndSeconds = 0.0;
-  for (const MediaSegment &segment : m_session.segments) {
-    constexpr double ticksPerSecond = 10000000.0;
-    const double start = segment.startTicks / ticksPerSecond;
-    const double end = segment.endTicks / ticksPerSecond;
-    if (clamped >= start && clamped < end - 0.5) {
-      segmentType = segment.type;
-      segmentEndSeconds = end;
-      break;
-    }
-  }
-  m_activeSegmentType = segmentType;
-  m_activeSegmentEndSeconds = segmentEndSeconds;
+  m_timeline.updatePosition(clamped);
 
   emit stateChanged();
 }
 
-QString PlayerController::activeSegmentType() const { return m_activeSegmentType; }
-double PlayerController::activeSegmentEndSeconds() const { return m_activeSegmentEndSeconds; }
+QString PlayerController::activeSegmentType() const {
+  return m_timeline.activeSegmentType();
+}
+double PlayerController::activeSegmentEndSeconds() const {
+  return m_timeline.activeSegmentEndSeconds();
+}
 bool PlayerController::trickplayAvailable() const {
-  const TrickplayInfo &tp = m_session.trickplay;
-  return tp.intervalMs > 0 && tp.tileWidth > 0 && tp.tileHeight > 0 && tp.width > 0;
+  return m_timeline.trickplayAvailable();
 }
 
 QStringList PlayerController::trickplaySheetUrls() const {
@@ -1728,23 +1714,18 @@ QStringList PlayerController::trickplaySheetUrls() const {
   if (!trickplayAvailable() || !m_api)
     return urls;
 
-  const TrickplayInfo &tp = m_session.trickplay;
-  const int tileSize = tp.tileWidth * tp.tileHeight;
-  if (tileSize <= 0)
-    return urls;
-
-  const int thumbnailCount = tp.thumbnailCount > 0 ? tp.thumbnailCount : 1;
-  const int sheetCount = std::max(1, (thumbnailCount + tileSize - 1) / tileSize);
+  const int sheetCount = m_timeline.trickplaySheetCount();
   urls.reserve(sheetCount);
   for (int i = 0; i < sheetCount; ++i)
-    urls.push_back(m_api->trickplayTileUrl(m_session.itemId, tp.width, i));
+    urls.push_back(
+        m_api->trickplayTileUrl(m_session.itemId, m_timeline.trickplayWidth(), i));
   return urls;
 }
 
 void PlayerController::skipActiveSegment() {
-  if (m_activeSegmentType.isEmpty() || m_activeSegmentEndSeconds <= 0.0)
+  if (activeSegmentType().isEmpty() || activeSegmentEndSeconds() <= 0.0)
     return;
-  seek(m_activeSegmentEndSeconds);
+  seek(activeSegmentEndSeconds());
 }
 
 QVariantMap PlayerController::trickplayForSeconds(double seconds) const {
@@ -1755,30 +1736,23 @@ QVariantMap PlayerController::trickplayForSeconds(double seconds) const {
     result.insert(QStringLiteral("available"), false);
     return result;
   }
-  const TrickplayInfo &tp = m_session.trickplay;
-  const double currentTimeMs = std::max(0.0, seconds) * 1000.0;
-  const int currentTile = static_cast<int>(std::floor(currentTimeMs / tp.intervalMs));
-  if (tp.thumbnailCount > 0 && currentTile >= tp.thumbnailCount) {
+  const PlaybackTimeline::TrickplayFrame frame =
+      m_timeline.trickplayFrameAt(seconds);
+  if (!frame.available) {
     result.insert(QStringLiteral("available"), false);
     return result;
   }
-  const int tileSize = tp.tileWidth * tp.tileHeight;
-  if (tileSize <= 0) {
-    result.insert(QStringLiteral("available"), false);
-    return result;
-  }
-  const int tileIndex = currentTile / tileSize;
-  const int tileOffset = currentTile % tileSize;
-  const int tileOffsetX = tileOffset % tp.tileWidth;
-  const int tileOffsetY = tileOffset / tp.tileWidth;
   result.insert(QStringLiteral("available"), true);
-  result.insert(QStringLiteral("url"), m_api->trickplayTileUrl(m_session.itemId, tp.width, tileIndex));
-  result.insert(QStringLiteral("width"), tp.width);
-  result.insert(QStringLiteral("height"), tp.height);
-  result.insert(QStringLiteral("offsetX"), -tileOffsetX * tp.width);
-  result.insert(QStringLiteral("offsetY"), -tileOffsetY * tp.height);
-  result.insert(QStringLiteral("sheetWidth"), tp.width * tp.tileWidth);
-  result.insert(QStringLiteral("sheetHeight"), tp.height * tp.tileHeight);
+  result.insert(QStringLiteral("url"),
+                m_api->trickplayTileUrl(m_session.itemId,
+                                        m_timeline.trickplayWidth(),
+                                        frame.sheetIndex));
+  result.insert(QStringLiteral("width"), frame.width);
+  result.insert(QStringLiteral("height"), frame.height);
+  result.insert(QStringLiteral("offsetX"), frame.offsetX);
+  result.insert(QStringLiteral("offsetY"), frame.offsetY);
+  result.insert(QStringLiteral("sheetWidth"), frame.sheetWidth);
+  result.insert(QStringLiteral("sheetHeight"), frame.sheetHeight);
   return result;
 }
 
