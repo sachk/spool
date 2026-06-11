@@ -1,7 +1,6 @@
 #include "PlayerController.h"
 
 #include "../api/JellyfinApiFacade.h"
-#include "../common/AsyncTask.h"
 #include "../app/NativeAppWindow.h"
 #include "../common/JellyfinTypes.h"
 #include "../diagnostics/Diagnostics.h"
@@ -230,7 +229,7 @@ void logMemoryStats(mpv_handle *handle) {
 
 PlayerController::PlayerController(NativeAppWindow *window,
                                    JellyfinApiFacade *api, QObject *parent)
-    : QObject(parent), m_window(window), m_api(api) {
+    : QObject(parent), m_window(window), m_api(api), m_reporter(api, this) {
   m_progressTimer.setInterval(5000);
   m_uiPositionTimer.setInterval(250);
   m_backGuardTimer.setSingleShot(true);
@@ -271,12 +270,15 @@ PlayerController::PlayerController(NativeAppWindow *window,
 
     logMemoryStats(m_mpv.load());
 
-    const auto session = m_session;
-    Async::runScoped(this,
-        m_api->reportPlaybackProgress(
-            session, secondsToTicks(m_positionSeconds), m_paused),
-        []() {}, [](const std::exception_ptr &) {}, "playback progress report");
+    m_reporter.reportProgress(secondsToTicks(m_positionSeconds), m_paused);
   });
+  connect(&m_reporter, &PlaybackReporter::reportFailed, this,
+          [](const QString &operation, const QString &message) {
+            Diagnostics::logEvent(
+                QStringLiteral("player"), QStringLiteral("report_failed"),
+                {{QStringLiteral("operation"), operation},
+                 {QStringLiteral("message"), message}});
+          });
 }
 
 PlayerController::~PlayerController() {
@@ -992,10 +994,7 @@ void PlayerController::startProgressReporting() {
     return;
   m_progressTimer.start();
 
-  const auto session = m_session;
-  Async::runScoped(this,
-      m_api->reportPlaybackStart(session), []() {},
-      [](const std::exception_ptr &) {}, "playback start report");
+  m_reporter.start(m_session);
 }
 
 void PlayerController::stopProgressReporting(bool failed) {
@@ -1012,9 +1011,7 @@ void PlayerController::stopProgressReporting(bool failed) {
 
   const auto session = m_session;
   const qint64 positionTicks = secondsToTicks(m_positionSeconds);
-  Async::runScoped(this,
-      m_api->reportPlaybackStopped(session, positionTicks, failed), []() {},
-      [](const std::exception_ptr &) {}, "playback stop report");
+  m_reporter.stop(positionTicks, failed);
 
   resetPlaybackUiState();
   m_window->clearOverlay();
