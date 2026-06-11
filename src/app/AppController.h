@@ -7,12 +7,10 @@
 #include "../models/LibraryListModel.h"
 #include "../models/MovieGridModel.h"
 #include "../player/PlayerController.h"
+#include "NavigationState.h"
 #include "SyncPlayController.h"
 
 #include <QObject>
-#include <QHash>
-#include <QSet>
-#include <QTimer>
 #include <QVariantList>
 
 #include <memory>
@@ -320,18 +318,10 @@ private:
     MovieGridModel m_detailSimilarItems;
     MovieGridModel m_personItems;
     std::vector<LatestLibrarySection> m_latestLibrarySections;
-    QString m_page = QStringLiteral("login");
+    NavigationState m_navigation;
     bool m_busy = false;
     QString m_busyText;
     QString m_errorText;
-    QString m_currentLibraryId;
-    QString m_currentLibraryCollectionType;
-    QString m_currentLibraryName;
-    QString m_currentContentLabel = QStringLiteral("Movies");
-    QString m_currentViewKind;
-    QString m_currentSeriesId;
-    QString m_currentSeriesName;
-    QString m_currentSeasonId;
     QString m_currentItemsCacheKey;
     bool m_currentItemsLoadingMore = false;
     bool m_currentItemsHasMore = false;
@@ -353,9 +343,6 @@ private:
     int m_homeLoadsPending = 0;
     bool m_shuttingDown = false;
     QStringList m_recentLibraryIds;
-    QHash<QString, QVariantMap> m_libraryQueries;
-    QVariantMap m_libraryQuery;
-    QVariantMap m_libraryFilterOptions;
 };
 
 } // namespace JellyfinNative

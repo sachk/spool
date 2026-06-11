@@ -13,7 +13,9 @@
 #include <QDebug>
 #include <QJsonArray>
 #include <QQmlEngine>
+#include <QSet>
 #include <QStringList>
+#include <QTimer>
 #include <QVariantMap>
 
 #include <algorithm>
@@ -276,7 +278,7 @@ AppController::AppController(DatabaseManager *database,
     });
 
     connect(m_player, &PlayerController::playbackStopped, this, [this](const QString &itemId, qint64 positionTicks) {
-        qInfo() << "app: playbackStopped page=" << m_page << "itemId=" << itemId << "positionTicks=" << positionTicks;
+        qInfo() << "app: playbackStopped page=" << page() << "itemId=" << itemId << "positionTicks=" << positionTicks;
         applyPlaybackPosition(itemId, positionTicks);
         schedulePostPlaybackRefresh();
     });
@@ -284,7 +286,7 @@ AppController::AppController(DatabaseManager *database,
 
 QString AppController::page() const
 {
-    return m_page;
+    return m_navigation.page();
 }
 
 QString AppController::serverUrl() const
@@ -334,42 +336,42 @@ bool AppController::quickConnectActive() const
 
 QString AppController::currentLibraryName() const
 {
-    return m_currentLibraryName;
+    return m_navigation.title();
 }
 
 QString AppController::currentContentLabel() const
 {
-    return m_currentContentLabel;
+    return m_navigation.contentLabel();
 }
 
 QString AppController::currentViewKind() const
 {
-    return m_currentViewKind;
+    return m_navigation.viewKind();
 }
 
 QString AppController::currentLibraryId() const
 {
-    return m_currentLibraryId;
+    return m_navigation.libraryId();
 }
 
 QString AppController::currentLibraryCollectionType() const
 {
-    return m_currentLibraryCollectionType;
+    return m_navigation.libraryCollectionType();
 }
 
 QVariantMap AppController::libraryQuery() const
 {
-    return m_libraryQuery;
+    return m_navigation.query();
 }
 
 QVariantMap AppController::libraryFilterOptions() const
 {
-    return m_libraryFilterOptions;
+    return m_navigation.filterOptions();
 }
 
 int AppController::libraryFilterActiveCount() const
 {
-    return activeLibraryFilterCount(m_libraryQuery);
+    return activeLibraryFilterCount(m_navigation.query());
 }
 
 bool AppController::settingsVisible() const
@@ -640,11 +642,14 @@ void AppController::resetApplicationState()
 {
     m_syncPlay->disconnectSocket();
     m_settings->clearRemote();
+    m_prefetch->stop();
+    m_api->cancelPrefetches();
     m_libraries.clear();
     m_movies.clear();
     m_resumeItems.clear();
     m_nextUpItems.clear();
     m_latestItems.clear();
+    clearLatestLibraryRows();
     ++m_searchGeneration;
     m_searchResults.clear();
     m_searchQuery.clear();
@@ -654,17 +659,8 @@ void AppController::resetApplicationState()
     m_detailRowsBusy = false;
     m_detailSeasons.clear();
     m_detailSimilarItems.clear();
-    m_libraryQueries.clear();
-    m_libraryQuery.clear();
-    m_libraryFilterOptions.clear();
-    m_currentLibraryId.clear();
-    m_currentLibraryCollectionType.clear();
-    m_currentLibraryName.clear();
-    m_currentContentLabel = QStringLiteral("Movies");
-    m_currentViewKind.clear();
-    m_currentSeriesId.clear();
-    m_currentSeriesName.clear();
-    m_currentSeasonId.clear();
+    const bool pageWasLogin = page() == QStringLiteral("login");
+    m_navigation.reset();
     resetCurrentItemsPaging();
     setBusy(false);
     setErrorText({});
@@ -673,7 +669,8 @@ void AppController::resetApplicationState()
     emit libraryFilterOptionsChanged();
     emit searchChanged();
     emit detailRowsChanged();
-    setPage(QStringLiteral("login"));
+    if (!pageWasLogin)
+        emit pageChanged();
     applyDiscoveredServersCache();
     m_discovery->start();
 }
@@ -691,10 +688,10 @@ void AppController::cancelQuickConnect()
 
 void AppController::goHome()
 {
-    if (m_page == QStringLiteral("login"))
+    if (page() == QStringLiteral("login"))
         return;
 
-    qInfo() << "app: go home from page=" << m_page << "viewKind=" << m_currentViewKind;
+    qInfo() << "app: go home from page=" << page() << "viewKind=" << currentViewKind();
     ++m_libraryLoadGeneration;
     setBusy(false);
     setPage(QStringLiteral("libraries"));
@@ -708,19 +705,11 @@ void AppController::openLibrary(int index)
         return;
 
     const int loadGeneration = ++m_libraryLoadGeneration;
-    m_currentLibraryId = library.id;
-    m_currentLibraryCollectionType = library.collectionType;
-    m_currentLibraryName = library.name;
-    m_currentSeriesId.clear();
-    m_currentSeriesName.clear();
-    m_currentSeasonId.clear();
-    m_currentViewKind = QStringLiteral("library");
-    m_currentContentLabel = libraryContentLabel(library);
-    setLibraryQuery(m_libraryQueries.value(library.id, defaultLibraryQuery(library)));
-    m_libraryFilterOptions.clear();
+    m_navigation.enterLibrary(library, libraryContentLabel(library), defaultLibraryQuery(library));
+    emit libraryQueryChanged();
     emit libraryFilterOptionsChanged();
     loadLibraryFilterOptions(loadGeneration, library);
-    const QString cacheKey = libraryCacheKey(library, m_libraryQuery);
+    const QString cacheKey = libraryCacheKey(library, libraryQuery());
     resetCurrentItemsPaging(cacheKey);
     recordLibraryUse(library);
     emit currentLibraryNameChanged();
@@ -736,11 +725,11 @@ void AppController::openLibrary(int index)
         setPage(QStringLiteral("movies"));
         qInfo() << "library open: showing cached page while refreshing" << library.name << cachedCount;
     } else {
-        setBusy(true, QStringLiteral("Loading %1…").arg(m_currentContentLabel.toLower()));
+        setBusy(true, QStringLiteral("Loading %1…").arg(currentContentLabel().toLower()));
     }
 
     Async::runScoped(this,
-        m_api->fetchLibraryPage(library.id, library.collectionType, 0, kLibraryPageSize, m_libraryQuery),
+        m_api->fetchLibraryPage(library.id, library.collectionType, 0, kLibraryPageSize, libraryQuery()),
         [this, cacheKey, loadGeneration](const PagedMovieItems &page) {
             if (loadGeneration != m_libraryLoadGeneration)
                 return;
@@ -756,7 +745,7 @@ void AppController::openLibrary(int index)
                 qWarning() << "library open: background refresh failed" << message;
             else
                 setErrorText(message);
-            if (m_page != QStringLiteral("movies"))
+            if (page() != QStringLiteral("movies"))
                 setPage(QStringLiteral("movies"));
         });
 }
@@ -930,15 +919,15 @@ void AppController::loadMoreCurrentItems()
         return;
     if (!m_api || m_api->session().accessToken.isEmpty())
         return;
-    if (m_currentViewKind != QStringLiteral("library"))
+    if (currentViewKind() != QStringLiteral("library"))
         return;
 
     const int startIndex = std::max(m_currentItemsNextStartIndex, m_movies.rowCount());
     const int loadGeneration = m_libraryLoadGeneration;
-    const QString libraryId = m_currentLibraryId;
-    const QString collectionType = m_currentLibraryCollectionType;
+    const QString libraryId = currentLibraryId();
+    const QString collectionType = currentLibraryCollectionType();
     const QString cacheKey = m_currentItemsCacheKey;
-    const QVariantMap query = m_libraryQuery;
+    const QVariantMap query = libraryQuery();
     setCurrentItemsLoadingMore(true);
 
     const auto onDone = [this, loadGeneration, cacheKey](const PagedMovieItems &page) {
@@ -960,17 +949,14 @@ void AppController::loadMoreCurrentItems()
 
 void AppController::setLibraryQuery(const QVariantMap &query)
 {
-    if (m_libraryQuery == query)
+    if (!m_navigation.setQuery(query))
         return;
-    m_libraryQuery = query;
-    if (!m_currentLibraryId.isEmpty())
-        m_libraryQueries.insert(m_currentLibraryId, m_libraryQuery);
     emit libraryQueryChanged();
 }
 
 void AppController::setLibrarySort(const QString &sortBy, const QString &sortOrder)
 {
-    QVariantMap query = m_libraryQuery;
+    QVariantMap query = libraryQuery();
     query.insert(QStringLiteral("sortBy"), sortBy.isEmpty() ? QStringLiteral("SortName") : sortBy);
     query.insert(QStringLiteral("sortOrder"), sortOrder == QStringLiteral("Descending")
                                       ? QStringLiteral("Descending")
@@ -984,7 +970,7 @@ void AppController::setLibraryQueryListValue(const QString &key, const QString &
     if (key.isEmpty() || value.isEmpty())
         return;
 
-    QVariantMap query = m_libraryQuery;
+    QVariantMap query = libraryQuery();
     QStringList values = queryStringList(query, key);
     values.removeAll(value);
     if (enabled)
@@ -1004,7 +990,7 @@ void AppController::setLibraryQueryBoolValue(const QString &key, bool enabled)
     if (key.isEmpty())
         return;
 
-    QVariantMap query = m_libraryQuery;
+    QVariantMap query = libraryQuery();
     if (enabled)
         query.insert(key, true);
     else
@@ -1018,7 +1004,7 @@ void AppController::setLibraryQueryNullableBoolValue(const QString &key, const Q
     if (key.isEmpty())
         return;
 
-    QVariantMap query = m_libraryQuery;
+    QVariantMap query = libraryQuery();
     if (!value.isValid() || value.isNull())
         query.remove(key);
     else
@@ -1029,29 +1015,29 @@ void AppController::setLibraryQueryNullableBoolValue(const QString &key, const Q
 
 void AppController::clearLibraryFilters()
 {
-    if (m_currentLibraryId.isEmpty())
+    if (currentLibraryId().isEmpty())
         return;
 
     QVariantMap query;
     query.insert(QStringLiteral("sortBy"),
-                 m_libraryQuery.value(QStringLiteral("sortBy"), QStringLiteral("SortName")).toString());
+                 libraryQuery().value(QStringLiteral("sortBy"), QStringLiteral("SortName")).toString());
     query.insert(QStringLiteral("sortOrder"),
-                 m_libraryQuery.value(QStringLiteral("sortOrder"), QStringLiteral("Ascending")).toString());
+                 libraryQuery().value(QStringLiteral("sortOrder"), QStringLiteral("Ascending")).toString());
     setLibraryQuery(query);
     refreshCurrentLibrary();
 }
 
 void AppController::refreshCurrentLibrary()
 {
-    if (m_currentViewKind != QStringLiteral("library") || m_currentLibraryId.isEmpty())
+    if (currentViewKind() != QStringLiteral("library") || currentLibraryId().isEmpty())
         return;
     if (!m_api || m_api->session().accessToken.isEmpty())
         return;
 
     const int loadGeneration = ++m_libraryLoadGeneration;
-    const QString libraryId = m_currentLibraryId;
-    const QString collectionType = m_currentLibraryCollectionType;
-    const QVariantMap query = m_libraryQuery;
+    const QString libraryId = currentLibraryId();
+    const QString collectionType = currentLibraryCollectionType();
+    const QVariantMap query = libraryQuery();
 
     LibraryItem library;
     library.id = libraryId;
@@ -1059,7 +1045,7 @@ void AppController::refreshCurrentLibrary()
     const QString cacheKey = libraryCacheKey(library, query);
     resetCurrentItemsPaging(cacheKey);
     m_movies.clear();
-    setBusy(true, QStringLiteral("Loading %1…").arg(m_currentContentLabel.toLower()));
+    setBusy(true, QStringLiteral("Loading %1…").arg(currentContentLabel().toLower()));
 
     Async::runScoped(this,
         m_api->fetchLibraryPage(libraryId, collectionType, 0, kLibraryPageSize, query),
@@ -1264,7 +1250,7 @@ void AppController::playMediaItem(const MovieItem &item, bool fromStart)
 
 void AppController::back()
 {
-    qInfo() << "app: back pressed, page=" << m_page << "settingsVisible=" << settingsVisible();
+    qInfo() << "app: back pressed, page=" << page() << "settingsVisible=" << settingsVisible();
     if (settingsVisible()) {
         closeSettings();
         return;
@@ -1275,11 +1261,11 @@ void AppController::back()
         return;
     }
 
-    if (m_page == QStringLiteral("movies")) {
-        if (m_currentViewKind == QStringLiteral("episodes")) {
+    if (page() == QStringLiteral("movies")) {
+        if (currentViewKind() == QStringLiteral("episodes")) {
             MovieItem series;
-            series.id = m_currentSeriesId;
-            series.title = m_currentSeriesName;
+            series.id = m_navigation.seriesId();
+            series.title = m_navigation.seriesName();
             series.itemType = QStringLiteral("Series");
             series.playable = false;
             openSeries(series);
@@ -1290,7 +1276,7 @@ void AppController::back()
         return;
     }
 
-    if (m_page == QStringLiteral("libraries")) {
+    if (page() == QStringLiteral("libraries")) {
         qInfo() << "app: back ignored on home";
         return;
     }
@@ -1451,10 +1437,9 @@ void AppController::setBlueButtonAction(const QString &action)
 
 void AppController::setPage(const QString &page)
 {
-    if (m_page == page)
+    if (!m_navigation.setPage(page))
         return;
 
-    m_page = page;
     emit pageChanged();
 
     if (page == QStringLiteral("login"))
@@ -1582,16 +1567,16 @@ void AppController::loadLibraryFilterOptions(int generation, const LibraryItem &
     Async::runScoped(this,
         m_api->fetchLibraryFilterOptions(library.id, library.collectionType),
         [this, generation, library](const QVariantMap &options) {
-            if (generation != m_libraryLoadGeneration || library.id != m_currentLibraryId)
+            if (generation != m_libraryLoadGeneration || library.id != currentLibraryId())
                 return;
-            m_libraryFilterOptions = options;
+            m_navigation.setFilterOptions(options);
             emit libraryFilterOptionsChanged();
         },
         [this, generation, library](const std::exception_ptr &error) {
-            if (generation != m_libraryLoadGeneration || library.id != m_currentLibraryId)
+            if (generation != m_libraryLoadGeneration || library.id != currentLibraryId())
                 return;
             qWarning() << "library filters: failed" << library.name << exceptionMessage(error);
-            m_libraryFilterOptions.clear();
+            m_navigation.clearFilterOptions();
             emit libraryFilterOptionsChanged();
         });
 }
@@ -1613,12 +1598,7 @@ void AppController::openSeries(const MovieItem &series)
         return;
 
     const int loadGeneration = ++m_libraryLoadGeneration;
-    m_currentSeriesId = series.id;
-    m_currentSeriesName = series.title;
-    m_currentSeasonId.clear();
-    m_currentViewKind = QStringLiteral("seasons");
-    m_currentLibraryName = series.title;
-    m_currentContentLabel = QStringLiteral("Seasons");
+    m_navigation.enterSeries(series);
     emit currentLibraryNameChanged();
     resetCurrentItemsPaging(QStringLiteral("seasons/%1").arg(series.id));
     m_movies.clear();
@@ -1651,7 +1631,7 @@ void AppController::openSeries(const MovieItem &series)
 
 void AppController::openSeason(const MovieItem &season)
 {
-    const QString seriesId = !season.seriesId.isEmpty() ? season.seriesId : m_currentSeriesId;
+    const QString seriesId = !season.seriesId.isEmpty() ? season.seriesId : m_navigation.seriesId();
     if (seriesId.isEmpty()) {
         qWarning() << "season open: missing series id" << season.id << season.title << season.itemType;
         return;
@@ -1663,11 +1643,7 @@ void AppController::openSeason(const MovieItem &season)
             << "season=" << season.id
             << "type=" << season.itemType
             << "title=" << season.title;
-    m_currentSeriesId = seriesId;
-    m_currentSeasonId = season.itemType == QStringLiteral("Season") ? season.id : QString();
-    m_currentViewKind = QStringLiteral("episodes");
-    m_currentLibraryName = season.title;
-    m_currentContentLabel = QStringLiteral("Episodes");
+    m_navigation.enterSeason(seriesId, season);
     emit currentLibraryNameChanged();
     resetCurrentItemsPaging(QStringLiteral("episodes/%1/%2").arg(seriesId, season.id));
     m_movies.clear();
@@ -1700,15 +1676,9 @@ void AppController::openGenre(const QString &genre)
         return;
 
     const int loadGeneration = ++m_libraryLoadGeneration;
-    m_currentSeriesId.clear();
-    m_currentSeriesName.clear();
-    m_currentSeasonId.clear();
-    m_currentLibraryId.clear();
-    m_currentLibraryCollectionType.clear();
-    m_currentViewKind = QStringLiteral("genre");
-    m_currentLibraryName = name;
-    m_currentContentLabel = QStringLiteral("Titles");
-    setLibraryQuery(QVariantMap());
+    m_navigation.enterNamedCollection(QStringLiteral("genre"), name);
+    emit libraryQueryChanged();
+    emit libraryFilterOptionsChanged();
     emit currentLibraryNameChanged();
     const QString cacheKey = QStringLiteral("genre/%1").arg(name);
     resetCurrentItemsPaging(cacheKey);
@@ -1737,15 +1707,9 @@ void AppController::openStudio(const QString &studio)
         return;
 
     const int loadGeneration = ++m_libraryLoadGeneration;
-    m_currentSeriesId.clear();
-    m_currentSeriesName.clear();
-    m_currentSeasonId.clear();
-    m_currentLibraryId.clear();
-    m_currentLibraryCollectionType.clear();
-    m_currentViewKind = QStringLiteral("studio");
-    m_currentLibraryName = name;
-    m_currentContentLabel = QStringLiteral("Titles");
-    setLibraryQuery(QVariantMap());
+    m_navigation.enterNamedCollection(QStringLiteral("studio"), name);
+    emit libraryQueryChanged();
+    emit libraryFilterOptionsChanged();
     emit currentLibraryNameChanged();
     const QString cacheKey = QStringLiteral("studio/%1").arg(name);
     resetCurrentItemsPaging(cacheKey);
@@ -1844,10 +1808,10 @@ void AppController::refreshHomeRows()
 
 void AppController::schedulePostPlaybackRefresh()
 {
-    const QString viewKind = m_currentViewKind;
-    const QString libraryId = m_currentLibraryId;
-    const QString seriesId = m_currentSeriesId;
-    const QString seasonId = m_currentSeasonId;
+    const QString viewKind = currentViewKind();
+    const QString libraryId = currentLibraryId();
+    const QString seriesId = m_navigation.seriesId();
+    const QString seasonId = m_navigation.seasonId();
     QTimer::singleShot(1500, this, [this, viewKind, libraryId, seriesId, seasonId]() {
         if (!m_api || m_api->session().accessToken.isEmpty())
             return;
@@ -1862,15 +1826,15 @@ void AppController::refreshCurrentItems(const QString &viewKind,
                                         const QString &seriesId,
                                         const QString &seasonId)
 {
-    if (viewKind != m_currentViewKind || libraryId != m_currentLibraryId ||
-        seriesId != m_currentSeriesId || seasonId != m_currentSeasonId)
+    if (viewKind != currentViewKind() || libraryId != currentLibraryId() ||
+        seriesId != m_navigation.seriesId() || seasonId != m_navigation.seasonId())
         return;
 
     if (viewKind == QStringLiteral("library") && !libraryId.isEmpty()) {
         const int loadGeneration = ++m_libraryLoadGeneration;
-        const QString collectionType = m_currentLibraryCollectionType;
+        const QString collectionType = currentLibraryCollectionType();
         const QString cacheKey = m_currentItemsCacheKey;
-        const QVariantMap query = m_libraryQuery;
+        const QVariantMap query = libraryQuery();
         Async::runScoped(this,
             m_api->fetchLibraryPage(libraryId, collectionType, 0, kLibraryPageSize, query),
             [this, loadGeneration, cacheKey](const PagedMovieItems &page) {
