@@ -19,8 +19,8 @@ FocusScope {
     readonly property bool showPrimaryAction: selectedIndex >= 0 && canPlay
     readonly property bool hasProgress: Number(item.resumeTicks || 0) > 0 && Number(item.runtimeTicks || 0) > 0
     readonly property int contentMargin: Metrics.pageMargin(width)
-    readonly property int posterWidth: Math.min(340, Math.max(220, width * 0.19))
-    readonly property int rowPosterWidth: Math.min(176, Math.max(132, width * 0.096))
+    readonly property int posterWidth: Metrics.detailPosterWidth(width)
+    readonly property int rowPosterWidth: Metrics.detailRowPosterWidth(width)
     readonly property int rowGap: Math.max(14, Metrics.gap(width))
     readonly property string backgroundArt: item.backdropUrl || item.thumbUrl || item.posterUrl || ""
     readonly property string titleArt: item.logoUrl || item.bannerUrl || ""
@@ -43,173 +43,43 @@ FocusScope {
     property string loadedDetailKey: ""
     focus: true
 
-    component DetailAction: FocusScope {
+    component DetailAction: ActionButton {
         id: actionRoot
-        property string iconName: "play_arrow"
         property string label: ""
         property bool primary: false
         property bool enabledButton: true
         signal activated()
 
-        width: Math.min(Math.max(actionLabel.implicitWidth + 76, 138), 240)
-        height: 46
-        focus: true
-        opacity: enabledButton ? 1.0 : 0.45
-
-        Rectangle {
-            anchors.fill: parent
-            radius: Theme.radiusSmall
-            color: actionRoot.primary ? Theme.accent : "transparent"
-            border.width: actionRoot.activeFocus ? 2 : 1
-            border.color: actionRoot.activeFocus ? Theme.textPrimary : actionRoot.primary ? Theme.accent : Theme.controlOutline
-            antialiasing: true
-        }
-
-        Row {
-            anchors.left: parent.left
-            anchors.right: parent.right
-            anchors.verticalCenter: parent.verticalCenter
-            anchors.leftMargin: 16
-            anchors.rightMargin: 16
-            spacing: 9
-
-            MaterialIcon {
-                anchors.verticalCenter: parent.verticalCenter
-                name: actionRoot.iconName
-                iconSize: 23
-                iconColor: actionRoot.enabledButton ? actionRoot.primary ? Theme.accentText : Theme.textPrimary : Theme.textDisabled
-            }
-
-            AppText {
-                id: actionLabel
-                anchors.verticalCenter: parent.verticalCenter
-                width: Math.max(0, actionRoot.width - 64)
-                text: actionRoot.label
-                color: actionRoot.enabledButton ? actionRoot.primary ? Theme.accentText : Theme.textPrimary : Theme.textDisabled
-                font.pixelSize: Metrics.metaPx(root.width) + 1
-                font.weight: actionRoot.primary ? Font.DemiBold : Font.Medium
-                elide: Text.ElideRight
-                maximumLineCount: 1
-            }
-        }
-
-        MouseArea {
-            anchors.fill: parent
-            enabled: actionRoot.enabledButton
-            onClicked: actionRoot.activated()
-        }
-
-        Keys.onReleased: (event) => {
-            if (!actionRoot.enabledButton)
-                return
-            if (InputKeys.isAccept(event.key)) {
-                actionRoot.activated()
-                event.accepted = true
-            }
-        }
+        width: Math.min(Math.max(implicitWidth, 138), 260)
+        text: label
+        kind: primary ? "primary" : "secondary"
+        enabled: enabledButton
+        onClicked: activated()
     }
 
-    component IconAction: FocusScope {
+    component IconAction: IconButton {
         id: iconRoot
-        property string iconName: "menu"
         property string label: ""
-        property bool checked: false
         property bool enabledButton: true
         signal activated()
 
-        width: 46
-        height: 46
-        focus: true
-        opacity: enabledButton ? 1.0 : 0.45
-
-        Rectangle {
-            anchors.fill: parent
-            radius: 23
-            color: iconRoot.checked ? Theme.accentPanel : "transparent"
-            border.width: iconRoot.activeFocus ? 2 : 1
-            border.color: iconRoot.activeFocus ? Theme.textPrimary : iconRoot.checked ? Theme.accent : Theme.controlOutline
-            antialiasing: true
-        }
-
-        MaterialIcon {
-            anchors.centerIn: parent
-            name: iconRoot.iconName
-            iconSize: 24
-            iconColor: iconRoot.checked ? Theme.accent : Theme.textPrimary
-        }
-
-        MouseArea {
-            anchors.fill: parent
-            enabled: iconRoot.enabledButton
-            onClicked: iconRoot.activated()
-        }
-
-        Keys.onReleased: (event) => {
-            if (!iconRoot.enabledButton)
-                return
-            if (InputKeys.isAccept(event.key)) {
-                iconRoot.activated()
-                event.accepted = true
-            }
-        }
+        width: Metrics.controlHeight(root.width)
+        height: width
+        selected: checked
+        enabled: enabledButton
+        accessibleName: label
+        onClicked: activated()
     }
 
-    component MenuOption: FocusScope {
+    component MenuOption: ActionButton {
         id: optionRoot
-        property string iconName: "info"
         property string label: ""
         signal activated()
 
         width: parent ? parent.width : 280
-        height: 48
-        focus: true
-
-        Rectangle {
-            anchors.fill: parent
-            radius: Theme.radiusSmall
-            color: optionRoot.activeFocus ? "#2A3034" : "transparent"
-            border.width: optionRoot.activeFocus ? 1 : 0
-            border.color: Theme.accent
-        }
-
-        Row {
-            anchors.left: parent.left
-            anchors.right: parent.right
-            anchors.verticalCenter: parent.verticalCenter
-            anchors.leftMargin: 12
-            anchors.rightMargin: 12
-            spacing: 10
-
-            MaterialIcon {
-                anchors.verticalCenter: parent.verticalCenter
-                name: optionRoot.iconName
-                iconSize: 21
-                iconColor: Theme.textSecondary
-            }
-
-            AppText {
-                anchors.verticalCenter: parent.verticalCenter
-                width: parent.width - 48
-                text: optionRoot.label
-                color: Theme.textPrimary
-                font.pixelSize: Metrics.metaPx(root.width) + 1
-                font.weight: Font.Medium
-                elide: Text.ElideRight
-                maximumLineCount: 1
-            }
-        }
-
-        MouseArea {
-            anchors.fill: parent
-            onClicked: optionRoot.activated()
-        }
-
-        Keys.onReleased: (event) => {
-            if (InputKeys.isAccept(event.key)) {
-                optionRoot.activated()
-                event.accepted = true
-            }
-        }
+        text: label
+        kind: "flat"
+        onClicked: activated()
     }
 
     component InfoLine: RowLayout {
@@ -759,8 +629,8 @@ FocusScope {
     Rectangle {
         anchors.fill: parent
         gradient: Gradient {
-            GradientStop { position: 0.0; color: "#A0000000" }
-            GradientStop { position: 0.42; color: "#D20D0D0D" }
+            GradientStop { position: 0.0; color: Theme.backdropScrimTop }
+            GradientStop { position: 0.42; color: Theme.backdropScrimMiddle }
             GradientStop { position: 1.0; color: Theme.bg }
         }
     }
@@ -769,9 +639,9 @@ FocusScope {
         anchors.fill: parent
         gradient: Gradient {
             orientation: Gradient.Horizontal
-            GradientStop { position: 0.0; color: "#5A000000" }
-            GradientStop { position: 0.54; color: "#22000000" }
-            GradientStop { position: 1.0; color: "#C4000000" }
+            GradientStop { position: 0.0; color: Theme.backdropScrimLeft }
+            GradientStop { position: 0.54; color: Theme.backdropScrimCenter }
+            GradientStop { position: 1.0; color: Theme.backdropScrimRight }
         }
     }
 
@@ -792,15 +662,15 @@ FocusScope {
 
             Item {
                 Layout.fillWidth: true
-                Layout.preferredHeight: Math.max(500, Math.min(660, Math.round(root.height * 0.64)))
+                Layout.preferredHeight: Metrics.detailHeroHeight(root.height)
 
                 Image {
                     id: titleArtImage
                     anchors.horizontalCenter: parent.horizontalCenter
                     anchors.top: parent.top
                     anchors.topMargin: Math.round(root.height * 0.035)
-                    width: Math.min(520, Math.max(280, parent.width * 0.32))
-                    height: 116
+                    width: Metrics.detailLogoWidth(root.width)
+                    height: Metrics.detailLogoHeight(root.width)
                     source: root.titleArt
                     visible: root.titleArt.length > 0
                     fillMode: Image.PreserveAspectFit
@@ -887,14 +757,14 @@ FocusScope {
                                 Rectangle {
                                     Layout.fillWidth: true
                                     Layout.preferredHeight: 5
-                                    radius: 2
+                                    radius: Theme.radiusTiny
                                     color: Theme.border
                                     Rectangle {
                                         anchors.left: parent.left
                                         anchors.top: parent.top
                                         anchors.bottom: parent.bottom
                                         width: parent.width * Math.max(0, Math.min(1, root.item.progress || 0))
-                                        radius: 2
+                                        radius: Theme.radiusTiny
                                         color: Theme.accent
                                     }
                                 }
@@ -959,7 +829,7 @@ FocusScope {
                                 Layout.alignment: Qt.AlignLeft
                                 visible: root.overflowOpen
                                 radius: Theme.radiusMedium
-                                color: "#F01A1A1A"
+                                color: Theme.floatingPanel
                                 border.width: 1
                                 border.color: Theme.borderStrong
                                 clip: true
@@ -1006,7 +876,7 @@ FocusScope {
             Item {
                 id: detailRowsArea
                 Layout.fillWidth: true
-                readonly property int rowSpacing: 28
+                readonly property int rowSpacing: Metrics.sectionGap(root.width)
                 readonly property int visibleRowCount: (genresRow.visible ? 1 : 0)
                                                        + (studiosRow.visible ? 1 : 0)
                                                        + (seasonsRow.visible ? 1 : 0)

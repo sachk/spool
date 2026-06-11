@@ -32,6 +32,11 @@ QtObject {
     readonly property color overlayScrim: "#AA000000"
     readonly property color overlayScrimStrong: "#CC000000"
     readonly property color busyScrim: "#AA0E0E0E"
+    readonly property color backdropScrimTop: "#A0000000"
+    readonly property color backdropScrimMiddle: "#D20D0D0D"
+    readonly property color backdropScrimLeft: "#5A000000"
+    readonly property color backdropScrimCenter: "#22000000"
+    readonly property color backdropScrimRight: "#C4000000"
 
     readonly property int radiusTiny: 2
     readonly property int radiusSmall: 4
