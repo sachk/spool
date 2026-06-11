@@ -19,6 +19,8 @@ FocusScope {
     readonly property var syncGroups: syncPlay ? syncPlay.groups : []
     readonly property bool syncAvailable: syncGroups && syncGroups.length > 0
     readonly property string selectedRoute: currentRoute === "libraryGrid" ? "libraries" : currentRoute
+    Accessible.role: Accessible.ToolBar
+    Accessible.name: "Primary navigation"
 
     // Index space: [0 .. railRepeater.count-1] are nav buttons, the trailing
     // index is the SyncPlay button.

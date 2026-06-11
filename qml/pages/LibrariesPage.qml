@@ -7,6 +7,8 @@ FocusScope {
     id: root
     property var shell
     focus: true
+    Accessible.role: Accessible.Pane
+    Accessible.name: "Libraries"
     function handleNavigationKey(key) {
         if (grid.count <= 0)
             return false

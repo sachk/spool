@@ -12,6 +12,8 @@ FocusScope {
     property int suggestionCount: appController && appController.searchSuggestions ? appController.searchSuggestions.rowCount() : 0
     readonly property bool showSuggestions: query.length < 2 && suggestionCount > 0
     focus: true
+    Accessible.role: Accessible.Pane
+    Accessible.name: "Search"
 
     Component.onCompleted: {
         field.text = root.query
@@ -27,6 +29,10 @@ FocusScope {
         function onSearchChanged() {
             root.query = appController.searchQuery
             root.refreshResultCount()
+            if (root.query.length >= 2 && !appController.searchBusy) {
+                root.Accessible.announce(root.resultCount + " result"
+                                         + (root.resultCount === 1 ? "" : "s"))
+            }
         }
         function onSearchSuggestionsChanged() {
             root.refreshSuggestionCount()
