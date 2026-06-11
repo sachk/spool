@@ -102,14 +102,16 @@ archive containing app version `0.2.1` and a 32-bit ARM EABI5 executable.
 - [ ] Finish route regression coverage for details opened from library, search,
   latest, resume, person, genre, studio, and similar-item views.
 - [x] Move `ItemDetailsPage` fully onto Theme/Metrics and shared icon controls.
-- [ ] Give Search and More Like This dedicated controller models; remove the
+- [x] Give Search and More Like This dedicated controller models; remove the
   client-side visibility-filtered movie-model workaround.
 - [ ] Consolidate the duplicated Home horizontal-row implementations and model
   change handlers.
-- [ ] Wire or remove remaining dead settings controls, including remote bitrate,
+- [x] Wire or remove remaining dead settings controls, including remote bitrate,
   remux preference, and shortcut enablement.
-- [ ] Extend accessibility metadata from core controls to pages, menus, grids,
-  and dynamic media content.
+- [x] Add explicit list/button accessibility semantics to library/search grids,
+  poster rows, people rows, and genre/studio chips.
+- [ ] Complete the remaining accessibility audit for page landmarks, menus, and
+  dynamic status announcements.
 - [ ] Add pagination or bounded models for large library/search results.
 - [ ] Continue splitting `PlayerController` and `AppController` by
   responsibility.

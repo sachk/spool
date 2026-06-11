@@ -15,7 +15,11 @@ T.Button {
     height: 44
     text: iconText
     focusPolicy: Qt.StrongFocus
+    Accessible.role: Accessible.Button
     Accessible.name: accessibleName.length > 0 ? accessibleName : iconText
+    Accessible.focusable: enabled
+    Accessible.focused: activeFocus
+    Accessible.onPressAction: clicked()
 
     background: Rectangle {
         radius: Theme.radiusSmall
