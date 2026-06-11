@@ -263,6 +263,7 @@ qt_add_qml_module(jellyfin-native
         qml/shell/AppShell.qml
         qml/shell/DiagnosticsOverlay.qml
         qml/shell/MediaInfoOverlay.qml
+        qml/shell/RoutePolicy.js
         qml/shell/RouteStack.qml
         qml/shell/ShortcutOverlay.qml
         qml/shell/SyncPlayMenu.qml
@@ -402,6 +403,17 @@ if(BUILD_TESTING AND NOT CMAKE_CROSSCOMPILING)
         "${CMAKE_CURRENT_SOURCE_DIR}/src"
     )
     add_test(NAME request-generation COMMAND request-generation-tests)
+
+    find_program(QMLTESTRUNNER_EXECUTABLE NAMES qmltestrunner)
+    if(QMLTESTRUNNER_EXECUTABLE)
+        add_test(NAME route-policy
+            COMMAND "${QMLTESTRUNNER_EXECUTABLE}"
+                -input "${CMAKE_CURRENT_SOURCE_DIR}/tests/qml/tst_RoutePolicy.qml"
+        )
+        set_tests_properties(route-policy PROPERTIES
+            ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software"
+        )
+    endif()
 endif()
 
 # Static Qt: import plugins that the linker can't auto-discover. BUILD_SHARED_LIBS
