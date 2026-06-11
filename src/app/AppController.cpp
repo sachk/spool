@@ -4,6 +4,7 @@
 #include "../common/AsyncTask.h"
 #include "../diagnostics/Diagnostics.h"
 #include "../player/PlayerController.h"
+#include "QuickConnectController.h"
 
 #include <QCoreApplication>
 #include <QDebug>
@@ -22,9 +23,6 @@ namespace {
 constexpr int kLibraryPageSize = 100;
 constexpr int kLibraryPrefetchDistance = 200;
 constexpr int kBackgroundLibraryPrefetchLimit = 3;
-constexpr int kQuickConnectPollIntervalMs = 5'000;
-constexpr int kQuickConnectMaxPollAttempts = 36;
-constexpr int kQuickConnectMaxPollErrors = 6;
 
 QString homeItemSample(const std::vector<MovieItem> &items)
 {
@@ -305,7 +303,24 @@ AppController::AppController(DatabaseManager *database,
     , m_player(player)
 {
     m_syncPlay = new SyncPlayController(api, player, this);
+    m_quickConnect = new QuickConnectController(api, this);
     connect(m_syncPlay, &SyncPlayController::errorText, this, &AppController::setErrorText);
+    connect(m_quickConnect, &QuickConnectController::changed,
+            this, &AppController::quickConnectChanged);
+    connect(m_quickConnect, &QuickConnectController::busyChanged,
+            this, &AppController::setBusy);
+    connect(m_quickConnect, &QuickConnectController::errorOccurred,
+            this, &AppController::setErrorText);
+    connect(m_quickConnect, &QuickConnectController::authenticated, this,
+            [this](const AuthSession &session) {
+                m_database->saveLoginHints(m_serverUrl, m_username);
+                m_database->saveAuthSession(session);
+                loadSubtitleRemoteSettings();
+                m_syncPlay->connectSocket();
+                loadLibraries();
+                Async::runScoped(this, m_api->postCapabilities(), []() {},
+                                 [](const std::exception_ptr &) {});
+            });
     connect(m_discovery, &DiscoveryController::serverDiscovered, this, [this](const DiscoveredServer &server) {
         m_discoveredServers.upsertServer(server);
         QJsonArray cache;
@@ -314,8 +329,6 @@ AppController::AppController(DatabaseManager *database,
         m_database->saveDiscoveredServers(cache);
     });
 
-    connect(&m_quickConnectTimer, &QTimer::timeout, this, &AppController::pollQuickConnect);
-    m_quickConnectTimer.setInterval(kQuickConnectPollIntervalMs);
     m_libraryPrefetchTimer.setSingleShot(true);
     connect(&m_libraryPrefetchTimer, &QTimer::timeout, this, &AppController::startNextLibraryPrefetch);
 
@@ -363,17 +376,17 @@ QString AppController::errorText() const
 
 QString AppController::quickConnectCode() const
 {
-    return m_quickConnectCode;
+    return m_quickConnect->code();
 }
 
 QString AppController::quickConnectStatus() const
 {
-    return m_quickConnectStatus;
+    return m_quickConnect->status();
 }
 
 bool AppController::quickConnectActive() const
 {
-    return !m_quickConnectSecret.isEmpty();
+    return m_quickConnect->active();
 }
 
 QString AppController::currentLibraryName() const
@@ -742,12 +755,7 @@ void AppController::login()
 void AppController::logout()
 {
     qInfo() << "app: logout requested";
-    m_quickConnectTimer.stop();
-    m_quickConnectCode.clear();
-    m_quickConnectStatus.clear();
-    m_quickConnectSecret.clear();
-    m_quickConnectPollAttempts = 0;
-    m_quickConnectPollErrors = 0;
+    m_quickConnect->cancel();
     if (m_player->visible())
         m_player->stopWithReason(QStringLiteral("logout"));
     m_database->clearAuthSession();
@@ -784,7 +792,6 @@ void AppController::logout()
     setBusy(false);
     setErrorText({});
     emit passwordChanged();
-    emit quickConnectChanged();
     emit currentLibraryNameChanged();
     emit libraryQueryChanged();
     emit libraryFilterOptionsChanged();
@@ -797,64 +804,13 @@ void AppController::logout()
 
 void AppController::startQuickConnect()
 {
-    if (m_serverUrl.isEmpty()) {
-        setErrorText(QStringLiteral("Enter a Jellyfin server URL first."));
-        return;
-    }
-
     setErrorText({});
-    setBusy(true, QStringLiteral("Starting Quick Connect…"));
-    m_api->setServerUrl(m_serverUrl);
-    m_quickConnectPollAttempts = 0;
-    m_quickConnectPollErrors = 0;
-    qInfo() << "quick connect: starting for" << m_serverUrl;
-
-    Async::runScoped(this,
-        m_api->quickConnectEnabled(),
-        [this](bool enabled) {
-            if (!enabled) {
-                setBusy(false);
-                setErrorText(QStringLiteral("Quick Connect is disabled on this server."));
-                return;
-            }
-
-            Async::runScoped(this,
-                m_api->initiateQuickConnect(),
-                [this](const QJsonObject &result) {
-                    setBusy(false);
-                    m_quickConnectCode = result.value(QStringLiteral("Code")).toString();
-                    m_quickConnectSecret = result.value(QStringLiteral("Secret")).toString();
-                    m_quickConnectStatus = QStringLiteral("Waiting for authorization…");
-                    m_quickConnectPollAttempts = 0;
-                    m_quickConnectPollErrors = 0;
-                    qInfo() << "quick connect: initiated code" << m_quickConnectCode
-                            << "deviceId" << result.value(QStringLiteral("DeviceId")).toString();
-                    emit quickConnectChanged();
-                    pollQuickConnect();
-                    m_quickConnectTimer.start();
-                },
-                [this](const std::exception_ptr &error) {
-                    setBusy(false);
-                    qWarning() << "quick connect: initiate failed" << exceptionMessage(error);
-                    setErrorText(exceptionMessage(error));
-                });
-        },
-        [this](const std::exception_ptr &error) {
-            setBusy(false);
-            qWarning() << "quick connect: enabled check failed" << exceptionMessage(error);
-            setErrorText(exceptionMessage(error));
-        });
+    m_quickConnect->start(m_serverUrl);
 }
 
 void AppController::cancelQuickConnect()
 {
-    m_quickConnectTimer.stop();
-    m_quickConnectCode.clear();
-    m_quickConnectStatus.clear();
-    m_quickConnectSecret.clear();
-    m_quickConnectPollAttempts = 0;
-    m_quickConnectPollErrors = 0;
-    emit quickConnectChanged();
+    m_quickConnect->cancel();
 }
 
 void AppController::goHome()
@@ -1474,7 +1430,7 @@ void AppController::shutdown()
         return;
     m_shuttingDown = true;
     qInfo() << "app: shutdown requested";
-    m_quickConnectTimer.stop();
+    m_quickConnect->cancel();
     m_libraryPrefetchTimer.stop();
     m_libraryPrefetchQueue.clear();
     m_libraryPrefetchActive = false;
@@ -1973,71 +1929,6 @@ void AppController::loadLibraries()
                 m_discovery->start();
             } else {
                 setErrorText(msg);
-            }
-        });
-}
-
-void AppController::pollQuickConnect()
-{
-    if (m_quickConnectSecret.isEmpty())
-        return;
-
-    m_quickConnectPollAttempts += 1;
-    if (m_quickConnectPollAttempts > kQuickConnectMaxPollAttempts) {
-        qWarning() << "quick connect: timed out after polls" << m_quickConnectPollAttempts;
-        cancelQuickConnect();
-        setErrorText(QStringLiteral("Quick Connect timed out."));
-        return;
-    }
-
-    Async::runScoped(this,
-        m_api->pollQuickConnect(m_quickConnectSecret),
-        [this](const QJsonObject &result) {
-            m_quickConnectPollErrors = 0;
-            const bool authenticated = result.value(QStringLiteral("Authenticated")).toBool();
-            qInfo() << "quick connect: poll" << m_quickConnectPollAttempts
-                    << "authenticated" << authenticated;
-            if (!authenticated)
-                return;
-
-            m_quickConnectTimer.stop();
-            m_quickConnectStatus = QStringLiteral("Authorized. Signing in…");
-            emit quickConnectChanged();
-
-            Async::runScoped(this,
-                m_api->authenticateWithQuickConnect(m_quickConnectSecret),
-                [this](const AuthSession &session) {
-                    qInfo() << "quick connect: authenticated successfully";
-                    cancelQuickConnect();
-                    m_database->saveLoginHints(m_serverUrl, m_username);
-                    m_database->saveAuthSession(session);
-                    loadSubtitleRemoteSettings();
-                    m_syncPlay->connectSocket();
-                    loadLibraries();
-                    Async::runScoped(this, m_api->postCapabilities(), []() {}, [](const std::exception_ptr &) {});
-                },
-                [this](const std::exception_ptr &error) {
-                    qWarning() << "quick connect: token exchange failed" << exceptionMessage(error);
-                    cancelQuickConnect();
-                    setErrorText(exceptionMessage(error));
-                });
-        },
-        [this](const std::exception_ptr &error) {
-            const QString message = exceptionMessage(error);
-            m_quickConnectPollErrors += 1;
-            qWarning() << "quick connect: poll failed" << m_quickConnectPollErrors << message;
-
-            if (message.contains(QStringLiteral("(401)")) ||
-                message.contains(QStringLiteral("(404)")) ||
-                m_quickConnectPollErrors >= kQuickConnectMaxPollErrors) {
-                cancelQuickConnect();
-                setErrorText(message);
-                return;
-            }
-
-            if (!m_quickConnectSecret.isEmpty()) {
-                m_quickConnectStatus = QStringLiteral("Waiting for authorization…");
-                emit quickConnectChanged();
             }
         });
 }
