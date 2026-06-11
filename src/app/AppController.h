@@ -22,6 +22,7 @@ namespace JellyfinNative {
 class JellyfinApiFacade;
 class QuickConnectController;
 class SettingsController;
+class SessionController;
 class AppController final : public QObject
 {
     Q_OBJECT
@@ -267,6 +268,7 @@ private:
     void setPage(const QString &page);
     void setBusy(bool busy, const QString &busyText = {});
     void setErrorText(const QString &errorText);
+    void resetApplicationState();
     void applyDiscoveredServersCache();
     int applyPrefetchedLibraryPage(const QString &cacheKey);
     void loadLibraries();
@@ -306,6 +308,7 @@ private:
     SyncPlayController *m_syncPlay = nullptr;
     QuickConnectController *m_quickConnect = nullptr;
     SettingsController *m_settings = nullptr;
+    SessionController *m_session = nullptr;
     DiscoveredServerModel m_discoveredServers;
     LibraryListModel m_libraries;
     MovieGridModel m_movies;
@@ -320,9 +323,6 @@ private:
     std::vector<LatestLibrarySection> m_latestLibrarySections;
     QTimer m_libraryPrefetchTimer;
     QString m_page = QStringLiteral("login");
-    QString m_serverUrl;
-    QString m_username;
-    QString m_password;
     bool m_busy = false;
     QString m_busyText;
     QString m_errorText;

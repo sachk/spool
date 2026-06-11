@@ -130,6 +130,8 @@ qt_add_executable(jellyfin-native
     src/app/QuickConnectController.h
     src/app/SettingsController.cpp
     src/app/SettingsController.h
+    src/app/SessionController.cpp
+    src/app/SessionController.h
     src/app/QmlNetworkAccessManagerFactory.cpp
     src/app/QmlNetworkAccessManagerFactory.h
     src/app/SyncPlayController.cpp
