@@ -148,6 +148,8 @@ qt_add_executable(jellyfin-native
     src/models/LibraryListModel.h
     src/models/MovieGridModel.cpp
     src/models/MovieGridModel.h
+    src/player/MpvLifecycle.cpp
+    src/player/MpvLifecycle.h
     src/player/PlayerController.cpp
     src/player/PlayerController.h
     src/player/PlaybackReporter.cpp
