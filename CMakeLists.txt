@@ -127,6 +127,8 @@ qt_add_executable(jellyfin-native
     src/app/AppController.h
     src/app/LibraryPrefetchController.cpp
     src/app/LibraryPrefetchController.h
+    src/app/NavigationState.cpp
+    src/app/NavigationState.h
     src/app/NativeAppWindow.h
     src/app/QuickConnectController.cpp
     src/app/QuickConnectController.h
@@ -376,6 +378,17 @@ if(BUILD_TESTING AND NOT CMAKE_CROSSCOMPILING)
     )
     target_link_libraries(playback-position-tracker-tests PRIVATE Qt6::Core)
     add_test(NAME playback-position-tracker COMMAND playback-position-tracker-tests)
+
+    add_executable(navigation-state-tests
+        tests/app/NavigationStateTest.cpp
+        src/app/NavigationState.cpp
+        src/app/NavigationState.h
+    )
+    target_include_directories(navigation-state-tests PRIVATE
+        "${CMAKE_CURRENT_SOURCE_DIR}/src"
+    )
+    target_link_libraries(navigation-state-tests PRIVATE Qt6::Core)
+    add_test(NAME navigation-state COMMAND navigation-state-tests)
 endif()
 
 # Static Qt: import plugins that the linker can't auto-discover. BUILD_SHARED_LIBS
