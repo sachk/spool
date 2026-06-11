@@ -3,6 +3,7 @@
 #include "../diagnostics/Diagnostics.h"
 
 #include <QDir>
+#include <QDateTime>
 #include <QFileInfo>
 #include <QJsonDocument>
 #include <QMetaObject>
@@ -10,6 +11,9 @@
 #include <QSqlError>
 #include <QSqlQuery>
 #include <QVariant>
+#include <QVector>
+
+#include <algorithm>
 
 namespace JellyfinNative {
 
@@ -31,11 +35,43 @@ public:
             return false;
 
         QSqlQuery query(m_database);
-        return query.exec(QStringLiteral(
-                   "CREATE TABLE IF NOT EXISTS kv ("
-                   "key TEXT PRIMARY KEY,"
-                   "value TEXT NOT NULL"
-                   ")"));
+        if (!query.exec(QStringLiteral("PRAGMA user_version")) || !query.next())
+            return false;
+        const int existingVersion = query.value(0).toInt();
+        if (existingVersion > 2) {
+            qWarning() << "database: unsupported schema version"
+                       << existingVersion;
+            return false;
+        }
+        if (!query.exec(QStringLiteral("PRAGMA journal_mode = WAL")) ||
+            !query.exec(QStringLiteral("PRAGMA busy_timeout = 5000")) ||
+            !query.exec(QStringLiteral(
+                "CREATE TABLE IF NOT EXISTS kv ("
+                "key TEXT PRIMARY KEY,"
+                "value TEXT NOT NULL"
+                ")")) ||
+            !query.exec(QStringLiteral(
+                "CREATE TABLE IF NOT EXISTS cache_entries ("
+                "namespace TEXT NOT NULL,"
+                "key TEXT NOT NULL,"
+                "value BLOB NOT NULL,"
+                "updated_at INTEGER NOT NULL,"
+                "accessed_at INTEGER NOT NULL,"
+                "expires_at INTEGER,"
+                "PRIMARY KEY(namespace, key)"
+                ")")) ||
+            !query.exec(QStringLiteral(
+                "CREATE INDEX IF NOT EXISTS cache_entries_expiry "
+                "ON cache_entries(expires_at)")) ||
+            !query.exec(QStringLiteral(
+                "CREATE INDEX IF NOT EXISTS cache_entries_access "
+                "ON cache_entries(accessed_at)")) ||
+            !query.exec(QStringLiteral("PRAGMA user_version = 2"))) {
+            qWarning() << "database: schema migration failed"
+                       << query.lastError().text();
+            return false;
+        }
+        return true;
     }
 
     QVariant value(const QString &key)
@@ -57,6 +93,126 @@ public:
         query.addBindValue(key);
         query.addBindValue(value);
         query.exec();
+    }
+
+    int schemaVersion()
+    {
+        QSqlQuery query(m_database);
+        if (!query.exec(QStringLiteral("PRAGMA user_version")) || !query.next())
+            return 0;
+        return query.value(0).toInt();
+    }
+
+    QByteArray cacheValue(const QString &nameSpace, const QString &key,
+                          qint64 maxAgeMs)
+    {
+        const qint64 now = QDateTime::currentMSecsSinceEpoch();
+        QSqlQuery query(m_database);
+        query.prepare(QStringLiteral(
+            "SELECT value, updated_at, expires_at FROM cache_entries "
+            "WHERE namespace = ? AND key = ?"));
+        query.addBindValue(nameSpace);
+        query.addBindValue(key);
+        if (!query.exec() || !query.next())
+            return {};
+
+        const qint64 updatedAt = query.value(1).toLongLong();
+        const qint64 expiresAt = query.value(2).toLongLong();
+        const bool expired = expiresAt > 0 && expiresAt <= now;
+        const bool stale = maxAgeMs >= 0 && updatedAt < now - maxAgeMs;
+        if (expired || stale) {
+            removeCacheValue(nameSpace, key);
+            return {};
+        }
+
+        const QByteArray result = query.value(0).toByteArray();
+        QSqlQuery touch(m_database);
+        touch.prepare(QStringLiteral(
+            "UPDATE cache_entries SET accessed_at = ? "
+            "WHERE namespace = ? AND key = ?"));
+        touch.addBindValue(now);
+        touch.addBindValue(nameSpace);
+        touch.addBindValue(key);
+        touch.exec();
+        return result;
+    }
+
+    void setCacheValue(const QString &nameSpace, const QString &key,
+                       const QByteArray &value, qint64 ttlMs)
+    {
+        const qint64 now = QDateTime::currentMSecsSinceEpoch();
+        QVariant expiresAt;
+        if (ttlMs > 0)
+            expiresAt = now + ttlMs;
+        QSqlQuery query(m_database);
+        query.prepare(QStringLiteral(
+            "INSERT INTO cache_entries(namespace, key, value, updated_at, "
+            "accessed_at, expires_at) VALUES(?, ?, ?, ?, ?, ?) "
+            "ON CONFLICT(namespace, key) DO UPDATE SET "
+            "value = excluded.value, updated_at = excluded.updated_at, "
+            "accessed_at = excluded.accessed_at, expires_at = excluded.expires_at"));
+        query.addBindValue(nameSpace);
+        query.addBindValue(key);
+        query.addBindValue(value);
+        query.addBindValue(now);
+        query.addBindValue(now);
+        query.addBindValue(expiresAt);
+        if (!query.exec())
+            qWarning() << "database: cache write failed" << query.lastError().text();
+    }
+
+    void removeCacheValue(const QString &nameSpace, const QString &key)
+    {
+        QSqlQuery query(m_database);
+        query.prepare(QStringLiteral(
+            "DELETE FROM cache_entries WHERE namespace = ? AND key = ?"));
+        query.addBindValue(nameSpace);
+        query.addBindValue(key);
+        query.exec();
+    }
+
+    void invalidateCacheNamespace(const QString &nameSpace)
+    {
+        QSqlQuery query(m_database);
+        query.prepare(QStringLiteral(
+            "DELETE FROM cache_entries WHERE namespace = ?"));
+        query.addBindValue(nameSpace);
+        query.exec();
+    }
+
+    void evictCacheEntries(int maximumEntries)
+    {
+        const qint64 now = QDateTime::currentMSecsSinceEpoch();
+        QSqlQuery expired(m_database);
+        expired.prepare(QStringLiteral(
+            "DELETE FROM cache_entries WHERE expires_at IS NOT NULL "
+            "AND expires_at <= ?"));
+        expired.addBindValue(now);
+        expired.exec();
+
+        const int limit = std::max(0, maximumEntries);
+        QSqlQuery countQuery(m_database);
+        if (!countQuery.exec(QStringLiteral("SELECT COUNT(*) FROM cache_entries")) ||
+            !countQuery.next()) {
+            return;
+        }
+        const int removeCount = countQuery.value(0).toInt() - limit;
+        if (removeCount <= 0)
+            return;
+
+        QSqlQuery victims(m_database);
+        victims.prepare(QStringLiteral(
+            "SELECT namespace, key FROM cache_entries "
+            "ORDER BY accessed_at ASC LIMIT ?"));
+        victims.addBindValue(removeCount);
+        if (!victims.exec())
+            return;
+
+        QVector<QPair<QString, QString>> keys;
+        while (victims.next())
+            keys.push_back({victims.value(0).toString(), victims.value(1).toString()});
+        for (const auto &[nameSpace, key] : keys)
+            removeCacheValue(nameSpace, key);
     }
 
     void close()
@@ -195,16 +351,28 @@ void DatabaseManager::saveDeviceId(const QString &deviceId)
 
 QJsonArray DatabaseManager::loadDiscoveredServers()
 {
-    const auto value = invokeOnWorker([this]() { return m_worker->value(QStringLiteral("cache/discoveredServers")); });
-    return QJsonDocument::fromJson(value.toByteArray()).array();
+    constexpr qint64 maxAgeMs = 7LL * 24 * 60 * 60 * 1000;
+    QByteArray encoded =
+        loadCacheEntry(QStringLiteral("discovery"), QStringLiteral("servers"),
+                       maxAgeMs);
+    if (encoded.isEmpty()) {
+        encoded = invokeOnWorker([this]() {
+            return m_worker->value(QStringLiteral("cache/discoveredServers"));
+        }).toByteArray();
+        if (!encoded.isEmpty())
+            saveCacheEntry(QStringLiteral("discovery"), QStringLiteral("servers"),
+                           encoded, maxAgeMs);
+    }
+    return QJsonDocument::fromJson(encoded).array();
 }
 
 void DatabaseManager::saveDiscoveredServers(const QJsonArray &servers)
 {
     const QByteArray encoded = QJsonDocument(servers).toJson(QJsonDocument::Compact);
-    invokeOnWorkerAsync([this, encoded]() {
-        m_worker->setValue(QStringLiteral("cache/discoveredServers"), QString::fromUtf8(encoded));
-    });
+    constexpr qint64 ttlMs = 7LL * 24 * 60 * 60 * 1000;
+    saveCacheEntry(QStringLiteral("discovery"), QStringLiteral("servers"),
+                   encoded, ttlMs);
+    evictCacheEntries(512);
 }
 
 bool DatabaseManager::loadNightModeEnabled()
@@ -254,6 +422,43 @@ QString DatabaseManager::loadSetting(const QString &key, const QString &defaultV
 void DatabaseManager::saveSetting(const QString &key, const QString &value)
 {
     invokeOnWorkerAsync([this, key, value]() { m_worker->setValue(key, value); });
+}
+
+int DatabaseManager::schemaVersion()
+{
+    return invokeOnWorker([this]() { return m_worker->schemaVersion(); }).toInt();
+}
+
+QByteArray DatabaseManager::loadCacheEntry(const QString &nameSpace,
+                                           const QString &key,
+                                           qint64 maxAgeMs)
+{
+    return invokeOnWorker([this, nameSpace, key, maxAgeMs]() {
+        return m_worker->cacheValue(nameSpace, key, maxAgeMs);
+    }).toByteArray();
+}
+
+void DatabaseManager::saveCacheEntry(const QString &nameSpace,
+                                     const QString &key,
+                                     const QByteArray &value, qint64 ttlMs)
+{
+    invokeOnWorkerAsync([this, nameSpace, key, value, ttlMs]() {
+        m_worker->setCacheValue(nameSpace, key, value, ttlMs);
+    });
+}
+
+void DatabaseManager::invalidateCacheNamespace(const QString &nameSpace)
+{
+    invokeOnWorkerAsync([this, nameSpace]() {
+        m_worker->invalidateCacheNamespace(nameSpace);
+    });
+}
+
+void DatabaseManager::evictCacheEntries(int maximumEntries)
+{
+    invokeOnWorkerAsync([this, maximumEntries]() {
+        m_worker->evictCacheEntries(maximumEntries);
+    });
 }
 
 } // namespace JellyfinNative

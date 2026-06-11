@@ -415,6 +415,25 @@ if(BUILD_TESTING AND NOT CMAKE_CROSSCOMPILING)
     target_link_libraries(http-request-policy-tests PRIVATE Qt6::Core Qt6::Network)
     add_test(NAME http-request-policy COMMAND http-request-policy-tests)
 
+    add_executable(database-manager-tests
+        tests/cache/DatabaseManagerTest.cpp
+        src/cache/DatabaseManager.cpp
+        src/cache/DatabaseManager.h
+        src/common/JellyfinTypes.cpp
+        src/common/JellyfinTypes.h
+        src/diagnostics/Diagnostics.cpp
+        src/diagnostics/Diagnostics.h
+    )
+    target_include_directories(database-manager-tests PRIVATE
+        "${CMAKE_CURRENT_SOURCE_DIR}/src"
+    )
+    target_link_libraries(database-manager-tests PRIVATE
+        Qt6::Core
+        Qt6::Network
+        Qt6::Sql
+    )
+    add_test(NAME database-manager COMMAND database-manager-tests)
+
     find_program(QMLTESTRUNNER_EXECUTABLE NAMES qmltestrunner)
     if(QMLTESTRUNNER_EXECUTABLE)
         add_test(NAME route-policy

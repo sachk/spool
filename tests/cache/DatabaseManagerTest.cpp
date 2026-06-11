@@ -1,0 +1,65 @@
+#include "cache/DatabaseManager.h"
+
+#include <QCoreApplication>
+#include <QTemporaryDir>
+#include <QThread>
+
+#include <cstdlib>
+#include <iostream>
+
+using namespace JellyfinNative;
+
+namespace {
+
+void require(bool condition, const char *message)
+{
+    if (condition)
+        return;
+    std::cerr << message << '\n';
+    std::exit(1);
+}
+
+} // namespace
+
+int main(int argc, char **argv)
+{
+    QCoreApplication app(argc, argv);
+    QTemporaryDir directory;
+    require(directory.isValid(), "temporary directory should be available");
+
+    DatabaseManager database;
+    require(database.initialize(directory.filePath(QStringLiteral("cache.sqlite"))),
+            "database should initialize");
+    require(database.schemaVersion() == 2, "schema should migrate to version 2");
+
+    database.saveCacheEntry(QStringLiteral("test"), QStringLiteral("fresh"),
+                            QByteArrayLiteral("value"), 5000);
+    require(database.loadCacheEntry(QStringLiteral("test"), QStringLiteral("fresh")) ==
+                QByteArrayLiteral("value"),
+            "fresh cache entry should load");
+
+    database.invalidateCacheNamespace(QStringLiteral("test"));
+    require(database.loadCacheEntry(QStringLiteral("test"), QStringLiteral("fresh")).isEmpty(),
+            "namespace invalidation should remove entries");
+
+    database.saveCacheEntry(QStringLiteral("test"), QStringLiteral("expired"),
+                            QByteArrayLiteral("value"), 1);
+    QThread::msleep(5);
+    require(database.loadCacheEntry(QStringLiteral("test"), QStringLiteral("expired")).isEmpty(),
+            "expired cache entry should not load");
+
+    database.saveCacheEntry(QStringLiteral("test"), QStringLiteral("old"),
+                            QByteArrayLiteral("old"));
+    QThread::msleep(2);
+    database.saveCacheEntry(QStringLiteral("test"), QStringLiteral("new"),
+                            QByteArrayLiteral("new"));
+    database.evictCacheEntries(1);
+    require(database.loadCacheEntry(QStringLiteral("test"), QStringLiteral("old")).isEmpty(),
+            "least recently used entry should be evicted");
+    require(database.loadCacheEntry(QStringLiteral("test"), QStringLiteral("new")) ==
+                QByteArrayLiteral("new"),
+            "newest cache entry should remain");
+
+    database.shutdown();
+    return 0;
+}

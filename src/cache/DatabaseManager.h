@@ -1,6 +1,7 @@
 #pragma once
 
 #include <QJsonArray>
+#include <QByteArray>
 #include <QObject>
 #include <QString>
 #include <QThread>
@@ -47,6 +48,14 @@ public:
     void saveAudioOutputMode(const QString &mode);
     QString loadSetting(const QString &key, const QString &defaultValue = {});
     void saveSetting(const QString &key, const QString &value);
+
+    int schemaVersion();
+    QByteArray loadCacheEntry(const QString &nameSpace, const QString &key,
+                              qint64 maxAgeMs = -1);
+    void saveCacheEntry(const QString &nameSpace, const QString &key,
+                        const QByteArray &value, qint64 ttlMs = 0);
+    void invalidateCacheNamespace(const QString &nameSpace);
+    void evictCacheEntries(int maximumEntries);
 
 private:
     QVariant invokeOnWorker(const std::function<QVariant()> &callback);
