@@ -4,6 +4,7 @@
 #include "../common/AsyncTask.h"
 #include "../diagnostics/Diagnostics.h"
 #include "../player/PlayerController.h"
+#include "LibraryPrefetchController.h"
 #include "QuickConnectController.h"
 #include "SessionController.h"
 #include "SettingsController.h"
@@ -24,7 +25,6 @@ namespace {
 
 constexpr int kLibraryPageSize = 100;
 constexpr int kLibraryPrefetchDistance = 200;
-constexpr int kBackgroundLibraryPrefetchLimit = 3;
 
 QString homeItemSample(const std::vector<MovieItem> &items)
 {
@@ -221,6 +221,7 @@ AppController::AppController(DatabaseManager *database,
     m_quickConnect = new QuickConnectController(api, this);
     m_settings = new SettingsController(database, api, player, this);
     m_session = new SessionController(database, api, this);
+    m_prefetch = new LibraryPrefetchController(api, this);
     connect(m_syncPlay, &SyncPlayController::errorText, this, &AppController::setErrorText);
     connect(m_quickConnect, &QuickConnectController::changed,
             this, &AppController::quickConnectChanged);
@@ -273,9 +274,6 @@ AppController::AppController(DatabaseManager *database,
             cache.push_back(toJson(entry));
         m_database->saveDiscoveredServers(cache);
     });
-
-    m_libraryPrefetchTimer.setSingleShot(true);
-    connect(&m_libraryPrefetchTimer, &QTimer::timeout, this, &AppController::startNextLibraryPrefetch);
 
     connect(m_player, &PlayerController::playbackStopped, this, [this](const QString &itemId, qint64 positionTicks) {
         qInfo() << "app: playbackStopped page=" << m_page << "itemId=" << itemId << "positionTicks=" << positionTicks;
@@ -851,7 +849,7 @@ void AppController::search(const QString &query)
             if (generation != m_searchGeneration)
                 return;
             m_searchResults.setMovies(items);
-            prefetchMoviePosters(items);
+            m_prefetch->prefetchPosters(items);
             m_searchBusy = false;
             emit searchChanged();
         },
@@ -892,7 +890,7 @@ void AppController::loadSearchSuggestions()
             if (generation != m_searchSuggestionsGeneration)
                 return;
             m_searchSuggestions.setMovies(items);
-            prefetchMoviePosters(items);
+            m_prefetch->prefetchPosters(items);
             m_searchSuggestionsBusy = false;
             m_searchSuggestionsLoaded = true;
             emit searchSuggestionsChanged();
@@ -1107,7 +1105,7 @@ void AppController::loadDetailRows(const QString &itemId, const QString &itemTyp
                     return;
                 qInfo() << "detail rows: seasons loaded" << itemId << seasons.size();
                 m_detailSeasons.setMovies(seasons);
-                prefetchMoviePosters(seasons);
+                m_prefetch->prefetchPosters(seasons);
                 emit detailRowsChanged();
                 finishDetailRowLoad(generation);
             },
@@ -1126,7 +1124,7 @@ void AppController::loadDetailRows(const QString &itemId, const QString &itemTyp
                 return;
             qInfo() << "detail rows: similar loaded" << itemId << items.size();
             m_detailSimilarItems.setMovies(items);
-            prefetchMoviePosters(items);
+            m_prefetch->prefetchPosters(items);
             emit detailRowsChanged();
             finishDetailRowLoad(generation);
         },
@@ -1170,7 +1168,7 @@ void AppController::loadPersonItems(const QString &personId)
             if (generation != m_personItemsGeneration)
                 return;
             m_personItems.setMovies(items);
-            prefetchMoviePosters(items);
+            m_prefetch->prefetchPosters(items);
             m_personItemsBusy = false;
             emit personItemsChanged();
         },
@@ -1309,9 +1307,7 @@ void AppController::shutdown()
     m_shuttingDown = true;
     qInfo() << "app: shutdown requested";
     m_quickConnect->cancel();
-    m_libraryPrefetchTimer.stop();
-    m_libraryPrefetchQueue.clear();
-    m_libraryPrefetchActive = false;
+    m_prefetch->stop();
     m_api->cancelPrefetches();
     m_discovery->stop();
     m_player->teardownMpv();
@@ -1494,10 +1490,10 @@ void AppController::applyDiscoveredServersCache()
 
 int AppController::applyPrefetchedLibraryPage(const QString &cacheKey)
 {
-    const auto prefetchedPage = m_prefetchedLibraryPages.constFind(cacheKey);
-    if (prefetchedPage != m_prefetchedLibraryPages.constEnd()) {
-        m_movies.setMovies(prefetchedPage.value().items);
-        prefetchMoviePosters(prefetchedPage.value().items);
+    const auto prefetchedPage = m_prefetch->cachedPage(cacheKey);
+    if (prefetchedPage) {
+        m_movies.setMovies(prefetchedPage->items);
+        m_prefetch->prefetchPosters(prefetchedPage->items);
         return m_movies.rowCount();
     }
     m_movies.clear();
@@ -1506,9 +1502,7 @@ int AppController::applyPrefetchedLibraryPage(const QString &cacheKey)
 
 void AppController::loadLibraries()
 {
-    m_libraryPrefetchTimer.stop();
-    m_libraryPrefetchQueue.clear();
-    m_libraryPrefetchActive = false;
+    m_prefetch->stop();
     setBusy(true, QStringLiteral("Loading libraries…"));
     Async::runScoped(this,
         m_api->fetchLibraries(),
@@ -1529,7 +1523,7 @@ void AppController::setCurrentItems(const std::vector<MovieItem> &items, const Q
 {
     resetCurrentItemsPaging(cacheKey);
     m_movies.setMovies(items);
-    prefetchMoviePosters(items);
+    m_prefetch->prefetchPosters(items);
     setBusy(false);
     setPage(QStringLiteral("movies"));
 }
@@ -1556,7 +1550,7 @@ void AppController::setCurrentItemsPage(const PagedMovieItems &page, const QStri
         m_currentItemsHasMore = false;
     m_currentItemsLoadingMore = false;
 
-    prefetchMoviePosters(page.items);
+    m_prefetch->prefetchPosters(page.items);
     setBusy(false);
     setPage(QStringLiteral("movies"));
     emit currentItemsPagingChanged();
@@ -1781,7 +1775,7 @@ void AppController::refreshHomeRows()
     const int generation = ++m_homeLoadGeneration;
     clearLatestLibraryRows();
     m_latestItems.clear();
-    m_libraryPrefetchTimer.stop();
+    m_prefetch->stop();
 
     std::vector<LibraryItem> latestLibraries;
     const int libraryCount = m_libraries.rowCount();
@@ -1801,7 +1795,7 @@ void AppController::refreshHomeRows()
                 return;
             qInfo() << "home: resume items" << items.size() << homeItemSample(items);
             m_resumeItems.setMovies(items);
-            prefetchMoviePosters(items);
+            m_prefetch->prefetchPosters(items);
             handleHomeRowLoaded(generation);
         },
         [this, generation](const std::exception_ptr &error) {
@@ -1818,7 +1812,7 @@ void AppController::refreshHomeRows()
                 return;
             qInfo() << "home: next-up items" << items.size() << homeItemSample(items);
             m_nextUpItems.setMovies(items);
-            prefetchMoviePosters(items);
+            m_prefetch->prefetchPosters(items);
             handleHomeRowLoaded(generation);
         },
         [this, generation](const std::exception_ptr &error) {
@@ -1900,7 +1894,7 @@ void AppController::refreshCurrentItems(const QString &viewKind,
                 if (loadGeneration != m_libraryLoadGeneration)
                     return;
                 m_movies.setMovies(episodes);
-                prefetchMoviePosters(episodes);
+                m_prefetch->prefetchPosters(episodes);
             },
             [this, loadGeneration](const std::exception_ptr &error) {
                 if (loadGeneration != m_libraryLoadGeneration)
@@ -2002,7 +1996,7 @@ void AppController::addLatestLibraryRow(int generation,
                   return left.order < right.order;
               });
 
-    prefetchMoviePosters(items);
+    m_prefetch->prefetchPosters(items);
     emit latestLibraryRowsChanged();
 }
 
@@ -2013,7 +2007,7 @@ void AppController::handleHomeRowLoaded(int generation)
 
     --m_homeLoadsPending;
     if (m_homeLoadsPending == 0)
-        scheduleLibraryPrefetch(generation);
+        m_prefetch->schedule(generation, m_libraries.libraries(), m_recentLibraryIds);
 }
 
 void AppController::finishDetailRowLoad(int generation)
@@ -2026,140 +2020,6 @@ void AppController::finishDetailRowLoad(int generation)
         m_detailRowsBusy = false;
         emit detailRowsChanged();
     }
-}
-
-void AppController::scheduleLibraryPrefetch(int generation)
-{
-    if (generation != m_homeLoadGeneration || !m_api || m_api->session().accessToken.isEmpty())
-        return;
-
-    m_libraryPrefetchQueue.clear();
-    const int count = m_libraries.rowCount();
-    m_libraryPrefetchQueue.reserve(kBackgroundLibraryPrefetchLimit);
-    std::vector<LibraryItem> selectedLibraries;
-    selectedLibraries.reserve(kBackgroundLibraryPrefetchLimit);
-    QSet<QString> selectedIds;
-
-    auto trySelectLibrary = [&selectedLibraries, &selectedIds](const LibraryItem &library) {
-        if (selectedLibraries.size() >= static_cast<size_t>(kBackgroundLibraryPrefetchLimit))
-            return;
-        if (library.id.isEmpty() || selectedIds.contains(library.id))
-            return;
-        if (!showsLatestLibraryRow(library))
-            return;
-        selectedIds.insert(library.id);
-        selectedLibraries.push_back(library);
-    };
-
-    for (const QString &recentId : std::as_const(m_recentLibraryIds)) {
-        for (int i = 0; i < count; ++i) {
-            const auto library = m_libraries.libraryAt(i);
-            if (library.id == recentId) {
-                trySelectLibrary(library);
-                break;
-            }
-        }
-    }
-
-    for (int i = 0; i < count; ++i) {
-        const auto library = m_libraries.libraryAt(i);
-        trySelectLibrary(library);
-    }
-
-    for (const LibraryItem &library : selectedLibraries) {
-        const QString cacheKey = libraryCacheKey(library);
-        if (!m_prefetchedLibraryKeys.contains(cacheKey))
-            m_libraryPrefetchQueue.push_back(library);
-    }
-
-    QSet<QString> selectedCacheKeys;
-    selectedCacheKeys.reserve(static_cast<qsizetype>(selectedLibraries.size()));
-    for (const LibraryItem &library : selectedLibraries)
-        selectedCacheKeys.insert(libraryCacheKey(library));
-
-    QSet<QString> retainedPrefetchKeys;
-    retainedPrefetchKeys.reserve(m_prefetchedLibraryKeys.size());
-    for (const QString &cacheKey : std::as_const(m_prefetchedLibraryKeys)) {
-        if (selectedCacheKeys.contains(cacheKey))
-            retainedPrefetchKeys.insert(cacheKey);
-    }
-    m_prefetchedLibraryKeys = retainedPrefetchKeys;
-
-    for (auto it = m_prefetchedLibraryPages.begin(); it != m_prefetchedLibraryPages.end();) {
-        if (selectedCacheKeys.contains(it.key()))
-            ++it;
-        else
-            it = m_prefetchedLibraryPages.erase(it);
-    }
-
-    if (m_libraryPrefetchQueue.empty())
-        return;
-
-    m_libraryPrefetchGeneration = generation;
-    m_libraryPrefetchIndex = 0;
-    m_libraryPrefetchActive = false;
-    qInfo() << "library prefetch: scheduled" << m_libraryPrefetchQueue.size()
-            << "libraries after home load";
-    m_libraryPrefetchTimer.start(1500);
-}
-
-void AppController::startNextLibraryPrefetch()
-{
-    if (m_libraryPrefetchActive || m_libraryPrefetchGeneration != m_homeLoadGeneration)
-        return;
-    if (!m_api || m_api->session().accessToken.isEmpty())
-        return;
-    if (m_libraryPrefetchIndex < 0 ||
-        m_libraryPrefetchIndex >= static_cast<int>(m_libraryPrefetchQueue.size()))
-        return;
-
-    const LibraryItem library = m_libraryPrefetchQueue[static_cast<size_t>(m_libraryPrefetchIndex++)];
-    const QString cacheKey = libraryCacheKey(library);
-    m_libraryPrefetchActive = true;
-    qInfo() << "library prefetch: fetching" << library.name << cacheKey;
-
-    const auto onDone = [this, cacheKey, library](const PagedMovieItems &page) {
-        if (m_libraryPrefetchGeneration != m_homeLoadGeneration)
-            return;
-        qInfo() << "library prefetch: cached" << library.name << page.items.size();
-        m_prefetchedLibraryPages.insert(cacheKey, page);
-        m_prefetchedLibraryKeys.insert(cacheKey);
-        m_libraryPrefetchActive = false;
-        startNextLibraryPrefetch();
-    };
-
-    const auto onError = [this, cacheKey, library](const std::exception_ptr &error) {
-        if (m_libraryPrefetchGeneration != m_homeLoadGeneration)
-            return;
-        qWarning() << "library prefetch: failed" << library.name << cacheKey << exceptionMessage(error);
-        m_libraryPrefetchActive = false;
-        startNextLibraryPrefetch();
-    };
-
-    Async::runScoped(this, m_api->fetchLibraryPage(library.id, library.collectionType, 0, kLibraryPageSize),
-                       onDone,
-                       onError);
-}
-
-void AppController::prefetchMoviePosters(const std::vector<MovieItem> &movies)
-{
-    QStringList urls;
-    constexpr qsizetype maxUrls = 24;
-    urls.reserve(std::min<qsizetype>(static_cast<qsizetype>(movies.size() * 2), maxUrls));
-
-    for (const auto &movie : movies) {
-        if (!movie.posterUrl.isEmpty())
-            urls.push_back(movie.posterUrl);
-        if (!movie.backdropUrl.isEmpty() && urls.size() < maxUrls)
-            urls.push_back(movie.backdropUrl);
-        if (!movie.logoUrl.isEmpty() && urls.size() < maxUrls)
-            urls.push_back(movie.logoUrl);
-        if (urls.size() >= maxUrls)
-            break;
-    }
-
-    if (!urls.isEmpty())
-        m_api->prefetchImages(urls, 3);
 }
 
 } // namespace JellyfinNative

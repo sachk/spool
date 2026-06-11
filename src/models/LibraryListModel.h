@@ -32,6 +32,7 @@ public:
     void setLibraries(const std::vector<LibraryItem> &libraries);
     void clear();
     LibraryItem libraryAt(int index) const;
+    const std::vector<LibraryItem> &libraries() const;
 
 private:
     std::vector<LibraryItem> m_libraries;

@@ -125,6 +125,8 @@ qt_add_executable(jellyfin-native
     src/api/JellyfinApiFacade.h
     src/app/AppController.cpp
     src/app/AppController.h
+    src/app/LibraryPrefetchController.cpp
+    src/app/LibraryPrefetchController.h
     src/app/NativeAppWindow.h
     src/app/QuickConnectController.cpp
     src/app/QuickConnectController.h
