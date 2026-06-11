@@ -30,9 +30,6 @@ namespace JellyfinNative {
 namespace {
 
 constexpr auto kMpvLogPath = "/tmp/com.codex.jellyfinnative-mpv.log";
-constexpr qint64 kSeekTargetFreshnessMs = 10000;
-constexpr qint64 kMpvPostSeekRegressionMs = 5000;
-constexpr double kPositionRegressionToleranceSeconds = 3.0;
 constexpr uint64_t kTimePosRefreshReply = 0x6a666e7074730001ULL;
 constexpr uint64_t kPlaybackTimeRefreshReply = 0x6a666e7074730002ULL;
 constexpr auto kNightModeFilter =
@@ -247,10 +244,11 @@ PlayerController::PlayerController(NativeAppWindow *window,
     if (!m_visible || m_paused || m_buffering || m_seeking)
       return;
 
-    if (!m_positionClock.isValid())
+    if (!m_positionTracker.projectionIsValid())
       return;
 
-    setPositionSeconds(projectedPositionSeconds(), PositionSource::Projection);
+    setPositionSeconds(projectedPositionSeconds(),
+                       PlaybackPositionTracker::Source::Projection);
   });
   connect(&m_seekWatchdogTimer, &QTimer::timeout, this, [this]() {
     if (!m_visible || !m_seeking)
@@ -258,9 +256,7 @@ PlayerController::PlayerController(NativeAppWindow *window,
 
     qWarning() << "player: clearing stale seek state";
     m_seeking = false;
-    m_requestedSeekTargetSeconds = -1.0;
-    m_seekCommandClock.invalidate();
-    m_positionClock.restart();
+    m_positionTracker.cancelSeek();
     updatePlaybackStatusText();
     emit stateChanged();
   });
@@ -270,7 +266,8 @@ PlayerController::PlayerController(NativeAppWindow *window,
 
     logMemoryStats(m_mpv.load());
 
-    m_reporter.reportProgress(secondsToTicks(m_positionSeconds), m_paused);
+    m_reporter.reportProgress(secondsToTicks(m_positionTracker.position()),
+                              m_paused);
   });
   connect(&m_reporter, &PlaybackReporter::reportFailed, this,
           [](const QString &operation, const QString &message) {
@@ -363,9 +360,13 @@ int PlayerController::selectedAudioIndex() const { return m_selectedAudioIndex; 
 
 bool PlayerController::backAllowed() const { return m_backAllowed; }
 
-double PlayerController::positionSeconds() const { return m_positionSeconds; }
+double PlayerController::positionSeconds() const {
+  return m_positionTracker.position();
+}
 
-double PlayerController::durationSeconds() const { return m_durationSeconds; }
+double PlayerController::durationSeconds() const {
+  return m_positionTracker.duration();
+}
 
 QVariantList PlayerController::chapters() const { return m_chapters; }
 
@@ -673,13 +674,7 @@ void PlayerController::play(const PlaybackSession &session) {
       session.startTimeTicks > 0
           ? static_cast<double>(session.startTimeTicks) / 10000000.0
           : 0.0;
-  m_resumeStartSeconds = startSeconds;
-  m_positionSeconds = startSeconds;
-  m_durationSeconds = 0.0;
-  m_positionClock.invalidate();
-  m_lastTrustedPositionSeconds = startSeconds;
-  m_lastTrustedPositionClock.restart();
-  m_positionRegressionAllowedClock.invalidate();
+  m_positionTracker.reset(startSeconds);
   m_paused = false;
   m_buffering = false;
   m_bufferingPercent = 0;
@@ -692,8 +687,6 @@ void PlayerController::play(const PlaybackSession &session) {
   m_audioIds.clear();
   m_selectedAudioIndex = -1;
   m_backAllowed = false;
-  m_seekCommandClock.invalidate();
-  m_requestedSeekTargetSeconds = -1.0;
   m_backGuardTimer.start();
   m_uiPositionTimer.start();
   m_visible = true;
@@ -735,7 +728,7 @@ void PlayerController::prepareForBackground() {
   const double position = projectedPositionSeconds();
   qInfo() << "player: playback position snapshot background"
           << "position=" << position;
-  setPositionSeconds(position, PositionSource::Lifecycle);
+  setPositionSeconds(position, PlaybackPositionTracker::Source::Lifecycle);
 #endif
 }
 
@@ -782,9 +775,7 @@ void PlayerController::seek(double seconds) {
   if (!std::isfinite(seconds))
     return;
 
-  const double clampedSeconds =
-      m_durationSeconds > 0.0 ? qBound(0.0, seconds, m_durationSeconds)
-                              : qMax(0.0, seconds);
+  const double clampedSeconds = m_positionTracker.clamp(seconds);
   // Use absolute+exact so a committed click lands on the requested frame.
   qInfo() << "player: absolute exact seek" << clampedSeconds;
   beginSeekCommand(clampedSeconds, QByteArray("absolute+exact"));
@@ -869,14 +860,14 @@ void PlayerController::selectAudio(int index) {
 void PlayerController::nextChapter() {
   if (m_chapters.size() <= 1)
     return;
-  m_positionRegressionAllowedClock.restart();
+  m_positionTracker.allowRegression();
   mpvCommand("add chapter 1");
 }
 
 void PlayerController::previousChapter() {
   if (m_chapters.size() <= 1)
     return;
-  m_positionRegressionAllowedClock.restart();
+  m_positionTracker.allowRegression();
   mpvCommand("add chapter -1");
 }
 
@@ -1010,7 +1001,7 @@ void PlayerController::stopProgressReporting(bool failed) {
   m_seekWatchdogTimer.stop();
 
   const auto session = m_session;
-  const qint64 positionTicks = secondsToTicks(m_positionSeconds);
+  const qint64 positionTicks = secondsToTicks(m_positionTracker.position());
   m_reporter.stop(positionTicks, failed);
 
   resetPlaybackUiState();
@@ -1026,16 +1017,10 @@ void PlayerController::resetPlaybackUiState() {
   m_buffering = false;
   m_bufferingPercent = 0;
   m_seeking = false;
-  m_requestedSeekTargetSeconds = -1.0;
-  m_seekCommandClock.invalidate();
-  m_lastTrustedPositionClock.invalidate();
-  m_positionRegressionAllowedClock.invalidate();
-  m_resumeStartSeconds = 0.0;
-  m_positionClock.invalidate();
+  m_positionTracker.clear();
   m_debugOsdVisible = false;
   m_timeline.clear();
   m_statusText = QStringLiteral("Ready");
-  m_lastTrustedPositionSeconds = 0.0;
   if (!m_chapters.isEmpty()) {
     m_chapters.clear();
     emit chaptersChanged();
@@ -1100,14 +1085,13 @@ bool PlayerController::beginSeekCommand(double targetSeconds,
 
   if (markSeeking) {
     m_seeking = true;
-    m_requestedSeekTargetSeconds = clampedTarget;
     m_seekWatchdogTimer.start();
     updatePlaybackStatusText();
     emit stateChanged();
   }
 
-  setPositionSeconds(clampedTarget, PositionSource::Seek);
-  m_seekCommandClock.restart();
+  m_positionTracker.beginSeek(clampedTarget);
+  setPositionSeconds(clampedTarget, PlaybackPositionTracker::Source::Seek);
 
   const QByteArray command = buildSeekCommand(clampedTarget, flags);
   if (mpvCommand(command.constData()))
@@ -1115,9 +1099,8 @@ bool PlayerController::beginSeekCommand(double targetSeconds,
 
   if (markSeeking) {
     m_seeking = false;
-    m_requestedSeekTargetSeconds = -1.0;
     m_seekWatchdogTimer.stop();
-    m_seekCommandClock.invalidate();
+    m_positionTracker.cancelSeek();
     updatePlaybackStatusText();
     emit stateChanged();
   }
@@ -1133,10 +1116,9 @@ bool PlayerController::beginRelativeSeekCommand(double deltaSeconds) {
           << "absoluteTarget=" << optimisticTarget;
 
   m_seeking = true;
-  m_requestedSeekTargetSeconds = optimisticTarget;
   m_seekWatchdogTimer.start();
-  setPositionSeconds(optimisticTarget, PositionSource::Seek);
-  m_seekCommandClock.restart();
+  m_positionTracker.beginSeek(optimisticTarget);
+  setPositionSeconds(optimisticTarget, PlaybackPositionTracker::Source::Seek);
   updatePlaybackStatusText();
   emit stateChanged();
 
@@ -1147,9 +1129,8 @@ bool PlayerController::beginRelativeSeekCommand(double deltaSeconds) {
     return true;
 
   m_seeking = false;
-  m_requestedSeekTargetSeconds = -1.0;
   m_seekWatchdogTimer.stop();
-  m_seekCommandClock.invalidate();
+  m_positionTracker.cancelSeek();
   updatePlaybackStatusText();
   emit stateChanged();
   return false;
@@ -1181,10 +1162,10 @@ void PlayerController::runEventLoop() {
         qInfo() << "player: playback restart";
         if (m_seeking) {
           m_seeking = false;
-          m_requestedSeekTargetSeconds = -1.0;
+          m_positionTracker.settleSeek();
           m_seekWatchdogTimer.stop();
         }
-        m_positionClock.restart();
+        m_positionTracker.restartProjection();
         updatePlaybackStatusText();
         emit stateChanged();
       });
@@ -1200,7 +1181,7 @@ void PlayerController::runEventLoop() {
 
       const double seconds = *static_cast<double *>(property->data);
       QMetaObject::invokeMethod(this, [this, seconds]() {
-        setPositionSeconds(seconds, PositionSource::Mpv);
+        setPositionSeconds(seconds, PlaybackPositionTracker::Source::Mpv);
       });
       break;
     }
@@ -1218,12 +1199,14 @@ void PlayerController::runEventLoop() {
           const double positionBeforeStateChange = projectedPositionSeconds();
           m_paused = paused;
           if (m_paused) {
-            setPositionSeconds(positionBeforeStateChange, PositionSource::Projection);
-            m_positionClock.invalidate();
+            setPositionSeconds(
+                positionBeforeStateChange,
+                PlaybackPositionTracker::Source::Projection);
+            m_positionTracker.invalidateProjection();
           } else {
             restoreTrustedPosition("unpause");
             requestMpvPositionRefresh("unpause");
-            m_positionClock.restart();
+            m_positionTracker.restartProjection();
           }
           updatePlaybackStatusText();
           emit stateChanged();
@@ -1235,13 +1218,15 @@ void PlayerController::runEventLoop() {
           const double positionBeforeStateChange = projectedPositionSeconds();
           m_buffering = buffering;
           if (buffering) {
-            setPositionSeconds(positionBeforeStateChange, PositionSource::Projection);
-            m_positionClock.invalidate();
+            setPositionSeconds(
+                positionBeforeStateChange,
+                PlaybackPositionTracker::Source::Projection);
+            m_positionTracker.invalidateProjection();
           } else {
             m_bufferingPercent = 0;
             if (!m_paused) {
               restoreTrustedPosition("buffering-complete");
-              m_positionClock.restart();
+              m_positionTracker.restartProjection();
             }
           }
           updatePlaybackStatusText();
@@ -1264,8 +1249,7 @@ void PlayerController::runEventLoop() {
             m_seekWatchdogTimer.start();
           else {
             m_seekWatchdogTimer.stop();
-            m_requestedSeekTargetSeconds = -1.0;
-            m_positionClock.restart();
+            m_positionTracker.settleSeek();
           }
           updatePlaybackStatusText();
           emit stateChanged();
@@ -1278,16 +1262,16 @@ void PlayerController::runEventLoop() {
           // Once it settles, mpv updates go through the same stale-regression
           // guard as foreground refresh replies.
           if (m_seeking ||
-              (m_seekCommandClock.isValid() && m_seekCommandClock.elapsed() < 1500))
+              m_positionTracker.seekIsFresh(1500))
             return;
-          setPositionSeconds(seconds, PositionSource::Mpv);
+          setPositionSeconds(seconds, PlaybackPositionTracker::Source::Mpv);
         });
       } else if (strcmp(property->name, "duration") == 0 &&
                  property->format == MPV_FORMAT_DOUBLE) {
         const double seconds = *static_cast<double *>(property->data);
         QMetaObject::invokeMethod(this, [this, seconds]() {
-          m_durationSeconds = seconds;
-          setPositionSeconds(m_positionSeconds, PositionSource::Lifecycle);
+          m_positionTracker.setDuration(seconds);
+          m_timeline.updatePosition(m_positionTracker.position());
           emit stateChanged();
         });
       } else if (strcmp(property->name, "volume") == 0 &&
@@ -1398,30 +1382,11 @@ void PlayerController::updatePlaybackStatusText() {
 }
 
 double PlayerController::clampedPosition(double seconds) const {
-  if (!std::isfinite(seconds))
-    return m_positionSeconds;
-  if (m_durationSeconds > 0.0)
-    return qBound(0.0, seconds, m_durationSeconds);
-  return qMax(0.0, seconds);
+  return m_positionTracker.clamp(seconds);
 }
 
 double PlayerController::seekAnchorPosition() {
-  // In-flight seek: anchor off the requested target so rapid repeats chain
-  // cleanly (mpv may not have moved yet). Cleared as soon as the seek lands,
-  // so this branch is only active during the brief seek window.
-  if (m_requestedSeekTargetSeconds >= 0.0 && m_seekCommandClock.isValid() &&
-      m_seekCommandClock.elapsed() < kSeekTargetFreshnessMs) {
-    double position = m_requestedSeekTargetSeconds;
-    if (!m_paused && !m_buffering)
-      position += m_seekCommandClock.elapsed() / 1000.0;
-    return clampedPosition(position);
-  }
-
-  // No in-flight seek: use the latest async time-pos property update plus a
-  // local clock projection. Avoid synchronous mpv_get_property calls on the UI
-  // thread; when mpv wedges in a native backend those can stall the whole app.
-  restoreTrustedPosition("seek-anchor");
-  return projectedPositionSeconds();
+  return m_positionTracker.seekAnchor(m_paused, m_buffering);
 }
 
 void PlayerController::requestMpvPositionRefresh(const char *reason) {
@@ -1445,71 +1410,22 @@ void PlayerController::requestMpvPositionRefresh(const char *reason) {
 }
 
 void PlayerController::restoreTrustedPosition(const char *reason) {
-  if (!m_lastTrustedPositionClock.isValid())
-    return;
-
-  const double trusted = clampedPosition(m_lastTrustedPositionSeconds);
-  if (m_positionSeconds + 0.05 >= trusted)
-    return;
-
-  qInfo() << "player: restoring trusted playback position"
-          << (reason ? reason : "unknown")
-          << "from=" << m_positionSeconds
-          << "to=" << trusted;
-  setPositionSeconds(trusted, PositionSource::Lifecycle);
-}
-
-bool PlayerController::positionRegressionAllowed(PositionSource source) const {
-  if (source == PositionSource::Seek)
-    return true;
-
-  if (source == PositionSource::Mpv && m_seekCommandClock.isValid() &&
-      m_seekCommandClock.elapsed() < kMpvPostSeekRegressionMs)
-    return true;
-
-  return m_positionRegressionAllowedClock.isValid() &&
-         m_positionRegressionAllowedClock.elapsed() < kSeekTargetFreshnessMs;
+  if (m_positionTracker.restoreTrusted(reason)) {
+    m_timeline.updatePosition(m_positionTracker.position());
+    emit stateChanged();
+  }
 }
 
 double PlayerController::projectedPositionSeconds() const {
-  double position = m_positionSeconds;
-  if (!m_paused && !m_buffering && m_positionClock.isValid()) {
-    const double elapsed = m_positionClock.elapsed() / 1000.0;
-    if (elapsed > 0.0)
-      position += elapsed;
-  }
-  return clampedPosition(position);
+  return m_positionTracker.projected(m_paused, m_buffering);
 }
 
-void PlayerController::setPositionSeconds(double seconds, PositionSource source) {
-  double clamped = clampedPosition(seconds);
-  if (!positionRegressionAllowed(source) && m_lastTrustedPositionClock.isValid() &&
-      m_lastTrustedPositionSeconds > kPositionRegressionToleranceSeconds &&
-      clamped + kPositionRegressionToleranceSeconds < m_lastTrustedPositionSeconds) {
-    if (source == PositionSource::Mpv) {
-      qWarning() << "player: ignoring stale mpv position"
-                 << "position=" << clamped
-                 << "ui=" << m_positionSeconds
-                 << "trusted=" << m_lastTrustedPositionSeconds;
-    }
-    clamped = clampedPosition(m_lastTrustedPositionSeconds);
-  }
-
-  m_lastTrustedPositionSeconds = clamped;
-  m_lastTrustedPositionClock.restart();
-  if (source == PositionSource::Mpv && m_positionRegressionAllowedClock.isValid() &&
-      m_positionRegressionAllowedClock.elapsed() < kSeekTargetFreshnessMs)
-    m_positionRegressionAllowedClock.invalidate();
-
-  if (std::abs(m_positionSeconds - clamped) < 0.05) {
-    m_positionClock.restart();
+void PlayerController::setPositionSeconds(
+    double seconds, PlaybackPositionTracker::Source source) {
+  if (!m_positionTracker.update(seconds, source))
     return;
-  }
 
-  m_positionSeconds = clamped;
-  m_positionClock.restart();
-
-  m_timeline.updatePosition(clamped);
+  m_timeline.updatePosition(m_positionTracker.position());
 
   emit stateChanged();
 }

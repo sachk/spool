@@ -1,11 +1,11 @@
 #pragma once
 
 #include "../common/JellyfinTypes.h"
+#include "PlaybackPositionTracker.h"
 #include "PlaybackReporter.h"
 #include "PlaybackTimeline.h"
 
 #include <QByteArray>
-#include <QElapsedTimer>
 #include <QList>
 #include <QObject>
 #include <QStringList>
@@ -149,13 +149,6 @@ private:
         AudioDelay,
     };
 
-    enum class PositionSource {
-        Projection,
-        Mpv,
-        Seek,
-        Lifecycle,
-    };
-
     bool ensureMpv();
     void scheduleMpvTeardown();
     void runEventLoop();
@@ -169,10 +162,9 @@ private:
     double projectedPositionSeconds() const;
     void requestMpvPositionRefresh(const char *reason);
     void restoreTrustedPosition(const char *reason);
-    bool positionRegressionAllowed(PositionSource source) const;
     QByteArray buildSeekCommand(double targetSeconds, const QByteArray &flags) const;
     void updatePlaybackStatusText();
-    void setPositionSeconds(double seconds, PositionSource source);
+    void setPositionSeconds(double seconds, PlaybackPositionTracker::Source source);
     double clampedPosition(double seconds) const;
     void resetPlaybackUiState();
     bool applyMpvRuntimeOption(MpvRuntimeOption option, MpvOptionApplyMode mode, mpv_handle *handle);
@@ -194,10 +186,6 @@ private:
     QTimer m_backGuardTimer;
     QTimer m_uiPositionTimer;
     QTimer m_seekWatchdogTimer;
-    QElapsedTimer m_positionClock;
-    QElapsedTimer m_seekCommandClock;
-    QElapsedTimer m_lastTrustedPositionClock;
-    QElapsedTimer m_positionRegressionAllowedClock;
     bool m_visible = false;
     bool m_paused = false;
     bool m_buffering = false;
@@ -217,17 +205,13 @@ private:
     QString m_title;
     QString m_statusText = QStringLiteral("Ready");
     QString m_errorText;
-    double m_positionSeconds = 0.0;
-    double m_durationSeconds = 0.0;
-    double m_resumeStartSeconds = 0.0;
-    double m_requestedSeekTargetSeconds = -1.0;
-    double m_lastTrustedPositionSeconds = 0.0;
     std::atomic_bool m_nightModeEnabled = false;
     std::atomic_bool m_toneMappingVisualizationEnabled = false;
     std::atomic<int> m_audioDelayMs = 0;
     std::atomic<int> m_volume = 100;
     QString m_audioOutputMode = QStringLiteral("alsa");
     SubtitlePreferences m_subtitlePreferences;
+    PlaybackPositionTracker m_positionTracker;
     PlaybackTimeline m_timeline;
 };
 
