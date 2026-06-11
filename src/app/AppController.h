@@ -20,6 +20,7 @@
 namespace JellyfinNative {
 
 class JellyfinApiFacade;
+class LibraryPrefetchController;
 class QuickConnectController;
 class SettingsController;
 class SessionController;
@@ -284,9 +285,6 @@ private:
     void clearLatestLibraryRows();
     void addLatestLibraryRow(int generation, int order, const LibraryItem &library, const std::vector<MovieItem> &items);
     void handleHomeRowLoaded(int generation);
-    void scheduleLibraryPrefetch(int generation);
-    void startNextLibraryPrefetch();
-    void prefetchMoviePosters(const std::vector<MovieItem> &movies);
     void finishDetailRowLoad(int generation);
     void setCurrentItems(const std::vector<MovieItem> &items, const QString &cacheKey = {});
     void setCurrentItemsPage(const PagedMovieItems &page, const QString &cacheKey, bool append);
@@ -309,6 +307,7 @@ private:
     QuickConnectController *m_quickConnect = nullptr;
     SettingsController *m_settings = nullptr;
     SessionController *m_session = nullptr;
+    LibraryPrefetchController *m_prefetch = nullptr;
     DiscoveredServerModel m_discoveredServers;
     LibraryListModel m_libraries;
     MovieGridModel m_movies;
@@ -321,7 +320,6 @@ private:
     MovieGridModel m_detailSimilarItems;
     MovieGridModel m_personItems;
     std::vector<LatestLibrarySection> m_latestLibrarySections;
-    QTimer m_libraryPrefetchTimer;
     QString m_page = QStringLiteral("login");
     bool m_busy = false;
     QString m_busyText;
@@ -353,14 +351,8 @@ private:
     int m_libraryLoadGeneration = 0;
     int m_homeLoadGeneration = 0;
     int m_homeLoadsPending = 0;
-    int m_libraryPrefetchGeneration = 0;
-    int m_libraryPrefetchIndex = 0;
-    bool m_libraryPrefetchActive = false;
     bool m_shuttingDown = false;
     QStringList m_recentLibraryIds;
-    std::vector<LibraryItem> m_libraryPrefetchQueue;
-    QHash<QString, PagedMovieItems> m_prefetchedLibraryPages;
-    QSet<QString> m_prefetchedLibraryKeys;
     QHash<QString, QVariantMap> m_libraryQueries;
     QVariantMap m_libraryQuery;
     QVariantMap m_libraryFilterOptions;

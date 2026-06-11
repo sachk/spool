@@ -83,4 +83,9 @@ LibraryItem LibraryListModel::libraryAt(int index) const
     return m_libraries[static_cast<size_t>(index)];
 }
 
+const std::vector<LibraryItem> &LibraryListModel::libraries() const
+{
+    return m_libraries;
+}
+
 } // namespace JellyfinNative
