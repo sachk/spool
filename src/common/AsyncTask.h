@@ -1,5 +1,7 @@
 #pragma once
 
+#include "RequestGeneration.h"
+
 #include <QCoroTask>
 
 #include <QDebug>
@@ -71,6 +73,39 @@ void runScoped(Context *context, QCoro::Task<T> task, Success success, Failure f
             std::move(task),
             [guard, success = std::move(success)](T value) mutable {
                 if (guard)
+                    std::invoke(success, std::move(value));
+            },
+            std::move(guardedFailure), operation);
+    }
+}
+
+template<typename Context, typename T, typename Success, typename Failure>
+void runLatest(Context *context, QCoro::Task<T> task,
+               const RequestGeneration &generation,
+               RequestGeneration::Token token,
+               Success success, Failure failure,
+               const char *operation = "latest task")
+{
+    const RequestGeneration *generationGuard = &generation;
+    auto guardedFailure =
+        [generationGuard, token, failure = std::move(failure)](const std::exception_ptr &error) mutable {
+        if (generationGuard->isCurrent(token))
+            std::invoke(failure, error);
+    };
+
+    if constexpr (std::is_void_v<T>) {
+        runScoped(
+            context, std::move(task),
+            [generationGuard, token, success = std::move(success)]() mutable {
+                if (generationGuard->isCurrent(token))
+                    std::invoke(success);
+            },
+            std::move(guardedFailure), operation);
+    } else {
+        runScoped(
+            context, std::move(task),
+            [generationGuard, token, success = std::move(success)](T value) mutable {
+                if (generationGuard->isCurrent(token))
                     std::invoke(success, std::move(value));
             },
             std::move(guardedFailure), operation);

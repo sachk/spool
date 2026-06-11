@@ -2,6 +2,7 @@
 
 #include "../cache/DatabaseManager.h"
 #include "../common/JellyfinTypes.h"
+#include "../common/RequestGeneration.h"
 #include "../discovery/DiscoveryController.h"
 #include "../models/DiscoveredServerModel.h"
 #include "../models/LibraryListModel.h"
@@ -281,15 +282,16 @@ private:
     void applyFavoriteState(const QString &itemId, bool favorite);
     void applyPlayedState(const QString &itemId, bool played);
     void clearLatestLibraryRows();
-    void addLatestLibraryRow(int generation, int order, const LibraryItem &library, const std::vector<MovieItem> &items);
-    void handleHomeRowLoaded(int generation);
-    void finishDetailRowLoad(int generation);
+    void addLatestLibraryRow(RequestGeneration::Token generation, int order,
+                             const LibraryItem &library, const std::vector<MovieItem> &items);
+    void handleHomeRowLoaded(RequestGeneration::Token generation);
+    void finishDetailRowLoad(RequestGeneration::Token generation);
     void setCurrentItems(const std::vector<MovieItem> &items, const QString &cacheKey = {});
     void setCurrentItemsPage(const PagedMovieItems &page, const QString &cacheKey, bool append);
     void resetCurrentItemsPaging(const QString &cacheKey = {});
     void setCurrentItemsLoadingMore(bool loading);
     void setLibraryQuery(const QVariantMap &query);
-    void loadLibraryFilterOptions(int generation, const LibraryItem &library);
+    void loadLibraryFilterOptions(RequestGeneration::Token generation, const LibraryItem &library);
     void openSeries(const MovieItem &series);
     void openSeason(const MovieItem &season);
     void playMediaItem(const MovieItem &item, bool fromStart = false);
@@ -329,17 +331,17 @@ private:
     int m_currentItemsNextStartIndex = 0;
     QString m_searchQuery;
     bool m_searchBusy = false;
-    int m_searchGeneration = 0;
+    RequestGeneration m_searchGeneration;
     bool m_searchSuggestionsBusy = false;
-    int m_searchSuggestionsGeneration = 0;
+    RequestGeneration m_searchSuggestionsGeneration;
     bool m_searchSuggestionsLoaded = false;
     bool m_detailRowsBusy = false;
-    int m_detailRowsGeneration = 0;
+    RequestGeneration m_detailRowsGeneration;
     int m_detailRowsPending = 0;
     bool m_personItemsBusy = false;
-    int m_personItemsGeneration = 0;
-    int m_libraryLoadGeneration = 0;
-    int m_homeLoadGeneration = 0;
+    RequestGeneration m_personItemsGeneration;
+    RequestGeneration m_libraryLoadGeneration;
+    RequestGeneration m_homeLoadGeneration;
     int m_homeLoadsPending = 0;
     bool m_shuttingDown = false;
     QStringList m_recentLibraryIds;

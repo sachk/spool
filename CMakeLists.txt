@@ -148,6 +148,7 @@ qt_add_executable(jellyfin-native
     src/common/JellyfinTypes.cpp
     src/common/JellyfinTypes.h
     src/common/AsyncTask.h
+    src/common/RequestGeneration.h
     src/discovery/DiscoveryController.cpp
     src/discovery/DiscoveryController.h
     src/diagnostics/Diagnostics.cpp
@@ -390,6 +391,15 @@ if(BUILD_TESTING AND NOT CMAKE_CROSSCOMPILING)
     )
     target_link_libraries(navigation-state-tests PRIVATE Qt6::Core)
     add_test(NAME navigation-state COMMAND navigation-state-tests)
+
+    add_executable(request-generation-tests
+        tests/common/RequestGenerationTest.cpp
+        src/common/RequestGeneration.h
+    )
+    target_include_directories(request-generation-tests PRIVATE
+        "${CMAKE_CURRENT_SOURCE_DIR}/src"
+    )
+    add_test(NAME request-generation COMMAND request-generation-tests)
 endif()
 
 # Static Qt: import plugins that the linker can't auto-discover. BUILD_SHARED_LIBS

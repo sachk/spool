@@ -650,15 +650,25 @@ void AppController::resetApplicationState()
     m_nextUpItems.clear();
     m_latestItems.clear();
     clearLatestLibraryRows();
-    ++m_searchGeneration;
+    m_searchGeneration.invalidate();
+    m_searchSuggestionsGeneration.invalidate();
     m_searchResults.clear();
+    m_searchSuggestions.clear();
     m_searchQuery.clear();
     m_searchBusy = false;
-    ++m_detailRowsGeneration;
+    m_searchSuggestionsBusy = false;
+    m_searchSuggestionsLoaded = false;
+    m_detailRowsGeneration.invalidate();
     m_detailRowsPending = 0;
     m_detailRowsBusy = false;
     m_detailSeasons.clear();
     m_detailSimilarItems.clear();
+    m_personItemsGeneration.invalidate();
+    m_personItems.clear();
+    m_personItemsBusy = false;
+    m_libraryLoadGeneration.invalidate();
+    m_homeLoadGeneration.invalidate();
+    m_homeLoadsPending = 0;
     const bool pageWasLogin = page() == QStringLiteral("login");
     m_navigation.reset();
     resetCurrentItemsPaging();
@@ -668,7 +678,9 @@ void AppController::resetApplicationState()
     emit libraryQueryChanged();
     emit libraryFilterOptionsChanged();
     emit searchChanged();
+    emit searchSuggestionsChanged();
     emit detailRowsChanged();
+    emit personItemsChanged();
     if (!pageWasLogin)
         emit pageChanged();
     applyDiscoveredServersCache();
@@ -692,7 +704,7 @@ void AppController::goHome()
         return;
 
     qInfo() << "app: go home from page=" << page() << "viewKind=" << currentViewKind();
-    ++m_libraryLoadGeneration;
+    m_libraryLoadGeneration.invalidate();
     setBusy(false);
     setPage(QStringLiteral("libraries"));
     refreshHomeRows();
@@ -704,7 +716,7 @@ void AppController::openLibrary(int index)
     if (library.id.isEmpty())
         return;
 
-    const int loadGeneration = ++m_libraryLoadGeneration;
+    const RequestGeneration::Token loadGeneration = m_libraryLoadGeneration.next();
     m_navigation.enterLibrary(library, libraryContentLabel(library), defaultLibraryQuery(library));
     emit libraryQueryChanged();
     emit libraryFilterOptionsChanged();
@@ -728,16 +740,13 @@ void AppController::openLibrary(int index)
         setBusy(true, QStringLiteral("Loading %1…").arg(currentContentLabel().toLower()));
     }
 
-    Async::runScoped(this,
+    Async::runLatest(this,
         m_api->fetchLibraryPage(library.id, library.collectionType, 0, kLibraryPageSize, libraryQuery()),
-        [this, cacheKey, loadGeneration](const PagedMovieItems &page) {
-            if (loadGeneration != m_libraryLoadGeneration)
-                return;
+        m_libraryLoadGeneration, loadGeneration,
+        [this, cacheKey](const PagedMovieItems &page) {
             setCurrentItemsPage(page, cacheKey, false);
         },
-        [this, loadGeneration, hasWarmCache](const std::exception_ptr &error) {
-            if (loadGeneration != m_libraryLoadGeneration)
-                return;
+        [this, hasWarmCache](const std::exception_ptr &error) {
             setBusy(false);
             setCurrentItemsLoadingMore(false);
             const QString message = exceptionMessage(error);
@@ -819,7 +828,7 @@ void AppController::playLatestLibraryItem(int rowIndex, int itemIndex, bool from
 void AppController::search(const QString &query)
 {
     const QString trimmed = query.trimmed();
-    const int generation = ++m_searchGeneration;
+    const RequestGeneration::Token generation = m_searchGeneration.next();
     m_searchQuery = trimmed;
 
     if (trimmed.size() < 2 || !m_api || m_api->session().accessToken.isEmpty()) {
@@ -832,19 +841,16 @@ void AppController::search(const QString &query)
     m_searchBusy = true;
     emit searchChanged();
 
-    Async::runScoped(this,
+    Async::runLatest(this,
         m_api->searchItems(trimmed),
-        [this, generation](const std::vector<MovieItem> &items) {
-            if (generation != m_searchGeneration)
-                return;
+        m_searchGeneration, generation,
+        [this](const std::vector<MovieItem> &items) {
             m_searchResults.setMovies(items);
             m_prefetch->prefetchPosters(items);
             m_searchBusy = false;
             emit searchChanged();
         },
-        [this, generation](const std::exception_ptr &error) {
-            if (generation != m_searchGeneration)
-                return;
+        [this](const std::exception_ptr &error) {
             m_searchResults.clear();
             m_searchBusy = false;
             emit searchChanged();
@@ -854,7 +860,7 @@ void AppController::search(const QString &query)
 
 void AppController::clearSearch()
 {
-    ++m_searchGeneration;
+    m_searchGeneration.invalidate();
     m_searchQuery.clear();
     m_searchBusy = false;
     m_searchResults.clear();
@@ -869,24 +875,21 @@ void AppController::loadSearchSuggestions()
     if (m_searchSuggestionsLoaded || m_searchSuggestionsBusy)
         return;
 
-    const int generation = ++m_searchSuggestionsGeneration;
+    const RequestGeneration::Token generation = m_searchSuggestionsGeneration.next();
     m_searchSuggestionsBusy = true;
     emit searchSuggestionsChanged();
 
-    Async::runScoped(this,
+    Async::runLatest(this,
         m_api->fetchSearchSuggestions(),
-        [this, generation](const std::vector<MovieItem> &items) {
-            if (generation != m_searchSuggestionsGeneration)
-                return;
+        m_searchSuggestionsGeneration, generation,
+        [this](const std::vector<MovieItem> &items) {
             m_searchSuggestions.setMovies(items);
             m_prefetch->prefetchPosters(items);
             m_searchSuggestionsBusy = false;
             m_searchSuggestionsLoaded = true;
             emit searchSuggestionsChanged();
         },
-        [this, generation](const std::exception_ptr &error) {
-            if (generation != m_searchSuggestionsGeneration)
-                return;
+        [this](const std::exception_ptr &error) {
             m_searchSuggestions.clear();
             m_searchSuggestionsBusy = false;
             emit searchSuggestionsChanged();
@@ -923,28 +926,25 @@ void AppController::loadMoreCurrentItems()
         return;
 
     const int startIndex = std::max(m_currentItemsNextStartIndex, m_movies.rowCount());
-    const int loadGeneration = m_libraryLoadGeneration;
+    const RequestGeneration::Token loadGeneration = m_libraryLoadGeneration.current();
     const QString libraryId = currentLibraryId();
     const QString collectionType = currentLibraryCollectionType();
     const QString cacheKey = m_currentItemsCacheKey;
     const QVariantMap query = libraryQuery();
     setCurrentItemsLoadingMore(true);
 
-    const auto onDone = [this, loadGeneration, cacheKey](const PagedMovieItems &page) {
-        if (loadGeneration != m_libraryLoadGeneration)
-            return;
+    const auto onDone = [this, cacheKey](const PagedMovieItems &page) {
         setCurrentItemsPage(page, cacheKey, true);
     };
-    const auto onError = [this, loadGeneration](const std::exception_ptr &error) {
-        if (loadGeneration != m_libraryLoadGeneration)
-            return;
+    const auto onError = [this](const std::exception_ptr &error) {
         setCurrentItemsLoadingMore(false);
         setErrorText(exceptionMessage(error));
     };
 
-    Async::runScoped(this, m_api->fetchLibraryPage(libraryId, collectionType, startIndex, kLibraryPageSize, query),
-                       onDone,
-                       onError);
+    Async::runLatest(this,
+                     m_api->fetchLibraryPage(libraryId, collectionType, startIndex,
+                                             kLibraryPageSize, query),
+                     m_libraryLoadGeneration, loadGeneration, onDone, onError);
 }
 
 void AppController::setLibraryQuery(const QVariantMap &query)
@@ -1034,7 +1034,7 @@ void AppController::refreshCurrentLibrary()
     if (!m_api || m_api->session().accessToken.isEmpty())
         return;
 
-    const int loadGeneration = ++m_libraryLoadGeneration;
+    const RequestGeneration::Token loadGeneration = m_libraryLoadGeneration.next();
     const QString libraryId = currentLibraryId();
     const QString collectionType = currentLibraryCollectionType();
     const QVariantMap query = libraryQuery();
@@ -1047,16 +1047,13 @@ void AppController::refreshCurrentLibrary()
     m_movies.clear();
     setBusy(true, QStringLiteral("Loading %1…").arg(currentContentLabel().toLower()));
 
-    Async::runScoped(this,
+    Async::runLatest(this,
         m_api->fetchLibraryPage(libraryId, collectionType, 0, kLibraryPageSize, query),
-        [this, loadGeneration, cacheKey](const PagedMovieItems &page) {
-            if (loadGeneration != m_libraryLoadGeneration)
-                return;
+        m_libraryLoadGeneration, loadGeneration,
+        [this, cacheKey](const PagedMovieItems &page) {
             setCurrentItemsPage(page, cacheKey, false);
         },
-        [this, loadGeneration](const std::exception_ptr &error) {
-            if (loadGeneration != m_libraryLoadGeneration)
-                return;
+        [this](const std::exception_ptr &error) {
             setBusy(false);
             setCurrentItemsLoadingMore(false);
             setErrorText(exceptionMessage(error));
@@ -1065,7 +1062,7 @@ void AppController::refreshCurrentLibrary()
 
 void AppController::loadDetailRows(const QString &itemId, const QString &itemType)
 {
-    const int generation = ++m_detailRowsGeneration;
+    const RequestGeneration::Token generation = m_detailRowsGeneration.next();
     m_detailRowsPending = 0;
     m_detailRowsBusy = false;
     m_detailSeasons.clear();
@@ -1084,11 +1081,10 @@ void AppController::loadDetailRows(const QString &itemId, const QString &itemTyp
     qInfo() << "detail rows: loading" << itemType << itemId << "seasons=" << loadSeasons;
 
     if (loadSeasons) {
-        Async::runScoped(this,
+        Async::runLatest(this,
             m_api->fetchSeasons(itemId),
+            m_detailRowsGeneration, generation,
             [this, generation, itemId](const std::vector<MovieItem> &seasons) {
-                if (generation != m_detailRowsGeneration)
-                    return;
                 qInfo() << "detail rows: seasons loaded" << itemId << seasons.size();
                 m_detailSeasons.setMovies(seasons);
                 m_prefetch->prefetchPosters(seasons);
@@ -1096,18 +1092,15 @@ void AppController::loadDetailRows(const QString &itemId, const QString &itemTyp
                 finishDetailRowLoad(generation);
             },
             [this, generation, itemId](const std::exception_ptr &error) {
-                if (generation != m_detailRowsGeneration)
-                    return;
                 qWarning() << "detail rows: seasons fetch failed" << itemId << exceptionMessage(error);
                 finishDetailRowLoad(generation);
             });
     }
 
-    Async::runScoped(this,
+    Async::runLatest(this,
         m_api->fetchSimilarItems(itemId),
+        m_detailRowsGeneration, generation,
         [this, generation, itemId](const std::vector<MovieItem> &items) {
-            if (generation != m_detailRowsGeneration)
-                return;
             qInfo() << "detail rows: similar loaded" << itemId << items.size();
             m_detailSimilarItems.setMovies(items);
             m_prefetch->prefetchPosters(items);
@@ -1115,8 +1108,6 @@ void AppController::loadDetailRows(const QString &itemId, const QString &itemTyp
             finishDetailRowLoad(generation);
         },
         [this, generation, itemId](const std::exception_ptr &error) {
-            if (generation != m_detailRowsGeneration)
-                return;
             qWarning() << "detail rows: similar fetch failed" << itemId << exceptionMessage(error);
             finishDetailRowLoad(generation);
         });
@@ -1137,7 +1128,7 @@ void AppController::playDetailSimilarItem(int index, bool fromStart)
 
 void AppController::loadPersonItems(const QString &personId)
 {
-    const int generation = ++m_personItemsGeneration;
+    const RequestGeneration::Token generation = m_personItemsGeneration.next();
     m_personItems.clear();
     if (personId.isEmpty() || !m_api || m_api->session().accessToken.isEmpty()) {
         m_personItemsBusy = false;
@@ -1148,19 +1139,16 @@ void AppController::loadPersonItems(const QString &personId)
     m_personItemsBusy = true;
     emit personItemsChanged();
 
-    Async::runScoped(this,
+    Async::runLatest(this,
         m_api->fetchItemsByPerson(personId),
-        [this, generation](const std::vector<MovieItem> &items) {
-            if (generation != m_personItemsGeneration)
-                return;
+        m_personItemsGeneration, generation,
+        [this](const std::vector<MovieItem> &items) {
             m_personItems.setMovies(items);
             m_prefetch->prefetchPosters(items);
             m_personItemsBusy = false;
             emit personItemsChanged();
         },
-        [this, generation](const std::exception_ptr &error) {
-            if (generation != m_personItemsGeneration)
-                return;
+        [this](const std::exception_ptr &error) {
             m_personItems.clear();
             m_personItemsBusy = false;
             emit personItemsChanged();
@@ -1559,21 +1547,23 @@ void AppController::setCurrentItemsLoadingMore(bool loading)
     emit currentItemsPagingChanged();
 }
 
-void AppController::loadLibraryFilterOptions(int generation, const LibraryItem &library)
+void AppController::loadLibraryFilterOptions(RequestGeneration::Token generation,
+                                             const LibraryItem &library)
 {
     if (!m_api || m_api->session().accessToken.isEmpty() || library.id.isEmpty())
         return;
 
-    Async::runScoped(this,
+    Async::runLatest(this,
         m_api->fetchLibraryFilterOptions(library.id, library.collectionType),
-        [this, generation, library](const QVariantMap &options) {
-            if (generation != m_libraryLoadGeneration || library.id != currentLibraryId())
+        m_libraryLoadGeneration, generation,
+        [this, library](const QVariantMap &options) {
+            if (library.id != currentLibraryId())
                 return;
             m_navigation.setFilterOptions(options);
             emit libraryFilterOptionsChanged();
         },
-        [this, generation, library](const std::exception_ptr &error) {
-            if (generation != m_libraryLoadGeneration || library.id != currentLibraryId())
+        [this, library](const std::exception_ptr &error) {
+            if (library.id != currentLibraryId())
                 return;
             qWarning() << "library filters: failed" << library.name << exceptionMessage(error);
             m_navigation.clearFilterOptions();
@@ -1597,18 +1587,17 @@ void AppController::openSeries(const MovieItem &series)
     if (series.id.isEmpty())
         return;
 
-    const int loadGeneration = ++m_libraryLoadGeneration;
+    const RequestGeneration::Token loadGeneration = m_libraryLoadGeneration.next();
     m_navigation.enterSeries(series);
     emit currentLibraryNameChanged();
     resetCurrentItemsPaging(QStringLiteral("seasons/%1").arg(series.id));
     m_movies.clear();
     setBusy(true, QStringLiteral("Loading seasons…"));
 
-    Async::runScoped(this,
+    Async::runLatest(this,
         m_api->fetchSeasons(series.id),
-        [this, series, loadGeneration](const std::vector<MovieItem> &seasons) {
-            if (loadGeneration != m_libraryLoadGeneration)
-                return;
+        m_libraryLoadGeneration, loadGeneration,
+        [this, series](const std::vector<MovieItem> &seasons) {
             if (seasons.empty()) {
                 MovieItem fallback;
                 fallback.id = series.id;
@@ -1621,9 +1610,7 @@ void AppController::openSeries(const MovieItem &series)
             }
             setCurrentItems(seasons, QStringLiteral("seasons/%1").arg(series.id));
         },
-        [this, loadGeneration](const std::exception_ptr &error) {
-            if (loadGeneration != m_libraryLoadGeneration)
-                return;
+        [this](const std::exception_ptr &error) {
             setBusy(false);
             setErrorText(exceptionMessage(error));
         });
@@ -1637,7 +1624,7 @@ void AppController::openSeason(const MovieItem &season)
         return;
     }
 
-    const int loadGeneration = ++m_libraryLoadGeneration;
+    const RequestGeneration::Token loadGeneration = m_libraryLoadGeneration.next();
     qInfo() << "season open: loading episodes"
             << "series=" << seriesId
             << "season=" << season.id
@@ -1649,20 +1636,17 @@ void AppController::openSeason(const MovieItem &season)
     m_movies.clear();
     setBusy(true, QStringLiteral("Loading episodes…"));
 
-    Async::runScoped(this,
+    Async::runLatest(this,
         m_api->fetchEpisodes(seriesId, season.itemType == QStringLiteral("Season") ? season.id : QString()),
-        [this, seriesId, season, loadGeneration](const std::vector<MovieItem> &episodes) {
-            if (loadGeneration != m_libraryLoadGeneration)
-                return;
+        m_libraryLoadGeneration, loadGeneration,
+        [this, seriesId, season](const std::vector<MovieItem> &episodes) {
             qInfo() << "season open: episodes loaded"
                     << "series=" << seriesId
                     << "season=" << season.id
                     << "count=" << episodes.size();
             setCurrentItems(episodes, QStringLiteral("episodes/%1/%2").arg(seriesId, season.id));
         },
-        [this, loadGeneration](const std::exception_ptr &error) {
-            if (loadGeneration != m_libraryLoadGeneration)
-                return;
+        [this](const std::exception_ptr &error) {
             qWarning() << "season open: episodes fetch failed" << exceptionMessage(error);
             setBusy(false);
             setErrorText(exceptionMessage(error));
@@ -1675,7 +1659,7 @@ void AppController::openGenre(const QString &genre)
     if (name.isEmpty() || !m_api || m_api->session().accessToken.isEmpty())
         return;
 
-    const int loadGeneration = ++m_libraryLoadGeneration;
+    const RequestGeneration::Token loadGeneration = m_libraryLoadGeneration.next();
     m_navigation.enterNamedCollection(QStringLiteral("genre"), name);
     emit libraryQueryChanged();
     emit libraryFilterOptionsChanged();
@@ -1685,16 +1669,13 @@ void AppController::openGenre(const QString &genre)
     m_movies.clear();
     setBusy(true, QStringLiteral("Loading %1…").arg(name));
 
-    Async::runScoped(this,
+    Async::runLatest(this,
         m_api->fetchItemsByGenre(name),
-        [this, cacheKey, loadGeneration](const std::vector<MovieItem> &items) {
-            if (loadGeneration != m_libraryLoadGeneration)
-                return;
+        m_libraryLoadGeneration, loadGeneration,
+        [this, cacheKey](const std::vector<MovieItem> &items) {
             setCurrentItems(items, cacheKey);
         },
-        [this, loadGeneration](const std::exception_ptr &error) {
-            if (loadGeneration != m_libraryLoadGeneration)
-                return;
+        [this](const std::exception_ptr &error) {
             setBusy(false);
             setErrorText(exceptionMessage(error));
         });
@@ -1706,7 +1687,7 @@ void AppController::openStudio(const QString &studio)
     if (name.isEmpty() || !m_api || m_api->session().accessToken.isEmpty())
         return;
 
-    const int loadGeneration = ++m_libraryLoadGeneration;
+    const RequestGeneration::Token loadGeneration = m_libraryLoadGeneration.next();
     m_navigation.enterNamedCollection(QStringLiteral("studio"), name);
     emit libraryQueryChanged();
     emit libraryFilterOptionsChanged();
@@ -1716,16 +1697,13 @@ void AppController::openStudio(const QString &studio)
     m_movies.clear();
     setBusy(true, QStringLiteral("Loading %1…").arg(name));
 
-    Async::runScoped(this,
+    Async::runLatest(this,
         m_api->fetchItemsByStudio(name),
-        [this, cacheKey, loadGeneration](const std::vector<MovieItem> &items) {
-            if (loadGeneration != m_libraryLoadGeneration)
-                return;
+        m_libraryLoadGeneration, loadGeneration,
+        [this, cacheKey](const std::vector<MovieItem> &items) {
             setCurrentItems(items, cacheKey);
         },
-        [this, loadGeneration](const std::exception_ptr &error) {
-            if (loadGeneration != m_libraryLoadGeneration)
-                return;
+        [this](const std::exception_ptr &error) {
             setBusy(false);
             setErrorText(exceptionMessage(error));
         });
@@ -1736,7 +1714,7 @@ void AppController::refreshHomeRows()
     if (!m_api || m_api->session().accessToken.isEmpty())
         return;
 
-    const int generation = ++m_homeLoadGeneration;
+    const RequestGeneration::Token generation = m_homeLoadGeneration.next();
     clearLatestLibraryRows();
     m_latestItems.clear();
     m_prefetch->stop();
@@ -1752,54 +1730,45 @@ void AppController::refreshHomeRows()
 
     m_homeLoadsPending = 2 + static_cast<int>(latestLibraries.size());
 
-    Async::runScoped(this,
+    Async::runLatest(this,
         m_api->fetchResumeItems(),
+        m_homeLoadGeneration, generation,
         [this, generation](const std::vector<MovieItem> &items) {
-            if (generation != m_homeLoadGeneration)
-                return;
             qInfo() << "home: resume items" << items.size() << homeItemSample(items);
             m_resumeItems.setMovies(items);
             m_prefetch->prefetchPosters(items);
             handleHomeRowLoaded(generation);
         },
         [this, generation](const std::exception_ptr &error) {
-            if (generation != m_homeLoadGeneration)
-                return;
             qWarning() << "home: resume fetch failed" << exceptionMessage(error);
             handleHomeRowLoaded(generation);
         });
 
-    Async::runScoped(this,
+    Async::runLatest(this,
         m_api->fetchNextUpEpisodes(),
+        m_homeLoadGeneration, generation,
         [this, generation](const std::vector<MovieItem> &items) {
-            if (generation != m_homeLoadGeneration)
-                return;
             qInfo() << "home: next-up items" << items.size() << homeItemSample(items);
             m_nextUpItems.setMovies(items);
             m_prefetch->prefetchPosters(items);
             handleHomeRowLoaded(generation);
         },
         [this, generation](const std::exception_ptr &error) {
-            if (generation != m_homeLoadGeneration)
-                return;
             qWarning() << "home: next-up fetch failed" << exceptionMessage(error);
             handleHomeRowLoaded(generation);
         });
 
     for (int order = 0; order < static_cast<int>(latestLibraries.size()); ++order) {
         const LibraryItem library = latestLibraries[static_cast<size_t>(order)];
-        Async::runScoped(this,
+        Async::runLatest(this,
             m_api->fetchLatestItems(library.id, latestLibraryLimit(library)),
+            m_homeLoadGeneration, generation,
             [this, generation, order, library](const std::vector<MovieItem> &items) {
-                if (generation != m_homeLoadGeneration)
-                    return;
                 qInfo() << "home: latest items" << library.name << items.size() << homeItemSample(items);
                 addLatestLibraryRow(generation, order, library, items);
                 handleHomeRowLoaded(generation);
             },
             [this, generation, library](const std::exception_ptr &error) {
-                if (generation != m_homeLoadGeneration)
-                    return;
                 qWarning() << "home: latest fetch failed" << library.name << exceptionMessage(error);
                 handleHomeRowLoaded(generation);
             });
@@ -1831,38 +1800,32 @@ void AppController::refreshCurrentItems(const QString &viewKind,
         return;
 
     if (viewKind == QStringLiteral("library") && !libraryId.isEmpty()) {
-        const int loadGeneration = ++m_libraryLoadGeneration;
+        const RequestGeneration::Token loadGeneration = m_libraryLoadGeneration.next();
         const QString collectionType = currentLibraryCollectionType();
         const QString cacheKey = m_currentItemsCacheKey;
         const QVariantMap query = libraryQuery();
-        Async::runScoped(this,
+        Async::runLatest(this,
             m_api->fetchLibraryPage(libraryId, collectionType, 0, kLibraryPageSize, query),
-            [this, loadGeneration, cacheKey](const PagedMovieItems &page) {
-                if (loadGeneration != m_libraryLoadGeneration)
-                    return;
+            m_libraryLoadGeneration, loadGeneration,
+            [this, cacheKey](const PagedMovieItems &page) {
                 setCurrentItemsPage(page, cacheKey, false);
             },
-            [this, loadGeneration](const std::exception_ptr &error) {
-                if (loadGeneration != m_libraryLoadGeneration)
-                    return;
+            [this](const std::exception_ptr &error) {
                 qWarning() << "app: post-playback library refresh failed" << exceptionMessage(error);
             });
         return;
     }
 
     if (viewKind == QStringLiteral("episodes") && !seriesId.isEmpty()) {
-        const int loadGeneration = ++m_libraryLoadGeneration;
-        Async::runScoped(this,
+        const RequestGeneration::Token loadGeneration = m_libraryLoadGeneration.next();
+        Async::runLatest(this,
             m_api->fetchEpisodes(seriesId, seasonId),
-            [this, loadGeneration, seriesId, seasonId](const std::vector<MovieItem> &episodes) {
-                if (loadGeneration != m_libraryLoadGeneration)
-                    return;
+            m_libraryLoadGeneration, loadGeneration,
+            [this](const std::vector<MovieItem> &episodes) {
                 m_movies.setMovies(episodes);
                 m_prefetch->prefetchPosters(episodes);
             },
-            [this, loadGeneration](const std::exception_ptr &error) {
-                if (loadGeneration != m_libraryLoadGeneration)
-                    return;
+            [this](const std::exception_ptr &error) {
                 qWarning() << "app: post-playback episode refresh failed" << exceptionMessage(error);
             });
     }
@@ -1937,12 +1900,12 @@ void AppController::clearLatestLibraryRows()
     emit latestLibraryRowsChanged();
 }
 
-void AppController::addLatestLibraryRow(int generation,
+void AppController::addLatestLibraryRow(RequestGeneration::Token generation,
                                         int order,
                                         const LibraryItem &library,
                                         const std::vector<MovieItem> &items)
 {
-    if (generation != m_homeLoadGeneration || items.empty())
+    if (!m_homeLoadGeneration.isCurrent(generation) || items.empty())
         return;
 
     auto model = std::make_unique<MovieGridModel>();
@@ -1964,19 +1927,19 @@ void AppController::addLatestLibraryRow(int generation,
     emit latestLibraryRowsChanged();
 }
 
-void AppController::handleHomeRowLoaded(int generation)
+void AppController::handleHomeRowLoaded(RequestGeneration::Token generation)
 {
-    if (generation != m_homeLoadGeneration || m_homeLoadsPending <= 0)
+    if (!m_homeLoadGeneration.isCurrent(generation) || m_homeLoadsPending <= 0)
         return;
 
     --m_homeLoadsPending;
     if (m_homeLoadsPending == 0)
-        m_prefetch->schedule(generation, m_libraries.libraries(), m_recentLibraryIds);
+        m_prefetch->schedule(m_libraries.libraries(), m_recentLibraryIds);
 }
 
-void AppController::finishDetailRowLoad(int generation)
+void AppController::finishDetailRowLoad(RequestGeneration::Token generation)
 {
-    if (generation != m_detailRowsGeneration || m_detailRowsPending <= 0)
+    if (!m_detailRowsGeneration.isCurrent(generation) || m_detailRowsPending <= 0)
         return;
 
     --m_detailRowsPending;
