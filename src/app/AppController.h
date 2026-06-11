@@ -49,6 +49,11 @@ class AppController final : public QObject
     Q_PROPERTY(bool toneMappingVisualizationEnabled READ toneMappingVisualizationEnabled
                WRITE setToneMappingVisualizationEnabled
                NOTIFY toneMappingVisualizationEnabledChanged)
+    Q_PROPERTY(int maxStreamingBitrateMbps READ maxStreamingBitrateMbps
+               WRITE setMaxStreamingBitrateMbps
+               NOTIFY playbackPreferencesChanged)
+    Q_PROPERTY(bool preferRemux READ preferRemux WRITE setPreferRemux
+               NOTIFY playbackPreferencesChanged)
     Q_PROPERTY(int audioDelayMs READ audioDelayMs WRITE setAudioDelayMs NOTIFY audioDelayMsChanged)
     Q_PROPERTY(QString audioOutputMode READ audioOutputMode WRITE setAudioOutputMode NOTIFY audioOutputModeChanged)
     Q_PROPERTY(QStringList subtitleLanguageOptions READ subtitleLanguageOptions NOTIFY subtitleSettingsChanged)
@@ -120,6 +125,8 @@ public:
     bool settingsVisible() const;
     bool nightModeEnabled() const;
     bool toneMappingVisualizationEnabled() const;
+    int maxStreamingBitrateMbps() const;
+    bool preferRemux() const;
     int audioDelayMs() const;
     QString audioOutputMode() const;
     QStringList subtitleLanguageOptions() const;
@@ -212,6 +219,8 @@ public:
     Q_INVOKABLE void toggleNightMode();
     Q_INVOKABLE void setNightModeEnabled(bool enabled);
     Q_INVOKABLE void setToneMappingVisualizationEnabled(bool enabled);
+    Q_INVOKABLE void setMaxStreamingBitrateMbps(int bitrateMbps);
+    Q_INVOKABLE void setPreferRemux(bool enabled);
     Q_INVOKABLE void setAudioDelayMs(int delayMs);
     Q_INVOKABLE void setAudioOutputMode(const QString &mode);
     Q_INVOKABLE void setSubtitleLanguageIndex(int index);
@@ -244,6 +253,7 @@ signals:
     void settingsVisibleChanged();
     void nightModeEnabledChanged();
     void toneMappingVisualizationEnabledChanged();
+    void playbackPreferencesChanged();
     void audioDelayMsChanged();
     void audioOutputModeChanged();
     void subtitleSettingsChanged();
