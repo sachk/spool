@@ -1,6 +1,7 @@
 #pragma once
 
 #include "../common/JellyfinTypes.h"
+#include "PlaybackReporter.h"
 #include "PlaybackTimeline.h"
 
 #include <QByteArray>
@@ -181,6 +182,7 @@ private:
     NativeAppWindow *m_window = nullptr;
     JellyfinApiFacade *m_api = nullptr;
     PlaybackSession m_session;
+    PlaybackReporter m_reporter;
     std::thread m_eventThread;
     std::atomic_bool m_terminating { false };
     // Tracks loadfile calls whose FILE_LOADED has not yet arrived. When > 0,
