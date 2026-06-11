@@ -21,6 +21,7 @@
 namespace JellyfinNative {
 
 class JellyfinApiFacade;
+class QuickConnectController;
 class AppController final : public QObject
 {
     Q_OBJECT
@@ -283,7 +284,6 @@ private:
     void handleHomeRowLoaded(int generation);
     void scheduleLibraryPrefetch(int generation);
     void startNextLibraryPrefetch();
-    void pollQuickConnect();
     void prefetchMoviePosters(const std::vector<MovieItem> &movies);
     void finishDetailRowLoad(int generation);
     void setCurrentItems(const std::vector<MovieItem> &items, const QString &cacheKey = {});
@@ -309,6 +309,7 @@ private:
     JellyfinApiFacade *m_api = nullptr;
     PlayerController *m_player = nullptr;
     SyncPlayController *m_syncPlay = nullptr;
+    QuickConnectController *m_quickConnect = nullptr;
     DiscoveredServerModel m_discoveredServers;
     LibraryListModel m_libraries;
     MovieGridModel m_movies;
@@ -321,7 +322,6 @@ private:
     MovieGridModel m_detailSimilarItems;
     MovieGridModel m_personItems;
     std::vector<LatestLibrarySection> m_latestLibrarySections;
-    QTimer m_quickConnectTimer;
     QTimer m_libraryPrefetchTimer;
     QString m_page = QStringLiteral("login");
     QString m_serverUrl;
@@ -330,11 +330,6 @@ private:
     bool m_busy = false;
     QString m_busyText;
     QString m_errorText;
-    QString m_quickConnectCode;
-    QString m_quickConnectStatus;
-    QString m_quickConnectSecret;
-    int m_quickConnectPollAttempts = 0;
-    int m_quickConnectPollErrors = 0;
     QString m_currentLibraryId;
     QString m_currentLibraryCollectionType;
     QString m_currentLibraryName;

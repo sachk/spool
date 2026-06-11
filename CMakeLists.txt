@@ -126,6 +126,8 @@ qt_add_executable(jellyfin-native
     src/app/AppController.cpp
     src/app/AppController.h
     src/app/NativeAppWindow.h
+    src/app/QuickConnectController.cpp
+    src/app/QuickConnectController.h
     src/app/QmlNetworkAccessManagerFactory.cpp
     src/app/QmlNetworkAccessManagerFactory.h
     src/app/SyncPlayController.cpp
