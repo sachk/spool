@@ -130,6 +130,7 @@ qt_add_executable(jellyfin-native
     src/app/NavigationState.cpp
     src/app/NavigationState.h
     src/app/NativeAppWindow.h
+    src/app/NativeAppWindowCommon.cpp
     src/app/QuickConnectController.cpp
     src/app/QuickConnectController.h
     src/app/SettingsController.cpp

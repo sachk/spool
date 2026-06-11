@@ -6,7 +6,6 @@
 #include <QGuiApplication>
 #include <QMetaObject>
 #include <QMutexLocker>
-#include <QQuickImageProvider>
 #include <QResizeEvent>
 #include <QThread>
 
@@ -19,37 +18,6 @@ extern "C" {
 }
 
 namespace JellyfinNative {
-
-namespace {
-
-class NativeOverlayImageProvider final : public QQuickImageProvider
-{
-public:
-    explicit NativeOverlayImageProvider(const NativeAppWindow *window)
-        : QQuickImageProvider(QQuickImageProvider::Image)
-        , m_window(window)
-    {
-    }
-
-    QImage requestImage(const QString &, QSize *size, const QSize &requestedSize) override
-    {
-        QImage image = m_window->copyOverlayImage();
-        if (image.isNull()) {
-            image = QImage(1, 1, QImage::Format_ARGB32_Premultiplied);
-            image.fill(Qt::transparent);
-        }
-        if (requestedSize.isValid() && !image.isNull())
-            image = image.scaled(requestedSize, Qt::IgnoreAspectRatio, Qt::FastTransformation);
-        if (size)
-            *size = image.size();
-        return image;
-    }
-
-private:
-    const NativeAppWindow *m_window;
-};
-
-} // namespace
 
 NativeAppWindow::NativeAppWindow(const QString &appId, QWindow *parent)
     : QQuickView(parent)
@@ -152,32 +120,6 @@ bool NativeAppWindow::prepareForPlaybackSurface()
 QString NativeAppWindow::windowId() const
 {
     return QString::fromStdString(m_windowId);
-}
-
-int NativeAppWindow::overlayRevision() const
-{
-    return m_overlayRevision;
-}
-
-void NativeAppWindow::clearOverlay()
-{
-    bool changed = false;
-    {
-        QMutexLocker locker(&m_overlayMutex);
-        m_pendingOverlayImage = QImage();
-        if (m_overlayImage.isNull())
-            return;
-        m_overlayImage = QImage();
-        m_overlayRevision += 1;
-        changed = true;
-    }
-    if (changed)
-        emit overlayRevisionChanged();
-}
-
-QQuickImageProvider *NativeAppWindow::createOverlayImageProvider()
-{
-    return new NativeOverlayImageProvider(this);
 }
 
 void NativeAppWindow::exposeEvent(QExposeEvent *event)
@@ -413,15 +355,6 @@ void NativeAppWindow::publishPendingOverlayImage()
     }
     if (changed)
         emit overlayRevisionChanged();
-}
-
-QImage NativeAppWindow::copyOverlayImage() const
-{
-    // QImage is implicitly shared — returning by value bumps the refcount.
-    // The producer's next assignment replaces m_overlayImage with new storage
-    // while ours stays alive via COW, so we don't need a deep copy here.
-    QMutexLocker locker(&m_overlayMutex);
-    return m_overlayImage;
 }
 
 void NativeAppWindow::registryGlobal(void *data, wl_registry *registry, uint32_t name,
