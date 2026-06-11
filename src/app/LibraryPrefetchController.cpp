@@ -115,25 +115,35 @@ LibraryPrefetchController::cachedPage(const QString &cacheKey) const {
 }
 
 void LibraryPrefetchController::prefetchPosters(
-    const std::vector<MovieItem> &items) {
-  QStringList urls;
-  constexpr qsizetype maxUrls = 24;
-  urls.reserve(
-      std::min<qsizetype>(static_cast<qsizetype>(items.size() * 2), maxUrls));
+    const std::vector<MovieItem> &items, int firstIndex, int visibleCount) {
+  if (items.empty())
+    return;
 
-  for (const MovieItem &item : items) {
+  const int begin = std::clamp(firstIndex, 0, static_cast<int>(items.size()));
+  const int windowSize = std::max(1, visibleCount) + m_imagePrefetchAheadItems;
+  const int end =
+      std::min(static_cast<int>(items.size()), begin + windowSize);
+  QStringList urls;
+  urls.reserve((end - begin) * 2);
+
+  for (int index = begin; index < end; ++index) {
+    const MovieItem &item = items[static_cast<size_t>(index)];
     if (!item.posterUrl.isEmpty())
       urls.push_back(item.posterUrl);
-    if (!item.backdropUrl.isEmpty() && urls.size() < maxUrls)
+    if (!item.backdropUrl.isEmpty())
       urls.push_back(item.backdropUrl);
-    if (!item.logoUrl.isEmpty() && urls.size() < maxUrls)
+    if (!item.logoUrl.isEmpty())
       urls.push_back(item.logoUrl);
-    if (urls.size() >= maxUrls)
-      break;
   }
 
   if (!urls.isEmpty())
-    m_api->prefetchImages(urls, 3);
+    m_api->prefetchImages(urls, m_imagePrefetchMaxConcurrent);
+}
+
+void LibraryPrefetchController::configureImagePrefetch(int aheadItems,
+                                                       int maxConcurrent) {
+  m_imagePrefetchAheadItems = std::clamp(aheadItems, 4, 64);
+  m_imagePrefetchMaxConcurrent = std::clamp(maxConcurrent, 1, 8);
 }
 
 void LibraryPrefetchController::startNext() {

@@ -27,7 +27,9 @@ public:
   void schedule(const std::vector<LibraryItem> &libraries,
                 const QStringList &recentLibraryIds);
   std::optional<PagedMovieItems> cachedPage(const QString &cacheKey) const;
-  void prefetchPosters(const std::vector<MovieItem> &items);
+  void configureImagePrefetch(int aheadItems, int maxConcurrent);
+  void prefetchPosters(const std::vector<MovieItem> &items, int firstIndex = 0,
+                       int visibleCount = 12);
 
 private:
   void startNext();
@@ -40,6 +42,8 @@ private:
   std::vector<LibraryItem> m_queue;
   QHash<QString, PagedMovieItems> m_pages;
   QSet<QString> m_cachedKeys;
+  int m_imagePrefetchAheadItems = 16;
+  int m_imagePrefetchMaxConcurrent = 3;
 };
 
 } // namespace JellyfinNative

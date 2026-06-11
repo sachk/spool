@@ -224,6 +224,11 @@ AppController::AppController(DatabaseManager *database,
     m_settings = new SettingsController(database, api, player, this);
     m_session = new SessionController(database, api, this);
     m_prefetch = new LibraryPrefetchController(api, this);
+    m_prefetch->configureImagePrefetch(
+        database->loadSetting(QStringLiteral("network/imagePrefetchAhead"),
+                              QStringLiteral("16")).toInt(),
+        database->loadSetting(QStringLiteral("network/imagePrefetchConcurrency"),
+                              QStringLiteral("3")).toInt());
     connect(m_api, &JellyfinApiFacade::authenticationExpired,
             m_session, &SessionController::expireSession);
     connect(m_syncPlay, &SyncPlayController::errorText, this, &AppController::setErrorText);
@@ -947,6 +952,14 @@ void AppController::loadMoreCurrentItems()
                      m_api->fetchLibraryPage(libraryId, collectionType, startIndex,
                                              kLibraryPageSize, query),
                      m_libraryLoadGeneration, loadGeneration, onDone, onError);
+}
+
+void AppController::prefetchCurrentItems(int firstIndex, int lastIndex)
+{
+    if (firstIndex < 0 || lastIndex < firstIndex || m_movies.rowCount() <= 0)
+        return;
+    m_prefetch->prefetchPosters(
+        m_movies.movies(), firstIndex, lastIndex - firstIndex + 1);
 }
 
 void AppController::setLibraryQuery(const QVariantMap &query)

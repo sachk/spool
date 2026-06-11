@@ -188,6 +188,7 @@ public:
     Q_INVOKABLE void loadSearchSuggestions();
     Q_INVOKABLE void playSuggestionItem(int index, bool fromStart = false);
     Q_INVOKABLE void loadMoreCurrentItems();
+    Q_INVOKABLE void prefetchCurrentItems(int firstIndex, int lastIndex);
     Q_INVOKABLE void maybeLoadMoreCurrentItems(int visibleIndex);
     Q_INVOKABLE void setLibrarySort(const QString &sortBy, const QString &sortOrder);
     Q_INVOKABLE void setLibraryQueryListValue(const QString &key, const QString &value, bool enabled);

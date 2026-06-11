@@ -810,10 +810,19 @@ FocusScope {
                 return Math.min(count - 1, (firstRow + visibleRows) * columns - 1)
             }
 
+            function firstLikelyVisibleIndex() {
+                if (count <= 0 || cellHeight <= 0 || columns <= 0)
+                    return -1
+                return Math.min(count - 1,
+                                Math.max(0, Math.floor(contentY / cellHeight) * columns))
+            }
+
             function requestMoreIfNeeded() {
                 if (!appController || count <= 0)
                     return
+                const visibleHead = firstLikelyVisibleIndex()
                 const visibleTail = Math.max(currentIndex, lastLikelyVisibleIndex())
+                appController.prefetchCurrentItems(visibleHead, visibleTail)
                 appController.maybeLoadMoreCurrentItems(visibleTail)
             }
 
