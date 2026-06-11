@@ -144,6 +144,8 @@ qt_add_executable(jellyfin-native
     src/app/QmlNetworkAccessManagerFactory.h
     src/app/SyncPlayController.cpp
     src/app/SyncPlayController.h
+    src/app/SyncPlayClock.cpp
+    src/app/SyncPlayClock.h
     src/app/LocalizationManager.cpp
     src/app/LocalizationManager.h
     src/cache/DatabaseManager.cpp
@@ -410,6 +412,16 @@ if(BUILD_TESTING AND NOT CMAKE_CROSSCOMPILING)
     )
     target_link_libraries(navigation-state-tests PRIVATE Qt6::Core)
     add_test(NAME navigation-state COMMAND navigation-state-tests)
+
+    add_executable(sync-play-clock-tests
+        tests/app/SyncPlayClockTest.cpp
+        src/app/SyncPlayClock.cpp
+        src/app/SyncPlayClock.h
+    )
+    target_include_directories(sync-play-clock-tests PRIVATE
+        "${CMAKE_CURRENT_SOURCE_DIR}/src"
+    )
+    add_test(NAME sync-play-clock COMMAND sync-play-clock-tests)
 
     add_executable(request-generation-tests
         tests/common/RequestGenerationTest.cpp

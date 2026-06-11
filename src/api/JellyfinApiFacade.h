@@ -5,6 +5,7 @@
 
 #include <QCoroTask>
 
+#include <QDateTime>
 #include <QJsonDocument>
 #include <QNetworkAccessManager>
 #include <QNetworkReply>
@@ -87,10 +88,7 @@ public:
     QString trickplayTileUrl(const QString &itemId, int width, int tileIndex) const;
     QCoro::Task<PlaybackSession> negotiatePlayback(MovieItem movie);
 
-    // SyncPlay REST endpoints. These mirror the calls the official web client
-    // makes. Realtime sync still requires a WebSocket connection (Qt
-    // WebSockets module not yet built into our static Qt 6.11) — the methods
-    // below provide the group-management half today.
+    // SyncPlay REST endpoints used alongside SyncPlayController's WebSocket.
     QCoro::Task<QJsonArray> fetchSyncPlayGroups();
     QCoro::Task<void> createSyncPlayGroup(QString name);
     QCoro::Task<void> joinSyncPlayGroup(QString groupId);
@@ -98,6 +96,11 @@ public:
     QCoro::Task<void> syncPlayRequestPlay();
     QCoro::Task<void> syncPlayRequestPause();
     QCoro::Task<void> syncPlayRequestSeek(qint64 positionTicks);
+    QCoro::Task<QJsonObject> fetchUtcTime();
+    QCoro::Task<void> syncPlayReportPing(qint64 pingMs);
+    QCoro::Task<void> syncPlayReportBuffering(
+        bool buffering, qint64 positionTicks, bool playing,
+        QString playlistItemId, QDateTime serverTime);
 
     QCoro::Task<void> postCapabilities();
     QCoro::Task<void> reportPlaybackStart(PlaybackSession session);

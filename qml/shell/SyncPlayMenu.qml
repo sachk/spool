@@ -42,8 +42,17 @@ FocusScope {
         if (!syncPlay)
             return out
         if (syncPlay.enabled) {
+            const memberCount = syncPlay.participantCount || 0
+            const statusParts = [
+                memberCount + " member" + (memberCount === 1 ? "" : "s")
+            ]
+            if ((syncPlay.groupState || "").length > 0)
+                statusParts.push(syncPlay.groupState)
+            statusParts.push(syncPlay.socketConnected
+                             ? Math.round(syncPlay.pingMs) + " ms"
+                             : "Reconnecting")
             out.push({ kind: "current", label: syncPlay.currentGroupName || "SyncPlay group",
-                       sub: "Connected", icon: "groups" })
+                       sub: statusParts.join(" / "), icon: "groups" })
             out.push({ kind: "leave", label: "Leave group", sub: "", icon: "logout" })
         } else {
             const groups = syncPlay.groups || []
@@ -113,6 +122,9 @@ FocusScope {
         function onGroupChanged() {
             menu.entries = menu.buildEntries()
             menu.currentIndex = menu.firstActionable(menu.entries)
+        }
+        function onConnectionChanged() {
+            menu.entries = menu.buildEntries()
         }
     }
 
