@@ -596,11 +596,16 @@ bool PlayerController::ensureMpv() {
   // would leave us with no video at all.
   auto *videoItem = MpvVideoItem::instance();
   if (!videoItem) {
-    qFatal("PlayerController: MpvVideoItem instance is missing; "
-           "PlayerOverlayPage must instantiate it before play() is called.");
+    qCritical() << "PlayerController: MpvVideoItem instance is missing";
     mpv_terminate_destroy(handle);
+    m_errorText = QStringLiteral(
+        "The video surface is unavailable. Return to the library and try again.");
+    m_statusText = QStringLiteral("Playback unavailable");
+    emit stateChanged();
     return false;
   }
+  connect(videoItem, &MpvVideoItem::renderError, this,
+          &PlayerController::handleVideoRenderError, Qt::UniqueConnection);
   videoItem->setMpvHandle(handle);
 #endif
 
@@ -616,6 +621,12 @@ bool PlayerController::ensureMpv() {
     return false;
   }
   return true;
+}
+
+void PlayerController::handleVideoRenderError(const QString &message) {
+  m_errorText = message;
+  m_statusText = QStringLiteral("Playback unavailable");
+  emit stateChanged();
 }
 
 void PlayerController::play(const PlaybackSession &session) {

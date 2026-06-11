@@ -53,6 +53,9 @@ public:
     // in-progress mpv_render_context_render call to finish).
     std::atomic<mpv_render_context *> m_renderCtxAtomic{nullptr};
 
+signals:
+    void renderError(const QString &message);
+
 private:
     static MpvVideoItem *s_instance;
 

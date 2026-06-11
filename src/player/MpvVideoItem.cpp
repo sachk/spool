@@ -4,6 +4,7 @@
 #include <QOpenGLContext>
 #include <QOpenGLFramebufferObject>
 #include <QOpenGLFramebufferObjectFormat>
+#include <QPointer>
 #include <QQuickWindow>
 #include <QtDebug>
 
@@ -94,8 +95,18 @@ public:
         mpv_render_context *newCtx = nullptr;
         const int err = mpv_render_context_create(&newCtx, next, params);
         if (err < 0) {
-            qFatal("MpvVideoItem: mpv_render_context_create failed: %s",
-                   mpv_error_string(err));
+            const QString message =
+                QStringLiteral("Failed to initialize video rendering: %1")
+                    .arg(QString::fromUtf8(mpv_error_string(err)));
+            qCritical() << "MpvVideoItem:" << message;
+            const QPointer<MpvVideoItem> guardedItem(item);
+            QMetaObject::invokeMethod(
+                item,
+                [guardedItem, message]() {
+                    if (guardedItem)
+                        emit guardedItem->renderError(message);
+                },
+                Qt::QueuedConnection);
             return;
         }
         mpv_render_context_set_update_callback(newCtx, &MpvFboRenderer::onMpvUpdate,
