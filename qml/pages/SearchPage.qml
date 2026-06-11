@@ -212,6 +212,10 @@ FocusScope {
             spacing: 10
             clip: true
             model: appController.searchResults
+            Accessible.role: Accessible.List
+            Accessible.name: "Search results"
+            Accessible.focusable: root.resultCount > 0
+            Accessible.focused: activeFocus
             KeyNavigation.up: field
             visible: root.resultCount > 0
             onCurrentIndexChanged: if (currentIndex >= 0) positionViewAtIndex(currentIndex, ListView.Contain)
@@ -237,6 +241,15 @@ FocusScope {
                 width: results.width
                 height: 118
                 focused: ListView.isCurrentItem && results.activeFocus
+                Accessible.role: Accessible.Button
+                Accessible.name: displayTitle || title
+                Accessible.description: displaySubtitle || subtitle || itemType
+                Accessible.focusable: true
+                Accessible.focused: focused
+                Accessible.onPressAction: {
+                    results.currentIndex = resultDelegate.index
+                    root.activateCurrent()
+                }
 
                 function handleAcceptPressed(key) { return actions.handleAcceptPressed(key) }
                 function handleAcceptReleased(key) { return actions.handleAcceptReleased(key) }
