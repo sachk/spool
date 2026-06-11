@@ -1221,6 +1221,42 @@ QCoro::Task<void> JellyfinApiFacade::syncPlayRequestSeek(qint64 positionTicks)
     co_await requestNoContent(HttpMethod::Post, QStringLiteral("/SyncPlay/Seek"), QJsonDocument(body));
 }
 
+QCoro::Task<QJsonObject> JellyfinApiFacade::fetchUtcTime()
+{
+    co_return (co_await requestJson(HttpMethod::Get,
+                                    QStringLiteral("/GetUtcTime")))
+        .object();
+}
+
+QCoro::Task<void> JellyfinApiFacade::syncPlayReportPing(qint64 pingMs)
+{
+    const QJsonObject body = {
+        {QStringLiteral("Ping"), std::max<qint64>(0, pingMs)},
+    };
+    co_await requestNoContent(HttpMethod::Post, QStringLiteral("/SyncPlay/Ping"),
+                              QJsonDocument(body));
+}
+
+QCoro::Task<void> JellyfinApiFacade::syncPlayReportBuffering(
+    bool buffering, qint64 positionTicks, bool playing,
+    QString playlistItemId, QDateTime serverTime)
+{
+    if (playlistItemId.isEmpty()) {
+        playlistItemId =
+            QStringLiteral("00000000-0000-0000-0000-000000000000");
+    }
+    const QJsonObject body = {
+        {QStringLiteral("When"),
+         serverTime.toUTC().toString(Qt::ISODateWithMs)},
+        {QStringLiteral("PositionTicks"), positionTicks},
+        {QStringLiteral("IsPlaying"), playing},
+        {QStringLiteral("PlaylistItemId"), playlistItemId},
+    };
+    const QString path = buffering ? QStringLiteral("/SyncPlay/Buffering")
+                                   : QStringLiteral("/SyncPlay/Ready");
+    co_await requestNoContent(HttpMethod::Post, path, QJsonDocument(body));
+}
+
 QCoro::Task<PlaybackSession> JellyfinApiFacade::negotiatePlayback(MovieItem movie)
 {
     Diagnostics::Task task(QStringLiteral("api_negotiate_playback"), {{QStringLiteral("itemId"), movie.id}, {QStringLiteral("title"), movie.title}});
