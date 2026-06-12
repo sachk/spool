@@ -14,12 +14,13 @@
 #include <QObject>
 #include <QVariantList>
 
-#include <memory>
+#include <vector>
 
 namespace JellyfinNative {
 
 class JellyfinApiFacade;
 class ContentModelController;
+class HomeModelController;
 class LibraryPrefetchController;
 class QuickConnectController;
 class SettingsController;
@@ -271,12 +272,6 @@ signals:
     void itemPlayedChanged(const QString &itemId, bool played);
 
 private:
-    struct LatestLibrarySection {
-        int order = 0;
-        LibraryItem library;
-        std::unique_ptr<MovieGridModel> model;
-    };
-
     void setPage(const QString &page);
     void setBusy(bool busy, const QString &busyText = {});
     void setErrorText(const QString &errorText);
@@ -293,10 +288,6 @@ private:
     void applyPlaybackPosition(const QString &itemId, qint64 positionTicks);
     void applyFavoriteState(const QString &itemId, bool favorite);
     void applyPlayedState(const QString &itemId, bool played);
-    void clearLatestLibraryRows();
-    void addLatestLibraryRow(RequestGeneration::Token generation, int order,
-                             const LibraryItem &library, const std::vector<MovieItem> &items);
-    void handleHomeRowLoaded(RequestGeneration::Token generation);
     void setCurrentItems(const std::vector<MovieItem> &items, const QString &cacheKey = {});
     void setCurrentItemsPage(const PagedMovieItems &page, const QString &cacheKey, bool append);
     void resetCurrentItemsPaging(const QString &cacheKey = {});
@@ -308,7 +299,6 @@ private:
     void playMediaItem(const MovieItem &item, bool fromStart = false);
     // Series/Season open their child listing; everything else plays directly.
     void playOrOpen(const MovieItem &item, bool fromStart = false);
-    void recordLibraryUse(const LibraryItem &library);
 
     DatabaseManager *m_database = nullptr;
     DiscoveryController *m_discovery = nullptr;
@@ -316,6 +306,7 @@ private:
     PlayerController *m_player = nullptr;
     SyncPlayController *m_syncPlay = nullptr;
     ContentModelController *m_content = nullptr;
+    HomeModelController *m_home = nullptr;
     QuickConnectController *m_quickConnect = nullptr;
     SettingsController *m_settings = nullptr;
     SessionController *m_session = nullptr;
@@ -323,10 +314,6 @@ private:
     DiscoveredServerModel m_discoveredServers;
     LibraryListModel m_libraries;
     MovieGridModel m_movies;
-    MovieGridModel m_resumeItems;
-    MovieGridModel m_nextUpItems;
-    MovieGridModel m_latestItems;
-    std::vector<LatestLibrarySection> m_latestLibrarySections;
     NavigationState m_navigation;
     bool m_busy = false;
     QString m_busyText;
@@ -337,10 +324,7 @@ private:
     int m_currentItemsTotalCount = 0;
     int m_currentItemsNextStartIndex = 0;
     RequestGeneration m_libraryLoadGeneration;
-    RequestGeneration m_homeLoadGeneration;
-    int m_homeLoadsPending = 0;
     bool m_shuttingDown = false;
-    QStringList m_recentLibraryIds;
 };
 
 } // namespace JellyfinNative
