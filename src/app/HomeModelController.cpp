@@ -2,11 +2,11 @@
 
 #include "../api/JellyfinApiFacade.h"
 #include "../common/AsyncTask.h"
+#include "LibraryQuery.h"
 #include "LibraryPrefetchController.h"
 
 #include <QDebug>
 #include <QQmlEngine>
-#include <QSet>
 #include <QStringList>
 #include <QVariantMap>
 
@@ -26,18 +26,6 @@ QString homeItemSample(const std::vector<MovieItem> &items)
             break;
     }
     return sample.join(QStringLiteral(" | "));
-}
-
-bool showsLatestLibraryRow(const LibraryItem &library)
-{
-    static const QSet<QString> excluded = {
-        QStringLiteral("playlists"),
-        QStringLiteral("livetv"),
-        QStringLiteral("boxsets"),
-        QStringLiteral("channels"),
-        QStringLiteral("folders"),
-    };
-    return !library.id.isEmpty() && !excluded.contains(library.collectionType);
 }
 
 int latestLibraryLimit(const LibraryItem &library)
@@ -142,7 +130,7 @@ void HomeModelController::refresh(const std::vector<LibraryItem> &libraries)
     std::vector<LibraryItem> latestLibraries;
     latestLibraries.reserve(libraries.size());
     for (const LibraryItem &library : libraries) {
-        if (showsLatestLibraryRow(library))
+        if (supportsLatestLibraryRow(library))
             latestLibraries.push_back(library);
     }
 

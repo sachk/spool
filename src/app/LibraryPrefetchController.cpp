@@ -2,6 +2,7 @@
 
 #include "../api/JellyfinApiFacade.h"
 #include "../common/AsyncTask.h"
+#include "LibraryQuery.h"
 
 #include <QDebug>
 
@@ -14,24 +15,6 @@ namespace {
 
 constexpr int kLibraryPageSize = 100;
 constexpr int kBackgroundLibraryPrefetchLimit = 3;
-
-bool showsLatestLibraryRow(const LibraryItem &library) {
-  static const QSet<QString> excluded = {
-      QStringLiteral("playlists"), QStringLiteral("livetv"),
-      QStringLiteral("boxsets"),   QStringLiteral("channels"),
-      QStringLiteral("folders"),
-  };
-  return !library.id.isEmpty() && !excluded.contains(library.collectionType);
-}
-
-QString cacheKey(const LibraryItem &library) {
-  if (library.collectionType == QStringLiteral("tvshows"))
-    return QStringLiteral("series/%1").arg(library.id);
-  if (library.collectionType == QStringLiteral("movies"))
-    return library.id;
-  return QStringLiteral("library/%1/%2")
-      .arg(library.collectionType, library.id);
-}
 
 } // namespace
 
@@ -65,7 +48,7 @@ void LibraryPrefetchController::schedule(
   auto trySelect = [&selected, &selectedIds](const LibraryItem &library) {
     if (selected.size() >= static_cast<size_t>(kBackgroundLibraryPrefetchLimit))
       return;
-    if (!showsLatestLibraryRow(library) || selectedIds.contains(library.id))
+    if (!supportsLatestLibraryRow(library) || selectedIds.contains(library.id))
       return;
     selectedIds.insert(library.id);
     selected.push_back(library);
@@ -84,7 +67,7 @@ void LibraryPrefetchController::schedule(
 
   QSet<QString> retainedKeys;
   for (const LibraryItem &library : selected) {
-    const QString key = cacheKey(library);
+    const QString key = libraryCacheKey(library);
     retainedKeys.insert(key);
     if (!m_cachedKeys.contains(key))
       m_queue.push_back(library);
@@ -154,7 +137,7 @@ void LibraryPrefetchController::startNext() {
 
   const RequestGeneration::Token generation = m_generation.next();
   const LibraryItem library = m_queue[static_cast<size_t>(m_index++)];
-  const QString key = cacheKey(library);
+  const QString key = libraryCacheKey(library);
   m_active = true;
   qInfo() << "library prefetch: fetching" << library.name << key;
 
