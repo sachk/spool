@@ -362,6 +362,20 @@ MovieItem mediaItemFromJson(const JellyfinApiFacade *api, const QJsonObject &obj
     return item;
 }
 
+std::vector<MovieItem> mediaItemsFromJson(const JellyfinApiFacade *api,
+                                          const QJsonArray &items,
+                                          const QStringList &allowedTypes)
+{
+    std::vector<MovieItem> result;
+    result.reserve(items.size());
+    for (const QJsonValue &value : items) {
+        const QJsonObject object = value.toObject();
+        if (allowedTypes.contains(object.value(QStringLiteral("Type")).toString()))
+            result.push_back(mediaItemFromJson(api, object));
+    }
+    return result;
+}
+
 }
 
 JellyfinApiFacade::JellyfinApiFacade(QNetworkAccessManager *networkAccessManager, QObject *parent)
@@ -641,20 +655,11 @@ QCoro::Task<PagedMovieItems> JellyfinApiFacade::fetchLibraryPage(QString library
         (co_await requestJson(HttpMethod::Get, QStringLiteral("/Items"), query)).object();
     const QJsonArray items = response.value(QStringLiteral("Items")).toArray();
 
-    std::vector<MovieItem> movies;
-    movies.reserve(items.size());
-    for (const auto &value : items) {
-        const auto object = value.toObject();
-        const QString itemType = object.value(QStringLiteral("Type")).toString();
-        if (itemType != QStringLiteral("Movie") &&
-            itemType != QStringLiteral("Series") &&
-            itemType != QStringLiteral("Episode") &&
-            itemType != QStringLiteral("MusicVideo") &&
-            itemType != QStringLiteral("Video"))
-            continue;
-
-        movies.push_back(mediaItemFromJson(this, object));
-    }
+    const std::vector<MovieItem> movies = mediaItemsFromJson(
+        this, items,
+        {QStringLiteral("Movie"), QStringLiteral("Series"),
+         QStringLiteral("Episode"), QStringLiteral("MusicVideo"),
+         QStringLiteral("Video")});
 
     co_return PagedMovieItems{
         movies,
@@ -896,17 +901,10 @@ QCoro::Task<std::vector<MovieItem>> JellyfinApiFacade::searchItems(QString searc
     const QJsonArray items =
         (co_await requestJson(HttpMethod::Get, QStringLiteral("/Items"), query)).object().value(QStringLiteral("Items")).toArray();
 
-    std::vector<MovieItem> result;
-    result.reserve(items.size());
-    for (const auto &value : items) {
-        const auto object = value.toObject();
-        const QString itemType = object.value(QStringLiteral("Type")).toString();
-        if (itemType == QStringLiteral("Movie") ||
-            itemType == QStringLiteral("Series") ||
-            itemType == QStringLiteral("Episode")) {
-            result.push_back(mediaItemFromJson(this, object));
-        }
-    }
+    const std::vector<MovieItem> result = mediaItemsFromJson(
+        this, items,
+        {QStringLiteral("Movie"), QStringLiteral("Series"),
+         QStringLiteral("Episode")});
 
     co_return result;
 }
@@ -928,14 +926,9 @@ QCoro::Task<std::vector<MovieItem>> JellyfinApiFacade::fetchSearchSuggestions(in
     const QJsonArray items =
         (co_await requestJson(HttpMethod::Get, QStringLiteral("/Items"), query)).object().value(QStringLiteral("Items")).toArray();
 
-    std::vector<MovieItem> result;
-    result.reserve(items.size());
-    for (const auto &value : items) {
-        const auto object = value.toObject();
-        const QString itemType = object.value(QStringLiteral("Type")).toString();
-        if (itemType == QStringLiteral("Movie") || itemType == QStringLiteral("Series"))
-            result.push_back(mediaItemFromJson(this, object));
-    }
+    const std::vector<MovieItem> result = mediaItemsFromJson(
+        this, items,
+        {QStringLiteral("Movie"), QStringLiteral("Series")});
     co_return result;
 }
 
@@ -956,16 +949,10 @@ QCoro::Task<std::vector<MovieItem>> JellyfinApiFacade::fetchSimilarItems(QString
                                                     QStringLiteral("/Items/%1/Similar").arg(itemId),
                                                     query));
 
-    std::vector<MovieItem> result;
-    result.reserve(items.size());
-    for (const QJsonValue &value : items) {
-        const QJsonObject object = value.toObject();
-        const QString itemType = object.value(QStringLiteral("Type")).toString();
-        if (itemType == QStringLiteral("Movie") ||
-            itemType == QStringLiteral("Series") ||
-            itemType == QStringLiteral("Episode"))
-            result.push_back(mediaItemFromJson(this, object));
-    }
+    const std::vector<MovieItem> result = mediaItemsFromJson(
+        this, items,
+        {QStringLiteral("Movie"), QStringLiteral("Series"),
+         QStringLiteral("Episode")});
     co_return result;
 }
 
@@ -990,16 +977,10 @@ QCoro::Task<std::vector<MovieItem>> JellyfinApiFacade::fetchItemsByPerson(QStrin
     const QJsonArray items =
         (co_await requestJson(HttpMethod::Get, QStringLiteral("/Items"), query)).object().value(QStringLiteral("Items")).toArray();
 
-    std::vector<MovieItem> result;
-    result.reserve(items.size());
-    for (const QJsonValue &value : items) {
-        const QJsonObject object = value.toObject();
-        const QString itemType = object.value(QStringLiteral("Type")).toString();
-        if (itemType == QStringLiteral("Movie") ||
-            itemType == QStringLiteral("Series") ||
-            itemType == QStringLiteral("Episode"))
-            result.push_back(mediaItemFromJson(this, object));
-    }
+    const std::vector<MovieItem> result = mediaItemsFromJson(
+        this, items,
+        {QStringLiteral("Movie"), QStringLiteral("Series"),
+         QStringLiteral("Episode")});
     co_return result;
 }
 
@@ -1024,14 +1005,9 @@ QCoro::Task<std::vector<MovieItem>> JellyfinApiFacade::fetchItemsByGenre(QString
     const QJsonArray items =
         (co_await requestJson(HttpMethod::Get, QStringLiteral("/Items"), query)).object().value(QStringLiteral("Items")).toArray();
 
-    std::vector<MovieItem> result;
-    result.reserve(items.size());
-    for (const QJsonValue &value : items) {
-        const QJsonObject object = value.toObject();
-        const QString itemType = object.value(QStringLiteral("Type")).toString();
-        if (itemType == QStringLiteral("Movie") || itemType == QStringLiteral("Series"))
-            result.push_back(mediaItemFromJson(this, object));
-    }
+    const std::vector<MovieItem> result = mediaItemsFromJson(
+        this, items,
+        {QStringLiteral("Movie"), QStringLiteral("Series")});
     co_return result;
 }
 
@@ -1056,14 +1032,9 @@ QCoro::Task<std::vector<MovieItem>> JellyfinApiFacade::fetchItemsByStudio(QStrin
     const QJsonArray items =
         (co_await requestJson(HttpMethod::Get, QStringLiteral("/Items"), query)).object().value(QStringLiteral("Items")).toArray();
 
-    std::vector<MovieItem> result;
-    result.reserve(items.size());
-    for (const QJsonValue &value : items) {
-        const QJsonObject object = value.toObject();
-        const QString itemType = object.value(QStringLiteral("Type")).toString();
-        if (itemType == QStringLiteral("Movie") || itemType == QStringLiteral("Series"))
-            result.push_back(mediaItemFromJson(this, object));
-    }
+    const std::vector<MovieItem> result = mediaItemsFromJson(
+        this, items,
+        {QStringLiteral("Movie"), QStringLiteral("Series")});
     co_return result;
 }
 
