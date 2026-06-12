@@ -134,6 +134,8 @@ qt_add_executable(jellyfin-native
     src/app/CurrentItemsController.h
     src/app/HomeModelController.cpp
     src/app/HomeModelController.h
+    src/app/LibraryQuery.cpp
+    src/app/LibraryQuery.h
     src/app/LibraryPrefetchController.cpp
     src/app/LibraryPrefetchController.h
     src/app/NavigationState.cpp
@@ -433,6 +435,17 @@ if(BUILD_TESTING AND NOT CMAKE_CROSSCOMPILING)
     )
     target_link_libraries(navigation-state-tests PRIVATE Qt6::Core)
     add_test(NAME navigation-state COMMAND navigation-state-tests)
+
+    add_executable(library-query-tests
+        tests/app/LibraryQueryTest.cpp
+        src/app/LibraryQuery.cpp
+        src/app/LibraryQuery.h
+    )
+    target_include_directories(library-query-tests PRIVATE
+        "${CMAKE_CURRENT_SOURCE_DIR}/src"
+    )
+    target_link_libraries(library-query-tests PRIVATE Qt6::Core)
+    add_test(NAME library-query COMMAND library-query-tests)
 
     add_executable(sync-play-clock-tests
         tests/app/SyncPlayClockTest.cpp

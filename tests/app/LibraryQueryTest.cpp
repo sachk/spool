@@ -1,0 +1,93 @@
+#include "app/LibraryQuery.h"
+
+#include <QDebug>
+
+#include <cstdlib>
+#include <utility>
+
+using JellyfinNative::LibraryItem;
+using JellyfinNative::activeLibraryFilterCount;
+using JellyfinNative::defaultLibraryQuery;
+using JellyfinNative::libraryCacheKey;
+using JellyfinNative::libraryContentLabel;
+using JellyfinNative::libraryQueryStringList;
+
+namespace {
+
+void require(bool condition, const char *message)
+{
+    if (condition)
+        return;
+    qCritical() << message;
+    std::exit(EXIT_FAILURE);
+}
+
+LibraryItem library(QString id, QString name, QString collectionType)
+{
+    LibraryItem item;
+    item.id = std::move(id);
+    item.name = std::move(name);
+    item.collectionType = std::move(collectionType);
+    return item;
+}
+
+} // namespace
+
+int main()
+{
+    const LibraryItem movies = library(QStringLiteral("movies-id"),
+                                       QStringLiteral("Films"),
+                                       QStringLiteral("movies"));
+    const LibraryItem series = library(QStringLiteral("series-id"),
+                                       QStringLiteral("Shows"),
+                                       QStringLiteral("tvshows"));
+    const LibraryItem photos = library(QStringLiteral("photos-id"),
+                                       QStringLiteral("Photos"),
+                                       QStringLiteral("photos"));
+
+    require(libraryContentLabel(movies) == QStringLiteral("Movies"),
+            "movie library label was not normalized");
+    require(libraryContentLabel(series) == QStringLiteral("TV Shows"),
+            "series library label was not normalized");
+    require(libraryContentLabel(photos) == QStringLiteral("Photos"),
+            "unknown library label did not use the display name");
+
+    require(libraryCacheKey(movies) == QStringLiteral("movies-id"),
+            "movie library cache key changed");
+    require(libraryCacheKey(series) == QStringLiteral("series/series-id"),
+            "series library cache key changed");
+    require(libraryCacheKey(photos) == QStringLiteral("library/photos/photos-id"),
+            "generic library cache key changed");
+
+    const QVariantMap defaults = defaultLibraryQuery(movies);
+    require(libraryCacheKey(movies, defaults) == QStringLiteral("movies-id"),
+            "default query should not be part of the cache key");
+    require(activeLibraryFilterCount(defaults) == 0,
+            "default sort should not count as an active filter");
+
+    QVariantMap filtered = defaults;
+    filtered.insert(QStringLiteral("genres"), QStringList{QStringLiteral("Drama"), QStringLiteral("Comedy")});
+    filtered.insert(QStringLiteral("is4K"), true);
+    filtered.insert(QStringLiteral("hasSubtitles"), false);
+    filtered.insert(QStringLiteral("alphabet"), QStringLiteral("B"));
+    require(activeLibraryFilterCount(filtered) == 4,
+            "active filter count did not include list and truthy scalar filters");
+
+    require(libraryQueryStringList(filtered, QStringLiteral("genres")).join(QLatin1Char(',')) ==
+                QStringLiteral("Drama,Comedy"),
+            "QStringList query values were not retained");
+
+    QVariantMap reordered = defaults;
+    reordered.insert(QStringLiteral("is4K"), true);
+    reordered.insert(QStringLiteral("alphabet"), QStringLiteral("B"));
+    reordered.insert(QStringLiteral("genres"), QStringList{QStringLiteral("Comedy"), QStringLiteral("Drama")});
+    const QString firstKey = libraryCacheKey(movies, filtered);
+    const QString secondKey = libraryCacheKey(movies, reordered);
+    require(firstKey == secondKey,
+            "query cache signature was not stable across map/list ordering");
+    require(firstKey == QStringLiteral("movies-id?alphabet=B&genres=Comedy,Drama&"
+                                       "is4K=true&sortBy=SortName&sortOrder=Ascending"),
+            "query cache signature changed unexpectedly");
+
+    return EXIT_SUCCESS;
+}
