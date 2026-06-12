@@ -83,28 +83,28 @@ archive containing app version `0.2.1` and a 32-bit ARM EABI5 executable.
 
 ### Runtime Correctness
 
-- [ ] Centralize HTTP timeout/retry handling and 401 re-authentication.
+- [x] Centralize HTTP timeout/retry handling and 401 re-authentication.
   Playback progress/stopped reports must not be silently discarded.
-- [ ] Add transcode/remux fallback and derive `PlayMethod` from the selected
+- [x] Add transcode/remux fallback and derive `PlayMethod` from the selected
   media source instead of forcing DirectPlay with a fixed 140 Mbit ceiling.
-- [ ] Replace recoverable playback `qFatal` paths with a playback error surfaced
+- [x] Replace recoverable playback `qFatal` paths with a playback error surfaced
   to QML.
-- [ ] Add SQLite cache schema/versioning, staleness, invalidation, and eviction.
+- [x] Add SQLite cache schema/versioning, staleness, invalidation, and eviction.
 - [ ] Complete SyncPlay time synchronization, buffering coordination, group
   metadata, and error reporting.
-- [ ] Replace fixed poster-prefetch limits with viewport-aware prefetching and
+- [x] Replace fixed poster-prefetch limits with viewport-aware prefetching and
   configurable concurrency.
 - [ ] Move user-facing mpv options out of the large hardcoded setup block into
   settings/profile configuration.
 
 ### Frontend And Navigation
 
-- [ ] Finish route regression coverage for details opened from library, search,
+- [x] Finish route regression coverage for details opened from library, search,
   latest, resume, person, genre, studio, and similar-item views.
 - [x] Move `ItemDetailsPage` fully onto Theme/Metrics and shared icon controls.
 - [x] Give Search and More Like This dedicated controller models; remove the
   client-side visibility-filtered movie-model workaround.
-- [ ] Consolidate the duplicated Home horizontal-row implementations and model
+- [x] Consolidate the duplicated Home horizontal-row implementations and model
   change handlers.
 - [x] Wire or remove remaining dead settings controls, including remote bitrate,
   remux preference, and shortcut enablement.
@@ -142,11 +142,12 @@ archive containing app version `0.2.1` and a 32-bit ARM EABI5 executable.
 
 - [x] Extract media-segment activation and trickplay tile calculations from
   `PlayerController` into a tested `PlaybackTimeline` component.
-- [ ] Split `PlayerController` into mpv lifecycle, position tracking, track
+- [x] Split `PlayerController` into mpv lifecycle, position tracking, track
   parsing, and reporting components.
-- [ ] Split `AppController` navigation, session, settings, prefetch, and Quick
-  Connect responsibilities.
-- [ ] Extract shared behavior from the webOS and desktop
+- [ ] Continue splitting `AppController` navigation and library browsing
+  responsibilities. Session, settings, prefetch, Quick Connect, home content,
+  search/detail content, and current-item model state are now extracted.
+- [x] Extract shared behavior from the webOS and desktop
   `NativeAppWindow` implementations.
 - [ ] Deduplicate repeated API fetch/cache/prefetch flows.
 
