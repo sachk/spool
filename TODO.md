@@ -1,6 +1,6 @@
 # TODO
 
-Status updated: 2026-06-11.
+Status updated: 2026-06-12.
 
 The frontend/build-foundation branch is now reproducible on the self-hosted
 NixOS runner. GitHub Actions run `27287301890` passed lint, Linux AppImage, and
@@ -94,7 +94,7 @@ archive containing app version `0.2.1` and a 32-bit ARM EABI5 executable.
   metadata, and error reporting.
 - [x] Replace fixed poster-prefetch limits with viewport-aware prefetching and
   configurable concurrency.
-- [ ] Move user-facing mpv options out of the large hardcoded setup block into
+- [x] Move user-facing mpv options out of the large hardcoded setup block into
   settings/profile configuration.
 
 ### Frontend And Navigation
@@ -120,9 +120,9 @@ archive containing app version `0.2.1` and a 32-bit ARM EABI5 executable.
 
 - [ ] Exercise and fix the macOS app/DMG job on a macOS runner; add a
   deterministic headless smoke path.
-- [ ] Make macOS packaging fail when deployment tooling is required but
+- [x] Make macOS packaging fail when deployment tooling is required but
   unavailable.
-- [ ] Factor duplicated qmlimportscanner/Qt deployment setup from AppImage and
+- [x] Factor duplicated qmlimportscanner/Qt deployment setup from AppImage and
   macOS packaging into one helper.
 - [ ] Decide whether the shippable webOS package supports only static Qt, then
   remove unused shared/static branching.
@@ -146,10 +146,11 @@ archive containing app version `0.2.1` and a 32-bit ARM EABI5 executable.
   parsing, and reporting components.
 - [ ] Continue splitting `AppController` navigation and library browsing
   responsibilities. Session, settings, prefetch, Quick Connect, home content,
-  search/detail content, and current-item model state are now extracted.
+  search/detail content, current-item model state, and library-query helpers
+  are now extracted.
 - [x] Extract shared behavior from the webOS and desktop
   `NativeAppWindow` implementations.
-- [ ] Deduplicate repeated API fetch/cache/prefetch flows.
+- [x] Deduplicate repeated API fetch/cache/prefetch flows.
 
 ## Product Follow-Up
 
