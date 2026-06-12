@@ -333,15 +333,15 @@ bool PlayerController::seeking() const { return m_seeking; }
 
 bool PlayerController::debugOsdVisible() const { return m_debugOsdVisible; }
 
-bool PlayerController::subtitlesEnabled() const { return m_subtitlesEnabled; }
+bool PlayerController::subtitlesEnabled() const { return m_tracks.subtitlesEnabled(); }
 
-QStringList PlayerController::subtitleTracks() const { return m_subtitleTracks; }
+QStringList PlayerController::subtitleTracks() const { return m_tracks.subtitleTracks(); }
 
-int PlayerController::selectedSubtitleIndex() const { return m_selectedSubtitleIndex; }
+int PlayerController::selectedSubtitleIndex() const { return m_tracks.selectedSubtitleIndex(); }
 
-QStringList PlayerController::audioTracks() const { return m_audioTracks; }
+QStringList PlayerController::audioTracks() const { return m_tracks.audioTracks(); }
 
-int PlayerController::selectedAudioIndex() const { return m_selectedAudioIndex; }
+int PlayerController::selectedAudioIndex() const { return m_tracks.selectedAudioIndex(); }
 
 bool PlayerController::backAllowed() const { return m_backAllowed; }
 
@@ -353,11 +353,11 @@ double PlayerController::durationSeconds() const {
   return m_positionTracker.duration();
 }
 
-QVariantList PlayerController::chapters() const { return m_chapters; }
+QVariantList PlayerController::chapters() const { return m_tracks.chapters(); }
 
-bool PlayerController::hasChapters() const { return m_chapters.size() > 1; }
+bool PlayerController::hasChapters() const { return m_tracks.hasChapters(); }
 
-int PlayerController::currentChapter() const { return m_currentChapter; }
+int PlayerController::currentChapter() const { return m_tracks.currentChapter(); }
 
 bool PlayerController::nightModeEnabled() const { return m_nightModeEnabled.load(); }
 
@@ -455,8 +455,8 @@ bool PlayerController::applyMpvSubtitleOptions(MpvOptionApplyMode mode,
   const SubtitleShadowOptions shadow = subtitleShadowOptions(prefs.dropShadow);
 
   bool ok = true;
-  ok &= applyString("sid", !m_subtitlesEnabled || noSubtitles ? QByteArrayLiteral("no")
-                                                              : QByteArrayLiteral("auto"));
+  ok &= applyString("sid", !m_tracks.subtitlesEnabled() || noSubtitles ? QByteArrayLiteral("no")
+                                                                       : QByteArrayLiteral("auto"));
   ok &= applyString("slang", prefs.language.toUtf8());
   ok &= applyString("sub-auto", QByteArrayLiteral("all"));
   ok &= applyString("sub-visibility", mpvBool(!noSubtitles));
@@ -635,12 +635,7 @@ void PlayerController::play(const PlaybackSession &session) {
   m_bufferingPercent = 0;
   m_seeking = false;
   m_debugOsdVisible = false;
-  m_subtitleTracks = { QStringLiteral("Off") };
-  m_subtitleIds = { -1 };
-  m_selectedSubtitleIndex = 0;
-  m_audioTracks.clear();
-  m_audioIds.clear();
-  m_selectedAudioIndex = -1;
+  m_tracks.resetForPlayback();
   m_backAllowed = false;
   m_backGuardTimer.start();
   m_uiPositionTimer.start();
@@ -748,79 +743,62 @@ void PlayerController::toggleDebugOsd() {
 }
 
 void PlayerController::toggleSubtitles() {
-  if (m_selectedSubtitleIndex > 0) {
-    selectSubtitle(0);
-    return;
-  }
-  selectSubtitle(m_subtitleTracks.size() > 1 ? 1 : 0);
+  if (const auto target = m_tracks.toggleSubtitleTarget())
+    selectSubtitle(*target);
 }
 
 void PlayerController::cycleSubtitles() {
   // Off (index 0) -> first track -> second -> ... -> last -> Off.
-  if (m_subtitleTracks.size() <= 1)
-    return;
-  const int next = (m_selectedSubtitleIndex + 1) % m_subtitleTracks.size();
-  selectSubtitle(next);
+  if (const auto target = m_tracks.cycleSubtitleTarget())
+    selectSubtitle(*target);
 }
 
 void PlayerController::enableSubtitles() {
-  if (m_selectedSubtitleIndex > 0)
-    return;
-  if (m_subtitleTracks.size() > 1)
-    selectSubtitle(1);
+  if (const auto target = m_tracks.enableSubtitleTarget())
+    selectSubtitle(*target);
 }
 
 void PlayerController::cycleAudio() {
-  if (m_audioTracks.size() <= 1)
-    return;
-  const int next = (m_selectedAudioIndex + 1) % m_audioTracks.size();
-  selectAudio(next);
+  if (const auto target = m_tracks.cycleAudioTarget())
+    selectAudio(*target);
 }
 
 void PlayerController::selectSubtitle(int index) {
-  if (index < 0 || index >= m_subtitleIds.size())
+  const std::optional<QByteArray> command = m_tracks.subtitleCommand(index);
+  if (!command)
     return;
 
-  const int previousIndex = m_selectedSubtitleIndex;
-  const int trackId = m_subtitleIds[index];
-  const QByteArray command = QByteArray("no-osd set sid ") +
-                             (trackId < 0 ? QByteArray("no")
-                                           : QByteArray::number(trackId));
-  mpvCommand(command.constData());
-  m_selectedSubtitleIndex = index;
-  m_subtitlesEnabled = trackId >= 0;
-  if (!m_subtitlesEnabled) {
+  mpvCommand(command->constData());
+  m_tracks.applySubtitleSelection(index);
+  if (!m_tracks.subtitlesEnabled()) {
     m_window->clearOverlay();
   }
   emit stateChanged();
 }
 
 void PlayerController::selectAudio(int index) {
-  if (index < 0 || index >= m_audioIds.size())
+  const std::optional<QByteArray> command = m_tracks.audioCommand(index);
+  if (!command)
     return;
 
-  const int trackId = m_audioIds[index];
-  const QByteArray command = QByteArray("no-osd set aid ") +
-                             (trackId < 0 ? QByteArray("no")
-                                           : QByteArray::number(trackId));
-  if (!mpvCommand(command.constData()))
+  if (!mpvCommand(command->constData()))
     return;
-  m_selectedAudioIndex = index;
+  m_tracks.applyAudioSelection(index);
 #ifdef JELLYFIN_NATIVE_WEBOS
-  qInfo() << "player: webOS audio track changed" << index << "trackId" << trackId;
+  qInfo() << "player: webOS audio track changed" << index;
 #endif
   emit stateChanged();
 }
 
 void PlayerController::nextChapter() {
-  if (m_chapters.size() <= 1)
+  if (!m_tracks.hasChapters())
     return;
   m_positionTracker.allowRegression();
   mpvCommand("add chapter 1");
 }
 
 void PlayerController::previousChapter() {
-  if (m_chapters.size() <= 1)
+  if (!m_tracks.hasChapters())
     return;
   m_positionTracker.allowRegression();
   mpvCommand("add chapter -1");
@@ -976,11 +954,9 @@ void PlayerController::resetPlaybackUiState() {
   m_debugOsdVisible = false;
   m_timeline.clear();
   m_statusText = QStringLiteral("Ready");
-  if (!m_chapters.isEmpty()) {
-    m_chapters.clear();
+  if (m_tracks.clearChapters()) {
     emit chaptersChanged();
   }
-  m_currentChapter = -1;
 }
 
 bool PlayerController::mpvCommand(const char *command) {
@@ -1238,13 +1214,7 @@ void PlayerController::handleMpvEvent(mpv_event *event) {
         const ParsedPlaybackTracks tracks =
             PlaybackTrackParser::parseTracks(node);
         QMetaObject::invokeMethod(this, [this, tracks]() {
-          m_subtitleTracks = tracks.subtitleLabels;
-          m_subtitleIds = tracks.subtitleIds;
-          m_selectedSubtitleIndex = tracks.selectedSubtitleIndex;
-          m_subtitlesEnabled = tracks.selectedSubtitleIndex > 0;
-          m_audioTracks = tracks.audioLabels;
-          m_audioIds = tracks.audioIds;
-          m_selectedAudioIndex = tracks.selectedAudioIndex;
+          m_tracks.applyParsedTracks(tracks);
           qInfo() << "player: subtitle tracks" << tracks.subtitleLabels
                   << "selected" << tracks.selectedSubtitleIndex
                   << "audio tracks" << tracks.audioLabels
@@ -1256,7 +1226,7 @@ void PlayerController::handleMpvEvent(mpv_event *event) {
         const auto *node = static_cast<mpv_node *>(property->data);
         const QVariantList chapters = PlaybackTrackParser::parseChapters(node);
         QMetaObject::invokeMethod(this, [this, chapters]() {
-          m_chapters = chapters;
+          m_tracks.setChapters(chapters);
           qInfo() << "player: chapters" << chapters.size();
           emit chaptersChanged();
           emit stateChanged();
@@ -1265,10 +1235,8 @@ void PlayerController::handleMpvEvent(mpv_event *event) {
                  property->format == MPV_FORMAT_INT64) {
         const int chapter = static_cast<int>(*static_cast<int64_t *>(property->data));
         QMetaObject::invokeMethod(this, [this, chapter]() {
-          if (m_currentChapter == chapter)
-            return;
-          m_currentChapter = chapter;
-          emit stateChanged();
+          if (m_tracks.setCurrentChapter(chapter))
+            emit stateChanged();
         });
       }
       break;

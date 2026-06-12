@@ -181,6 +181,8 @@ qt_add_executable(jellyfin-native
     src/player/PlaybackTimeline.h
     src/player/PlaybackTrackParser.cpp
     src/player/PlaybackTrackParser.h
+    src/player/PlaybackTrackState.cpp
+    src/player/PlaybackTrackState.h
     src/player/MpvVideoItem.cpp
     src/player/MpvVideoItem.h
     src/player/MpvOptionProfile.cpp
@@ -383,6 +385,18 @@ if(BUILD_TESTING AND NOT CMAKE_CROSSCOMPILING)
         PkgConfig::MPV
     )
     add_test(NAME playback-track-parser COMMAND playback-track-parser-tests)
+
+    add_executable(playback-track-state-tests
+        tests/player/PlaybackTrackStateTest.cpp
+        src/player/PlaybackTrackState.cpp
+        src/player/PlaybackTrackState.h
+        src/player/PlaybackTrackParser.h
+    )
+    target_include_directories(playback-track-state-tests PRIVATE
+        "${CMAKE_CURRENT_SOURCE_DIR}/src"
+    )
+    target_link_libraries(playback-track-state-tests PRIVATE Qt6::Core)
+    add_test(NAME playback-track-state COMMAND playback-track-state-tests)
 
     add_executable(playback-position-tracker-tests
         tests/player/PlaybackPositionTrackerTest.cpp
