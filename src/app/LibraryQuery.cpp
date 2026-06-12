@@ -1,6 +1,7 @@
 #include "LibraryQuery.h"
 
 #include <QMetaType>
+#include <QSet>
 #include <QStringList>
 #include <QVariant>
 
@@ -78,6 +79,18 @@ QVariantMap defaultLibraryQuery(const LibraryItem &library)
         {QStringLiteral("sortBy"), QStringLiteral("SortName")},
         {QStringLiteral("sortOrder"), QStringLiteral("Ascending")},
     };
+}
+
+bool supportsLatestLibraryRow(const LibraryItem &library)
+{
+    static const QSet<QString> excluded = {
+        QStringLiteral("playlists"),
+        QStringLiteral("livetv"),
+        QStringLiteral("boxsets"),
+        QStringLiteral("channels"),
+        QStringLiteral("folders"),
+    };
+    return !library.id.isEmpty() && !excluded.contains(library.collectionType);
 }
 
 QStringList libraryQueryStringList(const QVariantMap &query, const QString &key)

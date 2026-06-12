@@ -11,6 +11,7 @@ using JellyfinNative::defaultLibraryQuery;
 using JellyfinNative::libraryCacheKey;
 using JellyfinNative::libraryContentLabel;
 using JellyfinNative::libraryQueryStringList;
+using JellyfinNative::supportsLatestLibraryRow;
 
 namespace {
 
@@ -58,6 +59,18 @@ int main()
             "series library cache key changed");
     require(libraryCacheKey(photos) == QStringLiteral("library/photos/photos-id"),
             "generic library cache key changed");
+    require(supportsLatestLibraryRow(movies),
+            "movie library should support latest rows");
+    require(supportsLatestLibraryRow(photos),
+            "generic content library should support latest rows");
+    require(!supportsLatestLibraryRow(library(QStringLiteral(""),
+                                             QStringLiteral("Empty"),
+                                             QStringLiteral("movies"))),
+            "empty library id should not support latest rows");
+    require(!supportsLatestLibraryRow(library(QStringLiteral("playlists-id"),
+                                             QStringLiteral("Playlists"),
+                                             QStringLiteral("playlists"))),
+            "playlist library should not support latest rows");
 
     const QVariantMap defaults = defaultLibraryQuery(movies);
     require(libraryCacheKey(movies, defaults) == QStringLiteral("movies-id"),
