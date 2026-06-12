@@ -60,6 +60,20 @@ print(data["tools"][sys.argv[2]][sys.argv[3]])
 ' "$manifest" "$tool_name" "$field"
 }
 
+manifest_json_array() {
+  local manifest="$1"
+  local key="$2"
+  python3 -c '
+import json
+import sys
+
+with open(sys.argv[1], encoding="utf-8") as handle:
+    data = json.load(handle)
+for value in data[sys.argv[2]]:
+    print(value)
+' "$manifest" "$key"
+}
+
 manifest_source_patches() {
   local manifest="$1"
   local source_name="$2"

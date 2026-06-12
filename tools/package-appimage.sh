@@ -10,6 +10,7 @@ source "$APP_ROOT/tools/lib/qt-deploy.sh"
 # shellcheck source=tools/lib/manifest-sources.sh
 source "$APP_ROOT/tools/lib/manifest-sources.sh"
 TOOL_MANIFEST="${LINUXDEPLOY_MANIFEST:-$APP_ROOT/tools/manifests/linuxdeploy.json}"
+FFMPEG_SLIM_MANIFEST="${FFMPEG_SLIM_MANIFEST:-$APP_ROOT/tools/manifests/ffmpeg-slim.json}"
 APP_VERSION="$(read_project_version "$APP_ROOT")"
 BUILD_ROOT="${BUILD_ROOT:-$APP_ROOT/build/linux-release/install/bin}"
 MPV_PREFIX="${MPV_PREFIX:-$APP_ROOT/build/linux-release/mpv-prefix}"
@@ -171,26 +172,16 @@ prune_appdir() {
 # the overlay instead.
 audit_unexpected_bloat() {
   local pattern hits=0
-  for pattern in \
-    'libsmbclient*' '*-private-samba.so*' 'libwbclient.so*' \
-    'libflite*' 'libchromaprint*' 'libjxl*' 'librsvg*' \
-    'libtensorflow*' 'libwhisper*' 'libvmaf*' \
-    'libsrt*' 'librist*' 'libssh.so*' 'librtmp*' 'libzmq*' 'libzvbi*' \
-    'libaribb24*' 'libaribcaption*' 'libfrei0r*' \
-    'libcdio*' 'libcaca*' 'libdvdnav*' 'libdvdread*' 'libdc1394*' 'libv4l*' \
-    'libtheora*' 'libx264*' 'libx265*' 'libaom*' 'libSvtAv1*' 'libvvenc*' \
-    'librav1e*' 'libxavs*' 'libxeve*' 'libvpx*' 'libxvidcore*' \
-    'libgme*' 'libmodplug*' 'libopenmpt*' 'libcodec2*' 'libcelt*' \
-    'libgsm*' 'libilbc*' 'liblc3*' 'libmysofa*' 'libfdk*'
-  do
+  while IFS= read -r pattern; do
+    [[ -n "$pattern" ]] || continue
     while IFS= read -r leaked; do
       [[ -e "$leaked" ]] || continue
       hits=$((hits + 1))
       echo "warn: unexpected bloat lib in AppDir: ${leaked##*/}" >&2
     done < <(compgen -G "$APPDIR/usr/lib/$pattern" || true)
-  done
+  done < <(manifest_json_array "$FFMPEG_SLIM_MANIFEST" bloatLibraryPatterns)
   if (( hits > 0 )); then
-    echo "warn: $hits libs leaked past the ffmpeg-slim overlay; tighten flake.nix" >&2
+    echo "warn: $hits libs leaked past the ffmpeg-slim overlay; tighten $FFMPEG_SLIM_MANIFEST" >&2
   fi
 }
 
