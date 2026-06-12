@@ -26,6 +26,7 @@ class LibraryPrefetchController;
 class QuickConnectController;
 class SettingsController;
 class SessionController;
+class UserItemStateController;
 class AppController final : public QObject
 {
     Q_OBJECT
@@ -285,9 +286,6 @@ private:
                              const QString &libraryId,
                              const QString &seriesId,
                              const QString &seasonId);
-    void applyPlaybackPosition(const QString &itemId, qint64 positionTicks);
-    void applyFavoriteState(const QString &itemId, bool favorite);
-    void applyPlayedState(const QString &itemId, bool played);
     void showCurrentItems(const std::vector<MovieItem> &items, const QString &cacheKey = {});
     void showCurrentItemsPage(const PagedMovieItems &page, const QString &cacheKey, bool append);
     void setLibraryQuery(const QVariantMap &query);
@@ -310,6 +308,7 @@ private:
     SettingsController *m_settings = nullptr;
     SessionController *m_session = nullptr;
     LibraryPrefetchController *m_prefetch = nullptr;
+    UserItemStateController *m_itemState = nullptr;
     DiscoveredServerModel m_discoveredServers;
     LibraryListModel m_libraries;
     NavigationState m_navigation;

@@ -12,6 +12,7 @@
 #include "QuickConnectController.h"
 #include "SessionController.h"
 #include "SettingsController.h"
+#include "UserItemStateController.h"
 
 #include <QCoreApplication>
 #include <QDebug>
@@ -51,6 +52,8 @@ AppController::AppController(DatabaseManager *database,
     m_currentItems = new CurrentItemsController(m_prefetch, this);
     m_home = new HomeModelController(api, m_prefetch, this);
     m_content = new ContentModelController(api, m_prefetch, this);
+    m_itemState =
+        new UserItemStateController(m_currentItems, m_home, m_content, this);
     m_prefetch->configureImagePrefetch(
         database->loadSetting(QStringLiteral("network/imagePrefetchAhead"),
                               QStringLiteral("16")).toInt(),
@@ -69,6 +72,10 @@ AppController::AppController(DatabaseManager *database,
             this, &AppController::personItemsChanged);
     connect(m_content, &ContentModelController::errorOccurred,
             this, &AppController::setErrorText);
+    connect(m_itemState, &UserItemStateController::favoriteChanged,
+            this, &AppController::itemFavoriteChanged);
+    connect(m_itemState, &UserItemStateController::playedChanged,
+            this, &AppController::itemPlayedChanged);
     connect(m_currentItems, &CurrentItemsController::pagingChanged,
             this, &AppController::currentItemsPagingChanged);
     connect(m_home, &HomeModelController::latestLibraryRowsChanged,
@@ -129,7 +136,7 @@ AppController::AppController(DatabaseManager *database,
 
     connect(m_player, &PlayerController::playbackStopped, this, [this](const QString &itemId, qint64 positionTicks) {
         qInfo() << "app: playbackStopped page=" << page() << "itemId=" << itemId << "positionTicks=" << positionTicks;
-        applyPlaybackPosition(itemId, positionTicks);
+        m_itemState->applyResumeTicks(itemId, positionTicks);
         schedulePostPlaybackRefresh();
     });
 }
@@ -846,12 +853,12 @@ void AppController::setFavorite(const QString &itemId, bool favorite)
     if (itemId.isEmpty() || !m_api || m_api->session().accessToken.isEmpty())
         return;
 
-    applyFavoriteState(itemId, favorite);
+    m_itemState->applyFavorite(itemId, favorite);
     Async::runScoped(this,
         m_api->setItemFavorite(itemId, favorite),
         []() {},
         [this, itemId, favorite](const std::exception_ptr &error) {
-            applyFavoriteState(itemId, !favorite);
+            m_itemState->applyFavorite(itemId, !favorite);
             setErrorText(exceptionMessage(error));
         });
 }
@@ -861,12 +868,12 @@ void AppController::setPlayed(const QString &itemId, bool played)
     if (itemId.isEmpty() || !m_api || m_api->session().accessToken.isEmpty())
         return;
 
-    applyPlayedState(itemId, played);
+    m_itemState->applyPlayed(itemId, played);
     Async::runScoped(this,
         m_api->setItemPlayed(itemId, played),
         []() {},
         [this, itemId, played](const std::exception_ptr &error) {
-            applyPlayedState(itemId, !played);
+            m_itemState->applyPlayed(itemId, !played);
             setErrorText(exceptionMessage(error));
         });
 }
@@ -1393,38 +1400,6 @@ void AppController::refreshCurrentItems(const QString &viewKind,
                 qWarning() << "app: post-playback episode refresh failed" << exceptionMessage(error);
             });
     }
-}
-
-void AppController::applyPlaybackPosition(const QString &itemId, qint64 positionTicks)
-{
-    if (itemId.isEmpty() || positionTicks < 0)
-        return;
-
-    m_currentItems->updateResumeTicks(itemId, positionTicks);
-    m_home->updateResumeTicks(itemId, positionTicks);
-    m_content->updateResumeTicks(itemId, positionTicks);
-}
-
-void AppController::applyFavoriteState(const QString &itemId, bool favorite)
-{
-    if (itemId.isEmpty())
-        return;
-
-    m_currentItems->updateFavorite(itemId, favorite);
-    m_home->updateFavorite(itemId, favorite);
-    m_content->updateFavorite(itemId, favorite);
-    emit itemFavoriteChanged(itemId, favorite);
-}
-
-void AppController::applyPlayedState(const QString &itemId, bool played)
-{
-    if (itemId.isEmpty())
-        return;
-
-    m_currentItems->updatePlayed(itemId, played);
-    m_home->updatePlayed(itemId, played);
-    m_content->updatePlayed(itemId, played);
-    emit itemPlayedChanged(itemId, played);
 }
 
 } // namespace JellyfinNative
