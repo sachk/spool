@@ -282,6 +282,7 @@ qt_add_qml_module(jellyfin-native
         qml/shell/SyncPlayMenu.qml
         qml/shell/ToastLayer.qml
         qml/shell/TopBar.qml
+        qml/shell/VirtualKeyboardPanel.qml
         qml/theme/Metrics.qml
         qml/theme/Theme.qml
         qml/theme/Typography.qml

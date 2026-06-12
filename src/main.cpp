@@ -599,6 +599,11 @@ int main(int argc, char **argv)
     window.rootContext()->setContextProperty(QStringLiteral("appController"), controller.get());
     window.rootContext()->setContextProperty(QStringLiteral("nativeWindow"), &window);
     window.rootContext()->setContextProperty(QStringLiteral("i18n"), localization.get());
+#ifdef JELLYFIN_NATIVE_WEBOS
+    window.rootContext()->setContextProperty(QStringLiteral("isWebOS"), true);
+#else
+    window.rootContext()->setContextProperty(QStringLiteral("isWebOS"), false);
+#endif
     {
     JellyfinNative::Diagnostics::Phase phase(QStringLiteral("startup"), QStringLiteral("load_qml"));
     // Load through the module registry (not a raw qrc: URL) so the engine uses
