@@ -10,6 +10,11 @@ Rectangle {
     readonly property real uiScale: overlay ? overlay.uiScale : 1
     readonly property real edgeMargin: dp(20)
     readonly property bool instantOpen: overlay && overlay.mode === "debug"
+    readonly property string menuTitle: overlay.mode === "subtitles" ? "Subtitles"
+                                      : overlay.mode === "audio" ? "Audio"
+                                      : "Settings"
+    Accessible.role: Accessible.PopupMenu
+    Accessible.name: menuTitle
 
     function dp(n) {
         return Math.round(n * uiScale)
@@ -60,9 +65,7 @@ Rectangle {
             Text {
                 Layout.fillWidth: true
                 Layout.leftMargin: dp(6)
-                text: overlay.mode === "subtitles" ? "Subtitles"
-                    : overlay.mode === "audio" ? "Audio"
-                    : "Settings"
+                text: menuPanel.menuTitle
                 color: overlay.colTextMuted
                 font.pixelSize: dp(15)
                 font.weight: Font.DemiBold
@@ -100,6 +103,10 @@ Rectangle {
                 highlightMoveDuration: 90
                 visible: !menuBody.showPlaceholder
                 onCurrentIndexChanged: positionViewAtIndex(currentIndex, ListView.Contain)
+                Accessible.role: Accessible.List
+                Accessible.name: menuPanel.menuTitle + " options"
+                Accessible.focusable: visible && count > 0
+                Accessible.focused: activeFocus
 
                 FastWheelHandler { flickable: menuList }
 
@@ -115,6 +122,15 @@ Rectangle {
                     height: dp(46)
                     radius: dp(10)
                     color: current ? Qt.alpha(overlay.accent, 0.18) : "transparent"
+                    Accessible.role: Accessible.MenuItem
+                    Accessible.name: String(modelData)
+                    Accessible.focusable: true
+                    Accessible.focused: current
+                    Accessible.selected: isSelected
+                    Accessible.onPressAction: {
+                        overlay.menuIndex = index
+                        overlay.activateMenuItem()
+                    }
 
                     Rectangle {
                         anchors.left: parent.left
@@ -170,6 +186,8 @@ Rectangle {
                 radius: dp(10)
                 color: "transparent"
                 visible: menuBody.showPlaceholder
+                Accessible.role: Accessible.StaticText
+                Accessible.name: overlay.mode === "subtitles" ? "No subtitles available" : "No audio tracks"
 
                 RowLayout {
                     anchors.fill: parent
