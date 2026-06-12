@@ -440,6 +440,7 @@ int main(int argc, char **argv)
     JellyfinNative::Diagnostics::EventLoopWatchdog eventLoopWatchdog(&app);
 
     const QStringList arguments = app.arguments();
+    const bool smokeAndExit = arguments.contains(QStringLiteral("--smoke-and-exit"));
     if (arguments.contains(QStringLiteral("--diagnose-and-exit")) ||
         arguments.contains(QStringLiteral("--dump-diagnostics"))) {
         JellyfinNative::Diagnostics::dumpDiagnostics(QStringLiteral("command-line"));
@@ -618,6 +619,14 @@ int main(int argc, char **argv)
     }
     logLine("startup: QML source loaded in %lld ms",
             static_cast<long long>(startupTimer.elapsed()));
+
+    if (smokeAndExit) {
+        logLine("startup smoke completed without showing window");
+        JellyfinNative::Diagnostics::setInstanceState(QStringLiteral("startup_smoke_complete"));
+        window.setSource(QUrl());
+        JellyfinNative::Diagnostics::shutdown();
+        return 0;
+    }
 #ifdef JELLYFIN_NATIVE_WEBOS
     window.showFullScreen();
 #else
