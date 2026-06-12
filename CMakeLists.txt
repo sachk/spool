@@ -154,6 +154,8 @@ qt_add_executable(jellyfin-native
     src/app/SyncPlayController.h
     src/app/SyncPlayClock.cpp
     src/app/SyncPlayClock.h
+    src/app/UserItemStateController.cpp
+    src/app/UserItemStateController.h
     src/app/LocalizationManager.cpp
     src/app/LocalizationManager.h
     src/cache/DatabaseManager.cpp
