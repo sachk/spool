@@ -5,6 +5,8 @@ APP_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 # shellcheck source=tools/lib/build-common.sh
 source "$APP_ROOT/tools/lib/build-common.sh"
 ensure_native_shell "$APP_ROOT" "$APP_ROOT/tools/package-appimage.sh" "$@"
+# shellcheck source=tools/lib/qt-deploy.sh
+source "$APP_ROOT/tools/lib/qt-deploy.sh"
 # shellcheck source=tools/lib/manifest-sources.sh
 source "$APP_ROOT/tools/lib/manifest-sources.sh"
 TOOL_MANIFEST="${LINUXDEPLOY_MANIFEST:-$APP_ROOT/tools/manifests/linuxdeploy.json}"
@@ -313,75 +315,12 @@ while IFS= read -r dep; do
   append_library_path "$(dirname "$dep")"
   is_bundleable_elf_dep "$dep" || continue
 done < <(ldd "$APPDIR/usr/bin/jellyfin-native" "$APPDIR"/usr/lib/libmpv.so* 2>/dev/null | awk '/=> \// { print $3 } /^\// { print $1 }' | sort -u)
-qmlscanner="$(resolve_qmlimportscanner "$APP_ROOT/build/linux-release/app/build.ninja")"
 virtual_keyboard_qml_root=""
-if [[ -n "$qmlscanner" ]]; then
-  qtpaths6_bin="$(command -v qtpaths6 || true)"
-  qtpaths_bin="$(command -v qtpaths || true)"
-  qmake_bin="$(command -v qmake || true)"
-  qt_host_lib_dir=""
-  if [[ -n "$qmake_bin" ]]; then
-    qt_host_lib_dir="$("$qmake_bin" -query QT_INSTALL_LIBS)"
-  fi
-  qml_import_dir="$(cd "$(dirname "$qmlscanner")/.." && pwd)/lib/qt-6/qml"
-  if [[ -d "$qml_import_dir" ]]; then
-    qt_shadow="$APP_ROOT/build/appimage/qt-shadow/bin"
-    rm -rf "$qt_shadow"
-    mkdir -p "$qt_shadow"
-    cat > "$qt_shadow/qmlimportscanner" <<EOF
-#!/usr/bin/env bash
-args=()
-for arg in "\$@"; do
-  if [[ "\$arg" == *-qtbase-*/lib/qt-6/qml && ! -d "\$arg" ]]; then
-    args+=("$qml_import_dir")
-  else
-    args+=("\$arg")
-  fi
-done
-exec "$qmlscanner" "\${args[@]}"
-EOF
-    chmod +x "$qt_shadow/qmlimportscanner"
-    if [[ -n "$qmake_bin" ]]; then
-      cat > "$qt_shadow/qmake" <<EOF
-#!/usr/bin/env bash
-export LD_LIBRARY_PATH="$qt_host_lib_dir\${LD_LIBRARY_PATH:+:\$LD_LIBRARY_PATH}"
-exec "$qmake_bin" "\$@"
-EOF
-      chmod +x "$qt_shadow/qmake"
-      export QMAKE="$qt_shadow/qmake"
-    fi
-    if [[ -n "$qtpaths6_bin" ]]; then
-      cat > "$qt_shadow/qtpaths6" <<EOF
-#!/usr/bin/env bash
-if [[ "\$1" == "-query" && "\$2" == "QT_INSTALL_QML" ]]; then
-  printf '%s\n' "$qml_import_dir"
-else
-  export LD_LIBRARY_PATH="$qt_host_lib_dir\${LD_LIBRARY_PATH:+:\$LD_LIBRARY_PATH}"
-  exec "$qtpaths6_bin" "\$@"
-fi
-EOF
-      chmod +x "$qt_shadow/qtpaths6"
-    fi
-    if [[ -n "$qtpaths_bin" ]]; then
-      cat > "$qt_shadow/qtpaths" <<EOF
-#!/usr/bin/env bash
-if [[ "\$1" == "-query" && "\$2" == "QT_INSTALL_QML" ]]; then
-  printf '%s\n' "$qml_import_dir"
-else
-  export LD_LIBRARY_PATH="$qt_host_lib_dir\${LD_LIBRARY_PATH:+:\$LD_LIBRARY_PATH}"
-  exec "$qtpaths_bin" "\$@"
-fi
-EOF
-      chmod +x "$qt_shadow/qtpaths"
-    elif [[ -n "$qtpaths6_bin" ]]; then
-      ln -sf qtpaths6 "$qt_shadow/qtpaths"
-    fi
-    prepend_path "$qt_shadow"
-    append_colon_path QML_IMPORT_PATH "$qml_import_dir"
-    append_colon_path QML2_IMPORT_PATH "$qml_import_dir"
-  else
-    prepend_path "$(dirname "$qmlscanner")"
-  fi
+qt_shadow="$(qt_deploy_linuxdeploy_qt_shadow \
+  "$APP_ROOT/build/linux-release/app/build.ninja" \
+  "$APP_ROOT/build/appimage/qt-shadow/bin")"
+if [[ -n "$qt_shadow" ]]; then
+  prepend_path "$qt_shadow"
 fi
 
 qml_roots=("${JELLYFIN_QT_VIRTUAL_KEYBOARD_QML_ROOT:-}")

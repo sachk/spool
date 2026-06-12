@@ -5,6 +5,8 @@ APP_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 # shellcheck source=tools/lib/build-common.sh
 source "$APP_ROOT/tools/lib/build-common.sh"
 ensure_native_shell "$APP_ROOT" "$APP_ROOT/tools/build-macos.sh" "$@"
+# shellcheck source=tools/lib/qt-deploy.sh
+source "$APP_ROOT/tools/lib/qt-deploy.sh"
 MPV_SRC="${MPV_SRC:-$APP_ROOT/mpv}"
 BUILD_ROOT="${BUILD_ROOT:-$APP_ROOT/build/macos}"
 MPV_BUILD="${MPV_BUILD:-$BUILD_ROOT/mpv}"
@@ -61,49 +63,11 @@ if [[ "$DEPLOY_APP" == "1" ]]; then
     export PATH="/usr/bin:$PATH"
   fi
 
-  # Nix splits Qt tools across outputs. macdeployqt asks QLibraryInfo for
-  # QT_HOST_LIBEXECS/QT_INSTALL_LIBEXECS, which can be empty or point at a
-  # read-only qtbase path that lacks qtdeclarative's qmlimportscanner. Run a
-  # copied macdeployqt with a local qt.conf so that libexec resolves to our
-  # writable tool shadow containing qmlimportscanner.
-  qmlscanner="$(resolve_qmlimportscanner "$APP_BUILD/build.ninja")"
-  if [[ -z "$qmlscanner" ]]; then
-    printf 'error: qmlimportscanner is required for macdeployqt QML deployment\n' >&2
-    exit 1
-  fi
-
-  qt_shadow="$BUILD_ROOT/qt-tools-shadow"
-  qt_shadow_bin="$qt_shadow/bin"
-  qt_shadow_libexec="$qt_shadow/libexec"
-  mkdir -p "$qt_shadow_bin" "$qt_shadow_libexec"
-  cp "$(command -v macdeployqt)" "$qt_shadow_bin/macdeployqt"
-  chmod +x "$qt_shadow_bin/macdeployqt"
-  ln -sf "$qmlscanner" "$qt_shadow_libexec/qmlimportscanner"
-
-  qt_prefix=""
-  qt_plugins=""
-  qt_qml=""
-  if command -v qtpaths6 >/dev/null 2>&1; then
-    qt_prefix="$(qtpaths6 -query QT_INSTALL_PREFIX 2>/dev/null || true)"
-    qt_plugins="$(qtpaths6 -query QT_INSTALL_PLUGINS 2>/dev/null || true)"
-    qt_qml="$(qtpaths6 -query QT_INSTALL_QML 2>/dev/null || true)"
-  elif command -v qtpaths >/dev/null 2>&1; then
-    qt_prefix="$(qtpaths -query QT_INSTALL_PREFIX 2>/dev/null || true)"
-    qt_plugins="$(qtpaths -query QT_INSTALL_PLUGINS 2>/dev/null || true)"
-    qt_qml="$(qtpaths -query QT_INSTALL_QML 2>/dev/null || true)"
-  fi
-
-  cat >"$qt_shadow_bin/qt.conf" <<EOF
-[Paths]
-Prefix=${qt_prefix:-$qt_shadow}
-HostPrefix=$qt_shadow
-HostLibraryExecutables=$qt_shadow_libexec
-LibraryExecutables=$qt_shadow_libexec
-Plugins=${qt_plugins:-}
-QmlImports=${qt_qml:-}
-EOF
-
-  "$qt_shadow_bin/macdeployqt" "$APP_INSTALL/jellyfin-native.app" -qmldir="$APP_ROOT/qml" -no-strip
+  macdeployqt_shadow="$(qt_deploy_macdeployqt_shadow \
+    "$APP_BUILD/build.ninja" \
+    "$BUILD_ROOT/qt-tools-shadow" \
+    "$(command -v macdeployqt)")"
+  "$macdeployqt_shadow" "$APP_INSTALL/jellyfin-native.app" -qmldir="$APP_ROOT/qml" -no-strip
 fi
 
 printf '%s\n' "$APP_INSTALL/jellyfin-native.app"
