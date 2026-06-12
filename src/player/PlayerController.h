@@ -5,9 +5,9 @@
 #include "PlaybackPositionTracker.h"
 #include "PlaybackReporter.h"
 #include "PlaybackTimeline.h"
+#include "PlaybackTrackState.h"
 
 #include <QByteArray>
-#include <QList>
 #include <QObject>
 #include <QStringList>
 #include <QTimer>
@@ -187,15 +187,7 @@ private:
     int m_bufferingPercent = 0;
     bool m_seeking = false;
     bool m_debugOsdVisible = false;
-    bool m_subtitlesEnabled = true;
-    QStringList m_subtitleTracks { QStringLiteral("Off") };
-    QList<int> m_subtitleIds { -1 };
-    int m_selectedSubtitleIndex = 0;
-    QStringList m_audioTracks;
-    QList<int> m_audioIds;
-    int m_selectedAudioIndex = -1;
-    QVariantList m_chapters;  // [{ title: QString, start: double seconds }]
-    int m_currentChapter = -1;
+    PlaybackTrackState m_tracks;
     bool m_backAllowed = true;
     QString m_title;
     QString m_statusText = QStringLiteral("Ready");
