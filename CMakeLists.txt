@@ -130,6 +130,8 @@ qt_add_executable(jellyfin-native
     src/app/AppController.h
     src/app/ContentModelController.cpp
     src/app/ContentModelController.h
+    src/app/CurrentItemsController.cpp
+    src/app/CurrentItemsController.h
     src/app/HomeModelController.cpp
     src/app/HomeModelController.h
     src/app/LibraryPrefetchController.cpp

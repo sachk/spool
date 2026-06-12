@@ -20,6 +20,7 @@ namespace JellyfinNative {
 
 class JellyfinApiFacade;
 class ContentModelController;
+class CurrentItemsController;
 class HomeModelController;
 class LibraryPrefetchController;
 class QuickConnectController;
@@ -277,7 +278,6 @@ private:
     void setErrorText(const QString &errorText);
     void resetApplicationState();
     void applyDiscoveredServersCache();
-    int applyPrefetchedLibraryPage(const QString &cacheKey);
     void loadLibraries();
     void refreshHomeRows();
     void schedulePostPlaybackRefresh();
@@ -288,10 +288,8 @@ private:
     void applyPlaybackPosition(const QString &itemId, qint64 positionTicks);
     void applyFavoriteState(const QString &itemId, bool favorite);
     void applyPlayedState(const QString &itemId, bool played);
-    void setCurrentItems(const std::vector<MovieItem> &items, const QString &cacheKey = {});
-    void setCurrentItemsPage(const PagedMovieItems &page, const QString &cacheKey, bool append);
-    void resetCurrentItemsPaging(const QString &cacheKey = {});
-    void setCurrentItemsLoadingMore(bool loading);
+    void showCurrentItems(const std::vector<MovieItem> &items, const QString &cacheKey = {});
+    void showCurrentItemsPage(const PagedMovieItems &page, const QString &cacheKey, bool append);
     void setLibraryQuery(const QVariantMap &query);
     void loadLibraryFilterOptions(RequestGeneration::Token generation, const LibraryItem &library);
     void openSeries(const MovieItem &series);
@@ -306,6 +304,7 @@ private:
     PlayerController *m_player = nullptr;
     SyncPlayController *m_syncPlay = nullptr;
     ContentModelController *m_content = nullptr;
+    CurrentItemsController *m_currentItems = nullptr;
     HomeModelController *m_home = nullptr;
     QuickConnectController *m_quickConnect = nullptr;
     SettingsController *m_settings = nullptr;
@@ -313,16 +312,10 @@ private:
     LibraryPrefetchController *m_prefetch = nullptr;
     DiscoveredServerModel m_discoveredServers;
     LibraryListModel m_libraries;
-    MovieGridModel m_movies;
     NavigationState m_navigation;
     bool m_busy = false;
     QString m_busyText;
     QString m_errorText;
-    QString m_currentItemsCacheKey;
-    bool m_currentItemsLoadingMore = false;
-    bool m_currentItemsHasMore = false;
-    int m_currentItemsTotalCount = 0;
-    int m_currentItemsNextStartIndex = 0;
     RequestGeneration m_libraryLoadGeneration;
     bool m_shuttingDown = false;
 };
