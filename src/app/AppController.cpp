@@ -5,6 +5,7 @@
 #include "../diagnostics/Diagnostics.h"
 #include "../player/PlayerController.h"
 #include "ContentModelController.h"
+#include "HomeModelController.h"
 #include "LibraryPrefetchController.h"
 #include "QuickConnectController.h"
 #include "SessionController.h"
@@ -13,14 +14,12 @@
 #include <QCoreApplication>
 #include <QDebug>
 #include <QJsonArray>
-#include <QQmlEngine>
-#include <QSet>
 #include <QStringList>
 #include <QTimer>
 #include <QVariantMap>
 
 #include <algorithm>
-#include <utility>
+#include <memory>
 
 namespace JellyfinNative {
 
@@ -28,17 +27,6 @@ namespace {
 
 constexpr int kLibraryPageSize = 100;
 constexpr int kLibraryPrefetchDistance = 200;
-
-QString homeItemSample(const std::vector<MovieItem> &items)
-{
-    QStringList sample;
-    for (const auto &item : items) {
-        sample.push_back(QStringLiteral("%1:%2:%3").arg(item.itemType, item.title).arg(item.resumeTicks));
-        if (sample.size() >= 5)
-            break;
-    }
-    return sample.join(QStringLiteral(" | "));
-}
 
 bool isSeriesLibrary(const LibraryItem &library)
 {
@@ -56,25 +44,6 @@ QString libraryContentLabel(const LibraryItem &library)
     if (library.collectionType == QStringLiteral("homevideos"))
         return QStringLiteral("Home Videos");
     return library.name.isEmpty() ? QStringLiteral("Library") : library.name;
-}
-
-bool showsLatestLibraryRow(const LibraryItem &library)
-{
-    static const QSet<QString> excluded = {
-        QStringLiteral("playlists"),
-        QStringLiteral("livetv"),
-        QStringLiteral("boxsets"),
-        QStringLiteral("channels"),
-        QStringLiteral("folders"),
-    };
-    return !library.id.isEmpty() && !excluded.contains(library.collectionType);
-}
-
-int latestLibraryLimit(const LibraryItem &library)
-{
-    if (library.collectionType == QStringLiteral("tvshows"))
-        return 12;
-    return 16;
 }
 
 QString libraryCacheKey(const LibraryItem &library)
@@ -225,6 +194,7 @@ AppController::AppController(DatabaseManager *database,
     m_settings = new SettingsController(database, api, player, this);
     m_session = new SessionController(database, api, this);
     m_prefetch = new LibraryPrefetchController(api, this);
+    m_home = new HomeModelController(api, m_prefetch, this);
     m_content = new ContentModelController(api, m_prefetch, this);
     m_prefetch->configureImagePrefetch(
         database->loadSetting(QStringLiteral("network/imagePrefetchAhead"),
@@ -244,6 +214,8 @@ AppController::AppController(DatabaseManager *database,
             this, &AppController::personItemsChanged);
     connect(m_content, &ContentModelController::errorOccurred,
             this, &AppController::setErrorText);
+    connect(m_home, &HomeModelController::latestLibraryRowsChanged,
+            this, &AppController::latestLibraryRowsChanged);
     connect(m_quickConnect, &QuickConnectController::changed,
             this, &AppController::quickConnectChanged);
     connect(m_quickConnect, &QuickConnectController::busyChanged,
@@ -512,41 +484,22 @@ MovieGridModel *AppController::movies()
 
 MovieGridModel *AppController::resumeItems()
 {
-    return &m_resumeItems;
+    return m_home->resumeItems();
 }
 
 MovieGridModel *AppController::nextUpItems()
 {
-    return &m_nextUpItems;
+    return m_home->nextUpItems();
 }
 
 MovieGridModel *AppController::latestItems()
 {
-    return &m_latestItems;
+    return m_home->latestItems();
 }
 
 QVariantList AppController::latestLibraryRows() const
 {
-    QVariantList rows;
-    rows.reserve(static_cast<qsizetype>(m_latestLibrarySections.size()));
-    for (size_t row = 0; row < m_latestLibrarySections.size(); ++row) {
-        const LatestLibrarySection &section = m_latestLibrarySections[row];
-        if (!section.model || section.model->rowCount() <= 0)
-            continue;
-        rows.push_back(QVariantMap{
-            {QStringLiteral("rowIndex"), static_cast<int>(row)},
-            {QStringLiteral("title"), QStringLiteral("Recently Added in %1").arg(section.library.name)},
-            {QStringLiteral("libraryName"), section.library.name},
-            {QStringLiteral("libraryId"), section.library.id},
-            {QStringLiteral("collectionType"), section.library.collectionType},
-            {QStringLiteral("kind"), section.library.collectionType == QStringLiteral("tvshows")
-                                         || section.library.collectionType == QStringLiteral("movies")
-                                     ? QStringLiteral("poster")
-                                     : QStringLiteral("landscape")},
-            {QStringLiteral("count"), section.model->rowCount()},
-        });
-    }
-    return rows;
+    return m_home->latestLibraryRows();
 }
 
 MovieGridModel *AppController::searchResults()
@@ -677,14 +630,9 @@ void AppController::resetApplicationState()
     m_api->cancelPrefetches();
     m_libraries.clear();
     m_movies.clear();
-    m_resumeItems.clear();
-    m_nextUpItems.clear();
-    m_latestItems.clear();
-    clearLatestLibraryRows();
+    m_home->reset();
     m_content->reset();
     m_libraryLoadGeneration.invalidate();
-    m_homeLoadGeneration.invalidate();
-    m_homeLoadsPending = 0;
     const bool pageWasLogin = page() == QStringLiteral("login");
     m_navigation.reset();
     resetCurrentItemsPaging();
@@ -735,7 +683,7 @@ void AppController::openLibrary(int index)
     loadLibraryFilterOptions(loadGeneration, library);
     const QString cacheKey = libraryCacheKey(library, libraryQuery());
     resetCurrentItemsPaging(cacheKey);
-    recordLibraryUse(library);
+    m_home->recordLibraryUse(library);
     emit currentLibraryNameChanged();
     const int cachedCount = applyPrefetchedLibraryPage(cacheKey);
     const bool hasWarmCache = cachedCount > 0;
@@ -793,7 +741,7 @@ void AppController::playMovie(int index, bool fromStart)
 
 void AppController::playResumeItem(int index, bool fromStart)
 {
-    const auto item = m_resumeItems.movieAt(index);
+    const auto item = m_home->resumeItemAt(index);
     qInfo() << "app: play resume item index=" << index
             << "type=" << item.itemType << "title=" << item.title
             << "resumeTicks=" << item.resumeTicks << "fromStart=" << fromStart;
@@ -804,7 +752,7 @@ void AppController::playResumeItem(int index, bool fromStart)
 
 void AppController::playNextUpItem(int index, bool fromStart)
 {
-    const auto item = m_nextUpItems.movieAt(index);
+    const auto item = m_home->nextUpItemAt(index);
     qInfo() << "app: play next-up item index=" << index
             << "type=" << item.itemType << "title=" << item.title
             << "resumeTicks=" << item.resumeTicks << "fromStart=" << fromStart;
@@ -815,26 +763,17 @@ void AppController::playNextUpItem(int index, bool fromStart)
 
 void AppController::playLatestItem(int index, bool fromStart)
 {
-    playOrOpen(m_latestItems.movieAt(index), fromStart);
+    playOrOpen(m_home->latestItemAt(index), fromStart);
 }
 
 QObject *AppController::latestLibraryItems(int rowIndex)
 {
-    if (rowIndex < 0 || rowIndex >= static_cast<int>(m_latestLibrarySections.size()))
-        return nullptr;
-    return m_latestLibrarySections[static_cast<size_t>(rowIndex)].model.get();
+    return m_home->latestLibraryItems(rowIndex);
 }
 
 void AppController::playLatestLibraryItem(int rowIndex, int itemIndex, bool fromStart)
 {
-    if (rowIndex < 0 || rowIndex >= static_cast<int>(m_latestLibrarySections.size()))
-        return;
-
-    MovieGridModel *model = m_latestLibrarySections[static_cast<size_t>(rowIndex)].model.get();
-    if (!model)
-        return;
-
-    playOrOpen(model->movieAt(itemIndex), fromStart);
+    playOrOpen(m_home->latestLibraryItemAt(rowIndex, itemIndex), fromStart);
 }
 
 void AppController::search(const QString &query)
@@ -1471,17 +1410,6 @@ void AppController::loadLibraryFilterOptions(RequestGeneration::Token generation
         });
 }
 
-void AppController::recordLibraryUse(const LibraryItem &library)
-{
-    if (library.id.isEmpty())
-        return;
-
-    m_recentLibraryIds.removeAll(library.id);
-    m_recentLibraryIds.prepend(library.id);
-    while (m_recentLibraryIds.size() > 12)
-        m_recentLibraryIds.removeLast();
-}
-
 void AppController::openSeries(const MovieItem &series)
 {
     if (series.id.isEmpty())
@@ -1611,68 +1539,7 @@ void AppController::openStudio(const QString &studio)
 
 void AppController::refreshHomeRows()
 {
-    if (!m_api || m_api->session().accessToken.isEmpty())
-        return;
-
-    const RequestGeneration::Token generation = m_homeLoadGeneration.next();
-    clearLatestLibraryRows();
-    m_latestItems.clear();
-    m_prefetch->stop();
-
-    std::vector<LibraryItem> latestLibraries;
-    const int libraryCount = m_libraries.rowCount();
-    latestLibraries.reserve(static_cast<size_t>(libraryCount));
-    for (int i = 0; i < libraryCount; ++i) {
-        const LibraryItem library = m_libraries.libraryAt(i);
-        if (showsLatestLibraryRow(library))
-            latestLibraries.push_back(library);
-    }
-
-    m_homeLoadsPending = 2 + static_cast<int>(latestLibraries.size());
-
-    Async::runLatest(this,
-        m_api->fetchResumeItems(),
-        m_homeLoadGeneration, generation,
-        [this, generation](const std::vector<MovieItem> &items) {
-            qInfo() << "home: resume items" << items.size() << homeItemSample(items);
-            m_resumeItems.setMovies(items);
-            m_prefetch->prefetchPosters(items);
-            handleHomeRowLoaded(generation);
-        },
-        [this, generation](const std::exception_ptr &error) {
-            qWarning() << "home: resume fetch failed" << exceptionMessage(error);
-            handleHomeRowLoaded(generation);
-        });
-
-    Async::runLatest(this,
-        m_api->fetchNextUpEpisodes(),
-        m_homeLoadGeneration, generation,
-        [this, generation](const std::vector<MovieItem> &items) {
-            qInfo() << "home: next-up items" << items.size() << homeItemSample(items);
-            m_nextUpItems.setMovies(items);
-            m_prefetch->prefetchPosters(items);
-            handleHomeRowLoaded(generation);
-        },
-        [this, generation](const std::exception_ptr &error) {
-            qWarning() << "home: next-up fetch failed" << exceptionMessage(error);
-            handleHomeRowLoaded(generation);
-        });
-
-    for (int order = 0; order < static_cast<int>(latestLibraries.size()); ++order) {
-        const LibraryItem library = latestLibraries[static_cast<size_t>(order)];
-        Async::runLatest(this,
-            m_api->fetchLatestItems(library.id, latestLibraryLimit(library)),
-            m_homeLoadGeneration, generation,
-            [this, generation, order, library](const std::vector<MovieItem> &items) {
-                qInfo() << "home: latest items" << library.name << items.size() << homeItemSample(items);
-                addLatestLibraryRow(generation, order, library, items);
-                handleHomeRowLoaded(generation);
-            },
-            [this, generation, library](const std::exception_ptr &error) {
-                qWarning() << "home: latest fetch failed" << library.name << exceptionMessage(error);
-                handleHomeRowLoaded(generation);
-            });
-    }
+    m_home->refresh(m_libraries.libraries());
 }
 
 void AppController::schedulePostPlaybackRefresh()
@@ -1737,14 +1604,8 @@ void AppController::applyPlaybackPosition(const QString &itemId, qint64 position
         return;
 
     m_movies.updateResumeTicks(itemId, positionTicks);
-    m_resumeItems.updateResumeTicks(itemId, positionTicks);
-    m_nextUpItems.updateResumeTicks(itemId, positionTicks);
-    m_latestItems.updateResumeTicks(itemId, positionTicks);
+    m_home->updateResumeTicks(itemId, positionTicks);
     m_content->updateResumeTicks(itemId, positionTicks);
-    for (LatestLibrarySection &section : m_latestLibrarySections) {
-        if (section.model)
-            section.model->updateResumeTicks(itemId, positionTicks);
-    }
 }
 
 void AppController::applyFavoriteState(const QString &itemId, bool favorite)
@@ -1753,14 +1614,8 @@ void AppController::applyFavoriteState(const QString &itemId, bool favorite)
         return;
 
     m_movies.updateFavorite(itemId, favorite);
-    m_resumeItems.updateFavorite(itemId, favorite);
-    m_nextUpItems.updateFavorite(itemId, favorite);
-    m_latestItems.updateFavorite(itemId, favorite);
+    m_home->updateFavorite(itemId, favorite);
     m_content->updateFavorite(itemId, favorite);
-    for (LatestLibrarySection &section : m_latestLibrarySections) {
-        if (section.model)
-            section.model->updateFavorite(itemId, favorite);
-    }
     emit itemFavoriteChanged(itemId, favorite);
 }
 
@@ -1770,60 +1625,9 @@ void AppController::applyPlayedState(const QString &itemId, bool played)
         return;
 
     m_movies.updatePlayed(itemId, played);
-    m_resumeItems.updatePlayed(itemId, played);
-    m_nextUpItems.updatePlayed(itemId, played);
-    m_latestItems.updatePlayed(itemId, played);
+    m_home->updatePlayed(itemId, played);
     m_content->updatePlayed(itemId, played);
-    for (LatestLibrarySection &section : m_latestLibrarySections) {
-        if (section.model)
-            section.model->updatePlayed(itemId, played);
-    }
     emit itemPlayedChanged(itemId, played);
-}
-
-void AppController::clearLatestLibraryRows()
-{
-    if (m_latestLibrarySections.empty())
-        return;
-    m_latestLibrarySections.clear();
-    emit latestLibraryRowsChanged();
-}
-
-void AppController::addLatestLibraryRow(RequestGeneration::Token generation,
-                                        int order,
-                                        const LibraryItem &library,
-                                        const std::vector<MovieItem> &items)
-{
-    if (!m_homeLoadGeneration.isCurrent(generation) || items.empty())
-        return;
-
-    auto model = std::make_unique<MovieGridModel>();
-    QQmlEngine::setObjectOwnership(model.get(), QQmlEngine::CppOwnership);
-    model->setMovies(items);
-
-    LatestLibrarySection section;
-    section.order = order;
-    section.library = library;
-    section.model = std::move(model);
-    m_latestLibrarySections.push_back(std::move(section));
-
-    std::sort(m_latestLibrarySections.begin(), m_latestLibrarySections.end(),
-              [](const LatestLibrarySection &left, const LatestLibrarySection &right) {
-                  return left.order < right.order;
-              });
-
-    m_prefetch->prefetchPosters(items);
-    emit latestLibraryRowsChanged();
-}
-
-void AppController::handleHomeRowLoaded(RequestGeneration::Token generation)
-{
-    if (!m_homeLoadGeneration.isCurrent(generation) || m_homeLoadsPending <= 0)
-        return;
-
-    --m_homeLoadsPending;
-    if (m_homeLoadsPending == 0)
-        m_prefetch->schedule(m_libraries.libraries(), m_recentLibraryIds);
 }
 
 } // namespace JellyfinNative
