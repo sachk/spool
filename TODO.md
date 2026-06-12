@@ -127,7 +127,7 @@ archive containing app version `0.2.1` and a 32-bit ARM EABI5 executable.
 - [ ] Decide whether the shippable webOS package supports only static Qt, then
   remove unused shared/static branching.
 - [ ] Consolidate the slim-FFmpeg feature declaration and AppImage bloat audit.
-- [ ] Add a supported on-device verification command covering install
+- [x] Add a supported on-device verification command covering install
   registration, launch, log capture, and screenshot without destructive TV
   operations.
 - [ ] Validate and trim packaged Qt/QML/runtime modules against real webOS
