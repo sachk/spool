@@ -117,77 +117,6 @@ QByteArray mpvBool(bool value) {
   return value ? QByteArrayLiteral("yes") : QByteArrayLiteral("no");
 }
 
-QByteArray mpvArgbColor(const QString &rgb, QByteArray fallback) {
-  QString color = rgb.trimmed();
-  if (color.startsWith(QLatin1Char('#')))
-    color.remove(0, 1);
-  if (color.size() != 6)
-    return fallback;
-
-  for (const QChar ch : color) {
-    if (!ch.isDigit() &&
-        (ch.toLower() < QLatin1Char('a') || ch.toLower() > QLatin1Char('f')))
-      return fallback;
-  }
-
-  return QByteArrayLiteral("#FF") + color.toUpper().toLatin1();
-}
-
-QByteArray subtitleFontSize(const QString &value) {
-  if (value == QStringLiteral("smaller"))
-    return QByteArrayLiteral("44");
-  if (value == QStringLiteral("small"))
-    return QByteArrayLiteral("50");
-  if (value == QStringLiteral("large"))
-    return QByteArrayLiteral("66");
-  if (value == QStringLiteral("larger"))
-    return QByteArrayLiteral("76");
-  if (value == QStringLiteral("extralarge"))
-    return QByteArrayLiteral("84");
-  return QByteArrayLiteral("55");
-}
-
-QByteArray subtitleFontFamily(const QString &value) {
-  if (value == QStringLiteral("typewriter"))
-    return QByteArrayLiteral("Courier New");
-  if (value == QStringLiteral("print"))
-    return QByteArrayLiteral("Georgia");
-  if (value == QStringLiteral("console"))
-    return QByteArrayLiteral("Consolas");
-  if (value == QStringLiteral("cursive"))
-    return QByteArrayLiteral("Lucida Handwriting");
-  if (value == QStringLiteral("casual"))
-    return QByteArrayLiteral("Segoe Print");
-  if (value == QStringLiteral("smallcaps"))
-    return QByteArrayLiteral("Copperplate Gothic");
-  return QByteArrayLiteral("sans-serif");
-}
-
-struct SubtitleShadowOptions {
-  QByteArray borderSize = QByteArrayLiteral("3.5");
-  QByteArray shadowOffset = QByteArrayLiteral("1");
-  QByteArray shadowColor = QByteArrayLiteral("#80000000");
-};
-
-SubtitleShadowOptions subtitleShadowOptions(const QString &value) {
-  SubtitleShadowOptions options;
-  if (value == QStringLiteral("none")) {
-    options.shadowOffset = QByteArrayLiteral("0");
-    options.shadowColor = QByteArrayLiteral("#00000000");
-  } else if (value == QStringLiteral("raised")) {
-    options.shadowOffset = QByteArrayLiteral("1");
-    options.shadowColor = QByteArrayLiteral("#A0000000");
-  } else if (value == QStringLiteral("depressed")) {
-    options.shadowOffset = QByteArrayLiteral("-1");
-    options.shadowColor = QByteArrayLiteral("#A0000000");
-  } else if (value == QStringLiteral("uniform")) {
-    options.borderSize = QByteArrayLiteral("4.5");
-    options.shadowOffset = QByteArrayLiteral("0");
-    options.shadowColor = QByteArrayLiteral("#00000000");
-  }
-  return options;
-}
-
 qint64 secondsToTicks(double seconds) {
   return static_cast<qint64>(seconds * 10000000.0);
 }
@@ -442,43 +371,11 @@ bool PlayerController::applyMpvSubtitleOptions(MpvOptionApplyMode mode,
                : setMpvProperty(handle, name, value.constData());
   };
 
-  const SubtitlePreferences prefs = m_subtitlePreferences;
-  const QString subtitleMode =
-      prefs.mode.isEmpty() ? QStringLiteral("Default") : prefs.mode;
-  const bool noSubtitles = subtitleMode == QStringLiteral("None");
-  const bool onlyForced = subtitleMode == QStringLiteral("OnlyForced");
-  const bool alwaysPlay = subtitleMode == QStringLiteral("Always");
-  const bool smart = subtitleMode == QStringLiteral("Smart");
-  const bool nativeStyling = prefs.styling == QStringLiteral("Native");
-  const int vertical = qBound(-16, prefs.verticalPosition, 16);
-  const int margin = vertical < 0 ? std::abs(vertical + 1) * 20 : vertical * 20;
-  const SubtitleShadowOptions shadow = subtitleShadowOptions(prefs.dropShadow);
-
   bool ok = true;
-  ok &= applyString("sid", !m_tracks.subtitlesEnabled() || noSubtitles ? QByteArrayLiteral("no")
-                                                                       : QByteArrayLiteral("auto"));
-  ok &= applyString("slang", prefs.language.toUtf8());
-  ok &= applyString("sub-auto", QByteArrayLiteral("all"));
-  ok &= applyString("sub-visibility", mpvBool(!noSubtitles));
-  ok &= applyString("sub-forced-events-only", mpvBool(onlyForced));
-  ok &= applyString("subs-with-matching-audio", mpvBool(alwaysPlay));
-  ok &= applyString("subs-fallback", mpvBool(!noSubtitles && !onlyForced && !smart));
-  ok &= applyString("subs-fallback-forced", QByteArrayLiteral("yes"));
-  ok &= applyString("sub-ass", QByteArrayLiteral("yes"));
-  ok &= applyString("sub-ass-override", nativeStyling ? QByteArrayLiteral("no")
-                                                      : QByteArrayLiteral("force"));
-  ok &= applyString("sub-use-margins", QByteArrayLiteral("yes"));
-  ok &= applyString("sub-font", subtitleFontFamily(prefs.font));
-  ok &= applyString("sub-font-size", subtitleFontSize(prefs.textSize));
-  ok &= applyString("sub-bold", mpvBool(prefs.textWeight == QStringLiteral("bold")));
-  ok &= applyString("sub-pos", vertical < 0 ? QByteArrayLiteral("100")
-                                            : QByteArrayLiteral("0"));
-  ok &= applyString("sub-margin-y", QByteArray::number(margin));
-  ok &= applyString("sub-color", mpvArgbColor(prefs.textColor, QByteArrayLiteral("#FFFFFFFF")));
-  ok &= applyString("sub-border-size", shadow.borderSize);
-  ok &= applyString("sub-border-color", QByteArrayLiteral("#FF000000"));
-  ok &= applyString("sub-shadow-offset", shadow.shadowOffset);
-  ok &= applyString("sub-shadow-color", shadow.shadowColor);
+  const auto options = MpvOptionProfile::subtitleOptions(
+      m_subtitlePreferences, m_tracks.subtitlesEnabled());
+  for (const MpvOption &option : options)
+    ok &= applyString(option.name.constData(), option.value);
 
   if (!ok) {
     qWarning() << "player: failed to apply subtitle preferences"
