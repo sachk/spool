@@ -51,6 +51,11 @@ QJsonArray itemsArrayFromDocument(const QJsonDocument &document)
     return document.object().value(QStringLiteral("Items")).toArray();
 }
 
+int boundedItemLimit(int requested, int maximum)
+{
+    return std::clamp(requested, 1, maximum);
+}
+
 QString detailItemFields()
 {
     return QStringLiteral("Overview,ProductionYear,PremiereDate,EndDate,ImageTags,BackdropImageTags,"
@@ -807,7 +812,7 @@ QCoro::Task<std::vector<MovieItem>> JellyfinApiFacade::fetchResumeItems(int limi
 {
     QUrlQuery query;
     query.addQueryItem(QStringLiteral("UserId"), m_session.userId);
-    query.addQueryItem(QStringLiteral("limit"), QString::number(limit));
+    query.addQueryItem(QStringLiteral("limit"), QString::number(boundedItemLimit(limit, 60)));
     query.addQueryItem(QStringLiteral("recursive"), QStringLiteral("true"));
     query.addQueryItem(QStringLiteral("fields"), detailItemFields());
     query.addQueryItem(QStringLiteral("includeItemTypes"), QStringLiteral("Movie,Episode"));
@@ -834,7 +839,7 @@ QCoro::Task<std::vector<MovieItem>> JellyfinApiFacade::fetchNextUpEpisodes(int l
 {
     QUrlQuery query;
     query.addQueryItem(QStringLiteral("UserId"), m_session.userId);
-    query.addQueryItem(QStringLiteral("limit"), QString::number(limit));
+    query.addQueryItem(QStringLiteral("limit"), QString::number(boundedItemLimit(limit, 60)));
     query.addQueryItem(QStringLiteral("fields"), detailItemFields());
     query.addQueryItem(QStringLiteral("enableImageTypes"), QStringLiteral("Primary,Backdrop,Logo,Banner,Thumb"));
     query.addQueryItem(QStringLiteral("imageTypeLimit"), QStringLiteral("3"));
@@ -856,7 +861,7 @@ QCoro::Task<std::vector<MovieItem>> JellyfinApiFacade::fetchNextUpEpisodes(int l
 QCoro::Task<std::vector<MovieItem>> JellyfinApiFacade::fetchLatestItems(QString parentId, int limit)
 {
     QUrlQuery query;
-    query.addQueryItem(QStringLiteral("limit"), QString::number(limit));
+    query.addQueryItem(QStringLiteral("limit"), QString::number(boundedItemLimit(limit, 60)));
     query.addQueryItem(QStringLiteral("fields"), detailItemFields());
     query.addQueryItem(QStringLiteral("includeItemTypes"), QStringLiteral("Movie,Series,Episode"));
     query.addQueryItem(QStringLiteral("enableImageTypes"), QStringLiteral("Primary,Backdrop,Logo,Banner,Thumb"));
@@ -896,7 +901,7 @@ QCoro::Task<std::vector<MovieItem>> JellyfinApiFacade::searchItems(QString searc
     query.addQueryItem(QStringLiteral("sortOrder"), QStringLiteral("Ascending"));
     query.addQueryItem(QStringLiteral("enableImageTypes"), QStringLiteral("Primary,Backdrop,Logo,Banner,Thumb"));
     query.addQueryItem(QStringLiteral("imageTypeLimit"), QStringLiteral("3"));
-    query.addQueryItem(QStringLiteral("limit"), QString::number(std::clamp(limit, 1, 200)));
+    query.addQueryItem(QStringLiteral("limit"), QString::number(boundedItemLimit(limit, 200)));
 
     const QJsonArray items =
         (co_await requestJson(HttpMethod::Get, QStringLiteral("/Items"), query)).object().value(QStringLiteral("Items")).toArray();
@@ -921,7 +926,7 @@ QCoro::Task<std::vector<MovieItem>> JellyfinApiFacade::fetchSearchSuggestions(in
     query.addQueryItem(QStringLiteral("enableImageTypes"), QStringLiteral("Primary,Backdrop,Logo,Banner,Thumb"));
     query.addQueryItem(QStringLiteral("imageTypeLimit"), QStringLiteral("3"));
     query.addQueryItem(QStringLiteral("enableTotalRecordCount"), QStringLiteral("false"));
-    query.addQueryItem(QStringLiteral("limit"), QString::number(std::clamp(limit, 1, 60)));
+    query.addQueryItem(QStringLiteral("limit"), QString::number(boundedItemLimit(limit, 60)));
 
     const QJsonArray items =
         (co_await requestJson(HttpMethod::Get, QStringLiteral("/Items"), query)).object().value(QStringLiteral("Items")).toArray();
@@ -939,7 +944,7 @@ QCoro::Task<std::vector<MovieItem>> JellyfinApiFacade::fetchSimilarItems(QString
 
     QUrlQuery query;
     query.addQueryItem(QStringLiteral("userId"), m_session.userId);
-    query.addQueryItem(QStringLiteral("limit"), QString::number(std::clamp(limit, 1, 60)));
+    query.addQueryItem(QStringLiteral("limit"), QString::number(boundedItemLimit(limit, 60)));
     query.addQueryItem(QStringLiteral("fields"), detailItemFields());
     query.addQueryItem(QStringLiteral("enableImageTypes"), QStringLiteral("Primary,Backdrop,Logo,Banner,Thumb"));
     query.addQueryItem(QStringLiteral("imageTypeLimit"), QStringLiteral("3"));
@@ -972,7 +977,7 @@ QCoro::Task<std::vector<MovieItem>> JellyfinApiFacade::fetchItemsByPerson(QStrin
     query.addQueryItem(QStringLiteral("sortOrder"), QStringLiteral("Ascending"));
     query.addQueryItem(QStringLiteral("enableImageTypes"), QStringLiteral("Primary,Backdrop,Logo,Banner,Thumb"));
     query.addQueryItem(QStringLiteral("imageTypeLimit"), QStringLiteral("3"));
-    query.addQueryItem(QStringLiteral("limit"), QString::number(std::clamp(limit, 1, 200)));
+    query.addQueryItem(QStringLiteral("limit"), QString::number(boundedItemLimit(limit, 200)));
 
     const QJsonArray items =
         (co_await requestJson(HttpMethod::Get, QStringLiteral("/Items"), query)).object().value(QStringLiteral("Items")).toArray();
@@ -1000,7 +1005,7 @@ QCoro::Task<std::vector<MovieItem>> JellyfinApiFacade::fetchItemsByGenre(QString
     query.addQueryItem(QStringLiteral("sortOrder"), QStringLiteral("Ascending"));
     query.addQueryItem(QStringLiteral("enableImageTypes"), QStringLiteral("Primary,Backdrop,Logo,Banner,Thumb"));
     query.addQueryItem(QStringLiteral("imageTypeLimit"), QStringLiteral("3"));
-    query.addQueryItem(QStringLiteral("limit"), QString::number(std::clamp(limit, 1, 400)));
+    query.addQueryItem(QStringLiteral("limit"), QString::number(boundedItemLimit(limit, 200)));
 
     const QJsonArray items =
         (co_await requestJson(HttpMethod::Get, QStringLiteral("/Items"), query)).object().value(QStringLiteral("Items")).toArray();
@@ -1027,7 +1032,7 @@ QCoro::Task<std::vector<MovieItem>> JellyfinApiFacade::fetchItemsByStudio(QStrin
     query.addQueryItem(QStringLiteral("sortOrder"), QStringLiteral("Ascending"));
     query.addQueryItem(QStringLiteral("enableImageTypes"), QStringLiteral("Primary,Backdrop,Logo,Banner,Thumb"));
     query.addQueryItem(QStringLiteral("imageTypeLimit"), QStringLiteral("3"));
-    query.addQueryItem(QStringLiteral("limit"), QString::number(std::clamp(limit, 1, 400)));
+    query.addQueryItem(QStringLiteral("limit"), QString::number(boundedItemLimit(limit, 200)));
 
     const QJsonArray items =
         (co_await requestJson(HttpMethod::Get, QStringLiteral("/Items"), query)).object().value(QStringLiteral("Items")).toArray();
