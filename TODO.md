@@ -51,6 +51,8 @@ archive containing app version `0.2.1` and a 32-bit ARM EABI5 executable.
   ARM ELF identity before artifact upload.
 - [x] Produce and upload a valid
   `com.codex.jellyfinwebosnative_0.2.1_arm.ipk`.
+- [x] Add a deterministic headless native-app startup smoke path and run it in
+  Linux and macOS artifact jobs before packaging.
 
 ### Frontend And Application Foundation
 
@@ -90,7 +92,7 @@ archive containing app version `0.2.1` and a 32-bit ARM EABI5 executable.
 - [x] Replace recoverable playback `qFatal` paths with a playback error surfaced
   to QML.
 - [x] Add SQLite cache schema/versioning, staleness, invalidation, and eviction.
-- [ ] Complete SyncPlay time synchronization, buffering coordination, group
+- [x] Complete SyncPlay time synchronization, buffering coordination, group
   metadata, and error reporting.
 - [x] Replace fixed poster-prefetch limits with viewport-aware prefetching and
   configurable concurrency.
@@ -110,23 +112,22 @@ archive containing app version `0.2.1` and a 32-bit ARM EABI5 executable.
   remux preference, and shortcut enablement.
 - [x] Add explicit list/button accessibility semantics to library/search grids,
   poster rows, people rows, and genre/studio chips.
-- [ ] Complete the remaining accessibility audit for page landmarks, menus, and
+- [x] Complete the remaining accessibility audit for page landmarks, menus, and
   dynamic status announcements.
-- [ ] Add pagination or bounded models for large library/search results.
-- [ ] Continue splitting `PlayerController` and `AppController` by
+- [x] Add pagination or bounded models for large library/search results.
+- [x] Continue splitting `PlayerController` and `AppController` by
   responsibility.
 
 ### Build, CI, And Release
 
-- [ ] Exercise and fix the macOS app/DMG job on a macOS runner; add a
-  deterministic headless smoke path.
+- [ ] Exercise and fix the macOS app/DMG job on a macOS runner.
 - [x] Make macOS packaging fail when deployment tooling is required but
   unavailable.
 - [x] Factor duplicated qmlimportscanner/Qt deployment setup from AppImage and
   macOS packaging into one helper.
 - [ ] Decide whether the shippable webOS package supports only static Qt, then
   remove unused shared/static branching.
-- [ ] Consolidate the slim-FFmpeg feature declaration and AppImage bloat audit.
+- [x] Consolidate the slim-FFmpeg feature declaration and AppImage bloat audit.
 - [x] Add a supported on-device verification command covering install
   registration, launch, log capture, and screenshot without destructive TV
   operations.
@@ -144,10 +145,10 @@ archive containing app version `0.2.1` and a 32-bit ARM EABI5 executable.
   `PlayerController` into a tested `PlaybackTimeline` component.
 - [x] Split `PlayerController` into mpv lifecycle, position tracking, track
   parsing, and reporting components.
-- [ ] Continue splitting `AppController` navigation and library browsing
+- [x] Continue splitting `AppController` navigation and library browsing
   responsibilities. Session, settings, prefetch, Quick Connect, home content,
   search/detail content, current-item model state, and library-query helpers
-  are now extracted.
+  are now extracted, and user item state propagation is now isolated.
 - [x] Extract shared behavior from the webOS and desktop
   `NativeAppWindow` implementations.
 - [x] Deduplicate repeated API fetch/cache/prefetch flows.

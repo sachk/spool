@@ -99,6 +99,9 @@ jobs:
       - name: Build host app
         run: nix develop .#native -c bash tools/build-linux-release.sh
 
+      - name: Smoke-test host app startup
+        run: nix develop .#native -c bash tools/smoke-native-app.sh build/linux-release/install/bin/jellyfin-native
+
       - name: Package AppImage
         run: nix develop .#native -c bash tools/package-appimage.sh
 
@@ -144,6 +147,9 @@ jobs:
 
       - name: Build macOS app
         run: nix develop .#native -c bash tools/build-macos.sh
+
+      - name: Smoke-test macOS app startup
+        run: nix develop .#native -c bash tools/smoke-native-app.sh build/macos/install/jellyfin-native.app
 
       - name: Package DMG
         run: nix develop .#native -c bash tools/package-macos-dmg.sh
