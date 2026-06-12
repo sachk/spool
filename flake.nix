@@ -31,101 +31,10 @@
 
       # Slim ffmpeg-full: keep what libmpv needs for playback, but drop bloat
       # that otherwise gets pulled into the Linux/AppImage closure.
+      ffmpegSlimConfig = builtins.fromJSON (builtins.readFile ./tools/manifests/ffmpeg-slim.json);
       ffmpegSlimOverlay = final: prev: {
-        ffmpeg-full = prev.ffmpeg-full.override {
-          buildFfplay = false;
-          withSdl2 = false;
-
-          # Encoders not needed by a playback-only client.
-          withX264 = false;
-          withX265 = false;
-          withAom = false;
-          withSvtav1 = false;
-          withVvenc = false;
-          withRav1e = false;
-          withVpx = false;
-          withXavs = false;
-          withXavs2 = false;
-          withXeve = false;
-          withXevd = false;
-          withKvazaar = false;
-          withFdkAac = false;
-          withOpenh264 = false;
-          withMp3lame = false;
-          withVoAmrwbenc = false;
-          withTwolame = false;
-          withShine = false;
-          withTheora = false;
-
-          # Niche audio codecs.
-          withOpenmpt = false;
-          withGme = false;
-          withModplug = false;
-          withCodec2 = false;
-          withCelt = false;
-          withGsm = false;
-          withIlbc = false;
-          withLc3 = false;
-          withSpeex = false;
-          withOpencoreAmrnb = false;
-          withOpencoreAmrwb = false;
-          withMysofa = false;
-
-          # Niche video codecs / protocols / subsystems.
-          withDavs2 = false;
-          withUavs3d = false;
-          withAribb24 = false;
-          withAribcaption = false;
-          withZvbi = false;
-          withSrt = false;
-          withRist = false;
-          withSsh = false;
-          withRtmp = false;
-
-          # Removable bloat.
-          withSamba = false;
-          withFlite = false;
-          withChromaprint = false;
-          withTensorflow = false;
-          withWhisper = false;
-          withVmaf = false;
-          withZmq = false;
-          withJxl = false;
-          withSvg = false;
-          withLcevcdec = false;
-          withFrei0r = false;
-          withQrencode = false;
-          withQuirc = false;
-          withOpenjpeg = false;
-          withXvid = false;
-
-          # Capture / disc inputs we never use.
-          withV4l2 = false;
-          withV4l2M2m = false;
-          withDvdnav = false;
-          withDvdread = false;
-          withDc1394 = false;
-          withCdio = false;
-          withCaca = false;
-
-          # GPU/vendor encode paths.
-          withAmf = false;
-          withCuda = false;
-          withCudaLLVM = false;
-          withCudaNVCC = false;
-          withNpp = false;
-          withNvcodec = false;
-          withNvdec = false;
-          withNvenc = false;
-          withCuvid = false;
-          withMfx = false;
-          withVpl = false;
-          withOpencl = false;
-          withOpenal = false;
-          withJack = false;
-          withLadspa = false;
-          withBs2b = false;
-        };
+        ffmpeg-full = prev.ffmpeg-full.override
+          (nixpkgs.lib.genAttrs ffmpegSlimConfig.disabledNixFeatures (_: false));
       };
 
       forAllSystems = f:
