@@ -59,5 +59,54 @@ int main(int argc, char **argv)
             "ALSA mode should use the ALSA output");
     require(valueFor(webOSAlsa, "video-sync") == "display-resample",
             "ALSA mode should follow the display clock");
+
+    SubtitlePreferences subtitles;
+    subtitles.language = QStringLiteral("eng");
+    subtitles.mode = QStringLiteral("OnlyForced");
+    subtitles.styling = QStringLiteral("Native");
+    subtitles.textSize = QStringLiteral("large");
+    subtitles.textWeight = QStringLiteral("bold");
+    subtitles.font = QStringLiteral("typewriter");
+    subtitles.textColor = QStringLiteral("#00ffcc");
+    subtitles.dropShadow = QStringLiteral("uniform");
+    subtitles.verticalPosition = 4;
+    const auto subtitleOptions = MpvOptionProfile::subtitleOptions(subtitles, true);
+    require(valueFor(subtitleOptions, "sid") == "auto",
+            "enabled subtitles should select automatic subtitle tracks");
+    require(valueFor(subtitleOptions, "slang") == "eng",
+            "subtitle language was not propagated");
+    require(valueFor(subtitleOptions, "sub-forced-events-only") == "yes",
+            "OnlyForced mode should use forced events only");
+    require(valueFor(subtitleOptions, "subs-fallback") == "no",
+            "OnlyForced mode should disable non-forced fallback subtitles");
+    require(valueFor(subtitleOptions, "sub-ass-override") == "no",
+            "native styling should avoid forced ASS override");
+    require(valueFor(subtitleOptions, "sub-font") == "Courier New",
+            "subtitle font preference was not mapped");
+    require(valueFor(subtitleOptions, "sub-font-size") == "66",
+            "subtitle size preference was not mapped");
+    require(valueFor(subtitleOptions, "sub-bold") == "yes",
+            "subtitle bold preference was not mapped");
+    require(valueFor(subtitleOptions, "sub-pos") == "0",
+            "positive subtitle position should anchor at top");
+    require(valueFor(subtitleOptions, "sub-margin-y") == "80",
+            "subtitle vertical margin was not mapped");
+    require(valueFor(subtitleOptions, "sub-color") == "#FF00FFCC",
+            "subtitle color was not converted to ARGB");
+    require(valueFor(subtitleOptions, "sub-border-size") == "4.5",
+            "uniform shadow should increase border size");
+    require(valueFor(subtitleOptions, "sub-shadow-offset") == "0",
+            "uniform shadow should disable shadow offset");
+
+    SubtitlePreferences hidden;
+    hidden.mode = QStringLiteral("None");
+    hidden.textColor = QStringLiteral("not-a-color");
+    const auto hiddenSubtitleOptions = MpvOptionProfile::subtitleOptions(hidden, false);
+    require(valueFor(hiddenSubtitleOptions, "sid") == "no",
+            "disabled subtitles should select no subtitle track");
+    require(valueFor(hiddenSubtitleOptions, "sub-visibility") == "no",
+            "None mode should hide subtitles");
+    require(valueFor(hiddenSubtitleOptions, "sub-color") == "#FFFFFFFF",
+            "invalid subtitle color should use the white fallback");
     return 0;
 }

@@ -1,8 +1,90 @@
 #include "MpvOptionProfile.h"
 
+#include <QtGlobal>
+
+#include <cmath>
 #include <iterator>
 
 namespace JellyfinNative {
+
+namespace {
+
+QByteArray mpvBool(bool value) {
+    return value ? QByteArrayLiteral("yes") : QByteArrayLiteral("no");
+}
+
+QByteArray mpvArgbColor(const QString &rgb, QByteArray fallback) {
+    QString color = rgb.trimmed();
+    if (color.startsWith(QLatin1Char('#')))
+        color.remove(0, 1);
+    if (color.size() != 6)
+        return fallback;
+
+    for (const QChar ch : color) {
+        if (!ch.isDigit() &&
+            (ch.toLower() < QLatin1Char('a') || ch.toLower() > QLatin1Char('f')))
+            return fallback;
+    }
+
+    return QByteArrayLiteral("#FF") + color.toUpper().toLatin1();
+}
+
+QByteArray subtitleFontSize(const QString &value) {
+    if (value == QStringLiteral("smaller"))
+        return QByteArrayLiteral("44");
+    if (value == QStringLiteral("small"))
+        return QByteArrayLiteral("50");
+    if (value == QStringLiteral("large"))
+        return QByteArrayLiteral("66");
+    if (value == QStringLiteral("larger"))
+        return QByteArrayLiteral("76");
+    if (value == QStringLiteral("extralarge"))
+        return QByteArrayLiteral("84");
+    return QByteArrayLiteral("55");
+}
+
+QByteArray subtitleFontFamily(const QString &value) {
+    if (value == QStringLiteral("typewriter"))
+        return QByteArrayLiteral("Courier New");
+    if (value == QStringLiteral("print"))
+        return QByteArrayLiteral("Georgia");
+    if (value == QStringLiteral("console"))
+        return QByteArrayLiteral("Consolas");
+    if (value == QStringLiteral("cursive"))
+        return QByteArrayLiteral("Lucida Handwriting");
+    if (value == QStringLiteral("casual"))
+        return QByteArrayLiteral("Segoe Print");
+    if (value == QStringLiteral("smallcaps"))
+        return QByteArrayLiteral("Copperplate Gothic");
+    return QByteArrayLiteral("sans-serif");
+}
+
+struct SubtitleShadowOptions {
+    QByteArray borderSize = QByteArrayLiteral("3.5");
+    QByteArray shadowOffset = QByteArrayLiteral("1");
+    QByteArray shadowColor = QByteArrayLiteral("#80000000");
+};
+
+SubtitleShadowOptions subtitleShadowOptions(const QString &value) {
+    SubtitleShadowOptions options;
+    if (value == QStringLiteral("none")) {
+        options.shadowOffset = QByteArrayLiteral("0");
+        options.shadowColor = QByteArrayLiteral("#00000000");
+    } else if (value == QStringLiteral("raised")) {
+        options.shadowOffset = QByteArrayLiteral("1");
+        options.shadowColor = QByteArrayLiteral("#A0000000");
+    } else if (value == QStringLiteral("depressed")) {
+        options.shadowOffset = QByteArrayLiteral("-1");
+        options.shadowColor = QByteArrayLiteral("#A0000000");
+    } else if (value == QStringLiteral("uniform")) {
+        options.borderSize = QByteArrayLiteral("4.5");
+        options.shadowOffset = QByteArrayLiteral("0");
+        options.shadowColor = QByteArrayLiteral("#00000000");
+    }
+    return options;
+}
+
+} // namespace
 
 std::vector<MpvOption> MpvOptionProfile::startupOptions(
     Platform platform, const QString &audioOutputMode,
@@ -73,6 +155,49 @@ std::vector<MpvOption> MpvOptionProfile::startupOptions(
     options.insert(options.end(), std::begin(applicationOptions),
                    std::end(applicationOptions));
     return options;
+}
+
+std::vector<MpvOption> MpvOptionProfile::subtitleOptions(
+    const SubtitlePreferences &preferences, bool subtitlesEnabled)
+{
+    const SubtitlePreferences prefs = preferences;
+    const QString subtitleMode =
+        prefs.mode.isEmpty() ? QStringLiteral("Default") : prefs.mode;
+    const bool noSubtitles = subtitleMode == QStringLiteral("None");
+    const bool onlyForced = subtitleMode == QStringLiteral("OnlyForced");
+    const bool alwaysPlay = subtitleMode == QStringLiteral("Always");
+    const bool smart = subtitleMode == QStringLiteral("Smart");
+    const bool nativeStyling = prefs.styling == QStringLiteral("Native");
+    const int vertical = qBound(-16, prefs.verticalPosition, 16);
+    const int margin = vertical < 0 ? std::abs(vertical + 1) * 20 : vertical * 20;
+    const SubtitleShadowOptions shadow = subtitleShadowOptions(prefs.dropShadow);
+
+    return {
+        {"sid", !subtitlesEnabled || noSubtitles ? QByteArrayLiteral("no")
+                                                 : QByteArrayLiteral("auto")},
+        {"slang", prefs.language.toUtf8()},
+        {"sub-auto", "all"},
+        {"sub-visibility", mpvBool(!noSubtitles)},
+        {"sub-forced-events-only", mpvBool(onlyForced)},
+        {"subs-with-matching-audio", mpvBool(alwaysPlay)},
+        {"subs-fallback", mpvBool(!noSubtitles && !onlyForced && !smart)},
+        {"subs-fallback-forced", "yes"},
+        {"sub-ass", "yes"},
+        {"sub-ass-override", nativeStyling ? QByteArrayLiteral("no")
+                                           : QByteArrayLiteral("force")},
+        {"sub-use-margins", "yes"},
+        {"sub-font", subtitleFontFamily(prefs.font)},
+        {"sub-font-size", subtitleFontSize(prefs.textSize)},
+        {"sub-bold", mpvBool(prefs.textWeight == QStringLiteral("bold"))},
+        {"sub-pos", vertical < 0 ? QByteArrayLiteral("100")
+                                 : QByteArrayLiteral("0")},
+        {"sub-margin-y", QByteArray::number(margin)},
+        {"sub-color", mpvArgbColor(prefs.textColor, QByteArrayLiteral("#FFFFFFFF"))},
+        {"sub-border-size", shadow.borderSize},
+        {"sub-border-color", "#FF000000"},
+        {"sub-shadow-offset", shadow.shadowOffset},
+        {"sub-shadow-color", shadow.shadowColor},
+    };
 }
 
 } // namespace JellyfinNative
