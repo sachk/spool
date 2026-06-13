@@ -35,16 +35,6 @@ FocusScope {
     readonly property string errorTextValue: appController ? appController.errorText : ""
     readonly property bool busyValue: appController ? appController.busy : false
     readonly property string busyTextValue: appController ? appController.busyText : ""
-    readonly property string routeAccessibleName: accessibleRouteName(route)
-    property string lastAccessibilityAnnouncement: ""
-    Accessible.role: Accessible.Application
-    Accessible.name: routeAccessibleName
-
-    onRouteAccessibleNameChanged: announceStatus(routeAccessibleName)
-    onBusyValueChanged: if (busyValue && busyTextValue.length > 0) announceStatus(busyTextValue)
-    onBusyTextValueChanged: if (busyValue && busyTextValue.length > 0) announceStatus(busyTextValue)
-    onErrorTextValueChanged: if (errorTextValue.length > 0) announceStatus(errorTextValue, Accessible.Assertive)
-
     function controllerRoute() {
         if (!appController)
             return "home"
@@ -53,31 +43,6 @@ FocusScope {
         if (appController.page === "libraries") return "home"
         // page === "movies" — we just opened a library or backed out of playback into one.
         return "libraryGrid"
-    }
-
-    function accessibleRouteName(routeName) {
-        if (routeName === "home") return "Home"
-        if (routeName === "libraries") return "Libraries"
-        if (routeName === "libraryGrid") return appController && appController.currentLibraryName
-                    ? appController.currentLibraryName : "Library"
-        if (routeName === "itemDetails") return "Item details"
-        if (routeName === "personDetails") return "Person details"
-        if (routeName === "search") return "Search"
-        if (routeName === "settings") return "Settings"
-        if (routeName === "playerOverlay") return "Player"
-        if (routeName === "login") return "Sign in"
-        return "Jellyfin"
-    }
-
-    function announceStatus(text, politeness) {
-        const message = String(text || "").trim()
-        if (message.length === 0 || message === lastAccessibilityAnnouncement)
-            return
-        lastAccessibilityAnnouncement = message
-        if (politeness === undefined)
-            root.Accessible.announce(message)
-        else
-            root.Accessible.announce(message, politeness)
     }
 
     Connections {
@@ -486,8 +451,6 @@ FocusScope {
             width: Math.min(620, parent.width - 96)
             height: 104
             elevated: true
-            Accessible.role: Accessible.AlertMessage
-            Accessible.name: root.busyTextValue
             Row {
                 anchors.centerIn: parent
                 spacing: 18
@@ -517,8 +480,6 @@ FocusScope {
         visible: root.errorTextValue.length > 0
         baseColor: Theme.errorPanel
         z: 80
-        Accessible.role: Accessible.AlertMessage
-        Accessible.name: root.errorTextValue
         AppText {
             id: errorText
             anchors.centerIn: parent
