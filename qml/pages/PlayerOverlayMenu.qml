@@ -13,9 +13,6 @@ Rectangle {
     readonly property string menuTitle: overlay.mode === "subtitles" ? "Subtitles"
                                       : overlay.mode === "audio" ? "Audio"
                                       : "Settings"
-    Accessible.role: Accessible.PopupMenu
-    Accessible.name: menuTitle
-
     function dp(n) {
         return Math.round(n * uiScale)
     }
@@ -103,11 +100,6 @@ Rectangle {
                 highlightMoveDuration: 90
                 visible: !menuBody.showPlaceholder
                 onCurrentIndexChanged: positionViewAtIndex(currentIndex, ListView.Contain)
-                Accessible.role: Accessible.List
-                Accessible.name: menuPanel.menuTitle + " options"
-                Accessible.focusable: visible && count > 0
-                Accessible.focused: activeFocus
-
                 FastWheelHandler { flickable: menuList }
 
                 delegate: Rectangle {
@@ -122,16 +114,6 @@ Rectangle {
                     height: dp(46)
                     radius: dp(10)
                     color: current ? Qt.alpha(overlay.accent, 0.18) : "transparent"
-                    Accessible.role: Accessible.MenuItem
-                    Accessible.name: String(modelData)
-                    Accessible.focusable: true
-                    Accessible.focused: current
-                    Accessible.selected: isSelected
-                    Accessible.onPressAction: {
-                        overlay.menuIndex = index
-                        overlay.activateMenuItem()
-                    }
-
                     Rectangle {
                         anchors.left: parent.left
                         anchors.leftMargin: dp(4)
@@ -186,9 +168,6 @@ Rectangle {
                 radius: dp(10)
                 color: "transparent"
                 visible: menuBody.showPlaceholder
-                Accessible.role: Accessible.StaticText
-                Accessible.name: overlay.mode === "subtitles" ? "No subtitles available" : "No audio tracks"
-
                 RowLayout {
                     anchors.fill: parent
                     anchors.leftMargin: dp(16)
