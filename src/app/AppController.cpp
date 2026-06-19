@@ -191,6 +191,11 @@ bool AppController::quickConnectActive() const
     return m_quickConnect->active();
 }
 
+bool AppController::loginSameServer() const
+{
+    return m_loginSameServer;
+}
+
 QString AppController::currentLibraryName() const
 {
     return m_navigation.title();
@@ -442,6 +447,10 @@ void AppController::initialize()
 {
     Diagnostics::Task task(QStringLiteral("app_initialize"));
     m_settings->loadLocal();
+    m_loginSameServer =
+        m_database->loadSetting(QStringLiteral("login/sameServer"),
+                                QStringLiteral("true")) != QStringLiteral("false");
+    emit loginSameServerChanged();
     if (!m_session->initialize()) {
         applyDiscoveredServersCache();
         m_discovery->start();
@@ -520,6 +529,16 @@ void AppController::startQuickConnect()
 void AppController::cancelQuickConnect()
 {
     m_quickConnect->cancel();
+}
+
+void AppController::setLoginSameServer(bool enabled)
+{
+    if (m_loginSameServer == enabled)
+        return;
+    m_loginSameServer = enabled;
+    m_database->saveSetting(QStringLiteral("login/sameServer"),
+                            enabled ? QStringLiteral("true") : QStringLiteral("false"));
+    emit loginSameServerChanged();
 }
 
 void AppController::goHome()
