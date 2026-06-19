@@ -56,7 +56,8 @@ FocusScope {
 
     function rebuildSettingsRows() {
         const rows = [
-            themeRow, languageRow, accentRow, uiScaleRow, logoutRow, posterSizeRow,
+            themeRow, languageRow, accentRow, uiScaleRow, loginSameServerRow,
+            logoutRow, posterSizeRow,
             gridColumnsRow, railLabelsRow, reducedMotionRow,
             renderModeRow, antialiasedRow, metadataRow,
             nightModeRow, streamingBitrateRow, preferRemuxRow, audioDelayRow,
@@ -362,6 +363,16 @@ FocusScope {
                     value: Metrics.userUiScale
                     onValueEdited: Metrics.userUiScale = value
                     onRowFocusChanged: if (rowFocus) root.markFocused(settingIndex)
+                }
+                ToggleRow {
+                    id: loginSameServerRow
+                    Layout.fillWidth: true
+                    rowFocus: root.currentIndex === settingIndex || activeFocus
+                    title: "Login to Same Server"
+                    description: "Skip the server picker on sign in until you change server"
+                    checked: appController ? appController.loginSameServer : true
+                    onToggled: if (appController) appController.setLoginSameServer(checked)
+                    onActiveFocusChanged: if (activeFocus) root.markFocused(settingIndex)
                 }
                 SettingRow {
                     id: logoutRow
