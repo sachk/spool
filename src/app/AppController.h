@@ -290,11 +290,6 @@ private:
     void applyDiscoveredServersCache();
     void loadLibraries();
     void refreshHomeRows();
-    void schedulePostPlaybackRefresh();
-    void refreshCurrentItems(const QString &viewKind,
-                             const QString &libraryId,
-                             const QString &seriesId,
-                             const QString &seasonId);
     void showCurrentItems(const std::vector<MovieItem> &items, const QString &cacheKey = {});
     void showCurrentItemsPage(const PagedMovieItems &page, const QString &cacheKey, bool append);
     void setLibraryQuery(const QVariantMap &query);

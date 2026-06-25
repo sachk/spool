@@ -18,7 +18,6 @@
 #include <QDebug>
 #include <QJsonArray>
 #include <QStringList>
-#include <QTimer>
 #include <QVariantMap>
 
 #include <algorithm>
@@ -1442,21 +1441,6 @@ void AppController::refreshHomeRows()
     m_home->refresh(m_libraries.libraries());
 }
 
-void AppController::schedulePostPlaybackRefresh()
-{
-    const QString viewKind = currentViewKind();
-    const QString libraryId = currentLibraryId();
-    const QString seriesId = m_navigation.seriesId();
-    const QString seasonId = m_navigation.seasonId();
-    QTimer::singleShot(1500, this, [this, viewKind, libraryId, seriesId, seasonId]() {
-        if (!m_api || m_api->session().accessToken.isEmpty())
-            return;
-        qInfo() << "app: post-playback data refresh";
-        refreshHomeRows();
-        refreshCurrentItems(viewKind, libraryId, seriesId, seasonId);
-    });
-}
-
 void AppController::handlePlaybackStopped(const QString &itemId,
                                           qint64 positionTicks,
                                           bool completed)
@@ -1482,8 +1466,6 @@ void AppController::handlePlaybackStopped(const QString &itemId,
     } else {
         m_itemState->applyResumeTicks(itemId, positionTicks);
     }
-
-    schedulePostPlaybackRefresh();
 }
 
 void AppController::playNextEpisodeAfter(const MovieItem &episode)
@@ -1517,46 +1499,6 @@ void AppController::playNextEpisodeAfter(const MovieItem &episode)
             qWarning() << "app: next episode lookup failed"
                        << exceptionMessage(error);
         });
-}
-
-void AppController::refreshCurrentItems(const QString &viewKind,
-                                        const QString &libraryId,
-                                        const QString &seriesId,
-                                        const QString &seasonId)
-{
-    if (viewKind != currentViewKind() || libraryId != currentLibraryId() ||
-        seriesId != m_navigation.seriesId() || seasonId != m_navigation.seasonId())
-        return;
-
-    if (viewKind == QStringLiteral("library") && !libraryId.isEmpty()) {
-        const RequestGeneration::Token loadGeneration = m_libraryLoadGeneration.next();
-        const QString collectionType = currentLibraryCollectionType();
-        const QString cacheKey = m_currentItems->cacheKey();
-        const QVariantMap query = libraryQuery();
-        Async::runLatest(this,
-            m_api->fetchLibraryPage(libraryId, collectionType, 0, kLibraryPageSize, query),
-            m_libraryLoadGeneration, loadGeneration,
-            [this, cacheKey](const PagedMovieItems &page) {
-                showCurrentItemsPage(page, cacheKey, false);
-            },
-            [this](const std::exception_ptr &error) {
-                qWarning() << "app: post-playback library refresh failed" << exceptionMessage(error);
-            });
-        return;
-    }
-
-    if (viewKind == QStringLiteral("episodes") && !seriesId.isEmpty()) {
-        const RequestGeneration::Token loadGeneration = m_libraryLoadGeneration.next();
-        Async::runLatest(this,
-            m_api->fetchEpisodes(seriesId, seasonId),
-            m_libraryLoadGeneration, loadGeneration,
-            [this](const std::vector<MovieItem> &episodes) {
-                m_currentItems->setItems(episodes, m_currentItems->cacheKey());
-            },
-            [this](const std::exception_ptr &error) {
-                qWarning() << "app: post-playback episode refresh failed" << exceptionMessage(error);
-            });
-    }
 }
 
 } // namespace JellyfinNative
