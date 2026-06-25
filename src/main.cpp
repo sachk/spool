@@ -1,5 +1,7 @@
 #include "api/JellyfinApiFacade.h"
 #include "app/AppController.h"
+#include "app/ArtworkImageProvider.h"
+#include "app/CpuTopology.h"
 #include "app/LocalizationManager.h"
 #include "app/NativeAppWindow.h"
 #include "app/QmlNetworkAccessManagerFactory.h"
@@ -74,10 +76,12 @@ constexpr auto kAppVersion = JELLYFIN_VERSION;
 constexpr auto kAppLogPath = "/tmp/com.codex.jellyfinwebosnative.log";
 constexpr qint64 kNetworkDiskCacheBytes = 96LL * 1024LL * 1024LL;
 constexpr qint64 kQmlImageDiskCacheBytes = 160LL * 1024LL * 1024LL;
+constexpr int kArtworkByteCacheBytes = 48 * 1024 * 1024;
 #else
 constexpr auto kAppLogPath = "/tmp/com.codex.jellyfinnative-linux.log";
 constexpr qint64 kNetworkDiskCacheBytes = 256LL * 1024LL * 1024LL;
 constexpr qint64 kQmlImageDiskCacheBytes = 256LL * 1024LL * 1024LL;
+constexpr int kArtworkByteCacheBytes = 96 * 1024 * 1024;
 #endif
 
 FILE *g_logFile = nullptr;
@@ -584,6 +588,19 @@ int main(int argc, char **argv)
     auto *qmlNetworkFactory = new JellyfinNative::QmlNetworkAccessManagerFactory(
         qmlImageCachePath, kQmlImageDiskCacheBytes);
     window.engine()->setNetworkAccessManagerFactory(qmlNetworkFactory);
+    const JellyfinNative::CpuTopology cpuTopology = JellyfinNative::detectCpuTopology();
+    logLine("artwork: cpu logical=%d physical=%d smt=%s source=%s decodeThreads=%d",
+            cpuTopology.logicalCpus,
+            cpuTopology.physicalCores,
+            cpuTopology.smtDetected ? "true" : "false",
+            qPrintable(cpuTopology.source),
+            cpuTopology.artworkDecodeThreads);
+    window.engine()->addImageProvider(QStringLiteral("artwork"),
+                                      new JellyfinNative::ArtworkImageProvider(
+                                          qmlImageCachePath + QStringLiteral("/artwork"),
+                                          kQmlImageDiskCacheBytes,
+                                          kArtworkByteCacheBytes,
+                                          cpuTopology.artworkDecodeThreads));
     window.engine()->addImageProvider(QStringLiteral("mpv-overlay"),
                                       window.createOverlayImageProvider());
     window.engine()->addImportPath(appRootPath + QStringLiteral("/qt-qml"));

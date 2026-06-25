@@ -10,6 +10,12 @@ Item {
     property bool hovered: hover.hovered
     property bool retainWhileLoading: false
 
+    function artworkSource(url) {
+        if (url.indexOf("http://") === 0 || url.indexOf("https://") === 0)
+            return "image://artwork/" + encodeURIComponent(url)
+        return url
+    }
+
     clip: false
     scale: focused && !Theme.reducedMotion ? 1.025 : 1.0
     Behavior on scale { enabled: !Theme.reducedMotion; NumberAnimation { duration: 100; easing.type: Easing.OutQuad } }
@@ -27,7 +33,7 @@ Item {
         Image {
             id: artwork
             anchors.fill: parent
-            source: root.imageUrl
+            source: root.artworkSource(root.imageUrl)
             fillMode: Image.PreserveAspectCrop
             asynchronous: true
             cache: true
