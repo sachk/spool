@@ -42,12 +42,51 @@ set(PKG_CONFIG_EXECUTABLE "${_toolchain_dir}/pkg-config-webos.sh" CACHE FILEPATH
 # Qt's static CMake packages re-run third-party dependency discovery in
 # downstream projects. Keep those lookups pinned to the webOS SDK sysroot so
 # consumers do not need to repeat the same cache hints at every configure site.
+function(_webos_cache_sysroot_library cache_var library_name)
+    if(DEFINED ${cache_var} AND EXISTS "${${cache_var}}")
+        return()
+    endif()
+
+    unset(_webos_resolved_library)
+    unset(_webos_resolved_library CACHE)
+    foreach(_webos_candidate
+            "${CMAKE_SYSROOT}/usr/lib/lib${library_name}.so"
+            "${CMAKE_SYSROOT}/lib/lib${library_name}.so")
+        if(EXISTS "${_webos_candidate}" OR IS_SYMLINK "${_webos_candidate}")
+            set(_webos_resolved_library "${_webos_candidate}")
+            break()
+        endif()
+    endforeach()
+
+    find_library(_webos_resolved_library
+        NAMES ${library_name}
+        PATHS
+            "${CMAKE_SYSROOT}/usr/lib"
+            "${CMAKE_SYSROOT}/lib"
+        NO_DEFAULT_PATH
+        NO_CMAKE_FIND_ROOT_PATH
+    )
+    if(NOT _webos_resolved_library)
+        file(GLOB _webos_library_matches
+            "${CMAKE_SYSROOT}/usr/lib/lib${library_name}.so.*"
+            "${CMAKE_SYSROOT}/lib/lib${library_name}.so.*"
+        )
+        if(_webos_library_matches)
+            list(SORT _webos_library_matches)
+            list(GET _webos_library_matches 0 _webos_resolved_library)
+        endif()
+    endif()
+    if(_webos_resolved_library)
+        set(${cache_var} "${_webos_resolved_library}" CACHE FILEPATH "" FORCE)
+    endif()
+endfunction()
+
 set(GLESv2_INCLUDE_DIR "${CMAKE_SYSROOT}/usr/include" CACHE PATH "")
-set(GLESv2_LIBRARY "${CMAKE_SYSROOT}/usr/lib/libGLESv2.so" CACHE FILEPATH "")
 set(EGL_INCLUDE_DIR "${CMAKE_SYSROOT}/usr/include" CACHE PATH "")
-set(EGL_LIBRARY "${CMAKE_SYSROOT}/usr/lib/libEGL.so" CACHE FILEPATH "")
 set(XKB_INCLUDE_DIR "${CMAKE_SYSROOT}/usr/include" CACHE PATH "")
-set(XKB_LIBRARY "${CMAKE_SYSROOT}/usr/lib/libxkbcommon.so" CACHE FILEPATH "")
+_webos_cache_sysroot_library(GLESv2_LIBRARY GLESv2)
+_webos_cache_sysroot_library(EGL_LIBRARY EGL)
+_webos_cache_sysroot_library(XKB_LIBRARY xkbcommon)
 
 set(FREETYPE_INCLUDE_DIR_freetype2 "${CMAKE_SYSROOT}/usr/include/freetype2" CACHE PATH "")
 set(FREETYPE_INCLUDE_DIR_ft2build "${CMAKE_SYSROOT}/usr/include/freetype2" CACHE PATH "")
@@ -56,10 +95,10 @@ set(Fontconfig_INCLUDE_DIR "${CMAKE_SYSROOT}/usr/include" CACHE PATH "")
 set(Fontconfig_LIBRARY "${CMAKE_SYSROOT}/usr/lib/libfontconfig.so" CACHE FILEPATH "")
 
 set(Wayland_Client_INCLUDE_DIR "${CMAKE_SYSROOT}/usr/include" CACHE PATH "")
-set(Wayland_Client_LIBRARY "${CMAKE_SYSROOT}/usr/lib/libwayland-client.so" CACHE FILEPATH "")
 set(Wayland_Server_INCLUDE_DIR "${CMAKE_SYSROOT}/usr/include" CACHE PATH "")
-set(Wayland_Server_LIBRARY "${CMAKE_SYSROOT}/usr/lib/libwayland-server.so" CACHE FILEPATH "")
 set(Wayland_Cursor_INCLUDE_DIR "${CMAKE_SYSROOT}/usr/include" CACHE PATH "")
-set(Wayland_Cursor_LIBRARY "${CMAKE_SYSROOT}/usr/lib/libwayland-cursor.so" CACHE FILEPATH "")
 set(Wayland_Egl_INCLUDE_DIR "${CMAKE_SYSROOT}/usr/include" CACHE PATH "")
-set(Wayland_Egl_LIBRARY "${CMAKE_SYSROOT}/usr/lib/libwayland-egl.so" CACHE FILEPATH "")
+_webos_cache_sysroot_library(Wayland_Client_LIBRARY wayland-client)
+_webos_cache_sysroot_library(Wayland_Server_LIBRARY wayland-server)
+_webos_cache_sysroot_library(Wayland_Cursor_LIBRARY wayland-cursor)
+_webos_cache_sysroot_library(Wayland_Egl_LIBRARY wayland-egl)

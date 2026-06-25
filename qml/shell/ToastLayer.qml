@@ -6,9 +6,6 @@ Item {
     id: root
     property string message: ""
     function show(text) { message = text; timer.restart() }
-    onMessageChanged: if (message.length > 0) Accessible.announce(message)
-    Accessible.role: Accessible.Notification
-    Accessible.name: message
     Timer { id: timer; interval: 2400; onTriggered: root.message = "" }
 
     Surface {

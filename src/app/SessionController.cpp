@@ -25,10 +25,14 @@ bool SessionController::authenticated() const {
 bool SessionController::initialize() {
   m_serverUrl = m_database->loadLastServerUrl();
   m_username = m_database->loadLastUsername();
+
+  const AuthSession session = m_database->loadAuthSession();
+  if (m_username.isEmpty() && !session.userName.isEmpty())
+    m_username = session.userName;
+
   emit serverUrlChanged();
   emit usernameChanged();
 
-  const AuthSession session = m_database->loadAuthSession();
   if (session.accessToken.isEmpty() || m_serverUrl.isEmpty())
     return false;
 
@@ -119,14 +123,45 @@ void SessionController::activateSession(const AuthSession &session,
     return;
   }
 
-  m_api->setServerUrl(m_serverUrl);
-  m_api->setSession(session);
-  if (persist) {
-    m_database->saveLoginHints(m_serverUrl, m_username);
-    m_database->saveAuthSession(session);
+  AuthSession activeSession = session;
+  if (activeSession.userName.isEmpty())
+    activeSession.userName = m_username;
+  if (!activeSession.userName.isEmpty() && m_username != activeSession.userName) {
+    m_username = activeSession.userName;
+    emit usernameChanged();
   }
 
-  emit authenticatedChanged(session);
+  m_api->setServerUrl(m_serverUrl);
+  m_api->setSession(activeSession);
+  if (persist) {
+    m_database->saveLoginHints(m_serverUrl, m_username);
+    m_database->saveAuthSession(activeSession);
+  }
+
+  if (m_username.isEmpty() && !activeSession.userId.isEmpty()) {
+    Async::runScoped(
+        this, m_api->fetchCurrentUserName(),
+        [this](const QString &userName) {
+          const QString normalized = userName.trimmed();
+          if (normalized.isEmpty() || !m_username.isEmpty())
+            return;
+
+          m_username = normalized;
+          emit usernameChanged();
+
+          AuthSession refreshed = m_api->session();
+          refreshed.userName = normalized;
+          m_api->setSession(refreshed);
+          m_database->saveLoginHints(m_serverUrl, normalized);
+          m_database->saveAuthSession(refreshed);
+        },
+        [](const std::exception_ptr &error) {
+          qWarning() << "session: user name backfill failed"
+                     << exceptionMessage(error);
+        });
+  }
+
+  emit authenticatedChanged(activeSession);
   Async::runScoped(
       this, m_api->postCapabilities(), []() {},
       [](const std::exception_ptr &error) {

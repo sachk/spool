@@ -116,6 +116,10 @@ AppController::AppController(DatabaseManager *database,
             this, &AppController::setErrorText);
     connect(m_session, &SessionController::authenticatedChanged, this,
             [this](const AuthSession &) {
+                if (!m_hasDefaultProfile) {
+                    m_hasDefaultProfile = true;
+                    emit defaultProfileChanged();
+                }
                 m_settings->loadRemote();
                 m_syncPlay->connectSocket();
                 loadLibraries();
@@ -191,9 +195,9 @@ bool AppController::quickConnectActive() const
     return m_quickConnect->active();
 }
 
-bool AppController::loginSameServer() const
+bool AppController::hasDefaultProfile() const
 {
-    return m_loginSameServer;
+    return m_hasDefaultProfile;
 }
 
 QString AppController::currentLibraryName() const
@@ -447,10 +451,11 @@ void AppController::initialize()
 {
     Diagnostics::Task task(QStringLiteral("app_initialize"));
     m_settings->loadLocal();
-    m_loginSameServer =
-        m_database->loadSetting(QStringLiteral("login/sameServer"),
-                                QStringLiteral("true")) != QStringLiteral("false");
-    emit loginSameServerChanged();
+    const bool hasDefaultProfile = !m_database->loadAuthSession().accessToken.isEmpty();
+    if (m_hasDefaultProfile != hasDefaultProfile) {
+        m_hasDefaultProfile = hasDefaultProfile;
+        emit defaultProfileChanged();
+    }
     if (!m_session->initialize()) {
         applyDiscoveredServersCache();
         m_discovery->start();
@@ -486,6 +491,42 @@ void AppController::login()
     m_session->login();
 }
 
+void AppController::useDefaultProfile()
+{
+    setErrorText({});
+    m_quickConnect->cancel();
+
+    if (!m_session->authenticated()) {
+        const AuthSession session = m_database->loadAuthSession();
+        if (session.accessToken.isEmpty() || serverUrl().isEmpty()) {
+            setErrorText(QStringLiteral("This saved profile needs to sign in again."));
+            return;
+        }
+        m_session->acceptSession(session);
+        return;
+    }
+
+    if (m_libraries.rowCount() <= 0) {
+        loadLibraries();
+        return;
+    }
+
+    setBusy(false);
+    setPage(QStringLiteral("libraries"));
+    refreshHomeRows();
+}
+
+void AppController::switchUser()
+{
+    qInfo() << "app: switch user requested";
+    m_quickConnect->cancel();
+    if (m_player->visible())
+        m_player->stopWithReason(QStringLiteral("switch-user"));
+    setBusy(false);
+    setErrorText({});
+    setPage(QStringLiteral("login"));
+}
+
 void AppController::logout()
 {
     qInfo() << "app: logout requested";
@@ -511,6 +552,10 @@ void AppController::resetApplicationState()
     m_currentItems->resetPaging();
     setBusy(false);
     setErrorText({});
+    if (m_hasDefaultProfile) {
+        m_hasDefaultProfile = false;
+        emit defaultProfileChanged();
+    }
     emit currentLibraryNameChanged();
     emit libraryQueryChanged();
     emit libraryFilterOptionsChanged();
@@ -529,16 +574,6 @@ void AppController::startQuickConnect()
 void AppController::cancelQuickConnect()
 {
     m_quickConnect->cancel();
-}
-
-void AppController::setLoginSameServer(bool enabled)
-{
-    if (m_loginSameServer == enabled)
-        return;
-    m_loginSameServer = enabled;
-    m_database->saveSetting(QStringLiteral("login/sameServer"),
-                            enabled ? QStringLiteral("true") : QStringLiteral("false"));
-    emit loginSameServerChanged();
 }
 
 void AppController::goHome()

@@ -21,13 +21,6 @@ T.Control {
     focusPolicy: Qt.StrongFocus
     implicitHeight: 56
     implicitWidth: 320
-    Accessible.role: Accessible.EditableText
-    Accessible.name: label.length > 0 ? label : placeholderText
-    Accessible.editable: true
-    Accessible.passwordEdit: echoMode !== TextInput.Normal
-    Accessible.focusable: enabled
-    Accessible.focused: activeFocus || editing
-    Accessible.onPressAction: focusField()
 
     function focusRow() {
         if (field.activeFocus)

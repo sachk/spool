@@ -125,7 +125,7 @@ archive containing app version `0.2.1` and a 32-bit ARM EABI5 executable.
   unavailable.
 - [x] Factor duplicated qmlimportscanner/Qt deployment setup from AppImage and
   macOS packaging into one helper.
-- [ ] Decide whether the shippable webOS package supports only static Qt, then
+- [x] Decide whether the shippable webOS package supports only static Qt, then
   remove unused shared/static branching.
 - [x] Consolidate the slim-FFmpeg feature declaration and AppImage bloat audit.
 - [x] Add a supported on-device verification command covering install

@@ -39,6 +39,28 @@ int main() {
   require(near(tracker.seekAnchor(true, false), 10.0),
           "seek target was not used as the anchor");
 
+  tracker.reset(20.0);
+  tracker.setDuration(100.0);
+  tracker.beginSeek(80.0);
+  tracker.update(80.0, PlaybackPositionTracker::Source::Seek);
+  tracker.settleSeek();
+  tracker.update(21.0, PlaybackPositionTracker::Source::Mpv);
+  require(near(tracker.position(), 80.0),
+          "stale forward-seek sample replaced optimistic target");
+  tracker.update(78.0, PlaybackPositionTracker::Source::Mpv);
+  require(near(tracker.position(), 78.0),
+          "landed forward-seek sample was not accepted");
+
+  tracker.beginSeek(20.0);
+  tracker.update(20.0, PlaybackPositionTracker::Source::Seek);
+  tracker.settleSeek();
+  tracker.update(77.0, PlaybackPositionTracker::Source::Mpv);
+  require(near(tracker.position(), 20.0),
+          "stale backward-seek sample replaced optimistic target");
+  tracker.update(22.0, PlaybackPositionTracker::Source::Mpv);
+  require(near(tracker.position(), 22.0),
+          "landed backward-seek sample was not accepted");
+
   tracker.allowRegression();
   tracker.update(4.0, PlaybackPositionTracker::Source::Mpv);
   require(near(tracker.position(), 4.0),

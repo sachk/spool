@@ -8,7 +8,7 @@
       flake = false;
     };
     mpv-src = {
-      url = "github:sachk/mpv/1313bdd9aba8eb7014cb02688d45a7b7adc9b3e7";
+      url = "github:sachk/mpv/c8a35dca3da187bbfffa0c4720087bf17bc2c240";
       flake = false;
     };
     mpv-webos-src = {

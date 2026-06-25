@@ -17,12 +17,6 @@ Item {
     signal playedToggled(bool played)
     signal mediaInfoRequested()
 
-    Accessible.role: Accessible.Button
-    Accessible.name: titleText()
-    Accessible.description: subtitleText()
-    Accessible.focusable: true
-    Accessible.focused: focused
-    Accessible.onPressAction: activated()
 
     function titleText() {
         return item.displayTitle || item.title || item.seriesName || ""

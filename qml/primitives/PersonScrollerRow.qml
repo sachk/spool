@@ -87,10 +87,6 @@ FocusScope {
         spacing: root.rowGap
         model: root.peopleModel
         currentIndex: root.rowCount > 0 ? Math.max(0, Math.min(root.currentIndex, root.rowCount - 1)) : -1
-        Accessible.role: Accessible.List
-        Accessible.name: root.title
-        Accessible.focusable: root.rowCount > 0
-        Accessible.focused: activeFocus
         onCurrentIndexChanged: {
             root.currentIndex = currentIndex
             root.ensureVisible()
@@ -103,17 +99,6 @@ FocusScope {
             required property var modelData
             width: root.cardWidth
             height: peopleList.height
-            Accessible.role: Accessible.Button
-            Accessible.name: modelData.name || "Person"
-            Accessible.description: modelData.role || modelData.type || ""
-            Accessible.focusable: true
-            Accessible.focused: index === peopleList.currentIndex && peopleList.activeFocus
-            Accessible.onPressAction: {
-                peopleList.currentIndex = personDelegate.index
-                root.currentIndex = personDelegate.index
-                root.activated(personDelegate.modelData)
-            }
-
             ImageCard {
                 id: personImage
                 anchors.top: parent.top

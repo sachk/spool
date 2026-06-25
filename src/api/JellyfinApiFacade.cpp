@@ -580,6 +580,16 @@ QCoro::Task<AuthSession> JellyfinApiFacade::authenticateWithQuickConnect(QString
     co_return session;
 }
 
+QCoro::Task<QString> JellyfinApiFacade::fetchCurrentUserName()
+{
+    if (m_session.userId.isEmpty())
+        co_return QString();
+
+    const QJsonDocument response =
+        co_await requestJson(HttpMethod::Get, QStringLiteral("/Users/%1").arg(m_session.userId));
+    co_return response.object().value(QStringLiteral("Name")).toString();
+}
+
 QCoro::Task<QJsonObject> JellyfinApiFacade::fetchUserConfiguration()
 {
     if (m_session.userId.isEmpty())

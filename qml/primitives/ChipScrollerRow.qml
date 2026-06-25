@@ -94,10 +94,6 @@ FocusScope {
         spacing: root.rowGap
         model: root.values
         currentIndex: root.rowCount > 0 ? Math.max(0, Math.min(root.currentIndex, root.rowCount - 1)) : -1
-        Accessible.role: Accessible.List
-        Accessible.name: root.title
-        Accessible.focusable: root.rowCount > 0
-        Accessible.focused: activeFocus
         onCurrentIndexChanged: {
             root.currentIndex = currentIndex
             root.ensureVisible()
@@ -111,16 +107,6 @@ FocusScope {
             readonly property bool current: index === listView.currentIndex && listView.activeFocus
             width: chipLabel.implicitWidth + 28
             height: root.chipHeight
-            Accessible.role: Accessible.Button
-            Accessible.name: String(modelData || "")
-            Accessible.focusable: true
-            Accessible.focused: current
-            Accessible.onPressAction: {
-                listView.currentIndex = chip.index
-                root.currentIndex = chip.index
-                root.activated(String(chip.modelData || ""))
-            }
-
             Rectangle {
                 anchors.fill: parent
                 radius: height / 2

@@ -83,16 +83,53 @@ qt_standard_project_setup(
 
 if(JELLYFIN_NATIVE_WEBOS)
     pkg_check_modules(GLIB REQUIRED IMPORTED_TARGET glib-2.0)
-    find_library(EGL_LIB EGL REQUIRED)
-    find_library(GLES2_LIB GLESv2 REQUIRED)
-    find_library(WAYLAND_EGL_LIB wayland-egl REQUIRED)
-    find_library(WAYLAND_CLIENT_LIB wayland-client REQUIRED)
-    find_library(WAYLAND_WEBOS_CLIENT_LIB wayland-webos-client REQUIRED)
-    find_library(WEBOS_HELPERS_LIB helpers REQUIRED)
-    find_library(LUNA_SERVICE_LIB luna-service2 REQUIRED)
     set(WEBOS_NATIVE_LIB_DIR "${CMAKE_SYSROOT}/usr/local/webos-native/lib")
     set(WEBOS_SYSROOT_LIB_DIR "${CMAKE_SYSROOT}/usr/lib")
     set(WEBOS_SYSROOT_BASE_LIB_DIR "${CMAKE_SYSROOT}/lib")
+
+    function(find_webos_sysroot_library out_var library_name)
+        foreach(candidate
+                "${WEBOS_SYSROOT_LIB_DIR}/lib${library_name}.so"
+                "${WEBOS_SYSROOT_BASE_LIB_DIR}/lib${library_name}.so")
+            if(EXISTS "${candidate}" OR IS_SYMLINK "${candidate}")
+                set(${out_var} "${candidate}" PARENT_SCOPE)
+                return()
+            endif()
+        endforeach()
+
+        find_library(${out_var}
+            NAMES ${library_name}
+            PATHS
+                "${WEBOS_SYSROOT_LIB_DIR}"
+                "${WEBOS_SYSROOT_BASE_LIB_DIR}"
+            NO_DEFAULT_PATH
+            NO_CMAKE_FIND_ROOT_PATH
+        )
+        if(NOT ${out_var})
+            file(GLOB matches
+                "${WEBOS_SYSROOT_LIB_DIR}/lib${library_name}.so.*"
+                "${WEBOS_SYSROOT_BASE_LIB_DIR}/lib${library_name}.so.*"
+            )
+            if(matches)
+                list(SORT matches)
+                list(GET matches 0 resolved_library)
+                set(${out_var} "${resolved_library}" PARENT_SCOPE)
+                return()
+            endif()
+        endif()
+        if(NOT ${out_var})
+            message(FATAL_ERROR "Could not find webOS sysroot library: ${library_name}")
+        endif()
+        set(${out_var} "${${out_var}}" PARENT_SCOPE)
+    endfunction()
+
+    find_webos_sysroot_library(EGL_LIB EGL)
+    find_webos_sysroot_library(GLES2_LIB GLESv2)
+    find_webos_sysroot_library(WAYLAND_EGL_LIB wayland-egl)
+    find_webos_sysroot_library(WAYLAND_CLIENT_LIB wayland-client)
+    find_webos_sysroot_library(WAYLAND_WEBOS_CLIENT_LIB wayland-webos-client)
+    find_webos_sysroot_library(WEBOS_HELPERS_LIB helpers)
+    find_webos_sysroot_library(LUNA_SERVICE_LIB luna-service2)
     set(AVCODEC_LIB "${WEBOS_NATIVE_LIB_DIR}/libavcodec.so")
     set(AVFILTER_LIB "${WEBOS_NATIVE_LIB_DIR}/libavfilter.so")
     set(AVFORMAT_LIB "${WEBOS_NATIVE_LIB_DIR}/libavformat.so")
@@ -524,7 +561,11 @@ endif()
 # controls this project's libraries, not whether the imported Qt build is static.
 get_target_property(JELLYFIN_QT_CORE_TARGET_TYPE Qt6::Core TYPE)
 if(JELLYFIN_QT_CORE_TARGET_TYPE STREQUAL "STATIC_LIBRARY")
-    find_library(XKBCOMMON_LIB xkbcommon REQUIRED)
+    if(JELLYFIN_NATIVE_WEBOS)
+        find_webos_sysroot_library(XKBCOMMON_LIB xkbcommon)
+    else()
+        find_library(XKBCOMMON_LIB xkbcommon REQUIRED)
+    endif()
     target_link_libraries(jellyfin-native PRIVATE ${XKBCOMMON_LIB})
 
     if(JELLYFIN_NATIVE_WEBOS)

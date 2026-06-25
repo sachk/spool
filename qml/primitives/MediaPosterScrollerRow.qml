@@ -119,10 +119,6 @@ FocusScope {
         spacing: root.rowGap
         model: root.rowModel
         currentIndex: root.rowCount > 0 ? Math.max(0, Math.min(root.currentIndex, root.rowCount - 1)) : -1
-        Accessible.role: Accessible.List
-        Accessible.name: root.title
-        Accessible.focusable: root.rowCount > 0
-        Accessible.focused: activeFocus
         onCurrentIndexChanged: {
             root.currentIndex = currentIndex
             root.ensureVisible()

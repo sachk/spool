@@ -11,23 +11,13 @@ T.Button {
     implicitWidth: Math.max(132, buttonContent.implicitWidth + 34)
     implicitHeight: Metrics.controlHeight(root.Window.window ? root.Window.window.width : 1920)
     focusPolicy: Qt.StrongFocus
-    Accessible.role: Accessible.Button
-    Accessible.name: text
-    Accessible.focusable: enabled
-    Accessible.focused: activeFocus
-    Accessible.onPressAction: clicked()
 
     background: Rectangle {
         radius: Theme.radiusMedium
-        color: root.down ? Theme.bgRaised : root.kind === "flat" ? "transparent" : Theme.bgPanel
+        color: root.kind === "primary" ? root.down ? Theme.accentDim : root.pointerHovered || root.activeFocus ? Theme.accent : Theme.accentDim : root.down ? Theme.bgRaised : root.kind === "flat" ? "transparent" : Theme.bgPanel
         border.width: root.activeFocus ? 2 : root.pointerHovered ? 1 : root.kind === "flat" ? 0 : 1
-        border.color: root.activeFocus ? Theme.accent : root.pointerHovered ? Theme.borderStrong : Theme.border
+        border.color: root.activeFocus ? Theme.textPrimary : root.pointerHovered ? Theme.borderStrong : root.kind === "primary" ? Theme.accentDim : Theme.border
         antialiasing: true
-
-        gradient: Gradient {
-            GradientStop { position: 0.0; color: root.kind === "primary" ? Theme.jellyfinBlue : root.down ? Theme.bgRaised : root.kind === "flat" ? "transparent" : Theme.bgPanel }
-            GradientStop { position: 1.0; color: root.kind === "primary" ? Theme.jellyfinPurple : root.down ? Theme.bgRaised : root.kind === "flat" ? "transparent" : Theme.bgPanel }
-        }
     }
 
     contentItem: Item {
@@ -56,5 +46,7 @@ T.Button {
         }
     }
 
-    HoverHandler { id: hover }
+    HoverHandler {
+        id: hover
+    }
 }
