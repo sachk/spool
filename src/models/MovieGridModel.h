@@ -42,6 +42,7 @@ public:
         LogoUrlRole,
         BannerUrlRole,
         ThumbUrlRole,
+        LandscapeCardUrlRole,
         GenresRole,
         TagsRole,
         StudiosRole,

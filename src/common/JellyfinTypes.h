@@ -98,6 +98,7 @@ struct MovieItem {
     QString logoUrl;
     QString bannerUrl;
     QString thumbUrl;
+    QString landscapeCardUrl;
     QStringList genres;
     QStringList tags;
     QStringList studios;

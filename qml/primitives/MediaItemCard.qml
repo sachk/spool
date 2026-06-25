@@ -34,7 +34,7 @@ Item {
     }
 
     function landscapeImage() {
-        return item.thumbUrl || item.backdropUrl || item.posterUrl || item.seriesPosterUrl || ""
+        return item.landscapeCardUrl || item.thumbUrl || item.backdropUrl || item.posterUrl || item.seriesPosterUrl || ""
     }
 
     function handleAcceptPressed(key) {

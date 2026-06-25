@@ -365,6 +365,15 @@ MovieItem mediaItemFromJson(const JellyfinApiFacade *api, const QJsonObject &obj
     item.thumbUrl = thumbTag.isEmpty()
         ? QString()
         : api->buildImageUrl(itemId, thumbTag, 720, 82, QStringLiteral("webp"), QStringLiteral("Thumb"));
+    const int landscapeCardWidth = api->landscapeCardImageWidth();
+    const int landscapeCardQuality = api->landscapeCardImageQuality();
+    if (!thumbTag.isEmpty()) {
+        item.landscapeCardUrl = api->buildImageUrl(
+            itemId, thumbTag, landscapeCardWidth, landscapeCardQuality, QStringLiteral("webp"), QStringLiteral("Thumb"));
+    } else if (!backdropTag.isEmpty()) {
+        item.landscapeCardUrl = api->buildImageUrl(
+            itemId, backdropTag, landscapeCardWidth, landscapeCardQuality, QStringLiteral("webp"), QStringLiteral("Backdrop"));
+    }
     item.genres = stringsFromJsonArray(object.value(QStringLiteral("Genres")).toArray());
     item.tags = stringsFromJsonArray(object.value(QStringLiteral("Tags")).toArray());
     item.studios = studioNamesFromJsonArray(object.value(QStringLiteral("Studios")).toArray());
@@ -477,6 +486,22 @@ void JellyfinApiFacade::setPlaybackPreferences(qint64 maxStreamingBitrate,
     m_maxStreamingBitrate =
         std::clamp<qint64>(maxStreamingBitrate, 1'000'000, 1'000'000'000);
     m_preferRemux = preferRemux;
+}
+
+void JellyfinApiFacade::setArtworkUiWidth(int width)
+{
+    if (width > 0)
+        m_artworkUiWidth = width;
+}
+
+int JellyfinApiFacade::landscapeCardImageWidth() const
+{
+    return m_artworkUiWidth >= 3000 ? 640 : 400;
+}
+
+int JellyfinApiFacade::landscapeCardImageQuality() const
+{
+    return m_artworkUiWidth >= 3000 ? 70 : 68;
 }
 
 AuthSession JellyfinApiFacade::session() const
