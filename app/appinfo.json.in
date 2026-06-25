@@ -17,6 +17,12 @@
   "inspectable": true,
   "transparent": false,
   "handlesRelaunch": true,
+  "requiredPermissions": [
+    "application.operation",
+    "ime.operation",
+    "media",
+    "media.pipeline"
+  ],
   "requiredMemory": 300,
   "nativeLifeCycleInterfaceVersion": 2
 }
