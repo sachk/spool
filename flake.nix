@@ -247,7 +247,11 @@
             pkgs.lib.makeSearchPath pkgs.qt6.qtbase.qtQmlPrefix
               (nativeQtPackages pkgs);
           nativeRuntimeLibPath = pkgs.lib.makeLibraryPath (nativeRuntimePackages pkgs);
-          runner = pkgs.writeShellScriptBin "jellyfin-native-run" ''
+          # Builds the native binary (unless JELLYFIN_NO_REBUILD is set) and
+          # runs it inside the #native dev shell. `launchPrefix` lets callers
+          # wrap the executable, e.g. with GammaRay's launcher.
+          makeRunner = { name, launchPrefix ? "" }:
+            pkgs.writeShellScriptBin name ''
             export PATH="${pkgs.lib.makeBinPath [ pkgs.nix pkgs.bashInteractive pkgs.coreutils pkgs.gnugrep pkgs.gnused ]}:$PATH"
             set -euo pipefail
 
@@ -273,12 +277,40 @@
             export MPV_LIB="$REPO_ROOT/build/linux-release/mpv-prefix/lib"
             runtime_env='export LD_LIBRARY_PATH="$MPV_LIB:${nativeRuntimeLibPath}''${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"; export QT_PLUGIN_PATH="${qtPluginPath}"; export QML2_IMPORT_PATH="${qmlImportPath}"; export QML_IMPORT_PATH="$QML2_IMPORT_PATH"'
             export LC_NUMERIC=C
-            exec nix develop "$REPO_ROOT#native" -c bash -c "$scrub; $runtime_env"'; exec "$@"' _ "$BIN" "$@"
+            exec nix develop "$REPO_ROOT#native" -c bash -c "$scrub; $runtime_env"'; exec ${launchPrefix}"$@"' _ "$BIN" "$@"
           '';
+
+          runner = makeRunner { name = "jellyfin-native-run"; };
+
+          # GammaRay launches the target and opens its introspection GUI. The
+          # nixpkgs `gammaray` probe must match the app's Qt; the #native shell
+          # builds the app against nixpkgs Qt, so they line up.
+          gammarayRunner = makeRunner {
+            name = "jellyfin-native-gammaray";
+            # QuickInspector updates its scene-graph model on every render and
+            # crashes GammaRay 3.4 during the mpv overlay transition. Keep the
+            # default profiling runner stable; use .#gammaray-full for Quick Scenes.
+            launchPrefix = "env GAMMARAY_DisabledPlugins=gammaray_quickinspector gammaray ";
+          };
+
+          gammarayFullRunner = makeRunner {
+            name = "jellyfin-native-gammaray-full";
+            launchPrefix = "gammaray ";
+          };
         in {
           default = {
             type = "app";
             program = "${runner}/bin/jellyfin-native-run";
+          };
+
+          gammaray = {
+            type = "app";
+            program = "${gammarayRunner}/bin/jellyfin-native-gammaray";
+          };
+
+          gammaray-full = {
+            type = "app";
+            program = "${gammarayFullRunner}/bin/jellyfin-native-gammaray-full";
           };
         });
     };
