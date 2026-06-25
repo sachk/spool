@@ -165,8 +165,12 @@ qt_add_executable(jellyfin-native
     src/api/HttpRequestPolicy.h
     src/app/AppController.cpp
     src/app/AppController.h
+    src/app/ArtworkImageProvider.cpp
+    src/app/ArtworkImageProvider.h
     src/app/ContentModelController.cpp
     src/app/ContentModelController.h
+    src/app/CpuTopology.cpp
+    src/app/CpuTopology.h
     src/app/CurrentItemsController.cpp
     src/app/CurrentItemsController.h
     src/app/HomeModelController.cpp
