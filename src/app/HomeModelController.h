@@ -44,6 +44,7 @@ public:
     void reset();
 
 signals:
+    void homeRowsChanged();
     void latestLibraryRowsChanged();
 
 private:

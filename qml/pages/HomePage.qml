@@ -43,10 +43,13 @@ FocusScope {
 
     Connections {
         target: appController
+        function onHomeRowsChanged() {
+            root.refreshSections()
+        }
         function onLatestLibraryRowsChanged() {
             root.latestRows = appController ? appController.latestLibraryRows : []
             root.latestLibraryRowCount = root.latestRows ? root.latestRows.length : 0
-            root.rebuildSections()
+            root.refreshSections()
         }
     }
     ListModel { id: sectionModel }
@@ -68,6 +71,14 @@ FocusScope {
                 appendSection(row.title || ("Recently Added in " + (row.libraryName || "Library")),
                               row.kind || "poster", "latestLibrary", Number(row.rowIndex || i))
         }
+    }
+
+    function refreshSections() {
+        latestCountObserver.refresh()
+        libraryCountObserver.refresh()
+        resumeCountObserver.refresh()
+        nextUpCountObserver.refresh()
+        rebuildSections()
     }
 
     function countFor(source, rowIndex) {
