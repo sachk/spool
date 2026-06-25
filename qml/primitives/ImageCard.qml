@@ -9,12 +9,35 @@ Item {
     property bool focused: false
     property bool hovered: hover.hovered
     property bool retainWhileLoading: false
+    property bool loadImage: true
+    property int loadDelay: 0
+    property string activeImageUrl: ""
 
     function artworkSource(url) {
         if (url.indexOf("http://") === 0 || url.indexOf("https://") === 0)
             return "image://artwork/" + encodeURIComponent(url)
         return url
     }
+
+    function updateActiveImage(clearCurrent) {
+        loadTimer.stop()
+        if (clearCurrent)
+            activeImageUrl = ""
+        if (!loadImage || imageUrl.length <= 0) {
+            activeImageUrl = ""
+            return
+        }
+        if (loadDelay <= 0) {
+            activeImageUrl = imageUrl
+            return
+        }
+        loadTimer.restart()
+    }
+
+    onImageUrlChanged: updateActiveImage(true)
+    onLoadImageChanged: updateActiveImage(!loadImage)
+    onLoadDelayChanged: updateActiveImage(false)
+    Component.onCompleted: updateActiveImage(false)
 
     clip: false
     scale: focused && !Theme.reducedMotion ? 1.025 : 1.0
@@ -33,7 +56,7 @@ Item {
         Image {
             id: artwork
             anchors.fill: parent
-            source: root.artworkSource(root.imageUrl)
+            source: root.activeImageUrl.length > 0 ? root.artworkSource(root.activeImageUrl) : ""
             fillMode: Image.PreserveAspectCrop
             asynchronous: true
             cache: true
@@ -70,6 +93,13 @@ Item {
             visible: root.focused
             color: Theme.accentPurple
         }
+    }
+
+    Timer {
+        id: loadTimer
+        interval: root.loadDelay
+        repeat: false
+        onTriggered: if (root.loadImage) root.activeImageUrl = root.imageUrl
     }
 
     HoverHandler { id: hover }

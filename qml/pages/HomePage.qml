@@ -42,6 +42,14 @@ FocusScope {
         return 304
     }
 
+    function shouldLoadRowImages(row) {
+        if (!row || !row.rowVisible)
+            return false
+        const preload = Math.round(scroller.height * 0.55)
+        return row.y + row.height >= scroller.contentY - preload
+                && row.y <= scroller.contentY + scroller.height + preload
+    }
+
     function modelFor(source, rowIndex) {
         if (source === "resumeItems") return resumeModel
         if (source === "nextUpItems") return nextUpModel
@@ -236,6 +244,7 @@ FocusScope {
                 rowModel: root.libraryModel
                 shell: root.shell
                 rowKind: "library"
+                loadImages: root.shouldLoadRowImages(librariesRow)
                 cardWidth: Metrics.homeLandscapeWidth(root.width)
                 cardGap: Metrics.gap(root.width)
                 onRowVisibleChanged: root.scheduleFocusRepair()
@@ -253,6 +262,7 @@ FocusScope {
                 rowModel: root.resumeModel
                 shell: root.shell
                 rowKind: "landscape"
+                loadImages: root.shouldLoadRowImages(resumeRow)
                 cardWidth: Metrics.homeLandscapeWidth(root.width)
                 cardGap: Metrics.gap(root.width)
                 onRowVisibleChanged: root.scheduleFocusRepair()
@@ -273,6 +283,7 @@ FocusScope {
                 rowModel: root.nextUpModel
                 shell: root.shell
                 rowKind: "landscape"
+                loadImages: root.shouldLoadRowImages(nextUpRow)
                 cardWidth: Metrics.homeLandscapeWidth(root.width)
                 cardGap: Metrics.gap(root.width)
                 onRowVisibleChanged: root.scheduleFocusRepair()
@@ -304,6 +315,7 @@ FocusScope {
                     shell: root.shell
                     rowKind: modelData && modelData.kind ? modelData.kind : "poster"
                     useSeriesPoster: true
+                    loadImages: root.shouldLoadRowImages(latestRow)
                     cardWidth: rowKind === "poster"
                                ? Metrics.homePosterWidth(root.width)
                                : Metrics.homeLandscapeWidth(root.width)
