@@ -2,91 +2,58 @@
 
 APP_ID="com.codex.jellyfinwebosnative"
 APP_DIR="/media/developer/apps/usr/palm/applications/$APP_ID"
-# LS2 dev-mode roles match a process by its exeName. When the heaptrack launch
-# shim is bundled, bin/jellyfin-native is a shell shim that exec()s the real
-# binary (bin/jellyfin-native.real) -- so the process that opens the Starfish
-# LS2 client is .real, and the role must name *that* exe or the SMP library's
-# anonymous registration is denied (LSRegisterPubPriv FAILED -> black screen).
 if [ -x "$APP_DIR/bin/jellyfin-native.real" ]; then
   APP_BIN="$APP_DIR/bin/jellyfin-native.real"
 else
   APP_BIN="$APP_DIR/bin/jellyfin-native"
 fi
 
-for DIR in /var/palm/ls2-dev/roles/pub /var/palm/ls2-dev/roles/prv; do
-  mkdir -p "$DIR" 2>/dev/null
-  cat > "$DIR/$APP_ID.json" <<ROLE
-{
-    "role": {
-    "exeName":"$APP_BIN",
-    "type": "regular",
-    "allowedNames": ["com.webos.media.client.*","com.webos.rm.client.*","com.webos.pipeline.*","com.webos.pipe.avmuteclient.*","com.webos.vt.*","com.webos.chromium.media.*","com.webos.avconnector.*","com.webos.service.ime.client.*","$APP_ID",""]
-    },
-    "permissions": [
-        {"service":"com.webos.media.client.*","outbound":["com.webos.media"],"inbound":["com.webos.media"]},
-        {"service":"com.webos.rm.client.*","outbound":["com.webos.media"],"inbound":["com.webos.media"]},
-        {"service":"com.webos.pipeline.*","outbound":["com.webos.pipelinectrl.*"],"inbound":["com.webos.pipelinectrl.*"]},
-        {"service":"com.webos.pipe.avmuteclient.*","outbound":["com.webos.service.avmutemanager"],"inbound":[]},
-        {"service":"com.webos.vt.*","outbound":["*"],"inbound":["*"]},
-        {"service":"com.webos.chromium.media.*","outbound":["*"],"inbound":[]},
-        {"service":"com.webos.avconnector.*","outbound":["com.webos.service.videooutput","com.webos.service.audio","com.webos.service.config"],"inbound":[]},
-        {"service":"com.webos.service.ime.client.*","outbound":["com.webos.service.ime"],"inbound":["com.webos.service.ime"]},
-        {"service":"$APP_ID","outbound":["*"],"inbound":[]}
-    ]
-}
-ROLE
+for LEGACY in \
+  "/var/luna-service2/roles.d/$APP_ID.app.json" \
+  "/var/luna-service2/client-permissions.d/$APP_ID.app.json" \
+  "/var/luna-service2/manifests.d/$APP_ID.manifest.json"; do
+  rm -f "$LEGACY"
 done
 
-mkdir -p /var/luna-service2/roles.d 2>/dev/null
-cat > "/var/luna-service2/roles.d/$APP_ID.app.json" <<ROLE
+mkdir -p /var/palm/ls2-dev/roles/pub /var/palm/ls2-dev/roles/prv 2>/dev/null
+
+cat > "/var/palm/ls2-dev/roles/pub/$APP_ID.json" <<ROLE
 {
-  "exeName": "$APP_BIN",
-  "type": "regular",
-  "allowedNames": ["$APP_ID","com.webos.pipeline.*","com.webos.pipelinectrl.*","com.webos.media.client.*","com.webos.rm.client.*","com.webos.pipe.avmuteclient.*","com.webos.vt.*","com.webos.chromium.media.*","com.webos.avconnector.*","com.webos.service.ime.client.*",""],
-  "trustLevel": "dev",
+  "role": {
+    "exeName":"$APP_BIN",
+    "type": "regular",
+    "allowedNames": ["com.webos.media.client.*","com.webos.rm.client.*","com.webos.pipeline.*","com.webos.pipe.avmuteclient.*","com.webos.vt.*","com.webos.chromium.media.*",""]
+  },
   "permissions": [
-    {"service":"$APP_ID","outbound":["*"]},
-    {"service":"com.webos.pipeline.*","outbound":["com.webos.pipelinectrl.*"],"inbound":["com.webos.pipelinectrl.*"]},
     {"service":"com.webos.media.client.*","outbound":["com.webos.media"],"inbound":["com.webos.media"]},
     {"service":"com.webos.rm.client.*","outbound":["com.webos.media"],"inbound":["com.webos.media"]},
-    {"service":"com.webos.pipe.avmuteclient.*","outbound":["com.webos.service.avmutemanager"]},
+    {"service":"com.webos.pipeline.*","outbound":["com.webos.pipelinectrl.*"],"inbound":["com.webos.pipelinectrl.*"]},
+    {"service":"com.webos.pipe.avmuteclient.*","outbound":["com.webos.service.avmutemanager"],"inbound":[]},
     {"service":"com.webos.vt.*","outbound":["*"],"inbound":["*"]},
-    {"service":"com.webos.chromium.media.*","outbound":["*"]},
-    {"service":"com.webos.avconnector.*","outbound":["com.webos.service.videooutput","com.webos.service.audio","com.webos.service.config"]},
-    {"service":"com.webos.service.ime.client.*","outbound":["com.webos.service.ime"],"inbound":["com.webos.service.ime"]}
+    {"service":"com.webos.chromium.media.*","outbound":["*"],"inbound":[]}
   ]
 }
 ROLE
 
-mkdir -p /var/luna-service2/client-permissions.d 2>/dev/null
-cat > "/var/luna-service2/client-permissions.d/$APP_ID.app.json" <<PERM
+cat > "/var/palm/ls2-dev/roles/prv/$APP_ID.json" <<ROLE
 {
-  "$APP_ID":["public","media","all"],
-  "com.webos.pipeline.*":["public","media","all"],
-  "com.webos.pipelinectrl.*":["public","media","all"],
-  "com.webos.media.client.*":["public","media","all"],
-  "com.webos.rm.client.*":["public","media","all"],
-  "com.webos.pipe.avmuteclient.*":["public","media","all"],
-  "com.webos.vt.*":["public","media","all"],
-  "com.webos.chromium.media.*":["public","media","all"],
-  "com.webos.avconnector.*":["public","media","all"],
-  "com.webos.service.ime.client.*":["public","media","all"]
+  "role": {
+    "exeName":"$APP_BIN",
+    "type": "regular",
+    "allowedNames": ["com.webos.media.client.*","com.webos.rm.client.*","com.webos.pipeline.*","com.webos.pipe.avmuteclient.*","com.webos.vt.*","com.webos.chromium.media.*","com.webos.avconnector.*",""]
+  },
+  "permissions": [
+    {"service":"com.webos.media.client.*","outbound":["com.webos.media"],"inbound":["com.webos.media"]},
+    {"service":"com.webos.rm.client.*","outbound":["com.webos.media"],"inbound":["com.webos.media"]},
+    {"service":"com.webos.pipeline.*","outbound":["com.webos.pipelinectrl.*"],"inbound":["com.webos.pipelinectrl.*"]},
+    {"service":"com.webos.pipe.avmuteclient.*","outbound":["com.webos.service.avmutemanager"],"inbound":[]},
+    {"service":"com.webos.vt.*","outbound":["*"],"inbound":["*"]},
+    {"service":"com.webos.chromium.media.*","outbound":["*"],"inbound":[]},
+    {"service":"com.webos.avconnector.*","outbound":["com.webos.service.videooutput","com.webos.service.audio","com.webos.service.config"],"inbound":[]}
+  ]
 }
-PERM
-
-mkdir -p /var/luna-service2/manifests.d 2>/dev/null
-cat > "/var/luna-service2/manifests.d/$APP_ID.manifest.json" <<MANIFEST
-{
-  "id": "$APP_ID",
-  "version": "1.0.0",
-  "roleFiles": ["/var/luna-service2/roles.d/$APP_ID.app.json"],
-  "clientPermissionFiles": ["/var/luna-service2/client-permissions.d/$APP_ID.app.json"],
-  "roleFilesPub": ["/var/palm/ls2-dev/roles/pub/$APP_ID.json"],
-  "roleFilesPrv": ["/var/palm/ls2-dev/roles/prv/$APP_ID.json"]
-}
-MANIFEST
+ROLE
 
 ls2-control scan-services 2>/dev/null || true
-killall -HUP ls-hubd 2>/dev/null || true
 
 exit 0
