@@ -273,6 +273,7 @@ signals:
     void searchChanged();
     void searchSuggestionsChanged();
     void detailRowsChanged();
+    void homeRowsChanged();
     void latestLibraryRowsChanged();
     void currentItemsPagingChanged();
     void libraryQueryChanged();

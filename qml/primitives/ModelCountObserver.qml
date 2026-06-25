@@ -10,23 +10,40 @@ Item {
     width: 0
     height: 0
 
-    function refresh() {
-        if (!sourceModel) {
-            count = 0
-            return
-        }
-        count = sourceModel.count !== undefined ? sourceModel.count
-                                                : sourceModel.rowCount ? sourceModel.rowCount() : 0
+    function modelCount() {
+        if (!sourceModel)
+            return 0
+        if (typeof sourceModel.rowCount === "function")
+            return sourceModel.rowCount()
+        return sourceModel.count !== undefined ? sourceModel.count : 0
     }
 
-    onSourceModelChanged: refresh()
-    Component.onCompleted: refresh()
+    function refresh() {
+        count = modelCount()
+    }
+
+    function refreshLater() {
+        refreshTimer.restart()
+    }
+
+    onSourceModelChanged: refreshLater()
+    Component.onCompleted: refreshLater()
+
+    Timer {
+        id: refreshTimer
+        interval: 0
+        repeat: false
+        onTriggered: root.refresh()
+    }
 
     Connections {
         target: root.sourceModel
-        function onCountChanged() { root.refresh() }
-        function onModelReset() { root.refresh() }
-        function onRowsInserted() { root.refresh() }
-        function onRowsRemoved() { root.refresh() }
+        ignoreUnknownSignals: true
+        function onCountChanged() { root.refreshLater() }
+        function onModelReset() { root.refreshLater() }
+        function onRowsInserted() { root.refreshLater() }
+        function onRowsMoved() { root.refreshLater() }
+        function onRowsRemoved() { root.refreshLater() }
+        function onLayoutChanged() { root.refreshLater() }
     }
 }

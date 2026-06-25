@@ -141,6 +141,7 @@ void HomeModelController::refresh(const std::vector<LibraryItem> &libraries)
         [this, generation](const std::vector<MovieItem> &items) {
             qInfo() << "home: resume items" << items.size() << homeItemSample(items);
             m_resumeItems.setMovies(items);
+            emit homeRowsChanged();
             m_prefetch->prefetchPosters(items);
             handleHomeRowLoaded(generation);
         },
@@ -154,6 +155,7 @@ void HomeModelController::refresh(const std::vector<LibraryItem> &libraries)
         [this, generation](const std::vector<MovieItem> &items) {
             qInfo() << "home: next-up items" << items.size() << homeItemSample(items);
             m_nextUpItems.setMovies(items);
+            emit homeRowsChanged();
             m_prefetch->prefetchPosters(items);
             handleHomeRowLoaded(generation);
         },
@@ -193,13 +195,15 @@ void HomeModelController::recordLibraryUse(const LibraryItem &library)
 void HomeModelController::updateResumeTicks(const QString &itemId, qint64 positionTicks)
 {
     m_resumeItems.updateResumeTicks(itemId, positionTicks);
-    m_resumeItems.removeUnresumable();
+    const bool resumeRowsChanged = m_resumeItems.removeUnresumable();
     m_nextUpItems.updateResumeTicks(itemId, positionTicks);
     m_latestItems.updateResumeTicks(itemId, positionTicks);
     for (LatestLibrarySection &section : m_latestLibrarySections) {
         if (section.model)
             section.model->updateResumeTicks(itemId, positionTicks);
     }
+    if (resumeRowsChanged)
+        emit homeRowsChanged();
 }
 
 void HomeModelController::updateFavorite(const QString &itemId, bool favorite)
@@ -216,13 +220,15 @@ void HomeModelController::updateFavorite(const QString &itemId, bool favorite)
 void HomeModelController::updatePlayed(const QString &itemId, bool played)
 {
     m_resumeItems.updatePlayed(itemId, played);
-    m_resumeItems.removeUnresumable();
+    const bool resumeRowsChanged = m_resumeItems.removeUnresumable();
     m_nextUpItems.updatePlayed(itemId, played);
     m_latestItems.updatePlayed(itemId, played);
     for (LatestLibrarySection &section : m_latestLibrarySections) {
         if (section.model)
             section.model->updatePlayed(itemId, played);
     }
+    if (resumeRowsChanged)
+        emit homeRowsChanged();
 }
 
 void HomeModelController::reset()
@@ -236,6 +242,7 @@ void HomeModelController::reset()
     m_librariesForPrefetch.clear();
     m_recentLibraryIds.clear();
     clearLatestLibraryRows();
+    emit homeRowsChanged();
 }
 
 void HomeModelController::clearLatestLibraryRows()

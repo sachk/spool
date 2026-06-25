@@ -78,6 +78,8 @@ AppController::AppController(DatabaseManager *database,
             this, &AppController::itemPlayedChanged);
     connect(m_currentItems, &CurrentItemsController::pagingChanged,
             this, &AppController::currentItemsPagingChanged);
+    connect(m_home, &HomeModelController::homeRowsChanged,
+            this, &AppController::homeRowsChanged);
     connect(m_home, &HomeModelController::latestLibraryRowsChanged,
             this, &AppController::latestLibraryRowsChanged);
     connect(m_quickConnect, &QuickConnectController::changed,
