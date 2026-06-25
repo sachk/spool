@@ -526,12 +526,14 @@ FocusScope {
     }
 
     Rectangle {
+        id: busyOverlay
         anchors.fill: parent
         visible: root.busyValue && !(root.hasPlayer && root.player.visible)
         color: Theme.busyScrim
         z: 40
         Surface {
             anchors.centerIn: parent
+            visible: busyOverlay.visible
             width: Math.min(620, parent.width - 96)
             height: 104
             elevated: true

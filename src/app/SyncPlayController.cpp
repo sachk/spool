@@ -279,11 +279,12 @@ void SyncPlayController::handleSocketTextMessage(const QString &message)
     const QJsonObject object = document.object();
     const QString type =
         object.value(QStringLiteral("MessageType")).toString();
-    if (type == QStringLiteral("ForceKeepAlive") ||
-        type == QStringLiteral("KeepAlive")) {
+    if (type == QStringLiteral("ForceKeepAlive")) {
         sendKeepAlive();
         return;
     }
+    if (type == QStringLiteral("KeepAlive"))
+        return;
 
     const QJsonObject data = object.value(QStringLiteral("Data")).toObject();
     if (type == QStringLiteral("SyncPlayCommand"))

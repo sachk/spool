@@ -20,6 +20,8 @@ class LibraryPrefetchController final : public QObject {
   Q_OBJECT
 
 public:
+  enum class ImageKind { Poster, Landscape };
+
   explicit LibraryPrefetchController(JellyfinApiFacade *api,
                                      QObject *parent = nullptr);
 
@@ -29,7 +31,8 @@ public:
   std::optional<PagedMovieItems> cachedPage(const QString &cacheKey) const;
   void configureImagePrefetch(int aheadItems, int maxConcurrent);
   void prefetchPosters(const std::vector<MovieItem> &items, int firstIndex = 0,
-                       int visibleCount = 12);
+                       int visibleCount = 12,
+                       ImageKind imageKind = ImageKind::Poster);
 
 private:
   void startNext();

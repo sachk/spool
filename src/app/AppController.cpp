@@ -77,8 +77,6 @@ AppController::AppController(DatabaseManager *database,
             this, &AppController::itemPlayedChanged);
     connect(m_currentItems, &CurrentItemsController::pagingChanged,
             this, &AppController::currentItemsPagingChanged);
-    connect(m_home, &HomeModelController::homeRowsChanged,
-            this, &AppController::homeRowsChanged);
     connect(m_home, &HomeModelController::latestLibraryRowsChanged,
             this, &AppController::latestLibraryRowsChanged);
     connect(m_quickConnect, &QuickConnectController::changed,
@@ -363,11 +361,6 @@ MovieGridModel *AppController::nextUpItems()
     return m_home->nextUpItems();
 }
 
-MovieGridModel *AppController::latestItems()
-{
-    return m_home->latestItems();
-}
-
 QVariantList AppController::latestLibraryRows() const
 {
     return m_home->latestLibraryRows();
@@ -605,6 +598,8 @@ void AppController::openLibrary(int index)
     const int cachedCount = m_currentItems->applyCachedPage(cacheKey);
     const bool hasWarmCache = cachedCount > 0;
     m_currentItems->setWarmCachePaging(cachedCount, kLibraryPageSize);
+    m_prefetch->stop();
+    m_api->cancelPrefetches();
     if (hasWarmCache) {
         setBusy(false);
         setPage(QStringLiteral("movies"));
@@ -672,11 +667,6 @@ void AppController::playNextUpItem(int index, bool fromStart)
     if (item.id.isEmpty())
         return;
     playMediaItem(item, fromStart);
-}
-
-void AppController::playLatestItem(int index, bool fromStart)
-{
-    playOrOpen(m_home->latestItemAt(index), fromStart);
 }
 
 QObject *AppController::latestLibraryItems(int rowIndex)
@@ -764,6 +754,7 @@ void AppController::loadMoreCurrentItems()
     const QString collectionType = currentLibraryCollectionType();
     const QString cacheKey = m_currentItems->cacheKey();
     const QVariantMap query = libraryQuery();
+    m_api->cancelPrefetches();
     m_currentItems->setLoadingMore(true);
 
     const auto onDone = [this, cacheKey](const PagedMovieItems &page) {
@@ -883,6 +874,8 @@ void AppController::refreshCurrentLibrary()
     const QString cacheKey = libraryCacheKey(library, query);
     m_currentItems->resetPaging(cacheKey);
     m_currentItems->clear();
+    m_prefetch->stop();
+    m_api->cancelPrefetches();
     setBusy(true, QStringLiteral("Loading %1…").arg(currentContentLabel().toLower()));
 
     Async::runLatest(this,
@@ -1229,6 +1222,8 @@ void AppController::setPage(const QString &page)
 
 void AppController::setBusy(bool busy, const QString &busyText)
 {
+    if (m_busy == busy && m_busyText == busyText)
+        return;
     m_busy = busy;
     m_busyText = busyText;
     emit busyChanged();
@@ -1282,7 +1277,8 @@ void AppController::showCurrentItemsPage(const PagedMovieItems &page, const QStr
 {
     m_currentItems->setPage(page, cacheKey, append);
     setBusy(false);
-    setPage(QStringLiteral("movies"));
+    if (!append)
+        setPage(QStringLiteral("movies"));
 }
 
 void AppController::loadLibraryFilterOptions(RequestGeneration::Token generation,
@@ -1465,6 +1461,8 @@ void AppController::handlePlaybackStopped(const QString &itemId,
             playNextEpisodeAfter(m_activePlaybackItem);
     } else {
         m_itemState->applyResumeTicks(itemId, positionTicks);
+        if (m_activePlaybackItem.id == itemId)
+            m_home->upsertResumeItem(m_activePlaybackItem, positionTicks);
     }
 }
 

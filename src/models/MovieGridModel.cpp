@@ -308,11 +308,17 @@ QVariantMap MovieGridModel::get(int index) const
 void MovieGridModel::setMovies(const std::vector<MovieItem> &movies)
 {
     const int oldCount = rowCount();
+    if (oldCount == static_cast<int>(movies.size())) {
+        m_movies = movies;
+        if (oldCount > 0)
+            emit dataChanged(index(0, 0), index(oldCount - 1, 0));
+        return;
+    }
+
     beginResetModel();
     m_movies = movies;
     endResetModel();
-    if (rowCount() != oldCount)
-        emit countChanged();
+    emit countChanged();
 }
 
 void MovieGridModel::appendMovies(const std::vector<MovieItem> &movies)

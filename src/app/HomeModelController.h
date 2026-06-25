@@ -27,24 +27,22 @@ public:
 
     MovieGridModel *resumeItems();
     MovieGridModel *nextUpItems();
-    MovieGridModel *latestItems();
     QVariantList latestLibraryRows() const;
     QObject *latestLibraryItems(int rowIndex);
 
     MovieItem resumeItemAt(int index) const;
     MovieItem nextUpItemAt(int index) const;
-    MovieItem latestItemAt(int index) const;
     MovieItem latestLibraryItemAt(int rowIndex, int itemIndex) const;
 
     void refresh(const std::vector<LibraryItem> &libraries);
     void recordLibraryUse(const LibraryItem &library);
+    void upsertResumeItem(MovieItem item, qint64 positionTicks);
     void updateResumeTicks(const QString &itemId, qint64 positionTicks);
     void updateFavorite(const QString &itemId, bool favorite);
     void updatePlayed(const QString &itemId, bool played);
     void reset();
 
 signals:
-    void homeRowsChanged();
     void latestLibraryRowsChanged();
 
 private:
@@ -53,21 +51,31 @@ private:
         LibraryItem library;
         std::unique_ptr<MovieGridModel> model;
     };
+    struct PendingLatestLibrarySection {
+        int order = 0;
+        LibraryItem library;
+        std::vector<MovieItem> items;
+    };
+    struct PendingHomeRefresh {
+        RequestGeneration::Token generation;
+        int remaining = 0;
+        std::vector<MovieItem> resumeItems;
+        std::vector<MovieItem> nextUpItems;
+        std::vector<PendingLatestLibrarySection> latestSections;
+        std::vector<LibraryItem> librariesForPrefetch;
+    };
 
-    void clearLatestLibraryRows();
-    void addLatestLibraryRow(RequestGeneration::Token generation, int order,
-                             const LibraryItem &library, const std::vector<MovieItem> &items);
-    void handleHomeRowLoaded(RequestGeneration::Token generation);
+    void finishHomeRefresh(const std::shared_ptr<PendingHomeRefresh> &refresh);
+    void replaceLatestLibraryRows(std::vector<PendingLatestLibrarySection> sections);
 
     JellyfinApiFacade *m_api = nullptr;
     LibraryPrefetchController *m_prefetch = nullptr;
     MovieGridModel m_resumeItems;
     MovieGridModel m_nextUpItems;
-    MovieGridModel m_latestItems;
     std::vector<LatestLibrarySection> m_latestLibrarySections;
-    std::vector<LibraryItem> m_librariesForPrefetch;
     RequestGeneration m_generation;
-    int m_loadsPending = 0;
+    bool m_refreshInFlight = false;
+    bool m_loaded = false;
     QStringList m_recentLibraryIds;
 };
 

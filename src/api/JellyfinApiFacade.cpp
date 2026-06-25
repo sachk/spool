@@ -6,10 +6,12 @@
 #include <QCoroNetwork>
 #include <QCoroTimer>
 
+#include <QDir>
 #include <QHttpHeaders>
 #include <QJsonArray>
 #include <QJsonObject>
 #include <QDebug>
+#include <QNetworkDiskCache>
 #include <QNetworkReply>
 #include <QUrl>
 #include <QUrlQuery>
@@ -61,6 +63,13 @@ QString detailItemFields()
     return QStringLiteral("Overview,ProductionYear,PremiereDate,EndDate,ImageTags,BackdropImageTags,"
                           "UserData,Path,RunTimeTicks,SeriesInfo,Genres,Tags,Studios,OfficialRating,"
                           "CommunityRating,CriticRating,People,PrimaryImageAspectRatio,MediaSources");
+}
+
+QString libraryItemFields()
+{
+    return QStringLiteral("Overview,ProductionYear,PremiereDate,EndDate,ImageTags,BackdropImageTags,"
+                          "UserData,RunTimeTicks,SeriesInfo,Genres,Tags,Studios,OfficialRating,"
+                          "CommunityRating,CriticRating,PrimaryImageAspectRatio");
 }
 
 QString episodeSubtitle(const QJsonObject &object)
@@ -403,6 +412,24 @@ JellyfinApiFacade::~JellyfinApiFacade()
     cancelRequests();
 }
 
+void JellyfinApiFacade::setImagePrefetchCache(const QString &cacheDirectory,
+                                              qint64 maximumCacheSize)
+{
+    if (cacheDirectory.isEmpty())
+        return;
+
+    if (!m_imagePrefetchNetworkAccessManager) {
+        m_imagePrefetchNetworkAccessManager = new QNetworkAccessManager(this);
+        m_imagePrefetchDiskCache =
+            new QNetworkDiskCache(m_imagePrefetchNetworkAccessManager);
+        m_imagePrefetchNetworkAccessManager->setCache(m_imagePrefetchDiskCache);
+    }
+
+    QDir().mkpath(cacheDirectory);
+    m_imagePrefetchDiskCache->setCacheDirectory(cacheDirectory);
+    m_imagePrefetchDiskCache->setMaximumCacheSize(maximumCacheSize);
+}
+
 void JellyfinApiFacade::setServerUrl(const QString &serverUrl)
 {
     m_serverUrl = serverUrl;
@@ -661,7 +688,7 @@ QCoro::Task<PagedMovieItems> JellyfinApiFacade::fetchLibraryPage(QString library
     query.addQueryItem(QStringLiteral("includeItemTypes"), includeItemTypesForCollection(collectionType));
     if (collectionType != QStringLiteral("movies") && collectionType != QStringLiteral("tvshows"))
         query.addQueryItem(QStringLiteral("mediaTypes"), QStringLiteral("Video"));
-    query.addQueryItem(QStringLiteral("fields"), detailItemFields());
+    query.addQueryItem(QStringLiteral("fields"), libraryItemFields());
     addLibraryQueryOptions(query, queryOptions);
     query.addQueryItem(QStringLiteral("enableImageTypes"), QStringLiteral("Primary,Backdrop,Logo,Banner,Thumb"));
     query.addQueryItem(QStringLiteral("imageTypeLimit"), QStringLiteral("3"));
@@ -1543,7 +1570,10 @@ void JellyfinApiFacade::pumpImagePrefetch()
         QNetworkRequest request{QUrl(url)};
         request.setAttribute(QNetworkRequest::CacheLoadControlAttribute, QNetworkRequest::PreferCache);
 
-        auto *reply = m_networkAccessManager->get(request);
+        auto *manager = m_imagePrefetchNetworkAccessManager
+                            ? m_imagePrefetchNetworkAccessManager
+                            : m_networkAccessManager;
+        auto *reply = manager->get(request);
         m_prefetchReplies.insert(reply);
         ++m_prefetchInFlight;
         connect(reply, &QNetworkReply::finished, this, [this, reply, url]() {

@@ -20,6 +20,8 @@
 
 #include <vector>
 
+class QNetworkDiskCache;
+
 namespace JellyfinNative {
 
 class JellyfinApiFacade final : public QObject
@@ -48,6 +50,7 @@ public:
     QString buildImageUrl(const QString &itemId, const QString &tag = {}, int maxWidth = 280,
                           int quality = 75, const QString &format = QStringLiteral("webp"),
                           const QString &imageType = QStringLiteral("Primary")) const;
+    void setImagePrefetchCache(const QString &cacheDirectory, qint64 maximumCacheSize);
     void prefetchImages(const QStringList &urls, int maxConcurrent = 6);
     void cancelPrefetches();
     void cancelRequests();
@@ -134,6 +137,8 @@ private:
     bool shouldExpireSession(const QString &path) const;
 
     QNetworkAccessManager *m_networkAccessManager = nullptr;
+    QNetworkAccessManager *m_imagePrefetchNetworkAccessManager = nullptr;
+    QNetworkDiskCache *m_imagePrefetchDiskCache = nullptr;
     QRestAccessManager m_rest;
     QNetworkRequestFactory m_requestFactory;
     QString m_serverUrl;

@@ -84,7 +84,6 @@ class AppController final : public QObject
     Q_PROPERTY(JellyfinNative::MovieGridModel *movies READ movies CONSTANT)
     Q_PROPERTY(JellyfinNative::MovieGridModel *resumeItems READ resumeItems CONSTANT)
     Q_PROPERTY(JellyfinNative::MovieGridModel *nextUpItems READ nextUpItems CONSTANT)
-    Q_PROPERTY(JellyfinNative::MovieGridModel *latestItems READ latestItems CONSTANT)
     Q_PROPERTY(QVariantList latestLibraryRows READ latestLibraryRows NOTIFY latestLibraryRowsChanged)
     Q_PROPERTY(JellyfinNative::MovieGridModel *searchResults READ searchResults CONSTANT)
     Q_PROPERTY(JellyfinNative::MovieGridModel *searchSuggestions READ searchSuggestions CONSTANT)
@@ -159,7 +158,6 @@ public:
     MovieGridModel *movies();
     MovieGridModel *resumeItems();
     MovieGridModel *nextUpItems();
-    MovieGridModel *latestItems();
     QVariantList latestLibraryRows() const;
     MovieGridModel *searchResults();
     MovieGridModel *searchSuggestions();
@@ -194,7 +192,6 @@ public:
     Q_INVOKABLE void playMovie(int index, bool fromStart = false);
     Q_INVOKABLE void playResumeItem(int index, bool fromStart = false);
     Q_INVOKABLE void playNextUpItem(int index, bool fromStart = false);
-    Q_INVOKABLE void playLatestItem(int index, bool fromStart = false);
     Q_INVOKABLE QObject *latestLibraryItems(int rowIndex);
     Q_INVOKABLE void playLatestLibraryItem(int rowIndex, int itemIndex, bool fromStart = false);
     Q_INVOKABLE void openSeriesById(const QString &seriesId, const QString &seriesName);
@@ -273,7 +270,6 @@ signals:
     void searchChanged();
     void searchSuggestionsChanged();
     void detailRowsChanged();
-    void homeRowsChanged();
     void latestLibraryRowsChanged();
     void currentItemsPagingChanged();
     void libraryQueryChanged();
