@@ -131,7 +131,6 @@ FocusScope {
         Flow {
             Layout.fillWidth: true
             spacing: 7
-            rowSpacing: 7
 
             Repeater {
                 model: chipLineRoot.shownValues
