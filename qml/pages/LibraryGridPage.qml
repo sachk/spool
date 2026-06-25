@@ -23,9 +23,6 @@ FocusScope {
     // sort or filter controls — they are a fixed, server-filtered listing.
     readonly property bool isTagView: appController && (appController.currentViewKind === "genre" || appController.currentViewKind === "studio")
     focus: true
-    Accessible.role: Accessible.Pane
-    Accessible.name: appController && appController.currentLibraryName
-                     ? appController.currentLibraryName : "Library"
     Component.onCompleted: grid.forceActiveFocus()
     onActiveFocusChanged: if (activeFocus) grid.forceActiveFocus()
 
@@ -108,13 +105,6 @@ FocusScope {
         width: parent ? parent.width : 320
         height: detail.length > 0 ? 54 : 44
         focus: true
-        Accessible.role: Accessible.MenuItem
-        Accessible.name: label
-        Accessible.description: detail
-        Accessible.focusable: true
-        Accessible.focused: activeFocus
-        Accessible.selected: selected
-        Accessible.onPressAction: activated()
 
         Rectangle {
             anchors.fill: parent
@@ -477,12 +467,7 @@ FocusScope {
             if (root.filtersOpen)
                 root.filterEntries = root.buildFilterEntries()
         }
-        function onCurrentItemsPagingChanged() {
-            if (appController.currentItemsLoadingMore)
-                root.Accessible.announce("Loading more items")
-            else if (appController.movies && appController.movies.rowCount() > 0)
-                root.Accessible.announce(root.headerDetail())
-        }
+        function onCurrentItemsPagingChanged() {}
     }
 
     function activateCurrent() {
@@ -912,8 +897,6 @@ FocusScope {
         baseColor: Theme.bgRaised
         elevated: true
         clip: true
-        Accessible.role: Accessible.PopupMenu
-        Accessible.name: "Libraries"
 
         ListView {
             id: libraryList
@@ -925,10 +908,6 @@ FocusScope {
             model: appController.libraries
             currentIndex: root.libraryIndex
             boundsBehavior: Flickable.StopAtBounds
-            Accessible.role: Accessible.List
-            Accessible.name: "Libraries"
-            Accessible.focusable: count > 0
-            Accessible.focused: activeFocus
             onCurrentIndexChanged: {
                 root.libraryIndex = currentIndex
                 if (currentIndex >= 0)
@@ -974,8 +953,6 @@ FocusScope {
         baseColor: Theme.bgRaised
         elevated: true
         clip: true
-        Accessible.role: Accessible.PopupMenu
-        Accessible.name: "Sort library"
 
         ListView {
             id: sortList
@@ -987,10 +964,6 @@ FocusScope {
             model: root.sortEntries
             currentIndex: root.sortIndex
             boundsBehavior: Flickable.StopAtBounds
-            Accessible.role: Accessible.List
-            Accessible.name: "Sort options"
-            Accessible.focusable: count > 0
-            Accessible.focused: activeFocus
             onCurrentIndexChanged: {
                 root.sortIndex = currentIndex
                 if (currentIndex >= 0)
@@ -1036,8 +1009,6 @@ FocusScope {
         baseColor: Theme.bgRaised
         elevated: true
         clip: true
-        Accessible.role: Accessible.PopupMenu
-        Accessible.name: "Filter library"
 
         ColumnLayout {
             anchors.fill: parent
@@ -1072,10 +1043,6 @@ FocusScope {
                 model: root.filterEntries
                 currentIndex: root.filterIndex
                 boundsBehavior: Flickable.StopAtBounds
-                Accessible.role: Accessible.List
-                Accessible.name: "Filter options"
-                Accessible.focusable: count > 0
-                Accessible.focused: activeFocus
                 onCurrentIndexChanged: {
                     root.filterIndex = currentIndex
                     if (currentIndex >= 0)
@@ -1089,8 +1056,6 @@ FocusScope {
                     required property var modelData
                     width: filterList.width
                     height: modelData.section ? 34 : 48
-                    Accessible.role: modelData.section ? Accessible.Heading : Accessible.NoRole
-                    Accessible.name: modelData.section ? (modelData.label || "") : ""
 
                     AppText {
                         anchors.left: parent.left

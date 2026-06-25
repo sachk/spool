@@ -27,15 +27,6 @@ T.Control {
 
     focus: true
     focusPolicy: Qt.StrongFocus
-    Accessible.role: Accessible.Slider
-    Accessible.name: title
-    Accessible.description: description.length > 0
-        ? description + ". Value: " + formatValue(controlValue) + unitText
-        : "Value: " + formatValue(controlValue) + unitText
-    Accessible.focusable: enabled
-    Accessible.focused: rowFocus
-    Accessible.onIncreaseAction: adjust(1)
-    Accessible.onDecreaseAction: adjust(-1)
     implicitHeight: Math.max(74, contentRow.implicitHeight + 24)
     leftPadding: 12
     rightPadding: 12

@@ -22,17 +22,17 @@
     "mpv-src": {
       "flake": false,
       "locked": {
-        "lastModified": 1780551348,
-        "narHash": "sha256-rMV/wUWtTY/XEBfx7SIdTb7ywPNrd/ZMHKVq40191yQ=",
+        "lastModified": 1780554980,
+        "narHash": "sha256-I0b0PPLtIVTrOsBDoYpvpNcHG0nW5ANXNqDtSxNcOkk=",
         "owner": "sachk",
         "repo": "mpv",
-        "rev": "1313bdd9aba8eb7014cb02688d45a7b7adc9b3e7",
+        "rev": "c8a35dca3da187bbfffa0c4720087bf17bc2c240",
         "type": "github"
       },
       "original": {
         "owner": "sachk",
         "repo": "mpv",
-        "rev": "1313bdd9aba8eb7014cb02688d45a7b7adc9b3e7",
+        "rev": "c8a35dca3da187bbfffa0c4720087bf17bc2c240",
         "type": "github"
       }
     },

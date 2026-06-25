@@ -15,14 +15,6 @@ T.Control {
     signal clicked()
     focusPolicy: Qt.StrongFocus
     focus: true
-    Accessible.role: pointerActivationEnabled ? Accessible.Button : Accessible.StaticText
-    Accessible.name: title
-    Accessible.description: description.length > 0
-        ? description + (valueText.length > 0 ? ". " + valueText : "")
-        : valueText
-    Accessible.focusable: enabled
-    Accessible.focused: rowFocus
-    Accessible.onPressAction: if (pointerActivationEnabled) clicked()
     implicitHeight: Math.max(68, textColumn.implicitHeight + 28)
     leftPadding: 14
     rightPadding: 14

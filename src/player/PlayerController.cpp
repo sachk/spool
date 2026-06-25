@@ -1079,12 +1079,6 @@ void PlayerController::handleMpvEvent(mpv_event *event) {
                  property->format == MPV_FORMAT_DOUBLE) {
         const double seconds = *static_cast<double *>(property->data);
         QMetaObject::invokeMethod(this, [this, seconds]() {
-          // While a seek is in flight, keep the optimistic target visible.
-          // Once it settles, mpv updates go through the same stale-regression
-          // guard as foreground refresh replies.
-          if (m_seeking ||
-              m_positionTracker.seekIsFresh(1500))
-            return;
           setPositionSeconds(seconds, PlaybackPositionTracker::Source::Mpv);
         });
       } else if (strcmp(property->name, "duration") == 0 &&

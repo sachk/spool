@@ -985,7 +985,7 @@ FocusScope {
                     radius: height / 2
                     color: overlay.hasPlayer && overlay.player.buffering ? overlay.accentBright : overlay.accent
                     antialiasing: true
-                    Behavior on width { enabled: !overlay.scrubbing; NumberAnimation { duration: 180; easing.type: Easing.OutCubic } }
+                    Behavior on width { enabled: !overlay.scrubbing && (!overlay.hasPlayer || !overlay.player.seeking); NumberAnimation { duration: 180; easing.type: Easing.OutCubic } }
                 }
                 Repeater {
                     model: overlay.hasPlayer ? overlay.player.chapters : []

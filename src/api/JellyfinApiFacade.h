@@ -58,6 +58,7 @@ public:
     QCoro::Task<QJsonObject> initiateQuickConnect();
     QCoro::Task<QJsonObject> pollQuickConnect(QString secret);
     QCoro::Task<AuthSession> authenticateWithQuickConnect(QString secret);
+    QCoro::Task<QString> fetchCurrentUserName();
     QCoro::Task<QJsonObject> fetchUserConfiguration();
     QCoro::Task<void> updateUserConfiguration(QJsonObject configuration);
     QCoro::Task<QJsonArray> fetchCultures();

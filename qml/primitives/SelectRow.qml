@@ -11,16 +11,6 @@ SettingRow {
     signal selected(int index, string value)
     valueText: selectedText
     valueTextVisible: false
-    Accessible.role: Accessible.ComboBox
-    Accessible.name: title
-    Accessible.description: description.length > 0
-        ? description + ". Selected: " + selectedText
-        : "Selected: " + selectedText
-    Accessible.focusable: enabled
-    Accessible.focused: activeFocus
-    Accessible.onPressAction: move(1)
-    Accessible.onIncreaseAction: move(1)
-    Accessible.onDecreaseAction: move(-1)
 
     function move(dir) {
         if (options.length <= 0)

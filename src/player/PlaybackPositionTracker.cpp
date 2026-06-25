@@ -20,6 +20,7 @@ void PlaybackPositionTracker::reset(double startSeconds) {
       std::isfinite(startSeconds) ? qMax(0.0, startSeconds) : 0.0;
   m_durationSeconds = 0.0;
   m_requestedSeekTargetSeconds = -1.0;
+  m_requestedSeekStartSeconds = -1.0;
   m_lastTrustedPositionSeconds = m_positionSeconds;
   m_positionClock.invalidate();
   m_seekCommandClock.invalidate();
@@ -31,6 +32,7 @@ void PlaybackPositionTracker::clear() {
   m_positionSeconds = 0.0;
   m_durationSeconds = 0.0;
   m_requestedSeekTargetSeconds = -1.0;
+  m_requestedSeekStartSeconds = -1.0;
   m_lastTrustedPositionSeconds = 0.0;
   m_positionClock.invalidate();
   m_seekCommandClock.invalidate();
@@ -57,6 +59,22 @@ double PlaybackPositionTracker::clamp(double seconds) const {
 
 bool PlaybackPositionTracker::update(double seconds, Source source) {
   double clamped = clamp(seconds);
+  if (source == Source::Mpv && m_requestedSeekTargetSeconds >= 0.0 &&
+      seekIsFresh(kSeekTargetFreshnessMs)) {
+    const double midpoint =
+        (m_requestedSeekStartSeconds + m_requestedSeekTargetSeconds) / 2.0;
+    const bool movingForward =
+        m_requestedSeekTargetSeconds > m_requestedSeekStartSeconds;
+    const bool movingBackward =
+        m_requestedSeekTargetSeconds < m_requestedSeekStartSeconds;
+    if ((movingForward && clamped < midpoint) ||
+        (movingBackward && clamped > midpoint)) {
+      return false;
+    }
+    m_requestedSeekTargetSeconds = -1.0;
+    m_requestedSeekStartSeconds = -1.0;
+    m_seekCommandClock.invalidate();
+  }
   if (!regressionAllowed(source) && m_lastTrustedPositionClock.isValid() &&
       m_lastTrustedPositionSeconds > kPositionRegressionToleranceSeconds &&
       clamped + kPositionRegressionToleranceSeconds <
@@ -124,17 +142,18 @@ bool PlaybackPositionTracker::restoreTrusted(const char *reason) {
 }
 
 void PlaybackPositionTracker::beginSeek(double targetSeconds) {
+  m_requestedSeekStartSeconds = m_positionSeconds;
   m_requestedSeekTargetSeconds = clamp(targetSeconds);
   m_seekCommandClock.restart();
 }
 
 void PlaybackPositionTracker::settleSeek() {
-  m_requestedSeekTargetSeconds = -1.0;
   m_positionClock.restart();
 }
 
 void PlaybackPositionTracker::cancelSeek() {
   m_requestedSeekTargetSeconds = -1.0;
+  m_requestedSeekStartSeconds = -1.0;
   m_seekCommandClock.invalidate();
   m_positionClock.restart();
 }

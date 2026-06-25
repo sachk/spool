@@ -40,7 +40,7 @@ class AppController final : public QObject
     Q_PROPERTY(QString quickConnectCode READ quickConnectCode NOTIFY quickConnectChanged)
     Q_PROPERTY(QString quickConnectStatus READ quickConnectStatus NOTIFY quickConnectChanged)
     Q_PROPERTY(bool quickConnectActive READ quickConnectActive NOTIFY quickConnectChanged)
-    Q_PROPERTY(bool loginSameServer READ loginSameServer WRITE setLoginSameServer NOTIFY loginSameServerChanged)
+    Q_PROPERTY(bool hasDefaultProfile READ hasDefaultProfile NOTIFY defaultProfileChanged)
     Q_PROPERTY(QString currentLibraryName READ currentLibraryName NOTIFY currentLibraryNameChanged)
     Q_PROPERTY(QString currentContentLabel READ currentContentLabel NOTIFY currentLibraryNameChanged)
     Q_PROPERTY(QString currentViewKind READ currentViewKind NOTIFY currentLibraryNameChanged)
@@ -119,7 +119,7 @@ public:
     QString quickConnectCode() const;
     QString quickConnectStatus() const;
     bool quickConnectActive() const;
-    bool loginSameServer() const;
+    bool hasDefaultProfile() const;
     QString currentLibraryName() const;
     QString currentContentLabel() const;
     QString currentViewKind() const;
@@ -184,10 +184,11 @@ public:
     Q_INVOKABLE void setPassword(const QString &password);
     Q_INVOKABLE void chooseDiscoveredServer(int index);
     Q_INVOKABLE void login();
+    Q_INVOKABLE void useDefaultProfile();
+    Q_INVOKABLE void switchUser();
     Q_INVOKABLE void logout();
     Q_INVOKABLE void startQuickConnect();
     Q_INVOKABLE void cancelQuickConnect();
-    Q_INVOKABLE void setLoginSameServer(bool enabled);
     Q_INVOKABLE void goHome();
     Q_INVOKABLE void openLibrary(int index);
     Q_INVOKABLE void playMovie(int index, bool fromStart = false);
@@ -256,7 +257,7 @@ signals:
     void busyChanged();
     void errorTextChanged();
     void quickConnectChanged();
-    void loginSameServerChanged();
+    void defaultProfileChanged();
     void currentLibraryNameChanged();
     void settingsVisibleChanged();
     void nightModeEnabledChanged();
@@ -317,7 +318,7 @@ private:
     LibraryListModel m_libraries;
     NavigationState m_navigation;
     bool m_busy = false;
-    bool m_loginSameServer = true;
+    bool m_hasDefaultProfile = false;
     QString m_busyText;
     QString m_errorText;
     RequestGeneration m_libraryLoadGeneration;

@@ -195,6 +195,32 @@ require_target_sdk() {
   ensure_webos_sdk_host_tools "$SDK_ROOT"
 }
 
+sdk_sysroot_library() {
+  local name="$1"
+  local candidate
+  local matches=()
+  local nullglob_state
+
+  for candidate in "$SYSROOT/usr/lib/lib${name}.so" "$SYSROOT/lib/lib${name}.so"; do
+    if [[ -e "$candidate" ]]; then
+      printf '%s\n' "$candidate"
+      return 0
+    fi
+  done
+
+  nullglob_state="$(shopt -p nullglob)"
+  shopt -s nullglob
+  matches=("$SYSROOT/usr/lib/lib${name}.so."* "$SYSROOT/lib/lib${name}.so."*)
+  eval "$nullglob_state"
+
+  if (( ${#matches[@]} > 0 )); then
+    printf '%s\n' "${matches[0]}"
+    return 0
+  fi
+
+  die "webOS sysroot library not found: lib${name}.so[.*]"
+}
+
 maybe_clean_poisoned_build_dir() {
   local dir="$1"
   local expected_source="$2"
@@ -544,6 +570,15 @@ configure_target_qtbase() {
   local target_wayland_scanner="${TARGET_WAYLAND_SCANNER:-$TARGET_WAYLAND_SCANNER_DEFAULT}"
   [[ -x "$target_wayland_scanner" ]] || \
     die "target wayland-scanner not found at $target_wayland_scanner; set TARGET_WAYLAND_SCANNER"
+  local sdk_glesv2_lib sdk_egl_lib sdk_xkb_lib
+  local sdk_wayland_client_lib sdk_wayland_server_lib sdk_wayland_cursor_lib sdk_wayland_egl_lib
+  sdk_glesv2_lib="$(sdk_sysroot_library GLESv2)"
+  sdk_egl_lib="$(sdk_sysroot_library EGL)"
+  sdk_xkb_lib="$(sdk_sysroot_library xkbcommon)"
+  sdk_wayland_client_lib="$(sdk_sysroot_library wayland-client)"
+  sdk_wayland_server_lib="$(sdk_sysroot_library wayland-server)"
+  sdk_wayland_cursor_lib="$(sdk_sysroot_library wayland-cursor)"
+  sdk_wayland_egl_lib="$(sdk_sysroot_library wayland-egl)"
 
   local build_type_flags=()
   if [[ "$QT_STATIC" == "1" ]]; then
@@ -602,24 +637,24 @@ configure_target_qtbase() {
     -DFEATURE_webp=ON \
     -DFEATURE_system_pcre2=OFF \
     -DGLESv2_INCLUDE_DIR="$SYSROOT/usr/include" \
-    -DGLESv2_LIBRARY="$SYSROOT/usr/lib/libGLESv2.so" \
+    -DGLESv2_LIBRARY="$sdk_glesv2_lib" \
     -DEGL_INCLUDE_DIR="$SYSROOT/usr/include" \
-    -DEGL_LIBRARY="$SYSROOT/usr/lib/libEGL.so" \
+    -DEGL_LIBRARY="$sdk_egl_lib" \
     -DXKB_INCLUDE_DIR="$SYSROOT/usr/include" \
-    -DXKB_LIBRARY="$SYSROOT/usr/lib/libxkbcommon.so" \
+    -DXKB_LIBRARY="$sdk_xkb_lib" \
     -DFREETYPE_INCLUDE_DIR_freetype2="$SYSROOT/usr/include/freetype2" \
     -DFREETYPE_INCLUDE_DIR_ft2build="$SYSROOT/usr/include/freetype2" \
     -DFREETYPE_LIBRARY_RELEASE="$SYSROOT/usr/lib/libfreetype.so" \
     -DFontconfig_INCLUDE_DIR="$SYSROOT/usr/include" \
     -DFontconfig_LIBRARY="$SYSROOT/usr/lib/libfontconfig.so" \
     -DWayland_Client_INCLUDE_DIR="$SYSROOT/usr/include" \
-    -DWayland_Client_LIBRARY="$SYSROOT/usr/lib/libwayland-client.so" \
+    -DWayland_Client_LIBRARY="$sdk_wayland_client_lib" \
     -DWayland_Server_INCLUDE_DIR="$SYSROOT/usr/include" \
-    -DWayland_Server_LIBRARY="$SYSROOT/usr/lib/libwayland-server.so" \
+    -DWayland_Server_LIBRARY="$sdk_wayland_server_lib" \
     -DWayland_Cursor_INCLUDE_DIR="$SYSROOT/usr/include" \
-    -DWayland_Cursor_LIBRARY="$SYSROOT/usr/lib/libwayland-cursor.so" \
+    -DWayland_Cursor_LIBRARY="$sdk_wayland_cursor_lib" \
     -DWayland_Egl_INCLUDE_DIR="$SYSROOT/usr/include" \
-    -DWayland_Egl_LIBRARY="$SYSROOT/usr/lib/libwayland-egl.so" \
+    -DWayland_Egl_LIBRARY="$sdk_wayland_egl_lib" \
     -DINPUT_openssl=no \
     -DWaylandScanner_EXECUTABLE="$target_wayland_scanner"
 }
@@ -638,6 +673,8 @@ configure_target_module() {
 
   local build_type="Release"
   local module_flags=()
+  local sdk_glesv2_lib sdk_egl_lib sdk_xkb_lib
+  local sdk_wayland_client_lib sdk_wayland_server_lib sdk_wayland_cursor_lib sdk_wayland_egl_lib
   if [[ "$QT_STATIC" == "1" ]]; then
     build_type="MinSizeRel"
     module_flags=(
@@ -648,6 +685,13 @@ configure_target_module() {
       -DCMAKE_EXE_LINKER_FLAGS=-Wl,--gc-sections
     )
   fi
+  sdk_glesv2_lib="$(sdk_sysroot_library GLESv2)"
+  sdk_egl_lib="$(sdk_sysroot_library EGL)"
+  sdk_xkb_lib="$(sdk_sysroot_library xkbcommon)"
+  sdk_wayland_client_lib="$(sdk_sysroot_library wayland-client)"
+  sdk_wayland_server_lib="$(sdk_sysroot_library wayland-server)"
+  sdk_wayland_cursor_lib="$(sdk_sysroot_library wayland-cursor)"
+  sdk_wayland_egl_lib="$(sdk_sysroot_library wayland-egl)"
 
   maybe_clean_poisoned_build_dir "$TARGET_BUILD_ROOT/$name" "$src"
   log "Configuring target $name"
@@ -670,19 +714,19 @@ configure_target_module() {
     -DQT_SKIP_AUTO_PLUGIN_INCLUSION=ON \
     -DQT_SKIP_AUTO_QML_PLUGIN_INCLUSION=ON \
     -DGLESv2_INCLUDE_DIR="$SYSROOT/usr/include" \
-    -DGLESv2_LIBRARY="$SYSROOT/usr/lib/libGLESv2.so" \
+    -DGLESv2_LIBRARY="$sdk_glesv2_lib" \
     -DEGL_INCLUDE_DIR="$SYSROOT/usr/include" \
-    -DEGL_LIBRARY="$SYSROOT/usr/lib/libEGL.so" \
+    -DEGL_LIBRARY="$sdk_egl_lib" \
     -DXKB_INCLUDE_DIR="$SYSROOT/usr/include" \
-    -DXKB_LIBRARY="$SYSROOT/usr/lib/libxkbcommon.so" \
+    -DXKB_LIBRARY="$sdk_xkb_lib" \
     -DWayland_Client_INCLUDE_DIR="$SYSROOT/usr/include" \
-    -DWayland_Client_LIBRARY="$SYSROOT/usr/lib/libwayland-client.so" \
+    -DWayland_Client_LIBRARY="$sdk_wayland_client_lib" \
     -DWayland_Server_INCLUDE_DIR="$SYSROOT/usr/include" \
-    -DWayland_Server_LIBRARY="$SYSROOT/usr/lib/libwayland-server.so" \
+    -DWayland_Server_LIBRARY="$sdk_wayland_server_lib" \
     -DWayland_Cursor_INCLUDE_DIR="$SYSROOT/usr/include" \
-    -DWayland_Cursor_LIBRARY="$SYSROOT/usr/lib/libwayland-cursor.so" \
+    -DWayland_Cursor_LIBRARY="$sdk_wayland_cursor_lib" \
     -DWayland_Egl_INCLUDE_DIR="$SYSROOT/usr/include" \
-    -DWayland_Egl_LIBRARY="$SYSROOT/usr/lib/libwayland-egl.so" \
+    -DWayland_Egl_LIBRARY="$sdk_wayland_egl_lib" \
     "${extra[@]}"
 }
 

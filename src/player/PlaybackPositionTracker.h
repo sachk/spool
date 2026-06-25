@@ -41,6 +41,7 @@ private:
   double m_positionSeconds = 0.0;
   double m_durationSeconds = 0.0;
   double m_requestedSeekTargetSeconds = -1.0;
+  double m_requestedSeekStartSeconds = -1.0;
   double m_lastTrustedPositionSeconds = 0.0;
   QElapsedTimer m_positionClock;
   QElapsedTimer m_seekCommandClock;

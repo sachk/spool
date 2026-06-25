@@ -315,6 +315,7 @@ AuthSession DatabaseManager::loadAuthSession()
     AuthSession session;
     session.accessToken = invokeOnWorker([this]() { return m_worker->value(QStringLiteral("login/accessToken")); }).toString();
     session.userId = invokeOnWorker([this]() { return m_worker->value(QStringLiteral("login/userId")); }).toString();
+    session.userName = invokeOnWorker([this]() { return m_worker->value(QStringLiteral("login/userName")); }).toString();
     session.serverId = invokeOnWorker([this]() { return m_worker->value(QStringLiteral("login/serverId")); }).toString();
     return session;
 }
@@ -324,6 +325,7 @@ void DatabaseManager::saveAuthSession(const AuthSession &session)
     invokeOnWorkerAsync([this, session]() {
         m_worker->setValue(QStringLiteral("login/accessToken"), session.accessToken);
         m_worker->setValue(QStringLiteral("login/userId"), session.userId);
+        m_worker->setValue(QStringLiteral("login/userName"), session.userName);
         m_worker->setValue(QStringLiteral("login/serverId"), session.serverId);
     });
 }
@@ -333,6 +335,7 @@ void DatabaseManager::clearAuthSession()
     invokeOnWorkerAsync([this]() {
         m_worker->setValue(QStringLiteral("login/accessToken"), QString());
         m_worker->setValue(QStringLiteral("login/userId"), QString());
+        m_worker->setValue(QStringLiteral("login/userName"), QString());
         m_worker->setValue(QStringLiteral("login/serverId"), QString());
     });
 }

@@ -12,8 +12,6 @@ FocusScope {
     property int suggestionCount: appController && appController.searchSuggestions ? appController.searchSuggestions.rowCount() : 0
     readonly property bool showSuggestions: query.length < 2 && suggestionCount > 0
     focus: true
-    Accessible.role: Accessible.Pane
-    Accessible.name: "Search"
 
     Component.onCompleted: {
         field.text = root.query
@@ -29,10 +27,6 @@ FocusScope {
         function onSearchChanged() {
             root.query = appController.searchQuery
             root.refreshResultCount()
-            if (root.query.length >= 2 && !appController.searchBusy) {
-                root.Accessible.announce(root.resultCount + " result"
-                                         + (root.resultCount === 1 ? "" : "s"))
-            }
         }
         function onSearchSuggestionsChanged() {
             root.refreshSuggestionCount()
@@ -218,10 +212,6 @@ FocusScope {
             spacing: 10
             clip: true
             model: appController.searchResults
-            Accessible.role: Accessible.List
-            Accessible.name: "Search results"
-            Accessible.focusable: root.resultCount > 0
-            Accessible.focused: activeFocus
             KeyNavigation.up: field
             visible: root.resultCount > 0
             onCurrentIndexChanged: if (currentIndex >= 0) positionViewAtIndex(currentIndex, ListView.Contain)
@@ -247,16 +237,6 @@ FocusScope {
                 width: results.width
                 height: 118
                 focused: ListView.isCurrentItem && results.activeFocus
-                Accessible.role: Accessible.Button
-                Accessible.name: displayTitle || title
-                Accessible.description: displaySubtitle || subtitle || itemType
-                Accessible.focusable: true
-                Accessible.focused: focused
-                Accessible.onPressAction: {
-                    results.currentIndex = resultDelegate.index
-                    root.activateCurrent()
-                }
-
                 function handleAcceptPressed(key) { return actions.handleAcceptPressed(key) }
                 function handleAcceptReleased(key) { return actions.handleAcceptReleased(key) }
                 function handleNavigationKey(key) { return actions.handleNavigationKey(key) }

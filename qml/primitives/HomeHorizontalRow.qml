@@ -122,10 +122,6 @@ FocusScope {
             spacing: root.cardGap
             model: root.visibleCount
             currentIndex: root.currentIndex
-            Accessible.role: Accessible.List
-            Accessible.name: root.title
-            Accessible.focusable: root.visibleCount > 0
-            Accessible.focused: activeFocus
             onCurrentIndexChanged: {
                 root.currentIndex = currentIndex
                 root.ensureVisible()
@@ -145,12 +141,6 @@ FocusScope {
 
                 width: root.cardWidth
                 height: rowList.height
-                Accessible.role: root.libraryRow ? Accessible.Button : Accessible.NoRole
-                Accessible.name: root.libraryRow ? (itemData.name || "Library") : ""
-                Accessible.description: root.libraryRow ? (itemData.collectionType || "Library") : ""
-                Accessible.focusable: root.libraryRow
-                Accessible.focused: root.libraryRow && current
-                Accessible.onPressAction: if (root.libraryRow) root.activated(index)
 
                 function handleAcceptPressed(key) {
                     return mediaCard.visible && mediaCard.handleAcceptPressed(key)
