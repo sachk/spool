@@ -159,12 +159,6 @@ FocusScope {
         MouseArea { anchors.fill: parent; onClicked: rowRoot.activated() }
     }
 
-    function currentItemData() {
-        return grid.currentIndex >= 0 && appController && appController.movies
-                ? appController.movies.get(grid.currentIndex)
-                : ({})
-    }
-
     function libraryCount() {
         return appController && appController.libraries ? appController.libraries.rowCount() : 0
     }
@@ -187,14 +181,6 @@ FocusScope {
         if (count > 0) parts.push(count + (total > count ? " of " + total : "") + " items")
         if (activeFilterCount > 0) parts.push(activeFilterCount + " filter" + (activeFilterCount === 1 ? "" : "s"))
         return parts.join(" · ")
-    }
-
-    function shortPressPlays(item) {
-        if (!item)
-            return false
-        if (item.itemType === "Season")
-            return true
-        return appController && appController.currentViewKind === "episodes" && item.itemType === "Episode"
     }
 
     function listForKey(key) {
@@ -474,11 +460,6 @@ FocusScope {
         if (grid.currentIndex < 0)
             return
         shell.lastGridIndex = grid.currentIndex
-        const item = currentItemData()
-        if (shortPressPlays(item)) {
-            appController.playMovie(grid.currentIndex)
-            return
-        }
         openCurrentDetails()
     }
 
@@ -848,9 +829,10 @@ FocusScope {
                     anchors.rightMargin: Metrics.gap(root.width)
                     height: parent.height
                     item: gridDelegate.itemData
+                    shell: root.shell
                     kind: "poster"
                     focused: gridDelegate.GridView.isCurrentItem
-                    longPressAction: root.shortPressPlays(gridDelegate.itemData) ? "details" : "menu"
+                    longPressAction: "menu"
                     onActivated: {
                         grid.currentIndex = index
                         shell.lastGridIndex = index

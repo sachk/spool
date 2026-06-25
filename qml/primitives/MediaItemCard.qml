@@ -5,6 +5,7 @@ Item {
     id: root
 
     property var item: ({})
+    property var shell
     property string kind: "poster"
     property bool focused: false
     property bool useSeriesPoster: false
@@ -71,6 +72,7 @@ Item {
     MediaItemActions {
         id: actions
         item: root.item
+        shell: root.shell
         focused: root.focused
         longPressAction: root.longPressAction
         onActivated: root.activated()

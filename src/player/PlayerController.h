@@ -125,7 +125,7 @@ signals:
     void visibleChanged();
     void stateChanged();
     void chaptersChanged();
-    void playbackStopped(const QString &itemId, qint64 positionTicks);
+    void playbackStopped(const QString &itemId, qint64 positionTicks, bool completed);
     void nightModeEnabledChanged();
     void toneMappingVisualizationEnabledChanged();
     void audioDelayMsChanged();
@@ -153,7 +153,7 @@ private:
     void scheduleMpvTeardown();
     void handleMpvEvent(mpv_event *event);
     void startProgressReporting();
-    void stopProgressReporting(bool failed = false);
+    void stopProgressReporting(bool failed = false, bool completed = false);
     bool mpvCommand(const char *command);
     bool beginSeekCommand(double targetSeconds, const QByteArray &flags,
                           bool markSeeking = true);

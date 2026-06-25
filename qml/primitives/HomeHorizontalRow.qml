@@ -160,6 +160,7 @@ FocusScope {
                     anchors.fill: parent
                     visible: !root.libraryRow
                     item: cardDelegate.itemData
+                    shell: root.shell
                     kind: root.rowKind === "poster" ? "poster" : "landscape"
                     useSeriesPoster: root.useSeriesPoster
                     focused: cardDelegate.current

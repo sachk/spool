@@ -81,6 +81,7 @@ struct MovieItem {
     QString posterTag;
     QString itemType;
     QString seriesId;
+    QString seasonId;
     QString seriesName;
     QString seriesPosterUrl;
     QString subtitle;
@@ -167,6 +168,7 @@ struct PlaybackSession {
     QString playMethod = QStringLiteral("DirectPlay");
     QString container;
     qint64 startTimeTicks = 0;
+    qint64 runtimeTicks = 0;
     std::vector<MediaSegment> segments;
     TrickplayInfo trickplay;
 };
@@ -184,5 +186,7 @@ MovieItem movieFromJson(const QJsonObject &object);
 QString exceptionMessage(const std::exception_ptr &exception);
 QString normalizedAudioOutputMode(const QString &mode);
 QString sanitizedDiagnosticUrl(QString url, qsizetype maxLength = -1);
+bool isMeaningfulResumePosition(qint64 resumeTicks, qint64 runtimeTicks);
+qint64 normalizedResumeTicks(qint64 resumeTicks, qint64 runtimeTicks);
 
 } // namespace JellyfinNative

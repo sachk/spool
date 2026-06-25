@@ -122,7 +122,10 @@ FocusScope {
         if (!m || index < 0 || index >= m.rowCount())
             return
         if (source === "resumeItems") { appController.playResumeItem(index); return }
-        if (source === "nextUpItems") { appController.playNextUpItem(index); return }
+        if (source === "nextUpItems") {
+            shell.openDetailsAt(root.nextUpModel, index, "nextUp", "home")
+            return
+        }
         if (source === "libraries") {
             shell.lastLibraryIndex = index
             appController.openLibrary(index)

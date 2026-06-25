@@ -7,6 +7,7 @@ T.Control {
     id: root
 
     property var item: ({})
+    property var shell
     property bool focused: false
     property bool tvPlatform: nativeWindow ? nativeWindow.tvPlatform : false
     property bool menuOpen: false
@@ -14,10 +15,15 @@ T.Control {
     property bool longPressOpened: false
     property bool pointerLongPress: false
     property int menuIndex: 0
+    property var menuOptions: []
     property bool favoriteState: Boolean(item && item.favorite)
     property bool playedState: Boolean(item && item.played)
     property string longPressAction: "menu"
     readonly property bool actionable: Boolean(item && item.movieId)
+    readonly property string itemType: item && item.itemType ? String(item.itemType) : ""
+    readonly property bool episodeOrSeason: itemType === "Episode" || itemType === "Season"
+    readonly property bool hasProgress: Number(item && item.resumeTicks ? item.resumeTicks : 0) > 0
+    readonly property bool partialEpisode: itemType === "Episode" && hasProgress && !playedState
 
     signal activated()
     signal detailsRequested()
@@ -69,7 +75,7 @@ T.Control {
     }
 
     function openMenu() {
-        if (!actionable)
+        if (!rebuildMenu())
             return false
         menuIndex = 0
         menuOpen = true
@@ -84,17 +90,71 @@ T.Control {
         holdTimer.stop()
     }
 
-    function activateMenuIndex(index) {
-        if (!actionable)
+    function rebuildMenu() {
+        const options = []
+        if (episodeOrSeason && item.seriesId)
+            options.push({ action: "series", icon: "live_tv", label: "Go to series" })
+        if ((itemType === "Episode" && item.seriesId && item.seasonId)
+                || (itemType === "Season" && item.seriesId && item.movieId))
+            options.push({ action: "season", icon: "video_library", label: "Go to season" })
+        if (actionable) {
+            if (!playedState)
+                options.push({ action: "watched", icon: "check_circle", label: "Mark watched" })
+            if (partialEpisode)
+                options.push({ action: "clear", icon: "replay", label: "Clear progress" })
+            options.push({
+                action: "favorite",
+                icon: favoriteState ? "favorite_border" : "favorite",
+                label: favoriteState ? "Remove favourite" : "Add favourite"
+            })
+        }
+        menuOptions = options
+        return menuOptions.length > 0
+    }
+
+    function showLibraryGridRoute() {
+        if (shell && shell.replaceRoute)
+            shell.replaceRoute("libraryGrid")
+    }
+
+    function seasonTitle() {
+        return item && item.seasonNumber > 0 ? "Season " + item.seasonNumber : "Season"
+    }
+
+    function openSeries() {
+        if (!item || !item.seriesId || !appController)
             return
-        if (index === 0) {
-            playedState = !playedState
-            playedToggled(playedState)
-        } else if (index === 1) {
+        showLibraryGridRoute()
+        appController.openSeriesById(item.seriesId, item.seriesName || "")
+    }
+
+    function openSeason() {
+        if (!item || !item.seriesId || !appController)
+            return
+        showLibraryGridRoute()
+        appController.openSeasonById(item.seriesId,
+                                     item.itemType === "Season" ? item.movieId : (item.seasonId || ""),
+                                     item.itemType === "Season" ? (item.title || seasonTitle()) : seasonTitle())
+    }
+
+    function activateMenuIndex(index) {
+        if (index < 0 || index >= menuOptions.length)
+            return
+        const action = menuOptions[index].action
+        if (action === "series") {
+            openSeries()
+        } else if (action === "season") {
+            openSeason()
+        } else if (action === "watched") {
+            playedState = true
+            playedToggled(true)
+        } else if (action === "clear") {
+            playedState = false
+            if (appController)
+                appController.clearProgress(String(item.movieId || ""))
+        } else if (action === "favorite") {
             favoriteState = !favoriteState
             favoriteToggled(favoriteState)
-        } else {
-            mediaInfoRequested()
         }
         closeMenu()
     }
@@ -111,7 +171,7 @@ T.Control {
             return true
         }
         if (key === Qt.Key_Down) {
-            menuIndex = Math.min(2, menuIndex + 1)
+            menuIndex = Math.min(menuOptions.length - 1, menuIndex + 1)
             return true
         }
         if (InputKeys.isAccept(key)) {
@@ -221,24 +281,25 @@ T.Control {
 
     MouseArea {
         anchors.fill: parent
-        acceptedButtons: Qt.LeftButton
+        acceptedButtons: Qt.LeftButton | Qt.RightButton
         pressAndHoldInterval: 520
         onPressed: root.pointerLongPress = false
-        onClicked: {
+        onClicked: (mouse) => {
+            if (mouse.button === Qt.RightButton) {
+                root.pointerLongPress = true
+                root.openMenu()
+                return
+            }
             if (!root.pointerLongPress)
                 root.activated()
             root.pointerLongPress = false
         }
         onPressAndHold: {
-            if (!root.tvPlatform)
-                return
             root.pointerLongPress = true
-            if (root.longPressAction === "details") {
-                root.longPressOpened = true
+            if (root.longPressAction === "details")
                 root.detailsRequested()
-            } else {
+            else
                 root.openMenu()
-            }
         }
     }
 
@@ -292,20 +353,14 @@ T.Control {
             anchors.top: parent.top
             anchors.margins: 6
 
-            MenuRow {
-                optionIndex: 0
-                iconName: root.playedState ? "radio_button_unchecked" : "check_circle"
-                label: root.playedState ? "Mark unwatched" : "Mark watched"
-            }
-            MenuRow {
-                optionIndex: 1
-                iconName: root.favoriteState ? "favorite_border" : "favorite"
-                label: root.favoriteState ? "Remove favourite" : "Add favourite"
-            }
-            MenuRow {
-                optionIndex: 2
-                iconName: "info"
-                label: "Media info"
+            Repeater {
+                model: root.menuOptions
+                delegate: MenuRow {
+                    required property int index
+                    optionIndex: index
+                    iconName: modelData.icon
+                    label: modelData.label
+                }
             }
         }
     }

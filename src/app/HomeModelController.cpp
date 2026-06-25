@@ -193,6 +193,7 @@ void HomeModelController::recordLibraryUse(const LibraryItem &library)
 void HomeModelController::updateResumeTicks(const QString &itemId, qint64 positionTicks)
 {
     m_resumeItems.updateResumeTicks(itemId, positionTicks);
+    m_resumeItems.removeUnresumable();
     m_nextUpItems.updateResumeTicks(itemId, positionTicks);
     m_latestItems.updateResumeTicks(itemId, positionTicks);
     for (LatestLibrarySection &section : m_latestLibrarySections) {
@@ -215,6 +216,7 @@ void HomeModelController::updateFavorite(const QString &itemId, bool favorite)
 void HomeModelController::updatePlayed(const QString &itemId, bool played)
 {
     m_resumeItems.updatePlayed(itemId, played);
+    m_resumeItems.removeUnresumable();
     m_nextUpItems.updatePlayed(itemId, played);
     m_latestItems.updatePlayed(itemId, played);
     for (LatestLibrarySection &section : m_latestLibrarySections) {
