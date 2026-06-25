@@ -132,9 +132,11 @@ private:
         const QSize requestedSize = m_requestedSize;
         const QPointer<ArtworkImageResponse> self(this);
         m_decodePool->start(QRunnable::create([self, bytes = std::move(bytes), requestedSize]() {
+            if (!self || self->m_cancelled.load())
+                return;
             QString error;
             QImage image = decodeWebp(bytes, requestedSize, &error);
-            if (!self)
+            if (!self || self->m_cancelled.load())
                 return;
             QMetaObject::invokeMethod(self, [self, image = std::move(image), error = std::move(error)]() mutable {
                 if (!self)

@@ -10,6 +10,8 @@ FocusScope {
     property var shell
     property string rowKind: "landscape"
     property bool useSeriesPoster: false
+    property bool loadImages: true
+    property int imageLoadDelay: 35
     property int cardWidth: 240
     property int cardGap: 16
     property int currentIndex: rowCount > 0 ? 0 : -1
@@ -122,9 +124,10 @@ FocusScope {
             clip: true
             orientation: ListView.Horizontal
             keyNavigationEnabled: false
+            reuseItems: true
             boundsBehavior: Flickable.StopAtBounds
             spacing: root.cardGap
-            cacheBuffer: Math.round((root.cardWidth + root.cardGap) * 2)
+            cacheBuffer: Math.round(root.cardWidth + root.cardGap)
             model: root.visibleCount
             currentIndex: root.currentIndex
             onCurrentIndexChanged: {
@@ -143,6 +146,9 @@ FocusScope {
                 required property int index
                 readonly property var itemData: root.itemAt(index)
                 readonly property bool current: index === rowList.currentIndex && rowList.activeFocus
+                readonly property bool loadArtwork: root.loadImages
+                                                    && x + width >= rowList.contentX - rowList.cacheBuffer
+                                                    && x <= rowList.contentX + rowList.width + rowList.cacheBuffer
 
                 width: root.cardWidth
                 height: rowList.height
@@ -169,6 +175,8 @@ FocusScope {
                     kind: root.rowKind === "poster" ? "poster" : "landscape"
                     useSeriesPoster: root.useSeriesPoster
                     focused: cardDelegate.current
+                    loadImage: cardDelegate.loadArtwork
+                    imageLoadDelay: root.imageLoadDelay
                     onActivated: root.activated(cardDelegate.index)
                     onFavoriteToggled: (favorite) => root.favoriteToggled(cardDelegate.index, favorite)
                     onPlayedToggled: (played) => root.playedToggled(cardDelegate.index, played)
@@ -182,6 +190,8 @@ FocusScope {
                     subtitle: cardDelegate.itemData.collectionType || ""
                     imageUrl: cardDelegate.itemData.imageUrl || ""
                     focused: cardDelegate.current
+                    loadImage: cardDelegate.loadArtwork
+                    imageLoadDelay: root.imageLoadDelay
                 }
 
                 MouseArea {
