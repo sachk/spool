@@ -299,8 +299,6 @@ FocusScope {
             appController.playResumeItem(selectedIndex, start)
         } else if (detailSource === "nextup") {
             appController.playNextUpItem(selectedIndex, start)
-        } else if (detailSource === "latest") {
-            appController.playLatestItem(selectedIndex, start)
         } else if (detailSource.indexOf("latestLibrary:") === 0) {
             appController.playLatestLibraryItem(parseInt(detailSource.split(":")[1], 10), selectedIndex, start)
         } else if (detailSource === "person") {

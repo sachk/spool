@@ -476,6 +476,7 @@ int main(int argc, char **argv)
     auto *networkAccessManager = new QNetworkAccessManager(&app);
     auto *diskCache = new QNetworkDiskCache(networkAccessManager);
     const QString cachePath = QStandardPaths::writableLocation(QStandardPaths::CacheLocation);
+    const QString qmlImageCachePath = cachePath + QStringLiteral("/qml-image-cache");
     QDir().mkpath(cachePath);
     diskCache->setCacheDirectory(cachePath + QStringLiteral("/network-cache"));
     diskCache->setMaximumCacheSize(kNetworkDiskCacheBytes);
@@ -496,6 +497,7 @@ int main(int argc, char **argv)
 
     auto discovery = std::make_unique<JellyfinNative::DiscoveryController>();
     auto api = std::make_unique<JellyfinNative::JellyfinApiFacade>(networkAccessManager);
+    api->setImagePrefetchCache(qmlImageCachePath, kQmlImageDiskCacheBytes);
     api->setDeviceIdentity(deviceId,
 #ifdef JELLYFIN_NATIVE_WEBOS
                            QStringLiteral("LG webOS TV"),
@@ -579,7 +581,7 @@ int main(int argc, char **argv)
     });
 
     auto *qmlNetworkFactory = new JellyfinNative::QmlNetworkAccessManagerFactory(
-        cachePath + QStringLiteral("/qml-image-cache"), kQmlImageDiskCacheBytes);
+        qmlImageCachePath, kQmlImageDiskCacheBytes);
     window.engine()->setNetworkAccessManagerFactory(qmlNetworkFactory);
     window.engine()->addImageProvider(QStringLiteral("mpv-overlay"),
                                       window.createOverlayImageProvider());

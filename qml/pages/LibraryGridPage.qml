@@ -453,7 +453,6 @@ FocusScope {
             if (root.filtersOpen)
                 root.filterEntries = root.buildFilterEntries()
         }
-        function onCurrentItemsPagingChanged() {}
     }
 
     function activateCurrent() {
@@ -746,7 +745,8 @@ FocusScope {
                 requestMoreIfNeeded()
             }
             onCountChanged: {
-                restoreIndex()
+                if (currentIndex < 0)
+                    restoreIndex()
                 requestMoreIfNeeded()
             }
             onContentYChanged: loadMoreDebounce.restart()
@@ -797,6 +797,13 @@ FocusScope {
                 interval: 80
                 repeat: false
                 onTriggered: grid.requestMoreIfNeeded()
+            }
+
+            Connections {
+                target: appController
+                function onCurrentItemsPagingChanged() {
+                    loadMoreDebounce.restart()
+                }
             }
 
             delegate: Item {
@@ -884,6 +891,7 @@ FocusScope {
             id: libraryList
             anchors.fill: parent
             anchors.margins: 10
+            visible: libraryPanel.visible
             clip: true
             focus: true
             keyNavigationEnabled: false
@@ -940,6 +948,7 @@ FocusScope {
             id: sortList
             anchors.fill: parent
             anchors.margins: 10
+            visible: sortPanel.visible
             clip: true
             focus: true
             keyNavigationEnabled: false
@@ -995,6 +1004,7 @@ FocusScope {
         ColumnLayout {
             anchors.fill: parent
             anchors.margins: 10
+            visible: filterPanel.visible
             spacing: 8
 
             RowLayout {

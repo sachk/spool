@@ -16,6 +16,22 @@ namespace {
 constexpr int kLibraryPageSize = 100;
 constexpr int kBackgroundLibraryPrefetchLimit = 3;
 
+QString preferredImageUrl(const MovieItem &item,
+                          LibraryPrefetchController::ImageKind imageKind)
+{
+  if (imageKind == LibraryPrefetchController::ImageKind::Landscape) {
+    if (!item.thumbUrl.isEmpty())
+      return item.thumbUrl;
+    if (!item.backdropUrl.isEmpty())
+      return item.backdropUrl;
+  }
+  if (!item.posterUrl.isEmpty())
+    return item.posterUrl;
+  if (!item.seriesPosterUrl.isEmpty())
+    return item.seriesPosterUrl;
+  return {};
+}
+
 } // namespace
 
 LibraryPrefetchController::LibraryPrefetchController(JellyfinApiFacade *api,
@@ -98,7 +114,8 @@ LibraryPrefetchController::cachedPage(const QString &cacheKey) const {
 }
 
 void LibraryPrefetchController::prefetchPosters(
-    const std::vector<MovieItem> &items, int firstIndex, int visibleCount) {
+    const std::vector<MovieItem> &items, int firstIndex, int visibleCount,
+    ImageKind imageKind) {
   if (items.empty())
     return;
 
@@ -107,16 +124,13 @@ void LibraryPrefetchController::prefetchPosters(
   const int end =
       std::min(static_cast<int>(items.size()), begin + windowSize);
   QStringList urls;
-  urls.reserve((end - begin) * 2);
+  urls.reserve(end - begin);
 
   for (int index = begin; index < end; ++index) {
     const MovieItem &item = items[static_cast<size_t>(index)];
-    if (!item.posterUrl.isEmpty())
-      urls.push_back(item.posterUrl);
-    if (!item.backdropUrl.isEmpty())
-      urls.push_back(item.backdropUrl);
-    if (!item.logoUrl.isEmpty())
-      urls.push_back(item.logoUrl);
+    const QString url = preferredImageUrl(item, imageKind);
+    if (!url.isEmpty())
+      urls.push_back(url);
   }
 
   if (!urls.isEmpty())

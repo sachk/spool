@@ -8,9 +8,12 @@ Item {
     property int year: 0
     property bool focused: false
     property string metadata: ""
+    readonly property real metadataHeight: yearLabel.text.length > 0 ? yearLabel.implicitHeight : 0
+    readonly property real titleAvailableHeight: Math.max(0, height - poster.height - 10 - metadataHeight)
 
     implicitWidth: 210
     implicitHeight: poster.height + titleLabel.implicitHeight + yearLabel.implicitHeight + 10
+    clip: true
 
     ImageCard {
         id: poster
@@ -29,6 +32,8 @@ Item {
         anchors.topMargin: 8
         anchors.left: parent.left
         anchors.right: parent.right
+        height: Math.min(implicitHeight, root.titleAvailableHeight)
+        visible: height > 0 && text.length > 0
         text: root.title
         font.pixelSize: Metrics.bodyPx(root.Window.window ? root.Window.window.width : 1920)
         font.weight: Font.Medium
@@ -44,6 +49,8 @@ Item {
         anchors.topMargin: 2
         anchors.left: parent.left
         anchors.right: parent.right
+        height: Math.min(implicitHeight, Math.max(0, root.height - y))
+        visible: height > 0 && text.length > 0
         text: root.metadata.length > 0 ? root.metadata : root.year > 0 ? String(root.year) : ""
         font.pixelSize: Metrics.metaPx(root.Window.window ? root.Window.window.width : 1920)
         color: Theme.textMuted

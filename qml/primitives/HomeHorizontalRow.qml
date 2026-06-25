@@ -13,10 +13,10 @@ FocusScope {
     property int cardWidth: 240
     property int cardGap: 16
     property int currentIndex: rowCount > 0 ? 0 : -1
-    property int maximumItems: 24
     readonly property int rowCount: countObserver.count
-    readonly property int visibleCount: Math.min(rowCount, maximumItems)
+    readonly property int visibleCount: rowCount
     readonly property bool libraryRow: rowKind === "library"
+    readonly property bool rowVisible: visibleCount > 0
 
     signal activated(int index)
     signal moveVertical(int direction)
@@ -41,11 +41,15 @@ FocusScope {
     }
 
     function itemAt(index) {
-        return rowModel && index >= 0 && index < rowCount ? rowModel.get(index) : ({})
+        return rowModel && index >= 0 && index < rowCount ? (rowModel.get(index) || ({})) : ({})
     }
 
     function currentCard() {
         return rowList.currentItem
+    }
+
+    function focusList() {
+        rowList.forceActiveFocus()
     }
 
     function ensureVisible() {
@@ -120,6 +124,7 @@ FocusScope {
             keyNavigationEnabled: false
             boundsBehavior: Flickable.StopAtBounds
             spacing: root.cardGap
+            cacheBuffer: Math.round((root.cardWidth + root.cardGap) * 2)
             model: root.visibleCount
             currentIndex: root.currentIndex
             onCurrentIndexChanged: {

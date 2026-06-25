@@ -21,6 +21,7 @@ T.Button {
     }
 
     contentItem: Item {
+        clip: true
         Row {
             id: buttonContent
             anchors.centerIn: parent

@@ -8,9 +8,12 @@ Item {
     property string imageUrl: ""
     property real progress: 0
     property bool focused: false
+    readonly property real subtitleHeight: subtitleLabel.text.length > 0 ? subtitleLabel.implicitHeight : 0
+    readonly property real titleAvailableHeight: Math.max(0, height - art.height - 10 - subtitleHeight)
 
     implicitWidth: 320
     implicitHeight: art.height + 8 + titleLabel.implicitHeight + 2 + subtitleLabel.implicitHeight
+    clip: true
 
     ImageCard {
         id: art
@@ -44,6 +47,8 @@ Item {
         anchors.topMargin: 8
         anchors.left: parent.left
         anchors.right: parent.right
+        height: Math.min(implicitHeight, root.titleAvailableHeight)
+        visible: height > 0 && text.length > 0
         text: root.title
         font.pixelSize: Metrics.bodyPx(root.Window.window ? root.Window.window.width : 1920)
         font.weight: Font.Medium
@@ -58,6 +63,8 @@ Item {
         anchors.topMargin: 2
         anchors.left: parent.left
         anchors.right: parent.right
+        height: Math.min(implicitHeight, Math.max(0, root.height - y))
+        visible: height > 0 && text.length > 0
         text: root.subtitle
         color: Theme.textMuted
         font.pixelSize: Metrics.metaPx(root.Window.window ? root.Window.window.width : 1920)
