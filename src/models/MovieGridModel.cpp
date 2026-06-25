@@ -190,6 +190,8 @@ QVariant MovieGridModel::data(const QModelIndex &index, int role) const
         return movie.bannerUrl;
     case ThumbUrlRole:
         return movie.thumbUrl;
+    case LandscapeCardUrlRole:
+        return movie.landscapeCardUrl;
     case GenresRole:
         return movie.genres;
     case TagsRole:
@@ -245,6 +247,7 @@ QHash<int, QByteArray> MovieGridModel::roleNames() const
         {LogoUrlRole, "logoUrl"},
         {BannerUrlRole, "bannerUrl"},
         {ThumbUrlRole, "thumbUrl"},
+        {LandscapeCardUrlRole, "landscapeCardUrl"},
         {GenresRole, "genres"},
         {TagsRole, "tags"},
         {StudiosRole, "studios"},
@@ -292,6 +295,7 @@ QVariantMap MovieGridModel::get(int index) const
         {QStringLiteral("logoUrl"), movie.logoUrl},
         {QStringLiteral("bannerUrl"), movie.bannerUrl},
         {QStringLiteral("thumbUrl"), movie.thumbUrl},
+        {QStringLiteral("landscapeCardUrl"), movie.landscapeCardUrl},
         {QStringLiteral("genres"), movie.genres},
         {QStringLiteral("tags"), movie.tags},
         {QStringLiteral("studios"), movie.studios},

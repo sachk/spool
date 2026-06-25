@@ -46,6 +46,9 @@ public:
     void setSession(const AuthSession &session);
     AuthSession session() const;
     void setPlaybackPreferences(qint64 maxStreamingBitrate, bool preferRemux);
+    void setArtworkUiWidth(int width);
+    int landscapeCardImageWidth() const;
+    int landscapeCardImageQuality() const;
 
     QString buildImageUrl(const QString &itemId, const QString &tag = {}, int maxWidth = 280,
                           int quality = 75, const QString &format = QStringLiteral("webp"),
@@ -152,6 +155,7 @@ private:
     QSet<QNetworkReply *> m_activeReplies;
     int m_prefetchInFlight = 0;
     int m_prefetchMaxConcurrent = 6;
+    int m_artworkUiWidth = 1920;
     qint64 m_maxStreamingBitrate = 120'000'000;
     bool m_preferRemux = true;
     bool m_authExpirationReported = false;

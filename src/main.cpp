@@ -514,6 +514,7 @@ int main(int argc, char **argv)
         return 1;
     }
     }
+    api->setArtworkUiWidth(window.width());
     logLine("startup: prepareForUiSurface completed in %lld ms",
             static_cast<long long>(startupTimer.elapsed()));
 

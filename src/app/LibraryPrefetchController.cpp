@@ -20,6 +20,8 @@ QString preferredImageUrl(const MovieItem &item,
                           LibraryPrefetchController::ImageKind imageKind)
 {
   if (imageKind == LibraryPrefetchController::ImageKind::Landscape) {
+    if (!item.landscapeCardUrl.isEmpty())
+      return item.landscapeCardUrl;
     if (!item.thumbUrl.isEmpty())
       return item.thumbUrl;
     if (!item.backdropUrl.isEmpty())

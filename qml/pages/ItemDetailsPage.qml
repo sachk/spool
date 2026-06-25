@@ -33,8 +33,6 @@ FocusScope {
     readonly property bool showPeopleRow: people.length > 0
     readonly property var genreList: item.genres || []
     readonly property var studioList: item.studios || []
-    readonly property bool showGenresRow: genreList.length > 0
-    readonly property bool showStudiosRow: studioList.length > 0
     readonly property int seasonCount: appController && appController.detailSeasons ? appController.detailSeasons.count : 0
     readonly property int similarCount: appController && appController.detailSimilarItems ? appController.detailSimilarItems.count : 0
     property bool favoriteState: false
@@ -110,6 +108,49 @@ FocusScope {
         }
     }
 
+    component ChipLine: RowLayout {
+        id: chipLineRoot
+        property string label: ""
+        property var values: []
+        property int maxItems: 8
+        readonly property var shownValues: values ? values.slice(0, maxItems) : []
+        visible: shownValues.length > 0
+        spacing: 10
+        signal activated(string value)
+
+        AppText {
+            Layout.preferredWidth: Math.min(112, Math.max(80, root.width * 0.06))
+            text: chipLineRoot.label
+            color: Theme.textMuted
+            font.pixelSize: Metrics.metaPx(root.width)
+            font.weight: Font.Medium
+            elide: Text.ElideRight
+            maximumLineCount: 1
+        }
+
+        Flow {
+            Layout.fillWidth: true
+            spacing: 7
+            rowSpacing: 7
+
+            Repeater {
+                model: chipLineRoot.shownValues
+                delegate: MetadataChip {
+                    required property var modelData
+                    text: String(modelData || "")
+                    hovered: chipMouse.containsMouse
+
+                    MouseArea {
+                        id: chipMouse
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        onClicked: chipLineRoot.activated(parent.text)
+                    }
+                }
+            }
+        }
+    }
+
     Component.onCompleted: {
         syncUserState()
         updateDetailCounts()
@@ -180,13 +221,23 @@ FocusScope {
         playedState = Boolean(item.played)
     }
 
-    function focusDefaultAction() {
+    function focusActionRow() {
         if (detailsFlick)
             detailsFlick.contentY = 0
         if (showPrimaryAction && primaryAction.enabledButton)
             primaryAction.forceActiveFocus()
         else
             playedAction.forceActiveFocus()
+    }
+
+    function focusDefaultAction() {
+        if (detailsFlick)
+            detailsFlick.contentY = 0
+        if (showPrimaryAction && primaryAction.enabledButton) {
+            focusActionRow()
+        } else if (!focusFirstMediaRow()) {
+            focusActionRow()
+        }
     }
 
     function orderedActions() {
@@ -233,20 +284,9 @@ FocusScope {
     }
 
     function focusFirstContentRow() {
-        if (showGenresRow) {
-            genresRow.focusList()
-            ensureDetailsItemVisible(genresRow)
-            return true
-        }
-        if (showStudiosRow) {
-            studiosRow.focusList()
-            ensureDetailsItemVisible(studiosRow)
-            return true
-        }
         return focusFirstMediaRow()
     }
 
-    // Seasons / cast / similar — the poster rows below the tag chips.
     function focusFirstMediaRow() {
         if (showSeasonsRow) {
             if (seasonsNavigable) {
@@ -273,20 +313,8 @@ FocusScope {
         return false
     }
 
-    // The focusable element directly above the seasons/cast/similar block:
-    // the studios chips, else genres chips, else the action bar.
     function focusRowAboveMediaRows() {
-        if (showStudiosRow) {
-            studiosRow.focusList()
-            ensureDetailsItemVisible(studiosRow)
-            return
-        }
-        if (showGenresRow) {
-            genresRow.focusList()
-            ensureDetailsItemVisible(genresRow)
-            return
-        }
-        focusDefaultAction()
+        focusActionRow()
     }
 
     function activatePrimary(fromStart) {
@@ -364,12 +392,16 @@ FocusScope {
         if (!value || !appController)
             return
         appController.openGenre(value)
+        if (shell)
+            shell.replaceRoute("libraryGrid")
     }
 
     function openStudioPage(value) {
         if (!value || !appController)
             return
         appController.openStudio(value)
+        if (shell)
+            shell.replaceRoute("libraryGrid")
     }
 
     function ensureDetailsItemVisible(item) {
@@ -490,40 +522,6 @@ FocusScope {
                 openMediaInfo()
                 return true
             }
-        }
-
-        if (genresRow.activeFocus) {
-            if (key === Qt.Key_Up) {
-                focusDefaultAction()
-                return true
-            }
-            if (key === Qt.Key_Down) {
-                if (showStudiosRow) {
-                    studiosRow.focusList()
-                    ensureDetailsItemVisible(studiosRow)
-                } else {
-                    focusFirstMediaRow()
-                }
-                return true
-            }
-            return genresRow.handleNavigationKey(key)
-        }
-
-        if (studiosRow.activeFocus) {
-            if (key === Qt.Key_Up) {
-                if (showGenresRow) {
-                    genresRow.focusList()
-                    ensureDetailsItemVisible(genresRow)
-                } else {
-                    focusDefaultAction()
-                }
-                return true
-            }
-            if (key === Qt.Key_Down) {
-                focusFirstMediaRow()
-                return true
-            }
-            return studiosRow.handleNavigationKey(key)
         }
 
         if (seasonsRow.activeFocus) {
@@ -864,6 +862,20 @@ FocusScope {
                                 Layout.fillWidth: true
                                 spacing: 5
 
+                                ChipLine {
+                                    Layout.fillWidth: true
+                                    label: "Genres"
+                                    values: root.genreList
+                                    onActivated: (value) => root.openGenrePage(value)
+                                }
+
+                                ChipLine {
+                                    Layout.fillWidth: true
+                                    label: "Studios"
+                                    values: root.studioList
+                                    onActivated: (value) => root.openStudioPage(value)
+                                }
+
                                 InfoLine { label: "Tags"; value: root.listText(root.item.tags, 8) }
                             }
                         }
@@ -875,50 +887,17 @@ FocusScope {
                 id: detailRowsArea
                 Layout.fillWidth: true
                 readonly property int rowSpacing: Metrics.sectionGap(root.width)
-                readonly property int visibleRowCount: (genresRow.visible ? 1 : 0)
-                                                       + (studiosRow.visible ? 1 : 0)
-                                                       + (seasonsRow.visible ? 1 : 0)
+                readonly property int visibleRowCount: (seasonsRow.visible ? 1 : 0)
                                                        + (peopleRow.visible ? 1 : 0)
                                                        + (similarRow.visible ? 1 : 0)
-                readonly property int rowsHeight: genresRow.height + studiosRow.height + seasonsRow.height
-                                                  + peopleRow.height + similarRow.height
+                readonly property int rowsHeight: seasonsRow.height + peopleRow.height + similarRow.height
                                                   + Math.max(0, visibleRowCount - 1) * rowSpacing
-                readonly property int genresY: 18
-                readonly property int studiosY: genresY + (genresRow.visible ? genresRow.height + rowSpacing : 0)
-                readonly property int seasonsY: studiosY + (studiosRow.visible ? studiosRow.height + rowSpacing : 0)
+                readonly property int seasonsY: 18
                 readonly property int peopleY: seasonsY + (seasonsRow.visible ? seasonsRow.height + rowSpacing : 0)
                 readonly property int similarY: peopleY + (peopleRow.visible ? peopleRow.height + rowSpacing : 0)
                 Layout.preferredHeight: 18 + rowsHeight + root.contentMargin
                 implicitHeight: 18 + rowsHeight + root.contentMargin
                 height: implicitHeight
-
-                ChipScrollerRow {
-                    id: genresRow
-                    anchors.left: parent.left
-                    anchors.right: parent.right
-                    anchors.leftMargin: root.contentMargin
-                    anchors.rightMargin: root.contentMargin
-                    y: detailRowsArea.genresY
-                    title: "Genres"
-                    values: root.genreList
-                    rowGap: 12
-                    enabledRow: root.showGenresRow
-                    onActivated: (value) => root.openGenrePage(value)
-                }
-
-                ChipScrollerRow {
-                    id: studiosRow
-                    anchors.left: parent.left
-                    anchors.right: parent.right
-                    anchors.leftMargin: root.contentMargin
-                    anchors.rightMargin: root.contentMargin
-                    y: detailRowsArea.studiosY
-                    title: "Studios"
-                    values: root.studioList
-                    rowGap: 12
-                    enabledRow: root.showStudiosRow
-                    onActivated: (value) => root.openStudioPage(value)
-                }
 
                 MediaPosterScrollerRow {
                     id: seasonsRow
