@@ -9,6 +9,8 @@ namespace JellyfinNative {
 
 namespace {
 
+constexpr qint64 kTicksPerSecond = 10000000;
+
 QJsonArray stringListToJsonArray(const QStringList &items)
 {
     QJsonArray array;
@@ -225,6 +227,7 @@ QJsonObject toJson(const MovieItem &movie)
         {QStringLiteral("posterTag"), movie.posterTag},
         {QStringLiteral("itemType"), movie.itemType},
         {QStringLiteral("seriesId"), movie.seriesId},
+        {QStringLiteral("seasonId"), movie.seasonId},
         {QStringLiteral("seriesName"), movie.seriesName},
         {QStringLiteral("seriesPosterUrl"), movie.seriesPosterUrl},
         {QStringLiteral("subtitle"), movie.subtitle},
@@ -296,6 +299,7 @@ MovieItem movieFromJson(const QJsonObject &object)
         object.value(QStringLiteral("posterTag")).toString(),
         object.value(QStringLiteral("itemType")).toString(QStringLiteral("Movie")),
         object.value(QStringLiteral("seriesId")).toString(),
+        object.value(QStringLiteral("seasonId")).toString(),
         object.value(QStringLiteral("seriesName")).toString(),
         object.value(QStringLiteral("seriesPosterUrl")).toString(),
         object.value(QStringLiteral("subtitle")).toString(),
@@ -352,6 +356,24 @@ QString sanitizedDiagnosticUrl(QString url, qsizetype maxLength)
                                                 QRegularExpression::CaseInsensitiveOption);
     url.replace(secretQuery, QStringLiteral("\\1<redacted>"));
     return maxLength >= 0 ? url.left(maxLength) : url;
+}
+
+bool isMeaningfulResumePosition(qint64 resumeTicks, qint64 runtimeTicks)
+{
+    if (resumeTicks < 5 * kTicksPerSecond)
+        return false;
+    if (runtimeTicks <= 0)
+        return true;
+
+    const qint64 remainingTicks = runtimeTicks - resumeTicks;
+    return resumeTicks < runtimeTicks &&
+           resumeTicks * 100 < runtimeTicks * 95 &&
+           remainingTicks > 30 * kTicksPerSecond;
+}
+
+qint64 normalizedResumeTicks(qint64 resumeTicks, qint64 runtimeTicks)
+{
+    return isMeaningfulResumePosition(resumeTicks, runtimeTicks) ? resumeTicks : 0;
 }
 
 } // namespace JellyfinNative

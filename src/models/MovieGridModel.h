@@ -22,6 +22,7 @@ public:
         PosterTagRole,
         YearRole,
         ItemTypeRole,
+        SeasonIdRole,
         SubtitleRole,
         PathRole,
         SeasonNumberRole,
@@ -69,6 +70,7 @@ public:
     bool updateResumeTicks(const QString &itemId, qint64 resumeTicks);
     bool updateFavorite(const QString &itemId, bool favorite);
     bool updatePlayed(const QString &itemId, bool played);
+    bool removeUnresumable();
 
 signals:
     void countChanged();

@@ -133,6 +133,7 @@ FocusScope {
             width: root.cardWidth
             height: listView.height
             item: itemData
+            shell: root.shell
             kind: "poster"
             useSeriesPoster: root.useSeriesPoster
             focused: posterDelegate.index === listView.currentIndex && listView.activeFocus

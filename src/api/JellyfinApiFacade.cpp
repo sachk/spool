@@ -288,6 +288,7 @@ MovieItem mediaItemFromJson(const JellyfinApiFacade *api, const QJsonObject &obj
     const QString itemId = object.value(QStringLiteral("Id")).toString();
     const QString itemType = object.value(QStringLiteral("Type")).toString();
     const QString seriesId = object.value(QStringLiteral("SeriesId")).toString();
+    const QString seasonId = object.value(QStringLiteral("SeasonId")).toString();
     const QString seriesPrimaryImageTag = object.value(QStringLiteral("SeriesPrimaryImageTag")).toString();
     const QJsonObject imageTags = object.value(QStringLiteral("ImageTags")).toObject();
     const QString posterTag = imageTags.value(QStringLiteral("Primary")).toString();
@@ -328,6 +329,7 @@ MovieItem mediaItemFromJson(const JellyfinApiFacade *api, const QJsonObject &obj
     item.posterTag = posterTag;
     item.itemType = itemType;
     item.seriesId = seriesId;
+    item.seasonId = seasonId;
     item.seriesName = object.value(QStringLiteral("SeriesName")).toString();
     item.seriesPosterUrl = !seriesId.isEmpty() && !seriesPrimaryImageTag.isEmpty()
         ? api->buildImageUrl(seriesId, seriesPrimaryImageTag, 360, 80)
@@ -337,7 +339,7 @@ MovieItem mediaItemFromJson(const JellyfinApiFacade *api, const QJsonObject &obj
     item.year = object.value(QStringLiteral("ProductionYear")).toInt();
     item.seasonNumber = itemType == QStringLiteral("Episode") ? parentIndexNumber : indexNumber;
     item.episodeNumber = itemType == QStringLiteral("Episode") ? indexNumber : 0;
-    item.resumeTicks = resumeTicks;
+    item.resumeTicks = normalizedResumeTicks(resumeTicks, runtimeTicks);
     item.runtimeTicks = runtimeTicks;
     item.playable = playable;
     item.favorite = userData.value(QStringLiteral("IsFavorite")).toBool(false);
@@ -1071,6 +1073,24 @@ QCoro::Task<void> JellyfinApiFacade::setItemPlayed(QString itemId, bool played)
     co_await requestNoContent(played ? HttpMethod::Post : HttpMethod::Delete, path, QJsonDocument());
 }
 
+QCoro::Task<void> JellyfinApiFacade::setItemPlaybackPosition(QString itemId, qint64 positionTicks)
+{
+    if (itemId.isEmpty())
+        co_return;
+
+    QUrlQuery query;
+    query.addQueryItem(QStringLiteral("userId"), m_session.userId);
+    const QJsonObject body{
+        {QStringLiteral("ItemId"), itemId},
+        {QStringLiteral("PlaybackPositionTicks"), std::max<qint64>(0, positionTicks)},
+        {QStringLiteral("Played"), false},
+    };
+    co_await requestJson(HttpMethod::Post,
+                         QStringLiteral("/UserItems/%1/UserData").arg(itemId),
+                         query,
+                         QJsonDocument(body));
+}
+
 QCoro::Task<std::vector<MediaSegment>> JellyfinApiFacade::fetchMediaSegments(QString itemId)
 {
     Diagnostics::Task task(QStringLiteral("api_fetch_media_segments"), {{QStringLiteral("itemId"), itemId}});
@@ -1511,6 +1531,7 @@ PlaybackSession JellyfinApiFacade::buildPlaybackSession(const MovieItem &movie, 
         selection.playMethod,
         container,
         movie.resumeTicks,
+        movie.runtimeTicks,
     };
 }
 

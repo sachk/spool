@@ -818,27 +818,29 @@ void PlayerController::startProgressReporting() {
   m_reporter.start(m_session);
 }
 
-void PlayerController::stopProgressReporting(bool failed) {
-  Diagnostics::Phase phase(QStringLiteral("player"), QStringLiteral("stop_progress_reporting"), {{QStringLiteral("failed"), failed}});
+void PlayerController::stopProgressReporting(bool failed, bool completed) {
+  Diagnostics::Phase phase(QStringLiteral("player"), QStringLiteral("stop_progress_reporting"), {{QStringLiteral("failed"), failed}, {QStringLiteral("completed"), completed}});
   if (!m_visible && !m_progressTimer.isActive()) {
     qInfo() << "player: stopProgressReporting skipped visible=" << m_visible;
     return;
   }
 
-  qInfo() << "player: stopProgressReporting visible=" << m_visible << "failed=" << failed;
+  qInfo() << "player: stopProgressReporting visible=" << m_visible << "failed=" << failed << "completed=" << completed;
   m_progressTimer.stop();
   m_uiPositionTimer.stop();
   m_seekWatchdogTimer.stop();
 
   const auto session = m_session;
-  const qint64 positionTicks = secondsToTicks(m_positionTracker.position());
+  const qint64 positionTicks = completed && session.runtimeTicks > 0
+                                   ? session.runtimeTicks
+                                   : secondsToTicks(m_positionTracker.position());
   m_reporter.stop(positionTicks, failed);
 
   resetPlaybackUiState();
   m_window->clearOverlay();
   emit stateChanged();
   emit visibleChanged();
-  emit playbackStopped(session.itemId, positionTicks);
+  emit playbackStopped(session.itemId, positionTicks, completed);
 }
 
 void PlayerController::resetPlaybackUiState() {
@@ -1143,8 +1145,10 @@ void PlayerController::handleMpvEvent(mpv_event *event) {
         qInfo() << "player: end file for replaced session, ignoring";
         break;
       }
-      QMetaObject::invokeMethod(this, [this, failed, endFileReason, endFileError]() {
+      const bool completed = !failed && endFileReason == MPV_END_FILE_REASON_EOF;
+      QMetaObject::invokeMethod(this, [this, failed, completed, endFileReason, endFileError]() {
         qInfo() << "player: end file (main thread) failed=" << failed
+                << "completed=" << completed
                 << "visible=" << m_visible
                 << "reason=" << endFileReason
                 << endFileReasonName(endFileReason)
@@ -1152,7 +1156,7 @@ void PlayerController::handleMpvEvent(mpv_event *event) {
                 << (endFileError < 0 ? mpv_error_string(endFileError) : "");
         if (failed)
           m_errorText = QStringLiteral("Playback ended with an mpv error.");
-        stopProgressReporting(failed);
+        stopProgressReporting(failed, completed);
         scheduleMpvTeardown();
       });
       break;

@@ -294,6 +294,7 @@ FocusScope {
                     id: actions
                     anchors.fill: parent
                     item: resultDelegate.itemData
+                    shell: root.shell
                     focused: resultDelegate.focused
                     onActivated: {
                         results.currentIndex = index

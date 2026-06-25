@@ -197,6 +197,8 @@ public:
     Q_INVOKABLE void playLatestItem(int index, bool fromStart = false);
     Q_INVOKABLE QObject *latestLibraryItems(int rowIndex);
     Q_INVOKABLE void playLatestLibraryItem(int rowIndex, int itemIndex, bool fromStart = false);
+    Q_INVOKABLE void openSeriesById(const QString &seriesId, const QString &seriesName);
+    Q_INVOKABLE void openSeasonById(const QString &seriesId, const QString &seasonId, const QString &seasonName);
     Q_INVOKABLE void search(const QString &query);
     Q_INVOKABLE void clearSearch();
     Q_INVOKABLE void playSearchResult(int index, bool fromStart = false);
@@ -220,6 +222,7 @@ public:
     Q_INVOKABLE void playPersonItem(int index, bool fromStart = false);
     Q_INVOKABLE void setFavorite(const QString &itemId, bool favorite);
     Q_INVOKABLE void setPlayed(const QString &itemId, bool played);
+    Q_INVOKABLE void clearProgress(const QString &itemId);
     Q_INVOKABLE void back();
     Q_INVOKABLE void clearError();
     Q_INVOKABLE void openSettings();
@@ -300,6 +303,8 @@ private:
     void playMediaItem(const MovieItem &item, bool fromStart = false);
     // Series/Season open their child listing; everything else plays directly.
     void playOrOpen(const MovieItem &item, bool fromStart = false);
+    void handlePlaybackStopped(const QString &itemId, qint64 positionTicks, bool completed);
+    void playNextEpisodeAfter(const MovieItem &episode);
 
     DatabaseManager *m_database = nullptr;
     DiscoveryController *m_discovery = nullptr;
@@ -317,6 +322,7 @@ private:
     DiscoveredServerModel m_discoveredServers;
     LibraryListModel m_libraries;
     NavigationState m_navigation;
+    MovieItem m_activePlaybackItem;
     bool m_busy = false;
     bool m_hasDefaultProfile = false;
     QString m_busyText;

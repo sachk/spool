@@ -138,11 +138,8 @@ AppController::AppController(DatabaseManager *database,
         m_database->saveDiscoveredServers(cache);
     });
 
-    connect(m_player, &PlayerController::playbackStopped, this, [this](const QString &itemId, qint64 positionTicks) {
-        qInfo() << "app: playbackStopped page=" << page() << "itemId=" << itemId << "positionTicks=" << positionTicks;
-        m_itemState->applyResumeTicks(itemId, positionTicks);
-        schedulePostPlaybackRefresh();
-    });
+    connect(m_player, &PlayerController::playbackStopped, this,
+            &AppController::handlePlaybackStopped);
 }
 
 QString AppController::page() const
@@ -546,6 +543,7 @@ void AppController::resetApplicationState()
     m_currentItems->clear();
     m_home->reset();
     m_content->reset();
+    m_activePlaybackItem = {};
     m_libraryLoadGeneration.invalidate();
     const bool pageWasLogin = page() == QStringLiteral("login");
     m_navigation.reset();
@@ -688,6 +686,31 @@ QObject *AppController::latestLibraryItems(int rowIndex)
 void AppController::playLatestLibraryItem(int rowIndex, int itemIndex, bool fromStart)
 {
     playOrOpen(m_home->latestLibraryItemAt(rowIndex, itemIndex), fromStart);
+}
+
+void AppController::openSeriesById(const QString &seriesId, const QString &seriesName)
+{
+    if (seriesId.isEmpty())
+        return;
+    MovieItem series;
+    series.id = seriesId;
+    series.title = seriesName.isEmpty() ? QStringLiteral("Series") : seriesName;
+    series.itemType = QStringLiteral("Series");
+    series.playable = false;
+    openSeries(series);
+}
+
+void AppController::openSeasonById(const QString &seriesId, const QString &seasonId, const QString &seasonName)
+{
+    if (seriesId.isEmpty())
+        return;
+    MovieItem season;
+    season.id = seasonId;
+    season.seriesId = seriesId;
+    season.title = seasonName.isEmpty() ? QStringLiteral("Season") : seasonName;
+    season.itemType = seasonId.isEmpty() ? QStringLiteral("Series") : QStringLiteral("Season");
+    season.playable = false;
+    openSeason(season);
 }
 
 void AppController::search(const QString &query)
@@ -932,13 +955,29 @@ void AppController::setPlayed(const QString &itemId, bool played)
         });
 }
 
+void AppController::clearProgress(const QString &itemId)
+{
+    if (itemId.isEmpty() || !m_api || m_api->session().accessToken.isEmpty())
+        return;
+
+    m_itemState->applyResumeTicks(itemId, 0);
+    m_itemState->applyPlayed(itemId, false);
+    Async::runScoped(this,
+        m_api->setItemPlaybackPosition(itemId, 0),
+        []() {},
+        [this](const std::exception_ptr &error) {
+            setErrorText(exceptionMessage(error));
+        });
+}
+
 void AppController::playMediaItem(const MovieItem &item, bool fromStart)
 {
     Diagnostics::Task task(QStringLiteral("playback_negotiate"), {{QStringLiteral("itemId"), item.id}, {QStringLiteral("title"), item.title}, {QStringLiteral("type"), item.itemType}});
     setBusy(true, QStringLiteral("Negotiating playback…"));
     MovieItem playItem = item;
-    if (fromStart)
+    if (fromStart || !isMeaningfulResumePosition(playItem.resumeTicks, playItem.runtimeTicks))
         playItem.resumeTicks = 0;
+    m_activePlaybackItem = playItem;
     const QString itemId = playItem.id;
     Async::runScoped(this,
         m_api->negotiatePlayback(playItem),
@@ -1414,6 +1453,68 @@ void AppController::schedulePostPlaybackRefresh()
         refreshHomeRows();
         refreshCurrentItems(viewKind, libraryId, seriesId, seasonId);
     });
+}
+
+void AppController::handlePlaybackStopped(const QString &itemId,
+                                          qint64 positionTicks,
+                                          bool completed)
+{
+    qInfo() << "app: playbackStopped page=" << page()
+            << "itemId=" << itemId
+            << "positionTicks=" << positionTicks
+            << "completed=" << completed;
+
+    if (completed) {
+        m_itemState->applyPlayed(itemId, true);
+        if (m_api && !m_api->session().accessToken.isEmpty()) {
+            Async::runScoped(this,
+                m_api->setItemPlayed(itemId, true),
+                []() {},
+                [](const std::exception_ptr &error) {
+                    qWarning() << "app: completed playback mark-watched failed"
+                               << exceptionMessage(error);
+                });
+        }
+        if (m_activePlaybackItem.id == itemId)
+            playNextEpisodeAfter(m_activePlaybackItem);
+    } else {
+        m_itemState->applyResumeTicks(itemId, positionTicks);
+    }
+
+    schedulePostPlaybackRefresh();
+}
+
+void AppController::playNextEpisodeAfter(const MovieItem &episode)
+{
+    if (episode.itemType != QStringLiteral("Episode") || episode.seriesId.isEmpty())
+        return;
+    if (!m_api || m_api->session().accessToken.isEmpty())
+        return;
+
+    Async::runScoped(this,
+        m_api->fetchEpisodes(episode.seriesId),
+        [this, episode](const std::vector<MovieItem> &episodes) {
+            auto current = std::find_if(episodes.begin(), episodes.end(),
+                                        [&episode](const MovieItem &candidate) {
+                                            return candidate.id == episode.id;
+                                        });
+            if (current == episodes.end())
+                return;
+
+            for (++current; current != episodes.end(); ++current) {
+                if (current->id.isEmpty() || !current->playable)
+                    continue;
+
+                qInfo() << "app: auto-playing next episode"
+                        << current->seriesName << current->title;
+                playMediaItem(*current, false);
+                return;
+            }
+        },
+        [](const std::exception_ptr &error) {
+            qWarning() << "app: next episode lookup failed"
+                       << exceptionMessage(error);
+        });
 }
 
 void AppController::refreshCurrentItems(const QString &viewKind,
