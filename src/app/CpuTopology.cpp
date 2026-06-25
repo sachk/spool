@@ -1,13 +1,14 @@
 #include "CpuTopology.h"
 
-#include <QDir>
 #include <QFile>
+#include <QList>
 #include <QSet>
 #include <QStringList>
 #include <QThread>
 
 #include <algorithm>
 #include <cstdlib>
+#include <utility>
 
 namespace JellyfinNative {
 
@@ -44,24 +45,37 @@ QSet<int> parseCpuList(const QString &text)
     return cpus;
 }
 
-QSet<int> onlineCpus()
+QSet<int> systemCpus(QString *source)
 {
-    QSet<int> cpus = parseCpuList(readTextFile(QStringLiteral("/sys/devices/system/cpu/online")));
-    if (!cpus.isEmpty())
-        return cpus;
+    const std::pair<QString, QString> candidates[] = {
+        {QStringLiteral("/sys/devices/system/cpu/possible"), QStringLiteral("possible")},
+        {QStringLiteral("/sys/devices/system/cpu/present"), QStringLiteral("present")},
+        {QStringLiteral("/sys/devices/system/cpu/online"), QStringLiteral("online")},
+    };
+    for (const auto &[path, name] : candidates) {
+        QSet<int> cpus = parseCpuList(readTextFile(path));
+        if (!cpus.isEmpty()) {
+            if (source)
+                *source = name;
+            return cpus;
+        }
+    }
 
     const int count = std::max(1, QThread::idealThreadCount());
+    if (source)
+        *source = QStringLiteral("idealThreadCount");
+    QSet<int> cpus;
     for (int cpu = 0; cpu < count; ++cpu)
         cpus.insert(cpu);
     return cpus;
 }
 
-QString normalizedSiblingSet(const QString &text, const QSet<int> &online)
+QString normalizedSiblingSet(const QString &text, const QSet<int> &cpus)
 {
     QList<int> siblings;
     const QSet<int> parsed = parseCpuList(text);
     for (int cpu : parsed) {
-        if (online.contains(cpu))
+        if (cpus.contains(cpu))
             siblings.push_back(cpu);
     }
     std::sort(siblings.begin(), siblings.end());
@@ -73,31 +87,37 @@ QString normalizedSiblingSet(const QString &text, const QSet<int> &online)
     return parts.join(QLatin1Char(','));
 }
 
-int physicalCoresFromSiblings(const QSet<int> &online)
+int physicalCoresFromSiblings(const QSet<int> &cpus)
 {
     QSet<QString> siblingGroups;
-    for (int cpu : online) {
-        const QString siblings = normalizedSiblingSet(
-            readTextFile(QStringLiteral("/sys/devices/system/cpu/cpu%1/topology/thread_siblings_list").arg(cpu)),
-            online);
+    int covered = 0;
+    for (int cpu : cpus) {
+        const QString text =
+            readTextFile(QStringLiteral("/sys/devices/system/cpu/cpu%1/topology/thread_siblings_list").arg(cpu));
+        const QString siblings = normalizedSiblingSet(text, cpus);
         if (!siblings.isEmpty())
             siblingGroups.insert(siblings);
+        if (!text.isEmpty())
+            ++covered;
     }
-    return siblingGroups.isEmpty() ? 0 : siblingGroups.size();
+    return covered == cpus.size() && !siblingGroups.isEmpty() ? siblingGroups.size() : 0;
 }
 
-int physicalCoresFromCoreIds(const QSet<int> &online)
+int physicalCoresFromCoreIds(const QSet<int> &cpus)
 {
     QSet<QString> cores;
-    for (int cpu : online) {
+    int covered = 0;
+    for (int cpu : cpus) {
         const QString packageId =
             readTextFile(QStringLiteral("/sys/devices/system/cpu/cpu%1/topology/physical_package_id").arg(cpu));
         const QString coreId =
             readTextFile(QStringLiteral("/sys/devices/system/cpu/cpu%1/topology/core_id").arg(cpu));
-        if (!packageId.isEmpty() && !coreId.isEmpty())
+        if (!packageId.isEmpty() && !coreId.isEmpty()) {
             cores.insert(packageId + QLatin1Char(':') + coreId);
+            ++covered;
+        }
     }
-    return cores.isEmpty() ? 0 : cores.size();
+    return covered == cpus.size() && !cores.isEmpty() ? cores.size() : 0;
 }
 
 int environmentDecodeThreads()
@@ -111,17 +131,18 @@ int environmentDecodeThreads()
 
 CpuTopology detectCpuTopology()
 {
-    const QSet<int> online = onlineCpus();
-    const int logical = std::max(1, online.size());
-    int physical = physicalCoresFromSiblings(online);
-    QString source = QStringLiteral("thread_siblings");
+    QString cpuSetSource;
+    const QSet<int> cpus = systemCpus(&cpuSetSource);
+    const int logical = std::max(1, cpus.size());
+    int physical = physicalCoresFromSiblings(cpus);
+    QString source = cpuSetSource + QStringLiteral("+thread_siblings");
     if (physical <= 0) {
-        physical = physicalCoresFromCoreIds(online);
-        source = QStringLiteral("core_id");
+        physical = physicalCoresFromCoreIds(cpus);
+        source = cpuSetSource + QStringLiteral("+core_id");
     }
     if (physical <= 0) {
         physical = logical;
-        source = QStringLiteral("idealThreadCount");
+        source = cpuSetSource;
     }
 
     const bool smt = physical > 0 && physical < logical;
