@@ -17,11 +17,11 @@ QtObject {
                 || (includeBrowserBack !== false && key === Qt.Key_BrowserBack)
     }
 
-    function isBackEvent(event) {
+    function isBackEvent(event, includeBackspace, includeBrowserBack) {
         const scanCode = Number(event.nativeScanCode || 0)
         const virtualKey = Number(event.nativeVirtualKey || 0)
         const key = Number(event.key || 0)
-        return isBack(event.key)
+        return isBack(event.key, includeBackspace === true, includeBrowserBack)
                 || event.key === 0x01200003
                 || key === 461
                 || scanCode === 420
