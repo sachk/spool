@@ -18,6 +18,7 @@
 #include <QDebug>
 #include <QJsonArray>
 #include <QStringList>
+#include <QTimer>
 #include <QVariantMap>
 
 #include <algorithm>
@@ -1044,7 +1045,7 @@ void AppController::back()
     }
 
     qInfo() << "app: quitting";
-    QCoreApplication::quit();
+    QTimer::singleShot(0, QCoreApplication::instance(), &QCoreApplication::quit);
 }
 
 void AppController::shutdown()
