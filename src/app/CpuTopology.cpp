@@ -133,7 +133,7 @@ CpuTopology detectCpuTopology()
 {
     QString cpuSetSource;
     const QSet<int> cpus = systemCpus(&cpuSetSource);
-    const int logical = std::max(1, cpus.size());
+    const int logical = std::max(1, static_cast<int>(cpus.size()));
     int physical = physicalCoresFromSiblings(cpus);
     QString source = cpuSetSource + QStringLiteral("+thread_siblings");
     if (physical <= 0) {

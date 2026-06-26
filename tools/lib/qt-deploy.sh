@@ -109,18 +109,43 @@ qt_deploy_macdeployqt_shadow() {
     printf 'error: qmlimportscanner is required for macdeployqt QML deployment\n' >&2
     return 1
   fi
+  local qml_import_dir
+  qml_import_dir="$(cd "$(dirname "$qmlscanner")/.." && pwd)/lib/qt-6/qml"
+  if [[ ! -d "$qml_import_dir" ]]; then
+    qml_import_dir="$(qt_deploy_query_path QT_INSTALL_QML)"
+  fi
 
   local shadow_bin="$shadow_root/bin"
   local shadow_libexec="$shadow_root/libexec"
+  rm -rf "$shadow_root"
   mkdir -p "$shadow_bin" "$shadow_libexec"
   cp "$macdeployqt_bin" "$shadow_bin/macdeployqt"
   chmod +x "$shadow_bin/macdeployqt"
-  ln -sf "$qmlscanner" "$shadow_libexec/qmlimportscanner"
+  cat >"$shadow_libexec/qmlimportscanner" <<EOF
+#!/usr/bin/env bash
+args=()
+while [[ \$# -gt 0 ]]; do
+  case "\$1" in
+    -importPath)
+      if [[ \$# -gt 1 && -n "\$2" ]]; then
+        args+=("\$1" "\$2")
+      fi
+      shift 2
+      ;;
+    *)
+      args+=("\$1")
+      shift
+      ;;
+  esac
+done
+exec "$qmlscanner" "\${args[@]}"
+EOF
+  chmod +x "$shadow_libexec/qmlimportscanner"
 
   local qt_prefix qt_plugins qt_qml
   qt_prefix="$(qt_deploy_query_path QT_INSTALL_PREFIX)"
   qt_plugins="$(qt_deploy_query_path QT_INSTALL_PLUGINS)"
-  qt_qml="$(qt_deploy_query_path QT_INSTALL_QML)"
+  qt_qml="$qml_import_dir"
 
   cat >"$shadow_bin/qt.conf" <<EOF
 [Paths]

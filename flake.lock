@@ -4,19 +4,17 @@
       "flake": false,
       "locked": {
         "lastModified": 1777455926,
-        "narHash": "sha256-3IiPdVx1/iQNId9cEayk2XGjTGxCKWDi3IiPC05Q37M=",
-        "ref": "refs/heads/master",
+        "narHash": "sha256-7cuIy6Ldbf7XP49HRNOJ5Ur2+aDXGsAGx1KKd71iBEk=",
+        "owner": "haasn",
+        "repo": "libplacebo",
         "rev": "27aa71a97f4daed84916936572fa6a2e1c3eedb7",
-        "revCount": 3837,
-        "submodules": true,
-        "type": "git",
-        "url": "https://github.com/haasn/libplacebo"
+        "type": "github"
       },
       "original": {
+        "owner": "haasn",
+        "repo": "libplacebo",
         "rev": "27aa71a97f4daed84916936572fa6a2e1c3eedb7",
-        "submodules": true,
-        "type": "git",
-        "url": "https://github.com/haasn/libplacebo"
+        "type": "github"
       }
     },
     "mpv-src": {

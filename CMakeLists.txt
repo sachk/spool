@@ -355,7 +355,19 @@ set_property(TARGET jellyfin-native APPEND PROPERTY
         -exclude third_party
 )
 
+get_target_property(JELLYFIN_NATIVE_INCLUDE_DIRS jellyfin-native INCLUDE_DIRECTORIES)
+if(JELLYFIN_NATIVE_INCLUDE_DIRS)
+    list(REMOVE_ITEM JELLYFIN_NATIVE_INCLUDE_DIRS
+        "${CMAKE_CURRENT_SOURCE_DIR}"
+        "${CMAKE_CURRENT_BINARY_DIR}"
+    )
+    set_property(TARGET jellyfin-native PROPERTY
+        INCLUDE_DIRECTORIES "${JELLYFIN_NATIVE_INCLUDE_DIRS}"
+    )
+endif()
+
 target_include_directories(jellyfin-native PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}/src"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/player"
     "${MPV_ACTIVE_SOURCE_DIR}"
     "${MPV_ACTIVE_SOURCE_DIR}/include"

@@ -16,6 +16,10 @@ extern "C" {
 #include <signal.h>
 #include <unistd.h>
 
+#ifdef __APPLE__
+#include <mach-o/dyld.h>
+#endif
+
 #ifdef JELLYFIN_NATIVE_WEBOS
 #include <luna-service2/lunaservice.h>
 #include <webos-helpers/libhelpers.h>
@@ -108,10 +112,22 @@ void rotateLogFile(const char *path)
 
 bool resolveAppRoot(char *buffer, size_t size)
 {
+#ifdef __APPLE__
+    uint32_t length = static_cast<uint32_t>(size);
+    if (_NSGetExecutablePath(buffer, &length) != 0)
+        return false;
+    char resolved[PATH_MAX];
+    if (realpath(buffer, resolved)) {
+        if (strlen(resolved) >= size)
+            return false;
+        strcpy(buffer, resolved);
+    }
+#else
     const ssize_t length = readlink("/proc/self/exe", buffer, size - 1);
     if (length < 0)
         return false;
     buffer[length] = '\0';
+#endif
 
     char *lastSlash = strrchr(buffer, '/');
     if (!lastSlash)
