@@ -4,7 +4,7 @@
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/15f4ee454b1dce334612fa6843b3e05cf546efab";
     libplacebo-src = {
-      url = "git+https://github.com/haasn/libplacebo?submodules=1&rev=27aa71a97f4daed84916936572fa6a2e1c3eedb7";
+      url = "github:haasn/libplacebo/27aa71a97f4daed84916936572fa6a2e1c3eedb7?submodules=1";
       flake = false;
     };
     mpv-src = {
@@ -17,7 +17,7 @@
     };
   };
 
-  outputs = { nixpkgs, libplacebo-src, mpv-src, mpv-webos-src, ... }:
+  outputs = { self, nixpkgs, libplacebo-src, mpv-src, mpv-webos-src, ... }:
     let
       systems = [ "x86_64-linux" "aarch64-darwin" "x86_64-darwin" ];
 
@@ -33,8 +33,20 @@
       # that otherwise gets pulled into the Linux/AppImage closure.
       ffmpegSlimConfig = builtins.fromJSON (builtins.readFile ./tools/manifests/ffmpeg-slim.json);
       ffmpegSlimOverlay = final: prev: {
-        ffmpeg-full = prev.ffmpeg-full.override
-          (nixpkgs.lib.genAttrs ffmpegSlimConfig.disabledNixFeatures (_: false));
+        ffmpeg-full = (prev.ffmpeg-full.override
+          (nixpkgs.lib.genAttrs ffmpegSlimConfig.disabledNixFeatures (_: false))).overrideAttrs (_: {
+            doCheck = false;
+          });
+      };
+
+      qcoroDarwinOverlay = final: prev: {
+        qt6Packages = prev.qt6Packages.overrideScope (_qtFinal: qtPrev: {
+          qcoro = qtPrev.qcoro.overrideAttrs (old: {
+            meta = old.meta // {
+              platforms = old.meta.platforms ++ final.lib.platforms.darwin;
+            };
+          });
+        });
       };
 
       forAllSystems = f:
@@ -42,7 +54,7 @@
           f (import nixpkgs {
             inherit system;
             config.allowUnfree = true;
-            overlays = [ libplaceboOverlay ffmpegSlimOverlay ];
+            overlays = [ libplaceboOverlay ffmpegSlimOverlay qcoroDarwinOverlay ];
           }));
 
       # Shared build/media dependencies. Intentionally contains no qt6.* packages.
@@ -56,6 +68,7 @@
         ccache
         cmake
         curl
+        expat
         ffmpeg-full
         file
         findutils
@@ -151,10 +164,10 @@
           qt6.qttools
           qt6.qtvirtualkeyboard
           qt6.qtwebsockets
-          gammaray
           (qmlToolWrappers pkgs)
         ])
         ++ pkgs.lib.optionals pkgs.stdenv.isLinux (with pkgs; [
+          gammaray
           qt6.qtwayland
         ]);
 
@@ -240,6 +253,28 @@
 
       apps = forAllSystems (pkgs:
         let
+          stagedSourceId = builtins.substring 0 12
+            (builtins.hashString "sha256" "${self}-${mpv-src}-${mpv-webos-src}");
+          buildScript =
+            if pkgs.stdenv.isDarwin
+            then "tools/build-macos.sh"
+            else "tools/build-linux-release.sh";
+          buildCommand =
+            if pkgs.stdenv.isDarwin
+            then ''APP_INSTALL="$REPO_ROOT/build/macos/run-install" DEPLOY_APP=0 exec bash ${buildScript}''
+            else "exec bash ${buildScript}";
+          binaryPath =
+            if pkgs.stdenv.isDarwin
+            then "build/macos/run-install/jellyfin-native.app/Contents/MacOS/jellyfin-native"
+            else "build/linux-release/install/bin/jellyfin-native";
+          mpvLibraryPath =
+            if pkgs.stdenv.isDarwin
+            then "build/macos/mpv-prefix/lib"
+            else "build/linux-release/mpv-prefix/lib";
+          libraryPathVariable =
+            if pkgs.stdenv.isDarwin
+            then "DYLD_LIBRARY_PATH"
+            else "LD_LIBRARY_PATH";
           qtPluginPath =
             pkgs.lib.makeSearchPath pkgs.qt6.qtbase.qtPluginPrefix
               (nativeQtPackages pkgs);
@@ -255,14 +290,48 @@
             export PATH="${pkgs.lib.makeBinPath [ pkgs.nix pkgs.bashInteractive pkgs.coreutils pkgs.gnugrep pkgs.gnused ]}:$PATH"
             set -euo pipefail
 
-            REPO_ROOT="''${JELLYFIN_REPO:-$PWD}"
-            if [ ! -f "$REPO_ROOT/CMakeLists.txt" ] || [ ! -d "$REPO_ROOT/mpv" ]; then
-              echo "error: run from the jellyfin-webos repo root, or set JELLYFIN_REPO" >&2
-              exit 1
+            FLAKE_SOURCE="${self}"
+            MPV_SOURCE="${mpv-src}"
+            MPV_WEBOS_SOURCE="${mpv-webos-src}"
+
+            is_repo_root() {
+              [ -f "$1/CMakeLists.txt" ] && [ -f "$1/tools/build-macos.sh" ] && [ -f "$1/mpv/meson.build" ]
+            }
+
+            stage_flake_source() {
+              cache_base="''${XDG_CACHE_HOME:-$HOME/.cache}/jellyfin-native/nix-run"
+              staged="$cache_base/${stagedSourceId}"
+              marker="$staged/.jellyfin-staged-source"
+              if [ ! -f "$marker" ]; then
+                tmp="$cache_base/.${stagedSourceId}.$$"
+                rm -rf "$tmp"
+                mkdir -p "$cache_base"
+                cp -R "$FLAKE_SOURCE/." "$tmp"
+                chmod -R u+w "$tmp"
+                rm -rf "$tmp/mpv" "$tmp/mpv_webos"
+                ln -s "$MPV_SOURCE" "$tmp/mpv"
+                ln -s "$MPV_WEBOS_SOURCE" "$tmp/mpv_webos"
+                printf '%s\n' "${stagedSourceId}" > "$tmp/.jellyfin-staged-source"
+                rm -rf "$staged"
+                mv "$tmp" "$staged"
+              fi
+              printf '%s\n' "$staged"
+            }
+
+            if [ -n "''${JELLYFIN_REPO:-}" ]; then
+              REPO_ROOT="$JELLYFIN_REPO"
+              if ! is_repo_root "$REPO_ROOT"; then
+                echo "error: JELLYFIN_REPO does not point to a usable jellyfin-webos checkout: $REPO_ROOT" >&2
+                exit 1
+              fi
+            elif is_repo_root "$PWD"; then
+              REPO_ROOT="$PWD"
+            else
+              REPO_ROOT="$(stage_flake_source)"
             fi
             cd "$REPO_ROOT"
 
-            BIN="$REPO_ROOT/build/linux-release/install/bin/jellyfin-native"
+            BIN="$REPO_ROOT/${binaryPath}"
 
             # Strip webOS cross state so native Linux builds do not pick up the
             # old SDK wayland-scanner/cross toolchain.
@@ -271,11 +340,11 @@
             if [ -n "''${JELLYFIN_NO_REBUILD:-}" ] && [ -x "$BIN" ]; then
               :
             else
-              nix develop "$REPO_ROOT#native" -c bash -c "$scrub; exec bash tools/build-linux-release.sh"
+              nix develop "$REPO_ROOT#native" -c bash -c "$scrub; ${buildCommand}"
             fi
 
-            export MPV_LIB="$REPO_ROOT/build/linux-release/mpv-prefix/lib"
-            runtime_env='export LD_LIBRARY_PATH="$MPV_LIB:${nativeRuntimeLibPath}''${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"; export QT_PLUGIN_PATH="${qtPluginPath}"; export QML2_IMPORT_PATH="${qmlImportPath}"; export QML_IMPORT_PATH="$QML2_IMPORT_PATH"'
+            export MPV_LIB="$REPO_ROOT/${mpvLibraryPath}"
+            runtime_env='eval "current_lib_path=\"''${${libraryPathVariable}:-}\""; export ${libraryPathVariable}="$MPV_LIB:${nativeRuntimeLibPath}''${current_lib_path:+:$current_lib_path}"; export QT_PLUGIN_PATH="${qtPluginPath}"; export QML2_IMPORT_PATH="${qmlImportPath}"; export QML_IMPORT_PATH="$QML2_IMPORT_PATH"'
             export LC_NUMERIC=C
             exec nix develop "$REPO_ROOT#native" -c bash -c "$scrub; $runtime_env"'; exec ${launchPrefix}"$@"' _ "$BIN" "$@"
           '';
@@ -302,7 +371,7 @@
             type = "app";
             program = "${runner}/bin/jellyfin-native-run";
           };
-
+        } // pkgs.lib.optionalAttrs pkgs.stdenv.isLinux {
           gammaray = {
             type = "app";
             program = "${gammarayRunner}/bin/jellyfin-native-gammaray";

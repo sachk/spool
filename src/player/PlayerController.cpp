@@ -24,7 +24,10 @@ extern "C" {
 #include <cstdio>
 #include <cstdint>
 #include <cstring>
+
+#if defined(__GLIBC__)
 #include <malloc.h>
+#endif
 
 namespace JellyfinNative {
 
@@ -124,7 +127,7 @@ qint64 secondsToTicks(double seconds) {
 // Targeted playback memory accounting. heaptrack can't produce deep call stacks
 // on this target (every unwinder crashes), so instead of attributing by stack we
 // quantify the known big buffers directly: process RSS (and the anon/heap part),
-// glibc's live-vs-free heap totals (mallinfo), and mpv's own demuxer cache size.
+// glibc's live-vs-free heap totals when available, and mpv's own demuxer cache size.
 // The gap between malloc_inuse and demux_cache localises non-cache heap growth.
 void logMemoryStats(mpv_handle *handle) {
   (void)handle;
@@ -141,15 +144,23 @@ void logMemoryStats(mpv_handle *handle) {
     fclose(f);
   }
 
+  long long mallInUse = 0;
+  long long mallFree = 0;
+  long long mallArena = 0;
+  long long mallMmap = 0;
 #if defined(__GLIBC__) && (__GLIBC__ > 2 || (__GLIBC__ == 2 && __GLIBC_MINOR__ >= 33))
   struct mallinfo2 mi = mallinfo2();
-#else
+  mallInUse = (long long)mi.uordblks;   // live (non-mmap) heap
+  mallFree = (long long)mi.fordblks;    // freed, retained in arena
+  mallArena = (long long)mi.arena;      // total main-arena size
+  mallMmap = (long long)mi.hblkhd;      // large allocs via mmap
+#elif defined(__GLIBC__)
   struct mallinfo mi = mallinfo();
+  mallInUse = (long long)mi.uordblks;
+  mallFree = (long long)mi.fordblks;
+  mallArena = (long long)mi.arena;
+  mallMmap = (long long)mi.hblkhd;
 #endif
-  const long long mallInUse = (long long)mi.uordblks;   // live (non-mmap) heap
-  const long long mallFree = (long long)mi.fordblks;    // freed, retained in arena
-  const long long mallArena = (long long)mi.arena;      // total main-arena size
-  const long long mallMmap = (long long)mi.hblkhd;      // large allocs via mmap
 
   const long long MB = 1024 * 1024;
   qInfo().nospace()
