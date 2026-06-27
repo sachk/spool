@@ -34,6 +34,7 @@ FocusScope {
     property var mediaInfoItem: ({})
     property var personItem: ({})
     property bool textInputActive: Qt.inputMethod.visible
+            || InputKeys.isTextInputItem(root.Window.window ? root.Window.window.activeFocusItem : null)
     property bool backPressHandled: false
     property bool playerBackPressHandled: false
     readonly property var player: appController ? appController.player : null
@@ -370,7 +371,7 @@ FocusScope {
     }
 
     function handlePlayerPressed(event) {
-        if (InputKeys.isBackEvent(event)) {
+        if (InputKeys.isBackEvent(event, !textInputActive)) {
             playerBackPressHandled = true;
             playerOverlay.handleBack(true);
             return true;
@@ -381,7 +382,7 @@ FocusScope {
     }
 
     function handlePlayerReleased(event) {
-        if (playerBackPressHandled && InputKeys.isBackEvent(event)) {
+        if (playerBackPressHandled && InputKeys.isBackEvent(event, !textInputActive)) {
             playerBackPressHandled = false;
             return true;
         }
@@ -397,7 +398,7 @@ FocusScope {
             return;
         }
 
-        if (InputKeys.isBackEvent(event)) {
+        if (InputKeys.isBackEvent(event, !textInputActive)) {
             backPressHandled = true;
             back();
             event.accepted = true;
@@ -415,7 +416,7 @@ FocusScope {
     }
 
     Keys.onReleased: event => {
-        if (playerBackPressHandled && InputKeys.isBackEvent(event)) {
+        if (playerBackPressHandled && InputKeys.isBackEvent(event, !textInputActive)) {
             playerBackPressHandled = false;
             event.accepted = true;
             return;
@@ -425,7 +426,7 @@ FocusScope {
                 event.accepted = true;
             return;
         }
-        if (InputKeys.isBackEvent(event) && backPressHandled) {
+        if (InputKeys.isBackEvent(event, !textInputActive) && backPressHandled) {
             backPressHandled = false;
             event.accepted = true;
             return;

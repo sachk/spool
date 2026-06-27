@@ -17,6 +17,19 @@ QtObject {
                 || (includeBrowserBack !== false && key === Qt.Key_BrowserBack)
     }
 
+    function hasProperty(item, name) {
+        return item && typeof item[name] !== "undefined"
+    }
+
+    function isTextInputItem(item) {
+        return hasProperty(item, "cursorPosition")
+                && hasProperty(item, "selectedText")
+                && hasProperty(item, "text")
+                && (hasProperty(item, "echoMode")
+                    || hasProperty(item, "inputMethodHints")
+                    || hasProperty(item, "textFormat"))
+    }
+
     function isBackEvent(event, includeBackspace, includeBrowserBack) {
         const scanCode = Number(event.nativeScanCode || 0)
         const virtualKey = Number(event.nativeVirtualKey || 0)

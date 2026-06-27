@@ -21,7 +21,7 @@ Item {
         // so they hide the panel rather than propagating up and triggering
         // a back-stack pop.
         Keys.onPressed: (event) => {
-            if (InputKeys.isBack(event.key, false)) {
+            if (InputKeys.isBackEvent(event, false)) {
                 Qt.inputMethod.hide()
                 event.accepted = true
             }
