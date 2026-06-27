@@ -615,7 +615,7 @@ FocusScope {
         const releaseSeekDelta = seekDeltaForKey(event.key)
         if (releaseSeekDelta !== 0 && event.isAutoRepeat)
             return true
-        if (InputKeys.isBackEvent(event)) return handleBack()
+        if (InputKeys.isBackEvent(event, !(shell && shell.textInputActive))) return handleBack()
         if (event.key === Qt.Key_I || event.key === Qt.Key_Info) { toggleDebugStats(); return true }
         if (event.key === Qt.Key_Q && hasPlayer) { player.stopWithReason("player-q"); return true }
         if (mode === "hidden") {

@@ -17,6 +17,7 @@ FocusScope {
     property string manualServerStatus: ""
 
     readonly property bool hasSavedPair: appController && appController.hasDefaultProfile && appController.serverUrl.length > 0
+    readonly property bool textInputActive: shell ? shell.textInputActive : Qt.inputMethod.visible
     readonly property bool manualServerVisible: manualServerAddress.length > 0
     readonly property int tileSize: width >= 1920 ? 190 : width >= 1280 ? 164 : 152
     readonly property int contentWidth: Math.min(width - Metrics.pageMargin(width) * 2, 1040)
@@ -131,7 +132,7 @@ FocusScope {
     }
 
     Keys.onPressed: event => {
-        if (InputKeys.isBackEvent(event)) {
+        if (InputKeys.isBackEvent(event, !textInputActive)) {
             if (addMode && addStep === 2) {
                 addStep = 1;
                 Qt.callLater(focusServerStep);

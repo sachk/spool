@@ -81,7 +81,7 @@ T.Control {
         // the user can cleanly exit the keyboard with the TV remote's Back.
         Keys.priority: Keys.BeforeItem
         Keys.onPressed: (event) => {
-            if (InputKeys.isBack(event.key, false)) {
+            if (InputKeys.isBackEvent(event, false)) {
                 row.focusRow()
                 event.accepted = true
                 return
