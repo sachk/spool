@@ -392,6 +392,11 @@ FocusScope {
     Keys.priority: Keys.BeforeItem
 
     Keys.onPressed: event => {
+        if (mediaInfoVisible) {
+            mediaInfoOverlay.handlePressed(event);
+            event.accepted = true;
+            return;
+        }
         if (root.hasPlayer && root.player.visible) {
             if (handlePlayerPressed(event))
                 event.accepted = true;
@@ -418,6 +423,11 @@ FocusScope {
     Keys.onReleased: event => {
         if (playerBackPressHandled && InputKeys.isBackEvent(event, !textInputActive)) {
             playerBackPressHandled = false;
+            event.accepted = true;
+            return;
+        }
+        if (mediaInfoVisible) {
+            mediaInfoOverlay.handleReleased(event);
             event.accepted = true;
             return;
         }
@@ -556,9 +566,11 @@ FocusScope {
     }
 
     MediaInfoOverlay {
+        id: mediaInfoOverlay
         anchors.fill: parent
         visible: root.mediaInfoVisible
         item: visible ? (root.mediaInfoItem && Object.keys(root.mediaInfoItem).length > 0 ? root.mediaInfoItem : root.currentMediaItem()) : ({})
+        shell: root
         z: 59
         onClosed: {
             root.mediaInfoVisible = false;
