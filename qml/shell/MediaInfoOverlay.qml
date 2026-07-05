@@ -5,13 +5,25 @@ import "../primitives"
 
 FocusScope {
     id: root
+
     property var item: ({})
+    property var shell
+    property int currentActionIndex: closeActionIndex
     readonly property var sources: item && item.mediaSources ? item.mediaSources : []
+    readonly property bool showLinkVisible: Boolean(item && item.seriesId && item.seriesName
+                                                    && (item.itemType === "Episode" || item.itemType === "Season"))
+    readonly property bool seasonLinkVisible: Boolean(item && item.itemType === "Episode"
+                                                      && item.seriesId && item.seasonId)
+    readonly property int showActionIndex: showLinkVisible ? 0 : -1
+    readonly property int seasonActionIndex: seasonLinkVisible ? (showLinkVisible ? 1 : 0) : -1
+    readonly property int closeActionIndex: (showLinkVisible ? 1 : 0) + (seasonLinkVisible ? 1 : 0)
+    readonly property int actionCount: closeActionIndex + 1
+
     signal closed()
 
     focus: visible
+    onVisibleChanged: if (visible) Qt.callLater(ensureFocus)
     onActiveFocusChanged: if (visible && !activeFocus) forceActiveFocus()
-    onVisibleChanged: if (visible) forceActiveFocus()
 
     component InfoPair: ColumnLayout {
         property string label: ""
@@ -38,6 +50,83 @@ FocusScope {
             wrapMode: Text.Wrap
             maximumLineCount: 2
             elide: Text.ElideRight
+        }
+    }
+
+    component LinkRow: FocusScope {
+        id: linkRoot
+        property string label: ""
+        property string value: ""
+        property string iconName: "link"
+        property int actionIndex: -1
+        signal activated()
+
+        Layout.fillWidth: true
+        Layout.preferredHeight: 54
+        visible: value.length > 0
+        focus: root.currentActionIndex === actionIndex
+
+        Rectangle {
+            anchors.fill: parent
+            radius: Theme.radiusMedium
+            color: linkRoot.activeFocus || root.currentActionIndex === linkRoot.actionIndex ? Theme.focusedFill : Theme.bgPanel
+            border.width: linkRoot.activeFocus || root.currentActionIndex === linkRoot.actionIndex ? Theme.focusBorderWidth : 1
+            border.color: linkRoot.activeFocus || root.currentActionIndex === linkRoot.actionIndex ? Theme.accent : Theme.border
+            antialiasing: true
+        }
+
+        RowLayout {
+            anchors.fill: parent
+            anchors.leftMargin: 12
+            anchors.rightMargin: 12
+            spacing: 12
+
+            MaterialIcon {
+                Layout.preferredWidth: 28
+                Layout.preferredHeight: 28
+                name: linkRoot.iconName
+                iconSize: 23
+                iconColor: linkRoot.activeFocus || root.currentActionIndex === linkRoot.actionIndex ? Theme.accent : Theme.textSecondary
+            }
+
+            ColumnLayout {
+                Layout.fillWidth: true
+                spacing: 1
+
+                MonoText {
+                    Layout.fillWidth: true
+                    text: linkRoot.label
+                    color: Theme.textMuted
+                    font.pixelSize: Metrics.metaPx(root.width) - 1
+                    maximumLineCount: 1
+                    elide: Text.ElideRight
+                }
+
+                AppText {
+                    Layout.fillWidth: true
+                    text: linkRoot.value
+                    color: Theme.textPrimary
+                    font.pixelSize: Metrics.bodyPx(root.width)
+                    font.weight: Font.DemiBold
+                    maximumLineCount: 1
+                    elide: Text.ElideRight
+                }
+            }
+
+            MaterialIcon {
+                Layout.preferredWidth: 24
+                Layout.preferredHeight: 24
+                name: "chevron_right"
+                iconSize: 24
+                iconColor: Theme.textSecondary
+            }
+        }
+
+        MouseArea {
+            anchors.fill: parent
+            hoverEnabled: true
+            onEntered: root.focusAction(linkRoot.actionIndex)
+            onClicked: linkRoot.activated()
         }
     }
 
@@ -92,11 +181,14 @@ FocusScope {
         }
     }
 
-    Keys.onReleased: (event) => {
-        if (InputKeys.isBack(event.key) || event.key === Qt.Key_I) {
-            root.closed()
+    Keys.onPressed: (event) => {
+        if (handlePressed(event))
             event.accepted = true
-        }
+    }
+
+    Keys.onReleased: (event) => {
+        if (handleReleased(event))
+            event.accepted = true
     }
 
     function textValue(value) {
@@ -108,6 +200,53 @@ FocusScope {
     function upper(value) {
         const text = textValue(value)
         return text.length > 0 ? text.toUpperCase() : ""
+    }
+
+    function titleText() {
+        return item && (item.displayTitle || item.title) ? (item.displayTitle || item.title) : "Media info"
+    }
+
+    function seasonTitle() {
+        if (!item)
+            return "Season"
+        if (item.seasonNumber > 0)
+            return "Season " + item.seasonNumber
+        if (item.displaySubtitle) {
+            const text = String(item.displaySubtitle)
+            const match = text.match(/Season\s+\d+/i)
+            if (match)
+                return match[0]
+        }
+        return "Season"
+    }
+
+    function ratingText() {
+        const parts = []
+        if (item && item.officialRating)
+            parts.push(item.officialRating)
+        const community = Number(item && item.communityRating ? item.communityRating : 0)
+        if (community > 0)
+            parts.push(community.toFixed(1) + "/10")
+        const critic = Number(item && item.criticRating ? item.criticRating : 0)
+        if (critic > 0)
+            parts.push(Math.round(critic) + "%")
+        return parts.join(" · ")
+    }
+
+    function communityRatingText() {
+        const value = Number(item && item.communityRating ? item.communityRating : 0)
+        return value > 0 ? value.toFixed(1) + "/10" : ""
+    }
+
+    function criticRatingText() {
+        const value = Number(item && item.criticRating ? item.criticRating : 0)
+        return value > 0 ? Math.round(value) + "%" : ""
+    }
+
+    function hasRatings() {
+        return textValue(item && item.officialRating).length > 0
+                || communityRatingText().length > 0
+                || criticRatingText().length > 0
     }
 
     function bitrateText(bits) {
@@ -251,15 +390,106 @@ FocusScope {
         return parts.join(" · ")
     }
 
+    function actionAt(index) {
+        if (index === showActionIndex)
+            return showLink
+        if (index === seasonActionIndex)
+            return seasonLink
+        if (index === closeActionIndex)
+            return closeBtn
+        return null
+    }
+
+    function focusAction(index) {
+        currentActionIndex = Math.max(0, Math.min(actionCount - 1, index))
+        const target = actionAt(currentActionIndex)
+        if (target && target.forceActiveFocus)
+            target.forceActiveFocus()
+        else
+            forceActiveFocus()
+    }
+
+    function ensureFocus() {
+        forceActiveFocus()
+        focusAction(Math.max(0, Math.min(currentActionIndex, actionCount - 1)))
+    }
+
+    function closeOverlay() {
+        root.closed()
+    }
+
+    function openSeries() {
+        if (!item || !item.seriesId || !appController)
+            return
+        const seriesId = String(item.seriesId)
+        const seriesName = String(item.seriesName || "")
+        if (shell && shell.replaceRoute)
+            shell.replaceRoute("libraryGrid")
+        root.closed()
+        appController.openSeriesById(seriesId, seriesName)
+    }
+
+    function openSeason() {
+        if (!item || !item.seriesId || !item.seasonId || !appController)
+            return
+        const seriesId = String(item.seriesId)
+        const seasonId = String(item.seasonId)
+        const title = seasonTitle()
+        if (shell && shell.replaceRoute)
+            shell.replaceRoute("libraryGrid")
+        root.closed()
+        appController.openSeasonById(seriesId, seasonId, title)
+    }
+
+    function activateCurrent() {
+        if (currentActionIndex === showActionIndex) {
+            openSeries()
+            return
+        }
+        if (currentActionIndex === seasonActionIndex) {
+            openSeason()
+            return
+        }
+        closeOverlay()
+    }
+
+    function handlePressed(event) {
+        return visible
+    }
+
+    function handleReleased(event) {
+        if (!visible)
+            return false
+        if (InputKeys.isBackEvent(event, true) || event.key === Qt.Key_I) {
+            closeOverlay()
+            return true
+        }
+        if (event.key === Qt.Key_Up || event.key === Qt.Key_Left) {
+            focusAction(currentActionIndex - 1)
+            return true
+        }
+        if (event.key === Qt.Key_Down || event.key === Qt.Key_Right) {
+            focusAction(currentActionIndex + 1)
+            return true
+        }
+        if (InputKeys.isAccept(event.key, false)) {
+            activateCurrent()
+            return true
+        }
+        return true
+    }
+
     Rectangle { anchors.fill: parent; color: Theme.overlayScrimStrong }
     MouseArea { anchors.fill: parent; onClicked: root.closed() }
 
     Surface {
         anchors.centerIn: parent
         width: Math.min(parent.width - 120, 1120)
-        height: Math.min(parent.height - 120, 760)
+        height: Math.min(parent.height - 120, 800)
         baseColor: Theme.bgRaised
         elevated: true
+
+        MouseArea { anchors.fill: parent }
 
         ColumnLayout {
             anchors.fill: parent
@@ -276,7 +506,7 @@ FocusScope {
 
                     AppText {
                         Layout.fillWidth: true
-                        text: (root.item && (root.item.displayTitle || root.item.title)) ? (root.item.displayTitle || root.item.title) : "Media info"
+                        text: root.titleText()
                         font.pixelSize: Metrics.titlePx(root.width)
                         font.weight: Font.DemiBold
                         wrapMode: Text.Wrap
@@ -291,6 +521,8 @@ FocusScope {
                             if (root.item && root.item.itemType) parts.push(root.item.itemType)
                             if (root.item && root.item.year > 0) parts.push(String(root.item.year))
                             if (root.item && root.item.displaySubtitle) parts.push(root.item.displaySubtitle)
+                            const ratings = root.ratingText()
+                            if (ratings.length > 0) parts.push(ratings)
                             return parts.join(" · ")
                         }
                     }
@@ -299,8 +531,54 @@ FocusScope {
                 ActionButton {
                     id: closeBtn
                     text: "Close"
-                    focus: true
-                    onClicked: root.closed()
+                    iconName: "close"
+                    focus: root.currentActionIndex === root.closeActionIndex
+                    onClicked: root.closeOverlay()
+                    onActiveFocusChanged: if (activeFocus) root.currentActionIndex = root.closeActionIndex
+                }
+            }
+
+            ColumnLayout {
+                Layout.fillWidth: true
+                visible: root.showLinkVisible || root.seasonLinkVisible || root.hasRatings()
+                spacing: 10
+
+                RowLayout {
+                    Layout.fillWidth: true
+                    visible: root.showLinkVisible || root.seasonLinkVisible
+                    spacing: 10
+
+                    LinkRow {
+                        id: showLink
+                        Layout.fillWidth: true
+                        label: "Show"
+                        value: root.showLinkVisible ? root.item.seriesName : ""
+                        iconName: "live_tv"
+                        actionIndex: root.showActionIndex
+                        onActivated: root.openSeries()
+                    }
+
+                    LinkRow {
+                        id: seasonLink
+                        Layout.fillWidth: true
+                        label: "Season"
+                        value: root.seasonLinkVisible ? root.seasonTitle() : ""
+                        iconName: "video_library"
+                        actionIndex: root.seasonActionIndex
+                        onActivated: root.openSeason()
+                    }
+                }
+
+                GridLayout {
+                    Layout.fillWidth: true
+                    visible: root.hasRatings()
+                    columns: root.width >= 1200 ? 3 : 1
+                    columnSpacing: 18
+                    rowSpacing: 10
+
+                    InfoPair { Layout.fillWidth: true; label: "Parental rating"; value: root.textValue(root.item && root.item.officialRating) }
+                    InfoPair { Layout.fillWidth: true; label: "Community rating"; value: root.communityRatingText() }
+                    InfoPair { Layout.fillWidth: true; label: "Critic rating"; value: root.criticRatingText() }
                 }
             }
 

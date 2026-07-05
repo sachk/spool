@@ -51,8 +51,8 @@ Item {
         anchors.topMargin: 8
         anchors.left: parent.left
         anchors.right: parent.right
-        height: Math.min(implicitHeight, root.titleAvailableHeight)
-        visible: height > 0 && text.length > 0
+        height: visible ? Math.min(implicitHeight, root.titleAvailableHeight) : 0
+        visible: text.length > 0 && root.titleAvailableHeight > 0
         text: root.title
         font.pixelSize: Metrics.bodyPx(root.Window.window ? root.Window.window.width : 1920)
         font.weight: Font.Medium
@@ -67,8 +67,8 @@ Item {
         anchors.topMargin: 2
         anchors.left: parent.left
         anchors.right: parent.right
-        height: Math.min(implicitHeight, Math.max(0, root.height - y))
-        visible: height > 0 && text.length > 0
+        height: visible ? Math.min(implicitHeight, Math.max(0, root.height - y)) : 0
+        visible: text.length > 0 && root.height > y
         text: root.subtitle
         color: Theme.textMuted
         font.pixelSize: Metrics.metaPx(root.Window.window ? root.Window.window.width : 1920)

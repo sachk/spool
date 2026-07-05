@@ -153,6 +153,8 @@ T.Control {
                 checked: favoriteState
             })
         }
+        if (item && (item.movieId || item.id || item.title || item.displayTitle || item.seriesName))
+            options.push({ action: "info", icon: "info", label: "Media info", checked: false })
         menuOptions = options
         return menuOptions.length > 0
     }
@@ -200,6 +202,8 @@ T.Control {
         } else if (action === "favorite") {
             favoriteState = !favoriteState
             favoriteToggled(favoriteState)
+        } else if (action === "info") {
+            mediaInfoRequested()
         }
         closeMenu()
     }
@@ -413,6 +417,12 @@ T.Control {
 
         contentItem: Item {
             clip: true
+            focus: true
+
+            Keys.onPressed: (event) => {
+                if (root.handleNavigationKey(event.key))
+                    event.accepted = true
+            }
 
             Column {
                 anchors.fill: parent
@@ -431,11 +441,6 @@ T.Control {
                     }
                 }
             }
-        }
-
-        Keys.onPressed: (event) => {
-            if (root.handleNavigationKey(event.key))
-                event.accepted = true
         }
     }
 }
