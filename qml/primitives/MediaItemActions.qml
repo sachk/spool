@@ -1,5 +1,6 @@
 import QtQuick
 import QtQuick.Layouts
+import QtQuick.Controls.Basic as QQC
 import QtQuick.Templates as T
 import "../theme"
 
@@ -19,6 +20,14 @@ T.Control {
     property bool favoriteState: Boolean(item && item.favorite)
     property bool playedState: Boolean(item && item.played)
     property string longPressAction: "menu"
+    readonly property int windowWidth: root.Window.window ? root.Window.window.width : 1920
+    readonly property int menuEdgeMargin: Math.max(12, Metrics.gap(windowWidth))
+    readonly property int menuRowHeight: Math.max(46, Metrics.controlHeight(windowWidth))
+    readonly property int menuPanelWidth: Math.min(windowWidth - menuEdgeMargin * 2,
+                                                   Math.max(320, Math.min(392, Math.round(windowWidth * 0.22))))
+    readonly property int menuPanelHeight: menuOptions.length <= 0 ? 0
+                                                                  : menuOptions.length * menuRowHeight
+                                                                    + (menuOptions.length - 1) * 4 + 16
     readonly property bool actionable: Boolean(item && item.movieId)
     readonly property string itemType: item && item.itemType ? String(item.itemType) : ""
     readonly property bool episodeOrSeason: itemType === "Episode" || itemType === "Season"
@@ -43,7 +52,11 @@ T.Control {
         return true
     }
 
-    onItemChanged: syncItemState()
+    onItemChanged: {
+        syncItemState()
+        if (menuOpen)
+            closeMenu()
+    }
 
     Connections {
         target: appController
@@ -74,12 +87,37 @@ T.Control {
         return true
     }
 
+    function menuParentItem() {
+        return root.Window.window ? root.Window.window.contentItem : root
+    }
+
+    function clamp(value, minimum, maximum) {
+        return Math.max(minimum, Math.min(maximum, value))
+    }
+
+    function positionMenu() {
+        const target = menuParentItem()
+        const anchor = root.mapToItem(target, 0, 0)
+        const edge = root.menuEdgeMargin
+        const maxX = Math.max(edge, target.width - menuPopup.width - edge)
+        const maxY = Math.max(edge, target.height - menuPopup.height - edge)
+        const desiredX = anchor.x + root.width - menuPopup.width
+        const belowY = anchor.y + Math.min(root.height, root.menuRowHeight) + 8
+        const aboveY = anchor.y - menuPopup.height - 8
+        const desiredY = belowY + menuPopup.height <= target.height - edge ? belowY : aboveY
+        menuPopup.x = clamp(desiredX, edge, maxX)
+        menuPopup.y = clamp(desiredY, edge, maxY)
+    }
+
     function openMenu() {
         if (!rebuildMenu())
             return false
         menuIndex = 0
         menuOpen = true
         forceActiveFocus()
+        positionMenu()
+        menuPopup.open()
+        Qt.callLater(positionMenu)
         return true
     }
 
@@ -88,24 +126,31 @@ T.Control {
         pendingAccept = false
         longPressOpened = false
         holdTimer.stop()
+        if (menuPopup.opened)
+            menuPopup.close()
     }
 
     function rebuildMenu() {
         const options = []
         if (episodeOrSeason && item.seriesId)
-            options.push({ action: "series", icon: "live_tv", label: "Go to series" })
+            options.push({ action: "series", icon: "live_tv", label: "Go to series", checked: false })
         if ((itemType === "Episode" && item.seriesId && item.seasonId)
                 || (itemType === "Season" && item.seriesId && item.movieId))
-            options.push({ action: "season", icon: "video_library", label: "Go to season" })
+            options.push({ action: "season", icon: "video_library", label: "Go to season", checked: false })
         if (actionable) {
-            if (!playedState)
-                options.push({ action: "watched", icon: "check_circle", label: "Mark watched" })
+            options.push({
+                action: "played",
+                icon: "check_circle",
+                label: playedState ? "Mark unwatched" : "Mark watched",
+                checked: playedState
+            })
             if (partialEpisode)
-                options.push({ action: "clear", icon: "replay", label: "Clear progress" })
+                options.push({ action: "clear", icon: "replay", label: "Clear progress", checked: false })
             options.push({
                 action: "favorite",
-                icon: favoriteState ? "favorite_border" : "favorite",
-                label: favoriteState ? "Remove favourite" : "Add favourite"
+                icon: favoriteState ? "favorite" : "favorite_border",
+                label: favoriteState ? "Remove favourite" : "Add favourite",
+                checked: favoriteState
             })
         }
         menuOptions = options
@@ -145,9 +190,9 @@ T.Control {
             openSeries()
         } else if (action === "season") {
             openSeason()
-        } else if (action === "watched") {
-            playedState = true
-            playedToggled(true)
+        } else if (action === "played") {
+            playedState = !playedState
+            playedToggled(playedState)
         } else if (action === "clear") {
             playedState = false
             if (appController)
@@ -217,46 +262,60 @@ T.Control {
         property int optionIndex: 0
         property string iconName: "info"
         property string label: ""
+        property bool checked: false
 
-        width: menuPanel.width - 12
-        height: 42
+        width: root.menuPanelWidth - 16
+        height: root.menuRowHeight
 
         Rectangle {
             anchors.fill: parent
-            radius: Theme.radiusSmall
-            color: root.menuIndex === rowRoot.optionIndex ? Theme.focusedFill : "transparent"
+            radius: Theme.radiusMedium
+            color: root.menuIndex === rowRoot.optionIndex ? Theme.focusedFill
+                                                          : rowRoot.checked ? Theme.accentPanel : "transparent"
             border.width: root.menuIndex === rowRoot.optionIndex ? 1 : 0
             border.color: Theme.accent
+            antialiasing: true
         }
 
-        Row {
-            anchors.left: parent.left
-            anchors.right: parent.right
-            anchors.verticalCenter: parent.verticalCenter
-            anchors.leftMargin: 10
-            anchors.rightMargin: 10
-            spacing: 10
+        RowLayout {
+            anchors.fill: parent
+            anchors.leftMargin: 12
+            anchors.rightMargin: 12
+            spacing: 12
 
             MaterialIcon {
-                anchors.verticalCenter: parent.verticalCenter
+                Layout.preferredWidth: 28
+                Layout.preferredHeight: 28
                 name: rowRoot.iconName
-                iconSize: 19
-                iconColor: Theme.textSecondary
+                iconSize: 22
+                iconColor: rowRoot.checked ? Theme.accent : Theme.textSecondary
             }
 
             AppText {
-                anchors.verticalCenter: parent.verticalCenter
-                width: parent.width - 38
+                Layout.fillWidth: true
                 text: rowRoot.label
                 color: Theme.textPrimary
-                font.pixelSize: Metrics.metaPx(root.Window.window ? root.Window.window.width : 1920)
+                font.pixelSize: Metrics.bodyPx(root.windowWidth)
+                font.weight: root.menuIndex === rowRoot.optionIndex ? Font.DemiBold : Font.Medium
                 elide: Text.ElideRight
                 maximumLineCount: 1
+                verticalAlignment: Text.AlignVCenter
+            }
+
+            MaterialIcon {
+                Layout.preferredWidth: 24
+                Layout.preferredHeight: 24
+                visible: rowRoot.checked
+                name: "done"
+                iconSize: 21
+                iconColor: Theme.accent
             }
         }
 
         MouseArea {
             anchors.fill: parent
+            hoverEnabled: true
+            onEntered: root.menuIndex = rowRoot.optionIndex
             onClicked: root.activateMenuIndex(rowRoot.optionIndex)
         }
     }
@@ -331,37 +390,51 @@ T.Control {
         }
     }
 
-    Rectangle {
-        id: menuPanel
-        anchors.top: parent.top
-        anchors.right: parent.right
-        anchors.margins: 8
-        width: Math.min(260, Math.max(210, parent.width - 16))
-        height: menuOpen ? menuColumn.implicitHeight + 12 : 0
-        visible: menuOpen
-        z: 8
-        radius: Theme.radiusMedium
-        color: Theme.floatingPanel
-        border.width: 1
-        border.color: Theme.borderStrong
-        clip: true
+    QQC.Popup {
+        id: menuPopup
 
-        Column {
-            id: menuColumn
-            anchors.left: parent.left
-            anchors.right: parent.right
-            anchors.top: parent.top
-            anchors.margins: 6
+        parent: root.Window.window ? root.Window.window.contentItem : root
+        width: root.menuPanelWidth
+        height: root.menuPanelHeight
+        padding: 0
+        modal: false
+        dim: false
+        focus: true
+        closePolicy: QQC.Popup.CloseOnEscape | QQC.Popup.CloseOnPressOutside
+        onClosed: root.closeMenu()
 
-            Repeater {
-                model: root.menuOptions
-                delegate: MenuRow {
-                    required property int index
-                    optionIndex: index
-                    iconName: modelData.icon
-                    label: modelData.label
+        background: Rectangle {
+            radius: Theme.radiusPanel
+            color: Theme.floatingPanel
+            border.width: 1
+            border.color: Theme.borderStrong
+            antialiasing: true
+        }
+
+        contentItem: Item {
+            clip: true
+
+            Column {
+                anchors.fill: parent
+                anchors.margins: 8
+                spacing: 4
+
+                Repeater {
+                    model: root.menuOptions
+                    delegate: MenuRow {
+                        required property int index
+                        optionIndex: index
+                        iconName: modelData.icon
+                        label: modelData.label
+                        checked: Boolean(modelData.checked)
+                    }
                 }
             }
+        }
+
+        Keys.onPressed: (event) => {
+            if (root.handleNavigationKey(event.key))
+                event.accepted = true
         }
     }
 }
