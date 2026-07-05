@@ -166,7 +166,9 @@ void ContentModelController::loadSearchSuggestions()
 }
 
 void ContentModelController::loadDetailRows(const QString &itemId,
-                                            const QString &itemType)
+                                            const QString &itemType,
+                                            const QString &seriesId,
+                                            const QString &seasonId)
 {
     const RequestGeneration::Token generation =
         m_detailRowsGeneration.next();
@@ -181,13 +183,17 @@ void ContentModelController::loadDetailRows(const QString &itemId,
         return;
     }
 
+    const bool loadSeasons = itemType == QStringLiteral("Series");
+    const bool loadEpisodes = (itemType == QStringLiteral("Episode") ||
+                               itemType == QStringLiteral("Season")) &&
+                              !seriesId.isEmpty();
     m_detailRowsBusy = true;
+    m_detailRowsPending = (loadSeasons || loadEpisodes) ? 2 : 1;
     emit detailRowsChanged();
 
-    const bool loadSeasons = itemType == QStringLiteral("Series");
-    m_detailRowsPending = loadSeasons ? 2 : 1;
     qInfo() << "detail rows: loading" << itemType << itemId
-            << "seasons=" << loadSeasons;
+            << "context="
+            << (loadSeasons ? "seasons" : loadEpisodes ? "episodes" : "none");
 
     if (loadSeasons) {
         Async::runLatest(
@@ -205,6 +211,25 @@ void ContentModelController::loadDetailRows(const QString &itemId,
             [this, generation, itemId](
                 const std::exception_ptr &error) {
                 qWarning() << "detail rows: seasons fetch failed" << itemId
+                           << exceptionMessage(error);
+                finishDetailRowLoad(generation);
+            });
+    } else if (loadEpisodes) {
+        Async::runLatest(
+            this, m_api->fetchEpisodes(seriesId, seasonId), m_detailRowsGeneration,
+            generation,
+            [this, generation, seriesId](
+                const std::vector<MovieItem> &episodes) {
+                qInfo() << "detail rows: episodes loaded" << seriesId
+                        << episodes.size();
+                m_detailSeasons.setMovies(episodes);
+                m_prefetch->prefetchPosters(episodes);
+                emit detailRowsChanged();
+                finishDetailRowLoad(generation);
+            },
+            [this, generation, seriesId](
+                const std::exception_ptr &error) {
+                qWarning() << "detail rows: episodes fetch failed" << seriesId
                            << exceptionMessage(error);
                 finishDetailRowLoad(generation);
             });
@@ -265,6 +290,7 @@ void ContentModelController::updateResumeTicks(const QString &itemId,
 {
     m_searchResults.updateResumeTicks(itemId, positionTicks);
     m_searchSuggestions.updateResumeTicks(itemId, positionTicks);
+    m_detailSeasons.updateResumeTicks(itemId, positionTicks);
     m_detailSimilarItems.updateResumeTicks(itemId, positionTicks);
     m_personItems.updateResumeTicks(itemId, positionTicks);
 }

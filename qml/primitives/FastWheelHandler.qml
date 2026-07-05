@@ -1,4 +1,5 @@
 import QtQuick
+import "../theme"
 
 WheelHandler {
     id: root
@@ -11,12 +12,35 @@ WheelHandler {
     // Kept deliberately modest so a single notch is a comfortable nudge rather
     // than a full-screen jump.
     property int stepPixels: 120
+    property int animationDuration: 90
 
     target: null
     acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
 
     function clamp(value, minValue, maxValue) {
         return Math.max(minValue, Math.min(maxValue, value))
+    }
+
+    function scrollBase(propertyName) {
+        if (root.scrollAnimation.running && root.scrollAnimation.target === flickable
+                && root.scrollAnimation.property === propertyName)
+            return root.scrollAnimation.to
+        return flickable[propertyName]
+    }
+
+    function moveFlickable(propertyName, value, animate) {
+        if (!animate || Theme.reducedMotion || animationDuration <= 0) {
+            root.scrollAnimation.stop()
+            flickable[propertyName] = value
+            return
+        }
+
+        root.scrollAnimation.stop()
+        root.scrollAnimation.target = flickable
+        root.scrollAnimation.property = propertyName
+        root.scrollAnimation.from = flickable[propertyName]
+        root.scrollAnimation.to = value
+        root.scrollAnimation.start()
     }
 
     onWheel: (event) => {
@@ -38,13 +62,19 @@ WheelHandler {
         if (delta === 0)
             return
 
+        const animate = pixelDelta === 0
         if (root.horizontal) {
             const maxX = Math.max(0, flickable.contentWidth - flickable.width)
-            flickable.contentX = clamp(flickable.contentX - delta, 0, maxX)
+            root.moveFlickable("contentX", clamp(root.scrollBase("contentX") - delta, 0, maxX), animate)
         } else {
             const maxY = Math.max(0, flickable.contentHeight - flickable.height)
-            flickable.contentY = clamp(flickable.contentY - delta, 0, maxY)
+            root.moveFlickable("contentY", clamp(root.scrollBase("contentY") - delta, 0, maxY), animate)
         }
         event.accepted = true
+    }
+
+    property NumberAnimation scrollAnimation: NumberAnimation {
+        duration: root.animationDuration
+        easing.type: Easing.OutCubic
     }
 }

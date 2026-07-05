@@ -9,6 +9,7 @@ Item {
     property string kind: "poster"
     property bool focused: false
     property bool useSeriesPoster: false
+    property bool preferEpisodeTitle: false
     property bool loadImage: true
     property int imageLoadDelay: 0
     property string fallbackTitle: item.itemType || "Media"
@@ -22,10 +23,14 @@ Item {
 
 
     function titleText() {
+        if (preferEpisodeTitle && item.itemType === "Episode" && item.title)
+            return item.title
         return item.displayTitle || item.title || item.seriesName || ""
     }
 
     function subtitleText() {
+        if (preferEpisodeTitle && item.itemType === "Episode")
+            return item.subtitle || ""
         return item.displaySubtitle || item.subtitle || (item.year > 0 ? String(item.year) : "")
     }
 
@@ -59,7 +64,7 @@ Item {
         year: root.item.year || 0
         metadata: root.subtitleText()
         focused: root.focused
-        loadImage: root.loadImage
+        loadImage: root.loadImage && root.kind === "poster"
         imageLoadDelay: root.imageLoadDelay
     }
 
@@ -71,7 +76,7 @@ Item {
         imageUrl: root.landscapeImage()
         progress: root.item.progress || 0
         focused: root.focused
-        loadImage: root.loadImage
+        loadImage: root.loadImage && root.kind !== "poster"
         imageLoadDelay: root.imageLoadDelay
     }
 

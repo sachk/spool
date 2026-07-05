@@ -380,6 +380,12 @@ cmake_build_app() {
   local src="$1" build="$2"
   shift 2
   local cmake_args=("$@")
+  if [[ -n "${JELLYFIN_CMAKE_EXTRA_ARGS:-}" ]]; then
+    # Shell-style splitting is intentional: this is for simple -Dname=value
+    # switches from flake runners and local diagnostics.
+    # shellcheck disable=SC2206
+    cmake_args+=(${JELLYFIN_CMAKE_EXTRA_ARGS})
+  fi
 
   if [[ -f "$build/CMakeCache.txt" ]] \
      && ! grep -q "^CMAKE_HOME_DIRECTORY:INTERNAL=$src$" "$build/CMakeCache.txt"; then

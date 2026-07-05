@@ -6,7 +6,8 @@ import "../primitives"
 FocusScope {
     id: root
     property var shell
-    property int columns: Metrics.columns(width)
+    readonly property bool episodeGrid: Boolean(appController && appController.currentViewKind === "episodes")
+    property int columns: episodeGrid ? Math.max(2, Math.floor(width / Math.max(260, Metrics.homeLandscapeWidth(width)))) : Metrics.columns(width)
     property bool sortOpen: false
     property bool filtersOpen: false
     property bool libraryOpen: false
@@ -739,13 +740,15 @@ FocusScope {
             boundsBehavior: Flickable.StopAtBounds
             model: appController.movies
             cellWidth: Math.floor((width - Metrics.gap(root.width) * (columns - 1)) / columns)
-            cellHeight: cellWidth * 1.5 + 64
+            cellHeight: root.episodeGrid ? Math.round(cellWidth * 9 / 16 + 62) : cellWidth * 1.5 + 64
             Component.onCompleted: {
                 restoreIndex()
                 requestMoreIfNeeded()
             }
             onCountChanged: {
-                if (currentIndex < 0)
+                if (count <= 0)
+                    currentIndex = -1
+                else if (currentIndex < 0 || currentIndex >= count)
                     restoreIndex()
                 requestMoreIfNeeded()
             }
@@ -837,7 +840,9 @@ FocusScope {
                     height: parent.height
                     item: gridDelegate.itemData
                     shell: root.shell
-                    kind: "poster"
+                    kind: root.episodeGrid ? "landscape" : "poster"
+                    preferEpisodeTitle: root.episodeGrid
+                    useSeriesPoster: !root.episodeGrid
                     focused: gridDelegate.GridView.isCurrentItem
                     longPressAction: "menu"
                     onActivated: {

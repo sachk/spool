@@ -11,9 +11,11 @@ FocusScope {
     property int rowGap: 16
     property bool enabledRow: true
     readonly property int rowCount: peopleModel ? peopleModel.length : 0
-    readonly property int cardWidth: Math.min(156, Math.max(124, width * 0.12))
+    readonly property int screenWidth: root.Window.window ? root.Window.window.width : 1920
+    readonly property int density: Metrics.densityForWidth(screenWidth)
+    readonly property int cardWidth: Math.min([156, 180, 220, 280][density], Math.max([124, 136, 152, 180][density], width * 0.13))
     readonly property int headerHeight: 34
-    readonly property int cardHeight: Math.round(cardWidth * 1.18 + 48)
+    readonly property int cardHeight: Math.round(cardWidth * 1.5 + Metrics.metaPx(screenWidth) * 3 + 20)
 
     signal activated(var person)
 
@@ -104,7 +106,7 @@ FocusScope {
                 anchors.top: parent.top
                 anchors.left: parent.left
                 anchors.right: parent.right
-                height: width * 1.18
+                height: width * 1.5
                 imageUrl: modelData.imageUrl || ""
                 fallbackText: modelData.type || "Person"
                 focused: personDelegate.index === peopleList.currentIndex && peopleList.activeFocus

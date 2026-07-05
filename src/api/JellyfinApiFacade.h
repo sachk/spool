@@ -52,7 +52,8 @@ public:
 
     QString buildImageUrl(const QString &itemId, const QString &tag = {}, int maxWidth = 280,
                           int quality = 75, const QString &format = QStringLiteral("webp"),
-                          const QString &imageType = QStringLiteral("Primary")) const;
+                          const QString &imageType = QStringLiteral("Primary"),
+                          int fillWidth = 0, int fillHeight = 0) const;
     void setImagePrefetchCache(const QString &cacheDirectory, qint64 maximumCacheSize);
     void prefetchImages(const QStringList &urls, int maxConcurrent = 6);
     void cancelPrefetches();
