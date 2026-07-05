@@ -420,13 +420,14 @@ T.Control {
                 spacing: 4
 
                 Repeater {
-                    model: root.menuOptions
+                    model: root.menuOptions.length
                     delegate: MenuRow {
                         required property int index
+                        readonly property var option: root.menuOptions[index] || ({})
                         optionIndex: index
-                        iconName: modelData.icon
-                        label: modelData.label
-                        checked: Boolean(modelData.checked)
+                        iconName: option.icon || "more_horiz"
+                        label: option.label || ""
+                        checked: Boolean(option.checked)
                     }
                 }
             }
