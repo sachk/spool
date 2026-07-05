@@ -892,9 +892,10 @@ void AppController::refreshCurrentLibrary()
         });
 }
 
-void AppController::loadDetailRows(const QString &itemId, const QString &itemType)
+void AppController::loadDetailRows(const QString &itemId, const QString &itemType,
+                                   const QString &seriesId, const QString &seasonId)
 {
-    m_content->loadDetailRows(itemId, itemType);
+    m_content->loadDetailRows(itemId, itemType, seriesId, seasonId);
 }
 
 void AppController::openDetailSeason(int index)
@@ -903,6 +904,11 @@ void AppController::openDetailSeason(int index)
     if (item.id.isEmpty())
         return;
     openSeason(item);
+}
+
+void AppController::playDetailSeasonItem(int index, bool fromStart)
+{
+    playOrOpen(m_content->detailSeasonAt(index), fromStart);
 }
 
 void AppController::playDetailSimilarItem(int index, bool fromStart)

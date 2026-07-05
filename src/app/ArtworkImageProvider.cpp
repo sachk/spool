@@ -3,6 +3,7 @@
 #include <QBuffer>
 #include <QDir>
 #include <QImageReader>
+#include <QDebug>
 #include <QMutexLocker>
 #include <QNetworkAccessManager>
 #include <QNetworkDiskCache>
@@ -14,12 +15,43 @@
 #include <QUrl>
 
 #include <atomic>
+#include <cmath>
 #include <algorithm>
 #include <utility>
 
 namespace JellyfinNative {
 
 namespace {
+QSize decodeSizeForRequest(const QSize &sourceSize, const QSize &requestedSize)
+{
+    if (!sourceSize.isValid() || !requestedSize.isValid() ||
+        requestedSize.width() <= 0 || requestedSize.height() <= 0)
+        return {};
+    return sourceSize.scaled(requestedSize, Qt::KeepAspectRatioByExpanding);
+}
+
+#if defined(JELLYFIN_ARTWORK_ASPECT_DIAGNOSTICS)
+bool shouldLogAspectDiagnostic(const QSize &source, const QSize &requested, const QSize &decoded)
+{
+    if (!source.isValid() || !requested.isValid() || !decoded.isValid() ||
+        source.width() <= 0 || source.height() <= 0 ||
+        requested.width() <= 0 || requested.height() <= 0)
+        return false;
+
+    const double sourceAspect = static_cast<double>(source.width()) / source.height();
+    const double requestedAspect = static_cast<double>(requested.width()) / requested.height();
+    if (std::abs(sourceAspect - requestedAspect) <= 0.02)
+        return false;
+
+    if (requested.width() <= 4 || requested.height() <= 4)
+        return true;
+
+    const double horizontalOverscan = static_cast<double>(decoded.width()) / requested.width();
+    const double verticalOverscan = static_cast<double>(decoded.height()) / requested.height();
+    return std::max(horizontalOverscan, verticalOverscan) > 1.35;
+}
+#endif
+
 
 class ArtworkImageResponse final : public QQuickImageResponse
 {
@@ -113,9 +145,18 @@ private:
 
         QImageReader reader(&buffer);
         reader.setAutoTransform(false);
-        if (requestedSize.width() > 0 && requestedSize.height() > 0)
-            reader.setScaledSize(requestedSize);
-
+        const QSize scaledSize = decodeSizeForRequest(reader.size(), requestedSize);
+        if (scaledSize.isValid()) {
+#if defined(JELLYFIN_ARTWORK_ASPECT_DIAGNOSTICS)
+            if (shouldLogAspectDiagnostic(reader.size(), requestedSize, scaledSize)) {
+                qWarning() << "artwork: aspect-preserving decode"
+                           << "source=" << reader.size()
+                           << "requested=" << requestedSize
+                           << "decode=" << scaledSize;
+            }
+#endif
+            reader.setScaledSize(scaledSize);
+        }
         QImage image = reader.read();
         if (image.isNull())
             *error = reader.errorString();

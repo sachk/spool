@@ -369,10 +369,14 @@ MovieItem mediaItemFromJson(const JellyfinApiFacade *api, const QJsonObject &obj
     const int landscapeCardQuality = api->landscapeCardImageQuality();
     if (!thumbTag.isEmpty()) {
         item.landscapeCardUrl = api->buildImageUrl(
-            itemId, thumbTag, landscapeCardWidth, landscapeCardQuality, QStringLiteral("webp"), QStringLiteral("Thumb"));
+            itemId, thumbTag, landscapeCardWidth, landscapeCardQuality,
+            QStringLiteral("webp"), QStringLiteral("Thumb"), landscapeCardWidth,
+            (landscapeCardWidth * 9) / 16);
     } else if (!backdropTag.isEmpty()) {
         item.landscapeCardUrl = api->buildImageUrl(
-            itemId, backdropTag, landscapeCardWidth, landscapeCardQuality, QStringLiteral("webp"), QStringLiteral("Backdrop"));
+            itemId, backdropTag, landscapeCardWidth, landscapeCardQuality,
+            QStringLiteral("webp"), QStringLiteral("Backdrop"),
+            landscapeCardWidth, (landscapeCardWidth * 9) / 16);
     }
     item.genres = stringsFromJsonArray(object.value(QStringLiteral("Genres")).toArray());
     item.tags = stringsFromJsonArray(object.value(QStringLiteral("Tags")).toArray());
@@ -510,11 +514,17 @@ AuthSession JellyfinApiFacade::session() const
 }
 
 QString JellyfinApiFacade::buildImageUrl(const QString &itemId, const QString &tag, int maxWidth,
-                                         int quality, const QString &format, const QString &imageType) const
+                                         int quality, const QString &format, const QString &imageType,
+                                         int fillWidth, int fillHeight) const
 {
     QUrl url(QStringLiteral("%1/Items/%2/Images/%3").arg(m_serverUrl, itemId, imageType));
     QUrlQuery query;
-    query.addQueryItem(QStringLiteral("maxWidth"), QString::number(maxWidth));
+    if (fillWidth > 0 && fillHeight > 0) {
+        query.addQueryItem(QStringLiteral("fillWidth"), QString::number(fillWidth));
+        query.addQueryItem(QStringLiteral("fillHeight"), QString::number(fillHeight));
+    } else {
+        query.addQueryItem(QStringLiteral("maxWidth"), QString::number(maxWidth));
+    }
     query.addQueryItem(QStringLiteral("quality"), QString::number(quality));
     query.addQueryItem(QStringLiteral("format"), format);
     query.addQueryItem(QStringLiteral("api_key"), m_session.accessToken);

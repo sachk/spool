@@ -17,6 +17,7 @@ option(JELLYFIN_NATIVE_DEV_BUILD "Favor faster local development builds over sma
 option(JELLYFIN_DIAGNOSTICS "Build debug lifecycle/process/watchdog diagnostics" OFF)
 option(JELLYFIN_DIAGNOSTICS_STACKDUMP "Allow diagnostics to request gdb stack dumps" OFF)
 option(JELLYFIN_DIAGNOSTICS_ABORT_ON_HANG "Abort after watchdog hang diagnostics are written" OFF)
+option(JELLYFIN_ARTWORK_ASPECT_DIAGNOSTICS "Log artwork decode requests whose target aspect would stretch the source" OFF)
 include(CTest)
 
 set(MPV_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/mpv" CACHE PATH "desktop mpv source tree")
@@ -250,6 +251,9 @@ if(JELLYFIN_DIAGNOSTICS_STACKDUMP)
 endif()
 if(JELLYFIN_DIAGNOSTICS_ABORT_ON_HANG)
     target_compile_definitions(jellyfin-native PRIVATE JELLYFIN_DIAGNOSTICS_ABORT_ON_HANG=1)
+endif()
+if(JELLYFIN_ARTWORK_ASPECT_DIAGNOSTICS)
+    target_compile_definitions(jellyfin-native PRIVATE JELLYFIN_ARTWORK_ASPECT_DIAGNOSTICS=1)
 endif()
 
 set_source_files_properties(
@@ -500,6 +504,39 @@ if(BUILD_TESTING AND NOT CMAKE_CROSSCOMPILING)
     )
     target_link_libraries(library-query-tests PRIVATE Qt6::Core)
     add_test(NAME library-query COMMAND library-query-tests)
+    add_executable(content-model-controller-tests
+        tests/app/ContentModelControllerTest.cpp
+        src/app/ContentModelController.cpp
+        src/app/ContentModelController.h
+        src/app/LibraryPrefetchController.cpp
+        src/app/LibraryPrefetchController.h
+        src/app/LibraryQuery.cpp
+        src/app/LibraryQuery.h
+        src/api/JellyfinApiFacade.cpp
+        src/api/JellyfinApiFacade.h
+        src/api/PlaybackNegotiation.cpp
+        src/api/PlaybackNegotiation.h
+        src/api/HttpRequestPolicy.h
+        src/common/AsyncTask.h
+        src/common/JellyfinTypes.cpp
+        src/common/JellyfinTypes.h
+        src/common/RequestGeneration.h
+        src/diagnostics/Diagnostics.cpp
+        src/diagnostics/Diagnostics.h
+        src/models/MovieGridModel.cpp
+        src/models/MovieGridModel.h
+    )
+    target_include_directories(content-model-controller-tests PRIVATE
+        "${CMAKE_CURRENT_SOURCE_DIR}/src"
+    )
+    target_link_libraries(content-model-controller-tests PRIVATE
+        Qt6::Core
+        Qt6::Network
+        QCoro6::Core
+        QCoro6::Network
+    )
+    add_test(NAME content-model-controller COMMAND content-model-controller-tests)
+
 
     add_executable(sync-play-clock-tests
         tests/app/SyncPlayClockTest.cpp

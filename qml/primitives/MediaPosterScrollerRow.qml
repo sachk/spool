@@ -14,10 +14,12 @@ FocusScope {
     property bool reserveWhenEmpty: false
     property bool loading: false
     property string emptyText: "Loading..."
+    property string cardKind: "poster"
     property bool useSeriesPoster: true
+    property bool preferEpisodeTitle: false
     readonly property int rowCount: modelCount()
     readonly property int headerHeight: 34
-    readonly property int cardHeight: Math.round(cardWidth * 1.5 + 60)
+    readonly property int cardHeight: Math.round(cardWidth * (cardKind === "landscape" ? 9 / 16 : 1.5) + 60)
     readonly property bool rowVisible: enabledRow && (rowCount > 0 || reserveWhenEmpty)
 
     signal activated(int index)
@@ -134,8 +136,9 @@ FocusScope {
             height: listView.height
             item: itemData
             shell: root.shell
-            kind: "poster"
+            kind: root.cardKind
             useSeriesPoster: root.useSeriesPoster
+            preferEpisodeTitle: root.preferEpisodeTitle
             focused: posterDelegate.index === listView.currentIndex && listView.activeFocus
             onActivated: {
                 listView.currentIndex = posterDelegate.index

@@ -12,6 +12,7 @@ Item {
     property bool loadImage: true
     property int loadDelay: 0
     property string activeImageUrl: ""
+    readonly property bool imageTargetReady: width > 1 && height > 1
 
     function artworkSource(url) {
         if (url.indexOf("http://") === 0 || url.indexOf("https://") === 0)
@@ -23,7 +24,7 @@ Item {
         loadTimer.stop()
         if (clearCurrent)
             activeImageUrl = ""
-        if (!loadImage || imageUrl.length <= 0) {
+        if (!loadImage || imageUrl.length <= 0 || !imageTargetReady) {
             activeImageUrl = ""
             return
         }
@@ -37,6 +38,8 @@ Item {
     onImageUrlChanged: updateActiveImage(true)
     onLoadImageChanged: updateActiveImage(!loadImage)
     onLoadDelayChanged: updateActiveImage(false)
+    onWidthChanged: updateActiveImage(false)
+    onHeightChanged: updateActiveImage(false)
     Component.onCompleted: updateActiveImage(false)
 
     clip: false
@@ -85,14 +88,6 @@ Item {
             }
         }
 
-        Rectangle {
-            anchors.left: parent.left
-            anchors.right: parent.right
-            anchors.bottom: parent.bottom
-            height: 3
-            visible: root.focused
-            color: Theme.accentPurple
-        }
     }
 
     Timer {

@@ -41,7 +41,8 @@ public:
     void search(const QString &query);
     void clearSearch();
     void loadSearchSuggestions();
-    void loadDetailRows(const QString &itemId, const QString &itemType);
+    void loadDetailRows(const QString &itemId, const QString &itemType,
+                        const QString &seriesId, const QString &seasonId);
     void loadPersonItems(const QString &personId);
     void updateResumeTicks(const QString &itemId, qint64 positionTicks);
     void updateFavorite(const QString &itemId, bool favorite);

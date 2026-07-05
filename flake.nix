@@ -285,8 +285,23 @@
           # Builds the native binary (unless JELLYFIN_NO_REBUILD is set) and
           # runs it inside the #native dev shell. `launchPrefix` lets callers
           # wrap the executable, e.g. with GammaRay's launcher.
-          makeRunner = { name, launchPrefix ? "" }:
-            pkgs.writeShellScriptBin name ''
+          makeRunner = { name, launchPrefix ? "", cmakeExtraArgs ? "", buildRoot ? "" }:
+            let
+              runnerBinaryPath =
+                if buildRoot == "" then binaryPath
+                else if pkgs.stdenv.isDarwin
+                then "${buildRoot}/run-install/jellyfin-native.app/Contents/MacOS/jellyfin-native"
+                else "${buildRoot}/install/bin/jellyfin-native";
+              runnerMpvLibraryPath =
+                if buildRoot == "" then mpvLibraryPath
+                else "${buildRoot}/mpv-prefix/lib";
+              buildRootExport = pkgs.lib.optionalString (buildRoot != "")
+                ''export BUILD_ROOT="$REPO_ROOT/${buildRoot}"; '';
+              runnerBuildCommand =
+                if pkgs.stdenv.isDarwin && buildRoot != ""
+                then ''APP_INSTALL="$REPO_ROOT/${buildRoot}/run-install" DEPLOY_APP=0 exec bash ${buildScript}''
+                else buildCommand;
+            in pkgs.writeShellScriptBin name ''
             export PATH="${pkgs.lib.makeBinPath [ pkgs.nix pkgs.bashInteractive pkgs.coreutils pkgs.gnugrep pkgs.gnused ]}:$PATH"
             set -euo pipefail
 
@@ -331,7 +346,7 @@
             fi
             cd "$REPO_ROOT"
 
-            BIN="$REPO_ROOT/${binaryPath}"
+            BIN="$REPO_ROOT/${runnerBinaryPath}"
 
             # Strip webOS cross state so native Linux builds do not pick up the
             # old SDK wayland-scanner/cross toolchain.
@@ -340,16 +355,24 @@
             if [ -n "''${JELLYFIN_NO_REBUILD:-}" ] && [ -x "$BIN" ]; then
               :
             else
-              nix develop "$REPO_ROOT#native" -c bash -c "$scrub; ${buildCommand}"
+              nix develop "$REPO_ROOT#native" -c bash -c "$scrub; ${buildRootExport}export JELLYFIN_CMAKE_EXTRA_ARGS='${cmakeExtraArgs}'; ${runnerBuildCommand}"
             fi
 
-            export MPV_LIB="$REPO_ROOT/${mpvLibraryPath}"
+            export MPV_LIB="$REPO_ROOT/${runnerMpvLibraryPath}"
             runtime_env='eval "current_lib_path=\"''${${libraryPathVariable}:-}\""; export ${libraryPathVariable}="$MPV_LIB:${nativeRuntimeLibPath}''${current_lib_path:+:$current_lib_path}"; export QT_PLUGIN_PATH="${qtPluginPath}"; export QML2_IMPORT_PATH="${qmlImportPath}"; export QML_IMPORT_PATH="$QML2_IMPORT_PATH"'
             export LC_NUMERIC=C
             exec nix develop "$REPO_ROOT#native" -c bash -c "$scrub; $runtime_env"'; exec ${launchPrefix}"$@"' _ "$BIN" "$@"
           '';
 
           runner = makeRunner { name = "jellyfin-native-run"; };
+          imageDebugRunner = makeRunner {
+            name = "jellyfin-native-image-debug";
+            cmakeExtraArgs = "-DJELLYFIN_ARTWORK_ASPECT_DIAGNOSTICS=ON";
+            buildRoot = if pkgs.stdenv.isDarwin
+              then "build/macos-image-debug"
+              else "build/linux-release-image-debug";
+          };
+
 
           # GammaRay launches the target and opens its introspection GUI. The
           # nixpkgs `gammaray` probe must match the app's Qt; the #native shell
@@ -370,6 +393,11 @@
           default = {
             type = "app";
             program = "${runner}/bin/jellyfin-native-run";
+          };
+
+          image-debug = {
+            type = "app";
+            program = "${imageDebugRunner}/bin/jellyfin-native-image-debug";
           };
         } // pkgs.lib.optionalAttrs pkgs.stdenv.isLinux {
           gammaray = {
