@@ -1492,7 +1492,7 @@ QCoro::Task<QByteArray> JellyfinApiFacade::requestBytes(HttpMethod method, QStri
         m_activeReplies.insert(reply);
         reply = co_await reply;
         m_activeReplies.remove(reply);
-        const QByteArray payload = reply ? reply->readAll() : QByteArray{};
+        const QByteArray payload = reply && reply->isReadable() ? reply->readAll() : QByteArray{};
         const QString errorText =
             reply ? reply->errorString() : QStringLiteral("Network reply disappeared");
         const int statusCode =
@@ -1602,7 +1602,7 @@ void JellyfinApiFacade::pumpImagePrefetch()
         m_prefetchReplies.insert(reply);
         ++m_prefetchInFlight;
         connect(reply, &QNetworkReply::finished, this, [this, reply, url]() {
-            if (reply)
+            if (reply && reply->isReadable())
                 reply->readAll();
             if (reply)
                 reply->deleteLater();
