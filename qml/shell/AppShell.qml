@@ -10,9 +10,7 @@ FocusScope {
     id: root
     focus: true
 
-    property string route: controllerRoute()
-    property var backStack: []
-    property string previousRoute: "home"
+    readonly property string route: router ? router.route : controllerRoute()
     property int lastLibraryIndex: 0
     property int lastGridIndex: 0
     property real lastGridY: 0
@@ -47,6 +45,44 @@ FocusScope {
     readonly property string errorTextValue: appController ? appController.errorText : ""
     readonly property bool busyValue: appController ? appController.busy : false
     readonly property string busyTextValue: appController ? appController.busyText : ""
+    property real keyboardAvoidance: 0
+
+    function refreshKeyboardAvoidance() {
+        if (!Qt.inputMethod.visible) {
+            keyboardAvoidance = 0
+            return
+        }
+        const window = root.Window.window
+        const focusItem = window ? window.activeFocusItem : null
+        if (!InputKeys.isTextInputItem(focusItem) || !focusItem.mapToItem) {
+            keyboardAvoidance = 0
+            return
+        }
+        const keyboardRect = Qt.inputMethod.keyboardRectangle
+        const keyboardTop = keyboardRect && keyboardRect.height > 0
+                ? keyboardRect.y : root.height
+        const focusPos = focusItem.mapToItem(root, 0, 0)
+        const focusBottom = focusPos.y + focusItem.height + keyboardAvoidance
+        const overlap = focusBottom + 24 - keyboardTop
+        keyboardAvoidance = Math.max(0, Math.min(overlap, root.height * 0.45))
+    }
+
+    Behavior on keyboardAvoidance {
+        enabled: !Theme.reducedMotion
+        NumberAnimation { duration: 120; easing.type: Easing.OutCubic }
+    }
+
+    Connections {
+        target: Qt.inputMethod
+        function onVisibleChanged() { root.refreshKeyboardAvoidance() }
+        function onKeyboardRectangleChanged() { root.refreshKeyboardAvoidance() }
+        function onAnchorRectangleChanged() { root.refreshKeyboardAvoidance() }
+    }
+
+    Connections {
+        target: root.Window.window
+        function onActiveFocusItemChanged() { root.refreshKeyboardAvoidance() }
+    }
 
     Connections {
         target: appController
@@ -76,9 +112,13 @@ FocusScope {
     Connections {
         target: appController
         function onPageChanged() {
-            root.route = root.controllerRoute();
+            if (router)
+                router.replace(root.controllerRoute());
         }
     }
+
+    Component.onCompleted: if (router)
+        router.reset(root.controllerRoute())
 
     Connections {
         target: root.player
@@ -97,11 +137,8 @@ FocusScope {
     }
 
     function pushRoute(nextRoute) {
-        if (route === nextRoute)
-            return;
-        previousRoute = route;
-        backStack.push(route);
-        route = nextRoute;
+        if (router)
+            router.push(nextRoute);
         routeStack.forceActiveFocus();
     }
 
@@ -168,25 +205,23 @@ FocusScope {
     }
 
     function replaceRoute(nextRoute) {
-        previousRoute = route;
-        route = nextRoute;
+        if (router)
+            router.replace(nextRoute);
         routeStack.forceActiveFocus();
     }
 
     function goHome() {
-        backStack = [];
-        previousRoute = "home";
+        if (router)
+            router.reset("home");
         appController.goHome();
-        route = "home";
         routeStack.forceActiveFocus();
     }
 
     function switchUser() {
-        backStack = [];
-        previousRoute = "home";
+        if (router)
+            router.reset("login");
         if (appController)
             appController.switchUser();
-        route = "login";
         routeStack.forceActiveFocus();
     }
 
@@ -229,31 +264,11 @@ FocusScope {
         }
         if (routeStack.handleBack())
             return true;
-        if (route === "playerOverlay") {
-            replaceRoute(previousRoute.length > 0 ? previousRoute : "home");
-            return true;
-        }
-        if (route === "settings") {
-            replaceRoute(previousRoute.length > 0 ? previousRoute : "home");
-            return true;
-        }
         if (route === "itemDetails") {
             replaceRoute(detailsRoute && detailsRoute.returnRoute ? detailsRoute.returnRoute : (detailsReturnRoute.length > 0 ? detailsReturnRoute : "libraryGrid"));
             return true;
         }
-        if (route === "personDetails") {
-            replaceRoute(previousRoute.length > 0 ? previousRoute : "itemDetails");
-            return true;
-        }
-        if (route === "search") {
-            replaceRoute(previousRoute.length > 0 ? previousRoute : "home");
-            return true;
-        }
-        if (route === "libraries") {
-            goHome();
-            return true;
-        }
-        if (route === "libraryGrid") {
+        if (route === "libraries" || route === "libraryGrid") {
             goHome();
             return true;
         }
@@ -261,7 +276,11 @@ FocusScope {
             switchUser();
             return true;
         }
-        appController.back();
+        if (router) {
+            router.pop(route === "personDetails" ? "itemDetails" : "home");
+            routeStack.forceActiveFocus();
+            return true;
+        }
         return true;
     }
 
@@ -303,11 +322,11 @@ FocusScope {
                 return detailsModel.get(detailsIdx) || ({});
             }
         }
-        if (route === "search" && appController && appController.searchResults) {
-            const searchCount = appController.searchResults.rowCount();
+        if (route === "search" && appController && appController.searchController && appController.searchController.results) {
+            const searchCount = appController.searchController.results.rowCount();
             if (searchCount > 0) {
                 const searchIdx = Math.max(0, Math.min(lastSearchIndex, searchCount - 1));
-                return appController.searchResults.get(searchIdx) || ({});
+                return appController.searchController.results.get(searchIdx) || ({});
             }
         }
         const count = appController.movies.rowCount();
@@ -449,6 +468,9 @@ FocusScope {
             return;
         }
 
+        if (textInputActive && Qt.inputMethod.visible && InputKeys.isDirection(event.key))
+            return;
+
         if (InputKeys.isDirection(event.key)) {
             if (dispatchNavigationKey(event.key))
                 event.accepted = true;
@@ -506,6 +528,7 @@ FocusScope {
     ColumnLayout {
         id: contentLayer
         anchors.fill: parent
+        transform: Translate { y: -root.keyboardAvoidance }
         spacing: 0
         visible: !(root.hasPlayer && root.player.visible)
         enabled: !(root.hasPlayer && root.player.visible)
@@ -534,6 +557,7 @@ FocusScope {
             Layout.fillHeight: true
             route: root.route
             shell: root
+            args: router ? router.args : ({})
             focus: !(root.hasPlayer && root.player.visible)
         }
     }

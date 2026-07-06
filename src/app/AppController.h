@@ -10,6 +10,7 @@
 #include "QuickConnectController.h"
 #include "SessionController.h"
 #include "SettingsController.h"
+#include "SearchController.h"
 #include "../player/PlayerController.h"
 #include "NavigationState.h"
 #include "SyncPlayController.h"
@@ -51,9 +52,6 @@ class AppController final : public QObject
     Q_PROPERTY(JellyfinNative::MovieGridModel *resumeItems READ resumeItems CONSTANT)
     Q_PROPERTY(JellyfinNative::MovieGridModel *nextUpItems READ nextUpItems CONSTANT)
     Q_PROPERTY(QVariantList latestLibraryRows READ latestLibraryRows NOTIFY latestLibraryRowsChanged)
-    Q_PROPERTY(JellyfinNative::MovieGridModel *searchResults READ searchResults CONSTANT)
-    Q_PROPERTY(JellyfinNative::MovieGridModel *searchSuggestions READ searchSuggestions CONSTANT)
-    Q_PROPERTY(bool searchSuggestionsBusy READ searchSuggestionsBusy NOTIFY searchSuggestionsChanged)
     Q_PROPERTY(bool currentItemsLoadingMore READ currentItemsLoadingMore NOTIFY currentItemsPagingChanged)
     Q_PROPERTY(bool currentItemsHasMore READ currentItemsHasMore NOTIFY currentItemsPagingChanged)
     Q_PROPERTY(int currentItemsTotalCount READ currentItemsTotalCount NOTIFY currentItemsPagingChanged)
@@ -63,8 +61,7 @@ class AppController final : public QObject
     Q_PROPERTY(QVariantMap detailItem READ detailItem NOTIFY detailItemChanged)
     Q_PROPERTY(JellyfinNative::MovieGridModel *personItems READ personItems CONSTANT)
     Q_PROPERTY(bool personItemsBusy READ personItemsBusy NOTIFY personItemsChanged)
-    Q_PROPERTY(bool searchBusy READ searchBusy NOTIFY searchChanged)
-    Q_PROPERTY(QString searchQuery READ searchQuery NOTIFY searchChanged)
+    Q_PROPERTY(JellyfinNative::SearchController *searchController READ searchController CONSTANT)
     Q_PROPERTY(JellyfinNative::PlayerController *player READ player CONSTANT)
     Q_PROPERTY(JellyfinNative::SyncPlayController *syncPlay READ syncPlay CONSTANT)
     Q_PROPERTY(JellyfinNative::SettingsController *settings READ settings CONSTANT)
@@ -98,9 +95,6 @@ public:
     MovieGridModel *resumeItems();
     MovieGridModel *nextUpItems();
     QVariantList latestLibraryRows() const;
-    MovieGridModel *searchResults();
-    MovieGridModel *searchSuggestions();
-    bool searchSuggestionsBusy() const;
     bool currentItemsLoadingMore() const;
     bool currentItemsHasMore() const;
     int currentItemsTotalCount() const;
@@ -110,8 +104,7 @@ public:
     MovieGridModel *personItems();
     bool detailRowsBusy() const;
     bool personItemsBusy() const;
-    bool searchBusy() const;
-    QString searchQuery() const;
+    SearchController *searchController();
     PlayerController *player();
     SyncPlayController *syncPlay();
     SettingsController *settings();
@@ -134,10 +127,7 @@ public:
     Q_INVOKABLE void playLatestLibraryItem(int rowIndex, int itemIndex, bool fromStart = false);
     Q_INVOKABLE void openSeriesById(const QString &seriesId, const QString &seriesName);
     Q_INVOKABLE void openSeasonById(const QString &seriesId, const QString &seasonId, const QString &seasonName);
-    Q_INVOKABLE void search(const QString &query);
-    Q_INVOKABLE void clearSearch();
     Q_INVOKABLE void playSearchResult(int index, bool fromStart = false);
-    Q_INVOKABLE void loadSearchSuggestions();
     Q_INVOKABLE void playSuggestionItem(int index, bool fromStart = false);
     Q_INVOKABLE void loadMoreCurrentItems();
     Q_INVOKABLE void prefetchCurrentItems(int firstIndex, int lastIndex);
@@ -161,7 +151,6 @@ public:
     Q_INVOKABLE void setFavorite(const QString &itemId, bool favorite);
     Q_INVOKABLE void setPlayed(const QString &itemId, bool played);
     Q_INVOKABLE void clearProgress(const QString &itemId);
-    Q_INVOKABLE void back();
     Q_INVOKABLE void onMemoryPressure(const QString &level);
     Q_INVOKABLE void clearError();
 
@@ -171,8 +160,6 @@ signals:
     void errorTextChanged();
     void defaultProfileChanged();
     void currentLibraryNameChanged();
-    void searchChanged();
-    void searchSuggestionsChanged();
     void detailRowsChanged();
     void detailItemChanged();
     void latestLibraryRowsChanged();
@@ -221,6 +208,7 @@ private:
     SessionController *m_session = nullptr;
     LibraryPrefetchController *m_prefetch = nullptr;
     UserItemStateController *m_itemState = nullptr;
+    SearchController *m_search = nullptr;
     DiscoveredServerModel m_discoveredServers;
     LibraryListModel m_libraries;
     NavigationState m_navigation;

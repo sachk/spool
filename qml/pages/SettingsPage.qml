@@ -5,103 +5,157 @@ import "../primitives"
 
 FocusScope {
     id: root
+
     property var shell
     property int currentIndex: 0
     property int categoryIndex: 0
     property var settingsRows: []
+
     readonly property bool smartTvPlatform: nativeWindow ? nativeWindow.smartTvPlatform : true
     readonly property bool gpuNextDiagnosticsAvailable: !smartTvPlatform
     readonly property var categories: [
-        {
-            label: "General"
-        },
-        {
-            label: "Appearance"
-        },
-        {
-            label: "Playback"
-        },
-        {
-            label: "Subtitles"
-        },
-        {
-            label: "Diagnostics"
-        },
-        {
-            label: "Input"
-        },
-        {
-            label: "About"
-        }
+        { label: "General", group: "General" },
+        { label: "Appearance", group: "Appearance" },
+        { label: "Playback", group: "Playback" },
+        { label: "Subtitles", group: "Subtitles" },
+        { label: "Diagnostics", group: "Diagnostics" },
+        { label: "Input", group: "Button Remap" },
+        { label: "About", group: "About" }
     ]
-    readonly property var subtitleModeValues: ["Default", "Smart", "OnlyForced", "Always", "None"]
-    readonly property var subtitleModeOptions: ["Default", "Smart", "Only forced", "Always play", "None"]
-    readonly property var subtitleBurnInValues: ["", "onlyimageformats", "allcomplexformats", "all"]
-    readonly property var subtitleBurnInOptions: ["Auto", "Only image formats", "All complex formats", "All"]
-    readonly property var subtitleStylingValues: ["Auto", "Custom", "Native"]
-    readonly property var subtitleStylingOptions: ["Auto", "Custom", "Native"]
-    readonly property var subtitleTextSizeValues: ["smaller", "small", "", "large", "larger", "extralarge"]
-    readonly property var subtitleTextSizeOptions: ["Smaller", "Small", "Normal", "Large", "Larger", "Extra large"]
-    readonly property var subtitleTextWeightValues: ["normal", "bold"]
-    readonly property var subtitleTextWeightOptions: ["Normal", "Bold"]
-    readonly property var subtitleFontValues: ["", "typewriter", "print", "console", "cursive", "casual", "smallcaps"]
-    readonly property var subtitleFontOptions: ["Default", "Typewriter", "Print", "Console", "Cursive", "Casual", "Small caps"]
-    readonly property var subtitleTextColorValues: ["#ffffff", "#d3d3d3", "#808080", "#ffff00", "#008000", "#00ffff", "#0000ff", "#ff00ff", "#ff0000", "#000000"]
-    readonly property var subtitleTextColorOptions: ["White", "Light gray", "Gray", "Yellow", "Green", "Cyan", "Blue", "Magenta", "Red", "Black"]
-    readonly property var subtitleDropShadowValues: ["none", "raised", "depressed", "uniform", ""]
-    readonly property var subtitleDropShadowOptions: ["None", "Raised", "Depressed", "Uniform", "Drop shadow"]
+    readonly property var topRows: [
+        { key: "action/switchUser", source: "page", group: "General", type: "action", title: "Switch User", description: "Return to profile selection", valueText: "Choose" },
+        { key: "action/logout", source: "page", group: "General", type: "action", title: "Logout", description: "Clear the saved session and return to sign in", valueText: "Sign out" },
+        { key: "session/server", source: "page", group: "General", type: "readonly", title: "Connected Server" }
+    ]
+    readonly property var pageSchemaRows: [
+        { key: "theme/name", source: "page", group: "General", type: "readonly", title: "Theme", description: "Fixed dark TV interface", valueText: "Jellyfin Dark" },
+        { key: "i18n/locale", source: "page", group: "General", type: "select", title: "Language", description: "Restart the app to update cached server text" },
+        { key: "theme/accent", source: "page", group: "General", type: "select", title: "Accent", choiceLabels: ["Jellyfin Blue", "Jellyfin Purple", "Blue-Purple"] },
+        { key: "metrics/uiScale", source: "page", group: "General", type: "slider", title: "UI Scale", description: "Runtime type and spacing scale", from: 0.75, to: 1.5, step: 0.05, decimals: 2, unitText: "x", valueBoxWidth: 78, sliderPreferredWidth: 280 },
+        { key: "metrics/posterSize", source: "page", group: "Appearance", type: "select", title: "Poster Size", choiceLabels: ["Compact", "Normal", "Large"] },
+        { key: "metrics/gridColumns", source: "page", group: "Appearance", type: "select", title: "Grid Columns", choiceLabels: ["Auto", "4", "5", "6", "7", "8", "9"] },
+        { key: "theme/railLabels", source: "page", group: "Appearance", type: "select", title: "Side Rail Labels", choiceLabels: ["Never", "On focus", "Always"] },
+        { key: "theme/reducedMotion", source: "page", group: "Appearance", type: "toggle", title: "Reduced Motion" },
+        { key: "theme/renderMode", source: "page", group: "Appearance", type: "select", title: "Text Render Mode", choiceLabels: ["Qt", "Curve"] },
+        { key: "theme/antialiasedText", source: "page", group: "Appearance", type: "toggle", title: "Antialiased Text" },
+        { key: "theme/technicalMetadata", source: "page", group: "Appearance", type: "select", title: "Show Technical Metadata", choiceLabels: ["Always", "On details only", "Hidden"] },
+        { key: "shell/diagnostics", source: "page", group: "Diagnostics", type: "toggle", title: "Diagnostics Overlay" }
+    ]
+    readonly property var aboutRows: [
+        { key: "about/version", source: "page", group: "About", type: "readonly", title: "Jellyfin Native for webOS", description: "Qt 6.11 client, native mpv playback" },
+        { key: "about/locale", source: "page", group: "About", type: "readonly", title: "UI Locale" }
+    ]
 
     component SettingsSelectRow: SelectRow {
         metricsWidth: root.width
+        focus: false
+        focusPolicy: Qt.NoFocus
     }
 
     component SettingsSliderRow: SliderRow {
         metricsWidth: root.width
+        focus: false
+        focusPolicy: Qt.NoFocus
     }
 
-    function categoryTarget(index) {
-        const targets = [switchUserRow, posterSizeRow, nightModeRow, subtitleLanguageRow, diagnosticsRow, redButtonRow, aboutVersionRow];
-        const row = index >= 0 && index < targets.length ? targets[index] : themeRow;
-        return row ? Math.max(0, row.settingIndex) : 0;
+    function controllerSchemaRows() {
+        return appController && appController.settings ? appController.settings.settingsSchema : [];
+    }
+
+    function rowVisible(row) {
+        if (!row || row.visible === false)
+            return false;
+        if (row.key === "settings/toneMappingVisualization")
+            return gpuNextDiagnosticsAvailable;
+        return true;
     }
 
     function rebuildSettingsRows() {
-        const rows = [switchUserRow, logoutRow, themeRow, languageRow, accentRow, uiScaleRow, posterSizeRow, gridColumnsRow, railLabelsRow, reducedMotionRow, renderModeRow, antialiasedRow, metadataRow, nightModeRow, streamingBitrateRow, preferRemuxRow, audioDelayRow, audioOutputRow, subtitleLanguageRow, subtitleModeRow, subtitleBurnInRow, subtitleRenderPgsRow, subtitleAlwaysBurnInRow, subtitleStylingRow, subtitleTextSizeRow, subtitleTextWeightRow, subtitleFontRow, subtitleTextColorRow, subtitleDropShadowRow, subtitleVerticalPositionRow, diagnosticsRow, gpuNextToneMappingRow, redButtonRow, greenButtonRow, yellowButtonRow, blueButtonRow].filter(row => row && row.visible !== false);
-        rows.push(aboutVersionRow, aboutServerRow, aboutLocaleRow);
+        const rows = [];
+        const append = function (list) {
+            for (let i = 0; i < list.length; ++i) {
+                if (rowVisible(list[i]))
+                    rows.push(list[i]);
+            }
+        };
+        append(topRows);
+        append(pageSchemaRows);
+        append(controllerSchemaRows());
+        append(aboutRows);
         settingsRows = rows;
-        for (let i = 0; i < settingsRows.length; ++i)
-            settingsRows[i].settingIndex = i;
         currentIndex = Math.max(0, Math.min(currentIndex, settingsRows.length - 1));
+        settingsList.currentIndex = currentIndex;
         syncCategoryForRow(currentIndex);
     }
 
-    function buttonActionOptions() {
-        if (!appController)
-            return ["No action"];
-        const result = [];
-        const actions = appController.settings.availableButtonActions;
-        for (let i = 0; i < actions.length; ++i) {
-            result.push(appController.settings.buttonActionLabel(actions[i]));
-        }
-        return result;
+    function rowAt(index) {
+        return index >= 0 && index < settingsRows.length ? settingsRows[index] : null;
     }
 
-    function buttonActionIndex(currentAction) {
-        if (!appController)
+    function previousRow(index) {
+        return index > 0 ? settingsRows[index - 1] : null;
+    }
+
+    function showPreferencesHeader(index) {
+        return index === 0;
+    }
+
+    function showGroupHeader(index) {
+        const row = rowAt(index);
+        const previous = previousRow(index);
+        return row && (!previous || previous.group !== row.group);
+    }
+
+    function categoryTarget(index) {
+        if (settingsRows.length <= 0)
             return 0;
-        const actions = appController.settings.availableButtonActions;
-        for (let i = 0; i < actions.length; ++i) {
-            if (actions[i] === currentAction)
+        const category = categories[Math.max(0, Math.min(categories.length - 1, index))];
+        for (let i = 0; i < settingsRows.length; ++i) {
+            if (settingsRows[i].group === category.group)
                 return i;
         }
         return 0;
     }
 
-    function actionFromIndex(i) {
-        if (!appController)
-            return "none";
-        const actions = appController.settings.availableButtonActions;
-        return (i >= 0 && i < actions.length) ? actions[i] : "none";
+    function syncCategoryForRow(rowIndex) {
+        let nextCategory = 0;
+        for (let i = 0; i < categories.length; ++i) {
+            if (rowIndex >= categoryTarget(i))
+                nextCategory = i;
+        }
+        categoryIndex = nextCategory;
+        if (categoryList.currentIndex !== categoryIndex)
+            categoryList.currentIndex = categoryIndex;
+    }
+
+    function focusRow(index) {
+        if (settingsRows.length <= 0)
+            return;
+        currentIndex = Math.max(0, Math.min(settingsRows.length - 1, index));
+        settingsList.currentIndex = currentIndex;
+        settingsList.forceActiveFocus();
+        syncCategoryForRow(currentIndex);
+        settingsList.positionViewAtIndex(currentIndex, ListView.Contain);
+    }
+
+    function focusCategory(index) {
+        categoryIndex = Math.max(0, Math.min(categories.length - 1, index));
+        categoryList.currentIndex = categoryIndex;
+        categoryList.forceActiveFocus();
+        categoryList.positionViewAtIndex(categoryIndex, ListView.Contain);
+    }
+
+    function activateCategory(index) {
+        categoryIndex = Math.max(0, Math.min(categories.length - 1, index));
+        focusRow(categoryTarget(categoryIndex));
+    }
+
+    function settingsValue(row) {
+        if (!appController || !appController.settings)
+            return row.defaultValue;
+        const values = appController.settings.values;
+        const value = values[row.key];
+        return value === undefined ? row.defaultValue : value;
     }
 
     function valueIndex(values, currentValue) {
@@ -116,87 +170,265 @@ FocusScope {
         return index >= 0 && index < values.length ? values[index] : values[0];
     }
 
-    function subtitleModeDescription(mode) {
-        if (mode === "Smart")
-            return "Show subtitles when audio is not in your preferred language";
-        if (mode === "OnlyForced")
-            return "Show only forced subtitle tracks";
-        if (mode === "Always")
-            return "Show subtitles whenever a matching track is available";
-        if (mode === "None")
-            return "Do not automatically show subtitles";
-        return "Use the Jellyfin account default";
+    function rowDescription(row) {
+        if (row.key === "subtitles/mode") {
+            const mode = String(settingsValue(row));
+            if (mode === "Smart")
+                return "Show subtitles when audio is not in your preferred language";
+            if (mode === "OnlyForced")
+                return "Show only forced subtitle tracks";
+            if (mode === "Always")
+                return "Show subtitles whenever a matching track is available";
+            if (mode === "None")
+                return "Do not automatically show subtitles";
+            return "Use the Jellyfin account default";
+        }
+        if (row.key === "subtitles/styling") {
+            const styling = String(settingsValue(row));
+            if (styling === "Custom")
+                return "Use the subtitle appearance values below";
+            if (styling === "Native")
+                return "Respect embedded subtitle styling when available";
+            return "Use custom styling when it improves readability";
+        }
+        if (row.key === "session/server")
+            return appController ? appController.session.serverUrl : "";
+        if (row.key === "about/locale")
+            return i18n ? "Active translation tag" : "";
+        return row.description || "";
     }
 
-    function subtitleStylingDescription(styling) {
-        if (styling === "Custom")
-            return "Use the subtitle appearance values below";
-        if (styling === "Native")
-            return "Respect embedded subtitle styling when available";
-        return "Use custom styling when it improves readability";
+    function rowValueText(row) {
+        switch (row.key) {
+        case "session/server":
+            return appController && appController.session.serverUrl.length > 0 ? "Connected" : "Offline";
+        case "about/version":
+            return "v" + Qt.application.version;
+        case "about/locale":
+            return i18n ? i18n.currentLocale : "en-US";
+        default:
+            return row.valueText || "";
+        }
     }
-    focus: true
 
-    function currentRow() {
-        return currentIndex >= 0 && currentIndex < settingsRows.length ? settingsRows[currentIndex] : null;
+    function rowOptions(row) {
+        switch (row.key) {
+        case "i18n/locale": {
+            if (!i18n)
+                return ["System default"];
+            const result = [];
+            const list = i18n.availableLocales;
+            for (let i = 0; i < list.length; ++i)
+                result.push(i18n.displayNameFor(list[i]));
+            return result;
+        }
+        case "subtitles/language":
+            return appController ? appController.settings.subtitleLanguageOptions : ["Any language"];
+        default:
+            return row.choiceLabels || [];
+        }
     }
 
-    function focusRow(index) {
-        if (settingsRows.length <= 0)
+    function rowChoiceValues(row) {
+        switch (row.key) {
+        case "i18n/locale":
+            return i18n ? i18n.availableLocales : ["system"];
+        case "theme/accent":
+        case "metrics/posterSize":
+            return [0, 1, 2];
+        case "metrics/gridColumns":
+            return [0, 4, 5, 6, 7, 8, 9];
+        case "theme/railLabels":
+            return ["Never", "On focus", "Always"];
+        case "theme/renderMode":
+            return [Text.QtRendering, Text.CurveRendering];
+        case "theme/technicalMetadata":
+            return ["Always", "On details only", "Hidden"];
+        default:
+            return row.choiceValues || [];
+        }
+    }
+
+    function rowCurrentIndex(row) {
+        switch (row.key) {
+        case "i18n/locale": {
+            if (!i18n)
+                return 0;
+            const list = i18n.availableLocales;
+            for (let i = 0; i < list.length; ++i) {
+                if ((list[i] === "system" && i18n.useSystemLocale) || list[i] === i18n.currentLocale)
+                    return i;
+            }
+            return 0;
+        }
+        case "theme/accent":
+            return Theme.accentIndex;
+        case "metrics/posterSize":
+            return Metrics.userPosterSizeBias + 1;
+        case "metrics/gridColumns": {
+            if (Metrics.userColumnOverride <= 0)
+                return 0;
+            const columns = [4, 5, 6, 7, 8, 9];
+            for (let i = 0; i < columns.length; ++i) {
+                if (columns[i] === Metrics.userColumnOverride)
+                    return i + 1;
+            }
+            return 0;
+        }
+        case "theme/railLabels":
+            if (Theme.sideRailLabels === "Never")
+                return 0;
+            if (Theme.sideRailLabels === "Always")
+                return 2;
+            return 1;
+        case "theme/renderMode":
+            return Theme.normalTextRenderType === Text.CurveRendering ? 1 : 0;
+        case "theme/technicalMetadata":
+            if (Theme.technicalMetadataMode === "On details only")
+                return 1;
+            if (Theme.technicalMetadataMode === "Hidden")
+                return 2;
+            return 0;
+        case "subtitles/language":
+            return appController ? appController.settings.subtitleLanguageIndex : 0;
+        default:
+            return valueIndex(rowChoiceValues(row), settingsValue(row));
+        }
+    }
+
+    function rowBool(row) {
+        switch (row.key) {
+        case "theme/reducedMotion":
+            return Theme.reducedMotion;
+        case "theme/antialiasedText":
+            return Theme.antialiasedText;
+        case "shell/diagnostics":
+            return shell ? shell.diagnosticsVisible : false;
+        default:
+            return Boolean(settingsValue(row));
+        }
+    }
+
+    function rowNumber(row) {
+        switch (row.key) {
+        case "metrics/uiScale":
+            return Metrics.userUiScale;
+        default:
+            return Number(settingsValue(row));
+        }
+    }
+
+    function setRowChoice(row, index) {
+        switch (row.key) {
+        case "i18n/locale": {
+            if (!i18n)
+                return;
+            const list = i18n.availableLocales;
+            if (index >= 0 && index < list.length)
+                i18n.setLocale(list[index]);
             return;
-        currentIndex = Math.max(0, Math.min(settingsRows.length - 1, index));
-        const row = currentRow();
-        if (row)
-            row.forceActiveFocus();
-        syncCategoryForRow(currentIndex);
-        ensureCurrentVisible();
-    }
-
-    function markFocused(index) {
-        currentIndex = Math.max(0, Math.min(settingsRows.length - 1, index));
-        syncCategoryForRow(currentIndex);
-        ensureCurrentVisible();
-    }
-
-    function focusCategory(index) {
-        categoryIndex = Math.max(0, Math.min(categories.length - 1, index));
-        categoryList.forceActiveFocus();
-        categoryList.positionViewAtIndex(categoryIndex, ListView.Contain);
-    }
-
-    function activateCategory(index) {
-        categoryIndex = Math.max(0, Math.min(categories.length - 1, index));
-        focusRow(categoryTarget(categoryIndex));
-    }
-
-    function syncCategoryForRow(rowIndex) {
-        let nextCategory = 0;
-        for (let i = 0; i < categories.length; ++i) {
-            if (rowIndex >= categoryTarget(i))
-                nextCategory = i;
         }
-        categoryIndex = nextCategory;
-    }
-
-    Connections {
-        target: appController ? appController.syncPlay : null
-        function onGroupsChanged() {
-            Qt.callLater(root.rebuildSettingsRows);
+        case "theme/accent":
+            Theme.accentIndex = index;
+            return;
+        case "metrics/posterSize":
+            Metrics.userPosterSizeBias = index - 1;
+            return;
+        case "metrics/gridColumns":
+            Metrics.userColumnOverride = index === 0 ? 0 : Number(rowOptions(row)[index]);
+            return;
+        case "theme/railLabels":
+            Theme.sideRailLabels = String(rowOptions(row)[index]);
+            return;
+        case "theme/renderMode":
+            Theme.normalTextRenderType = index === 1 ? Text.CurveRendering : Text.QtRendering;
+            return;
+        case "theme/technicalMetadata":
+            Theme.technicalMetadataMode = String(rowOptions(row)[index]);
+            return;
+        case "subtitles/language":
+            if (appController)
+                appController.settings.setSubtitleLanguageIndex(index);
+            return;
+        default:
+            if (appController && appController.settings) {
+                const values = rowChoiceValues(row);
+                appController.settings.setValue(row.key, valueFromIndex(values, index));
+            }
         }
     }
 
-    function ensureCurrentVisible() {
-        const row = currentRow();
+    function setRowBool(row, checked) {
+        switch (row.key) {
+        case "theme/reducedMotion":
+            Theme.reducedMotion = checked;
+            return;
+        case "theme/antialiasedText":
+            Theme.antialiasedText = checked;
+            return;
+        case "shell/diagnostics":
+            if (shell)
+                shell.diagnosticsVisible = checked;
+            return;
+        default:
+            if (appController && appController.settings)
+                appController.settings.setValue(row.key, checked);
+        }
+    }
+
+    function setRowNumber(row, value) {
+        switch (row.key) {
+        case "metrics/uiScale":
+            Metrics.userUiScale = value;
+            return;
+        default:
+            if (appController && appController.settings)
+                appController.settings.setValue(row.key, Math.round(value));
+        }
+    }
+
+    function activateRow(row, index) {
         if (!row)
             return;
-        const margin = 12;
-        const top = Math.max(0, row.y - margin);
-        const bottom = row.y + row.height + margin;
-        const maxY = Math.max(0, settingsFlick.contentHeight - settingsFlick.height);
-        if (top < settingsFlick.contentY)
-            settingsFlick.contentY = Math.max(0, top);
-        else if (bottom > settingsFlick.contentY + settingsFlick.height)
-            settingsFlick.contentY = Math.min(maxY, bottom - settingsFlick.height);
+        currentIndex = index;
+        settingsList.currentIndex = index;
+        switch (row.type) {
+        case "action":
+            if (row.key === "action/switchUser" && shell)
+                shell.switchUser();
+            else if (row.key === "action/logout" && appController)
+                appController.logout();
+            return;
+        case "toggle":
+            setRowBool(row, !rowBool(row));
+            return;
+        case "select":
+            adjustRow(row, 1);
+            return;
+        default:
+            return;
+        }
+    }
+
+    function adjustRow(row, direction) {
+        if (!row)
+            return false;
+        if (row.type === "select") {
+            const options = rowOptions(row);
+            if (options.length <= 0)
+                return true;
+            setRowChoice(row, (rowCurrentIndex(row) + direction + options.length) % options.length);
+            return true;
+        }
+        if (row.type === "slider") {
+            const step = Number(row.step || 1);
+            const from = Number(row.from || 0);
+            const to = Number(row.to || 100);
+            const next = Math.max(from, Math.min(to, rowNumber(row) + step * direction));
+            setRowNumber(row, next);
+            return true;
+        }
+        return false;
     }
 
     function handleNavigationKey(key) {
@@ -205,66 +437,72 @@ FocusScope {
                 activateCategory(categoryIndex);
                 return true;
             }
-            if (key === Qt.Key_Up) {
-                if (categoryIndex <= 0)
+            if (key === Qt.Key_Up && categoryIndex <= 0) {
+                if (shell)
                     shell.focusNavBar();
-                else
-                    focusCategory(categoryIndex - 1);
                 return true;
             }
-            if (key === Qt.Key_Down) {
-                focusCategory(categoryIndex + 1);
-                return true;
-            }
-            return false;
+            return categoryList.handleNavigationKey(key);
         }
-        const row = currentRow();
-        if (row && row.handleNavigationKey && row.handleNavigationKey(key))
+
+        const row = rowAt(settingsList.currentIndex);
+        if ((key === Qt.Key_Left || key === Qt.Key_Right) && adjustRow(row, key === Qt.Key_Right ? 1 : -1))
             return true;
         if (key === Qt.Key_Left) {
             focusCategory(categoryIndex);
             return true;
         }
-        if (key === Qt.Key_Up) {
-            if (currentIndex <= 0)
+        if (key === Qt.Key_Up && settingsList.currentIndex <= 0) {
+            if (shell)
                 shell.focusNavBar();
-            else
-                focusRow(currentIndex - 1);
             return true;
         }
-        if (key === Qt.Key_Down) {
-            focusRow(currentIndex + 1);
-            return true;
-        }
-        return false;
+        return settingsList.handleNavigationKey(key);
+    }
+
+    focus: true
+    onActiveFocusChanged: if (activeFocus)
+        focusRow(currentIndex)
+    Keys.onReleased: event => {
+        if (handleNavigationKey(event.key))
+            event.accepted = true;
     }
 
     Component.onCompleted: Qt.callLater(function () {
-        root.rebuildSettingsRows();
-        root.focusRow(0);
+        rebuildSettingsRows();
+        focusRow(0);
     })
-    onActiveFocusChanged: if (activeFocus)
-        focusRow(currentIndex)
+
+    Connections {
+        target: appController ? appController.settings : null
+        function onSettingsValuesChanged() {
+            settingsList.forceLayout();
+        }
+        function onSubtitleSettingsChanged() {
+            settingsList.forceLayout();
+        }
+    }
 
     RowLayout {
         anchors.fill: parent
         anchors.margins: Metrics.pageMargin(width)
         spacing: 18
 
-        ListView {
+        NavList {
             id: categoryList
             Layout.preferredWidth: 260
             Layout.fillHeight: true
             model: root.categories
             spacing: 8
-            focus: false
             currentIndex: root.categoryIndex
-            keyNavigationEnabled: false
-            onCurrentIndexChanged: if (currentIndex >= 0)
-                positionViewAtIndex(currentIndex, ListView.Contain)
-            FastWheelHandler {
-                flickable: categoryList
+            clip: true
+            onCurrentIndexChanged: if (currentIndex >= 0) {
+                root.categoryIndex = currentIndex;
+                positionViewAtIndex(currentIndex, ListView.Contain);
             }
+            onAccepted: index => root.activateCategory(index)
+            onEdgeUp: if (root.shell) root.shell.focusNavBar()
+            FastWheelHandler { flickable: categoryList }
 
             delegate: Surface {
                 required property int index
@@ -286,619 +524,128 @@ FocusScope {
                     elide: Text.ElideRight
                 }
 
-                TapHandler {
-                    onTapped: root.activateCategory(index)
-                }
+                TapHandler { onTapped: root.activateCategory(index) }
             }
         }
 
-        Flickable {
-            id: settingsFlick
+        NavList {
+            id: settingsList
             Layout.fillWidth: true
             Layout.fillHeight: true
-            contentHeight: settings.implicitHeight
+            model: root.settingsRows
+            spacing: 10
             clip: true
             boundsBehavior: Flickable.StopAtBounds
-
-            Behavior on contentY {
-                enabled: !Theme.reducedMotion
-                NumberAnimation {
-                    duration: 90
-                    easing.type: Easing.OutCubic
-                }
+            currentIndex: root.currentIndex
+            onCurrentIndexChanged: if (currentIndex >= 0) {
+                root.currentIndex = currentIndex;
+                root.syncCategoryForRow(currentIndex);
+                positionViewAtIndex(currentIndex, ListView.Contain);
             }
-            FastWheelHandler {
-                flickable: settingsFlick
-            }
+            onAccepted: index => root.activateRow(root.rowAt(index), index)
+            onEdgeUp: if (root.shell) root.shell.focusNavBar()
+            FastWheelHandler { flickable: settingsList }
 
-            ColumnLayout {
-                id: settings
-                width: parent.width
+            delegate: Column {
+                required property int index
+                required property var modelData
+                width: settingsList.width
                 spacing: 10
 
                 SectionHeader {
-                    Layout.fillWidth: true
+                    width: parent.width
+                    visible: root.showPreferencesHeader(index)
                     title: "Preferences"
                 }
                 SectionHeader {
-                    Layout.fillWidth: true
-                    title: "General"
+                    width: parent.width
+                    visible: root.showGroupHeader(index)
+                    title: modelData.group
                 }
-
-                SettingRow {
-                    id: switchUserRow
-                    Layout.fillWidth: true
-                    rowFocus: root.currentIndex === settingIndex || activeFocus
-                    title: "Switch User"
-                    description: "Return to profile selection"
-                    valueText: "Choose"
-                    onClicked: if (shell)
-                        shell.switchUser()
-                    onActiveFocusChanged: if (activeFocus)
-                        root.markFocused(settingIndex)
-                    function handleNavigationKey(key) {
-                        if (InputKeys.isAccept(key)) {
-                            if (shell)
-                                shell.switchUser();
-                            return true;
-                        }
-                        return false;
+                Loader {
+                    id: rowLoader
+                    width: parent.width
+                    property var row: modelData
+                    property int rowIndex: index
+                    sourceComponent: modelData.type === "toggle" ? toggleComponent
+                                     : modelData.type === "select" ? selectComponent
+                                     : modelData.type === "slider" ? sliderComponent
+                                     : settingComponent
+                    onLoaded: {
+                        item.row = row;
+                        item.rowIndex = rowIndex;
                     }
-                    Keys.onReleased: event => {
-                        if (InputKeys.isAccept(event.key)) {
-                            if (shell)
-                                shell.switchUser();
-                            event.accepted = true;
-                        }
-                    }
-                }
-                SettingRow {
-                    id: logoutRow
-                    Layout.fillWidth: true
-                    rowFocus: root.currentIndex === settingIndex || activeFocus
-                    title: "Logout"
-                    description: "Clear the saved session and return to sign in"
-                    valueText: "Sign out"
-                    onClicked: appController.logout()
-                    onActiveFocusChanged: if (activeFocus)
-                        root.markFocused(settingIndex)
-                    function handleNavigationKey(key) {
-                        if (InputKeys.isAccept(key)) {
-                            appController.logout();
-                            return true;
-                        }
-                        return false;
-                    }
-                    Keys.onReleased: event => {
-                        if (InputKeys.isAccept(event.key)) {
-                            appController.logout();
-                            event.accepted = true;
-                        }
-                    }
-                }
-                SettingRow {
-                    id: themeRow
-                    Layout.fillWidth: true
-                    rowFocus: root.currentIndex === settingIndex || activeFocus
-                    title: "Theme"
-                    description: "Fixed dark TV interface"
-                    valueText: "Jellyfin Dark"
-                    pointerActivationEnabled: false
-                    onActiveFocusChanged: if (activeFocus)
-                        root.markFocused(settingIndex)
-                }
-                SettingsSelectRow {
-                    id: languageRow
-                    Layout.fillWidth: true
-                    rowFocus: root.currentIndex === settingIndex || activeFocus
-                    title: "Language"
-                    description: "Restart the app to update cached server text"
-                    options: {
-                        if (!i18n)
-                            return ["System default"];
-                        const result = [];
-                        const list = i18n.availableLocales;
-                        for (let i = 0; i < list.length; ++i)
-                            result.push(i18n.displayNameFor(list[i]));
-                        return result;
-                    }
-                    currentIndex: {
-                        if (!i18n)
-                            return 0;
-                        const list = i18n.availableLocales;
-                        for (let i = 0; i < list.length; ++i) {
-                            if ((list[i] === "system" && i18n.useSystemLocale) || list[i] === i18n.currentLocale)
-                                return i;
-                        }
-                        return 0;
-                    }
-                    onSelected: (i, v) => {
-                        if (!i18n)
-                            return;
-                        const list = i18n.availableLocales;
-                        if (i >= 0 && i < list.length)
-                            i18n.setLocale(list[i]);
-                    }
-                    onActiveFocusChanged: if (activeFocus)
-                        root.markFocused(settingIndex)
-                }
-                SettingsSelectRow {
-                    id: accentRow
-                    Layout.fillWidth: true
-                    rowFocus: root.currentIndex === settingIndex || activeFocus
-                    title: "Accent"
-                    options: ["Jellyfin Blue", "Jellyfin Purple", "Blue-Purple"]
-                    currentIndex: Theme.accentIndex
-                    onSelected: (i, v) => Theme.accentIndex = i
-                    onActiveFocusChanged: if (activeFocus)
-                        root.markFocused(settingIndex)
-                }
-                SettingsSliderRow {
-                    id: uiScaleRow
-                    Layout.fillWidth: true
-                    selected: root.currentIndex === settingIndex
-                    title: "UI Scale"
-                    description: "Runtime type and spacing scale"
-                    from: 0.75
-                    to: 1.5
-                    step: 0.05
-                    decimals: 2
-                    unitText: "x"
-                    valueBoxWidth: 78
-                    sliderPreferredWidth: 280
-                    value: Metrics.userUiScale
-                    onValueEdited: Metrics.userUiScale = value
-                    onRowFocusChanged: if (rowFocus)
-                        root.markFocused(settingIndex)
-                }
-                SectionHeader {
-                    Layout.fillWidth: true
-                    title: "Appearance"
-                }
-                SettingsSelectRow {
-                    id: posterSizeRow
-                    Layout.fillWidth: true
-                    rowFocus: root.currentIndex === settingIndex || activeFocus
-                    title: "Poster Size"
-                    options: ["Compact", "Normal", "Large"]
-                    currentIndex: Metrics.userPosterSizeBias + 1
-                    onSelected: (i, v) => Metrics.userPosterSizeBias = i - 1
-                    onActiveFocusChanged: if (activeFocus)
-                        root.markFocused(settingIndex)
-                }
-                SettingsSelectRow {
-                    id: gridColumnsRow
-                    Layout.fillWidth: true
-                    rowFocus: root.currentIndex === settingIndex || activeFocus
-                    title: "Grid Columns"
-                    options: ["Auto", "4", "5", "6", "7", "8", "9"]
-                    currentIndex: {
-                        if (Metrics.userColumnOverride <= 0)
-                            return 0;
-                        const columns = [4, 5, 6, 7, 8, 9];
-                        for (let i = 0; i < columns.length; ++i) {
-                            if (columns[i] === Metrics.userColumnOverride)
-                                return i + 1;
-                        }
-                        return 0;
-                    }
-                    onSelected: (i, v) => Metrics.userColumnOverride = i === 0 ? 0 : Number(v)
-                    onActiveFocusChanged: if (activeFocus)
-                        root.markFocused(settingIndex)
-                }
-                SettingsSelectRow {
-                    id: railLabelsRow
-                    Layout.fillWidth: true
-                    rowFocus: root.currentIndex === settingIndex || activeFocus
-                    title: "Side Rail Labels"
-                    options: ["Never", "On focus", "Always"]
-                    currentIndex: {
-                        if (Theme.sideRailLabels === "Never")
-                            return 0;
-                        if (Theme.sideRailLabels === "Always")
-                            return 2;
-                        return 1;
-                    }
-                    onSelected: (i, v) => Theme.sideRailLabels = v
-                    onActiveFocusChanged: if (activeFocus)
-                        root.markFocused(settingIndex)
-                }
-                ToggleRow {
-                    id: reducedMotionRow
-                    Layout.fillWidth: true
-                    rowFocus: root.currentIndex === settingIndex || activeFocus
-                    title: "Reduced Motion"
-                    checked: Theme.reducedMotion
-                    onToggled: Theme.reducedMotion = checked
-                    onActiveFocusChanged: if (activeFocus)
-                        root.markFocused(settingIndex)
-                }
-                SettingsSelectRow {
-                    id: renderModeRow
-                    Layout.fillWidth: true
-                    rowFocus: root.currentIndex === settingIndex || activeFocus
-                    title: "Text Render Mode"
-                    options: ["Qt", "Curve"]
-                    currentIndex: Theme.normalTextRenderType === Text.CurveRendering ? 1 : 0
-                    onSelected: (i, v) => Theme.normalTextRenderType = i === 1 ? Text.CurveRendering : Text.QtRendering
-                    onActiveFocusChanged: if (activeFocus)
-                        root.markFocused(settingIndex)
-                }
-                ToggleRow {
-                    id: antialiasedRow
-                    Layout.fillWidth: true
-                    rowFocus: root.currentIndex === settingIndex || activeFocus
-                    title: "Antialiased Text"
-                    checked: Theme.antialiasedText
-                    onToggled: Theme.antialiasedText = checked
-                    onActiveFocusChanged: if (activeFocus)
-                        root.markFocused(settingIndex)
-                }
-                SettingsSelectRow {
-                    id: metadataRow
-                    Layout.fillWidth: true
-                    rowFocus: root.currentIndex === settingIndex || activeFocus
-                    title: "Show Technical Metadata"
-                    options: ["Always", "On details only", "Hidden"]
-                    currentIndex: {
-                        if (Theme.technicalMetadataMode === "On details only")
-                            return 1;
-                        if (Theme.technicalMetadataMode === "Hidden")
-                            return 2;
-                        return 0;
-                    }
-                    onSelected: (i, v) => Theme.technicalMetadataMode = v
-                    onActiveFocusChanged: if (activeFocus)
-                        root.markFocused(settingIndex)
-                }
-                SectionHeader {
-                    Layout.fillWidth: true
-                    title: "Playback"
-                }
-                ToggleRow {
-                    id: nightModeRow
-                    Layout.fillWidth: true
-                    rowFocus: root.currentIndex === settingIndex || activeFocus
-                    title: "Night Mode"
-                    description: "Dialogue lift and late-night dynamic range"
-                    checked: appController.settings.nightModeEnabled
-                    onToggled: appController.settings.setNightModeEnabled(checked)
-                    onActiveFocusChanged: if (activeFocus)
-                        root.markFocused(settingIndex)
-                }
-                SettingsSliderRow {
-                    id: streamingBitrateRow
-                    Layout.fillWidth: true
-                    selected: root.currentIndex === settingIndex
-                    title: "Streaming Bitrate Limit"
-                    description: "Maximum bitrate before Jellyfin transcodes"
-                    from: 5
-                    to: 1000
-                    step: 5
-                    decimals: 0
-                    unitText: "Mbps"
-                    valueBoxWidth: 112
-                    sliderPreferredWidth: 340
-                    value: appController.settings.maxStreamingBitrateMbps
-                    onValueEdited: value => appController.settings.setMaxStreamingBitrateMbps(Math.round(value))
-                    onRowFocusChanged: if (rowFocus)
-                        root.markFocused(settingIndex)
-                }
-                ToggleRow {
-                    id: preferRemuxRow
-                    Layout.fillWidth: true
-                    rowFocus: root.currentIndex === settingIndex || activeFocus
-                    title: "Prefer Remux"
-                    description: "Copy compatible streams before transcoding"
-                    checked: appController.settings.preferRemux
-                    onToggled: appController.settings.setPreferRemux(checked)
-                    onActiveFocusChanged: if (activeFocus)
-                        root.markFocused(settingIndex)
-                }
-                SettingsSliderRow {
-                    id: audioDelayRow
-                    Layout.fillWidth: true
-                    selected: root.currentIndex === settingIndex
-                    title: "A/V Sync"
-                    description: "Audio delay in milliseconds"
-                    from: -2000
-                    to: 2000
-                    step: 10
-                    decimals: 0
-                    unitText: "ms"
-                    valueBoxWidth: 92
-                    sliderPreferredWidth: 340
-                    value: appController.settings.audioDelayMs
-                    onValueEdited: value => appController.settings.setAudioDelayMs(Math.round(value))
-                    onRowFocusChanged: if (rowFocus)
-                        root.markFocused(settingIndex)
-                }
-                SettingsSelectRow {
-                    id: audioOutputRow
-                    Layout.fillWidth: true
-                    rowFocus: root.currentIndex === settingIndex || activeFocus
-                    title: "Audio Output"
-                    description: "Takes effect on the next playback start"
-                    options: ["ALSA", "Starfish"]
-                    currentIndex: (appController.settings.audioOutputMode === "starfish" || appController.settings.audioOutputMode === "starfish-pcm") ? 1 : 0
-                    onSelected: (i, v) => appController.settings.setAudioOutputMode(i === 1 ? "starfish-pcm" : "alsa")
-                    onActiveFocusChanged: if (activeFocus)
-                        root.markFocused(settingIndex)
-                }
-                SectionHeader {
-                    Layout.fillWidth: true
-                    title: "Subtitles"
-                }
-                SettingsSelectRow {
-                    id: subtitleLanguageRow
-                    Layout.fillWidth: true
-                    rowFocus: root.currentIndex === settingIndex || activeFocus
-                    title: "Preferred Language"
-                    options: appController ? appController.settings.subtitleLanguageOptions : ["Any language"]
-                    currentIndex: appController ? appController.settings.subtitleLanguageIndex : 0
-                    onSelected: (i, v) => appController.settings.setSubtitleLanguageIndex(i)
-                    onActiveFocusChanged: if (activeFocus)
-                        root.markFocused(settingIndex)
-                }
-                SettingsSelectRow {
-                    id: subtitleModeRow
-                    Layout.fillWidth: true
-                    rowFocus: root.currentIndex === settingIndex || activeFocus
-                    title: "Playback Mode"
-                    description: root.subtitleModeDescription(appController ? appController.settings.subtitleMode : "Default")
-                    options: root.subtitleModeOptions
-                    currentIndex: root.valueIndex(root.subtitleModeValues, appController ? appController.settings.subtitleMode : "Default")
-                    onSelected: (i, v) => appController.settings.setSubtitleMode(root.valueFromIndex(root.subtitleModeValues, i))
-                    onActiveFocusChanged: if (activeFocus)
-                        root.markFocused(settingIndex)
-                }
-                SettingsSelectRow {
-                    id: subtitleBurnInRow
-                    Layout.fillWidth: true
-                    rowFocus: root.currentIndex === settingIndex || activeFocus
-                    title: "Burn Subtitles"
-                    description: "Used when transcoding is enabled"
-                    options: root.subtitleBurnInOptions
-                    currentIndex: root.valueIndex(root.subtitleBurnInValues, appController ? appController.settings.subtitleBurnIn : "")
-                    onSelected: (i, v) => appController.settings.setSubtitleBurnIn(root.valueFromIndex(root.subtitleBurnInValues, i))
-                    onActiveFocusChanged: if (activeFocus)
-                        root.markFocused(settingIndex)
-                }
-                ToggleRow {
-                    id: subtitleRenderPgsRow
-                    Layout.fillWidth: true
-                    rowFocus: root.currentIndex === settingIndex || activeFocus
-                    title: "Render PGS Subtitles"
-                    description: "Prefer local rendering for image subtitles"
-                    checked: appController ? appController.settings.subtitleRenderPgs : false
-                    onToggled: appController.settings.setSubtitleRenderPgs(checked)
-                    onActiveFocusChanged: if (activeFocus)
-                        root.markFocused(settingIndex)
-                }
-                ToggleRow {
-                    id: subtitleAlwaysBurnInRow
-                    Layout.fillWidth: true
-                    rowFocus: root.currentIndex === settingIndex || activeFocus
-                    title: "Always Burn In"
-                    description: "When playback falls back to transcoding"
-                    checked: appController ? appController.settings.subtitleAlwaysBurnIn : false
-                    onToggled: appController.settings.setSubtitleAlwaysBurnIn(checked)
-                    onActiveFocusChanged: if (activeFocus)
-                        root.markFocused(settingIndex)
-                }
-                SectionHeader {
-                    Layout.fillWidth: true
-                    title: "Subtitle Appearance"
-                }
-                SettingsSelectRow {
-                    id: subtitleStylingRow
-                    Layout.fillWidth: true
-                    rowFocus: root.currentIndex === settingIndex || activeFocus
-                    title: "Styling"
-                    description: root.subtitleStylingDescription(appController ? appController.settings.subtitleStyling : "Auto")
-                    options: root.subtitleStylingOptions
-                    currentIndex: root.valueIndex(root.subtitleStylingValues, appController ? appController.settings.subtitleStyling : "Auto")
-                    onSelected: (i, v) => appController.settings.setSubtitleStyling(root.valueFromIndex(root.subtitleStylingValues, i))
-                    onActiveFocusChanged: if (activeFocus)
-                        root.markFocused(settingIndex)
-                }
-                SettingsSelectRow {
-                    id: subtitleTextSizeRow
-                    Layout.fillWidth: true
-                    rowFocus: root.currentIndex === settingIndex || activeFocus
-                    title: "Text Size"
-                    options: root.subtitleTextSizeOptions
-                    currentIndex: root.valueIndex(root.subtitleTextSizeValues, appController ? appController.settings.subtitleTextSize : "")
-                    onSelected: (i, v) => appController.settings.setSubtitleTextSize(root.valueFromIndex(root.subtitleTextSizeValues, i))
-                    onActiveFocusChanged: if (activeFocus)
-                        root.markFocused(settingIndex)
-                }
-                SettingsSelectRow {
-                    id: subtitleTextWeightRow
-                    Layout.fillWidth: true
-                    rowFocus: root.currentIndex === settingIndex || activeFocus
-                    title: "Text Weight"
-                    options: root.subtitleTextWeightOptions
-                    currentIndex: root.valueIndex(root.subtitleTextWeightValues, appController ? appController.settings.subtitleTextWeight : "normal")
-                    onSelected: (i, v) => appController.settings.setSubtitleTextWeight(root.valueFromIndex(root.subtitleTextWeightValues, i))
-                    onActiveFocusChanged: if (activeFocus)
-                        root.markFocused(settingIndex)
-                }
-                SettingsSelectRow {
-                    id: subtitleFontRow
-                    Layout.fillWidth: true
-                    rowFocus: root.currentIndex === settingIndex || activeFocus
-                    title: "Font"
-                    options: root.subtitleFontOptions
-                    currentIndex: root.valueIndex(root.subtitleFontValues, appController ? appController.settings.subtitleFont : "")
-                    onSelected: (i, v) => appController.settings.setSubtitleFont(root.valueFromIndex(root.subtitleFontValues, i))
-                    onActiveFocusChanged: if (activeFocus)
-                        root.markFocused(settingIndex)
-                }
-                SettingsSelectRow {
-                    id: subtitleTextColorRow
-                    Layout.fillWidth: true
-                    rowFocus: root.currentIndex === settingIndex || activeFocus
-                    title: "Text Color"
-                    options: root.subtitleTextColorOptions
-                    currentIndex: root.valueIndex(root.subtitleTextColorValues, appController ? appController.settings.subtitleTextColor : "#ffffff")
-                    onSelected: (i, v) => appController.settings.setSubtitleTextColor(root.valueFromIndex(root.subtitleTextColorValues, i))
-                    onActiveFocusChanged: if (activeFocus)
-                        root.markFocused(settingIndex)
-                }
-                SettingsSelectRow {
-                    id: subtitleDropShadowRow
-                    Layout.fillWidth: true
-                    rowFocus: root.currentIndex === settingIndex || activeFocus
-                    title: "Drop Shadow"
-                    options: root.subtitleDropShadowOptions
-                    currentIndex: root.valueIndex(root.subtitleDropShadowValues, appController ? appController.settings.subtitleDropShadow : "")
-                    onSelected: (i, v) => appController.settings.setSubtitleDropShadow(root.valueFromIndex(root.subtitleDropShadowValues, i))
-                    onActiveFocusChanged: if (activeFocus)
-                        root.markFocused(settingIndex)
-                }
-                SettingsSliderRow {
-                    id: subtitleVerticalPositionRow
-                    Layout.fillWidth: true
-                    selected: root.currentIndex === settingIndex
-                    title: "Vertical Position"
-                    description: "Negative values place subtitles near the bottom"
-                    from: -16
-                    to: 16
-                    step: 1
-                    decimals: 0
-                    unitText: ""
-                    valueBoxWidth: 72
-                    value: appController ? appController.settings.subtitleVerticalPosition : -3
-                    onValueEdited: value => appController.settings.setSubtitleVerticalPosition(value)
-                    onRowFocusChanged: if (rowFocus)
-                        root.markFocused(settingIndex)
-                }
-                SectionHeader {
-                    Layout.fillWidth: true
-                    title: "Diagnostics"
-                }
-                ToggleRow {
-                    id: diagnosticsRow
-                    Layout.fillWidth: true
-                    rowFocus: root.currentIndex === settingIndex || activeFocus
-                    title: "Diagnostics Overlay"
-                    checked: shell.diagnosticsVisible
-                    onToggled: shell.diagnosticsVisible = checked
-                    onActiveFocusChanged: if (activeFocus)
-                        root.markFocused(settingIndex)
-                }
-                ToggleRow {
-                    id: gpuNextToneMappingRow
-                    Layout.fillWidth: true
-                    visible: root.gpuNextDiagnosticsAvailable
-                    rowFocus: root.currentIndex === settingIndex || activeFocus
-                    title: "GPU-next Tone Mapping View"
-                    description: "False-colour libplacebo tone-mapping diagnostic"
-                    checked: appController ? appController.settings.toneMappingVisualizationEnabled : false
-                    onToggled: if (appController)
-                        appController.settings.setToneMappingVisualizationEnabled(checked)
-                    onActiveFocusChanged: if (activeFocus)
-                        root.markFocused(settingIndex)
-                }
-                SectionHeader {
-                    Layout.fillWidth: true
-                    title: "Input"
-                }
-                SectionHeader {
-                    Layout.fillWidth: true
-                    title: "Button Remap"
-                }
-                SettingsSelectRow {
-                    id: redButtonRow
-                    Layout.fillWidth: true
-                    rowFocus: root.currentIndex === settingIndex || activeFocus
-                    title: "Red Button"
-                    description: "TV remote color button"
-                    options: root.buttonActionOptions()
-                    currentIndex: root.buttonActionIndex(appController ? appController.settings.redButtonAction : "none")
-                    onSelected: (i, v) => appController.settings.setRedButtonAction(root.actionFromIndex(i))
-                    onActiveFocusChanged: if (activeFocus)
-                        root.markFocused(settingIndex)
-                }
-                SettingsSelectRow {
-                    id: greenButtonRow
-                    Layout.fillWidth: true
-                    rowFocus: root.currentIndex === settingIndex || activeFocus
-                    title: "Green Button"
-                    description: "Defaults to skip back 10 s + enable subs"
-                    options: root.buttonActionOptions()
-                    currentIndex: root.buttonActionIndex(appController ? appController.settings.greenButtonAction : "none")
-                    onSelected: (i, v) => appController.settings.setGreenButtonAction(root.actionFromIndex(i))
-                    onActiveFocusChanged: if (activeFocus)
-                        root.markFocused(settingIndex)
-                }
-                SettingsSelectRow {
-                    id: yellowButtonRow
-                    Layout.fillWidth: true
-                    rowFocus: root.currentIndex === settingIndex || activeFocus
-                    title: "Yellow Button"
-                    options: root.buttonActionOptions()
-                    currentIndex: root.buttonActionIndex(appController ? appController.settings.yellowButtonAction : "none")
-                    onSelected: (i, v) => appController.settings.setYellowButtonAction(root.actionFromIndex(i))
-                    onActiveFocusChanged: if (activeFocus)
-                        root.markFocused(settingIndex)
-                }
-                SettingsSelectRow {
-                    id: blueButtonRow
-                    Layout.fillWidth: true
-                    rowFocus: root.currentIndex === settingIndex || activeFocus
-                    title: "Blue Button"
-                    options: root.buttonActionOptions()
-                    currentIndex: root.buttonActionIndex(appController ? appController.settings.blueButtonAction : "none")
-                    onSelected: (i, v) => appController.settings.setBlueButtonAction(root.actionFromIndex(i))
-                    onActiveFocusChanged: if (activeFocus)
-                        root.markFocused(settingIndex)
-                }
-
-                SectionHeader {
-                    Layout.fillWidth: true
-                    title: "About"
-                }
-                SettingRow {
-                    id: aboutVersionRow
-                    Layout.fillWidth: true
-                    rowFocus: root.currentIndex === settingIndex || activeFocus
-                    title: "Jellyfin Native for webOS"
-                    description: "Qt 6.11 client, native mpv playback"
-                    valueText: "v" + Qt.application.version
-                    pointerActivationEnabled: false
-                    onActiveFocusChanged: if (activeFocus)
-                        root.markFocused(settingIndex)
-                }
-                SettingRow {
-                    id: aboutServerRow
-                    Layout.fillWidth: true
-                    rowFocus: root.currentIndex === settingIndex || activeFocus
-                    title: "Connected Server"
-                    description: appController ? appController.session.serverUrl : ""
-                    valueText: appController && appController.session.serverUrl.length > 0 ? "Connected" : "Offline"
-                    pointerActivationEnabled: false
-                    onActiveFocusChanged: if (activeFocus)
-                        root.markFocused(settingIndex)
-                }
-                SettingRow {
-                    id: aboutLocaleRow
-                    Layout.fillWidth: true
-                    rowFocus: root.currentIndex === settingIndex || activeFocus
-                    title: "UI Locale"
-                    description: i18n ? "Active translation tag" : ""
-                    valueText: i18n ? i18n.currentLocale : "en-US"
-                    pointerActivationEnabled: false
-                    onActiveFocusChanged: if (activeFocus)
-                        root.markFocused(settingIndex)
-                }
-
-                Component.onCompleted: {
-                    root.rebuildSettingsRows();
-                    root.focusRow(root.currentIndex);
                 }
             }
+        }
+    }
+
+    Component {
+        id: settingComponent
+        SettingRow {
+            property var row
+            property int rowIndex: -1
+            width: settingsList.width
+            focus: false
+            focusPolicy: Qt.NoFocus
+            rowFocus: settingsList.activeFocus && settingsList.currentIndex === rowIndex
+            title: row ? row.title : ""
+            description: row ? root.rowDescription(row) : ""
+            valueText: row ? root.rowValueText(row) : ""
+            pointerActivationEnabled: row && row.type === "action"
+            onClicked: root.activateRow(row, rowIndex)
+        }
+    }
+
+    Component {
+        id: toggleComponent
+        ToggleRow {
+            property var row
+            property int rowIndex: -1
+            width: settingsList.width
+            focus: false
+            focusPolicy: Qt.NoFocus
+            rowFocus: settingsList.activeFocus && settingsList.currentIndex === rowIndex
+            title: row ? row.title : ""
+            description: row ? root.rowDescription(row) : ""
+            checked: row ? root.rowBool(row) : false
+            onToggled: checked => root.setRowBool(row, checked)
+        }
+    }
+
+    Component {
+        id: selectComponent
+        SettingsSelectRow {
+            property var row
+            property int rowIndex: -1
+            width: settingsList.width
+            rowFocus: settingsList.activeFocus && settingsList.currentIndex === rowIndex
+            title: row ? row.title : ""
+            description: row ? root.rowDescription(row) : ""
+            options: row ? root.rowOptions(row) : []
+            currentIndex: row ? root.rowCurrentIndex(row) : 0
+            onSelected: (i, v) => root.setRowChoice(row, i)
+        }
+    }
+
+    Component {
+        id: sliderComponent
+        SettingsSliderRow {
+            property var row
+            property int rowIndex: -1
+            width: settingsList.width
+            selected: settingsList.activeFocus && settingsList.currentIndex === rowIndex
+            title: row ? row.title : ""
+            description: row ? root.rowDescription(row) : ""
+            from: row ? Number(row.from) : 0
+            to: row ? Number(row.to) : 100
+            step: row ? Number(row.step || 1) : 1
+            decimals: row ? Number(row.decimals || 0) : 0
+            unitText: row ? String(row.unitText || "") : ""
+            valueBoxWidth: row && row.valueBoxWidth > 0 ? row.valueBoxWidth : 86
+            sliderPreferredWidth: row && row.sliderPreferredWidth > 0 ? row.sliderPreferredWidth : 300
+            value: row ? root.rowNumber(row) : 0
+            onValueEdited: value => root.setRowNumber(row, value)
         }
     }
 }

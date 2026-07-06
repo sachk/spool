@@ -1,5 +1,6 @@
 #include "SettingsController.h"
 
+#include "SettingsSchema.h"
 #include "../api/JellyfinApiFacade.h"
 #include "../cache/DatabaseManager.h"
 #include "../common/AsyncTask.h"
@@ -9,94 +10,17 @@
 #include <QJsonArray>
 #include <QSet>
 
-#include <algorithm>
-
 namespace JellyfinNative {
 
 namespace {
 
-QString normalizedChoice(const QString &value, const QStringList &allowed,
-                         const QString &fallback) {
-  return allowed.contains(value) ? value : fallback;
-}
+QString keyString(const SettingSpec &spec) { return QString::fromLatin1(spec.key); }
 
-QString normalizedSubtitleMode(const QString &mode) {
-  return normalizedChoice(mode,
-                          {QStringLiteral("Default"), QStringLiteral("Smart"),
-                           QStringLiteral("OnlyForced"),
-                           QStringLiteral("Always"), QStringLiteral("None")},
-                          QStringLiteral("Default"));
-}
-
-QString normalizedSubtitleBurnIn(const QString &mode) {
-  return normalizedChoice(mode,
-                          {QString(), QStringLiteral("onlyimageformats"),
-                           QStringLiteral("allcomplexformats"),
-                           QStringLiteral("all")},
-                          QString());
-}
-
-QString normalizedSubtitleStyling(const QString &styling) {
-  return normalizedChoice(styling,
-                          {QStringLiteral("Auto"), QStringLiteral("Custom"),
-                           QStringLiteral("Native")},
-                          QStringLiteral("Auto"));
-}
-
-QString normalizedSubtitleTextSize(const QString &size) {
-  return normalizedChoice(size,
-                          {QStringLiteral("smaller"), QStringLiteral("small"),
-                           QString(), QStringLiteral("large"),
-                           QStringLiteral("larger"),
-                           QStringLiteral("extralarge")},
-                          QString());
-}
-
-QString normalizedSubtitleTextWeight(const QString &weight) {
-  return normalizedChoice(weight,
-                          {QStringLiteral("normal"), QStringLiteral("bold")},
-                          QStringLiteral("normal"));
-}
-
-QString normalizedSubtitleFont(const QString &font) {
-  return normalizedChoice(font,
-                          {QString(), QStringLiteral("typewriter"),
-                           QStringLiteral("print"), QStringLiteral("console"),
-                           QStringLiteral("cursive"), QStringLiteral("casual"),
-                           QStringLiteral("smallcaps")},
-                          QString());
-}
-
-QString normalizedSubtitleDropShadow(const QString &shadow) {
-  return normalizedChoice(shadow,
-                          {QStringLiteral("none"), QStringLiteral("raised"),
-                           QStringLiteral("depressed"),
-                           QStringLiteral("uniform"), QString()},
-                          QString());
-}
-
-QString normalizedSubtitleColor(QString color) {
-  color = color.trimmed().toLower();
-  if (!color.startsWith(QLatin1Char('#')) || color.size() != 7)
-    return QStringLiteral("#ffffff");
-  for (int i = 1; i < color.size(); ++i) {
-    const QChar ch = color.at(i);
-    if (!ch.isDigit() && (ch < QLatin1Char('a') || ch > QLatin1Char('f')))
-      return QStringLiteral("#ffffff");
-  }
-  return color;
-}
-
-bool loadBoolSetting(DatabaseManager *database, const QString &key,
-                     bool fallback) {
-  const QString value =
-      database
-          ->loadSetting(key, fallback ? QStringLiteral("true")
-                                      : QStringLiteral("false"))
-          .trimmed()
-          .toLower();
-  return value == QStringLiteral("true") || value == QStringLiteral("1") ||
-         value == QStringLiteral("yes");
+const SettingSpec &specForKey(const char *key)
+{
+  const SettingSpec *spec = findSettingSpec(QString::fromLatin1(key));
+  Q_ASSERT(spec);
+  return *spec;
 }
 
 } // namespace
@@ -108,179 +32,88 @@ SettingsController::SettingsController(DatabaseManager *database,
     : QObject(parent), m_database(database), m_api(api), m_player(player) {}
 
 bool SettingsController::nightModeEnabled() const { return m_nightModeEnabled; }
-
-bool SettingsController::toneMappingVisualizationEnabled() const {
-  return m_toneMappingVisualizationEnabled;
-}
-
-int SettingsController::maxStreamingBitrateMbps() const {
-  return m_maxStreamingBitrateMbps;
-}
-
+bool SettingsController::toneMappingVisualizationEnabled() const { return m_toneMappingVisualizationEnabled; }
+int SettingsController::maxStreamingBitrateMbps() const { return m_maxStreamingBitrateMbps; }
 bool SettingsController::preferRemux() const { return m_preferRemux; }
-
 int SettingsController::audioDelayMs() const { return m_audioDelayMs; }
-
-QString SettingsController::audioOutputMode() const {
-  return m_audioOutputMode;
-}
-
-QStringList SettingsController::subtitleLanguageOptions() const {
-  return m_subtitleLanguageLabels;
-}
-
+QString SettingsController::audioOutputMode() const { return m_audioOutputMode; }
+QStringList SettingsController::subtitleLanguageOptions() const { return m_subtitleLanguageLabels; }
 int SettingsController::subtitleLanguageIndex() const {
-  const int index =
-      m_subtitleLanguageCodes.indexOf(m_subtitlePreferences.language);
+  const int index = m_subtitleLanguageCodes.indexOf(m_subtitlePreferences.language);
   return index >= 0 ? index : 0;
 }
-
-QString SettingsController::subtitleMode() const {
-  return m_subtitlePreferences.mode;
-}
-
-QString SettingsController::subtitleBurnIn() const {
-  return m_subtitlePreferences.burnInMode;
-}
-
-bool SettingsController::subtitleRenderPgs() const {
-  return m_subtitlePreferences.renderPgs;
-}
-
-bool SettingsController::subtitleAlwaysBurnIn() const {
-  return m_subtitlePreferences.alwaysBurnInWhenTranscoding;
-}
-
-QString SettingsController::subtitleStyling() const {
-  return m_subtitlePreferences.styling;
-}
-
-QString SettingsController::subtitleTextSize() const {
-  return m_subtitlePreferences.textSize;
-}
-
-QString SettingsController::subtitleTextWeight() const {
-  return m_subtitlePreferences.textWeight;
-}
-
-QString SettingsController::subtitleFont() const {
-  return m_subtitlePreferences.font;
-}
-
-QString SettingsController::subtitleTextColor() const {
-  return m_subtitlePreferences.textColor;
-}
-
-QString SettingsController::subtitleDropShadow() const {
-  return m_subtitlePreferences.dropShadow;
-}
-
-int SettingsController::subtitleVerticalPosition() const {
-  return m_subtitlePreferences.verticalPosition;
-}
-
-QString SettingsController::redButtonAction() const {
-  return m_redButtonAction;
-}
-
-QString SettingsController::greenButtonAction() const {
-  return m_greenButtonAction;
-}
-
-QString SettingsController::yellowButtonAction() const {
-  return m_yellowButtonAction;
-}
-
-QString SettingsController::blueButtonAction() const {
-  return m_blueButtonAction;
-}
-
+QString SettingsController::subtitleMode() const { return m_subtitlePreferences.mode; }
+QString SettingsController::subtitleBurnIn() const { return m_subtitlePreferences.burnInMode; }
+bool SettingsController::subtitleRenderPgs() const { return m_subtitlePreferences.renderPgs; }
+bool SettingsController::subtitleAlwaysBurnIn() const { return m_subtitlePreferences.alwaysBurnInWhenTranscoding; }
+QString SettingsController::subtitleStyling() const { return m_subtitlePreferences.styling; }
+QString SettingsController::subtitleTextSize() const { return m_subtitlePreferences.textSize; }
+QString SettingsController::subtitleTextWeight() const { return m_subtitlePreferences.textWeight; }
+QString SettingsController::subtitleFont() const { return m_subtitlePreferences.font; }
+QString SettingsController::subtitleTextColor() const { return m_subtitlePreferences.textColor; }
+QString SettingsController::subtitleDropShadow() const { return m_subtitlePreferences.dropShadow; }
+int SettingsController::subtitleVerticalPosition() const { return m_subtitlePreferences.verticalPosition; }
+QString SettingsController::redButtonAction() const { return m_redButtonAction; }
+QString SettingsController::greenButtonAction() const { return m_greenButtonAction; }
+QString SettingsController::yellowButtonAction() const { return m_yellowButtonAction; }
+QString SettingsController::blueButtonAction() const { return m_blueButtonAction; }
 QStringList SettingsController::availableButtonActions() const {
-  return {
-      QStringLiteral("none"),          QStringLiteral("togglePause"),
-      QStringLiteral("toggleSubs"),    QStringLiteral("cycleSubs"),
-      QStringLiteral("cycleAudio"),    QStringLiteral("skipBack10"),
-      QStringLiteral("skipForward10"), QStringLiteral("skipBack30"),
-      QStringLiteral("skipForward30"), QStringLiteral("skipBack90"),
-      QStringLiteral("skipForward90"), QStringLiteral("skipBackAndEnableSubs"),
-      QStringLiteral("skipSegment"),   QStringLiteral("showInfo"),
-      QStringLiteral("stop"),
-  };
+  QStringList actions;
+  const auto &spec = specForKey("input/redButton");
+  actions.reserve(spec.choiceCount);
+  for (qsizetype i = 0; i < spec.choiceCount; ++i)
+    actions.push_back(QLatin1String(spec.choices[i].value));
+  return actions;
+}
+
+
+QVariantList SettingsController::settingsSchema() const {
+  return settingSchemaModel();
+}
+
+QVariantMap SettingsController::values() const { return m_values; }
+
+QVariant SettingsController::value(const QString &key) const {
+  if (m_values.contains(key))
+    return m_values.value(key);
+  if (const SettingSpec *spec = findSettingSpec(key))
+    return settingDefaultValue(*spec);
+  return {};
 }
 
 QString SettingsController::buttonActionLabel(const QString &action) const {
-  if (action == QStringLiteral("none"))
-    return QStringLiteral("No action");
-  if (action == QStringLiteral("togglePause"))
-    return QStringLiteral("Play / Pause");
-  if (action == QStringLiteral("toggleSubs"))
-    return QStringLiteral("Toggle subtitles");
-  if (action == QStringLiteral("cycleSubs"))
-    return QStringLiteral("Cycle subtitles");
-  if (action == QStringLiteral("cycleAudio"))
-    return QStringLiteral("Cycle audio track");
-  if (action == QStringLiteral("skipBack10"))
-    return QStringLiteral("Skip back 10 s");
-  if (action == QStringLiteral("skipForward10"))
-    return QStringLiteral("Skip forward 10 s");
-  if (action == QStringLiteral("skipBack30"))
-    return QStringLiteral("Skip back 30 s");
-  if (action == QStringLiteral("skipForward30"))
-    return QStringLiteral("Skip forward 30 s");
-  if (action == QStringLiteral("skipBack90"))
-    return QStringLiteral("Skip back 90 s");
-  if (action == QStringLiteral("skipForward90"))
-    return QStringLiteral("Skip forward 90 s");
-  if (action == QStringLiteral("skipBackAndEnableSubs"))
-    return QStringLiteral("Skip back 10 s + enable subs");
-  if (action == QStringLiteral("skipSegment"))
-    return QStringLiteral("Skip intro / outro");
-  if (action == QStringLiteral("showInfo"))
-    return QStringLiteral("Show info");
-  if (action == QStringLiteral("stop"))
-    return QStringLiteral("Stop playback");
+  const auto &spec = specForKey("input/redButton");
+  for (qsizetype i = 0; i < spec.choiceCount; ++i) {
+    if (action == QLatin1String(spec.choices[i].value))
+      return QLatin1String(spec.choices[i].label);
+  }
   return action;
 }
 
 void SettingsController::loadLocal() {
-  m_nightModeEnabled = m_database->loadNightModeEnabled();
-  m_toneMappingVisualizationEnabled = loadBoolSetting(
-      m_database, QStringLiteral("settings/toneMappingVisualization"), false);
-  m_maxStreamingBitrateMbps =
-      std::clamp(m_database
-                     ->loadSetting(
-                         QStringLiteral("playback/maxStreamingBitrateMbps"),
-                         QStringLiteral("120"))
-                     .toInt(),
-                 5, 1000);
-  m_preferRemux = loadBoolSetting(
-      m_database, QStringLiteral("playback/preferRemux"), true);
-  m_audioDelayMs = m_database->loadAudioDelayMs();
-  const QString storedAudioOutputMode = m_database->loadAudioOutputMode();
-  m_audioOutputMode = normalizedAudioOutputMode(storedAudioOutputMode);
-  if (m_audioOutputMode != storedAudioOutputMode)
-    m_database->saveAudioOutputMode(m_audioOutputMode);
-  m_redButtonAction = m_database->loadSetting(QStringLiteral("input/redButton"),
-                                              QStringLiteral("none"));
-  m_greenButtonAction =
-      m_database->loadSetting(QStringLiteral("input/greenButton"),
-                              QStringLiteral("skipBackAndEnableSubs"));
-  m_yellowButtonAction = m_database->loadSetting(
-      QStringLiteral("input/yellowButton"), QStringLiteral("none"));
-  m_blueButtonAction = m_database->loadSetting(
-      QStringLiteral("input/blueButton"), QStringLiteral("none"));
-  loadSubtitlePreferences();
+  for (const SettingSpec &spec : settingSpecs()) {
+    const QString key = keyString(spec);
+    const QString stored = m_database->loadSetting(key, spec.defaultValue);
+    const QVariant normalized = normalizedSettingValue(spec, stored);
+    m_values.insert(key, normalized);
+    applySchemaValue(spec, normalized, false);
 
-  m_player->setNightModeEnabled(m_nightModeEnabled);
-  m_player->setToneMappingVisualizationEnabled(
-      m_toneMappingVisualizationEnabled);
-  m_api->setPlaybackPreferences(
-      static_cast<qint64>(m_maxStreamingBitrateMbps) * 1'000'000,
-      m_preferRemux);
-  m_player->setAudioDelayMs(m_audioDelayMs);
-  m_player->setAudioOutputMode(m_audioOutputMode);
+    const QString serialized = serializedSettingValue(spec, normalized);
+    if (serialized != stored)
+      m_database->saveSetting(key, serialized);
+  }
+
+  if (m_player) {
+    m_player->setNightModeEnabled(m_nightModeEnabled);
+    m_player->setToneMappingVisualizationEnabled(
+        m_toneMappingVisualizationEnabled);
+    m_player->setAudioDelayMs(m_audioDelayMs);
+    m_player->setAudioOutputMode(m_audioOutputMode);
+  }
+  applyPlaybackPreferences();
   applySubtitlePreferencesToPlayer();
 
+  emit settingsValuesChanged();
   emit nightModeChanged();
   emit toneMappingVisualizationChanged();
   emit playbackPreferencesChanged();
@@ -336,14 +169,19 @@ void SettingsController::loadRemote() {
       this, m_api->fetchUserConfiguration(),
       [this](const QJsonObject &configuration) {
         m_userConfiguration = configuration;
-        m_subtitlePreferences.language =
-            configuration.value(QStringLiteral("SubtitleLanguagePreference"))
-                .toString();
-        m_subtitlePreferences.mode = normalizedSubtitleMode(
-            configuration.value(QStringLiteral("SubtitleMode"))
-                .toString(QStringLiteral("Default")));
-        saveSubtitlePreferences();
+        const SettingSpec &languageSpec = specForKey("subtitles/language");
+        const SettingSpec &modeSpec = specForKey("subtitles/mode");
+        setSchemaValue(languageSpec,
+                       configuration
+                           .value(QStringLiteral("SubtitleLanguagePreference"))
+                           .toString(),
+                       true, false, false);
+        setSchemaValue(modeSpec,
+                       configuration.value(QStringLiteral("SubtitleMode"))
+                           .toString(QStringLiteral("Default")),
+                       true, false, false);
         applySubtitlePreferencesToPlayer();
+        emit settingsValuesChanged();
         emit subtitleSettingsChanged();
       },
       [](const std::exception_ptr &error) {
@@ -354,302 +192,233 @@ void SettingsController::loadRemote() {
 
 void SettingsController::clearRemote() { m_userConfiguration = {}; }
 
-void SettingsController::toggleNightMode() {
-  setNightModeEnabled(!m_nightModeEnabled);
+void SettingsController::setValue(const QString &key, const QVariant &value) {
+  const SettingSpec *spec = findSettingSpec(key);
+  if (!spec) {
+    qWarning() << "settings: unknown key" << key;
+    return;
+  }
+  setSchemaValue(*spec, value, true, true, true);
 }
 
-void SettingsController::setNightModeEnabled(bool enabled) {
-  if (m_nightModeEnabled == enabled)
-    return;
-  m_nightModeEnabled = enabled;
-  m_database->saveNightModeEnabled(enabled);
-  m_player->setNightModeEnabled(enabled);
-  emit nightModeChanged();
+void SettingsController::toggleNightMode() { setNightModeEnabled(!m_nightModeEnabled); }
+void SettingsController::setNightModeEnabled(bool enabled) { setValue(QStringLiteral("settings/nightMode"), enabled); }
+void SettingsController::setToneMappingVisualizationEnabled(bool enabled) { setValue(QStringLiteral("settings/toneMappingVisualization"), enabled); }
+void SettingsController::setMaxStreamingBitrateMbps(int bitrateMbps) { setValue(QStringLiteral("playback/maxStreamingBitrateMbps"), bitrateMbps); }
+void SettingsController::setPreferRemux(bool enabled) { setValue(QStringLiteral("playback/preferRemux"), enabled); }
+void SettingsController::setAudioDelayMs(int delayMs) { setValue(QStringLiteral("settings/audioDelayMs"), delayMs); }
+void SettingsController::setAudioOutputMode(const QString &mode) { setValue(QStringLiteral("settings/audioOutputMode"), mode); }
+void SettingsController::setSubtitleLanguageIndex(int index) {
+  if (index >= 0 && index < m_subtitleLanguageCodes.size())
+    setValue(QStringLiteral("subtitles/language"), m_subtitleLanguageCodes.at(index));
+}
+void SettingsController::setSubtitleMode(const QString &mode) { setValue(QStringLiteral("subtitles/mode"), mode); }
+void SettingsController::setSubtitleBurnIn(const QString &mode) { setValue(QStringLiteral("subtitles/burnIn"), mode); }
+void SettingsController::setSubtitleRenderPgs(bool enabled) { setValue(QStringLiteral("subtitles/renderPgs"), enabled); }
+void SettingsController::setSubtitleAlwaysBurnIn(bool enabled) { setValue(QStringLiteral("subtitles/alwaysBurnInWhenTranscoding"), enabled); }
+void SettingsController::setSubtitleStyling(const QString &styling) { setValue(QStringLiteral("subtitles/styling"), styling); }
+void SettingsController::setSubtitleTextSize(const QString &size) { setValue(QStringLiteral("subtitles/textSize"), size); }
+void SettingsController::setSubtitleTextWeight(const QString &weight) { setValue(QStringLiteral("subtitles/textWeight"), weight); }
+void SettingsController::setSubtitleFont(const QString &font) { setValue(QStringLiteral("subtitles/font"), font); }
+void SettingsController::setSubtitleTextColor(const QString &color) { setValue(QStringLiteral("subtitles/textColor"), color); }
+void SettingsController::setSubtitleDropShadow(const QString &shadow) { setValue(QStringLiteral("subtitles/dropShadow"), shadow); }
+void SettingsController::setSubtitleVerticalPosition(int position) { setValue(QStringLiteral("subtitles/verticalPosition"), position); }
+void SettingsController::setRedButtonAction(const QString &action) { setValue(QStringLiteral("input/redButton"), action); }
+void SettingsController::setGreenButtonAction(const QString &action) { setValue(QStringLiteral("input/greenButton"), action); }
+void SettingsController::setYellowButtonAction(const QString &action) { setValue(QStringLiteral("input/yellowButton"), action); }
+void SettingsController::setBlueButtonAction(const QString &action) { setValue(QStringLiteral("input/blueButton"), action); }
+
+bool SettingsController::setSchemaValue(const SettingSpec &spec,
+                                        const QVariant &value, bool persist,
+                                        bool apply, bool notify) {
+  const QString key = keyString(spec);
+  const QVariant normalized = normalizedSettingValue(spec, value);
+  if (m_values.contains(key) && m_values.value(key) == normalized)
+    return false;
+
+  const int previousAudioDelayMs = m_audioDelayMs;
+  const QString previousAudioOutputMode = m_audioOutputMode;
+
+  m_values.insert(key, normalized);
+  applySchemaValue(spec, normalized, apply);
+
+  if (persist)
+    m_database->saveSetting(key, serializedSettingValue(spec, normalized));
+
+  if (apply && spec.target == SettingTarget::AudioDelay) {
+    qInfo() << "app: audio delay changed" << previousAudioDelayMs << "->"
+            << m_audioDelayMs << "ms";
+  } else if (apply && spec.target == SettingTarget::AudioOutput) {
+    qInfo() << "app: audio output mode changed" << previousAudioOutputMode
+            << "->" << m_audioOutputMode;
+  }
+
+  if (notify) {
+    emit settingChanged(key);
+    emit settingsValuesChanged();
+    emitSchemaSignals(spec);
+  }
+  return true;
 }
 
-void SettingsController::setToneMappingVisualizationEnabled(bool enabled) {
-  if (m_toneMappingVisualizationEnabled == enabled)
-    return;
-  m_toneMappingVisualizationEnabled = enabled;
-  m_database->saveSetting(QStringLiteral("settings/toneMappingVisualization"),
-                          enabled ? QStringLiteral("true")
-                                  : QStringLiteral("false"));
-  m_player->setToneMappingVisualizationEnabled(enabled);
-  emit toneMappingVisualizationChanged();
+void SettingsController::applySchemaValue(const SettingSpec &spec,
+                                          const QVariant &value, bool apply) {
+  switch (spec.target) {
+  case SettingTarget::NightMode:
+    m_nightModeEnabled = value.toBool();
+    if (apply && m_player)
+      m_player->setNightModeEnabled(m_nightModeEnabled);
+    break;
+  case SettingTarget::ToneMappingVisualization:
+    m_toneMappingVisualizationEnabled = value.toBool();
+    if (apply && m_player)
+      m_player->setToneMappingVisualizationEnabled(
+          m_toneMappingVisualizationEnabled);
+    break;
+  case SettingTarget::MaxStreamingBitrate:
+    m_maxStreamingBitrateMbps = value.toInt();
+    if (apply)
+      applyPlaybackPreferences();
+    break;
+  case SettingTarget::PreferRemux:
+    m_preferRemux = value.toBool();
+    if (apply)
+      applyPlaybackPreferences();
+    break;
+  case SettingTarget::AudioDelay:
+    m_audioDelayMs = value.toInt();
+    if (apply && m_player)
+      m_player->setAudioDelayMs(m_audioDelayMs);
+    break;
+  case SettingTarget::AudioOutput:
+    m_audioOutputMode = value.toString();
+    if (apply && m_player)
+      m_player->setAudioOutputMode(m_audioOutputMode);
+    break;
+  case SettingTarget::SubtitleLanguage:
+    m_subtitlePreferences.language = value.toString();
+    if (apply) {
+      saveSubtitleUserConfiguration();
+      applySubtitlePreferencesToPlayer();
+    }
+    break;
+  case SettingTarget::SubtitleMode:
+    m_subtitlePreferences.mode = value.toString();
+    if (apply) {
+      saveSubtitleUserConfiguration();
+      applySubtitlePreferencesToPlayer();
+    }
+    break;
+  case SettingTarget::SubtitleBurnIn:
+    m_subtitlePreferences.burnInMode = value.toString();
+    break;
+  case SettingTarget::SubtitleRenderPgs:
+    m_subtitlePreferences.renderPgs = value.toBool();
+    break;
+  case SettingTarget::SubtitleAlwaysBurnIn:
+    m_subtitlePreferences.alwaysBurnInWhenTranscoding = value.toBool();
+    break;
+  case SettingTarget::SubtitleStyling:
+    m_subtitlePreferences.styling = value.toString();
+    if (apply)
+      applySubtitlePreferencesToPlayer();
+    break;
+  case SettingTarget::SubtitleTextSize:
+    m_subtitlePreferences.textSize = value.toString();
+    if (apply)
+      applySubtitlePreferencesToPlayer();
+    break;
+  case SettingTarget::SubtitleTextWeight:
+    m_subtitlePreferences.textWeight = value.toString();
+    if (apply)
+      applySubtitlePreferencesToPlayer();
+    break;
+  case SettingTarget::SubtitleFont:
+    m_subtitlePreferences.font = value.toString();
+    if (apply)
+      applySubtitlePreferencesToPlayer();
+    break;
+  case SettingTarget::SubtitleTextColor:
+    m_subtitlePreferences.textColor = value.toString();
+    if (apply)
+      applySubtitlePreferencesToPlayer();
+    break;
+  case SettingTarget::SubtitleDropShadow:
+    m_subtitlePreferences.dropShadow = value.toString();
+    if (apply)
+      applySubtitlePreferencesToPlayer();
+    break;
+  case SettingTarget::SubtitleTextBackground:
+    m_subtitlePreferences.textBackground = value.toString();
+    break;
+  case SettingTarget::SubtitleVerticalPosition:
+    m_subtitlePreferences.verticalPosition = value.toInt();
+    if (apply)
+      applySubtitlePreferencesToPlayer();
+    break;
+  case SettingTarget::RedButton:
+    m_redButtonAction = value.toString();
+    break;
+  case SettingTarget::GreenButton:
+    m_greenButtonAction = value.toString();
+    break;
+  case SettingTarget::YellowButton:
+    m_yellowButtonAction = value.toString();
+    break;
+  case SettingTarget::BlueButton:
+    m_blueButtonAction = value.toString();
+    break;
+  }
 }
 
-void SettingsController::setMaxStreamingBitrateMbps(int bitrateMbps) {
-  const int clamped = std::clamp(bitrateMbps, 5, 1000);
-  if (m_maxStreamingBitrateMbps == clamped)
-    return;
-  m_maxStreamingBitrateMbps = clamped;
-  m_database->saveSetting(QStringLiteral("playback/maxStreamingBitrateMbps"),
-                          QString::number(clamped));
-  m_api->setPlaybackPreferences(static_cast<qint64>(clamped) * 1'000'000,
-                                m_preferRemux);
-  emit playbackPreferencesChanged();
+void SettingsController::emitSchemaSignals(const SettingSpec &spec) {
+  switch (spec.target) {
+  case SettingTarget::NightMode:
+    emit nightModeChanged();
+    break;
+  case SettingTarget::ToneMappingVisualization:
+    emit toneMappingVisualizationChanged();
+    break;
+  case SettingTarget::MaxStreamingBitrate:
+  case SettingTarget::PreferRemux:
+    emit playbackPreferencesChanged();
+    break;
+  case SettingTarget::AudioDelay:
+    emit audioDelayChanged();
+    break;
+  case SettingTarget::AudioOutput:
+    emit audioOutputModeChanged();
+    break;
+  case SettingTarget::SubtitleLanguage:
+  case SettingTarget::SubtitleMode:
+  case SettingTarget::SubtitleBurnIn:
+  case SettingTarget::SubtitleRenderPgs:
+  case SettingTarget::SubtitleAlwaysBurnIn:
+  case SettingTarget::SubtitleStyling:
+  case SettingTarget::SubtitleTextSize:
+  case SettingTarget::SubtitleTextWeight:
+  case SettingTarget::SubtitleFont:
+  case SettingTarget::SubtitleTextColor:
+  case SettingTarget::SubtitleDropShadow:
+  case SettingTarget::SubtitleTextBackground:
+  case SettingTarget::SubtitleVerticalPosition:
+    emit subtitleSettingsChanged();
+    break;
+  case SettingTarget::RedButton:
+  case SettingTarget::GreenButton:
+  case SettingTarget::YellowButton:
+  case SettingTarget::BlueButton:
+    emit buttonRemapChanged();
+    break;
+  }
 }
 
-void SettingsController::setPreferRemux(bool enabled) {
-  if (m_preferRemux == enabled)
+void SettingsController::applyPlaybackPreferences() {
+  if (!m_api)
     return;
-  m_preferRemux = enabled;
-  m_database->saveSetting(QStringLiteral("playback/preferRemux"),
-                          enabled ? QStringLiteral("true")
-                                  : QStringLiteral("false"));
   m_api->setPlaybackPreferences(
       static_cast<qint64>(m_maxStreamingBitrateMbps) * 1'000'000,
       m_preferRemux);
-  emit playbackPreferencesChanged();
-}
-
-void SettingsController::setAudioDelayMs(int delayMs) {
-  const int clampedDelayMs = std::clamp(delayMs, -2000, 2000);
-  if (m_audioDelayMs == clampedDelayMs) {
-    qInfo() << "app: audio delay unchanged" << clampedDelayMs << "ms";
-    return;
-  }
-  qInfo() << "app: audio delay changed" << m_audioDelayMs << "->"
-          << clampedDelayMs << "ms";
-  m_audioDelayMs = clampedDelayMs;
-  m_database->saveAudioDelayMs(clampedDelayMs);
-  m_player->setAudioDelayMs(clampedDelayMs);
-  emit audioDelayChanged();
-}
-
-void SettingsController::setAudioOutputMode(const QString &mode) {
-  const QString normalized = normalizedAudioOutputMode(mode);
-  if (m_audioOutputMode == normalized)
-    return;
-  qInfo() << "app: audio output mode changed" << m_audioOutputMode << "->"
-          << normalized;
-  m_audioOutputMode = normalized;
-  m_database->saveAudioOutputMode(normalized);
-  m_player->setAudioOutputMode(normalized);
-  emit audioOutputModeChanged();
-}
-
-void SettingsController::setSubtitleLanguageIndex(int index) {
-  if (index < 0 || index >= m_subtitleLanguageCodes.size())
-    return;
-  const QString language = m_subtitleLanguageCodes.at(index);
-  if (m_subtitlePreferences.language == language)
-    return;
-  m_subtitlePreferences.language = language;
-  saveSubtitlePreferences();
-  saveSubtitleUserConfiguration();
-  applySubtitlePreferencesToPlayer();
-  emit subtitleSettingsChanged();
-}
-
-void SettingsController::setSubtitleMode(const QString &mode) {
-  const QString normalized = normalizedSubtitleMode(mode);
-  if (m_subtitlePreferences.mode == normalized)
-    return;
-  m_subtitlePreferences.mode = normalized;
-  saveSubtitlePreferences();
-  saveSubtitleUserConfiguration();
-  applySubtitlePreferencesToPlayer();
-  emit subtitleSettingsChanged();
-}
-
-void SettingsController::setSubtitleBurnIn(const QString &mode) {
-  const QString normalized = normalizedSubtitleBurnIn(mode);
-  if (m_subtitlePreferences.burnInMode == normalized)
-    return;
-  m_subtitlePreferences.burnInMode = normalized;
-  saveSubtitlePreferences();
-  emit subtitleSettingsChanged();
-}
-
-void SettingsController::setSubtitleRenderPgs(bool enabled) {
-  if (m_subtitlePreferences.renderPgs == enabled)
-    return;
-  m_subtitlePreferences.renderPgs = enabled;
-  saveSubtitlePreferences();
-  emit subtitleSettingsChanged();
-}
-
-void SettingsController::setSubtitleAlwaysBurnIn(bool enabled) {
-  if (m_subtitlePreferences.alwaysBurnInWhenTranscoding == enabled)
-    return;
-  m_subtitlePreferences.alwaysBurnInWhenTranscoding = enabled;
-  saveSubtitlePreferences();
-  emit subtitleSettingsChanged();
-}
-
-void SettingsController::setSubtitleStyling(const QString &styling) {
-  const QString normalized = normalizedSubtitleStyling(styling);
-  if (m_subtitlePreferences.styling == normalized)
-    return;
-  m_subtitlePreferences.styling = normalized;
-  saveSubtitlePreferences();
-  applySubtitlePreferencesToPlayer();
-  emit subtitleSettingsChanged();
-}
-
-void SettingsController::setSubtitleTextSize(const QString &size) {
-  const QString normalized = normalizedSubtitleTextSize(size);
-  if (m_subtitlePreferences.textSize == normalized)
-    return;
-  m_subtitlePreferences.textSize = normalized;
-  saveSubtitlePreferences();
-  applySubtitlePreferencesToPlayer();
-  emit subtitleSettingsChanged();
-}
-
-void SettingsController::setSubtitleTextWeight(const QString &weight) {
-  const QString normalized = normalizedSubtitleTextWeight(weight);
-  if (m_subtitlePreferences.textWeight == normalized)
-    return;
-  m_subtitlePreferences.textWeight = normalized;
-  saveSubtitlePreferences();
-  applySubtitlePreferencesToPlayer();
-  emit subtitleSettingsChanged();
-}
-
-void SettingsController::setSubtitleFont(const QString &font) {
-  const QString normalized = normalizedSubtitleFont(font);
-  if (m_subtitlePreferences.font == normalized)
-    return;
-  m_subtitlePreferences.font = normalized;
-  saveSubtitlePreferences();
-  applySubtitlePreferencesToPlayer();
-  emit subtitleSettingsChanged();
-}
-
-void SettingsController::setSubtitleTextColor(const QString &color) {
-  const QString normalized = normalizedSubtitleColor(color);
-  if (m_subtitlePreferences.textColor == normalized)
-    return;
-  m_subtitlePreferences.textColor = normalized;
-  saveSubtitlePreferences();
-  applySubtitlePreferencesToPlayer();
-  emit subtitleSettingsChanged();
-}
-
-void SettingsController::setSubtitleDropShadow(const QString &shadow) {
-  const QString normalized = normalizedSubtitleDropShadow(shadow);
-  if (m_subtitlePreferences.dropShadow == normalized)
-    return;
-  m_subtitlePreferences.dropShadow = normalized;
-  saveSubtitlePreferences();
-  applySubtitlePreferencesToPlayer();
-  emit subtitleSettingsChanged();
-}
-
-void SettingsController::setSubtitleVerticalPosition(int position) {
-  const int clamped = std::clamp(position, -16, 16);
-  if (m_subtitlePreferences.verticalPosition == clamped)
-    return;
-  m_subtitlePreferences.verticalPosition = clamped;
-  saveSubtitlePreferences();
-  applySubtitlePreferencesToPlayer();
-  emit subtitleSettingsChanged();
-}
-
-void SettingsController::setRedButtonAction(const QString &action) {
-  if (m_redButtonAction == action)
-    return;
-  m_redButtonAction = action;
-  m_database->saveSetting(QStringLiteral("input/redButton"), action);
-  emit buttonRemapChanged();
-}
-
-void SettingsController::setGreenButtonAction(const QString &action) {
-  if (m_greenButtonAction == action)
-    return;
-  m_greenButtonAction = action;
-  m_database->saveSetting(QStringLiteral("input/greenButton"), action);
-  emit buttonRemapChanged();
-}
-
-void SettingsController::setYellowButtonAction(const QString &action) {
-  if (m_yellowButtonAction == action)
-    return;
-  m_yellowButtonAction = action;
-  m_database->saveSetting(QStringLiteral("input/yellowButton"), action);
-  emit buttonRemapChanged();
-}
-
-void SettingsController::setBlueButtonAction(const QString &action) {
-  if (m_blueButtonAction == action)
-    return;
-  m_blueButtonAction = action;
-  m_database->saveSetting(QStringLiteral("input/blueButton"), action);
-  emit buttonRemapChanged();
-}
-
-void SettingsController::loadSubtitlePreferences() {
-  SubtitlePreferences preferences;
-  preferences.language =
-      m_database->loadSetting(QStringLiteral("subtitles/language"), QString());
-  preferences.mode = normalizedSubtitleMode(m_database->loadSetting(
-      QStringLiteral("subtitles/mode"), QStringLiteral("Default")));
-  preferences.burnInMode = normalizedSubtitleBurnIn(
-      m_database->loadSetting(QStringLiteral("subtitles/burnIn"), QString()));
-  preferences.renderPgs =
-      loadBoolSetting(m_database, QStringLiteral("subtitles/renderPgs"), false);
-  preferences.alwaysBurnInWhenTranscoding = loadBoolSetting(
-      m_database, QStringLiteral("subtitles/alwaysBurnInWhenTranscoding"),
-      false);
-  preferences.styling = normalizedSubtitleStyling(m_database->loadSetting(
-      QStringLiteral("subtitles/styling"), QStringLiteral("Auto")));
-  preferences.textSize = normalizedSubtitleTextSize(
-      m_database->loadSetting(QStringLiteral("subtitles/textSize"), QString()));
-  preferences.textWeight = normalizedSubtitleTextWeight(m_database->loadSetting(
-      QStringLiteral("subtitles/textWeight"), QStringLiteral("normal")));
-  preferences.font = normalizedSubtitleFont(
-      m_database->loadSetting(QStringLiteral("subtitles/font"), QString()));
-  preferences.textColor = normalizedSubtitleColor(m_database->loadSetting(
-      QStringLiteral("subtitles/textColor"), QStringLiteral("#ffffff")));
-  preferences.dropShadow = normalizedSubtitleDropShadow(m_database->loadSetting(
-      QStringLiteral("subtitles/dropShadow"), QString()));
-  preferences.textBackground =
-      m_database->loadSetting(QStringLiteral("subtitles/textBackground"),
-                              QStringLiteral("transparent"));
-  preferences.verticalPosition =
-      std::clamp(m_database
-                     ->loadSetting(QStringLiteral("subtitles/verticalPosition"),
-                                   QStringLiteral("-3"))
-                     .toInt(),
-                 -16, 16);
-  m_subtitlePreferences = preferences;
-}
-
-void SettingsController::saveSubtitlePreferences() {
-  m_database->saveSetting(QStringLiteral("subtitles/language"),
-                          m_subtitlePreferences.language);
-  m_database->saveSetting(QStringLiteral("subtitles/mode"),
-                          m_subtitlePreferences.mode);
-  m_database->saveSetting(QStringLiteral("subtitles/burnIn"),
-                          m_subtitlePreferences.burnInMode);
-  m_database->saveSetting(QStringLiteral("subtitles/renderPgs"),
-                          m_subtitlePreferences.renderPgs
-                              ? QStringLiteral("true")
-                              : QStringLiteral("false"));
-  m_database->saveSetting(
-      QStringLiteral("subtitles/alwaysBurnInWhenTranscoding"),
-      m_subtitlePreferences.alwaysBurnInWhenTranscoding
-          ? QStringLiteral("true")
-          : QStringLiteral("false"));
-  m_database->saveSetting(QStringLiteral("subtitles/styling"),
-                          m_subtitlePreferences.styling);
-  m_database->saveSetting(QStringLiteral("subtitles/textSize"),
-                          m_subtitlePreferences.textSize);
-  m_database->saveSetting(QStringLiteral("subtitles/textWeight"),
-                          m_subtitlePreferences.textWeight);
-  m_database->saveSetting(QStringLiteral("subtitles/font"),
-                          m_subtitlePreferences.font);
-  m_database->saveSetting(QStringLiteral("subtitles/textColor"),
-                          m_subtitlePreferences.textColor);
-  m_database->saveSetting(QStringLiteral("subtitles/dropShadow"),
-                          m_subtitlePreferences.dropShadow);
-  m_database->saveSetting(QStringLiteral("subtitles/textBackground"),
-                          m_subtitlePreferences.textBackground);
-  m_database->saveSetting(
-      QStringLiteral("subtitles/verticalPosition"),
-      QString::number(m_subtitlePreferences.verticalPosition));
 }
 
 void SettingsController::saveSubtitleUserConfiguration() {
