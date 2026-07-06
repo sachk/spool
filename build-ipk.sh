@@ -277,14 +277,11 @@ QmlImports = ../qt-qml
 QTCONF
 
 # --- Optional: bundle heaptrack memory recorder + launch shim --------------
-# Controlled by BUNDLE_HEAPTRACK (default: auto -- bundle iff the cross-built
-# recorder exists, built via tools/webos-native/build-heaptrack.sh). The shim
-# replaces the binary at main=bin/jellyfin-native but is a transparent
-# passthrough unless a runtime marker file is present, so a normal launch is
-# unaffected and profiling can never break playback.
+# Controlled by BUNDLE_HEAPTRACK=1. Release IPKs keep main=bin/jellyfin-native
+# as the real executable; the profiling shim is opt-in for development bundles.
 HEAPTRACK_INSTALL="${HEAPTRACK_INSTALL:-$ROOT/build/webos-heaptrack/install}"
 HEAPTRACK_SHIM="$ROOT/tools/webos/heaptrack-launch-shim.sh"
-if [[ "${BUNDLE_HEAPTRACK:-auto}" != "0" && -f "$HEAPTRACK_INSTALL/lib/heaptrack/libheaptrack_preload.so" ]]; then
+if [[ "${BUNDLE_HEAPTRACK:-0}" == "1" && -f "$HEAPTRACK_INSTALL/lib/heaptrack/libheaptrack_preload.so" ]]; then
   echo "Bundling heaptrack memory recorder + launch shim"
   mv -f "$STAGE_BIN/jellyfin-native" "$STAGE_BIN/jellyfin-native.real"
   install -m 0755 "$HEAPTRACK_SHIM" "$STAGE_BIN/jellyfin-native"
@@ -298,7 +295,7 @@ if [[ "${BUNDLE_HEAPTRACK:-auto}" != "0" && -f "$HEAPTRACK_INSTALL/lib/heaptrack
   # Preserve an unstripped symbol source for desktop heaptrack_interpret.
   cp -f "$INSTALL_DIR/bin/jellyfin-native" "$BUILD_DIR/jellyfin-native.unstripped" 2>/dev/null || true
 else
-  echo "Skipping heaptrack bundle (run tools/webos-native/build-heaptrack.sh to enable)"
+  echo "Skipping heaptrack bundle (set BUNDLE_HEAPTRACK=1 after building heaptrack to enable)"
 fi
 fi
 

@@ -15,6 +15,7 @@
 #include "SyncPlayController.h"
 
 #include <QObject>
+#include <QJsonObject>
 #include <QVariantList>
 
 #include <vector>
@@ -161,6 +162,7 @@ public:
     Q_INVOKABLE void setPlayed(const QString &itemId, bool played);
     Q_INVOKABLE void clearProgress(const QString &itemId);
     Q_INVOKABLE void back();
+    Q_INVOKABLE void onMemoryPressure(const QString &level);
     Q_INVOKABLE void clearError();
 
 signals:
@@ -179,6 +181,7 @@ signals:
     void libraryFilterOptionsChanged();
     void personItemsChanged();
     void itemFavoriteChanged(const QString &itemId, bool favorite);
+    void aggressiveMemoryPressure();
     void itemPlayedChanged(const QString &itemId, bool played);
 
 private:
@@ -189,6 +192,9 @@ private:
     void applyDiscoveredServersCache();
     void loadLibraries();
     void refreshHomeRows();
+    QString homePayloadCacheKey() const;
+    void applyCachedHomePayload();
+    void saveHomePayload(const QJsonObject &payload);
     void showCurrentItems(const std::vector<MovieItem> &items, const QString &cacheKey = {});
     void showCurrentItemsPage(const PagedMovieItems &page, const QString &cacheKey, bool append);
     void setLibraryQuery(const QVariantMap &query);

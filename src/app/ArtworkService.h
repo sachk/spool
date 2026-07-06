@@ -29,6 +29,7 @@ public:
 
     QByteArray get(const QString &key);
     void insert(const QString &key, QByteArray bytes);
+    void clear();
 
 private:
     QMutex m_mutex;
@@ -51,6 +52,7 @@ public:
     void prefetch(const QStringList &urls) override;
     void cancelPrefetches() override;
     void configurePrefetch(int maxConcurrent) override;
+    void releaseMemory(bool aggressive);
 
     int requestImage(QUrl url, QSize requestedSize,
                      ArtworkImageResponse *response);

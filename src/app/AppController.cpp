@@ -19,12 +19,16 @@
 #include <QCoreApplication>
 #include <QDebug>
 #include <QJsonArray>
+#include <QPixmapCache>
 #include <QStringList>
 #include <QTimer>
 #include <QVariantMap>
 
 #include <algorithm>
 #include <memory>
+#if defined(__GLIBC__)
+#include <malloc.h>
+#endif
 
 namespace JellyfinNative {
 
@@ -32,6 +36,7 @@ namespace {
 
 constexpr int kLibraryPageSize = 100;
 constexpr int kLibraryPrefetchDistance = 200;
+constexpr int kHomePayloadSchemaVersion = 1;
 
 }
 
@@ -86,6 +91,8 @@ AppController::AppController(DatabaseManager *database,
             this, &AppController::currentItemsPagingChanged);
     connect(m_home, &HomeModelController::latestLibraryRowsChanged,
             this, &AppController::latestLibraryRowsChanged);
+    connect(m_home, &HomeModelController::homePayloadReady,
+            this, &AppController::saveHomePayload);
     connect(m_quickConnect, &QuickConnectController::busyChanged,
             this, &AppController::setBusy);
     connect(m_quickConnect, &QuickConnectController::errorOccurred,
@@ -102,6 +109,7 @@ AppController::AppController(DatabaseManager *database,
                     m_hasDefaultProfile = true;
                     emit defaultProfileChanged();
                 }
+                applyCachedHomePayload();
                 m_settings->loadRemote();
                 m_syncPlay->connectSocket();
                 loadLibraries();
@@ -371,6 +379,8 @@ void AppController::switchUser()
     m_quickConnect->cancel();
     if (m_player->visible())
         m_player->stopWithReason(QStringLiteral("switch-user"));
+    if (m_database)
+        m_database->invalidateHomePayloads();
     setBusy(false);
     setErrorText({});
     setPage(QStringLiteral("login"));
@@ -392,6 +402,8 @@ void AppController::resetApplicationState()
     m_prefetch->stop();
     if (m_artwork)
         m_artwork->cancelPrefetches();
+    if (m_database)
+        m_database->invalidateHomePayloads();
     m_libraries.clear();
     m_currentItems->clear();
     m_home->reset();
@@ -906,6 +918,26 @@ void AppController::back()
     QTimer::singleShot(0, QCoreApplication::instance(), &QCoreApplication::quit);
 }
 
+void AppController::onMemoryPressure(const QString &level)
+{
+    const QString normalized = level.trimmed().toLower();
+    if (normalized != QStringLiteral("low") &&
+        normalized != QStringLiteral("critical")) {
+        return;
+    }
+
+    const bool aggressive = normalized == QStringLiteral("critical");
+    qInfo() << "memory pressure:" << normalized << "aggressive=" << aggressive;
+    if (m_artwork)
+        m_artwork->releaseMemory(aggressive);
+    QPixmapCache::clear();
+#if defined(__GLIBC__)
+    malloc_trim(0);
+#endif
+    if (aggressive)
+        emit aggressiveMemoryPressure();
+}
+
 void AppController::shutdown()
 {
     Diagnostics::Phase phase(QStringLiteral("shutdown"), QStringLiteral("app_controller_shutdown"));
@@ -1153,6 +1185,41 @@ void AppController::openStudio(const QString &studio)
 void AppController::refreshHomeRows()
 {
     m_home->refresh(m_libraries.libraries());
+}
+
+QString AppController::homePayloadCacheKey() const
+{
+    if (!m_api)
+        return {};
+    const AuthSession session = m_api->session();
+    const QString userKey = session.userId.isEmpty() ? session.userName : session.userId;
+    const QString serverKey = session.serverId.isEmpty() ? m_api->serverUrl() : session.serverId;
+    if (userKey.isEmpty() || serverKey.isEmpty())
+        return {};
+    return QStringLiteral("%1/%2").arg(serverKey, userKey);
+}
+
+void AppController::applyCachedHomePayload()
+{
+    if (!m_database || !m_home)
+        return;
+    const QString key = homePayloadCacheKey();
+    if (key.isEmpty())
+        return;
+    const QJsonObject payload =
+        m_database->loadHomePayload(key, kHomePayloadSchemaVersion);
+    if (m_home->applyCachedPayload(payload))
+        qInfo() << "home: warm payload cache applied" << key;
+}
+
+void AppController::saveHomePayload(const QJsonObject &payload)
+{
+    if (!m_database || payload.isEmpty())
+        return;
+    const QString key = homePayloadCacheKey();
+    if (key.isEmpty())
+        return;
+    m_database->saveHomePayload(key, kHomePayloadSchemaVersion, payload);
 }
 
 void AppController::handlePlaybackStopped(const QString &itemId,

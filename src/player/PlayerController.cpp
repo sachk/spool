@@ -431,7 +431,8 @@ bool PlayerController::ensureMpv() {
   constexpr auto platform = MpvOptionProfile::Platform::Desktop;
 #endif
   const auto startupOptions = MpvOptionProfile::startupOptions(
-      platform, m_audioOutputMode, QByteArray(kMpvLogPath));
+      platform, m_audioOutputMode, QByteArray(kMpvLogPath),
+      m_demuxerMaxBytes, m_demuxerMaxBackBytes);
   const bool configured =
       applyOptions(handle, startupOptions) &&
       applyMpvRuntimeOptions(MpvOptionApplyMode::Initial, handle);
@@ -818,6 +819,14 @@ void PlayerController::setSubtitlePreferences(const SubtitlePreferences &prefere
   if (auto *handle = m_mpvLifecycle.handle())
     applyMpvSubtitleOptions(MpvOptionApplyMode::Runtime, handle);
   emit stateChanged();
+}
+
+void PlayerController::setDemuxerBudget(const QByteArray &maxBytes,
+                                        const QByteArray &maxBackBytes) {
+  if (!maxBytes.isEmpty())
+    m_demuxerMaxBytes = maxBytes;
+  if (!maxBackBytes.isEmpty())
+    m_demuxerMaxBackBytes = maxBackBytes;
 }
 
 void PlayerController::startProgressReporting() {
