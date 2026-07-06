@@ -402,6 +402,7 @@ if(JELLYFIN_NATIVE_WEBOS)
         PkgConfig::GLIB
         Qt6::GuiPrivate
         Qt6::WaylandClient
+        Qt6::Svg
         ${EGL_LIB}
         ${GLES2_LIB}
         ${WAYLAND_EGL_LIB}
@@ -656,6 +657,7 @@ if(JELLYFIN_QT_CORE_TARGET_TYPE STREQUAL "STATIC_LIBRARY")
                 Qt6::QVirtualKeyboardPlugin
                 Qt6::QJpegPlugin
                 Qt6::QWebpPlugin
+                Qt6::QSvgPlugin
         )
 
         # Qt VirtualKeyboard's QML qmldir files name nested static plugin link

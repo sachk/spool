@@ -13,6 +13,18 @@ FocusScope {
     property var latestRows: appController ? appController.latestLibraryRows : []
     property int currentSection: 0
 
+    function modelFor(source, rowIndex) {
+        if (source === "libraries")
+            return libraryModel
+        if (source === "resumeItems")
+            return resumeModel
+        if (source === "nextUpItems")
+            return nextUpModel
+        if (source === "latestLibrary")
+            return appController ? appController.latestLibraryItems(rowIndex) : null
+        return null
+    }
+
     focus: true
 
     Connections {
