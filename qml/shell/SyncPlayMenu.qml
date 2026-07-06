@@ -20,7 +20,7 @@ FocusScope {
     height: implicitHeight
 
     function defaultGroupName() {
-        const name = appController && appController.username ? String(appController.username) : ""
+        const name = appController && appController.session.username ? String(appController.session.username) : ""
         return (name.length > 0 ? name : "My") + "'s group"
     }
 

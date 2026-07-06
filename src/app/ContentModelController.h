@@ -5,6 +5,7 @@
 
 #include <QObject>
 #include <QString>
+#include <QVariantMap>
 
 namespace JellyfinNative {
 
@@ -14,6 +15,7 @@ class LibraryPrefetchController;
 class ContentModelController final : public QObject
 {
     Q_OBJECT
+    Q_PROPERTY(QVariantMap detailItem READ detailItem NOTIFY detailItemChanged)
 
 public:
     ContentModelController(JellyfinApiFacade *api,
@@ -31,6 +33,7 @@ public:
     bool searchSuggestionsBusy() const;
     bool detailRowsBusy() const;
     bool personItemsBusy() const;
+    QVariantMap detailItem() const;
 
     MovieItem searchResultAt(int index) const;
     MovieItem suggestionAt(int index) const;
@@ -43,6 +46,7 @@ public:
     void loadSearchSuggestions();
     void loadDetailRows(const QString &itemId, const QString &itemType,
                         const QString &seriesId, const QString &seasonId);
+    void loadItemDetail(const QString &itemId);
     void loadPersonItems(const QString &personId);
     void updateResumeTicks(const QString &itemId, qint64 positionTicks);
     void updateFavorite(const QString &itemId, bool favorite);
@@ -53,6 +57,7 @@ signals:
     void searchChanged();
     void searchSuggestionsChanged();
     void detailRowsChanged();
+    void detailItemChanged();
     void personItemsChanged();
     void errorOccurred(const QString &message);
 
@@ -66,6 +71,7 @@ private:
     MovieGridModel m_detailSeasons;
     MovieGridModel m_detailSimilarItems;
     MovieGridModel m_personItems;
+    QVariantMap m_detailItem;
     QString m_searchQuery;
     bool m_searchBusy = false;
     RequestGeneration m_searchGeneration;
@@ -74,6 +80,7 @@ private:
     bool m_searchSuggestionsLoaded = false;
     bool m_detailRowsBusy = false;
     RequestGeneration m_detailRowsGeneration;
+    RequestGeneration m_detailItemGeneration;
     int m_detailRowsPending = 0;
     bool m_personItemsBusy = false;
     RequestGeneration m_personItemsGeneration;

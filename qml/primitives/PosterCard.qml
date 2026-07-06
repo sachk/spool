@@ -7,8 +7,6 @@ Item {
     property string posterUrl: ""
     property int year: 0
     property bool focused: false
-    property bool loadImage: true
-    property int imageLoadDelay: 0
     property string metadata: ""
     readonly property real metadataHeight: yearLabel.text.length > 0 ? yearLabel.implicitHeight : 0
     readonly property real titleAvailableHeight: Math.max(0, height - poster.height - 10 - metadataHeight)
@@ -24,8 +22,6 @@ Item {
         anchors.right: parent.right
         height: width * 1.5
         imageUrl: root.posterUrl
-        loadImage: root.loadImage
-        loadDelay: root.imageLoadDelay
         fallbackText: root.year > 0 ? String(root.year) : "Poster"
         focused: root.focused
     }

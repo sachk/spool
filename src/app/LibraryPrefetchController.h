@@ -14,6 +14,7 @@
 
 namespace JellyfinNative {
 
+class ArtworkPrefetcher;
 class JellyfinApiFacade;
 
 class LibraryPrefetchController final : public QObject {
@@ -22,8 +23,8 @@ class LibraryPrefetchController final : public QObject {
 public:
   enum class ImageKind { Poster, Landscape };
 
-  explicit LibraryPrefetchController(JellyfinApiFacade *api,
-                                     QObject *parent = nullptr);
+  LibraryPrefetchController(JellyfinApiFacade *api, ArtworkPrefetcher *artwork = nullptr,
+                            QObject *parent = nullptr);
 
   void stop();
   void schedule(const std::vector<LibraryItem> &libraries,
@@ -38,6 +39,7 @@ private:
   void startNext();
 
   JellyfinApiFacade *m_api = nullptr;
+  ArtworkPrefetcher *m_artwork = nullptr;
   QTimer m_timer;
   RequestGeneration m_generation;
   int m_index = 0;
@@ -46,7 +48,6 @@ private:
   QHash<QString, PagedMovieItems> m_pages;
   QSet<QString> m_cachedKeys;
   int m_imagePrefetchAheadItems = 16;
-  int m_imagePrefetchMaxConcurrent = 3;
 };
 
 } // namespace JellyfinNative

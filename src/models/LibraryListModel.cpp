@@ -14,6 +14,11 @@ int LibraryListModel::rowCount(const QModelIndex &parent) const
     return static_cast<int>(m_libraries.size());
 }
 
+int LibraryListModel::count() const
+{
+    return rowCount();
+}
+
 QVariant LibraryListModel::data(const QModelIndex &index, int role) const
 {
     if (!index.isValid() || index.row() < 0 || index.row() >= rowCount())
@@ -64,16 +69,22 @@ QVariantMap LibraryListModel::get(int index) const
 
 void LibraryListModel::setLibraries(const std::vector<LibraryItem> &libraries)
 {
+    const int oldCount = rowCount();
     beginResetModel();
     m_libraries = libraries;
     endResetModel();
+    if (oldCount != rowCount())
+        emit countChanged();
 }
 
 void LibraryListModel::clear()
 {
+    const int oldCount = rowCount();
     beginResetModel();
     m_libraries.clear();
     endResetModel();
+    if (oldCount != 0)
+        emit countChanged();
 }
 
 LibraryItem LibraryListModel::libraryAt(int index) const

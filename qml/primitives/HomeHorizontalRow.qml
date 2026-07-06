@@ -10,12 +10,10 @@ FocusScope {
     property var shell
     property string rowKind: "landscape"
     property bool useSeriesPoster: false
-    property bool loadImages: true
-    property int imageLoadDelay: 35
     property int cardWidth: 240
     property int cardGap: 16
     property int currentIndex: rowCount > 0 ? 0 : -1
-    readonly property int rowCount: countObserver.count
+    readonly property int rowCount: rowModel ? rowModel.count : 0
     readonly property int visibleCount: rowCount
     readonly property bool libraryRow: rowKind === "library"
     readonly property bool rowVisible: visibleCount > 0
@@ -35,11 +33,6 @@ FocusScope {
     }
     onVisibleCountChanged: {
         currentIndex = visibleCount > 0 ? Math.max(0, Math.min(currentIndex, visibleCount - 1)) : -1
-    }
-
-    ModelCountObserver {
-        id: countObserver
-        sourceModel: root.rowModel
     }
 
     function itemAt(index) {
@@ -106,6 +99,111 @@ FocusScope {
         return false
     }
 
+    Component {
+        id: mediaCardDelegate
+
+        Item {
+            id: mediaDelegate
+
+            required property int index
+            required property string movieId
+            required property string displayTitle
+            required property string displaySubtitle
+            required property string posterUrl
+            required property string seriesPosterUrl
+            required property string thumbUrl
+            required property string landscapeCardUrl
+            required property string backdropUrl
+            required property real progress
+            required property string itemType
+            required property string seriesId
+            required property string seasonId
+            required property bool favorite
+            required property bool played
+            required property real resumeTicks
+            required property bool playable
+            required property int year
+            required property string subtitle
+            required property string title
+            required property string seriesName
+            required property int seasonNumber
+
+            width: root.cardWidth
+            height: rowList.height
+
+            function handleAcceptPressed(key) { return mediaCard.handleAcceptPressed(key) }
+            function handleAcceptReleased(key) { return mediaCard.handleAcceptReleased(key) }
+            function handleNavigationKey(key) { return mediaCard.handleNavigationKey(key) }
+
+            MediaItemCard {
+                id: mediaCard
+                anchors.fill: parent
+                shell: root.shell
+                kind: root.rowKind === "poster" ? "poster" : "landscape"
+                useSeriesPoster: root.useSeriesPoster
+                focused: mediaDelegate.index === rowList.currentIndex && rowList.activeFocus
+                snapshotProvider: function() { return root.itemAt(mediaDelegate.index) }
+                movieId: mediaDelegate.movieId
+                displayTitle: mediaDelegate.displayTitle
+                displaySubtitle: mediaDelegate.displaySubtitle
+                posterUrl: mediaDelegate.posterUrl
+                seriesPosterUrl: mediaDelegate.seriesPosterUrl
+                thumbUrl: mediaDelegate.thumbUrl
+                landscapeCardUrl: mediaDelegate.landscapeCardUrl
+                backdropUrl: mediaDelegate.backdropUrl
+                progress: mediaDelegate.progress
+                itemType: mediaDelegate.itemType
+                seriesId: mediaDelegate.seriesId
+                seasonId: mediaDelegate.seasonId
+                favorite: mediaDelegate.favorite
+                played: mediaDelegate.played
+                resumeTicks: mediaDelegate.resumeTicks
+                playable: mediaDelegate.playable
+                year: mediaDelegate.year
+                subtitle: mediaDelegate.subtitle
+                title: mediaDelegate.title
+                seriesName: mediaDelegate.seriesName
+                seasonNumber: mediaDelegate.seasonNumber
+                onActivated: root.activated(mediaDelegate.index)
+                onFavoriteToggled: (favorite) => root.favoriteToggled(mediaDelegate.index, favorite)
+                onPlayedToggled: (played) => root.playedToggled(mediaDelegate.index, played)
+                onMediaInfoRequested: root.mediaInfoRequested(mediaDelegate.index)
+            }
+        }
+    }
+
+    Component {
+        id: libraryCardDelegate
+
+        Item {
+            id: libraryDelegate
+            required property int index
+            required property string name
+            required property string collectionType
+            required property string imageUrl
+            readonly property bool current: index === rowList.currentIndex && rowList.activeFocus
+
+            width: root.cardWidth
+            height: rowList.height
+
+            LandscapeCard {
+                anchors.fill: parent
+                title: libraryDelegate.name || ""
+                subtitle: libraryDelegate.collectionType || ""
+                imageUrl: libraryDelegate.imageUrl || ""
+                focused: libraryDelegate.current
+            }
+
+            MouseArea {
+                anchors.fill: parent
+                onClicked: {
+                    root.currentIndex = libraryDelegate.index
+                    root.activated(libraryDelegate.index)
+                }
+            }
+        }
+    }
+
     ColumnLayout {
         anchors.fill: parent
         spacing: 10
@@ -127,8 +225,9 @@ FocusScope {
             reuseItems: true
             boundsBehavior: Flickable.StopAtBounds
             spacing: root.cardGap
-            cacheBuffer: Math.round(root.cardWidth + root.cardGap)
-            model: root.visibleCount
+            cacheBuffer: Math.round(2 * (root.cardWidth + root.cardGap))
+            model: root.rowModel
+            delegate: root.libraryRow ? libraryCardDelegate : mediaCardDelegate
             currentIndex: root.currentIndex
             onCurrentIndexChanged: {
                 root.currentIndex = currentIndex
@@ -138,70 +237,6 @@ FocusScope {
             FastWheelHandler {
                 flickable: rowList
                 horizontal: true
-            }
-
-            delegate: Item {
-                id: cardDelegate
-
-                required property int index
-                readonly property var itemData: root.itemAt(index)
-                readonly property bool current: index === rowList.currentIndex && rowList.activeFocus
-                readonly property bool loadArtwork: root.loadImages
-                                                    && x + width >= rowList.contentX - rowList.cacheBuffer
-                                                    && x <= rowList.contentX + rowList.width + rowList.cacheBuffer
-
-                width: root.cardWidth
-                height: rowList.height
-
-                function handleAcceptPressed(key) {
-                    return mediaCard.visible && mediaCard.handleAcceptPressed(key)
-                }
-
-                function handleAcceptReleased(key) {
-                    return mediaCard.visible && mediaCard.handleAcceptReleased(key)
-                }
-
-                function handleNavigationKey(key) {
-                    return mediaCard.visible && mediaCard.handleNavigationKey(key)
-                }
-
-                MediaItemCard {
-                    id: mediaCard
-
-                    anchors.fill: parent
-                    visible: !root.libraryRow
-                    item: cardDelegate.itemData
-                    shell: root.shell
-                    kind: root.rowKind === "poster" ? "poster" : "landscape"
-                    useSeriesPoster: root.useSeriesPoster
-                    focused: cardDelegate.current
-                    loadImage: cardDelegate.loadArtwork
-                    imageLoadDelay: root.imageLoadDelay
-                    onActivated: root.activated(cardDelegate.index)
-                    onFavoriteToggled: (favorite) => root.favoriteToggled(cardDelegate.index, favorite)
-                    onPlayedToggled: (played) => root.playedToggled(cardDelegate.index, played)
-                    onMediaInfoRequested: root.mediaInfoRequested(cardDelegate.index)
-                }
-
-                LandscapeCard {
-                    anchors.fill: parent
-                    visible: root.libraryRow
-                    title: cardDelegate.itemData.name || ""
-                    subtitle: cardDelegate.itemData.collectionType || ""
-                    imageUrl: cardDelegate.itemData.imageUrl || ""
-                    focused: cardDelegate.current
-                    loadImage: cardDelegate.loadArtwork
-                    imageLoadDelay: root.imageLoadDelay
-                }
-
-                MouseArea {
-                    anchors.fill: parent
-                    enabled: root.libraryRow
-                    onClicked: {
-                        root.currentIndex = cardDelegate.index
-                        root.activated(cardDelegate.index)
-                    }
-                }
             }
 
             Keys.onReleased: (event) => {

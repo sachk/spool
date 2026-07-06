@@ -107,8 +107,6 @@ SettingsController::SettingsController(DatabaseManager *database,
                                        QObject *parent)
     : QObject(parent), m_database(database), m_api(api), m_player(player) {}
 
-bool SettingsController::visible() const { return m_visible; }
-
 bool SettingsController::nightModeEnabled() const { return m_nightModeEnabled; }
 
 bool SettingsController::toneMappingVisualizationEnabled() const {
@@ -355,20 +353,6 @@ void SettingsController::loadRemote() {
 }
 
 void SettingsController::clearRemote() { m_userConfiguration = {}; }
-
-void SettingsController::open() {
-  if (m_visible)
-    return;
-  m_visible = true;
-  emit visibleChanged();
-}
-
-void SettingsController::close() {
-  if (!m_visible)
-    return;
-  m_visible = false;
-  emit visibleChanged();
-}
 
 void SettingsController::toggleNightMode() {
   setNightModeEnabled(!m_nightModeEnabled);

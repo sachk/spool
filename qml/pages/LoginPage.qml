@@ -8,24 +8,24 @@ FocusScope {
     id: root
 
     property var shell
-    property bool addMode: !(appController && appController.hasDefaultProfile && appController.serverUrl.length > 0)
+    property bool addMode: !(appController && appController.hasDefaultProfile && appController.session.serverUrl.length > 0)
     property int addStep: 1
     property string selectedServerName: ""
-    property string selectedServerAddress: appController ? appController.serverUrl : ""
+    property string selectedServerAddress: appController ? appController.session.serverUrl : ""
     property string manualServerDraft: ""
     property string manualServerAddress: ""
     property string manualServerStatus: ""
 
-    readonly property bool hasSavedPair: appController && appController.hasDefaultProfile && appController.serverUrl.length > 0
+    readonly property bool hasSavedPair: appController && appController.hasDefaultProfile && appController.session.serverUrl.length > 0
     readonly property bool textInputActive: shell ? shell.textInputActive : Qt.inputMethod.visible
     readonly property bool manualServerVisible: manualServerAddress.length > 0
     readonly property int tileSize: width >= 1920 ? 190 : width >= 1280 ? 164 : 152
     readonly property int contentWidth: Math.min(width - Metrics.pageMargin(width) * 2, 1040)
     readonly property string savedServerName: "Jellyfin Server"
-    readonly property string savedServerAddress: appController ? appController.serverUrl : ""
-    readonly property string savedUsername: appController && appController.username.length > 0 ? appController.username : "Saved user"
+    readonly property string savedServerAddress: appController ? appController.session.serverUrl : ""
+    readonly property string savedUsername: appController && appController.session.username.length > 0 ? appController.session.username : "Saved user"
     readonly property string chosenServerName: selectedServerName.length > 0 ? selectedServerName : savedServerName
-    readonly property string chosenServerAddress: selectedServerAddress.length > 0 ? selectedServerAddress : appController ? appController.serverUrl : ""
+    readonly property string chosenServerAddress: selectedServerAddress.length > 0 ? selectedServerAddress : appController ? appController.session.serverUrl : ""
 
     focus: true
 
@@ -80,7 +80,7 @@ FocusScope {
         selectedServerName = savedServerName;
         selectedServerAddress = address;
         if (appController)
-            appController.setServerUrl(address);
+            appController.session.serverUrl = address;
         manualProbe.restart();
         Qt.callLater(function () {
             manualServerCard.forceActiveFocus();
@@ -93,7 +93,7 @@ FocusScope {
         selectedServerName = savedServerName;
         selectedServerAddress = manualServerAddress;
         if (appController)
-            appController.setServerUrl(manualServerAddress);
+            appController.session.serverUrl = manualServerAddress;
         addStep = 2;
         Qt.callLater(function () {
             usernameRow.focusField();
@@ -405,10 +405,10 @@ FocusScope {
                 Layout.fillWidth: true
                 label: "Username"
                 placeholderText: "Username"
-                text: appController ? appController.username : ""
+                text: appController ? appController.session.username : ""
                 inputMethodHints: Qt.ImhNoPredictiveText | Qt.ImhNoAutoUppercase
                 onTextEdited: if (appController)
-                    appController.setUsername(text)
+                    appController.session.username = text
                 onAccepted: passwordRow.focusField()
                 KeyNavigation.up: chosenServerCard
                 KeyNavigation.down: passwordRow
@@ -419,11 +419,11 @@ FocusScope {
                 Layout.fillWidth: true
                 label: "Password"
                 placeholderText: "Password"
-                text: appController ? appController.password : ""
+                text: appController ? appController.session.password : ""
                 echoMode: TextInput.Password
                 inputMethodHints: Qt.ImhSensitiveData | Qt.ImhNoPredictiveText
                 onTextEdited: if (appController)
-                    appController.setPassword(text)
+                    appController.session.password = text
                 onAccepted: signInButton.forceActiveFocus()
                 KeyNavigation.up: usernameRow
                 KeyNavigation.down: signInButton
@@ -446,16 +446,18 @@ FocusScope {
 
                 ActionButton {
                     id: quickConnectButton
-                    text: appController && appController.quickConnectActive ? "Cancel" : "Quick Connect"
+                    text: appController && appController.quickConnect.active ? "Cancel" : "Quick Connect"
                     iconName: "bolt"
                     Layout.fillWidth: true
                     onClicked: {
                         if (!appController)
                             return;
-                        if (appController.quickConnectActive)
-                            appController.cancelQuickConnect();
-                        else
-                            appController.startQuickConnect();
+                        if (appController.quickConnect.active) {
+                            appController.quickConnect.cancel();
+                        } else {
+                            appController.clearError();
+                            appController.quickConnect.start(appController.session.serverUrl);
+                        }
                     }
                     KeyNavigation.up: passwordRow
                     KeyNavigation.left: signInButton
@@ -465,7 +467,7 @@ FocusScope {
             Surface {
                 Layout.fillWidth: true
                 Layout.preferredHeight: 92
-                visible: appController && appController.quickConnectActive
+                visible: appController && appController.quickConnect.active
                 baseColor: Theme.accentPanel
 
                 Column {
@@ -474,14 +476,14 @@ FocusScope {
 
                     AppText {
                         anchors.horizontalCenter: parent.horizontalCenter
-                        text: appController ? appController.quickConnectCode : ""
+                        text: appController ? appController.quickConnect.code : ""
                         font.pixelSize: 32
                         font.weight: Font.Bold
                     }
 
                     MonoText {
                         anchors.horizontalCenter: parent.horizontalCenter
-                        text: appController ? appController.quickConnectStatus : ""
+                        text: appController ? appController.quickConnect.status : ""
                         color: Theme.textSecondary
                     }
                 }

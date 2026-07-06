@@ -9,7 +9,11 @@ FocusScope {
     property var item: ({})
     property var shell
     property int currentActionIndex: closeActionIndex
-    readonly property var sources: item && item.mediaSources ? item.mediaSources : []
+    readonly property string itemId: item && item.movieId ? String(item.movieId) : ""
+    readonly property var fullDetailItem: appController && appController.detailItem
+                                      && String(appController.detailItem.movieId || "") === itemId
+                                      ? appController.detailItem : ({})
+    readonly property var sources: fullDetailItem.mediaSources || []
     readonly property bool showLinkVisible: Boolean(item && item.seriesId && item.seriesName
                                                     && (item.itemType === "Episode" || item.itemType === "Season"))
     readonly property bool seasonLinkVisible: Boolean(item && item.itemType === "Episode"
@@ -22,7 +26,11 @@ FocusScope {
     signal closed()
 
     focus: visible
-    onVisibleChanged: if (visible) Qt.callLater(ensureFocus)
+    onVisibleChanged: if (visible) {
+        Qt.callLater(ensureFocus)
+        Qt.callLater(refreshItemDetail)
+    }
+    onItemChanged: if (visible) Qt.callLater(refreshItemDetail)
     onActiveFocusChanged: if (visible && !activeFocus) forceActiveFocus()
 
     component InfoPair: ColumnLayout {
@@ -416,6 +424,11 @@ FocusScope {
 
     function closeOverlay() {
         root.closed()
+    }
+
+    function refreshItemDetail() {
+        if (root.itemId.length > 0 && appController)
+            appController.loadItemDetail(root.itemId)
     }
 
     function openSeries() {

@@ -52,8 +52,6 @@ public:
         CriticRatingRole,
         PremiereDateRole,
         EndDateRole,
-        PeopleRole,
-        MediaSourcesRole,
     };
 
     explicit MovieGridModel(QObject *parent = nullptr);
@@ -63,6 +61,7 @@ public:
     QVariant data(const QModelIndex &index, int role) const override;
     QHash<int, QByteArray> roleNames() const override;
     Q_INVOKABLE QVariantMap get(int index) const;
+    Q_INVOKABLE QVariantMap detailsAt(int index) const;
 
     void setMovies(const std::vector<MovieItem> &movies);
     void appendMovies(const std::vector<MovieItem> &movies);

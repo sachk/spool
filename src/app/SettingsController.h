@@ -14,12 +14,35 @@ class PlayerController;
 
 class SettingsController final : public QObject {
   Q_OBJECT
+  Q_PROPERTY(bool nightModeEnabled READ nightModeEnabled WRITE setNightModeEnabled NOTIFY nightModeChanged)
+  Q_PROPERTY(bool toneMappingVisualizationEnabled READ toneMappingVisualizationEnabled WRITE setToneMappingVisualizationEnabled NOTIFY toneMappingVisualizationChanged)
+  Q_PROPERTY(int maxStreamingBitrateMbps READ maxStreamingBitrateMbps WRITE setMaxStreamingBitrateMbps NOTIFY playbackPreferencesChanged)
+  Q_PROPERTY(bool preferRemux READ preferRemux WRITE setPreferRemux NOTIFY playbackPreferencesChanged)
+  Q_PROPERTY(int audioDelayMs READ audioDelayMs WRITE setAudioDelayMs NOTIFY audioDelayChanged)
+  Q_PROPERTY(QString audioOutputMode READ audioOutputMode WRITE setAudioOutputMode NOTIFY audioOutputModeChanged)
+  Q_PROPERTY(QStringList subtitleLanguageOptions READ subtitleLanguageOptions NOTIFY subtitleSettingsChanged)
+  Q_PROPERTY(int subtitleLanguageIndex READ subtitleLanguageIndex WRITE setSubtitleLanguageIndex NOTIFY subtitleSettingsChanged)
+  Q_PROPERTY(QString subtitleMode READ subtitleMode WRITE setSubtitleMode NOTIFY subtitleSettingsChanged)
+  Q_PROPERTY(QString subtitleBurnIn READ subtitleBurnIn WRITE setSubtitleBurnIn NOTIFY subtitleSettingsChanged)
+  Q_PROPERTY(bool subtitleRenderPgs READ subtitleRenderPgs WRITE setSubtitleRenderPgs NOTIFY subtitleSettingsChanged)
+  Q_PROPERTY(bool subtitleAlwaysBurnIn READ subtitleAlwaysBurnIn WRITE setSubtitleAlwaysBurnIn NOTIFY subtitleSettingsChanged)
+  Q_PROPERTY(QString subtitleStyling READ subtitleStyling WRITE setSubtitleStyling NOTIFY subtitleSettingsChanged)
+  Q_PROPERTY(QString subtitleTextSize READ subtitleTextSize WRITE setSubtitleTextSize NOTIFY subtitleSettingsChanged)
+  Q_PROPERTY(QString subtitleTextWeight READ subtitleTextWeight WRITE setSubtitleTextWeight NOTIFY subtitleSettingsChanged)
+  Q_PROPERTY(QString subtitleFont READ subtitleFont WRITE setSubtitleFont NOTIFY subtitleSettingsChanged)
+  Q_PROPERTY(QString subtitleTextColor READ subtitleTextColor WRITE setSubtitleTextColor NOTIFY subtitleSettingsChanged)
+  Q_PROPERTY(QString subtitleDropShadow READ subtitleDropShadow WRITE setSubtitleDropShadow NOTIFY subtitleSettingsChanged)
+  Q_PROPERTY(int subtitleVerticalPosition READ subtitleVerticalPosition WRITE setSubtitleVerticalPosition NOTIFY subtitleSettingsChanged)
+  Q_PROPERTY(QString redButtonAction READ redButtonAction WRITE setRedButtonAction NOTIFY buttonRemapChanged)
+  Q_PROPERTY(QString greenButtonAction READ greenButtonAction WRITE setGreenButtonAction NOTIFY buttonRemapChanged)
+  Q_PROPERTY(QString yellowButtonAction READ yellowButtonAction WRITE setYellowButtonAction NOTIFY buttonRemapChanged)
+  Q_PROPERTY(QString blueButtonAction READ blueButtonAction WRITE setBlueButtonAction NOTIFY buttonRemapChanged)
+  Q_PROPERTY(QStringList availableButtonActions READ availableButtonActions CONSTANT)
 
 public:
   SettingsController(DatabaseManager *database, JellyfinApiFacade *api,
                      PlayerController *player, QObject *parent = nullptr);
 
-  bool visible() const;
   bool nightModeEnabled() const;
   bool toneMappingVisualizationEnabled() const;
   int maxStreamingBitrateMbps() const;
@@ -44,39 +67,36 @@ public:
   QString yellowButtonAction() const;
   QString blueButtonAction() const;
   QStringList availableButtonActions() const;
-  QString buttonActionLabel(const QString &action) const;
+  Q_INVOKABLE QString buttonActionLabel(const QString &action) const;
 
   void loadLocal();
   void loadRemote();
   void clearRemote();
-  void open();
-  void close();
-  void toggleNightMode();
-  void setNightModeEnabled(bool enabled);
-  void setToneMappingVisualizationEnabled(bool enabled);
-  void setMaxStreamingBitrateMbps(int bitrateMbps);
-  void setPreferRemux(bool enabled);
-  void setAudioDelayMs(int delayMs);
-  void setAudioOutputMode(const QString &mode);
-  void setSubtitleLanguageIndex(int index);
-  void setSubtitleMode(const QString &mode);
-  void setSubtitleBurnIn(const QString &mode);
-  void setSubtitleRenderPgs(bool enabled);
-  void setSubtitleAlwaysBurnIn(bool enabled);
-  void setSubtitleStyling(const QString &styling);
-  void setSubtitleTextSize(const QString &size);
-  void setSubtitleTextWeight(const QString &weight);
-  void setSubtitleFont(const QString &font);
-  void setSubtitleTextColor(const QString &color);
-  void setSubtitleDropShadow(const QString &shadow);
-  void setSubtitleVerticalPosition(int position);
-  void setRedButtonAction(const QString &action);
-  void setGreenButtonAction(const QString &action);
-  void setYellowButtonAction(const QString &action);
-  void setBlueButtonAction(const QString &action);
+  Q_INVOKABLE void toggleNightMode();
+  Q_INVOKABLE void setNightModeEnabled(bool enabled);
+  Q_INVOKABLE void setToneMappingVisualizationEnabled(bool enabled);
+  Q_INVOKABLE void setMaxStreamingBitrateMbps(int bitrateMbps);
+  Q_INVOKABLE void setPreferRemux(bool enabled);
+  Q_INVOKABLE void setAudioDelayMs(int delayMs);
+  Q_INVOKABLE void setAudioOutputMode(const QString &mode);
+  Q_INVOKABLE void setSubtitleLanguageIndex(int index);
+  Q_INVOKABLE void setSubtitleMode(const QString &mode);
+  Q_INVOKABLE void setSubtitleBurnIn(const QString &mode);
+  Q_INVOKABLE void setSubtitleRenderPgs(bool enabled);
+  Q_INVOKABLE void setSubtitleAlwaysBurnIn(bool enabled);
+  Q_INVOKABLE void setSubtitleStyling(const QString &styling);
+  Q_INVOKABLE void setSubtitleTextSize(const QString &size);
+  Q_INVOKABLE void setSubtitleTextWeight(const QString &weight);
+  Q_INVOKABLE void setSubtitleFont(const QString &font);
+  Q_INVOKABLE void setSubtitleTextColor(const QString &color);
+  Q_INVOKABLE void setSubtitleDropShadow(const QString &shadow);
+  Q_INVOKABLE void setSubtitleVerticalPosition(int position);
+  Q_INVOKABLE void setRedButtonAction(const QString &action);
+  Q_INVOKABLE void setGreenButtonAction(const QString &action);
+  Q_INVOKABLE void setYellowButtonAction(const QString &action);
+  Q_INVOKABLE void setBlueButtonAction(const QString &action);
 
 signals:
-  void visibleChanged();
   void nightModeChanged();
   void toneMappingVisualizationChanged();
   void playbackPreferencesChanged();
@@ -95,7 +115,6 @@ private:
   DatabaseManager *m_database = nullptr;
   JellyfinApiFacade *m_api = nullptr;
   PlayerController *m_player = nullptr;
-  bool m_visible = false;
   bool m_nightModeEnabled = false;
   bool m_toneMappingVisualizationEnabled = false;
   int m_maxStreamingBitrateMbps = 120;

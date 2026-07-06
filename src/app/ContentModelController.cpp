@@ -67,6 +67,11 @@ bool ContentModelController::personItemsBusy() const
     return m_personItemsBusy;
 }
 
+QVariantMap ContentModelController::detailItem() const
+{
+    return m_detailItem;
+}
+
 MovieItem ContentModelController::searchResultAt(int index) const
 {
     return m_searchResults.movieAt(index);
@@ -253,6 +258,38 @@ void ContentModelController::loadDetailRows(const QString &itemId,
         });
 }
 
+
+void ContentModelController::loadItemDetail(const QString &itemId)
+{
+    const RequestGeneration::Token generation = m_detailItemGeneration.next();
+    m_detailItem.clear();
+
+    if (itemId.isEmpty() || !m_api || m_api->session().accessToken.isEmpty()) {
+        emit detailItemChanged();
+        return;
+    }
+
+    emit detailItemChanged();
+
+    Async::runLatest(
+        this, m_api->fetchItemDetails(itemId), m_detailItemGeneration, generation,
+        [this](const MovieItem &item) {
+            MovieGridModel detailModel;
+            detailModel.setMovies({item});
+            QVariantMap snapshot = detailModel.get(0);
+            const QVariantMap details = detailModel.detailsAt(0);
+            snapshot.insert(QStringLiteral("people"), details.value(QStringLiteral("people")));
+            snapshot.insert(QStringLiteral("mediaSources"), details.value(QStringLiteral("mediaSources")));
+            m_detailItem = std::move(snapshot);
+            emit detailItemChanged();
+        },
+        [this](const std::exception_ptr &error) {
+            m_detailItem.clear();
+            emit detailItemChanged();
+            emit errorOccurred(exceptionMessage(error));
+        });
+}
+
 void ContentModelController::loadPersonItems(const QString &personId)
 {
     const RequestGeneration::Token generation =
@@ -319,6 +356,7 @@ void ContentModelController::reset()
     m_searchGeneration.invalidate();
     m_searchSuggestionsGeneration.invalidate();
     m_detailRowsGeneration.invalidate();
+    m_detailItemGeneration.invalidate();
     m_personItemsGeneration.invalidate();
 
     m_searchResults.clear();
@@ -326,6 +364,7 @@ void ContentModelController::reset()
     m_detailSeasons.clear();
     m_detailSimilarItems.clear();
     m_personItems.clear();
+    m_detailItem.clear();
     m_searchQuery.clear();
     m_searchBusy = false;
     m_searchSuggestionsBusy = false;
@@ -337,6 +376,7 @@ void ContentModelController::reset()
     emit searchChanged();
     emit searchSuggestionsChanged();
     emit detailRowsChanged();
+    emit detailItemChanged();
     emit personItemsChanged();
 }
 

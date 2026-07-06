@@ -1,6 +1,7 @@
 #include "LibraryPrefetchController.h"
 
 #include "../api/JellyfinApiFacade.h"
+#include "ArtworkPrefetcher.h"
 #include "../common/AsyncTask.h"
 #include "LibraryQuery.h"
 
@@ -37,8 +38,9 @@ QString preferredImageUrl(const MovieItem &item,
 } // namespace
 
 LibraryPrefetchController::LibraryPrefetchController(JellyfinApiFacade *api,
+                                                     ArtworkPrefetcher *artwork,
                                                      QObject *parent)
-    : QObject(parent), m_api(api) {
+    : QObject(parent), m_api(api), m_artwork(artwork) {
   m_timer.setSingleShot(true);
   connect(&m_timer, &QTimer::timeout, this,
           &LibraryPrefetchController::startNext);
@@ -135,14 +137,15 @@ void LibraryPrefetchController::prefetchPosters(
       urls.push_back(url);
   }
 
-  if (!urls.isEmpty())
-    m_api->prefetchImages(urls, m_imagePrefetchMaxConcurrent);
+  if (!urls.isEmpty() && m_artwork)
+    m_artwork->prefetch(urls);
 }
 
 void LibraryPrefetchController::configureImagePrefetch(int aheadItems,
                                                        int maxConcurrent) {
   m_imagePrefetchAheadItems = std::clamp(aheadItems, 4, 64);
-  m_imagePrefetchMaxConcurrent = std::clamp(maxConcurrent, 1, 8);
+  if (m_artwork)
+    m_artwork->configurePrefetch(std::clamp(maxConcurrent, 1, 8));
 }
 
 void LibraryPrefetchController::startNext() {

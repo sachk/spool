@@ -8,8 +8,6 @@ Item {
     property string imageUrl: ""
     property real progress: 0
     property bool focused: false
-    property bool loadImage: true
-    property int imageLoadDelay: 0
     readonly property real subtitleHeight: subtitleLabel.text.length > 0 ? subtitleLabel.implicitHeight : 0
     readonly property real titleAvailableHeight: Math.max(0, height - art.height - 10 - subtitleHeight)
 
@@ -24,8 +22,6 @@ Item {
         anchors.right: parent.right
         height: width * 9 / 16
         imageUrl: root.imageUrl
-        loadImage: root.loadImage
-        loadDelay: root.imageLoadDelay
         fallbackText: root.subtitle
         focused: root.focused
         retainWhileLoading: true
