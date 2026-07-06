@@ -572,6 +572,17 @@ if(BUILD_TESTING AND NOT CMAKE_CROSSCOMPILING)
     )
     target_link_libraries(http-request-policy-tests PRIVATE Qt6::Core Qt6::Network)
     add_test(NAME http-request-policy COMMAND http-request-policy-tests)
+    add_executable(items-query-tests
+        tests/api/ItemsQueryTest.cpp
+        src/api/ItemsQuery.cpp
+        src/api/ItemsQuery.h
+    )
+    target_include_directories(items-query-tests PRIVATE
+        "${CMAKE_CURRENT_SOURCE_DIR}/src"
+    )
+    target_link_libraries(items-query-tests PRIVATE Qt6::Core)
+    add_test(NAME items-query COMMAND items-query-tests)
+
 
     add_executable(playback-negotiation-tests
         tests/api/PlaybackNegotiationTest.cpp
