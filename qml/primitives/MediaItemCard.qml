@@ -141,14 +141,13 @@ Item {
         anchors.topMargin: 8
         anchors.left: parent.left
         anchors.right: parent.right
-        height: visible ? Math.min(implicitHeight, root.titleAvailableHeight) : 0
         visible: text.length > 0 && root.titleAvailableHeight > 0
         text: root.titleText()
         font.pixelSize: Metrics.bodyPx(root.Window.window ? root.Window.window.width : 1920)
         font.weight: Font.Medium
         color: root.posterKind && !root.focused ? Theme.textSecondary : Theme.textPrimary
-        maximumLineCount: 2
-        wrapMode: Text.Wrap
+        maximumLineCount: root.titleAvailableHeight >= font.pixelSize * 2.25 ? 2 : 1
+        clip: true
         elide: Text.ElideRight
     }
 
@@ -158,7 +157,6 @@ Item {
         anchors.topMargin: 2
         anchors.left: parent.left
         anchors.right: parent.right
-        height: visible ? Math.min(implicitHeight, Math.max(0, root.height - y)) : 0
         visible: text.length > 0 && root.height > y
         text: root.subtitleText()
         color: Theme.textMuted
