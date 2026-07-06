@@ -4,6 +4,7 @@ import "../pages"
 FocusScope {
     id: root
     property string route: "login"
+    property var args: ({})
     property var shell
     focus: true
 

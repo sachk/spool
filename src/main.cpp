@@ -4,6 +4,7 @@
 #include "app/CpuTopology.h"
 #include "app/LocalizationManager.h"
 #include "app/MemoryBudget.h"
+#include "app/RouterController.h"
 #include "app/NativeAppWindow.h"
 #include "cache/DatabaseManager.h"
 #include "diagnostics/Diagnostics.h"
@@ -676,7 +677,9 @@ int main(int argc, char **argv)
             api->setAcceptLanguage(loc->bcp47Locale());
         });
     }
+    auto router = std::make_unique<JellyfinNative::RouterController>();
     window.rootContext()->setContextProperty(QStringLiteral("appController"), controller.get());
+    window.rootContext()->setContextProperty(QStringLiteral("router"), router.get());
     window.rootContext()->setContextProperty(QStringLiteral("nativeWindow"), &window);
     window.rootContext()->setContextProperty(QStringLiteral("i18n"), localization.get());
 #ifdef JELLYFIN_NATIVE_WEBOS

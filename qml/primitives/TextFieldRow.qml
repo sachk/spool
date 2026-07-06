@@ -82,12 +82,14 @@ T.Control {
         Keys.priority: Keys.BeforeItem
         Keys.onPressed: (event) => {
             if (InputKeys.isBackEvent(event, false)) {
+                Qt.inputMethod.hide()
                 row.focusRow()
                 event.accepted = true
                 return
             }
-            if (event.key === Qt.Key_Up || event.key === Qt.Key_Down
-                || event.key === Qt.Key_Tab || event.key === Qt.Key_Backtab) {
+            if (!Qt.inputMethod.visible
+                    && (event.key === Qt.Key_Up || event.key === Qt.Key_Down
+                        || event.key === Qt.Key_Tab || event.key === Qt.Key_Backtab)) {
                 row.focusRow()
                 event.accepted = false
                 return

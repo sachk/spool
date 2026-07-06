@@ -45,12 +45,6 @@ public:
                          const QJsonObject &payload);
     void invalidateHomePayloads();
 
-    bool loadNightModeEnabled();
-    void saveNightModeEnabled(bool enabled);
-    int loadAudioDelayMs();
-    void saveAudioDelayMs(int delayMs);
-    QString loadAudioOutputMode();
-    void saveAudioOutputMode(const QString &mode);
     QString loadSetting(const QString &key, const QString &defaultValue = {});
     void saveSetting(const QString &key, const QString &value);
 

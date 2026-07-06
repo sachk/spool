@@ -192,12 +192,18 @@ qt_add_executable(jellyfin-native
     src/app/MemoryBudget.h
     src/app/NavigationState.cpp
     src/app/NavigationState.h
+    src/app/RouterController.cpp
+    src/app/RouterController.h
     src/app/NativeAppWindow.h
     src/app/NativeAppWindowCommon.cpp
     src/app/QuickConnectController.cpp
     src/app/QuickConnectController.h
     src/app/SettingsController.cpp
     src/app/SettingsController.h
+    src/app/SettingsSchema.cpp
+    src/app/SettingsSchema.h
+    src/app/SearchController.cpp
+    src/app/SearchController.h
     src/app/SessionController.cpp
     src/app/SessionController.h
     src/app/SyncPlayController.cpp
@@ -304,11 +310,9 @@ qt_add_qml_module(jellyfin-native
         qml/pages/SearchPage.qml
         qml/pages/SettingsPage.qml
         qml/primitives/ActionButton.qml
-        qml/primitives/AudioDelayRow.qml
         qml/primitives/AppText.qml
         qml/primitives/EmptyPlaceholder.qml
         qml/primitives/FastWheelHandler.qml
-        qml/primitives/FocusFrame.qml
         qml/primitives/HomeHorizontalRow.qml
         qml/primitives/IconButton.qml
         qml/primitives/ImageCard.qml
@@ -319,9 +323,11 @@ qt_add_qml_module(jellyfin-native
         qml/primitives/MediaPosterScrollerRow.qml
         qml/primitives/MetadataChip.qml
         qml/primitives/MonoText.qml
+        qml/primitives/NavGrid.qml
+        qml/primitives/NavList.qml
+        qml/primitives/NavZone.qml
         qml/primitives/MaterialIcon.qml
         qml/primitives/PersonScrollerRow.qml
-        qml/primitives/PosterCard.qml
         qml/primitives/SectionHeader.qml
         qml/primitives/SelectRow.qml
         qml/primitives/SettingRow.qml
@@ -507,6 +513,30 @@ if(BUILD_TESTING AND NOT CMAKE_CROSSCOMPILING)
     )
     target_link_libraries(navigation-state-tests PRIVATE Qt6::Core)
     add_test(NAME navigation-state COMMAND navigation-state-tests)
+
+    add_executable(settings-schema-tests
+        tests/app/SettingsSchemaTest.cpp
+        src/app/SettingsSchema.cpp
+        src/app/SettingsSchema.h
+        src/common/JellyfinTypes.cpp
+        src/common/JellyfinTypes.h
+    )
+    target_include_directories(settings-schema-tests PRIVATE
+        "${CMAKE_CURRENT_SOURCE_DIR}/src"
+    )
+    target_link_libraries(settings-schema-tests PRIVATE Qt6::Core)
+    add_test(NAME settings-schema COMMAND settings-schema-tests)
+
+    add_executable(router-controller-tests
+        tests/app/RouterControllerTest.cpp
+        src/app/RouterController.cpp
+        src/app/RouterController.h
+    )
+    target_include_directories(router-controller-tests PRIVATE
+        "${CMAKE_CURRENT_SOURCE_DIR}/src"
+    )
+    target_link_libraries(router-controller-tests PRIVATE Qt6::Core)
+    add_test(NAME router-controller COMMAND router-controller-tests)
 
     add_executable(library-query-tests
         tests/app/LibraryQueryTest.cpp

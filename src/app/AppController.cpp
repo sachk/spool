@@ -13,10 +13,10 @@
 #include "LibraryPrefetchController.h"
 #include "QuickConnectController.h"
 #include "SessionController.h"
+#include "SearchController.h"
 #include "SettingsController.h"
 #include "UserItemStateController.h"
 
-#include <QCoreApplication>
 #include <QDebug>
 #include <QJsonArray>
 #include <QPixmapCache>
@@ -61,8 +61,9 @@ AppController::AppController(DatabaseManager *database,
     m_currentItems = new CurrentItemsController(m_prefetch, this);
     m_home = new HomeModelController(api, m_prefetch, this);
     m_content = new ContentModelController(api, m_prefetch, this);
+    m_search = new SearchController(api, m_prefetch, this);
     m_itemState =
-        new UserItemStateController(m_currentItems, m_home, m_content, this);
+        new UserItemStateController(m_currentItems, m_home, m_content, m_search, this);
     m_prefetch->configureImagePrefetch(
         database->loadSetting(QStringLiteral("network/imagePrefetchAhead"),
                               QStringLiteral("16")).toInt(),
@@ -71,10 +72,6 @@ AppController::AppController(DatabaseManager *database,
     connect(m_api, &JellyfinApiFacade::authenticationExpired,
             m_session, &SessionController::expireSession);
     connect(m_syncPlay, &SyncPlayController::errorText, this, &AppController::setErrorText);
-    connect(m_content, &ContentModelController::searchChanged,
-            this, &AppController::searchChanged);
-    connect(m_content, &ContentModelController::searchSuggestionsChanged,
-            this, &AppController::searchSuggestionsChanged);
     connect(m_content, &ContentModelController::detailRowsChanged,
             this, &AppController::detailRowsChanged);
     connect(m_content, &ContentModelController::detailItemChanged,
@@ -82,6 +79,8 @@ AppController::AppController(DatabaseManager *database,
     connect(m_content, &ContentModelController::personItemsChanged,
             this, &AppController::personItemsChanged);
     connect(m_content, &ContentModelController::errorOccurred,
+            this, &AppController::setErrorText);
+    connect(m_search, &SearchController::errorOccurred,
             this, &AppController::setErrorText);
     connect(m_itemState, &UserItemStateController::favoriteChanged,
             this, &AppController::itemFavoriteChanged);
@@ -227,20 +226,6 @@ QVariantList AppController::latestLibraryRows() const
     return m_home->latestLibraryRows();
 }
 
-MovieGridModel *AppController::searchResults()
-{
-    return m_content->searchResults();
-}
-
-MovieGridModel *AppController::searchSuggestions()
-{
-    return m_content->searchSuggestions();
-}
-
-bool AppController::searchSuggestionsBusy() const
-{
-    return m_content->searchSuggestionsBusy();
-}
 
 bool AppController::currentItemsLoadingMore() const
 {
@@ -287,14 +272,10 @@ bool AppController::personItemsBusy() const
     return m_content->personItemsBusy();
 }
 
-bool AppController::searchBusy() const
-{
-    return m_content->searchBusy();
-}
 
-QString AppController::searchQuery() const
+SearchController *AppController::searchController()
 {
-    return m_content->searchQuery();
+    return m_search;
 }
 
 SyncPlayController *AppController::syncPlay() { return m_syncPlay; }
@@ -408,6 +389,7 @@ void AppController::resetApplicationState()
     m_currentItems->clear();
     m_home->reset();
     m_content->reset();
+    m_search->reset();
     m_activePlaybackItem = {};
     m_libraryLoadGeneration.invalidate();
     const bool pageWasLogin = page() == QStringLiteral("login");
@@ -566,29 +548,15 @@ void AppController::openSeasonById(const QString &seriesId, const QString &seaso
     openSeason(season);
 }
 
-void AppController::search(const QString &query)
-{
-    m_content->search(query);
-}
-
-void AppController::clearSearch()
-{
-    m_content->clearSearch();
-}
-
-void AppController::loadSearchSuggestions()
-{
-    m_content->loadSearchSuggestions();
-}
 
 void AppController::playSuggestionItem(int index, bool fromStart)
 {
-    playOrOpen(m_content->suggestionAt(index), fromStart);
+    playOrOpen(m_search->suggestionItemAt(index), fromStart);
 }
 
 void AppController::playSearchResult(int index, bool fromStart)
 {
-    playOrOpen(m_content->searchResultAt(index), fromStart);
+    playOrOpen(m_search->resultItemAt(index), fromStart);
 }
 
 void AppController::maybeLoadMoreCurrentItems(int visibleIndex)
@@ -885,38 +853,6 @@ void AppController::playMediaItem(const MovieItem &item, bool fromStart)
         });
 }
 
-void AppController::back()
-{
-    qInfo() << "app: back pressed, page=" << page();
-
-    if (m_player->visible()) {
-        m_player->stop();
-        return;
-    }
-
-    if (page() == QStringLiteral("movies")) {
-        if (currentViewKind() == QStringLiteral("episodes")) {
-            MovieItem series;
-            series.id = m_navigation.seriesId();
-            series.title = m_navigation.seriesName();
-            series.itemType = QStringLiteral("Series");
-            series.playable = false;
-            openSeries(series);
-            return;
-        }
-        qInfo() << "app: back from movies to libraries";
-        setPage(QStringLiteral("libraries"));
-        return;
-    }
-
-    if (page() == QStringLiteral("libraries")) {
-        qInfo() << "app: back ignored on home";
-        return;
-    }
-
-    qInfo() << "app: quitting";
-    QTimer::singleShot(0, QCoreApplication::instance(), &QCoreApplication::quit);
-}
 
 void AppController::onMemoryPressure(const QString &level)
 {

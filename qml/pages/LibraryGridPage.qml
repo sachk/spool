@@ -598,36 +598,9 @@ FocusScope {
         const card = currentCard()
         if (!acceptKey && card && card.handleNavigationKey && card.handleNavigationKey(key))
             return true
-        if (key === Qt.Key_Left) {
-            if (grid.currentIndex % columns !== 0)
-                grid.currentIndex = Math.max(0, grid.currentIndex - 1)
+        if (acceptKey && card && card.handleAcceptReleased && card.handleAcceptReleased(key))
             return true
-        }
-        if (key === Qt.Key_Right) {
-            grid.currentIndex = Math.min(grid.count - 1, grid.currentIndex + 1)
-            return true
-        }
-        if (key === Qt.Key_Up) {
-            if (grid.currentIndex < columns) {
-                focusToolbar()
-                return true
-            }
-            grid.currentIndex = Math.max(0, grid.currentIndex - columns)
-            return true
-        }
-        if (key === Qt.Key_Down) {
-            grid.currentIndex = Math.min(grid.count - 1, grid.currentIndex + columns)
-            return true
-        }
-        if (acceptKey) {
-            if (card && card.handleAcceptReleased && card.handleAcceptReleased(key))
-                return true
-            if (card && card.handleNavigationKey && card.handleNavigationKey(key))
-                return true
-            activateCurrent()
-            return true
-        }
-        return false
+        return grid.handleNavigationKey(key)
     }
     ColumnLayout {
         anchors.fill: parent
@@ -729,7 +702,7 @@ FocusScope {
             }
         }
 
-        GridView {
+        NavGrid {
             id: grid
             Layout.fillWidth: true
             Layout.fillHeight: true
@@ -761,6 +734,8 @@ FocusScope {
             }
 
             FastWheelHandler { flickable: grid }
+            onEdgeUp: root.focusToolbar()
+            onAccepted: root.activateCurrent()
 
             function restoreIndex() {
                 currentIndex = count > 0 ? Math.max(0, Math.min(shell.lastGridIndex, count - 1)) : -1
@@ -893,19 +868,6 @@ FocusScope {
                     onPlayedToggled: (played) => appController.setPlayed(gridDelegate.movieId || "", played)
                     onMediaInfoRequested: shell.openMediaInfo(gridDelegate.snapshot())
                 }
-            }
-            Keys.onReleased: (event) => {
-                if (event.key === Qt.Key_Up && currentIndex < columns) { shell.focusNavBar(); event.accepted = true }
-                else if (InputKeys.isAccept(event.key)) {
-                    const card = root.currentCard()
-                    if (card && card.handleAcceptReleased && card.handleAcceptReleased(event.key)) {
-                        event.accepted = true
-                        return
-                    }
-                    root.activateCurrent()
-                    event.accepted = true
-                }
-                else if (event.key === Qt.Key_M) { shell.lastGridIndex = currentIndex; shell.openMediaInfo(appController.movies.get(currentIndex)); event.accepted = true }
             }
         }
     }

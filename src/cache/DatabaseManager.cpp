@@ -450,41 +450,6 @@ void DatabaseManager::invalidateHomePayloads()
     invokeOnWorkerAsync([this]() { m_worker->clearHomePayloads(); });
 }
 
-bool DatabaseManager::loadNightModeEnabled()
-{
-    return invokeOnWorker([this]() { return m_worker->value(QStringLiteral("settings/nightMode")); }).toBool();
-}
-
-void DatabaseManager::saveNightModeEnabled(bool enabled)
-{
-    invokeOnWorkerAsync([this, enabled]() {
-        m_worker->setValue(QStringLiteral("settings/nightMode"), enabled);
-    });
-}
-
-int DatabaseManager::loadAudioDelayMs()
-{
-    return invokeOnWorker([this]() { return m_worker->value(QStringLiteral("settings/audioDelayMs")); }).toInt();
-}
-
-void DatabaseManager::saveAudioDelayMs(int delayMs)
-{
-    invokeOnWorkerAsync([this, delayMs]() {
-        m_worker->setValue(QStringLiteral("settings/audioDelayMs"), delayMs);
-    });
-}
-
-QString DatabaseManager::loadAudioOutputMode()
-{
-    return invokeOnWorker([this]() { return m_worker->value(QStringLiteral("settings/audioOutputMode")); }).toString();
-}
-
-void DatabaseManager::saveAudioOutputMode(const QString &mode)
-{
-    invokeOnWorkerAsync([this, mode]() {
-        m_worker->setValue(QStringLiteral("settings/audioOutputMode"), mode);
-    });
-}
 
 QString DatabaseManager::loadSetting(const QString &key, const QString &defaultValue)
 {

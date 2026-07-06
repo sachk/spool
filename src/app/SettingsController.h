@@ -5,12 +5,15 @@
 #include <QJsonObject>
 #include <QObject>
 #include <QStringList>
+#include <QVariantList>
+#include <QVariantMap>
 
 namespace JellyfinNative {
 
 class DatabaseManager;
 class JellyfinApiFacade;
 class PlayerController;
+struct SettingSpec;
 
 class SettingsController final : public QObject {
   Q_OBJECT
@@ -38,40 +41,27 @@ class SettingsController final : public QObject {
   Q_PROPERTY(QString yellowButtonAction READ yellowButtonAction WRITE setYellowButtonAction NOTIFY buttonRemapChanged)
   Q_PROPERTY(QString blueButtonAction READ blueButtonAction WRITE setBlueButtonAction NOTIFY buttonRemapChanged)
   Q_PROPERTY(QStringList availableButtonActions READ availableButtonActions CONSTANT)
+  Q_PROPERTY(QVariantList settingsSchema READ settingsSchema CONSTANT)
+  Q_PROPERTY(QVariantMap values READ values NOTIFY settingsValuesChanged)
 
 public:
   SettingsController(DatabaseManager *database, JellyfinApiFacade *api,
                      PlayerController *player, QObject *parent = nullptr);
 
-  bool nightModeEnabled() const;
-  bool toneMappingVisualizationEnabled() const;
-  int maxStreamingBitrateMbps() const;
-  bool preferRemux() const;
-  int audioDelayMs() const;
-  QString audioOutputMode() const;
-  QStringList subtitleLanguageOptions() const;
-  int subtitleLanguageIndex() const;
-  QString subtitleMode() const;
-  QString subtitleBurnIn() const;
-  bool subtitleRenderPgs() const;
-  bool subtitleAlwaysBurnIn() const;
-  QString subtitleStyling() const;
-  QString subtitleTextSize() const;
-  QString subtitleTextWeight() const;
-  QString subtitleFont() const;
-  QString subtitleTextColor() const;
-  QString subtitleDropShadow() const;
-  int subtitleVerticalPosition() const;
-  QString redButtonAction() const;
-  QString greenButtonAction() const;
-  QString yellowButtonAction() const;
-  QString blueButtonAction() const;
-  QStringList availableButtonActions() const;
+  bool nightModeEnabled() const; bool toneMappingVisualizationEnabled() const; bool preferRemux() const; bool subtitleRenderPgs() const; bool subtitleAlwaysBurnIn() const;
+  int maxStreamingBitrateMbps() const; int audioDelayMs() const; int subtitleLanguageIndex() const; int subtitleVerticalPosition() const;
+  QString audioOutputMode() const; QString subtitleMode() const; QString subtitleBurnIn() const; QString subtitleStyling() const; QString subtitleTextSize() const;
+  QString subtitleTextWeight() const; QString subtitleFont() const; QString subtitleTextColor() const; QString subtitleDropShadow() const;
+  QString redButtonAction() const; QString greenButtonAction() const; QString yellowButtonAction() const; QString blueButtonAction() const;
+  QStringList subtitleLanguageOptions() const; QStringList availableButtonActions() const;
+  QVariantList settingsSchema() const; QVariantMap values() const;
+  Q_INVOKABLE QVariant value(const QString &key) const;
   Q_INVOKABLE QString buttonActionLabel(const QString &action) const;
 
   void loadLocal();
   void loadRemote();
   void clearRemote();
+  Q_INVOKABLE void setValue(const QString &key, const QVariant &value);
   Q_INVOKABLE void toggleNightMode();
   Q_INVOKABLE void setNightModeEnabled(bool enabled);
   Q_INVOKABLE void setToneMappingVisualizationEnabled(bool enabled);
@@ -104,17 +94,22 @@ signals:
   void audioOutputModeChanged();
   void subtitleSettingsChanged();
   void buttonRemapChanged();
+  void settingChanged(const QString &key);
+  void settingsValuesChanged();
   void errorOccurred(const QString &message);
 
 private:
-  void loadSubtitlePreferences();
-  void saveSubtitlePreferences();
+  bool setSchemaValue(const SettingSpec &spec, const QVariant &value, bool persist, bool apply, bool notify);
+  void applySchemaValue(const SettingSpec &spec, const QVariant &value, bool apply);
+  void emitSchemaSignals(const SettingSpec &spec);
+  void applyPlaybackPreferences();
   void saveSubtitleUserConfiguration();
   void applySubtitlePreferencesToPlayer();
 
   DatabaseManager *m_database = nullptr;
   JellyfinApiFacade *m_api = nullptr;
   PlayerController *m_player = nullptr;
+  QVariantMap m_values;
   bool m_nightModeEnabled = false;
   bool m_toneMappingVisualizationEnabled = false;
   int m_maxStreamingBitrateMbps = 120;
