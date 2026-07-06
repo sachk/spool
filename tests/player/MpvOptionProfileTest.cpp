@@ -42,6 +42,15 @@ int main(int argc, char **argv)
     require(valueFor(desktop, "log-file") == "/tmp/mpv.log",
             "profile should carry the configured log path");
 
+    const auto customDemuxerBudget = MpvOptionProfile::startupOptions(
+        MpvOptionProfile::Platform::Desktop, QStringLiteral("alsa"),
+        QByteArrayLiteral("/tmp/mpv.log"), QByteArrayLiteral("123456789"),
+        QByteArrayLiteral("9876543"));
+    require(valueFor(customDemuxerBudget, "demuxer-max-bytes") == "123456789",
+            "custom demuxer max byte budget was not propagated");
+    require(valueFor(customDemuxerBudget, "demuxer-max-back-bytes") == "9876543",
+            "custom demuxer back byte budget was not propagated");
+
     const auto webOSPcm = MpvOptionProfile::startupOptions(
         MpvOptionProfile::Platform::WebOS, QStringLiteral("starfish-pcm"),
         QByteArrayLiteral("/tmp/mpv.log"));

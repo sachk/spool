@@ -38,7 +38,7 @@ public:
         if (!query.exec(QStringLiteral("PRAGMA user_version")) || !query.next())
             return false;
         const int existingVersion = query.value(0).toInt();
-        if (existingVersion > 2) {
+        if (existingVersion > 3) {
             qWarning() << "database: unsupported schema version"
                        << existingVersion;
             return false;
@@ -66,7 +66,14 @@ public:
             !query.exec(QStringLiteral(
                 "CREATE INDEX IF NOT EXISTS cache_entries_access "
                 "ON cache_entries(accessed_at)")) ||
-            !query.exec(QStringLiteral("PRAGMA user_version = 2"))) {
+            !query.exec(QStringLiteral(
+                "CREATE TABLE IF NOT EXISTS home_payload ("
+                "key TEXT PRIMARY KEY,"
+                "schema_version INTEGER NOT NULL,"
+                "payload BLOB NOT NULL,"
+                "saved_at INTEGER NOT NULL"
+                ")")) ||
+            !query.exec(QStringLiteral("PRAGMA user_version = 3"))) {
             qWarning() << "database: schema migration failed"
                        << query.lastError().text();
             return false;
@@ -93,6 +100,46 @@ public:
         query.addBindValue(key);
         query.addBindValue(value);
         query.exec();
+    }
+
+    QJsonObject homePayload(const QString &key, int schemaVersion)
+    {
+        QSqlQuery query(m_database);
+        query.prepare(QStringLiteral(
+            "SELECT payload FROM home_payload "
+            "WHERE key = ? AND schema_version = ?"));
+        query.addBindValue(key);
+        query.addBindValue(schemaVersion);
+        if (!query.exec() || !query.next())
+            return {};
+        return QJsonDocument::fromJson(query.value(0).toByteArray()).object();
+    }
+
+    void setHomePayload(const QString &key, int schemaVersion,
+                        const QJsonObject &payload)
+    {
+        const QByteArray encoded = QJsonDocument(payload).toJson(QJsonDocument::Compact);
+        if (encoded.isEmpty() || key.isEmpty())
+            return;
+        QSqlQuery query(m_database);
+        query.prepare(QStringLiteral(
+            "INSERT INTO home_payload(key, schema_version, payload, saved_at) "
+            "VALUES(?, ?, ?, ?) "
+            "ON CONFLICT(key) DO UPDATE SET "
+            "schema_version = excluded.schema_version, "
+            "payload = excluded.payload, saved_at = excluded.saved_at"));
+        query.addBindValue(key);
+        query.addBindValue(schemaVersion);
+        query.addBindValue(encoded);
+        query.addBindValue(QDateTime::currentMSecsSinceEpoch());
+        if (!query.exec())
+            qWarning() << "database: home payload write failed" << query.lastError().text();
+    }
+
+    void clearHomePayloads()
+    {
+        QSqlQuery query(m_database);
+        query.exec(QStringLiteral("DELETE FROM home_payload"));
     }
 
     int schemaVersion()
@@ -376,6 +423,31 @@ void DatabaseManager::saveDiscoveredServers(const QJsonArray &servers)
     saveCacheEntry(QStringLiteral("discovery"), QStringLiteral("servers"),
                    encoded, ttlMs);
     evictCacheEntries(512);
+}
+
+QJsonObject DatabaseManager::loadHomePayload(const QString &key,
+                                             int schemaVersion)
+{
+    if (key.isEmpty())
+        return {};
+    return invokeOnWorker([this, key, schemaVersion]() {
+        return m_worker->homePayload(key, schemaVersion);
+    }).toJsonObject();
+}
+
+void DatabaseManager::saveHomePayload(const QString &key, int schemaVersion,
+                                      const QJsonObject &payload)
+{
+    if (key.isEmpty() || payload.isEmpty())
+        return;
+    invokeOnWorkerAsync([this, key, schemaVersion, payload]() {
+        m_worker->setHomePayload(key, schemaVersion, payload);
+    });
+}
+
+void DatabaseManager::invalidateHomePayloads()
+{
+    invokeOnWorkerAsync([this]() { m_worker->clearHomePayloads(); });
 }
 
 bool DatabaseManager::loadNightModeEnabled()

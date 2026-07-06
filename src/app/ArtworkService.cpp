@@ -380,6 +380,12 @@ void ArtworkByteCache::insert(const QString &key, QByteArray bytes)
     m_cache.insert(key, stored, cost);
 }
 
+void ArtworkByteCache::clear()
+{
+    QMutexLocker locker(&m_mutex);
+    m_cache.clear();
+}
+
 ArtworkService::ArtworkService(QString cacheDirectory, qint64 networkCacheBytes,
                                int byteCacheBytes, int decodeThreads,
                                QObject *parent)
@@ -439,6 +445,15 @@ void ArtworkService::configurePrefetch(int maxConcurrent)
     invokeWorker([maxConcurrent](ArtworkFetchWorker *worker) {
         worker->setPrefetchConcurrency(maxConcurrent);
     });
+}
+
+void ArtworkService::releaseMemory(bool aggressive)
+{
+    cancelPrefetches();
+    if (m_byteCache)
+        m_byteCache->clear();
+    if (aggressive)
+        m_decodePool.clear();
 }
 
 int ArtworkService::requestImage(QUrl url, QSize requestedSize,

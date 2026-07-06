@@ -188,6 +188,8 @@ qt_add_executable(jellyfin-native
     src/app/LibraryQuery.h
     src/app/LibraryPrefetchController.cpp
     src/app/LibraryPrefetchController.h
+    src/app/MemoryBudget.cpp
+    src/app/MemoryBudget.h
     src/app/NavigationState.cpp
     src/app/NavigationState.h
     src/app/NativeAppWindow.h

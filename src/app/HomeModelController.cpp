@@ -5,6 +5,7 @@
 #include "LibraryPrefetchController.h"
 #include "LibraryQuery.h"
 
+#include <QJsonArray>
 #include <QDebug>
 #include <QQmlEngine>
 #include <QStringList>
@@ -68,6 +69,24 @@ int latestLibraryLimit(const LibraryItem &library) {
   return 16;
 }
 
+QJsonArray movieArrayToJson(const std::vector<MovieItem> &items) {
+  QJsonArray array;
+  for (const MovieItem &item : items)
+    array.push_back(toJson(item));
+  return array;
+}
+
+std::vector<MovieItem> movieArrayFromJson(const QJsonArray &array) {
+  std::vector<MovieItem> items;
+  items.reserve(array.size());
+  for (const QJsonValue &value : array) {
+    MovieItem item = movieFromJson(value.toObject());
+    if (!item.id.isEmpty())
+      items.push_back(std::move(item));
+  }
+  return items;
+}
+
 } // namespace
 
 HomeModelController::HomeModelController(JellyfinApiFacade *api,
@@ -125,6 +144,42 @@ MovieItem HomeModelController::latestLibraryItemAt(int rowIndex,
   const MovieGridModel *model =
       m_latestLibrarySections[static_cast<size_t>(rowIndex)].model.get();
   return model ? model->movieAt(itemIndex) : MovieItem{};
+}
+
+bool HomeModelController::applyCachedPayload(const QJsonObject &payload) {
+  if (payload.isEmpty())
+    return false;
+
+  std::vector<PendingLatestLibrarySection> sections;
+  const QJsonArray latestRows = payload.value(QStringLiteral("latestRows")).toArray();
+  sections.reserve(latestRows.size());
+  for (const QJsonValue &value : latestRows) {
+    const QJsonObject row = value.toObject();
+    PendingLatestLibrarySection section;
+    section.order = row.value(QStringLiteral("order")).toInt();
+    section.library = libraryFromJson(row.value(QStringLiteral("library")).toObject());
+    section.items = movieArrayFromJson(row.value(QStringLiteral("items")).toArray());
+    if (!section.library.id.isEmpty() && !section.items.empty())
+      sections.push_back(std::move(section));
+  }
+
+  m_resumeItems.setMovies(movieArrayFromJson(payload.value(QStringLiteral("resumeItems")).toArray()));
+  m_nextUpItems.setMovies(movieArrayFromJson(payload.value(QStringLiteral("nextUpItems")).toArray()));
+  replaceLatestLibraryRows(std::move(sections));
+  emit latestLibraryRowsChanged();
+  return m_resumeItems.rowCount() > 0 || m_nextUpItems.rowCount() > 0 ||
+         !m_latestLibrarySections.empty();
+}
+
+QJsonObject HomeModelController::currentPayload() const {
+  std::vector<PendingLatestLibrarySection> sections;
+  sections.reserve(m_latestLibrarySections.size());
+  for (const LatestLibrarySection &section : m_latestLibrarySections) {
+    if (!section.model)
+      continue;
+    sections.push_back({section.order, section.library, section.model->movies()});
+  }
+  return payloadFromSections(m_resumeItems.movies(), m_nextUpItems.movies(), sections);
 }
 
 void HomeModelController::refresh(const std::vector<LibraryItem> &libraries) {
@@ -297,6 +352,9 @@ void HomeModelController::finishHomeRefresh(
   m_loaded = true;
   m_resumeItems.setMovies(refresh->resumeItems);
   m_nextUpItems.setMovies(refresh->nextUpItems);
+  emit homePayloadReady(payloadFromSections(refresh->resumeItems,
+                                            refresh->nextUpItems,
+                                            refresh->latestSections));
   replaceLatestLibraryRows(std::move(refresh->latestSections));
 
   m_prefetch->prefetchPosters(refresh->resumeItems, 0, 12,
@@ -332,6 +390,28 @@ void HomeModelController::replaceLatestLibraryRows(
     m_latestLibrarySections.push_back(
         {pending.order, pending.library, std::move(model)});
   }
+}
+
+QJsonObject HomeModelController::payloadFromSections(
+    const std::vector<MovieItem> &resumeItems,
+    const std::vector<MovieItem> &nextUpItems,
+    const std::vector<PendingLatestLibrarySection> &sections) const {
+  QJsonArray latestRows;
+  for (const PendingLatestLibrarySection &section : sections) {
+    if (section.library.id.isEmpty() || section.items.empty())
+      continue;
+    latestRows.push_back(QJsonObject{
+        {QStringLiteral("order"), section.order},
+        {QStringLiteral("library"), toJson(section.library)},
+        {QStringLiteral("items"), movieArrayToJson(section.items)},
+    });
+  }
+  return {
+      {QStringLiteral("schemaVersion"), 1},
+      {QStringLiteral("resumeItems"), movieArrayToJson(resumeItems)},
+      {QStringLiteral("nextUpItems"), movieArrayToJson(nextUpItems)},
+      {QStringLiteral("latestRows"), latestRows},
+  };
 }
 
 } // namespace JellyfinNative

@@ -13,7 +13,8 @@ FocusScope {
     signal navigate(string route)
     signal contentRequested()
 
-    readonly property alias syncPlayMenuOpen: syncMenu.menuOpen
+    readonly property bool syncPlayMenuOpen: syncMenuLoader.item ? syncMenuLoader.item.menuOpen : false
+    property bool syncPlayMenuLoaded: false
     readonly property var syncPlay: appController ? appController.syncPlay : null
     readonly property bool syncActive: syncPlay ? syncPlay.enabled : false
     readonly property var syncGroups: syncPlay ? syncPlay.groups : []
@@ -55,20 +56,30 @@ FocusScope {
         if (first) first.forceButtonFocus()
     }
 
+    function syncMenu() {
+        syncPlayMenuLoaded = true
+        return syncMenuLoader.item
+    }
+
     function openSyncMenu() {
         if (syncPlay)
             syncPlay.refreshGroups()
-        syncMenu.openMenu()
+        const menu = syncMenu()
+        if (menu)
+            menu.openMenu()
     }
 
     function closeSyncPlayMenu() {
-        syncMenu.closeMenu()
+        const menu = syncMenuLoader.item
+        if (menu)
+            menu.closeMenu()
         syncButton.forceActiveFocus()
     }
 
     function handleNavigationKey(key) {
-        if (syncMenu.menuOpen)
-            return syncMenu.handleNavigationKey(key)
+        const menu = syncMenuLoader.item
+        if (menu && menu.menuOpen)
+            return menu.handleNavigationKey(key)
         if (key === Qt.Key_Down) {
             contentRequested()
             return true
@@ -206,14 +217,17 @@ FocusScope {
         }
     }
 
-    SyncPlayMenu {
-        id: syncMenu
+    Loader {
+        id: syncMenuLoader
         width: 320
         anchors.top: parent.bottom
         anchors.right: parent.right
         anchors.topMargin: 6
         anchors.rightMargin: 14
         z: 50
-        onRequestClose: root.closeSyncPlayMenu()
+        active: root.syncPlayMenuLoaded
+        sourceComponent: SyncPlayMenu {
+            onRequestClose: root.closeSyncPlayMenu()
+        }
     }
 }

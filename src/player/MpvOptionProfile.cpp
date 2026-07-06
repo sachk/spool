@@ -88,7 +88,9 @@ SubtitleShadowOptions subtitleShadowOptions(const QString &value) {
 
 std::vector<MpvOption> MpvOptionProfile::startupOptions(
     Platform platform, const QString &audioOutputMode,
-    const QByteArray &logPath)
+    const QByteArray &logPath,
+    const QByteArray &demuxerMaxBytes,
+    const QByteArray &demuxerMaxBackBytes)
 {
     const bool webOS = platform == Platform::WebOS;
     const bool starfishPcm = audioOutputMode == QStringLiteral("starfish") ||
@@ -105,8 +107,8 @@ std::vector<MpvOption> MpvOptionProfile::startupOptions(
         {"demuxer-lavf-probesize", "1048576"},
         {"cache", "yes"},
         {"cache-pause", "no"},
-        {"demuxer-max-bytes", "64M"},
-        {"demuxer-max-back-bytes", "32M"},
+        {"demuxer-max-bytes", demuxerMaxBytes},
+        {"demuxer-max-back-bytes", demuxerMaxBackBytes},
         {"initial-audio-sync", "no"},
         {"force-window", "no"},
     };

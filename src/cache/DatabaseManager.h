@@ -1,6 +1,7 @@
 #pragma once
 
 #include <QJsonArray>
+#include <QJsonObject>
 #include <QByteArray>
 #include <QObject>
 #include <QString>
@@ -39,6 +40,10 @@ public:
 
     QJsonArray loadDiscoveredServers();
     void saveDiscoveredServers(const QJsonArray &servers);
+    QJsonObject loadHomePayload(const QString &key, int schemaVersion);
+    void saveHomePayload(const QString &key, int schemaVersion,
+                         const QJsonObject &payload);
+    void invalidateHomePayloads();
 
     bool loadNightModeEnabled();
     void saveNightModeEnabled(bool enabled);

@@ -29,9 +29,13 @@ FocusScope {
             focusIndex: 0
         })
     property bool shortcutOverlayVisible: false
+    property bool shortcutOverlayLoaded: false
     property bool diagnosticsVisible: false
+    property bool diagnosticsLoaded: false
     property bool mediaInfoVisible: false
-    readonly property bool itemMenuOpen: itemContextMenu.opened
+    property bool mediaInfoLoaded: false
+    property bool itemMenuLoaded: false
+    readonly property bool itemMenuOpen: itemContextMenuLoader.item ? itemContextMenuLoader.item.opened : false
     property var mediaInfoItem: ({})
     property var personItem: ({})
     property bool textInputActive: Qt.inputMethod.visible
@@ -43,6 +47,20 @@ FocusScope {
     readonly property string errorTextValue: appController ? appController.errorText : ""
     readonly property bool busyValue: appController ? appController.busy : false
     readonly property string busyTextValue: appController ? appController.busyText : ""
+
+    Connections {
+        target: appController
+        function onAggressiveMemoryPressure() {
+            if (!root.shortcutOverlayVisible)
+                root.shortcutOverlayLoaded = false
+            if (!root.diagnosticsVisible)
+                root.diagnosticsLoaded = false
+            if (!root.mediaInfoVisible)
+                root.mediaInfoLoaded = false
+            if (!root.itemMenuOpen)
+                root.itemMenuLoaded = false
+        }
+    }
     function controllerRoute() {
         if (!appController)
             return "home";
@@ -196,8 +214,8 @@ FocusScope {
             diagnosticsVisible = false;
             return true;
         }
-        if (itemMenuOpen) {
-            itemContextMenu.closeMenu();
+        if (itemMenuOpen && itemContextMenuLoader.item) {
+            itemContextMenuLoader.item.closeMenu();
             return true;
         }
         if (mediaInfoVisible) {
@@ -252,13 +270,17 @@ FocusScope {
     }
 
     function openItemMenu(item, anchorItem) {
-        return itemContextMenu.openForItem(item || ({}), anchorItem || null);
+        itemMenuLoaded = true;
+        return itemContextMenuLoader.item
+                ? itemContextMenuLoader.item.openForItem(item || ({}), anchorItem || null)
+                : false;
     }
 
     function openMediaInfo(item) {
         mediaInfoItem = item || ({});
         if (appController && mediaInfoItem.movieId)
             appController.loadItemDetail(mediaInfoItem.movieId);
+        mediaInfoLoaded = true;
         mediaInfoVisible = true;
     }
 
@@ -344,10 +366,12 @@ FocusScope {
         if (!released || textInputActive)
             return false;
         if (event.modifiers & Qt.ControlModifier && event.key === Qt.Key_D) {
+            diagnosticsLoaded = true;
             diagnosticsVisible = !diagnosticsVisible;
             return true;
         }
         if (event.key === Qt.Key_Question) {
+            shortcutOverlayLoaded = true;
             shortcutOverlayVisible = !shortcutOverlayVisible;
             return true;
         }
@@ -402,13 +426,13 @@ FocusScope {
     Keys.priority: Keys.BeforeItem
 
     Keys.onPressed: event => {
-        if (itemMenuOpen) {
-            itemContextMenu.handlePressed(event);
+        if (itemMenuOpen && itemContextMenuLoader.item) {
+            itemContextMenuLoader.item.handlePressed(event);
             event.accepted = true;
             return;
         }
-        if (mediaInfoVisible) {
-            mediaInfoOverlay.handlePressed(event);
+        if (mediaInfoVisible && mediaInfoOverlayLoader.item) {
+            mediaInfoOverlayLoader.item.handlePressed(event);
             event.accepted = true;
             return;
         }
@@ -441,13 +465,13 @@ FocusScope {
             event.accepted = true;
             return;
         }
-        if (itemMenuOpen) {
-            itemContextMenu.handleReleased(event);
+        if (itemMenuOpen && itemContextMenuLoader.item) {
+            itemContextMenuLoader.item.handleReleased(event);
             event.accepted = true;
             return;
         }
-        if (mediaInfoVisible) {
-            mediaInfoOverlay.handleReleased(event);
+        if (mediaInfoVisible && mediaInfoOverlayLoader.item) {
+            mediaInfoOverlayLoader.item.handleReleased(event);
             event.accepted = true;
             return;
         }
@@ -585,61 +609,75 @@ FocusScope {
         }
     }
 
-    ItemContextMenu {
-        id: itemContextMenu
+    Loader {
+        id: itemContextMenuLoader
         anchors.fill: parent
         z: 58
-        onPlayedToggled: (itemId, played) => {
-            if (appController)
-                appController.setPlayed(itemId, played)
+        active: root.itemMenuLoaded
+        sourceComponent: ItemContextMenu {
+            onPlayedToggled: (itemId, played) => {
+                if (appController)
+                    appController.setPlayed(itemId, played)
+            }
+            onFavoriteToggled: (itemId, favorite) => {
+                if (appController)
+                    appController.setFavorite(itemId, favorite)
+            }
+            onClearProgressRequested: (itemId) => {
+                if (appController)
+                    appController.clearProgress(itemId)
+            }
+            onOpenSeriesRequested: (seriesId, seriesName) => {
+                if (!appController || seriesId.length <= 0)
+                    return
+                root.replaceRoute("libraryGrid")
+                appController.openSeriesById(seriesId, seriesName)
+            }
+            onOpenSeasonRequested: (seriesId, seasonId, seasonName) => {
+                if (!appController || seriesId.length <= 0)
+                    return
+                root.replaceRoute("libraryGrid")
+                appController.openSeasonById(seriesId, seasonId, seasonName)
+            }
+            onMediaInfoRequested: (snapshot) => root.openMediaInfo(snapshot)
         }
-        onFavoriteToggled: (itemId, favorite) => {
-            if (appController)
-                appController.setFavorite(itemId, favorite)
-        }
-        onClearProgressRequested: (itemId) => {
-            if (appController)
-                appController.clearProgress(itemId)
-        }
-        onOpenSeriesRequested: (seriesId, seriesName) => {
-            if (!appController || seriesId.length <= 0)
-                return
-            root.replaceRoute("libraryGrid")
-            appController.openSeriesById(seriesId, seriesName)
-        }
-        onOpenSeasonRequested: (seriesId, seasonId, seasonName) => {
-            if (!appController || seriesId.length <= 0)
-                return
-            root.replaceRoute("libraryGrid")
-            appController.openSeasonById(seriesId, seasonId, seasonName)
-        }
-        onMediaInfoRequested: (snapshot) => root.openMediaInfo(snapshot)
     }
 
-    MediaInfoOverlay {
-        id: mediaInfoOverlay
+    Loader {
+        id: mediaInfoOverlayLoader
         anchors.fill: parent
-        visible: root.mediaInfoVisible
-        item: visible ? (root.mediaInfoItem && Object.keys(root.mediaInfoItem).length > 0 ? root.mediaInfoItem : root.currentMediaItem()) : ({})
-        shell: root
         z: 59
-        onClosed: {
-            root.mediaInfoVisible = false;
-            root.mediaInfoItem = ({});
+        active: root.mediaInfoLoaded
+        sourceComponent: MediaInfoOverlay {
+            visible: root.mediaInfoVisible
+            item: visible ? (root.mediaInfoItem && Object.keys(root.mediaInfoItem).length > 0 ? root.mediaInfoItem : root.currentMediaItem()) : ({})
+            shell: root
+            onClosed: {
+                root.mediaInfoVisible = false;
+                root.mediaInfoItem = ({});
+            }
         }
     }
-    ShortcutOverlay {
+
+    Loader {
         anchors.fill: parent
-        visible: root.shortcutOverlayVisible
         z: 60
-        onClosed: root.shortcutOverlayVisible = false
+        active: root.shortcutOverlayLoaded
+        sourceComponent: ShortcutOverlay {
+            visible: root.shortcutOverlayVisible
+            onClosed: root.shortcutOverlayVisible = false
+        }
     }
-    DiagnosticsOverlay {
+
+    Loader {
         anchors.fill: parent
-        visible: root.diagnosticsVisible && !(root.hasPlayer && root.player.visible)
-        route: root.route
-        focusedItemId: root.itemIdFor(root.currentMediaItem())
         z: 61
+        active: root.diagnosticsLoaded
+        sourceComponent: DiagnosticsOverlay {
+            visible: root.diagnosticsVisible && !(root.hasPlayer && root.player.visible)
+            route: root.route
+            focusedItemId: root.itemIdFor(root.currentMediaItem())
+        }
     }
     ToastLayer {
         id: toast

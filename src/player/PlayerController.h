@@ -120,6 +120,7 @@ public:
     Q_INVOKABLE void setVolume(int volume);
     Q_INVOKABLE void adjustVolume(int delta);
     void setSubtitlePreferences(const JellyfinNative::SubtitlePreferences &preferences);
+    void setDemuxerBudget(const QByteArray &maxBytes, const QByteArray &maxBackBytes);
 
 signals:
     void visibleChanged();
@@ -197,6 +198,8 @@ private:
     std::atomic<int> m_audioDelayMs = 0;
     std::atomic<int> m_volume = 100;
     QString m_audioOutputMode = QStringLiteral("alsa");
+    QByteArray m_demuxerMaxBytes = QByteArrayLiteral("64M");
+    QByteArray m_demuxerMaxBackBytes = QByteArrayLiteral("32M");
     SubtitlePreferences m_subtitlePreferences;
     PlaybackPositionTracker m_positionTracker;
     PlaybackTimeline m_timeline;

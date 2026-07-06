@@ -30,7 +30,20 @@ int main(int argc, char **argv)
     DatabaseManager database;
     require(database.initialize(directory.filePath(QStringLiteral("cache.sqlite"))),
             "database should initialize");
-    require(database.schemaVersion() == 2, "schema should migrate to version 2");
+    require(database.schemaVersion() == 3, "schema should migrate to version 3");
+
+    const QJsonObject homePayload{
+        {QStringLiteral("title"), QStringLiteral("Continue Watching")},
+        {QStringLiteral("count"), 2},
+    };
+    database.saveHomePayload(QStringLiteral("server/user"), 1, homePayload);
+    require(database.loadHomePayload(QStringLiteral("server/user"), 1) == homePayload,
+            "home payload should load for matching schema");
+    require(database.loadHomePayload(QStringLiteral("server/user"), 2).isEmpty(),
+            "home payload should not load for a different schema");
+    database.invalidateHomePayloads();
+    require(database.loadHomePayload(QStringLiteral("server/user"), 1).isEmpty(),
+            "home payload invalidation should remove cached payloads");
 
     database.saveCacheEntry(QStringLiteral("test"), QStringLiteral("fresh"),
                             QByteArrayLiteral("value"), 5000);

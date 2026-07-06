@@ -3,6 +3,7 @@
 #include "app/ArtworkImageProvider.h"
 #include "app/CpuTopology.h"
 #include "app/LocalizationManager.h"
+#include "app/MemoryBudget.h"
 #include "app/NativeAppWindow.h"
 #include "cache/DatabaseManager.h"
 #include "diagnostics/Diagnostics.h"
@@ -77,23 +78,19 @@ constexpr auto kAppId = "com.sachk.tern";
 constexpr auto kAppVersion = JELLYFIN_VERSION;
 #ifdef JELLYFIN_NATIVE_WEBOS
 constexpr auto kAppLogPath = "/tmp/com.sachk.tern.log";
-constexpr qint64 kNetworkDiskCacheBytes = 96LL * 1024LL * 1024LL;
-constexpr qint64 kQmlImageDiskCacheBytes = 160LL * 1024LL * 1024LL;
-constexpr int kArtworkByteCacheBytes = 48 * 1024 * 1024;
 #else
 constexpr auto kAppLogPath = "/tmp/com.codex.jellyfinnative-linux.log";
-constexpr qint64 kNetworkDiskCacheBytes = 256LL * 1024LL * 1024LL;
-constexpr qint64 kQmlImageDiskCacheBytes = 256LL * 1024LL * 1024LL;
-constexpr int kArtworkByteCacheBytes = 96 * 1024 * 1024;
 #endif
 
 FILE *g_logFile = nullptr;
+QElapsedTimer g_startupTimer;
 
 #ifdef JELLYFIN_NATIVE_WEBOS
 // Window pointer captured for the LS2 lifecycle callback, which runs on
 // the LS2 dispatch thread. We marshal events onto the GUI thread via
 // QMetaObject::invokeMethod against this object.
 JellyfinNative::NativeAppWindow *g_lifecycleWindow = nullptr;
+JellyfinNative::AppController *g_appController = nullptr;
 #endif
 
 void rotateLogFile(const char *path)
@@ -184,8 +181,13 @@ void handleSignal(int signalNumber)
 
 void logLine(const char *fmt, ...)
 {
+    const long long elapsedMs = g_startupTimer.isValid()
+                                    ? static_cast<long long>(g_startupTimer.elapsed())
+                                    : 0;
+
     va_list ap;
     va_start(ap, fmt);
+    fprintf(stderr, "[%7lld ms] ", elapsedMs);
     vfprintf(stderr, fmt, ap);
     fputc('\n', stderr);
     va_end(ap);
@@ -194,6 +196,7 @@ void logLine(const char *fmt, ...)
         return;
 
     va_start(ap, fmt);
+    fprintf(g_logFile, "[%7lld ms] ", elapsedMs);
     vfprintf(g_logFile, fmt, ap);
     fputc('\n', g_logFile);
     fflush(g_logFile);
@@ -291,12 +294,37 @@ bool lunaLifecycleCallback(LSHandle *, LSMessage *message, void *)
 
     return true;
 }
+
+bool lunaMemoryStatusCallback(LSHandle *, LSMessage *message, void *)
+{
+    const char *payload = message ? LSMessageGetPayload(message) : nullptr;
+    if (!payload)
+        return true;
+
+    logLine("[ls2-memory] %s", payload);
+    const QByteArray raw = QByteArray::fromRawData(payload, static_cast<int>(strlen(payload)));
+    const QJsonDocument doc = QJsonDocument::fromJson(raw);
+    if (!doc.isObject())
+        return true;
+
+    const QString level = doc.object().value(QStringLiteral("level")).toString();
+    if (level.isEmpty() || !g_appController)
+        return true;
+
+    JellyfinNative::AppController *controller = g_appController;
+    QMetaObject::invokeMethod(controller, [controller, level]() {
+        controller->onMemoryPressure(level);
+    }, Qt::QueuedConnection);
+    return true;
+}
 #endif
 
 } // namespace
 
 int main(int argc, char **argv)
 {
+    g_startupTimer.start();
+    QElapsedTimer &startupTimer = g_startupTimer;
     for (int i = 1; i < argc; ++i) {
         if (strcmp(argv[i], "--version") == 0 || strcmp(argv[i], "-v") == 0) {
             printf("Jellyfin Native %s\n", kAppVersion);
@@ -304,8 +332,6 @@ int main(int argc, char **argv)
         }
     }
 
-    QElapsedTimer startupTimer;
-    startupTimer.start();
     rotateLogFile(kAppLogPath);
     g_logFile = fopen(kAppLogPath, "w");
     setvbuf(stderr, nullptr, _IOLBF, 0);
@@ -337,6 +363,7 @@ int main(int argc, char **argv)
 
 #ifdef JELLYFIN_NATIVE_WEBOS
     setenv("APPID", kAppId, 1);
+    setenv("MALLOC_ARENA_MAX", "2", 0);
     setenv("DISPLAY_ID", "0", 1);
     setenv("STARFISH_AUDIO_HINT", "0", 1);
     setenv("QT_QPA_PLATFORM", "wayland-egl", 1);
@@ -492,13 +519,22 @@ int main(int argc, char **argv)
         });
     }
 
+    const JellyfinNative::MemoryBudget memoryBudget = JellyfinNative::MemoryBudget::detect();
+    logLine("memory budget: memTotal=%lld networkDisk=%lld qmlImageDisk=%lld artworkBytes=%d demuxer=%s/%s",
+            static_cast<long long>(memoryBudget.memTotalBytes),
+            static_cast<long long>(memoryBudget.networkDiskCacheBytes),
+            static_cast<long long>(memoryBudget.qmlImageDiskCacheBytes),
+            memoryBudget.artworkByteCacheBytes,
+            memoryBudget.mpvDemuxerMaxBytes.constData(),
+            memoryBudget.mpvDemuxerMaxBackBytes.constData());
+
     auto *networkAccessManager = new QNetworkAccessManager(&app);
     auto *diskCache = new QNetworkDiskCache(networkAccessManager);
     const QString cachePath = QStandardPaths::writableLocation(QStandardPaths::CacheLocation);
     const QString qmlImageCachePath = cachePath + QStringLiteral("/qml-image-cache");
     QDir().mkpath(cachePath);
     diskCache->setCacheDirectory(cachePath + QStringLiteral("/network-cache"));
-    diskCache->setMaximumCacheSize(kNetworkDiskCacheBytes);
+    diskCache->setMaximumCacheSize(memoryBudget.networkDiskCacheBytes);
     networkAccessManager->setCache(diskCache);
 
     JellyfinNative::DatabaseManager database;
@@ -545,13 +581,23 @@ int main(int argc, char **argv)
             cpuTopology.artworkDecodeThreads);
     auto artworkService = std::make_unique<JellyfinNative::ArtworkService>(
         qmlImageCachePath + QStringLiteral("/artwork"),
-        kQmlImageDiskCacheBytes,
-        kArtworkByteCacheBytes,
+        memoryBudget.qmlImageDiskCacheBytes,
+        memoryBudget.artworkByteCacheBytes,
         cpuTopology.artworkDecodeThreads);
 
     auto player = std::make_unique<JellyfinNative::PlayerController>(&window, api.get());
+    player->setDemuxerBudget(memoryBudget.mpvDemuxerMaxBytes,
+                             memoryBudget.mpvDemuxerMaxBackBytes);
     auto controller = std::make_unique<JellyfinNative::AppController>(
         &database, discovery.get(), api.get(), artworkService.get(), player.get());
+#ifdef JELLYFIN_NATIVE_WEBOS
+    g_appController = controller.get();
+    QObject::connect(controller.get(), &JellyfinNative::AppController::aggressiveMemoryPressure,
+                     &window, [&window]() {
+        logLine("memory pressure: releasing QQuickWindow resources");
+        window.releaseResources();
+    }, Qt::QueuedConnection);
+#endif
 
 #ifdef JELLYFIN_NATIVE_WEBOS
     // Log state transitions for diagnosis but DO NOT auto-quit when the
@@ -692,6 +738,19 @@ int main(int argc, char **argv)
         imeContext.reset();
     } else {
         logLine("HLunaServiceCall registerRemoteKeyboard OK");
+    }
+
+    std::unique_ptr<HContext> memoryContext(new HContext());
+    memoryContext->pub = true;
+    memoryContext->multiple = true;
+    memoryContext->callback = &lunaMemoryStatusCallback;
+    memoryContext->userdata = nullptr;
+    if (HLunaServiceCall("luna://com.webos.service.memorymanager/getMemoryStatus",
+                         "{\"subscribe\":true}", memoryContext.get())) {
+        logLine("HLunaServiceCall getMemoryStatus failed (non-fatal)");
+        memoryContext.reset();
+    } else {
+        logLine("HLunaServiceCall getMemoryStatus OK");
     }
 #endif
 
