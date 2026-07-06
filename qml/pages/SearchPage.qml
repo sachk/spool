@@ -232,7 +232,8 @@ FocusScope {
                 required property string movieId
                 required property bool favorite
                 required property bool played
-                readonly property var itemData: appController.searchResults.get(index)
+
+                function snapshot() { return appController.searchResults.get(index) || ({}) }
 
                 width: results.width
                 height: 118
@@ -293,16 +294,20 @@ FocusScope {
                 MediaItemActions {
                     id: actions
                     anchors.fill: parent
-                    item: resultDelegate.itemData
                     shell: root.shell
                     focused: resultDelegate.focused
+                    movieId: resultDelegate.movieId
+                    itemType: resultDelegate.itemType
+                    favorite: resultDelegate.favorite
+                    played: resultDelegate.played
+                    snapshotProvider: resultDelegate.snapshot
                     onActivated: {
                         results.currentIndex = index
                         root.activateCurrent()
                     }
                     onFavoriteToggled: (favorite) => appController.setFavorite(resultDelegate.movieId || "", favorite)
                     onPlayedToggled: (played) => appController.setPlayed(resultDelegate.movieId || "", played)
-                    onMediaInfoRequested: shell.openMediaInfo(resultDelegate.itemData)
+                    onMediaInfoRequested: shell.openMediaInfo(resultDelegate.snapshot())
                 }
             }
 

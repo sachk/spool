@@ -12,6 +12,9 @@ class JellyfinApiFacade;
 
 class QuickConnectController final : public QObject {
   Q_OBJECT
+  Q_PROPERTY(QString code READ code NOTIFY changed)
+  Q_PROPERTY(QString status READ status NOTIFY changed)
+  Q_PROPERTY(bool active READ active NOTIFY changed)
 
 public:
   explicit QuickConnectController(JellyfinApiFacade *api,
@@ -21,8 +24,8 @@ public:
   QString status() const;
   bool active() const;
 
-  void start(const QString &serverUrl);
-  void cancel();
+  Q_INVOKABLE void start(const QString &serverUrl);
+  Q_INVOKABLE void cancel();
 
 signals:
   void changed();

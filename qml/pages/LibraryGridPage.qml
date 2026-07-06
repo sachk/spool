@@ -741,6 +741,7 @@ FocusScope {
             model: appController.movies
             cellWidth: Math.floor((width - Metrics.gap(root.width) * (columns - 1)) / columns)
             cellHeight: root.episodeGrid ? Math.round(cellWidth * 9 / 16 + 62) : cellWidth * 1.5 + 64
+            cacheBuffer: 2 * cellHeight
             Component.onCompleted: {
                 restoreIndex()
                 requestMoreIfNeeded()
@@ -815,21 +816,31 @@ FocusScope {
                 required property string title
                 required property string posterUrl
                 required property string seriesPosterUrl
+                required property string thumbUrl
+                required property string backdropUrl
+                required property string landscapeCardUrl
                 required property int year
                 required property string subtitle
                 required property string displayTitle
                 required property string displaySubtitle
                 required property string movieId
+                required property string itemType
+                required property string seriesId
+                required property string seasonId
+                required property string seriesName
+                required property int seasonNumber
+                required property real progress
+                required property real resumeTicks
                 required property bool favorite
                 required property bool played
+                required property bool playable
                 width: grid.cellWidth
                 height: grid.cellHeight
 
+                function snapshot() { return appController.movies.get(index) || ({}) }
                 function handleAcceptPressed(key) { return card.handleAcceptPressed(key) }
                 function handleAcceptReleased(key) { return card.handleAcceptReleased(key) }
                 function handleNavigationKey(key) { return card.handleNavigationKey(key) }
-
-                readonly property var itemData: appController.movies.get(index)
 
                 MediaItemCard {
                     id: card
@@ -838,13 +849,34 @@ FocusScope {
                     anchors.top: parent.top
                     anchors.rightMargin: Metrics.gap(root.width)
                     height: parent.height
-                    item: gridDelegate.itemData
                     shell: root.shell
                     kind: root.episodeGrid ? "landscape" : "poster"
                     preferEpisodeTitle: root.episodeGrid
                     useSeriesPoster: !root.episodeGrid
                     focused: gridDelegate.GridView.isCurrentItem
                     longPressAction: "menu"
+                    snapshotProvider: gridDelegate.snapshot
+                    movieId: gridDelegate.movieId
+                    title: gridDelegate.title
+                    displayTitle: gridDelegate.displayTitle
+                    displaySubtitle: gridDelegate.displaySubtitle
+                    subtitle: gridDelegate.subtitle
+                    posterUrl: gridDelegate.posterUrl
+                    seriesPosterUrl: gridDelegate.seriesPosterUrl
+                    thumbUrl: gridDelegate.thumbUrl
+                    backdropUrl: gridDelegate.backdropUrl
+                    landscapeCardUrl: gridDelegate.landscapeCardUrl
+                    itemType: gridDelegate.itemType
+                    seriesId: gridDelegate.seriesId
+                    seasonId: gridDelegate.seasonId
+                    seriesName: gridDelegate.seriesName
+                    seasonNumber: gridDelegate.seasonNumber
+                    year: gridDelegate.year
+                    progress: gridDelegate.progress
+                    resumeTicks: gridDelegate.resumeTicks
+                    favorite: gridDelegate.favorite
+                    played: gridDelegate.played
+                    playable: gridDelegate.playable
                     onActivated: {
                         grid.currentIndex = index
                         shell.lastGridIndex = index
@@ -859,7 +891,7 @@ FocusScope {
                     }
                     onFavoriteToggled: (favorite) => appController.setFavorite(gridDelegate.movieId || "", favorite)
                     onPlayedToggled: (played) => appController.setPlayed(gridDelegate.movieId || "", played)
-                    onMediaInfoRequested: shell.openMediaInfo(gridDelegate.itemData)
+                    onMediaInfoRequested: shell.openMediaInfo(gridDelegate.snapshot())
                 }
             }
             Keys.onReleased: (event) => {

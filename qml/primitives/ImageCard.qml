@@ -9,38 +9,14 @@ Item {
     property bool focused: false
     property bool hovered: hover.hovered
     property bool retainWhileLoading: false
-    property bool loadImage: true
-    property int loadDelay: 0
-    property string activeImageUrl: ""
-    readonly property bool imageTargetReady: width > 1 && height > 1
+    readonly property int sourcePixelWidth: Math.max(1, Math.round(width * Screen.devicePixelRatio))
+    readonly property int sourcePixelHeight: Math.max(1, Math.round(height * Screen.devicePixelRatio))
 
     function artworkSource(url) {
         if (url.indexOf("http://") === 0 || url.indexOf("https://") === 0)
             return "image://artwork/" + encodeURIComponent(url)
         return url
     }
-
-    function updateActiveImage(clearCurrent) {
-        loadTimer.stop()
-        if (clearCurrent)
-            activeImageUrl = ""
-        if (!loadImage || imageUrl.length <= 0 || !imageTargetReady) {
-            activeImageUrl = ""
-            return
-        }
-        if (loadDelay <= 0) {
-            activeImageUrl = imageUrl
-            return
-        }
-        loadTimer.restart()
-    }
-
-    onImageUrlChanged: updateActiveImage(true)
-    onLoadImageChanged: updateActiveImage(!loadImage)
-    onLoadDelayChanged: updateActiveImage(false)
-    onWidthChanged: updateActiveImage(false)
-    onHeightChanged: updateActiveImage(false)
-    Component.onCompleted: updateActiveImage(false)
 
     clip: false
     scale: focused && !Theme.reducedMotion ? 1.025 : 1.0
@@ -59,14 +35,14 @@ Item {
         Image {
             id: artwork
             anchors.fill: parent
-            source: root.activeImageUrl.length > 0 ? root.artworkSource(root.activeImageUrl) : ""
+            source: root.imageUrl.length > 0 ? root.artworkSource(root.imageUrl) : ""
             fillMode: Image.PreserveAspectCrop
             asynchronous: true
             cache: true
             smooth: true
             mipmap: false
-            sourceSize.width: Math.max(1, Math.round(width * Screen.devicePixelRatio))
-            sourceSize.height: Math.max(1, Math.round(height * Screen.devicePixelRatio))
+            sourceSize.width: root.sourcePixelWidth
+            sourceSize.height: root.sourcePixelHeight
             opacity: status === Image.Ready ? 1 : root.retainWhileLoading ? 0.35 : 0
         }
 
@@ -87,14 +63,6 @@ Item {
                 font.pixelSize: 13
             }
         }
-
-    }
-
-    Timer {
-        id: loadTimer
-        interval: root.loadDelay
-        repeat: false
-        onTriggered: if (root.loadImage) root.activeImageUrl = root.imageUrl
     }
 
     HoverHandler { id: hover }

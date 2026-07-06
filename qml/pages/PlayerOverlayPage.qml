@@ -14,8 +14,8 @@ FocusScope {
     readonly property bool hasPlayer: player !== null && player !== undefined
     readonly property bool smartTvPlatform: nativeWindow ? nativeWindow.smartTvPlatform : true
     readonly property bool desktopControlsAvailable: !smartTvPlatform
-    readonly property int currentAudioDelayMs: appController ? appController.audioDelayMs : 0
-    readonly property bool nightModeEnabled: appController ? appController.nightModeEnabled : false
+    readonly property int currentAudioDelayMs: appController ? appController.settings.audioDelayMs : 0
+    readonly property bool nightModeEnabled: appController ? appController.settings.nightModeEnabled : false
     property bool mediaInfoVisible: false
     property bool diagnosticsVisible: false
 
@@ -395,7 +395,7 @@ FocusScope {
         }
         if (menuIndex === 0) { openAudioSync(); return }
         else if (menuIndex === 1) toggleDebugStats()
-        else if (menuIndex === 2 && appController) appController.setNightModeEnabled(!nightModeEnabled)
+        else if (menuIndex === 2 && appController) appController.settings.setNightModeEnabled(!nightModeEnabled)
         else if (menuIndex === 3 && hasPlayer) player.stopWithReason("debug-menu-stop")
         if (mode === "debug") closeMenu()
     }
@@ -420,7 +420,7 @@ FocusScope {
 
     function setAudioDelayMs(value) {
         if (appController)
-            appController.setAudioDelayMs(clampAudioDelayMs(value))
+            appController.settings.setAudioDelayMs(clampAudioDelayMs(value))
     }
 
     function adjustAudioDelay(direction) {
@@ -556,10 +556,10 @@ FocusScope {
     function actionForColorKey(key) {
         if (!appController)
             return ""
-        if (key === Qt.Key_Red)    return appController.redButtonAction
-        if (key === Qt.Key_Green)  return appController.greenButtonAction
-        if (key === Qt.Key_Yellow) return appController.yellowButtonAction
-        if (key === Qt.Key_Blue)   return appController.blueButtonAction
+        if (key === Qt.Key_Red)    return appController.settings.redButtonAction
+        if (key === Qt.Key_Green)  return appController.settings.greenButtonAction
+        if (key === Qt.Key_Yellow) return appController.settings.yellowButtonAction
+        if (key === Qt.Key_Blue)   return appController.settings.blueButtonAction
         return ""
     }
 

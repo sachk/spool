@@ -17,6 +17,14 @@ Item {
         return Math.round(n * uiScale)
     }
 
+    function artworkSource(url) {
+        if (!url)
+            return ""
+        if (url.indexOf("http://") === 0 || url.indexOf("https://") === 0)
+            return "image://artwork/" + encodeURIComponent(url)
+        return url
+    }
+
     anchors.left: parent.left
     anchors.right: parent.right
     anchors.bottom: parent.bottom
@@ -53,7 +61,7 @@ Item {
             clip: true
 
             Image {
-                source: trickplayPreview.dataReady ? trickplayPreview.trickplayData.url : ""
+                source: trickplayPreview.dataReady ? trickplayPreview.artworkSource(trickplayPreview.trickplayData.url) : ""
                 visible: status === Image.Ready
                 x: trickplayPreview.dataReady ? trickplayPreview.trickplayData.offsetX * trickplayPreview.uiScale * 1.4 : 0
                 y: trickplayPreview.dataReady ? trickplayPreview.trickplayData.offsetY * trickplayPreview.uiScale * 1.4 : 0

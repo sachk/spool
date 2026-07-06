@@ -20,7 +20,6 @@
 
 #include <vector>
 
-class QNetworkDiskCache;
 
 namespace JellyfinNative {
 
@@ -54,9 +53,6 @@ public:
                           int quality = 75, const QString &format = QStringLiteral("webp"),
                           const QString &imageType = QStringLiteral("Primary"),
                           int fillWidth = 0, int fillHeight = 0) const;
-    void setImagePrefetchCache(const QString &cacheDirectory, qint64 maximumCacheSize);
-    void prefetchImages(const QStringList &urls, int maxConcurrent = 6);
-    void cancelPrefetches();
     void cancelRequests();
 
     QCoro::Task<void> probeServer();
@@ -74,10 +70,7 @@ public:
                                                   int startIndex = 0, int limit = 72,
                                                   QVariantMap queryOptions = {});
     QCoro::Task<QVariantMap> fetchLibraryFilterOptions(QString libraryId, QString collectionType = {});
-    QCoro::Task<PagedMovieItems> fetchMoviesPage(QString libraryId, int startIndex = 0, int limit = 100);
-    QCoro::Task<PagedMovieItems> fetchSeriesPage(QString libraryId, int startIndex = 0, int limit = 100);
-    QCoro::Task<std::vector<MovieItem>> fetchMovies(QString libraryId);
-    QCoro::Task<std::vector<MovieItem>> fetchSeries(QString libraryId);
+    QCoro::Task<MovieItem> fetchItemDetails(QString itemId);
     QCoro::Task<std::vector<MovieItem>> fetchSeasons(QString seriesId);
     QCoro::Task<std::vector<MovieItem>> fetchEpisodes(QString seriesId, QString seasonId = {});
     QCoro::Task<std::vector<MovieItem>> fetchResumeItems(int limit = 24);
@@ -136,13 +129,10 @@ private:
 
     QJsonObject buildDeviceProfile() const;
     PlaybackSession buildPlaybackSession(const MovieItem &movie, const QJsonObject &playbackResponse) const;
-    void pumpImagePrefetch();
     HttpOperation operationFor(HttpMethod method, const QString &path) const;
     bool shouldExpireSession(const QString &path) const;
 
     QNetworkAccessManager *m_networkAccessManager = nullptr;
-    QNetworkAccessManager *m_imagePrefetchNetworkAccessManager = nullptr;
-    QNetworkDiskCache *m_imagePrefetchDiskCache = nullptr;
     QRestAccessManager m_rest;
     QNetworkRequestFactory m_requestFactory;
     QString m_serverUrl;
@@ -150,12 +140,7 @@ private:
     QString m_deviceName = QStringLiteral("LG webOS TV");
     QString m_clientVersion = QStringLiteral("0.1.0");
     AuthSession m_session;
-    QStringList m_prefetchQueue;
-    QSet<QString> m_prefetchSeen;
-    QSet<QNetworkReply *> m_prefetchReplies;
     QSet<QNetworkReply *> m_activeReplies;
-    int m_prefetchInFlight = 0;
-    int m_prefetchMaxConcurrent = 6;
     int m_artworkUiWidth = 1920;
     qint64 m_maxStreamingBitrate = 120'000'000;
     bool m_preferRemux = true;

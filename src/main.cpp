@@ -4,7 +4,6 @@
 #include "app/CpuTopology.h"
 #include "app/LocalizationManager.h"
 #include "app/NativeAppWindow.h"
-#include "app/QmlNetworkAccessManagerFactory.h"
 #include "cache/DatabaseManager.h"
 #include "diagnostics/Diagnostics.h"
 #include "discovery/DiscoveryController.h"
@@ -517,7 +516,6 @@ int main(int argc, char **argv)
 
     auto discovery = std::make_unique<JellyfinNative::DiscoveryController>();
     auto api = std::make_unique<JellyfinNative::JellyfinApiFacade>(networkAccessManager);
-    api->setImagePrefetchCache(qmlImageCachePath, kQmlImageDiskCacheBytes);
     api->setDeviceIdentity(deviceId,
 #ifdef JELLYFIN_NATIVE_WEBOS
                            QStringLiteral("LG webOS TV"),
@@ -538,9 +536,22 @@ int main(int argc, char **argv)
     logLine("startup: prepareForUiSurface completed in %lld ms",
             static_cast<long long>(startupTimer.elapsed()));
 
+    const JellyfinNative::CpuTopology cpuTopology = JellyfinNative::detectCpuTopology();
+    logLine("artwork: cpu logical=%d physical=%d smt=%s source=%s decodeThreads=%d",
+            cpuTopology.logicalCpus,
+            cpuTopology.physicalCores,
+            cpuTopology.smtDetected ? "true" : "false",
+            qPrintable(cpuTopology.source),
+            cpuTopology.artworkDecodeThreads);
+    auto artworkService = std::make_unique<JellyfinNative::ArtworkService>(
+        qmlImageCachePath + QStringLiteral("/artwork"),
+        kQmlImageDiskCacheBytes,
+        kArtworkByteCacheBytes,
+        cpuTopology.artworkDecodeThreads);
+
     auto player = std::make_unique<JellyfinNative::PlayerController>(&window, api.get());
-    auto controller =
-        std::make_unique<JellyfinNative::AppController>(&database, discovery.get(), api.get(), player.get());
+    auto controller = std::make_unique<JellyfinNative::AppController>(
+        &database, discovery.get(), api.get(), artworkService.get(), player.get());
 
 #ifdef JELLYFIN_NATIVE_WEBOS
     // Log state transitions for diagnosis but DO NOT auto-quit when the
@@ -601,22 +612,8 @@ int main(int argc, char **argv)
         logLine("aboutToQuit: QML source cleared");
     });
 
-    auto *qmlNetworkFactory = new JellyfinNative::QmlNetworkAccessManagerFactory(
-        qmlImageCachePath, kQmlImageDiskCacheBytes);
-    window.engine()->setNetworkAccessManagerFactory(qmlNetworkFactory);
-    const JellyfinNative::CpuTopology cpuTopology = JellyfinNative::detectCpuTopology();
-    logLine("artwork: cpu logical=%d physical=%d smt=%s source=%s decodeThreads=%d",
-            cpuTopology.logicalCpus,
-            cpuTopology.physicalCores,
-            cpuTopology.smtDetected ? "true" : "false",
-            qPrintable(cpuTopology.source),
-            cpuTopology.artworkDecodeThreads);
     window.engine()->addImageProvider(QStringLiteral("artwork"),
-                                      new JellyfinNative::ArtworkImageProvider(
-                                          qmlImageCachePath + QStringLiteral("/artwork"),
-                                          kQmlImageDiskCacheBytes,
-                                          kArtworkByteCacheBytes,
-                                          cpuTopology.artworkDecodeThreads));
+                                      new JellyfinNative::ArtworkImageProvider(artworkService.get()));
     window.engine()->addImageProvider(QStringLiteral("mpv-overlay"),
                                       window.createOverlayImageProvider());
     window.engine()->addImportPath(appRootPath + QStringLiteral("/qt-qml"));

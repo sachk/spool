@@ -210,10 +210,6 @@ QVariant MovieGridModel::data(const QModelIndex &index, int role) const
         return movie.premiereDate;
     case EndDateRole:
         return movie.endDate;
-    case PeopleRole:
-        return peopleVariantList(movie.people);
-    case MediaSourcesRole:
-        return mediaSourcesVariantList(movie.mediaSources);
     default:
         return {};
     }
@@ -259,8 +255,6 @@ QHash<int, QByteArray> MovieGridModel::roleNames() const
         {CriticRatingRole, "criticRating"},
         {PremiereDateRole, "premiereDate"},
         {EndDateRole, "endDate"},
-        {PeopleRole, "people"},
-        {MediaSourcesRole, "mediaSources"},
     };
 }
 
@@ -308,6 +302,16 @@ QVariantMap MovieGridModel::get(int index) const
         {QStringLiteral("criticRating"), movie.criticRating},
         {QStringLiteral("premiereDate"), movie.premiereDate},
         {QStringLiteral("endDate"), movie.endDate},
+    };
+}
+
+QVariantMap MovieGridModel::detailsAt(int index) const
+{
+    if (index < 0 || index >= rowCount())
+        return {};
+
+    const auto &movie = m_movies[static_cast<size_t>(index)];
+    return {
         {QStringLiteral("people"), peopleVariantList(movie.people)},
         {QStringLiteral("mediaSources"), mediaSourcesVariantList(movie.mediaSources)},
     };

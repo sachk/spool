@@ -37,7 +37,10 @@ FocusScope {
     readonly property bool reserveContextRow: contextItemsPossible && contextCount === 0 && loadingDetailRows
     readonly property bool showContextRow: contextCount > 0 || reserveContextRow
     readonly property bool showSimilarRow: similarCount > 0
-    readonly property var people: item.people || []
+    readonly property var fullDetailItem: appController && appController.detailItem
+                                      && String(appController.detailItem.movieId || "") === String(item.movieId || "")
+                                      ? appController.detailItem : ({})
+    readonly property var people: fullDetailItem.people || []
     readonly property bool showPeopleRow: people.length > 0
     readonly property var genreList: item.genres || []
     readonly property var studioList: item.studios || []
@@ -348,6 +351,7 @@ FocusScope {
         syncUserState();
         updateDetailCounts();
         Qt.callLater(refreshDetailRows);
+        Qt.callLater(refreshItemDetail);
         Qt.callLater(focusDefaultAction);
     }
 
@@ -357,6 +361,7 @@ FocusScope {
         overflowOpen = false;
         syncUserState();
         Qt.callLater(refreshDetailRows);
+        Qt.callLater(refreshItemDetail);
     }
 
     Connections {
@@ -423,6 +428,12 @@ FocusScope {
         similarRow.currentIndex = 0;
         if (appController)
             appController.loadDetailRows(itemId, typeText, seriesIdText, seasonIdText);
+    }
+
+    function refreshItemDetail() {
+        const itemId = item.movieId || "";
+        if (itemId.length > 0 && appController)
+            appController.loadItemDetail(itemId);
     }
 
     function syncUserState() {

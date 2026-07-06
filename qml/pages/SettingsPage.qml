@@ -79,9 +79,9 @@ FocusScope {
         if (!appController)
             return ["No action"];
         const result = [];
-        const actions = appController.availableButtonActions;
+        const actions = appController.settings.availableButtonActions;
         for (let i = 0; i < actions.length; ++i) {
-            result.push(appController.buttonActionLabel(actions[i]));
+            result.push(appController.settings.buttonActionLabel(actions[i]));
         }
         return result;
     }
@@ -89,7 +89,7 @@ FocusScope {
     function buttonActionIndex(currentAction) {
         if (!appController)
             return 0;
-        const actions = appController.availableButtonActions;
+        const actions = appController.settings.availableButtonActions;
         for (let i = 0; i < actions.length; ++i) {
             if (actions[i] === currentAction)
                 return i;
@@ -100,7 +100,7 @@ FocusScope {
     function actionFromIndex(i) {
         if (!appController)
             return "none";
-        const actions = appController.availableButtonActions;
+        const actions = appController.settings.availableButtonActions;
         return (i >= 0 && i < actions.length) ? actions[i] : "none";
     }
 
@@ -561,8 +561,8 @@ FocusScope {
                     rowFocus: root.currentIndex === settingIndex || activeFocus
                     title: "Night Mode"
                     description: "Dialogue lift and late-night dynamic range"
-                    checked: appController.nightModeEnabled
-                    onToggled: appController.setNightModeEnabled(checked)
+                    checked: appController.settings.nightModeEnabled
+                    onToggled: appController.settings.setNightModeEnabled(checked)
                     onActiveFocusChanged: if (activeFocus)
                         root.markFocused(settingIndex)
                 }
@@ -579,8 +579,8 @@ FocusScope {
                     unitText: "Mbps"
                     valueBoxWidth: 112
                     sliderPreferredWidth: 340
-                    value: appController.maxStreamingBitrateMbps
-                    onValueEdited: value => appController.setMaxStreamingBitrateMbps(Math.round(value))
+                    value: appController.settings.maxStreamingBitrateMbps
+                    onValueEdited: value => appController.settings.setMaxStreamingBitrateMbps(Math.round(value))
                     onRowFocusChanged: if (rowFocus)
                         root.markFocused(settingIndex)
                 }
@@ -590,8 +590,8 @@ FocusScope {
                     rowFocus: root.currentIndex === settingIndex || activeFocus
                     title: "Prefer Remux"
                     description: "Copy compatible streams before transcoding"
-                    checked: appController.preferRemux
-                    onToggled: appController.setPreferRemux(checked)
+                    checked: appController.settings.preferRemux
+                    onToggled: appController.settings.setPreferRemux(checked)
                     onActiveFocusChanged: if (activeFocus)
                         root.markFocused(settingIndex)
                 }
@@ -608,8 +608,8 @@ FocusScope {
                     unitText: "ms"
                     valueBoxWidth: 92
                     sliderPreferredWidth: 340
-                    value: appController.audioDelayMs
-                    onValueEdited: value => appController.setAudioDelayMs(Math.round(value))
+                    value: appController.settings.audioDelayMs
+                    onValueEdited: value => appController.settings.setAudioDelayMs(Math.round(value))
                     onRowFocusChanged: if (rowFocus)
                         root.markFocused(settingIndex)
                 }
@@ -620,8 +620,8 @@ FocusScope {
                     title: "Audio Output"
                     description: "Takes effect on the next playback start"
                     options: ["ALSA", "Starfish"]
-                    currentIndex: (appController.audioOutputMode === "starfish" || appController.audioOutputMode === "starfish-pcm") ? 1 : 0
-                    onSelected: (i, v) => appController.setAudioOutputMode(i === 1 ? "starfish-pcm" : "alsa")
+                    currentIndex: (appController.settings.audioOutputMode === "starfish" || appController.settings.audioOutputMode === "starfish-pcm") ? 1 : 0
+                    onSelected: (i, v) => appController.settings.setAudioOutputMode(i === 1 ? "starfish-pcm" : "alsa")
                     onActiveFocusChanged: if (activeFocus)
                         root.markFocused(settingIndex)
                 }
@@ -634,9 +634,9 @@ FocusScope {
                     Layout.fillWidth: true
                     rowFocus: root.currentIndex === settingIndex || activeFocus
                     title: "Preferred Language"
-                    options: appController ? appController.subtitleLanguageOptions : ["Any language"]
-                    currentIndex: appController ? appController.subtitleLanguageIndex : 0
-                    onSelected: (i, v) => appController.setSubtitleLanguageIndex(i)
+                    options: appController ? appController.settings.subtitleLanguageOptions : ["Any language"]
+                    currentIndex: appController ? appController.settings.subtitleLanguageIndex : 0
+                    onSelected: (i, v) => appController.settings.setSubtitleLanguageIndex(i)
                     onActiveFocusChanged: if (activeFocus)
                         root.markFocused(settingIndex)
                 }
@@ -645,10 +645,10 @@ FocusScope {
                     Layout.fillWidth: true
                     rowFocus: root.currentIndex === settingIndex || activeFocus
                     title: "Playback Mode"
-                    description: root.subtitleModeDescription(appController ? appController.subtitleMode : "Default")
+                    description: root.subtitleModeDescription(appController ? appController.settings.subtitleMode : "Default")
                     options: root.subtitleModeOptions
-                    currentIndex: root.valueIndex(root.subtitleModeValues, appController ? appController.subtitleMode : "Default")
-                    onSelected: (i, v) => appController.setSubtitleMode(root.valueFromIndex(root.subtitleModeValues, i))
+                    currentIndex: root.valueIndex(root.subtitleModeValues, appController ? appController.settings.subtitleMode : "Default")
+                    onSelected: (i, v) => appController.settings.setSubtitleMode(root.valueFromIndex(root.subtitleModeValues, i))
                     onActiveFocusChanged: if (activeFocus)
                         root.markFocused(settingIndex)
                 }
@@ -659,8 +659,8 @@ FocusScope {
                     title: "Burn Subtitles"
                     description: "Used when transcoding is enabled"
                     options: root.subtitleBurnInOptions
-                    currentIndex: root.valueIndex(root.subtitleBurnInValues, appController ? appController.subtitleBurnIn : "")
-                    onSelected: (i, v) => appController.setSubtitleBurnIn(root.valueFromIndex(root.subtitleBurnInValues, i))
+                    currentIndex: root.valueIndex(root.subtitleBurnInValues, appController ? appController.settings.subtitleBurnIn : "")
+                    onSelected: (i, v) => appController.settings.setSubtitleBurnIn(root.valueFromIndex(root.subtitleBurnInValues, i))
                     onActiveFocusChanged: if (activeFocus)
                         root.markFocused(settingIndex)
                 }
@@ -670,8 +670,8 @@ FocusScope {
                     rowFocus: root.currentIndex === settingIndex || activeFocus
                     title: "Render PGS Subtitles"
                     description: "Prefer local rendering for image subtitles"
-                    checked: appController ? appController.subtitleRenderPgs : false
-                    onToggled: appController.setSubtitleRenderPgs(checked)
+                    checked: appController ? appController.settings.subtitleRenderPgs : false
+                    onToggled: appController.settings.setSubtitleRenderPgs(checked)
                     onActiveFocusChanged: if (activeFocus)
                         root.markFocused(settingIndex)
                 }
@@ -681,8 +681,8 @@ FocusScope {
                     rowFocus: root.currentIndex === settingIndex || activeFocus
                     title: "Always Burn In"
                     description: "When playback falls back to transcoding"
-                    checked: appController ? appController.subtitleAlwaysBurnIn : false
-                    onToggled: appController.setSubtitleAlwaysBurnIn(checked)
+                    checked: appController ? appController.settings.subtitleAlwaysBurnIn : false
+                    onToggled: appController.settings.setSubtitleAlwaysBurnIn(checked)
                     onActiveFocusChanged: if (activeFocus)
                         root.markFocused(settingIndex)
                 }
@@ -695,10 +695,10 @@ FocusScope {
                     Layout.fillWidth: true
                     rowFocus: root.currentIndex === settingIndex || activeFocus
                     title: "Styling"
-                    description: root.subtitleStylingDescription(appController ? appController.subtitleStyling : "Auto")
+                    description: root.subtitleStylingDescription(appController ? appController.settings.subtitleStyling : "Auto")
                     options: root.subtitleStylingOptions
-                    currentIndex: root.valueIndex(root.subtitleStylingValues, appController ? appController.subtitleStyling : "Auto")
-                    onSelected: (i, v) => appController.setSubtitleStyling(root.valueFromIndex(root.subtitleStylingValues, i))
+                    currentIndex: root.valueIndex(root.subtitleStylingValues, appController ? appController.settings.subtitleStyling : "Auto")
+                    onSelected: (i, v) => appController.settings.setSubtitleStyling(root.valueFromIndex(root.subtitleStylingValues, i))
                     onActiveFocusChanged: if (activeFocus)
                         root.markFocused(settingIndex)
                 }
@@ -708,8 +708,8 @@ FocusScope {
                     rowFocus: root.currentIndex === settingIndex || activeFocus
                     title: "Text Size"
                     options: root.subtitleTextSizeOptions
-                    currentIndex: root.valueIndex(root.subtitleTextSizeValues, appController ? appController.subtitleTextSize : "")
-                    onSelected: (i, v) => appController.setSubtitleTextSize(root.valueFromIndex(root.subtitleTextSizeValues, i))
+                    currentIndex: root.valueIndex(root.subtitleTextSizeValues, appController ? appController.settings.subtitleTextSize : "")
+                    onSelected: (i, v) => appController.settings.setSubtitleTextSize(root.valueFromIndex(root.subtitleTextSizeValues, i))
                     onActiveFocusChanged: if (activeFocus)
                         root.markFocused(settingIndex)
                 }
@@ -719,8 +719,8 @@ FocusScope {
                     rowFocus: root.currentIndex === settingIndex || activeFocus
                     title: "Text Weight"
                     options: root.subtitleTextWeightOptions
-                    currentIndex: root.valueIndex(root.subtitleTextWeightValues, appController ? appController.subtitleTextWeight : "normal")
-                    onSelected: (i, v) => appController.setSubtitleTextWeight(root.valueFromIndex(root.subtitleTextWeightValues, i))
+                    currentIndex: root.valueIndex(root.subtitleTextWeightValues, appController ? appController.settings.subtitleTextWeight : "normal")
+                    onSelected: (i, v) => appController.settings.setSubtitleTextWeight(root.valueFromIndex(root.subtitleTextWeightValues, i))
                     onActiveFocusChanged: if (activeFocus)
                         root.markFocused(settingIndex)
                 }
@@ -730,8 +730,8 @@ FocusScope {
                     rowFocus: root.currentIndex === settingIndex || activeFocus
                     title: "Font"
                     options: root.subtitleFontOptions
-                    currentIndex: root.valueIndex(root.subtitleFontValues, appController ? appController.subtitleFont : "")
-                    onSelected: (i, v) => appController.setSubtitleFont(root.valueFromIndex(root.subtitleFontValues, i))
+                    currentIndex: root.valueIndex(root.subtitleFontValues, appController ? appController.settings.subtitleFont : "")
+                    onSelected: (i, v) => appController.settings.setSubtitleFont(root.valueFromIndex(root.subtitleFontValues, i))
                     onActiveFocusChanged: if (activeFocus)
                         root.markFocused(settingIndex)
                 }
@@ -741,8 +741,8 @@ FocusScope {
                     rowFocus: root.currentIndex === settingIndex || activeFocus
                     title: "Text Color"
                     options: root.subtitleTextColorOptions
-                    currentIndex: root.valueIndex(root.subtitleTextColorValues, appController ? appController.subtitleTextColor : "#ffffff")
-                    onSelected: (i, v) => appController.setSubtitleTextColor(root.valueFromIndex(root.subtitleTextColorValues, i))
+                    currentIndex: root.valueIndex(root.subtitleTextColorValues, appController ? appController.settings.subtitleTextColor : "#ffffff")
+                    onSelected: (i, v) => appController.settings.setSubtitleTextColor(root.valueFromIndex(root.subtitleTextColorValues, i))
                     onActiveFocusChanged: if (activeFocus)
                         root.markFocused(settingIndex)
                 }
@@ -752,8 +752,8 @@ FocusScope {
                     rowFocus: root.currentIndex === settingIndex || activeFocus
                     title: "Drop Shadow"
                     options: root.subtitleDropShadowOptions
-                    currentIndex: root.valueIndex(root.subtitleDropShadowValues, appController ? appController.subtitleDropShadow : "")
-                    onSelected: (i, v) => appController.setSubtitleDropShadow(root.valueFromIndex(root.subtitleDropShadowValues, i))
+                    currentIndex: root.valueIndex(root.subtitleDropShadowValues, appController ? appController.settings.subtitleDropShadow : "")
+                    onSelected: (i, v) => appController.settings.setSubtitleDropShadow(root.valueFromIndex(root.subtitleDropShadowValues, i))
                     onActiveFocusChanged: if (activeFocus)
                         root.markFocused(settingIndex)
                 }
@@ -769,8 +769,8 @@ FocusScope {
                     decimals: 0
                     unitText: ""
                     valueBoxWidth: 72
-                    value: appController ? appController.subtitleVerticalPosition : -3
-                    onValueEdited: value => appController.setSubtitleVerticalPosition(value)
+                    value: appController ? appController.settings.subtitleVerticalPosition : -3
+                    onValueEdited: value => appController.settings.setSubtitleVerticalPosition(value)
                     onRowFocusChanged: if (rowFocus)
                         root.markFocused(settingIndex)
                 }
@@ -795,9 +795,9 @@ FocusScope {
                     rowFocus: root.currentIndex === settingIndex || activeFocus
                     title: "GPU-next Tone Mapping View"
                     description: "False-colour libplacebo tone-mapping diagnostic"
-                    checked: appController ? appController.toneMappingVisualizationEnabled : false
+                    checked: appController ? appController.settings.toneMappingVisualizationEnabled : false
                     onToggled: if (appController)
-                        appController.setToneMappingVisualizationEnabled(checked)
+                        appController.settings.setToneMappingVisualizationEnabled(checked)
                     onActiveFocusChanged: if (activeFocus)
                         root.markFocused(settingIndex)
                 }
@@ -816,8 +816,8 @@ FocusScope {
                     title: "Red Button"
                     description: "TV remote color button"
                     options: root.buttonActionOptions()
-                    currentIndex: root.buttonActionIndex(appController ? appController.redButtonAction : "none")
-                    onSelected: (i, v) => appController.setRedButtonAction(root.actionFromIndex(i))
+                    currentIndex: root.buttonActionIndex(appController ? appController.settings.redButtonAction : "none")
+                    onSelected: (i, v) => appController.settings.setRedButtonAction(root.actionFromIndex(i))
                     onActiveFocusChanged: if (activeFocus)
                         root.markFocused(settingIndex)
                 }
@@ -828,8 +828,8 @@ FocusScope {
                     title: "Green Button"
                     description: "Defaults to skip back 10 s + enable subs"
                     options: root.buttonActionOptions()
-                    currentIndex: root.buttonActionIndex(appController ? appController.greenButtonAction : "none")
-                    onSelected: (i, v) => appController.setGreenButtonAction(root.actionFromIndex(i))
+                    currentIndex: root.buttonActionIndex(appController ? appController.settings.greenButtonAction : "none")
+                    onSelected: (i, v) => appController.settings.setGreenButtonAction(root.actionFromIndex(i))
                     onActiveFocusChanged: if (activeFocus)
                         root.markFocused(settingIndex)
                 }
@@ -839,8 +839,8 @@ FocusScope {
                     rowFocus: root.currentIndex === settingIndex || activeFocus
                     title: "Yellow Button"
                     options: root.buttonActionOptions()
-                    currentIndex: root.buttonActionIndex(appController ? appController.yellowButtonAction : "none")
-                    onSelected: (i, v) => appController.setYellowButtonAction(root.actionFromIndex(i))
+                    currentIndex: root.buttonActionIndex(appController ? appController.settings.yellowButtonAction : "none")
+                    onSelected: (i, v) => appController.settings.setYellowButtonAction(root.actionFromIndex(i))
                     onActiveFocusChanged: if (activeFocus)
                         root.markFocused(settingIndex)
                 }
@@ -850,8 +850,8 @@ FocusScope {
                     rowFocus: root.currentIndex === settingIndex || activeFocus
                     title: "Blue Button"
                     options: root.buttonActionOptions()
-                    currentIndex: root.buttonActionIndex(appController ? appController.blueButtonAction : "none")
-                    onSelected: (i, v) => appController.setBlueButtonAction(root.actionFromIndex(i))
+                    currentIndex: root.buttonActionIndex(appController ? appController.settings.blueButtonAction : "none")
+                    onSelected: (i, v) => appController.settings.setBlueButtonAction(root.actionFromIndex(i))
                     onActiveFocusChanged: if (activeFocus)
                         root.markFocused(settingIndex)
                 }
@@ -876,8 +876,8 @@ FocusScope {
                     Layout.fillWidth: true
                     rowFocus: root.currentIndex === settingIndex || activeFocus
                     title: "Connected Server"
-                    description: appController ? appController.serverUrl : ""
-                    valueText: appController && appController.serverUrl.length > 0 ? "Connected" : "Offline"
+                    description: appController ? appController.session.serverUrl : ""
+                    valueText: appController && appController.session.serverUrl.length > 0 ? "Connected" : "Offline"
                     pointerActivationEnabled: false
                     onActiveFocusChanged: if (activeFocus)
                         root.markFocused(settingIndex)

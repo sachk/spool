@@ -13,6 +13,10 @@ class JellyfinApiFacade;
 
 class SessionController final : public QObject {
   Q_OBJECT
+  Q_PROPERTY(QString serverUrl READ serverUrl WRITE setServerUrl NOTIFY serverUrlChanged)
+  Q_PROPERTY(QString username READ username WRITE setUsername NOTIFY usernameChanged)
+  Q_PROPERTY(QString password READ password WRITE setPassword NOTIFY passwordChanged)
+  Q_PROPERTY(bool authenticated READ authenticated NOTIFY authenticatedStateChanged)
 
 public:
   SessionController(DatabaseManager *database, JellyfinApiFacade *api,
@@ -24,12 +28,12 @@ public:
   bool authenticated() const;
 
   bool initialize();
-  void setServerUrl(const QString &serverUrl);
-  void setUsername(const QString &username);
-  void setPassword(const QString &password);
-  void login();
+  Q_INVOKABLE void setServerUrl(const QString &serverUrl);
+  Q_INVOKABLE void setUsername(const QString &username);
+  Q_INVOKABLE void setPassword(const QString &password);
+  Q_INVOKABLE void login();
   void acceptSession(const AuthSession &session);
-  void logout();
+  Q_INVOKABLE void logout();
   void expireSession(const QString &message);
   bool handleUnauthorized(const std::exception_ptr &error);
 
@@ -40,6 +44,7 @@ signals:
   void busyChanged(bool busy, const QString &text);
   void errorOccurred(const QString &message);
   void authenticatedChanged(const JellyfinNative::AuthSession &session);
+  void authenticatedStateChanged();
   void loggedOut();
 
 private:

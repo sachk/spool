@@ -93,6 +93,7 @@ void SessionController::logout() {
     m_password.clear();
     emit passwordChanged();
   }
+  emit authenticatedStateChanged();
   emit loggedOut();
 }
 
@@ -162,6 +163,7 @@ void SessionController::activateSession(const AuthSession &session,
   }
 
   emit authenticatedChanged(activeSession);
+  emit authenticatedStateChanged();
   Async::runScoped(
       this, m_api->postCapabilities(), []() {},
       [](const std::exception_ptr &error) {

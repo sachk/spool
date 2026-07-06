@@ -31,6 +31,7 @@ FocusScope {
     property bool shortcutOverlayVisible: false
     property bool diagnosticsVisible: false
     property bool mediaInfoVisible: false
+    readonly property bool itemMenuOpen: itemContextMenu.opened
     property var mediaInfoItem: ({})
     property var personItem: ({})
     property bool textInputActive: Qt.inputMethod.visible
@@ -195,6 +196,10 @@ FocusScope {
             diagnosticsVisible = false;
             return true;
         }
+        if (itemMenuOpen) {
+            itemContextMenu.closeMenu();
+            return true;
+        }
         if (mediaInfoVisible) {
             mediaInfoVisible = false;
             return true;
@@ -211,7 +216,6 @@ FocusScope {
             return true;
         }
         if (route === "settings") {
-            appController.closeSettings();
             replaceRoute(previousRoute.length > 0 ? previousRoute : "home");
             return true;
         }
@@ -244,11 +248,17 @@ FocusScope {
     }
 
     function openContextMenu() {
-        openMediaInfo(currentMediaItem());
+        openItemMenu(currentMediaItem(), null);
+    }
+
+    function openItemMenu(item, anchorItem) {
+        return itemContextMenu.openForItem(item || ({}), anchorItem || null);
     }
 
     function openMediaInfo(item) {
         mediaInfoItem = item || ({});
+        if (appController && mediaInfoItem.movieId)
+            appController.loadItemDetail(mediaInfoItem.movieId);
         mediaInfoVisible = true;
     }
 
@@ -392,6 +402,11 @@ FocusScope {
     Keys.priority: Keys.BeforeItem
 
     Keys.onPressed: event => {
+        if (itemMenuOpen) {
+            itemContextMenu.handlePressed(event);
+            event.accepted = true;
+            return;
+        }
         if (mediaInfoVisible) {
             mediaInfoOverlay.handlePressed(event);
             event.accepted = true;
@@ -423,6 +438,11 @@ FocusScope {
     Keys.onReleased: event => {
         if (playerBackPressHandled && InputKeys.isBackEvent(event, !textInputActive)) {
             playerBackPressHandled = false;
+            event.accepted = true;
+            return;
+        }
+        if (itemMenuOpen) {
+            itemContextMenu.handleReleased(event);
             event.accepted = true;
             return;
         }
@@ -563,6 +583,37 @@ FocusScope {
                 }
             }
         }
+    }
+
+    ItemContextMenu {
+        id: itemContextMenu
+        anchors.fill: parent
+        z: 58
+        onPlayedToggled: (itemId, played) => {
+            if (appController)
+                appController.setPlayed(itemId, played)
+        }
+        onFavoriteToggled: (itemId, favorite) => {
+            if (appController)
+                appController.setFavorite(itemId, favorite)
+        }
+        onClearProgressRequested: (itemId) => {
+            if (appController)
+                appController.clearProgress(itemId)
+        }
+        onOpenSeriesRequested: (seriesId, seriesName) => {
+            if (!appController || seriesId.length <= 0)
+                return
+            root.replaceRoute("libraryGrid")
+            appController.openSeriesById(seriesId, seriesName)
+        }
+        onOpenSeasonRequested: (seriesId, seasonId, seasonName) => {
+            if (!appController || seriesId.length <= 0)
+                return
+            root.replaceRoute("libraryGrid")
+            appController.openSeasonById(seriesId, seasonId, seasonName)
+        }
+        onMediaInfoRequested: (snapshot) => root.openMediaInfo(snapshot)
     }
 
     MediaInfoOverlay {

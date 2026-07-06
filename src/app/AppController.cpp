@@ -1,5 +1,7 @@
 #include "AppController.h"
 
+#include "ArtworkService.h"
+
 #include "../api/JellyfinApiFacade.h"
 #include "../common/AsyncTask.h"
 #include "../diagnostics/Diagnostics.h"
@@ -36,19 +38,21 @@ constexpr int kLibraryPrefetchDistance = 200;
 AppController::AppController(DatabaseManager *database,
                              DiscoveryController *discovery,
                              JellyfinApiFacade *api,
+                             ArtworkService *artwork,
                              PlayerController *player,
                              QObject *parent)
     : QObject(parent)
     , m_database(database)
     , m_discovery(discovery)
     , m_api(api)
+    , m_artwork(artwork)
     , m_player(player)
 {
     m_syncPlay = new SyncPlayController(api, player, this);
     m_quickConnect = new QuickConnectController(api, this);
     m_settings = new SettingsController(database, api, player, this);
     m_session = new SessionController(database, api, this);
-    m_prefetch = new LibraryPrefetchController(api, this);
+    m_prefetch = new LibraryPrefetchController(api, artwork, this);
     m_currentItems = new CurrentItemsController(m_prefetch, this);
     m_home = new HomeModelController(api, m_prefetch, this);
     m_content = new ContentModelController(api, m_prefetch, this);
@@ -68,6 +72,8 @@ AppController::AppController(DatabaseManager *database,
             this, &AppController::searchSuggestionsChanged);
     connect(m_content, &ContentModelController::detailRowsChanged,
             this, &AppController::detailRowsChanged);
+    connect(m_content, &ContentModelController::detailItemChanged,
+            this, &AppController::detailItemChanged);
     connect(m_content, &ContentModelController::personItemsChanged,
             this, &AppController::personItemsChanged);
     connect(m_content, &ContentModelController::errorOccurred,
@@ -80,36 +86,12 @@ AppController::AppController(DatabaseManager *database,
             this, &AppController::currentItemsPagingChanged);
     connect(m_home, &HomeModelController::latestLibraryRowsChanged,
             this, &AppController::latestLibraryRowsChanged);
-    connect(m_quickConnect, &QuickConnectController::changed,
-            this, &AppController::quickConnectChanged);
     connect(m_quickConnect, &QuickConnectController::busyChanged,
             this, &AppController::setBusy);
     connect(m_quickConnect, &QuickConnectController::errorOccurred,
             this, &AppController::setErrorText);
-    connect(m_settings, &SettingsController::visibleChanged,
-            this, &AppController::settingsVisibleChanged);
-    connect(m_settings, &SettingsController::nightModeChanged,
-            this, &AppController::nightModeEnabledChanged);
-    connect(m_settings, &SettingsController::toneMappingVisualizationChanged,
-            this, &AppController::toneMappingVisualizationEnabledChanged);
-    connect(m_settings, &SettingsController::playbackPreferencesChanged,
-            this, &AppController::playbackPreferencesChanged);
-    connect(m_settings, &SettingsController::audioDelayChanged,
-            this, &AppController::audioDelayMsChanged);
-    connect(m_settings, &SettingsController::audioOutputModeChanged,
-            this, &AppController::audioOutputModeChanged);
-    connect(m_settings, &SettingsController::subtitleSettingsChanged,
-            this, &AppController::subtitleSettingsChanged);
-    connect(m_settings, &SettingsController::buttonRemapChanged,
-            this, &AppController::buttonRemapChanged);
     connect(m_settings, &SettingsController::errorOccurred,
             this, &AppController::setErrorText);
-    connect(m_session, &SessionController::serverUrlChanged,
-            this, &AppController::serverUrlChanged);
-    connect(m_session, &SessionController::usernameChanged,
-            this, &AppController::usernameChanged);
-    connect(m_session, &SessionController::passwordChanged,
-            this, &AppController::passwordChanged);
     connect(m_session, &SessionController::busyChanged,
             this, &AppController::setBusy);
     connect(m_session, &SessionController::errorOccurred,
@@ -147,21 +129,6 @@ QString AppController::page() const
     return m_navigation.page();
 }
 
-QString AppController::serverUrl() const
-{
-    return m_session->serverUrl();
-}
-
-QString AppController::username() const
-{
-    return m_session->username();
-}
-
-QString AppController::password() const
-{
-    return m_session->password();
-}
-
 bool AppController::busy() const
 {
     return m_busy;
@@ -175,21 +142,6 @@ QString AppController::busyText() const
 QString AppController::errorText() const
 {
     return m_errorText;
-}
-
-QString AppController::quickConnectCode() const
-{
-    return m_quickConnect->code();
-}
-
-QString AppController::quickConnectStatus() const
-{
-    return m_quickConnect->status();
-}
-
-bool AppController::quickConnectActive() const
-{
-    return m_quickConnect->active();
 }
 
 bool AppController::hasDefaultProfile() const
@@ -235,106 +187,6 @@ QVariantMap AppController::libraryFilterOptions() const
 int AppController::libraryFilterActiveCount() const
 {
     return activeLibraryFilterCount(m_navigation.query());
-}
-
-bool AppController::settingsVisible() const
-{
-    return m_settings->visible();
-}
-
-bool AppController::nightModeEnabled() const
-{
-    return m_settings->nightModeEnabled();
-}
-
-bool AppController::toneMappingVisualizationEnabled() const
-{
-    return m_settings->toneMappingVisualizationEnabled();
-}
-
-int AppController::maxStreamingBitrateMbps() const
-{
-    return m_settings->maxStreamingBitrateMbps();
-}
-
-bool AppController::preferRemux() const
-{
-    return m_settings->preferRemux();
-}
-
-int AppController::audioDelayMs() const
-{
-    return m_settings->audioDelayMs();
-}
-
-QString AppController::audioOutputMode() const
-{
-    return m_settings->audioOutputMode();
-}
-
-QStringList AppController::subtitleLanguageOptions() const
-{
-    return m_settings->subtitleLanguageOptions();
-}
-
-int AppController::subtitleLanguageIndex() const
-{
-    return m_settings->subtitleLanguageIndex();
-}
-
-QString AppController::subtitleMode() const
-{
-    return m_settings->subtitleMode();
-}
-
-QString AppController::subtitleBurnIn() const
-{
-    return m_settings->subtitleBurnIn();
-}
-
-bool AppController::subtitleRenderPgs() const
-{
-    return m_settings->subtitleRenderPgs();
-}
-
-bool AppController::subtitleAlwaysBurnIn() const
-{
-    return m_settings->subtitleAlwaysBurnIn();
-}
-
-QString AppController::subtitleStyling() const
-{
-    return m_settings->subtitleStyling();
-}
-
-QString AppController::subtitleTextSize() const
-{
-    return m_settings->subtitleTextSize();
-}
-
-QString AppController::subtitleTextWeight() const
-{
-    return m_settings->subtitleTextWeight();
-}
-
-QString AppController::subtitleFont() const
-{
-    return m_settings->subtitleFont();
-}
-
-QString AppController::subtitleTextColor() const
-{
-    return m_settings->subtitleTextColor();
-}
-
-QString AppController::subtitleDropShadow() const
-{
-    return m_settings->subtitleDropShadow();
-}
-
-int AppController::subtitleVerticalPosition() const
-{
-    return m_settings->subtitleVerticalPosition();
 }
 
 DiscoveredServerModel *AppController::discoveredServers()
@@ -407,6 +259,11 @@ MovieGridModel *AppController::detailSimilarItems()
     return m_content->detailSimilarItems();
 }
 
+QVariantMap AppController::detailItem() const
+{
+    return m_content->detailItem();
+}
+
 MovieGridModel *AppController::personItems()
 {
     return m_content->personItems();
@@ -439,6 +296,21 @@ PlayerController *AppController::player()
     return m_player;
 }
 
+SettingsController *AppController::settings()
+{
+    return m_settings;
+}
+
+SessionController *AppController::session()
+{
+    return m_session;
+}
+
+QuickConnectController *AppController::quickConnect()
+{
+    return m_quickConnect;
+}
+
 void AppController::initialize()
 {
     Diagnostics::Task task(QStringLiteral("app_initialize"));
@@ -454,27 +326,12 @@ void AppController::initialize()
     }
 }
 
-void AppController::setServerUrl(const QString &serverUrl)
-{
-    m_session->setServerUrl(serverUrl);
-}
-
-void AppController::setUsername(const QString &username)
-{
-    m_session->setUsername(username);
-}
-
-void AppController::setPassword(const QString &password)
-{
-    m_session->setPassword(password);
-}
-
 void AppController::chooseDiscoveredServer(int index)
 {
     const auto server = m_discoveredServers.serverAt(index);
     if (server.address.isEmpty())
         return;
-    setServerUrl(server.address);
+    m_session->setServerUrl(server.address);
 }
 
 void AppController::login()
@@ -490,7 +347,7 @@ void AppController::useDefaultProfile()
 
     if (!m_session->authenticated()) {
         const AuthSession session = m_database->loadAuthSession();
-        if (session.accessToken.isEmpty() || serverUrl().isEmpty()) {
+        if (session.accessToken.isEmpty() || m_session->serverUrl().isEmpty()) {
             setErrorText(QStringLiteral("This saved profile needs to sign in again."));
             return;
         }
@@ -533,7 +390,8 @@ void AppController::resetApplicationState()
     m_syncPlay->disconnectSocket();
     m_settings->clearRemote();
     m_prefetch->stop();
-    m_api->cancelPrefetches();
+    if (m_artwork)
+        m_artwork->cancelPrefetches();
     m_libraries.clear();
     m_currentItems->clear();
     m_home->reset();
@@ -558,16 +416,6 @@ void AppController::resetApplicationState()
     m_discovery->start();
 }
 
-void AppController::startQuickConnect()
-{
-    setErrorText({});
-    m_quickConnect->start(serverUrl());
-}
-
-void AppController::cancelQuickConnect()
-{
-    m_quickConnect->cancel();
-}
 
 void AppController::goHome()
 {
@@ -600,7 +448,8 @@ void AppController::openLibrary(int index)
     const bool hasWarmCache = cachedCount > 0;
     m_currentItems->setWarmCachePaging(cachedCount, kLibraryPageSize);
     m_prefetch->stop();
-    m_api->cancelPrefetches();
+    if (m_artwork)
+        m_artwork->cancelPrefetches();
     if (hasWarmCache) {
         setBusy(false);
         setPage(QStringLiteral("movies"));
@@ -755,7 +604,8 @@ void AppController::loadMoreCurrentItems()
     const QString collectionType = currentLibraryCollectionType();
     const QString cacheKey = m_currentItems->cacheKey();
     const QVariantMap query = libraryQuery();
-    m_api->cancelPrefetches();
+    if (m_artwork)
+        m_artwork->cancelPrefetches();
     m_currentItems->setLoadingMore(true);
 
     const auto onDone = [this, cacheKey](const PagedMovieItems &page) {
@@ -876,7 +726,8 @@ void AppController::refreshCurrentLibrary()
     m_currentItems->resetPaging(cacheKey);
     m_currentItems->clear();
     m_prefetch->stop();
-    m_api->cancelPrefetches();
+    if (m_artwork)
+        m_artwork->cancelPrefetches();
     setBusy(true, QStringLiteral("Loading %1…").arg(currentContentLabel().toLower()));
 
     Async::runLatest(this,
@@ -896,6 +747,11 @@ void AppController::loadDetailRows(const QString &itemId, const QString &itemTyp
                                    const QString &seriesId, const QString &seasonId)
 {
     m_content->loadDetailRows(itemId, itemType, seriesId, seasonId);
+}
+
+void AppController::loadItemDetail(const QString &itemId)
+{
+    m_content->loadItemDetail(itemId);
 }
 
 void AppController::openDetailSeason(int index)
@@ -1019,11 +875,7 @@ void AppController::playMediaItem(const MovieItem &item, bool fromStart)
 
 void AppController::back()
 {
-    qInfo() << "app: back pressed, page=" << page() << "settingsVisible=" << settingsVisible();
-    if (settingsVisible()) {
-        closeSettings();
-        return;
-    }
+    qInfo() << "app: back pressed, page=" << page();
 
     if (m_player->visible()) {
         m_player->stop();
@@ -1072,147 +924,6 @@ void AppController::clearError()
 {
     setErrorText({});
 }
-
-void AppController::openSettings()
-{
-    m_settings->open();
-}
-
-void AppController::closeSettings()
-{
-    m_settings->close();
-}
-
-void AppController::toggleNightMode()
-{
-    m_settings->toggleNightMode();
-}
-
-void AppController::setNightModeEnabled(bool enabled)
-{
-    m_settings->setNightModeEnabled(enabled);
-}
-
-void AppController::setToneMappingVisualizationEnabled(bool enabled)
-{
-    m_settings->setToneMappingVisualizationEnabled(enabled);
-}
-
-void AppController::setMaxStreamingBitrateMbps(int bitrateMbps)
-{
-    m_settings->setMaxStreamingBitrateMbps(bitrateMbps);
-}
-
-void AppController::setPreferRemux(bool enabled)
-{
-    m_settings->setPreferRemux(enabled);
-}
-
-void AppController::setAudioDelayMs(int delayMs)
-{
-    m_settings->setAudioDelayMs(delayMs);
-}
-
-void AppController::setAudioOutputMode(const QString &mode)
-{
-    m_settings->setAudioOutputMode(mode);
-}
-
-void AppController::setSubtitleLanguageIndex(int index)
-{
-    m_settings->setSubtitleLanguageIndex(index);
-}
-
-void AppController::setSubtitleMode(const QString &mode)
-{
-    m_settings->setSubtitleMode(mode);
-}
-
-void AppController::setSubtitleBurnIn(const QString &mode)
-{
-    m_settings->setSubtitleBurnIn(mode);
-}
-
-void AppController::setSubtitleRenderPgs(bool enabled)
-{
-    m_settings->setSubtitleRenderPgs(enabled);
-}
-
-void AppController::setSubtitleAlwaysBurnIn(bool enabled)
-{
-    m_settings->setSubtitleAlwaysBurnIn(enabled);
-}
-
-void AppController::setSubtitleStyling(const QString &styling)
-{
-    m_settings->setSubtitleStyling(styling);
-}
-
-void AppController::setSubtitleTextSize(const QString &size)
-{
-    m_settings->setSubtitleTextSize(size);
-}
-
-void AppController::setSubtitleTextWeight(const QString &weight)
-{
-    m_settings->setSubtitleTextWeight(weight);
-}
-
-void AppController::setSubtitleFont(const QString &font)
-{
-    m_settings->setSubtitleFont(font);
-}
-
-void AppController::setSubtitleTextColor(const QString &color)
-{
-    m_settings->setSubtitleTextColor(color);
-}
-
-void AppController::setSubtitleDropShadow(const QString &shadow)
-{
-    m_settings->setSubtitleDropShadow(shadow);
-}
-
-void AppController::setSubtitleVerticalPosition(int position)
-{
-    m_settings->setSubtitleVerticalPosition(position);
-}
-
-QString AppController::redButtonAction() const { return m_settings->redButtonAction(); }
-QString AppController::greenButtonAction() const { return m_settings->greenButtonAction(); }
-QString AppController::yellowButtonAction() const { return m_settings->yellowButtonAction(); }
-QString AppController::blueButtonAction() const { return m_settings->blueButtonAction(); }
-
-QStringList AppController::availableButtonActions() const
-{
-    return m_settings->availableButtonActions();
-}
-
-QString AppController::buttonActionLabel(const QString &action) const
-{
-    return m_settings->buttonActionLabel(action);
-}
-
-void AppController::setRedButtonAction(const QString &action)
-{
-    m_settings->setRedButtonAction(action);
-}
-
-void AppController::setGreenButtonAction(const QString &action)
-{
-    m_settings->setGreenButtonAction(action);
-}
-
-void AppController::setYellowButtonAction(const QString &action)
-{
-    m_settings->setYellowButtonAction(action);
-}
-
-void AppController::setBlueButtonAction(const QString &action)
-{
-    m_settings->setBlueButtonAction(action);
-}
-
 
 void AppController::setPage(const QString &page)
 {

@@ -161,6 +161,8 @@ endif()
 qt_add_executable(jellyfin-native
     src/api/JellyfinApiFacade.cpp
     src/api/JellyfinApiFacade.h
+    src/api/ItemsQuery.cpp
+    src/api/ItemsQuery.h
     src/api/PlaybackNegotiation.cpp
     src/api/PlaybackNegotiation.h
     src/api/HttpRequestPolicy.h
@@ -168,6 +170,9 @@ qt_add_executable(jellyfin-native
     src/app/AppController.h
     src/app/ArtworkImageProvider.cpp
     src/app/ArtworkImageProvider.h
+    src/app/ArtworkService.cpp
+    src/app/ArtworkService.h
+    src/app/ArtworkPrefetcher.h
     src/app/ContentModelController.cpp
     src/app/ContentModelController.h
     src/app/CpuTopology.cpp
@@ -190,8 +195,6 @@ qt_add_executable(jellyfin-native
     src/app/SettingsController.h
     src/app/SessionController.cpp
     src/app/SessionController.h
-    src/app/QmlNetworkAccessManagerFactory.cpp
-    src/app/QmlNetworkAccessManagerFactory.h
     src/app/SyncPlayController.cpp
     src/app/SyncPlayController.h
     src/app/SyncPlayClock.cpp
@@ -311,7 +314,6 @@ qt_add_qml_module(jellyfin-native
         qml/primitives/MediaPosterScrollerRow.qml
         qml/primitives/MetadataChip.qml
         qml/primitives/MonoText.qml
-        qml/primitives/ModelCountObserver.qml
         qml/primitives/MaterialIcon.qml
         qml/primitives/PersonScrollerRow.qml
         qml/primitives/PosterCard.qml
@@ -325,6 +327,7 @@ qt_add_qml_module(jellyfin-native
         qml/primitives/ToggleRow.qml
         qml/shell/AppShell.qml
         qml/shell/DiagnosticsOverlay.qml
+        qml/shell/ItemContextMenu.qml
         qml/shell/MediaInfoOverlay.qml
         qml/shell/RoutePolicy.js
         qml/shell/RouteStack.qml
@@ -510,10 +513,13 @@ if(BUILD_TESTING AND NOT CMAKE_CROSSCOMPILING)
         src/app/ContentModelController.h
         src/app/LibraryPrefetchController.cpp
         src/app/LibraryPrefetchController.h
+        src/app/ArtworkPrefetcher.h
         src/app/LibraryQuery.cpp
         src/app/LibraryQuery.h
         src/api/JellyfinApiFacade.cpp
         src/api/JellyfinApiFacade.h
+        src/api/ItemsQuery.cpp
+        src/api/ItemsQuery.h
         src/api/PlaybackNegotiation.cpp
         src/api/PlaybackNegotiation.h
         src/api/HttpRequestPolicy.h
