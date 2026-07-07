@@ -37,7 +37,7 @@ QString displaySubtitle(const MovieItem &movie)
     return movie.subtitle;
 }
 
-QVariantList peopleVariantList(const std::vector<PersonItem> &people)
+QVariantList peopleVariantList(const QList<PersonItem> &people)
 {
     QVariantList result;
     result.reserve(static_cast<qsizetype>(people.size()));
@@ -54,7 +54,7 @@ QVariantList peopleVariantList(const std::vector<PersonItem> &people)
     return result;
 }
 
-QVariantList mediaStreamsVariantList(const std::vector<MediaStreamInfo> &streams)
+QVariantList mediaStreamsVariantList(const QList<MediaStreamInfo> &streams)
 {
     QVariantList result;
     result.reserve(static_cast<qsizetype>(streams.size()));
@@ -89,7 +89,7 @@ QVariantList mediaStreamsVariantList(const std::vector<MediaStreamInfo> &streams
     return result;
 }
 
-QVariantList mediaSourcesVariantList(const std::vector<MediaSourceInfo> &sources)
+QVariantList mediaSourcesVariantList(const QList<MediaSourceInfo> &sources)
 {
     QVariantList result;
     result.reserve(static_cast<qsizetype>(sources.size()));

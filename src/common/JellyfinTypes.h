@@ -2,6 +2,9 @@
 
 #include <QJsonArray>
 #include <QJsonObject>
+#include <QList>
+#include <QMetaType>
+#include <QObject>
 #include <QString>
 #include <QStringList>
 #include <QVariantMap>
@@ -12,12 +15,26 @@
 namespace JellyfinNative {
 
 struct DiscoveredServer {
+    Q_GADGET
+    Q_PROPERTY(QString id MEMBER id)
+    Q_PROPERTY(QString name MEMBER name)
+    Q_PROPERTY(QString address MEMBER address)
+
+public:
     QString id;
     QString name;
     QString address;
 };
 
 struct LibraryItem {
+    Q_GADGET
+    Q_PROPERTY(QString id MEMBER id)
+    Q_PROPERTY(QString name MEMBER name)
+    Q_PROPERTY(QString collectionType MEMBER collectionType)
+    Q_PROPERTY(QString imageUrl MEMBER imageUrl)
+    Q_PROPERTY(QString imageTag MEMBER imageTag)
+
+public:
     QString id;
     QString name;
     QString collectionType;
@@ -66,15 +83,53 @@ struct BrowseDescriptor {
 };
 
 struct PersonItem {
+    Q_GADGET
+    Q_PROPERTY(QString id MEMBER id)
+    Q_PROPERTY(QString name MEMBER name)
+    Q_PROPERTY(QString type MEMBER type)
+    Q_PROPERTY(QString role MEMBER role)
+    Q_PROPERTY(QString imageUrl MEMBER imageUrl)
+    Q_PROPERTY(QString imageTag MEMBER imageTag)
+
+public:
     QString id;
     QString name;
     QString type;
     QString role;
     QString imageUrl;
     QString imageTag;
+
+    friend bool operator==(const PersonItem &, const PersonItem &) = default;
 };
 
 struct MediaStreamInfo {
+    Q_GADGET
+    Q_PROPERTY(int index MEMBER index)
+    Q_PROPERTY(QString type MEMBER type)
+    Q_PROPERTY(QString codec MEMBER codec)
+    Q_PROPERTY(QString profile MEMBER profile)
+    Q_PROPERTY(QString displayTitle MEMBER displayTitle)
+    Q_PROPERTY(QString title MEMBER title)
+    Q_PROPERTY(QString language MEMBER language)
+    Q_PROPERTY(QString pixelFormat MEMBER pixelFormat)
+    Q_PROPERTY(QString videoRange MEMBER videoRange)
+    Q_PROPERTY(QString colorPrimaries MEMBER colorPrimaries)
+    Q_PROPERTY(QString colorTransfer MEMBER colorTransfer)
+    Q_PROPERTY(QString colorSpace MEMBER colorSpace)
+    Q_PROPERTY(QString aspectRatio MEMBER aspectRatio)
+    Q_PROPERTY(int width MEMBER width)
+    Q_PROPERTY(int height MEMBER height)
+    Q_PROPERTY(double frameRate MEMBER frameRate)
+    Q_PROPERTY(int bitRate MEMBER bitRate)
+    Q_PROPERTY(int bitDepth MEMBER bitDepth)
+    Q_PROPERTY(int channels MEMBER channels)
+    Q_PROPERTY(int sampleRate MEMBER sampleRate)
+    Q_PROPERTY(bool isDefault MEMBER isDefault)
+    Q_PROPERTY(bool isForced MEMBER isForced)
+    Q_PROPERTY(bool isExternal MEMBER isExternal)
+    Q_PROPERTY(bool isInterlaced MEMBER isInterlaced)
+
+public:
     int index = -1;
     QString type;
     QString codec;
@@ -99,9 +154,24 @@ struct MediaStreamInfo {
     bool isForced = false;
     bool isExternal = false;
     bool isInterlaced = false;
+
+    friend bool operator==(const MediaStreamInfo &, const MediaStreamInfo &) = default;
 };
 
 struct MediaSourceInfo {
+    Q_GADGET
+    Q_PROPERTY(QString id MEMBER id)
+    Q_PROPERTY(QString name MEMBER name)
+    Q_PROPERTY(QString path MEMBER path)
+    Q_PROPERTY(QString container MEMBER container)
+    Q_PROPERTY(QString protocol MEMBER protocol)
+    Q_PROPERTY(QString videoType MEMBER videoType)
+    Q_PROPERTY(qint64 size MEMBER size)
+    Q_PROPERTY(int bitRate MEMBER bitRate)
+    Q_PROPERTY(qint64 runtimeTicks MEMBER runtimeTicks)
+    Q_PROPERTY(QList<JellyfinNative::MediaStreamInfo> streams MEMBER streams)
+
+public:
     QString id;
     QString name;
     QString path;
@@ -111,10 +181,51 @@ struct MediaSourceInfo {
     qint64 size = 0;
     int bitRate = 0;
     qint64 runtimeTicks = 0;
-    std::vector<MediaStreamInfo> streams;
+    QList<MediaStreamInfo> streams;
+
+    friend bool operator==(const MediaSourceInfo &, const MediaSourceInfo &) = default;
 };
 
 struct MovieItem {
+    Q_GADGET
+    Q_PROPERTY(QString movieId MEMBER id)
+    Q_PROPERTY(QString title MEMBER title)
+    Q_PROPERTY(QString overview MEMBER overview)
+    Q_PROPERTY(QString posterUrl MEMBER posterUrl)
+    Q_PROPERTY(QString posterTag MEMBER posterTag)
+    Q_PROPERTY(QString itemType MEMBER itemType)
+    Q_PROPERTY(QString playlistItemId MEMBER playlistItemId)
+    Q_PROPERTY(QString seriesId MEMBER seriesId)
+    Q_PROPERTY(QString seasonId MEMBER seasonId)
+    Q_PROPERTY(QString seriesName MEMBER seriesName)
+    Q_PROPERTY(QString seriesPosterUrl MEMBER seriesPosterUrl)
+    Q_PROPERTY(QString subtitle MEMBER subtitle)
+    Q_PROPERTY(QString path MEMBER path)
+    Q_PROPERTY(int year MEMBER year)
+    Q_PROPERTY(int seasonNumber MEMBER seasonNumber)
+    Q_PROPERTY(int episodeNumber MEMBER episodeNumber)
+    Q_PROPERTY(qint64 resumeTicks MEMBER resumeTicks)
+    Q_PROPERTY(qint64 runtimeTicks MEMBER runtimeTicks)
+    Q_PROPERTY(bool playable MEMBER playable)
+    Q_PROPERTY(bool favorite MEMBER favorite)
+    Q_PROPERTY(bool played MEMBER played)
+    Q_PROPERTY(QString backdropUrl MEMBER backdropUrl)
+    Q_PROPERTY(QString logoUrl MEMBER logoUrl)
+    Q_PROPERTY(QString bannerUrl MEMBER bannerUrl)
+    Q_PROPERTY(QString thumbUrl MEMBER thumbUrl)
+    Q_PROPERTY(QString landscapeCardUrl MEMBER landscapeCardUrl)
+    Q_PROPERTY(QStringList genres MEMBER genres)
+    Q_PROPERTY(QStringList tags MEMBER tags)
+    Q_PROPERTY(QStringList studios MEMBER studios)
+    Q_PROPERTY(QString officialRating MEMBER officialRating)
+    Q_PROPERTY(double communityRating MEMBER communityRating)
+    Q_PROPERTY(double criticRating MEMBER criticRating)
+    Q_PROPERTY(QString premiereDate MEMBER premiereDate)
+    Q_PROPERTY(QString endDate MEMBER endDate)
+    Q_PROPERTY(QList<JellyfinNative::PersonItem> people MEMBER people)
+    Q_PROPERTY(QList<JellyfinNative::MediaSourceInfo> mediaSources MEMBER mediaSources)
+
+public:
     QString id;
     QString title;
     QString overview;
@@ -133,7 +244,7 @@ struct MovieItem {
     int episodeNumber = 0;
     qint64 resumeTicks = 0;
     qint64 runtimeTicks = 0;
-    bool playable = true;
+    bool playable = false;
     bool favorite = false;
     bool played = false;
     QString backdropUrl;
@@ -149,8 +260,10 @@ struct MovieItem {
     double criticRating = 0.0;
     QString premiereDate;
     QString endDate;
-    std::vector<PersonItem> people;
-    std::vector<MediaSourceInfo> mediaSources;
+    QList<PersonItem> people;
+    QList<MediaSourceInfo> mediaSources;
+
+    friend bool operator==(const MovieItem &, const MovieItem &) = default;
 };
 
 struct AuthSession {
@@ -161,6 +274,13 @@ struct AuthSession {
 };
 
 struct MediaSegment {
+    Q_GADGET
+    Q_PROPERTY(QString id MEMBER id)
+    Q_PROPERTY(QString type MEMBER type)
+    Q_PROPERTY(qint64 startTicks MEMBER startTicks)
+    Q_PROPERTY(qint64 endTicks MEMBER endTicks)
+
+public:
     QString id;
     QString type; // "Intro", "Outro", "Recap", "Preview", "Commercial"
     qint64 startTicks = 0;
@@ -218,23 +338,14 @@ struct PlaybackSession {
     QString container;
     qint64 startTimeTicks = 0;
     qint64 runtimeTicks = 0;
-    std::vector<MediaStreamInfo> mediaStreams;
+    QList<MediaStreamInfo> mediaStreams;
     std::vector<MediaSegment> segments;
     TrickplayInfo trickplay;
     std::vector<PlaybackQueueItem> nowPlayingQueue;
 };
 
-QJsonObject toJson(const DiscoveredServer &server);
-QJsonObject toJson(const LibraryItem &library);
-QJsonObject toJson(const PersonItem &person);
-QJsonObject toJson(const MovieItem &movie);
 QVariantMap toVariantMap(const BrowseDescriptor &descriptor);
 BrowseDescriptor browseDescriptorFromVariantMap(const QVariantMap &map);
-
-DiscoveredServer discoveredServerFromJson(const QJsonObject &object);
-LibraryItem libraryFromJson(const QJsonObject &object);
-PersonItem personFromJson(const QJsonObject &object);
-MovieItem movieFromJson(const QJsonObject &object);
 
 QString exceptionMessage(const std::exception_ptr &exception);
 QString normalizedAudioOutputMode(const QString &mode);
@@ -243,3 +354,14 @@ bool isMeaningfulResumePosition(qint64 resumeTicks, qint64 runtimeTicks);
 qint64 normalizedResumeTicks(qint64 resumeTicks, qint64 runtimeTicks);
 
 } // namespace JellyfinNative
+
+Q_DECLARE_METATYPE(JellyfinNative::DiscoveredServer)
+Q_DECLARE_METATYPE(JellyfinNative::LibraryItem)
+Q_DECLARE_METATYPE(JellyfinNative::PersonItem)
+Q_DECLARE_METATYPE(JellyfinNative::MediaStreamInfo)
+Q_DECLARE_METATYPE(JellyfinNative::MediaSourceInfo)
+Q_DECLARE_METATYPE(JellyfinNative::MovieItem)
+Q_DECLARE_METATYPE(JellyfinNative::MediaSegment)
+Q_DECLARE_METATYPE(QList<JellyfinNative::PersonItem>)
+Q_DECLARE_METATYPE(QList<JellyfinNative::MediaStreamInfo>)
+Q_DECLARE_METATYPE(QList<JellyfinNative::MediaSourceInfo>)

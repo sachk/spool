@@ -158,7 +158,7 @@ else()
     endif()
 endif()
 
-qt_add_executable(jellyfin-native
+set(JELLYFIN_CORE_SOURCES
     src/api/JellyfinApiFacade.cpp
     src/api/JellyfinApiFacade.h
     src/api/ItemsQuery.cpp
@@ -191,7 +191,6 @@ qt_add_executable(jellyfin-native
     src/app/NavigationState.h
     src/app/RouterController.cpp
     src/app/RouterController.h
-    src/app/NativeAppWindow.h
     src/app/NativeAppWindowCommon.cpp
     src/app/QuickConnectController.cpp
     src/app/QuickConnectController.h
@@ -215,13 +214,13 @@ qt_add_executable(jellyfin-native
     src/cache/DatabaseManager.h
     src/common/JellyfinTypes.cpp
     src/common/JellyfinTypes.h
+    src/common/MetaJson.h
     src/common/AsyncTask.h
     src/common/RequestGeneration.h
     src/discovery/DiscoveryController.cpp
     src/discovery/DiscoveryController.h
     src/diagnostics/Diagnostics.cpp
     src/diagnostics/Diagnostics.h
-    src/main.cpp
     src/models/DiscoveredServerModel.cpp
     src/models/DiscoveredServerModel.h
     src/models/LibraryListModel.cpp
@@ -250,27 +249,49 @@ qt_add_executable(jellyfin-native
     src/player/MpvOptionProfile.h
 )
 
+add_library(jellyfin-core STATIC ${JELLYFIN_CORE_SOURCES})
+
+qt_add_executable(jellyfin-native
+    src/main.cpp
+)
+
+set(JELLYFIN_NATIVE_TARGETS jellyfin-core jellyfin-native)
+
 if(JELLYFIN_NATIVE_WEBOS)
     target_sources(jellyfin-native PRIVATE
         src/app/NativeAppWindow.cpp
+        src/app/NativeAppWindow.h
         src/player/MpvRuntime.cpp
         src/player/MpvRuntime.h
     )
-    target_compile_definitions(jellyfin-native PRIVATE JELLYFIN_NATIVE_WEBOS=1)
+    foreach(target IN LISTS JELLYFIN_NATIVE_TARGETS)
+        target_compile_definitions(${target} PRIVATE JELLYFIN_NATIVE_WEBOS=1)
+    endforeach()
 else()
-    target_sources(jellyfin-native PRIVATE src/app/HostNativeAppWindow.cpp)
+    target_sources(jellyfin-core PRIVATE
+        src/app/HostNativeAppWindow.cpp
+        src/app/NativeAppWindow.h
+    )
 endif()
 if(JELLYFIN_DIAGNOSTICS)
-    target_compile_definitions(jellyfin-native PRIVATE JELLYFIN_DIAGNOSTICS=1)
+    foreach(target IN LISTS JELLYFIN_NATIVE_TARGETS)
+        target_compile_definitions(${target} PRIVATE JELLYFIN_DIAGNOSTICS=1)
+    endforeach()
 endif()
 if(JELLYFIN_DIAGNOSTICS_STACKDUMP)
-    target_compile_definitions(jellyfin-native PRIVATE JELLYFIN_DIAGNOSTICS_STACKDUMP=1)
+    foreach(target IN LISTS JELLYFIN_NATIVE_TARGETS)
+        target_compile_definitions(${target} PRIVATE JELLYFIN_DIAGNOSTICS_STACKDUMP=1)
+    endforeach()
 endif()
 if(JELLYFIN_DIAGNOSTICS_ABORT_ON_HANG)
-    target_compile_definitions(jellyfin-native PRIVATE JELLYFIN_DIAGNOSTICS_ABORT_ON_HANG=1)
+    foreach(target IN LISTS JELLYFIN_NATIVE_TARGETS)
+        target_compile_definitions(${target} PRIVATE JELLYFIN_DIAGNOSTICS_ABORT_ON_HANG=1)
+    endforeach()
 endif()
 if(JELLYFIN_ARTWORK_ASPECT_DIAGNOSTICS)
-    target_compile_definitions(jellyfin-native PRIVATE JELLYFIN_ARTWORK_ASPECT_DIAGNOSTICS=1)
+    foreach(target IN LISTS JELLYFIN_NATIVE_TARGETS)
+        target_compile_definitions(${target} PRIVATE JELLYFIN_ARTWORK_ASPECT_DIAGNOSTICS=1)
+    endforeach()
 endif()
 
 set_source_files_properties(
@@ -394,14 +415,14 @@ if(JELLYFIN_NATIVE_INCLUDE_DIRS)
     )
 endif()
 
-target_include_directories(jellyfin-native PRIVATE
+target_include_directories(jellyfin-core PUBLIC
     "${CMAKE_CURRENT_SOURCE_DIR}/src"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/player"
     "${MPV_ACTIVE_SOURCE_DIR}"
     "${MPV_ACTIVE_SOURCE_DIR}/include"
 )
 
-target_link_libraries(jellyfin-native PRIVATE
+target_link_libraries(jellyfin-core PUBLIC
     QCoro::Core
     QCoro::Network
     Qt6::Core
@@ -414,6 +435,8 @@ target_link_libraries(jellyfin-native PRIVATE
     Qt6::OpenGL
     Qt6::WebSockets
 )
+
+target_link_libraries(jellyfin-native PRIVATE jellyfin-core)
 
 if(JELLYFIN_NATIVE_WEBOS)
     target_link_libraries(jellyfin-native PRIVATE
@@ -441,284 +464,66 @@ if(JELLYFIN_NATIVE_WEBOS)
         "-Wl,-rpath-link,${WEBOS_SYSROOT_BASE_LIB_DIR}"
     )
 else()
-    target_link_libraries(jellyfin-native PRIVATE PkgConfig::MPV)
+    target_link_libraries(jellyfin-core PUBLIC PkgConfig::MPV)
     if(UNIX AND NOT APPLE)
-        target_link_libraries(jellyfin-native PRIVATE OpenGL::GL)
-        target_include_directories(jellyfin-native PRIVATE "${OPENGL_INCLUDE_DIR}")
-        target_compile_options(jellyfin-native PRIVATE "-I${OPENGL_INCLUDE_DIR}")
+        target_link_libraries(jellyfin-core PUBLIC OpenGL::GL)
+        target_include_directories(jellyfin-core PUBLIC "${OPENGL_INCLUDE_DIR}")
+        target_compile_options(jellyfin-core PUBLIC "-I${OPENGL_INCLUDE_DIR}")
     endif()
 endif()
 
 if(BUILD_TESTING AND NOT CMAKE_CROSSCOMPILING)
-    add_executable(playback-timeline-tests
-        tests/player/PlaybackTimelineTest.cpp
-        src/player/PlaybackTimeline.cpp
-        src/player/PlaybackTimeline.h
+    set(JELLYFIN_TEST_SOURCES
+        playback-timeline tests/player/PlaybackTimelineTest.cpp
+        playback-track-parser tests/player/PlaybackTrackParserTest.cpp
+        playback-track-state tests/player/PlaybackTrackStateTest.cpp
+        playback-position-tracker tests/player/PlaybackPositionTrackerTest.cpp
+        mpv-option-profile tests/player/MpvOptionProfileTest.cpp
+        play-queue-controller tests/player/PlayQueueControllerTest.cpp
+        navigation-state tests/app/NavigationStateTest.cpp
+        browse-session-controller tests/app/BrowseSessionControllerTest.cpp
+        settings-schema tests/app/SettingsSchemaTest.cpp
+        router-controller tests/app/RouterControllerTest.cpp
+        library-query tests/app/LibraryQueryTest.cpp
+        content-model-controller tests/app/ContentModelControllerTest.cpp
+        sync-play-clock tests/app/SyncPlayClockTest.cpp
+        request-generation tests/common/RequestGenerationTest.cpp
+        browse-descriptor tests/common/BrowseDescriptorTest.cpp
+        meta-json tests/common/MetaJsonTest.cpp
+        http-request-policy tests/api/HttpRequestPolicyTest.cpp
+        items-query tests/api/ItemsQueryTest.cpp
+        playback-negotiation tests/api/PlaybackNegotiationTest.cpp
+        database-manager tests/cache/DatabaseManagerTest.cpp
     )
-    target_include_directories(playback-timeline-tests PRIVATE
-        "${CMAKE_CURRENT_SOURCE_DIR}/src"
-    )
-    target_link_libraries(playback-timeline-tests PRIVATE Qt6::Core)
-    add_test(NAME playback-timeline COMMAND playback-timeline-tests)
-
-    add_executable(playback-track-parser-tests
-        tests/player/PlaybackTrackParserTest.cpp
-        src/player/PlaybackTrackParser.cpp
-        src/player/PlaybackTrackParser.h
-    )
-    target_include_directories(playback-track-parser-tests PRIVATE
-        "${CMAKE_CURRENT_SOURCE_DIR}/src"
-    )
-    target_link_libraries(playback-track-parser-tests PRIVATE
-        Qt6::Core
-        PkgConfig::MPV
-    )
-    add_test(NAME playback-track-parser COMMAND playback-track-parser-tests)
-
-    add_executable(playback-track-state-tests
-        tests/player/PlaybackTrackStateTest.cpp
-        src/player/PlaybackTrackState.cpp
-        src/player/PlaybackTrackState.h
-        src/player/PlaybackTrackParser.h
-    )
-    target_include_directories(playback-track-state-tests PRIVATE
-        "${CMAKE_CURRENT_SOURCE_DIR}/src"
-    )
-    target_link_libraries(playback-track-state-tests PRIVATE Qt6::Core)
-    add_test(NAME playback-track-state COMMAND playback-track-state-tests)
-
-    add_executable(playback-position-tracker-tests
-        tests/player/PlaybackPositionTrackerTest.cpp
-        src/player/PlaybackPositionTracker.cpp
-        src/player/PlaybackPositionTracker.h
-    )
-    target_include_directories(playback-position-tracker-tests PRIVATE
-        "${CMAKE_CURRENT_SOURCE_DIR}/src"
-    )
-    target_link_libraries(playback-position-tracker-tests PRIVATE Qt6::Core)
-    add_test(NAME playback-position-tracker COMMAND playback-position-tracker-tests)
-
-    add_executable(mpv-option-profile-tests
-        tests/player/MpvOptionProfileTest.cpp
-        src/player/MpvOptionProfile.cpp
-        src/player/MpvOptionProfile.h
-    )
-    target_include_directories(mpv-option-profile-tests PRIVATE
-        "${CMAKE_CURRENT_SOURCE_DIR}/src"
-    )
-    target_link_libraries(mpv-option-profile-tests PRIVATE Qt6::Core)
-    add_test(NAME mpv-option-profile COMMAND mpv-option-profile-tests)
-
-    add_executable(play-queue-controller-tests
-        tests/player/PlayQueueControllerTest.cpp
-        src/player/PlayQueueController.cpp
-        src/player/PlayQueueController.h
-        src/common/JellyfinTypes.cpp
-        src/common/JellyfinTypes.h
-    )
-    target_include_directories(play-queue-controller-tests PRIVATE
-        "${CMAKE_CURRENT_SOURCE_DIR}/src"
-    )
-    target_link_libraries(play-queue-controller-tests PRIVATE Qt6::Core)
-    add_test(NAME play-queue-controller COMMAND play-queue-controller-tests)
-
-    add_executable(navigation-state-tests
-        tests/app/NavigationStateTest.cpp
-        src/app/NavigationState.cpp
-        src/app/NavigationState.h
-    )
-    target_include_directories(navigation-state-tests PRIVATE
-        "${CMAKE_CURRENT_SOURCE_DIR}/src"
-    )
-    target_link_libraries(navigation-state-tests PRIVATE Qt6::Core)
-    add_test(NAME navigation-state COMMAND navigation-state-tests)
-
-    add_executable(browse-session-controller-tests
-        tests/app/BrowseSessionControllerTest.cpp
-        src/app/BrowseSessionController.cpp
-        src/app/BrowseSessionController.h
-        src/app/LibraryPrefetchController.cpp
-        src/app/LibraryPrefetchController.h
-        src/app/ArtworkPrefetcher.h
-        src/app/LibraryQuery.cpp
-        src/app/LibraryQuery.h
-        src/api/JellyfinApiFacade.cpp
-        src/api/JellyfinApiFacade.h
-        src/api/ItemsQuery.cpp
-        src/api/ItemsQuery.h
-        src/api/PlaybackNegotiation.cpp
-        src/api/PlaybackNegotiation.h
-        src/api/HttpRequestPolicy.h
-        src/common/AsyncTask.h
-        src/common/JellyfinTypes.cpp
-        src/common/JellyfinTypes.h
-        src/diagnostics/Diagnostics.cpp
-        src/diagnostics/Diagnostics.h
-        src/models/MovieGridModel.cpp
-        src/models/MovieGridModel.h
-    )
-    target_include_directories(browse-session-controller-tests PRIVATE
-        "${CMAKE_CURRENT_SOURCE_DIR}/src"
-    )
-    target_link_libraries(browse-session-controller-tests PRIVATE
-        Qt6::Core
-        Qt6::Network
-        QCoro6::Core
-        QCoro6::Network
-    )
-    add_test(NAME browse-session-controller COMMAND browse-session-controller-tests)
-
-    add_executable(settings-schema-tests
-        tests/app/SettingsSchemaTest.cpp
-        src/app/SettingsSchema.cpp
-        src/app/SettingsSchema.h
-        src/common/JellyfinTypes.cpp
-        src/common/JellyfinTypes.h
-    )
-    target_include_directories(settings-schema-tests PRIVATE
-        "${CMAKE_CURRENT_SOURCE_DIR}/src"
-    )
-    target_link_libraries(settings-schema-tests PRIVATE Qt6::Core)
-    add_test(NAME settings-schema COMMAND settings-schema-tests)
-
-    add_executable(router-controller-tests
-        tests/app/RouterControllerTest.cpp
-        src/app/RouterController.cpp
-        src/app/RouterController.h
-    )
-    target_include_directories(router-controller-tests PRIVATE
-        "${CMAKE_CURRENT_SOURCE_DIR}/src"
-    )
-    target_link_libraries(router-controller-tests PRIVATE Qt6::Core)
-    add_test(NAME router-controller COMMAND router-controller-tests)
-
-    add_executable(library-query-tests
-        tests/app/LibraryQueryTest.cpp
-        src/app/LibraryQuery.cpp
-        src/app/LibraryQuery.h
-    )
-    target_include_directories(library-query-tests PRIVATE
-        "${CMAKE_CURRENT_SOURCE_DIR}/src"
-    )
-    target_link_libraries(library-query-tests PRIVATE Qt6::Core)
-    add_test(NAME library-query COMMAND library-query-tests)
-    add_executable(content-model-controller-tests
-        tests/app/ContentModelControllerTest.cpp
-        src/app/ContentModelController.cpp
-        src/app/ContentModelController.h
-        src/app/LibraryPrefetchController.cpp
-        src/app/LibraryPrefetchController.h
-        src/app/ArtworkPrefetcher.h
-        src/app/LibraryQuery.cpp
-        src/app/LibraryQuery.h
-        src/api/JellyfinApiFacade.cpp
-        src/api/JellyfinApiFacade.h
-        src/api/ItemsQuery.cpp
-        src/api/ItemsQuery.h
-        src/api/PlaybackNegotiation.cpp
-        src/api/PlaybackNegotiation.h
-        src/api/HttpRequestPolicy.h
-        src/common/AsyncTask.h
-        src/common/JellyfinTypes.cpp
-        src/common/JellyfinTypes.h
-        src/common/RequestGeneration.h
-        src/diagnostics/Diagnostics.cpp
-        src/diagnostics/Diagnostics.h
-        src/models/MovieGridModel.cpp
-        src/models/MovieGridModel.h
-    )
-    target_include_directories(content-model-controller-tests PRIVATE
-        "${CMAKE_CURRENT_SOURCE_DIR}/src"
-    )
-    target_link_libraries(content-model-controller-tests PRIVATE
-        Qt6::Core
-        Qt6::Network
-        QCoro6::Core
-        QCoro6::Network
-    )
-    add_test(NAME content-model-controller COMMAND content-model-controller-tests)
 
 
-    add_executable(sync-play-clock-tests
-        tests/app/SyncPlayClockTest.cpp
-        src/app/SyncPlayClock.cpp
-        src/app/SyncPlayClock.h
-    )
-    target_include_directories(sync-play-clock-tests PRIVATE
-        "${CMAKE_CURRENT_SOURCE_DIR}/src"
-    )
-    add_test(NAME sync-play-clock COMMAND sync-play-clock-tests)
-
-    add_executable(request-generation-tests
-        tests/common/RequestGenerationTest.cpp
-        src/common/RequestGeneration.h
-    )
-    target_include_directories(request-generation-tests PRIVATE
-        "${CMAKE_CURRENT_SOURCE_DIR}/src"
-    )
-    add_test(NAME request-generation COMMAND request-generation-tests)
-
-    add_executable(browse-descriptor-tests
-        tests/common/BrowseDescriptorTest.cpp
-        src/common/JellyfinTypes.cpp
-        src/common/JellyfinTypes.h
-    )
-    target_include_directories(browse-descriptor-tests PRIVATE
-        "${CMAKE_CURRENT_SOURCE_DIR}/src"
-    )
-    target_link_libraries(browse-descriptor-tests PRIVATE Qt6::Core)
-    add_test(NAME browse-descriptor COMMAND browse-descriptor-tests)
-
-    add_executable(http-request-policy-tests
-        tests/api/HttpRequestPolicyTest.cpp
-        src/api/HttpRequestPolicy.h
-    )
-    target_include_directories(http-request-policy-tests PRIVATE
-        "${CMAKE_CURRENT_SOURCE_DIR}/src"
-    )
-    target_link_libraries(http-request-policy-tests PRIVATE Qt6::Core Qt6::Network)
-    add_test(NAME http-request-policy COMMAND http-request-policy-tests)
-    add_executable(items-query-tests
-        tests/api/ItemsQueryTest.cpp
-        src/api/ItemsQuery.cpp
-        src/api/ItemsQuery.h
-    )
-    target_include_directories(items-query-tests PRIVATE
-        "${CMAKE_CURRENT_SOURCE_DIR}/src"
-    )
-    target_link_libraries(items-query-tests PRIVATE Qt6::Core)
-    add_test(NAME items-query COMMAND items-query-tests)
-
-
-    add_executable(playback-negotiation-tests
-        tests/api/PlaybackNegotiationTest.cpp
-        src/api/PlaybackNegotiation.cpp
-        src/api/PlaybackNegotiation.h
-    )
-    target_include_directories(playback-negotiation-tests PRIVATE
-        "${CMAKE_CURRENT_SOURCE_DIR}/src"
-    )
-    target_link_libraries(playback-negotiation-tests PRIVATE Qt6::Core)
-    add_test(NAME playback-negotiation COMMAND playback-negotiation-tests)
-
-    add_executable(database-manager-tests
-        tests/cache/DatabaseManagerTest.cpp
-        src/cache/DatabaseManager.cpp
-        src/cache/DatabaseManager.h
-        src/common/JellyfinTypes.cpp
-        src/common/JellyfinTypes.h
-        src/diagnostics/Diagnostics.cpp
-        src/diagnostics/Diagnostics.h
-    )
-    target_include_directories(database-manager-tests PRIVATE
-        "${CMAKE_CURRENT_SOURCE_DIR}/src"
-    )
-    target_link_libraries(database-manager-tests PRIVATE
-        Qt6::Core
-        Qt6::Network
-        Qt6::Sql
-    )
-    add_test(NAME database-manager COMMAND database-manager-tests)
+    get_target_property(JELLYFIN_QT_CORE_LOCATION Qt6::Core IMPORTED_LOCATION_RELEASE)
+    if(NOT JELLYFIN_QT_CORE_LOCATION)
+        get_target_property(JELLYFIN_QT_CORE_LOCATION Qt6::Core IMPORTED_LOCATION)
+    endif()
+    set(JELLYFIN_TEST_ENV)
+    if(JELLYFIN_QT_CORE_LOCATION)
+        get_filename_component(JELLYFIN_QT_LIB_DIR "${JELLYFIN_QT_CORE_LOCATION}" DIRECTORY)
+        get_filename_component(JELLYFIN_QT_PREFIX "${JELLYFIN_QT_LIB_DIR}" DIRECTORY)
+        set(JELLYFIN_QT_PLUGIN_DIR "${JELLYFIN_QT_PREFIX}/lib/qt-6/plugins")
+        if(EXISTS "${JELLYFIN_QT_PLUGIN_DIR}")
+            list(APPEND JELLYFIN_TEST_ENV "QT_PLUGIN_PATH=${JELLYFIN_QT_PLUGIN_DIR}")
+        endif()
+    endif()
+    list(LENGTH JELLYFIN_TEST_SOURCES JELLYFIN_TEST_SOURCE_COUNT)
+    math(EXPR JELLYFIN_TEST_SOURCE_LAST "${JELLYFIN_TEST_SOURCE_COUNT} - 1")
+    foreach(test_index RANGE 0 ${JELLYFIN_TEST_SOURCE_LAST} 2)
+        math(EXPR source_index "${test_index} + 1")
+        list(GET JELLYFIN_TEST_SOURCES ${test_index} test_name)
+        list(GET JELLYFIN_TEST_SOURCES ${source_index} test_source)
+        set(test_target "${test_name}-tests")
+        add_executable(${test_target} "${test_source}")
+        target_link_libraries(${test_target} PRIVATE jellyfin-core)
+        add_test(NAME ${test_name} COMMAND ${test_target})
+        if(JELLYFIN_TEST_ENV)
+            set_tests_properties(${test_name} PROPERTIES ENVIRONMENT "${JELLYFIN_TEST_ENV}")
+        endif()
+    endforeach()
 
     find_program(QMLTESTRUNNER_EXECUTABLE NAMES qmltestrunner)
     if(QMLTESTRUNNER_EXECUTABLE)
@@ -726,8 +531,13 @@ if(BUILD_TESTING AND NOT CMAKE_CROSSCOMPILING)
             COMMAND "${QMLTESTRUNNER_EXECUTABLE}"
                 -input "${CMAKE_CURRENT_SOURCE_DIR}/tests/qml/tst_RoutePolicy.qml"
         )
+        set(JELLYFIN_ROUTE_POLICY_ENV
+            "QT_QPA_PLATFORM=offscreen"
+            "QT_QUICK_BACKEND=software"
+            ${JELLYFIN_TEST_ENV}
+        )
         set_tests_properties(route-policy PROPERTIES
-            ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software"
+            ENVIRONMENT "${JELLYFIN_ROUTE_POLICY_ENV}"
         )
     endif()
 endif()
