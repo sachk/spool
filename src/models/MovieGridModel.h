@@ -22,6 +22,7 @@ public:
         PosterTagRole,
         YearRole,
         ItemTypeRole,
+        PlaylistItemIdRole,
         SeriesIdRole,
         SeasonIdRole,
         SubtitleRole,

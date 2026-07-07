@@ -294,6 +294,8 @@ FocusScope {
         addListFilter(entries, "Status", "Favorite", "filters", "IsFavorite")
         addListFilter(entries, "Status", "Continue watching", "filters", "IsResumable")
 
+        if (collectionType === "movies")
+            addListFilter(entries, "Status", "Collections", "includeItemTypes", "BoxSet")
         if (isMovieLikeLibrary()) {
             addSection(entries, "Video")
             addNullableBoolFilter(entries, "Video", "HD", "isHd", true)
@@ -467,6 +469,12 @@ FocusScope {
         if (grid.currentIndex < 0)
             return
         shell.lastGridIndex = grid.currentIndex
+        const item = appController.movies ? (appController.movies.get(grid.currentIndex) || ({})) : ({})
+        const type = String(item.itemType || "")
+        if (type === "Playlist" || type === "Folder") {
+            appController.playMovie(grid.currentIndex)
+            return
+        }
         shell.openDetailsAt(appController.movies, grid.currentIndex, "movies", "libraryGrid")
     }
 

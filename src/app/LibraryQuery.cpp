@@ -121,6 +121,7 @@ int activeLibraryFilterCount(const QVariantMap &query)
         QStringLiteral("studioIds"),
         QStringLiteral("seriesStatus"),
         QStringLiteral("videoTypes"),
+        QStringLiteral("includeItemTypes"),
     };
     static const QStringList valueKeys = {
         QStringLiteral("isHd"),

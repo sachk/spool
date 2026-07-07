@@ -90,6 +90,16 @@ int main()
                 QStringLiteral("Drama,Comedy"),
             "QStringList query values were not retained");
 
+    QVariantMap collectionFilter = defaults;
+    collectionFilter.insert(QStringLiteral("includeItemTypes"),
+                            QStringList{QStringLiteral("BoxSet")});
+    require(activeLibraryFilterCount(collectionFilter) == 1,
+            "collection item type filter did not count as an active filter");
+    require(libraryCacheKey(movies, collectionFilter) ==
+                QStringLiteral("movies-id?includeItemTypes=BoxSet&"
+                               "sortBy=SortName&sortOrder=Ascending"),
+            "collection item type filter did not participate in the cache key");
+
     QVariantMap reordered = defaults;
     reordered.insert(QStringLiteral("is4K"), true);
     reordered.insert(QStringLiteral("alphabet"), QStringLiteral("B"));

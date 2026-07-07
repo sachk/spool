@@ -33,7 +33,8 @@ FocusScope {
     readonly property bool loadingDetailRows: appController ? appController.detailRowsBusy : false
     readonly property int contextCount: appController && appController.detailSeasons ? appController.detailSeasons.count : 0
     readonly property int similarCount: appController && appController.detailSimilarItems ? appController.detailSimilarItems.count : 0
-    readonly property bool contextItemsPossible: typeText === "Series" || ((typeText === "Episode" || typeText === "Season") && seriesIdText.length > 0)
+    readonly property bool contextPosterCards: typeText === "Series" || typeText === "BoxSet"
+    readonly property bool contextItemsPossible: contextPosterCards || ((typeText === "Episode" || typeText === "Season") && seriesIdText.length > 0)
     readonly property bool reserveContextRow: contextItemsPossible && contextCount === 0 && loadingDetailRows
     readonly property bool showContextRow: contextCount > 0 || reserveContextRow
     readonly property bool showSimilarRow: similarCount > 0
@@ -649,6 +650,8 @@ FocusScope {
     function contextRowTitle() {
         if (typeText === "Series")
             return "Seasons";
+        if (typeText === "BoxSet")
+            return "Collection";
         if (typeText === "Season")
             return "Episodes";
         return seasonTitleText !== "Season" ? "More from " + seasonTitleText : "More from this season";
@@ -1002,15 +1005,15 @@ FocusScope {
                     title: root.contextRowTitle()
                     rowModel: appController ? appController.detailSeasons : null
                     shell: root.shell
-                    cardWidth: root.typeText === "Series" ? root.rowPosterWidth : root.rowLandscapeWidth
-                    cardKind: root.typeText === "Series" ? "poster" : "landscape"
+                    cardWidth: root.contextPosterCards ? root.rowPosterWidth : root.rowLandscapeWidth
+                    cardKind: root.contextPosterCards ? "poster" : "landscape"
                     rowGap: root.rowGap
                     enabledRow: root.showContextRow
                     reserveWhenEmpty: root.reserveContextRow
                     loading: root.reserveContextRow
-                    emptyText: root.typeText === "Series" ? "Loading seasons..." : "Loading episodes..."
+                    emptyText: root.typeText === "Series" ? "Loading seasons..." : (root.typeText === "BoxSet" ? "Loading collection..." : "Loading episodes...")
                     useSeriesPoster: root.typeText === "Series"
-                    preferEpisodeTitle: root.typeText !== "Series"
+                    preferEpisodeTitle: !root.contextPosterCards
                     onActivated: index => root.openContextItem(index)
                 }
 
