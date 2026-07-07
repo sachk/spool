@@ -25,7 +25,7 @@ QT_SERIES="${QT_VERSION%.*}"
 QT_BASE_URL="${QT_BASE_URL:-$(manifest_qt_field "$QT_MANIFEST" baseUrl)}"
 QT_STATIC="${QT_STATIC:-0}"
 PHASE="${1:-all}"
-BUILD_QTOPENAPI="${BUILD_QTOPENAPI:-1}"
+BUILD_QTOPENAPI="${BUILD_QTOPENAPI:-0}"
 BUILD_QTVIRTUALKEYBOARD="${BUILD_QTVIRTUALKEYBOARD:-1}"
 QT_BUILD_CLEAN_POISONED="${QT_BUILD_CLEAN_POISONED:-1}"
 QT_BUILD_MEMORY_PER_JOB_MIB="${QT_BUILD_MEMORY_PER_JOB_MIB:-1536}"
@@ -524,11 +524,11 @@ build_all_host_modules() {
   fi
 
   if [[ "$BUILD_QTOPENAPI" == "1" ]]; then
-    local openapi_generator_cli_jar
-    openapi_generator_cli_jar="$(require_openapi_jar)"
     if host_module_up_to_date qtopenapi "lib/cmake/Qt6OpenApi/Qt6OpenApiConfig.cmake"; then
       log "host qtopenapi: up to date, skipping"
     else
+      local openapi_generator_cli_jar
+      openapi_generator_cli_jar="$(require_openapi_jar)"
       configure_host_module qtopenapi "$QTOPENAPI_SRC" \
         -DOPENAPI_GENERATOR_CLI_JAR="$openapi_generator_cli_jar"
       build_host_module qtopenapi
@@ -659,7 +659,21 @@ configure_target_qtbase() {
     -DWaylandScanner_EXECUTABLE="$target_wayland_scanner"
 }
 
+target_qtbase_up_to_date() {
+  [[ "${QT_BUILD_FORCE:-0}" != "1" ]] || return 1
+  qt_prefix_matches_version "$TARGET_STAGING" || return 1
+  [[ -f "$TARGET_STAGING/lib/cmake/Qt6/Qt6Config.cmake" ]] || return 1
+  [[ -e "$TARGET_STAGING/$(target_lib_marker Qt6Core)" ]] || return 1
+  [[ -e "$TARGET_STAGING/$(target_lib_marker Qt6Gui)" ]] || return 1
+  [[ -d "$TARGET_STAGING/lib/cmake/Qt6WaylandClient" ]] || return 1
+  return 0
+}
+
 build_target_qtbase() {
+  if target_qtbase_up_to_date; then
+    log "target qtbase: up to date, skipping"
+    return 0
+  fi
   configure_target_qtbase
   cmake_build "$TARGET_BUILD_ROOT/qtbase" --parallel "$JOBS"
   cmake_install "$TARGET_BUILD_ROOT/qtbase"
@@ -768,7 +782,7 @@ build_all_target_modules() {
     build_target_module qtshadertools
   fi
 
-  if target_module_up_to_date qttools "lib/cmake/Qt6LinguistTools/Qt6LinguistToolsConfig.cmake"; then
+  if target_module_up_to_date qttools "lib/cmake/Qt6Tools/Qt6ToolsConfig.cmake"; then
     log "target qttools: up to date, skipping"
   else
     configure_target_module qttools "$QTTOOLS_SRC" \
@@ -799,11 +813,11 @@ build_all_target_modules() {
   fi
 
   if [[ "$BUILD_QTOPENAPI" == "1" ]]; then
-    local openapi_generator_cli_jar
-    openapi_generator_cli_jar="$(require_openapi_jar)"
     if target_module_up_to_date qtopenapi "$(target_lib_marker Qt6OpenApi)"; then
       log "target qtopenapi: up to date, skipping"
     else
+      local openapi_generator_cli_jar
+      openapi_generator_cli_jar="$(require_openapi_jar)"
       configure_target_module qtopenapi "$QTOPENAPI_SRC" \
         -DOPENAPI_GENERATOR_CLI_JAR="$openapi_generator_cli_jar"
       build_target_module qtopenapi
@@ -886,7 +900,7 @@ Environment knobs:
   QT_BUILD_FORCE=1              ignore module install markers
   QT_BUILD_FORCE_MODULES=a,b    rebuild selected modules
   QT_BUILD_CLEAN_POISONED=0|1   auto-remove CMake caches that mention nixpkgs Qt
-  BUILD_QTOPENAPI=0|1
+  BUILD_QTOPENAPI=0|1           optional QtOpenApi module (default: 0)
   BUILD_QTVIRTUALKEYBOARD=0|1
   WEBOS_SDK_ROOT=/path/to/arm-webos-linux-gnueabi_sdk-buildroot
 USAGE_EOF

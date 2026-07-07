@@ -371,11 +371,42 @@ mpv_meson_build() {
   meson install -C "$build"
 }
 
+path_under_any_root() {
+  local path="$1"
+  shift
+  local root
+  for root in "$@"; do
+    [[ -n "$root" ]] || continue
+    [[ "$path" == "$root" || "$path" == "$root"/* ]] && return 0
+  done
+  return 1
+}
+
+cmake_cache_has_stale_qt_prefix() {
+  local cache="$1"
+  [[ -n "${CMAKE_PREFIX_PATH:-}" ]] || return 1
+
+  local roots=()
+  IFS=':;' read -r -a roots <<< "${CMAKE_PREFIX_PATH:-}"
+
+  local key value
+  while IFS='=' read -r key value; do
+    [[ "$key" == Qt6*"_DIR:PATH" ]] || continue
+    [[ "$value" == /nix/store/* ]] || continue
+    if ! path_under_any_root "$value" "${roots[@]}"; then
+      echo "app build dir cached with stale Qt prefix: $value" >&2
+      return 0
+    fi
+  done < "$cache"
+
+  return 1
+}
+
 # cmake_build_app SRC BUILD_DIR [cmake configure args...]
 #
 # Configure (Ninja) + build + install the app. Wipes BUILD_DIR first if its
-# CMakeCache.txt points at a different source tree, which otherwise makes CMake
-# error out instead of reconfiguring.
+# CMakeCache.txt points at a different source tree or a Qt package outside the
+# current CMAKE_PREFIX_PATH, which otherwise keeps stale Qt private ABI paths.
 cmake_build_app() {
   local src="$1" build="$2"
   shift 2
@@ -387,10 +418,14 @@ cmake_build_app() {
     cmake_args+=(${JELLYFIN_CMAKE_EXTRA_ARGS})
   fi
 
-  if [[ -f "$build/CMakeCache.txt" ]] \
-     && ! grep -q "^CMAKE_HOME_DIRECTORY:INTERNAL=$src$" "$build/CMakeCache.txt"; then
-    echo "app build dir cached with stale source path; wiping" >&2
-    rm -rf "$build"
+  if [[ -f "$build/CMakeCache.txt" ]]; then
+    if ! grep -q "^CMAKE_HOME_DIRECTORY:INTERNAL=$src$" "$build/CMakeCache.txt"; then
+      echo "app build dir cached with stale source path; wiping" >&2
+      rm -rf "$build"
+    elif cmake_cache_has_stale_qt_prefix "$build/CMakeCache.txt"; then
+      echo "app build dir cached with stale Qt package paths; wiping" >&2
+      rm -rf "$build"
+    fi
   fi
   mkdir -p "$build"
 
