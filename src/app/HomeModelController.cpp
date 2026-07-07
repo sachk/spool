@@ -2,6 +2,7 @@
 
 #include "../api/JellyfinApiFacade.h"
 #include "../common/AsyncTask.h"
+#include "../common/MetaJson.h"
 #include "LibraryPrefetchController.h"
 #include "LibraryQuery.h"
 
@@ -72,7 +73,7 @@ int latestLibraryLimit(const LibraryItem &library) {
 QJsonArray movieArrayToJson(const std::vector<MovieItem> &items) {
   QJsonArray array;
   for (const MovieItem &item : items)
-    array.push_back(toJson(item));
+    array.push_back(metaToJson(item));
   return array;
 }
 
@@ -80,7 +81,7 @@ std::vector<MovieItem> movieArrayFromJson(const QJsonArray &array) {
   std::vector<MovieItem> items;
   items.reserve(array.size());
   for (const QJsonValue &value : array) {
-    MovieItem item = movieFromJson(value.toObject());
+    MovieItem item = metaFromJson<MovieItem>(value.toObject());
     if (!item.id.isEmpty())
       items.push_back(std::move(item));
   }
@@ -157,7 +158,7 @@ bool HomeModelController::applyCachedPayload(const QJsonObject &payload) {
     const QJsonObject row = value.toObject();
     PendingLatestLibrarySection section;
     section.order = row.value(QStringLiteral("order")).toInt();
-    section.library = libraryFromJson(row.value(QStringLiteral("library")).toObject());
+    section.library = metaFromJson<LibraryItem>(row.value(QStringLiteral("library")).toObject());
     section.items = movieArrayFromJson(row.value(QStringLiteral("items")).toArray());
     if (!section.library.id.isEmpty() && !section.items.empty())
       sections.push_back(std::move(section));
@@ -402,12 +403,12 @@ QJsonObject HomeModelController::payloadFromSections(
       continue;
     latestRows.push_back(QJsonObject{
         {QStringLiteral("order"), section.order},
-        {QStringLiteral("library"), toJson(section.library)},
+        {QStringLiteral("library"), metaToJson(section.library)},
         {QStringLiteral("items"), movieArrayToJson(section.items)},
     });
   }
   return {
-      {QStringLiteral("schemaVersion"), 1},
+      {QStringLiteral("schemaVersion"), 2},
       {QStringLiteral("resumeItems"), movieArrayToJson(resumeItems)},
       {QStringLiteral("nextUpItems"), movieArrayToJson(nextUpItems)},
       {QStringLiteral("latestRows"), latestRows},

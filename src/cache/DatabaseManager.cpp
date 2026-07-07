@@ -38,7 +38,7 @@ public:
         if (!query.exec(QStringLiteral("PRAGMA user_version")) || !query.next())
             return false;
         const int existingVersion = query.value(0).toInt();
-        if (existingVersion > 3) {
+        if (existingVersion > 4) {
             qWarning() << "database: unsupported schema version"
                        << existingVersion;
             return false;
@@ -73,10 +73,17 @@ public:
                 "payload BLOB NOT NULL,"
                 "saved_at INTEGER NOT NULL"
                 ")")) ||
-            !query.exec(QStringLiteral("PRAGMA user_version = 3"))) {
+            !query.exec(QStringLiteral("PRAGMA user_version = 4"))) {
             qWarning() << "database: schema migration failed"
                        << query.lastError().text();
             return false;
+        }
+        if (existingVersion < 4) {
+            if (!query.exec(QStringLiteral("DELETE FROM cache_entries WHERE namespace = 'discovery' AND key = 'servers'")) ||
+                !query.exec(QStringLiteral("DELETE FROM home_payload"))) {
+                qWarning() << "database: cache invalidation migration failed"
+                           << query.lastError().text();
+            }
         }
         return true;
     }

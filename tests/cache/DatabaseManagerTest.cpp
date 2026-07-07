@@ -30,7 +30,7 @@ int main(int argc, char **argv)
     DatabaseManager database;
     require(database.initialize(directory.filePath(QStringLiteral("cache.sqlite"))),
             "database should initialize");
-    require(database.schemaVersion() == 3, "schema should migrate to version 3");
+    require(database.schemaVersion() == 4, "schema should migrate to version 4");
 
     const QJsonObject homePayload{
         {QStringLiteral("title"), QStringLiteral("Continue Watching")},

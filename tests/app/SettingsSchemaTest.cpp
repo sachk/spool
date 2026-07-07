@@ -229,6 +229,8 @@ void buttonChoicesAndLabelsExposePlayerActions()
         QStringLiteral("toggleSubs"),
         QStringLiteral("cycleSubs"),
         QStringLiteral("cycleAudio"),
+        QStringLiteral("queuePrevious"),
+        QStringLiteral("queueNext"),
         QStringLiteral("skipBack10"),
         QStringLiteral("skipForward10"),
         QStringLiteral("skipBack30"),

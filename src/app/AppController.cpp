@@ -4,6 +4,7 @@
 
 #include "../api/JellyfinApiFacade.h"
 #include "../common/AsyncTask.h"
+#include "../common/MetaJson.h"
 #include "../diagnostics/Diagnostics.h"
 #include "../player/PlayerController.h"
 #include "../player/PlayQueueController.h"
@@ -37,7 +38,7 @@ namespace {
 
 constexpr int kLibraryPageSize = 100;
 constexpr int kLibraryPrefetchDistance = 200;
-constexpr int kHomePayloadSchemaVersion = 1;
+constexpr int kHomePayloadSchemaVersion = 2;
 
 }
 
@@ -126,7 +127,7 @@ AppController::AppController(DatabaseManager *database,
         m_discoveredServers.upsertServer(server);
         QJsonArray cache;
         for (const auto &entry : m_discoveredServers.servers())
-            cache.push_back(toJson(entry));
+            cache.push_back(metaToJson(entry));
         m_database->saveDiscoveredServers(cache);
     });
 
@@ -968,7 +969,7 @@ void AppController::setManagementTargets(const QString &kind, const std::vector<
     QVariantList targets;
     targets.reserve(static_cast<qsizetype>(items.size()));
     for (const MovieItem &item : items)
-        targets.push_back(toJson(item).toVariantMap());
+        targets.push_back(metaToJson(item).toVariantMap());
 
     if (kind == QStringLiteral("playlist"))
         m_playlistTargets = targets;
@@ -1358,9 +1359,7 @@ bool AppController::queueMutationAllowed()
 MovieItem AppController::movieFromSnapshot(const QVariantMap &snapshot) const
 {
     QJsonObject object = QJsonObject::fromVariantMap(snapshot);
-    if (object.value(QStringLiteral("id")).toString().isEmpty())
-        object.insert(QStringLiteral("id"), object.value(QStringLiteral("movieId")).toString());
-    return movieFromJson(object);
+    return metaFromJson<MovieItem>(object);
 }
 
 void AppController::playMediaItem(const MovieItem &item, bool fromStart)
@@ -1486,7 +1485,7 @@ void AppController::applyDiscoveredServersCache()
     std::vector<DiscoveredServer> parsed;
     parsed.reserve(servers.size());
     for (const auto &value : servers)
-        parsed.push_back(discoveredServerFromJson(value.toObject()));
+        parsed.push_back(metaFromJson<DiscoveredServer>(value.toObject()));
     m_discoveredServers.setServers(parsed);
 }
 

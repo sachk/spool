@@ -1,6 +1,7 @@
 #include "JellyfinApiFacade.h"
 
 #include "../diagnostics/Diagnostics.h"
+#include "../common/MetaJson.h"
 #include "PlaybackNegotiation.h"
 #include "ItemsQuery.h"
 
@@ -229,9 +230,9 @@ QStringList studioNamesFromJsonArray(const QJsonArray &array)
     return result;
 }
 
-std::vector<PersonItem> peopleFromApiJson(const JellyfinApiFacade *api, const QJsonArray &array)
+QList<PersonItem> peopleFromApiJson(const JellyfinApiFacade *api, const QJsonArray &array)
 {
-    std::vector<PersonItem> people;
+    QList<PersonItem> people;
     people.reserve(array.size());
     for (const QJsonValue &value : array) {
         const QJsonObject object = value.toObject();
@@ -249,65 +250,36 @@ std::vector<PersonItem> peopleFromApiJson(const JellyfinApiFacade *api, const QJ
     return people;
 }
 
-std::vector<MediaStreamInfo> mediaStreamsFromApiJson(const QJsonArray &array)
+QList<MediaStreamInfo> mediaStreamsFromApiJson(const QJsonArray &array)
 {
-    std::vector<MediaStreamInfo> streams;
+    QList<MediaStreamInfo> streams;
     streams.reserve(array.size());
     for (const QJsonValue &value : array) {
         const QJsonObject object = value.toObject();
-        MediaStreamInfo stream;
-        stream.index = object.value(QStringLiteral("Index")).toInt(-1);
-        stream.type = object.value(QStringLiteral("Type")).toString();
-        stream.codec = object.value(QStringLiteral("Codec")).toString();
-        stream.profile = object.value(QStringLiteral("Profile")).toString();
-        stream.displayTitle = object.value(QStringLiteral("DisplayTitle")).toString();
-        stream.title = object.value(QStringLiteral("Title")).toString();
-        stream.language = object.value(QStringLiteral("Language")).toString();
-        stream.pixelFormat = object.value(QStringLiteral("PixelFormat")).toString();
-        stream.videoRange = object.value(QStringLiteral("VideoRange")).toString();
-        stream.colorPrimaries = object.value(QStringLiteral("ColorPrimaries")).toString();
-        stream.colorTransfer = object.value(QStringLiteral("ColorTransfer")).toString();
-        stream.colorSpace = object.value(QStringLiteral("ColorSpace")).toString();
-        stream.aspectRatio = object.value(QStringLiteral("AspectRatio")).toString();
-        stream.width = object.value(QStringLiteral("Width")).toInt();
-        stream.height = object.value(QStringLiteral("Height")).toInt();
+        MediaStreamInfo stream = metaFromJson<MediaStreamInfo>(object, MetaJsonKeyPolicy::PascalCase);
         stream.frameRate = object.value(QStringLiteral("AverageFrameRate")).toDouble();
         if (stream.frameRate <= 0.0)
             stream.frameRate = object.value(QStringLiteral("RealFrameRate")).toDouble();
-        stream.bitRate = object.value(QStringLiteral("BitRate")).toInt();
-        stream.bitDepth = object.value(QStringLiteral("BitDepth")).toInt();
-        stream.channels = object.value(QStringLiteral("Channels")).toInt();
-        stream.sampleRate = object.value(QStringLiteral("SampleRate")).toInt();
-        stream.isDefault = object.value(QStringLiteral("IsDefault")).toBool(false);
-        stream.isForced = object.value(QStringLiteral("IsForced")).toBool(false);
-        stream.isExternal = object.value(QStringLiteral("IsExternal")).toBool(false);
-        stream.isInterlaced = object.value(QStringLiteral("IsInterlaced")).toBool(false);
         if (!stream.type.isEmpty() || !stream.codec.isEmpty())
             streams.push_back(stream);
     }
     return streams;
 }
 
-std::vector<MediaSourceInfo> mediaSourcesFromApiJson(const QJsonArray &array)
+QList<MediaSourceInfo> mediaSourcesFromApiJson(const QJsonArray &array)
 {
-    std::vector<MediaSourceInfo> sources;
+    QList<MediaSourceInfo> sources;
     sources.reserve(array.size());
     for (const QJsonValue &value : array) {
         const QJsonObject object = value.toObject();
-        MediaSourceInfo source;
-        source.id = object.value(QStringLiteral("Id")).toString();
-        source.name = object.value(QStringLiteral("Name")).toString();
-        source.path = object.value(QStringLiteral("Path")).toString();
+        MediaSourceInfo source = metaFromJson<MediaSourceInfo>(object, MetaJsonKeyPolicy::PascalCase);
         source.container = cleanContainerName(object.value(QStringLiteral("Container")).toString());
-        source.protocol = object.value(QStringLiteral("Protocol")).toString();
-        source.videoType = object.value(QStringLiteral("VideoType")).toString();
-        source.size = object.value(QStringLiteral("Size")).toVariant().toLongLong();
         source.bitRate = object.value(QStringLiteral("Bitrate")).toInt();
         if (source.bitRate <= 0)
             source.bitRate = object.value(QStringLiteral("BitRate")).toInt();
         source.runtimeTicks = object.value(QStringLiteral("RunTimeTicks")).toVariant().toLongLong();
         source.streams = mediaStreamsFromApiJson(object.value(QStringLiteral("MediaStreams")).toArray());
-        if (!source.id.isEmpty() || !source.container.isEmpty() || !source.streams.empty())
+        if (!source.id.isEmpty() || !source.container.isEmpty() || !source.streams.isEmpty())
             sources.push_back(source);
     }
     return sources;

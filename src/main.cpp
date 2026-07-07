@@ -10,6 +10,7 @@
 #include "diagnostics/Diagnostics.h"
 #include "discovery/DiscoveryController.h"
 #include "player/PlayerController.h"
+#include "player/MpvVideoItem.h"
 #ifdef JELLYFIN_NATIVE_WEBOS
 #include "player/MpvRuntime.h"
 #endif
@@ -53,6 +54,7 @@ Q_IMPORT_PLUGIN(QSQLiteDriverPlugin)
 #include <QQmlError>
 #include <QQmlContext>
 #include <QQmlEngine>
+#include <qqml.h>
 #include <QElapsedTimer>
 #include <QLoggingCategory>
 #include <QNetworkAccessManager>
@@ -896,6 +898,7 @@ int main(int argc, char **argv)
 #else
     window.rootContext()->setContextProperty(QStringLiteral("isWebOS"), false);
 #endif
+    qmlRegisterType<JellyfinNative::MpvVideoItem>("JellyfinWebOS", 1, 0, "MpvVideoItem");
     {
     JellyfinNative::Diagnostics::Phase phase(QStringLiteral("startup"), QStringLiteral("load_qml"));
     // Load through the module registry (not a raw qrc: URL) so the engine uses
