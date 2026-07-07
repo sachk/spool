@@ -73,7 +73,7 @@ T.Control {
         return true
     }
 
-    function handleNavigationKey(key) {
+    function handleKey(key) {
         return false
     }
 

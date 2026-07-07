@@ -72,7 +72,7 @@ FocusScope {
         entries = buildEntries()
         currentIndex = firstActionable(entries)
         menuOpen = true
-        list.forceActiveFocus()
+        InputKeys.focus(list)
     }
 
     function closeMenu() {
@@ -94,7 +94,7 @@ FocusScope {
         requestClose()
     }
 
-    function handleNavigationKey(key) {
+    function handleKey(key) {
         if (key === Qt.Key_Up) {
             currentIndex = Math.max(0, currentIndex - 1)
             return true

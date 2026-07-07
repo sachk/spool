@@ -25,11 +25,11 @@ T.Control {
     function focusRow() {
         if (field.activeFocus)
             field.focus = false
-        forceActiveFocus()
+        InputKeys.focus(row)
     }
 
     function focusField() {
-        field.forceActiveFocus()
+        InputKeys.focus(field)
         Qt.inputMethod.show()
     }
 

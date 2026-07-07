@@ -37,7 +37,7 @@ FocusScope {
     function focusIndex(index) {
         const clamped = Math.max(0, Math.min(railRepeater.count, index))
         if (clamped >= railRepeater.count) {
-            syncButton.forceActiveFocus()
+            InputKeys.focus(syncButton)
             return
         }
         const item = railRepeater.itemAt(clamped)
@@ -73,13 +73,13 @@ FocusScope {
         const menu = syncMenuLoader.item
         if (menu)
             menu.closeMenu()
-        syncButton.forceActiveFocus()
+        InputKeys.focus(syncButton)
     }
 
-    function handleNavigationKey(key) {
+    function handleKey(key) {
         const menu = syncMenuLoader.item
         if (menu && menu.menuOpen)
-            return menu.handleNavigationKey(key)
+            return menu.handleKey(key)
         if (key === Qt.Key_Down) {
             contentRequested()
             return true
@@ -141,7 +141,7 @@ FocusScope {
                 id: railDelegate
                 required property var modelData
                 readonly property string route: modelData.route
-                function forceButtonFocus() { button.forceActiveFocus() }
+                function forceButtonFocus() { InputKeys.focus(button) }
                 function hasButtonFocus() { return button.activeFocus }
                 Layout.preferredWidth: 50
                 Layout.fillHeight: true

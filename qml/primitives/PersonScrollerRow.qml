@@ -27,7 +27,7 @@ FocusScope {
     clip: false
 
     function focusList() {
-        peopleList.forceActiveFocus()
+        InputKeys.focus(peopleList)
         peopleList.currentIndex = rowCount > 0 ? Math.max(0, Math.min(currentIndex, rowCount - 1)) : -1
         ensureVisible()
     }
@@ -41,7 +41,7 @@ FocusScope {
         return false
     }
 
-    function handleNavigationKey(key) {
+    function handleKey(key) {
         if (rowCount <= 0)
             return false
         if (key === Qt.Key_Left) {
@@ -150,7 +150,7 @@ FocusScope {
         }
 
         Keys.onReleased: (event) => {
-            if (root.handleNavigationKey(event.key))
+            if (root.handleKey(event.key))
                 event.accepted = true
         }
     }

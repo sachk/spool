@@ -66,7 +66,7 @@ SettingRow {
         }
     }
 
-    function handleNavigationKey(key) {
+    function handleKey(key) {
         if ((key === Qt.Key_Left || key === Qt.Key_Right) && options.length > 0) {
             handledNavigationPress = true
             move(key === Qt.Key_Right ? 1 : -1)

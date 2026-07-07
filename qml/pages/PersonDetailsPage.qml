@@ -42,7 +42,7 @@ FocusScope {
 
     function focusKnownFor() {
         if (itemCount > 0) {
-            knownFor.forceActiveFocus()
+            InputKeys.focus(knownFor)
             ensurePersonItemVisible(knownFor)
         }
     }
@@ -84,10 +84,10 @@ FocusScope {
             shell.openDetailsAt(appController.personItems, currentIndex, "person", "personDetails")
     }
 
-    function handleNavigationKey(key) {
+    function handleKey(key) {
         if (itemCount <= 0)
             return false
-        return knownFor.handleNavigationKey ? knownFor.handleNavigationKey(key) : false
+        return knownFor.handleKey ? knownFor.handleKey(key) : false
     }
 
     Rectangle { anchors.fill: parent; color: Theme.bg }

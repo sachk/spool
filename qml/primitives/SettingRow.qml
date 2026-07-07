@@ -30,7 +30,7 @@ T.Control {
     TapHandler {
         enabled: root.pointerActivationEnabled
         onTapped: {
-            root.forceActiveFocus()
+            InputKeys.focus(root)
             root.clicked()
         }
     }

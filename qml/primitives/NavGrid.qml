@@ -22,7 +22,7 @@ GridView {
         return true
     }
 
-    function handleNavigationKey(key) {
+    function handleKey(key) {
         const columns = columnCount()
         if (key === Qt.Key_Left)
             return currentIndex % columns === 0 ? true : moveBy(-1)

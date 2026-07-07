@@ -126,19 +126,19 @@ FocusScope {
                 root.playerBackPressHandled = false;
                 root.focusPlayerInput();
             } else {
-                routeStack.forceActiveFocus();
+                InputKeys.focus(routeStack);
             }
         }
     }
 
     function focusPlayerInput() {
-        playerInputShield.forceActiveFocus();
+        InputKeys.focus(playerInputShield);
     }
 
     function pushRoute(nextRoute) {
         if (router)
             router.push(nextRoute);
-        routeStack.forceActiveFocus();
+        InputKeys.focus(routeStack);
     }
 
     function itemIdFor(item) {
@@ -190,7 +190,7 @@ FocusScope {
             lastSearchIndex = detailsIndex;
 
         if (route === "itemDetails") {
-            routeStack.forceActiveFocus();
+            InputKeys.focus(routeStack);
             return true;
         }
         pushRoute("itemDetails");
@@ -206,14 +206,14 @@ FocusScope {
     function replaceRoute(nextRoute) {
         if (router)
             router.replace(nextRoute);
-        routeStack.forceActiveFocus();
+        InputKeys.focus(routeStack);
     }
 
     function goHome() {
         if (router)
             router.reset("home");
         appController.goHome();
-        routeStack.forceActiveFocus();
+        InputKeys.focus(routeStack);
     }
 
     function switchUser() {
@@ -221,13 +221,13 @@ FocusScope {
             router.reset("login");
         if (appController)
             appController.switchUser();
-        routeStack.forceActiveFocus();
+        InputKeys.focus(routeStack);
     }
 
     function releaseTextInput() {
         // Forcing focus onto the route stack causes the focused TextField to
         // lose activeFocus, which closes the virtual keyboard cleanly.
-        routeStack.forceActiveFocus();
+        InputKeys.focus(routeStack);
         Qt.inputMethod.hide();
     }
 
@@ -277,7 +277,7 @@ FocusScope {
         }
         if (router) {
             router.pop(route === "personDetails" ? "itemDetails" : "home");
-            routeStack.forceActiveFocus();
+            InputKeys.focus(routeStack);
             return true;
         }
         return true;
@@ -307,7 +307,7 @@ FocusScope {
         if (appController && personItem.personId)
             appController.loadPersonItems(personItem.personId);
         if (route === "personDetails") {
-            routeStack.forceActiveFocus();
+            InputKeys.focus(routeStack);
             return;
         }
         pushRoute("personDetails");
@@ -338,20 +338,20 @@ FocusScope {
     function focusNavBar() {
         if (route === "login")
             return;
-        navBar.forceActiveFocus();
+        InputKeys.focus(navBar);
         navBar.focusCurrent();
     }
 
     function focusContent() {
         if (root.hasPlayer && root.player.visible)
             return;
-        routeStack.forceActiveFocus();
+        InputKeys.focus(routeStack);
     }
 
     function dispatchNavigationKey(key) {
         if (navBar.visible && navBar.activeFocus)
-            return navBar.handleNavigationKey(key);
-        return routeStack.handleNavigationKey(key);
+            return navBar.handleKey(key);
+        return routeStack.handleKey(key);
     }
 
     function setUiScale(value) {
@@ -509,7 +509,7 @@ FocusScope {
         if (InputKeys.isAccept(event.key)) {
             // Don't hijack Enter when the nav bar (or anything else) owns focus —
             // let the focused button handle it natively.
-            if (!navBar.activeFocus && routeStack.handleNavigationKey(event.key)) {
+            if (!navBar.activeFocus && routeStack.handleKey(event.key)) {
                 event.accepted = true;
                 return;
             }
@@ -588,9 +588,9 @@ FocusScope {
         z: 21
 
         onVisibleChanged: if (visible)
-            forceActiveFocus()
+            InputKeys.focus(playerInputShield)
         onActiveFocusChanged: if (visible && !activeFocus)
-            forceActiveFocus()
+            InputKeys.focus(playerInputShield)
 
         Keys.priority: Keys.BeforeItem
         Keys.onPressed: event => {

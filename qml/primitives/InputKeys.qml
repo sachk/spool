@@ -3,6 +3,11 @@ pragma Singleton
 import QtQuick
 
 QtObject {
+    function focus(item) {
+        if (item)
+            item.forceActiveFocus()
+    }
+
     function isAccept(key, includeSpace) {
         return key === Qt.Key_Return
                 || key === Qt.Key_Enter

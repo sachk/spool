@@ -24,8 +24,8 @@ FocusScope {
     // switcher, sort, or filter controls.
     readonly property bool isFixedBrowseView: appController && ["genre", "studio", "playlist", "boxset", "folder"].indexOf(appController.currentViewKind) >= 0
     focus: true
-    Component.onCompleted: grid.forceActiveFocus()
-    onActiveFocusChanged: if (activeFocus) grid.forceActiveFocus()
+    Component.onCompleted: InputKeys.focus(grid)
+    onActiveFocusChanged: if (activeFocus) InputKeys.focus(grid)
 
     component ToolbarButton: FocusScope {
         id: buttonRoot
@@ -362,7 +362,7 @@ FocusScope {
         sortEntries = buildSortEntries()
         sortIndex = Math.max(0, sortEntries.findIndex(function(entry) { return entry.value === currentSortBy() }))
         sortOpen = true
-        Qt.callLater(function() { sortList.forceActiveFocus() })
+        Qt.callLater(function() { InputKeys.focus(sortList) })
     }
 
     function openFilterMenu() {
@@ -371,7 +371,7 @@ FocusScope {
         filterEntries = buildFilterEntries()
         filterIndex = filterEntries.length > 1 ? 1 : 0
         filtersOpen = true
-        Qt.callLater(function() { filterList.forceActiveFocus() })
+        Qt.callLater(function() { InputKeys.focus(filterList) })
     }
 
     function openLibraryMenu() {
@@ -381,14 +381,14 @@ FocusScope {
         filtersOpen = false
         libraryIndex = Math.max(0, currentLibraryModelIndex())
         libraryOpen = true
-        Qt.callLater(function() { libraryList.forceActiveFocus() })
+        Qt.callLater(function() { InputKeys.focus(libraryList) })
     }
 
     function closeMenus() {
         libraryOpen = false
         sortOpen = false
         filtersOpen = false
-        grid.forceActiveFocus()
+        InputKeys.focus(grid)
     }
 
     // Consume Back when a toolbar menu is open so it dismisses the menu rather
@@ -411,7 +411,7 @@ FocusScope {
         shell.lastGridIndex = 0
         appController.openLibrary(index)
         shell.replaceRoute("libraryGrid")
-        grid.forceActiveFocus()
+        InputKeys.focus(grid)
     }
 
     function activateSortEntry(entry) {
@@ -439,7 +439,7 @@ FocusScope {
     }
 
     function focusToolbar() {
-        libraryButton.forceActiveFocus()
+        InputKeys.focus(libraryButton)
     }
 
     Connections {
@@ -479,7 +479,7 @@ FocusScope {
         return card && card.handleAcceptPressed ? card.handleAcceptPressed(key) : false
     }
 
-    function handleNavigationKey(key) {
+    function handleKey(key) {
         if (libraryList.activeFocus) {
             if (InputKeys.isBack(key, false, false) || key === Qt.Key_Left) {
                 closeMenus()
@@ -492,7 +492,7 @@ FocusScope {
             }
             if (key === Qt.Key_Up) {
                 if (libraryIndex <= 0) {
-                    libraryButton.forceActiveFocus()
+                    InputKeys.focus(libraryButton)
                 } else {
                     libraryIndex = Math.max(0, libraryIndex - 1)
                     libraryList.currentIndex = libraryIndex
@@ -518,7 +518,7 @@ FocusScope {
             }
             if (key === Qt.Key_Up) {
                 if (sortIndex <= 0) {
-                    sortButton.forceActiveFocus()
+                    InputKeys.focus(sortButton)
                 } else {
                     sortIndex = Math.max(0, sortIndex - 1)
                     sortList.currentIndex = sortIndex
@@ -546,7 +546,7 @@ FocusScope {
             }
             if (key === Qt.Key_Up) {
                 if (filterIndex <= 0) {
-                    filterButton.forceActiveFocus()
+                    InputKeys.focus(filterButton)
                 } else {
                     filterIndex = Math.max(0, filterIndex - 1)
                     while (filterIndex > 0 && filterEntries[filterIndex].section)
@@ -568,19 +568,19 @@ FocusScope {
                 return true
             }
             if (key === Qt.Key_Left) {
-                if (sortButton.activeFocus) libraryButton.forceActiveFocus()
-                else if (filterButton.activeFocus) sortButton.forceActiveFocus()
-                else if (clearFiltersButton.activeFocus) filterButton.forceActiveFocus()
+                if (sortButton.activeFocus) InputKeys.focus(libraryButton)
+                else if (filterButton.activeFocus) InputKeys.focus(sortButton)
+                else if (clearFiltersButton.activeFocus) InputKeys.focus(filterButton)
                 return true
             }
             if (key === Qt.Key_Right) {
-                if (libraryButton.activeFocus && sortButton.visible) sortButton.forceActiveFocus()
-                else if (sortButton.activeFocus) filterButton.forceActiveFocus()
-                else if (filterButton.activeFocus && clearFiltersButton.visible) clearFiltersButton.forceActiveFocus()
+                if (libraryButton.activeFocus && sortButton.visible) InputKeys.focus(sortButton)
+                else if (sortButton.activeFocus) InputKeys.focus(filterButton)
+                else if (filterButton.activeFocus && clearFiltersButton.visible) InputKeys.focus(clearFiltersButton)
                 return true
             }
             if (key === Qt.Key_Down) {
-                grid.forceActiveFocus()
+                InputKeys.focus(grid)
                 return true
             }
             if (InputKeys.isAccept(key)) {
@@ -596,11 +596,11 @@ FocusScope {
             return false
         const acceptKey = InputKeys.isAccept(key)
         const card = currentCard()
-        if (!acceptKey && card && card.handleNavigationKey && card.handleNavigationKey(key))
+        if (!acceptKey && card && card.handleKey && card.handleKey(key))
             return true
         if (acceptKey && card && card.handleAcceptReleased && card.handleAcceptReleased(key))
             return true
-        return grid.handleNavigationKey(key)
+        return grid.handleKey(key)
     }
     ColumnLayout {
         anchors.fill: parent
@@ -815,7 +815,7 @@ FocusScope {
                 function snapshot() { return appController.movies.get(index) || ({}) }
                 function handleAcceptPressed(key) { return card.handleAcceptPressed(key) }
                 function handleAcceptReleased(key) { return card.handleAcceptReleased(key) }
-                function handleNavigationKey(key) { return card.handleNavigationKey(key) }
+                function handleKey(key) { return card.handleKey(key) }
 
                 MediaItemCard {
                     id: card
@@ -921,7 +921,7 @@ FocusScope {
             }
 
             Keys.onReleased: (event) => {
-                if (root.handleNavigationKey(event.key))
+                if (root.handleKey(event.key))
                     event.accepted = true
             }
         }
@@ -978,7 +978,7 @@ FocusScope {
             }
 
             Keys.onReleased: (event) => {
-                if (root.handleNavigationKey(event.key))
+                if (root.handleKey(event.key))
                     event.accepted = true
             }
         }
@@ -1075,7 +1075,7 @@ FocusScope {
                 }
 
                 Keys.onReleased: (event) => {
-                    if (root.handleNavigationKey(event.key))
+                    if (root.handleKey(event.key))
                         event.accepted = true
                 }
             }

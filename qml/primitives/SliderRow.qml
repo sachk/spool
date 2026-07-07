@@ -63,14 +63,14 @@ T.Control {
         setSliderValue(controlValue + step * dir)
     }
 
-    function handleNavigationKey(key) {
+    function handleKey(key) {
         if (key === Qt.Key_Left || key === Qt.Key_Right) {
             handledNavigationPress = true
             adjust(key === Qt.Key_Right ? 1 : -1)
             return true
         }
         if (InputKeys.isAccept(key)) {
-            valueSlider.forceActiveFocus()
+            InputKeys.focus(valueSlider)
             return true
         }
         return false
@@ -85,7 +85,7 @@ T.Control {
 
     HoverHandler { id: hover }
     TapHandler {
-        onTapped: root.forceActiveFocus()
+        onTapped: InputKeys.focus(root)
     }
 
     contentItem: RowLayout {
@@ -144,7 +144,7 @@ T.Control {
             onEditingFinished: root.setSliderValue(text)
             Keys.onReleased: (event) => {
                 if (event.key === Qt.Key_Right) {
-                    valueSlider.forceActiveFocus()
+                    InputKeys.focus(valueSlider)
                     event.accepted = true
                 }
             }
@@ -208,7 +208,7 @@ T.Control {
                     root.adjust(event.key === Qt.Key_Right ? 1 : -1)
                     event.accepted = true
                 } else if (InputKeys.isAccept(event.key, false)) {
-                    root.forceActiveFocus()
+                    InputKeys.focus(root)
                     event.accepted = true
                 }
             }
@@ -225,7 +225,7 @@ T.Control {
             root.adjust(event.key === Qt.Key_Right ? 1 : -1)
             event.accepted = true
         } else if (InputKeys.isAccept(event.key, false)) {
-            valueSlider.forceActiveFocus()
+            InputKeys.focus(valueSlider)
             event.accepted = true
         }
     }
