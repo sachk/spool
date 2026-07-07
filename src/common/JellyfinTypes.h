@@ -4,6 +4,7 @@
 #include <QJsonObject>
 #include <QString>
 #include <QStringList>
+#include <QVariantMap>
 
 #include <exception>
 #include <vector>
@@ -22,6 +23,46 @@ struct LibraryItem {
     QString collectionType;
     QString imageUrl;
     QString imageTag;
+};
+
+enum class BrowseKind {
+    None,
+    Library,
+    FolderChildren,
+    Person,
+    Genre,
+    Studio,
+    SeriesSeasons,
+    SeasonEpisodes,
+    Playlist,
+    BoxSet,
+    ArtistAlbums,
+};
+
+struct BrowseDescriptor {
+    BrowseKind kind = BrowseKind::None;
+    QString id;
+    QString name;
+    QString collectionType;
+    QString seriesId;
+    QString seasonId;
+
+    static BrowseDescriptor library(QString libraryId, QString collectionType, QString name = {});
+    static BrowseDescriptor folderChildren(QString folderId, QString name = {});
+    static BrowseDescriptor person(QString personId, QString name = {});
+    static BrowseDescriptor genre(QString name);
+    static BrowseDescriptor studio(QString name);
+    static BrowseDescriptor seriesSeasons(QString seriesId, QString seriesName = {});
+    static BrowseDescriptor seasonEpisodes(QString seriesId, QString seasonId = {}, QString seasonName = {});
+    static BrowseDescriptor playlist(QString playlistId, QString name = {});
+    static BrowseDescriptor boxSet(QString boxSetId, QString name = {});
+    static BrowseDescriptor artistAlbums(QString artistId, QString artistName = {});
+
+    bool isValid() const;
+    QString kindKey() const;
+    QString cacheKey(const QVariantMap &query = {}) const;
+    QVariantMap toVariantMap() const;
+    static BrowseDescriptor fromVariantMap(const QVariantMap &map);
 };
 
 struct PersonItem {
@@ -178,6 +219,8 @@ QJsonObject toJson(const DiscoveredServer &server);
 QJsonObject toJson(const LibraryItem &library);
 QJsonObject toJson(const PersonItem &person);
 QJsonObject toJson(const MovieItem &movie);
+QVariantMap toVariantMap(const BrowseDescriptor &descriptor);
+BrowseDescriptor browseDescriptorFromVariantMap(const QVariantMap &map);
 
 DiscoveredServer discoveredServerFromJson(const QJsonObject &object);
 LibraryItem libraryFromJson(const QJsonObject &object);

@@ -188,6 +188,9 @@ private:
     void loadLibraryFilterOptions(RequestGeneration::Token generation, const LibraryItem &library);
     void openSeries(const MovieItem &series);
     void openSeason(const MovieItem &season);
+    void openPlaylist(const MovieItem &playlist);
+    void openBoxSet(const MovieItem &boxSet);
+    void openFolder(const MovieItem &folder);
     void playMediaItem(const MovieItem &item, bool fromStart = false);
     // Series/Season open their child listing; everything else plays directly.
     void playOrOpen(const MovieItem &item, bool fromStart = false);
