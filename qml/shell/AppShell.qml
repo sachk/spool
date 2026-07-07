@@ -562,43 +562,18 @@ FocusScope {
         }
     }
 
-    Image {
+    VideoSurface {
+        id: videoSurface
         anchors.fill: parent
-        visible: root.hasPlayer && root.player.visible
-        source: visible ? "image://mpv-overlay/live?rev=" + nativeWindow.overlayRevision : ""
-        cache: false
-        fillMode: Image.Stretch
-        z: 19
-    }
-
-    PlayerOverlayPage {
-        id: playerOverlay
-        anchors.fill: parent
-        visible: root.hasPlayer && root.player.visible
+        active: root.hasPlayer && root.player.visible
         mediaInfoVisible: root.mediaInfoVisible
         diagnosticsVisible: root.diagnosticsVisible
-        z: 20
-    }
-
-    FocusScope {
-        id: playerInputShield
-        anchors.fill: parent
-        visible: root.hasPlayer && root.player.visible
-        enabled: visible
-        focus: visible
-        z: 21
-
-        onVisibleChanged: if (visible)
-            InputKeys.focus(playerInputShield)
-        onActiveFocusChanged: if (visible && !activeFocus)
-            InputKeys.focus(playerInputShield)
-
-        Keys.priority: Keys.BeforeItem
-        Keys.onPressed: event => {
+        z: 19
+        onPressed: event => {
             if (root.handlePlayerPressed(event))
                 event.accepted = true;
         }
-        Keys.onReleased: event => {
+        onReleased: event => {
             if (root.handlePlayerReleased(event))
                 event.accepted = true;
         }
