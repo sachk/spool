@@ -72,6 +72,10 @@ int main(int argc, char **argv)
     require(queue.currentItem().id == QStringLiteral("e"), "addToQueue item should play after existing upcoming items");
     require(queue.previous(), "previous should move to prior queue entry");
     require(queue.currentItem().id == QStringLiteral("c"), "previous should restore the prior queue entry");
+    require(queue.playAt(0), "playAt should accept natural row indexes");
+    require(queue.currentItem().id == QStringLiteral("a"), "playAt should switch to requested row");
+    require(!queue.playAt(99), "playAt should reject out-of-range rows");
+    require(queue.playAt(2), "playAt should restore the natural successor");
 
     queue.setShuffled(true);
     require(queue.shuffled(), "setShuffled(true) should enable shuffled mode");

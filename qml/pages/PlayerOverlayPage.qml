@@ -84,9 +84,18 @@ FocusScope {
         list.push({ label: "Subtitles", value: "subtitles" })
         if (audioSelectable)
             list.push({ label: "Audio", value: "audio" })
+        if (playQueue && playQueue.count > 0)
+            list.push({ label: "Queue", value: "queue" })
         if (desktopControlsAvailable)
             list.push({ label: nativeWindow.fullScreen ? "Exit full screen" : "Full screen", value: "fullscreen" })
         list.push({ label: "Settings", value: "debug" })
+        return list
+    }
+    readonly property var queueOptions: {
+        const count = playQueue ? playQueue.count : 0
+        const list = []
+        for (let i = 0; i < count; ++i)
+            list.push(playQueue.get(i))
         return list
     }
     readonly property var audioSyncSteps: [1, 5, 10, 100]
@@ -97,7 +106,7 @@ FocusScope {
         "Stop playback"
     ]
     function isMenuOpen() {
-        return mode === "subtitles" || mode === "audio" || mode === "debug"
+        return mode === "subtitles" || mode === "audio" || mode === "queue" || mode === "debug"
     }
 
     function isAudioSyncOpen() {
@@ -143,6 +152,7 @@ FocusScope {
         if (value === "nextChapter") return "skip_next"
         if (value === "subtitles") return "closed_caption"
         if (value === "audio") return "audiotrack"
+        if (value === "queue") return "playlist_play"
         if (value === "fullscreen") return nativeWindow.fullScreen ? "fullscreen_exit" : "fullscreen"
         return "settings"
     }
@@ -331,6 +341,14 @@ FocusScope {
         autohideTimer.stop()
     }
 
+    function openQueue() {
+        setMenuAnchor("queue")
+        mode = "queue"
+        menuIndex = playQueue ? Math.max(0, playQueue.currentIndex) : 0
+        chrome.positionMenuAtTop()
+        autohideTimer.stop()
+    }
+
     function openDebugMenu() {
         setMenuAnchor("debug")
         mode = "debug"
@@ -381,6 +399,7 @@ FocusScope {
         else if (action === "nextChapter") player.nextChapter()
         else if (action === "subtitles") openSubtitles()
         else if (action === "audio") openAudio()
+        else if (action === "queue") openQueue()
         else if (action === "fullscreen" && nativeWindow) nativeWindow.toggleFullScreen()
         else if (action === "debug") openDebugMenu()
     }
@@ -397,6 +416,13 @@ FocusScope {
             if (!hasPlayer || player.audioTracks.length === 0)
                 return
             if (hasPlayer) player.selectAudio(menuIndex)
+            closeMenu()
+            return
+        }
+        if (mode === "queue") {
+            if (!playQueue || playQueue.count === 0)
+                return
+            appController.playQueueItem(menuIndex)
             closeMenu()
             return
         }
@@ -552,6 +578,7 @@ FocusScope {
     function handleMenuKey(key) {
         const count = mode === "subtitles" && hasPlayer ? player.subtitleTracks.length
                     : mode === "audio" && hasPlayer ? player.audioTracks.length
+                    : mode === "queue" && playQueue ? playQueue.count
                     : debugOptions.length
         if (key === Qt.Key_Up) { menuIndex = Math.max(0, menuIndex - 1); return true }
         if (key === Qt.Key_Down) { menuIndex = Math.min(Math.max(0, count - 1), menuIndex + 1); return true }

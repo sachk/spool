@@ -128,6 +128,7 @@ public:
     Q_INVOKABLE void playNextUpItem(int index, bool fromStart = false);
     Q_INVOKABLE void playQueueNext();
     Q_INVOKABLE void playQueuePrevious();
+    Q_INVOKABLE void playQueueItem(int index);
     Q_INVOKABLE void playNextFromItem(const QVariantMap &item);
     Q_INVOKABLE void addToQueueFromItem(const QVariantMap &item);
     Q_INVOKABLE void shuffleQueue(bool shuffled);

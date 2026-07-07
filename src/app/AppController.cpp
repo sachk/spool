@@ -560,6 +560,13 @@ void AppController::playQueuePrevious()
     playQueueCurrent(true);
 }
 
+void AppController::playQueueItem(int index)
+{
+    if (!queueMutationAllowed() || !m_playQueue->playAt(index))
+        return;
+    playQueueCurrent(false);
+}
+
 void AppController::playNextFromItem(const QVariantMap &item)
 {
     if (!queueMutationAllowed())

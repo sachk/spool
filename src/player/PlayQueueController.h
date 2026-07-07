@@ -48,6 +48,7 @@ public:
     Q_INVOKABLE QVariantMap get(int index) const;
     Q_INVOKABLE bool next();
     Q_INVOKABLE bool previous();
+    Q_INVOKABLE bool playAt(int index);
     Q_INVOKABLE void setShuffled(bool shuffled);
     Q_INVOKABLE void clear();
     Q_INVOKABLE void removeAt(int index);
