@@ -12,6 +12,7 @@
 #include "SettingsController.h"
 #include "SearchController.h"
 #include "../player/PlayerController.h"
+#include "../player/PlayQueueController.h"
 #include "NavigationState.h"
 #include "SyncPlayController.h"
 
@@ -63,6 +64,7 @@ class AppController final : public QObject
     Q_PROPERTY(bool personItemsBusy READ personItemsBusy NOTIFY personItemsChanged)
     Q_PROPERTY(JellyfinNative::SearchController *searchController READ searchController CONSTANT)
     Q_PROPERTY(JellyfinNative::PlayerController *player READ player CONSTANT)
+    Q_PROPERTY(JellyfinNative::PlayQueueController *playQueue READ playQueue CONSTANT)
     Q_PROPERTY(JellyfinNative::SyncPlayController *syncPlay READ syncPlay CONSTANT)
     Q_PROPERTY(JellyfinNative::SettingsController *settings READ settings CONSTANT)
     Q_PROPERTY(JellyfinNative::SessionController *session READ session CONSTANT)
@@ -106,6 +108,7 @@ public:
     bool personItemsBusy() const;
     SearchController *searchController();
     PlayerController *player();
+    PlayQueueController *playQueue();
     SyncPlayController *syncPlay();
     SettingsController *settings();
     SessionController *session();
@@ -123,6 +126,11 @@ public:
     Q_INVOKABLE void playMovie(int index, bool fromStart = false);
     Q_INVOKABLE void playResumeItem(int index, bool fromStart = false);
     Q_INVOKABLE void playNextUpItem(int index, bool fromStart = false);
+    Q_INVOKABLE void playQueueNext();
+    Q_INVOKABLE void playQueuePrevious();
+    Q_INVOKABLE void playNextFromItem(const QVariantMap &item);
+    Q_INVOKABLE void addToQueueFromItem(const QVariantMap &item);
+    Q_INVOKABLE void shuffleQueue(bool shuffled);
     Q_INVOKABLE QObject *latestLibraryItems(int rowIndex);
     Q_INVOKABLE void playLatestLibraryItem(int rowIndex, int itemIndex, bool fromStart = false);
     Q_INVOKABLE void openSeriesById(const QString &seriesId, const QString &seriesName);
@@ -143,6 +151,7 @@ public:
     Q_INVOKABLE void loadItemDetail(const QString &itemId);
     Q_INVOKABLE void openDetailSeason(int index);
     Q_INVOKABLE void playDetailSeasonItem(int index, bool fromStart = false);
+    Q_INVOKABLE void playDetailContext(bool shuffled = false);
     Q_INVOKABLE void openGenre(const QString &genre);
     Q_INVOKABLE void openStudio(const QString &studio);
     Q_INVOKABLE void playDetailSimilarItem(int index, bool fromStart = false);
@@ -193,10 +202,17 @@ private:
     void openBoxSet(const MovieItem &boxSet);
     void openFolder(const MovieItem &folder);
     void playMediaItem(const MovieItem &item, bool fromStart = false);
+    void playQueuedItems(const std::vector<MovieItem> &items, int startIndex, bool fromStart = false);
+    void playQueuedModel(MovieGridModel *model, bool shuffled = false);
+    void playQueuedItem(const MovieItem &item, bool fromStart = false);
+    void playQueueCurrent(bool fromStart = false);
+    bool queueMutationAllowed();
+    MovieItem movieFromSnapshot(const QVariantMap &snapshot) const;
+    void enqueueEpisodeSuccessors(const MovieItem &episode);
     // Series/Season open their child listing; everything else plays directly.
     void playOrOpen(const MovieItem &item, bool fromStart = false);
+    void playOrOpenFromModel(MovieGridModel *model, int index, bool fromStart = false);
     void handlePlaybackStopped(const QString &itemId, qint64 positionTicks, bool completed);
-    void playNextEpisodeAfter(const MovieItem &episode);
 
     DatabaseManager *m_database = nullptr;
     DiscoveryController *m_discovery = nullptr;
@@ -204,6 +220,7 @@ private:
     ArtworkService *m_artwork = nullptr;
     PlayerController *m_player = nullptr;
     SyncPlayController *m_syncPlay = nullptr;
+    PlayQueueController *m_playQueue = nullptr;
     ContentModelController *m_content = nullptr;
     BrowseSessionController *m_browse = nullptr;
     HomeModelController *m_home = nullptr;

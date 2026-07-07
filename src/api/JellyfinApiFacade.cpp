@@ -1328,9 +1328,21 @@ QCoro::Task<void> JellyfinApiFacade::postCapabilities()
     co_await requestNoContent(HttpMethod::Post, QStringLiteral("/Sessions/Capabilities/Full"), QJsonDocument(body));
 }
 
+QJsonArray nowPlayingQueueJson(const std::vector<PlaybackQueueItem> &queue)
+{
+    QJsonArray array;
+    for (const PlaybackQueueItem &item : queue) {
+        QJsonObject object{{QStringLiteral("Id"), item.itemId}};
+        if (!item.playlistItemId.isEmpty())
+            object.insert(QStringLiteral("PlaylistItemId"), item.playlistItemId);
+        array.push_back(object);
+    }
+    return array;
+}
+
 QCoro::Task<void> JellyfinApiFacade::reportPlaybackStart(PlaybackSession session)
 {
-    const QJsonObject body = {
+    QJsonObject body = {
         {QStringLiteral("CanSeek"), true},
         {QStringLiteral("ItemId"), session.itemId},
         {QStringLiteral("MediaSourceId"), session.mediaSourceId},
@@ -1338,13 +1350,15 @@ QCoro::Task<void> JellyfinApiFacade::reportPlaybackStart(PlaybackSession session
         {QStringLiteral("PlaySessionId"), session.playSessionId},
         {QStringLiteral("PositionTicks"), session.startTimeTicks},
     };
+    if (!session.nowPlayingQueue.empty())
+        body.insert(QStringLiteral("NowPlayingQueue"), nowPlayingQueueJson(session.nowPlayingQueue));
 
     co_await requestNoContent(HttpMethod::Post, QStringLiteral("/Sessions/Playing"), QJsonDocument(body));
 }
 
 QCoro::Task<void> JellyfinApiFacade::reportPlaybackProgress(PlaybackSession session, qint64 positionTicks, bool paused)
 {
-    const QJsonObject body = {
+    QJsonObject body = {
         {QStringLiteral("CanSeek"), true},
         {QStringLiteral("ItemId"), session.itemId},
         {QStringLiteral("MediaSourceId"), session.mediaSourceId},
@@ -1353,6 +1367,8 @@ QCoro::Task<void> JellyfinApiFacade::reportPlaybackProgress(PlaybackSession sess
         {QStringLiteral("PositionTicks"), positionTicks},
         {QStringLiteral("IsPaused"), paused},
     };
+    if (!session.nowPlayingQueue.empty())
+        body.insert(QStringLiteral("NowPlayingQueue"), nowPlayingQueueJson(session.nowPlayingQueue));
 
     co_await requestNoContent(HttpMethod::Post, QStringLiteral("/Sessions/Playing/Progress"), QJsonDocument(body));
 }

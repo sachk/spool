@@ -235,6 +235,8 @@ qt_add_executable(jellyfin-native
     src/player/MpvLifecycle.h
     src/player/PlayerController.cpp
     src/player/PlayerController.h
+    src/player/PlayQueueController.cpp
+    src/player/PlayQueueController.h
     src/player/PlaybackReporter.cpp
     src/player/PlaybackReporter.h
     src/player/PlaybackPositionTracker.cpp
@@ -502,6 +504,19 @@ if(BUILD_TESTING AND NOT CMAKE_CROSSCOMPILING)
     )
     target_link_libraries(mpv-option-profile-tests PRIVATE Qt6::Core)
     add_test(NAME mpv-option-profile COMMAND mpv-option-profile-tests)
+
+    add_executable(play-queue-controller-tests
+        tests/player/PlayQueueControllerTest.cpp
+        src/player/PlayQueueController.cpp
+        src/player/PlayQueueController.h
+        src/common/JellyfinTypes.cpp
+        src/common/JellyfinTypes.h
+    )
+    target_include_directories(play-queue-controller-tests PRIVATE
+        "${CMAKE_CURRENT_SOURCE_DIR}/src"
+    )
+    target_link_libraries(play-queue-controller-tests PRIVATE Qt6::Core)
+    add_test(NAME play-queue-controller COMMAND play-queue-controller-tests)
 
     add_executable(navigation-state-tests
         tests/app/NavigationStateTest.cpp

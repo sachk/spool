@@ -28,6 +28,7 @@ FocusScope {
     readonly property bool hasProgress: Number(item && item.resumeTicks ? item.resumeTicks : 0) > 0
     readonly property bool partialEpisode: itemType === "Episode" && hasProgress && !playedState
     readonly property bool actionable: itemId.length > 0
+    readonly property bool queueable: actionable && item && item.playable !== false
 
     signal playedToggled(string itemId, bool played)
     signal favoriteToggled(string itemId, bool favorite)
@@ -35,6 +36,8 @@ FocusScope {
     signal openSeriesRequested(string seriesId, string seriesName)
     signal openSeasonRequested(string seriesId, string seasonId, string seasonName)
     signal mediaInfoRequested(var snapshot)
+    signal playNextRequested(var snapshot)
+    signal addToQueueRequested(var snapshot)
 
     visible: opened
     focus: opened
@@ -77,6 +80,10 @@ FocusScope {
                 || (itemType === "Season" && item.seriesId && itemId))
             options.push({ action: "season", icon: "video_library", label: "Go to season", checked: false })
         if (actionable) {
+            if (queueable) {
+                options.push({ action: "playNext", icon: "playlist_play", label: "Play next", checked: false })
+                options.push({ action: "addQueue", icon: "queue_music", label: "Add to queue", checked: false })
+            }
             options.push({
                 action: "played",
                 icon: "check_circle",
@@ -150,6 +157,10 @@ FocusScope {
             openSeasonRequested(String(item.seriesId || ""),
                                 itemType === "Season" ? itemId : String(item.seasonId || ""),
                                 itemType === "Season" ? String(item.title || seasonTitle()) : seasonTitle())
+        } else if (action === "playNext") {
+            playNextRequested(item)
+        } else if (action === "addQueue") {
+            addToQueueRequested(item)
         } else if (action === "played") {
             playedState = !playedState
             playedToggled(itemId, playedState)

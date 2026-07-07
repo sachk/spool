@@ -202,6 +202,11 @@ struct PagedMovieItems {
     int limit = 0;
 };
 
+struct PlaybackQueueItem {
+    QString itemId;
+    QString playlistItemId;
+};
+
 struct PlaybackSession {
     QString itemId;
     QString title;
@@ -214,6 +219,7 @@ struct PlaybackSession {
     qint64 runtimeTicks = 0;
     std::vector<MediaSegment> segments;
     TrickplayInfo trickplay;
+    std::vector<PlaybackQueueItem> nowPlayingQueue;
 };
 
 QJsonObject toJson(const DiscoveredServer &server);

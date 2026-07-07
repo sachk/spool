@@ -36,6 +36,7 @@ FocusScope {
     readonly property bool contextPosterCards: typeText === "Series" || typeText === "BoxSet"
     readonly property bool contextItemsPossible: contextPosterCards || ((typeText === "Episode" || typeText === "Season") && seriesIdText.length > 0)
     readonly property bool reserveContextRow: contextItemsPossible && contextCount === 0 && loadingDetailRows
+    readonly property bool showContextPlaybackActions: contextCount > 0 && typeText !== "Series"
     readonly property bool showContextRow: contextCount > 0 || reserveContextRow
     readonly property bool showSimilarRow: similarCount > 0
     readonly property var fullDetailItem: appController && appController.detailItem
@@ -390,6 +391,13 @@ FocusScope {
             appController.playMovie(selectedIndex, start);
     }
 
+    function playDetailContext(shuffled) {
+        if (!appController || !showContextPlaybackActions)
+            return;
+        appController.playDetailContext(shuffled === true);
+        overflowOpen = false;
+    }
+
     function toggleFavorite() {
         if (!item.movieId || !appController)
             return;
@@ -404,11 +412,15 @@ FocusScope {
         appController.setPlayed(item.movieId, playedState);
     }
 
+    function firstOverflowOption() {
+        return showContextPlaybackActions ? playAllOption : mediaInfoOption;
+    }
+
     function toggleOverflow() {
         overflowOpen = !overflowOpen;
         if (overflowOpen)
             Qt.callLater(function () {
-                InputKeys.focus(mediaInfoOption);
+                InputKeys.focus(firstOverflowOption());
             });
         else
             InputKeys.focus(menuAction);
@@ -571,14 +583,18 @@ FocusScope {
             return focusHeaderAboveActions();
         if (key === Qt.Key_Down) {
             if (overflowOpen && menuAction.activeFocus) {
-                InputKeys.focus(mediaInfoOption);
+                InputKeys.focus(firstOverflowOption());
                 return true;
             }
             focusDetailsPanel();
             return true;
         }
         if (InputKeys.isAccept(key, false)) {
-            if (playedAction.activeFocus)
+            if (playAllOption.activeFocus)
+                playDetailContext(false);
+            else if (shuffleOption.activeFocus)
+                playDetailContext(true);
+            else if (playedAction.activeFocus)
                 togglePlayed();
             else if (favoriteAction.activeFocus)
                 toggleFavorite();
@@ -910,6 +926,22 @@ FocusScope {
                             anchors.right: parent.right
                             anchors.top: parent.top
                             anchors.margins: 7
+
+                            MenuOption {
+                                id: playAllOption
+                                visible: root.showContextPlaybackActions
+                                iconName: "play_arrow"
+                                label: "Play all"
+                                onActivated: root.playDetailContext(false)
+                            }
+
+                            MenuOption {
+                                id: shuffleOption
+                                visible: root.showContextPlaybackActions
+                                iconName: "shuffle"
+                                label: "Shuffle play"
+                                onActivated: root.playDetailContext(true)
+                            }
 
                             MenuOption {
                                 id: mediaInfoOption

@@ -64,6 +64,14 @@ QtObject {
         return key === Qt.Key_MediaPlay || key === Qt.Key_Play
     }
 
+    function isMediaNext(key) {
+        return key === Qt.Key_MediaNext
+    }
+
+    function isMediaPrevious(key) {
+        return key === Qt.Key_MediaPrevious
+    }
+
     function isColor(key) {
         return key === Qt.Key_Red
                 || key === Qt.Key_Green
