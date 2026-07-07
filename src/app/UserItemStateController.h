@@ -6,7 +6,7 @@
 namespace JellyfinNative {
 
 class ContentModelController;
-class CurrentItemsController;
+class BrowseSessionController;
 class HomeModelController;
 class SearchController;
 
@@ -15,7 +15,7 @@ class UserItemStateController final : public QObject
     Q_OBJECT
 
 public:
-    UserItemStateController(CurrentItemsController *currentItems,
+    UserItemStateController(BrowseSessionController *currentItems,
                             HomeModelController *home,
                             ContentModelController *content,
                             SearchController *search,
@@ -30,7 +30,7 @@ signals:
     void playedChanged(const QString &itemId, bool played);
 
 private:
-    CurrentItemsController *m_currentItems = nullptr;
+    BrowseSessionController *m_browse = nullptr;
     HomeModelController *m_home = nullptr;
     ContentModelController *m_content = nullptr;
     SearchController *m_search = nullptr;

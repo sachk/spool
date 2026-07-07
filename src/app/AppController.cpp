@@ -7,7 +7,7 @@
 #include "../diagnostics/Diagnostics.h"
 #include "../player/PlayerController.h"
 #include "ContentModelController.h"
-#include "CurrentItemsController.h"
+#include "BrowseSessionController.h"
 #include "HomeModelController.h"
 #include "LibraryQuery.h"
 #include "LibraryPrefetchController.h"
@@ -58,12 +58,12 @@ AppController::AppController(DatabaseManager *database,
     m_settings = new SettingsController(database, api, player, this);
     m_session = new SessionController(database, api, this);
     m_prefetch = new LibraryPrefetchController(api, artwork, this);
-    m_currentItems = new CurrentItemsController(m_prefetch, this);
+    m_browse = new BrowseSessionController(m_prefetch, this);
     m_home = new HomeModelController(api, m_prefetch, this);
     m_content = new ContentModelController(api, m_prefetch, this);
     m_search = new SearchController(api, m_prefetch, this);
     m_itemState =
-        new UserItemStateController(m_currentItems, m_home, m_content, m_search, this);
+        new UserItemStateController(m_browse, m_home, m_content, m_search, this);
     m_prefetch->configureImagePrefetch(
         database->loadSetting(QStringLiteral("network/imagePrefetchAhead"),
                               QStringLiteral("16")).toInt(),
@@ -86,7 +86,7 @@ AppController::AppController(DatabaseManager *database,
             this, &AppController::itemFavoriteChanged);
     connect(m_itemState, &UserItemStateController::playedChanged,
             this, &AppController::itemPlayedChanged);
-    connect(m_currentItems, &CurrentItemsController::pagingChanged,
+    connect(m_browse, &BrowseSessionController::pagingChanged,
             this, &AppController::currentItemsPagingChanged);
     connect(m_home, &HomeModelController::latestLibraryRowsChanged,
             this, &AppController::latestLibraryRowsChanged);
@@ -158,42 +158,42 @@ bool AppController::hasDefaultProfile() const
 
 QString AppController::currentLibraryName() const
 {
-    return m_navigation.title();
+    return m_browse->title();
 }
 
 QString AppController::currentContentLabel() const
 {
-    return m_navigation.contentLabel();
+    return m_browse->contentLabel();
 }
 
 QString AppController::currentViewKind() const
 {
-    return m_navigation.viewKind();
+    return m_browse->viewKind();
 }
 
 QString AppController::currentLibraryId() const
 {
-    return m_navigation.libraryId();
+    return m_browse->libraryId();
 }
 
 QString AppController::currentLibraryCollectionType() const
 {
-    return m_navigation.libraryCollectionType();
+    return m_browse->libraryCollectionType();
 }
 
 QVariantMap AppController::libraryQuery() const
 {
-    return m_navigation.query();
+    return m_browse->query();
 }
 
 QVariantMap AppController::libraryFilterOptions() const
 {
-    return m_navigation.filterOptions();
+    return m_browse->filterOptions();
 }
 
 int AppController::libraryFilterActiveCount() const
 {
-    return activeLibraryFilterCount(m_navigation.query());
+    return activeLibraryFilterCount(m_browse->query());
 }
 
 DiscoveredServerModel *AppController::discoveredServers()
@@ -208,7 +208,7 @@ LibraryListModel *AppController::libraries()
 
 MovieGridModel *AppController::movies()
 {
-    return m_currentItems->items();
+    return m_browse->items();
 }
 
 MovieGridModel *AppController::resumeItems()
@@ -229,17 +229,17 @@ QVariantList AppController::latestLibraryRows() const
 
 bool AppController::currentItemsLoadingMore() const
 {
-    return m_currentItems->loadingMore();
+    return m_browse->loadingMore();
 }
 
 bool AppController::currentItemsHasMore() const
 {
-    return m_currentItems->hasMore();
+    return m_browse->hasMore();
 }
 
 int AppController::currentItemsTotalCount() const
 {
-    return m_currentItems->totalCount();
+    return m_browse->totalCount();
 }
 
 MovieGridModel *AppController::detailSeasons()
@@ -386,7 +386,7 @@ void AppController::resetApplicationState()
     if (m_database)
         m_database->invalidateHomePayloads();
     m_libraries.clear();
-    m_currentItems->clear();
+    m_browse->clear();
     m_home->reset();
     m_content->reset();
     m_search->reset();
@@ -394,7 +394,7 @@ void AppController::resetApplicationState()
     m_libraryLoadGeneration.invalidate();
     const bool pageWasLogin = page() == QStringLiteral("login");
     m_navigation.reset();
-    m_currentItems->resetPaging();
+    m_browse->reset();
     setBusy(false);
     setErrorText({});
     if (m_hasDefaultProfile) {
@@ -430,17 +430,17 @@ void AppController::openLibrary(int index)
         return;
 
     const RequestGeneration::Token loadGeneration = m_libraryLoadGeneration.next();
-    m_navigation.enterLibrary(library, libraryContentLabel(library), defaultLibraryQuery(library));
+    m_browse->enterLibrary(library, libraryContentLabel(library), defaultLibraryQuery(library));
     emit libraryQueryChanged();
     emit libraryFilterOptionsChanged();
     loadLibraryFilterOptions(loadGeneration, library);
     const QString cacheKey = libraryCacheKey(library, libraryQuery());
-    m_currentItems->resetPaging(cacheKey);
+    m_browse->resetPaging(cacheKey);
     m_home->recordLibraryUse(library);
     emit currentLibraryNameChanged();
-    const int cachedCount = m_currentItems->applyCachedPage(cacheKey);
+    const int cachedCount = m_browse->applyCachedPage(cacheKey);
     const bool hasWarmCache = cachedCount > 0;
-    m_currentItems->setWarmCachePaging(cachedCount, kLibraryPageSize);
+    m_browse->setWarmCachePaging(cachedCount, kLibraryPageSize);
     m_prefetch->stop();
     if (m_artwork)
         m_artwork->cancelPrefetches();
@@ -453,14 +453,14 @@ void AppController::openLibrary(int index)
     }
 
     Async::runLatest(this,
-        m_api->fetchBrowsePage(m_navigation.browseDescriptor(), 0, kLibraryPageSize, libraryQuery()),
+        m_api->fetchBrowsePage(m_browse->descriptor(), 0, kLibraryPageSize, libraryQuery()),
         m_libraryLoadGeneration, loadGeneration,
         [this, cacheKey](const PagedMovieItems &page) {
             showCurrentItemsPage(page, cacheKey, false);
         },
         [this, hasWarmCache](const std::exception_ptr &error) {
             setBusy(false);
-            m_currentItems->setLoadingMore(false);
+            m_browse->setLoadingMore(false);
             const QString message = exceptionMessage(error);
             if (hasWarmCache)
                 qWarning() << "library open: background refresh failed" << message;
@@ -500,7 +500,7 @@ void AppController::playOrOpen(const MovieItem &item, bool fromStart)
 
 void AppController::playMovie(int index, bool fromStart)
 {
-    playOrOpen(m_currentItems->itemAt(index), fromStart);
+    playOrOpen(m_browse->itemAt(index), fromStart);
 }
 
 void AppController::playResumeItem(int index, bool fromStart)
@@ -575,35 +575,35 @@ void AppController::maybeLoadMoreCurrentItems(int visibleIndex)
 {
     if (visibleIndex < 0)
         return;
-    if (visibleIndex + kLibraryPrefetchDistance < m_currentItems->rowCount())
+    if (visibleIndex + kLibraryPrefetchDistance < m_browse->rowCount())
         return;
     loadMoreCurrentItems();
 }
 
 void AppController::loadMoreCurrentItems()
 {
-    if (m_currentItems->loadingMore() || !m_currentItems->hasMore())
+    if (m_browse->loadingMore() || !m_browse->hasMore())
         return;
     if (!m_api || m_api->session().accessToken.isEmpty())
         return;
-    const BrowseDescriptor descriptor = m_navigation.browseDescriptor();
+    const BrowseDescriptor descriptor = m_browse->descriptor();
     if (!descriptor.isValid())
         return;
 
-    const int startIndex = std::max(m_currentItems->nextStartIndex(),
-                                    m_currentItems->rowCount());
+    const int startIndex = std::max(m_browse->nextStartIndex(),
+                                    m_browse->rowCount());
     const RequestGeneration::Token loadGeneration = m_libraryLoadGeneration.current();
-    const QString cacheKey = m_currentItems->cacheKey();
+    const QString cacheKey = m_browse->cacheKey();
     const QVariantMap query = descriptor.kind == BrowseKind::Library ? libraryQuery() : QVariantMap{};
     if (m_artwork)
         m_artwork->cancelPrefetches();
-    m_currentItems->setLoadingMore(true);
+    m_browse->setLoadingMore(true);
 
     const auto onDone = [this, cacheKey](const PagedMovieItems &page) {
         showCurrentItemsPage(page, cacheKey, true);
     };
     const auto onError = [this](const std::exception_ptr &error) {
-        m_currentItems->setLoadingMore(false);
+        m_browse->setLoadingMore(false);
         setErrorText(exceptionMessage(error));
     };
 
@@ -615,12 +615,12 @@ void AppController::loadMoreCurrentItems()
 
 void AppController::prefetchCurrentItems(int firstIndex, int lastIndex)
 {
-    m_currentItems->prefetchVisibleRange(firstIndex, lastIndex);
+    m_browse->prefetchVisibleRange(firstIndex, lastIndex);
 }
 
 void AppController::setLibraryQuery(const QVariantMap &query)
 {
-    if (!m_navigation.setQuery(query))
+    if (!m_browse->setQuery(query))
         return;
     emit libraryQueryChanged();
 }
@@ -700,7 +700,7 @@ void AppController::clearLibraryFilters()
 
 void AppController::refreshCurrentLibrary()
 {
-    const BrowseDescriptor descriptor = m_navigation.browseDescriptor();
+    const BrowseDescriptor descriptor = m_browse->descriptor();
     if (!descriptor.isValid())
         return;
     if (!m_api || m_api->session().accessToken.isEmpty())
@@ -715,8 +715,8 @@ void AppController::refreshCurrentLibrary()
         library.collectionType = currentLibraryCollectionType();
         cacheKey = libraryCacheKey(library, query);
     }
-    m_currentItems->resetPaging(cacheKey);
-    m_currentItems->clear();
+    m_browse->resetPaging(cacheKey);
+    m_browse->clear();
     m_prefetch->stop();
     if (m_artwork)
         m_artwork->cancelPrefetches();
@@ -730,7 +730,7 @@ void AppController::refreshCurrentLibrary()
         },
         [this](const std::exception_ptr &error) {
             setBusy(false);
-            m_currentItems->setLoadingMore(false);
+            m_browse->setLoadingMore(false);
             setErrorText(exceptionMessage(error));
         });
 }
@@ -966,14 +966,14 @@ void AppController::loadLibraries()
 
 void AppController::showCurrentItems(const std::vector<MovieItem> &items, const QString &cacheKey)
 {
-    m_currentItems->setItems(items, cacheKey);
+    m_browse->setItems(items, cacheKey);
     setBusy(false);
     setPage(QStringLiteral("movies"));
 }
 
 void AppController::showCurrentItemsPage(const PagedMovieItems &page, const QString &cacheKey, bool append)
 {
-    m_currentItems->setPage(page, cacheKey, append);
+    m_browse->setPage(page, cacheKey, append);
     setBusy(false);
     if (!append)
         setPage(QStringLiteral("movies"));
@@ -991,15 +991,41 @@ void AppController::loadLibraryFilterOptions(RequestGeneration::Token generation
         [this, library](const QVariantMap &options) {
             if (library.id != currentLibraryId())
                 return;
-            m_navigation.setFilterOptions(options);
+            m_browse->setFilterOptions(options);
             emit libraryFilterOptionsChanged();
         },
         [this, library](const std::exception_ptr &error) {
             if (library.id != currentLibraryId())
                 return;
             qWarning() << "library filters: failed" << library.name << exceptionMessage(error);
-            m_navigation.clearFilterOptions();
+            m_browse->clearFilterOptions();
             emit libraryFilterOptionsChanged();
+        });
+}
+
+void AppController::loadCurrentBrowsePage(const QString &loadingText)
+{
+    if (!m_api || m_api->session().accessToken.isEmpty())
+        return;
+    const BrowseDescriptor descriptor = m_browse->descriptor();
+    if (!descriptor.isValid())
+        return;
+
+    const RequestGeneration::Token loadGeneration = m_libraryLoadGeneration.next();
+    const QString cacheKey = descriptor.cacheKey();
+    m_browse->resetPaging(cacheKey);
+    m_browse->clear();
+    setBusy(true, loadingText);
+
+    Async::runLatest(this,
+        m_api->fetchBrowsePage(descriptor, 0, kLibraryPageSize),
+        m_libraryLoadGeneration, loadGeneration,
+        [this, cacheKey](const PagedMovieItems &page) {
+            showCurrentItemsPage(page, cacheKey, false);
+        },
+        [this](const std::exception_ptr &error) {
+            setBusy(false);
+            setErrorText(exceptionMessage(error));
         });
 }
 
@@ -1009,12 +1035,12 @@ void AppController::openSeries(const MovieItem &series)
         return;
 
     const RequestGeneration::Token loadGeneration = m_libraryLoadGeneration.next();
-    m_navigation.enterSeries(series);
+    m_browse->enterSeries(series);
     emit currentLibraryNameChanged();
-    const BrowseDescriptor descriptor = m_navigation.browseDescriptor();
+    const BrowseDescriptor descriptor = m_browse->descriptor();
     const QString cacheKey = descriptor.cacheKey();
-    m_currentItems->resetPaging(cacheKey);
-    m_currentItems->clear();
+    m_browse->resetPaging(cacheKey);
+    m_browse->clear();
     setBusy(true, QStringLiteral("Loading seasons…"));
 
     Async::runLatest(this,
@@ -1041,7 +1067,7 @@ void AppController::openSeries(const MovieItem &series)
 
 void AppController::openSeason(const MovieItem &season)
 {
-    const QString seriesId = !season.seriesId.isEmpty() ? season.seriesId : m_navigation.seriesId();
+    const QString seriesId = !season.seriesId.isEmpty() ? season.seriesId : m_browse->seriesId();
     if (seriesId.isEmpty()) {
         qWarning() << "season open: missing series id" << season.id << season.title << season.itemType;
         return;
@@ -1053,12 +1079,12 @@ void AppController::openSeason(const MovieItem &season)
             << "season=" << season.id
             << "type=" << season.itemType
             << "title=" << season.title;
-    m_navigation.enterSeason(seriesId, season);
+    m_browse->enterSeason(seriesId, season);
     emit currentLibraryNameChanged();
-    const BrowseDescriptor descriptor = m_navigation.browseDescriptor();
+    const BrowseDescriptor descriptor = m_browse->descriptor();
     const QString cacheKey = descriptor.cacheKey();
-    m_currentItems->resetPaging(cacheKey);
-    m_currentItems->clear();
+    m_browse->resetPaging(cacheKey);
+    m_browse->clear();
     setBusy(true, QStringLiteral("Loading episodes…"));
 
     Async::runLatest(this,
@@ -1080,144 +1106,59 @@ void AppController::openSeason(const MovieItem &season)
 
 void AppController::openPlaylist(const MovieItem &playlist)
 {
-    if (playlist.id.isEmpty() || !m_api || m_api->session().accessToken.isEmpty())
+    if (playlist.id.isEmpty())
         return;
-
-    const RequestGeneration::Token loadGeneration = m_libraryLoadGeneration.next();
-    m_navigation.enterPlaylist(playlist);
+    m_browse->enterPlaylist(playlist);
     emit libraryQueryChanged();
     emit libraryFilterOptionsChanged();
     emit currentLibraryNameChanged();
-    const BrowseDescriptor descriptor = m_navigation.browseDescriptor();
-    const QString cacheKey = descriptor.cacheKey();
-    m_currentItems->resetPaging(cacheKey);
-    m_currentItems->clear();
-    setBusy(true, QStringLiteral("Loading %1…").arg(currentContentLabel().toLower()));
-
-    Async::runLatest(this,
-        m_api->fetchBrowsePage(descriptor, 0, kLibraryPageSize),
-        m_libraryLoadGeneration, loadGeneration,
-        [this, cacheKey](const PagedMovieItems &page) {
-            showCurrentItemsPage(page, cacheKey, false);
-        },
-        [this](const std::exception_ptr &error) {
-            setBusy(false);
-            setErrorText(exceptionMessage(error));
-        });
+    loadCurrentBrowsePage(QStringLiteral("Loading %1…").arg(currentContentLabel().toLower()));
 }
 
 void AppController::openBoxSet(const MovieItem &boxSet)
 {
-    if (boxSet.id.isEmpty() || !m_api || m_api->session().accessToken.isEmpty())
+    if (boxSet.id.isEmpty())
         return;
-
-    const RequestGeneration::Token loadGeneration = m_libraryLoadGeneration.next();
-    m_navigation.enterBoxSet(boxSet);
+    m_browse->enterBoxSet(boxSet);
     emit libraryQueryChanged();
     emit libraryFilterOptionsChanged();
     emit currentLibraryNameChanged();
-    const BrowseDescriptor descriptor = m_navigation.browseDescriptor();
-    const QString cacheKey = descriptor.cacheKey();
-    m_currentItems->resetPaging(cacheKey);
-    m_currentItems->clear();
-    setBusy(true, QStringLiteral("Loading %1…").arg(currentContentLabel().toLower()));
-
-    Async::runLatest(this,
-        m_api->fetchBrowsePage(descriptor, 0, kLibraryPageSize),
-        m_libraryLoadGeneration, loadGeneration,
-        [this, cacheKey](const PagedMovieItems &page) {
-            showCurrentItemsPage(page, cacheKey, false);
-        },
-        [this](const std::exception_ptr &error) {
-            setBusy(false);
-            setErrorText(exceptionMessage(error));
-        });
+    loadCurrentBrowsePage(QStringLiteral("Loading %1…").arg(currentContentLabel().toLower()));
 }
 
 void AppController::openFolder(const MovieItem &folder)
 {
-    if (folder.id.isEmpty() || !m_api || m_api->session().accessToken.isEmpty())
+    if (folder.id.isEmpty())
         return;
-
-    const RequestGeneration::Token loadGeneration = m_libraryLoadGeneration.next();
-    m_navigation.enterFolder(folder);
+    m_browse->enterFolder(folder);
     emit libraryQueryChanged();
     emit libraryFilterOptionsChanged();
     emit currentLibraryNameChanged();
-    const BrowseDescriptor descriptor = m_navigation.browseDescriptor();
-    const QString cacheKey = descriptor.cacheKey();
-    m_currentItems->resetPaging(cacheKey);
-    m_currentItems->clear();
-    setBusy(true, QStringLiteral("Loading %1…").arg(currentContentLabel().toLower()));
-
-    Async::runLatest(this,
-        m_api->fetchBrowsePage(descriptor, 0, kLibraryPageSize),
-        m_libraryLoadGeneration, loadGeneration,
-        [this, cacheKey](const PagedMovieItems &page) {
-            showCurrentItemsPage(page, cacheKey, false);
-        },
-        [this](const std::exception_ptr &error) {
-            setBusy(false);
-            setErrorText(exceptionMessage(error));
-        });
+    loadCurrentBrowsePage(QStringLiteral("Loading %1…").arg(currentContentLabel().toLower()));
 }
 
 void AppController::openGenre(const QString &genre)
 {
     const QString name = genre.trimmed();
-    if (name.isEmpty() || !m_api || m_api->session().accessToken.isEmpty())
+    if (name.isEmpty())
         return;
-
-    const RequestGeneration::Token loadGeneration = m_libraryLoadGeneration.next();
-    m_navigation.enterNamedCollection(QStringLiteral("genre"), name);
+    m_browse->enterNamedCollection(QStringLiteral("genre"), name);
     emit libraryQueryChanged();
     emit libraryFilterOptionsChanged();
     emit currentLibraryNameChanged();
-    const BrowseDescriptor descriptor = m_navigation.browseDescriptor();
-    const QString cacheKey = descriptor.cacheKey();
-    m_currentItems->resetPaging(cacheKey);
-    m_currentItems->clear();
-    setBusy(true, QStringLiteral("Loading %1…").arg(name));
-
-    Async::runLatest(this,
-        m_api->fetchBrowsePage(descriptor, 0, kLibraryPageSize),
-        m_libraryLoadGeneration, loadGeneration,
-        [this, cacheKey](const PagedMovieItems &page) {
-            showCurrentItemsPage(page, cacheKey, false);
-        },
-        [this](const std::exception_ptr &error) {
-            setBusy(false);
-            setErrorText(exceptionMessage(error));
-        });
+    loadCurrentBrowsePage(QStringLiteral("Loading %1…").arg(name));
 }
 
 void AppController::openStudio(const QString &studio)
 {
     const QString name = studio.trimmed();
-    if (name.isEmpty() || !m_api || m_api->session().accessToken.isEmpty())
+    if (name.isEmpty())
         return;
-
-    const RequestGeneration::Token loadGeneration = m_libraryLoadGeneration.next();
-    m_navigation.enterNamedCollection(QStringLiteral("studio"), name);
+    m_browse->enterNamedCollection(QStringLiteral("studio"), name);
     emit libraryQueryChanged();
     emit libraryFilterOptionsChanged();
     emit currentLibraryNameChanged();
-    const BrowseDescriptor descriptor = m_navigation.browseDescriptor();
-    const QString cacheKey = descriptor.cacheKey();
-    m_currentItems->resetPaging(cacheKey);
-    m_currentItems->clear();
-    setBusy(true, QStringLiteral("Loading %1…").arg(name));
-
-    Async::runLatest(this,
-        m_api->fetchBrowsePage(descriptor, 0, kLibraryPageSize),
-        m_libraryLoadGeneration, loadGeneration,
-        [this, cacheKey](const PagedMovieItems &page) {
-            showCurrentItemsPage(page, cacheKey, false);
-        },
-        [this](const std::exception_ptr &error) {
-            setBusy(false);
-            setErrorText(exceptionMessage(error));
-        });
+    loadCurrentBrowsePage(QStringLiteral("Loading %1…").arg(name));
 }
 
 void AppController::refreshHomeRows()

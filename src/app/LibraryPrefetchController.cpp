@@ -89,8 +89,13 @@ void LibraryPrefetchController::schedule(
   for (const LibraryItem &library : selected) {
     const QString key = libraryCacheKey(library);
     retainedKeys.insert(key);
-    if (!m_cachedKeys.contains(key))
-      m_queue.push_back(library);
+    if (!m_cachedKeys.contains(key)) {
+      m_queue.push_back(PrefetchRequest{
+          BrowseDescriptor::library(library.id, library.collectionType, library.name),
+          key,
+          library.name,
+      });
+    }
   }
 
   for (auto it = m_pages.begin(); it != m_pages.end();) {
@@ -155,26 +160,24 @@ void LibraryPrefetchController::startNext() {
     return;
 
   const RequestGeneration::Token generation = m_generation.next();
-  const LibraryItem library = m_queue[static_cast<size_t>(m_index++)];
-  const QString key = libraryCacheKey(library);
+  const PrefetchRequest request = m_queue[static_cast<size_t>(m_index++)];
   m_active = true;
-  qInfo() << "library prefetch: fetching" << library.name << key;
+  qInfo() << "library prefetch: fetching" << request.title << request.cacheKey;
 
   Async::runLatest(
       this,
-      m_api->fetchLibraryPage(library.id, library.collectionType, 0,
-                              kLibraryPageSize),
+      m_api->fetchBrowsePage(request.descriptor, 0, kLibraryPageSize),
       m_generation, generation,
-      [this, key, library](const PagedMovieItems &page) {
-        qInfo() << "library prefetch: cached" << library.name
+      [this, request](const PagedMovieItems &page) {
+        qInfo() << "library prefetch: cached" << request.title
                 << page.items.size();
-        m_pages.insert(key, page);
-        m_cachedKeys.insert(key);
+        m_pages.insert(request.cacheKey, page);
+        m_cachedKeys.insert(request.cacheKey);
         m_active = false;
         startNext();
       },
-      [this, key, library](const std::exception_ptr &error) {
-        qWarning() << "library prefetch: failed" << library.name << key
+      [this, request](const std::exception_ptr &error) {
+        qWarning() << "library prefetch: failed" << request.title << request.cacheKey
                    << exceptionMessage(error);
         m_active = false;
         startNext();
