@@ -141,7 +141,7 @@ FocusScope {
                 shell: root.shell
                 kind: root.rowKind === "poster" ? "poster" : "landscape"
                 useSeriesPoster: root.useSeriesPoster
-                focused: mediaDelegate.index === rowList.currentIndex && rowList.activeFocus
+                focused: mediaDelegate.index === rowList.currentIndex && root.activeFocus
                 snapshotProvider: function() { return root.itemAt(mediaDelegate.index) }
                 movieId: mediaDelegate.movieId
                 displayTitle: mediaDelegate.displayTitle
@@ -181,7 +181,7 @@ FocusScope {
             required property string name
             required property string collectionType
             required property string imageUrl
-            readonly property bool current: index === rowList.currentIndex && rowList.activeFocus
+            readonly property bool current: index === rowList.currentIndex && root.activeFocus
 
             width: root.cardWidth
             height: rowList.height
