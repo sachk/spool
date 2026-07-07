@@ -249,20 +249,20 @@ FocusScope {
 
     function focusActionRow() {
         if (showPrimaryAction && primaryAction.enabledButton)
-            primaryAction.forceActiveFocus();
+            InputKeys.focus(primaryAction);
         else
-            playedAction.forceActiveFocus();
+            InputKeys.focus(playedAction);
         ensureDetailsItemVisible(actionRow);
     }
 
     function focusHeaderAboveActions() {
         if (seasonLink.visible) {
-            seasonLink.forceActiveFocus();
+            InputKeys.focus(seasonLink);
             ensureDetailsItemVisible(seasonLink);
             return true;
         }
         if (seriesLink.visible) {
-            seriesLink.forceActiveFocus();
+            InputKeys.focus(seriesLink);
             ensureDetailsItemVisible(seriesLink);
             return true;
         }
@@ -347,7 +347,7 @@ FocusScope {
         const actions = orderedActions();
         if (actions.length === 0)
             return false;
-        actions[Math.max(0, Math.min(index, actions.length - 1))].forceActiveFocus();
+        InputKeys.focus(actions[Math.max(0, Math.min(index, actions.length - 1))]);
         return true;
     }
 
@@ -361,7 +361,7 @@ FocusScope {
             return false;
         if (next >= actions.length)
             return true;
-        actions[next].forceActiveFocus();
+        InputKeys.focus(actions[next]);
         return true;
     }
 
@@ -407,10 +407,10 @@ FocusScope {
         overflowOpen = !overflowOpen;
         if (overflowOpen)
             Qt.callLater(function () {
-                mediaInfoOption.forceActiveFocus();
+                InputKeys.focus(mediaInfoOption);
             });
         else
-            menuAction.forceActiveFocus();
+            InputKeys.focus(menuAction);
     }
 
     function openMediaInfo() {
@@ -467,11 +467,11 @@ FocusScope {
         return false;
     }
 
-    function handleNavigationKey(key) {
+    function handleKey(key) {
         if (mediaInfoOption.activeFocus) {
             if (key === Qt.Key_Up || key === Qt.Key_Left || key === Qt.Key_Right) {
                 overflowOpen = false;
-                menuAction.forceActiveFocus();
+                InputKeys.focus(menuAction);
                 return true;
             }
             if (key === Qt.Key_Down) {
@@ -492,7 +492,7 @@ FocusScope {
                 return true;
             }
             if (key === Qt.Key_Down) {
-                seasonLink.visible ? seasonLink.forceActiveFocus() : focusActionRow();
+                seasonLink.visible ? InputKeys.focus(seasonLink) : focusActionRow();
                 return true;
             }
             if (InputKeys.isAccept(key, false)) {
@@ -503,7 +503,7 @@ FocusScope {
 
         if (seasonLink.activeFocus) {
             if (key === Qt.Key_Up) {
-                seriesLink.visible ? seriesLink.forceActiveFocus() : (shell ? shell.focusNavBar() : null);
+                seriesLink.visible ? InputKeys.focus(seriesLink) : (shell ? shell.focusNavBar() : null);
                 return true;
             }
             if (key === Qt.Key_Down) {
@@ -526,7 +526,7 @@ FocusScope {
                 focusRowAfterContext();
                 return true;
             }
-            return contextRow.handleNavigationKey(key);
+            return contextRow.handleKey(key);
         }
 
         if (peopleRow.activeFocus) {
@@ -545,7 +545,7 @@ FocusScope {
                 }
                 return true;
             }
-            return peopleRow.handleNavigationKey(key);
+            return peopleRow.handleKey(key);
         }
 
         if (similarRow.activeFocus) {
@@ -555,7 +555,7 @@ FocusScope {
             }
             if (key === Qt.Key_Down)
                 return true;
-            return similarRow.handleNavigationKey(key);
+            return similarRow.handleKey(key);
         }
 
         if (key === Qt.Key_Left) {
@@ -570,7 +570,7 @@ FocusScope {
             return focusHeaderAboveActions();
         if (key === Qt.Key_Down) {
             if (overflowOpen && menuAction.activeFocus) {
-                mediaInfoOption.forceActiveFocus();
+                InputKeys.focus(mediaInfoOption);
                 return true;
             }
             focusDetailsPanel();

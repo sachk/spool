@@ -176,9 +176,9 @@ FocusScope {
         return section && section.handlePressedKey ? section.handlePressedKey(key) : false
     }
 
-    function handleNavigationKey(key) {
+    function handleKey(key) {
         const section = activeSection()
-        if (section && section.handleNavigationKey && section.handleNavigationKey(key))
+        if (section && section.handleKey && section.handleKey(key))
             return true
         if (key === Qt.Key_Up) {
             focusRelative(section, -1)

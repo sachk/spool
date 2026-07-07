@@ -1,5 +1,6 @@
 import QtQuick
 import "../pages"
+import "../primitives"
 
 FocusScope {
     id: root
@@ -8,9 +9,9 @@ FocusScope {
     property var shell
     focus: true
 
-    function handleNavigationKey(key) {
-        if (loader.item && loader.item.handleNavigationKey)
-            return loader.item.handleNavigationKey(key)
+    function handleKey(key) {
+        if (loader.item && loader.item.handleKey)
+            return loader.item.handleKey(key)
         return false
     }
 
@@ -40,7 +41,7 @@ FocusScope {
                          : route === "settings" ? settingsComponent
                          : route === "playerOverlay" ? playerComponent
                          : homeComponent
-        onLoaded: item.forceActiveFocus()
+        onLoaded: InputKeys.focus(item)
     }
 
     Component { id: loginComponent; LoginPage { shell: root.shell } }

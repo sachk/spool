@@ -78,7 +78,7 @@ FocusScope {
 
     function focusResultsOrSuggestions() {
         if (resultCount > 0) {
-            results.forceActiveFocus()
+            InputKeys.focus(results)
             results.currentIndex = Math.max(0, results.currentIndex)
             return true
         }
@@ -106,10 +106,10 @@ FocusScope {
         return row && row.handleAcceptPressed ? row.handleAcceptPressed(key) : false
     }
 
-    function handleNavigationKey(key) {
+    function handleKey(key) {
         const acceptKey = InputKeys.isAccept(key)
         if (suggestionsRow.activeFocus) {
-            if (suggestionsRow.handleNavigationKey(key))
+            if (suggestionsRow.handleKey(key))
                 return true
             if (key === Qt.Key_Up) {
                 focusFieldForTyping()
@@ -121,7 +121,7 @@ FocusScope {
         }
         if (results.activeFocus && !acceptKey) {
             const menuRow = currentResultRow()
-            if (menuRow && menuRow.handleNavigationKey && menuRow.handleNavigationKey(key))
+            if (menuRow && menuRow.handleKey && menuRow.handleKey(key))
                 return true
         }
         if (key === Qt.Key_Up && field.activeFocus && !field.editing) {
@@ -139,7 +139,7 @@ FocusScope {
             const row = currentResultRow()
             if (row && row.handleAcceptReleased && row.handleAcceptReleased(key))
                 return true
-            if (row && row.handleNavigationKey && row.handleNavigationKey(key))
+            if (row && row.handleKey && row.handleKey(key))
                 return true
             activateCurrent()
             return true
@@ -271,7 +271,7 @@ FocusScope {
                         focused: ListView.isCurrentItem && results.activeFocus
                         function handleAcceptPressed(key) { return actions.handleAcceptPressed(key) }
                         function handleAcceptReleased(key) { return actions.handleAcceptReleased(key) }
-                        function handleNavigationKey(key) { return actions.handleNavigationKey(key) }
+                        function handleKey(key) { return actions.handleKey(key) }
 
                         RowLayout {
                             anchors.fill: parent

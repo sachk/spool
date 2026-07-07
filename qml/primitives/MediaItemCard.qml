@@ -103,8 +103,8 @@ Item {
         return actions.handleAcceptReleased(key)
     }
 
-    function handleNavigationKey(key) {
-        return actions.handleNavigationKey(key)
+    function handleKey(key) {
+        return actions.handleKey(key)
     }
 
     ImageCard {

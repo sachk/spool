@@ -123,7 +123,7 @@ FocusScope {
         if (!rebuildMenu())
             return false
         menuIndex = 0
-        forceActiveFocus()
+        InputKeys.focus(root)
         menuPopup.open()
         positionMenu()
         Qt.callLater(positionMenu)

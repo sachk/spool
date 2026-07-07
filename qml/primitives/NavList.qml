@@ -14,7 +14,7 @@ ListView {
         currentIndex = count > 0 ? Math.max(0, Math.min(currentIndex, count - 1)) : -1
     }
 
-    function handleNavigationKey(key) {
+    function handleKey(key) {
         clampIndex()
         if (key === Qt.Key_Up) {
             if (currentIndex <= 0) { edgeUp(); return true }

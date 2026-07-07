@@ -25,7 +25,7 @@ FocusScope {
     signal mediaInfoRequested(int index)
 
     focus: true
-    onActiveFocusChanged: if (activeFocus) rowList.forceActiveFocus()
+    onActiveFocusChanged: if (activeFocus) InputKeys.focus(rowList)
     onCurrentIndexChanged: {
         if (rowList.currentIndex !== currentIndex)
             rowList.currentIndex = currentIndex
@@ -44,7 +44,7 @@ FocusScope {
     }
 
     function focusList() {
-        rowList.forceActiveFocus()
+        InputKeys.focus(rowList)
     }
 
     function ensureVisible() {
@@ -62,11 +62,11 @@ FocusScope {
         return card && card.handleAcceptPressed ? card.handleAcceptPressed(key) : false
     }
 
-    function handleNavigationKey(key) {
+    function handleKey(key) {
         const acceptKey = InputKeys.isAccept(key, !libraryRow)
         const card = currentCard()
-        if (!libraryRow && !acceptKey && card && card.handleNavigationKey
-                && card.handleNavigationKey(key))
+        if (!libraryRow && !acceptKey && card && card.handleKey
+                && card.handleKey(key))
             return true
         if (key === Qt.Key_Left) {
             if (currentIndex > 0)
@@ -90,8 +90,8 @@ FocusScope {
             if (!libraryRow && card && card.handleAcceptReleased
                     && card.handleAcceptReleased(key))
                 return true
-            if (!libraryRow && card && card.handleNavigationKey
-                    && card.handleNavigationKey(key))
+            if (!libraryRow && card && card.handleKey
+                    && card.handleKey(key))
                 return true
             activateCurrent()
             return true
@@ -133,7 +133,7 @@ FocusScope {
 
             function handleAcceptPressed(key) { return mediaCard.handleAcceptPressed(key) }
             function handleAcceptReleased(key) { return mediaCard.handleAcceptReleased(key) }
-            function handleNavigationKey(key) { return mediaCard.handleNavigationKey(key) }
+            function handleKey(key) { return mediaCard.handleKey(key) }
 
             MediaItemCard {
                 id: mediaCard

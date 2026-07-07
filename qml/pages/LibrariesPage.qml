@@ -15,8 +15,8 @@ FocusScope {
         shell.replaceRoute("libraryGrid")
     }
 
-    function handleNavigationKey(key) {
-        return grid.handleNavigationKey(key)
+    function handleKey(key) {
+        return grid.handleKey(key)
     }
     NavGrid {
         id: grid

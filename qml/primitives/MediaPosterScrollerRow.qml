@@ -34,7 +34,7 @@ FocusScope {
     function focusList() {
         if (rowCount <= 0)
             return false
-        listView.forceActiveFocus()
+        InputKeys.focus(listView)
         listView.currentIndex = rowCount > 0 ? Math.max(0, Math.min(currentIndex, rowCount - 1)) : -1
         ensureVisible()
         return true
@@ -64,12 +64,12 @@ FocusScope {
         return card && card.handleAcceptPressed ? card.handleAcceptPressed(key) : false
     }
 
-    function handleNavigationKey(key) {
+    function handleKey(key) {
         if (rowCount <= 0)
             return false
         const acceptKey = InputKeys.isAccept(key)
         const card = currentCard()
-        if (!acceptKey && card && card.handleNavigationKey && card.handleNavigationKey(key))
+        if (!acceptKey && card && card.handleKey && card.handleKey(key))
             return true
         if (key === Qt.Key_Left) {
             if (listView.currentIndex > 0)
@@ -88,7 +88,7 @@ FocusScope {
             currentIndex = listView.currentIndex
             if (card && card.handleAcceptReleased && card.handleAcceptReleased(key))
                 return true
-            if (card && card.handleNavigationKey && card.handleNavigationKey(key))
+            if (card && card.handleKey && card.handleKey(key))
                 return true
             activated(listView.currentIndex)
             return true
@@ -156,7 +156,7 @@ FocusScope {
 
             function handleAcceptPressed(key) { return card.handleAcceptPressed(key) }
             function handleAcceptReleased(key) { return card.handleAcceptReleased(key) }
-            function handleNavigationKey(key) { return card.handleNavigationKey(key) }
+            function handleKey(key) { return card.handleKey(key) }
             function snapshot() { return root.rowModel.get(posterDelegate.index) || ({}) }
 
             MediaItemCard {
@@ -204,7 +204,7 @@ FocusScope {
         }
 
         Keys.onReleased: (event) => {
-            if (root.handleNavigationKey(event.key))
+            if (root.handleKey(event.key))
                 event.accepted = true
         }
     }

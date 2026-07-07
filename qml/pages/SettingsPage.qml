@@ -133,7 +133,7 @@ FocusScope {
             return;
         currentIndex = Math.max(0, Math.min(settingsRows.length - 1, index));
         settingsList.currentIndex = currentIndex;
-        settingsList.forceActiveFocus();
+        InputKeys.focus(settingsList);
         syncCategoryForRow(currentIndex);
         settingsList.positionViewAtIndex(currentIndex, ListView.Contain);
     }
@@ -141,7 +141,7 @@ FocusScope {
     function focusCategory(index) {
         categoryIndex = Math.max(0, Math.min(categories.length - 1, index));
         categoryList.currentIndex = categoryIndex;
-        categoryList.forceActiveFocus();
+        InputKeys.focus(categoryList);
         categoryList.positionViewAtIndex(categoryIndex, ListView.Contain);
     }
 
@@ -431,7 +431,7 @@ FocusScope {
         return false;
     }
 
-    function handleNavigationKey(key) {
+    function handleKey(key) {
         if (categoryList.activeFocus) {
             if (key === Qt.Key_Right || InputKeys.isAccept(key, false)) {
                 activateCategory(categoryIndex);
@@ -442,7 +442,7 @@ FocusScope {
                     shell.focusNavBar();
                 return true;
             }
-            return categoryList.handleNavigationKey(key);
+            return categoryList.handleKey(key);
         }
 
         const row = rowAt(settingsList.currentIndex);
@@ -457,14 +457,14 @@ FocusScope {
                 shell.focusNavBar();
             return true;
         }
-        return settingsList.handleNavigationKey(key);
+        return settingsList.handleKey(key);
     }
 
     focus: true
     onActiveFocusChanged: if (activeFocus)
         focusRow(currentIndex)
     Keys.onReleased: event => {
-        if (handleNavigationKey(event.key))
+        if (handleKey(event.key))
             event.accepted = true;
     }
 

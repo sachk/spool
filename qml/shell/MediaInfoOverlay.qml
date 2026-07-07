@@ -31,7 +31,7 @@ FocusScope {
         Qt.callLater(refreshItemDetail)
     }
     onItemChanged: if (visible) Qt.callLater(refreshItemDetail)
-    onActiveFocusChanged: if (visible && !activeFocus) forceActiveFocus()
+    onActiveFocusChanged: if (visible && !activeFocus) InputKeys.focus(root)
 
     component Pair: ColumnLayout {
         property string label: ""
@@ -148,9 +148,9 @@ FocusScope {
     function focusAction(index) {
         currentActionIndex = Math.max(0, Math.min(actionCount - 1, index))
         const target = actionAt(currentActionIndex)
-        if (target) target.forceActiveFocus()
+        if (target) InputKeys.focus(target)
     }
-    function ensureFocus() { forceActiveFocus(); focusAction(currentActionIndex) }
+    function ensureFocus() { InputKeys.focus(root); focusAction(currentActionIndex) }
     function refreshItemDetail() { if (itemId.length > 0 && appController) appController.loadItemDetail(itemId) }
     function closeOverlay() { root.closed() }
     function openSeries() {

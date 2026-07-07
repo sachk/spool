@@ -67,7 +67,7 @@ FocusScope {
             return;
         addMode = false;
         Qt.callLater(function () {
-            profileTile.forceActiveFocus();
+            InputKeys.focus(profileTile);
         });
     }
 
@@ -83,7 +83,7 @@ FocusScope {
             appController.session.serverUrl = address;
         manualProbe.restart();
         Qt.callLater(function () {
-            manualServerCard.forceActiveFocus();
+            InputKeys.focus(manualServerCard);
         });
     }
 
@@ -116,11 +116,11 @@ FocusScope {
         if (!addMode || addStep !== 1)
             return;
         if (manualServerVisible)
-            manualServerCard.forceActiveFocus();
+            InputKeys.focus(manualServerCard);
         else if (discoveredList.count > 0) {
             if (discoveredList.currentIndex < 0)
                 discoveredList.currentIndex = 0;
-            discoveredList.forceActiveFocus();
+            InputKeys.focus(discoveredList);
         } else {
             urlRow.focusRow();
         }
@@ -158,7 +158,7 @@ FocusScope {
 
     Component.onCompleted: Qt.callLater(function () {
         if (hasSavedPair)
-            profileTile.forceActiveFocus();
+            InputKeys.focus(profileTile);
         else
             focusServerStep();
     })
@@ -343,7 +343,7 @@ FocusScope {
                         event.accepted = true;
                     } else if (event.key === Qt.Key_Up && currentIndex <= 0) {
                         if (root.manualServerVisible)
-                            manualServerCard.forceActiveFocus();
+                            InputKeys.focus(manualServerCard);
                         else
                             urlRow.focusRow();
                         event.accepted = true;
@@ -424,7 +424,7 @@ FocusScope {
                 inputMethodHints: Qt.ImhSensitiveData | Qt.ImhNoPredictiveText
                 onTextEdited: if (appController)
                     appController.session.password = text
-                onAccepted: signInButton.forceActiveFocus()
+                onAccepted: InputKeys.focus(signInButton)
                 KeyNavigation.up: usernameRow
                 KeyNavigation.down: signInButton
             }
