@@ -643,6 +643,16 @@ QCoro::Task<void> JellyfinApiFacade::updateUserConfiguration(QJsonObject configu
                               QJsonDocument(configuration));
 }
 
+QCoro::Task<QJsonObject> JellyfinApiFacade::fetchCurrentUserPolicy()
+{
+    if (m_session.userId.isEmpty())
+        co_return QJsonObject();
+
+    const QJsonDocument response =
+        co_await requestJson(HttpMethod::Get, QStringLiteral("/Users/%1").arg(m_session.userId));
+    co_return response.object().value(QStringLiteral("Policy")).toObject();
+}
+
 QCoro::Task<QJsonArray> JellyfinApiFacade::fetchCultures()
 {
     const QJsonDocument response =
@@ -1065,6 +1075,174 @@ QCoro::Task<std::vector<MovieItem>> JellyfinApiFacade::fetchItemsByStudio(QStrin
 {
     const PagedMovieItems page = co_await fetchBrowsePage(BrowseDescriptor::studio(studio.trimmed()), 0, limit);
     co_return page.items;
+}
+
+QCoro::Task<std::vector<MovieItem>> JellyfinApiFacade::fetchManagementTargets(QString itemType)
+{
+    if (m_session.userId.isEmpty())
+        co_return std::vector<MovieItem>{};
+
+    itemType = itemType.trimmed();
+    if (itemType != QStringLiteral("Playlist") && itemType != QStringLiteral("BoxSet"))
+        co_return std::vector<MovieItem>{};
+
+    QUrlQuery query = ItemsQuery()
+        .userId(m_session.userId)
+        .recursive()
+        .includeItemTypes(itemType)
+        .fields(libraryItemFields())
+        .sort(QStringLiteral("SortName"))
+        .images()
+        .limit(200, 200)
+        .toUrlQuery();
+
+    const QJsonArray items =
+        (co_await requestJson(HttpMethod::Get, QStringLiteral("/Items"), query))
+            .object()
+            .value(QStringLiteral("Items"))
+            .toArray();
+    co_return mediaItemsFromJson(this, items, {itemType});
+}
+
+QCoro::Task<QString> JellyfinApiFacade::createPlaylist(QString name, QStringList itemIds)
+{
+    name = name.trimmed();
+    if (name.isEmpty())
+        throw std::runtime_error("Playlist name is required");
+
+    QJsonArray ids;
+    for (const QString &itemId : itemIds) {
+        if (!itemId.isEmpty())
+            ids.push_back(itemId);
+    }
+    QJsonObject body{
+        {QStringLiteral("Name"), name},
+        {QStringLiteral("UserId"), m_session.userId},
+        {QStringLiteral("Ids"), ids},
+        {QStringLiteral("IsPublic"), false},
+    };
+    const QJsonObject response =
+        (co_await requestJson(HttpMethod::Post, QStringLiteral("/Playlists"), {}, QJsonDocument(body))).object();
+    co_return response.value(QStringLiteral("Id")).toString();
+}
+
+QCoro::Task<void> JellyfinApiFacade::addPlaylistItems(QString playlistId, QStringList itemIds, int position)
+{
+    if (playlistId.isEmpty() || itemIds.isEmpty())
+        co_return;
+
+    QUrlQuery query;
+    query.addQueryItem(QStringLiteral("ids"), itemIds.join(QLatin1Char(',')));
+    query.addQueryItem(QStringLiteral("userId"), m_session.userId);
+    if (position >= 0)
+        query.addQueryItem(QStringLiteral("position"), QString::number(position));
+    co_await requestJson(HttpMethod::Post,
+                         QStringLiteral("/Playlists/%1/Items").arg(playlistId),
+                         query);
+}
+
+QCoro::Task<void> JellyfinApiFacade::removePlaylistItems(QString playlistId, QStringList entryIds)
+{
+    if (playlistId.isEmpty() || entryIds.isEmpty())
+        co_return;
+
+    QUrlQuery query;
+    query.addQueryItem(QStringLiteral("entryIds"), entryIds.join(QLatin1Char(',')));
+    co_await requestJson(HttpMethod::Delete,
+                         QStringLiteral("/Playlists/%1/Items").arg(playlistId),
+                         query);
+}
+
+QCoro::Task<void> JellyfinApiFacade::movePlaylistItem(QString playlistId, QString playlistItemId, int newIndex)
+{
+    if (playlistId.isEmpty() || playlistItemId.isEmpty() || newIndex < 0)
+        co_return;
+
+    co_await requestNoContent(
+        HttpMethod::Post,
+        QStringLiteral("/Playlists/%1/Items/%2/Move/%3")
+            .arg(playlistId, playlistItemId, QString::number(newIndex)),
+        QJsonDocument());
+}
+
+QCoro::Task<void> JellyfinApiFacade::updatePlaylistName(QString playlistId, QString name)
+{
+    name = name.trimmed();
+    if (playlistId.isEmpty() || name.isEmpty())
+        co_return;
+
+    co_await requestNoContent(HttpMethod::Post,
+                              QStringLiteral("/Playlists/%1").arg(playlistId),
+                              QJsonDocument(QJsonObject{{QStringLiteral("Name"), name}}));
+}
+
+QCoro::Task<QString> JellyfinApiFacade::createCollection(QString name, QStringList itemIds)
+{
+    name = name.trimmed();
+    if (name.isEmpty())
+        throw std::runtime_error("Collection name is required");
+
+    QUrlQuery query;
+    query.addQueryItem(QStringLiteral("name"), name);
+    if (!itemIds.isEmpty())
+        query.addQueryItem(QStringLiteral("ids"), itemIds.join(QLatin1Char(',')));
+    query.addQueryItem(QStringLiteral("isLocked"), QStringLiteral("false"));
+    const QJsonObject response =
+        (co_await requestJson(HttpMethod::Post, QStringLiteral("/Collections"), query)).object();
+    co_return response.value(QStringLiteral("Id")).toString();
+}
+
+QCoro::Task<void> JellyfinApiFacade::addCollectionItems(QString collectionId, QStringList itemIds)
+{
+    if (collectionId.isEmpty() || itemIds.isEmpty())
+        co_return;
+
+    QUrlQuery query;
+    query.addQueryItem(QStringLiteral("ids"), itemIds.join(QLatin1Char(',')));
+    co_await requestJson(HttpMethod::Post,
+                         QStringLiteral("/Collections/%1/Items").arg(collectionId),
+                         query);
+}
+
+QCoro::Task<void> JellyfinApiFacade::removeCollectionItems(QString collectionId, QStringList itemIds)
+{
+    if (collectionId.isEmpty() || itemIds.isEmpty())
+        co_return;
+
+    QUrlQuery query;
+    query.addQueryItem(QStringLiteral("ids"), itemIds.join(QLatin1Char(',')));
+    co_await requestJson(HttpMethod::Delete,
+                         QStringLiteral("/Collections/%1/Items").arg(collectionId),
+                         query);
+}
+
+QCoro::Task<void> JellyfinApiFacade::renameItem(QString itemId, QString name)
+{
+    name = name.trimmed();
+    if (itemId.isEmpty() || name.isEmpty())
+        co_return;
+
+    QUrlQuery query;
+    query.addQueryItem(QStringLiteral("userId"), m_session.userId);
+    QJsonObject item =
+        (co_await requestJson(HttpMethod::Get,
+                              QStringLiteral("/Items/%1").arg(itemId),
+                              query))
+            .object();
+    item.insert(QStringLiteral("Name"), name);
+    co_await requestNoContent(HttpMethod::Post,
+                              QStringLiteral("/Items/%1").arg(itemId),
+                              QJsonDocument(item));
+}
+
+QCoro::Task<void> JellyfinApiFacade::deleteItem(QString itemId)
+{
+    if (itemId.isEmpty())
+        co_return;
+
+    co_await requestNoContent(HttpMethod::Delete,
+                              QStringLiteral("/Items/%1").arg(itemId),
+                              QJsonDocument());
 }
 
 QCoro::Task<void> JellyfinApiFacade::setItemFavorite(QString itemId, bool favorite)

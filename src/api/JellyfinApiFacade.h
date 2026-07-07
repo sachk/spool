@@ -64,6 +64,7 @@ public:
     QCoro::Task<QString> fetchCurrentUserName();
     QCoro::Task<QJsonObject> fetchUserConfiguration();
     QCoro::Task<void> updateUserConfiguration(QJsonObject configuration);
+    QCoro::Task<QJsonObject> fetchCurrentUserPolicy();
     QCoro::Task<QJsonArray> fetchCultures();
     QCoro::Task<std::vector<LibraryItem>> fetchLibraries();
     QCoro::Task<PagedMovieItems> fetchLibraryPage(QString libraryId, QString collectionType = {},
@@ -85,6 +86,17 @@ public:
     QCoro::Task<std::vector<MovieItem>> fetchItemsByPerson(QString personId, int limit = 80);
     QCoro::Task<std::vector<MovieItem>> fetchItemsByGenre(QString genre, int limit = 200);
     QCoro::Task<std::vector<MovieItem>> fetchItemsByStudio(QString studio, int limit = 200);
+    QCoro::Task<std::vector<MovieItem>> fetchManagementTargets(QString itemType);
+    QCoro::Task<QString> createPlaylist(QString name, QStringList itemIds = {});
+    QCoro::Task<void> addPlaylistItems(QString playlistId, QStringList itemIds, int position = -1);
+    QCoro::Task<void> removePlaylistItems(QString playlistId, QStringList entryIds);
+    QCoro::Task<void> movePlaylistItem(QString playlistId, QString playlistItemId, int newIndex);
+    QCoro::Task<void> updatePlaylistName(QString playlistId, QString name);
+    QCoro::Task<QString> createCollection(QString name, QStringList itemIds = {});
+    QCoro::Task<void> addCollectionItems(QString collectionId, QStringList itemIds);
+    QCoro::Task<void> removeCollectionItems(QString collectionId, QStringList itemIds);
+    QCoro::Task<void> renameItem(QString itemId, QString name);
+    QCoro::Task<void> deleteItem(QString itemId);
     QCoro::Task<void> setItemFavorite(QString itemId, bool favorite);
     QCoro::Task<void> setItemPlayed(QString itemId, bool played);
     QCoro::Task<void> setItemPlaybackPosition(QString itemId, qint64 positionTicks);
