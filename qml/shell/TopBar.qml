@@ -162,9 +162,8 @@ FocusScope {
                     }
                 }
                 Rectangle {
-                    anchors.bottom: parent.bottom
-                    anchors.bottomMargin: 4
-                    anchors.horizontalCenter: parent.horizontalCenter
+                    y: Math.min(parent.height - height - 4, button.y + button.height + 4)
+                    anchors.horizontalCenter: button.horizontalCenter
                     width: button.activeFocus ? 30 : (root.selectedRoute === modelData.route ? 22 : 0)
                     height: 3
                     radius: 1.5

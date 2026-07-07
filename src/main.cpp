@@ -84,12 +84,14 @@ namespace {
 constexpr auto kAppId = "com.codex.jellyfinwebosnative";
 constexpr auto kAppVersion = JELLYFIN_VERSION;
 #ifdef JELLYFIN_NATIVE_WEBOS
-constexpr auto kAppLogPath = "/tmp/com.codex.jellyfinwebosnative.log";
+constexpr auto kDefaultLogDir = "/tmp/com.codex.jellyfinwebosnative";
+constexpr auto kAppLogFileName = "com.codex.jellyfinwebosnative.log";
 #else
-constexpr auto kAppLogPath = "/tmp/com.codex.jellyfinnative-linux.log";
+constexpr auto kDefaultAppLogPath = "/tmp/com.codex.jellyfinnative-linux.log";
 #endif
 
 FILE *g_logFile = nullptr;
+QByteArray g_logPath;
 QElapsedTimer g_startupTimer;
 
 #ifdef JELLYFIN_NATIVE_WEBOS
@@ -111,6 +113,75 @@ void rotateLogFile(const char *path)
         rename(older, newer);
     if (snprintf(newer, sizeof(newer), "%s.1", path) < static_cast<int>(sizeof(newer)))
         rename(path, newer);
+}
+
+FILE *openRotatedLogFile(const QByteArray &path)
+{
+    rotateLogFile(path.constData());
+    return fopen(path.constData(), "w");
+}
+
+#ifdef JELLYFIN_NATIVE_WEBOS
+QByteArray logPathInDir(const QByteArray &dir, const QByteArray &fileName)
+{
+    QByteArray path = dir;
+    if (!path.endsWith('/'))
+        path += '/';
+    path += fileName;
+    return path;
+}
+
+FILE *openLogFileInDir(const QByteArray &dir, const QByteArray &fileName)
+{
+    QDir().mkpath(QString::fromUtf8(dir));
+    const QByteArray path = logPathInDir(dir, fileName);
+    if (FILE *file = openRotatedLogFile(path)) {
+        g_logPath = path;
+        qputenv("JELLYFIN_NATIVE_LOG_DIR", dir);
+        return file;
+    }
+    return nullptr;
+}
+
+void removeLegacyAppLogs(const QString &appRootPath)
+{
+    const QString legacyPersistentDir = QDir(appRootPath).filePath(QStringLiteral(".cache/logs"));
+    const QStringList fileNames = {
+        QStringLiteral("com.codex.jellyfinwebosnative.log"),
+        QStringLiteral("com.codex.jellyfinwebosnative.log.1"),
+        QStringLiteral("com.codex.jellyfinwebosnative.log.2"),
+        QStringLiteral("com.codex.jellyfinnative-mpv.log"),
+        QStringLiteral("com.codex.jellyfinnative-mpv.log.1"),
+        QStringLiteral("com.codex.jellyfinnative-mpv.log.2"),
+    };
+    for (const QString &fileName : fileNames) {
+        QFile::remove(QDir(legacyPersistentDir).filePath(fileName));
+        QFile::remove(QDir(QStringLiteral("/tmp")).filePath(fileName));
+    }
+}
+#endif
+
+FILE *openAppLogFile(const QString &appRootPath)
+{
+#ifdef JELLYFIN_NATIVE_WEBOS
+    if (FILE *file = openLogFileInDir(QByteArrayLiteral(kDefaultLogDir),
+                                      QByteArrayLiteral(kAppLogFileName))) {
+        removeLegacyAppLogs(appRootPath);
+        return file;
+    }
+
+    const QString fallbackDir = QDir(appRootPath).filePath(QStringLiteral(".cache/logs"));
+    const QByteArray encodedFallbackDir = QFile::encodeName(fallbackDir);
+    return openLogFileInDir(encodedFallbackDir, QByteArrayLiteral(kAppLogFileName));
+#else
+    Q_UNUSED(appRootPath);
+    const QByteArray preferred = QByteArrayLiteral(kDefaultAppLogPath);
+    if (FILE *file = openRotatedLogFile(preferred)) {
+        g_logPath = preferred;
+        return file;
+    }
+    return nullptr;
+#endif
 }
 
 bool resolveAppRoot(char *buffer, size_t size)
@@ -317,6 +388,14 @@ void logLine(const char *fmt, ...)
 
 void qtMessageHandler(QtMsgType type, const QMessageLogContext &context, const QString &message)
 {
+    if (type == QtWarningMsg && !qEnvironmentVariableIsSet("JELLYFIN_NATIVE_VERBOSE_QT")) {
+        const QString category = context.category ? QString::fromLatin1(context.category) : QString();
+        if (message.startsWith(QStringLiteral("Detected locale \"C\"")) ||
+            (category == QStringLiteral("qt.qpa.wayland") &&
+             message.contains(QStringLiteral("\"wl-shell\" is a deprecated shell extension"))))
+            return;
+    }
+
     const char *level = "debug";
     switch (type) {
     case QtDebugMsg:
@@ -413,16 +492,28 @@ bool lunaMemoryStatusCallback(LSHandle *, LSMessage *message, void *)
     if (!payload)
         return true;
 
-    logLine("[ls2-memory] %s", payload);
     const QByteArray raw = QByteArray::fromRawData(payload, static_cast<int>(strlen(payload)));
     const QJsonDocument doc = QJsonDocument::fromJson(raw);
-    if (!doc.isObject())
+    if (!doc.isObject()) {
+        logLine("[ls2-memory] %s", payload);
         return true;
+    }
 
-    const QString level = doc.object().value(QStringLiteral("level")).toString();
+    const QJsonObject object = doc.object();
+    if (!object.value(QStringLiteral("returnValue")).toBool(true) &&
+        object.value(QStringLiteral("errorText")).toString().contains(QStringLiteral("Service does not exist"))) {
+        static bool loggedUnavailable = false;
+        if (!loggedUnavailable) {
+            logLine("[ls2-memory] service unavailable (non-fatal)");
+            loggedUnavailable = true;
+        }
+        return true;
+    }
+
+    logLine("[ls2-memory] %s", payload);
+    const QString level = object.value(QStringLiteral("level")).toString();
     if (level.isEmpty() || !g_appController)
         return true;
-
     JellyfinNative::AppController *controller = g_appController;
     QMetaObject::invokeMethod(controller, [controller, level]() {
         controller->onMemoryPressure(level);
@@ -444,13 +535,20 @@ int main(int argc, char **argv)
         }
     }
 
-    rotateLogFile(kAppLogPath);
-    g_logFile = fopen(kAppLogPath, "w");
+    char appRoot[PATH_MAX];
+    if (!resolveAppRoot(appRoot, sizeof(appRoot)))
+        return 1;
+
+    const QString appRootPath = QString::fromUtf8(appRoot);
+
+    g_logFile = openAppLogFile(appRootPath);
     setvbuf(stderr, nullptr, _IOLBF, 0);
     if (g_logFile)
         setvbuf(g_logFile, nullptr, _IOLBF, 0);
 
     logLine("%s starting", kAppId);
+    if (!g_logPath.isEmpty())
+        logLine("log file: %s", g_logPath.constData());
 
     // libmpv parses option strings (and many internal numeric values) with the
     // C locale assumption — under any other LC_NUMERIC playback fails to start
@@ -467,12 +565,6 @@ int main(int argc, char **argv)
         setenv("LC_CTYPE", "en_US.UTF-8", 1);
     }
 
-    char appRoot[PATH_MAX];
-    if (!resolveAppRoot(appRoot, sizeof(appRoot)))
-        return 1;
-
-    const QString appRootPath = QString::fromUtf8(appRoot);
-
 #ifdef JELLYFIN_NATIVE_WEBOS
     setenv("APPID", kAppId, 1);
     setenv("MALLOC_ARENA_MAX", "2", 0);
@@ -480,10 +572,14 @@ int main(int argc, char **argv)
     setenv("STARFISH_AUDIO_HINT", "0", 1);
     setenv("QT_QPA_PLATFORM", "wayland-egl", 1);
     setenv("QSG_RHI_BACKEND", "opengl", 1);
-    // Some webOS environments export the legacy Qt 5 scenegraph backend
-    // "customcontext"; Qt 6 probes it as a plugin, logs a startup warning, and
-    // then falls back. The app already selects OpenGL through Qt 6 RHI knobs.
+    // Some webOS shells export legacy Qt 5 scenegraph/input-module knobs.
+    // Qt 6 probes those names as plugins and logs noisy startup warnings before
+    // falling back. The app supplies its own QML keyboard and selects OpenGL
+    // through Qt 6 RHI knobs, so drop the inherited client-side overrides.
     unsetenv("QT_QUICK_BACKEND");
+    unsetenv("QMLSCENE_DEVICE");
+    unsetenv("QT_IM_MODULE");
+    unsetenv("QT_IM_MODULES");
     setenv("QT_WAYLAND_SHELL_INTEGRATION", "wl-shell", 1);
     setenv("QT_WAYLAND_TEXT_INPUT_PROTOCOL", "qt_text_input_method_v1", 1);
     setenv("QT_QPA_FONTDIR", "/usr/share/fonts", 1);

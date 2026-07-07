@@ -393,6 +393,24 @@ FocusScope {
         InputKeys.focus(grid)
     }
 
+    function hasShell() {
+        return shell !== null && shell !== undefined
+    }
+
+    function savedGridIndex() {
+        return hasShell() ? shell.lastGridIndex : 0
+    }
+
+    function setSavedGridIndex(index) {
+        if (hasShell())
+            shell.lastGridIndex = index
+    }
+
+    function setSavedLibraryIndex(index) {
+        if (hasShell())
+            shell.lastLibraryIndex = index
+    }
+
     // Consume Back when a toolbar menu is open so it dismisses the menu rather
     // than navigating out of the library.
     function handleBack() {
@@ -409,17 +427,18 @@ FocusScope {
         libraryOpen = false
         sortOpen = false
         filtersOpen = false
-        shell.lastLibraryIndex = index
-        shell.lastGridIndex = 0
+        setSavedLibraryIndex(index)
+        setSavedGridIndex(0)
         appController.openLibrary(index)
-        shell.replaceRoute("libraryGrid")
+        if (hasShell())
+            shell.replaceRoute("libraryGrid")
         InputKeys.focus(grid)
     }
 
     function activateSortEntry(entry) {
         if (!entry)
             return
-        shell.lastGridIndex = 0
+        setSavedGridIndex(0)
         if (String(entry.value).indexOf("order:") === 0)
             appController.setLibrarySort(currentSortBy(), String(entry.value).split(":")[1])
         else
@@ -430,7 +449,7 @@ FocusScope {
     function activateFilterEntry(entry) {
         if (!entry || entry.section)
             return
-        shell.lastGridIndex = 0
+        setSavedGridIndex(0)
         if (entry.kind === "list")
             appController.setLibraryQueryListValue(entry.key, entry.value, !entry.checked)
         else if (entry.kind === "bool")
@@ -461,21 +480,22 @@ FocusScope {
     function activateCurrent() {
         if (grid.currentIndex < 0)
             return
-        shell.lastGridIndex = grid.currentIndex
+        setSavedGridIndex(grid.currentIndex)
         openCurrentDetails()
     }
 
     function openCurrentDetails() {
         if (grid.currentIndex < 0)
             return
-        shell.lastGridIndex = grid.currentIndex
+        setSavedGridIndex(grid.currentIndex)
         const item = appController.movies ? (appController.movies.get(grid.currentIndex) || ({})) : ({})
         const type = String(item.itemType || "")
         if (type === "Playlist" || type === "Folder") {
             appController.playMovie(grid.currentIndex)
             return
         }
-        shell.openDetailsAt(appController.movies, grid.currentIndex, "movies", "libraryGrid")
+        if (hasShell())
+            shell.openDetailsAt(appController.movies, grid.currentIndex, "movies", "libraryGrid")
     }
 
     function currentCard() {
@@ -572,7 +592,8 @@ FocusScope {
 
         if (libraryButton.activeFocus || sortButton.activeFocus || filterButton.activeFocus || clearFiltersButton.activeFocus) {
             if (key === Qt.Key_Up) {
-                shell.focusNavBar()
+                if (hasShell())
+                    shell.focusNavBar()
                 return true
             }
             if (key === Qt.Key_Left) {
@@ -704,7 +725,7 @@ FocusScope {
                 label: "Clear"
                 visible: !root.isFixedBrowseView && root.activeFilterCount > 0
                 onActivated: {
-                    shell.lastGridIndex = 0
+                    root.setSavedGridIndex(0)
                     appController.clearLibraryFilters()
                 }
             }
@@ -736,7 +757,7 @@ FocusScope {
             }
             onContentYChanged: loadMoreDebounce.restart()
             onCurrentIndexChanged: {
-                shell.lastGridIndex = currentIndex
+                root.setSavedGridIndex(currentIndex)
                 ensureCurrentVisible()
                 loadMoreDebounce.restart()
             }
@@ -746,7 +767,7 @@ FocusScope {
             onAccepted: root.activateCurrent()
 
             function restoreIndex() {
-                currentIndex = count > 0 ? Math.max(0, Math.min(shell.lastGridIndex, count - 1)) : -1
+                currentIndex = count > 0 ? Math.max(0, Math.min(root.savedGridIndex(), count - 1)) : -1
                 ensureCurrentVisible()
             }
 
@@ -862,17 +883,20 @@ FocusScope {
                     playable: gridDelegate.playable
                     onActivated: {
                         grid.currentIndex = index
-                        shell.lastGridIndex = index
+                        root.setSavedGridIndex(index)
                         root.activateCurrent()
                     }
                     onDetailsRequested: {
                         grid.currentIndex = index
-                        shell.lastGridIndex = index
+                        root.setSavedGridIndex(index)
                         root.openCurrentDetails()
                     }
                     onFavoriteToggled: (favorite) => appController.setFavorite(gridDelegate.movieId || "", favorite)
                     onPlayedToggled: (played) => appController.setPlayed(gridDelegate.movieId || "", played)
-                    onMediaInfoRequested: shell.openMediaInfo(gridDelegate.snapshot())
+                    onMediaInfoRequested: {
+                        if (root.hasShell())
+                            shell.openMediaInfo(gridDelegate.snapshot())
+                    }
                 }
             }
         }
@@ -1024,7 +1048,7 @@ FocusScope {
                     text: "Reset"
                     enabled: root.activeFilterCount > 0
                     onClicked: {
-                        shell.lastGridIndex = 0
+                        root.setSavedGridIndex(0)
                         appController.clearLibraryFilters()
                     }
                 }

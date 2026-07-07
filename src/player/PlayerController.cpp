@@ -36,7 +36,7 @@ namespace JellyfinNative {
 
 namespace {
 
-constexpr auto kMpvLogPath = "/tmp/com.codex.jellyfinnative-mpv.log";
+constexpr auto kDefaultMpvLogPath = "/tmp/com.codex.jellyfinwebosnative/com.codex.jellyfinnative-mpv.log";
 constexpr uint64_t kTimePosRefreshReply = 0x6a666e7074730001ULL;
 constexpr uint64_t kPlaybackTimeRefreshReply = 0x6a666e7074730002ULL;
 constexpr auto kNightModeFilter =
@@ -78,6 +78,18 @@ void rotateLogFile(const char *path) {
   std::remove((base + ".2").constData());
   std::rename((base + ".1").constData(), (base + ".2").constData());
   std::rename(path, (base + ".1").constData());
+}
+
+QByteArray mpvLogPath() {
+  const QByteArray logDir = qgetenv("JELLYFIN_NATIVE_LOG_DIR");
+  if (logDir.isEmpty())
+    return QByteArrayLiteral(kDefaultMpvLogPath);
+
+  QByteArray path = logDir;
+  if (!path.endsWith('/'))
+    path += '/';
+  path += QByteArrayLiteral("com.codex.jellyfinnative-mpv.log");
+  return path;
 }
 
 bool setOption(mpv_handle *handle, const char *name, const char *value) {
@@ -298,7 +310,8 @@ void PlayerController::prepareIdleMpv() {
 
   QElapsedTimer startupTimer;
   startupTimer.start();
-  rotateLogFile(kMpvLogPath);
+  const QByteArray logPath = mpvLogPath();
+  rotateLogFile(logPath.constData());
   mpv_handle *handle = mpv_create();
   if (!handle) {
     qWarning() << "player: idle mpv_create failed";
@@ -347,7 +360,7 @@ bool PlayerController::configureAndInitializeMpv(mpv_handle *handle) {
   constexpr auto platform = MpvOptionProfile::Platform::Desktop;
 #endif
   const auto startupOptions = MpvOptionProfile::startupOptions(
-      platform, m_audioOutputMode, QByteArray(kMpvLogPath),
+      platform, m_audioOutputMode, mpvLogPath(),
       m_demuxerMaxBytes, m_demuxerMaxBackBytes);
   const bool configured =
       applyOptions(handle, startupOptions) &&
@@ -557,7 +570,8 @@ bool PlayerController::ensureMpv(bool needsVideoSurface) {
   mpv_handle *handle = takeIdleMpvHandle();
   const bool idlePrepared = handle != nullptr;
   if (!handle) {
-    rotateLogFile(kMpvLogPath);
+    const QByteArray logPath = mpvLogPath();
+    rotateLogFile(logPath.constData());
     handle = mpv_create();
     if (!handle) {
       m_errorText = QStringLiteral("mpv_create failed.");
