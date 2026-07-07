@@ -13,6 +13,9 @@
 #include <QJsonObject>
 #include <QDebug>
 #include <QNetworkReply>
+#if QT_CONFIG(ssl)
+#include <QSslConfiguration>
+#endif
 #include <QUrl>
 #include <QUrlQuery>
 
@@ -450,6 +453,7 @@ void JellyfinApiFacade::setServerUrl(const QString &serverUrl)
     while (m_serverUrl.endsWith(QLatin1Char('/')))
         m_serverUrl.chop(1);
     m_requestFactory.setBaseUrl(QUrl(m_serverUrl));
+    preconnectToServer();
 }
 
 QString JellyfinApiFacade::serverUrl() const
@@ -483,6 +487,35 @@ void JellyfinApiFacade::setSession(const AuthSession &session)
 {
     m_session = session;
     m_authExpirationReported = false;
+    if (m_session.accessToken.isEmpty())
+        m_preconnectedAuthority.clear();
+    preconnectToServer();
+}
+
+void JellyfinApiFacade::preconnectToServer()
+{
+    if (!m_networkAccessManager || m_serverUrl.isEmpty() || m_session.accessToken.isEmpty())
+        return;
+
+    const QUrl url(m_serverUrl);
+    if (!url.isValid() || url.host().isEmpty() || url.scheme() != QStringLiteral("https"))
+        return;
+
+    const int port = url.port(443);
+    const QString authority = url.host() + QLatin1Char(':') + QString::number(port);
+    if (m_preconnectedAuthority == authority)
+        return;
+
+    m_preconnectedAuthority = authority;
+#if QT_CONFIG(ssl)
+    m_networkAccessManager->connectToHostEncrypted(
+        url.host(), static_cast<quint16>(port),
+        QSslConfiguration::defaultConfiguration());
+#else
+    // The webOS Qt build has OpenSSL disabled; still warm DNS/TCP so the first
+    // authenticated HTTPS request does not pay every socket setup cost.
+    m_networkAccessManager->connectToHost(url.host(), static_cast<quint16>(port));
+#endif
 }
 
 void JellyfinApiFacade::setPlaybackPreferences(qint64 maxStreamingBitrate,

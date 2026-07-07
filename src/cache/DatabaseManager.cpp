@@ -360,10 +360,15 @@ void DatabaseManager::saveLoginHints(const QString &serverUrl, const QString &us
 AuthSession DatabaseManager::loadAuthSession()
 {
     AuthSession session;
-    session.accessToken = invokeOnWorker([this]() { return m_worker->value(QStringLiteral("login/accessToken")); }).toString();
-    session.userId = invokeOnWorker([this]() { return m_worker->value(QStringLiteral("login/userId")); }).toString();
-    session.userName = invokeOnWorker([this]() { return m_worker->value(QStringLiteral("login/userName")); }).toString();
-    session.serverId = invokeOnWorker([this]() { return m_worker->value(QStringLiteral("login/serverId")); }).toString();
+    QMetaObject::invokeMethod(
+        m_worker,
+        [this, &session]() {
+            session.accessToken = m_worker->value(QStringLiteral("login/accessToken")).toString();
+            session.userId = m_worker->value(QStringLiteral("login/userId")).toString();
+            session.userName = m_worker->value(QStringLiteral("login/userName")).toString();
+            session.serverId = m_worker->value(QStringLiteral("login/serverId")).toString();
+        },
+        Qt::BlockingQueuedConnection);
     return session;
 }
 
