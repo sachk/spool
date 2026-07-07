@@ -210,6 +210,7 @@ struct PlaybackQueueItem {
 struct PlaybackSession {
     QString itemId;
     QString title;
+    QString itemType;
     QString url;
     QString mediaSourceId;
     QString playSessionId;
@@ -217,6 +218,7 @@ struct PlaybackSession {
     QString container;
     qint64 startTimeTicks = 0;
     qint64 runtimeTicks = 0;
+    std::vector<MediaStreamInfo> mediaStreams;
     std::vector<MediaSegment> segments;
     TrickplayInfo trickplay;
     std::vector<PlaybackQueueItem> nowPlayingQueue;

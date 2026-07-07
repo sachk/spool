@@ -182,14 +182,14 @@ PlayerController::PlayerController(NativeAppWindow *window,
   m_seekWatchdogTimer.setSingleShot(true);
   m_seekWatchdogTimer.setInterval(2500);
   connect(&m_backGuardTimer, &QTimer::timeout, this, [this]() {
-    if (!m_visible || m_backAllowed)
+    if (!m_sessionActive || m_backAllowed)
       return;
     m_backAllowed = true;
     qInfo() << "player: startup back guard released";
     emit stateChanged();
   });
   connect(&m_uiPositionTimer, &QTimer::timeout, this, [this]() {
-    if (!m_visible || m_paused || m_buffering || m_seeking)
+    if (!m_sessionActive || m_paused || m_buffering || m_seeking)
       return;
 
     if (!m_positionTracker.projectionIsValid())
@@ -199,7 +199,7 @@ PlayerController::PlayerController(NativeAppWindow *window,
                        PlaybackPositionTracker::Source::Projection);
   });
   connect(&m_seekWatchdogTimer, &QTimer::timeout, this, [this]() {
-    if (!m_visible || !m_seeking)
+    if (!m_sessionActive || !m_seeking)
       return;
 
     qWarning() << "player: clearing stale seek state";
@@ -209,7 +209,7 @@ PlayerController::PlayerController(NativeAppWindow *window,
     emit stateChanged();
   });
   connect(&m_progressTimer, &QTimer::timeout, this, [this]() {
-    if (!m_visible)
+    if (!m_sessionActive)
       return;
 
     logMemoryStats(m_mpvLifecycle.handle());
@@ -256,6 +256,23 @@ void PlayerController::scheduleMpvTeardown() {
 }
 
 bool PlayerController::visible() const { return m_visible; }
+
+bool PlayerController::sessionActive() const { return m_sessionActive; }
+
+QString PlayerController::mediaKind() const { return m_mediaKind; }
+
+QString PlayerController::mediaKindForSession(const PlaybackSession &session) {
+  bool hasAudio = false;
+  for (const MediaStreamInfo &stream : session.mediaStreams) {
+    if (stream.type.compare(QStringLiteral("Video"), Qt::CaseInsensitive) == 0)
+      return QStringLiteral("video");
+    if (stream.type.compare(QStringLiteral("Audio"), Qt::CaseInsensitive) == 0)
+      hasAudio = true;
+  }
+  if (hasAudio || session.itemType.compare(QStringLiteral("Audio"), Qt::CaseInsensitive) == 0)
+    return QStringLiteral("audio");
+  return QStringLiteral("video");
+}
 
 bool PlayerController::paused() const { return m_paused; }
 
@@ -395,7 +412,7 @@ bool PlayerController::applyMpvSubtitleOptions(MpvOptionApplyMode mode,
   return ok;
 }
 
-bool PlayerController::ensureMpv() {
+bool PlayerController::ensureMpv(bool needsVideoSurface) {
   if (m_mpvLifecycle.handle())
     return true;
 
@@ -458,29 +475,32 @@ bool PlayerController::ensureMpv() {
   qInfo() << "player: mpv initialized in" << startupTimer.elapsed() << "ms";
 
 #ifndef JELLYFIN_NATIVE_WEBOS
-  // vo=libmpv requires the embedded MpvVideoItem to host the render context.
-  // Fail loudly if QML hasn't constructed one yet — silently falling back
-  // would leave us with no video at all.
-  auto *videoItem = MpvVideoItem::instance();
-  if (!videoItem) {
-    qCritical() << "PlayerController: MpvVideoItem instance is missing";
-    mpv_terminate_destroy(handle);
-    m_errorText = QStringLiteral(
-        "The video surface is unavailable. Return to the library and try again.");
-    m_statusText = QStringLiteral("Playback unavailable");
-    emit stateChanged();
-    return false;
+  if (needsVideoSurface) {
+    // vo=libmpv requires the embedded MpvVideoItem to host the render context.
+    // Fail loudly for video playback if QML hasn't constructed one yet.
+    auto *videoItem = MpvVideoItem::instance();
+    if (!videoItem) {
+      qCritical() << "PlayerController: MpvVideoItem instance is missing";
+      mpv_terminate_destroy(handle);
+      m_errorText = QStringLiteral(
+          "The video surface is unavailable. Return to the library and try again.");
+      m_statusText = QStringLiteral("Playback unavailable");
+      emit stateChanged();
+      return false;
+    }
+    connect(videoItem, &MpvVideoItem::renderError, this,
+            &PlayerController::handleVideoRenderError, Qt::UniqueConnection);
+    videoItem->setMpvHandle(handle);
   }
-  connect(videoItem, &MpvVideoItem::renderError, this,
-          &PlayerController::handleVideoRenderError, Qt::UniqueConnection);
-  videoItem->setMpvHandle(handle);
 #endif
 
   if (!m_mpvLifecycle.adopt(
           handle, [this](mpv_event *event) { handleMpvEvent(event); })) {
 #ifndef JELLYFIN_NATIVE_WEBOS
-    if (auto *videoItem = MpvVideoItem::instance())
-      videoItem->setMpvHandle(nullptr);
+    if (needsVideoSurface) {
+      if (auto *videoItem = MpvVideoItem::instance())
+        videoItem->setMpvHandle(nullptr);
+    }
 #endif
     mpv_terminate_destroy(handle);
     m_errorText = QStringLiteral("Failed to start the libmpv event loop.");
@@ -497,9 +517,15 @@ void PlayerController::handleVideoRenderError(const QString &message) {
 }
 
 void PlayerController::play(const PlaybackSession &session) {
-  Diagnostics::Task task(QStringLiteral("player_play"), {{QStringLiteral("itemId"), session.itemId}, {QStringLiteral("title"), session.title}});
+  const QString nextMediaKind = mediaKindForSession(session);
+  const bool needsVideoSurface = nextMediaKind == QStringLiteral("video");
+  Diagnostics::Task task(QStringLiteral("player_play"),
+                         {{QStringLiteral("itemId"), session.itemId},
+                          {QStringLiteral("title"), session.title},
+                          {QStringLiteral("mediaKind"), nextMediaKind}});
   qInfo() << "player: play requested" << session.title
           << "method=" << session.playMethod
+          << "mediaKind=" << nextMediaKind
           << "startTimeTicks=" << session.startTimeTicks;
 
   if (m_mpvLifecycle.handle()) {
@@ -508,30 +534,36 @@ void PlayerController::play(const PlaybackSession &session) {
   }
 
   m_window->clearOverlay();
-  QElapsedTimer playbackSurfaceTimer;
-  playbackSurfaceTimer.start();
-  if (!m_window->prepareForPlaybackSurface()) {
-    m_errorText =
-        QStringLiteral("Failed to prepare the native playback surface.");
-    qWarning() << "player: prepareForPlaybackSurface failed after"
-               << playbackSurfaceTimer.elapsed() << "ms";
-    emit stateChanged();
-    return;
+  if (needsVideoSurface) {
+    QElapsedTimer playbackSurfaceTimer;
+    playbackSurfaceTimer.start();
+    if (!m_window->prepareForPlaybackSurface()) {
+      m_errorText =
+          QStringLiteral("Failed to prepare the native playback surface.");
+      qWarning() << "player: prepareForPlaybackSurface failed after"
+                 << playbackSurfaceTimer.elapsed() << "ms";
+      emit stateChanged();
+      return;
+    }
+    qInfo() << "player: prepareForPlaybackSurface completed in"
+            << playbackSurfaceTimer.elapsed() << "ms";
+  } else {
+    qInfo() << "player: audio-only playback does not request a video surface";
   }
-  qInfo() << "player: prepareForPlaybackSurface completed in"
-          << playbackSurfaceTimer.elapsed() << "ms";
 
-  // Surface must be ready before loadfile creates the Starfish VO.
-  if (!ensureMpv())
+  if (!ensureMpv(needsVideoSurface))
     return;
 
   m_session = session;
   m_timeline.setSession(session);
   m_title = session.title;
+  m_mediaKind = nextMediaKind;
 #ifdef JELLYFIN_NATIVE_WEBOS
-  m_statusText = QStringLiteral("Preparing libmpv + Starfish...");
+  m_statusText = needsVideoSurface ? QStringLiteral("Preparing libmpv + Starfish...")
+                                   : QStringLiteral("Preparing audio...");
 #else
-  m_statusText = QStringLiteral("Preparing libmpv...");
+  m_statusText = needsVideoSurface ? QStringLiteral("Preparing libmpv...")
+                                   : QStringLiteral("Preparing audio...");
 #endif
   m_errorText.clear();
   const double startSeconds =
@@ -548,8 +580,14 @@ void PlayerController::play(const PlaybackSession &session) {
   m_backAllowed = false;
   m_backGuardTimer.start();
   m_uiPositionTimer.start();
-  m_visible = true;
-  emit visibleChanged();
+  const bool wasVisible = m_visible;
+  const bool wasSessionActive = m_sessionActive;
+  m_visible = needsVideoSurface;
+  m_sessionActive = true;
+  if (wasVisible != m_visible)
+    emit visibleChanged();
+  if (wasSessionActive != m_sessionActive)
+    emit sessionActiveChanged();
   emit stateChanged();
 
   auto *handle = m_mpvLifecycle.handle();
@@ -584,6 +622,8 @@ void PlayerController::togglePause() {
 
 void PlayerController::prepareForBackground() {
 #ifdef JELLYFIN_NATIVE_WEBOS
+  if (!m_sessionActive)
+    return;
   const double position = projectedPositionSeconds();
   qInfo() << "player: playback position snapshot background"
           << "position=" << position;
@@ -594,7 +634,7 @@ void PlayerController::prepareForBackground() {
 void PlayerController::pauseForBackground() {
 #ifdef JELLYFIN_NATIVE_WEBOS
   prepareForBackground();
-  if (!m_visible || m_paused)
+  if (!m_sessionActive || m_paused)
     return;
 
   qInfo() << "player: pausing for background/hidden app state";
@@ -718,9 +758,9 @@ void PlayerController::stop() {
 }
 
 void PlayerController::stopWithReason(const QString &reason) {
-  Diagnostics::Task task(QStringLiteral("player_stop"), {{QStringLiteral("reason"), reason}, {QStringLiteral("visible"), m_visible}});
-  qInfo() << "player: stop requested" << reason << "visible" << m_visible;
-  if (!m_visible)
+  Diagnostics::Task task(QStringLiteral("player_stop"), {{QStringLiteral("reason"), reason}, {QStringLiteral("sessionActive"), m_sessionActive}});
+  qInfo() << "player: stop requested" << reason << "sessionActive" << m_sessionActive;
+  if (!m_sessionActive)
     return;
 
   // Drop the UI synchronously so the back button always navigates away
@@ -840,12 +880,16 @@ void PlayerController::startProgressReporting() {
 
 void PlayerController::stopProgressReporting(bool failed, bool completed) {
   Diagnostics::Phase phase(QStringLiteral("player"), QStringLiteral("stop_progress_reporting"), {{QStringLiteral("failed"), failed}, {QStringLiteral("completed"), completed}});
-  if (!m_visible && !m_progressTimer.isActive()) {
-    qInfo() << "player: stopProgressReporting skipped visible=" << m_visible;
+  if (!m_sessionActive && !m_progressTimer.isActive()) {
+    qInfo() << "player: stopProgressReporting skipped sessionActive=" << m_sessionActive;
     return;
   }
 
-  qInfo() << "player: stopProgressReporting visible=" << m_visible << "failed=" << failed << "completed=" << completed;
+  const bool wasVisible = m_visible;
+  const bool wasSessionActive = m_sessionActive;
+  qInfo() << "player: stopProgressReporting sessionActive=" << m_sessionActive
+          << "visible=" << m_visible
+          << "failed=" << failed << "completed=" << completed;
   m_progressTimer.stop();
   m_uiPositionTimer.stop();
   m_seekWatchdogTimer.stop();
@@ -859,12 +903,16 @@ void PlayerController::stopProgressReporting(bool failed, bool completed) {
   resetPlaybackUiState();
   m_window->clearOverlay();
   emit stateChanged();
-  emit visibleChanged();
+  if (wasVisible != m_visible)
+    emit visibleChanged();
+  if (wasSessionActive != m_sessionActive)
+    emit sessionActiveChanged();
   emit playbackStopped(session.itemId, positionTicks, completed);
 }
 
 void PlayerController::resetPlaybackUiState() {
   m_visible = false;
+  m_sessionActive = false;
   m_paused = false;
   m_buffering = false;
   m_bufferingPercent = 0;
@@ -873,6 +921,7 @@ void PlayerController::resetPlaybackUiState() {
   m_debugOsdVisible = false;
   m_timeline.clear();
   m_statusText = QStringLiteral("Ready");
+  m_mediaKind = QStringLiteral("none");
   if (m_tracks.clearChapters()) {
     emit chaptersChanged();
   }
@@ -1169,7 +1218,7 @@ void PlayerController::handleMpvEvent(mpv_event *event) {
       QMetaObject::invokeMethod(this, [this, failed, completed, endFileReason, endFileError]() {
         qInfo() << "player: end file (main thread) failed=" << failed
                 << "completed=" << completed
-                << "visible=" << m_visible
+                << "sessionActive=" << m_sessionActive
                 << "reason=" << endFileReason
                 << endFileReasonName(endFileReason)
                 << "error=" << endFileError
@@ -1185,7 +1234,7 @@ void PlayerController::handleMpvEvent(mpv_event *event) {
       m_mpvLifecycle.requestEventLoopStop();
       QMetaObject::invokeMethod(this, [this]() {
         qInfo() << "player: mpv shutdown";
-        if (m_visible)
+        if (m_sessionActive)
           stopProgressReporting(false);
       });
       break;
@@ -1221,7 +1270,7 @@ double PlayerController::seekAnchorPosition() {
 
 void PlayerController::requestMpvPositionRefresh(const char *reason) {
   auto *handle = m_mpvLifecycle.handle();
-  if (!m_visible || !handle)
+  if (!m_sessionActive || !handle)
     return;
 
   int error = mpv_get_property_async(handle, kTimePosRefreshReply, "time-pos",

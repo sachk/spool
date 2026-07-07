@@ -41,6 +41,7 @@ FocusScope {
     property bool playerBackPressHandled: false
     readonly property var player: appController ? appController.player : null
     readonly property bool hasPlayer: player !== null && player !== undefined
+    readonly property bool playerSessionActive: hasPlayer && player.sessionActive
     readonly property string errorTextValue: appController ? appController.errorText : ""
     readonly property bool busyValue: appController ? appController.busy : false
     readonly property string busyTextValue: appController ? appController.busyText : ""
@@ -415,7 +416,7 @@ FocusScope {
             return dispatchNavigationKey(Qt.Key_Left);
         if (event.key === Qt.Key_L)
             return dispatchNavigationKey(Qt.Key_Right);
-        if (event.key === Qt.Key_Q && root.hasPlayer && root.player.visible) {
+        if (event.key === Qt.Key_Q && root.playerSessionActive) {
             root.player.stopWithReason("shortcut-q");
             return true;
         }
