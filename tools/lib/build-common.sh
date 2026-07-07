@@ -481,3 +481,12 @@ resolve_qmlimportscanner() {
 
   return 0
 }
+
+# Default codegen tuning for webOS TV targets (202x models: AArch64 SoCs
+# running a 32-bit userspace on Cortex-A53/A55/A73-class cores). Thumb-2 cuts
+# text size ~25-30% at equal-or-better speed (smaller I-cache footprint);
+# neon-fp-armv8 unlocks the ARMv8 FPU/NEON from AArch32. The float ABI stays
+# softfp from the toolchain default: it must match the system libraries.
+webos_tune_cflags() {
+  echo "${WEBOS_TUNE_CFLAGS:--mthumb -mcpu=cortex-a53 -mfpu=neon-fp-armv8}"
+}
