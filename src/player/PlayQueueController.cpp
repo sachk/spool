@@ -170,6 +170,17 @@ bool PlayQueueController::previous()
     return true;
 }
 
+bool PlayQueueController::playAt(int index)
+{
+    if (index < 0 || index >= rowCount())
+        return false;
+    const auto current = std::find(m_order.begin(), m_order.end(), index);
+    if (current == m_order.end())
+        return false;
+    setCurrentOrderIndex(static_cast<int>(std::distance(m_order.begin(), current)));
+    return true;
+}
+
 void PlayQueueController::setShuffled(bool shuffled)
 {
     if (m_shuffled == shuffled)

@@ -12,6 +12,7 @@ Rectangle {
     readonly property bool instantOpen: overlay && overlay.mode === "debug"
     readonly property string menuTitle: overlay.mode === "subtitles" ? "Subtitles"
                                       : overlay.mode === "audio" ? "Audio"
+                                      : overlay.mode === "queue" ? "Queue"
                                       : "Settings"
     function dp(n) {
         return Math.round(n * uiScale)
@@ -21,7 +22,7 @@ Rectangle {
         menuList.positionViewAtBeginning()
     }
 
-    readonly property bool trackMenuMode: overlay.mode === "subtitles" || overlay.mode === "audio"
+    readonly property bool trackMenuMode: overlay.mode === "subtitles" || overlay.mode === "audio" || overlay.mode === "queue"
 
     x: Math.max(edgeMargin, Math.min(parent.width - width - edgeMargin, overlay.menuAnchorX - width / 2))
     y: Math.max(edgeMargin, Math.min(parent.height - height - edgeMargin, overlay.menuAnchorY - height - dp(12)))
@@ -94,6 +95,7 @@ Rectangle {
                 spacing: dp(2)
                 model: overlay.mode === "subtitles" && overlay.hasPlayer ? overlay.player.subtitleTracks
                      : overlay.mode === "audio" && overlay.hasPlayer ? overlay.player.audioTracks
+                     : overlay.mode === "queue" ? overlay.queueOptions
                      : overlay.debugOptions
                 currentIndex: overlay.menuIndex
                 boundsBehavior: Flickable.StopAtBounds
@@ -109,6 +111,7 @@ Rectangle {
                     readonly property bool current: overlay.menuIndex === index
                     readonly property bool isSelected: (overlay.mode === "subtitles" && overlay.hasPlayer && overlay.player.selectedSubtitleIndex === index)
                                                     || (overlay.mode === "audio" && overlay.hasPlayer && overlay.player.selectedAudioIndex === index)
+                                                    || (overlay.mode === "queue" && overlay.playQueue && overlay.playQueue.currentIndex === index)
 
                     width: menuList.width
                     height: dp(46)
@@ -133,7 +136,7 @@ Rectangle {
 
                         Text {
                             Layout.fillWidth: true
-                            text: String(modelData)
+                            text: overlay.mode === "queue" ? (modelData.displayTitle || modelData.title || "Untitled") : String(modelData)
                             color: current ? overlay.colTextStrong : isSelected ? overlay.colSelectedText : overlay.colTextSubtle
                             font.pixelSize: dp(17)
                             font.weight: current || isSelected ? Font.DemiBold : Font.Medium
