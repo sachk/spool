@@ -57,7 +57,7 @@ struct MpvApi {
 
 MpvApi g_api;
 std::atomic<bool> g_loaded{false};
-std::once_flag g_loadOnce;
+std::mutex g_loadLock;
 
 // The NativeAppWindow constructor registers the starfish OSD/crop callbacks
 // long before libmpv is loaded. Record them here and replay once the library
@@ -91,11 +91,15 @@ bool loadNow()
     timer.start();
 
     const std::string path = libmpvPath();
-    // RTLD_NOW on this (background) thread so no relocation work is left to
-    // leak into playback-path calls later.
-    void *handle = dlopen(path.c_str(), RTLD_NOW | RTLD_LOCAL);
+    // RTLD_LAZY, not RTLD_NOW: LG's proprietary starfish libraries in
+    // libmpv's dependency closure are under-linked against system libs (e.g.
+    // a reference to curl_easy_header, which the TV's libcurl 7.7x does not
+    // export). DT_NEEDED loading always used lazy PLT binding, so those
+    // dangling references were and remain harmless — RTLD_NOW turns them
+    // into a hard dlopen failure.
+    void *handle = dlopen(path.c_str(), RTLD_LAZY | RTLD_LOCAL);
     if (!handle)
-        handle = dlopen("libmpv.so.2", RTLD_NOW | RTLD_LOCAL);
+        handle = dlopen("libmpv.so.2", RTLD_LAZY | RTLD_LOCAL);
     if (!handle) {
         qWarning() << "MpvRuntime: dlopen failed:" << dlerror();
         return false;
@@ -135,10 +139,18 @@ namespace JellyfinNative::MpvRuntime {
 
 bool ensureLoaded()
 {
-    std::call_once(g_loadOnce, [] {
-        g_loaded.store(loadNow(), std::memory_order_release);
-    });
-    return g_loaded.load(std::memory_order_acquire);
+    if (g_loaded.load(std::memory_order_acquire))
+        return true;
+    // Not call_once: a failed attempt must stay retryable, otherwise one
+    // transient dlopen failure kills playback for the whole session. Repeat
+    // attempts are user-triggered (play) and cheap.
+    std::lock_guard<std::mutex> lock(g_loadLock);
+    if (g_loaded.load(std::memory_order_relaxed))
+        return true;
+    if (!loadNow())
+        return false;
+    g_loaded.store(true, std::memory_order_release);
+    return true;
 }
 
 void preloadAsync()
