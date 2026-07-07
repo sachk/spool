@@ -254,7 +254,11 @@ qt_add_executable(jellyfin-native
 )
 
 if(JELLYFIN_NATIVE_WEBOS)
-    target_sources(jellyfin-native PRIVATE src/app/NativeAppWindow.cpp)
+    target_sources(jellyfin-native PRIVATE
+        src/app/NativeAppWindow.cpp
+        src/player/MpvRuntime.cpp
+        src/player/MpvRuntime.h
+    )
     target_compile_definitions(jellyfin-native PRIVATE JELLYFIN_NATIVE_WEBOS=1)
 else()
     target_sources(jellyfin-native PRIVATE src/app/HostNativeAppWindow.cpp)
@@ -427,19 +431,15 @@ if(JELLYFIN_NATIVE_WEBOS)
         ${WAYLAND_WEBOS_CLIENT_LIB}
         ${WEBOS_HELPERS_LIB}
         ${LUNA_SERVICE_LIB}
-        ${MPV_LIB}
-        ${AVCODEC_LIB}
-        ${AVFILTER_LIB}
-        ${AVFORMAT_LIB}
-        ${AVUTIL_LIB}
-        ${LUA_LIB}
-        ${SWRESAMPLE_LIB}
-        ${SWSCALE_LIB}
+        # libmpv (and its ffmpeg/lua dependencies) is deliberately NOT linked:
+        # src/player/MpvRuntime.cpp dlopen()s it after first frame so the
+        # dynamic linker does not map + relocate the ~40 MB player stack
+        # before main(). The staged libs above are still runtime requirements
+        # (existence-checked earlier); they just load lazily now.
+        ${CMAKE_DL_LIBS}
     )
 
     target_link_options(jellyfin-native PRIVATE
-        "-Wl,-rpath-link,${MPV_WEBOS_BUILD_DIR}"
-        "-Wl,-rpath-link,${WEBOS_NATIVE_LIB_DIR}"
         "-Wl,-rpath-link,${WEBOS_SYSROOT_LIB_DIR}"
         "-Wl,-rpath-link,${WEBOS_SYSROOT_BASE_LIB_DIR}"
     )
