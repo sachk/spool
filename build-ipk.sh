@@ -305,26 +305,9 @@ if (( DO_PACKAGE )); then
   exit 1
 }
 rm -f "$BUILD_DIR"/*.ipk
+# Plain ares-package output, no maintainer scripts. Hardware decode LS2 access
+# comes from appinstalld's rolegen (/usr/share/rolegen/templates/NDK.*), which
+# generates media-client roles for every native dev app from appinfo's "main"
+# executable — the same mechanism Kodi relies on for non-rooted TVs.
 npx -y -p @webos-tools/cli@3.2.3 ares-package "$APP_DIR" --outdir "$BUILD_DIR"
-
-PACKAGING_DIR="$ROOT/packaging"
-if [ -f "$PACKAGING_DIR/postinst" ] || [ -f "$PACKAGING_DIR/prerm" ]; then
-  IPK="$(ls -1t "$BUILD_DIR"/*.ipk | head -n 1)"
-  REPACK_DIR="$(mktemp -d)"
-  (
-    cd "$REPACK_DIR"
-    ar x "$IPK"
-    mkdir -p control_dir
-    tar xzf control.tar.gz -C control_dir
-    for script in postinst prerm; do
-      if [ -f "$PACKAGING_DIR/$script" ]; then
-        cp "$PACKAGING_DIR/$script" "control_dir/$script"
-        chmod 755 "control_dir/$script"
-      fi
-    done
-    (cd control_dir && tar czf ../control.tar.gz ./)
-    ar rc "$IPK" debian-binary control.tar.gz data.tar.gz
-  )
-  rm -rf "$REPACK_DIR"
-fi
 fi
