@@ -156,6 +156,12 @@ private:
     };
 
     bool ensureMpv(bool needsVideoSurface);
+    void scheduleIdleMpvPreparation();
+    void prepareIdleMpv();
+    void destroyIdleMpv(const char *reason);
+    mpv_handle *takeIdleMpvHandle();
+    bool configureAndInitializeMpv(mpv_handle *handle);
+    void observeMpvProperties(mpv_handle *handle);
     void scheduleMpvTeardown();
     static QString mediaKindForSession(const PlaybackSession &session);
     void handleMpvEvent(mpv_event *event);
@@ -177,6 +183,7 @@ private:
     bool applyMpvRuntimeOption(MpvRuntimeOption option, MpvOptionApplyMode mode, mpv_handle *handle);
     bool applyMpvSubtitleOptions(MpvOptionApplyMode mode, mpv_handle *handle);
     bool applyMpvRuntimeOptions(MpvOptionApplyMode mode, mpv_handle *handle);
+    void discardPreparedMpvForOptionChange(const char *reason);
     void handleVideoRenderError(const QString &message);
 
     NativeAppWindow *m_window = nullptr;
@@ -184,6 +191,9 @@ private:
     PlaybackSession m_session;
     PlaybackReporter m_reporter;
     MpvLifecycle m_mpvLifecycle;
+    mpv_handle *m_idleMpvHandle = nullptr;
+    bool m_idleMpvPreparationScheduled = false;
+    bool m_idleMpvPreparationEnabled = true;
     QTimer m_progressTimer;
     QTimer m_backGuardTimer;
     QTimer m_uiPositionTimer;

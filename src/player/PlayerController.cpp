@@ -6,6 +6,9 @@
 #include "../diagnostics/Diagnostics.h"
 #include "MpvVideoItem.h"
 #include "MpvOptionProfile.h"
+#ifdef JELLYFIN_NATIVE_WEBOS
+#include "MpvRuntime.h"
+#endif
 #include "PlaybackTrackParser.h"
 
 extern "C" {
@@ -120,6 +123,27 @@ QByteArray mpvBool(bool value) {
   return value ? QByteArrayLiteral("yes") : QByteArrayLiteral("no");
 }
 
+#ifdef JELLYFIN_NATIVE_WEBOS
+void configureWebOsAudioEnvironment(const QString &audioOutputMode) {
+  const bool useStarfishPcm = audioOutputMode == QStringLiteral("starfish") ||
+                              audioOutputMode == QStringLiteral("starfish-pcm");
+  const bool useStarfishAudio = useStarfishPcm;
+  qputenv("STARFISH_AUDIO_HINT",
+          useStarfishAudio ? QByteArrayLiteral("1") : QByteArrayLiteral("0"));
+  qputenv("WEBOS_ALSA_NO_HW_PAUSE",
+          useStarfishAudio ? QByteArrayLiteral("0") : QByteArrayLiteral("1"));
+  // Selects the Starfish audio ES the fork builds: raw PCM vs the legacy AAC
+  // encode path. Read by both ao_starfish and the starfish VO context.
+  qputenv("STARFISH_AUDIO_CODEC",
+          useStarfishPcm ? QByteArrayLiteral("pcm") : QByteArrayLiteral("aac"));
+  qInfo() << "player: configuring webOS audio output"
+          << audioOutputMode
+          << "starfishAudioHint=" << qgetenv("STARFISH_AUDIO_HINT")
+          << "starfishAudioCodec=" << qgetenv("STARFISH_AUDIO_CODEC")
+          << "webosAlsaNoHwPause=" << qgetenv("WEBOS_ALSA_NO_HW_PAUSE");
+}
+#endif
+
 qint64 secondsToTicks(double seconds) {
   return static_cast<qint64>(seconds * 10000000.0);
 }
@@ -224,6 +248,7 @@ PlayerController::PlayerController(NativeAppWindow *window,
                 {{QStringLiteral("operation"), operation},
                  {QStringLiteral("message"), message}});
           });
+  scheduleIdleMpvPreparation();
 }
 
 PlayerController::~PlayerController() {
@@ -232,6 +257,9 @@ PlayerController::~PlayerController() {
 
 void PlayerController::teardownMpv() {
   Diagnostics::Phase phase(QStringLiteral("shutdown"), QStringLiteral("player_teardown_mpv"));
+  m_idleMpvPreparationEnabled = false;
+  m_idleMpvPreparationScheduled = false;
+  destroyIdleMpv("teardown");
   m_mpvLifecycle.destroy([](mpv_handle *) {
 #ifndef JELLYFIN_NATIVE_WEBOS
     // Free the render context first; this is thread-safe and decouples us from
@@ -240,6 +268,105 @@ void PlayerController::teardownMpv() {
       videoItem->setMpvHandle(nullptr);
 #endif
   });
+}
+
+void PlayerController::scheduleIdleMpvPreparation() {
+#ifdef JELLYFIN_NATIVE_WEBOS
+  if (!m_idleMpvPreparationEnabled || m_idleMpvPreparationScheduled ||
+      m_idleMpvHandle || m_mpvLifecycle.handle())
+    return;
+
+  m_idleMpvPreparationScheduled = true;
+  QPointer<PlayerController> controller(this);
+  MpvRuntime::runAfterLoaded([controller]() {
+    if (auto *app = QCoreApplication::instance()) {
+      QMetaObject::invokeMethod(app, [controller]() {
+        if (controller)
+          controller->prepareIdleMpv();
+      }, Qt::QueuedConnection);
+    }
+  });
+#endif
+}
+
+void PlayerController::prepareIdleMpv() {
+  m_idleMpvPreparationScheduled = false;
+#ifdef JELLYFIN_NATIVE_WEBOS
+  if (!m_idleMpvPreparationEnabled || m_idleMpvHandle ||
+      m_mpvLifecycle.handle() || m_sessionActive)
+    return;
+
+  QElapsedTimer startupTimer;
+  startupTimer.start();
+  rotateLogFile(kMpvLogPath);
+  mpv_handle *handle = mpv_create();
+  if (!handle) {
+    qWarning() << "player: idle mpv_create failed";
+    return;
+  }
+
+  if (!configureAndInitializeMpv(handle)) {
+    mpv_terminate_destroy(handle);
+    qWarning() << "player: idle mpv initialization failed";
+    return;
+  }
+
+  m_idleMpvHandle = handle;
+  qInfo() << "player: idle-prepared mpv initialized in"
+          << startupTimer.elapsed() << "ms";
+#endif
+}
+
+void PlayerController::destroyIdleMpv(const char *reason) {
+  if (!m_idleMpvHandle)
+    return;
+
+  mpv_handle *handle = m_idleMpvHandle;
+  m_idleMpvHandle = nullptr;
+  qInfo() << "player: destroying idle-prepared mpv"
+          << (reason ? reason : "unspecified");
+  mpv_terminate_destroy(handle);
+}
+
+mpv_handle *PlayerController::takeIdleMpvHandle() {
+  mpv_handle *handle = m_idleMpvHandle;
+  m_idleMpvHandle = nullptr;
+  if (handle)
+    qInfo() << "player: adopting idle-prepared mpv handle";
+  return handle;
+}
+
+bool PlayerController::configureAndInitializeMpv(mpv_handle *handle) {
+  if (!handle)
+    return false;
+
+#ifdef JELLYFIN_NATIVE_WEBOS
+  configureWebOsAudioEnvironment(m_audioOutputMode);
+  constexpr auto platform = MpvOptionProfile::Platform::WebOS;
+#else
+  constexpr auto platform = MpvOptionProfile::Platform::Desktop;
+#endif
+  const auto startupOptions = MpvOptionProfile::startupOptions(
+      platform, m_audioOutputMode, QByteArray(kMpvLogPath),
+      m_demuxerMaxBytes, m_demuxerMaxBackBytes);
+  const bool configured =
+      applyOptions(handle, startupOptions) &&
+      applyMpvRuntimeOptions(MpvOptionApplyMode::Initial, handle);
+
+  return configured && mpv_initialize(handle) >= 0;
+}
+
+void PlayerController::observeMpvProperties(mpv_handle *handle) {
+  mpv_observe_property(handle, 0, "pause", MPV_FORMAT_FLAG);
+  mpv_observe_property(handle, 0, "paused-for-cache", MPV_FORMAT_FLAG);
+  mpv_observe_property(handle, 0, "cache-buffering-state", MPV_FORMAT_INT64);
+  mpv_observe_property(handle, 0, "seeking", MPV_FORMAT_FLAG);
+  mpv_observe_property(handle, 0, "time-pos", MPV_FORMAT_DOUBLE);
+  mpv_observe_property(handle, 0, "duration", MPV_FORMAT_DOUBLE);
+  mpv_observe_property(handle, 0, "volume", MPV_FORMAT_DOUBLE);
+  mpv_observe_property(handle, 0, "track-list", MPV_FORMAT_NODE);
+  mpv_observe_property(handle, 0, "chapter-list", MPV_FORMAT_NODE);
+  mpv_observe_property(handle, 0, "chapter", MPV_FORMAT_INT64);
 }
 
 void PlayerController::scheduleMpvTeardown() {
@@ -388,6 +515,14 @@ bool PlayerController::applyMpvRuntimeOptions(MpvOptionApplyMode mode,
          applyMpvSubtitleOptions(mode, handle);
 }
 
+void PlayerController::discardPreparedMpvForOptionChange(const char *reason) {
+  if (m_mpvLifecycle.handle())
+    return;
+
+  destroyIdleMpv(reason);
+  scheduleIdleMpvPreparation();
+}
+
 bool PlayerController::applyMpvSubtitleOptions(MpvOptionApplyMode mode,
                                                mpv_handle *handle) {
   if (!handle)
@@ -416,63 +551,32 @@ bool PlayerController::ensureMpv(bool needsVideoSurface) {
   if (m_mpvLifecycle.handle())
     return true;
 
-#ifdef JELLYFIN_NATIVE_WEBOS
-  const bool useStarfishPcm = m_audioOutputMode == QStringLiteral("starfish") ||
-                              m_audioOutputMode == QStringLiteral("starfish-pcm");
-  const bool useStarfishAudio = useStarfishPcm;
-  qputenv("STARFISH_AUDIO_HINT", useStarfishAudio ? QByteArrayLiteral("1") : QByteArrayLiteral("0"));
-  qputenv("WEBOS_ALSA_NO_HW_PAUSE", useStarfishAudio ? QByteArrayLiteral("0") : QByteArrayLiteral("1"));
-  // Selects the Starfish audio ES the fork builds: raw PCM vs the legacy AAC
-  // encode path. Read by both ao_starfish and the starfish VO context.
-  qputenv("STARFISH_AUDIO_CODEC", useStarfishPcm ? QByteArrayLiteral("pcm") : QByteArrayLiteral("aac"));
-  qInfo() << "player: configuring webOS audio output"
-          << m_audioOutputMode
-          << "starfishAudioHint=" << qgetenv("STARFISH_AUDIO_HINT")
-          << "starfishAudioCodec=" << qgetenv("STARFISH_AUDIO_CODEC")
-          << "webosAlsaNoHwPause=" << qgetenv("WEBOS_ALSA_NO_HW_PAUSE");
-#endif
-
   QElapsedTimer startupTimer;
   startupTimer.start();
-  rotateLogFile(kMpvLogPath);
-  mpv_handle *handle = mpv_create();
+
+  mpv_handle *handle = takeIdleMpvHandle();
+  const bool idlePrepared = handle != nullptr;
   if (!handle) {
-    m_errorText = QStringLiteral("mpv_create failed.");
-    emit stateChanged();
-    return false;
+    rotateLogFile(kMpvLogPath);
+    handle = mpv_create();
+    if (!handle) {
+      m_errorText = QStringLiteral("mpv_create failed.");
+      emit stateChanged();
+      return false;
+    }
+
+    if (!configureAndInitializeMpv(handle)) {
+      mpv_terminate_destroy(handle);
+      m_errorText = QStringLiteral("Failed to initialize libmpv.");
+      emit stateChanged();
+      return false;
+    }
   }
 
-#ifdef JELLYFIN_NATIVE_WEBOS
-  constexpr auto platform = MpvOptionProfile::Platform::WebOS;
-#else
-  constexpr auto platform = MpvOptionProfile::Platform::Desktop;
-#endif
-  const auto startupOptions = MpvOptionProfile::startupOptions(
-      platform, m_audioOutputMode, QByteArray(kMpvLogPath),
-      m_demuxerMaxBytes, m_demuxerMaxBackBytes);
-  const bool configured =
-      applyOptions(handle, startupOptions) &&
-      applyMpvRuntimeOptions(MpvOptionApplyMode::Initial, handle);
+  observeMpvProperties(handle);
 
-  if (!configured || mpv_initialize(handle) < 0) {
-    mpv_terminate_destroy(handle);
-    m_errorText = QStringLiteral("Failed to initialize libmpv.");
-    emit stateChanged();
-    return false;
-  }
-
-  mpv_observe_property(handle, 0, "pause", MPV_FORMAT_FLAG);
-  mpv_observe_property(handle, 0, "paused-for-cache", MPV_FORMAT_FLAG);
-  mpv_observe_property(handle, 0, "cache-buffering-state", MPV_FORMAT_INT64);
-  mpv_observe_property(handle, 0, "seeking", MPV_FORMAT_FLAG);
-  mpv_observe_property(handle, 0, "time-pos", MPV_FORMAT_DOUBLE);
-  mpv_observe_property(handle, 0, "duration", MPV_FORMAT_DOUBLE);
-  mpv_observe_property(handle, 0, "volume", MPV_FORMAT_DOUBLE);
-  mpv_observe_property(handle, 0, "track-list", MPV_FORMAT_NODE);
-  mpv_observe_property(handle, 0, "chapter-list", MPV_FORMAT_NODE);
-  mpv_observe_property(handle, 0, "chapter", MPV_FORMAT_INT64);
-
-  qInfo() << "player: mpv initialized in" << startupTimer.elapsed() << "ms";
+  qInfo() << "player: mpv initialized in" << startupTimer.elapsed() << "ms"
+          << "idlePrepared=" << idlePrepared;
 
 #ifndef JELLYFIN_NATIVE_WEBOS
   if (needsVideoSurface) {
@@ -492,6 +596,8 @@ bool PlayerController::ensureMpv(bool needsVideoSurface) {
             &PlayerController::handleVideoRenderError, Qt::UniqueConnection);
     videoItem->setMpvHandle(handle);
   }
+#else
+  (void)needsVideoSurface;
 #endif
 
   if (!m_mpvLifecycle.adopt(
@@ -622,8 +728,12 @@ void PlayerController::togglePause() {
 
 void PlayerController::prepareForBackground() {
 #ifdef JELLYFIN_NATIVE_WEBOS
-  if (!m_sessionActive)
+  if (!m_sessionActive) {
+    m_idleMpvPreparationEnabled = false;
+    m_idleMpvPreparationScheduled = false;
+    destroyIdleMpv("background");
     return;
+  }
   const double position = projectedPositionSeconds();
   qInfo() << "player: playback position snapshot background"
           << "position=" << position;
@@ -779,6 +889,8 @@ void PlayerController::setNightModeEnabled(bool enabled) {
   if (auto *handle = m_mpvLifecycle.handle()) {
     applyMpvRuntimeOption(MpvRuntimeOption::NightMode,
                           MpvOptionApplyMode::Runtime, handle);
+  } else {
+    discardPreparedMpvForOptionChange("night mode change");
   }
 
   emit nightModeEnabledChanged();
@@ -793,6 +905,8 @@ void PlayerController::setToneMappingVisualizationEnabled(bool enabled) {
   if (auto *handle = m_mpvLifecycle.handle()) {
     applyMpvRuntimeOption(MpvRuntimeOption::ToneMappingVisualization,
                           MpvOptionApplyMode::Runtime, handle);
+  } else {
+    discardPreparedMpvForOptionChange("tone mapping visualization change");
   }
 
   emit toneMappingVisualizationEnabledChanged();
@@ -814,6 +928,7 @@ void PlayerController::setAudioDelayMs(int delayMs) {
                           MpvOptionApplyMode::Runtime, handle);
   } else {
     qInfo() << "player: audio delay stored without active mpv";
+    discardPreparedMpvForOptionChange("audio delay change");
   }
 
   emit audioDelayMsChanged();
@@ -828,6 +943,7 @@ void PlayerController::setAudioOutputMode(const QString &mode) {
   m_audioOutputMode = normalized;
   qInfo() << "player: audio output mode changed" << normalized
           << "visible=" << m_visible;
+  discardPreparedMpvForOptionChange("audio output mode change");
   emit audioOutputModeChanged();
   emit stateChanged();
 }
@@ -856,17 +972,27 @@ void PlayerController::setSubtitlePreferences(const SubtitlePreferences &prefere
           << "mode=" << preferences.mode
           << "language=" << preferences.language
           << "styling=" << preferences.styling;
-  if (auto *handle = m_mpvLifecycle.handle())
+  if (auto *handle = m_mpvLifecycle.handle()) {
     applyMpvSubtitleOptions(MpvOptionApplyMode::Runtime, handle);
+  } else {
+    discardPreparedMpvForOptionChange("subtitle preferences change");
+  }
   emit stateChanged();
 }
 
 void PlayerController::setDemuxerBudget(const QByteArray &maxBytes,
                                         const QByteArray &maxBackBytes) {
-  if (!maxBytes.isEmpty())
+  bool changed = false;
+  if (!maxBytes.isEmpty() && m_demuxerMaxBytes != maxBytes) {
     m_demuxerMaxBytes = maxBytes;
-  if (!maxBackBytes.isEmpty())
+    changed = true;
+  }
+  if (!maxBackBytes.isEmpty() && m_demuxerMaxBackBytes != maxBackBytes) {
     m_demuxerMaxBackBytes = maxBackBytes;
+    changed = true;
+  }
+  if (changed)
+    discardPreparedMpvForOptionChange("demuxer budget change");
 }
 
 void PlayerController::startProgressReporting() {
