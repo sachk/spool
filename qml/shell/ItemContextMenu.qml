@@ -29,6 +29,15 @@ FocusScope {
     readonly property bool partialEpisode: itemType === "Episode" && hasProgress && !playedState
     readonly property bool actionable: itemId.length > 0
     readonly property bool queueable: actionable && item && item.playable !== false
+    readonly property string currentViewKind: appController ? String(appController.currentViewKind || "") : ""
+    readonly property bool inPlaylist: currentViewKind === "playlist"
+    readonly property bool inCollection: currentViewKind === "boxset" || currentViewKind === "collection"
+    readonly property bool collectionEligible: actionable
+                                               && (itemType === "Movie" || itemType === "Series" || itemType === "Episode")
+    readonly property bool canManagePlaylists: appController ? appController.currentUserCanManagePlaylists : false
+    readonly property bool canManageCollections: appController ? appController.currentUserCanManageCollections : false
+    readonly property bool canRenameItem: appController ? appController.currentUserCanRenameItems : false
+    readonly property bool canDeleteItem: appController ? appController.currentUserCanDeleteItems : false
 
     signal playedToggled(string itemId, bool played)
     signal favoriteToggled(string itemId, bool favorite)
@@ -38,6 +47,12 @@ FocusScope {
     signal mediaInfoRequested(var snapshot)
     signal playNextRequested(var snapshot)
     signal addToQueueRequested(var snapshot)
+    signal addToPlaylistRequested(var snapshot)
+    signal addToCollectionRequested(var snapshot)
+    signal removeFromParentRequested(var snapshot)
+    signal movePlaylistItemRequested(var snapshot, int delta)
+    signal renameRequested(var snapshot)
+    signal deleteRequested(var snapshot)
 
     visible: opened
     focus: opened
@@ -98,6 +113,21 @@ FocusScope {
                 label: favoriteState ? "Remove favourite" : "Add favourite",
                 checked: favoriteState
             })
+            if (canManagePlaylists && queueable)
+                options.push({ action: "playlist", icon: "playlist_add", label: "Add to playlist", checked: false })
+            if (canManageCollections && collectionEligible)
+                options.push({ action: "collection", icon: "library_add", label: "Add to collection", checked: false })
+            if (inPlaylist && item.playlistItemId) {
+                options.push({ action: "moveUp", icon: "keyboard_arrow_up", label: "Move up", checked: false })
+                options.push({ action: "moveDown", icon: "keyboard_arrow_down", label: "Move down", checked: false })
+                options.push({ action: "removeParent", icon: "remove_circle", label: "Remove from playlist", checked: false })
+            } else if (inCollection && canManageCollections) {
+                options.push({ action: "removeParent", icon: "remove_circle", label: "Remove from collection", checked: false })
+            }
+            if ((itemType === "Playlist" && canManagePlaylists) || canRenameItem)
+                options.push({ action: "rename", icon: "drive_file_rename_outline", label: "Rename", checked: false })
+            if (canDeleteItem)
+                options.push({ action: "delete", icon: "delete", label: "Delete", checked: false })
         }
         if (item && (item.movieId || item.id || item.title || item.displayTitle || item.seriesName))
             options.push({ action: "info", icon: "info", label: "Media info", checked: false })
@@ -170,6 +200,20 @@ FocusScope {
         } else if (action === "favorite") {
             favoriteState = !favoriteState
             favoriteToggled(itemId, favoriteState)
+        } else if (action === "playlist") {
+            addToPlaylistRequested(item)
+        } else if (action === "collection") {
+            addToCollectionRequested(item)
+        } else if (action === "removeParent") {
+            removeFromParentRequested(item)
+        } else if (action === "moveUp") {
+            movePlaylistItemRequested(item, -1)
+        } else if (action === "moveDown") {
+            movePlaylistItemRequested(item, 1)
+        } else if (action === "rename") {
+            renameRequested(item)
+        } else if (action === "delete") {
+            deleteRequested(item)
         } else if (action === "info") {
             mediaInfoRequested(item)
         }

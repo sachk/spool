@@ -34,6 +34,14 @@ FocusScope {
     property bool itemMenuLoaded: false
     readonly property bool itemMenuOpen: itemContextMenuLoader.item ? itemContextMenuLoader.item.opened : false
     property var mediaInfoItem: ({})
+    property bool managementOverlayVisible: false
+    property string managementMode: ""
+    property var managementItem: ({})
+    property string managementNameDraft: ""
+    property int managementTargetIndex: 0
+    readonly property var managementTargets: !appController ? []
+                                           : managementMode === "collection" ? appController.collectionTargets
+                                           : appController.playlistTargets
     property var personItem: ({})
     property bool textInputActive: Qt.inputMethod.visible
             || InputKeys.isTextInputItem(root.Window.window ? root.Window.window.activeFocusItem : null)
@@ -253,6 +261,10 @@ FocusScope {
             itemContextMenuLoader.item.closeMenu();
             return true;
         }
+        if (managementOverlayVisible) {
+            closeManagementOverlay();
+            return true;
+        }
         if (mediaInfoVisible) {
             mediaInfoVisible = false;
             return true;
@@ -301,6 +313,151 @@ FocusScope {
             appController.loadItemDetail(mediaInfoItem.movieId);
         mediaInfoLoaded = true;
         mediaInfoVisible = true;
+    }
+
+    function itemTitle(item) {
+        return String(item && (item.displayTitle || item.title || item.seriesName || item.name) || "Selected item")
+    }
+
+    function openManagementPicker(mode, item) {
+        managementMode = mode
+        managementItem = item || ({})
+        managementNameDraft = ""
+        managementTargetIndex = 0
+        managementOverlayVisible = true
+        if (appController)
+            appController.refreshManagementTargets(mode)
+        Qt.callLater(() => InputKeys.focus(managementOverlay))
+    }
+
+    function openRenamePrompt(item) {
+        managementMode = "rename"
+        managementItem = item || ({})
+        managementNameDraft = itemTitle(managementItem)
+        managementTargetIndex = 0
+        managementOverlayVisible = true
+        Qt.callLater(() => {
+            InputKeys.focus(managementNameField)
+            managementNameField.focusField()
+        })
+    }
+
+    function openDeleteConfirm(item) {
+        managementMode = "delete"
+        managementItem = item || ({})
+        managementNameDraft = ""
+        managementTargetIndex = 0
+        managementOverlayVisible = true
+        Qt.callLater(() => InputKeys.focus(managementOverlay))
+    }
+
+    function openRemoveConfirm(item) {
+        managementMode = "remove"
+        managementItem = item || ({})
+        managementNameDraft = ""
+        managementTargetIndex = 0
+        managementOverlayVisible = true
+        Qt.callLater(() => InputKeys.focus(managementOverlay))
+    }
+
+    function closeManagementOverlay() {
+        managementOverlayVisible = false
+        managementMode = ""
+        managementItem = ({})
+        managementNameDraft = ""
+        Qt.inputMethod.hide()
+        InputKeys.focus(routeStack)
+    }
+
+    function managementTitle() {
+        if (managementMode === "playlist")
+            return "Add to playlist"
+        if (managementMode === "collection")
+            return "Add to collection"
+        if (managementMode === "rename")
+            return "Rename"
+        if (managementMode === "delete")
+            return "Delete item"
+        return appController && appController.currentViewKind === "playlist" ? "Remove from playlist" : "Remove from collection"
+    }
+
+    function submitManagementCreate() {
+        const name = managementNameDraft.trim()
+        if (!appController || name.length <= 0)
+            return
+        if (managementMode === "playlist")
+            appController.createPlaylistForItem(name, managementItem)
+        else if (managementMode === "collection")
+            appController.createCollectionForItem(name, managementItem)
+        else if (managementMode === "rename")
+            appController.renameManagedItem(managementItem, name)
+        closeManagementOverlay()
+    }
+
+    function submitManagementTarget(index) {
+        if (!appController || index < 0)
+            return
+        if (index === 0) {
+            InputKeys.focus(managementNameField)
+            managementNameField.focusField()
+            return
+        }
+        const target = managementTargets[index - 1] || ({})
+        const targetId = String(target.movieId || target.id || "")
+        if (targetId.length <= 0)
+            return
+        if (managementMode === "playlist")
+            appController.addItemToPlaylist(targetId, managementItem)
+        else if (managementMode === "collection")
+            appController.addItemToCollection(targetId, managementItem)
+        closeManagementOverlay()
+    }
+
+    function confirmManagementAction() {
+        if (!appController)
+            return
+        if (managementMode === "delete")
+            appController.deleteManagedItem(managementItem)
+        else if (managementMode === "remove")
+            appController.removeItemFromCurrentParent(managementItem)
+        closeManagementOverlay()
+    }
+
+    function handleManagementKey(event, released) {
+        if (!managementOverlayVisible)
+            return false
+        if (!released)
+            return true
+        if (InputKeys.isBackEvent(event, true)) {
+            closeManagementOverlay()
+            return true
+        }
+        if (managementMode === "playlist" || managementMode === "collection") {
+            const lastIndex = managementTargets.length
+            if (event.key === Qt.Key_Up) {
+                managementTargetIndex = Math.max(0, managementTargetIndex - 1)
+                return true
+            }
+            if (event.key === Qt.Key_Down) {
+                managementTargetIndex = Math.min(lastIndex, managementTargetIndex + 1)
+                return true
+            }
+            if (InputKeys.isAccept(event.key)) {
+                submitManagementTarget(managementTargetIndex)
+                return true
+            }
+        } else if (managementMode === "rename") {
+            if (InputKeys.isAccept(event.key)) {
+                submitManagementCreate()
+                return true
+            }
+        } else if (managementMode === "delete" || managementMode === "remove") {
+            if (InputKeys.isAccept(event.key)) {
+                confirmManagementAction()
+                return true
+            }
+        }
+        return true
     }
 
     function openPerson(person) {
@@ -445,6 +602,11 @@ FocusScope {
     Keys.priority: Keys.BeforeItem
 
     Keys.onPressed: event => {
+        if (managementOverlayVisible) {
+            if (handleManagementKey(event, false))
+                event.accepted = true;
+            return;
+        }
         if (itemMenuOpen && itemContextMenuLoader.item) {
             itemContextMenuLoader.item.handlePressed(event);
             event.accepted = true;
@@ -485,6 +647,11 @@ FocusScope {
         if (playerBackPressHandled && InputKeys.isBackEvent(event, !textInputActive)) {
             playerBackPressHandled = false;
             event.accepted = true;
+            return;
+        }
+        if (managementOverlayVisible) {
+            if (handleManagementKey(event, true))
+                event.accepted = true;
             return;
         }
         if (itemMenuOpen && itemContextMenuLoader.item) {
@@ -608,6 +775,134 @@ FocusScope {
         }
     }
 
+    FocusScope {
+        id: managementOverlay
+        anchors.fill: parent
+        visible: root.managementOverlayVisible
+        focus: visible
+        z: 57
+
+        Rectangle {
+            anchors.fill: parent
+            color: "#99000000"
+            MouseArea {
+                anchors.fill: parent
+                onClicked: root.closeManagementOverlay()
+            }
+        }
+
+        Surface {
+            anchors.centerIn: parent
+            width: Math.min(parent.width - 96, 620)
+            height: Math.min(parent.height - 96, managementContent.implicitHeight + 48)
+            elevated: true
+            baseColor: Theme.bgPanel
+
+            ColumnLayout {
+                id: managementContent
+                anchors.fill: parent
+                anchors.margins: 24
+                spacing: 14
+
+                AppText {
+                    Layout.fillWidth: true
+                    text: root.managementTitle()
+                    color: Theme.textPrimary
+                    font.pixelSize: Metrics.titlePx(root.width)
+                    font.weight: Font.DemiBold
+                }
+
+                AppText {
+                    Layout.fillWidth: true
+                    text: root.itemTitle(root.managementItem)
+                    color: Theme.textMuted
+                    font.pixelSize: Metrics.bodyPx(root.width)
+                    elide: Text.ElideRight
+                    visible: root.managementMode.length > 0
+                }
+
+                TextFieldRow {
+                    id: managementNameField
+                    Layout.fillWidth: true
+                    visible: root.managementMode === "playlist" || root.managementMode === "collection" || root.managementMode === "rename"
+                    label: root.managementMode === "rename" ? "Name" : (root.managementMode === "collection" ? "New collection name" : "New playlist name")
+                    text: root.managementNameDraft
+                    onTextEdited: value => root.managementNameDraft = value
+                    onAccepted: root.submitManagementCreate()
+                }
+
+                AppText {
+                    Layout.fillWidth: true
+                    visible: root.managementMode === "delete" || root.managementMode === "remove"
+                    text: root.managementMode === "delete"
+                          ? "This permanently deletes the item from the server."
+                          : "This removes the item from the current playlist or collection."
+                    color: Theme.textMuted
+                    font.pixelSize: Metrics.bodyPx(root.width)
+                    wrapMode: Text.Wrap
+                }
+
+                Repeater {
+                    model: root.managementMode === "playlist" || root.managementMode === "collection"
+                           ? root.managementTargets.length + 1 : 0
+                    delegate: Rectangle {
+                        required property int index
+                        Layout.fillWidth: true
+                        height: Metrics.controlHeight(root.width)
+                        radius: Theme.radiusMedium
+                        color: root.managementTargetIndex === index ? Theme.focusedFill : "transparent"
+                        border.width: root.managementTargetIndex === index ? Theme.focusBorderWidth : 1
+                        border.color: root.managementTargetIndex === index ? Theme.accent : Theme.border
+
+                        RowLayout {
+                            anchors.fill: parent
+                            anchors.leftMargin: 14
+                            anchors.rightMargin: 14
+                            spacing: 12
+                            MaterialIcon {
+                                name: index === 0 ? "add" : (root.managementMode === "collection" ? "collections_bookmark" : "playlist_play")
+                                iconColor: Theme.textPrimary
+                                iconSize: Metrics.iconPx(root.width)
+                            }
+                            AppText {
+                                Layout.fillWidth: true
+                                text: index === 0
+                                      ? "Create new"
+                                      : root.itemTitle(root.managementTargets[index - 1] || ({}))
+                                color: Theme.textPrimary
+                                font.pixelSize: Metrics.bodyPx(root.width)
+                                elide: Text.ElideRight
+                            }
+                        }
+
+                        MouseArea {
+                            anchors.fill: parent
+                            onClicked: {
+                                root.managementTargetIndex = index
+                                root.submitManagementTarget(index)
+                            }
+                        }
+                    }
+                }
+
+                RowLayout {
+                    Layout.fillWidth: true
+                    visible: root.managementMode === "delete" || root.managementMode === "remove"
+                    Item { Layout.fillWidth: true }
+                    ActionButton {
+                        text: "Cancel"
+                        onClicked: root.closeManagementOverlay()
+                    }
+                    ActionButton {
+                        text: root.managementMode === "delete" ? "Delete" : "Remove"
+                        kind: "primary"
+                        onClicked: root.confirmManagementAction()
+                    }
+                }
+            }
+        }
+    }
+
     Loader {
         id: itemContextMenuLoader
         anchors.fill: parent
@@ -647,6 +942,15 @@ FocusScope {
                 if (appController)
                     appController.addToQueueFromItem(snapshot)
             }
+            onAddToPlaylistRequested: (snapshot) => root.openManagementPicker("playlist", snapshot)
+            onAddToCollectionRequested: (snapshot) => root.openManagementPicker("collection", snapshot)
+            onRemoveFromParentRequested: (snapshot) => root.openRemoveConfirm(snapshot)
+            onMovePlaylistItemRequested: (snapshot, delta) => {
+                if (appController)
+                    appController.movePlaylistItemInCurrent(snapshot, delta)
+            }
+            onRenameRequested: (snapshot) => root.openRenamePrompt(snapshot)
+            onDeleteRequested: (snapshot) => root.openDeleteConfirm(snapshot)
         }
     }
 
