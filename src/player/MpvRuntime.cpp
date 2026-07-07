@@ -3,10 +3,13 @@
 #include <QDebug>
 #include <QElapsedTimer>
 
+
+#include <functional>
 #include <atomic>
 #include <mutex>
 #include <string>
 #include <thread>
+#include <vector>
 
 #include <dlfcn.h>
 #include <limits.h>
@@ -58,6 +61,23 @@ struct MpvApi {
 MpvApi g_api;
 std::atomic<bool> g_loaded{false};
 std::mutex g_loadLock;
+std::mutex g_loadCallbackLock;
+std::vector<std::function<void()>> g_loadCallbacks;
+
+std::vector<std::function<void()>> takeLoadCallbacks()
+{
+    std::lock_guard<std::mutex> lock(g_loadCallbackLock);
+    return std::move(g_loadCallbacks);
+}
+
+void runLoadCallbacks()
+{
+    for (auto &callback : takeLoadCallbacks()) {
+        if (callback)
+            callback();
+    }
+}
+
 
 // The NativeAppWindow constructor registers the starfish OSD/crop callbacks
 // long before libmpv is loaded. Record them here and replay once the library
@@ -141,16 +161,41 @@ bool ensureLoaded()
 {
     if (g_loaded.load(std::memory_order_acquire))
         return true;
+
+    bool loadedNow = false;
     // Not call_once: a failed attempt must stay retryable, otherwise one
     // transient dlopen failure kills playback for the whole session. Repeat
     // attempts are user-triggered (play) and cheap.
-    std::lock_guard<std::mutex> lock(g_loadLock);
-    if (g_loaded.load(std::memory_order_relaxed))
-        return true;
-    if (!loadNow())
-        return false;
-    g_loaded.store(true, std::memory_order_release);
+    {
+        std::lock_guard<std::mutex> lock(g_loadLock);
+        if (g_loaded.load(std::memory_order_relaxed))
+            return true;
+        if (!loadNow())
+            return false;
+        g_loaded.store(true, std::memory_order_release);
+        loadedNow = true;
+    }
+
+    if (loadedNow)
+        runLoadCallbacks();
     return true;
+}
+
+void runAfterLoaded(std::function<void()> callback)
+{
+    if (!callback)
+        return;
+
+    bool runNow = false;
+    {
+        std::lock_guard<std::mutex> lock(g_loadCallbackLock);
+        runNow = g_loaded.load(std::memory_order_acquire);
+        if (!runNow)
+            g_loadCallbacks.push_back(std::move(callback));
+    }
+
+    if (runNow)
+        callback();
 }
 
 void preloadAsync()

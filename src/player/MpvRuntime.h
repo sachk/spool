@@ -1,5 +1,7 @@
 #pragma once
 
+#include <functional>
+
 // webOS-only lazy loader for libmpv.
 //
 // The app deliberately does not link libmpv (and therefore ffmpeg/lua) at
@@ -15,6 +17,11 @@ namespace JellyfinNative::MpvRuntime {
 // Start loading libmpv on a detached background thread. Idempotent; call
 // after the first frame has been presented.
 void preloadAsync();
+
+// Register work to run once libmpv has loaded successfully. If libmpv is
+// already loaded, the callback runs immediately on the calling thread; otherwise
+// it runs on the thread that completes the load.
+void runAfterLoaded(std::function<void()> callback);
 
 // Block until libmpv is loaded (performs the dlopen on the calling thread if
 // the preload has not run yet). Returns false if loading failed; the failure
