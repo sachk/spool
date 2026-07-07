@@ -88,13 +88,15 @@ void ContentModelController::loadDetailRows(const QString &itemId,
     const bool loadEpisodes = (itemType == QStringLiteral("Episode") ||
                                itemType == QStringLiteral("Season")) &&
                               !seriesId.isEmpty();
+    const bool loadBoxSet = itemType == QStringLiteral("BoxSet");
+    const bool loadContext = loadSeasons || loadEpisodes || loadBoxSet;
     m_detailRowsBusy = true;
-    m_detailRowsPending = (loadSeasons || loadEpisodes) ? 2 : 1;
+    m_detailRowsPending = loadContext ? 2 : 1;
     emit detailRowsChanged();
 
     qInfo() << "detail rows: loading" << itemType << itemId
             << "context="
-            << (loadSeasons ? "seasons" : loadEpisodes ? "episodes" : "none");
+            << (loadSeasons ? "seasons" : loadEpisodes ? "episodes" : loadBoxSet ? "boxset" : "none");
 
     if (loadSeasons) {
         Async::runLatest(
@@ -131,6 +133,23 @@ void ContentModelController::loadDetailRows(const QString &itemId,
             [this, generation, seriesId](
                 const std::exception_ptr &error) {
                 qWarning() << "detail rows: episodes fetch failed" << seriesId
+                           << exceptionMessage(error);
+                finishDetailRowLoad(generation);
+            });
+    } else if (loadBoxSet) {
+        Async::runLatest(
+            this, m_api->fetchBrowsePage(BrowseDescriptor::boxSet(itemId), 0, 200),
+            m_detailRowsGeneration, generation,
+            [this, generation, itemId](const PagedMovieItems &page) {
+                qInfo() << "detail rows: box set children loaded" << itemId
+                        << page.items.size();
+                m_detailSeasons.setMovies(page.items);
+                m_prefetch->prefetchPosters(page.items);
+                emit detailRowsChanged();
+                finishDetailRowLoad(generation);
+            },
+            [this, generation, itemId](const std::exception_ptr &error) {
+                qWarning() << "detail rows: box set children fetch failed" << itemId
                            << exceptionMessage(error);
                 finishDetailRowLoad(generation);
             });

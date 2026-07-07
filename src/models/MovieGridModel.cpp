@@ -150,6 +150,8 @@ QVariant MovieGridModel::data(const QModelIndex &index, int role) const
         return movie.year;
     case ItemTypeRole:
         return movie.itemType;
+    case PlaylistItemIdRole:
+        return movie.playlistItemId;
     case SeriesIdRole:
         return movie.seriesId;
     case SeasonIdRole:
@@ -225,6 +227,7 @@ QHash<int, QByteArray> MovieGridModel::roleNames() const
         {PosterTagRole, "posterTag"},
         {YearRole, "year"},
         {ItemTypeRole, "itemType"},
+        {PlaylistItemIdRole, "playlistItemId"},
         {SeriesIdRole, "seriesId"},
         {SeasonIdRole, "seasonId"},
         {SubtitleRole, "subtitle"},
@@ -272,6 +275,7 @@ QVariantMap MovieGridModel::get(int index) const
         {QStringLiteral("posterTag"), movie.posterTag},
         {QStringLiteral("year"), movie.year},
         {QStringLiteral("itemType"), movie.itemType},
+        {QStringLiteral("playlistItemId"), movie.playlistItemId},
         {QStringLiteral("seriesId"), movie.seriesId},
         {QStringLiteral("seasonId"), movie.seasonId},
         {QStringLiteral("subtitle"), movie.subtitle},

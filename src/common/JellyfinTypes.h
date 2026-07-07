@@ -121,6 +121,7 @@ struct MovieItem {
     QString posterUrl;
     QString posterTag;
     QString itemType;
+    QString playlistItemId;
     QString seriesId;
     QString seasonId;
     QString seriesName;

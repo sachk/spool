@@ -126,6 +126,12 @@ bool libraryBrowseNeedsVideoMediaType(const QString &collectionType)
            collectionType != QStringLiteral("boxsets");
 }
 
+bool libraryBrowseUsesDirectChildren(const QString &collectionType)
+{
+    return collectionType == QStringLiteral("playlists") ||
+           collectionType == QStringLiteral("boxsets");
+}
+
 QStringList queryStringList(const QVariantMap &options, const QString &key)
 {
     QStringList result;
@@ -349,6 +355,7 @@ MovieItem mediaItemFromJson(const JellyfinApiFacade *api, const QJsonObject &obj
     item.posterUrl = posterTag.isEmpty() ? QString() : api->buildImageUrl(itemId, posterTag);
     item.posterTag = posterTag;
     item.itemType = itemType;
+    item.playlistItemId = object.value(QStringLiteral("PlaylistItemId")).toString();
     item.seriesId = seriesId;
     item.seasonId = seasonId;
     item.seriesName = object.value(QStringLiteral("SeriesName")).toString();
@@ -701,11 +708,18 @@ QCoro::Task<PagedMovieItems> JellyfinApiFacade::fetchBrowsePage(BrowseDescriptor
 
     switch (descriptor.kind) {
     case BrowseKind::Library: {
-        const QString includeItemTypes = includeItemTypesForCollection(descriptor.collectionType);
+        QString includeItemTypes = includeItemTypesForCollection(descriptor.collectionType);
+        const QString requestedTypes =
+            queryStringList(queryOptions, QStringLiteral("includeItemTypes")).join(QLatin1Char(','));
+        const bool collectionFilter =
+            descriptor.collectionType == QStringLiteral("movies") &&
+            requestedTypes == QStringLiteral("BoxSet");
+        if (collectionFilter)
+            includeItemTypes = requestedTypes;
         builder.parentId(descriptor.id)
-            .recursive()
+            .recursive(!collectionFilter && !libraryBrowseUsesDirectChildren(descriptor.collectionType))
             .includeItemTypes(includeItemTypes);
-        if (libraryBrowseNeedsVideoMediaType(descriptor.collectionType))
+        if (!collectionFilter && libraryBrowseNeedsVideoMediaType(descriptor.collectionType))
             builder.mediaTypes(QStringLiteral("Video"));
         allowedTypes = itemTypesList(includeItemTypes);
         break;
@@ -750,10 +764,7 @@ QCoro::Task<PagedMovieItems> JellyfinApiFacade::fetchBrowsePage(BrowseDescriptor
         allowedTypes = itemTypesList(QStringLiteral("Episode"));
         break;
     case BrowseKind::Playlist:
-        builder.parentId(descriptor.id)
-            .recursive(false)
-            .includeItemTypes(QStringLiteral("Movie,Episode,MusicVideo,Video,Audio"))
-            .sort(QStringLiteral("SortName"));
+        path = QStringLiteral("/Playlists/%1/Items").arg(descriptor.id);
         allowedTypes = itemTypesList(QStringLiteral("Movie,Episode,MusicVideo,Video,Audio"));
         break;
     case BrowseKind::BoxSet:
