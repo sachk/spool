@@ -36,6 +36,12 @@ public:
                        ImageKind imageKind = ImageKind::Poster);
 
 private:
+  struct PrefetchRequest {
+    BrowseDescriptor descriptor;
+    QString cacheKey;
+    QString title;
+  };
+
   void startNext();
 
   JellyfinApiFacade *m_api = nullptr;
@@ -44,7 +50,7 @@ private:
   RequestGeneration m_generation;
   int m_index = 0;
   bool m_active = false;
-  std::vector<LibraryItem> m_queue;
+  std::vector<PrefetchRequest> m_queue;
   QHash<QString, PagedMovieItems> m_pages;
   QSet<QString> m_cachedKeys;
   int m_imagePrefetchAheadItems = 16;

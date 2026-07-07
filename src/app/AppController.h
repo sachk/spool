@@ -26,7 +26,7 @@ namespace JellyfinNative {
 class ArtworkService;
 class JellyfinApiFacade;
 class ContentModelController;
-class CurrentItemsController;
+class BrowseSessionController;
 class HomeModelController;
 class LibraryPrefetchController;
 class UserItemStateController;
@@ -186,6 +186,7 @@ private:
     void showCurrentItemsPage(const PagedMovieItems &page, const QString &cacheKey, bool append);
     void setLibraryQuery(const QVariantMap &query);
     void loadLibraryFilterOptions(RequestGeneration::Token generation, const LibraryItem &library);
+    void loadCurrentBrowsePage(const QString &loadingText);
     void openSeries(const MovieItem &series);
     void openSeason(const MovieItem &season);
     void openPlaylist(const MovieItem &playlist);
@@ -204,7 +205,7 @@ private:
     PlayerController *m_player = nullptr;
     SyncPlayController *m_syncPlay = nullptr;
     ContentModelController *m_content = nullptr;
-    CurrentItemsController *m_currentItems = nullptr;
+    BrowseSessionController *m_browse = nullptr;
     HomeModelController *m_home = nullptr;
     QuickConnectController *m_quickConnect = nullptr;
     SettingsController *m_settings = nullptr;

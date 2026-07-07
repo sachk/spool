@@ -180,8 +180,8 @@ qt_add_executable(jellyfin-native
     src/app/ContentModelController.h
     src/app/CpuTopology.cpp
     src/app/CpuTopology.h
-    src/app/CurrentItemsController.cpp
-    src/app/CurrentItemsController.h
+    src/app/BrowseSessionController.cpp
+    src/app/BrowseSessionController.h
     src/app/HomeModelController.cpp
     src/app/HomeModelController.h
     src/app/LibraryQuery.cpp
@@ -507,14 +507,47 @@ if(BUILD_TESTING AND NOT CMAKE_CROSSCOMPILING)
         tests/app/NavigationStateTest.cpp
         src/app/NavigationState.cpp
         src/app/NavigationState.h
-        src/common/JellyfinTypes.cpp
-        src/common/JellyfinTypes.h
     )
     target_include_directories(navigation-state-tests PRIVATE
         "${CMAKE_CURRENT_SOURCE_DIR}/src"
     )
     target_link_libraries(navigation-state-tests PRIVATE Qt6::Core)
     add_test(NAME navigation-state COMMAND navigation-state-tests)
+
+    add_executable(browse-session-controller-tests
+        tests/app/BrowseSessionControllerTest.cpp
+        src/app/BrowseSessionController.cpp
+        src/app/BrowseSessionController.h
+        src/app/LibraryPrefetchController.cpp
+        src/app/LibraryPrefetchController.h
+        src/app/ArtworkPrefetcher.h
+        src/app/LibraryQuery.cpp
+        src/app/LibraryQuery.h
+        src/api/JellyfinApiFacade.cpp
+        src/api/JellyfinApiFacade.h
+        src/api/ItemsQuery.cpp
+        src/api/ItemsQuery.h
+        src/api/PlaybackNegotiation.cpp
+        src/api/PlaybackNegotiation.h
+        src/api/HttpRequestPolicy.h
+        src/common/AsyncTask.h
+        src/common/JellyfinTypes.cpp
+        src/common/JellyfinTypes.h
+        src/diagnostics/Diagnostics.cpp
+        src/diagnostics/Diagnostics.h
+        src/models/MovieGridModel.cpp
+        src/models/MovieGridModel.h
+    )
+    target_include_directories(browse-session-controller-tests PRIVATE
+        "${CMAKE_CURRENT_SOURCE_DIR}/src"
+    )
+    target_link_libraries(browse-session-controller-tests PRIVATE
+        Qt6::Core
+        Qt6::Network
+        QCoro6::Core
+        QCoro6::Network
+    )
+    add_test(NAME browse-session-controller COMMAND browse-session-controller-tests)
 
     add_executable(settings-schema-tests
         tests/app/SettingsSchemaTest.cpp
