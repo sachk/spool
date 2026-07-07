@@ -305,8 +305,10 @@ qt_add_qml_module(jellyfin-native
         qml/pages/LoginPage.qml
         qml/pages/PersonDetailsPage.qml
         qml/pages/PlayerAudioSyncPanel.qml
+        qml/pages/PlayerOverlayAutoHide.qml
         qml/pages/PlayerOverlayChrome.qml
         qml/pages/PlayerOverlayInput.qml
+        qml/pages/PlayerOverlayFormat.js
         qml/pages/PlayerOverlayMenu.qml
         qml/pages/PlayerOverlayPage.qml
         qml/pages/PlayerSeekBar.qml

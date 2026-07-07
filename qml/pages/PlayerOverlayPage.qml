@@ -4,6 +4,7 @@ import QtQuick.Layouts
 import JellyfinWebOS
 import "../theme"
 import "../primitives"
+import "PlayerOverlayFormat.js" as PlayerOverlayFormat
 
 FocusScope {
     id: overlay
@@ -126,35 +127,19 @@ FocusScope {
     }
 
     function restartAutohide() {
-        autohideTimer.interval = autohideDelayMs()
-        autohideTimer.restart()
+        autohide.restart(autohideDelayMs())
     }
 
     function formatClock(seconds) {
-        const total = Math.max(0, Math.floor(seconds || 0))
-        const hours = Math.floor(total / 3600)
-        const minutes = Math.floor((total % 3600) / 60)
-        const secs = total % 60
-        return hours > 0 ? hours + ":" + String(minutes).padStart(2, "0") + ":" + String(secs).padStart(2, "0") : minutes + ":" + String(secs).padStart(2, "0")
+        return PlayerOverlayFormat.formatClock(seconds)
     }
 
     function formatAudioDelay(value) {
-        const ms = clampAudioDelayMs(value)
-        if (ms > 0) return "+" + ms + " ms"
-        return ms + " ms"
+        return PlayerOverlayFormat.formatAudioDelay(clampAudioDelayMs(value))
     }
 
     function actionIcon(value) {
-        if (value === "back") return "fast_rewind"
-        if (value === "pause") return hasPlayer && player.paused ? "play_arrow" : "pause"
-        if (value === "forward") return "fast_forward"
-        if (value === "prevChapter") return "skip_previous"
-        if (value === "nextChapter") return "skip_next"
-        if (value === "subtitles") return "closed_caption"
-        if (value === "audio") return "audiotrack"
-        if (value === "queue") return "playlist_play"
-        if (value === "fullscreen") return nativeWindow.fullScreen ? "fullscreen_exit" : "fullscreen"
-        return "settings"
+        return PlayerOverlayFormat.actionIcon(value, hasPlayer && player.paused, nativeWindow && nativeWindow.fullScreen)
     }
 
     function actionCenterX(actionValue) {
@@ -190,7 +175,7 @@ FocusScope {
             row = preferredRow || "timeline"
         if (!isMenuOpen() && !isAudioSyncOpen())
             mode = "controls"
-        if (isPinned()) autohideTimer.stop()
+        if (isPinned()) autohide.stop()
         else restartAutohide()
     }
 
@@ -202,11 +187,11 @@ FocusScope {
     function hideControls() {
         if (isPinned()) {
             if (scrubbing)
-                autohideTimer.restart()
+                autohide.restart(autohideDelayMs())
             return false
         }
         cancelHeldNavigation()
-        autohideTimer.stop()
+        autohide.stop()
         mode = "hidden"
         row = "timeline"
         return true
@@ -330,7 +315,7 @@ FocusScope {
         mode = "subtitles"
         menuIndex = 0
         chrome.positionMenuAtTop()
-        autohideTimer.stop()
+        autohide.stop()
     }
 
     function openAudio() {
@@ -338,7 +323,7 @@ FocusScope {
         mode = "audio"
         menuIndex = hasPlayer ? Math.max(0, player.selectedAudioIndex) : 0
         chrome.positionMenuAtTop()
-        autohideTimer.stop()
+        autohide.stop()
     }
 
     function openQueue() {
@@ -346,7 +331,7 @@ FocusScope {
         mode = "queue"
         menuIndex = playQueue ? Math.max(0, playQueue.currentIndex) : 0
         chrome.positionMenuAtTop()
-        autohideTimer.stop()
+        autohide.stop()
     }
 
     function openDebugMenu() {
@@ -354,13 +339,13 @@ FocusScope {
         mode = "debug"
         menuIndex = 0
         chrome.positionMenuAtTop()
-        autohideTimer.stop()
+        autohide.stop()
     }
 
     function openAudioSync() {
         mode = "audiosync"
         audioSyncRow = "delay"
-        autohideTimer.stop()
+        autohide.stop()
     }
 
     function wheelVolumeDelta(event) {
@@ -439,7 +424,7 @@ FocusScope {
         const showing = !player.debugOsdVisible
         player.toggleDebugOsd()
         if (showing) {
-            autohideTimer.stop()
+            autohide.stop()
             mode = "hidden"
             row = "timeline"
         } else {
@@ -514,7 +499,7 @@ FocusScope {
         if (scrubbing) {
             scrubTimer.stop()
             scrubbing = false
-            autohideTimer.stop()
+            autohide.stop()
             mode = "hidden"
             row = "timeline"
             return true
@@ -522,7 +507,7 @@ FocusScope {
         if (isAudioSyncOpen()) { mode = "controls"; showControls("actions"); return true }
         if (isMenuOpen()) { closeMenu(); return true }
         if (mode !== "hidden") {
-            autohideTimer.stop()
+            autohide.stop()
             mode = "hidden"
             row = "timeline"
             return true
@@ -545,7 +530,7 @@ FocusScope {
             actionIndex = 1
             showControls("timeline")
         } else {
-            autohideTimer.stop()
+            autohide.stop()
             scrubTimer.stop()
             previewBurstTimer.stop()
             stopPreviewSeekHold()
@@ -565,7 +550,11 @@ FocusScope {
         overlay: parent
     }
 
-    Timer { id: autohideTimer; interval: 3000; onTriggered: overlay.hideControls() }
+    PlayerOverlayAutoHide {
+        id: autohide
+        overlay: parent
+    }
+
     Timer { id: scrubTimer; interval: 650; onTriggered: overlay.commitScrub() }
     Timer {
         id: previewBurstTimer
