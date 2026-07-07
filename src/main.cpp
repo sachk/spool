@@ -39,7 +39,6 @@ Q_IMPORT_PLUGIN(QWaylandWlShellIntegrationPlugin)
 Q_IMPORT_PLUGIN(QJpegPlugin)
 Q_IMPORT_PLUGIN(QWebpPlugin)
 Q_IMPORT_PLUGIN(QSQLiteDriverPlugin)
-Q_IMPORT_PLUGIN(QVirtualKeyboardPlugin)
 #endif
 
 #include <QCoreApplication>
@@ -60,6 +59,7 @@ Q_IMPORT_PLUGIN(QVirtualKeyboardPlugin)
 #include <QNetworkDiskCache>
 #include <QMetaObject>
 #include <QQuickStyle>
+#include <QQuickGraphicsConfiguration>
 #include <QQuickWindow>
 #include <QSGRendererInterface>
 #include <QSocketNotifier>
@@ -75,6 +75,9 @@ Q_IMPORT_PLUGIN(QVirtualKeyboardPlugin)
 #include <cstdio>
 #include <cstdlib>
 #include <memory>
+#include <thread>
+#include <utility>
+#include <vector>
 
 namespace {
 
@@ -139,6 +142,111 @@ bool resolveAppRoot(char *buffer, size_t size)
     *lastSlash = '\0';
     return true;
 }
+
+bool environmentDisablesFeature(const char *name)
+{
+    const QByteArray value = qgetenv(name).trimmed().toLower();
+    return value == "0" || value == "false" || value == "no" || value == "off";
+}
+
+QString startupCacheRoot(const QString &appRootPath)
+{
+    const QByteArray configured = qgetenv("JELLYFIN_NATIVE_CACHE_HOME");
+    if (!configured.isEmpty())
+        return QString::fromLocal8Bit(configured);
+
+    const QByteArray xdgCache = qgetenv("XDG_CACHE_HOME");
+    if (!xdgCache.isEmpty())
+        return QDir(QString::fromLocal8Bit(xdgCache)).filePath(QString::fromLatin1(kAppId));
+
+#ifdef JELLYFIN_NATIVE_WEBOS
+    return QDir(appRootPath).filePath(QStringLiteral(".cache"));
+#else
+    Q_UNUSED(appRootPath);
+    return QDir(QDir::home().filePath(QStringLiteral(".cache"))).filePath(QString::fromLatin1(kAppId));
+#endif
+}
+
+void configurePersistentStartupCaches(const QString &cacheRoot)
+{
+    const QString fontconfigCache = QDir(cacheRoot).filePath(QStringLiteral("fontconfig"));
+    const QString qtShaderCache = QDir(cacheRoot).filePath(QStringLiteral("qtshadercache"));
+    QDir().mkpath(fontconfigCache);
+    QDir().mkpath(qtShaderCache);
+
+    // These must be in the environment before QGuiApplication is constructed:
+    // Qt and fontconfig both snapshot cache locations during platform/font
+    // setup. Point them at app-owned persistent storage; never clear them.
+    qputenv("XDG_CACHE_HOME", QFile::encodeName(cacheRoot));
+    qputenv("FONTCONFIG_CACHE", QFile::encodeName(fontconfigCache));
+    qputenv("QT_SHADER_CACHE_PATH", QFile::encodeName(qtShaderCache));
+}
+
+void configurePersistentRhiPipelineCache(QQuickWindow &window, const QString &cacheRoot)
+{
+    const QString rhiCacheDir = QDir(cacheRoot).filePath(QStringLiteral("rhi-pipeline-cache"));
+    QDir().mkpath(rhiCacheDir);
+
+    const QString cacheFile = QDir(rhiCacheDir).filePath(QStringLiteral("qt-rhi-pipeline-cache.bin"));
+    QQuickGraphicsConfiguration graphicsConfig;
+    graphicsConfig.setAutomaticPipelineCache(true);
+    graphicsConfig.setPipelineCacheLoadFile(cacheFile);
+    graphicsConfig.setPipelineCacheSaveFile(cacheFile);
+    window.setGraphicsConfiguration(graphicsConfig);
+}
+
+#if defined(__linux__)
+void adviseWillNeed(const QByteArray &path)
+{
+    const int fd = open(path.constData(), O_RDONLY | O_CLOEXEC);
+    if (fd < 0)
+        return;
+
+    posix_fadvise(fd, 0, 0, POSIX_FADV_SEQUENTIAL);
+    posix_fadvise(fd, 0, 0, POSIX_FADV_WILLNEED);
+    close(fd);
+}
+
+void startStartupReadahead(const QString &appRootPath)
+{
+    if (environmentDisablesFeature("JELLYFIN_STARTUP_READAHEAD"))
+        return;
+
+    const QByteArray appRoot = QFile::encodeName(appRootPath);
+    std::vector<QByteArray> paths;
+    paths.reserve(24);
+    paths.push_back(QByteArrayLiteral("/proc/self/exe"));
+
+    auto addAppPath = [&paths, &appRoot](const char *relativePath) {
+        paths.push_back(appRoot + '/' + QByteArray(relativePath));
+    };
+    addAppPath("lib/libQt6Core.so.6");
+    addAppPath("lib/libQt6Gui.so.6");
+    addAppPath("lib/libQt6Network.so.6");
+    addAppPath("lib/libQt6Qml.so.6");
+    addAppPath("lib/libQt6QmlModels.so.6");
+    addAppPath("lib/libQt6Quick.so.6");
+    addAppPath("lib/libQt6QuickControls2.so.6");
+    addAppPath("lib/libQt6QuickTemplates2.so.6");
+    addAppPath("lib/libQt6Sql.so.6");
+    addAppPath("lib/libQt6OpenGL.so.6");
+    addAppPath("lib/libQt6WaylandClient.so.6");
+    addAppPath("qt-plugins/platforms/libqwayland-egl.so");
+    addAppPath("qt-plugins/sqldrivers/libqsqlite.so");
+    addAppPath("qt-plugins/imageformats/libqjpeg.so");
+    addAppPath("qt-plugins/imageformats/libqwebp.so");
+    addAppPath("qt-qml/JellyfinWebOS/libJellyfinWebOSplugin.so");
+
+    std::thread([paths = std::move(paths)]() {
+        for (const QByteArray &path : paths)
+            adviseWillNeed(path);
+    }).detach();
+}
+#else
+void startStartupReadahead(const QString &)
+{
+}
+#endif
 
 #ifdef JELLYFIN_NATIVE_WEBOS
 bool ensureWaylandEnv()
@@ -372,16 +480,12 @@ int main(int argc, char **argv)
     setenv("STARFISH_AUDIO_HINT", "0", 1);
     setenv("QT_QPA_PLATFORM", "wayland-egl", 1);
     setenv("QSG_RHI_BACKEND", "opengl", 1);
+    // Some webOS environments export the legacy Qt 5 scenegraph backend
+    // "customcontext"; Qt 6 probes it as a plugin, logs a startup warning, and
+    // then falls back. The app already selects OpenGL through Qt 6 RHI knobs.
+    unsetenv("QT_QUICK_BACKEND");
     setenv("QT_WAYLAND_SHELL_INTEGRATION", "wl-shell", 1);
     setenv("QT_WAYLAND_TEXT_INPUT_PROTOCOL", "qt_text_input_method_v1", 1);
-    // Use Qt's in-process virtual keyboard as the input method. The webOS
-    // LSM does not reliably hand back text from its native IME for
-    // arbitrary native apps, and the wayland compositor's text-input
-    // protocol path is fragile across webOS versions. QtVirtualKeyboard
-    // renders entirely inside our QML scene and handles D-pad navigation
-    // between keys natively (FEATURE_vkb_arrow_keynavigation), which is
-    // what we want for the magic remote.
-    setenv("QT_IM_MODULE", "qtvirtualkeyboard", 1);
     setenv("QT_QPA_FONTDIR", "/usr/share/fonts", 1);
     setenv("QT_NO_GLIB", "1", 1);
     // Suppress all client-side wl_pointer.set_cursor calls so the webOS
@@ -423,13 +527,16 @@ int main(int argc, char **argv)
     }
 #endif
 
+    const QString cachePath = startupCacheRoot(appRootPath);
+    configurePersistentStartupCaches(cachePath);
+    startStartupReadahead(appRootPath);
+
     logLine("app root: %s", appRoot);
     logLine("QT_QPA_PLATFORM=%s", qgetenv("QT_QPA_PLATFORM").constData());
     logLine("QT_PLUGIN_PATH=%s", qgetenv("QT_PLUGIN_PATH").constData());
     logLine("QML2_IMPORT_PATH=%s", qgetenv("QML2_IMPORT_PATH").constData());
 #ifdef JELLYFIN_NATIVE_WEBOS
     logLine("QT_WAYLAND_TEXT_INPUT_PROTOCOL=%s", qgetenv("QT_WAYLAND_TEXT_INPUT_PROTOCOL").constData());
-    logLine("QT_IM_MODULE=%s", qgetenv("QT_IM_MODULE").constData());
 #endif
 
     qInstallMessageHandler(qtMessageHandler);
@@ -534,7 +641,6 @@ int main(int argc, char **argv)
 
     auto *networkAccessManager = new QNetworkAccessManager(&app);
     auto *diskCache = new QNetworkDiskCache(networkAccessManager);
-    const QString cachePath = QStandardPaths::writableLocation(QStandardPaths::CacheLocation);
     const QString qmlImageCachePath = cachePath + QStringLiteral("/qml-image-cache");
     QDir().mkpath(cachePath);
     diskCache->setCacheDirectory(cachePath + QStringLiteral("/network-cache"));
@@ -542,6 +648,21 @@ int main(int argc, char **argv)
     networkAccessManager->setCache(diskCache);
 
     JellyfinNative::DatabaseManager database;
+    JellyfinNative::NativeAppWindow window(QString::fromLatin1(kAppId));
+    configurePersistentRhiPipelineCache(window, cachePath);
+    {
+    JellyfinNative::Diagnostics::Phase phase(QStringLiteral("startup"), QStringLiteral("prepare_ui_surface"));
+    if (!window.prepareForUiSurface()) {
+        logLine("failed to initialize Qt webOS UI surface");
+        return 1;
+    }
+    }
+    logLine("startup: prepareForUiSurface completed in %lld ms",
+            static_cast<long long>(startupTimer.elapsed()));
+
+    // Keep SQLite off the pre-window path. It still has to be ready before
+    // AppController is exposed to QML because controller construction reads
+    // DB-backed settings and session state synchronously.
     {
     JellyfinNative::Diagnostics::Phase phase(QStringLiteral("startup"), QStringLiteral("database_initialize"));
     if (!database.initialize(QStandardPaths::writableLocation(QStandardPaths::AppDataLocation) + QStringLiteral("/cache.sqlite")))
@@ -563,18 +684,7 @@ int main(int argc, char **argv)
                            QStringLiteral("Linux Wayland"),
 #endif
                            QString::fromLatin1(kAppVersion));
-
-    JellyfinNative::NativeAppWindow window(QString::fromLatin1(kAppId));
-    {
-    JellyfinNative::Diagnostics::Phase phase(QStringLiteral("startup"), QStringLiteral("prepare_ui_surface"));
-    if (!window.prepareForUiSurface()) {
-        logLine("failed to initialize Qt webOS UI surface");
-        return 1;
-    }
-    }
     api->setArtworkUiWidth(window.width());
-    logLine("startup: prepareForUiSurface completed in %lld ms",
-            static_cast<long long>(startupTimer.elapsed()));
 
     const JellyfinNative::CpuTopology cpuTopology = JellyfinNative::detectCpuTopology();
     logLine("artwork: cpu logical=%d physical=%d smt=%s source=%s decodeThreads=%d",

@@ -146,6 +146,7 @@ private:
     PlaybackSession buildPlaybackSession(const MovieItem &movie, const QJsonObject &playbackResponse) const;
     HttpOperation operationFor(HttpMethod method, const QString &path) const;
     bool shouldExpireSession(const QString &path) const;
+    void preconnectToServer();
 
     QNetworkAccessManager *m_networkAccessManager = nullptr;
     QRestAccessManager m_rest;
@@ -156,6 +157,7 @@ private:
     QString m_clientVersion = QStringLiteral("0.1.0");
     AuthSession m_session;
     QSet<QNetworkReply *> m_activeReplies;
+    QString m_preconnectedAuthority;
     int m_artworkUiWidth = 1920;
     qint64 m_maxStreamingBitrate = 120'000'000;
     bool m_preferRemux = true;
