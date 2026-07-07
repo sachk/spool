@@ -12,7 +12,7 @@
       flake = false;
     };
     mpv-webos-src = {
-      url = "github:sachk/mpv/4528e21ae48575d572dda5b7b952eba2ad0c47d9";
+      url = "github:sachk/mpv/dd37e0e5245852e3bbd19e21856e28e77fb78610";
       flake = false;
     };
   };

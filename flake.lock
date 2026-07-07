@@ -37,17 +37,17 @@
     "mpv-webos-src": {
       "flake": false,
       "locked": {
-        "lastModified": 1780979268,
-        "narHash": "sha256-WP++HYeOzOqE7JaEGDE3THD3+yXt7u+51EgA9DxiWwg=",
+        "lastModified": 1783410015,
+        "narHash": "sha256-/MSoOqH1GO99glSgvTsDSbVcUNxycCP701EMKg3bPX0=",
         "owner": "sachk",
         "repo": "mpv",
-        "rev": "4528e21ae48575d572dda5b7b952eba2ad0c47d9",
+        "rev": "dd37e0e5245852e3bbd19e21856e28e77fb78610",
         "type": "github"
       },
       "original": {
         "owner": "sachk",
         "repo": "mpv",
-        "rev": "4528e21ae48575d572dda5b7b952eba2ad0c47d9",
+        "rev": "dd37e0e5245852e3bbd19e21856e28e77fb78610",
         "type": "github"
       }
     },
