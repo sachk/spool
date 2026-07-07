@@ -2,6 +2,8 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+# shellcheck source=tools/lib/build-common.sh
+source "$ROOT/tools/lib/build-common.sh"
 # shellcheck source=tools/lib/manifest-sources.sh
 source "$ROOT/tools/lib/manifest-sources.sh"
 MANIFEST="${WEBOS_THIRD_PARTY_MANIFEST:-$ROOT/tools/manifests/webos-third-party.json}"
@@ -37,7 +39,7 @@ make linux \
   CC="$CC --sysroot=$SYSROOT" \
   AR="$AR" \
   RANLIB="$RANLIB" \
-  MYCFLAGS="-fPIC -O2" \
+  MYCFLAGS="-fPIC -O2 $(webos_tune_cflags)" \
   MYLDFLAGS="--sysroot=$SYSROOT"
 
 "$SDK_BIN/arm-webos-linux-gnueabi-gcc" \

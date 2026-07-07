@@ -137,8 +137,9 @@ DOVI_INC="$DOVI_TOOL_ROOT/dolby_vision/include"
 # libunwind segfaults on this target, so .ARM.exidx/.eh_frame is the only path
 # to per-function heap attribution. Negligible size/perf cost.
 HEAPTRACK_UNWIND_FLAGS="${HEAPTRACK_UNWIND_FLAGS:--fasynchronous-unwind-tables -funwind-tables -fno-omit-frame-pointer -g}"
-export CFLAGS="${CFLAGS:-} -I$DOVI_INC $HEAPTRACK_UNWIND_FLAGS"
-export CXXFLAGS="${CXXFLAGS:-} -I$DOVI_INC $HEAPTRACK_UNWIND_FLAGS"
+WEBOS_TUNE_CFLAGS_EXPANDED="$(webos_tune_cflags)"
+export CFLAGS="${CFLAGS:-} -I$DOVI_INC $WEBOS_TUNE_CFLAGS_EXPANDED $HEAPTRACK_UNWIND_FLAGS"
+export CXXFLAGS="${CXXFLAGS:-} -I$DOVI_INC $WEBOS_TUNE_CFLAGS_EXPANDED $HEAPTRACK_UNWIND_FLAGS"
 export LDFLAGS="${LDFLAGS:-} -L$(dirname "$DOVI_LIB")"
 export PKG_CONFIG_PATH="$PREFIX/lib/pkgconfig"
 export PKG_CONFIG_LIBDIR="$PREFIX/lib/pkgconfig:$SYSROOT/usr/lib/pkgconfig:$SYSROOT/usr/share/pkgconfig"
@@ -195,9 +196,10 @@ MPV_SETUP_ARGS=(
   "-Dc_link_args=-L$(dirname "$DOVI_LIB") -ldovi"
   "-Dcpp_link_args=-L$(dirname "$DOVI_LIB") -ldovi"
   # Explicit c_args/cpp_args: meson --reconfigure does not re-read CFLAGS env,
-  # so pass the unwind flags here too (deep heaptrack stacks need them in libmpv).
-  "-Dc_args=$HEAPTRACK_UNWIND_FLAGS"
-  "-Dcpp_args=$HEAPTRACK_UNWIND_FLAGS"
+  # so pass the tuning + unwind flags here too (deep heaptrack stacks need the
+  # unwind flags in libmpv).
+  "-Dc_args=$WEBOS_TUNE_CFLAGS_EXPANDED $HEAPTRACK_UNWIND_FLAGS"
+  "-Dcpp_args=$WEBOS_TUNE_CFLAGS_EXPANDED $HEAPTRACK_UNWIND_FLAGS"
 )
 
 if [[ -f "$MPV_BUILD/build.ninja" ]]; then

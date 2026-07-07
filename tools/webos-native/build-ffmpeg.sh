@@ -38,7 +38,8 @@ describe_parallel_jobs "$WEBOS_BUILD_JOBS" "FFmpeg" "$WEBOS_BUILD_MEMORY_PER_JOB
 ./configure \
   --prefix="$TARGET_PREFIX" \
   --arch=arm \
-  --cpu=cortex-a9 \
+  --cpu=cortex-a53 \
+  --enable-thumb \
   --target-os=linux \
   --enable-cross-compile \
   --cross-prefix="$SDK_BIN/arm-webos-linux-gnueabi-" \
@@ -117,7 +118,7 @@ describe_parallel_jobs "$WEBOS_BUILD_JOBS" "FFmpeg" "$WEBOS_BUILD_MEMORY_PER_JOB
   --enable-bsf=aac_adtstoasc \
   --enable-bsf=h264_mp4toannexb \
   --enable-bsf=hevc_mp4toannexb \
-  --extra-cflags="--sysroot=$SYSROOT -I$PREFIX/include ${FFMPEG_DIAG_CFLAGS:--fasynchronous-unwind-tables -funwind-tables -g}" \
+  --extra-cflags="--sysroot=$SYSROOT -I$PREFIX/include $(webos_tune_cflags) ${FFMPEG_DIAG_CFLAGS:--fasynchronous-unwind-tables -funwind-tables -g}" \
   --extra-ldflags="--sysroot=$SYSROOT -L$PREFIX/lib -Wl,-rpath-link,$PREFIX/lib"
 
 make -j"$WEBOS_BUILD_JOBS"

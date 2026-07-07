@@ -198,9 +198,12 @@ Hardest three (this session):
       `starfish_*` callback setters called in the `NativeAppWindow`
       constructor, async preload on first `frameSwapped`, libmpv+ffmpeg+lua
       dropped from app `DT_NEEDED` (verified via readelf).
-- [ ] §2 Thumb-2 + cortex-a53/armv8-fpu retune of app, libmpv, ffmpeg
-      (`--enable-thumb`, `--cpu=cortex-a53`), lua. (Qt stays ARM-mode until
-      its own rebuild — see below.)
+- [x] §2 Thumb-2 + cortex-a53/armv8-fpu retune of app, libmpv, ffmpeg
+      (`--enable-thumb`, `--cpu=cortex-a53`), lua via `webos_tune_cflags` in
+      `tools/lib/build-common.sh` (override: `WEBOS_TUNE_CFLAGS`). Verified
+      Thumb on all exported ffmpeg/libmpv functions; libavcodec −23%
+      (14.75 → 11.39 MB). Qt stays ARM-mode until its own rebuild — see
+      below. libdovi (Rust) keeps its own codegen.
 - [x] §2bis libmpv dynamic-export diet: anonymous linker version script
       (`mpv_webos/libmpv.ver`) exporting only `mpv_*` + `starfish_*`;
       3454 → 94 exported functions, verified against the dlopen shim's
