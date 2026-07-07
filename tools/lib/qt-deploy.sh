@@ -45,7 +45,8 @@ qt_deploy_linuxdeploy_qt_shadow() {
 #!/usr/bin/env bash
 args=()
 for arg in "\$@"; do
-  if [[ "\$arg" == *-qtbase-*/lib/qt-6/qml && ! -d "\$arg" ]]; then
+  if [[ "\$arg" == */AppDir/usr/lib/qt-6/qml ]] \
+      || [[ "\$arg" == *-qtbase-*/lib/qt-6/qml && ! -d "\$arg" ]]; then
     args+=("$qml_import_dir")
   else
     args+=("\$arg")
