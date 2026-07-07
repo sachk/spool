@@ -164,6 +164,25 @@ Item {
         elide: Text.ElideRight
     }
 
+    Rectangle {
+        anchors.horizontalCenter: parent.horizontalCenter
+        anchors.bottom: parent.bottom
+        width: root.focused ? Math.round(root.width * 0.74) : 0
+        height: 3
+        radius: 2
+        color: Theme.accentPurple
+        opacity: root.focused ? 1 : 0
+
+        Behavior on width {
+            enabled: !Theme.reducedMotion
+            NumberAnimation { duration: 100; easing.type: Easing.OutQuad }
+        }
+        Behavior on opacity {
+            enabled: !Theme.reducedMotion
+            NumberAnimation { duration: 100; easing.type: Easing.OutQuad }
+        }
+    }
+
     MediaItemActions {
         id: actions
         anchors.fill: parent
