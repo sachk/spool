@@ -190,7 +190,7 @@ FocusScope {
                 iconName: "groups"
                 accessibleName: "SyncPlay"
                 railStyle: true
-                selected: syncMenu.menuOpen
+                selected: root.syncPlayMenuOpen
                 onClicked: root.openSyncMenu()
                 Keys.onReleased: (event) => {
                     if (InputKeys.isAccept(event.key)) {

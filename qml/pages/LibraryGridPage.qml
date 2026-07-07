@@ -855,13 +855,11 @@ FocusScope {
                     onActivated: {
                         grid.currentIndex = index
                         shell.lastGridIndex = index
-                        shell.lastGridY = grid.contentY
                         root.activateCurrent()
                     }
                     onDetailsRequested: {
                         grid.currentIndex = index
                         shell.lastGridIndex = index
-                        shell.lastGridY = grid.contentY
                         root.openCurrentDetails()
                     }
                     onFavoriteToggled: (favorite) => appController.setFavorite(gridDelegate.movieId || "", favorite)

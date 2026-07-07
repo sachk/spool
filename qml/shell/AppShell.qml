@@ -13,7 +13,6 @@ FocusScope {
     readonly property string route: router ? router.route : controllerRoute()
     property int lastLibraryIndex: 0
     property int lastGridIndex: 0
-    property real lastGridY: 0
     property int lastSearchIndex: 0
     property var detailsModel: appController ? appController.movies : null
     property int detailsIndex: 0
