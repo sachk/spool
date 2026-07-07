@@ -162,7 +162,6 @@
           qt6.qtimageformats
           qt6Packages.qcoro
           qt6.qttools
-          qt6.qtvirtualkeyboard
           qt6.qtwebsockets
           (qmlToolWrappers pkgs)
         ])
@@ -176,7 +175,6 @@
           qt6.qtbase
           qt6.qtdeclarative
           qt6.qtimageformats
-          qt6.qtvirtualkeyboard
           qt6.qtwebsockets
         ])
         ++ pkgs.lib.optionals pkgs.stdenv.isLinux (with pkgs; [
@@ -229,8 +227,6 @@
       nativeShellHook = pkgs: commonShellHook pkgs + ''
         # This shell intentionally includes nixpkgs Qt for native Linux/macOS
         # development. Do not use it for tools/webos-native/build-qt6-611.sh.
-        export JELLYFIN_NATIVE_SHELL=1
-        export JELLYFIN_QT_VIRTUAL_KEYBOARD_QML_ROOT="${pkgs.qt6.qtvirtualkeyboard}/${pkgs.qt6.qtbase.qtQmlPrefix}"
       '';
     in
     {

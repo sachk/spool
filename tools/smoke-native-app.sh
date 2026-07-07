@@ -99,7 +99,6 @@ configure_isolated_qt_paths() {
   [[ -n "$qt_qml" && -d "$qt_qml" ]] && qml_paths+=("$qt_qml")
   [[ -n "$qmake_qml" ]] && qml_paths+=("$qmake_qml")
   [[ -n "$filtered_qml" ]] && qml_paths+=("$filtered_qml")
-  [[ -n "${JELLYFIN_QT_VIRTUAL_KEYBOARD_QML_ROOT:-}" && -d "$JELLYFIN_QT_VIRTUAL_KEYBOARD_QML_ROOT" ]] && qml_paths+=("$JELLYFIN_QT_VIRTUAL_KEYBOARD_QML_ROOT")
 
   [[ -n "$qt_plugins" && -d "$qt_plugins" ]] && plugin_paths+=("$qt_plugins")
   [[ -n "$qmake_plugins" ]] && plugin_paths+=("$qmake_plugins")

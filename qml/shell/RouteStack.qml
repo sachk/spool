@@ -1,14 +1,54 @@
 import QtQuick
-import "../pages"
 import "../primitives"
 
 FocusScope {
     id: root
     property string route: "login"
-    property var args: ({})
     property var shell
     focus: true
+    property bool ready: false
 
+
+    function routeSource(nextRoute) {
+        switch (nextRoute) {
+        case "login":
+            return Qt.resolvedUrl("../pages/LoginPage.qml")
+        case "home":
+            return Qt.resolvedUrl("../pages/HomePage.qml")
+        case "libraries":
+            return Qt.resolvedUrl("../pages/LibrariesPage.qml")
+        case "libraryGrid":
+            return Qt.resolvedUrl("../pages/LibraryGridPage.qml")
+        case "itemDetails":
+            return Qt.resolvedUrl("../pages/ItemDetailsPage.qml")
+        case "personDetails":
+            return Qt.resolvedUrl("../pages/PersonDetailsPage.qml")
+        case "search":
+            return Qt.resolvedUrl("../pages/SearchPage.qml")
+        case "settings":
+            return Qt.resolvedUrl("../pages/SettingsPage.qml")
+        case "playerOverlay":
+            return Qt.resolvedUrl("../pages/PlayerOverlayPage.qml")
+        default:
+            return Qt.resolvedUrl("../pages/HomePage.qml")
+        }
+    }
+
+    function loadRoute() {
+        const source = routeSource(route)
+        loader.setSource(source, { "shell": root.shell })
+    }
+
+    onRouteChanged: if (ready)
+        loadRoute()
+    onShellChanged: {
+        if (ready && loader.item)
+            loader.item.shell = root.shell
+    }
+    Component.onCompleted: {
+        ready = true
+        loadRoute()
+    }
     function handleKey(key) {
         if (loader.item && loader.item.handleKey)
             return loader.item.handleKey(key)
@@ -31,26 +71,13 @@ FocusScope {
         id: loader
         anchors.fill: parent
         focus: true
-        sourceComponent: route === "login" ? loginComponent
-                         : route === "home" ? homeComponent
-                         : route === "libraries" ? librariesComponent
-                         : route === "libraryGrid" ? gridComponent
-                         : route === "itemDetails" ? detailsComponent
-                         : route === "personDetails" ? personComponent
-                         : route === "search" ? searchComponent
-                         : route === "settings" ? settingsComponent
-                         : route === "playerOverlay" ? playerComponent
-                         : homeComponent
-        onLoaded: InputKeys.focus(item)
+        asynchronous: true
+        onLoaded: {
+            if (!item)
+                return
+            if (item.shell !== root.shell)
+                item.shell = root.shell
+            InputKeys.focus(item)
+        }
     }
-
-    Component { id: loginComponent; LoginPage { shell: root.shell } }
-    Component { id: homeComponent; HomePage { shell: root.shell } }
-    Component { id: librariesComponent; LibrariesPage { shell: root.shell } }
-    Component { id: gridComponent; LibraryGridPage { shell: root.shell } }
-    Component { id: detailsComponent; ItemDetailsPage { shell: root.shell } }
-    Component { id: personComponent; PersonDetailsPage { shell: root.shell } }
-    Component { id: searchComponent; SearchPage { shell: root.shell } }
-    Component { id: settingsComponent; SettingsPage { shell: root.shell } }
-    Component { id: playerComponent; PlayerOverlayPage { shell: root.shell } }
 }

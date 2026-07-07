@@ -1,9 +1,7 @@
 import QtQuick
-import QtQuick.Controls.Basic
 import QtQuick.Layouts
 import "../theme"
 import "../primitives"
-import "../pages"
 import "RoutePolicy.js" as RoutePolicy
 
 FocusScope {
@@ -39,6 +37,7 @@ FocusScope {
     property var managementItem: ({})
     property string managementNameDraft: ""
     property int managementTargetIndex: 0
+    property bool managementFocusNamePending: false
     readonly property var managementTargets: !appController ? []
                                            : managementMode === "collection" ? appController.collectionTargets
                                            : appController.playlistTargets
@@ -319,6 +318,22 @@ FocusScope {
         return String(item && (item.displayTitle || item.title || item.seriesName || item.name) || "Selected item")
     }
 
+    function focusManagementOverlay() {
+        const overlay = managementOverlayLoader.item
+        if (overlay)
+            InputKeys.focus(overlay)
+    }
+
+    function focusManagementNameField() {
+        const overlay = managementOverlayLoader.item
+        if (!overlay) {
+            managementFocusNamePending = true
+            return
+        }
+        managementFocusNamePending = false
+        overlay.focusNameField()
+    }
+
     function openManagementPicker(mode, item) {
         managementMode = mode
         managementItem = item || ({})
@@ -327,7 +342,7 @@ FocusScope {
         managementOverlayVisible = true
         if (appController)
             appController.refreshManagementTargets(mode)
-        Qt.callLater(() => InputKeys.focus(managementOverlay))
+        Qt.callLater(focusManagementOverlay)
     }
 
     function openRenamePrompt(item) {
@@ -336,10 +351,8 @@ FocusScope {
         managementNameDraft = itemTitle(managementItem)
         managementTargetIndex = 0
         managementOverlayVisible = true
-        Qt.callLater(() => {
-            InputKeys.focus(managementNameField)
-            managementNameField.focusField()
-        })
+        managementFocusNamePending = true
+        Qt.callLater(focusManagementNameField)
     }
 
     function openDeleteConfirm(item) {
@@ -348,7 +361,7 @@ FocusScope {
         managementNameDraft = ""
         managementTargetIndex = 0
         managementOverlayVisible = true
-        Qt.callLater(() => InputKeys.focus(managementOverlay))
+        Qt.callLater(focusManagementOverlay)
     }
 
     function openRemoveConfirm(item) {
@@ -357,7 +370,7 @@ FocusScope {
         managementNameDraft = ""
         managementTargetIndex = 0
         managementOverlayVisible = true
-        Qt.callLater(() => InputKeys.focus(managementOverlay))
+        Qt.callLater(focusManagementOverlay)
     }
 
     function closeManagementOverlay() {
@@ -365,6 +378,7 @@ FocusScope {
         managementMode = ""
         managementItem = ({})
         managementNameDraft = ""
+        managementFocusNamePending = false
         Qt.inputMethod.hide()
         InputKeys.focus(routeStack)
     }
@@ -398,8 +412,7 @@ FocusScope {
         if (!appController || index < 0)
             return
         if (index === 0) {
-            InputKeys.focus(managementNameField)
-            managementNameField.focusField()
+            focusManagementNameField()
             return
         }
         const target = managementTargets[index - 1] || ({})
@@ -724,7 +737,6 @@ FocusScope {
             Layout.fillHeight: true
             route: root.route
             shell: root
-            args: router ? router.args : ({})
             focus: !(root.hasPlayer && root.player.visible)
         }
     }
@@ -746,159 +758,166 @@ FocusScope {
         }
     }
 
-    Rectangle {
-        id: busyOverlay
+    Loader {
+        id: busyOverlayLoader
         anchors.fill: parent
-        visible: root.busyValue && !(root.hasPlayer && root.player.visible)
-        color: Theme.busyScrim
         z: 40
-        Surface {
-            anchors.centerIn: parent
-            visible: busyOverlay.visible
-            width: Math.min(620, parent.width - 96)
-            height: 104
-            elevated: true
-            Row {
-                anchors.centerIn: parent
-                spacing: 18
-                BusyIndicator {
-                    running: true
-                    width: 30
-                    height: 30
-                }
-                AppText {
-                    text: root.busyTextValue
-                    font.pixelSize: Metrics.bodyPx(root.width) + 2
-                    anchors.verticalCenter: parent.verticalCenter
-                }
-            }
+        active: root.busyValue && !(root.hasPlayer && root.player.visible)
+        asynchronous: true
+        source: active ? "BusyOverlay.qml" : ""
+
+        Binding {
+            target: busyOverlayLoader.item
+            property: "text"
+            value: root.busyTextValue
+            when: busyOverlayLoader.item
         }
     }
 
-    FocusScope {
-        id: managementOverlay
+    Loader {
+        id: managementOverlayLoader
         anchors.fill: parent
-        visible: root.managementOverlayVisible
-        focus: visible
         z: 57
-
-        Rectangle {
+        active: root.managementOverlayVisible
+        asynchronous: true
+        sourceComponent: FocusScope {
+            id: managementOverlay
             anchors.fill: parent
-            color: "#99000000"
-            MouseArea {
+            focus: true
+
+            function focusNameField() {
+                InputKeys.focus(managementNameField)
+                managementNameField.focusField()
+            }
+
+            Rectangle {
                 anchors.fill: parent
-                onClicked: root.closeManagementOverlay()
+                color: "#99000000"
+                MouseArea {
+                    anchors.fill: parent
+                    onClicked: root.closeManagementOverlay()
+                }
+            }
+
+            Surface {
+                anchors.centerIn: parent
+                width: Math.min(parent.width - 96, 620)
+                height: Math.min(parent.height - 96, managementContent.implicitHeight + 48)
+                elevated: true
+                baseColor: Theme.bgPanel
+
+                ColumnLayout {
+                    id: managementContent
+                    anchors.fill: parent
+                    anchors.margins: 24
+                    spacing: 14
+
+                    AppText {
+                        Layout.fillWidth: true
+                        text: root.managementTitle()
+                        color: Theme.textPrimary
+                        font.pixelSize: Metrics.titlePx(root.width)
+                        font.weight: Font.DemiBold
+                    }
+
+                    AppText {
+                        Layout.fillWidth: true
+                        text: root.itemTitle(root.managementItem)
+                        color: Theme.textMuted
+                        font.pixelSize: Metrics.bodyPx(root.width)
+                        elide: Text.ElideRight
+                        visible: root.managementMode.length > 0
+                    }
+
+                    TextFieldRow {
+                        id: managementNameField
+                        Layout.fillWidth: true
+                        visible: root.managementMode === "playlist" || root.managementMode === "collection" || root.managementMode === "rename"
+                        label: root.managementMode === "rename" ? "Name" : (root.managementMode === "collection" ? "New collection name" : "New playlist name")
+                        text: root.managementNameDraft
+                        onTextEdited: value => root.managementNameDraft = value
+                        onAccepted: root.submitManagementCreate()
+                    }
+
+                    AppText {
+                        Layout.fillWidth: true
+                        visible: root.managementMode === "delete" || root.managementMode === "remove"
+                        text: root.managementMode === "delete"
+                              ? "This permanently deletes the item from the server."
+                              : "This removes the item from the current playlist or collection."
+                        color: Theme.textMuted
+                        font.pixelSize: Metrics.bodyPx(root.width)
+                        wrapMode: Text.Wrap
+                    }
+
+                    Repeater {
+                        model: root.managementMode === "playlist" || root.managementMode === "collection"
+                               ? root.managementTargets.length + 1 : 0
+                        delegate: Rectangle {
+                            required property int index
+                            Layout.fillWidth: true
+                            height: Metrics.controlHeight(root.width)
+                            radius: Theme.radiusMedium
+                            color: root.managementTargetIndex === index ? Theme.focusedFill : "transparent"
+                            border.width: root.managementTargetIndex === index ? Theme.focusBorderWidth : 1
+                            border.color: root.managementTargetIndex === index ? Theme.accent : Theme.border
+
+                            RowLayout {
+                                anchors.fill: parent
+                                anchors.leftMargin: 14
+                                anchors.rightMargin: 14
+                                spacing: 12
+                                MaterialIcon {
+                                    name: index === 0 ? "add" : (root.managementMode === "collection" ? "collections_bookmark" : "playlist_play")
+                                    iconColor: Theme.textPrimary
+                                    iconSize: Metrics.iconPx(root.width)
+                                }
+                                AppText {
+                                    Layout.fillWidth: true
+                                    text: index === 0
+                                          ? "Create new"
+                                          : root.itemTitle(root.managementTargets[index - 1] || ({}))
+                                    color: Theme.textPrimary
+                                    font.pixelSize: Metrics.bodyPx(root.width)
+                                    elide: Text.ElideRight
+                                }
+                            }
+
+                            MouseArea {
+                                anchors.fill: parent
+                                onClicked: {
+                                    root.managementTargetIndex = index
+                                    root.submitManagementTarget(index)
+                                }
+                            }
+                        }
+                    }
+
+                    RowLayout {
+                        Layout.fillWidth: true
+                        visible: root.managementMode === "delete" || root.managementMode === "remove"
+                        Item { Layout.fillWidth: true }
+                        ActionButton {
+                            text: "Cancel"
+                            onClicked: root.closeManagementOverlay()
+                        }
+                        ActionButton {
+                            text: root.managementMode === "delete" ? "Delete" : "Remove"
+                            kind: "primary"
+                            onClicked: root.confirmManagementAction()
+                        }
+                    }
+                }
             }
         }
-
-        Surface {
-            anchors.centerIn: parent
-            width: Math.min(parent.width - 96, 620)
-            height: Math.min(parent.height - 96, managementContent.implicitHeight + 48)
-            elevated: true
-            baseColor: Theme.bgPanel
-
-            ColumnLayout {
-                id: managementContent
-                anchors.fill: parent
-                anchors.margins: 24
-                spacing: 14
-
-                AppText {
-                    Layout.fillWidth: true
-                    text: root.managementTitle()
-                    color: Theme.textPrimary
-                    font.pixelSize: Metrics.titlePx(root.width)
-                    font.weight: Font.DemiBold
-                }
-
-                AppText {
-                    Layout.fillWidth: true
-                    text: root.itemTitle(root.managementItem)
-                    color: Theme.textMuted
-                    font.pixelSize: Metrics.bodyPx(root.width)
-                    elide: Text.ElideRight
-                    visible: root.managementMode.length > 0
-                }
-
-                TextFieldRow {
-                    id: managementNameField
-                    Layout.fillWidth: true
-                    visible: root.managementMode === "playlist" || root.managementMode === "collection" || root.managementMode === "rename"
-                    label: root.managementMode === "rename" ? "Name" : (root.managementMode === "collection" ? "New collection name" : "New playlist name")
-                    text: root.managementNameDraft
-                    onTextEdited: value => root.managementNameDraft = value
-                    onAccepted: root.submitManagementCreate()
-                }
-
-                AppText {
-                    Layout.fillWidth: true
-                    visible: root.managementMode === "delete" || root.managementMode === "remove"
-                    text: root.managementMode === "delete"
-                          ? "This permanently deletes the item from the server."
-                          : "This removes the item from the current playlist or collection."
-                    color: Theme.textMuted
-                    font.pixelSize: Metrics.bodyPx(root.width)
-                    wrapMode: Text.Wrap
-                }
-
-                Repeater {
-                    model: root.managementMode === "playlist" || root.managementMode === "collection"
-                           ? root.managementTargets.length + 1 : 0
-                    delegate: Rectangle {
-                        required property int index
-                        Layout.fillWidth: true
-                        height: Metrics.controlHeight(root.width)
-                        radius: Theme.radiusMedium
-                        color: root.managementTargetIndex === index ? Theme.focusedFill : "transparent"
-                        border.width: root.managementTargetIndex === index ? Theme.focusBorderWidth : 1
-                        border.color: root.managementTargetIndex === index ? Theme.accent : Theme.border
-
-                        RowLayout {
-                            anchors.fill: parent
-                            anchors.leftMargin: 14
-                            anchors.rightMargin: 14
-                            spacing: 12
-                            MaterialIcon {
-                                name: index === 0 ? "add" : (root.managementMode === "collection" ? "collections_bookmark" : "playlist_play")
-                                iconColor: Theme.textPrimary
-                                iconSize: Metrics.iconPx(root.width)
-                            }
-                            AppText {
-                                Layout.fillWidth: true
-                                text: index === 0
-                                      ? "Create new"
-                                      : root.itemTitle(root.managementTargets[index - 1] || ({}))
-                                color: Theme.textPrimary
-                                font.pixelSize: Metrics.bodyPx(root.width)
-                                elide: Text.ElideRight
-                            }
-                        }
-
-                        MouseArea {
-                            anchors.fill: parent
-                            onClicked: {
-                                root.managementTargetIndex = index
-                                root.submitManagementTarget(index)
-                            }
-                        }
-                    }
-                }
-
-                RowLayout {
-                    Layout.fillWidth: true
-                    visible: root.managementMode === "delete" || root.managementMode === "remove"
-                    Item { Layout.fillWidth: true }
-                    ActionButton {
-                        text: "Cancel"
-                        onClicked: root.closeManagementOverlay()
-                    }
-                    ActionButton {
-                        text: root.managementMode === "delete" ? "Delete" : "Remove"
-                        kind: "primary"
-                        onClicked: root.confirmManagementAction()
-                    }
-                }
+        onLoaded: {
+            if (!item)
+                return
+            if (root.managementFocusNamePending) {
+                root.managementFocusNamePending = false
+                item.focusNameField()
+            } else {
+                InputKeys.focus(item)
             }
         }
     }
