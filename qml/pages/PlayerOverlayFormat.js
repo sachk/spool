@@ -18,6 +18,8 @@ function actionIcon(value, paused, fullScreen) {
     if (value === "back") return "fast_rewind"
     if (value === "pause") return paused ? "play_arrow" : "pause"
     if (value === "forward") return "fast_forward"
+    if (value === "prevQueue") return "skip_previous"
+    if (value === "nextQueue") return "skip_next"
     if (value === "prevChapter") return "skip_previous"
     if (value === "nextChapter") return "skip_next"
     if (value === "subtitles") return "closed_caption"

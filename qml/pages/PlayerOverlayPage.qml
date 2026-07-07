@@ -68,15 +68,29 @@ FocusScope {
 
     // Only offer the audio-track button when there's an actual choice to make.
     readonly property bool audioSelectable: hasPlayer && player.audioTracks.length > 1
+    // Jellyfin playlist entries carry PlaylistItemId. Library/Next Up rows also
+    // populate playQueue for autoplay, but should not expose explicit previous/
+    // next-item controls for a standalone movie or one-off episode.
+    readonly property bool playlistNavigationAvailable: {
+        const count = playQueue ? playQueue.count : 0
+        if (count <= 1)
+            return false
+        for (let i = 0; i < count; ++i) {
+            const item = playQueue.get(i)
+            if (item && String(item.playlistItemId || "").length > 0)
+                return true
+        }
+        return false
+    }
     readonly property var actions: {
         const list = [
             { label: "Rewind", value: "back" },
             { label: hasPlayer && player.paused ? "Play" : "Pause", value: "pause" },
             { label: "Fast forward", value: "forward" }
         ]
-        if (playQueue && playQueue.canGoPrevious)
+        if (playlistNavigationAvailable && playQueue.canGoPrevious)
             list.push({ label: "Previous item", value: "prevQueue" })
-        if (playQueue && playQueue.canGoNext)
+        if (playlistNavigationAvailable && playQueue.canGoNext)
             list.push({ label: "Next item", value: "nextQueue" })
         if (hasPlayer && player.hasChapters) {
             list.push({ label: "Previous chapter", value: "prevChapter" })
