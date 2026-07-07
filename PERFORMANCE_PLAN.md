@@ -201,9 +201,9 @@ Hardest three (this session):
 - [ ] §2 Thumb-2 + cortex-a53/armv8-fpu retune of app, libmpv, ffmpeg
       (`--enable-thumb`, `--cpu=cortex-a53`), lua. (Qt stays ARM-mode until
       its own rebuild — see below.)
-- [ ] §2bis libmpv dynamic-export diet: anonymous linker version script
-      exporting only `mpv_*` + `starfish_*` (hides ~3360 stray exports from
-      libass/harfbuzz/Rust libdovi), verified against the dlopen shim's
+- [x] §2bis libmpv dynamic-export diet: anonymous linker version script
+      (`mpv_webos/libmpv.ver`) exporting only `mpv_*` + `starfish_*`;
+      3454 → 94 exported functions, verified against the dlopen shim's
       dlsym set.
 
 Remaining (unassigned):
