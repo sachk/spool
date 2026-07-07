@@ -225,13 +225,23 @@ audit_unexpected_bloat() {
   fi
 }
 
+patchelf_set_rpath() {
+  local rpath="$1"
+  local elf="$2"
+  # Some linuxdeploy/AppImage runtime ELFs can make this host patchelf abort.
+  # RPATH fixes are best-effort here and were already non-fatal; running
+  # patchelf through a child Bash keeps that shell's signal diagnostic out of
+  # otherwise successful package logs.
+  bash -c 'patchelf --set-rpath "$1" "$2" >/dev/null 2>&1' _ "$rpath" "$elf" >/dev/null 2>&1 || true
+}
+
 set_appdir_rpaths() {
   local elf rel depth prefix
   while IFS= read -r elf; do
     file -b "$elf" | grep -q 'ELF' || continue
     case "$elf" in
-      "$APPDIR/usr/bin/"*) patchelf --set-rpath '$ORIGIN/../lib' "$elf" 2>/dev/null || true ;;
-      "$APPDIR/usr/lib/"*) patchelf --set-rpath '$ORIGIN' "$elf" 2>/dev/null || true ;;
+      "$APPDIR/usr/bin/"*) patchelf_set_rpath '$ORIGIN/../lib' "$elf" ;;
+      "$APPDIR/usr/lib/"*) patchelf_set_rpath '$ORIGIN' "$elf" ;;
       *)
         rel="${elf#"$APPDIR/usr/"}"
         depth=$(awk -F/ '{ print NF - 1 }' <<< "$rel")
@@ -240,7 +250,7 @@ set_appdir_rpaths() {
           prefix="$prefix/.."
           depth=$((depth - 1))
         done
-        patchelf --set-rpath "$prefix/lib:\$ORIGIN" "$elf" 2>/dev/null || true
+        patchelf_set_rpath "$prefix/lib:\$ORIGIN" "$elf"
         ;;
     esac
   done < <(find "$APPDIR/usr" -type f)
