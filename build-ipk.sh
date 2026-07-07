@@ -56,6 +56,9 @@ STAGE_LIB="$APP_DIR/lib"
 STAGE_BIN="$APP_DIR/bin"
 STRIP_BIN="$SDK_ROOT/bin/arm-webos-linux-gnueabi-strip"
 READELF_BIN="${WEBOS_READELF_BIN:-$SDK_ROOT/bin/arm-webos-linux-gnueabi-readelf}"
+GCC_AR_BIN="$SDK_ROOT/bin/arm-webos-linux-gnueabi-gcc-ar"
+GCC_RANLIB_BIN="$SDK_ROOT/bin/arm-webos-linux-gnueabi-gcc-ranlib"
+MPV_LTO_CROSS_FILE="$BUILD_DIR/webos-lto.cross.ini"
 WEBOS_BUILD_MEMORY_PER_JOB_MIB="${WEBOS_BUILD_MEMORY_PER_JOB_MIB:-1536}"
 WEBOS_BUILD_MEMORY_RESERVE_MIB="${WEBOS_BUILD_MEMORY_RESERVE_MIB:-2048}"
 WEBOS_BUILD_JOBS="$(recommended_parallel_jobs "$WEBOS_BUILD_MEMORY_PER_JOB_MIB" "$WEBOS_BUILD_MEMORY_RESERVE_MIB")"
@@ -132,14 +135,21 @@ echo "Building libdovi..."
 DOVI_LIB="$DOVI_TOOL_ROOT/dolby_vision/target/arm-unknown-linux-gnueabi/release/libdovi.a"
 DOVI_INC="$DOVI_TOOL_ROOT/dolby_vision/include"
 
-# Emit unwind tables + keep frame pointers so heaptrack's (crash-safe, non-
-# libunwind) backtracer can produce deep call stacks for memory profiling.
-# libunwind segfaults on this target, so .ARM.exidx/.eh_frame is the only path
-# to per-function heap attribution. Negligible size/perf cost.
-HEAPTRACK_UNWIND_FLAGS="${HEAPTRACK_UNWIND_FLAGS:--fasynchronous-unwind-tables -funwind-tables -fno-omit-frame-pointer -g}"
+# Heaptrack profiling needs unwind tables and frame pointers for useful stacks,
+# but release builds keep them out unless profiling is explicitly requested.
+if [[ -z "${HEAPTRACK_UNWIND_FLAGS+x}" ]]; then
+  if [[ "${BUNDLE_HEAPTRACK:-0}" == "1" ]]; then
+    HEAPTRACK_UNWIND_FLAGS="-fasynchronous-unwind-tables -funwind-tables -fno-omit-frame-pointer -g"
+  else
+    HEAPTRACK_UNWIND_FLAGS=""
+  fi
+fi
 WEBOS_TUNE_CFLAGS_EXPANDED="$(webos_tune_cflags)"
-export CFLAGS="${CFLAGS:-} -I$DOVI_INC $WEBOS_TUNE_CFLAGS_EXPANDED $HEAPTRACK_UNWIND_FLAGS"
-export CXXFLAGS="${CXXFLAGS:-} -I$DOVI_INC $WEBOS_TUNE_CFLAGS_EXPANDED $HEAPTRACK_UNWIND_FLAGS"
+MPV_PGO_FLAGS="$(webos_pgo_flags MPV "$BUILD_DIR/pgo/mpv")"
+APP_PGO_FLAGS="$(webos_pgo_flags APP "$BUILD_DIR/pgo/app")"
+COMMON_WEBOS_CFLAGS="-I$DOVI_INC $WEBOS_TUNE_CFLAGS_EXPANDED $HEAPTRACK_UNWIND_FLAGS"
+export CFLAGS="${CFLAGS:-} $COMMON_WEBOS_CFLAGS"
+export CXXFLAGS="${CXXFLAGS:-} $COMMON_WEBOS_CFLAGS"
 export LDFLAGS="${LDFLAGS:-} -L$(dirname "$DOVI_LIB")"
 export PKG_CONFIG_PATH="$PREFIX/lib/pkgconfig"
 export PKG_CONFIG_LIBDIR="$PREFIX/lib/pkgconfig:$SYSROOT/usr/lib/pkgconfig:$SYSROOT/usr/share/pkgconfig"
@@ -150,11 +160,24 @@ export PKG_CONFIG_SYSROOT_DIR="$SYSROOT"
 # parser errors for intentionally invalid QML files.
 unset QML_IMPORT_PATH QML2_IMPORT_PATH NIXPKGS_QT6_QML_IMPORT_PATH
 
+if [[ ! -x "$GCC_AR_BIN" || ! -x "$GCC_RANLIB_BIN" ]]; then
+  echo "error: gcc-ar/gcc-ranlib are required for mpv LTO under $SDK_ROOT/bin" >&2
+  exit 1
+fi
+mkdir -p "$(dirname "$MPV_LTO_CROSS_FILE")"
+cat > "$MPV_LTO_CROSS_FILE" <<EOF
+[binaries]
+ar = '$GCC_AR_BIN'
+ranlib = '$GCC_RANLIB_BIN'
+EOF
+
 MPV_SETUP_ARGS=(
   --cross-file "$WEBOS_CROSS_FILE"
+  --cross-file "$MPV_LTO_CROSS_FILE"
   --prefix /usr/local
   --libdir lib
   --buildtype release
+  -Db_lto=true
   -Dcplayer=false
   -Dlibmpv=true
   -Dtests=false
@@ -193,13 +216,12 @@ MPV_SETUP_ARGS=(
   -Dlcms2=disabled
   -Dzlib=enabled
   -Dstarfish=enabled
-  "-Dc_link_args=-L$(dirname "$DOVI_LIB") -ldovi"
-  "-Dcpp_link_args=-L$(dirname "$DOVI_LIB") -ldovi"
+  "-Dc_link_args=-L$(dirname "$DOVI_LIB") -ldovi $MPV_PGO_FLAGS"
+  "-Dcpp_link_args=-L$(dirname "$DOVI_LIB") -ldovi $MPV_PGO_FLAGS"
   # Explicit c_args/cpp_args: meson --reconfigure does not re-read CFLAGS env,
-  # so pass the tuning + unwind flags here too (deep heaptrack stacks need the
-  # unwind flags in libmpv).
-  "-Dc_args=$WEBOS_TUNE_CFLAGS_EXPANDED $HEAPTRACK_UNWIND_FLAGS"
-  "-Dcpp_args=$WEBOS_TUNE_CFLAGS_EXPANDED $HEAPTRACK_UNWIND_FLAGS"
+  # so pass the tuning + opt-in heaptrack/PGO flags here too.
+  "-Dc_args=$WEBOS_TUNE_CFLAGS_EXPANDED $HEAPTRACK_UNWIND_FLAGS $MPV_PGO_FLAGS"
+  "-Dcpp_args=$WEBOS_TUNE_CFLAGS_EXPANDED $HEAPTRACK_UNWIND_FLAGS $MPV_PGO_FLAGS"
 )
 
 if [[ -f "$MPV_BUILD/build.ninja" ]]; then
@@ -208,6 +230,12 @@ else
   meson setup "$MPV_BUILD" "$MPV_SRC" "${MPV_SETUP_ARGS[@]}"
 fi
 meson compile -C "$MPV_BUILD" -j "$WEBOS_BUILD_JOBS"
+
+if [[ -n "$APP_PGO_FLAGS" ]]; then
+  export CFLAGS="$CFLAGS $APP_PGO_FLAGS"
+  export CXXFLAGS="$CXXFLAGS $APP_PGO_FLAGS"
+  export LDFLAGS="$LDFLAGS $APP_PGO_FLAGS"
+fi
 
 cmake -S "$ROOT" -B "$CMAKE_BUILD_DIR" -GNinja \
   --fresh \
@@ -299,6 +327,11 @@ if [[ "${BUNDLE_HEAPTRACK:-0}" == "1" && -f "$HEAPTRACK_INSTALL/lib/heaptrack/li
 else
   echo "Skipping heaptrack bundle (set BUNDLE_HEAPTRACK=1 after building heaptrack to enable)"
 fi
+
+echo "Stripping staged shared libraries"
+while IFS= read -r -d '' library; do
+  "$STRIP_BIN" --strip-unneeded "$library"
+done < <(find "$STAGE_LIB" -type f -name '*.so*' -print0)
 fi
 
 if (( DO_PACKAGE )); then
