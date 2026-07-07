@@ -26,7 +26,7 @@ QT_BASE_URL="${QT_BASE_URL:-$(manifest_qt_field "$QT_MANIFEST" baseUrl)}"
 QT_STATIC="${QT_STATIC:-0}"
 PHASE="${1:-all}"
 BUILD_QTOPENAPI="${BUILD_QTOPENAPI:-0}"
-BUILD_QTVIRTUALKEYBOARD="${BUILD_QTVIRTUALKEYBOARD:-1}"
+BUILD_QTVIRTUALKEYBOARD="${BUILD_QTVIRTUALKEYBOARD:-0}"
 QT_BUILD_CLEAN_POISONED="${QT_BUILD_CLEAN_POISONED:-1}"
 QT_BUILD_MEMORY_PER_JOB_MIB="${QT_BUILD_MEMORY_PER_JOB_MIB:-1536}"
 QT_BUILD_MEMORY_RESERVE_MIB="${QT_BUILD_MEMORY_RESERVE_MIB:-2048}"
@@ -38,6 +38,7 @@ if [[ -z "${QT_BUILD_PRUNE_COMPLETED+x}" ]]; then
   esac
 fi
 JOBS="$(recommended_parallel_jobs "$QT_BUILD_MEMORY_PER_JOB_MIB" "$QT_BUILD_MEMORY_RESERVE_MIB")"
+QT_TARGET_TUNE_CFLAGS="$(webos_tune_cflags)"
 
 SRC_DIR="$ROOT/build/qt6-src"
 QTBASE_TARBALL="$SRC_DIR/qtbase-everywhere-src-$QT_VERSION.tar.xz"
@@ -480,6 +481,33 @@ OPENAPI_EOF
   printf '%s\n' "$jar"
 }
 
+remove_virtualkeyboard_install_artifacts() {
+  local prefix="$1"
+  [[ -d "$prefix" ]] || return 0
+
+  rm -rf \
+    "$prefix"/include/QtVirtualKeyboard* \
+    "$prefix"/lib/cmake/Qt6VirtualKeyboard* \
+    "$prefix"/lib/cmake/Qt6Gui/Qt6QVirtualKeyboard* \
+    "$prefix"/lib/cmake/Qt6Qml/QmlPlugins/*VirtualKeyboard* \
+    "$prefix"/lib/cmake/Qt6Qml/QmlPlugins/*qtvkb* \
+    "$prefix"/lib/libQt6VirtualKeyboard* \
+    "$prefix"/lib/objects-*/*virtualkeyboard* \
+    "$prefix"/lib/objects-*/*qtvkb* \
+    "$prefix"/lib/pkgconfig/Qt6VirtualKeyboard*.pc \
+    "$prefix"/metatypes/qt6virtualkeyboard* \
+    "$prefix"/modules/*VirtualKeyboard*.json \
+    "$prefix"/mkspecs/modules/qt_lib_*virtualkeyboard* \
+    "$prefix"/mkspecs/modules/qt_plugin_qtvirtualkeyboard* \
+    "$prefix"/plugins/platforminputcontexts/*virtualkeyboard* \
+    "$prefix"/plugins/platforminputcontexts/objects-*/*VirtualKeyboard* \
+    "$prefix"/plugins/virtualkeyboard \
+    "$prefix"/qml/QtQuick/VirtualKeyboard \
+    "$prefix"/sbom/qtvirtualkeyboard-*.spdx \
+    "$prefix"/sbom/qtvirtualkeyboard-*.json
+}
+
+
 build_all_host_modules() {
   local host_wayland_scanner="${HOST_WAYLAND_SCANNER:-$HOST_WAYLAND_SCANNER_DEFAULT}"
   [[ -n "$host_wayland_scanner" && -x "$host_wayland_scanner" ]] || \
@@ -561,6 +589,7 @@ build_all_host_modules() {
     fi
   else
     log "host qtvirtualkeyboard: disabled by BUILD_QTVIRTUALKEYBOARD=0"
+    remove_virtualkeyboard_install_artifacts "$HOST_INSTALL"
   fi
 }
 
@@ -586,9 +615,10 @@ configure_target_qtbase() {
       -DBUILD_SHARED_LIBS=OFF
       -DCMAKE_BUILD_TYPE=MinSizeRel
       -DCMAKE_INTERPROCEDURAL_OPTIMIZATION=ON
-      "-DCMAKE_C_FLAGS_MINSIZEREL=-Os -ffunction-sections -fdata-sections -DNDEBUG"
-      "-DCMAKE_CXX_FLAGS_MINSIZEREL=-Os -ffunction-sections -fdata-sections -DNDEBUG"
+      "-DCMAKE_C_FLAGS_MINSIZEREL=$QT_TARGET_TUNE_CFLAGS -Os -ffunction-sections -fdata-sections -DNDEBUG"
+      "-DCMAKE_CXX_FLAGS_MINSIZEREL=$QT_TARGET_TUNE_CFLAGS -Os -ffunction-sections -fdata-sections -DNDEBUG"
       -DCMAKE_EXE_LINKER_FLAGS=-Wl,--gc-sections
+      -DFEATURE_ltcg=ON
       -DFEATURE_reduce_exports=ON
     )
   else
@@ -694,9 +724,10 @@ configure_target_module() {
     module_flags=(
       -DBUILD_SHARED_LIBS=OFF
       -DCMAKE_INTERPROCEDURAL_OPTIMIZATION=ON
-      "-DCMAKE_C_FLAGS_MINSIZEREL=-Os -ffunction-sections -fdata-sections -DNDEBUG"
-      "-DCMAKE_CXX_FLAGS_MINSIZEREL=-Os -ffunction-sections -fdata-sections -DNDEBUG"
+      "-DCMAKE_C_FLAGS_MINSIZEREL=$QT_TARGET_TUNE_CFLAGS -Os -ffunction-sections -fdata-sections -DNDEBUG"
+      "-DCMAKE_CXX_FLAGS_MINSIZEREL=$QT_TARGET_TUNE_CFLAGS -Os -ffunction-sections -fdata-sections -DNDEBUG"
       -DCMAKE_EXE_LINKER_FLAGS=-Wl,--gc-sections
+      -DFEATURE_ltcg=ON
     )
   fi
   sdk_glesv2_lib="$(sdk_sysroot_library GLESv2)"
@@ -863,6 +894,7 @@ build_all_target_modules() {
     fi
   else
     log "target qtvirtualkeyboard: disabled by BUILD_QTVIRTUALKEYBOARD=0"
+    remove_virtualkeyboard_install_artifacts "$TARGET_STAGING"
   fi
 }
 

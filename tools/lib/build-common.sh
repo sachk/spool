@@ -102,6 +102,35 @@ stage_elf_shared_library() {
   printf '%s\n' "$destination/$real_name"
 }
 
+# webos_pgo_flags COMPONENT PROFILE_DIR
+#
+# Prints GCC PGO flags for COMPONENT when COMPONENT_PGO_MODE or WEBOS_PGO_MODE is
+# set to "generate" or "use". Defaults are intentionally empty so normal release
+# builds remain unchanged unless a caller opts in.
+webos_pgo_flags() {
+  local component="$1"
+  local profile_dir="$2"
+  local mode_var="${component}_PGO_MODE"
+  local mode="${!mode_var:-${WEBOS_PGO_MODE:-}}"
+
+  case "${mode,,}" in
+    ""|0|off|none)
+      return 0
+      ;;
+    generate)
+      mkdir -p "$profile_dir"
+      printf '%s\n' "-fprofile-generate=$profile_dir"
+      ;;
+    use)
+      printf '%s\n' "-fprofile-use=$profile_dir -fprofile-correction -Wno-error=missing-profile"
+      ;;
+    *)
+      echo "error: ${mode_var} must be one of: generate, use, off (got '$mode')" >&2
+      return 1
+      ;;
+  esac
+}
+
 append_colon_path() {
   local variable="$1"
   local dir="$2"
@@ -326,7 +355,7 @@ native_mpv_common_args() {
     --libdir lib
     --buildtype "$build_type"
     --default-library shared
-    -Db_lto=false
+    -Db_lto=true
     -Dbuild-date=false
     -Dlibmpv=true
     "-Dcplayer=$cplayer"
