@@ -121,11 +121,51 @@ bundle_wayland_plugins() {
     "$APPDIR/usr/plugins/wayland-decoration-client"
 }
 
+prime_linuxdeploy_qt_plugins() {
+  local root plugins_dir plugin_dir platform
+  local plugin_roots=()
+
+  plugins_dir="$(qt_query QT_INSTALL_PLUGINS)"
+  [[ -d "$plugins_dir" ]] && plugin_roots+=("$plugins_dir")
+
+  local qmake_roots=()
+  IFS=: read -r -a qmake_roots <<< "${QMAKEPATH:-}"
+  for root in "${qmake_roots[@]}"; do
+    plugins_dir="$root/lib/qt-6/plugins"
+    [[ -d "$plugins_dir" ]] || continue
+    plugin_roots+=("$plugins_dir")
+  done
+
+  for plugins_dir in "${plugin_roots[@]}"; do
+    for plugin_dir in \
+      iconengines \
+      imageformats \
+      networkinformation \
+      platforminputcontexts \
+      sqldrivers \
+      tls \
+      wayland-decoration-client \
+      wayland-graphics-integration-client \
+      wayland-shell-integration; do
+      copy_tree_if_exists "$plugins_dir/$plugin_dir" \
+        "$APPDIR/usr/lib/qt-6/plugins/$plugin_dir"
+    done
+
+    mkdir -p "$APPDIR/usr/lib/qt-6/plugins/platforms"
+    for platform in libqxcb.so libqwayland.so libqoffscreen.so; do
+      [[ -f "$plugins_dir/platforms/$platform" ]] || continue
+      cp -a "$plugins_dir/platforms/$platform" "$APPDIR/usr/lib/qt-6/plugins/platforms/"
+      chmod u+w "$APPDIR/usr/lib/qt-6/plugins/platforms/$platform" 2>/dev/null || true
+    done
+  done
+}
+
 prune_appdir() {
   rm -rf \
     "$APPDIR/usr/qml/QtQuick/Controls/designer" \
     "$APPDIR/usr/qml/QtQuick/Controls/FluentWinUI3" \
     "$APPDIR/usr/qml/QtQuick/Controls/Fusion" \
+    "$APPDIR/usr/lib/qt-6" \
     "$APPDIR/usr/qml/QtQuick/Controls/Imagine" \
     "$APPDIR/usr/qml/QtQuick/Controls/Material" \
     "$APPDIR/usr/qml/QtQuick/Controls/Universal" \
@@ -333,6 +373,7 @@ export OUTPUT="${OUTPUT:-Jellyfin-Native-${APP_VERSION}-x86_64.AppImage}"
 copy_elf_deps libQt6WebSockets.so.6
 set_appdir_rpaths
 
+prime_linuxdeploy_qt_plugins
 "$QT_PLUGIN" --appdir "$APPDIR"
 
 unset EXTRA_PLATFORM_PLUGINS
