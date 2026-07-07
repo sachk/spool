@@ -305,9 +305,13 @@ qt_add_qml_module(jellyfin-native
         qml/pages/LoginPage.qml
         qml/pages/PersonDetailsPage.qml
         qml/pages/PlayerAudioSyncPanel.qml
+        qml/pages/PlayerOverlayChrome.qml
+        qml/pages/PlayerOverlayInput.qml
         qml/pages/PlayerOverlayMenu.qml
         qml/pages/PlayerOverlayPage.qml
+        qml/pages/PlayerSeekBar.qml
         qml/pages/PlayerSkipSegmentCard.qml
+        qml/pages/PlayerTransportBar.qml
         qml/pages/PlayerTrickplayPreview.qml
         qml/pages/SearchPage.qml
         qml/pages/SettingsPage.qml
@@ -348,6 +352,7 @@ qt_add_qml_module(jellyfin-native
         qml/shell/SyncPlayMenu.qml
         qml/shell/ToastLayer.qml
         qml/shell/TopBar.qml
+        qml/shell/VideoSurface.qml
         qml/shell/VirtualKeyboardPanel.qml
         qml/theme/Metrics.qml
         qml/theme/Theme.qml

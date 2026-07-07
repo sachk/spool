@@ -530,166 +530,12 @@ FocusScope {
         return stopPlayback("overlay-back")
     }
 
-    function handleControlsKey(key) {
-        if (key === Qt.Key_Up) {
-            row = row === "actions" ? "timeline" : "back"
-            showControls(row)
-            return true
-        }
-        if (key === Qt.Key_Down) {
-            if (row === "actions" && actionIndex === 1) {
-                openAudioSync()
-                return true
-            }
-            if (row === "timeline")
-                actionIndex = 1
-            row = row === "back" ? "timeline" : "actions"
-            showControls(row)
-            return true
-        }
-        if (key === Qt.Key_Left) {
-            if (row === "timeline") seekBy(-10)
-            else if (row === "actions") actionIndex = Math.max(0, actionIndex - 1)
-            showControls(row)
-            return true
-        }
-        if (key === Qt.Key_Right) {
-            if (row === "timeline") seekBy(10)
-            else if (row === "actions") actionIndex = Math.min(actions.length - 1, actionIndex + 1)
-            showControls(row)
-            return true
-        }
-        if (InputKeys.isAccept(key)) {
-            if (row === "back") {
-                // Explicit exit — don't reshow controls on the way out.
-                return stopPlayback("overlay-back")
-            }
-            if (row === "timeline") {
-                if (!commitScrub() && hasPlayer) player.togglePause()
-            } else {
-                activateAction()
-            }
-            showControls(row)
-            return true
-        }
-        return false
-    }
-
-    function handleMenuKey(key) {
-        const count = mode === "subtitles" && hasPlayer ? player.subtitleTracks.length
-                    : mode === "audio" && hasPlayer ? player.audioTracks.length
-                    : mode === "queue" && playQueue ? playQueue.count
-                    : debugOptions.length
-        if (key === Qt.Key_Up) { menuIndex = Math.max(0, menuIndex - 1); return true }
-        if (key === Qt.Key_Down) { menuIndex = Math.min(Math.max(0, count - 1), menuIndex + 1); return true }
-        if (key === Qt.Key_Left || key === Qt.Key_Right) return true
-        if (InputKeys.isAccept(key)) { activateMenuItem(); return true }
-        return false
-    }
-
-    function actionForColorKey(key) {
-        if (!appController)
-            return ""
-        if (key === Qt.Key_Red)    return appController.settings.redButtonAction
-        if (key === Qt.Key_Green)  return appController.settings.greenButtonAction
-        if (key === Qt.Key_Yellow) return appController.settings.yellowButtonAction
-        if (key === Qt.Key_Blue)   return appController.settings.blueButtonAction
-        return ""
-    }
-
-    function dispatchRemapAction(action) {
-        if (!hasPlayer || !action || action === "none")
-            return false
-        if (action === "togglePause") { player.togglePause(); showControls("actions"); return true }
-        if (action === "toggleSubs") { player.toggleSubtitles(); return true }
-        if (action === "cycleSubs") { player.cycleSubtitles(); return true }
-        if (action === "cycleAudio") { player.cycleAudio(); return true }
-        if (action === "skipBack10") { seekBy(-10); return true }
-        if (action === "skipForward10") { seekBy(10); return true }
-        if (action === "skipBack30") { seekBy(-30); return true }
-        if (action === "skipForward30") { seekBy(30); return true }
-        if (action === "skipBack90") { seekBy(-90); return true }
-        if (action === "skipForward90") { seekBy(90); return true }
-        if (action === "skipBackAndEnableSubs") { seekBy(-10); player.enableSubtitles(); return true }
-        if (action === "skipSegment") { player.skipActiveSegment(); return true }
-        if (action === "queuePrevious") { appController.playQueuePrevious(); return true }
-        if (action === "queueNext") { appController.playQueueNext(); return true }
-        if (action === "showInfo") { toggleDebugStats(); return true }
-        if (action === "stop") { player.stopWithReason("remap-stop"); return true }
-        return false
-    }
-
     function handleReleased(event) {
-        if (InputKeys.isIgnoredPlayerNoise(event)) return true
-        if (event.key === Qt.Key_Down) {
-            downHoldTimer.stop()
-            if (downHoldActive) {
-                // Hold consumed the release — don't ALSO move row down.
-                downHoldActive = false
-                return true
-            }
-        }
-        if (event.key === Qt.Key_T && hasPlayer && player.activeSegmentType.length > 0) {
-            player.skipActiveSegment()
-            return true
-        }
-        if (InputKeys.isColor(event.key)) {
-            if (dispatchRemapAction(actionForColorKey(event.key))) return true
-        }
-        if (seekHoldKey !== 0 && event.key === seekHoldKey) {
-            if (!event.isAutoRepeat) {
-                if (seekHoldActive) {
-                    stopPreviewSeekHold()
-                } else {
-                    const delta = seekHoldDelta
-                    stopPreviewSeekHold()
-                    seekBy(delta)
-                }
-            }
-            return true
-        }
-        const releaseSeekDelta = seekDeltaForKey(event.key)
-        if (releaseSeekDelta !== 0 && event.isAutoRepeat)
-            return true
-        if (InputKeys.isBackEvent(event, !(shell && shell.textInputActive))) return handleBack()
-        if (event.key === Qt.Key_I || event.key === Qt.Key_Info) { toggleDebugStats(); return true }
-        if (event.key === Qt.Key_Q && hasPlayer) { player.stopWithReason("player-q"); return true }
-        if (InputKeys.isMediaPrevious(event.key)) { appController.playQueuePrevious(); return true }
-        if (InputKeys.isMediaNext(event.key)) { appController.playQueueNext(); return true }
-        if (mode === "hidden") {
-            if (event.key === Qt.Key_Left) { seekBy(-10); return true }
-            if (event.key === Qt.Key_Right) { seekBy(10); return true }
-            if (InputKeys.isAccept(event.key) && hasPlayer) { actionIndex = 1; player.togglePause(); showControls("actions"); return true }
-            showControls("timeline")
-            return true
-        }
-        if (isAudioSyncOpen() && handleAudioSyncKey(event.key)) return true
-        if (isMenuOpen() && handleMenuKey(event.key)) return true
-        if (handleControlsKey(event.key)) return true
-        if (event.key === Qt.Key_S) { openSubtitles(); return true }
-        if (event.key === Qt.Key_A) { openAudio(); return true }
-        return false
+        return input.handleReleased(event)
     }
 
     function handlePressed(event) {
-        if (InputKeys.isIgnoredPlayerNoise(event)) return true
-        if (event.key !== Qt.Key_Down && downHoldTimer.running) {
-            downHoldTimer.stop()
-            downHoldActive = false
-        }
-        if (event.key === Qt.Key_Left)
-            return startPreviewSeekHold(event.key, -10)
-        if (event.key === Qt.Key_Right)
-            return startPreviewSeekHold(event.key, 10)
-        if (event.key === Qt.Key_Down) {
-            if (!event.isAutoRepeat) {
-                downHoldActive = false
-                downHoldTimer.interval = 450
-                downHoldTimer.restart()
-            }
-            return false  // let the normal release-handler decide what Down means
-        }
-        return false
+        return input.handlePressed(event)
     }
 
     onVisibleChanged: {
@@ -703,8 +549,7 @@ FocusScope {
             scrubTimer.stop()
             previewBurstTimer.stop()
             stopPreviewSeekHold()
-            downHoldTimer.stop()
-            downHoldActive = false
+            input.resetDownHold()
             previewBurstActive = false
             mode = "hidden"
             row = "timeline"
@@ -715,6 +560,11 @@ FocusScope {
 
     onScrubbingChanged: if (!scrubbing) maybeRestartAutohide()
 
+    PlayerOverlayInput {
+        id: input
+        overlay: parent
+    }
+
     Timer { id: autohideTimer; interval: 3000; onTriggered: overlay.hideControls() }
     Timer { id: scrubTimer; interval: 650; onTriggered: overlay.commitScrub() }
     Timer {
@@ -722,25 +572,6 @@ FocusScope {
         interval: 1300
         repeat: false
         onTriggered: overlay.previewBurstActive = false
-    }
-    // Long-press of Down cycles subtitles (off -> first -> ... -> off). The
-    // first 450 ms is the "hold detection" window; after that we keep firing
-    // at ~400 ms so the user can flick through tracks quickly.
-    Timer {
-        id: downHoldTimer
-        interval: 450
-        repeat: false
-        onTriggered: {
-            if (!overlay.hasPlayer) {
-                stop()
-                return
-            }
-            overlay.downHoldActive = true
-            overlay.player.cycleSubtitles()
-            overlay.showControls("actions")
-            interval = 400
-            restart()
-        }
     }
     Timer {
         id: seekHoldTimer
