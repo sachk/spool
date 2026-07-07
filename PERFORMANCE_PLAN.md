@@ -18,8 +18,13 @@ load, not visible in logs) + ~2.1 s to event loop = ~3–4 s perceived.
   (`-g -fno-omit-frame-pointer -f(asynchronous-)unwind-tables`) applies to app
   + libmpv in every release build.
 - libmpv + all ffmpeg libs are `DT_NEEDED` of the app → loaded/relocated
-  before `main()`. `libmpv.so` exports 13k+ dynamic symbols (no
-  `-fvisibility=hidden` / version script).
+  before `main()`. The app itself calls no ffmpeg API — those links exist only
+  in the CMake webOS block.
+- `libmpv.so` exports **3454** dynamic functions, of which ~3360 are leakage
+  from statically-linked deps (libass `ass_*`, harfbuzz `hb_*`, Rust libdovi +
+  Rust stdlib `_ZN…`): meson's `gnu_symbol_visibility: hidden` covers only
+  mpv's own sources, not static archives linked in. Bloats `.dynsym`/`.dynstr`
+  and slows load/dlopen.
 - No LTO in mpv (`b_lto` unset), ffmpeg (no `--enable-lto`), or Qt static
   (no `FEATURE_ltcg`).
 - ffmpeg build is already demuxer/audio-decoder-focused (video is Starfish HW),
@@ -179,3 +184,45 @@ Supporting items:
 5. §3 LTO stack-wide
 6. §8 PGO
 7. §9 clang, only if still hungry
+
+## Execution checklist
+
+The three highest-difficulty items (deep API-surface/lifecycle analysis,
+linker-semantics, cross-stack ABI/asm risk) were assigned to the top-tier
+model session of 2026-07-07; the rest are sized for any later session.
+
+Hardest three (this session):
+
+- [ ] §4A dlopen-lazy libmpv: dl shim providing the `mpv_*`/`starfish_*`
+      symbols the app uses, deferred-replay for the `starfish_*` callback
+      setters called in the `NativeAppWindow` constructor, async preload
+      after first frame, drop libmpv+ffmpeg+lua from app `DT_NEEDED`.
+- [ ] §2 Thumb-2 + cortex-a53/armv8-fpu retune of app, libmpv, ffmpeg
+      (`--enable-thumb`, `--cpu=cortex-a53`), lua. (Qt stays ARM-mode until
+      its own rebuild — see below.)
+- [ ] §2bis libmpv dynamic-export diet: anonymous linker version script
+      exporting only `mpv_*` + `starfish_*` (hides ~3360 stray exports from
+      libass/harfbuzz/Rust libdovi), verified against the dlopen shim's
+      dlsym set.
+
+Remaining (unassigned):
+
+- [ ] §0 exec→main + static-init measurement; surface Diagnostics phase
+      timings into the startup log; one-off `LD_DEBUG=statistics` run
+- [ ] §1 strip staged shared libs in `build-ipk.sh`
+- [ ] §1 make `HEAPTRACK_UNWIND_FLAGS` opt-in for release builds
+- [ ] §1 drop the unusable `qtvirtualkeyboard` import / `QT_IM_MODULE`
+- [ ] §1 remove the failing `customcontext` scenegraph probe
+- [ ] §2/§3 rebuild static Qt with `-mthumb -mcpu=cortex-a53` and
+      `-DFEATURE_ltcg=ON` (long build; pair with gcc-ar LTO app link)
+- [ ] §3 `-Db_lto=true` for mpv, `--enable-lto` for ffmpeg
+- [ ] §4 `requiredMemory` 300→150 launch-latency A/B
+- [ ] §4 sequential self-readahead experiment (`posix_fadvise`)
+- [ ] §5 move sqlite open off the pre-window critical path
+- [ ] §5 persistent RHI pipeline cache (`QQuickGraphicsConfiguration`)
+- [ ] §5 persistent fontconfig cache dir (or bundled font + `QT_QPA_FONTDIR`)
+- [ ] §6 async Loaders/skeleton first frame; audit startup import list;
+      evaluate qmltc for shell components
+- [ ] §7 TLS preconnect (`connectToHostEncrypted`) during QML load
+- [ ] §8 GCC PGO cycle (needs scripted on-TV profiling runs)
+- [ ] §9 clang/lld migration evaluation (lld `--icf=all`, ThinLTO)
