@@ -197,7 +197,10 @@ Hardest three (this session):
       the `mpv_*`/`starfish_*` symbols the app uses, deferred-replay for the
       `starfish_*` callback setters called in the `NativeAppWindow`
       constructor, async preload on first `frameSwapped`, libmpv+ffmpeg+lua
-      dropped from app `DT_NEEDED` (verified via readelf).
+      dropped from app `DT_NEEDED` (verified via readelf). Must be
+      `RTLD_LAZY`: LG's starfish system libs are under-linked (dangling
+      `curl_easy_header` ref vs the TV's curl 7.7x) and `RTLD_NOW` turns
+      that into a hard dlopen failure (seen on-device 2026-07-07).
 - [x] §2 Thumb-2 + cortex-a53/armv8-fpu retune of app, libmpv, ffmpeg
       (`--enable-thumb`, `--cpu=cortex-a53`), lua via `webos_tune_cflags` in
       `tools/lib/build-common.sh` (override: `WEBOS_TUNE_CFLAGS`). Verified
@@ -228,5 +231,9 @@ Remaining (unassigned):
 - [ ] §6 async Loaders/skeleton first frame; audit startup import list;
       evaluate qmltc for shell components
 - [ ] §7 TLS preconnect (`connectToHostEncrypted`) during QML load
+- [ ] §4A follow-up: optionally pre-create the mpv handle (mpv_create +
+      configure) during idle after the libmpv preload, so first play skips
+      even mpv init (~currently logged as "mpv initialized in N ms"); needs
+      PlayerController lifecycle audit
 - [ ] §8 GCC PGO cycle (needs scripted on-TV profiling runs)
 - [ ] §9 clang/lld migration evaluation (lld `--icf=all`, ThinLTO)
