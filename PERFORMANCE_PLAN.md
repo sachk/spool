@@ -193,10 +193,11 @@ model session of 2026-07-07; the rest are sized for any later session.
 
 Hardest three (this session):
 
-- [ ] §4A dlopen-lazy libmpv: dl shim providing the `mpv_*`/`starfish_*`
-      symbols the app uses, deferred-replay for the `starfish_*` callback
-      setters called in the `NativeAppWindow` constructor, async preload
-      after first frame, drop libmpv+ffmpeg+lua from app `DT_NEEDED`.
+- [x] §4A dlopen-lazy libmpv: dl shim (`src/player/MpvRuntime.cpp`) providing
+      the `mpv_*`/`starfish_*` symbols the app uses, deferred-replay for the
+      `starfish_*` callback setters called in the `NativeAppWindow`
+      constructor, async preload on first `frameSwapped`, libmpv+ffmpeg+lua
+      dropped from app `DT_NEEDED` (verified via readelf).
 - [ ] §2 Thumb-2 + cortex-a53/armv8-fpu retune of app, libmpv, ffmpeg
       (`--enable-thumb`, `--cpu=cortex-a53`), lua. (Qt stays ARM-mode until
       its own rebuild — see below.)

@@ -10,6 +10,9 @@
 #include "diagnostics/Diagnostics.h"
 #include "discovery/DiscoveryController.h"
 #include "player/PlayerController.h"
+#ifdef JELLYFIN_NATIVE_WEBOS
+#include "player/MpvRuntime.h"
+#endif
 
 extern "C" {
 #include <fcntl.h>
@@ -718,6 +721,19 @@ int main(int argc, char **argv)
 
 #ifdef JELLYFIN_NATIVE_WEBOS
     g_lifecycleWindow = &window;
+
+    // Load libmpv (dlopen'd, not DT_NEEDED — see MpvRuntime.h) once the first
+    // frame is on screen, so its map/relocate cost lands in UI idle time
+    // instead of the launch path. frameSwapped fires on the render thread;
+    // queue onto the GUI thread and only ever start one loader.
+    QObject::connect(&window, &QQuickWindow::frameSwapped, &window, [] {
+        static bool started = false;
+        if (started)
+            return;
+        started = true;
+        logLine("startup: first frame swapped, preloading libmpv");
+        JellyfinNative::MpvRuntime::preloadAsync();
+    }, Qt::QueuedConnection);
 
     std::unique_ptr<HContext> lunaContext(new HContext());
     lunaContext->pub = true;
