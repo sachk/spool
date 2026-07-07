@@ -58,9 +58,6 @@ set(JELLYFIN_QT_COMPONENTS
     Sql
     OpenGL
     LinguistTools
-    VirtualKeyboard
-    VirtualKeyboardQml
-    VirtualKeyboardSettings
     WebSockets
 )
 if(JELLYFIN_NATIVE_WEBOS)
@@ -349,6 +346,7 @@ qt_add_qml_module(jellyfin-native
         qml/primitives/TextFieldRow.qml
         qml/primitives/ToggleRow.qml
         qml/shell/AppShell.qml
+        qml/shell/BusyOverlay.qml
         qml/shell/DiagnosticsOverlay.qml
         qml/shell/ItemContextMenu.qml
         qml/shell/MediaInfoOverlay.qml
@@ -359,7 +357,6 @@ qt_add_qml_module(jellyfin-native
         qml/shell/ToastLayer.qml
         qml/shell/TopBar.qml
         qml/shell/VideoSurface.qml
-        qml/shell/VirtualKeyboardPanel.qml
         qml/theme/Metrics.qml
         qml/theme/Theme.qml
         qml/theme/Typography.qml
@@ -754,39 +751,11 @@ if(JELLYFIN_QT_CORE_TARGET_TYPE STREQUAL "STATIC_LIBRARY")
                 Qt6::QWaylandEglClientBufferPlugin
                 Qt6::QWaylandWlShellIntegrationPlugin
                 Qt6::QSQLiteDriverPlugin
-                Qt6::QVirtualKeyboardPlugin
                 Qt6::QJpegPlugin
                 Qt6::QWebpPlugin
                 Qt6::QSvgPlugin
         )
 
-        # Qt VirtualKeyboard's QML qmldir files name nested static plugin link
-        # targets. Import their generated package files before qmlimportscanner
-        # asks CMake to link them, otherwise Qt warns that the targets are not
-        # visible in this scope and silently omits the plugins.
-        foreach(plugin IN ITEMS
-            VirtualKeyboardplugin
-            qtvkbplugin
-            qtvkbsettingsplugin
-            qtvkbcomponentsplugin
-            qtvkblayoutsplugin
-            qtvkbbuiltinstylesplugin
-            qtvkbstylesplugin
-            qtvkbhangulplugin
-            qtvkbhunspellplugin
-            qtvkbopenwnnplugin
-            qtvkbpinyinplugin
-            qtvkbtcimeplugin
-            qtvkbthaiplugin
-            qtvkbpluginsplugin
-        )
-            if(NOT TARGET Qt6::${plugin})
-                find_package(Qt6${plugin} CONFIG QUIET
-                    PATHS "${Qt6Qml_DIR}/QmlPlugins"
-                    NO_DEFAULT_PATH
-                )
-            endif()
-        endforeach()
     endif()
 
     # Let qmlimportscanner derive the static QML plugin link set from the

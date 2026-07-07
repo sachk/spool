@@ -356,24 +356,6 @@ while IFS= read -r dep; do
   append_library_path "$(dirname "$dep")"
   is_bundleable_elf_dep "$dep" || continue
 done < <(ldd "$APPDIR/usr/bin/jellyfin-native" "$APPDIR"/usr/lib/libmpv.so* 2>/dev/null | awk '/=> \// { print $3 } /^\// { print $1 }' | sort -u)
-virtual_keyboard_qml_root=""
-qt_shadow="$(qt_deploy_linuxdeploy_qt_shadow \
-  "$APP_ROOT/build/linux-release/app/build.ninja" \
-  "$APP_ROOT/build/appimage/qt-shadow/bin")"
-if [[ -n "$qt_shadow" ]]; then
-  prepend_path "$qt_shadow"
-fi
-
-qml_roots=("${JELLYFIN_QT_VIRTUAL_KEYBOARD_QML_ROOT:-}")
-IFS=':' read -r -a nix_qml_roots <<< "${NIXPKGS_QT6_QML_IMPORT_PATH:-}"
-qml_roots+=("${nix_qml_roots[@]}")
-for qml_root in "${qml_roots[@]}"; do
-  [[ -n "$qml_root" && -d "$qml_root/QtQuick/VirtualKeyboard" ]] || continue
-  virtual_keyboard_qml_root="$qml_root"
-  append_colon_path QML_IMPORT_PATH "$qml_root"
-  append_colon_path QML2_IMPORT_PATH "$qml_root"
-  break
-done
 
 export EXTRA_PLATFORM_PLUGINS="${EXTRA_PLATFORM_PLUGINS:-libqwayland.so}"
 export QML_SOURCES_PATHS="${QML_SOURCES_PATHS:-$APP_ROOT/qml}"
@@ -387,17 +369,6 @@ prime_linuxdeploy_qt_plugins
 "$QT_PLUGIN" --appdir "$APPDIR"
 
 unset EXTRA_PLATFORM_PLUGINS
-if [[ -z "$virtual_keyboard_qml_root" ]]; then
-  echo "error: QtQuick.VirtualKeyboard QML module was not found" >&2
-  exit 1
-fi
-copy_tree_if_exists \
-  "$virtual_keyboard_qml_root/QtQuick/VirtualKeyboard" \
-  "$APPDIR/usr/qml/QtQuick/VirtualKeyboard"
-[[ -f "$APPDIR/usr/qml/QtQuick/VirtualKeyboard/qmldir" ]] || {
-  echo "error: QtQuick.VirtualKeyboard QML module was not staged" >&2
-  exit 1
-}
 bundle_wayland_plugins
 prune_appdir
 copy_elf_deps
