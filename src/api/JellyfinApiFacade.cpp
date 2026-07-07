@@ -1552,6 +1552,7 @@ PlaybackSession JellyfinApiFacade::buildPlaybackSession(const MovieItem &movie, 
     return {
         movie.id,
         movie.title,
+        movie.itemType,
         PlaybackNegotiation::buildUrl(m_serverUrl, movie.id,
                                       m_session.accessToken, selection),
         mediaSourceId,
@@ -1560,6 +1561,7 @@ PlaybackSession JellyfinApiFacade::buildPlaybackSession(const MovieItem &movie, 
         container,
         movie.resumeTicks,
         movie.runtimeTicks,
+        mediaStreamsFromApiJson(selectedSource.value(QStringLiteral("MediaStreams")).toArray()),
     };
 }
 

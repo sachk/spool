@@ -26,6 +26,8 @@ class PlayerController final : public QObject
 {
     Q_OBJECT
     Q_PROPERTY(bool visible READ visible NOTIFY visibleChanged)
+    Q_PROPERTY(bool sessionActive READ sessionActive NOTIFY sessionActiveChanged)
+    Q_PROPERTY(QString mediaKind READ mediaKind NOTIFY stateChanged)
     Q_PROPERTY(bool paused READ paused NOTIFY stateChanged)
     Q_PROPERTY(QString title READ title NOTIFY stateChanged)
     Q_PROPERTY(QString statusText READ statusText NOTIFY stateChanged)
@@ -62,6 +64,8 @@ public:
     ~PlayerController() override;
 
     bool visible() const;
+    bool sessionActive() const;
+    QString mediaKind() const;
     bool paused() const;
     QString title() const;
     QString statusText() const;
@@ -124,6 +128,7 @@ public:
 
 signals:
     void visibleChanged();
+    void sessionActiveChanged();
     void stateChanged();
     void chaptersChanged();
     void playbackStopped(const QString &itemId, qint64 positionTicks, bool completed);
@@ -150,8 +155,9 @@ private:
         AudioDelay,
     };
 
-    bool ensureMpv();
+    bool ensureMpv(bool needsVideoSurface);
     void scheduleMpvTeardown();
+    static QString mediaKindForSession(const PlaybackSession &session);
     void handleMpvEvent(mpv_event *event);
     void startProgressReporting();
     void stopProgressReporting(bool failed = false, bool completed = false);
@@ -183,6 +189,7 @@ private:
     QTimer m_uiPositionTimer;
     QTimer m_seekWatchdogTimer;
     bool m_visible = false;
+    bool m_sessionActive = false;
     bool m_paused = false;
     bool m_buffering = false;
     int m_bufferingPercent = 0;
@@ -193,6 +200,7 @@ private:
     QString m_title;
     QString m_statusText = QStringLiteral("Ready");
     QString m_errorText;
+    QString m_mediaKind = QStringLiteral("none");
     std::atomic_bool m_nightModeEnabled = false;
     std::atomic_bool m_toneMappingVisualizationEnabled = false;
     std::atomic<int> m_audioDelayMs = 0;

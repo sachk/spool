@@ -12,7 +12,7 @@ FocusScope {
     property var shell
     readonly property var player: appController ? appController.player : null
     readonly property var playQueue: appController ? appController.playQueue : null
-    readonly property bool hasPlayer: player !== null && player !== undefined
+    readonly property bool hasPlayer: player !== null && player !== undefined && player.sessionActive
     readonly property bool smartTvPlatform: nativeWindow ? nativeWindow.smartTvPlatform : true
     readonly property bool desktopControlsAvailable: !smartTvPlatform
     readonly property int currentAudioDelayMs: appController ? appController.settings.audioDelayMs : 0
