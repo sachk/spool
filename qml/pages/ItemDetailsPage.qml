@@ -42,8 +42,13 @@ FocusScope {
     readonly property var fullDetailItem: appController && appController.detailItem
                                       && String(appController.detailItem.movieId || "") === String(item.movieId || "")
                                       ? appController.detailItem : ({})
-    readonly property var people: fullDetailItem.people || []
+    readonly property var metadataPeople: fullDetailItem.people && fullDetailItem.people.length > 0 ? fullDetailItem.people : (item.people || [])
+    readonly property var people: metadataPeople
     readonly property bool showPeopleRow: people.length > 0
+    readonly property var genreList: fullDetailItem.genres && fullDetailItem.genres.length > 0 ? fullDetailItem.genres : (item.genres || [])
+    readonly property var studioList: fullDetailItem.studios && fullDetailItem.studios.length > 0 ? fullDetailItem.studios : (item.studios || [])
+    readonly property var metadataRows: buildMetadataRows()
+    readonly property bool showMetadataPanel: metadataRows.length > 0
     readonly property bool showSeriesLink: (typeText === "Episode" || typeText === "Season") && seriesIdText.length > 0 && seriesTitle.length > 0
     readonly property bool showSeasonLink: typeText === "Episode" && seriesIdText.length > 0 && (seasonIdText.length > 0 || Number(item.seasonNumber || 0) > 0)
 
@@ -96,43 +101,46 @@ FocusScope {
         signal activated
 
         visible: label.length > 0
-        implicitWidth: linkRow.implicitWidth
-        implicitHeight: linkText.implicitHeight + 6
+        implicitWidth: linkColumn.implicitWidth
+        implicitHeight: linkColumn.implicitHeight
         focus: true
 
-        Row {
-            id: linkRow
+        Column {
+            id: linkColumn
             anchors.left: parent.left
             anchors.top: parent.top
-            spacing: 8
+            spacing: 2
 
-            AppText {
-                id: linkText
-                anchors.verticalCenter: parent.verticalCenter
-                text: link.label
-                color: link.activeFocus || hover.hovered ? Theme.textPrimary : Theme.textSecondary
-                font.pixelSize: root.detailTitlePx
-                font.weight: Font.DemiBold
-                maximumLineCount: 1
-                elide: Text.ElideRight
+            Row {
+                id: linkRow
+                spacing: 8
+
+                AppText {
+                    id: linkText
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: link.label
+                    color: link.activeFocus || hover.hovered ? Theme.textPrimary : Theme.textSecondary
+                    font.pixelSize: root.detailTitlePx
+                    font.weight: Font.DemiBold
+                    maximumLineCount: 1
+                    elide: Text.ElideRight
+                }
+
+                MaterialIcon {
+                    anchors.verticalCenter: linkText.verticalCenter
+                    name: "chevron_right"
+                    iconSize: Math.max(20, Math.round(root.detailTitlePx * 0.45))
+                    iconColor: link.activeFocus || hover.hovered ? Theme.accent : Theme.textMuted
+                }
             }
 
-            MaterialIcon {
-                anchors.verticalCenter: linkText.verticalCenter
-                name: "chevron_right"
-                iconSize: Math.max(20, Math.round(root.detailTitlePx * 0.45))
-                iconColor: link.activeFocus || hover.hovered ? Theme.accent : Theme.textMuted
+            Rectangle {
+                width: linkText.width
+                height: link.activeFocus ? 3 : 2
+                radius: height / 2
+                color: link.activeFocus || hover.hovered ? Theme.accent : Theme.borderStrong
+                opacity: link.activeFocus || hover.hovered ? 1 : 0.75
             }
-        }
-
-        Rectangle {
-            x: linkRow.x + linkText.x
-            y: linkRow.y + linkText.y + linkText.height + 2
-            width: linkText.width
-            height: link.activeFocus ? 3 : 2
-            radius: height / 2
-            color: link.activeFocus || hover.hovered ? Theme.accent : Theme.borderStrong
-            opacity: link.activeFocus || hover.hovered ? 1 : 0.75
         }
 
 
@@ -152,6 +160,201 @@ FocusScope {
         }
     }
 
+
+
+    component MetadataPanel: FocusScope {
+        id: panel
+        property var rows: []
+        property int currentRow: 0
+        property int currentChip: 0
+        property bool browsing: false
+        readonly property bool hasRows: rows && rows.length > 0
+        signal activated(string kind, var value)
+        signal leaveUp
+        signal leaveDown
+
+        function focusPanel() {
+            browsing = false;
+            InputKeys.focus(panel);
+        }
+
+        function chipText(value) {
+            if (value === undefined || value === null)
+                return "";
+            if (typeof value === "string")
+                return value;
+            return String(value.name || value.title || value.value || "");
+        }
+
+        function rowValues(row) {
+            if (!hasRows || row < 0 || row >= rows.length)
+                return [];
+            return rows[row].values || [];
+        }
+
+        function normalizeSelection() {
+            if (!hasRows) {
+                currentRow = 0;
+                currentChip = 0;
+                browsing = false;
+                return;
+            }
+            currentRow = Math.max(0, Math.min(currentRow, rows.length - 1));
+            currentChip = Math.max(0, Math.min(currentChip, Math.max(0, rowValues(currentRow).length - 1)));
+        }
+
+        function moveRow(delta) {
+            const next = currentRow + delta;
+            if (next < 0) {
+                browsing = false;
+                leaveUp();
+                return true;
+            }
+            if (next >= rows.length) {
+                browsing = false;
+                leaveDown();
+                return true;
+            }
+            currentRow = next;
+            currentChip = Math.min(currentChip, Math.max(0, rowValues(currentRow).length - 1));
+            return true;
+        }
+
+        function moveChip(delta) {
+            const values = rowValues(currentRow);
+            if (values.length <= 0)
+                return true;
+            currentChip = Math.max(0, Math.min(currentChip + delta, values.length - 1));
+            return true;
+        }
+
+        function activateCurrent() {
+            normalizeSelection();
+            const values = rowValues(currentRow);
+            if (values.length <= 0)
+                return false;
+            activated(rows[currentRow].kind || "", values[currentChip]);
+            return true;
+        }
+
+        function leaveBrowse() {
+            browsing = false;
+            InputKeys.focus(panel);
+        }
+
+        function handleKey(key) {
+            if (!hasRows)
+                return false;
+            normalizeSelection();
+            if (!browsing) {
+                if (InputKeys.isAccept(key, false)) {
+                    browsing = true;
+                    return true;
+                }
+                if (key === Qt.Key_Up) {
+                    leaveUp();
+                    return true;
+                }
+                if (key === Qt.Key_Down) {
+                    leaveDown();
+                    return true;
+                }
+                return key === Qt.Key_Left || key === Qt.Key_Right;
+            }
+            if (InputKeys.isBack(key, false, false)) {
+                leaveBrowse();
+                return true;
+            }
+            if (InputKeys.isAccept(key, false))
+                return activateCurrent();
+            if (key === Qt.Key_Left)
+                return moveChip(-1);
+            if (key === Qt.Key_Right)
+                return moveChip(1);
+            if (key === Qt.Key_Up)
+                return moveRow(-1);
+            if (key === Qt.Key_Down)
+                return moveRow(1);
+            return false;
+        }
+
+        width: parent ? parent.width : implicitWidth
+        height: implicitHeight
+        implicitHeight: visible ? block.implicitHeight : 0
+        visible: hasRows
+        focus: true
+        onRowsChanged: normalizeSelection()
+
+        Surface {
+            id: block
+            width: parent.width
+            implicitHeight: metadataColumn.implicitHeight + 34
+            height: implicitHeight
+            focused: panel.activeFocus
+            hovered: panelHover.hovered
+            baseColor: Theme.floatingPanel
+            radius: Theme.radiusPanel
+
+            ColumnLayout {
+                id: metadataColumn
+                anchors.left: parent.left
+                anchors.right: parent.right
+                anchors.top: parent.top
+                anchors.margins: 17
+                spacing: 12
+
+                Repeater {
+                    model: panel.rows
+                    delegate: RowLayout {
+                        id: rowDelegate
+                        required property int index
+                        required property var modelData
+                        Layout.fillWidth: true
+                        spacing: 16
+
+                        MonoText {
+                            Layout.preferredWidth: Math.min(128, Math.max(88, block.width * 0.12))
+                            text: String(rowDelegate.modelData.label || "")
+                            color: panel.browsing && panel.currentRow === rowDelegate.index ? Theme.textPrimary : Theme.textMuted
+                            font.pixelSize: Metrics.metaPx(root.width)
+                            font.weight: Font.DemiBold
+                            font.letterSpacing: 1.7
+                            maximumLineCount: 1
+                            elide: Text.ElideRight
+                        }
+
+                        Flow {
+                            Layout.fillWidth: true
+                            spacing: 8
+
+                            Repeater {
+                                model: rowDelegate.modelData.values || []
+                                delegate: MetadataChip {
+                                    id: chip
+                                    required property int index
+                                    required property var modelData
+                                    text: panel.chipText(modelData)
+                                    selected: panel.browsing && panel.currentRow === rowDelegate.index && panel.currentChip === index
+                                    hovered: chipMouse.containsMouse
+
+                                    MouseArea {
+                                        id: chipMouse
+                                        anchors.fill: parent
+                                        hoverEnabled: true
+                                        onClicked: panel.activated(rowDelegate.modelData.kind || "", modelData)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        HoverHandler {
+            id: panelHover
+        }
+    }
 
     Component.onCompleted: {
         syncUserState();
@@ -212,6 +415,10 @@ FocusScope {
     }
 
     function handleBack() {
+        if (metadataPanel.activeFocus && metadataPanel.browsing) {
+            metadataPanel.leaveBrowse();
+            return true;
+        }
         return false;
     }
 
@@ -276,11 +483,15 @@ FocusScope {
     }
 
     function focusDetailsPanel() {
-        return focusFirstMediaRow();
+        if (!showMetadataPanel)
+            return focusFirstMediaRow();
+        metadataPanel.focusPanel();
+        ensureDetailsItemVisible(metadataPanel);
+        return true;
     }
 
     function focusBeforeMediaRows() {
-        return focusActionRow();
+        return showMetadataPanel ? focusDetailsPanel() : focusActionRow();
     }
 
     function focusFirstMediaRow() {
@@ -471,6 +682,22 @@ FocusScope {
             shell.openPerson(person);
     }
 
+    function openGenrePage(value) {
+        if (!value || !appController)
+            return;
+        appController.openGenre(value);
+        if (shell)
+            shell.replaceRoute("libraryGrid");
+    }
+
+    function openStudioPage(value) {
+        if (!value || !appController)
+            return;
+        appController.openStudio(value);
+        if (shell)
+            shell.replaceRoute("libraryGrid");
+    }
+
 
     function handlePressedKey(key) {
         if (contextRow.activeFocus)
@@ -529,6 +756,9 @@ FocusScope {
             }
         }
 
+        if (metadataPanel.activeFocus)
+            return metadataPanel.handleKey(key);
+
 
         if (contextRow.activeFocus) {
             if (key === Qt.Key_Up) {
@@ -544,11 +774,12 @@ FocusScope {
 
         if (peopleRow.activeFocus) {
             if (key === Qt.Key_Up) {
-                if (showContextRow && contextCount > 0)
+                if (showContextRow && contextCount > 0) {
                     contextRow.focusList();
-                else
+                    ensureDetailsItemVisible(contextRow);
+                } else {
                     focusBeforeMediaRows();
-                ensureDetailsItemVisible(showContextRow && contextCount > 0 ? contextRow : peopleRow);
+                }
                 return true;
             }
             if (key === Qt.Key_Down) {
@@ -712,6 +943,79 @@ FocusScope {
         if (typeText.length > 0)
             parts.push(typeText);
         return parts.join(" / ");
+    }
+
+
+    function peopleByType(type) {
+        const result = [];
+        for (let i = 0; i < metadataPeople.length; ++i) {
+            const person = metadataPeople[i] || ({});
+            if (String(person.type || "") === type)
+                result.push(person);
+        }
+        return result;
+    }
+
+    function valuesFromStrings(values) {
+        const result = [];
+        if (!values)
+            return result;
+        for (let i = 0; i < values.length; ++i) {
+            const text = String(values[i] || "");
+            if (text.length > 0)
+                result.push(text);
+        }
+        return result;
+    }
+
+    function buildMetadataRows() {
+        const rows = [];
+        const directors = peopleByType("Director");
+        const writers = peopleByType("Writer");
+        const genres = valuesFromStrings(genreList);
+        const studios = valuesFromStrings(studioList);
+        if (directors.length > 0)
+            rows.push({
+                label: directors.length === 1 ? "Director" : "Directors",
+                kind: "person",
+                values: directors
+            });
+        if (writers.length > 0)
+            rows.push({
+                label: writers.length === 1 ? "Writer" : "Writers",
+                kind: "person",
+                values: writers
+            });
+        if (genres.length > 0)
+            rows.push({
+                label: genres.length === 1 ? "Genre" : "Genres",
+                kind: "genre",
+                values: genres
+            });
+        if (studios.length > 0)
+            rows.push({
+                label: studios.length === 1 ? "Studio" : "Studios",
+                kind: "studio",
+                values: studios
+            });
+        return rows;
+    }
+
+    function chipText(value) {
+        if (value === undefined || value === null)
+            return "";
+        if (typeof value === "string")
+            return value;
+        return String(value.name || value.title || value.value || "");
+    }
+
+    function activateMetadata(kind, value) {
+        if (kind === "genre")
+            openGenrePage(chipText(value));
+        else if (kind === "studio")
+            openStudioPage(chipText(value));
+        else if (kind === "person")
+            openPerson(value);
     }
 
 
@@ -950,6 +1254,17 @@ FocusScope {
                                 onActivated: root.openMediaInfo()
                             }
                         }
+                    }
+
+
+                    MetadataPanel {
+                        id: metadataPanel
+                        Layout.fillWidth: true
+                        Layout.topMargin: 28
+                        rows: root.metadataRows
+                        onActivated: (kind, value) => root.activateMetadata(kind, value)
+                        onLeaveUp: root.focusActionRow()
+                        onLeaveDown: root.focusFirstMediaRow()
                     }
 
                 }
