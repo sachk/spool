@@ -663,6 +663,14 @@ FocusScope {
                 appController.openSeasonById(seriesId, seasonId, seasonName)
             }
             onMediaInfoRequested: (snapshot) => root.openMediaInfo(snapshot)
+            onPlayNextRequested: (snapshot) => {
+                if (appController)
+                    appController.playNextFromItem(snapshot)
+            }
+            onAddToQueueRequested: (snapshot) => {
+                if (appController)
+                    appController.addToQueueFromItem(snapshot)
+            }
         }
     }
 

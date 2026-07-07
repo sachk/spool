@@ -6,6 +6,7 @@
 #include "../common/AsyncTask.h"
 #include "../diagnostics/Diagnostics.h"
 #include "../player/PlayerController.h"
+#include "../player/PlayQueueController.h"
 #include "ContentModelController.h"
 #include "BrowseSessionController.h"
 #include "HomeModelController.h"
@@ -54,6 +55,7 @@ AppController::AppController(DatabaseManager *database,
     , m_player(player)
 {
     m_syncPlay = new SyncPlayController(api, player, this);
+    m_playQueue = new PlayQueueController(this);
     m_quickConnect = new QuickConnectController(api, this);
     m_settings = new SettingsController(database, api, player, this);
     m_session = new SessionController(database, api, this);
@@ -285,6 +287,11 @@ PlayerController *AppController::player()
     return m_player;
 }
 
+PlayQueueController *AppController::playQueue()
+{
+    return m_playQueue;
+}
+
 SettingsController *AppController::settings()
 {
     return m_settings;
@@ -495,12 +502,30 @@ void AppController::playOrOpen(const MovieItem &item, bool fromStart)
         openFolder(item);
         return;
     }
-    playMediaItem(item, fromStart);
+    playQueuedItem(item, fromStart);
+}
+
+void AppController::playOrOpenFromModel(MovieGridModel *model, int index, bool fromStart)
+{
+    if (!model)
+        return;
+    const MovieItem item = model->movieAt(index);
+    if (item.id.isEmpty())
+        return;
+    if (item.itemType == QStringLiteral("Series") ||
+        item.itemType == QStringLiteral("Season") ||
+        item.itemType == QStringLiteral("Playlist") ||
+        item.itemType == QStringLiteral("BoxSet") ||
+        item.itemType == QStringLiteral("Folder")) {
+        playOrOpen(item, fromStart);
+        return;
+    }
+    playQueuedItems(model->movies(), index, fromStart);
 }
 
 void AppController::playMovie(int index, bool fromStart)
 {
-    playOrOpen(m_browse->itemAt(index), fromStart);
+    playOrOpenFromModel(m_browse->items(), index, fromStart);
 }
 
 void AppController::playResumeItem(int index, bool fromStart)
@@ -509,9 +534,7 @@ void AppController::playResumeItem(int index, bool fromStart)
     qInfo() << "app: play resume item index=" << index
             << "type=" << item.itemType << "title=" << item.title
             << "resumeTicks=" << item.resumeTicks << "fromStart=" << fromStart;
-    if (item.id.isEmpty())
-        return;
-    playMediaItem(item, fromStart);
+    playOrOpenFromModel(m_home->resumeItems(), index, fromStart);
 }
 
 void AppController::playNextUpItem(int index, bool fromStart)
@@ -520,9 +543,44 @@ void AppController::playNextUpItem(int index, bool fromStart)
     qInfo() << "app: play next-up item index=" << index
             << "type=" << item.itemType << "title=" << item.title
             << "resumeTicks=" << item.resumeTicks << "fromStart=" << fromStart;
-    if (item.id.isEmpty())
+    playOrOpenFromModel(m_home->nextUpItems(), index, fromStart);
+}
+
+void AppController::playQueueNext()
+{
+    if (!queueMutationAllowed() || !m_playQueue->next())
         return;
-    playMediaItem(item, fromStart);
+    playQueueCurrent(false);
+}
+
+void AppController::playQueuePrevious()
+{
+    if (!queueMutationAllowed() || !m_playQueue->previous())
+        return;
+    playQueueCurrent(true);
+}
+
+void AppController::playNextFromItem(const QVariantMap &item)
+{
+    if (!queueMutationAllowed())
+        return;
+    if (!m_playQueue->playNext(movieFromSnapshot(item)))
+        setErrorText(QStringLiteral("This item cannot be queued."));
+}
+
+void AppController::addToQueueFromItem(const QVariantMap &item)
+{
+    if (!queueMutationAllowed())
+        return;
+    if (!m_playQueue->addToQueue(movieFromSnapshot(item)))
+        setErrorText(QStringLiteral("This item cannot be queued."));
+}
+
+void AppController::shuffleQueue(bool shuffled)
+{
+    if (!queueMutationAllowed())
+        return;
+    m_playQueue->setShuffled(shuffled);
 }
 
 QObject *AppController::latestLibraryItems(int rowIndex)
@@ -532,7 +590,7 @@ QObject *AppController::latestLibraryItems(int rowIndex)
 
 void AppController::playLatestLibraryItem(int rowIndex, int itemIndex, bool fromStart)
 {
-    playOrOpen(m_home->latestLibraryItemAt(rowIndex, itemIndex), fromStart);
+    playOrOpenFromModel(qobject_cast<MovieGridModel *>(m_home->latestLibraryItems(rowIndex)), itemIndex, fromStart);
 }
 
 void AppController::openSeriesById(const QString &seriesId, const QString &seriesName)
@@ -563,12 +621,12 @@ void AppController::openSeasonById(const QString &seriesId, const QString &seaso
 
 void AppController::playSuggestionItem(int index, bool fromStart)
 {
-    playOrOpen(m_search->suggestionItemAt(index), fromStart);
+    playOrOpenFromModel(m_search->suggestions(), index, fromStart);
 }
 
 void AppController::playSearchResult(int index, bool fromStart)
 {
-    playOrOpen(m_search->resultItemAt(index), fromStart);
+    playOrOpenFromModel(m_search->results(), index, fromStart);
 }
 
 void AppController::maybeLoadMoreCurrentItems(int visibleIndex)
@@ -756,12 +814,17 @@ void AppController::openDetailSeason(int index)
 
 void AppController::playDetailSeasonItem(int index, bool fromStart)
 {
-    playOrOpen(m_content->detailSeasonAt(index), fromStart);
+    playOrOpenFromModel(m_content->detailSeasons(), index, fromStart);
+}
+
+void AppController::playDetailContext(bool shuffled)
+{
+    playQueuedModel(m_content->detailSeasons(), shuffled);
 }
 
 void AppController::playDetailSimilarItem(int index, bool fromStart)
 {
-    playOrOpen(m_content->detailSimilarItemAt(index), fromStart);
+    playOrOpenFromModel(m_content->detailSimilarItems(), index, fromStart);
 }
 
 void AppController::loadPersonItems(const QString &personId)
@@ -771,7 +834,7 @@ void AppController::loadPersonItems(const QString &personId)
 
 void AppController::playPersonItem(int index, bool fromStart)
 {
-    playOrOpen(m_content->personItemAt(index), fromStart);
+    playOrOpenFromModel(m_content->personItems(), index, fromStart);
 }
 
 void AppController::setFavorite(const QString &itemId, bool favorite)
@@ -819,6 +882,71 @@ void AppController::clearProgress(const QString &itemId)
         });
 }
 
+void AppController::playQueuedItems(const std::vector<MovieItem> &items, int startIndex, bool fromStart)
+{
+    if (!queueMutationAllowed())
+        return;
+    if (!m_playQueue->playNow(items, startIndex)) {
+        setErrorText(QStringLiteral("This item cannot be queued."));
+        return;
+    }
+    playQueueCurrent(fromStart);
+}
+
+void AppController::playQueuedModel(MovieGridModel *model, bool shuffled)
+{
+    if (!model)
+        return;
+    const std::vector<MovieItem> &items = model->movies();
+    const auto firstPlayable = std::find_if(items.begin(), items.end(),
+                                            [](const MovieItem &item) {
+                                                return !item.id.isEmpty() && item.playable;
+                                            });
+    if (firstPlayable == items.end()) {
+        setErrorText(QStringLiteral("This list has no playable items."));
+        return;
+    }
+    playQueuedItems(items, static_cast<int>(std::distance(items.begin(), firstPlayable)), false);
+    if (shuffled)
+        m_playQueue->setShuffled(true);
+}
+
+void AppController::playQueuedItem(const MovieItem &item, bool fromStart)
+{
+    if (!queueMutationAllowed())
+        return;
+    if (!m_playQueue->playNow(item)) {
+        setErrorText(QStringLiteral("This item cannot be queued."));
+        return;
+    }
+    playQueueCurrent(fromStart);
+}
+
+void AppController::playQueueCurrent(bool fromStart)
+{
+    const MovieItem item = m_playQueue->currentItem();
+    if (item.id.isEmpty())
+        return;
+    playMediaItem(item, fromStart);
+}
+
+bool AppController::queueMutationAllowed()
+{
+    if (m_syncPlay && m_syncPlay->enabled()) {
+        setErrorText(QStringLiteral("Leave SyncPlay before changing the play queue."));
+        return false;
+    }
+    return true;
+}
+
+MovieItem AppController::movieFromSnapshot(const QVariantMap &snapshot) const
+{
+    QJsonObject object = QJsonObject::fromVariantMap(snapshot);
+    if (object.value(QStringLiteral("id")).toString().isEmpty())
+        object.insert(QStringLiteral("id"), object.value(QStringLiteral("movieId")).toString());
+    return movieFromJson(object);
+}
+
 void AppController::playMediaItem(const MovieItem &item, bool fromStart)
 {
     Diagnostics::Task task(QStringLiteral("playback_negotiate"), {{QStringLiteral("itemId"), item.id}, {QStringLiteral("title"), item.title}, {QStringLiteral("type"), item.itemType}});
@@ -838,6 +966,7 @@ void AppController::playMediaItem(const MovieItem &item, bool fromStart)
             PlayerController *player = m_player;
             const QString mediaSourceId = session.mediaSourceId;
             auto sharedSession = std::make_shared<PlaybackSession>(session);
+            sharedSession->nowPlayingQueue = m_playQueue->nowPlayingQueue();
             auto pending = std::make_shared<int>(2);
             auto kickoff = [player, sharedSession, pending]() {
                 if (--(*pending) == 0)
@@ -1221,8 +1350,13 @@ void AppController::handlePlaybackStopped(const QString &itemId,
                                << exceptionMessage(error);
                 });
         }
-        if (m_activePlaybackItem.id == itemId)
-            playNextEpisodeAfter(m_activePlaybackItem);
+        if (m_activePlaybackItem.id == itemId && (!m_syncPlay || !m_syncPlay->enabled())) {
+            if (m_playQueue->next()) {
+                playQueueCurrent(false);
+                return;
+            }
+            enqueueEpisodeSuccessors(m_activePlaybackItem);
+        }
     } else {
         m_itemState->applyResumeTicks(itemId, positionTicks);
         if (m_activePlaybackItem.id == itemId)
@@ -1230,7 +1364,7 @@ void AppController::handlePlaybackStopped(const QString &itemId,
     }
 }
 
-void AppController::playNextEpisodeAfter(const MovieItem &episode)
+void AppController::enqueueEpisodeSuccessors(const MovieItem &episode)
 {
     if (episode.itemType != QStringLiteral("Episode") || episode.seriesId.isEmpty())
         return;
@@ -1247,18 +1381,21 @@ void AppController::playNextEpisodeAfter(const MovieItem &episode)
             if (current == episodes.end())
                 return;
 
+            std::vector<MovieItem> successors;
             for (++current; current != episodes.end(); ++current) {
-                if (current->id.isEmpty() || !current->playable)
-                    continue;
-
-                qInfo() << "app: auto-playing next episode"
-                        << current->seriesName << current->title;
-                playMediaItem(*current, false);
-                return;
+                if (!current->id.isEmpty() && current->playable)
+                    successors.push_back(*current);
             }
+            if (successors.empty() || !m_playQueue->playNow(successors, 0))
+                return;
+
+            qInfo() << "app: auto-playing next episode"
+                    << successors.front().seriesName << successors.front().title
+                    << "queued=" << successors.size();
+            playQueueCurrent(false);
         },
         [](const std::exception_ptr &error) {
-            qWarning() << "app: next episode lookup failed"
+            qWarning() << "app: next episode queue lookup failed"
                        << exceptionMessage(error);
         });
 }

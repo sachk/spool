@@ -11,6 +11,7 @@ FocusScope {
 
     property var shell
     readonly property var player: appController ? appController.player : null
+    readonly property var playQueue: appController ? appController.playQueue : null
     readonly property bool hasPlayer: player !== null && player !== undefined
     readonly property bool smartTvPlatform: nativeWindow ? nativeWindow.smartTvPlatform : true
     readonly property bool desktopControlsAvailable: !smartTvPlatform
@@ -72,6 +73,10 @@ FocusScope {
             { label: hasPlayer && player.paused ? "Play" : "Pause", value: "pause" },
             { label: "Fast forward", value: "forward" }
         ]
+        if (playQueue && playQueue.canGoPrevious)
+            list.push({ label: "Previous item", value: "prevQueue" })
+        if (playQueue && playQueue.canGoNext)
+            list.push({ label: "Next item", value: "nextQueue" })
         if (hasPlayer && player.hasChapters) {
             list.push({ label: "Previous chapter", value: "prevChapter" })
             list.push({ label: "Next chapter", value: "nextChapter" })
@@ -370,6 +375,8 @@ FocusScope {
         if (action === "back") player.seekBack()
         else if (action === "pause") player.togglePause()
         else if (action === "forward") player.seekForward()
+        else if (action === "prevQueue") appController.playQueuePrevious()
+        else if (action === "nextQueue") appController.playQueueNext()
         else if (action === "prevChapter") player.previousChapter()
         else if (action === "nextChapter") player.nextChapter()
         else if (action === "subtitles") openSubtitles()
@@ -578,6 +585,8 @@ FocusScope {
         if (action === "skipForward90") { seekBy(90); return true }
         if (action === "skipBackAndEnableSubs") { seekBy(-10); player.enableSubtitles(); return true }
         if (action === "skipSegment") { player.skipActiveSegment(); return true }
+        if (action === "queuePrevious") { appController.playQueuePrevious(); return true }
+        if (action === "queueNext") { appController.playQueueNext(); return true }
         if (action === "showInfo") { toggleDebugStats(); return true }
         if (action === "stop") { player.stopWithReason("remap-stop"); return true }
         return false
@@ -618,6 +627,8 @@ FocusScope {
         if (InputKeys.isBackEvent(event, !(shell && shell.textInputActive))) return handleBack()
         if (event.key === Qt.Key_I || event.key === Qt.Key_Info) { toggleDebugStats(); return true }
         if (event.key === Qt.Key_Q && hasPlayer) { player.stopWithReason("player-q"); return true }
+        if (InputKeys.isMediaPrevious(event.key)) { appController.playQueuePrevious(); return true }
+        if (InputKeys.isMediaNext(event.key)) { appController.playQueueNext(); return true }
         if (mode === "hidden") {
             if (event.key === Qt.Key_Left) { seekBy(-10); return true }
             if (event.key === Qt.Key_Right) { seekBy(10); return true }
