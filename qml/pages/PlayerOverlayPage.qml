@@ -297,8 +297,7 @@ FocusScope {
     }
 
     function cancelHeldNavigation() {
-        downHoldTimer.stop()
-        downHoldActive = false
+        input.resetDownHold()
         previewBurstTimer.stop()
         previewBurstActive = false
         stopPreviewSeekHold()

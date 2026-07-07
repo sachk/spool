@@ -14,6 +14,22 @@ FocusScope {
     enabled: active
     focus: active
 
+    function focusInput() {
+        InputKeys.focus(inputShield)
+    }
+
+    function handleBack() {
+        return playerOverlay.handleBack()
+    }
+
+    function handlePressed(event) {
+        return playerOverlay.handlePressed(event)
+    }
+
+    function handleReleased(event) {
+        return playerOverlay.handleReleased(event)
+    }
+
     Image {
         anchors.fill: parent
         visible: root.active

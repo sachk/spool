@@ -141,7 +141,7 @@ FocusScope {
     }
 
     function focusPlayerInput() {
-        InputKeys.focus(playerInputShield);
+        videoSurface.focusInput();
     }
 
     function pushRoute(nextRoute) {
@@ -583,10 +583,10 @@ FocusScope {
     function handlePlayerPressed(event) {
         if (InputKeys.isBackEvent(event, !textInputActive)) {
             playerBackPressHandled = true;
-            playerOverlay.handleBack(true);
+            videoSurface.handleBack();
             return true;
         }
-        if (playerOverlay.handlePressed(event))
+        if (videoSurface.handlePressed(event))
             return true;
         return InputKeys.isDirection(event.key) || InputKeys.isAccept(event.key) || InputKeys.isIgnoredPlayerNoise(event);
     }
@@ -596,7 +596,7 @@ FocusScope {
             playerBackPressHandled = false;
             return true;
         }
-        return playerOverlay.handleReleased(event) || globalShortcut(event, true);
+        return videoSurface.handleReleased(event) || globalShortcut(event, true);
     }
 
     Keys.priority: Keys.BeforeItem
