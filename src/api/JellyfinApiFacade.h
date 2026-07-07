@@ -69,6 +69,9 @@ public:
     QCoro::Task<PagedMovieItems> fetchLibraryPage(QString libraryId, QString collectionType = {},
                                                   int startIndex = 0, int limit = 72,
                                                   QVariantMap queryOptions = {});
+    QCoro::Task<PagedMovieItems> fetchBrowsePage(BrowseDescriptor descriptor,
+                                                 int startIndex = 0, int limit = 72,
+                                                 QVariantMap queryOptions = {});
     QCoro::Task<QVariantMap> fetchLibraryFilterOptions(QString libraryId, QString collectionType = {});
     QCoro::Task<MovieItem> fetchItemDetails(QString itemId);
     QCoro::Task<std::vector<MovieItem>> fetchSeasons(QString seriesId);

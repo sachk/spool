@@ -507,6 +507,8 @@ if(BUILD_TESTING AND NOT CMAKE_CROSSCOMPILING)
         tests/app/NavigationStateTest.cpp
         src/app/NavigationState.cpp
         src/app/NavigationState.h
+        src/common/JellyfinTypes.cpp
+        src/common/JellyfinTypes.h
     )
     target_include_directories(navigation-state-tests PRIVATE
         "${CMAKE_CURRENT_SOURCE_DIR}/src"
@@ -603,6 +605,17 @@ if(BUILD_TESTING AND NOT CMAKE_CROSSCOMPILING)
         "${CMAKE_CURRENT_SOURCE_DIR}/src"
     )
     add_test(NAME request-generation COMMAND request-generation-tests)
+
+    add_executable(browse-descriptor-tests
+        tests/common/BrowseDescriptorTest.cpp
+        src/common/JellyfinTypes.cpp
+        src/common/JellyfinTypes.h
+    )
+    target_include_directories(browse-descriptor-tests PRIVATE
+        "${CMAKE_CURRENT_SOURCE_DIR}/src"
+    )
+    target_link_libraries(browse-descriptor-tests PRIVATE Qt6::Core)
+    add_test(NAME browse-descriptor COMMAND browse-descriptor-tests)
 
     add_executable(http-request-policy-tests
         tests/api/HttpRequestPolicyTest.cpp

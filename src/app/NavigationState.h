@@ -21,6 +21,7 @@ public:
   QString seasonId() const;
   QVariantMap query() const;
   QVariantMap filterOptions() const;
+  BrowseDescriptor browseDescriptor() const;
 
   void reset();
   bool setPage(const QString &page);
@@ -29,6 +30,9 @@ public:
   void enterSeries(const MovieItem &series);
   void enterSeason(const QString &seriesId, const MovieItem &season);
   void enterNamedCollection(const QString &viewKind, const QString &name);
+  void enterPlaylist(const MovieItem &playlist);
+  void enterBoxSet(const MovieItem &boxSet);
+  void enterFolder(const MovieItem &folder);
   bool setQuery(const QVariantMap &query);
   void clearFilterOptions();
   void setFilterOptions(const QVariantMap &options);
@@ -43,6 +47,7 @@ private:
   QString m_seriesId;
   QString m_seriesName;
   QString m_seasonId;
+  BrowseDescriptor m_browseDescriptor;
   QHash<QString, QVariantMap> m_libraryQueries;
   QVariantMap m_query;
   QVariantMap m_filterOptions;
