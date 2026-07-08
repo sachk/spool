@@ -1337,22 +1337,6 @@ QCoro::Task<void> JellyfinApiFacade::leaveSyncPlayGroup()
     co_await requestNoContent(HttpMethod::Post, QStringLiteral("/SyncPlay/Leave"), QJsonDocument());
 }
 
-QCoro::Task<void> JellyfinApiFacade::syncPlayRequestPlay()
-{
-    co_await requestNoContent(HttpMethod::Post, QStringLiteral("/SyncPlay/Unpause"), QJsonDocument());
-}
-
-QCoro::Task<void> JellyfinApiFacade::syncPlayRequestPause()
-{
-    co_await requestNoContent(HttpMethod::Post, QStringLiteral("/SyncPlay/Pause"), QJsonDocument());
-}
-
-QCoro::Task<void> JellyfinApiFacade::syncPlayRequestSeek(qint64 positionTicks)
-{
-    const QJsonObject body = { { QStringLiteral("PositionTicks"), QJsonValue(static_cast<qint64>(positionTicks)) } };
-    co_await requestNoContent(HttpMethod::Post, QStringLiteral("/SyncPlay/Seek"), QJsonDocument(body));
-}
-
 QCoro::Task<QJsonObject> JellyfinApiFacade::fetchUtcTime()
 {
     co_return (co_await requestJson(HttpMethod::Get, QStringLiteral("/GetUtcTime"))).object();

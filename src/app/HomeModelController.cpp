@@ -135,25 +135,6 @@ QObject *HomeModelController::latestLibraryItems(int rowIndex)
     return m_latestLibrarySections[static_cast<size_t>(rowIndex)].model.get();
 }
 
-MovieItem HomeModelController::resumeItemAt(int index) const
-{
-    return m_resumeItems.movieAt(index);
-}
-
-MovieItem HomeModelController::nextUpItemAt(int index) const
-{
-    return m_nextUpItems.movieAt(index);
-}
-
-MovieItem HomeModelController::latestLibraryItemAt(int rowIndex, int itemIndex) const
-{
-    if (rowIndex < 0 || rowIndex >= static_cast<int>(m_latestLibrarySections.size()))
-        return {};
-
-    const MovieGridModel *model = m_latestLibrarySections[static_cast<size_t>(rowIndex)].model.get();
-    return model ? model->movieAt(itemIndex) : MovieItem {};
-}
-
 bool HomeModelController::applyCachedPayload(const QJsonObject& payload)
 {
     if (payload.isEmpty())
@@ -177,18 +158,6 @@ bool HomeModelController::applyCachedPayload(const QJsonObject& payload)
     replaceLatestLibraryRows(std::move(sections));
     emit latestLibraryRowsChanged();
     return m_resumeItems.rowCount() > 0 || m_nextUpItems.rowCount() > 0 || !m_latestLibrarySections.empty();
-}
-
-QJsonObject HomeModelController::currentPayload() const
-{
-    std::vector<PendingLatestLibrarySection> sections;
-    sections.reserve(m_latestLibrarySections.size());
-    for (const LatestLibrarySection& section : m_latestLibrarySections) {
-        if (!section.model)
-            continue;
-        sections.push_back({ section.order, section.library, section.model->movies() });
-    }
-    return payloadFromSections(m_resumeItems.movies(), m_nextUpItems.movies(), sections);
 }
 
 void HomeModelController::refresh(const std::vector<LibraryItem>& libraries)

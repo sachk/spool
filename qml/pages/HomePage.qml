@@ -77,6 +77,8 @@ FocusScope {
         if (source === "libraries") {
             shell.lastLibraryIndex = index
             appController.openLibrary(index)
+            if (shell)
+                shell.replaceRoute("libraryGrid")
             return
         }
         if (source === "latestLibrary")

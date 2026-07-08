@@ -31,12 +31,7 @@ public:
     QVariantList latestLibraryRows() const;
     Q_INVOKABLE QObject *latestLibraryItems(int rowIndex);
 
-    MovieItem resumeItemAt(int index) const;
-    MovieItem nextUpItemAt(int index) const;
-    MovieItem latestLibraryItemAt(int rowIndex, int itemIndex) const;
-
     bool applyCachedPayload(const QJsonObject& payload);
-    QJsonObject currentPayload() const;
     void refresh(const std::vector<LibraryItem>& libraries);
     void recordLibraryUse(const LibraryItem& library);
     void upsertResumeItem(MovieItem item, qint64 positionTicks);

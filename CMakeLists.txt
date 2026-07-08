@@ -187,8 +187,6 @@ set(JELLYFIN_CORE_SOURCES
     src/app/LibraryPrefetchController.h
     src/app/MemoryBudget.cpp
     src/app/MemoryBudget.h
-    src/app/NavigationState.cpp
-    src/app/NavigationState.h
     src/app/RouterController.cpp
     src/app/RouterController.h
     src/app/NativeAppWindowCommon.cpp
@@ -326,10 +324,8 @@ qt_add_qml_module(jellyfin-native
         qml/pages/LoginPage.qml
         qml/pages/PersonDetailsPage.qml
         qml/pages/PlayerAudioSyncPanel.qml
-        qml/pages/PlayerOverlayAutoHide.qml
         qml/pages/PlayerOverlayChrome.qml
         qml/pages/PlayerOverlayInput.qml
-        qml/pages/PlayerOverlayFormat.js
         qml/pages/PlayerOverlayMenu.qml
         qml/pages/PlayerOverlayPage.qml
         qml/pages/PlayerSeekBar.qml
@@ -356,7 +352,6 @@ qt_add_qml_module(jellyfin-native
         qml/primitives/MonoText.qml
         qml/primitives/NavGrid.qml
         qml/primitives/NavList.qml
-        qml/primitives/NavZone.qml
         qml/primitives/MaterialIcon.qml
         qml/primitives/PersonScrollerRow.qml
         qml/primitives/SectionHeader.qml
@@ -480,7 +475,6 @@ if(BUILD_TESTING AND NOT CMAKE_CROSSCOMPILING)
         playback-position-tracker tests/player/PlaybackPositionTrackerTest.cpp
         mpv-option-profile tests/player/MpvOptionProfileTest.cpp
         play-queue-controller tests/player/PlayQueueControllerTest.cpp
-        navigation-state tests/app/NavigationStateTest.cpp
         browse-session-controller tests/app/BrowseSessionControllerTest.cpp
         settings-schema tests/app/SettingsSchemaTest.cpp
         router-controller tests/app/RouterControllerTest.cpp

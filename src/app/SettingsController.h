@@ -75,13 +75,11 @@ public:
     QVariantList settingsSchema() const;
     QVariantMap values() const;
     Q_INVOKABLE QVariant value(const QString& key) const;
-    Q_INVOKABLE QString buttonActionLabel(const QString& action) const;
 
     void loadLocal();
     void loadRemote();
     void clearRemote();
     Q_INVOKABLE void setValue(const QString& key, const QVariant& value);
-    Q_INVOKABLE void toggleNightMode();
     Q_INVOKABLE void setNightModeEnabled(bool enabled);
     Q_INVOKABLE void setToneMappingVisualizationEnabled(bool enabled);
     Q_INVOKABLE void setMaxStreamingBitrateMbps(int bitrateMbps);

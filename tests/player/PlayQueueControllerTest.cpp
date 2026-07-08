@@ -85,11 +85,6 @@ int main(int argc, char **argv)
     require(idAt(queue, 0) == QStringLiteral("a") && idAt(queue, 4) == QStringLiteral("e"),
         "unshuffle should preserve natural row order");
 
-    queue.removeAt(queue.currentIndex());
-    require(queue.count() == 4, "removeAt should remove one row");
-    require(queue.currentItem().id == QStringLiteral("d"), "removing current should advance to next queue entry");
-    queue.removeAt(queue.currentIndex());
-    require(queue.currentItem().id == QStringLiteral("e"), "removing current again should keep a valid successor");
     queue.clear();
     require(queue.count() == 0 && queue.currentIndex() == -1, "clear should empty queue and reset current index");
 

@@ -201,37 +201,6 @@ void SyncPlayController::leaveGroup()
         [this](const std::exception_ptr& error) { reportRequestError(QStringLiteral("leave group"), error); });
 }
 
-void SyncPlayController::requestPause()
-{
-    if (!m_api || m_groupId.isEmpty())
-        return;
-    Async::runScoped(
-        this, m_api->syncPlayRequestPause(), []() {},
-        [this](const std::exception_ptr& error) { reportRequestError(QStringLiteral("pause"), error); },
-        "SyncPlay pause request");
-}
-
-void SyncPlayController::requestPlay()
-{
-    if (!m_api || m_groupId.isEmpty())
-        return;
-    Async::runScoped(
-        this, m_api->syncPlayRequestPlay(), []() {},
-        [this](const std::exception_ptr& error) { reportRequestError(QStringLiteral("play"), error); },
-        "SyncPlay play request");
-}
-
-void SyncPlayController::requestSeekSeconds(double seconds)
-{
-    if (!m_api || m_groupId.isEmpty())
-        return;
-    const qint64 ticks = static_cast<qint64>(std::max(0.0, seconds) * kTicksPerSecond);
-    Async::runScoped(
-        this, m_api->syncPlayRequestSeek(ticks), []() {},
-        [this](const std::exception_ptr& error) { reportRequestError(QStringLiteral("seek"), error); },
-        "SyncPlay seek request");
-}
-
 void SyncPlayController::handleSocketTextMessage(const QString& message)
 {
     QJsonParseError parseError;

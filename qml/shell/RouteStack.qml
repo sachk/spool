@@ -25,8 +25,6 @@ FocusScope {
             return Qt.resolvedUrl("../pages/SearchPage.qml")
         case "settings":
             return Qt.resolvedUrl("../pages/SettingsPage.qml")
-        case "playerOverlay":
-            return Qt.resolvedUrl("../pages/PlayerOverlayPage.qml")
         default:
             return Qt.resolvedUrl("../pages/HomePage.qml")
         }

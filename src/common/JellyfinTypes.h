@@ -78,8 +78,6 @@ struct BrowseDescriptor {
     bool isValid() const;
     QString kindKey() const;
     QString cacheKey(const QVariantMap& query = {}) const;
-    QVariantMap toVariantMap() const;
-    static BrowseDescriptor fromVariantMap(const QVariantMap& map);
 };
 
 struct PersonItem {

@@ -58,7 +58,6 @@ public:
     void clear();
     void reset();
     void resetPaging(const QString& cacheKey = {});
-    void setItems(const std::vector<MovieItem>& items, const QString& cacheKey = {});
     void setPage(const PagedMovieItems& page, const QString& cacheKey, bool append);
     void setLoadingMore(bool loading);
     void setWarmCachePaging(int cachedCount, int pageSize);

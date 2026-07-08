@@ -32,8 +32,6 @@ public:
     MovieItem detailItem() const;
 
     MovieItem detailSeasonAt(int index) const;
-    MovieItem detailSimilarItemAt(int index) const;
-    MovieItem personItemAt(int index) const;
 
     Q_INVOKABLE void loadDetailRows(
         const QString& itemId, const QString& itemType, const QString& seriesId = {}, const QString& seasonId = {});

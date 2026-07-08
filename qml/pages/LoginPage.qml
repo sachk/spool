@@ -55,9 +55,8 @@ FocusScope {
     }
 
     function enterProfile() {
-        if (!appController)
-            return
-        appController.useDefaultProfile()
+        if (appController && appController.useDefaultProfile() && shell)
+            shell.replaceRoute("home")
     }
 
     function openAddAccount() {

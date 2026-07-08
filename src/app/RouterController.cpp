@@ -86,17 +86,4 @@ bool RouterController::pop(const QString& fallbackRoute)
     return true;
 }
 
-void RouterController::clearStack()
-{
-    if (m_stack.isEmpty())
-        return;
-    m_stack.clear();
-    emit stackChanged();
-}
-
-void RouterController::setArgs(const QVariantMap& args)
-{
-    setFrame(m_route, args, m_previousRoute);
-}
-
 } // namespace JellyfinNative

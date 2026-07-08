@@ -47,16 +47,6 @@ MovieGridModel *SearchController::suggestions()
     return &m_suggestions;
 }
 
-MovieItem SearchController::resultItemAt(int index) const
-{
-    return m_results.movieAt(index);
-}
-
-MovieItem SearchController::suggestionItemAt(int index) const
-{
-    return m_suggestions.movieAt(index);
-}
-
 void SearchController::setQuery(const QString& query)
 {
     const QString trimmed = query.trimmed();
