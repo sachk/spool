@@ -17,6 +17,7 @@
 - For script changes, always run relevant syntax checks, for example:
   - `bash -n tools/build-linux-release.sh tools/package-appimage.sh tools/build-macos.sh tools/package-macos-dmg.sh`
 - Use `git diff --check` before committing.
+- For C++/QML changes, run `clang-format` and `qmlformat` on touched files before committing.
 
 ## webOS TV
 

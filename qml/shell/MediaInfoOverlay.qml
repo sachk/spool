@@ -10,9 +10,8 @@ FocusScope {
     property var shell
     property int currentActionIndex: 0
     readonly property string itemId: item && item.movieId ? String(item.movieId) : ""
-    readonly property var detail: contentController && contentController.detailItem && String(
-                                      contentController.detailItem.movieId || "") === itemId
-                                  ? contentController.detailItem : ({})
+    readonly property var detail: Content.detailItem && String(Content.detailItem.movieId || "") === itemId
+                                  ? Content.detailItem : ({})
     readonly property var sources: detail.mediaSources || []
     readonly property bool showLinkVisible: Boolean(item && item.seriesId && item.seriesName && (item.itemType
                                                                                                  === "Episode"
@@ -248,27 +247,27 @@ FocusScope {
         focusAction(currentActionIndex)
     }
     function refreshItemDetail() {
-        if (itemId.length > 0 && contentController)
-            contentController.loadItemDetail(itemId)
+        if (itemId.length > 0)
+            Content.loadItemDetail(itemId)
     }
     function closeOverlay() {
         root.closed()
     }
     function openSeries() {
-        if (!item || !item.seriesId || !appController)
+        if (!item || !item.seriesId)
             return
         if (shell && shell.replaceRoute)
             shell.replaceRoute("libraryGrid")
         root.closed()
-        appController.openSeriesById(String(item.seriesId), String(item.seriesName || ""))
+        App.openSeriesById(String(item.seriesId), String(item.seriesName || ""))
     }
     function openSeason() {
-        if (!item || !item.seriesId || !item.seasonId || !appController)
+        if (!item || !item.seriesId || !item.seasonId)
             return
         if (shell && shell.replaceRoute)
             shell.replaceRoute("libraryGrid")
         root.closed()
-        appController.openSeasonById(String(item.seriesId), String(item.seasonId), seasonTitle())
+        App.openSeasonById(String(item.seriesId), String(item.seasonId), seasonTitle())
     }
     function activateCurrent() {
         if (currentActionIndex === showActionIndex)

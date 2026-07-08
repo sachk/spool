@@ -8,21 +8,16 @@ FocusScope {
     id: root
     focus: true
 
-    readonly property string route: router ? router.route : defaultRoute()
+    readonly property string route: Router.route
+    readonly property var routeArgs: Router.args || ({})
     property int lastLibraryIndex: 0
     property int lastGridIndex: 0
     property int lastSearchIndex: 0
-    property var detailsModel: browseController ? browseController.items : null
-    property int detailsIndex: 0
-    property string detailsSource: "movies"
-    property string detailsReturnRoute: "libraryGrid"
-    property var detailsRoute: ({
-                                    itemId: "",
-                                    itemType: "",
-                                    source: "movies",
-                                    returnRoute: "libraryGrid",
-                                    focusIndex: 0
-                                })
+    readonly property var detailsModel: route === "itemDetails" && routeArgs.model ? routeArgs.model : Browse.items
+    readonly property int detailsIndex: Math.max(0, Number(routeArgs.focusIndex || 0))
+    readonly property string detailsItemId: String(routeArgs.itemId || "")
+    readonly property string detailsSource: String(routeArgs.source || "movies")
+    readonly property string detailsReturnRoute: String(routeArgs.returnRoute || "libraryGrid")
     property bool diagnosticsVisible: false
     property bool diagnosticsLoaded: false
     property bool mediaInfoVisible: false
@@ -33,24 +28,22 @@ FocusScope {
     property bool managementOverlayVisible: false
     property string managementMode: ""
     property var managementItem: ({})
-    property string managementNameDraft: ""
-    property int managementTargetIndex: 0
+    property string managementInitialName: ""
     property bool managementFocusNamePending: false
-    readonly property var managementTargets: !appController ? [] : managementMode === "collection"
-                                                              ? appController.collectionTargets :
-                                                                appController.playlistTargets
+    readonly property var managementTargets: managementMode === "collection" ? Management.collectionTargets :
+                                                                               Management.playlistTargets
     property var personItem: ({})
     property bool textInputActive: Qt.inputMethod.visible || InputKeys.isTextInputItem(root.Window.window
                                                                                        ? root.Window.window.activeFocusItem :
                                                                                          null)
     property bool backPressHandled: false
     property bool playerBackPressHandled: false
-    readonly property var player: playerController ? playerController : null
-    readonly property bool hasPlayer: player !== null && player !== undefined
+    readonly property var player: Player
+    readonly property bool hasPlayer: true
     readonly property bool playerSessionActive: hasPlayer && player.sessionActive
-    readonly property string errorTextValue: appController ? appController.errorText : ""
-    readonly property bool busyValue: appController ? appController.busy : false
-    readonly property string busyTextValue: appController ? appController.busyText : ""
+    readonly property string errorTextValue: App.errorText
+    readonly property bool busyValue: App.busy
+    readonly property string busyTextValue: App.busyText
     property real keyboardAvoidance: 0
 
     function refreshKeyboardAvoidance() {
@@ -101,7 +94,7 @@ FocusScope {
     }
 
     Connections {
-        target: appController
+        target: App
         function onAggressiveMemoryPressure() {
             if (!root.diagnosticsVisible)
                 root.diagnosticsLoaded = false
@@ -110,25 +103,25 @@ FocusScope {
             if (!root.itemMenuOpen)
                 root.itemMenuLoaded = false
         }
+        function onToastMessage(message) {
+            toast.show(message)
+        }
     }
     function defaultRoute() {
-        return sessionController && sessionController.authenticated ? "home" : "login"
+        return Session.authenticated ? "home" : "login"
     }
 
     Connections {
-        target: sessionController
+        target: Session
         function onAuthenticatedStateChanged() {
-            if (!router)
-                return
-            if (sessionController && sessionController.authenticated)
-                router.replace("home")
+            if (Session.authenticated)
+                Router.replace("home")
             else
-                router.reset("login")
+                Router.reset("login")
         }
     }
 
-    Component.onCompleted: if (router)
-                               router.reset(root.defaultRoute())
+    Component.onCompleted: Router.reset(root.defaultRoute())
 
     Connections {
         target: root.player
@@ -146,93 +139,57 @@ FocusScope {
         videoSurface.focusInput()
     }
 
-    function pushRoute(nextRoute) {
-        if (router)
-            router.push(nextRoute)
+    function pushRoute(nextRoute, args) {
+        Router.push(nextRoute, args || ({}))
         InputKeys.focus(routeStack)
     }
 
-    function itemIdFor(item) {
-        return RoutePolicy.itemIdFor(item)
-    }
-
-    function itemTypeFor(item) {
-        return RoutePolicy.itemTypeFor(item)
-    }
-
-    function modelCount(model) {
-        return RoutePolicy.modelCount(model)
-    }
-
-    function modelItem(model, index) {
-        return RoutePolicy.modelItem(model, index)
-    }
-
-    function modelIndexForItemId(model, itemId, fallbackIndex) {
-        return RoutePolicy.modelIndexForItemId(model, itemId, fallbackIndex)
-    }
-
     function detailsIndexForModel(model) {
-        return modelIndexForItemId(model, detailsRoute ? detailsRoute.itemId : "", detailsIndex)
+        return RoutePolicy.modelIndexForItemId(model, detailsItemId, detailsIndex)
     }
 
     function openDetailsRoute(request) {
-        const normalized = RoutePolicy.normalizeDetailsRoute(request, browseController ? browseController.items : null,
-                                                             route)
+        const normalized = RoutePolicy.normalizeDetailsRoute(request, Browse.items, route)
         if (!normalized) {
             const focusIndex = Math.max(0, Number(request && request.focusIndex !== undefined ? request.focusIndex : 0))
             console.warn("details route ignored: missing item id", request ? request.source : "", focusIndex)
             return false
         }
 
-        detailsModel = normalized.model
-        detailsIndex = normalized.focusIndex
-        detailsSource = normalized.source
-        detailsReturnRoute = normalized.returnRoute
-        detailsRoute = {
-            itemId: normalized.itemId,
-            itemType: normalized.itemType,
-            source: detailsSource,
-            returnRoute: detailsReturnRoute,
-            focusIndex: detailsIndex
-        }
-        if (detailsSource === "movies")
-            lastGridIndex = detailsIndex
-        else if (detailsSource === "search" || detailsSource === "suggestion")
-            lastSearchIndex = detailsIndex
+        if (normalized.source === "movies")
+            lastGridIndex = normalized.focusIndex
+        else if (normalized.source === "search" || normalized.source === "suggestion")
+            lastSearchIndex = normalized.focusIndex
 
         if (route === "itemDetails") {
+            Router.replace("itemDetails", normalized)
             InputKeys.focus(routeStack)
             return true
         }
-        pushRoute("itemDetails")
+        pushRoute("itemDetails", normalized)
         return true
     }
 
     function openDetailsAt(model, index, source, returnRoute) {
-        const nextModel = model || (browseController ? browseController.items : null)
+        const nextModel = model || (Browse.items)
         const request = RoutePolicy.detailsRouteAt(nextModel, index, source, returnRoute, route)
         return request ? openDetailsRoute(request) : false
     }
 
-    function replaceRoute(nextRoute) {
-        if (router)
-            router.replace(nextRoute)
+    function replaceRoute(nextRoute, args) {
+        Router.replace(nextRoute, args || ({}))
         InputKeys.focus(routeStack)
     }
 
     function goHome() {
-        if (router)
-            router.reset("home")
-        appController.goHome()
+        Router.reset("home")
+        App.goHome()
         InputKeys.focus(routeStack)
     }
 
     function switchUser() {
-        if (router)
-            router.reset("login")
-        if (appController)
-            appController.switchUser()
+        Router.reset("login")
+        App.switchUser()
         InputKeys.focus(routeStack)
     }
 
@@ -276,25 +233,22 @@ FocusScope {
         if (routeStack.handleBack())
             return true
         if (route === "itemDetails") {
-            replaceRoute(detailsRoute && detailsRoute.returnRoute ? detailsRoute.returnRoute : (
-                                                                        detailsReturnRoute.length > 0
-                                                                        ? detailsReturnRoute : "libraryGrid"))
+            Router.pop(detailsReturnRoute.length > 0 ? detailsReturnRoute : "libraryGrid")
+            InputKeys.focus(routeStack)
             return true
         }
         if (route === "libraries" || route === "libraryGrid") {
             goHome()
             return true
         }
-        if (route === "home") {
-            switchUser()
-            return true
-        }
-        if (router) {
-            router.pop(route === "personDetails" ? "itemDetails" : "home")
+        if (route === "home" || route === "login")
+            return false
+        if (Router.canPop) {
+            Router.pop(route === "personDetails" ? "itemDetails" : "home")
             InputKeys.focus(routeStack)
             return true
         }
-        return true
+        return false
     }
 
     function openContextMenu() {
@@ -310,8 +264,8 @@ FocusScope {
 
     function openMediaInfo(item) {
         mediaInfoItem = item || ({})
-        if (contentController && mediaInfoItem.movieId)
-            contentController.loadItemDetail(mediaInfoItem.movieId)
+        if (mediaInfoItem.movieId)
+            Content.loadItemDetail(mediaInfoItem.movieId)
         mediaInfoLoaded = true
         mediaInfoVisible = true
     }
@@ -339,19 +293,16 @@ FocusScope {
     function openManagementPicker(mode, item) {
         managementMode = mode
         managementItem = item || ({})
-        managementNameDraft = ""
-        managementTargetIndex = 0
+        managementInitialName = ""
         managementOverlayVisible = true
-        if (appController)
-            appController.refreshManagementTargets(mode)
+        Management.refreshTargets(mode)
         Qt.callLater(focusManagementOverlay)
     }
 
     function openRenamePrompt(item) {
         managementMode = "rename"
         managementItem = item || ({})
-        managementNameDraft = itemTitle(managementItem)
-        managementTargetIndex = 0
+        managementInitialName = itemTitle(managementItem)
         managementOverlayVisible = true
         managementFocusNamePending = true
         Qt.callLater(focusManagementNameField)
@@ -360,8 +311,7 @@ FocusScope {
     function openDeleteConfirm(item) {
         managementMode = "delete"
         managementItem = item || ({})
-        managementNameDraft = ""
-        managementTargetIndex = 0
+        managementInitialName = ""
         managementOverlayVisible = true
         Qt.callLater(focusManagementOverlay)
     }
@@ -369,8 +319,7 @@ FocusScope {
     function openRemoveConfirm(item) {
         managementMode = "remove"
         managementItem = item || ({})
-        managementNameDraft = ""
-        managementTargetIndex = 0
+        managementInitialName = ""
         managementOverlayVisible = true
         Qt.callLater(focusManagementOverlay)
     }
@@ -379,40 +328,27 @@ FocusScope {
         managementOverlayVisible = false
         managementMode = ""
         managementItem = ({})
-        managementNameDraft = ""
+        managementInitialName = ""
         managementFocusNamePending = false
         Qt.inputMethod.hide()
         InputKeys.focus(routeStack)
     }
 
-    function managementTitle() {
-        if (managementMode === "playlist")
-            return "Add to playlist"
-        if (managementMode === "collection")
-            return "Add to collection"
-        if (managementMode === "rename")
-            return "Rename"
-        if (managementMode === "delete")
-            return "Delete item"
-        return appController && appController.currentViewKind === "playlist" ? "Remove from playlist" :
-                                                                               "Remove from collection"
-    }
-
-    function submitManagementCreate() {
-        const name = managementNameDraft.trim()
-        if (!appController || name.length <= 0)
+    function submitManagementCreate(name) {
+        const trimmed = String(name || "").trim()
+        if (trimmed.length <= 0)
             return
         if (managementMode === "playlist")
-            appController.createPlaylistForItem(name, managementItem)
+            Management.createPlaylistForItem(trimmed, managementItem)
         else if (managementMode === "collection")
-            appController.createCollectionForItem(name, managementItem)
+            Management.createCollectionForItem(trimmed, managementItem)
         else if (managementMode === "rename")
-            appController.renameManagedItem(managementItem, name)
+            Management.renameItem(managementItem, trimmed)
         closeManagementOverlay()
     }
 
     function submitManagementTarget(index) {
-        if (!appController || index < 0)
+        if (index < 0)
             return
         if (index === 0) {
             focusManagementNameField()
@@ -423,63 +359,30 @@ FocusScope {
         if (targetId.length <= 0)
             return
         if (managementMode === "playlist")
-            appController.addItemToPlaylist(targetId, managementItem)
+            Management.addItemToPlaylist(targetId, managementItem)
         else if (managementMode === "collection")
-            appController.addItemToCollection(targetId, managementItem)
+            Management.addItemToCollection(targetId, managementItem)
         closeManagementOverlay()
     }
 
     function confirmManagementAction() {
-        if (!appController)
-            return
         if (managementMode === "delete")
-            appController.deleteManagedItem(managementItem)
+            Management.deleteItem(managementItem)
         else if (managementMode === "remove")
-            appController.removeItemFromCurrentParent(managementItem)
+            Management.removeItemFromCurrentParent(managementItem)
         closeManagementOverlay()
     }
 
     function handleManagementKey(event, released) {
         if (!managementOverlayVisible)
             return false
-        if (!released)
-            return true
-        if (InputKeys.isBackEvent(event, true)) {
-            closeManagementOverlay()
-            return true
-        }
-        if (managementMode === "playlist" || managementMode === "collection") {
-            const lastIndex = managementTargets.length
-            if (event.key === Qt.Key_Up) {
-                managementTargetIndex = Math.max(0, managementTargetIndex - 1)
-                return true
-            }
-            if (event.key === Qt.Key_Down) {
-                managementTargetIndex = Math.min(lastIndex, managementTargetIndex + 1)
-                return true
-            }
-            if (InputKeys.isAccept(event.key)) {
-                submitManagementTarget(managementTargetIndex)
-                return true
-            }
-        } else if (managementMode === "rename") {
-            if (InputKeys.isAccept(event.key)) {
-                submitManagementCreate()
-                return true
-            }
-        } else if (managementMode === "delete" || managementMode === "remove") {
-            if (InputKeys.isAccept(event.key)) {
-                confirmManagementAction()
-                return true
-            }
-        }
-        return true
+        return managementOverlayLoader.item ? managementOverlayLoader.item.handleKey(event, released) : true
     }
 
     function openPerson(person) {
         personItem = person || ({})
-        if (contentController && personItem.personId)
-            contentController.loadPersonItems(personItem.personId)
+        if (Content && personItem.personId)
+            Content.loadPersonItems(personItem.personId)
         if (route === "personDetails") {
             InputKeys.focus(routeStack)
             return
@@ -495,18 +398,18 @@ FocusScope {
                 return detailsModel.get(detailsIdx) || ({})
             }
         }
-        if (route === "search" && searchController && searchController.results) {
-            const searchCount = searchController.results.rowCount()
+        if (route === "search" && Search.results) {
+            const searchCount = Search.results.rowCount()
             if (searchCount > 0) {
                 const searchIdx = Math.max(0, Math.min(lastSearchIndex, searchCount - 1))
-                return searchController.results.get(searchIdx) || ({})
+                return Search.results.get(searchIdx) || ({})
             }
         }
-        const count = browseController.items.rowCount()
+        const count = Browse.items.rowCount()
         if (count <= 0)
             return ({})
         const idx = Math.max(0, Math.min(lastGridIndex, count - 1))
-        return browseController.items.get(idx) || ({})
+        return Browse.items.get(idx) || ({})
     }
 
     function focusNavBar() {
@@ -636,9 +539,8 @@ FocusScope {
                         }
 
                         if (InputKeys.isBackEvent(event, !textInputActive)) {
-                            backPressHandled = true
-                            back()
-                            event.accepted = true
+                            backPressHandled = back()
+                            event.accepted = backPressHandled
                             return
                         }
 
@@ -780,139 +682,17 @@ FocusScope {
         z: 57
         active: root.managementOverlayVisible
         asynchronous: true
-        sourceComponent: FocusScope {
-            id: managementOverlay
-            anchors.fill: parent
-            focus: true
-
-            function focusNameField() {
-                InputKeys.focus(managementNameField)
-                managementNameField.focusField()
-            }
-
-            Rectangle {
-                anchors.fill: parent
-                color: "#99000000"
-                MouseArea {
-                    anchors.fill: parent
-                    onClicked: root.closeManagementOverlay()
-                }
-            }
-
-            Surface {
-                anchors.centerIn: parent
-                width: Math.min(parent.width - 96, 620)
-                height: Math.min(parent.height - 96, managementContent.implicitHeight + 48)
-                elevated: true
-                baseColor: Theme.bgPanel
-
-                ColumnLayout {
-                    id: managementContent
-                    anchors.fill: parent
-                    anchors.margins: 24
-                    spacing: 14
-
-                    AppText {
-                        Layout.fillWidth: true
-                        text: root.managementTitle()
-                        color: Theme.textPrimary
-                        font.pixelSize: Metrics.titlePx(root.width)
-                        font.weight: Font.DemiBold
-                    }
-
-                    AppText {
-                        Layout.fillWidth: true
-                        text: root.itemTitle(root.managementItem)
-                        color: Theme.textMuted
-                        font.pixelSize: Metrics.bodyPx(root.width)
-                        elide: Text.ElideRight
-                        visible: root.managementMode.length > 0
-                    }
-
-                    TextFieldRow {
-                        id: managementNameField
-                        Layout.fillWidth: true
-                        visible: root.managementMode === "playlist" || root.managementMode === "collection"
-                                 || root.managementMode === "rename"
-                        label: root.managementMode === "rename" ? "Name" : (root.managementMode === "collection"
-                                                                            ? "New collection name" :
-                                                                              "New playlist name")
-                        text: root.managementNameDraft
-                        onTextEdited: value => root.managementNameDraft = value
-                        onAccepted: root.submitManagementCreate()
-                    }
-
-                    AppText {
-                        Layout.fillWidth: true
-                        visible: root.managementMode === "delete" || root.managementMode === "remove"
-                        text: root.managementMode === "delete" ? "This permanently deletes the item from the server." :
-                                                                 "This removes the item from the current playlist or collection."
-                        color: Theme.textMuted
-                        font.pixelSize: Metrics.bodyPx(root.width)
-                        wrapMode: Text.Wrap
-                    }
-
-                    Repeater {
-                        model: root.managementMode === "playlist" || root.managementMode === "collection"
-                               ? root.managementTargets.length + 1 : 0
-                        delegate: Rectangle {
-                            required property int index
-                            Layout.fillWidth: true
-                            height: Metrics.controlHeight(root.width)
-                            radius: Theme.radiusMedium
-                            color: root.managementTargetIndex === index ? Theme.focusedFill : "transparent"
-                            border.width: root.managementTargetIndex === index ? Theme.focusBorderWidth : 1
-                            border.color: root.managementTargetIndex === index ? Theme.accent : Theme.border
-
-                            RowLayout {
-                                anchors.fill: parent
-                                anchors.leftMargin: 14
-                                anchors.rightMargin: 14
-                                spacing: 12
-                                MaterialIcon {
-                                    name: index === 0 ? "add" : (root.managementMode === "collection"
-                                                                 ? "collections_bookmark" : "playlist_play")
-                                    iconColor: Theme.textPrimary
-                                    iconSize: Metrics.iconPx(root.width)
-                                }
-                                AppText {
-                                    Layout.fillWidth: true
-                                    text: index === 0 ? "Create new" : root.itemTitle(root.managementTargets[index - 1]
-                                                                                      || ({}))
-                                    color: Theme.textPrimary
-                                    font.pixelSize: Metrics.bodyPx(root.width)
-                                    elide: Text.ElideRight
-                                }
-                            }
-
-                            MouseArea {
-                                anchors.fill: parent
-                                onClicked: {
-                                    root.managementTargetIndex = index
-                                    root.submitManagementTarget(index)
-                                }
-                            }
-                        }
-                    }
-
-                    RowLayout {
-                        Layout.fillWidth: true
-                        visible: root.managementMode === "delete" || root.managementMode === "remove"
-                        Item {
-                            Layout.fillWidth: true
-                        }
-                        ActionButton {
-                            text: "Cancel"
-                            onClicked: root.closeManagementOverlay()
-                        }
-                        ActionButton {
-                            text: root.managementMode === "delete" ? "Delete" : "Remove"
-                            kind: "primary"
-                            onClicked: root.confirmManagementAction()
-                        }
-                    }
-                }
-            }
+        sourceComponent: ManagementDialog {
+            mode: root.managementMode
+            item: root.managementItem
+            targets: root.managementTargets
+            currentViewKind: App.currentViewKind
+            nameDraft: root.managementInitialName
+            targetIndex: 0
+            onDismissed: root.closeManagementOverlay()
+            onCreateRequested: name => root.submitManagementCreate(name)
+            onTargetRequested: index => root.submitManagementTarget(index)
+            onConfirmRequested: root.confirmManagementAction()
         }
         onLoaded: {
             if (!item)
@@ -932,48 +712,30 @@ FocusScope {
         z: 58
         active: root.itemMenuLoaded
         sourceComponent: ItemContextMenu {
-            onPlayedToggled: (itemId, played) => {
-                                 if (appController)
-                                 appController.setPlayed(itemId, played)
-                             }
-            onFavoriteToggled: (itemId, favorite) => {
-                                   if (appController)
-                                   appController.setFavorite(itemId, favorite)
-                               }
-            onClearProgressRequested: itemId => {
-                                          if (appController)
-                                          appController.clearProgress(itemId)
-                                      }
+            onPlayedToggled: (itemId, played) => App.setPlayed(itemId, played)
+            onFavoriteToggled: (itemId, favorite) => App.setFavorite(itemId, favorite)
+            onClearProgressRequested: itemId => App.clearProgress(itemId)
             onOpenSeriesRequested: (seriesId, seriesName) => {
-                                       if (!appController || seriesId.length <= 0)
+                                       if (seriesId.length <= 0)
                                        return
                                        root.replaceRoute("libraryGrid")
-                                       appController.openSeriesById(seriesId, seriesName)
+                                       App.openSeriesById(seriesId, seriesName)
                                    }
             onOpenSeasonRequested: (seriesId, seasonId, seasonName) => {
-                                       if (!appController || seriesId.length <= 0)
+                                       if (seriesId.length <= 0)
                                        return
                                        root.replaceRoute("libraryGrid")
-                                       appController.openSeasonById(seriesId, seasonId, seasonName)
+                                       App.openSeasonById(seriesId, seasonId, seasonName)
                                    }
-            onMediaInfoRequested: snapshot => root.openMediaInfo(snapshot)
-            onPlayNextRequested: snapshot => {
-                                     if (appController)
-                                     appController.playNextFromItem(snapshot)
-                                 }
-            onAddToQueueRequested: snapshot => {
-                                       if (appController)
-                                       appController.addToQueueFromItem(snapshot)
-                                   }
-            onAddToPlaylistRequested: snapshot => root.openManagementPicker("playlist", snapshot)
-            onAddToCollectionRequested: snapshot => root.openManagementPicker("collection", snapshot)
-            onRemoveFromParentRequested: snapshot => root.openRemoveConfirm(snapshot)
-            onMovePlaylistItemRequested: (snapshot, delta) => {
-                                             if (appController)
-                                             appController.movePlaylistItemInCurrent(snapshot, delta)
-                                         }
-            onRenameRequested: snapshot => root.openRenamePrompt(snapshot)
-            onDeleteRequested: snapshot => root.openDeleteConfirm(snapshot)
+            onMediaInfoRequested: item => root.openMediaInfo(item)
+            onPlayNextRequested: item => App.playNextFromItem(item)
+            onAddToQueueRequested: item => App.addToQueueFromItem(item)
+            onAddToPlaylistRequested: item => root.openManagementPicker("playlist", item)
+            onAddToCollectionRequested: item => root.openManagementPicker("collection", item)
+            onRemoveFromParentRequested: item => root.openRemoveConfirm(item)
+            onMovePlaylistItemRequested: (item, delta) => Management.movePlaylistItemInCurrent(item, delta)
+            onRenameRequested: item => root.openRenamePrompt(item)
+            onDeleteRequested: item => root.openDeleteConfirm(item)
         }
     }
 
@@ -1002,7 +764,7 @@ FocusScope {
         sourceComponent: DiagnosticsOverlay {
             visible: root.diagnosticsVisible && !(root.hasPlayer && root.player.visible)
             route: root.route
-            focusedItemId: root.itemIdFor(root.currentMediaItem())
+            focusedItemId: RoutePolicy.itemIdFor(root.currentMediaItem())
         }
     }
     ToastLayer {
@@ -1032,8 +794,7 @@ FocusScope {
         }
         MouseArea {
             anchors.fill: parent
-            onClicked: if (appController)
-                           appController.clearError()
+            onClicked: App.clearError()
         }
     }
 }

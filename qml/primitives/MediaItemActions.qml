@@ -6,9 +6,9 @@ T.Control {
     id: root
 
     property var shell
-    property var snapshotProvider: null
+    property var itemProvider: null
     property bool focused: false
-    property bool tvPlatform: nativeWindow ? nativeWindow.tvPlatform : false
+    property bool tvPlatform: NativeWindow.tvPlatform
     property bool pendingAccept: false
     property bool longPressOpened: false
     property bool pointerLongPress: false
@@ -42,14 +42,14 @@ T.Control {
         holdTimer.stop()
     }
 
-    function snapshot() {
-        return snapshotProvider ? (snapshotProvider() || ({})) : (item || ({}))
+    function providedItem() {
+        return itemProvider ? (itemProvider() || ({})) : (item || ({}))
     }
 
     function openMenu() {
         if (!shell || !shell.openItemMenu)
             return false
-        return shell.openItemMenu(snapshot(), root)
+        return shell.openItemMenu(providedItem(), root)
     }
 
     function handleAcceptPressed(key) {
@@ -72,10 +72,6 @@ T.Control {
         if (!opened)
             activated()
         return true
-    }
-
-    function handleKey(key) {
-        return false
     }
 
     component OverlayButton: Item {

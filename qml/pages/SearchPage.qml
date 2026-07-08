@@ -7,7 +7,7 @@ import "../primitives"
 FocusScope {
     id: root
     property var shell
-    readonly property var search: searchController
+    readonly property var search: Search
     readonly property string query: search ? search.query : ""
     readonly property int resultCount: search && search.results ? search.results.count : 0
     readonly property int suggestionCount: search && search.suggestions ? search.suggestions.count : 0
@@ -271,9 +271,6 @@ FocusScope {
                         function handleAcceptReleased(key) {
                             return actions.handleAcceptReleased(key)
                         }
-                        function handleKey(key) {
-                            return actions.handleKey(key)
-                        }
 
                         RowLayout {
                             anchors.fill: parent
@@ -333,7 +330,7 @@ FocusScope {
                             shell: root.shell
                             focused: resultDelegate.focused
                             item: resultDelegate.movie
-                            snapshotProvider: function () {
+                            itemProvider: function () {
                                 return root.search && root.search.results ? root.search.results.get(index) || ({}) : (
                                                                                 {})
                             }
@@ -341,10 +338,8 @@ FocusScope {
                                 results.currentIndex = index
                                 root.activateCurrent()
                             }
-                            onFavoriteToggled: favorite => appController.setFavorite(resultDelegate.movie.movieId || "",
-                                                                                     favorite)
-                            onPlayedToggled: played => appController.setPlayed(resultDelegate.movie.movieId || "",
-                                                                               played)
+                            onFavoriteToggled: favorite => App.setFavorite(resultDelegate.movie.movieId || "", favorite)
+                            onPlayedToggled: played => App.setPlayed(resultDelegate.movie.movieId || "", played)
                             onMediaInfoRequested: root.shell.openMediaInfo(root.search.results.get(index) || ({}))
                         }
                     }

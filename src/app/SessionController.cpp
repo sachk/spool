@@ -35,12 +35,12 @@ bool SessionController::authenticated() const
     return !m_api->session().accessToken.isEmpty();
 }
 
-bool SessionController::initialize()
+QCoro::Task<bool> SessionController::initializeAsync()
 {
-    m_serverUrl = m_database->loadLastServerUrl();
-    m_username = m_database->loadLastUsername();
+    m_serverUrl = co_await m_database->loadLastServerUrlAsync();
+    m_username = co_await m_database->loadLastUsernameAsync();
 
-    const AuthSession session = m_database->loadAuthSession();
+    const AuthSession session = co_await m_database->loadAuthSessionAsync();
     if (m_username.isEmpty() && !session.userName.isEmpty())
         m_username = session.userName;
 
@@ -48,10 +48,10 @@ bool SessionController::initialize()
     emit usernameChanged();
 
     if (session.accessToken.isEmpty() || m_serverUrl.isEmpty())
-        return false;
+        co_return false;
 
     activateSession(session, false);
-    return true;
+    co_return true;
 }
 
 void SessionController::setServerUrl(const QString& serverUrl)

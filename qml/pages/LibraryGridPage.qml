@@ -1,4 +1,5 @@
 import QtQuick
+import QtQuick.Controls.Basic
 import QtQuick.Layouts
 import "../theme"
 import "../primitives"
@@ -6,7 +7,7 @@ import "../primitives"
 FocusScope {
     id: root
     property var shell
-    readonly property bool episodeGrid: Boolean(browseController && browseController.viewKind === "episodes")
+    readonly property bool episodeGrid: Browse.viewKind === "episodes"
     property int columns: episodeGrid ? Math.max(2, Math.floor(width / Math.max(260, Metrics.homeLandscapeWidth(width)))) :
                                         Metrics.columns(width)
     property bool sortOpen: false
@@ -17,14 +18,15 @@ FocusScope {
     property int libraryIndex: 0
     property var sortEntries: []
     property var filterEntries: []
-    readonly property string collectionType: browseController ? browseController.libraryCollectionType : ""
-    readonly property var libraryQuery: browseController ? browseController.query : ({})
-    readonly property var filterOptions: browseController ? browseController.filterOptions : ({})
-    readonly property int activeFilterCount: browseController ? browseController.filterActiveCount : 0
+    readonly property string collectionType: Browse.libraryCollectionType
+    readonly property var libraryQuery: Browse.query
+    readonly property var filterOptions: Browse.filterOptions
+    readonly property int activeFilterCount: Browse.filterActiveCount
+    readonly property bool browseLoading: Browse.loadingMore
     // Fixed descriptor-backed pages reuse this grid but have no library
     // switcher, sort, or filter controls.
-    readonly property bool isFixedBrowseView: browseController && ["genre", "studio", "playlist", "boxset",
-                                                                   "folder"].indexOf(browseController.viewKind) >= 0
+    readonly property bool isFixedBrowseView: ["genre", "studio", "playlist", "boxset", "folder"].indexOf(
+        Browse.viewKind) >= 0
     focus: true
     Component.onCompleted: InputKeys.focus(grid)
     onActiveFocusChanged: if (activeFocus)
@@ -100,14 +102,14 @@ FocusScope {
     }
 
     function libraryCount() {
-        return libraryModel ? libraryModel.rowCount() : 0
+        return Libraries.rowCount()
     }
 
     function currentLibraryModelIndex() {
-        const currentId = browseController ? String(browseController.libraryId || "") : ""
+        const currentId = String(Browse.libraryId || "")
         const count = libraryCount()
         for (let i = 0; i < count; ++i) {
-            const library = libraryModel.get(i)
+            const library = Libraries.get(i)
             if (library && String(library.libraryId || "") === currentId)
                 return i
         }
@@ -115,8 +117,8 @@ FocusScope {
     }
 
     function headerDetail() {
-        const total = browseController ? browseController.totalCount : 0
-        const count = browseController && browseController.items ? browseController.items.count : 0
+        const total = Browse.totalCount
+        const count = Browse.items ? Browse.items.count : 0
         const parts = []
         if (count > 0)
             parts.push(count + (total > count ? " of " + total : "") + " items")
@@ -447,14 +449,14 @@ FocusScope {
     }
 
     function activateLibraryIndex(index) {
-        if (!appController || index < 0 || index >= libraryCount())
+        if (index < 0 || index >= libraryCount())
             return
         libraryOpen = false
         sortOpen = false
         filtersOpen = false
         setSavedLibraryIndex(index)
         setSavedGridIndex(0)
-        appController.openLibrary(index)
+        App.openLibrary(index)
         if (hasShell())
             shell.replaceRoute("libraryGrid")
         InputKeys.focus(grid)
@@ -465,9 +467,9 @@ FocusScope {
             return
         setSavedGridIndex(0)
         if (String(entry.value).indexOf("order:") === 0)
-            appController.setLibrarySort(currentSortBy(), String(entry.value).split(":")[1])
+            App.setLibrarySort(currentSortBy(), String(entry.value).split(":")[1])
         else
-            appController.setLibrarySort(entry.value, currentSortOrder())
+            App.setLibrarySort(entry.value, currentSortOrder())
         sortEntries = buildSortEntries()
     }
 
@@ -476,11 +478,11 @@ FocusScope {
             return
         setSavedGridIndex(0)
         if (entry.kind === "list")
-            appController.setLibraryQueryListValue(entry.key, entry.value, !entry.checked)
+            App.setLibraryQueryListValue(entry.key, entry.value, !entry.checked)
         else if (entry.kind === "bool")
-            appController.setLibraryQueryBoolValue(entry.key, !entry.checked)
+            App.setLibraryQueryBoolValue(entry.key, !entry.checked)
         else if (entry.kind === "nullableBool")
-            appController.setLibraryQueryNullableBoolValue(entry.key, entry.checked ? null : entry.value)
+            App.setLibraryQueryNullableBoolValue(entry.key, entry.checked ? null : entry.value)
         filterEntries = buildFilterEntries()
     }
 
@@ -489,7 +491,7 @@ FocusScope {
     }
 
     Connections {
-        target: browseController
+        target: Browse
         function onChanged() {
             if (root.filtersOpen)
                 root.filterEntries = root.buildFilterEntries()
@@ -509,14 +511,14 @@ FocusScope {
         if (grid.currentIndex < 0)
             return
         setSavedGridIndex(grid.currentIndex)
-        const item = browseController.items ? (browseController.items.get(grid.currentIndex) || ({})) : ({})
+        const item = Browse.items ? (Browse.items.get(grid.currentIndex) || ({})) : ({})
         const type = String(item.itemType || "")
         if (type === "Playlist" || type === "Folder") {
-            appController.playFromModel(browseController.items, grid.currentIndex)
+            App.playFromModel(Browse.items, grid.currentIndex)
             return
         }
         if (hasShell())
-            shell.openDetailsAt(browseController.items, grid.currentIndex, "movies", "libraryGrid")
+            shell.openDetailsAt(Browse.items, grid.currentIndex, "movies", "libraryGrid")
     }
 
     function currentCard() {
@@ -575,7 +577,7 @@ FocusScope {
                 else if (filterButton.activeFocus)
                     openFilterMenu()
                 else
-                    appController.clearLibraryFilters()
+                    App.clearLibraryFilters()
                 return true
             }
         }
@@ -584,8 +586,6 @@ FocusScope {
             return false
         const acceptKey = InputKeys.isAccept(key)
         const card = currentCard()
-        if (!acceptKey && card && card.handleKey && card.handleKey(key))
-            return true
         if (acceptKey && card && card.handleAcceptReleased && card.handleAcceptReleased(key))
             return true
         return grid.handleKey(key)
@@ -629,7 +629,7 @@ FocusScope {
                         id: titleText
                         anchors.verticalCenter: parent.verticalCenter
                         width: Math.max(0, titleRow.width - 30)
-                        text: browseController && browseController.title.length > 0 ? browseController.title : "Library"
+                        text: Browse.title.length > 0 ? Browse.title : "Library"
                         font.pixelSize: Metrics.bodyPx(root.width) + 4
                         font.weight: Font.DemiBold
                         maximumLineCount: 1
@@ -656,6 +656,16 @@ FocusScope {
                     maximumLineCount: 1
                     elide: Text.ElideRight
                     width: Math.min(520, Math.max(0, parent.width * 0.52))
+                }
+
+                BusyIndicator {
+                    anchors.right: headerDetailText.left
+                    anchors.rightMargin: 10
+                    anchors.verticalCenter: parent.verticalCenter
+                    width: 28
+                    height: 28
+                    running: root.browseLoading
+                    visible: running
                 }
 
                 MouseArea {
@@ -690,7 +700,7 @@ FocusScope {
                 visible: !root.isFixedBrowseView && root.activeFilterCount > 0
                 onActivated: {
                     root.setSavedGridIndex(0)
-                    appController.clearLibraryFilters()
+                    App.clearLibraryFilters()
                 }
             }
         }
@@ -703,8 +713,9 @@ FocusScope {
             clip: true
             keyNavigationEnabled: false
             reuseItems: true
+            opacity: root.browseLoading && count > 0 ? 0.62 : 1
             boundsBehavior: Flickable.StopAtBounds
-            model: browseController ? browseController.items : null
+            model: Browse.items
             cellWidth: Math.floor((width - Metrics.gap(root.width) * (columns - 1)) / columns)
             cellHeight: root.episodeGrid ? Math.round(cellWidth * 9 / 16 + 62) : cellWidth * 1.5 + 64
             cacheBuffer: 2 * cellHeight
@@ -757,12 +768,12 @@ FocusScope {
             }
 
             function requestMoreIfNeeded() {
-                if (!appController || count <= 0)
+                if (count <= 0)
                     return
                 const visibleHead = firstLikelyVisibleIndex()
                 const visibleTail = Math.max(currentIndex, lastLikelyVisibleIndex())
-                appController.prefetchCurrentItems(visibleHead, visibleTail)
-                appController.maybeLoadMoreCurrentItems(visibleTail)
+                App.prefetchCurrentItems(visibleHead, visibleTail)
+                App.maybeLoadMoreCurrentItems(visibleTail)
             }
 
             Timer {
@@ -773,7 +784,7 @@ FocusScope {
             }
 
             Connections {
-                target: appController
+                target: App
                 function onCurrentItemsPagingChanged() {
                     loadMoreDebounce.restart()
                 }
@@ -796,9 +807,6 @@ FocusScope {
                 function handleAcceptReleased(key) {
                     return card.handleAcceptReleased(key)
                 }
-                function handleKey(key) {
-                    return card.handleKey(key)
-                }
 
                 MediaItemCard {
                     id: card
@@ -813,8 +821,8 @@ FocusScope {
                     useSeriesPoster: !root.episodeGrid
                     focused: gridDelegate.GridView.isCurrentItem
                     longPressAction: "menu"
-                    snapshotProvider: function () {
-                        return browseController.items.get(index) || ({})
+                    itemProvider: function () {
+                        return Browse.items.get(index) || ({})
                     }
                     item: gridDelegate.movie
                     displayTitle: gridDelegate.displayTitle
@@ -830,37 +838,34 @@ FocusScope {
                         root.setSavedGridIndex(index)
                         root.openCurrentDetails()
                     }
-                    onFavoriteToggled: favorite => appController.setFavorite(gridDelegate.movie.movieId || "", favorite)
-                    onPlayedToggled: played => appController.setPlayed(gridDelegate.movie.movieId || "", played)
+                    onFavoriteToggled: favorite => App.setFavorite(gridDelegate.movie.movieId || "", favorite)
+                    onPlayedToggled: played => App.setPlayed(gridDelegate.movie.movieId || "", played)
                     onMediaInfoRequested: {
                         if (root.hasShell())
-                            shell.openMediaInfo(browseController.items.get(index) || ({}))
+                            shell.openMediaInfo(Browse.items.get(index) || ({}))
                     }
                 }
             }
         }
     }
 
-    Surface {
+    PopupMenuPanel {
         id: libraryPanel
         anchors.top: parent.top
         anchors.left: parent.left
         anchors.topMargin: Metrics.pageMargin(root.width) + 52
         anchors.leftMargin: Metrics.pageMargin(root.width)
         width: 360
-        height: root.libraryOpen ? Math.min(420, libraryList.contentHeight + 20) : 0
-        visible: root.libraryOpen
+        open: root.libraryOpen
+        openHeight: Math.min(420, libraryList.contentHeight + 20)
         z: 22
-        baseColor: Theme.bgRaised
-        elevated: true
-        clip: true
 
         MenuListView {
             id: libraryList
             anchors.fill: parent
             anchors.margins: 10
             visible: libraryPanel.visible
-            model: libraryModel
+            model: Libraries
             currentIndex: root.libraryIndex
             edgeEscapeItem: libraryButton
             onCurrentIndexChanged: root.libraryIndex = currentIndex
@@ -874,7 +879,7 @@ FocusScope {
                 required property string libraryId
                 width: libraryList.width
                 label: name
-                checked: String(libraryId || "") === String(browseController ? browseController.libraryId || "" : "")
+                checked: String(libraryId || "") === String(Browse.libraryId || "")
                 iconName: checked ? "radio_button_checked" : "radio_button_unchecked"
                 highlighted: ListView.isCurrentItem && libraryList.activeFocus
                 metricsWidth: root.width
@@ -885,19 +890,16 @@ FocusScope {
         }
     }
 
-    Surface {
+    PopupMenuPanel {
         id: sortPanel
         anchors.top: parent.top
         anchors.right: parent.right
         anchors.topMargin: Metrics.pageMargin(root.width) + 52
         anchors.rightMargin: Metrics.pageMargin(root.width)
         width: 320
-        height: root.sortOpen ? Math.min(430, sortList.contentHeight + 20) : 0
-        visible: root.sortOpen
+        open: root.sortOpen
+        openHeight: Math.min(430, sortList.contentHeight + 20)
         z: 20
-        baseColor: Theme.bgRaised
-        elevated: true
-        clip: true
 
         MenuListView {
             id: sortList
@@ -930,19 +932,16 @@ FocusScope {
         }
     }
 
-    Surface {
+    PopupMenuPanel {
         id: filterPanel
         anchors.top: parent.top
         anchors.right: parent.right
         anchors.topMargin: Metrics.pageMargin(root.width) + 52
         anchors.rightMargin: Metrics.pageMargin(root.width)
         width: 380
-        height: root.filtersOpen ? Math.min(root.height - Metrics.pageMargin(root.width) * 2 - 70, 620) : 0
-        visible: root.filtersOpen
+        open: root.filtersOpen
+        openHeight: Math.min(root.height - Metrics.pageMargin(root.width) * 2 - 70, 620)
         z: 21
-        baseColor: Theme.bgRaised
-        elevated: true
-        clip: true
 
         ColumnLayout {
             anchors.fill: parent
@@ -963,7 +962,7 @@ FocusScope {
                     enabled: root.activeFilterCount > 0
                     onClicked: {
                         root.setSavedGridIndex(0)
-                        appController.clearLibraryFilters()
+                        App.clearLibraryFilters()
                     }
                 }
             }

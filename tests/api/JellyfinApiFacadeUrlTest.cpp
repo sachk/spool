@@ -78,6 +78,10 @@ int main(int argc, char **argv)
     const QString trickplayUrl = api.trickplayTileUrl(QStringLiteral("episode/id 2"), 320, 7);
     requireUrlPathBytes(trickplayUrl, QStringLiteral("/jellyfin/root/Videos/episode%2Fid%202/Trickplay/320/7.jpg"),
         "trickplay tile URLs should retain the server base path and encode item ids as one path segment");
+    const QUrl parsedTrickplay(trickplayUrl);
+    const QUrlQuery trickplayQuery(parsedTrickplay);
+    requireMissingQueryValue(
+        trickplayQuery, QStringLiteral("api_key"), "trickplay tile URLs should not include bearer tokens");
 
     return 0;
 }

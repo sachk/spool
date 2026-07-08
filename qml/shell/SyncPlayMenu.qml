@@ -10,7 +10,7 @@ FocusScope {
     id: menu
 
     property bool menuOpen: false
-    readonly property var syncPlay: syncPlayController ? syncPlayController : null
+    readonly property var syncPlay: SyncPlay
     property var entries: []
     property int currentIndex: 0
     signal requestClose
@@ -20,7 +20,7 @@ FocusScope {
     height: implicitHeight
 
     function defaultGroupName() {
-        const name = sessionController && sessionController.username ? String(sessionController.username) : ""
+        const name = Session.username ? String(Session.username) : ""
         return (name.length > 0 ? name : "My") + "'s group"
     }
 

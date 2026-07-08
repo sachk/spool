@@ -167,12 +167,23 @@ void HomeModelController::refresh(const std::vector<LibraryItem>& libraries)
     if (m_loaded || m_refreshInFlight)
         return;
 
-    auto refresh = std::make_shared<PendingHomeRefresh>();
-    refresh->generation = m_generation.next();
-    refresh->librariesForPrefetch = libraries;
+    const RequestGeneration::Token generation = m_generation.next();
     m_refreshInFlight = true;
     m_prefetch->stop();
+    Async::runScoped(
+        this, refreshAsync(libraries, generation), []() {},
+        [this, generation](const std::exception_ptr& error) {
+            if (!m_generation.isCurrent(generation))
+                return;
+            m_refreshInFlight = false;
+            qWarning() << "home: refresh failed" << exceptionMessage(error);
+        },
+        "home refresh");
+}
 
+QCoro::Task<void> HomeModelController::refreshAsync(
+    std::vector<LibraryItem> libraries, RequestGeneration::Token generation)
+{
     std::vector<LibraryItem> latestLibraries;
     latestLibraries.reserve(libraries.size());
     for (const LibraryItem& library : libraries) {
@@ -180,47 +191,61 @@ void HomeModelController::refresh(const std::vector<LibraryItem>& libraries)
             latestLibraries.push_back(library);
     }
 
-    refresh->remaining = 2 + static_cast<int>(latestLibraries.size());
+    std::vector<MovieItem> resumeItems;
+    try {
+        resumeItems = co_await m_api->fetchResumeItems();
+        qInfo() << "home: resume items" << resumeItems.size() << homeItemSample(resumeItems);
+    } catch (const std::exception& error) {
+        qWarning() << "home: resume fetch failed" << error.what();
+    }
+    if (!m_generation.isCurrent(generation))
+        co_return;
 
-    Async::runLatest(
-        this, m_api->fetchResumeItems(), m_generation, refresh->generation,
-        [this, refresh](const std::vector<MovieItem>& items) {
-            qInfo() << "home: resume items" << items.size() << homeItemSample(items);
-            refresh->resumeItems = items;
-            finishHomeRefresh(refresh);
-        },
-        [this, refresh](const std::exception_ptr& error) {
-            qWarning() << "home: resume fetch failed" << exceptionMessage(error);
-            finishHomeRefresh(refresh);
-        });
+    std::vector<MovieItem> nextUpItems;
+    try {
+        nextUpItems = co_await m_api->fetchNextUpEpisodes();
+        qInfo() << "home: next-up items" << nextUpItems.size() << homeItemSample(nextUpItems);
+    } catch (const std::exception& error) {
+        qWarning() << "home: next-up fetch failed" << error.what();
+    }
+    if (!m_generation.isCurrent(generation))
+        co_return;
 
-    Async::runLatest(
-        this, m_api->fetchNextUpEpisodes(), m_generation, refresh->generation,
-        [this, refresh](const std::vector<MovieItem>& items) {
-            qInfo() << "home: next-up items" << items.size() << homeItemSample(items);
-            refresh->nextUpItems = items;
-            finishHomeRefresh(refresh);
-        },
-        [this, refresh](const std::exception_ptr& error) {
-            qWarning() << "home: next-up fetch failed" << exceptionMessage(error);
-            finishHomeRefresh(refresh);
-        });
-
+    std::vector<PendingLatestLibrarySection> latestSections;
+    latestSections.reserve(latestLibraries.size());
     for (int order = 0; order < static_cast<int>(latestLibraries.size()); ++order) {
         const LibraryItem library = latestLibraries[static_cast<size_t>(order)];
-        Async::runLatest(
-            this, m_api->fetchLatestItems(library.id, latestLibraryLimit(library)), m_generation, refresh->generation,
-            [this, refresh, order, library](const std::vector<MovieItem>& items) {
-                qInfo() << "home: latest items" << library.name << items.size() << homeItemSample(items);
-                if (!items.empty())
-                    refresh->latestSections.push_back({ order, library, items });
-                finishHomeRefresh(refresh);
-            },
-            [this, refresh, library](const std::exception_ptr& error) {
-                qWarning() << "home: latest fetch failed" << library.name << exceptionMessage(error);
-                finishHomeRefresh(refresh);
-            });
+        try {
+            std::vector<MovieItem> items = co_await m_api->fetchLatestItems(library.id, latestLibraryLimit(library));
+            qInfo() << "home: latest items" << library.name << items.size() << homeItemSample(items);
+            if (!items.empty())
+                latestSections.push_back({ order, library, std::move(items) });
+        } catch (const std::exception& error) {
+            qWarning() << "home: latest fetch failed" << library.name << error.what();
+        }
+        if (!m_generation.isCurrent(generation))
+            co_return;
     }
+
+    m_refreshInFlight = false;
+    m_loaded = true;
+    m_resumeItems.setMovies(resumeItems);
+    m_nextUpItems.setMovies(nextUpItems);
+    emit homePayloadReady(payloadFromSections(resumeItems, nextUpItems, latestSections));
+    replaceLatestLibraryRows(std::move(latestSections));
+
+    m_prefetch->prefetchPosters(resumeItems, 0, 12, LibraryPrefetchController::ImageKind::Landscape);
+    m_prefetch->prefetchPosters(nextUpItems, 0, 12, LibraryPrefetchController::ImageKind::Landscape);
+    for (const LatestLibrarySection& section : m_latestLibrarySections) {
+        if (!section.model)
+            continue;
+        m_prefetch->prefetchPosters(section.model->movies(), 0, 12,
+            latestRowPrefersLandscape(section.library, section.model->movies())
+                ? LibraryPrefetchController::ImageKind::Landscape
+                : LibraryPrefetchController::ImageKind::Poster);
+    }
+    m_prefetch->schedule(libraries, m_recentLibraryIds);
+    emit latestLibraryRowsChanged();
 }
 
 void HomeModelController::recordLibraryUse(const LibraryItem& library)
@@ -310,36 +335,6 @@ void HomeModelController::reset()
     m_nextUpItems.clear();
     m_recentLibraryIds.clear();
     m_latestLibrarySections.clear();
-    emit latestLibraryRowsChanged();
-}
-
-void HomeModelController::finishHomeRefresh(const std::shared_ptr<PendingHomeRefresh>& refresh)
-{
-    if (!refresh || !m_generation.isCurrent(refresh->generation) || refresh->remaining <= 0)
-        return;
-
-    --refresh->remaining;
-    if (refresh->remaining > 0)
-        return;
-
-    m_refreshInFlight = false;
-    m_loaded = true;
-    m_resumeItems.setMovies(refresh->resumeItems);
-    m_nextUpItems.setMovies(refresh->nextUpItems);
-    emit homePayloadReady(payloadFromSections(refresh->resumeItems, refresh->nextUpItems, refresh->latestSections));
-    replaceLatestLibraryRows(std::move(refresh->latestSections));
-
-    m_prefetch->prefetchPosters(refresh->resumeItems, 0, 12, LibraryPrefetchController::ImageKind::Landscape);
-    m_prefetch->prefetchPosters(refresh->nextUpItems, 0, 12, LibraryPrefetchController::ImageKind::Landscape);
-    for (const LatestLibrarySection& section : m_latestLibrarySections) {
-        if (!section.model)
-            continue;
-        m_prefetch->prefetchPosters(section.model->movies(), 0, 12,
-            latestRowPrefersLandscape(section.library, section.model->movies())
-                ? LibraryPrefetchController::ImageKind::Landscape
-                : LibraryPrefetchController::ImageKind::Poster);
-    }
-    m_prefetch->schedule(refresh->librariesForPrefetch, m_recentLibraryIds);
     emit latestLibraryRowsChanged();
 }
 

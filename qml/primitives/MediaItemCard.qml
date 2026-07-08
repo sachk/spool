@@ -11,7 +11,7 @@ Item {
     property bool preferEpisodeTitle: false
     property string longPressAction: "menu"
     property var item: ({})
-    property var snapshotProvider: null
+    property var itemProvider: null
     property string displayTitle: ""
     property string displaySubtitle: ""
     property real progress: 0
@@ -70,8 +70,8 @@ Item {
         return landscapeCardUrl || thumbUrl || backdropUrl || posterUrl || seriesPosterUrl || ""
     }
 
-    function snapshot() {
-        return snapshotProvider ? (snapshotProvider() || ({})) : (item || ({}))
+    function providedItem() {
+        return itemProvider ? (itemProvider() || ({})) : (item || ({}))
     }
 
     function handleAcceptPressed(key) {
@@ -80,10 +80,6 @@ Item {
 
     function handleAcceptReleased(key) {
         return actions.handleAcceptReleased(key)
-    }
-
-    function handleKey(key) {
-        return actions.handleKey(key)
     }
 
     ImageCard {
@@ -150,7 +146,7 @@ Item {
         focused: root.focused
         item: root.item
         longPressAction: root.longPressAction
-        snapshotProvider: root.snapshot
+        itemProvider: root.providedItem
         onActivated: root.activated()
         onDetailsRequested: root.detailsRequested()
         onFavoriteToggled: favorite => root.favoriteToggled(favorite)

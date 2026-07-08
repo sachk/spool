@@ -1,4 +1,5 @@
 #include "LibraryQuery.h"
+#include "../common/VariantUtils.h"
 
 #include <QMetaType>
 #include <QSet>
@@ -95,19 +96,7 @@ bool supportsLatestLibraryRow(const LibraryItem& library)
 
 QStringList libraryQueryStringList(const QVariantMap& query, const QString& key)
 {
-    const QVariant value = query.value(key);
-    if (value.typeId() == QMetaType::QStringList)
-        return value.toStringList();
-
-    QStringList result;
-    const QVariantList list = value.toList();
-    result.reserve(list.size());
-    for (const QVariant& item : list) {
-        const QString text = item.toString();
-        if (!text.isEmpty())
-            result.push_back(text);
-    }
-    return result;
+    return stringListFromVariantMap(query, key);
 }
 
 int activeLibraryFilterCount(const QVariantMap& query)

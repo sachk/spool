@@ -3,6 +3,7 @@
 #include "../api/JellyfinApiFacade.h"
 #include "../app/NativeAppWindow.h"
 #include "../common/JellyfinTypes.h"
+#include "../common/LogRotation.h"
 #include "../diagnostics/Diagnostics.h"
 #include "MpvOptionProfile.h"
 #include "MpvVideoItem.h"
@@ -75,14 +76,6 @@ namespace {
         }
     }
 
-    void rotateLogFile(const char *path)
-    {
-        const QByteArray base(path);
-        std::remove((base + ".2").constData());
-        std::rename((base + ".1").constData(), (base + ".2").constData());
-        std::rename(path, (base + ".1").constData());
-    }
-
     QByteArray mpvLogPath()
     {
         const QByteArray logDir = qgetenv("JELLYFIN_NATIVE_LOG_DIR");
@@ -117,6 +110,27 @@ namespace {
     {
         const int error = mpv_set_property_string(handle, name, value);
         return error >= 0 || error == MPV_ERROR_OPTION_NOT_FOUND;
+    }
+
+    bool setMpvStringListProperty(mpv_handle *handle, const char *name, const QByteArray& entry)
+    {
+        mpv_node item {};
+        item.format = MPV_FORMAT_STRING;
+        item.u.string = const_cast<char *>(entry.constData());
+
+        mpv_node_list list {};
+        list.num = 1;
+        list.values = &item;
+
+        mpv_node value {};
+        value.format = MPV_FORMAT_NODE_ARRAY;
+        value.u.list = &list;
+
+        const int error = mpv_set_property(handle, name, MPV_FORMAT_NODE, &value);
+        if (error >= 0)
+            return true;
+        qWarning() << "player: failed to set mpv property" << name << mpv_error_string(error);
+        return false;
     }
 
     bool setMpvDoubleProperty(mpv_handle *handle, const char *name, double value, double *appliedValue = nullptr)
@@ -787,6 +801,17 @@ void PlayerController::play(const PlaybackSession& session)
 
     auto *handle = m_mpvLifecycle.handle();
     m_mpvLifecycle.beginFileLoad();
+    const QByteArray authorizationHeader = m_api ? m_api->authorizationHeader().toUtf8() : QByteArray();
+    if (!authorizationHeader.isEmpty()) {
+        const QByteArray header = QByteArrayLiteral("Authorization: ") + authorizationHeader;
+        if (!setMpvStringListProperty(handle, "file-local-options/http-header-fields", header)) {
+            m_mpvLifecycle.cancelFileLoad();
+            m_errorText = QStringLiteral("libmpv rejected the playback authorization header.");
+            stopProgressReporting(true);
+            return;
+        }
+    }
+
     const QByteArray urlBytes = session.url.toUtf8();
     if (startSeconds > 0.0) {
         const QByteArray startValue = QByteArray::number(startSeconds, 'f', 3);

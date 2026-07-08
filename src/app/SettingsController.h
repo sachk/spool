@@ -2,6 +2,7 @@
 
 #include "../common/JellyfinTypes.h"
 
+#include <QCoroTask>
 #include <QJsonObject>
 #include <QObject>
 #include <QStringList>
@@ -76,7 +77,7 @@ public:
     QVariantMap values() const;
     Q_INVOKABLE QVariant value(const QString& key) const;
 
-    void loadLocal();
+    QCoro::Task<void> loadLocalAsync();
     void loadRemote();
     void clearRemote();
     Q_INVOKABLE void setValue(const QString& key, const QVariant& value);

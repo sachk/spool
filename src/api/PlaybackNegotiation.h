@@ -14,8 +14,7 @@ struct PlaybackSelection {
 class PlaybackNegotiation final {
 public:
     static PlaybackSelection selectSource(const QJsonArray& mediaSources, bool preferRemux);
-    static QString buildUrl(const QString& serverUrl, const QString& itemId, const QString& accessToken,
-        const PlaybackSelection& selection);
+    static QString buildUrl(const QString& serverUrl, const QString& itemId, const PlaybackSelection& selection);
     static QJsonObject buildDeviceProfile(qint64 maxStreamingBitrate);
 };
 

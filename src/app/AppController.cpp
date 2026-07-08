@@ -58,23 +58,30 @@ AppController::AppController(DatabaseManager *database, DiscoveryController *dis
     m_session = new SessionController(database, api, this);
     m_prefetch = new LibraryPrefetchController(api, artwork, this);
     m_browse = new BrowseSessionController(m_prefetch, this);
+    m_management = new LibraryManagementController(api, m_browse, this);
     m_home = new HomeModelController(api, m_prefetch, this);
     m_content = new ContentModelController(api, m_prefetch, this);
     m_search = new SearchController(api, m_prefetch, this);
     m_itemState = new UserItemStateController(m_browse, m_home, m_content, m_search, this);
-    m_prefetch->configureImagePrefetch(
-        database->loadSetting(QStringLiteral("network/imagePrefetchAhead"), QStringLiteral("16")).toInt(),
-        database->loadSetting(QStringLiteral("network/imagePrefetchConcurrency"), QStringLiteral("3")).toInt());
+    m_prefetch->configureImagePrefetch(16, 3);
     connect(m_api, &JellyfinApiFacade::authenticationExpired, m_session, &SessionController::expireSession);
-    connect(m_syncPlay, &SyncPlayController::errorText, this, &AppController::setErrorText);
-    connect(m_content, &ContentModelController::errorOccurred, this, &AppController::setErrorText);
-    connect(m_search, &SearchController::errorOccurred, this, &AppController::setErrorText);
+    connect(m_syncPlay, &SyncPlayController::errorText, this, &AppController::showToast);
+    connect(m_content, &ContentModelController::errorOccurred, this, &AppController::showToast);
+    connect(m_search, &SearchController::errorOccurred, this, &AppController::showToast);
     connect(m_itemState, &UserItemStateController::favoriteChanged, this, &AppController::itemFavoriteChanged);
     connect(m_itemState, &UserItemStateController::playedChanged, this, &AppController::itemPlayedChanged);
     connect(m_home, &HomeModelController::homePayloadReady, this, &AppController::saveHomePayload);
+    connect(m_management, &LibraryManagementController::errorOccurred, this, &AppController::showToast);
+    connect(m_management, &LibraryManagementController::operationSucceeded, this, &AppController::showToast);
+    connect(m_management, &LibraryManagementController::refreshRequested, this, [this](const QString& changedItemId) {
+        if (!changedItemId.isEmpty() && m_browse->descriptor().id == changedItemId)
+            goHome();
+        else
+            refreshCurrentLibrary();
+    });
     connect(m_quickConnect, &QuickConnectController::busyChanged, this, &AppController::setBusy);
     connect(m_quickConnect, &QuickConnectController::errorOccurred, this, &AppController::setErrorText);
-    connect(m_settings, &SettingsController::errorOccurred, this, &AppController::setErrorText);
+    connect(m_settings, &SettingsController::errorOccurred, this, &AppController::showToast);
     connect(m_session, &SessionController::busyChanged, this, &AppController::setBusy);
     connect(m_session, &SessionController::errorOccurred, this, &AppController::setErrorText);
     connect(m_session, &SessionController::authenticatedChanged, this, [this](const AuthSession&) {
@@ -84,11 +91,16 @@ AppController::AppController(DatabaseManager *database, DiscoveryController *dis
             m_hasDefaultProfile = true;
             emit defaultProfileChanged();
         }
-        applyCachedHomePayload();
+        Async::runScoped(
+            this, applyCachedHomePayloadAsync(), []() {},
+            [](const std::exception_ptr& error) {
+                qWarning() << "home: warm payload cache failed" << exceptionMessage(error);
+            },
+            "home cache");
         m_settings->loadRemote();
         m_syncPlay->connectSocket();
         loadLibraries();
-        loadCurrentUserPolicy();
+        m_management->loadCurrentUserPolicy();
     });
     connect(m_session, &SessionController::loggedOut, this, &AppController::resetApplicationState);
     connect(m_quickConnect, &QuickConnectController::authenticated, this,
@@ -169,17 +181,30 @@ QuickConnectController *AppController::quickConnect()
     return m_quickConnect;
 }
 
+LibraryManagementController *AppController::management()
+{
+    return m_management;
+}
+
 void AppController::initialize()
 {
+    Async::runScoped(
+        this, initializeAsync(), []() {},
+        [this](const std::exception_ptr& error) { setErrorText(exceptionMessage(error)); }, "app initialize");
+}
+
+QCoro::Task<void> AppController::initializeAsync()
+{
     Diagnostics::Task task(QStringLiteral("app_initialize"));
-    m_settings->loadLocal();
-    const bool hasDefaultProfile = !m_database->loadAuthSession().accessToken.isEmpty();
+    co_await configureImagePrefetchAsync();
+    co_await m_settings->loadLocalAsync();
+    const bool hasDefaultProfile = !(co_await m_database->loadAuthSessionAsync()).accessToken.isEmpty();
     if (m_hasDefaultProfile != hasDefaultProfile) {
         m_hasDefaultProfile = hasDefaultProfile;
         emit defaultProfileChanged();
     }
-    if (!m_session->initialize()) {
-        applyDiscoveredServersCache();
+    if (!(co_await m_session->initializeAsync())) {
+        co_await applyDiscoveredServersCacheAsync();
         m_discovery->start();
     }
 }
@@ -204,13 +229,10 @@ bool AppController::useDefaultProfile()
     m_quickConnect->cancel();
 
     if (!m_session->authenticated()) {
-        const AuthSession session = m_database->loadAuthSession();
-        if (session.accessToken.isEmpty() || m_session->serverUrl().isEmpty()) {
-            setErrorText(QStringLiteral("This saved profile needs to sign in again."));
-            return false;
-        }
-        m_session->acceptSession(session);
-        return true;
+        Async::runScoped(
+            this, useDefaultProfileAsync(), [](bool) {},
+            [this](const std::exception_ptr& error) { setErrorText(exceptionMessage(error)); }, "default profile");
+        return false;
     }
 
     if (m_libraries.rowCount() <= 0) {
@@ -222,6 +244,17 @@ bool AppController::useDefaultProfile()
     m_discovery->stop();
     refreshHomeRows();
     return true;
+}
+
+QCoro::Task<bool> AppController::useDefaultProfileAsync()
+{
+    const AuthSession session = co_await m_database->loadAuthSessionAsync();
+    if (session.accessToken.isEmpty() || m_session->serverUrl().isEmpty()) {
+        setErrorText(QStringLiteral("This saved profile needs to sign in again."));
+        co_return false;
+    }
+    m_session->acceptSession(session);
+    co_return true;
 }
 
 void AppController::switchUser()
@@ -263,12 +296,7 @@ void AppController::resetApplicationState()
     m_content->reset();
     m_search->reset();
     m_activePlaybackItem = {};
-    m_playlistTargets.clear();
-    m_collectionTargets.clear();
-    m_currentUserCanManagePlaylists = false;
-    m_currentUserCanManageCollections = false;
-    m_currentUserCanRenameItems = false;
-    m_currentUserCanDeleteItems = false;
+    m_management->clear();
     m_libraryLoadGeneration.invalidate();
     m_browse->reset();
     setBusy(false);
@@ -278,9 +306,12 @@ void AppController::resetApplicationState()
         emit defaultProfileChanged();
     }
     emit currentLibraryNameChanged();
-    emit managementPolicyChanged();
-    emit managementTargetsChanged();
-    applyDiscoveredServersCache();
+    Async::runScoped(
+        this, applyDiscoveredServersCacheAsync(), []() {},
+        [](const std::exception_ptr& error) {
+            qWarning() << "discovery: cached server load failed" << exceptionMessage(error);
+        },
+        "discovery cache");
     m_discovery->start();
 }
 
@@ -316,24 +347,20 @@ void AppController::openLibrary(int index)
     if (m_artwork)
         m_artwork->cancelPrefetches();
     if (hasWarmCache) {
-        setBusy(false);
         qInfo() << "library open: showing cached page while refreshing" << library.name << cachedCount;
     } else {
-        setBusy(true, QStringLiteral("Loading %1…").arg(m_browse->contentLabel().toLower()));
+        m_browse->setLoadingMore(true);
     }
 
     Async::runLatest(
         this, m_api->fetchBrowsePage(m_browse->descriptor(), 0, kLibraryPageSize, m_browse->query()),
         m_libraryLoadGeneration, loadGeneration,
         [this, cacheKey](const PagedMovieItems& page) { showCurrentItemsPage(page, cacheKey, false); },
-        [this, hasWarmCache](const std::exception_ptr& error) {
-            setBusy(false);
+        [this](const std::exception_ptr& error) {
             m_browse->setLoadingMore(false);
             const QString message = exceptionMessage(error);
-            if (hasWarmCache)
-                qWarning() << "library open: background refresh failed" << message;
-            else
-                setErrorText(message);
+            qWarning() << "library open: refresh failed" << message;
+            showToast(message);
         });
 }
 
@@ -477,7 +504,7 @@ void AppController::loadMoreCurrentItems()
     const auto onDone = [this, cacheKey](const PagedMovieItems& page) { showCurrentItemsPage(page, cacheKey, true); };
     const auto onError = [this](const std::exception_ptr& error) {
         m_browse->setLoadingMore(false);
-        setErrorText(exceptionMessage(error));
+        showToast(exceptionMessage(error));
     };
 
     Async::runLatest(this, m_api->fetchBrowsePage(descriptor, startIndex, kLibraryPageSize, query),
@@ -588,15 +615,14 @@ void AppController::refreshCurrentLibrary()
     m_prefetch->stop();
     if (m_artwork)
         m_artwork->cancelPrefetches();
-    setBusy(true, QStringLiteral("Loading %1…").arg(m_browse->contentLabel().toLower()));
+    m_browse->setLoadingMore(true);
 
     Async::runLatest(
         this, m_api->fetchBrowsePage(descriptor, 0, kLibraryPageSize, query), m_libraryLoadGeneration, loadGeneration,
         [this, cacheKey](const PagedMovieItems& page) { showCurrentItemsPage(page, cacheKey, false); },
         [this](const std::exception_ptr& error) {
-            setBusy(false);
             m_browse->setLoadingMore(false);
-            setErrorText(exceptionMessage(error));
+            showToast(exceptionMessage(error));
         });
 }
 
@@ -651,361 +677,6 @@ void AppController::clearProgress(const QString& itemId)
     Async::runScoped(
         this, m_api->setItemPlaybackPosition(itemId, 0), []() {},
         [this](const std::exception_ptr& error) { setErrorText(exceptionMessage(error)); });
-}
-
-void AppController::loadCurrentUserPolicy()
-{
-    if (!m_api || m_api->session().accessToken.isEmpty()) {
-        m_currentUserCanManagePlaylists = false;
-        m_currentUserCanManageCollections = false;
-        m_currentUserCanRenameItems = false;
-        m_currentUserCanDeleteItems = false;
-        emit managementPolicyChanged();
-        return;
-    }
-
-    m_currentUserCanManagePlaylists = true;
-    emit managementPolicyChanged();
-    Async::runScoped(
-        this, m_api->fetchCurrentUserPolicy(),
-        [this](const QJsonObject& policy) {
-            const bool administrator = policy.value(QStringLiteral("IsAdministrator")).toBool(false);
-            m_currentUserCanManagePlaylists = !m_api->session().accessToken.isEmpty();
-            m_currentUserCanManageCollections
-                = administrator || policy.value(QStringLiteral("EnableCollectionManagement")).toBool(false);
-            m_currentUserCanRenameItems = administrator;
-            m_currentUserCanDeleteItems
-                = administrator || policy.value(QStringLiteral("EnableContentDeletion")).toBool(false);
-            emit managementPolicyChanged();
-        },
-        [this](const std::exception_ptr& error) {
-            qWarning() << "management policy fetch failed" << exceptionMessage(error);
-            m_currentUserCanManagePlaylists = false;
-            m_currentUserCanManageCollections = false;
-            m_currentUserCanRenameItems = false;
-            m_currentUserCanDeleteItems = false;
-            emit managementPolicyChanged();
-        });
-}
-
-void AppController::setManagementTargets(const QString& kind, const std::vector<MovieItem>& items)
-{
-    QVariantList targets;
-    targets.reserve(static_cast<qsizetype>(items.size()));
-    for (const MovieItem& item : items)
-        targets.push_back(metaToJson(item).toVariantMap());
-
-    if (kind == QStringLiteral("playlist"))
-        m_playlistTargets = targets;
-    else if (kind == QStringLiteral("collection"))
-        m_collectionTargets = targets;
-    emit managementTargetsChanged();
-}
-
-QStringList AppController::itemIdsForManagement(const MovieItem& item) const
-{
-    return item.id.isEmpty() ? QStringList {} : QStringList { item.id };
-}
-
-void AppController::refreshAfterManagementMutation(const QString& changedItemId)
-{
-    if (!changedItemId.isEmpty() && m_browse->descriptor().id == changedItemId) {
-        goHome();
-    } else {
-        refreshCurrentLibrary();
-    }
-    refreshManagementTargets(QStringLiteral("playlist"));
-    refreshManagementTargets(QStringLiteral("collection"));
-}
-
-bool AppController::authenticatedForManagement()
-{
-    if (!m_api || m_api->session().accessToken.isEmpty()) {
-        setErrorText(QStringLiteral("Sign in before managing library items."));
-        return false;
-    }
-    return true;
-}
-
-bool AppController::playlistMutationAllowed()
-{
-    if (!authenticatedForManagement())
-        return false;
-    if (!m_currentUserCanManagePlaylists) {
-        setErrorText(QStringLiteral("Your Jellyfin user cannot manage playlists."));
-        return false;
-    }
-    return true;
-}
-
-bool AppController::collectionMutationAllowed()
-{
-    if (!authenticatedForManagement())
-        return false;
-    if (!m_currentUserCanManageCollections) {
-        setErrorText(QStringLiteral("Your Jellyfin user cannot manage collections."));
-        return false;
-    }
-    return true;
-}
-
-bool AppController::renameMutationAllowed(const QString& itemType)
-{
-    if (itemType == QStringLiteral("Playlist"))
-        return playlistMutationAllowed();
-    if (!authenticatedForManagement())
-        return false;
-    if (!m_currentUserCanRenameItems) {
-        setErrorText(QStringLiteral("Your Jellyfin user cannot rename this item."));
-        return false;
-    }
-    return true;
-}
-
-bool AppController::deleteMutationAllowed()
-{
-    if (!authenticatedForManagement())
-        return false;
-    if (!m_currentUserCanDeleteItems) {
-        setErrorText(QStringLiteral("Your Jellyfin user cannot delete items."));
-        return false;
-    }
-    return true;
-}
-
-void AppController::refreshManagementTargets(const QString& kind)
-{
-    if (!authenticatedForManagement())
-        return;
-
-    const QString normalized
-        = kind == QStringLiteral("collection") ? QStringLiteral("collection") : QStringLiteral("playlist");
-    const QString itemType
-        = normalized == QStringLiteral("collection") ? QStringLiteral("BoxSet") : QStringLiteral("Playlist");
-    Async::runScoped(
-        this, m_api->fetchManagementTargets(itemType),
-        [this, normalized](const std::vector<MovieItem>& items) { setManagementTargets(normalized, items); },
-        [this](const std::exception_ptr& error) { setErrorText(exceptionMessage(error)); });
-}
-
-void AppController::createPlaylistForItem(const QString& name, const MovieItem& item)
-{
-    if (!playlistMutationAllowed())
-        return;
-    const QStringList itemIds = itemIdsForManagement(item);
-    setBusy(true, QStringLiteral("Creating playlist…"));
-    Async::runScoped(
-        this, m_api->createPlaylist(name, itemIds),
-        [this](const QString&) {
-            setBusy(false);
-            emit managementOperationSucceeded(QStringLiteral("Playlist created"));
-            refreshAfterManagementMutation();
-        },
-        [this](const std::exception_ptr& error) {
-            setBusy(false);
-            setErrorText(exceptionMessage(error));
-        });
-}
-
-void AppController::addItemToPlaylist(const QString& playlistId, const MovieItem& item)
-{
-    if (!playlistMutationAllowed())
-        return;
-    const QStringList itemIds = itemIdsForManagement(item);
-    if (playlistId.isEmpty() || itemIds.isEmpty()) {
-        setErrorText(QStringLiteral("Choose an item and playlist first."));
-        return;
-    }
-    setBusy(true, QStringLiteral("Adding to playlist…"));
-    Async::runScoped(
-        this, m_api->addPlaylistItems(playlistId, itemIds),
-        [this]() {
-            setBusy(false);
-            emit managementOperationSucceeded(QStringLiteral("Added to playlist"));
-            refreshAfterManagementMutation();
-        },
-        [this](const std::exception_ptr& error) {
-            setBusy(false);
-            setErrorText(exceptionMessage(error));
-        });
-}
-
-void AppController::createCollectionForItem(const QString& name, const MovieItem& item)
-{
-    if (!collectionMutationAllowed())
-        return;
-    const QStringList itemIds = itemIdsForManagement(item);
-    setBusy(true, QStringLiteral("Creating collection…"));
-    Async::runScoped(
-        this, m_api->createCollection(name, itemIds),
-        [this](const QString&) {
-            setBusy(false);
-            emit managementOperationSucceeded(QStringLiteral("Collection created"));
-            refreshAfterManagementMutation();
-        },
-        [this](const std::exception_ptr& error) {
-            setBusy(false);
-            setErrorText(exceptionMessage(error));
-        });
-}
-
-void AppController::addItemToCollection(const QString& collectionId, const MovieItem& item)
-{
-    if (!collectionMutationAllowed())
-        return;
-    const QStringList itemIds = itemIdsForManagement(item);
-    if (collectionId.isEmpty() || itemIds.isEmpty()) {
-        setErrorText(QStringLiteral("Choose an item and collection first."));
-        return;
-    }
-    setBusy(true, QStringLiteral("Adding to collection…"));
-    Async::runScoped(
-        this, m_api->addCollectionItems(collectionId, itemIds),
-        [this]() {
-            setBusy(false);
-            emit managementOperationSucceeded(QStringLiteral("Added to collection"));
-            refreshAfterManagementMutation();
-        },
-        [this](const std::exception_ptr& error) {
-            setBusy(false);
-            setErrorText(exceptionMessage(error));
-        });
-}
-
-void AppController::removeItemFromCurrentParent(const MovieItem& movie)
-{
-    const BrowseDescriptor descriptor = m_browse->descriptor();
-    if (descriptor.kind == BrowseKind::Playlist) {
-        if (!playlistMutationAllowed())
-            return;
-        if (movie.playlistItemId.isEmpty()) {
-            setErrorText(QStringLiteral("This playlist entry cannot be removed."));
-            return;
-        }
-        setBusy(true, QStringLiteral("Removing from playlist…"));
-        Async::runScoped(
-            this, m_api->removePlaylistItems(descriptor.id, { movie.playlistItemId }),
-            [this]() {
-                setBusy(false);
-                emit managementOperationSucceeded(QStringLiteral("Removed from playlist"));
-                refreshAfterManagementMutation();
-            },
-            [this](const std::exception_ptr& error) {
-                setBusy(false);
-                setErrorText(exceptionMessage(error));
-            });
-        return;
-    }
-    if (descriptor.kind == BrowseKind::BoxSet) {
-        if (!collectionMutationAllowed())
-            return;
-        if (movie.id.isEmpty()) {
-            setErrorText(QStringLiteral("This collection item cannot be removed."));
-            return;
-        }
-        setBusy(true, QStringLiteral("Removing from collection…"));
-        Async::runScoped(
-            this, m_api->removeCollectionItems(descriptor.id, { movie.id }),
-            [this]() {
-                setBusy(false);
-                emit managementOperationSucceeded(QStringLiteral("Removed from collection"));
-                refreshAfterManagementMutation();
-            },
-            [this](const std::exception_ptr& error) {
-                setBusy(false);
-                setErrorText(exceptionMessage(error));
-            });
-        return;
-    }
-    setErrorText(QStringLiteral("Open a playlist or collection before removing items."));
-}
-
-void AppController::movePlaylistItemInCurrent(const MovieItem& movie, int delta)
-{
-    if (!playlistMutationAllowed())
-        return;
-    const BrowseDescriptor descriptor = m_browse->descriptor();
-    if (descriptor.kind != BrowseKind::Playlist || movie.playlistItemId.isEmpty()) {
-        setErrorText(QStringLiteral("This playlist entry cannot be moved."));
-        return;
-    }
-
-    int currentIndex = -1;
-    const std::vector<MovieItem>& items = m_browse->items()->movies();
-    for (int i = 0; i < static_cast<int>(items.size()); ++i) {
-        if (items[static_cast<size_t>(i)].playlistItemId == movie.playlistItemId) {
-            currentIndex = i;
-            break;
-        }
-    }
-    if (currentIndex < 0)
-        return;
-    const int newIndex = std::clamp(currentIndex + delta, 0, std::max(0, static_cast<int>(items.size()) - 1));
-    if (newIndex == currentIndex)
-        return;
-
-    setBusy(true, QStringLiteral("Moving playlist item…"));
-    Async::runScoped(
-        this, m_api->movePlaylistItem(descriptor.id, movie.playlistItemId, newIndex),
-        [this]() {
-            setBusy(false);
-            emit managementOperationSucceeded(QStringLiteral("Playlist item moved"));
-            refreshAfterManagementMutation();
-        },
-        [this](const std::exception_ptr& error) {
-            setBusy(false);
-            setErrorText(exceptionMessage(error));
-        });
-}
-
-void AppController::renameManagedItem(const MovieItem& movie, const QString& name)
-{
-    const QString trimmed = name.trimmed();
-    if (movie.id.isEmpty() || trimmed.isEmpty()) {
-        setErrorText(QStringLiteral("Choose an item and name first."));
-        return;
-    }
-    if (!renameMutationAllowed(movie.itemType))
-        return;
-
-    setBusy(true, QStringLiteral("Renaming item…"));
-    auto onRenamed = [this, itemId = movie.id]() {
-        setBusy(false);
-        emit managementOperationSucceeded(QStringLiteral("Item renamed"));
-        refreshAfterManagementMutation(itemId);
-    };
-    auto onError = [this](const std::exception_ptr& error) {
-        setBusy(false);
-        setErrorText(exceptionMessage(error));
-    };
-    if (movie.itemType == QStringLiteral("Playlist")) {
-        Async::runScoped(this, m_api->updatePlaylistName(movie.id, trimmed), onRenamed, onError);
-        return;
-    }
-    Async::runScoped(this, m_api->renameItem(movie.id, trimmed), onRenamed, onError);
-}
-
-void AppController::deleteManagedItem(const MovieItem& movie)
-{
-    if (movie.id.isEmpty()) {
-        setErrorText(QStringLiteral("Choose an item before deleting."));
-        return;
-    }
-    if (!deleteMutationAllowed())
-        return;
-
-    setBusy(true, QStringLiteral("Deleting item…"));
-    Async::runScoped(
-        this, m_api->deleteItem(movie.id),
-        [this, itemId = movie.id]() {
-            setBusy(false);
-            emit managementOperationSucceeded(QStringLiteral("Item deleted"));
-            refreshAfterManagementMutation(itemId);
-        },
-        [this](const std::exception_ptr& error) {
-            setBusy(false);
-            setErrorText(exceptionMessage(error));
-        });
 }
 
 void AppController::playQueuedItems(const std::vector<MovieItem>& items, int startIndex, bool fromStart)
@@ -1065,51 +736,34 @@ bool AppController::queueMutationAllowed()
 
 void AppController::playMediaItem(const MovieItem& item, bool fromStart)
 {
-    Diagnostics::Task task(QStringLiteral("playback_negotiate"),
-        { { QStringLiteral("itemId"), item.id }, { QStringLiteral("title"), item.title },
-            { QStringLiteral("type"), item.itemType } });
-    setBusy(true, QStringLiteral("Negotiating playback…"));
     MovieItem playItem = item;
     if (fromStart || !isMeaningfulResumePosition(playItem.resumeTicks, playItem.runtimeTicks))
         playItem.resumeTicks = 0;
     m_activePlaybackItem = playItem;
-    const QString itemId = playItem.id;
     Async::runScoped(
-        this, m_api->negotiatePlayback(playItem),
-        [this, itemId](const PlaybackSession& session) {
-            // Enrich the negotiated session with media segments (skip-intro)
-            // and trickplay (scrubber thumbnails). Both are advisory — if the
-            // server doesn't expose them, playback still starts normally.
-            JellyfinApiFacade *api = m_api;
-            PlayerController *player = m_player;
-            const QString mediaSourceId = session.mediaSourceId;
-            auto sharedSession = std::make_shared<PlaybackSession>(session);
-            sharedSession->nowPlayingQueue = m_playQueue->nowPlayingQueue();
-            auto pending = std::make_shared<int>(2);
-            auto kickoff = [player, sharedSession, pending]() {
-                if (--(*pending) == 0)
-                    player->play(*sharedSession);
-            };
-            Async::runScoped(
-                this, api->fetchMediaSegments(itemId),
-                [sharedSession, kickoff](const std::vector<MediaSegment>& segments) {
-                    sharedSession->segments = segments;
-                    kickoff();
-                },
-                [kickoff](const std::exception_ptr&) { kickoff(); });
-            Async::runScoped(
-                this, api->fetchTrickplay(itemId, mediaSourceId),
-                [sharedSession, kickoff](const TrickplayInfo& info) {
-                    sharedSession->trickplay = info;
-                    kickoff();
-                },
-                [kickoff](const std::exception_ptr&) { kickoff(); });
-            setBusy(false);
-        },
+        this, startPlayback(playItem), []() {},
         [this](const std::exception_ptr& error) {
             setBusy(false);
             setErrorText(exceptionMessage(error));
-        });
+        },
+        "playback startup");
+}
+
+QCoro::Task<void> AppController::startPlayback(MovieItem playItem)
+{
+    Diagnostics::Task task(QStringLiteral("playback_negotiate"),
+        { { QStringLiteral("itemId"), playItem.id }, { QStringLiteral("title"), playItem.title },
+            { QStringLiteral("type"), playItem.itemType } });
+
+    PlaybackSession session = co_await m_api->negotiatePlayback(playItem);
+    try {
+        session.segments = co_await m_api->fetchMediaSegments(playItem.id);
+    } catch (const std::exception& error) {
+        qInfo() << "app: media segments unavailable for" << playItem.id << ":" << error.what();
+    }
+    session.nowPlayingQueue = m_playQueue->nowPlayingQueue();
+    setBusy(false);
+    m_player->play(session);
 }
 
 void AppController::onMemoryPressure(const QString& level)
@@ -1167,9 +821,16 @@ void AppController::setErrorText(const QString& errorText)
     emit errorTextChanged();
 }
 
-void AppController::applyDiscoveredServersCache()
+void AppController::showToast(const QString& message)
 {
-    const auto servers = m_database->loadDiscoveredServers();
+    if (message.trimmed().isEmpty())
+        return;
+    emit toastMessage(message);
+}
+
+QCoro::Task<void> AppController::applyDiscoveredServersCacheAsync()
+{
+    const auto servers = co_await m_database->loadDiscoveredServersAsync();
     std::vector<DiscoveredServer> parsed;
     parsed.reserve(servers.size());
     for (const auto& value : servers)
@@ -1180,7 +841,6 @@ void AppController::applyDiscoveredServersCache()
 void AppController::loadLibraries()
 {
     m_prefetch->stop();
-    setBusy(true, QStringLiteral("Loading libraries…"));
     Async::runScoped(
         this, m_api->fetchLibraries(),
         [this](const std::vector<LibraryItem>& libraries) {
@@ -1222,7 +882,7 @@ void AppController::loadLibraryFilterOptions(RequestGeneration::Token generation
         });
 }
 
-void AppController::loadCurrentBrowsePage(const QString& loadingText)
+void AppController::loadCurrentBrowsePage()
 {
     if (!m_api || m_api->session().accessToken.isEmpty())
         return;
@@ -1234,14 +894,14 @@ void AppController::loadCurrentBrowsePage(const QString& loadingText)
     const QString cacheKey = descriptor.cacheKey();
     m_browse->resetPaging(cacheKey);
     m_browse->clear();
-    setBusy(true, loadingText);
+    m_browse->setLoadingMore(true);
 
     Async::runLatest(
         this, m_api->fetchBrowsePage(descriptor, 0, kLibraryPageSize), m_libraryLoadGeneration, loadGeneration,
         [this, cacheKey](const PagedMovieItems& page) { showCurrentItemsPage(page, cacheKey, false); },
         [this](const std::exception_ptr& error) {
-            setBusy(false);
-            setErrorText(exceptionMessage(error));
+            m_browse->setLoadingMore(false);
+            showToast(exceptionMessage(error));
         });
 }
 
@@ -1257,7 +917,7 @@ void AppController::openSeries(const MovieItem& series)
     const QString cacheKey = descriptor.cacheKey();
     m_browse->resetPaging(cacheKey);
     m_browse->clear();
-    setBusy(true, QStringLiteral("Loading seasons…"));
+    m_browse->setLoadingMore(true);
 
     Async::runLatest(
         this, m_api->fetchBrowsePage(descriptor, 0, kLibraryPageSize), m_libraryLoadGeneration, loadGeneration,
@@ -1275,8 +935,8 @@ void AppController::openSeries(const MovieItem& series)
             showCurrentItemsPage(page, cacheKey, false);
         },
         [this](const std::exception_ptr& error) {
-            setBusy(false);
-            setErrorText(exceptionMessage(error));
+            m_browse->setLoadingMore(false);
+            showToast(exceptionMessage(error));
         });
 }
 
@@ -1298,7 +958,7 @@ void AppController::openSeason(const MovieItem& season)
     const QString cacheKey = descriptor.cacheKey();
     m_browse->resetPaging(cacheKey);
     m_browse->clear();
-    setBusy(true, QStringLiteral("Loading episodes…"));
+    m_browse->setLoadingMore(true);
 
     Async::runLatest(
         this, m_api->fetchBrowsePage(descriptor, 0, kLibraryPageSize), m_libraryLoadGeneration, loadGeneration,
@@ -1309,8 +969,8 @@ void AppController::openSeason(const MovieItem& season)
         },
         [this](const std::exception_ptr& error) {
             qWarning() << "season open: episodes fetch failed" << exceptionMessage(error);
-            setBusy(false);
-            setErrorText(exceptionMessage(error));
+            m_browse->setLoadingMore(false);
+            showToast(exceptionMessage(error));
         });
 }
 
@@ -1320,7 +980,7 @@ void AppController::openPlaylist(const MovieItem& playlist)
         return;
     m_browse->enterPlaylist(playlist);
     emit currentLibraryNameChanged();
-    loadCurrentBrowsePage(QStringLiteral("Loading %1…").arg(m_browse->contentLabel().toLower()));
+    loadCurrentBrowsePage();
 }
 
 void AppController::openBoxSet(const MovieItem& boxSet)
@@ -1329,7 +989,7 @@ void AppController::openBoxSet(const MovieItem& boxSet)
         return;
     m_browse->enterBoxSet(boxSet);
     emit currentLibraryNameChanged();
-    loadCurrentBrowsePage(QStringLiteral("Loading %1…").arg(m_browse->contentLabel().toLower()));
+    loadCurrentBrowsePage();
 }
 
 void AppController::openFolder(const MovieItem& folder)
@@ -1338,7 +998,7 @@ void AppController::openFolder(const MovieItem& folder)
         return;
     m_browse->enterFolder(folder);
     emit currentLibraryNameChanged();
-    loadCurrentBrowsePage(QStringLiteral("Loading %1…").arg(m_browse->contentLabel().toLower()));
+    loadCurrentBrowsePage();
 }
 
 void AppController::openGenre(const QString& genre)
@@ -1348,7 +1008,7 @@ void AppController::openGenre(const QString& genre)
         return;
     m_browse->enterNamedCollection(QStringLiteral("genre"), name);
     emit currentLibraryNameChanged();
-    loadCurrentBrowsePage(QStringLiteral("Loading %1…").arg(name));
+    loadCurrentBrowsePage();
 }
 
 void AppController::openStudio(const QString& studio)
@@ -1358,7 +1018,7 @@ void AppController::openStudio(const QString& studio)
         return;
     m_browse->enterNamedCollection(QStringLiteral("studio"), name);
     emit currentLibraryNameChanged();
-    loadCurrentBrowsePage(QStringLiteral("Loading %1…").arg(name));
+    loadCurrentBrowsePage();
 }
 
 void AppController::refreshHomeRows()
@@ -1378,14 +1038,27 @@ QString AppController::homePayloadCacheKey() const
     return QStringLiteral("%1/%2").arg(serverKey, userKey);
 }
 
-void AppController::applyCachedHomePayload()
+QCoro::Task<void> AppController::configureImagePrefetchAsync()
+{
+    if (!m_database || !m_prefetch)
+        co_return;
+    const int ahead
+        = (co_await m_database->loadSettingAsync(QStringLiteral("network/imagePrefetchAhead"), QStringLiteral("16")))
+              .toInt();
+    const int concurrency = (co_await m_database->loadSettingAsync(
+                                 QStringLiteral("network/imagePrefetchConcurrency"), QStringLiteral("3")))
+                                .toInt();
+    m_prefetch->configureImagePrefetch(ahead, concurrency);
+}
+
+QCoro::Task<void> AppController::applyCachedHomePayloadAsync()
 {
     if (!m_database || !m_home)
-        return;
+        co_return;
     const QString key = homePayloadCacheKey();
     if (key.isEmpty())
-        return;
-    const QJsonObject payload = m_database->loadHomePayload(key, kHomePayloadSchemaVersion);
+        co_return;
+    const QJsonObject payload = co_await m_database->loadHomePayloadAsync(key, kHomePayloadSchemaVersion);
     if (m_home->applyCachedPayload(payload))
         qInfo() << "home: warm payload cache applied" << key;
 }

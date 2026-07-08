@@ -3,6 +3,7 @@
 #include "../common/JellyfinTypes.h"
 #include "../common/RequestGeneration.h"
 #include "../models/MovieGridModel.h"
+#include <QCoroTask>
 #include <QJsonObject>
 
 #include <QObject>
@@ -55,16 +56,7 @@ private:
         LibraryItem library;
         std::vector<MovieItem> items;
     };
-    struct PendingHomeRefresh {
-        RequestGeneration::Token generation;
-        int remaining = 0;
-        std::vector<MovieItem> resumeItems;
-        std::vector<MovieItem> nextUpItems;
-        std::vector<PendingLatestLibrarySection> latestSections;
-        std::vector<LibraryItem> librariesForPrefetch;
-    };
-
-    void finishHomeRefresh(const std::shared_ptr<PendingHomeRefresh>& refresh);
+    QCoro::Task<void> refreshAsync(std::vector<LibraryItem> libraries, RequestGeneration::Token generation);
     void replaceLatestLibraryRows(std::vector<PendingLatestLibrarySection> sections);
     QJsonObject payloadFromSections(const std::vector<MovieItem>& resumeItems,
         const std::vector<MovieItem>& nextUpItems, const std::vector<PendingLatestLibrarySection>& sections) const;

@@ -1,6 +1,7 @@
 #include "JellyfinApiFacade.h"
 
 #include "../common/MetaJson.h"
+#include "../common/VariantUtils.h"
 #include "../diagnostics/Diagnostics.h"
 #include "ItemsQuery.h"
 #include "PlaybackNegotiation.h"
@@ -154,33 +155,10 @@ namespace {
         return collectionType == QStringLiteral("playlists") || collectionType == QStringLiteral("boxsets");
     }
 
-    QStringList queryStringList(const QVariantMap& options, const QString& key)
-    {
-        QStringList result;
-        const QVariant value = options.value(key);
-        if (value.typeId() == QMetaType::QStringList) {
-            result = value.toStringList();
-        } else if (value.typeId() == QMetaType::QVariantList) {
-            const QVariantList list = value.toList();
-            result.reserve(list.size());
-            for (const QVariant& item : list) {
-                const QString text = item.toString();
-                if (!text.isEmpty())
-                    result.push_back(text);
-            }
-        } else {
-            const QString text = value.toString();
-            if (!text.isEmpty())
-                result = text.split(QLatin1Char(','), Qt::SkipEmptyParts);
-        }
-        result.removeAll(QString());
-        return result;
-    }
-
     void addJoinedQueryItem(QUrlQuery& query, const QVariantMap& options, const QString& key, const QString& queryKey,
         QLatin1Char delimiter)
     {
-        const QStringList values = queryStringList(options, key);
+        const QStringList values = stringListFromVariantMap(options, key);
         if (!values.isEmpty())
             query.addQueryItem(queryKey, values.join(delimiter));
     }
@@ -288,23 +266,56 @@ namespace {
         return streams;
     }
 
-    QList<MediaSourceInfo> mediaSourcesFromApiJson(const QJsonArray& array)
+    MediaSourceInfo mediaSourceFromApiJson(const QJsonObject& object)
     {
-        QList<MediaSourceInfo> sources;
-        sources.reserve(array.size());
-        for (const QJsonValue& value : array) {
-            const QJsonObject object = value.toObject();
-            MediaSourceInfo source = metaFromJson<MediaSourceInfo>(object, MetaJsonKeyPolicy::PascalCase);
-            source.container = cleanContainerName(object.value(QStringLiteral("Container")).toString());
-            source.bitRate = object.value(QStringLiteral("Bitrate")).toInt();
-            if (source.bitRate <= 0)
-                source.bitRate = object.value(QStringLiteral("BitRate")).toInt();
-            source.runtimeTicks = object.value(QStringLiteral("RunTimeTicks")).toVariant().toLongLong();
-            source.streams = mediaStreamsFromApiJson(object.value(QStringLiteral("MediaStreams")).toArray());
-            if (!source.id.isEmpty() || !source.container.isEmpty() || !source.streams.isEmpty())
-                sources.push_back(source);
+        MediaSourceInfo source = metaFromJson<MediaSourceInfo>(object, MetaJsonKeyPolicy::PascalCase);
+        source.container = cleanContainerName(object.value(QStringLiteral("Container")).toString());
+        source.bitRate = object.value(QStringLiteral("Bitrate")).toInt();
+        if (source.bitRate <= 0)
+            source.bitRate = object.value(QStringLiteral("BitRate")).toInt();
+        source.runtimeTicks = object.value(QStringLiteral("RunTimeTicks")).toVariant().toLongLong();
+        source.streams = mediaStreamsFromApiJson(object.value(QStringLiteral("MediaStreams")).toArray());
+        return source;
+    }
+
+    bool isTrickplayWidthMap(const QJsonObject& object)
+    {
+        if (object.isEmpty())
+            return false;
+        const QJsonObject first = object.constBegin().value().toObject();
+        return first.contains(QStringLiteral("Width")) || first.contains(QStringLiteral("TileWidth"))
+            || first.contains(QStringLiteral("Interval"));
+    }
+
+    TrickplayInfo trickplayFromApiJson(const QJsonObject& trickplay, const QString& mediaSourceId, int preferredWidth)
+    {
+        QJsonObject widths;
+        if (isTrickplayWidthMap(trickplay)) {
+            widths = trickplay;
+        } else if (!mediaSourceId.isEmpty() && trickplay.contains(mediaSourceId)) {
+            widths = trickplay.value(mediaSourceId).toObject();
+        } else if (!trickplay.isEmpty()) {
+            widths = trickplay.constBegin().value().toObject();
         }
-        return sources;
+
+        TrickplayInfo best;
+        int bestDiff = std::numeric_limits<int>::max();
+        for (auto it = widths.begin(); it != widths.end(); ++it) {
+            const QJsonObject info = it.value().toObject();
+            const int width = info.value(QStringLiteral("Width")).toInt();
+            const int diff = std::abs(width - preferredWidth);
+            if (diff < bestDiff) {
+                bestDiff = diff;
+                best.width = width;
+                best.height = info.value(QStringLiteral("Height")).toInt();
+                best.tileWidth = info.value(QStringLiteral("TileWidth")).toInt();
+                best.tileHeight = info.value(QStringLiteral("TileHeight")).toInt();
+                best.thumbnailCount = info.value(QStringLiteral("ThumbnailCount")).toInt();
+                best.intervalMs = info.value(QStringLiteral("Interval")).toInt();
+                best.bandwidth = info.value(QStringLiteral("Bandwidth")).toInt();
+            }
+        }
+        return best;
     }
 
     MovieItem mediaItemFromJson(const JellyfinApiFacade *api, const QJsonObject& object)
@@ -397,7 +408,13 @@ namespace {
         item.premiereDate = object.value(QStringLiteral("PremiereDate")).toString();
         item.endDate = object.value(QStringLiteral("EndDate")).toString();
         item.people = peopleFromApiJson(api, object.value(QStringLiteral("People")).toArray());
-        item.mediaSources = mediaSourcesFromApiJson(object.value(QStringLiteral("MediaSources")).toArray());
+        const QJsonArray sourceArray = object.value(QStringLiteral("MediaSources")).toArray();
+        item.mediaSources.reserve(sourceArray.size());
+        for (const QJsonValue& sourceValue : sourceArray) {
+            MediaSourceInfo source = mediaSourceFromApiJson(sourceValue.toObject());
+            if (!source.id.isEmpty() || !source.container.isEmpty() || !source.streams.isEmpty())
+                item.mediaSources.push_back(source);
+        }
         return item;
     }
 
@@ -720,7 +737,7 @@ QCoro::Task<PagedMovieItems> JellyfinApiFacade::fetchBrowsePage(
     case BrowseKind::Library: {
         QString includeItemTypes = includeItemTypesForCollection(descriptor.collectionType);
         const QString requestedTypes
-            = queryStringList(queryOptions, QStringLiteral("includeItemTypes")).join(QLatin1Char(','));
+            = stringListFromVariantMap(queryOptions, QStringLiteral("includeItemTypes")).join(QLatin1Char(','));
         const bool collectionFilter
             = descriptor.collectionType == QStringLiteral("movies") && requestedTypes == QStringLiteral("BoxSet");
         if (collectionFilter)
@@ -1255,45 +1272,6 @@ QCoro::Task<std::vector<MediaSegment>> JellyfinApiFacade::fetchMediaSegments(QSt
     co_return result;
 }
 
-QCoro::Task<TrickplayInfo> JellyfinApiFacade::fetchTrickplay(QString itemId, QString mediaSourceId, int preferredWidth)
-{
-    Diagnostics::Task task(QStringLiteral("api_fetch_trickplay"), { { QStringLiteral("itemId"), itemId } });
-    TrickplayInfo best;
-    try {
-        QUrlQuery query;
-        query.addQueryItem(QStringLiteral("fields"), QStringLiteral("Trickplay"));
-        const QJsonDocument doc = co_await requestJson(
-            HttpMethod::Get, QStringLiteral("/Users/%1/Items/%2").arg(m_session.userId, itemId), query);
-        const QJsonObject trickplay = doc.object().value(QStringLiteral("Trickplay")).toObject();
-        // Trickplay = { "<mediaSourceId>": { "<width>": TrickplayInfo, ... }, ... }
-        QJsonObject widths;
-        if (!mediaSourceId.isEmpty() && trickplay.contains(mediaSourceId)) {
-            widths = trickplay.value(mediaSourceId).toObject();
-        } else if (!trickplay.isEmpty()) {
-            widths = trickplay.constBegin().value().toObject();
-        }
-        int bestDiff = std::numeric_limits<int>::max();
-        for (auto it = widths.begin(); it != widths.end(); ++it) {
-            const QJsonObject info = it.value().toObject();
-            const int width = info.value(QStringLiteral("Width")).toInt();
-            const int diff = std::abs(width - preferredWidth);
-            if (diff < bestDiff) {
-                bestDiff = diff;
-                best.width = width;
-                best.height = info.value(QStringLiteral("Height")).toInt();
-                best.tileWidth = info.value(QStringLiteral("TileWidth")).toInt();
-                best.tileHeight = info.value(QStringLiteral("TileHeight")).toInt();
-                best.thumbnailCount = info.value(QStringLiteral("ThumbnailCount")).toInt();
-                best.intervalMs = info.value(QStringLiteral("Interval")).toInt();
-                best.bandwidth = info.value(QStringLiteral("Bandwidth")).toInt();
-            }
-        }
-    } catch (const std::exception& e) {
-        qInfo() << "api: trickplay fetch failed for" << itemId << ":" << e.what();
-    }
-    co_return best;
-}
-
 QString JellyfinApiFacade::trickplayTileUrl(const QString& itemId, int width, int tileIndex) const
 {
     if (m_serverUrl.isEmpty() || itemId.isEmpty() || width <= 0 || tileIndex < 0)
@@ -1372,6 +1350,7 @@ QCoro::Task<PlaybackSession> JellyfinApiFacade::negotiatePlayback(MovieItem movi
         { { QStringLiteral("itemId"), movie.id }, { QStringLiteral("title"), movie.title } });
     QUrlQuery query;
     query.addQueryItem(QStringLiteral("userId"), m_session.userId);
+    query.addQueryItem(QStringLiteral("fields"), QStringLiteral("Trickplay"));
 
     const QJsonObject body = {
         { QStringLiteral("UserId"), m_session.userId },
@@ -1630,11 +1609,18 @@ PlaybackSession JellyfinApiFacade::buildPlaybackSession(
     const QString mediaSourceId = requireString(selectedSource, QStringLiteral("Id"));
     const QString container = cleanContainerName(selectedSource.value(QStringLiteral("Container")).toString());
 
+    TrickplayInfo trickplay
+        = trickplayFromApiJson(playbackResponse.value(QStringLiteral("Trickplay")).toObject(), mediaSourceId, 320);
+    if (trickplay.width <= 0) {
+        trickplay
+            = trickplayFromApiJson(selectedSource.value(QStringLiteral("Trickplay")).toObject(), mediaSourceId, 320);
+    }
+
     return {
         movie.id,
         movie.title,
         movie.itemType,
-        PlaybackNegotiation::buildUrl(m_serverUrl, movie.id, m_session.accessToken, selection),
+        PlaybackNegotiation::buildUrl(m_serverUrl, movie.id, selection),
         mediaSourceId,
         playbackResponse.value(QStringLiteral("PlaySessionId")).toString(),
         selection.playMethod,
@@ -1642,6 +1628,8 @@ PlaybackSession JellyfinApiFacade::buildPlaybackSession(
         movie.resumeTicks,
         movie.runtimeTicks,
         mediaStreamsFromApiJson(selectedSource.value(QStringLiteral("MediaStreams")).toArray()),
+        {},
+        trickplay,
     };
 }
 

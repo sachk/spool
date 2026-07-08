@@ -4,13 +4,14 @@
 
 Jellyfin Native is a C++/QML client for LG webOS TVs (with Linux/macOS dev
 builds) that talks directly to a Jellyfin server — no embedded browser. A
-~19k-line C++ core owns all state: a coroutine-based REST facade
-(`JellyfinApiFacade`, QCoro + `QRestAccessManager`), a family of feature
-controllers (browse, home, search, session, settings, sync-play, play queue)
-aggregated behind one `AppController` context property, list models derived
-from `QAbstractListModel`, an SQLite cache on a worker thread, and a player
-layer that drives a custom libmpv fork whose video decodes through LG's
-Starfish hardware pipeline (dlopen'd after first frame to keep launch fast).
+C++ core owns app state: a coroutine-based REST facade (`JellyfinApiFacade`,
+QCoro + `QRestAccessManager`), feature controllers (browse, home, search,
+session, settings, sync-play, play queue) aggregated behind one
+`AppController` context property, route state owned by `RouterController`, list
+models derived from `QAbstractListModel`, an SQLite cache on a worker thread
+with coroutine read APIs, and a player layer that drives a custom libmpv fork
+whose video decodes through LG's Starfish hardware pipeline (dlopen'd after
+first frame to keep launch fast).
 An ~11k-line QML layer renders a fully remote-driven TV UI: a shell that
 routes D-pad input, a route stack of lazily loaded pages, and hand-rolled
 focus/navigation primitives tuned for the magic remote. Everything is
@@ -41,9 +42,10 @@ Statically linked on webOS; the module list is in `CMakeLists.txt:51-76`.
   (`src/app/SyncPlayController.h:11`).
 - **QtSql (SQLite driver)** — single `cache.sqlite` for auth session, device
   id, settings, discovered servers, home-payload cache and a generic
-  namespaced byte cache (`src/cache/DatabaseManager.h`). All access is
-  marshalled to a worker thread via `BlockingQueuedConnection`
-  (`src/cache/DatabaseManager.cpp:325-339`).
+  namespaced byte cache (`src/cache/DatabaseManager.h`). Reads are exposed as
+  `QCoro::Task<T>` methods that hop to the worker thread without blocking the
+  GUI thread; startup initialization and shutdown are the only synchronous
+  worker barriers.
 - **QtVirtualKeyboard** — in-process IME on webOS because the LSM's native
   IME is unreliable for arbitrary native apps (`src/main.cpp:376-384`);
   supplies D-pad key navigation between keys. Slated for size/startup review
@@ -59,10 +61,11 @@ Statically linked on webOS; the module list is in `CMakeLists.txt:51-76`.
 C++20 coroutine bindings for Qt. Every API call in
 `JellyfinApiFacade` is a `QCoro::Task<T>` that `co_await`s a
 `QNetworkReply` (`src/api/JellyfinApiFacade.cpp:1609-1695`), including retry
-loops with `QCoro::sleepFor`. Above the facade, controllers currently convert
-tasks back into callback style through `src/common/AsyncTask.h`
-(`runScoped` / `runLatest` + `RequestGeneration` tokens for
-latest-request-wins semantics).
+loops with `QCoro::sleepFor`. Controller hot paths now use coroutines where
+they need joins or database reads (`AppController::startPlayback`,
+`HomeModelController::refreshAsync`, `DatabaseManager::*Async`); the
+`src/common/AsyncTask.h` bridge remains for leaf fire-and-forget calls with
+`RequestGeneration` latest-request-wins semantics.
 
 ### libmpv (custom fork, `mpv_webos/`)
 
@@ -99,7 +102,7 @@ per the performance plan. **Lua 5.2** is bundled solely for mpv's scripting
   `tools/` shell scripts for IPK/AppImage/DMG packaging;
   `tools/reduce_openapi.py` can slice the Jellyfin OpenAPI spec (currently
   unused by the build — candidate for DTO codegen).
-- **Tests**: ~18 QtTest-less plain-`main` executables under `tests/` wired via
+- **Tests**: 21 QtTest-less plain-`main` executables under `tests/` wired via
   CTest (`CMakeLists.txt:455-736`), plus one qmltestrunner test for
   `RoutePolicy.js`.
 

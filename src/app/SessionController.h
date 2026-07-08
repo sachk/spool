@@ -2,6 +2,7 @@
 
 #include "../common/JellyfinTypes.h"
 
+#include <QCoroTask>
 #include <QObject>
 
 #include <exception>
@@ -26,7 +27,7 @@ public:
     QString password() const;
     bool authenticated() const;
 
-    bool initialize();
+    QCoro::Task<bool> initializeAsync();
     Q_INVOKABLE void setServerUrl(const QString& serverUrl);
     Q_INVOKABLE void setUsername(const QString& username);
     Q_INVOKABLE void setPassword(const QString& password);

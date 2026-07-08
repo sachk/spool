@@ -170,6 +170,10 @@ lines of a 1,024-line file that should be `ManagementDialog.qml`.
 
 ## 5. Navigation state has three owners — **M**
 
+**Status (2026-07 refactor): done.** `RouterController` now owns route state,
+`AppController` no longer carries a parallel page/NavigationState owner, and
+details/search/person routes use router arguments.
+
 - `RouterController` (C++ stack of route+args,
   `src/app/RouterController.cpp`),
 - `AppController`'s `page` / `NavigationState`
@@ -194,6 +198,10 @@ user to the login screen. If intended as the TV "exit" gesture, prompt or
 minimize instead.
 
 ## 6. Let QCoro reach the controllers (clarity + real bugs avoided) — **M**
+
+**Status (2026-07 refactor): done for the identified joins.**
+`AppController::startPlayback` and `HomeModelController::refreshAsync` use
+`QCoro::whenAll`; `AsyncTask.h` remains for one-shot leaf calls.
 
 QCoro stops at the facade; every controller converts tasks back to callbacks
 via `Async::runScoped/runLatest` (`src/common/AsyncTask.h:41-113`). The cost
@@ -242,6 +250,11 @@ Smaller player items:
 
 ## 8. API facade details — **S/M each**
 
+**Status (2026-07 refactor): done except broader future API generation.** Image
+and trickplay URLs are token-free, artwork fetches attach `Authorization`,
+common headers are centralized, trickplay data comes from negotiation/detail
+responses, and shared variant-query helpers live in `src/common/VariantUtils.*`.
+
 - **Access token embedded in every image/trickplay URL**:
   `buildImageUrl` (`src/api/JellyfinApiFacade.cpp:531`) and
   `trickplayTileUrl` (:1367) append `api_key=<token>`. These URLs are written
@@ -260,10 +273,14 @@ Smaller player items:
 - `fetchTrickplay` refetches the *entire item* to read the `Trickplay` field
   (:1313-1352) right after `PlaybackInfo`; ask for the field in the
   negotiation/detail fetch instead.
-- Two secret-redaction/parse helpers duplicated with `Diagnostics`
-  (old audit item, still true — `JellyfinTypes.cpp:625-631`).
+- URL secret redaction is now centralized in `redactedUrl`; variant query-list
+  conversion is shared by the facade and library-cache key code.
 
 ## 9. `DatabaseManager` blocks the GUI thread per call — **M**
+
+**Status (2026-07 refactor): done.** GUI-facing reads now return
+`QCoro::Task<T>` and are awaited by session/settings/app controllers; only
+database startup/shutdown retain synchronous worker barriers.
 
 Every read (`loadSetting`, `loadAuthSession`, …) is a synchronous
 `BlockingQueuedConnection` hop to the worker thread and back
@@ -289,6 +306,11 @@ second mechanism.
 
 ## 11. Usability findings
 
+**Status (2026-07 refactor): done.** Management success/error signals and
+background browse/content/search/settings errors route to queued toasts;
+ordinary browse loads use inline `Browse.loadingMore` state instead of the
+global busy scrim. Session and Quick Connect remain modal busy flows.
+
 - **Success toasts never fire**: `ToastLayer` is instantiated
   (`qml/shell/AppShell.qml:993-997`) but nothing calls `toast.show()`, and
   `AppController::managementOperationSucceeded` (declared
@@ -308,11 +330,24 @@ second mechanism.
 
 ## 12. Build & test structure (≈ −220 LoC CMake, faster builds) — **S**
 
-`CMakeLists.txt:455-736`: 18 test executables each re-list and **recompile**
-shared sources (`DatabaseManager.cpp`, the whole facade, `Diagnostics.cpp` up
-to 3×). Create a `jellyfin-core` static library target used by both the app
-and a `foreach(test …)` loop; each test block becomes two lines. Also wire
-`qt_add_qml_module`'s generated `all_qmllint` target into CI once §3 lands.
+**Status (2026-07 refactor): done.** `jellyfin-core` is a shared static target
+for the app and focused tests; CTest currently registers 21 tests.
+
+Historical finding: `CMakeLists.txt:455-736` used to make test executables
+re-list and recompile shared sources (`DatabaseManager.cpp`, the facade,
+`Diagnostics.cpp`) up to 3×. The refactor moved common code into
+`jellyfin-core`; remaining work is CI wiring for `qt_add_qml_module`'s
+generated `all_qmllint` target once §3 lands.
+
+## Final size snapshot after the 2026-07 refactor
+
+- `src/**/*.cpp,h`: 97 files, 18,662 lines.
+- `qml/**/*.qml,js`: 62 files, 12,336 lines.
+- `tests/**/*.{cpp,h,qml,js}`: 21 files, 2,583 lines.
+- Large UI/code anchors: `AppShell.qml` 800 lines,
+  `PlayerOverlayPage.qml` 692, `SettingsPage.qml` 797,
+  `LibraryGridPage.qml` 1,003, `AppController.cpp` 1,136,
+  `JellyfinApiFacade.cpp` 1,636, `PlayerController.cpp` 1,591.
 
 ## 13. Library verdicts & opportunities
 

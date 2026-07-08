@@ -1,4 +1,5 @@
 #include "cache/DatabaseManager.h"
+#include <QCoroTask>
 
 #include <QCoreApplication>
 #include <QTemporaryDir>
@@ -29,41 +30,43 @@ int main(int argc, char **argv)
 
     DatabaseManager database;
     require(database.initialize(directory.filePath(QStringLiteral("cache.sqlite"))), "database should initialize");
-    require(database.schemaVersion() == 4, "schema should migrate to version 4");
+    require(QCoro::waitFor(database.schemaVersionAsync()) == 4, "schema should migrate to version 4");
 
     const QJsonObject homePayload {
         { QStringLiteral("title"), QStringLiteral("Continue Watching") },
         { QStringLiteral("count"), 2 },
     };
     database.saveHomePayload(QStringLiteral("server/user"), 1, homePayload);
-    require(database.loadHomePayload(QStringLiteral("server/user"), 1) == homePayload,
+    require(QCoro::waitFor(database.loadHomePayloadAsync(QStringLiteral("server/user"), 1)) == homePayload,
         "home payload should load for matching schema");
-    require(database.loadHomePayload(QStringLiteral("server/user"), 2).isEmpty(),
+    require(QCoro::waitFor(database.loadHomePayloadAsync(QStringLiteral("server/user"), 2)).isEmpty(),
         "home payload should not load for a different schema");
     database.invalidateHomePayloads();
-    require(database.loadHomePayload(QStringLiteral("server/user"), 1).isEmpty(),
+    require(QCoro::waitFor(database.loadHomePayloadAsync(QStringLiteral("server/user"), 1)).isEmpty(),
         "home payload invalidation should remove cached payloads");
 
     database.saveCacheEntry(QStringLiteral("test"), QStringLiteral("fresh"), QByteArrayLiteral("value"), 5000);
-    require(database.loadCacheEntry(QStringLiteral("test"), QStringLiteral("fresh")) == QByteArrayLiteral("value"),
+    require(QCoro::waitFor(database.loadCacheEntryAsync(QStringLiteral("test"), QStringLiteral("fresh")))
+            == QByteArrayLiteral("value"),
         "fresh cache entry should load");
 
     database.invalidateCacheNamespace(QStringLiteral("test"));
-    require(database.loadCacheEntry(QStringLiteral("test"), QStringLiteral("fresh")).isEmpty(),
+    require(QCoro::waitFor(database.loadCacheEntryAsync(QStringLiteral("test"), QStringLiteral("fresh"))).isEmpty(),
         "namespace invalidation should remove entries");
 
     database.saveCacheEntry(QStringLiteral("test"), QStringLiteral("expired"), QByteArrayLiteral("value"), 1);
     QThread::msleep(5);
-    require(database.loadCacheEntry(QStringLiteral("test"), QStringLiteral("expired")).isEmpty(),
+    require(QCoro::waitFor(database.loadCacheEntryAsync(QStringLiteral("test"), QStringLiteral("expired"))).isEmpty(),
         "expired cache entry should not load");
 
     database.saveCacheEntry(QStringLiteral("test"), QStringLiteral("old"), QByteArrayLiteral("old"));
     QThread::msleep(2);
     database.saveCacheEntry(QStringLiteral("test"), QStringLiteral("new"), QByteArrayLiteral("new"));
     database.evictCacheEntries(1);
-    require(database.loadCacheEntry(QStringLiteral("test"), QStringLiteral("old")).isEmpty(),
+    require(QCoro::waitFor(database.loadCacheEntryAsync(QStringLiteral("test"), QStringLiteral("old"))).isEmpty(),
         "least recently used entry should be evicted");
-    require(database.loadCacheEntry(QStringLiteral("test"), QStringLiteral("new")) == QByteArrayLiteral("new"),
+    require(QCoro::waitFor(database.loadCacheEntryAsync(QStringLiteral("test"), QStringLiteral("new")))
+            == QByteArrayLiteral("new"),
         "newest cache entry should remain");
 
     database.shutdown();

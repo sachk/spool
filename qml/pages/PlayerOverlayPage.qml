@@ -10,13 +10,13 @@ FocusScope {
     focus: false
 
     property var shell
-    readonly property var player: playerController ? playerController : null
-    readonly property var playQueue: playQueueController ? playQueueController : null
-    readonly property bool hasPlayer: player !== null && player !== undefined && player.sessionActive
-    readonly property bool smartTvPlatform: nativeWindow ? nativeWindow.smartTvPlatform : true
+    readonly property var player: Player
+    readonly property var playQueue: PlayQueue
+    readonly property bool hasPlayer: true && player.sessionActive
+    readonly property bool smartTvPlatform: NativeWindow.smartTvPlatform
     readonly property bool desktopControlsAvailable: !smartTvPlatform
-    readonly property int currentAudioDelayMs: settingsController ? settingsController.audioDelayMs : 0
-    readonly property bool nightModeEnabled: settingsController ? settingsController.nightModeEnabled : false
+    readonly property int currentAudioDelayMs: Settings.audioDelayMs
+    readonly property bool nightModeEnabled: Settings.nightModeEnabled
     property bool mediaInfoVisible: false
     property bool diagnosticsVisible: false
 
@@ -132,7 +132,7 @@ FocusScope {
                       })
         if (desktopControlsAvailable)
             list.push({
-                          label: nativeWindow.fullScreen ? "Exit full screen" : "Full screen",
+                          label: NativeWindow.fullScreen ? "Exit full screen" : "Full screen",
                           value: "fullscreen"
                       })
         list.push({
@@ -208,7 +208,7 @@ FocusScope {
         if (value === "queue")
             return "playlist_play"
         if (value === "fullscreen")
-            return nativeWindow && nativeWindow.fullScreen ? "fullscreen_exit" : "fullscreen"
+            return NativeWindow.fullScreen ? "fullscreen_exit" : "fullscreen"
         return "settings"
     }
 
@@ -447,9 +447,9 @@ FocusScope {
         else if (action === "forward")
             player.seekForward()
         else if (action === "prevQueue")
-            appController.playQueuePrevious()
+            App.playQueuePrevious()
         else if (action === "nextQueue")
-            appController.playQueueNext()
+            App.playQueueNext()
         else if (action === "prevChapter")
             player.previousChapter()
         else if (action === "nextChapter")
@@ -460,8 +460,8 @@ FocusScope {
             openAudio()
         else if (action === "queue")
             openQueue()
-        else if (action === "fullscreen" && nativeWindow)
-            nativeWindow.toggleFullScreen()
+        else if (action === "fullscreen")
+            NativeWindow.toggleFullScreen()
         else if (action === "debug")
             openDebugMenu()
     }
@@ -486,7 +486,7 @@ FocusScope {
         if (mode === "queue") {
             if (!playQueue || playQueue.count === 0)
                 return
-            appController.playQueueItem(menuIndex)
+            App.playQueueItem(menuIndex)
             closeMenu()
             return
         }
@@ -495,8 +495,8 @@ FocusScope {
             return
         } else if (menuIndex === 1)
             toggleDebugStats()
-        else if (menuIndex === 2 && settingsController)
-            settingsController.setNightModeEnabled(!nightModeEnabled)
+        else if (menuIndex === 2)
+            Settings.setNightModeEnabled(!nightModeEnabled)
         else if (menuIndex === 3 && hasPlayer)
             player.stopWithReason("debug-menu-stop")
         if (mode === "debug")
@@ -522,8 +522,7 @@ FocusScope {
     }
 
     function setAudioDelayMs(value) {
-        if (settingsController)
-            settingsController.setAudioDelayMs(clampAudioDelayMs(value))
+        Settings.setAudioDelayMs(clampAudioDelayMs(value))
     }
 
     function adjustAudioDelay(direction) {

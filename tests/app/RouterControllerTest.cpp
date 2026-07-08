@@ -40,8 +40,17 @@ int main(int argc, char **argv)
     require(router.canPop(), "replace keeps stack");
 
     router.push(QStringLiteral("itemDetails"), { { QStringLiteral("itemId"), QStringLiteral("m1") } });
-    require(router.route() == QStringLiteral("itemDetails"), "second push route");
-    require(router.previousRoute() == QStringLiteral("libraries"), "second push previous route");
+    require(router.args().value(QStringLiteral("itemId")).toString() == QStringLiteral("m1"), "detail args");
+    require(router.previousRoute() == QStringLiteral("libraries"), "detail previous route");
+    router.replace(QStringLiteral("itemDetails"),
+        { { QStringLiteral("itemId"), QStringLiteral("m2") },
+            { QStringLiteral("returnRoute"), QStringLiteral("search") } });
+    require(router.route() == QStringLiteral("itemDetails"), "detail replace route");
+    require(router.args().value(QStringLiteral("itemId")).toString() == QStringLiteral("m2"), "detail replace item");
+    require(router.args().value(QStringLiteral("returnRoute")).toString() == QStringLiteral("search"),
+        "detail return route");
+    require(router.route() == QStringLiteral("itemDetails"), "detail replace stays on details");
+    require(router.previousRoute() == QStringLiteral("itemDetails"), "detail replace previous route");
 
     require(router.pop(QStringLiteral("home")), "pop returns stacked frame");
     require(router.route() == QStringLiteral("libraries"), "pop restores previous frame");

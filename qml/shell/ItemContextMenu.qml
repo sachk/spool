@@ -30,36 +30,36 @@ FocusScope {
     readonly property bool partialEpisode: itemType === "Episode" && hasProgress && !playedState
     readonly property bool actionable: itemId.length > 0
     readonly property bool queueable: actionable && item && item.playable !== false
-    readonly property string currentViewKind: appController ? String(appController.currentViewKind || "") : ""
+    readonly property string currentViewKind: String(App.currentViewKind || "")
     readonly property bool inPlaylist: currentViewKind === "playlist"
     readonly property bool inCollection: currentViewKind === "boxset" || currentViewKind === "collection"
     readonly property bool collectionEligible: actionable && (itemType === "Movie" || itemType === "Series" || itemType
                                                               === "Episode")
-    readonly property bool canManagePlaylists: appController ? appController.currentUserCanManagePlaylists : false
-    readonly property bool canManageCollections: appController ? appController.currentUserCanManageCollections : false
-    readonly property bool canRenameItem: appController ? appController.currentUserCanRenameItems : false
-    readonly property bool canDeleteItem: appController ? appController.currentUserCanDeleteItems : false
+    readonly property bool canManagePlaylists: Management.currentUserCanManagePlaylists
+    readonly property bool canManageCollections: Management.currentUserCanManageCollections
+    readonly property bool canRenameItem: Management.currentUserCanRenameItems
+    readonly property bool canDeleteItem: Management.currentUserCanDeleteItems
 
     signal playedToggled(string itemId, bool played)
     signal favoriteToggled(string itemId, bool favorite)
     signal clearProgressRequested(string itemId)
     signal openSeriesRequested(string seriesId, string seriesName)
     signal openSeasonRequested(string seriesId, string seasonId, string seasonName)
-    signal mediaInfoRequested(var snapshot)
-    signal playNextRequested(var snapshot)
-    signal addToQueueRequested(var snapshot)
-    signal addToPlaylistRequested(var snapshot)
-    signal addToCollectionRequested(var snapshot)
-    signal removeFromParentRequested(var snapshot)
-    signal movePlaylistItemRequested(var snapshot, int delta)
-    signal renameRequested(var snapshot)
-    signal deleteRequested(var snapshot)
+    signal mediaInfoRequested(var item)
+    signal playNextRequested(var item)
+    signal addToQueueRequested(var item)
+    signal addToPlaylistRequested(var item)
+    signal addToCollectionRequested(var item)
+    signal removeFromParentRequested(var item)
+    signal movePlaylistItemRequested(var item, int delta)
+    signal renameRequested(var item)
+    signal deleteRequested(var item)
 
     visible: opened
     focus: opened
 
     Connections {
-        target: appController
+        target: App
         enabled: root.opened
         function onItemFavoriteChanged(changedItemId, favorite) {
             if (root.itemId === changedItemId)
@@ -224,8 +224,8 @@ FocusScope {
         menuPopup.y = clamp(desiredY, edge, maxY)
     }
 
-    function openForItem(snapshot, anchor) {
-        item = snapshot || ({})
+    function openForItem(item, anchor) {
+        item = item || ({})
         anchorItem = anchor || null
         syncItemState()
         if (!rebuildMenu())

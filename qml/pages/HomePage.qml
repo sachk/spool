@@ -7,11 +7,11 @@ FocusScope {
     id: root
 
     property var shell
-    readonly property var resumeModel: homeController ? homeController.resumeItems : null
-    readonly property var nextUpModel: homeController ? homeController.nextUpItems : null
-    readonly property var librariesModel: libraryModel
-    property var latestRows: homeController ? homeController.latestLibraryRows : []
-    readonly property bool librariesOnly: router && router.route === "libraries"
+    readonly property var resumeModel: Home.resumeItems
+    readonly property var nextUpModel: Home.nextUpItems
+    readonly property var librariesModel: Libraries
+    property var latestRows: Home.latestLibraryRows
+    readonly property bool librariesOnly: Router.route === "libraries"
     property int currentSection: 0
 
     function modelFor(source, rowIndex) {
@@ -22,16 +22,16 @@ FocusScope {
         if (source === "nextUpItems")
             return nextUpModel
         if (source === "latestLibrary")
-            return homeController ? homeController.latestLibraryItems(rowIndex) : null
+            return Home.latestLibraryItems(rowIndex)
         return null
     }
 
     focus: true
 
     Connections {
-        target: homeController
+        target: Home
         function onLatestLibraryRowsChanged() {
-            root.latestRows = homeController ? homeController.latestLibraryRows : []
+            root.latestRows = Home.latestLibraryRows
             root.scheduleFocusRepair()
         }
     }
@@ -67,7 +67,7 @@ FocusScope {
         if (!model || typeof model.rowCount !== "function" || index < 0 || index >= model.rowCount())
             return
         if (source === "resumeItems") {
-            appController.playFromModel(model, index)
+            App.playFromModel(model, index)
             return
         }
         if (source === "nextUpItems") {
@@ -76,7 +76,7 @@ FocusScope {
         }
         if (source === "libraries") {
             shell.lastLibraryIndex = index
-            appController.openLibrary(index)
+            App.openLibrary(index)
             if (shell)
                 shell.replaceRoute("libraryGrid")
             return
@@ -88,13 +88,13 @@ FocusScope {
     function setFavoriteAt(source, rowIndex, index, favorite) {
         const item = modelItem(source, rowIndex, index)
         if (item && item.movieId)
-            appController.setFavorite(item.movieId, favorite)
+            App.setFavorite(item.movieId, favorite)
     }
 
     function setPlayedAt(source, rowIndex, index, played) {
         const item = modelItem(source, rowIndex, index)
         if (item && item.movieId)
-            appController.setPlayed(item.movieId, played)
+            App.setPlayed(item.movieId, played)
     }
 
     function openMediaInfoAt(source, rowIndex, index) {
@@ -315,7 +315,7 @@ FocusScope {
                     height: !root.librariesOnly && rowVisible ? root.rowHeight(rowKind) : 0
                     visible: !root.librariesOnly && rowVisible
                     title: modelData && modelData.title ? modelData.title : "Recently Added"
-                    rowModel: homeController ? homeController.latestLibraryItems(sourceRowIndex) : null
+                    rowModel: Home.latestLibraryItems(sourceRowIndex)
                     shell: root.shell
                     rowKind: modelData && modelData.kind ? modelData.kind : "poster"
                     useSeriesPoster: true
