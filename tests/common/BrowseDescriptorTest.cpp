@@ -3,7 +3,6 @@
 #include <QDebug>
 
 #include <cstdlib>
-#include <vector>
 
 using JellyfinNative::BrowseDescriptor;
 using JellyfinNative::BrowseKind;
@@ -27,17 +26,6 @@ void requireDescriptor(const BrowseDescriptor& descriptor, BrowseKind kind, cons
     require(descriptor.collectionType == collectionType, message);
     require(descriptor.seriesId == seriesId, message);
     require(descriptor.seasonId == seasonId, message);
-}
-
-void requireRoundTrip(const BrowseDescriptor& descriptor)
-{
-    const QVariantMap map = descriptor.toVariantMap();
-    require(
-        map.value(QStringLiteral("kind")).toString() == descriptor.kindKey(), "descriptor kind key was not serialized");
-
-    const BrowseDescriptor restored = BrowseDescriptor::fromVariantMap(map);
-    requireDescriptor(restored, descriptor.kind, descriptor.id, descriptor.name, descriptor.collectionType,
-        descriptor.seriesId, descriptor.seasonId, "descriptor did not survive QVariantMap round trip");
 }
 
 } // namespace
@@ -87,11 +75,6 @@ int main()
     const BrowseDescriptor boxSet = BrowseDescriptor::boxSet(QStringLiteral("boxset-1"), QStringLiteral("Box Set"));
     requireDescriptor(boxSet, BrowseKind::BoxSet, QStringLiteral("boxset-1"), QStringLiteral("Box Set"), QString(),
         QString(), QString(), "box set constructor did not preserve identity");
-
-    const std::vector<BrowseDescriptor> roundTripCases { library, folder, genre, studio, series, season, seriesEpisodes,
-        playlist, boxSet };
-    for (const BrowseDescriptor& descriptor : roundTripCases)
-        requireRoundTrip(descriptor);
 
     require(library.isValid(), "library descriptor should be valid with an id");
     require(!BrowseDescriptor::library(QString(), QStringLiteral("movies")).isValid(),

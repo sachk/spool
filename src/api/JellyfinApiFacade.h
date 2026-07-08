@@ -101,9 +101,6 @@ public:
     QCoro::Task<void> createSyncPlayGroup(QString name);
     QCoro::Task<void> joinSyncPlayGroup(QString groupId);
     QCoro::Task<void> leaveSyncPlayGroup();
-    QCoro::Task<void> syncPlayRequestPlay();
-    QCoro::Task<void> syncPlayRequestPause();
-    QCoro::Task<void> syncPlayRequestSeek(qint64 positionTicks);
     QCoro::Task<QJsonObject> fetchUtcTime();
     QCoro::Task<void> syncPlayReportPing(qint64 pingMs);
     QCoro::Task<void> syncPlayReportBuffering(

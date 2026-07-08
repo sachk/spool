@@ -75,9 +75,6 @@ public:
     Q_INVOKABLE void createGroup(const QString& name);
     Q_INVOKABLE void joinGroup(const QString& groupId);
     Q_INVOKABLE void leaveGroup();
-    Q_INVOKABLE void requestPause();
-    Q_INVOKABLE void requestPlay();
-    Q_INVOKABLE void requestSeekSeconds(double seconds);
 
 signals:
     void groupsChanged();

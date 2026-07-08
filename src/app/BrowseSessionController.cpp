@@ -151,14 +151,6 @@ void BrowseSessionController::resetPaging(const QString& cacheKey)
     emit pagingChanged();
 }
 
-void BrowseSessionController::setItems(const std::vector<MovieItem>& items, const QString& cacheKey)
-{
-    resetPaging(cacheKey);
-    m_items.setMovies(items);
-    if (m_prefetch)
-        m_prefetch->prefetchPosters(items);
-}
-
 void BrowseSessionController::setPage(const PagedMovieItems& page, const QString& cacheKey, bool append)
 {
     if (append)

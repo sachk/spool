@@ -211,30 +211,6 @@ void PlayQueueController::clear()
     emitQueueStateChanged(previousCurrent);
 }
 
-void PlayQueueController::removeAt(int index)
-{
-    if (index < 0 || index >= rowCount())
-        return;
-
-    const int previousCurrent = currentIndex();
-    beginRemoveRows({}, index, index);
-    m_entries.erase(m_entries.begin() + index);
-    endRemoveRows();
-
-    m_order.erase(std::remove(m_order.begin(), m_order.end(), index), m_order.end());
-    for (int& naturalIndex : m_order) {
-        if (naturalIndex > index)
-            --naturalIndex;
-    }
-
-    if (m_order.empty()) {
-        m_orderIndex = -1;
-    } else if (m_orderIndex >= static_cast<int>(m_order.size())) {
-        m_orderIndex = static_cast<int>(m_order.size()) - 1;
-    }
-    emitQueueStateChanged(previousCurrent);
-}
-
 bool PlayQueueController::playNow(const std::vector<MovieItem>& items, int startIndex)
 {
     if (startIndex < 0 || startIndex >= static_cast<int>(items.size())

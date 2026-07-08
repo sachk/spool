@@ -104,11 +104,6 @@ AppController::AppController(DatabaseManager *database, DiscoveryController *dis
     connect(m_player, &PlayerController::playbackStopped, this, &AppController::handlePlaybackStopped);
 }
 
-QString AppController::page() const
-{
-    return m_navigation.page();
-}
-
 QString AppController::currentViewKind() const
 {
     return m_browse->viewKind();
@@ -203,7 +198,7 @@ void AppController::login()
     m_session->login();
 }
 
-void AppController::useDefaultProfile()
+bool AppController::useDefaultProfile()
 {
     setErrorText({});
     m_quickConnect->cancel();
@@ -212,20 +207,21 @@ void AppController::useDefaultProfile()
         const AuthSession session = m_database->loadAuthSession();
         if (session.accessToken.isEmpty() || m_session->serverUrl().isEmpty()) {
             setErrorText(QStringLiteral("This saved profile needs to sign in again."));
-            return;
+            return false;
         }
         m_session->acceptSession(session);
-        return;
+        return true;
     }
 
     if (m_libraries.rowCount() <= 0) {
         loadLibraries();
-        return;
+        return true;
     }
 
     setBusy(false);
-    setPage(QStringLiteral("libraries"));
+    m_discovery->stop();
     refreshHomeRows();
+    return true;
 }
 
 void AppController::switchUser()
@@ -238,7 +234,7 @@ void AppController::switchUser()
         m_database->invalidateHomePayloads();
     setBusy(false);
     setErrorText({});
-    setPage(QStringLiteral("login"));
+    m_discovery->start();
 }
 
 void AppController::logout()
@@ -274,8 +270,6 @@ void AppController::resetApplicationState()
     m_currentUserCanRenameItems = false;
     m_currentUserCanDeleteItems = false;
     m_libraryLoadGeneration.invalidate();
-    const bool pageWasLogin = page() == QStringLiteral("login");
-    m_navigation.reset();
     m_browse->reset();
     setBusy(false);
     setErrorText({});
@@ -286,21 +280,19 @@ void AppController::resetApplicationState()
     emit currentLibraryNameChanged();
     emit managementPolicyChanged();
     emit managementTargetsChanged();
-    if (!pageWasLogin)
-        emit pageChanged();
     applyDiscoveredServersCache();
     m_discovery->start();
 }
 
 void AppController::goHome()
 {
-    if (page() == QStringLiteral("login"))
+    if (!m_session->authenticated())
         return;
 
-    qInfo() << "app: go home from page=" << page() << "viewKind=" << currentViewKind();
+    qInfo() << "app: go home viewKind=" << currentViewKind();
     m_libraryLoadGeneration.invalidate();
     setBusy(false);
-    setPage(QStringLiteral("libraries"));
+    m_discovery->stop();
     refreshHomeRows();
 }
 
@@ -325,7 +317,6 @@ void AppController::openLibrary(int index)
         m_artwork->cancelPrefetches();
     if (hasWarmCache) {
         setBusy(false);
-        setPage(QStringLiteral("movies"));
         qInfo() << "library open: showing cached page while refreshing" << library.name << cachedCount;
     } else {
         setBusy(true, QStringLiteral("Loading %1…").arg(m_browse->contentLabel().toLower()));
@@ -343,8 +334,6 @@ void AppController::openLibrary(int index)
                 qWarning() << "library open: background refresh failed" << message;
             else
                 setErrorText(message);
-            if (page() != QStringLiteral("movies"))
-                setPage(QStringLiteral("movies"));
         });
 }
 
@@ -1161,19 +1150,6 @@ void AppController::clearError()
     setErrorText({});
 }
 
-void AppController::setPage(const QString& page)
-{
-    if (!m_navigation.setPage(page))
-        return;
-
-    emit pageChanged();
-
-    if (page == QStringLiteral("login"))
-        m_discovery->start();
-    else
-        m_discovery->stop();
-}
-
 void AppController::setBusy(bool busy, const QString& busyText)
 {
     if (m_busy == busy && m_busyText == busyText)
@@ -1210,7 +1186,7 @@ void AppController::loadLibraries()
         [this](const std::vector<LibraryItem>& libraries) {
             m_libraries.setLibraries(libraries);
             setBusy(false);
-            setPage(QStringLiteral("libraries"));
+            m_discovery->stop();
             refreshHomeRows();
         },
         [this](const std::exception_ptr& error) {
@@ -1224,8 +1200,6 @@ void AppController::showCurrentItemsPage(const PagedMovieItems& page, const QStr
 {
     m_browse->setPage(page, cacheKey, append);
     setBusy(false);
-    if (!append)
-        setPage(QStringLiteral("movies"));
 }
 
 void AppController::loadLibraryFilterOptions(RequestGeneration::Token generation, const LibraryItem& library)
@@ -1428,7 +1402,7 @@ void AppController::saveHomePayload(const QJsonObject& payload)
 
 void AppController::handlePlaybackStopped(const QString& itemId, qint64 positionTicks, bool completed)
 {
-    qInfo() << "app: playbackStopped page=" << page() << "itemId=" << itemId << "positionTicks=" << positionTicks
+    qInfo() << "app: playbackStopped itemId=" << itemId << "positionTicks=" << positionTicks
             << "completed=" << completed;
 
     if (completed) {

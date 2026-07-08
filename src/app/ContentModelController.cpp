@@ -51,16 +51,6 @@ MovieItem ContentModelController::detailSeasonAt(int index) const
     return m_detailSeasons.movieAt(index);
 }
 
-MovieItem ContentModelController::detailSimilarItemAt(int index) const
-{
-    return m_detailSimilarItems.movieAt(index);
-}
-
-MovieItem ContentModelController::personItemAt(int index) const
-{
-    return m_personItems.movieAt(index);
-}
-
 void ContentModelController::loadDetailRows(
     const QString& itemId, const QString& itemType, const QString& seriesId, const QString& seasonId)
 {

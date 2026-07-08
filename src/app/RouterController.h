@@ -27,8 +27,6 @@ public:
     Q_INVOKABLE void push(const QString& route, const QVariantMap& args = {});
     Q_INVOKABLE void replace(const QString& route, const QVariantMap& args = {});
     Q_INVOKABLE bool pop(const QString& fallbackRoute = QStringLiteral("home"));
-    Q_INVOKABLE void clearStack();
-    Q_INVOKABLE void setArgs(const QVariantMap& args);
 
 signals:
     void routeChanged();

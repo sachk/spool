@@ -4,7 +4,6 @@ import QtQuick.Layouts
 import JellyfinWebOS
 import "../theme"
 import "../primitives"
-import "PlayerOverlayFormat.js" as PlayerOverlayFormat
 
 FocusScope {
     id: overlay
@@ -173,20 +172,44 @@ FocusScope {
     }
 
     function restartAutohide() {
-        autohide.restart(autohideDelayMs())
+        autohide.interval = autohideDelayMs()
+        autohide.restart()
     }
 
     function formatClock(seconds) {
-        return PlayerOverlayFormat.formatClock(seconds)
+        const total = Math.max(0, Math.floor(seconds || 0))
+        const hours = Math.floor(total / 3600)
+        const minutes = Math.floor((total % 3600) / 60)
+        const secs = total % 60
+        return hours > 0 ? hours + ":" + String(minutes).padStart(2, "0") + ":" + String(secs).padStart(2, "0") : minutes
+                           + ":" + String(secs).padStart(2, "0")
     }
 
     function formatAudioDelay(value) {
-        return PlayerOverlayFormat.formatAudioDelay(clampAudioDelayMs(value))
+        const ms = clampAudioDelayMs(value)
+        return ms > 0 ? "+" + ms + " ms" : ms + " ms"
     }
 
     function actionIcon(value) {
-        return PlayerOverlayFormat.actionIcon(value, hasPlayer && player.paused, nativeWindow
-                                              && nativeWindow.fullScreen)
+        if (value === "back")
+            return "fast_rewind"
+        if (value === "pause")
+            return hasPlayer && player.paused ? "play_arrow" : "pause"
+        if (value === "forward")
+            return "fast_forward"
+        if (value === "prevQueue" || value === "prevChapter")
+            return "skip_previous"
+        if (value === "nextQueue" || value === "nextChapter")
+            return "skip_next"
+        if (value === "subtitles")
+            return "closed_caption"
+        if (value === "audio")
+            return "audiotrack"
+        if (value === "queue")
+            return "playlist_play"
+        if (value === "fullscreen")
+            return nativeWindow && nativeWindow.fullScreen ? "fullscreen_exit" : "fullscreen"
+        return "settings"
     }
 
     function actionCenterX(actionValue) {
@@ -239,7 +262,7 @@ FocusScope {
     function hideControls() {
         if (isPinned()) {
             if (scrubbing)
-                autohide.restart(autohideDelayMs())
+                restartAutohide()
             return false
         }
         cancelHeldNavigation()
@@ -252,14 +275,6 @@ FocusScope {
     function seekTo(seconds) {
         if (hasPlayer)
             player.seek(clampSeconds(seconds))
-    }
-
-    function adjustTimeline(delta) {
-        showControls("timeline")
-        row = "timeline"
-        scrubbing = true
-        scrubSeconds = clampSeconds(positionSeconds() + delta)
-        scrubTimer.restart()
     }
 
     function seekBy(delta) {
@@ -635,9 +650,10 @@ FocusScope {
         overlay: parent
     }
 
-    PlayerOverlayAutoHide {
+    Timer {
         id: autohide
-        overlay: parent
+        interval: 3000
+        onTriggered: overlay.hideControls()
     }
 
     Timer {

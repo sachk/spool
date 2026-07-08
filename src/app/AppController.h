@@ -12,7 +12,6 @@
 #include "BrowseSessionController.h"
 #include "ContentModelController.h"
 #include "HomeModelController.h"
-#include "NavigationState.h"
 #include "QuickConnectController.h"
 #include "SearchController.h"
 #include "SessionController.h"
@@ -33,7 +32,6 @@ class LibraryPrefetchController;
 class UserItemStateController;
 class AppController final : public QObject {
     Q_OBJECT
-    Q_PROPERTY(QString page READ page NOTIFY pageChanged)
     Q_PROPERTY(bool busy MEMBER m_busy NOTIFY busyChanged)
     Q_PROPERTY(QString busyText MEMBER m_busyText NOTIFY busyChanged)
     Q_PROPERTY(QString errorText MEMBER m_errorText NOTIFY errorTextChanged)
@@ -51,7 +49,6 @@ public:
     AppController(DatabaseManager *database, DiscoveryController *discovery, JellyfinApiFacade *api,
         ArtworkService *artwork, PlayerController *player, QObject *parent = nullptr);
 
-    QString page() const;
     QString currentViewKind() const;
     DiscoveredServerModel *discoveredServers();
     LibraryListModel *libraries();
@@ -70,7 +67,7 @@ public:
     void shutdown();
     Q_INVOKABLE void chooseDiscoveredServer(int index);
     Q_INVOKABLE void login();
-    Q_INVOKABLE void useDefaultProfile();
+    Q_INVOKABLE bool useDefaultProfile();
     Q_INVOKABLE void switchUser();
     Q_INVOKABLE void logout();
     Q_INVOKABLE void goHome();
@@ -112,7 +109,6 @@ public:
     Q_INVOKABLE void clearError();
 
 signals:
-    void pageChanged();
     void busyChanged();
     void errorTextChanged();
     void defaultProfileChanged();
@@ -125,7 +121,6 @@ signals:
     void managementOperationSucceeded(const QString& action);
 
 private:
-    void setPage(const QString& page);
     void setBusy(bool busy, const QString& busyText = {});
     void setErrorText(const QString& errorText);
     void resetApplicationState();
@@ -183,7 +178,6 @@ private:
     SearchController *m_search = nullptr;
     DiscoveredServerModel m_discoveredServers;
     LibraryListModel m_libraries;
-    NavigationState m_navigation;
     MovieItem m_activePlaybackItem;
     bool m_busy = false;
     bool m_hasDefaultProfile = false;

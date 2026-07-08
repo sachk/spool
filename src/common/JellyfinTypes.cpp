@@ -247,30 +247,6 @@ QString BrowseDescriptor::cacheKey(const QVariantMap& query) const
     return signature.isEmpty() ? key : QStringLiteral("%1?%2").arg(key, signature);
 }
 
-QVariantMap BrowseDescriptor::toVariantMap() const
-{
-    QVariantMap map;
-    map.insert(QStringLiteral("kind"), kindKey());
-    map.insert(QString::fromLatin1("id"), id);
-    map.insert(QStringLiteral("name"), name);
-    map.insert(QStringLiteral("collectionType"), collectionType);
-    map.insert(QStringLiteral("seriesId"), seriesId);
-    map.insert(QStringLiteral("seasonId"), seasonId);
-    return map;
-}
-
-BrowseDescriptor BrowseDescriptor::fromVariantMap(const QVariantMap& map)
-{
-    BrowseDescriptor descriptor;
-    descriptor.kind = browseKindFromKey(map.value(QStringLiteral("kind")).toString());
-    descriptor.id = map.value(QString::fromLatin1("id")).toString();
-    descriptor.name = map.value(QStringLiteral("name")).toString();
-    descriptor.collectionType = map.value(QStringLiteral("collectionType")).toString();
-    descriptor.seriesId = map.value(QStringLiteral("seriesId")).toString();
-    descriptor.seasonId = map.value(QStringLiteral("seasonId")).toString();
-    return descriptor;
-}
-
 QString exceptionMessage(const std::exception_ptr& exception)
 {
     if (!exception)

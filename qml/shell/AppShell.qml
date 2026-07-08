@@ -8,7 +8,7 @@ FocusScope {
     id: root
     focus: true
 
-    readonly property string route: router ? router.route : controllerRoute()
+    readonly property string route: router ? router.route : defaultRoute()
     property int lastLibraryIndex: 0
     property int lastGridIndex: 0
     property int lastSearchIndex: 0
@@ -111,28 +111,24 @@ FocusScope {
                 root.itemMenuLoaded = false
         }
     }
-    function controllerRoute() {
-        if (!appController)
-            return "home"
-        if (appController.page === "login")
-            return "login"
-        // After login, default to Home. The user can drill into Libraries explicitly.
-        if (appController.page === "libraries")
-            return "home"
-        // page === "movies" — we just opened a library or backed out of playback into one.
-        return "libraryGrid"
+    function defaultRoute() {
+        return sessionController && sessionController.authenticated ? "home" : "login"
     }
 
     Connections {
-        target: appController
-        function onPageChanged() {
-            if (router)
-                router.replace(root.controllerRoute())
+        target: sessionController
+        function onAuthenticatedStateChanged() {
+            if (!router)
+                return
+            if (sessionController && sessionController.authenticated)
+                router.replace("home")
+            else
+                router.reset("login")
         }
     }
 
     Component.onCompleted: if (router)
-                               router.reset(root.controllerRoute())
+                               router.reset(root.defaultRoute())
 
     Connections {
         target: root.player

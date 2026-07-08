@@ -119,16 +119,6 @@ QVariant SettingsController::value(const QString& key) const
     return {};
 }
 
-QString SettingsController::buttonActionLabel(const QString& action) const
-{
-    const auto& spec = specForKey("input/redButton");
-    for (qsizetype i = 0; i < spec.choiceCount; ++i) {
-        if (action == QLatin1String(spec.choices[i].value))
-            return QLatin1String(spec.choices[i].label);
-    }
-    return action;
-}
-
 void SettingsController::loadLocal()
 {
     for (const SettingSpec& spec : settingSpecs()) {
@@ -235,10 +225,6 @@ void SettingsController::setValue(const QString& key, const QVariant& value)
     setSchemaValue(*spec, value, true, true, true);
 }
 
-void SettingsController::toggleNightMode()
-{
-    setNightModeEnabled(!m_nightModeEnabled);
-}
 void SettingsController::setNightModeEnabled(bool enabled)
 {
     setValue(QStringLiteral("settings/nightMode"), enabled);

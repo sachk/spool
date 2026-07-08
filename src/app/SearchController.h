@@ -29,9 +29,6 @@ public:
     MovieGridModel *results();
     MovieGridModel *suggestions();
 
-    MovieItem resultItemAt(int index) const;
-    MovieItem suggestionItemAt(int index) const;
-
     Q_INVOKABLE void setQuery(const QString& query);
     Q_INVOKABLE void submit();
     Q_INVOKABLE void search(const QString& query);

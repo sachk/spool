@@ -53,7 +53,6 @@ public:
     Q_INVOKABLE bool playAt(int index);
     Q_INVOKABLE void setShuffled(bool shuffled);
     Q_INVOKABLE void clear();
-    Q_INVOKABLE void removeAt(int index);
 
     bool playNow(const std::vector<MovieItem>& items, int startIndex);
     bool playNow(const MovieItem& item);

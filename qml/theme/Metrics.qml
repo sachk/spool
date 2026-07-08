@@ -16,9 +16,6 @@ QtObject {
         return 0
     }
 
-    function railWidth(w) {
-        return [48, 52, 56, 64][densityForWidth(w)]
-    }
     function topBarHeight(w) {
         return [52, 56, 62, 72][densityForWidth(w)]
     }
@@ -31,26 +28,14 @@ QtObject {
     function controlHeight(w) {
         return [42, 46, 48, 54][densityForWidth(w)]
     }
-    function detailPosterWidth(w) {
-        return [220, 280, 340, 420][densityForWidth(w)]
-    }
     function detailRowPosterWidth(w) {
         return [132, 152, 176, 208][densityForWidth(w)]
-    }
-    function detailLogoWidth(w) {
-        return [280, 400, 520, 640][densityForWidth(w)]
-    }
-    function detailLogoHeight(w) {
-        return [88, 102, 116, 142][densityForWidth(w)]
     }
     function detailHeroHeight(h) {
         return Math.max(500, Math.min(660, Math.round(h * 0.64)))
     }
     function sectionGap(w) {
         return [22, 26, 28, 34][densityForWidth(w)]
-    }
-    function basePosterWidth(w) {
-        return [140, 180, 210, 240][densityForWidth(w)] + userPosterSizeBias * 24
     }
     function homePosterWidth(w) {
         return [140, 180, 156, 180][densityForWidth(w)] + userPosterSizeBias * 18
@@ -63,12 +48,6 @@ QtObject {
     }
     function columns(w) {
         return userColumnOverride > 0 ? userColumnOverride : autoColumns(w)
-    }
-
-    function posterWidth(contentWidth, screenWidth) {
-        const cols = columns(screenWidth)
-        const g = gap(screenWidth)
-        return Math.floor((contentWidth - g * (cols - 1)) / cols)
     }
 
     function titlePx(w) {
