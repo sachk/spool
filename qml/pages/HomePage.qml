@@ -11,6 +11,7 @@ FocusScope {
     readonly property var nextUpModel: homeController ? homeController.nextUpItems : null
     readonly property var librariesModel: libraryModel
     property var latestRows: homeController ? homeController.latestLibraryRows : []
+    readonly property bool librariesOnly: router && router.route === "libraries"
     property int currentSection: 0
 
     function modelFor(source, rowIndex) {
@@ -104,6 +105,8 @@ FocusScope {
         const rows = []
         if (librariesRow.rowVisible)
             rows.push(librariesRow)
+        if (librariesOnly)
+            return rows
         if (resumeRow.rowVisible)
             rows.push(resumeRow)
         if (nextUpRow.rowVisible)
@@ -233,7 +236,7 @@ FocusScope {
             SectionHeader {
                 width: contentColumn.width
                 height: implicitHeight + 18
-                title: "My Media"
+                title: root.librariesOnly ? "Libraries" : "My Media"
             }
 
             HomeHorizontalRow {
@@ -243,7 +246,7 @@ FocusScope {
                 height: rowVisible ? root.rowHeight("library") : 0
                 visible: rowVisible
                 title: "Libraries"
-                rowModel: root.libraryModel
+                rowModel: root.librariesModel
                 shell: root.shell
                 rowKind: "library"
                 cardWidth: Metrics.homeLandscapeWidth(root.width)
@@ -257,8 +260,8 @@ FocusScope {
                 id: resumeRow
 
                 width: contentColumn.width
-                height: rowVisible ? root.rowHeight("landscape") : 0
-                visible: rowVisible
+                height: !root.librariesOnly && rowVisible ? root.rowHeight("landscape") : 0
+                visible: !root.librariesOnly && rowVisible
                 title: "Continue Watching"
                 rowModel: root.resumeModel
                 shell: root.shell
@@ -277,8 +280,8 @@ FocusScope {
                 id: nextUpRow
 
                 width: contentColumn.width
-                height: rowVisible ? root.rowHeight("landscape") : 0
-                visible: rowVisible
+                height: !root.librariesOnly && rowVisible ? root.rowHeight("landscape") : 0
+                visible: !root.librariesOnly && rowVisible
                 title: "Next Up"
                 rowModel: root.nextUpModel
                 shell: root.shell
@@ -307,8 +310,8 @@ FocusScope {
                                                                  ? modelData.rowIndex : index)
 
                     width: contentColumn.width
-                    height: rowVisible ? root.rowHeight(rowKind) : 0
-                    visible: rowVisible
+                    height: !root.librariesOnly && rowVisible ? root.rowHeight(rowKind) : 0
+                    visible: !root.librariesOnly && rowVisible
                     title: modelData && modelData.title ? modelData.title : "Recently Added"
                     rowModel: homeController ? homeController.latestLibraryItems(sourceRowIndex) : null
                     shell: root.shell
