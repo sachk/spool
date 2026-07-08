@@ -10,10 +10,11 @@ Rectangle {
     readonly property real uiScale: overlay ? overlay.uiScale : 1
     readonly property real edgeMargin: dp(20)
     readonly property bool instantOpen: overlay && overlay.mode === "debug"
-    readonly property string menuTitle: overlay.mode === "subtitles" ? "Subtitles"
-                                      : overlay.mode === "audio" ? "Audio"
-                                      : overlay.mode === "queue" ? "Queue"
-                                      : "Settings"
+    readonly property string menuTitle: overlay.mode === "subtitles" ? "Subtitles" : overlay.mode === "audio" ? "Audio" :
+                                                                                                                overlay.mode
+                                                                                                                === "queue"
+                                                                                                                ? "Queue" :
+                                                                                                                  "Settings"
     function dp(n) {
         return Math.round(n * uiScale)
     }
@@ -22,12 +23,16 @@ Rectangle {
         menuList.positionViewAtBeginning()
     }
 
-    readonly property bool trackMenuMode: overlay.mode === "subtitles" || overlay.mode === "audio" || overlay.mode === "queue"
+    readonly property bool trackMenuMode: overlay.mode === "subtitles" || overlay.mode === "audio" || overlay.mode
+                                          === "queue"
 
     x: Math.max(edgeMargin, Math.min(parent.width - width - edgeMargin, overlay.menuAnchorX - width / 2))
     y: Math.max(edgeMargin, Math.min(parent.height - height - edgeMargin, overlay.menuAnchorY - height - dp(12)))
     width: Math.min(parent.width - edgeMargin * 2, dp(380))
-    height: Math.min(Math.round(parent.height * 0.5), Math.round(menuHeaderBlock.implicitHeight + (menuBody.showPlaceholder ? dp(56) : menuList.contentHeight) + dp(30)))
+    height: Math.min(Math.round(parent.height * 0.5), Math.round(menuHeaderBlock.implicitHeight + (menuBody.showPlaceholder
+                                                                                                   ? dp(56) :
+                                                                                                     menuList.contentHeight)
+                                                                 + dp(30)))
     visible: overlay.isMenuOpen()
     opacity: 0
     scale: instantOpen || opacity > 0.5 ? 1 : 0.97
@@ -38,14 +43,20 @@ Rectangle {
 
     Behavior on scale {
         enabled: !Theme.reducedMotion && !menuPanel.instantOpen
-        NumberAnimation { duration: 160; easing.type: Easing.OutCubic }
+        NumberAnimation {
+            duration: 160
+            easing.type: Easing.OutCubic
+        }
     }
 
     transform: Translate {
         y: menuPanel.instantOpen || menuPanel.opacity > 0.5 ? 0 : menuPanel.dp(14)
         Behavior on y {
             enabled: !Theme.reducedMotion && !menuPanel.instantOpen
-            NumberAnimation { duration: 160; easing.type: Easing.OutCubic }
+            NumberAnimation {
+                duration: 160
+                easing.type: Easing.OutCubic
+            }
         }
     }
 
@@ -93,25 +104,31 @@ Rectangle {
                 anchors.fill: parent
                 clip: true
                 spacing: dp(2)
-                model: overlay.mode === "subtitles" && overlay.hasPlayer ? overlay.player.subtitleTracks
-                     : overlay.mode === "audio" && overlay.hasPlayer ? overlay.player.audioTracks
-                     : overlay.mode === "queue" ? overlay.queueOptions
-                     : overlay.debugOptions
+                model: overlay.mode === "subtitles" && overlay.hasPlayer ? overlay.player.subtitleTracks : overlay.mode
+                                                                           === "audio" && overlay.hasPlayer
+                                                                           ? overlay.player.audioTracks : overlay.mode
+                                                                             === "queue" ? overlay.queueOptions :
+                                                                                           overlay.debugOptions
                 currentIndex: overlay.menuIndex
                 boundsBehavior: Flickable.StopAtBounds
                 highlightMoveDuration: 90
                 visible: !menuBody.showPlaceholder
                 onCurrentIndexChanged: positionViewAtIndex(currentIndex, ListView.Contain)
-                FastWheelHandler { flickable: menuList }
+                FastWheelHandler {
+                    flickable: menuList
+                }
 
                 delegate: Rectangle {
                     required property int index
                     required property var modelData
 
                     readonly property bool current: overlay.menuIndex === index
-                    readonly property bool isSelected: (overlay.mode === "subtitles" && overlay.hasPlayer && overlay.player.selectedSubtitleIndex === index)
-                                                    || (overlay.mode === "audio" && overlay.hasPlayer && overlay.player.selectedAudioIndex === index)
-                                                    || (overlay.mode === "queue" && overlay.playQueue && overlay.playQueue.currentIndex === index)
+                    readonly property bool isSelected: (overlay.mode === "subtitles" && overlay.hasPlayer
+                                                        && overlay.player.selectedSubtitleIndex === index) || (
+                                                           overlay.mode === "audio" && overlay.hasPlayer
+                                                           && overlay.player.selectedAudioIndex === index) || (
+                                                           overlay.mode === "queue" && overlay.playQueue
+                                                           && overlay.playQueue.currentIndex === index)
 
                     width: menuList.width
                     height: dp(46)
@@ -136,8 +153,10 @@ Rectangle {
 
                         Text {
                             Layout.fillWidth: true
-                            text: overlay.mode === "queue" ? (modelData.displayTitle || modelData.title || "Untitled") : String(modelData)
-                            color: current ? overlay.colTextStrong : isSelected ? overlay.colSelectedText : overlay.colTextSubtle
+                            text: overlay.mode === "queue" ? (modelData.displayTitle || modelData.title || "Untitled") :
+                                                             String(modelData)
+                            color: current ? overlay.colTextStrong : isSelected ? overlay.colSelectedText :
+                                                                                  overlay.colTextSubtle
                             font.pixelSize: dp(17)
                             font.weight: current || isSelected ? Font.DemiBold : Font.Medium
                             font.hintingPreference: Font.PreferNoHinting

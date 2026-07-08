@@ -17,8 +17,7 @@ namespace JellyfinNative {
 // then creates an mpv_render_context bound to Qt's OpenGL context and renders
 // each frame into our FBO. Used on non-Starfish (desktop) builds where mpv
 // would otherwise pop its own toplevel window via vo=gpu.
-class MpvVideoItem : public QQuickFramebufferObject
-{
+class MpvVideoItem : public QQuickFramebufferObject {
     Q_OBJECT
     QML_NAMED_ELEMENT(MpvVideoItem)
 
@@ -51,10 +50,10 @@ public:
     // renderer's render() also loads this and skips when null, so a free
     // racing with a render is safe (mpv_render_context_free waits for the
     // in-progress mpv_render_context_render call to finish).
-    std::atomic<mpv_render_context *> m_renderCtxAtomic{nullptr};
+    std::atomic<mpv_render_context *> m_renderCtxAtomic { nullptr };
 
 signals:
-    void renderError(const QString &message);
+    void renderError(const QString& message);
 
 private:
     static MpvVideoItem *s_instance;

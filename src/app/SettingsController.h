@@ -16,114 +16,133 @@ class PlayerController;
 struct SettingSpec;
 
 class SettingsController final : public QObject {
-  Q_OBJECT
-  Q_PROPERTY(bool nightModeEnabled READ nightModeEnabled WRITE setNightModeEnabled NOTIFY nightModeChanged)
-  Q_PROPERTY(bool toneMappingVisualizationEnabled READ toneMappingVisualizationEnabled WRITE setToneMappingVisualizationEnabled NOTIFY toneMappingVisualizationChanged)
-  Q_PROPERTY(int maxStreamingBitrateMbps READ maxStreamingBitrateMbps WRITE setMaxStreamingBitrateMbps NOTIFY playbackPreferencesChanged)
-  Q_PROPERTY(bool preferRemux READ preferRemux WRITE setPreferRemux NOTIFY playbackPreferencesChanged)
-  Q_PROPERTY(int audioDelayMs READ audioDelayMs WRITE setAudioDelayMs NOTIFY audioDelayChanged)
-  Q_PROPERTY(QString audioOutputMode READ audioOutputMode WRITE setAudioOutputMode NOTIFY audioOutputModeChanged)
-  Q_PROPERTY(QStringList subtitleLanguageOptions READ subtitleLanguageOptions NOTIFY subtitleSettingsChanged)
-  Q_PROPERTY(int subtitleLanguageIndex READ subtitleLanguageIndex WRITE setSubtitleLanguageIndex NOTIFY subtitleSettingsChanged)
-  Q_PROPERTY(QString subtitleMode READ subtitleMode WRITE setSubtitleMode NOTIFY subtitleSettingsChanged)
-  Q_PROPERTY(QString subtitleBurnIn READ subtitleBurnIn WRITE setSubtitleBurnIn NOTIFY subtitleSettingsChanged)
-  Q_PROPERTY(bool subtitleRenderPgs READ subtitleRenderPgs WRITE setSubtitleRenderPgs NOTIFY subtitleSettingsChanged)
-  Q_PROPERTY(bool subtitleAlwaysBurnIn READ subtitleAlwaysBurnIn WRITE setSubtitleAlwaysBurnIn NOTIFY subtitleSettingsChanged)
-  Q_PROPERTY(QString subtitleStyling READ subtitleStyling WRITE setSubtitleStyling NOTIFY subtitleSettingsChanged)
-  Q_PROPERTY(QString subtitleTextSize READ subtitleTextSize WRITE setSubtitleTextSize NOTIFY subtitleSettingsChanged)
-  Q_PROPERTY(QString subtitleTextWeight READ subtitleTextWeight WRITE setSubtitleTextWeight NOTIFY subtitleSettingsChanged)
-  Q_PROPERTY(QString subtitleFont READ subtitleFont WRITE setSubtitleFont NOTIFY subtitleSettingsChanged)
-  Q_PROPERTY(QString subtitleTextColor READ subtitleTextColor WRITE setSubtitleTextColor NOTIFY subtitleSettingsChanged)
-  Q_PROPERTY(QString subtitleDropShadow READ subtitleDropShadow WRITE setSubtitleDropShadow NOTIFY subtitleSettingsChanged)
-  Q_PROPERTY(int subtitleVerticalPosition READ subtitleVerticalPosition WRITE setSubtitleVerticalPosition NOTIFY subtitleSettingsChanged)
-  Q_PROPERTY(QString redButtonAction READ redButtonAction WRITE setRedButtonAction NOTIFY buttonRemapChanged)
-  Q_PROPERTY(QString greenButtonAction READ greenButtonAction WRITE setGreenButtonAction NOTIFY buttonRemapChanged)
-  Q_PROPERTY(QString yellowButtonAction READ yellowButtonAction WRITE setYellowButtonAction NOTIFY buttonRemapChanged)
-  Q_PROPERTY(QString blueButtonAction READ blueButtonAction WRITE setBlueButtonAction NOTIFY buttonRemapChanged)
-  Q_PROPERTY(QStringList availableButtonActions READ availableButtonActions CONSTANT)
-  Q_PROPERTY(QVariantList settingsSchema READ settingsSchema CONSTANT)
-  Q_PROPERTY(QVariantMap values READ values NOTIFY settingsValuesChanged)
+    Q_OBJECT
+    Q_PROPERTY(bool nightModeEnabled MEMBER m_nightModeEnabled WRITE setNightModeEnabled NOTIFY nightModeChanged)
+    Q_PROPERTY(bool toneMappingVisualizationEnabled MEMBER m_toneMappingVisualizationEnabled WRITE
+            setToneMappingVisualizationEnabled NOTIFY toneMappingVisualizationChanged)
+    Q_PROPERTY(int maxStreamingBitrateMbps MEMBER m_maxStreamingBitrateMbps WRITE setMaxStreamingBitrateMbps NOTIFY
+            playbackPreferencesChanged)
+    Q_PROPERTY(bool preferRemux MEMBER m_preferRemux WRITE setPreferRemux NOTIFY playbackPreferencesChanged)
+    Q_PROPERTY(int audioDelayMs MEMBER m_audioDelayMs WRITE setAudioDelayMs NOTIFY audioDelayChanged)
+    Q_PROPERTY(QString audioOutputMode MEMBER m_audioOutputMode WRITE setAudioOutputMode NOTIFY audioOutputModeChanged)
+    Q_PROPERTY(QStringList subtitleLanguageOptions READ subtitleLanguageOptions NOTIFY subtitleSettingsChanged)
+    Q_PROPERTY(int subtitleLanguageIndex READ subtitleLanguageIndex WRITE setSubtitleLanguageIndex NOTIFY
+            subtitleSettingsChanged)
+    Q_PROPERTY(QString subtitleMode READ subtitleMode WRITE setSubtitleMode NOTIFY subtitleSettingsChanged)
+    Q_PROPERTY(QString subtitleBurnIn READ subtitleBurnIn WRITE setSubtitleBurnIn NOTIFY subtitleSettingsChanged)
+    Q_PROPERTY(bool subtitleRenderPgs READ subtitleRenderPgs WRITE setSubtitleRenderPgs NOTIFY subtitleSettingsChanged)
+    Q_PROPERTY(bool subtitleAlwaysBurnIn READ subtitleAlwaysBurnIn WRITE setSubtitleAlwaysBurnIn NOTIFY
+            subtitleSettingsChanged)
+    Q_PROPERTY(QString subtitleStyling READ subtitleStyling WRITE setSubtitleStyling NOTIFY subtitleSettingsChanged)
+    Q_PROPERTY(QString subtitleTextSize READ subtitleTextSize WRITE setSubtitleTextSize NOTIFY subtitleSettingsChanged)
+    Q_PROPERTY(
+        QString subtitleTextWeight READ subtitleTextWeight WRITE setSubtitleTextWeight NOTIFY subtitleSettingsChanged)
+    Q_PROPERTY(QString subtitleFont READ subtitleFont WRITE setSubtitleFont NOTIFY subtitleSettingsChanged)
+    Q_PROPERTY(
+        QString subtitleTextColor READ subtitleTextColor WRITE setSubtitleTextColor NOTIFY subtitleSettingsChanged)
+    Q_PROPERTY(
+        QString subtitleDropShadow READ subtitleDropShadow WRITE setSubtitleDropShadow NOTIFY subtitleSettingsChanged)
+    Q_PROPERTY(int subtitleVerticalPosition READ subtitleVerticalPosition WRITE setSubtitleVerticalPosition NOTIFY
+            subtitleSettingsChanged)
+    Q_PROPERTY(QString redButtonAction MEMBER m_redButtonAction WRITE setRedButtonAction NOTIFY buttonRemapChanged)
+    Q_PROPERTY(
+        QString greenButtonAction MEMBER m_greenButtonAction WRITE setGreenButtonAction NOTIFY buttonRemapChanged)
+    Q_PROPERTY(
+        QString yellowButtonAction MEMBER m_yellowButtonAction WRITE setYellowButtonAction NOTIFY buttonRemapChanged)
+    Q_PROPERTY(QString blueButtonAction MEMBER m_blueButtonAction WRITE setBlueButtonAction NOTIFY buttonRemapChanged)
+    Q_PROPERTY(QStringList availableButtonActions READ availableButtonActions CONSTANT)
+    Q_PROPERTY(QVariantList settingsSchema READ settingsSchema CONSTANT)
+    Q_PROPERTY(QVariantMap values READ values NOTIFY settingsValuesChanged)
 
 public:
-  SettingsController(DatabaseManager *database, JellyfinApiFacade *api,
-                     PlayerController *player, QObject *parent = nullptr);
+    SettingsController(
+        DatabaseManager *database, JellyfinApiFacade *api, PlayerController *player, QObject *parent = nullptr);
 
-  bool nightModeEnabled() const; bool toneMappingVisualizationEnabled() const; bool preferRemux() const; bool subtitleRenderPgs() const; bool subtitleAlwaysBurnIn() const;
-  int maxStreamingBitrateMbps() const; int audioDelayMs() const; int subtitleLanguageIndex() const; int subtitleVerticalPosition() const;
-  QString audioOutputMode() const; QString subtitleMode() const; QString subtitleBurnIn() const; QString subtitleStyling() const; QString subtitleTextSize() const;
-  QString subtitleTextWeight() const; QString subtitleFont() const; QString subtitleTextColor() const; QString subtitleDropShadow() const;
-  QString redButtonAction() const; QString greenButtonAction() const; QString yellowButtonAction() const; QString blueButtonAction() const;
-  QStringList subtitleLanguageOptions() const; QStringList availableButtonActions() const;
-  QVariantList settingsSchema() const; QVariantMap values() const;
-  Q_INVOKABLE QVariant value(const QString &key) const;
-  Q_INVOKABLE QString buttonActionLabel(const QString &action) const;
+    bool subtitleRenderPgs() const;
+    bool subtitleAlwaysBurnIn() const;
+    int subtitleLanguageIndex() const;
+    int subtitleVerticalPosition() const;
+    QString subtitleMode() const;
+    QString subtitleBurnIn() const;
+    QString subtitleStyling() const;
+    QString subtitleTextSize() const;
+    QString subtitleTextWeight() const;
+    QString subtitleFont() const;
+    QString subtitleTextColor() const;
+    QString subtitleDropShadow() const;
+    QStringList subtitleLanguageOptions() const;
+    QStringList availableButtonActions() const;
+    QVariantList settingsSchema() const;
+    QVariantMap values() const;
+    Q_INVOKABLE QVariant value(const QString& key) const;
+    Q_INVOKABLE QString buttonActionLabel(const QString& action) const;
 
-  void loadLocal();
-  void loadRemote();
-  void clearRemote();
-  Q_INVOKABLE void setValue(const QString &key, const QVariant &value);
-  Q_INVOKABLE void toggleNightMode();
-  Q_INVOKABLE void setNightModeEnabled(bool enabled);
-  Q_INVOKABLE void setToneMappingVisualizationEnabled(bool enabled);
-  Q_INVOKABLE void setMaxStreamingBitrateMbps(int bitrateMbps);
-  Q_INVOKABLE void setPreferRemux(bool enabled);
-  Q_INVOKABLE void setAudioDelayMs(int delayMs);
-  Q_INVOKABLE void setAudioOutputMode(const QString &mode);
-  Q_INVOKABLE void setSubtitleLanguageIndex(int index);
-  Q_INVOKABLE void setSubtitleMode(const QString &mode);
-  Q_INVOKABLE void setSubtitleBurnIn(const QString &mode);
-  Q_INVOKABLE void setSubtitleRenderPgs(bool enabled);
-  Q_INVOKABLE void setSubtitleAlwaysBurnIn(bool enabled);
-  Q_INVOKABLE void setSubtitleStyling(const QString &styling);
-  Q_INVOKABLE void setSubtitleTextSize(const QString &size);
-  Q_INVOKABLE void setSubtitleTextWeight(const QString &weight);
-  Q_INVOKABLE void setSubtitleFont(const QString &font);
-  Q_INVOKABLE void setSubtitleTextColor(const QString &color);
-  Q_INVOKABLE void setSubtitleDropShadow(const QString &shadow);
-  Q_INVOKABLE void setSubtitleVerticalPosition(int position);
-  Q_INVOKABLE void setRedButtonAction(const QString &action);
-  Q_INVOKABLE void setGreenButtonAction(const QString &action);
-  Q_INVOKABLE void setYellowButtonAction(const QString &action);
-  Q_INVOKABLE void setBlueButtonAction(const QString &action);
+    void loadLocal();
+    void loadRemote();
+    void clearRemote();
+    Q_INVOKABLE void setValue(const QString& key, const QVariant& value);
+    Q_INVOKABLE void toggleNightMode();
+    Q_INVOKABLE void setNightModeEnabled(bool enabled);
+    Q_INVOKABLE void setToneMappingVisualizationEnabled(bool enabled);
+    Q_INVOKABLE void setMaxStreamingBitrateMbps(int bitrateMbps);
+    Q_INVOKABLE void setPreferRemux(bool enabled);
+    Q_INVOKABLE void setAudioDelayMs(int delayMs);
+    Q_INVOKABLE void setAudioOutputMode(const QString& mode);
+    Q_INVOKABLE void setSubtitleLanguageIndex(int index);
+    Q_INVOKABLE void setSubtitleMode(const QString& mode);
+    Q_INVOKABLE void setSubtitleBurnIn(const QString& mode);
+    Q_INVOKABLE void setSubtitleRenderPgs(bool enabled);
+    Q_INVOKABLE void setSubtitleAlwaysBurnIn(bool enabled);
+    Q_INVOKABLE void setSubtitleStyling(const QString& styling);
+    Q_INVOKABLE void setSubtitleTextSize(const QString& size);
+    Q_INVOKABLE void setSubtitleTextWeight(const QString& weight);
+    Q_INVOKABLE void setSubtitleFont(const QString& font);
+    Q_INVOKABLE void setSubtitleTextColor(const QString& color);
+    Q_INVOKABLE void setSubtitleDropShadow(const QString& shadow);
+    Q_INVOKABLE void setSubtitleVerticalPosition(int position);
+    Q_INVOKABLE void setRedButtonAction(const QString& action);
+    Q_INVOKABLE void setGreenButtonAction(const QString& action);
+    Q_INVOKABLE void setYellowButtonAction(const QString& action);
+    Q_INVOKABLE void setBlueButtonAction(const QString& action);
 
 signals:
-  void nightModeChanged();
-  void toneMappingVisualizationChanged();
-  void playbackPreferencesChanged();
-  void audioDelayChanged();
-  void audioOutputModeChanged();
-  void subtitleSettingsChanged();
-  void buttonRemapChanged();
-  void settingChanged(const QString &key);
-  void settingsValuesChanged();
-  void errorOccurred(const QString &message);
+    void nightModeChanged();
+    void toneMappingVisualizationChanged();
+    void playbackPreferencesChanged();
+    void audioDelayChanged();
+    void audioOutputModeChanged();
+    void subtitleSettingsChanged();
+    void buttonRemapChanged();
+    void settingChanged(const QString& key);
+    void settingsValuesChanged();
+    void errorOccurred(const QString& message);
 
 private:
-  bool setSchemaValue(const SettingSpec &spec, const QVariant &value, bool persist, bool apply, bool notify);
-  void applySchemaValue(const SettingSpec &spec, const QVariant &value, bool apply);
-  void emitSchemaSignals(const SettingSpec &spec);
-  void applyPlaybackPreferences();
-  void saveSubtitleUserConfiguration();
-  void applySubtitlePreferencesToPlayer();
+    bool setSchemaValue(const SettingSpec& spec, const QVariant& value, bool persist, bool apply, bool notify);
+    void applySchemaValue(const SettingSpec& spec, const QVariant& value, bool apply);
+    void emitSchemaSignals(const SettingSpec& spec);
+    void applyPlaybackPreferences();
+    void saveSubtitleUserConfiguration();
+    void applySubtitlePreferencesToPlayer();
 
-  DatabaseManager *m_database = nullptr;
-  JellyfinApiFacade *m_api = nullptr;
-  PlayerController *m_player = nullptr;
-  QVariantMap m_values;
-  bool m_nightModeEnabled = false;
-  bool m_toneMappingVisualizationEnabled = false;
-  int m_maxStreamingBitrateMbps = 120;
-  bool m_preferRemux = true;
-  int m_audioDelayMs = 0;
-  QString m_audioOutputMode = QStringLiteral("alsa");
-  SubtitlePreferences m_subtitlePreferences;
-  QStringList m_subtitleLanguageCodes{QString()};
-  QStringList m_subtitleLanguageLabels{QStringLiteral("Any language")};
-  QJsonObject m_userConfiguration;
-  QString m_redButtonAction = QStringLiteral("none");
-  QString m_greenButtonAction = QStringLiteral("skipBackAndEnableSubs");
-  QString m_yellowButtonAction = QStringLiteral("none");
-  QString m_blueButtonAction = QStringLiteral("none");
+    DatabaseManager *m_database = nullptr;
+    JellyfinApiFacade *m_api = nullptr;
+    PlayerController *m_player = nullptr;
+    QVariantMap m_values;
+    bool m_nightModeEnabled = false;
+    bool m_toneMappingVisualizationEnabled = false;
+    int m_maxStreamingBitrateMbps = 120;
+    bool m_preferRemux = true;
+    int m_audioDelayMs = 0;
+    QString m_audioOutputMode = QStringLiteral("alsa");
+    SubtitlePreferences m_subtitlePreferences;
+    QStringList m_subtitleLanguageCodes { QString() };
+    QStringList m_subtitleLanguageLabels { QStringLiteral("Any language") };
+    QJsonObject m_userConfiguration;
+    QString m_redButtonAction = QStringLiteral("none");
+    QString m_greenButtonAction = QStringLiteral("skipBackAndEnableSubs");
+    QString m_yellowButtonAction = QStringLiteral("none");
+    QString m_blueButtonAction = QStringLiteral("none");
 };
 
 } // namespace JellyfinNative

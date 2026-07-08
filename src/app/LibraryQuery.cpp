@@ -9,57 +9,57 @@ namespace JellyfinNative {
 
 namespace {
 
-bool isSeriesLibrary(const LibraryItem &library)
-{
-    return library.collectionType == QStringLiteral("tvshows");
-}
-
-bool libraryQueryHasValue(const QVariantMap &query, const QString &key)
-{
-    const QVariant value = query.value(key);
-    if (!value.isValid() || value.isNull())
-        return false;
-    if (value.typeId() == QMetaType::QString || value.typeId() == QMetaType::QByteArray)
-        return !value.toString().isEmpty();
-    if (value.typeId() == QMetaType::QStringList)
-        return !value.toStringList().isEmpty();
-    if (value.typeId() == QMetaType::QVariantList)
-        return !value.toList().isEmpty();
-    return value.toBool();
-}
-
-QString libraryQuerySignature(const QVariantMap &query, const LibraryItem &library)
-{
-    const QVariantMap defaults = defaultLibraryQuery(library);
-    if (activeLibraryFilterCount(query) == 0 &&
-        query.value(QStringLiteral("sortBy"), defaults.value(QStringLiteral("sortBy"))).toString() ==
-            defaults.value(QStringLiteral("sortBy")).toString() &&
-        query.value(QStringLiteral("sortOrder"), defaults.value(QStringLiteral("sortOrder"))).toString() ==
-            defaults.value(QStringLiteral("sortOrder")).toString()) {
-        return {};
+    bool isSeriesLibrary(const LibraryItem& library)
+    {
+        return library.collectionType == QStringLiteral("tvshows");
     }
 
-    QStringList parts;
-    const QStringList keys = query.keys();
-    for (const QString &key : keys) {
+    bool libraryQueryHasValue(const QVariantMap& query, const QString& key)
+    {
         const QVariant value = query.value(key);
-        if (!libraryQueryHasValue(query, key))
-            continue;
-        if (value.typeId() == QMetaType::QStringList || value.typeId() == QMetaType::QVariantList) {
-            QStringList values = libraryQueryStringList(query, key);
-            values.sort();
-            parts.push_back(QStringLiteral("%1=%2").arg(key, values.join(QLatin1Char(','))));
-        } else {
-            parts.push_back(QStringLiteral("%1=%2").arg(key, value.toString()));
-        }
+        if (!value.isValid() || value.isNull())
+            return false;
+        if (value.typeId() == QMetaType::QString || value.typeId() == QMetaType::QByteArray)
+            return !value.toString().isEmpty();
+        if (value.typeId() == QMetaType::QStringList)
+            return !value.toStringList().isEmpty();
+        if (value.typeId() == QMetaType::QVariantList)
+            return !value.toList().isEmpty();
+        return value.toBool();
     }
-    parts.sort();
-    return parts.join(QLatin1Char('&'));
-}
+
+    QString libraryQuerySignature(const QVariantMap& query, const LibraryItem& library)
+    {
+        const QVariantMap defaults = defaultLibraryQuery(library);
+        if (activeLibraryFilterCount(query) == 0
+            && query.value(QStringLiteral("sortBy"), defaults.value(QStringLiteral("sortBy"))).toString()
+                == defaults.value(QStringLiteral("sortBy")).toString()
+            && query.value(QStringLiteral("sortOrder"), defaults.value(QStringLiteral("sortOrder"))).toString()
+                == defaults.value(QStringLiteral("sortOrder")).toString()) {
+            return {};
+        }
+
+        QStringList parts;
+        const QStringList keys = query.keys();
+        for (const QString& key : keys) {
+            const QVariant value = query.value(key);
+            if (!libraryQueryHasValue(query, key))
+                continue;
+            if (value.typeId() == QMetaType::QStringList || value.typeId() == QMetaType::QVariantList) {
+                QStringList values = libraryQueryStringList(query, key);
+                values.sort();
+                parts.push_back(QStringLiteral("%1=%2").arg(key, values.join(QLatin1Char(','))));
+            } else {
+                parts.push_back(QStringLiteral("%1=%2").arg(key, value.toString()));
+            }
+        }
+        parts.sort();
+        return parts.join(QLatin1Char('&'));
+    }
 
 } // namespace
 
-QString libraryContentLabel(const LibraryItem &library)
+QString libraryContentLabel(const LibraryItem& library)
 {
     if (library.collectionType == QStringLiteral("tvshows"))
         return QStringLiteral("TV Shows");
@@ -72,16 +72,16 @@ QString libraryContentLabel(const LibraryItem &library)
     return library.name.isEmpty() ? QStringLiteral("Library") : library.name;
 }
 
-QVariantMap defaultLibraryQuery(const LibraryItem &library)
+QVariantMap defaultLibraryQuery(const LibraryItem& library)
 {
     Q_UNUSED(library);
     return {
-        {QStringLiteral("sortBy"), QStringLiteral("SortName")},
-        {QStringLiteral("sortOrder"), QStringLiteral("Ascending")},
+        { QStringLiteral("sortBy"), QStringLiteral("SortName") },
+        { QStringLiteral("sortOrder"), QStringLiteral("Ascending") },
     };
 }
 
-bool supportsLatestLibraryRow(const LibraryItem &library)
+bool supportsLatestLibraryRow(const LibraryItem& library)
 {
     static const QSet<QString> excluded = {
         QStringLiteral("playlists"),
@@ -93,7 +93,7 @@ bool supportsLatestLibraryRow(const LibraryItem &library)
     return !library.id.isEmpty() && !excluded.contains(library.collectionType);
 }
 
-QStringList libraryQueryStringList(const QVariantMap &query, const QString &key)
+QStringList libraryQueryStringList(const QVariantMap& query, const QString& key)
 {
     const QVariant value = query.value(key);
     if (value.typeId() == QMetaType::QStringList)
@@ -102,7 +102,7 @@ QStringList libraryQueryStringList(const QVariantMap &query, const QString &key)
     QStringList result;
     const QVariantList list = value.toList();
     result.reserve(list.size());
-    for (const QVariant &item : list) {
+    for (const QVariant& item : list) {
         const QString text = item.toString();
         if (!text.isEmpty())
             result.push_back(text);
@@ -110,7 +110,7 @@ QStringList libraryQueryStringList(const QVariantMap &query, const QString &key)
     return result;
 }
 
-int activeLibraryFilterCount(const QVariantMap &query)
+int activeLibraryFilterCount(const QVariantMap& query)
 {
     static const QStringList listKeys = {
         QStringLiteral("filters"),
@@ -139,16 +139,16 @@ int activeLibraryFilterCount(const QVariantMap &query)
     };
 
     int count = 0;
-    for (const QString &key : listKeys)
+    for (const QString& key : listKeys)
         count += libraryQueryStringList(query, key).size();
-    for (const QString &key : valueKeys) {
+    for (const QString& key : valueKeys) {
         if (libraryQueryHasValue(query, key))
             ++count;
     }
     return count;
 }
 
-QString libraryCacheKey(const LibraryItem &library)
+QString libraryCacheKey(const LibraryItem& library)
 {
     if (isSeriesLibrary(library))
         return QStringLiteral("series/%1").arg(library.id);
@@ -157,7 +157,7 @@ QString libraryCacheKey(const LibraryItem &library)
     return QStringLiteral("library/%1/%2").arg(library.collectionType, library.id);
 }
 
-QString libraryCacheKey(const LibraryItem &library, const QVariantMap &query)
+QString libraryCacheKey(const LibraryItem& library, const QVariantMap& query)
 {
     const QString baseKey = libraryCacheKey(library);
     const QString signature = libraryQuerySignature(query, library);

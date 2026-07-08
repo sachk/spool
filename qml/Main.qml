@@ -17,5 +17,4 @@ FocusScope {
     AppShell {
         anchors.fill: parent
     }
-
 }

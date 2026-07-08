@@ -18,42 +18,39 @@ class ArtworkPrefetcher;
 class JellyfinApiFacade;
 
 class LibraryPrefetchController final : public QObject {
-  Q_OBJECT
+    Q_OBJECT
 
 public:
-  enum class ImageKind { Poster, Landscape };
+    enum class ImageKind { Poster, Landscape };
 
-  LibraryPrefetchController(JellyfinApiFacade *api, ArtworkPrefetcher *artwork = nullptr,
-                            QObject *parent = nullptr);
+    LibraryPrefetchController(JellyfinApiFacade *api, ArtworkPrefetcher *artwork = nullptr, QObject *parent = nullptr);
 
-  void stop();
-  void schedule(const std::vector<LibraryItem> &libraries,
-                const QStringList &recentLibraryIds);
-  std::optional<PagedMovieItems> cachedPage(const QString &cacheKey) const;
-  void configureImagePrefetch(int aheadItems, int maxConcurrent);
-  void prefetchPosters(const std::vector<MovieItem> &items, int firstIndex = 0,
-                       int visibleCount = 12,
-                       ImageKind imageKind = ImageKind::Poster);
+    void stop();
+    void schedule(const std::vector<LibraryItem>& libraries, const QStringList& recentLibraryIds);
+    std::optional<PagedMovieItems> cachedPage(const QString& cacheKey) const;
+    void configureImagePrefetch(int aheadItems, int maxConcurrent);
+    void prefetchPosters(const std::vector<MovieItem>& items, int firstIndex = 0, int visibleCount = 12,
+        ImageKind imageKind = ImageKind::Poster);
 
 private:
-  struct PrefetchRequest {
-    BrowseDescriptor descriptor;
-    QString cacheKey;
-    QString title;
-  };
+    struct PrefetchRequest {
+        BrowseDescriptor descriptor;
+        QString cacheKey;
+        QString title;
+    };
 
-  void startNext();
+    void startNext();
 
-  JellyfinApiFacade *m_api = nullptr;
-  ArtworkPrefetcher *m_artwork = nullptr;
-  QTimer m_timer;
-  RequestGeneration m_generation;
-  int m_index = 0;
-  bool m_active = false;
-  std::vector<PrefetchRequest> m_queue;
-  QHash<QString, PagedMovieItems> m_pages;
-  QSet<QString> m_cachedKeys;
-  int m_imagePrefetchAheadItems = 16;
+    JellyfinApiFacade *m_api = nullptr;
+    ArtworkPrefetcher *m_artwork = nullptr;
+    QTimer m_timer;
+    RequestGeneration m_generation;
+    int m_index = 0;
+    bool m_active = false;
+    std::vector<PrefetchRequest> m_queue;
+    QHash<QString, PagedMovieItems> m_pages;
+    QSet<QString> m_cachedKeys;
+    int m_imagePrefetchAheadItems = 16;
 };
 
 } // namespace JellyfinNative

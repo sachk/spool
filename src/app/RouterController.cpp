@@ -2,25 +2,42 @@
 
 namespace JellyfinNative {
 
-RouterController::RouterController(QObject *parent) : QObject(parent) {}
-
-QString RouterController::route() const { return m_route; }
-
-QString RouterController::previousRoute() const { return m_previousRoute; }
-
-QVariantMap RouterController::args() const { return m_args; }
-
-QVariantList RouterController::stack() const { return m_stack; }
-
-bool RouterController::canPop() const { return !m_stack.isEmpty(); }
-
-QVariantMap RouterController::frame(const QString &route, const QVariantMap &args) const
+RouterController::RouterController(QObject *parent)
+    : QObject(parent)
 {
-    return {{QStringLiteral("route"), route}, {QStringLiteral("args"), args}};
 }
 
-void RouterController::setFrame(const QString &route, const QVariantMap &args,
-                                const QString &previousRoute)
+QString RouterController::route() const
+{
+    return m_route;
+}
+
+QString RouterController::previousRoute() const
+{
+    return m_previousRoute;
+}
+
+QVariantMap RouterController::args() const
+{
+    return m_args;
+}
+
+QVariantList RouterController::stack() const
+{
+    return m_stack;
+}
+
+bool RouterController::canPop() const
+{
+    return !m_stack.isEmpty();
+}
+
+QVariantMap RouterController::frame(const QString& route, const QVariantMap& args) const
+{
+    return { { QStringLiteral("route"), route }, { QStringLiteral("args"), args } };
+}
+
+void RouterController::setFrame(const QString& route, const QVariantMap& args, const QString& previousRoute)
 {
     const bool routeChanged = route != m_route || args != m_args || previousRoute != m_previousRoute;
     if (!routeChanged)
@@ -31,7 +48,7 @@ void RouterController::setFrame(const QString &route, const QVariantMap &args,
     emit this->routeChanged();
 }
 
-void RouterController::reset(const QString &route, const QVariantMap &args)
+void RouterController::reset(const QString& route, const QVariantMap& args)
 {
     const bool hadStack = !m_stack.isEmpty();
     m_stack.clear();
@@ -40,7 +57,7 @@ void RouterController::reset(const QString &route, const QVariantMap &args)
         emit stackChanged();
 }
 
-void RouterController::push(const QString &route, const QVariantMap &args)
+void RouterController::push(const QString& route, const QVariantMap& args)
 {
     if (route.isEmpty() || (route == m_route && args == m_args))
         return;
@@ -50,14 +67,14 @@ void RouterController::push(const QString &route, const QVariantMap &args)
     setFrame(route, args, previous);
 }
 
-void RouterController::replace(const QString &route, const QVariantMap &args)
+void RouterController::replace(const QString& route, const QVariantMap& args)
 {
     if (route.isEmpty())
         return;
     setFrame(route, args, m_route);
 }
 
-bool RouterController::pop(const QString &fallbackRoute)
+bool RouterController::pop(const QString& fallbackRoute)
 {
     if (m_stack.isEmpty()) {
         replace(fallbackRoute.isEmpty() ? QStringLiteral("home") : fallbackRoute);
@@ -65,9 +82,7 @@ bool RouterController::pop(const QString &fallbackRoute)
     }
     const QVariantMap top = m_stack.takeLast().toMap();
     emit stackChanged();
-    setFrame(top.value(QStringLiteral("route")).toString(),
-             top.value(QStringLiteral("args")).toMap(),
-             m_route);
+    setFrame(top.value(QStringLiteral("route")).toString(), top.value(QStringLiteral("args")).toMap(), m_route);
     return true;
 }
 
@@ -79,7 +94,7 @@ void RouterController::clearStack()
     emit stackChanged();
 }
 
-void RouterController::setArgs(const QVariantMap &args)
+void RouterController::setArgs(const QVariantMap& args)
 {
     setFrame(m_route, args, m_previousRoute);
 }

@@ -20,7 +20,13 @@ Item {
 
     clip: false
     scale: focused && !Theme.reducedMotion ? 1.025 : 1.0
-    Behavior on scale { enabled: !Theme.reducedMotion; NumberAnimation { duration: 100; easing.type: Easing.OutQuad } }
+    Behavior on scale {
+        enabled: !Theme.reducedMotion
+        NumberAnimation {
+            duration: 100
+            easing.type: Easing.OutQuad
+        }
+    }
 
     Rectangle {
         id: frame
@@ -65,5 +71,7 @@ Item {
         }
     }
 
-    HoverHandler { id: hover }
+    HoverHandler {
+        id: hover
+    }
 }

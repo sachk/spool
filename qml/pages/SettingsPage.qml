@@ -14,36 +14,181 @@ FocusScope {
     readonly property bool smartTvPlatform: nativeWindow ? nativeWindow.smartTvPlatform : true
     readonly property bool gpuNextDiagnosticsAvailable: !smartTvPlatform
     readonly property var categories: [
-        { label: "General", group: "General" },
-        { label: "Appearance", group: "Appearance" },
-        { label: "Playback", group: "Playback" },
-        { label: "Subtitles", group: "Subtitles" },
-        { label: "Diagnostics", group: "Diagnostics" },
-        { label: "Input", group: "Button Remap" },
-        { label: "About", group: "About" }
+        {
+            label: "General",
+            group: "General"
+        },
+        {
+            label: "Appearance",
+            group: "Appearance"
+        },
+        {
+            label: "Playback",
+            group: "Playback"
+        },
+        {
+            label: "Subtitles",
+            group: "Subtitles"
+        },
+        {
+            label: "Diagnostics",
+            group: "Diagnostics"
+        },
+        {
+            label: "Input",
+            group: "Button Remap"
+        },
+        {
+            label: "About",
+            group: "About"
+        }
     ]
     readonly property var topRows: [
-        { key: "action/switchUser", source: "page", group: "General", type: "action", title: "Switch User", description: "Return to profile selection", valueText: "Choose" },
-        { key: "action/logout", source: "page", group: "General", type: "action", title: "Logout", description: "Clear the saved session and return to sign in", valueText: "Sign out" },
-        { key: "session/server", source: "page", group: "General", type: "readonly", title: "Connected Server" }
+        {
+            key: "action/switchUser",
+            source: "page",
+            group: "General",
+            type: "action",
+            title: "Switch User",
+            description: "Return to profile selection",
+            valueText: "Choose"
+        },
+        {
+            key: "action/logout",
+            source: "page",
+            group: "General",
+            type: "action",
+            title: "Logout",
+            description: "Clear the saved session and return to sign in",
+            valueText: "Sign out"
+        },
+        {
+            key: "session/server",
+            source: "page",
+            group: "General",
+            type: "readonly",
+            title: "Connected Server"
+        }
     ]
     readonly property var pageSchemaRows: [
-        { key: "theme/name", source: "page", group: "General", type: "readonly", title: "Theme", description: "Fixed dark TV interface", valueText: "Jellyfin Dark" },
-        { key: "i18n/locale", source: "page", group: "General", type: "select", title: "Language", description: "Restart the app to update cached server text" },
-        { key: "theme/accent", source: "page", group: "General", type: "select", title: "Accent", choiceLabels: ["Jellyfin Blue", "Jellyfin Purple", "Blue-Purple"] },
-        { key: "metrics/uiScale", source: "page", group: "General", type: "slider", title: "UI Scale", description: "Runtime type and spacing scale", from: 0.75, to: 1.5, step: 0.05, decimals: 2, unitText: "x", valueBoxWidth: 78, sliderPreferredWidth: 280 },
-        { key: "metrics/posterSize", source: "page", group: "Appearance", type: "select", title: "Poster Size", choiceLabels: ["Compact", "Normal", "Large"] },
-        { key: "metrics/gridColumns", source: "page", group: "Appearance", type: "select", title: "Grid Columns", choiceLabels: ["Auto", "4", "5", "6", "7", "8", "9"] },
-        { key: "theme/railLabels", source: "page", group: "Appearance", type: "select", title: "Side Rail Labels", choiceLabels: ["Never", "On focus", "Always"] },
-        { key: "theme/reducedMotion", source: "page", group: "Appearance", type: "toggle", title: "Reduced Motion" },
-        { key: "theme/renderMode", source: "page", group: "Appearance", type: "select", title: "Text Render Mode", choiceLabels: ["Qt", "Curve"] },
-        { key: "theme/antialiasedText", source: "page", group: "Appearance", type: "toggle", title: "Antialiased Text" },
-        { key: "theme/technicalMetadata", source: "page", group: "Appearance", type: "select", title: "Show Technical Metadata", choiceLabels: ["Always", "On details only", "Hidden"] },
-        { key: "shell/diagnostics", source: "page", group: "Diagnostics", type: "toggle", title: "Diagnostics Overlay" }
+        {
+            key: "theme/name",
+            source: "page",
+            group: "General",
+            type: "readonly",
+            title: "Theme",
+            description: "Fixed dark TV interface",
+            valueText: "Jellyfin Dark"
+        },
+        {
+            key: "i18n/locale",
+            source: "page",
+            group: "General",
+            type: "select",
+            title: "Language",
+            description: "Restart the app to update cached server text"
+        },
+        {
+            key: "theme/accent",
+            source: "page",
+            group: "General",
+            type: "select",
+            title: "Accent",
+            choiceLabels: ["Jellyfin Blue", "Jellyfin Purple", "Blue-Purple"]
+        },
+        {
+            key: "metrics/uiScale",
+            source: "page",
+            group: "General",
+            type: "slider",
+            title: "UI Scale",
+            description: "Runtime type and spacing scale",
+            from: 0.75,
+            to: 1.5,
+            step: 0.05,
+            decimals: 2,
+            unitText: "x",
+            valueBoxWidth: 78,
+            sliderPreferredWidth: 280
+        },
+        {
+            key: "metrics/posterSize",
+            source: "page",
+            group: "Appearance",
+            type: "select",
+            title: "Poster Size",
+            choiceLabels: ["Compact", "Normal", "Large"]
+        },
+        {
+            key: "metrics/gridColumns",
+            source: "page",
+            group: "Appearance",
+            type: "select",
+            title: "Grid Columns",
+            choiceLabels: ["Auto", "4", "5", "6", "7", "8", "9"]
+        },
+        {
+            key: "theme/railLabels",
+            source: "page",
+            group: "Appearance",
+            type: "select",
+            title: "Side Rail Labels",
+            choiceLabels: ["Never", "On focus", "Always"]
+        },
+        {
+            key: "theme/reducedMotion",
+            source: "page",
+            group: "Appearance",
+            type: "toggle",
+            title: "Reduced Motion"
+        },
+        {
+            key: "theme/renderMode",
+            source: "page",
+            group: "Appearance",
+            type: "select",
+            title: "Text Render Mode",
+            choiceLabels: ["Qt", "Curve"]
+        },
+        {
+            key: "theme/antialiasedText",
+            source: "page",
+            group: "Appearance",
+            type: "toggle",
+            title: "Antialiased Text"
+        },
+        {
+            key: "theme/technicalMetadata",
+            source: "page",
+            group: "Appearance",
+            type: "select",
+            title: "Show Technical Metadata",
+            choiceLabels: ["Always", "On details only", "Hidden"]
+        },
+        {
+            key: "shell/diagnostics",
+            source: "page",
+            group: "Diagnostics",
+            type: "toggle",
+            title: "Diagnostics Overlay"
+        }
     ]
     readonly property var aboutRows: [
-        { key: "about/version", source: "page", group: "About", type: "readonly", title: "Jellyfin Native for webOS", description: "Qt 6.11 client, native mpv playback" },
-        { key: "about/locale", source: "page", group: "About", type: "readonly", title: "UI Locale" }
+        {
+            key: "about/version",
+            source: "page",
+            group: "About",
+            type: "readonly",
+            title: "Jellyfin Native for webOS",
+            description: "Qt 6.11 client, native mpv playback"
+        },
+        {
+            key: "about/locale",
+            source: "page",
+            group: "About",
+            type: "readonly",
+            title: "UI Locale"
+        }
     ]
 
     component SettingsSelectRow: SelectRow {
@@ -59,301 +204,305 @@ FocusScope {
     }
 
     function controllerSchemaRows() {
-        return appController && appController.settings ? appController.settings.settingsSchema : [];
+        return settingsController ? settingsController.settingsSchema : []
     }
 
     function rowVisible(row) {
         if (!row || row.visible === false)
-            return false;
+            return false
         if (row.key === "settings/toneMappingVisualization")
-            return gpuNextDiagnosticsAvailable;
-        return true;
+            return gpuNextDiagnosticsAvailable
+        return true
     }
 
     function rebuildSettingsRows() {
-        const rows = [];
+        const rows = []
         const append = function (list) {
             for (let i = 0; i < list.length; ++i) {
                 if (rowVisible(list[i]))
-                    rows.push(list[i]);
+                    rows.push(list[i])
             }
-        };
-        append(topRows);
-        append(pageSchemaRows);
-        append(controllerSchemaRows());
-        append(aboutRows);
-        settingsRows = rows;
-        currentIndex = Math.max(0, Math.min(currentIndex, settingsRows.length - 1));
-        settingsList.currentIndex = currentIndex;
-        syncCategoryForRow(currentIndex);
+        }
+        append(topRows)
+        append(pageSchemaRows)
+        append(controllerSchemaRows())
+        append(aboutRows)
+        settingsRows = rows
+        currentIndex = Math.max(0, Math.min(currentIndex, settingsRows.length - 1))
+        settingsList.currentIndex = currentIndex
+        syncCategoryForRow(currentIndex)
     }
 
     function rowAt(index) {
-        return index >= 0 && index < settingsRows.length ? settingsRows[index] : null;
+        return index >= 0 && index < settingsRows.length ? settingsRows[index] : null
     }
 
     function previousRow(index) {
-        return index > 0 ? settingsRows[index - 1] : null;
+        return index > 0 ? settingsRows[index - 1] : null
     }
 
     function showPreferencesHeader(index) {
-        return index === 0;
+        return index === 0
     }
 
     function showGroupHeader(index) {
-        const row = rowAt(index);
-        const previous = previousRow(index);
-        return row && (!previous || previous.group !== row.group);
+        const row = rowAt(index)
+        const previous = previousRow(index)
+        return row && (!previous || previous.group !== row.group)
     }
 
     function categoryTarget(index) {
         if (settingsRows.length <= 0)
-            return 0;
-        const category = categories[Math.max(0, Math.min(categories.length - 1, index))];
+            return 0
+        const category = categories[Math.max(0, Math.min(categories.length - 1, index))]
         for (let i = 0; i < settingsRows.length; ++i) {
             if (settingsRows[i].group === category.group)
-                return i;
+                return i
         }
-        return 0;
+        return 0
     }
 
     function syncCategoryForRow(rowIndex) {
-        let nextCategory = 0;
+        let nextCategory = 0
         for (let i = 0; i < categories.length; ++i) {
             if (rowIndex >= categoryTarget(i))
-                nextCategory = i;
+                nextCategory = i
         }
-        categoryIndex = nextCategory;
+        categoryIndex = nextCategory
         if (categoryList.currentIndex !== categoryIndex)
-            categoryList.currentIndex = categoryIndex;
+            categoryList.currentIndex = categoryIndex
     }
 
     function focusRow(index) {
         if (settingsRows.length <= 0)
-            return;
-        currentIndex = Math.max(0, Math.min(settingsRows.length - 1, index));
-        settingsList.currentIndex = currentIndex;
-        InputKeys.focus(settingsList);
-        syncCategoryForRow(currentIndex);
-        settingsList.positionViewAtIndex(currentIndex, ListView.Contain);
+            return
+        currentIndex = Math.max(0, Math.min(settingsRows.length - 1, index))
+        settingsList.currentIndex = currentIndex
+        InputKeys.focus(settingsList)
+        syncCategoryForRow(currentIndex)
+        settingsList.positionViewAtIndex(currentIndex, ListView.Contain)
     }
 
     function focusCategory(index) {
-        categoryIndex = Math.max(0, Math.min(categories.length - 1, index));
-        categoryList.currentIndex = categoryIndex;
-        InputKeys.focus(categoryList);
-        categoryList.positionViewAtIndex(categoryIndex, ListView.Contain);
+        categoryIndex = Math.max(0, Math.min(categories.length - 1, index))
+        categoryList.currentIndex = categoryIndex
+        InputKeys.focus(categoryList)
+        categoryList.positionViewAtIndex(categoryIndex, ListView.Contain)
     }
 
     function activateCategory(index) {
-        categoryIndex = Math.max(0, Math.min(categories.length - 1, index));
-        focusRow(categoryTarget(categoryIndex));
+        categoryIndex = Math.max(0, Math.min(categories.length - 1, index))
+        focusRow(categoryTarget(categoryIndex))
     }
 
     function settingsValue(row) {
-        if (!appController || !appController.settings)
-            return row.defaultValue;
-        const values = appController.settings.values;
-        const value = values[row.key];
-        return value === undefined ? row.defaultValue : value;
+        if (!settingsController)
+            return row.defaultValue
+        const values = settingsController.values
+        const value = values[row.key]
+        return value === undefined ? row.defaultValue : value
     }
 
     function valueIndex(values, currentValue) {
         for (let i = 0; i < values.length; ++i) {
             if (values[i] === currentValue)
-                return i;
+                return i
         }
-        return 0;
+        return 0
     }
 
     function valueFromIndex(values, index) {
-        return index >= 0 && index < values.length ? values[index] : values[0];
+        return index >= 0 && index < values.length ? values[index] : values[0]
     }
 
     function rowDescription(row) {
         if (row.key === "subtitles/mode") {
-            const mode = String(settingsValue(row));
+            const mode = String(settingsValue(row))
             if (mode === "Smart")
-                return "Show subtitles when audio is not in your preferred language";
+                return "Show subtitles when audio is not in your preferred language"
             if (mode === "OnlyForced")
-                return "Show only forced subtitle tracks";
+                return "Show only forced subtitle tracks"
             if (mode === "Always")
-                return "Show subtitles whenever a matching track is available";
+                return "Show subtitles whenever a matching track is available"
             if (mode === "None")
-                return "Do not automatically show subtitles";
-            return "Use the Jellyfin account default";
+                return "Do not automatically show subtitles"
+            return "Use the Jellyfin account default"
         }
         if (row.key === "subtitles/styling") {
-            const styling = String(settingsValue(row));
+            const styling = String(settingsValue(row))
             if (styling === "Custom")
-                return "Use the subtitle appearance values below";
+                return "Use the subtitle appearance values below"
             if (styling === "Native")
-                return "Respect embedded subtitle styling when available";
-            return "Use custom styling when it improves readability";
+                return "Respect embedded subtitle styling when available"
+            return "Use custom styling when it improves readability"
         }
         if (row.key === "session/server")
-            return appController ? appController.session.serverUrl : "";
+            return sessionController ? sessionController.serverUrl : ""
         if (row.key === "about/locale")
-            return i18n ? "Active translation tag" : "";
-        return row.description || "";
+            return i18n ? "Active translation tag" : ""
+        return row.description || ""
     }
 
     function rowValueText(row) {
         switch (row.key) {
         case "session/server":
-            return appController && appController.session.serverUrl.length > 0 ? "Connected" : "Offline";
+            return sessionController && sessionController.serverUrl.length > 0 ? "Connected" : "Offline"
         case "about/version":
-            return "v" + Qt.application.version;
+            return "v" + Qt.application.version
         case "about/locale":
-            return i18n ? i18n.currentLocale : "en-US";
+            return i18n ? i18n.currentLocale : "en-US"
         default:
-            return row.valueText || "";
+            return row.valueText || ""
         }
     }
 
     function rowOptions(row) {
         switch (row.key) {
-        case "i18n/locale": {
+        case "i18n/locale":
+        {
             if (!i18n)
-                return ["System default"];
-            const result = [];
-            const list = i18n.availableLocales;
+                return ["System default"]
+            const result = []
+            const list = i18n.availableLocales
             for (let i = 0; i < list.length; ++i)
-                result.push(i18n.displayNameFor(list[i]));
-            return result;
+                result.push(i18n.displayNameFor(list[i]))
+            return result
         }
         case "subtitles/language":
-            return appController ? appController.settings.subtitleLanguageOptions : ["Any language"];
+            return settingsController ? settingsController.subtitleLanguageOptions : ["Any language"]
         default:
-            return row.choiceLabels || [];
+            return row.choiceLabels || []
         }
     }
 
     function rowChoiceValues(row) {
         switch (row.key) {
         case "i18n/locale":
-            return i18n ? i18n.availableLocales : ["system"];
+            return i18n ? i18n.availableLocales : ["system"]
         case "theme/accent":
         case "metrics/posterSize":
-            return [0, 1, 2];
+            return [0, 1, 2]
         case "metrics/gridColumns":
-            return [0, 4, 5, 6, 7, 8, 9];
+            return [0, 4, 5, 6, 7, 8, 9]
         case "theme/railLabels":
-            return ["Never", "On focus", "Always"];
+            return ["Never", "On focus", "Always"]
         case "theme/renderMode":
-            return [Text.QtRendering, Text.CurveRendering];
+            return [Text.QtRendering, Text.CurveRendering]
         case "theme/technicalMetadata":
-            return ["Always", "On details only", "Hidden"];
+            return ["Always", "On details only", "Hidden"]
         default:
-            return row.choiceValues || [];
+            return row.choiceValues || []
         }
     }
 
     function rowCurrentIndex(row) {
         switch (row.key) {
-        case "i18n/locale": {
+        case "i18n/locale":
+        {
             if (!i18n)
-                return 0;
-            const list = i18n.availableLocales;
+                return 0
+            const list = i18n.availableLocales
             for (let i = 0; i < list.length; ++i) {
                 if ((list[i] === "system" && i18n.useSystemLocale) || list[i] === i18n.currentLocale)
-                    return i;
+                    return i
             }
-            return 0;
+            return 0
         }
         case "theme/accent":
-            return Theme.accentIndex;
+            return Theme.accentIndex
         case "metrics/posterSize":
-            return Metrics.userPosterSizeBias + 1;
-        case "metrics/gridColumns": {
+            return Metrics.userPosterSizeBias + 1
+        case "metrics/gridColumns":
+        {
             if (Metrics.userColumnOverride <= 0)
-                return 0;
-            const columns = [4, 5, 6, 7, 8, 9];
+                return 0
+            const columns = [4, 5, 6, 7, 8, 9]
             for (let i = 0; i < columns.length; ++i) {
                 if (columns[i] === Metrics.userColumnOverride)
-                    return i + 1;
+                    return i + 1
             }
-            return 0;
+            return 0
         }
         case "theme/railLabels":
             if (Theme.sideRailLabels === "Never")
-                return 0;
+                return 0
             if (Theme.sideRailLabels === "Always")
-                return 2;
-            return 1;
+                return 2
+            return 1
         case "theme/renderMode":
-            return Theme.normalTextRenderType === Text.CurveRendering ? 1 : 0;
+            return Theme.normalTextRenderType === Text.CurveRendering ? 1 : 0
         case "theme/technicalMetadata":
             if (Theme.technicalMetadataMode === "On details only")
-                return 1;
+                return 1
             if (Theme.technicalMetadataMode === "Hidden")
-                return 2;
-            return 0;
+                return 2
+            return 0
         case "subtitles/language":
-            return appController ? appController.settings.subtitleLanguageIndex : 0;
+            return settingsController ? settingsController.subtitleLanguageIndex : 0
         default:
-            return valueIndex(rowChoiceValues(row), settingsValue(row));
+            return valueIndex(rowChoiceValues(row), settingsValue(row))
         }
     }
 
     function rowBool(row) {
         switch (row.key) {
         case "theme/reducedMotion":
-            return Theme.reducedMotion;
+            return Theme.reducedMotion
         case "theme/antialiasedText":
-            return Theme.antialiasedText;
+            return Theme.antialiasedText
         case "shell/diagnostics":
-            return shell ? shell.diagnosticsVisible : false;
+            return shell ? shell.diagnosticsVisible : false
         default:
-            return Boolean(settingsValue(row));
+            return Boolean(settingsValue(row))
         }
     }
 
     function rowNumber(row) {
         switch (row.key) {
         case "metrics/uiScale":
-            return Metrics.userUiScale;
+            return Metrics.userUiScale
         default:
-            return Number(settingsValue(row));
+            return Number(settingsValue(row))
         }
     }
 
     function setRowChoice(row, index) {
         switch (row.key) {
-        case "i18n/locale": {
+        case "i18n/locale":
+        {
             if (!i18n)
-                return;
-            const list = i18n.availableLocales;
+                return
+            const list = i18n.availableLocales
             if (index >= 0 && index < list.length)
-                i18n.setLocale(list[index]);
-            return;
+                i18n.setLocale(list[index])
+            return
         }
         case "theme/accent":
-            Theme.accentIndex = index;
-            return;
+            Theme.accentIndex = index
+            return
         case "metrics/posterSize":
-            Metrics.userPosterSizeBias = index - 1;
-            return;
+            Metrics.userPosterSizeBias = index - 1
+            return
         case "metrics/gridColumns":
-            Metrics.userColumnOverride = index === 0 ? 0 : Number(rowOptions(row)[index]);
-            return;
+            Metrics.userColumnOverride = index === 0 ? 0 : Number(rowOptions(row)[index])
+            return
         case "theme/railLabels":
-            Theme.sideRailLabels = String(rowOptions(row)[index]);
-            return;
+            Theme.sideRailLabels = String(rowOptions(row)[index])
+            return
         case "theme/renderMode":
-            Theme.normalTextRenderType = index === 1 ? Text.CurveRendering : Text.QtRendering;
-            return;
+            Theme.normalTextRenderType = index === 1 ? Text.CurveRendering : Text.QtRendering
+            return
         case "theme/technicalMetadata":
-            Theme.technicalMetadataMode = String(rowOptions(row)[index]);
-            return;
+            Theme.technicalMetadataMode = String(rowOptions(row)[index])
+            return
         case "subtitles/language":
-            if (appController)
-                appController.settings.setSubtitleLanguageIndex(index);
-            return;
+            if (settingsController)
+                settingsController.setSubtitleLanguageIndex(index)
+            return
         default:
-            if (appController && appController.settings) {
-                const values = rowChoiceValues(row);
-                appController.settings.setValue(row.key, valueFromIndex(values, index));
+            if (settingsController) {
+                const values = rowChoiceValues(row)
+                settingsController.setValue(row.key, valueFromIndex(values, index))
             }
         }
     }
@@ -361,125 +510,125 @@ FocusScope {
     function setRowBool(row, checked) {
         switch (row.key) {
         case "theme/reducedMotion":
-            Theme.reducedMotion = checked;
-            return;
+            Theme.reducedMotion = checked
+            return
         case "theme/antialiasedText":
-            Theme.antialiasedText = checked;
-            return;
+            Theme.antialiasedText = checked
+            return
         case "shell/diagnostics":
             if (shell)
-                shell.diagnosticsVisible = checked;
-            return;
+                shell.diagnosticsVisible = checked
+            return
         default:
-            if (appController && appController.settings)
-                appController.settings.setValue(row.key, checked);
+            if (settingsController)
+                settingsController.setValue(row.key, checked)
         }
     }
 
     function setRowNumber(row, value) {
         switch (row.key) {
         case "metrics/uiScale":
-            Metrics.userUiScale = value;
-            return;
+            Metrics.userUiScale = value
+            return
         default:
-            if (appController && appController.settings)
-                appController.settings.setValue(row.key, Math.round(value));
+            if (settingsController)
+                settingsController.setValue(row.key, Math.round(value))
         }
     }
 
     function activateRow(row, index) {
         if (!row)
-            return;
-        currentIndex = index;
-        settingsList.currentIndex = index;
+            return
+        currentIndex = index
+        settingsList.currentIndex = index
         switch (row.type) {
         case "action":
             if (row.key === "action/switchUser" && shell)
-                shell.switchUser();
+                shell.switchUser()
             else if (row.key === "action/logout" && appController)
-                appController.logout();
-            return;
+                appController.logout()
+            return
         case "toggle":
-            setRowBool(row, !rowBool(row));
-            return;
+            setRowBool(row, !rowBool(row))
+            return
         case "select":
-            adjustRow(row, 1);
-            return;
+            adjustRow(row, 1)
+            return
         default:
-            return;
+            return
         }
     }
 
     function adjustRow(row, direction) {
         if (!row)
-            return false;
+            return false
         if (row.type === "select") {
-            const options = rowOptions(row);
+            const options = rowOptions(row)
             if (options.length <= 0)
-                return true;
-            setRowChoice(row, (rowCurrentIndex(row) + direction + options.length) % options.length);
-            return true;
+                return true
+            setRowChoice(row, (rowCurrentIndex(row) + direction + options.length) % options.length)
+            return true
         }
         if (row.type === "slider") {
-            const step = Number(row.step || 1);
-            const from = Number(row.from || 0);
-            const to = Number(row.to || 100);
-            const next = Math.max(from, Math.min(to, rowNumber(row) + step * direction));
-            setRowNumber(row, next);
-            return true;
+            const step = Number(row.step || 1)
+            const from = Number(row.from || 0)
+            const to = Number(row.to || 100)
+            const next = Math.max(from, Math.min(to, rowNumber(row) + step * direction))
+            setRowNumber(row, next)
+            return true
         }
-        return false;
+        return false
     }
 
     function handleKey(key) {
         if (categoryList.activeFocus) {
             if (key === Qt.Key_Right || InputKeys.isAccept(key, false)) {
-                activateCategory(categoryIndex);
-                return true;
+                activateCategory(categoryIndex)
+                return true
             }
             if (key === Qt.Key_Up && categoryIndex <= 0) {
                 if (shell)
-                    shell.focusNavBar();
-                return true;
+                    shell.focusNavBar()
+                return true
             }
-            return categoryList.handleKey(key);
+            return categoryList.handleKey(key)
         }
 
-        const row = rowAt(settingsList.currentIndex);
+        const row = rowAt(settingsList.currentIndex)
         if ((key === Qt.Key_Left || key === Qt.Key_Right) && adjustRow(row, key === Qt.Key_Right ? 1 : -1))
-            return true;
+            return true
         if (key === Qt.Key_Left) {
-            focusCategory(categoryIndex);
-            return true;
+            focusCategory(categoryIndex)
+            return true
         }
         if (key === Qt.Key_Up && settingsList.currentIndex <= 0) {
             if (shell)
-                shell.focusNavBar();
-            return true;
+                shell.focusNavBar()
+            return true
         }
-        return settingsList.handleKey(key);
+        return settingsList.handleKey(key)
     }
 
     focus: true
     onActiveFocusChanged: if (activeFocus)
-        focusRow(currentIndex)
+                              focusRow(currentIndex)
     Keys.onReleased: event => {
-        if (handleKey(event.key))
-            event.accepted = true;
-    }
+                         if (handleKey(event.key))
+                         event.accepted = true
+                     }
 
     Component.onCompleted: Qt.callLater(function () {
-        rebuildSettingsRows();
-        focusRow(0);
+        rebuildSettingsRows()
+        focusRow(0)
     })
 
     Connections {
-        target: appController ? appController.settings : null
+        target: settingsController ? settingsController : null
         function onSettingsValuesChanged() {
-            settingsList.forceLayout();
+            settingsList.forceLayout()
         }
         function onSubtitleSettingsChanged() {
-            settingsList.forceLayout();
+            settingsList.forceLayout()
         }
     }
 
@@ -497,12 +646,15 @@ FocusScope {
             currentIndex: root.categoryIndex
             clip: true
             onCurrentIndexChanged: if (currentIndex >= 0) {
-                root.categoryIndex = currentIndex;
-                positionViewAtIndex(currentIndex, ListView.Contain);
-            }
+                                       root.categoryIndex = currentIndex
+                                       positionViewAtIndex(currentIndex, ListView.Contain)
+                                   }
             onAccepted: index => root.activateCategory(index)
-            onEdgeUp: if (root.shell) root.shell.focusNavBar()
-            FastWheelHandler { flickable: categoryList }
+            onEdgeUp: if (root.shell)
+                          root.shell.focusNavBar()
+            FastWheelHandler {
+                flickable: categoryList
+            }
 
             delegate: Surface {
                 required property int index
@@ -524,7 +676,9 @@ FocusScope {
                     elide: Text.ElideRight
                 }
 
-                TapHandler { onTapped: root.activateCategory(index) }
+                TapHandler {
+                    onTapped: root.activateCategory(index)
+                }
             }
         }
 
@@ -538,13 +692,16 @@ FocusScope {
             boundsBehavior: Flickable.StopAtBounds
             currentIndex: root.currentIndex
             onCurrentIndexChanged: if (currentIndex >= 0) {
-                root.currentIndex = currentIndex;
-                root.syncCategoryForRow(currentIndex);
-                positionViewAtIndex(currentIndex, ListView.Contain);
-            }
+                                       root.currentIndex = currentIndex
+                                       root.syncCategoryForRow(currentIndex)
+                                       positionViewAtIndex(currentIndex, ListView.Contain)
+                                   }
             onAccepted: index => root.activateRow(root.rowAt(index), index)
-            onEdgeUp: if (root.shell) root.shell.focusNavBar()
-            FastWheelHandler { flickable: settingsList }
+            onEdgeUp: if (root.shell)
+                          root.shell.focusNavBar()
+            FastWheelHandler {
+                flickable: settingsList
+            }
 
             delegate: Column {
                 required property int index
@@ -567,13 +724,14 @@ FocusScope {
                     width: parent.width
                     property var row: modelData
                     property int rowIndex: index
-                    sourceComponent: modelData.type === "toggle" ? toggleComponent
-                                     : modelData.type === "select" ? selectComponent
-                                     : modelData.type === "slider" ? sliderComponent
-                                     : settingComponent
+                    sourceComponent: modelData.type === "toggle" ? toggleComponent : modelData.type === "select" ? selectComponent :
+                                                                                                                   modelData.type
+                                                                                                                   === "slider"
+                                                                                                                   ? sliderComponent :
+                                                                                                                     settingComponent
                     onLoaded: {
-                        item.row = row;
-                        item.rowIndex = rowIndex;
+                        item.row = row
+                        item.rowIndex = rowIndex
                     }
                 }
             }

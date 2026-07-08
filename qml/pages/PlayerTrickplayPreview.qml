@@ -5,12 +5,13 @@ Item {
 
     required property var overlay
     readonly property real uiScale: overlay ? overlay.uiScale : 1
-    readonly property bool active: overlay && overlay.hasPlayer && overlay.player.trickplayAvailable
-                                  && (overlay.scrubbing || overlay.seekHoldActive || overlay.previewBurstActive)
-                                  && overlay.mode !== "hidden"
-    readonly property var trickplayData: active
-        ? overlay.player.trickplayForSeconds(overlay.scrubbing ? overlay.scrubSeconds : overlay.positionSeconds())
-        : ({})
+    readonly property bool active: overlay && overlay.hasPlayer && overlay.player.trickplayAvailable && (overlay.scrubbing
+                                                                                                         || overlay.seekHoldActive
+                                                                                                         || overlay.previewBurstActive)
+                                   && overlay.mode !== "hidden"
+    readonly property var trickplayData: active ? overlay.player.trickplayForSeconds(overlay.scrubbing
+                                                                                     ? overlay.scrubSeconds :
+                                                                                       overlay.positionSeconds()) : ({})
     readonly property bool dataReady: trickplayData && trickplayData.available === true
 
     function dp(n) {
@@ -34,17 +35,22 @@ Item {
     opacity: visible ? 1 : 0
     z: 22
 
-    Behavior on opacity { NumberAnimation { duration: 100 } }
+    Behavior on opacity {
+        NumberAnimation {
+            duration: 100
+        }
+    }
 
     Item {
         id: thumbContainer
 
-        readonly property real thumbWidth: trickplayPreview.dataReady ? trickplayPreview.trickplayData.width * trickplayPreview.uiScale * 1.4 : 0
-        readonly property real thumbHeight: trickplayPreview.dataReady ? trickplayPreview.trickplayData.height * trickplayPreview.uiScale * 1.4 : 0
+        readonly property real thumbWidth: trickplayPreview.dataReady ? trickplayPreview.trickplayData.width
+                                                                        * trickplayPreview.uiScale * 1.4 : 0
+        readonly property real thumbHeight: trickplayPreview.dataReady ? trickplayPreview.trickplayData.height
+                                                                         * trickplayPreview.uiScale * 1.4 : 0
 
-        x: Math.max(dp(52),
-                    Math.min(parent.width - thumbWidth - dp(52),
-                             overlay.positionRatio() * parent.width - thumbWidth / 2))
+        x: Math.max(dp(52), Math.min(parent.width - thumbWidth - dp(52), overlay.positionRatio() * parent.width
+                                     - thumbWidth / 2))
         y: 0
         width: thumbWidth
         height: thumbHeight + dp(24)
@@ -61,12 +67,17 @@ Item {
             clip: true
 
             Image {
-                source: trickplayPreview.dataReady ? trickplayPreview.artworkSource(trickplayPreview.trickplayData.url) : ""
+                source: trickplayPreview.dataReady ? trickplayPreview.artworkSource(trickplayPreview.trickplayData.url) :
+                                                     ""
                 visible: status === Image.Ready
-                x: trickplayPreview.dataReady ? trickplayPreview.trickplayData.offsetX * trickplayPreview.uiScale * 1.4 : 0
-                y: trickplayPreview.dataReady ? trickplayPreview.trickplayData.offsetY * trickplayPreview.uiScale * 1.4 : 0
-                width: trickplayPreview.dataReady ? trickplayPreview.trickplayData.sheetWidth * trickplayPreview.uiScale * 1.4 : 0
-                height: trickplayPreview.dataReady ? trickplayPreview.trickplayData.sheetHeight * trickplayPreview.uiScale * 1.4 : 0
+                x: trickplayPreview.dataReady ? trickplayPreview.trickplayData.offsetX * trickplayPreview.uiScale * 1.4 :
+                                                0
+                y: trickplayPreview.dataReady ? trickplayPreview.trickplayData.offsetY * trickplayPreview.uiScale * 1.4 :
+                                                0
+                width: trickplayPreview.dataReady ? trickplayPreview.trickplayData.sheetWidth
+                                                    * trickplayPreview.uiScale * 1.4 : 0
+                height: trickplayPreview.dataReady ? trickplayPreview.trickplayData.sheetHeight
+                                                     * trickplayPreview.uiScale * 1.4 : 0
                 fillMode: Image.Stretch
                 cache: true
                 asynchronous: true

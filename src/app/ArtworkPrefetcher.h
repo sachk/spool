@@ -4,12 +4,11 @@
 
 namespace JellyfinNative {
 
-class ArtworkPrefetcher
-{
+class ArtworkPrefetcher {
 public:
     virtual ~ArtworkPrefetcher() = default;
 
-    virtual void prefetch(const QStringList &urls) = 0;
+    virtual void prefetch(const QStringList& urls) = 0;
     virtual void cancelPrefetches() = 0;
     virtual void configurePrefetch(int maxConcurrent) = 0;
 };

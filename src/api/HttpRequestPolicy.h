@@ -12,8 +12,7 @@ enum class HttpOperation {
     PlaybackReport,
 };
 
-class HttpRequestPolicy final
-{
+class HttpRequestPolicy final {
 public:
     static constexpr int transferTimeoutMs()
     {
@@ -25,14 +24,13 @@ public:
         return operation == HttpOperation::Mutation ? 1 : 3;
     }
 
-    static bool shouldRetry(HttpOperation operation, int completedAttempts, int statusCode,
-                            QNetworkReply::NetworkError networkError)
+    static bool shouldRetry(
+        HttpOperation operation, int completedAttempts, int statusCode, QNetworkReply::NetworkError networkError)
     {
         if (completedAttempts >= maximumAttempts(operation) || statusCode == 401)
             return false;
 
-        if (statusCode == 408 || statusCode == 425 || statusCode == 429 ||
-            statusCode >= 500) {
+        if (statusCode == 408 || statusCode == 425 || statusCode == 429 || statusCode >= 500) {
             return true;
         }
 

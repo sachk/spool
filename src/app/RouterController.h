@@ -23,20 +23,20 @@ public:
     QVariantList stack() const;
     bool canPop() const;
 
-    Q_INVOKABLE void reset(const QString &route = QStringLiteral("home"), const QVariantMap &args = {});
-    Q_INVOKABLE void push(const QString &route, const QVariantMap &args = {});
-    Q_INVOKABLE void replace(const QString &route, const QVariantMap &args = {});
-    Q_INVOKABLE bool pop(const QString &fallbackRoute = QStringLiteral("home"));
+    Q_INVOKABLE void reset(const QString& route = QStringLiteral("home"), const QVariantMap& args = {});
+    Q_INVOKABLE void push(const QString& route, const QVariantMap& args = {});
+    Q_INVOKABLE void replace(const QString& route, const QVariantMap& args = {});
+    Q_INVOKABLE bool pop(const QString& fallbackRoute = QStringLiteral("home"));
     Q_INVOKABLE void clearStack();
-    Q_INVOKABLE void setArgs(const QVariantMap &args);
+    Q_INVOKABLE void setArgs(const QVariantMap& args);
 
 signals:
     void routeChanged();
     void stackChanged();
 
 private:
-    QVariantMap frame(const QString &route, const QVariantMap &args) const;
-    void setFrame(const QString &route, const QVariantMap &args, const QString &previousRoute);
+    QVariantMap frame(const QString& route, const QVariantMap& args) const;
+    void setFrame(const QString& route, const QVariantMap& args, const QString& previousRoute);
 
     QString m_route = QStringLiteral("login");
     QString m_previousRoute = QStringLiteral("home");

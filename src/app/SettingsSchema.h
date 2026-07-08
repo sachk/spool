@@ -81,11 +81,11 @@ struct SettingSpec {
     bool normalizeChoices;
 };
 
-const QVector<SettingSpec> &settingSpecs();
-const SettingSpec *findSettingSpec(const QString &key);
-QVariant settingDefaultValue(const SettingSpec &spec);
-QVariant normalizedSettingValue(const SettingSpec &spec, const QVariant &value);
-QString serializedSettingValue(const SettingSpec &spec, const QVariant &value);
+const QVector<SettingSpec>& settingSpecs();
+const SettingSpec *findSettingSpec(const QString& key);
+QVariant settingDefaultValue(const SettingSpec& spec);
+QVariant normalizedSettingValue(const SettingSpec& spec, const QVariant& value);
+QString serializedSettingValue(const SettingSpec& spec, const QVariant& value);
 QVariantList settingSchemaModel();
 
 } // namespace JellyfinNative

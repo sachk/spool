@@ -14,12 +14,12 @@ namespace JellyfinNative {
 
 namespace {
 
-constexpr quint16 kDiscoveryPort = 7359;
-constexpr auto kDiscoveryPayload = "who is JellyfinServer?";
-constexpr int kHttpProbePort = 8096;
-constexpr int kHttpProbeTimeoutMs = 1000;
-constexpr int kHttpProbeConcurrency = 6;
-constexpr int kInitialHttpFallbackDelayMs = 4000;
+    constexpr quint16 kDiscoveryPort = 7359;
+    constexpr auto kDiscoveryPayload = "who is JellyfinServer?";
+    constexpr int kHttpProbePort = 8096;
+    constexpr int kHttpProbeTimeoutMs = 1000;
+    constexpr int kHttpProbeConcurrency = 6;
+    constexpr int kInitialHttpFallbackDelayMs = 4000;
 
 }
 
@@ -63,7 +63,8 @@ void DiscoveryController::start()
 
 void DiscoveryController::stop()
 {
-    Diagnostics::Phase phase(QStringLiteral("shutdown"), QStringLiteral("discovery_stop"), {{QStringLiteral("active"), m_active}, {QStringLiteral("inFlightHttpProbes"), m_inFlightHttpProbes}});
+    Diagnostics::Phase phase(QStringLiteral("shutdown"), QStringLiteral("discovery_stop"),
+        { { QStringLiteral("active"), m_active }, { QStringLiteral("inFlightHttpProbes"), m_inFlightHttpProbes } });
     if (!m_active)
         return;
 
@@ -95,14 +96,13 @@ void DiscoveryController::sendProbe()
     qInfo() << "discovery probe sent" << QHostAddress(QHostAddress::Broadcast).toString() << kDiscoveryPort;
 
     const auto interfaces = QNetworkInterface::allInterfaces();
-    for (const QNetworkInterface &iface : interfaces) {
-        if (!(iface.flags() & QNetworkInterface::IsUp) ||
-            !(iface.flags() & QNetworkInterface::IsRunning) ||
-            (iface.flags() & QNetworkInterface::IsLoopBack)) {
+    for (const QNetworkInterface& iface : interfaces) {
+        if (!(iface.flags() & QNetworkInterface::IsUp) || !(iface.flags() & QNetworkInterface::IsRunning)
+            || (iface.flags() & QNetworkInterface::IsLoopBack)) {
             continue;
         }
 
-        for (const QNetworkAddressEntry &entry : iface.addressEntries()) {
+        for (const QNetworkAddressEntry& entry : iface.addressEntries()) {
             if (entry.ip().protocol() != QAbstractSocket::IPv4Protocol || entry.broadcast().isNull())
                 continue;
 
@@ -124,8 +124,8 @@ void DiscoveryController::handlePendingDatagrams()
         if (!document.isObject())
             continue;
         const auto object = document.object();
-        if (!object.contains(QStringLiteral("Id")) || !object.contains(QStringLiteral("Name")) ||
-            !object.contains(QStringLiteral("Address"))) {
+        if (!object.contains(QStringLiteral("Id")) || !object.contains(QStringLiteral("Name"))
+            || !object.contains(QStringLiteral("Address"))) {
             continue;
         }
 
@@ -145,14 +145,13 @@ void DiscoveryController::startHttpFallbackScan()
         return;
 
     const auto interfaces = QNetworkInterface::allInterfaces();
-    for (const QNetworkInterface &iface : interfaces) {
-        if (!(iface.flags() & QNetworkInterface::IsUp) ||
-            !(iface.flags() & QNetworkInterface::IsRunning) ||
-            (iface.flags() & QNetworkInterface::IsLoopBack)) {
+    for (const QNetworkInterface& iface : interfaces) {
+        if (!(iface.flags() & QNetworkInterface::IsUp) || !(iface.flags() & QNetworkInterface::IsRunning)
+            || (iface.flags() & QNetworkInterface::IsLoopBack)) {
             continue;
         }
 
-        for (const QNetworkAddressEntry &entry : iface.addressEntries()) {
+        for (const QNetworkAddressEntry& entry : iface.addressEntries()) {
             if (entry.ip().protocol() != QAbstractSocket::IPv4Protocol || entry.netmask().isNull())
                 continue;
 
@@ -189,11 +188,11 @@ bool DiscoveryController::ensureSocket()
     if (m_socket.state() == QAbstractSocket::BoundState)
         return true;
 
-    return m_socket.bind(QHostAddress::AnyIPv4, kDiscoveryPort,
-                         QUdpSocket::ShareAddress | QUdpSocket::ReuseAddressHint);
+    return m_socket.bind(
+        QHostAddress::AnyIPv4, kDiscoveryPort, QUdpSocket::ShareAddress | QUdpSocket::ReuseAddressHint);
 }
 
-void DiscoveryController::enqueueHttpProbeTarget(const QHostAddress &address)
+void DiscoveryController::enqueueHttpProbeTarget(const QHostAddress& address)
 {
     const QString key = address.toString();
     if (m_enqueuedHttpProbeTargets.contains(key))
@@ -218,7 +217,8 @@ void DiscoveryController::pumpHttpProbeQueue()
         QNetworkReply *reply = m_http.get(request);
         m_httpProbeReplies.insert(reply);
         ++m_inFlightHttpProbes;
-        Diagnostics::logEvent(QStringLiteral("network"), QStringLiteral("discovery_probe_begin"), {{QStringLiteral("host"), host}, {QStringLiteral("inFlight"), m_inFlightHttpProbes}});
+        Diagnostics::logEvent(QStringLiteral("network"), QStringLiteral("discovery_probe_begin"),
+            { { QStringLiteral("host"), host }, { QStringLiteral("inFlight"), m_inFlightHttpProbes } });
 
         connect(reply, &QNetworkReply::finished, this, [this, reply, serverUrl, host]() {
             m_httpProbeReplies.remove(reply);
@@ -231,13 +231,14 @@ void DiscoveryController::pumpHttpProbeQueue()
             reply->deleteLater();
             m_inFlightHttpProbes = qMax(0, m_inFlightHttpProbes - 1);
             m_enqueuedHttpProbeTargets.remove(host);
-            Diagnostics::logEvent(QStringLiteral("network"), QStringLiteral("discovery_probe_end"), {{QStringLiteral("host"), host}, {QStringLiteral("inFlight"), m_inFlightHttpProbes}});
+            Diagnostics::logEvent(QStringLiteral("network"), QStringLiteral("discovery_probe_end"),
+                { { QStringLiteral("host"), host }, { QStringLiteral("inFlight"), m_inFlightHttpProbes } });
             pumpHttpProbeQueue();
         });
     }
 }
 
-void DiscoveryController::handleHttpProbeResult(const QString &serverUrl, const QByteArray &payload)
+void DiscoveryController::handleHttpProbeResult(const QString& serverUrl, const QByteArray& payload)
 {
     const QJsonDocument document = QJsonDocument::fromJson(payload);
     if (!document.isObject())

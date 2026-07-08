@@ -8,12 +8,17 @@ Rectangle {
     required property var overlay
     readonly property real uiScale: overlay ? overlay.uiScale : 1
     readonly property string segmentType: overlay && overlay.hasPlayer ? overlay.player.activeSegmentType : ""
-    readonly property string label: segmentType === "Intro" ? "Skip Intro"
-                                  : segmentType === "Outro" ? "Skip Outro"
-                                  : segmentType === "Recap" ? "Skip Recap"
-                                  : segmentType === "Preview" ? "Skip Preview"
-                                  : segmentType.length > 0 ? "Skip " + segmentType
-                                  : ""
+    readonly property string label: segmentType === "Intro" ? "Skip Intro" : segmentType === "Outro" ? "Skip Outro" :
+                                                                                                       segmentType
+                                                                                                       === "Recap"
+                                                                                                       ? "Skip Recap" :
+                                                                                                         segmentType
+                                                                                                         === "Preview"
+                                                                                                         ? "Skip Preview" :
+                                                                                                           segmentType.length
+                                                                                                           > 0 ? "Skip "
+                                                                                                                 + segmentType :
+                                                                                                                 ""
 
     function dp(n) {
         return Math.round(n * uiScale)
@@ -33,7 +38,12 @@ Rectangle {
     opacity: visible ? 1 : 0
     z: 30
 
-    Behavior on opacity { NumberAnimation { duration: 200; easing.type: Easing.OutCubic } }
+    Behavior on opacity {
+        NumberAnimation {
+            duration: 200
+            easing.type: Easing.OutCubic
+        }
+    }
 
     RowLayout {
         anchors.fill: parent
@@ -68,6 +78,7 @@ Rectangle {
 
     MouseArea {
         anchors.fill: parent
-        onClicked: if (overlay.hasPlayer) overlay.player.skipActiveSegment()
+        onClicked: if (overlay.hasPlayer)
+                       overlay.player.skipActiveSegment()
     }
 }

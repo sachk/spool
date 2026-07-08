@@ -3,8 +3,8 @@ import QtQuick
 ListView {
     id: root
 
-    signal edgeUp()
-    signal edgeDown()
+    signal edgeUp
+    signal edgeDown
     signal accepted(int index)
 
     focus: true
@@ -17,12 +17,18 @@ ListView {
     function handleKey(key) {
         clampIndex()
         if (key === Qt.Key_Up) {
-            if (currentIndex <= 0) { edgeUp(); return true }
+            if (currentIndex <= 0) {
+                edgeUp()
+                return true
+            }
             --currentIndex
             return true
         }
         if (key === Qt.Key_Down) {
-            if (currentIndex >= count - 1) { edgeDown(); return true }
+            if (currentIndex >= count - 1) {
+                edgeDown()
+                return true
+            }
             ++currentIndex
             return true
         }

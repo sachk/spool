@@ -6,13 +6,11 @@
 
 namespace JellyfinNative {
 
-class ArtworkImageProvider final : public QQuickAsyncImageProvider
-{
+class ArtworkImageProvider final : public QQuickAsyncImageProvider {
 public:
     explicit ArtworkImageProvider(ArtworkService *service);
 
-    QQuickImageResponse *requestImageResponse(const QString &id,
-                                              const QSize &requestedSize) override;
+    QQuickImageResponse *requestImageResponse(const QString& id, const QSize& requestedSize) override;
 
 private:
     ArtworkService *m_service = nullptr;

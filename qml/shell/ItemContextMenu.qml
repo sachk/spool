@@ -17,11 +17,12 @@ FocusScope {
     readonly property int windowWidth: root.Window.window ? root.Window.window.width : 1920
     readonly property int menuEdgeMargin: Math.max(12, Metrics.gap(windowWidth))
     readonly property int menuRowHeight: Math.max(46, Metrics.controlHeight(windowWidth))
-    readonly property int menuPanelWidth: Math.min(windowWidth - menuEdgeMargin * 2,
-                                                   Math.max(320, Math.min(392, Math.round(windowWidth * 0.22))))
-    readonly property int menuPanelHeight: menuOptions.length <= 0 ? 0
-                                                                  : menuOptions.length * menuRowHeight
-                                                                    + (menuOptions.length - 1) * 4 + 16
+    readonly property int menuPanelWidth: Math.min(windowWidth - menuEdgeMargin * 2, Math.max(320, Math.min(392,
+                                                                                                            Math.round(
+                                                                                                                windowWidth
+                                                                                                                * 0.22))))
+    readonly property int menuPanelHeight: menuOptions.length <= 0 ? 0 : menuOptions.length * menuRowHeight + (
+                                                                         menuOptions.length - 1) * 4 + 16
     readonly property string itemId: item && item.movieId ? String(item.movieId) : ""
     readonly property string itemType: item && item.itemType ? String(item.itemType) : ""
     readonly property bool episodeOrSeason: itemType === "Episode" || itemType === "Season"
@@ -32,8 +33,8 @@ FocusScope {
     readonly property string currentViewKind: appController ? String(appController.currentViewKind || "") : ""
     readonly property bool inPlaylist: currentViewKind === "playlist"
     readonly property bool inCollection: currentViewKind === "boxset" || currentViewKind === "collection"
-    readonly property bool collectionEligible: actionable
-                                               && (itemType === "Movie" || itemType === "Series" || itemType === "Episode")
+    readonly property bool collectionEligible: actionable && (itemType === "Movie" || itemType === "Series" || itemType
+                                                              === "Episode")
     readonly property bool canManagePlaylists: appController ? appController.currentUserCanManagePlaylists : false
     readonly property bool canManageCollections: appController ? appController.currentUserCanManageCollections : false
     readonly property bool canRenameItem: appController ? appController.currentUserCanRenameItems : false
@@ -90,47 +91,117 @@ FocusScope {
     function rebuildMenu() {
         const options = []
         if (episodeOrSeason && item.seriesId)
-            options.push({ action: "series", icon: "live_tv", label: "Go to series", checked: false })
-        if ((itemType === "Episode" && item.seriesId && item.seasonId)
-                || (itemType === "Season" && item.seriesId && itemId))
-            options.push({ action: "season", icon: "video_library", label: "Go to season", checked: false })
+            options.push({
+                             action: "series",
+                             icon: "live_tv",
+                             label: "Go to series",
+                             checked: false
+                         })
+        if ((itemType === "Episode" && item.seriesId && item.seasonId) || (itemType === "Season" && item.seriesId
+                                                                           && itemId))
+            options.push({
+                             action: "season",
+                             icon: "video_library",
+                             label: "Go to season",
+                             checked: false
+                         })
         if (actionable) {
             if (queueable) {
-                options.push({ action: "playNext", icon: "playlist_play", label: "Play next", checked: false })
-                options.push({ action: "addQueue", icon: "queue_music", label: "Add to queue", checked: false })
+                options.push({
+                                 action: "playNext",
+                                 icon: "playlist_play",
+                                 label: "Play next",
+                                 checked: false
+                             })
+                options.push({
+                                 action: "addQueue",
+                                 icon: "queue_music",
+                                 label: "Add to queue",
+                                 checked: false
+                             })
             }
             options.push({
-                action: "played",
-                icon: "check_circle",
-                label: playedState ? "Mark unwatched" : "Mark watched",
-                checked: playedState
-            })
+                             action: "played",
+                             icon: "check_circle",
+                             label: playedState ? "Mark unwatched" : "Mark watched",
+                             checked: playedState
+                         })
             if (partialEpisode)
-                options.push({ action: "clear", icon: "replay", label: "Clear progress", checked: false })
+                options.push({
+                                 action: "clear",
+                                 icon: "replay",
+                                 label: "Clear progress",
+                                 checked: false
+                             })
             options.push({
-                action: "favorite",
-                icon: favoriteState ? "favorite" : "favorite_border",
-                label: favoriteState ? "Remove favourite" : "Add favourite",
-                checked: favoriteState
-            })
+                             action: "favorite",
+                             icon: favoriteState ? "favorite" : "favorite_border",
+                             label: favoriteState ? "Remove favourite" : "Add favourite",
+                             checked: favoriteState
+                         })
             if (canManagePlaylists && queueable)
-                options.push({ action: "playlist", icon: "playlist_add", label: "Add to playlist", checked: false })
+                options.push({
+                                 action: "playlist",
+                                 icon: "playlist_add",
+                                 label: "Add to playlist",
+                                 checked: false
+                             })
             if (canManageCollections && collectionEligible)
-                options.push({ action: "collection", icon: "library_add", label: "Add to collection", checked: false })
+                options.push({
+                                 action: "collection",
+                                 icon: "library_add",
+                                 label: "Add to collection",
+                                 checked: false
+                             })
             if (inPlaylist && item.playlistItemId) {
-                options.push({ action: "moveUp", icon: "keyboard_arrow_up", label: "Move up", checked: false })
-                options.push({ action: "moveDown", icon: "keyboard_arrow_down", label: "Move down", checked: false })
-                options.push({ action: "removeParent", icon: "remove_circle", label: "Remove from playlist", checked: false })
+                options.push({
+                                 action: "moveUp",
+                                 icon: "keyboard_arrow_up",
+                                 label: "Move up",
+                                 checked: false
+                             })
+                options.push({
+                                 action: "moveDown",
+                                 icon: "keyboard_arrow_down",
+                                 label: "Move down",
+                                 checked: false
+                             })
+                options.push({
+                                 action: "removeParent",
+                                 icon: "remove_circle",
+                                 label: "Remove from playlist",
+                                 checked: false
+                             })
             } else if (inCollection && canManageCollections) {
-                options.push({ action: "removeParent", icon: "remove_circle", label: "Remove from collection", checked: false })
+                options.push({
+                                 action: "removeParent",
+                                 icon: "remove_circle",
+                                 label: "Remove from collection",
+                                 checked: false
+                             })
             }
             if ((itemType === "Playlist" && canManagePlaylists) || canRenameItem)
-                options.push({ action: "rename", icon: "drive_file_rename_outline", label: "Rename", checked: false })
+                options.push({
+                                 action: "rename",
+                                 icon: "drive_file_rename_outline",
+                                 label: "Rename",
+                                 checked: false
+                             })
             if (canDeleteItem)
-                options.push({ action: "delete", icon: "delete", label: "Delete", checked: false })
+                options.push({
+                                 action: "delete",
+                                 icon: "delete",
+                                 label: "Delete",
+                                 checked: false
+                             })
         }
         if (item && (item.movieId || item.id || item.title || item.displayTitle || item.seriesName))
-            options.push({ action: "info", icon: "info", label: "Media info", checked: false })
+            options.push({
+                             action: "info",
+                             icon: "info",
+                             label: "Media info",
+                             checked: false
+                         })
         menuOptions = options
         return menuOptions.length > 0
     }
@@ -160,10 +231,13 @@ FocusScope {
         if (!rebuildMenu())
             return false
         menuIndex = 0
-        InputKeys.focus(root)
         menuPopup.open()
+        InputKeys.focus(menuList)
         positionMenu()
-        Qt.callLater(positionMenu)
+        Qt.callLater(function () {
+            InputKeys.focus(menuList)
+            positionMenu()
+        })
         return true
     }
 
@@ -184,9 +258,9 @@ FocusScope {
         if (action === "series") {
             openSeriesRequested(String(item.seriesId || ""), String(item.seriesName || ""))
         } else if (action === "season") {
-            openSeasonRequested(String(item.seriesId || ""),
-                                itemType === "Season" ? itemId : String(item.seasonId || ""),
-                                itemType === "Season" ? String(item.title || seasonTitle()) : seasonTitle())
+            openSeasonRequested(String(item.seriesId || ""), itemType === "Season" ? itemId : String(item.seasonId
+                                                                                                     || ""), itemType
+                                === "Season" ? String(item.title || seasonTitle()) : seasonTitle())
         } else if (action === "playNext") {
             playNextRequested(item)
         } else if (action === "addQueue") {
@@ -231,82 +305,9 @@ FocusScope {
             closeMenu()
             return true
         }
-        if (event.key === Qt.Key_Up) {
-            menuIndex = Math.max(0, menuIndex - 1)
+        if (menuList.handleKey(event.key))
             return true
-        }
-        if (event.key === Qt.Key_Down) {
-            menuIndex = Math.min(menuOptions.length - 1, menuIndex + 1)
-            return true
-        }
-        if (InputKeys.isAccept(event.key)) {
-            activateMenuIndex(menuIndex)
-            return true
-        }
         return true
-    }
-
-    component MenuRow: Item {
-        id: rowRoot
-        property int optionIndex: 0
-        property string iconName: "info"
-        property string label: ""
-        property bool checked: false
-
-        width: root.menuPanelWidth - 16
-        height: root.menuRowHeight
-
-        Rectangle {
-            anchors.fill: parent
-            radius: Theme.radiusMedium
-            color: root.menuIndex === rowRoot.optionIndex ? Theme.focusedFill
-                                                          : rowRoot.checked ? Theme.accentPanel : "transparent"
-            border.width: root.menuIndex === rowRoot.optionIndex ? 1 : 0
-            border.color: Theme.accent
-            antialiasing: true
-        }
-
-        RowLayout {
-            anchors.fill: parent
-            anchors.leftMargin: 12
-            anchors.rightMargin: 12
-            spacing: 12
-
-            MaterialIcon {
-                Layout.preferredWidth: 28
-                Layout.preferredHeight: 28
-                name: rowRoot.iconName
-                iconSize: 22
-                iconColor: rowRoot.checked ? Theme.accent : Theme.textSecondary
-            }
-
-            AppText {
-                Layout.fillWidth: true
-                text: rowRoot.label
-                color: Theme.textPrimary
-                font.pixelSize: Metrics.bodyPx(root.windowWidth)
-                font.weight: root.menuIndex === rowRoot.optionIndex ? Font.DemiBold : Font.Medium
-                elide: Text.ElideRight
-                maximumLineCount: 1
-                verticalAlignment: Text.AlignVCenter
-            }
-
-            MaterialIcon {
-                Layout.preferredWidth: 24
-                Layout.preferredHeight: 24
-                visible: rowRoot.checked
-                name: "done"
-                iconSize: 21
-                iconColor: Theme.accent
-            }
-        }
-
-        MouseArea {
-            anchors.fill: parent
-            hoverEnabled: true
-            onEntered: root.menuIndex = rowRoot.optionIndex
-            onClicked: root.activateMenuIndex(rowRoot.optionIndex)
-        }
     }
 
     QQC.Popup {
@@ -334,30 +335,38 @@ FocusScope {
             clip: true
             focus: true
 
-            Keys.onPressed: (event) => {
-                if (root.handlePressed(event))
-                    event.accepted = true
-            }
-            Keys.onReleased: (event) => {
-                if (root.handleReleased(event))
-                    event.accepted = true
-            }
+            Keys.onPressed: event => {
+                                if (root.handlePressed(event))
+                                event.accepted = true
+                            }
+            Keys.onReleased: event => {
+                                 if (root.handleReleased(event))
+                                 event.accepted = true
+                             }
 
-            Column {
+            MenuListView {
+                id: menuList
                 anchors.fill: parent
                 anchors.margins: 8
                 spacing: 4
+                model: root.menuOptions
+                currentIndex: root.menuIndex
+                onCurrentIndexChanged: root.menuIndex = currentIndex
+                onDismissed: root.closeMenu()
+                onAccepted: index => root.activateMenuIndex(index)
 
-                Repeater {
-                    model: root.menuOptions.length
-                    delegate: MenuRow {
-                        required property int index
-                        readonly property var option: root.menuOptions[index] || ({})
-                        optionIndex: index
-                        iconName: option.icon || "more_horiz"
-                        label: option.label || ""
-                        checked: Boolean(option.checked)
-                    }
+                delegate: MenuRow {
+                    required property int index
+                    required property var modelData
+                    width: menuList.width
+                    label: modelData.label || ""
+                    iconName: modelData.icon || "more_horiz"
+                    checked: Boolean(modelData.checked)
+                    highlighted: ListView.isCurrentItem
+                    metricsWidth: root.windowWidth
+                    rowHeight: root.menuRowHeight
+                    onHovered: menuList.currentIndex = index
+                    onActivated: root.activateMenuIndex(index)
                 }
             }
         }

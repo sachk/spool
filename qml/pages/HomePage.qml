@@ -7,30 +7,30 @@ FocusScope {
     id: root
 
     property var shell
-    readonly property var resumeModel: appController ? appController.resumeItems : null
-    readonly property var nextUpModel: appController ? appController.nextUpItems : null
-    readonly property var libraryModel: appController ? appController.libraries : null
-    property var latestRows: appController ? appController.latestLibraryRows : []
+    readonly property var resumeModel: homeController ? homeController.resumeItems : null
+    readonly property var nextUpModel: homeController ? homeController.nextUpItems : null
+    readonly property var librariesModel: libraryModel
+    property var latestRows: homeController ? homeController.latestLibraryRows : []
     property int currentSection: 0
 
     function modelFor(source, rowIndex) {
         if (source === "libraries")
-            return libraryModel
+            return librariesModel
         if (source === "resumeItems")
             return resumeModel
         if (source === "nextUpItems")
             return nextUpModel
         if (source === "latestLibrary")
-            return appController ? appController.latestLibraryItems(rowIndex) : null
+            return homeController ? homeController.latestLibraryItems(rowIndex) : null
         return null
     }
 
     focus: true
 
     Connections {
-        target: appController
+        target: homeController
         function onLatestLibraryRowsChanged() {
-            root.latestRows = appController ? appController.latestLibraryRows : []
+            root.latestRows = homeController ? homeController.latestLibraryRows : []
             root.scheduleFocusRepair()
         }
     }
@@ -66,7 +66,7 @@ FocusScope {
         if (!model || typeof model.rowCount !== "function" || index < 0 || index >= model.rowCount())
             return
         if (source === "resumeItems") {
-            appController.playResumeItem(index)
+            appController.playFromModel(model, index)
             return
         }
         if (source === "nextUpItems") {
@@ -102,9 +102,12 @@ FocusScope {
 
     function visibleSections() {
         const rows = []
-        if (librariesRow.rowVisible) rows.push(librariesRow)
-        if (resumeRow.rowVisible) rows.push(resumeRow)
-        if (nextUpRow.rowVisible) rows.push(nextUpRow)
+        if (librariesRow.rowVisible)
+            rows.push(librariesRow)
+        if (resumeRow.rowVisible)
+            rows.push(resumeRow)
+        if (nextUpRow.rowVisible)
+            rows.push(nextUpRow)
         for (let i = 0; i < latestRepeater.count; ++i) {
             const row = latestRepeater.itemAt(i)
             if (row && row.rowVisible)
@@ -194,7 +197,8 @@ FocusScope {
     Component.onCompleted: {
         scheduleFocusRepair()
     }
-    onActiveFocusChanged: if (activeFocus) focusCurrentSection()
+    onActiveFocusChanged: if (activeFocus)
+                              focusCurrentSection()
 
     Flickable {
         id: scroller
@@ -208,7 +212,9 @@ FocusScope {
         maximumFlickVelocity: 7200
         flickDeceleration: 6200
 
-        FastWheelHandler { flickable: scroller }
+        FastWheelHandler {
+            flickable: scroller
+        }
 
         Behavior on contentY {
             enabled: !Theme.reducedMotion
@@ -243,8 +249,8 @@ FocusScope {
                 cardWidth: Metrics.homeLandscapeWidth(root.width)
                 cardGap: Metrics.gap(root.width)
                 onRowVisibleChanged: root.scheduleFocusRepair()
-                onMoveVertical: (direction) => root.focusRelative(librariesRow, direction)
-                onActivated: (index) => root.activateAt("libraries", index, -1)
+                onMoveVertical: direction => root.focusRelative(librariesRow, direction)
+                onActivated: index => root.activateAt("libraries", index, -1)
             }
 
             HomeHorizontalRow {
@@ -260,11 +266,11 @@ FocusScope {
                 cardWidth: Metrics.homeLandscapeWidth(root.width)
                 cardGap: Metrics.gap(root.width)
                 onRowVisibleChanged: root.scheduleFocusRepair()
-                onMoveVertical: (direction) => root.focusRelative(resumeRow, direction)
-                onActivated: (index) => root.activateAt("resumeItems", index, -1)
+                onMoveVertical: direction => root.focusRelative(resumeRow, direction)
+                onActivated: index => root.activateAt("resumeItems", index, -1)
                 onFavoriteToggled: (index, favorite) => root.setFavoriteAt("resumeItems", -1, index, favorite)
                 onPlayedToggled: (index, played) => root.setPlayedAt("resumeItems", -1, index, played)
-                onMediaInfoRequested: (index) => root.openMediaInfoAt("resumeItems", -1, index)
+                onMediaInfoRequested: index => root.openMediaInfoAt("resumeItems", -1, index)
             }
 
             HomeHorizontalRow {
@@ -280,11 +286,11 @@ FocusScope {
                 cardWidth: Metrics.homeLandscapeWidth(root.width)
                 cardGap: Metrics.gap(root.width)
                 onRowVisibleChanged: root.scheduleFocusRepair()
-                onMoveVertical: (direction) => root.focusRelative(nextUpRow, direction)
-                onActivated: (index) => root.activateAt("nextUpItems", index, -1)
+                onMoveVertical: direction => root.focusRelative(nextUpRow, direction)
+                onActivated: index => root.activateAt("nextUpItems", index, -1)
                 onFavoriteToggled: (index, favorite) => root.setFavoriteAt("nextUpItems", -1, index, favorite)
                 onPlayedToggled: (index, played) => root.setPlayedAt("nextUpItems", -1, index, played)
-                onMediaInfoRequested: (index) => root.openMediaInfoAt("nextUpItems", -1, index)
+                onMediaInfoRequested: index => root.openMediaInfoAt("nextUpItems", -1, index)
             }
 
             Repeater {
@@ -297,27 +303,28 @@ FocusScope {
 
                     required property int index
                     required property var modelData
-                    readonly property int sourceRowIndex: Number(modelData && modelData.rowIndex !== undefined ? modelData.rowIndex : index)
+                    readonly property int sourceRowIndex: Number(modelData && modelData.rowIndex !== undefined
+                                                                 ? modelData.rowIndex : index)
 
                     width: contentColumn.width
                     height: rowVisible ? root.rowHeight(rowKind) : 0
                     visible: rowVisible
-                    title: modelData && modelData.title ? modelData.title
-                                                         : "Recently Added"
-                    rowModel: appController ? appController.latestLibraryItems(sourceRowIndex) : null
+                    title: modelData && modelData.title ? modelData.title : "Recently Added"
+                    rowModel: homeController ? homeController.latestLibraryItems(sourceRowIndex) : null
                     shell: root.shell
                     rowKind: modelData && modelData.kind ? modelData.kind : "poster"
                     useSeriesPoster: true
-                    cardWidth: rowKind === "poster"
-                               ? Metrics.homePosterWidth(root.width)
-                               : Metrics.homeLandscapeWidth(root.width)
+                    cardWidth: rowKind === "poster" ? Metrics.homePosterWidth(root.width) : Metrics.homeLandscapeWidth(
+                                                          root.width)
                     cardGap: Metrics.gap(root.width)
                     onRowVisibleChanged: root.scheduleFocusRepair()
-                    onMoveVertical: (direction) => root.focusRelative(latestRow, direction)
-                    onActivated: (itemIndex) => root.activateAt("latestLibrary", itemIndex, sourceRowIndex)
-                    onFavoriteToggled: (itemIndex, favorite) => root.setFavoriteAt("latestLibrary", sourceRowIndex, itemIndex, favorite)
-                    onPlayedToggled: (itemIndex, played) => root.setPlayedAt("latestLibrary", sourceRowIndex, itemIndex, played)
-                    onMediaInfoRequested: (itemIndex) => root.openMediaInfoAt("latestLibrary", sourceRowIndex, itemIndex)
+                    onMoveVertical: direction => root.focusRelative(latestRow, direction)
+                    onActivated: itemIndex => root.activateAt("latestLibrary", itemIndex, sourceRowIndex)
+                    onFavoriteToggled: (itemIndex, favorite) => root.setFavoriteAt("latestLibrary", sourceRowIndex,
+                                                                                   itemIndex, favorite)
+                    onPlayedToggled: (itemIndex, played) => root.setPlayedAt("latestLibrary", sourceRowIndex, itemIndex,
+                                                                             played)
+                    onMediaInfoRequested: itemIndex => root.openMediaInfoAt("latestLibrary", sourceRowIndex, itemIndex)
                 }
             }
         }

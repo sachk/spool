@@ -11,103 +11,102 @@ namespace JellyfinNative {
 
 namespace {
 
-constexpr qint64 kTicksPerSecond = 10000000;
+    constexpr qint64 kTicksPerSecond = 10000000;
 
-
-QString browseKindKey(BrowseKind kind)
-{
-    switch (kind) {
-    case BrowseKind::Library:
-        return QStringLiteral("library");
-    case BrowseKind::FolderChildren:
-        return QStringLiteral("folderChildren");
-    case BrowseKind::Person:
-        return QStringLiteral("person");
-    case BrowseKind::Genre:
-        return QStringLiteral("genre");
-    case BrowseKind::Studio:
-        return QStringLiteral("studio");
-    case BrowseKind::SeriesSeasons:
-        return QStringLiteral("seriesSeasons");
-    case BrowseKind::SeasonEpisodes:
-        return QStringLiteral("seasonEpisodes");
-    case BrowseKind::Playlist:
-        return QStringLiteral("playlist");
-    case BrowseKind::BoxSet:
-        return QStringLiteral("boxset");
-    case BrowseKind::ArtistAlbums:
-        return QStringLiteral("artistAlbums");
-    case BrowseKind::None:
-        break;
+    QString browseKindKey(BrowseKind kind)
+    {
+        switch (kind) {
+        case BrowseKind::Library:
+            return QStringLiteral("library");
+        case BrowseKind::FolderChildren:
+            return QStringLiteral("folderChildren");
+        case BrowseKind::Person:
+            return QStringLiteral("person");
+        case BrowseKind::Genre:
+            return QStringLiteral("genre");
+        case BrowseKind::Studio:
+            return QStringLiteral("studio");
+        case BrowseKind::SeriesSeasons:
+            return QStringLiteral("seriesSeasons");
+        case BrowseKind::SeasonEpisodes:
+            return QStringLiteral("seasonEpisodes");
+        case BrowseKind::Playlist:
+            return QStringLiteral("playlist");
+        case BrowseKind::BoxSet:
+            return QStringLiteral("boxset");
+        case BrowseKind::ArtistAlbums:
+            return QStringLiteral("artistAlbums");
+        case BrowseKind::None:
+            break;
+        }
+        return QStringLiteral("none");
     }
-    return QStringLiteral("none");
-}
 
-BrowseKind browseKindFromKey(const QString &key)
-{
-    if (key == QStringLiteral("library"))
-        return BrowseKind::Library;
-    if (key == QStringLiteral("folderChildren"))
-        return BrowseKind::FolderChildren;
-    if (key == QStringLiteral("person"))
-        return BrowseKind::Person;
-    if (key == QStringLiteral("genre"))
-        return BrowseKind::Genre;
-    if (key == QStringLiteral("studio"))
-        return BrowseKind::Studio;
-    if (key == QStringLiteral("seriesSeasons"))
-        return BrowseKind::SeriesSeasons;
-    if (key == QStringLiteral("seasonEpisodes"))
-        return BrowseKind::SeasonEpisodes;
-    if (key == QStringLiteral("playlist"))
-        return BrowseKind::Playlist;
-    if (key == QStringLiteral("boxset"))
-        return BrowseKind::BoxSet;
-    if (key == QStringLiteral("artistAlbums"))
-        return BrowseKind::ArtistAlbums;
-    return BrowseKind::None;
-}
-
-QString queryValueSignature(const QVariant &value)
-{
-    if (value.typeId() == QMetaType::QStringList) {
-        QStringList items = value.toStringList();
-        items.sort();
-        return items.join(QLatin1Char(','));
+    BrowseKind browseKindFromKey(const QString& key)
+    {
+        if (key == QStringLiteral("library"))
+            return BrowseKind::Library;
+        if (key == QStringLiteral("folderChildren"))
+            return BrowseKind::FolderChildren;
+        if (key == QStringLiteral("person"))
+            return BrowseKind::Person;
+        if (key == QStringLiteral("genre"))
+            return BrowseKind::Genre;
+        if (key == QStringLiteral("studio"))
+            return BrowseKind::Studio;
+        if (key == QStringLiteral("seriesSeasons"))
+            return BrowseKind::SeriesSeasons;
+        if (key == QStringLiteral("seasonEpisodes"))
+            return BrowseKind::SeasonEpisodes;
+        if (key == QStringLiteral("playlist"))
+            return BrowseKind::Playlist;
+        if (key == QStringLiteral("boxset"))
+            return BrowseKind::BoxSet;
+        if (key == QStringLiteral("artistAlbums"))
+            return BrowseKind::ArtistAlbums;
+        return BrowseKind::None;
     }
-    if (value.typeId() == QMetaType::QVariantList) {
-        QStringList items;
-        const QVariantList values = value.toList();
-        items.reserve(values.size());
-        for (const QVariant &item : values)
-            items.push_back(item.toString());
-        items.sort();
-        return items.join(QLatin1Char(','));
-    }
-    if (value.typeId() == QMetaType::Bool)
-        return value.toBool() ? QStringLiteral("true") : QStringLiteral("false");
-    return value.toString();
-}
 
-QString querySignature(const QVariantMap &query)
-{
-    QStringList keys = query.keys();
-    keys.sort();
-
-    QStringList parts;
-    parts.reserve(keys.size());
-    for (const QString &key : keys) {
-        if (key.isEmpty())
-            continue;
-        const QVariant value = query.value(key);
-        if (!value.isValid() || value.isNull())
-            continue;
-        const QString encodedKey = QString::fromLatin1(QUrl::toPercentEncoding(key));
-        const QString encodedValue = QString::fromLatin1(QUrl::toPercentEncoding(queryValueSignature(value)));
-        parts.push_back(QStringLiteral("%1=%2").arg(encodedKey, encodedValue));
+    QString queryValueSignature(const QVariant& value)
+    {
+        if (value.typeId() == QMetaType::QStringList) {
+            QStringList items = value.toStringList();
+            items.sort();
+            return items.join(QLatin1Char(','));
+        }
+        if (value.typeId() == QMetaType::QVariantList) {
+            QStringList items;
+            const QVariantList values = value.toList();
+            items.reserve(values.size());
+            for (const QVariant& item : values)
+                items.push_back(item.toString());
+            items.sort();
+            return items.join(QLatin1Char(','));
+        }
+        if (value.typeId() == QMetaType::Bool)
+            return value.toBool() ? QStringLiteral("true") : QStringLiteral("false");
+        return value.toString();
     }
-    return parts.join(QLatin1Char('&'));
-}
+
+    QString querySignature(const QVariantMap& query)
+    {
+        QStringList keys = query.keys();
+        keys.sort();
+
+        QStringList parts;
+        parts.reserve(keys.size());
+        for (const QString& key : keys) {
+            if (key.isEmpty())
+                continue;
+            const QVariant value = query.value(key);
+            if (!value.isValid() || value.isNull())
+                continue;
+            const QString encodedKey = QString::fromLatin1(QUrl::toPercentEncoding(key));
+            const QString encodedValue = QString::fromLatin1(QUrl::toPercentEncoding(queryValueSignature(value)));
+            parts.push_back(QStringLiteral("%1=%2").arg(encodedKey, encodedValue));
+        }
+        return parts.join(QLatin1Char('&'));
+    }
 
 }
 
@@ -230,7 +229,7 @@ QString BrowseDescriptor::kindKey() const
     return browseKindKey(kind);
 }
 
-QString BrowseDescriptor::cacheKey(const QVariantMap &query) const
+QString BrowseDescriptor::cacheKey(const QVariantMap& query) const
 {
     QString key = kindKey();
     if (!seriesId.isEmpty())
@@ -260,7 +259,7 @@ QVariantMap BrowseDescriptor::toVariantMap() const
     return map;
 }
 
-BrowseDescriptor BrowseDescriptor::fromVariantMap(const QVariantMap &map)
+BrowseDescriptor BrowseDescriptor::fromVariantMap(const QVariantMap& map)
 {
     BrowseDescriptor descriptor;
     descriptor.kind = browseKindFromKey(map.value(QStringLiteral("kind")).toString());
@@ -272,33 +271,21 @@ BrowseDescriptor BrowseDescriptor::fromVariantMap(const QVariantMap &map)
     return descriptor;
 }
 
-QVariantMap toVariantMap(const BrowseDescriptor &descriptor)
-{
-    return descriptor.toVariantMap();
-}
-
-BrowseDescriptor browseDescriptorFromVariantMap(const QVariantMap &map)
-{
-    return BrowseDescriptor::fromVariantMap(map);
-}
-
-
-
-QString exceptionMessage(const std::exception_ptr &exception)
+QString exceptionMessage(const std::exception_ptr& exception)
 {
     if (!exception)
         return QStringLiteral("Unknown error");
 
     try {
         std::rethrow_exception(exception);
-    } catch (const std::exception &error) {
+    } catch (const std::exception& error) {
         return QString::fromUtf8(error.what());
     } catch (...) {
         return QStringLiteral("Unknown error");
     }
 }
 
-QString normalizedAudioOutputMode(const QString &mode)
+QString normalizedAudioOutputMode(const QString& mode)
 {
     return (mode == QStringLiteral("starfish") || mode == QStringLiteral("starfish-pcm"))
         ? QStringLiteral("starfish-pcm")
@@ -307,8 +294,8 @@ QString normalizedAudioOutputMode(const QString &mode)
 
 QString sanitizedDiagnosticUrl(QString url, qsizetype maxLength)
 {
-    static const QRegularExpression secretQuery(QStringLiteral("([?&](?:api_key|access_token|token)=)[^&]+"),
-                                                QRegularExpression::CaseInsensitiveOption);
+    static const QRegularExpression secretQuery(
+        QStringLiteral("([?&](?:api_key|access_token|token)=)[^&]+"), QRegularExpression::CaseInsensitiveOption);
     url.replace(secretQuery, QStringLiteral("\\1<redacted>"));
     return maxLength >= 0 ? url.left(maxLength) : url;
 }
@@ -321,9 +308,7 @@ bool isMeaningfulResumePosition(qint64 resumeTicks, qint64 runtimeTicks)
         return true;
 
     const qint64 remainingTicks = runtimeTicks - resumeTicks;
-    return resumeTicks < runtimeTicks &&
-           resumeTicks * 100 < runtimeTicks * 95 &&
-           remainingTicks > 30 * kTicksPerSecond;
+    return resumeTicks < runtimeTicks && resumeTicks * 100 < runtimeTicks * 95 && remainingTicks > 30 * kTicksPerSecond;
 }
 
 qint64 normalizedResumeTicks(qint64 resumeTicks, qint64 runtimeTicks)

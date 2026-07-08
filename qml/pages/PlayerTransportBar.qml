@@ -17,7 +17,8 @@ RowLayout {
         model: overlay.actions.length
         delegate: Rectangle {
             required property int index
-            readonly property bool focused: overlay.isControlsActive() && overlay.row === "actions" && overlay.actionIndex === index && !overlay.isAudioSyncOpen()
+            readonly property bool focused: overlay.isControlsActive() && overlay.row === "actions"
+                                            && overlay.actionIndex === index && !overlay.isAudioSyncOpen()
             readonly property string actionValue: overlay.actions[index].value
             Layout.preferredWidth: overlay.actionTargetSize
             Layout.preferredHeight: overlay.actionTargetSize
@@ -45,7 +46,9 @@ RowLayout {
         }
     }
 
-    Item { Layout.fillWidth: true }
+    Item {
+        Layout.fillWidth: true
+    }
 
     RowLayout {
         visible: overlay.desktopControlsAvailable
@@ -95,7 +98,8 @@ RowLayout {
                 border.color: overlay.accent
             }
 
-            onMoved: if (overlay.hasPlayer) overlay.player.setVolume(Math.round(value))
+            onMoved: if (overlay.hasPlayer)
+                         overlay.player.setVolume(Math.round(value))
         }
 
         Text {

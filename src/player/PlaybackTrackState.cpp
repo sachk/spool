@@ -44,8 +44,8 @@ int PlaybackTrackState::currentChapter() const
 
 void PlaybackTrackState::resetForPlayback()
 {
-    m_subtitleTracks = {QStringLiteral("Off")};
-    m_subtitleIds = {-1};
+    m_subtitleTracks = { QStringLiteral("Off") };
+    m_subtitleIds = { -1 };
     m_selectedSubtitleIndex = 0;
     m_audioTracks.clear();
     m_audioIds.clear();
@@ -60,7 +60,7 @@ bool PlaybackTrackState::clearChapters()
     return changed;
 }
 
-void PlaybackTrackState::applyParsedTracks(const ParsedPlaybackTracks &tracks)
+void PlaybackTrackState::applyParsedTracks(const ParsedPlaybackTracks& tracks)
 {
     m_subtitleTracks = tracks.subtitleLabels;
     m_subtitleIds = tracks.subtitleIds;
@@ -71,7 +71,7 @@ void PlaybackTrackState::applyParsedTracks(const ParsedPlaybackTracks &tracks)
     m_selectedAudioIndex = tracks.selectedAudioIndex;
 }
 
-void PlaybackTrackState::setChapters(const QVariantList &chapters)
+void PlaybackTrackState::setChapters(const QVariantList& chapters)
 {
     m_chapters = chapters;
 }
@@ -112,24 +112,24 @@ std::optional<int> PlaybackTrackState::cycleAudioTarget() const
     return (m_selectedAudioIndex + 1) % m_audioTracks.size();
 }
 
-std::optional<QByteArray> PlaybackTrackState::subtitleCommand(int index) const
+std::optional<QByteArrayList> PlaybackTrackState::subtitleCommand(int index) const
 {
     if (index < 0 || index >= m_subtitleIds.size())
         return std::nullopt;
 
     const int trackId = m_subtitleIds[index];
-    return QByteArray("no-osd set sid ") +
-           (trackId < 0 ? QByteArray("no") : QByteArray::number(trackId));
+    return QByteArrayList { QByteArrayLiteral("no-osd"), QByteArrayLiteral("set"), QByteArrayLiteral("sid"),
+        trackId < 0 ? QByteArrayLiteral("no") : QByteArray::number(trackId) };
 }
 
-std::optional<QByteArray> PlaybackTrackState::audioCommand(int index) const
+std::optional<QByteArrayList> PlaybackTrackState::audioCommand(int index) const
 {
     if (index < 0 || index >= m_audioIds.size())
         return std::nullopt;
 
     const int trackId = m_audioIds[index];
-    return QByteArray("no-osd set aid ") +
-           (trackId < 0 ? QByteArray("no") : QByteArray::number(trackId));
+    return QByteArrayList { QByteArrayLiteral("no-osd"), QByteArrayLiteral("set"), QByteArrayLiteral("aid"),
+        trackId < 0 ? QByteArrayLiteral("no") : QByteArray::number(trackId) };
 }
 
 void PlaybackTrackState::applySubtitleSelection(int index)

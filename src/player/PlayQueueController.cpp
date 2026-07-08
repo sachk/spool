@@ -7,59 +7,54 @@ namespace JellyfinNative {
 
 namespace {
 
-QString displayTitle(const MovieItem &item)
-{
-    if (item.itemType == QStringLiteral("Episode") && !item.seriesName.isEmpty())
-        return item.seriesName;
-    return item.title;
-}
-
-QString displaySubtitle(const MovieItem &item)
-{
-    if (item.itemType == QStringLiteral("Episode")) {
-        if (!item.subtitle.isEmpty() && !item.title.isEmpty())
-            return QStringLiteral("%1 · %2").arg(item.subtitle, item.title);
-        if (!item.title.isEmpty())
-            return item.title;
+    QString displayTitle(const MovieItem& item)
+    {
+        if (item.itemType == QStringLiteral("Episode") && !item.seriesName.isEmpty())
+            return item.seriesName;
+        return item.title;
     }
-    return item.subtitle;
-}
 
-QVariantMap itemSnapshot(const MovieItem &item)
-{
-    return {
-        {QStringLiteral("movieId"), item.id},
-        {QStringLiteral("playlistItemId"), item.playlistItemId},
-        {QStringLiteral("title"), item.title},
-        {QStringLiteral("displayTitle"), displayTitle(item)},
-        {QStringLiteral("displaySubtitle"), displaySubtitle(item)},
-        {QStringLiteral("itemType"), item.itemType},
-        {QStringLiteral("playable"), item.playable},
-        {QStringLiteral("posterUrl"), item.posterUrl},
-        {QStringLiteral("landscapeCardUrl"), item.landscapeCardUrl},
-    };
-}
+    QString displaySubtitle(const MovieItem& item)
+    {
+        if (item.itemType == QStringLiteral("Episode")) {
+            if (!item.subtitle.isEmpty() && !item.title.isEmpty())
+                return QStringLiteral("%1 · %2").arg(item.subtitle, item.title);
+            if (!item.title.isEmpty())
+                return item.title;
+        }
+        return item.subtitle;
+    }
+
+    QVariantMap itemSnapshot(const MovieItem& item)
+    {
+        return {
+            { QStringLiteral("movieId"), item.id },
+            { QStringLiteral("playlistItemId"), item.playlistItemId },
+            { QStringLiteral("title"), item.title },
+            { QStringLiteral("displayTitle"), displayTitle(item) },
+            { QStringLiteral("displaySubtitle"), displaySubtitle(item) },
+            { QStringLiteral("itemType"), item.itemType },
+            { QStringLiteral("playable"), item.playable },
+            { QStringLiteral("posterUrl"), item.posterUrl },
+            { QStringLiteral("landscapeCardUrl"), item.landscapeCardUrl },
+        };
+    }
 
 } // namespace
 
-PlayQueueController::PlayQueueController(QObject *parent)
-    : QAbstractListModel(parent)
-{
-}
-
-int PlayQueueController::rowCount(const QModelIndex &parent) const
+int PlayQueueController::rowCount(const QModelIndex& parent) const
 {
     if (parent.isValid())
         return 0;
     return static_cast<int>(m_entries.size());
 }
 
-QVariant PlayQueueController::data(const QModelIndex &index, int role) const
+QVariant PlayQueueController::data(const QModelIndex& index, int role) const
 {
     if (!index.isValid() || index.row() < 0 || index.row() >= rowCount())
         return {};
 
-    const MovieItem &item = m_entries[static_cast<size_t>(index.row())].item;
+    const MovieItem& item = m_entries[static_cast<size_t>(index.row())];
     switch (role) {
     case ItemIdRole:
         return item.id;
@@ -87,15 +82,15 @@ QVariant PlayQueueController::data(const QModelIndex &index, int role) const
 QHash<int, QByteArray> PlayQueueController::roleNames() const
 {
     return {
-        {ItemIdRole, "movieId"},
-        {PlaylistItemIdRole, "playlistItemId"},
-        {TitleRole, "title"},
-        {DisplayTitleRole, "displayTitle"},
-        {DisplaySubtitleRole, "displaySubtitle"},
-        {ItemTypeRole, "itemType"},
-        {PlayableRole, "playable"},
-        {PosterUrlRole, "posterUrl"},
-        {LandscapeCardUrlRole, "landscapeCardUrl"},
+        { ItemIdRole, "movieId" },
+        { PlaylistItemIdRole, "playlistItemId" },
+        { TitleRole, "title" },
+        { DisplayTitleRole, "displayTitle" },
+        { DisplaySubtitleRole, "displaySubtitle" },
+        { ItemTypeRole, "itemType" },
+        { PlayableRole, "playable" },
+        { PosterUrlRole, "posterUrl" },
+        { LandscapeCardUrlRole, "landscapeCardUrl" },
     };
 }
 
@@ -131,7 +126,7 @@ MovieItem PlayQueueController::currentItem() const
     const int index = currentIndex();
     if (index < 0 || index >= rowCount())
         return {};
-    return m_entries[static_cast<size_t>(index)].item;
+    return m_entries[static_cast<size_t>(index)];
 }
 
 std::vector<PlaybackQueueItem> PlayQueueController::nowPlayingQueue() const
@@ -141,8 +136,8 @@ std::vector<PlaybackQueueItem> PlayQueueController::nowPlayingQueue() const
     for (int naturalIndex : m_order) {
         if (naturalIndex < 0 || naturalIndex >= rowCount())
             continue;
-        const MovieItem &item = m_entries[static_cast<size_t>(naturalIndex)].item;
-        queue.push_back({item.id, item.playlistItemId});
+        const MovieItem& item = m_entries[static_cast<size_t>(naturalIndex)];
+        queue.push_back({ item.id, item.playlistItemId });
     }
     return queue;
 }
@@ -151,7 +146,7 @@ QVariantMap PlayQueueController::get(int index) const
 {
     if (index < 0 || index >= rowCount())
         return {};
-    return itemSnapshot(m_entries[static_cast<size_t>(index)].item);
+    return itemSnapshot(m_entries[static_cast<size_t>(index)]);
 }
 
 bool PlayQueueController::next()
@@ -227,7 +222,7 @@ void PlayQueueController::removeAt(int index)
     endRemoveRows();
 
     m_order.erase(std::remove(m_order.begin(), m_order.end(), index), m_order.end());
-    for (int &naturalIndex : m_order) {
+    for (int& naturalIndex : m_order) {
         if (naturalIndex > index)
             --naturalIndex;
     }
@@ -240,15 +235,14 @@ void PlayQueueController::removeAt(int index)
     emitQueueStateChanged(previousCurrent);
 }
 
-bool PlayQueueController::playNow(const std::vector<MovieItem> &items,
-                                  int startIndex)
+bool PlayQueueController::playNow(const std::vector<MovieItem>& items, int startIndex)
 {
-    if (startIndex < 0 || startIndex >= static_cast<int>(items.size()) ||
-        !isQueueable(items[static_cast<size_t>(startIndex)])) {
+    if (startIndex < 0 || startIndex >= static_cast<int>(items.size())
+        || !isQueueable(items[static_cast<size_t>(startIndex)])) {
         return false;
     }
 
-    std::vector<Entry> nextEntries;
+    std::vector<MovieItem> nextEntries;
     nextEntries.reserve(items.size());
     int nextCurrent = -1;
     for (int i = 0; i < static_cast<int>(items.size()); ++i) {
@@ -256,7 +250,7 @@ bool PlayQueueController::playNow(const std::vector<MovieItem> &items,
             continue;
         if (i == startIndex)
             nextCurrent = static_cast<int>(nextEntries.size());
-        nextEntries.push_back({items[static_cast<size_t>(i)]});
+        nextEntries.push_back(items[static_cast<size_t>(i)]);
     }
     if (nextCurrent < 0)
         return false;
@@ -273,12 +267,12 @@ bool PlayQueueController::playNow(const std::vector<MovieItem> &items,
     return true;
 }
 
-bool PlayQueueController::playNow(const MovieItem &item)
+bool PlayQueueController::playNow(const MovieItem& item)
 {
-    return playNow(std::vector<MovieItem>{item}, 0);
+    return playNow(std::vector<MovieItem> { item }, 0);
 }
 
-bool PlayQueueController::playNext(const MovieItem &item)
+bool PlayQueueController::playNext(const MovieItem& item)
 {
     if (!isQueueable(item))
         return false;
@@ -289,7 +283,7 @@ bool PlayQueueController::playNext(const MovieItem &item)
     const int previousCurrent = currentIndex();
     const int naturalIndex = rowCount();
     beginInsertRows({}, naturalIndex, naturalIndex);
-    m_entries.push_back({item});
+    m_entries.push_back(item);
     endInsertRows();
 
     const int insertOrderIndex = m_orderIndex >= 0 ? m_orderIndex + 1 : 0;
@@ -300,7 +294,7 @@ bool PlayQueueController::playNext(const MovieItem &item)
     return true;
 }
 
-bool PlayQueueController::addToQueue(const MovieItem &item)
+bool PlayQueueController::addToQueue(const MovieItem& item)
 {
     if (!isQueueable(item))
         return false;
@@ -311,14 +305,14 @@ bool PlayQueueController::addToQueue(const MovieItem &item)
     const int previousCurrent = currentIndex();
     const int naturalIndex = rowCount();
     beginInsertRows({}, naturalIndex, naturalIndex);
-    m_entries.push_back({item});
+    m_entries.push_back(item);
     endInsertRows();
     m_order.push_back(naturalIndex);
     emitQueueStateChanged(previousCurrent);
     return true;
 }
 
-bool PlayQueueController::isQueueable(const MovieItem &item)
+bool PlayQueueController::isQueueable(const MovieItem& item)
 {
     return !item.id.isEmpty() && item.playable;
 }
@@ -345,11 +339,9 @@ void PlayQueueController::rebuildShuffledOrder(int currentNaturalIndex)
     m_orderIndex = 0;
 }
 
-
 void PlayQueueController::setCurrentOrderIndex(int orderIndex)
 {
-    if (orderIndex < 0 || orderIndex >= static_cast<int>(m_order.size()) ||
-        m_orderIndex == orderIndex) {
+    if (orderIndex < 0 || orderIndex >= static_cast<int>(m_order.size()) || m_orderIndex == orderIndex) {
         return;
     }
     const int previousCurrent = currentIndex();

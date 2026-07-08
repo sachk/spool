@@ -13,7 +13,8 @@ FocusScope {
     readonly property int rowCount: peopleModel ? peopleModel.length : 0
     readonly property int screenWidth: root.Window.window ? root.Window.window.width : 1920
     readonly property int density: Metrics.densityForWidth(screenWidth)
-    readonly property int cardWidth: Math.min([156, 180, 220, 280][density], Math.max([124, 136, 152, 180][density], width * 0.13))
+    readonly property int cardWidth: Math.min([156, 180, 220, 280][density], Math.max([124, 136, 152, 180][density],
+                                                                                      width * 0.13))
     readonly property int headerHeight: 34
     readonly property int cardHeight: Math.round(cardWidth * 1.5 + Metrics.metaPx(screenWidth) * 3 + 20)
 
@@ -93,7 +94,10 @@ FocusScope {
             root.currentIndex = currentIndex
             root.ensureVisible()
         }
-        FastWheelHandler { flickable: peopleList; horizontal: true }
+        FastWheelHandler {
+            flickable: peopleList
+            horizontal: true
+        }
 
         delegate: Item {
             id: personDelegate
@@ -122,7 +126,8 @@ FocusScope {
                 text: modelData.name || ""
                 font.pixelSize: Metrics.metaPx(root.Window.window ? root.Window.window.width : 1920) + 1
                 font.weight: Font.Medium
-                color: personDelegate.index === peopleList.currentIndex && peopleList.activeFocus ? Theme.textPrimary : Theme.textSecondary
+                color: personDelegate.index === peopleList.currentIndex && peopleList.activeFocus ? Theme.textPrimary :
+                                                                                                    Theme.textSecondary
                 maximumLineCount: 1
                 elide: Text.ElideRight
             }
@@ -149,9 +154,9 @@ FocusScope {
             }
         }
 
-        Keys.onReleased: (event) => {
-            if (root.handleKey(event.key))
-                event.accepted = true
-        }
+        Keys.onReleased: event => {
+                             if (root.handleKey(event.key))
+                             event.accepted = true
+                         }
     }
 }

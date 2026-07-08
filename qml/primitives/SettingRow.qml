@@ -12,7 +12,7 @@ T.Control {
     property bool rowFocus: activeFocus
     property int settingIndex: -1
     property bool pointerActivationEnabled: true
-    signal clicked()
+    signal clicked
     focusPolicy: Qt.StrongFocus
     focus: true
     implicitHeight: Math.max(68, textColumn.implicitHeight + 28)
@@ -26,7 +26,9 @@ T.Control {
         hovered: hover.hovered
     }
 
-    HoverHandler { id: hover }
+    HoverHandler {
+        id: hover
+    }
     TapHandler {
         enabled: root.pointerActivationEnabled
         onTapped: {
@@ -42,8 +44,22 @@ T.Control {
             id: textColumn
             Layout.fillWidth: true
             spacing: 3
-            AppText { Layout.fillWidth: true; text: root.title; font.pixelSize: Metrics.bodyPx(root.Window.window ? root.Window.window.width : 1920); font.weight: Font.Medium; maximumLineCount: 1; elide: Text.ElideRight }
-            AppText { text: root.description; visible: text.length > 0; color: Theme.textMuted; font.pixelSize: Metrics.metaPx(root.Window.window ? root.Window.window.width : 1920); elide: Text.ElideRight; Layout.fillWidth: true }
+            AppText {
+                Layout.fillWidth: true
+                text: root.title
+                font.pixelSize: Metrics.bodyPx(root.Window.window ? root.Window.window.width : 1920)
+                font.weight: Font.Medium
+                maximumLineCount: 1
+                elide: Text.ElideRight
+            }
+            AppText {
+                text: root.description
+                visible: text.length > 0
+                color: Theme.textMuted
+                font.pixelSize: Metrics.metaPx(root.Window.window ? root.Window.window.width : 1920)
+                elide: Text.ElideRight
+                Layout.fillWidth: true
+            }
         }
 
         MonoText {

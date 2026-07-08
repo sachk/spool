@@ -46,52 +46,143 @@ Item {
         z: -1
     }
 
-    TapHandler { onTapped: overlay.showControls("timeline") }
-    HoverHandler { onHoveredChanged: if (hovered && overlay.mode !== "hidden") overlay.showControls(overlay.row) }
+    TapHandler {
+        onTapped: overlay.showControls("timeline")
+    }
+    HoverHandler {
+        onHoveredChanged: if (hovered && overlay.mode !== "hidden")
+                              overlay.showControls(overlay.row)
+    }
     WheelHandler {
         target: null
         acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
-        onWheel: (event) => overlay.adjustVolumeFromWheel(event)
+        onWheel: event => overlay.adjustVolumeFromWheel(event)
     }
 
     states: [
-        State { name: "hidden"; when: overlay.mode === "hidden"; PropertyChanges { target: hud; opacity: 0 } },
-        State { name: "controls"; when: overlay.mode === "controls"; PropertyChanges { target: hud; opacity: 1 } PropertyChanges { target: backButton; opacity: 1 } PropertyChanges { target: topScrim; opacity: 1 } PropertyChanges { target: bottomScrim; opacity: 1 } },
+        State {
+            name: "hidden"
+            when: overlay.mode === "hidden"
+            PropertyChanges {
+                target: hud
+                opacity: 0
+            }
+        },
+        State {
+            name: "controls"
+            when: overlay.mode === "controls"
+            PropertyChanges {
+                target: hud
+                opacity: 1
+            }
+            PropertyChanges {
+                target: backButton
+                opacity: 1
+            }
+            PropertyChanges {
+                target: topScrim
+                opacity: 1
+            }
+            PropertyChanges {
+                target: bottomScrim
+                opacity: 1
+            }
+        },
         State {
             name: "subtitles"
             when: overlay.mode === "subtitles"
-            PropertyChanges { target: hud; opacity: 1 }
-            PropertyChanges { target: backButton; opacity: 1 }
-            PropertyChanges { target: topScrim; opacity: 1 }
-            PropertyChanges { target: bottomScrim; opacity: 1 }
-            PropertyChanges { target: menuPanel; opacity: 1 }
+            PropertyChanges {
+                target: hud
+                opacity: 1
+            }
+            PropertyChanges {
+                target: backButton
+                opacity: 1
+            }
+            PropertyChanges {
+                target: topScrim
+                opacity: 1
+            }
+            PropertyChanges {
+                target: bottomScrim
+                opacity: 1
+            }
+            PropertyChanges {
+                target: menuPanel
+                opacity: 1
+            }
         },
         State {
             name: "audio"
             when: overlay.mode === "audio"
-            PropertyChanges { target: hud; opacity: 1 }
-            PropertyChanges { target: backButton; opacity: 1 }
-            PropertyChanges { target: topScrim; opacity: 1 }
-            PropertyChanges { target: bottomScrim; opacity: 1 }
-            PropertyChanges { target: menuPanel; opacity: 1 }
+            PropertyChanges {
+                target: hud
+                opacity: 1
+            }
+            PropertyChanges {
+                target: backButton
+                opacity: 1
+            }
+            PropertyChanges {
+                target: topScrim
+                opacity: 1
+            }
+            PropertyChanges {
+                target: bottomScrim
+                opacity: 1
+            }
+            PropertyChanges {
+                target: menuPanel
+                opacity: 1
+            }
         },
         State {
             name: "debug"
             when: overlay.mode === "debug"
-            PropertyChanges { target: hud; opacity: 1 }
-            PropertyChanges { target: backButton; opacity: 1 }
-            PropertyChanges { target: topScrim; opacity: 1 }
-            PropertyChanges { target: bottomScrim; opacity: 1 }
-            PropertyChanges { target: menuPanel; opacity: 1 }
+            PropertyChanges {
+                target: hud
+                opacity: 1
+            }
+            PropertyChanges {
+                target: backButton
+                opacity: 1
+            }
+            PropertyChanges {
+                target: topScrim
+                opacity: 1
+            }
+            PropertyChanges {
+                target: bottomScrim
+                opacity: 1
+            }
+            PropertyChanges {
+                target: menuPanel
+                opacity: 1
+            }
         },
         State {
             name: "audiosync"
             when: overlay.isAudioSyncOpen()
-            PropertyChanges { target: hud; opacity: 1 }
-            PropertyChanges { target: backButton; opacity: 1 }
-            PropertyChanges { target: topScrim; opacity: 0 }
-            PropertyChanges { target: bottomScrim; opacity: 0.35 }
-            PropertyChanges { target: audioSyncPanel; opacity: 1 }
+            PropertyChanges {
+                target: hud
+                opacity: 1
+            }
+            PropertyChanges {
+                target: backButton
+                opacity: 1
+            }
+            PropertyChanges {
+                target: topScrim
+                opacity: 0
+            }
+            PropertyChanges {
+                target: bottomScrim
+                opacity: 0.35
+            }
+            PropertyChanges {
+                target: audioSyncPanel
+                opacity: 1
+            }
         }
     ]
 
@@ -104,8 +195,14 @@ Item {
         opacity: 0
         visible: opacity > 0.01
         gradient: Gradient {
-            GradientStop { position: 0.0; color: "#99000000" }
-            GradientStop { position: 1.0; color: "transparent" }
+            GradientStop {
+                position: 0.0
+                color: "#99000000"
+            }
+            GradientStop {
+                position: 1.0
+                color: "transparent"
+            }
         }
     }
 
@@ -118,14 +215,21 @@ Item {
         opacity: 0
         visible: opacity > 0.01
         gradient: Gradient {
-            GradientStop { position: 0.0; color: "transparent" }
-            GradientStop { position: 1.0; color: "#CC000000" }
+            GradientStop {
+                position: 0.0
+                color: "transparent"
+            }
+            GradientStop {
+                position: 1.0
+                color: "#CC000000"
+            }
         }
     }
 
     Rectangle {
         id: backButton
-        readonly property bool focused: overlay.isControlsActive() && overlay.row === "back" && !overlay.isAudioSyncOpen()
+        readonly property bool focused: overlay.isControlsActive() && overlay.row === "back" && !overlay.isAudioSyncOpen(
+                                            )
         anchors.left: parent.left
         anchors.top: parent.top
         anchors.margins: dp(40)
@@ -155,14 +259,24 @@ Item {
     transitions: [
         Transition {
             to: "debug"
-            NumberAnimation { properties: "opacity"; duration: 0 }
+            NumberAnimation {
+                properties: "opacity"
+                duration: 0
+            }
         },
         Transition {
             to: "audiosync"
-            NumberAnimation { properties: "opacity"; duration: 0 }
+            NumberAnimation {
+                properties: "opacity"
+                duration: 0
+            }
         },
         Transition {
-            NumberAnimation { properties: "opacity"; duration: 140; easing.type: Easing.OutCubic }
+            NumberAnimation {
+                properties: "opacity"
+                duration: 140
+                easing.type: Easing.OutCubic
+            }
         }
     ]
 
@@ -192,7 +306,7 @@ Item {
 
             RowLayout {
                 Layout.fillWidth: true
-                    spacing: dp(20)
+                spacing: dp(20)
 
                 ColumnLayout {
                     Layout.fillWidth: true
@@ -211,7 +325,8 @@ Item {
                     Text {
                         Layout.fillWidth: true
                         text: overlay.hasPlayer ? overlay.player.statusText : ""
-                        color: overlay.hasPlayer && (overlay.player.buffering || overlay.player.seeking) ? overlay.accentBright : overlay.colStatus
+                        color: overlay.hasPlayer && (overlay.player.buffering || overlay.player.seeking) ? overlay.accentBright :
+                                                                                                           overlay.colStatus
                         font.pixelSize: dp(24)
                         font.weight: Font.Medium
                         font.hintingPreference: Font.PreferNoHinting

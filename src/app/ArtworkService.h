@@ -22,13 +22,12 @@ class QQuickImageResponse;
 
 namespace JellyfinNative {
 
-class ArtworkByteCache final
-{
+class ArtworkByteCache final {
 public:
     explicit ArtworkByteCache(int maximumBytes);
 
-    QByteArray get(const QString &key);
-    void insert(const QString &key, QByteArray bytes);
+    QByteArray get(const QString& key);
+    void insert(const QString& key, QByteArray bytes);
     void clear();
 
 private:
@@ -39,31 +38,26 @@ private:
 class ArtworkFetchWorker;
 class ArtworkImageResponse;
 
-class ArtworkService final : public QObject, public ArtworkPrefetcher
-{
+class ArtworkService final : public QObject, public ArtworkPrefetcher {
 public:
-    ArtworkService(QString cacheDirectory, qint64 networkCacheBytes,
-                   int byteCacheBytes, int decodeThreads,
-                   QObject *parent = nullptr);
+    ArtworkService(QString cacheDirectory, qint64 networkCacheBytes, int byteCacheBytes, int decodeThreads,
+        QObject *parent = nullptr);
     ~ArtworkService() override;
 
-    QQuickImageResponse *requestImageResponse(const QString &id,
-                                              const QSize &requestedSize);
-    void prefetch(const QStringList &urls) override;
+    QQuickImageResponse *requestImageResponse(const QString& id, const QSize& requestedSize);
+    void prefetch(const QStringList& urls) override;
     void cancelPrefetches() override;
     void configurePrefetch(int maxConcurrent) override;
     void releaseMemory(bool aggressive);
+    void setAuthorizationHeader(QString header);
 
-    int requestImage(QUrl url, QSize requestedSize,
-                     ArtworkImageResponse *response);
+    int requestImage(QUrl url, QSize requestedSize, ArtworkImageResponse *response);
     void cancelRequest(int requestId);
-    void handleRenderFetched(int requestId, QString key, QByteArray bytes,
-                             QString error);
+    void handleRenderFetched(int requestId, QString key, QByteArray bytes, QString error);
     void handlePrefetched(QString key, QByteArray bytes);
 
 private:
-    void startDecode(ArtworkImageResponse *response, QByteArray bytes,
-                     QSize requestedSize);
+    void startDecode(ArtworkImageResponse *response, QByteArray bytes, QSize requestedSize);
     void invokeWorker(std::function<void(ArtworkFetchWorker *)> call);
 
     QString m_cacheDirectory;

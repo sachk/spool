@@ -5,22 +5,23 @@
 
 #include <QObject>
 #include <QString>
-#include <QVariantMap>
 
 namespace JellyfinNative {
 
 class JellyfinApiFacade;
 class LibraryPrefetchController;
 
-class ContentModelController final : public QObject
-{
+class ContentModelController final : public QObject {
     Q_OBJECT
-    Q_PROPERTY(QVariantMap detailItem READ detailItem NOTIFY detailItemChanged)
+    Q_PROPERTY(JellyfinNative::MovieItem detailItem READ detailItem NOTIFY detailItemChanged)
+    Q_PROPERTY(JellyfinNative::MovieGridModel *detailSeasons READ detailSeasons CONSTANT)
+    Q_PROPERTY(JellyfinNative::MovieGridModel *detailSimilarItems READ detailSimilarItems CONSTANT)
+    Q_PROPERTY(JellyfinNative::MovieGridModel *personItems READ personItems CONSTANT)
+    Q_PROPERTY(bool detailRowsBusy READ detailRowsBusy NOTIFY detailRowsChanged)
+    Q_PROPERTY(bool personItemsBusy READ personItemsBusy NOTIFY personItemsChanged)
 
 public:
-    ContentModelController(JellyfinApiFacade *api,
-                           LibraryPrefetchController *prefetch,
-                           QObject *parent = nullptr);
+    ContentModelController(JellyfinApiFacade *api, LibraryPrefetchController *prefetch, QObject *parent = nullptr);
 
     MovieGridModel *detailSeasons();
     MovieGridModel *detailSimilarItems();
@@ -28,26 +29,26 @@ public:
 
     bool detailRowsBusy() const;
     bool personItemsBusy() const;
-    QVariantMap detailItem() const;
+    MovieItem detailItem() const;
 
     MovieItem detailSeasonAt(int index) const;
     MovieItem detailSimilarItemAt(int index) const;
     MovieItem personItemAt(int index) const;
 
-    void loadDetailRows(const QString &itemId, const QString &itemType,
-                        const QString &seriesId, const QString &seasonId);
-    void loadItemDetail(const QString &itemId);
-    void loadPersonItems(const QString &personId);
-    void updateResumeTicks(const QString &itemId, qint64 positionTicks);
-    void updateFavorite(const QString &itemId, bool favorite);
-    void updatePlayed(const QString &itemId, bool played);
+    Q_INVOKABLE void loadDetailRows(
+        const QString& itemId, const QString& itemType, const QString& seriesId = {}, const QString& seasonId = {});
+    Q_INVOKABLE void loadItemDetail(const QString& itemId);
+    Q_INVOKABLE void loadPersonItems(const QString& personId);
+    void updateResumeTicks(const QString& itemId, qint64 positionTicks);
+    void updateFavorite(const QString& itemId, bool favorite);
+    void updatePlayed(const QString& itemId, bool played);
     void reset();
 
 signals:
     void detailRowsChanged();
     void detailItemChanged();
     void personItemsChanged();
-    void errorOccurred(const QString &message);
+    void errorOccurred(const QString& message);
 
 private:
     void finishDetailRowLoad(RequestGeneration::Token generation);
@@ -57,7 +58,7 @@ private:
     MovieGridModel m_detailSeasons;
     MovieGridModel m_detailSimilarItems;
     MovieGridModel m_personItems;
-    QVariantMap m_detailItem;
+    MovieItem m_detailItem;
     bool m_detailRowsBusy = false;
     RequestGeneration m_detailRowsGeneration;
     RequestGeneration m_detailItemGeneration;

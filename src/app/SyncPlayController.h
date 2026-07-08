@@ -15,8 +15,7 @@ namespace JellyfinNative {
 class JellyfinApiFacade;
 class PlayerController;
 
-class SyncPlayController final : public QObject
-{
+class SyncPlayController final : public QObject {
     Q_OBJECT
     Q_PROPERTY(QString currentGroupId READ currentGroupId NOTIFY groupChanged)
     Q_PROPERTY(QString currentGroupName READ currentGroupName NOTIFY groupChanged)
@@ -32,22 +31,49 @@ class SyncPlayController final : public QObject
 public:
     SyncPlayController(JellyfinApiFacade *api, PlayerController *player, QObject *parent = nullptr);
 
-    QString currentGroupId() const { return m_groupId; }
-    QString currentGroupName() const { return m_groupName; }
-    QJsonArray groups() const { return m_groups; }
-    bool enabled() const { return !m_groupId.isEmpty(); }
-    QStringList participants() const { return m_participants; }
-    int participantCount() const { return m_participants.size(); }
-    QString groupState() const { return m_groupState; }
+    QString currentGroupId() const
+    {
+        return m_groupId;
+    }
+    QString currentGroupName() const
+    {
+        return m_groupName;
+    }
+    QJsonArray groups() const
+    {
+        return m_groups;
+    }
+    bool enabled() const
+    {
+        return !m_groupId.isEmpty();
+    }
+    QStringList participants() const
+    {
+        return m_participants;
+    }
+    int participantCount() const
+    {
+        return m_participants.size();
+    }
+    QString groupState() const
+    {
+        return m_groupState;
+    }
     bool socketConnected() const;
-    double clockOffsetMs() const { return m_clock.offsetMs(); }
-    double pingMs() const { return m_clock.pingMs(); }
+    double clockOffsetMs() const
+    {
+        return m_clock.offsetMs();
+    }
+    double pingMs() const
+    {
+        return m_clock.pingMs();
+    }
 
     Q_INVOKABLE void refreshGroups();
     Q_INVOKABLE void connectSocket();
     Q_INVOKABLE void disconnectSocket();
-    Q_INVOKABLE void createGroup(const QString &name);
-    Q_INVOKABLE void joinGroup(const QString &groupId);
+    Q_INVOKABLE void createGroup(const QString& name);
+    Q_INVOKABLE void joinGroup(const QString& groupId);
     Q_INVOKABLE void leaveGroup();
     Q_INVOKABLE void requestPause();
     Q_INVOKABLE void requestPlay();
@@ -57,13 +83,13 @@ signals:
     void groupsChanged();
     void groupChanged();
     void connectionChanged();
-    void errorText(const QString &text);
+    void errorText(const QString& text);
 
 private:
-    void handleSocketTextMessage(const QString &message);
-    void handleSyncPlayCommand(const QJsonObject &data);
-    void handleSyncPlayGroupUpdate(const QJsonObject &data);
-    void applyGroupInfo(const QString &groupId, const QJsonObject &info);
+    void handleSocketTextMessage(const QString& message);
+    void handleSyncPlayCommand(const QJsonObject& data);
+    void handleSyncPlayGroupUpdate(const QJsonObject& data);
+    void applyGroupInfo(const QString& groupId, const QJsonObject& info);
     void clearGroup();
     void executeScheduledCommand();
     void correctPlaybackDrift();
@@ -72,8 +98,7 @@ private:
     void beginTimeSync();
     void requestTimeSync();
     void scheduleTimeSync();
-    void reportRequestError(const QString &action,
-                            const std::exception_ptr &error);
+    void reportRequestError(const QString& action, const std::exception_ptr& error);
     void sendKeepAlive();
     QUrl socketUrl() const;
 

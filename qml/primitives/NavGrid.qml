@@ -5,7 +5,7 @@ GridView {
 
     property var shell
     property int fallbackColumns: 1
-    signal edgeUp()
+    signal edgeUp
     signal accepted(int index)
 
     focus: true

@@ -12,19 +12,17 @@ FocusScope {
     property int lastLibraryIndex: 0
     property int lastGridIndex: 0
     property int lastSearchIndex: 0
-    property var detailsModel: appController ? appController.movies : null
+    property var detailsModel: browseController ? browseController.items : null
     property int detailsIndex: 0
     property string detailsSource: "movies"
     property string detailsReturnRoute: "libraryGrid"
     property var detailsRoute: ({
-            itemId: "",
-            itemType: "",
-            source: "movies",
-            returnRoute: "libraryGrid",
-            focusIndex: 0
-        })
-    property bool shortcutOverlayVisible: false
-    property bool shortcutOverlayLoaded: false
+                                    itemId: "",
+                                    itemType: "",
+                                    source: "movies",
+                                    returnRoute: "libraryGrid",
+                                    focusIndex: 0
+                                })
     property bool diagnosticsVisible: false
     property bool diagnosticsLoaded: false
     property bool mediaInfoVisible: false
@@ -38,15 +36,16 @@ FocusScope {
     property string managementNameDraft: ""
     property int managementTargetIndex: 0
     property bool managementFocusNamePending: false
-    readonly property var managementTargets: !appController ? []
-                                           : managementMode === "collection" ? appController.collectionTargets
-                                           : appController.playlistTargets
+    readonly property var managementTargets: !appController ? [] : managementMode === "collection"
+                                                              ? appController.collectionTargets :
+                                                                appController.playlistTargets
     property var personItem: ({})
-    property bool textInputActive: Qt.inputMethod.visible
-            || InputKeys.isTextInputItem(root.Window.window ? root.Window.window.activeFocusItem : null)
+    property bool textInputActive: Qt.inputMethod.visible || InputKeys.isTextInputItem(root.Window.window
+                                                                                       ? root.Window.window.activeFocusItem :
+                                                                                         null)
     property bool backPressHandled: false
     property bool playerBackPressHandled: false
-    readonly property var player: appController ? appController.player : null
+    readonly property var player: playerController ? playerController : null
     readonly property bool hasPlayer: player !== null && player !== undefined
     readonly property bool playerSessionActive: hasPlayer && player.sessionActive
     readonly property string errorTextValue: appController ? appController.errorText : ""
@@ -66,8 +65,7 @@ FocusScope {
             return
         }
         const keyboardRect = Qt.inputMethod.keyboardRectangle
-        const keyboardTop = keyboardRect && keyboardRect.height > 0
-                ? keyboardRect.y : root.height
+        const keyboardTop = keyboardRect && keyboardRect.height > 0 ? keyboardRect.y : root.height
         const focusPos = focusItem.mapToItem(root, 0, 0)
         const focusBottom = focusPos.y + focusItem.height + keyboardAvoidance
         const overlap = focusBottom + 24 - keyboardTop
@@ -76,26 +74,35 @@ FocusScope {
 
     Behavior on keyboardAvoidance {
         enabled: !Theme.reducedMotion
-        NumberAnimation { duration: 120; easing.type: Easing.OutCubic }
+        NumberAnimation {
+            duration: 120
+            easing.type: Easing.OutCubic
+        }
     }
 
     Connections {
         target: Qt.inputMethod
-        function onVisibleChanged() { root.refreshKeyboardAvoidance() }
-        function onKeyboardRectangleChanged() { root.refreshKeyboardAvoidance() }
-        function onAnchorRectangleChanged() { root.refreshKeyboardAvoidance() }
+        function onVisibleChanged() {
+            root.refreshKeyboardAvoidance()
+        }
+        function onKeyboardRectangleChanged() {
+            root.refreshKeyboardAvoidance()
+        }
+        function onAnchorRectangleChanged() {
+            root.refreshKeyboardAvoidance()
+        }
     }
 
     Connections {
         target: root.Window.window
-        function onActiveFocusItemChanged() { root.refreshKeyboardAvoidance() }
+        function onActiveFocusItemChanged() {
+            root.refreshKeyboardAvoidance()
+        }
     }
 
     Connections {
         target: appController
         function onAggressiveMemoryPressure() {
-            if (!root.shortcutOverlayVisible)
-                root.shortcutOverlayLoaded = false
             if (!root.diagnosticsVisible)
                 root.diagnosticsLoaded = false
             if (!root.mediaInfoVisible)
@@ -106,212 +113,211 @@ FocusScope {
     }
     function controllerRoute() {
         if (!appController)
-            return "home";
+            return "home"
         if (appController.page === "login")
-            return "login";
+            return "login"
         // After login, default to Home. The user can drill into Libraries explicitly.
         if (appController.page === "libraries")
-            return "home";
+            return "home"
         // page === "movies" — we just opened a library or backed out of playback into one.
-        return "libraryGrid";
+        return "libraryGrid"
     }
 
     Connections {
         target: appController
         function onPageChanged() {
             if (router)
-                router.replace(root.controllerRoute());
+                router.replace(root.controllerRoute())
         }
     }
 
     Component.onCompleted: if (router)
-        router.reset(root.controllerRoute())
+                               router.reset(root.controllerRoute())
 
     Connections {
         target: root.player
         function onVisibleChanged() {
             if (root.hasPlayer && root.player.visible) {
-                root.playerBackPressHandled = false;
-                root.focusPlayerInput();
+                root.playerBackPressHandled = false
+                root.focusPlayerInput()
             } else {
-                InputKeys.focus(routeStack);
+                InputKeys.focus(routeStack)
             }
         }
     }
 
     function focusPlayerInput() {
-        videoSurface.focusInput();
+        videoSurface.focusInput()
     }
 
     function pushRoute(nextRoute) {
         if (router)
-            router.push(nextRoute);
-        InputKeys.focus(routeStack);
+            router.push(nextRoute)
+        InputKeys.focus(routeStack)
     }
 
     function itemIdFor(item) {
-        return RoutePolicy.itemIdFor(item);
+        return RoutePolicy.itemIdFor(item)
     }
 
     function itemTypeFor(item) {
-        return RoutePolicy.itemTypeFor(item);
+        return RoutePolicy.itemTypeFor(item)
     }
 
     function modelCount(model) {
-        return RoutePolicy.modelCount(model);
+        return RoutePolicy.modelCount(model)
     }
 
     function modelItem(model, index) {
-        return RoutePolicy.modelItem(model, index);
+        return RoutePolicy.modelItem(model, index)
     }
 
     function modelIndexForItemId(model, itemId, fallbackIndex) {
-        return RoutePolicy.modelIndexForItemId(model, itemId, fallbackIndex);
+        return RoutePolicy.modelIndexForItemId(model, itemId, fallbackIndex)
     }
 
     function detailsIndexForModel(model) {
-        return modelIndexForItemId(model, detailsRoute ? detailsRoute.itemId : "", detailsIndex);
+        return modelIndexForItemId(model, detailsRoute ? detailsRoute.itemId : "", detailsIndex)
     }
 
     function openDetailsRoute(request) {
-        const normalized = RoutePolicy.normalizeDetailsRoute(request, appController ? appController.movies : null, route);
+        const normalized = RoutePolicy.normalizeDetailsRoute(request, browseController ? browseController.items : null,
+                                                             route)
         if (!normalized) {
-            const focusIndex = Math.max(0, Number(request && request.focusIndex !== undefined ? request.focusIndex : 0));
-            console.warn("details route ignored: missing item id", request ? request.source : "", focusIndex);
-            return false;
+            const focusIndex = Math.max(0, Number(request && request.focusIndex !== undefined ? request.focusIndex : 0))
+            console.warn("details route ignored: missing item id", request ? request.source : "", focusIndex)
+            return false
         }
 
-        detailsModel = normalized.model;
-        detailsIndex = normalized.focusIndex;
-        detailsSource = normalized.source;
-        detailsReturnRoute = normalized.returnRoute;
+        detailsModel = normalized.model
+        detailsIndex = normalized.focusIndex
+        detailsSource = normalized.source
+        detailsReturnRoute = normalized.returnRoute
         detailsRoute = {
             itemId: normalized.itemId,
             itemType: normalized.itemType,
             source: detailsSource,
             returnRoute: detailsReturnRoute,
             focusIndex: detailsIndex
-        };
+        }
         if (detailsSource === "movies")
-            lastGridIndex = detailsIndex;
+            lastGridIndex = detailsIndex
         else if (detailsSource === "search" || detailsSource === "suggestion")
-            lastSearchIndex = detailsIndex;
+            lastSearchIndex = detailsIndex
 
         if (route === "itemDetails") {
-            InputKeys.focus(routeStack);
-            return true;
+            InputKeys.focus(routeStack)
+            return true
         }
-        pushRoute("itemDetails");
-        return true;
+        pushRoute("itemDetails")
+        return true
     }
 
     function openDetailsAt(model, index, source, returnRoute) {
-        const nextModel = model || (appController ? appController.movies : null);
-        const request = RoutePolicy.detailsRouteAt(nextModel, index, source, returnRoute, route);
-        return request ? openDetailsRoute(request) : false;
+        const nextModel = model || (browseController ? browseController.items : null)
+        const request = RoutePolicy.detailsRouteAt(nextModel, index, source, returnRoute, route)
+        return request ? openDetailsRoute(request) : false
     }
 
     function replaceRoute(nextRoute) {
         if (router)
-            router.replace(nextRoute);
-        InputKeys.focus(routeStack);
+            router.replace(nextRoute)
+        InputKeys.focus(routeStack)
     }
 
     function goHome() {
         if (router)
-            router.reset("home");
-        appController.goHome();
-        InputKeys.focus(routeStack);
+            router.reset("home")
+        appController.goHome()
+        InputKeys.focus(routeStack)
     }
 
     function switchUser() {
         if (router)
-            router.reset("login");
+            router.reset("login")
         if (appController)
-            appController.switchUser();
-        InputKeys.focus(routeStack);
+            appController.switchUser()
+        InputKeys.focus(routeStack)
     }
 
     function releaseTextInput() {
         // Forcing focus onto the route stack causes the focused TextField to
         // lose activeFocus, which closes the virtual keyboard cleanly.
-        InputKeys.focus(routeStack);
-        Qt.inputMethod.hide();
+        InputKeys.focus(routeStack)
+        Qt.inputMethod.hide()
     }
 
     function back() {
         if (textInputActive) {
-            releaseTextInput();
-            return true;
+            releaseTextInput()
+            return true
         }
         if (navBar.visible && navBar.syncPlayMenuOpen) {
-            navBar.closeSyncPlayMenu();
-            return true;
-        }
-        if (shortcutOverlayVisible) {
-            shortcutOverlayVisible = false;
-            return true;
+            navBar.closeSyncPlayMenu()
+            return true
         }
         if (diagnosticsVisible) {
-            diagnosticsVisible = false;
-            return true;
+            diagnosticsVisible = false
+            return true
         }
         if (itemMenuOpen && itemContextMenuLoader.item) {
-            itemContextMenuLoader.item.closeMenu();
-            return true;
+            itemContextMenuLoader.item.closeMenu()
+            return true
         }
         if (managementOverlayVisible) {
-            closeManagementOverlay();
-            return true;
+            closeManagementOverlay()
+            return true
         }
         if (mediaInfoVisible) {
-            mediaInfoVisible = false;
-            return true;
+            mediaInfoVisible = false
+            return true
         }
         if (root.hasPlayer && root.player.visible) {
             if (root.player.backAllowed)
-                root.player.stopWithReason("shell-back-fallback");
-            return true;
+                root.player.stopWithReason("shell-back-fallback")
+            return true
         }
         if (routeStack.handleBack())
-            return true;
+            return true
         if (route === "itemDetails") {
-            replaceRoute(detailsRoute && detailsRoute.returnRoute ? detailsRoute.returnRoute : (detailsReturnRoute.length > 0 ? detailsReturnRoute : "libraryGrid"));
-            return true;
+            replaceRoute(detailsRoute && detailsRoute.returnRoute ? detailsRoute.returnRoute : (
+                                                                        detailsReturnRoute.length > 0
+                                                                        ? detailsReturnRoute : "libraryGrid"))
+            return true
         }
         if (route === "libraries" || route === "libraryGrid") {
-            goHome();
-            return true;
+            goHome()
+            return true
         }
         if (route === "home") {
-            switchUser();
-            return true;
+            switchUser()
+            return true
         }
         if (router) {
-            router.pop(route === "personDetails" ? "itemDetails" : "home");
-            InputKeys.focus(routeStack);
-            return true;
+            router.pop(route === "personDetails" ? "itemDetails" : "home")
+            InputKeys.focus(routeStack)
+            return true
         }
-        return true;
+        return true
     }
 
     function openContextMenu() {
-        openItemMenu(currentMediaItem(), null);
+        openItemMenu(currentMediaItem(), null)
     }
 
     function openItemMenu(item, anchorItem) {
-        itemMenuLoaded = true;
-        return itemContextMenuLoader.item
-                ? itemContextMenuLoader.item.openForItem(item || ({}), anchorItem || null)
-                : false;
+        itemMenuLoaded = true
+        return itemContextMenuLoader.item ? itemContextMenuLoader.item.openForItem(item || ({}), anchorItem || null) :
+                                            false
+
     }
 
     function openMediaInfo(item) {
-        mediaInfoItem = item || ({});
-        if (appController && mediaInfoItem.movieId)
-            appController.loadItemDetail(mediaInfoItem.movieId);
-        mediaInfoLoaded = true;
-        mediaInfoVisible = true;
+        mediaInfoItem = item || ({})
+        if (contentController && mediaInfoItem.movieId)
+            contentController.loadItemDetail(mediaInfoItem.movieId)
+        mediaInfoLoaded = true
+        mediaInfoVisible = true
     }
 
     function itemTitle(item) {
@@ -392,7 +398,8 @@ FocusScope {
             return "Rename"
         if (managementMode === "delete")
             return "Delete item"
-        return appController && appController.currentViewKind === "playlist" ? "Remove from playlist" : "Remove from collection"
+        return appController && appController.currentViewKind === "playlist" ? "Remove from playlist" :
+                                                                               "Remove from collection"
     }
 
     function submitManagementCreate() {
@@ -474,230 +481,225 @@ FocusScope {
     }
 
     function openPerson(person) {
-        personItem = person || ({});
-        if (appController && personItem.personId)
-            appController.loadPersonItems(personItem.personId);
+        personItem = person || ({})
+        if (contentController && personItem.personId)
+            contentController.loadPersonItems(personItem.personId)
         if (route === "personDetails") {
-            InputKeys.focus(routeStack);
-            return;
+            InputKeys.focus(routeStack)
+            return
         }
-        pushRoute("personDetails");
+        pushRoute("personDetails")
     }
 
     function currentMediaItem() {
         if (route === "itemDetails" && detailsModel && detailsModel.rowCount) {
-            const detailsCount = detailsModel.rowCount();
+            const detailsCount = detailsModel.rowCount()
             if (detailsCount > 0) {
-                const detailsIdx = detailsIndexForModel(detailsModel);
-                return detailsModel.get(detailsIdx) || ({});
+                const detailsIdx = detailsIndexForModel(detailsModel)
+                return detailsModel.get(detailsIdx) || ({})
             }
         }
-        if (route === "search" && appController && appController.searchController && appController.searchController.results) {
-            const searchCount = appController.searchController.results.rowCount();
+        if (route === "search" && searchController && searchController.results) {
+            const searchCount = searchController.results.rowCount()
             if (searchCount > 0) {
-                const searchIdx = Math.max(0, Math.min(lastSearchIndex, searchCount - 1));
-                return appController.searchController.results.get(searchIdx) || ({});
+                const searchIdx = Math.max(0, Math.min(lastSearchIndex, searchCount - 1))
+                return searchController.results.get(searchIdx) || ({})
             }
         }
-        const count = appController.movies.rowCount();
+        const count = browseController.items.rowCount()
         if (count <= 0)
-            return ({});
-        const idx = Math.max(0, Math.min(lastGridIndex, count - 1));
-        return appController.movies.get(idx) || ({});
+            return ({})
+        const idx = Math.max(0, Math.min(lastGridIndex, count - 1))
+        return browseController.items.get(idx) || ({})
     }
 
     function focusNavBar() {
         if (route === "login")
-            return;
-        InputKeys.focus(navBar);
-        navBar.focusCurrent();
+            return
+        InputKeys.focus(navBar)
+        navBar.focusCurrent()
     }
 
     function focusContent() {
         if (root.hasPlayer && root.player.visible)
-            return;
-        InputKeys.focus(routeStack);
+            return
+        InputKeys.focus(routeStack)
     }
 
     function dispatchNavigationKey(key) {
         if (navBar.visible && navBar.activeFocus)
-            return navBar.handleKey(key);
-        return routeStack.handleKey(key);
+            return navBar.handleKey(key)
+        return routeStack.handleKey(key)
     }
 
     function setUiScale(value) {
-        const step = 0.05;
-        const rounded = Math.round(Number(value || 1.0) / step) * step;
-        Metrics.userUiScale = Math.max(0.75, Math.min(1.5, rounded));
+        const step = 0.05
+        const rounded = Math.round(Number(value || 1.0) / step) * step
+        Metrics.userUiScale = Math.max(0.75, Math.min(1.5, rounded))
     }
 
     function handleZoomShortcut(event) {
         if (!(event.modifiers & Qt.ControlModifier))
-            return false;
+            return false
         if (event.key === Qt.Key_Plus || event.key === Qt.Key_Equal) {
-            setUiScale(Metrics.userUiScale + 0.05);
-            return true;
+            setUiScale(Metrics.userUiScale + 0.05)
+            return true
         }
         if (event.key === Qt.Key_Minus || event.key === Qt.Key_Underscore) {
-            setUiScale(Metrics.userUiScale - 0.05);
-            return true;
+            setUiScale(Metrics.userUiScale - 0.05)
+            return true
         }
         if (event.key === Qt.Key_0) {
-            setUiScale(1.0);
-            return true;
+            setUiScale(1.0)
+            return true
         }
-        return false;
+        return false
     }
 
     function globalShortcut(event, released) {
         if (released && handleZoomShortcut(event))
-            return true;
+            return true
         if (!released || textInputActive)
-            return false;
+            return false
         if (event.modifiers & Qt.ControlModifier && event.key === Qt.Key_D) {
-            diagnosticsLoaded = true;
-            diagnosticsVisible = !diagnosticsVisible;
-            return true;
-        }
-        if (event.key === Qt.Key_Question) {
-            shortcutOverlayLoaded = true;
-            shortcutOverlayVisible = !shortcutOverlayVisible;
-            return true;
+            diagnosticsLoaded = true
+            diagnosticsVisible = !diagnosticsVisible
+            return true
         }
         if (event.key === Qt.Key_Slash) {
-            pushRoute("search");
-            return true;
+            pushRoute("search")
+            return true
         }
         if (event.key === Qt.Key_I) {
             if (mediaInfoVisible) {
-                mediaInfoVisible = false;
-                mediaInfoItem = ({});
+                mediaInfoVisible = false
+                mediaInfoItem = ({})
             } else
-                openMediaInfo(currentMediaItem());
-            return true;
+                openMediaInfo(currentMediaItem())
+            return true
         }
         if (event.key === Qt.Key_M || event.key === Qt.Key_Menu) {
-            openContextMenu();
-            return true;
+            openContextMenu()
+            return true
         }
         if (InputKeys.isBack(event.key))
-            return back();
+            return back()
         if (event.key === Qt.Key_H)
-            return dispatchNavigationKey(Qt.Key_Left);
+            return dispatchNavigationKey(Qt.Key_Left)
         if (event.key === Qt.Key_L)
-            return dispatchNavigationKey(Qt.Key_Right);
+            return dispatchNavigationKey(Qt.Key_Right)
         if (event.key === Qt.Key_Q && root.playerSessionActive) {
-            root.player.stopWithReason("shortcut-q");
-            return true;
+            root.player.stopWithReason("shortcut-q")
+            return true
         }
-        return false;
+        return false
     }
 
     function handlePlayerPressed(event) {
         if (InputKeys.isBackEvent(event, !textInputActive)) {
-            playerBackPressHandled = true;
-            videoSurface.handleBack();
-            return true;
+            playerBackPressHandled = true
+            videoSurface.handleBack()
+            return true
         }
         if (videoSurface.handlePressed(event))
-            return true;
-        return InputKeys.isDirection(event.key) || InputKeys.isAccept(event.key) || InputKeys.isIgnoredPlayerNoise(event);
+            return true
+        return InputKeys.isDirection(event.key) || InputKeys.isAccept(event.key) || InputKeys.isIgnoredPlayerNoise(
+                    event)
     }
 
     function handlePlayerReleased(event) {
         if (playerBackPressHandled && InputKeys.isBackEvent(event, !textInputActive)) {
-            playerBackPressHandled = false;
-            return true;
+            playerBackPressHandled = false
+            return true
         }
-        return videoSurface.handleReleased(event) || globalShortcut(event, true);
+        return videoSurface.handleReleased(event) || globalShortcut(event, true)
     }
 
     Keys.priority: Keys.BeforeItem
 
     Keys.onPressed: event => {
-        if (managementOverlayVisible) {
-            if (handleManagementKey(event, false))
-                event.accepted = true;
-            return;
-        }
-        if (itemMenuOpen && itemContextMenuLoader.item) {
-            itemContextMenuLoader.item.handlePressed(event);
-            event.accepted = true;
-            return;
-        }
-        if (mediaInfoVisible && mediaInfoOverlayLoader.item) {
-            mediaInfoOverlayLoader.item.handlePressed(event);
-            event.accepted = true;
-            return;
-        }
-        if (root.hasPlayer && root.player.visible) {
-            if (handlePlayerPressed(event))
-                event.accepted = true;
-            return;
-        }
+                        if (managementOverlayVisible) {
+                            if (handleManagementKey(event, false))
+                            event.accepted = true
+                            return
+                        }
+                        if (itemMenuOpen && itemContextMenuLoader.item) {
+                            itemContextMenuLoader.item.handlePressed(event)
+                            event.accepted = true
+                            return
+                        }
+                        if (mediaInfoVisible && mediaInfoOverlayLoader.item) {
+                            mediaInfoOverlayLoader.item.handlePressed(event)
+                            event.accepted = true
+                            return
+                        }
+                        if (root.hasPlayer && root.player.visible) {
+                            if (handlePlayerPressed(event))
+                            event.accepted = true
+                            return
+                        }
 
-        if (InputKeys.isBackEvent(event, !textInputActive)) {
-            backPressHandled = true;
-            back();
-            event.accepted = true;
-            return;
-        }
+                        if (InputKeys.isBackEvent(event, !textInputActive)) {
+                            backPressHandled = true
+                            back()
+                            event.accepted = true
+                            return
+                        }
 
-        if (textInputActive && Qt.inputMethod.visible && InputKeys.isDirection(event.key))
-            return;
-
-        if (InputKeys.isDirection(event.key)) {
-            if (dispatchNavigationKey(event.key))
-                event.accepted = true;
-        }
-        if (InputKeys.isAccept(event.key) && !navBar.activeFocus) {
-            if (routeStack.handlePressedKey(event.key))
-                event.accepted = true;
-        }
-    }
+                        if (textInputActive && Qt.inputMethod.visible && InputKeys.isDirection(event.key))
+                        return
+                        if (InputKeys.isDirection(event.key)) {
+                            if (dispatchNavigationKey(event.key))
+                            event.accepted = true
+                        }
+                        if (InputKeys.isAccept(event.key) && !navBar.activeFocus) {
+                            if (routeStack.handlePressedKey(event.key))
+                            event.accepted = true
+                        }
+                    }
 
     Keys.onReleased: event => {
-        if (playerBackPressHandled && InputKeys.isBackEvent(event, !textInputActive)) {
-            playerBackPressHandled = false;
-            event.accepted = true;
-            return;
-        }
-        if (managementOverlayVisible) {
-            if (handleManagementKey(event, true))
-                event.accepted = true;
-            return;
-        }
-        if (itemMenuOpen && itemContextMenuLoader.item) {
-            itemContextMenuLoader.item.handleReleased(event);
-            event.accepted = true;
-            return;
-        }
-        if (mediaInfoVisible && mediaInfoOverlayLoader.item) {
-            mediaInfoOverlayLoader.item.handleReleased(event);
-            event.accepted = true;
-            return;
-        }
-        if (root.hasPlayer && root.player.visible) {
-            if (handlePlayerReleased(event))
-                event.accepted = true;
-            return;
-        }
-        if (InputKeys.isBackEvent(event, !textInputActive) && backPressHandled) {
-            backPressHandled = false;
-            event.accepted = true;
-            return;
-        }
-        if (InputKeys.isAccept(event.key)) {
-            // Don't hijack Enter when the nav bar (or anything else) owns focus —
-            // let the focused button handle it natively.
-            if (!navBar.activeFocus && routeStack.handleKey(event.key)) {
-                event.accepted = true;
-                return;
-            }
-        }
-        if (globalShortcut(event, true))
-            event.accepted = true;
-    }
+                         if (playerBackPressHandled && InputKeys.isBackEvent(event, !textInputActive)) {
+                             playerBackPressHandled = false
+                             event.accepted = true
+                             return
+                         }
+                         if (managementOverlayVisible) {
+                             if (handleManagementKey(event, true))
+                             event.accepted = true
+                             return
+                         }
+                         if (itemMenuOpen && itemContextMenuLoader.item) {
+                             itemContextMenuLoader.item.handleReleased(event)
+                             event.accepted = true
+                             return
+                         }
+                         if (mediaInfoVisible && mediaInfoOverlayLoader.item) {
+                             mediaInfoOverlayLoader.item.handleReleased(event)
+                             event.accepted = true
+                             return
+                         }
+                         if (root.hasPlayer && root.player.visible) {
+                             if (handlePlayerReleased(event))
+                             event.accepted = true
+                             return
+                         }
+                         if (InputKeys.isBackEvent(event, !textInputActive) && backPressHandled) {
+                             backPressHandled = false
+                             event.accepted = true
+                             return
+                         }
+                         if (InputKeys.isAccept(event.key)) {
+                             // Don't hijack Enter when the nav bar (or anything else) owns focus —
+                             // let the focused button handle it natively.
+                             if (!navBar.activeFocus && routeStack.handleKey(event.key)) {
+                                 event.accepted = true
+                                 return
+                             }
+                         }
+                         if (globalShortcut(event, true))
+                         event.accepted = true
+                     }
 
     Rectangle {
         anchors.fill: parent
@@ -708,7 +710,9 @@ FocusScope {
     ColumnLayout {
         id: contentLayer
         anchors.fill: parent
-        transform: Translate { y: -root.keyboardAvoidance }
+        transform: Translate {
+            y: -root.keyboardAvoidance
+        }
         spacing: 0
         visible: !(root.hasPlayer && root.player.visible)
         enabled: !(root.hasPlayer && root.player.visible)
@@ -721,13 +725,13 @@ FocusScope {
             z: 1
             currentRoute: root.route
             onNavigate: r => {
-                if (r === "home")
-                    root.goHome();
-                else if (r === "settings")
-                    root.pushRoute("settings");
-                else
-                    root.pushRoute(r);
-            }
+                            if (r === "home")
+                            root.goHome()
+                            else if (r === "settings")
+                            root.pushRoute("settings")
+                            else
+                            root.pushRoute(r)
+                        }
             onContentRequested: root.focusContent()
         }
 
@@ -749,13 +753,13 @@ FocusScope {
         diagnosticsVisible: root.diagnosticsVisible
         z: 19
         onPressed: event => {
-            if (root.handlePlayerPressed(event))
-                event.accepted = true;
-        }
+                       if (root.handlePlayerPressed(event))
+                       event.accepted = true
+                   }
         onReleased: event => {
-            if (root.handlePlayerReleased(event))
-                event.accepted = true;
-        }
+                        if (root.handlePlayerReleased(event))
+                        event.accepted = true
+                    }
     }
 
     Loader {
@@ -832,8 +836,11 @@ FocusScope {
                     TextFieldRow {
                         id: managementNameField
                         Layout.fillWidth: true
-                        visible: root.managementMode === "playlist" || root.managementMode === "collection" || root.managementMode === "rename"
-                        label: root.managementMode === "rename" ? "Name" : (root.managementMode === "collection" ? "New collection name" : "New playlist name")
+                        visible: root.managementMode === "playlist" || root.managementMode === "collection"
+                                 || root.managementMode === "rename"
+                        label: root.managementMode === "rename" ? "Name" : (root.managementMode === "collection"
+                                                                            ? "New collection name" :
+                                                                              "New playlist name")
                         text: root.managementNameDraft
                         onTextEdited: value => root.managementNameDraft = value
                         onAccepted: root.submitManagementCreate()
@@ -842,9 +849,8 @@ FocusScope {
                     AppText {
                         Layout.fillWidth: true
                         visible: root.managementMode === "delete" || root.managementMode === "remove"
-                        text: root.managementMode === "delete"
-                              ? "This permanently deletes the item from the server."
-                              : "This removes the item from the current playlist or collection."
+                        text: root.managementMode === "delete" ? "This permanently deletes the item from the server." :
+                                                                 "This removes the item from the current playlist or collection."
                         color: Theme.textMuted
                         font.pixelSize: Metrics.bodyPx(root.width)
                         wrapMode: Text.Wrap
@@ -868,15 +874,15 @@ FocusScope {
                                 anchors.rightMargin: 14
                                 spacing: 12
                                 MaterialIcon {
-                                    name: index === 0 ? "add" : (root.managementMode === "collection" ? "collections_bookmark" : "playlist_play")
+                                    name: index === 0 ? "add" : (root.managementMode === "collection"
+                                                                 ? "collections_bookmark" : "playlist_play")
                                     iconColor: Theme.textPrimary
                                     iconSize: Metrics.iconPx(root.width)
                                 }
                                 AppText {
                                     Layout.fillWidth: true
-                                    text: index === 0
-                                          ? "Create new"
-                                          : root.itemTitle(root.managementTargets[index - 1] || ({}))
+                                    text: index === 0 ? "Create new" : root.itemTitle(root.managementTargets[index - 1]
+                                                                                      || ({}))
                                     color: Theme.textPrimary
                                     font.pixelSize: Metrics.bodyPx(root.width)
                                     elide: Text.ElideRight
@@ -896,7 +902,9 @@ FocusScope {
                     RowLayout {
                         Layout.fillWidth: true
                         visible: root.managementMode === "delete" || root.managementMode === "remove"
-                        Item { Layout.fillWidth: true }
+                        Item {
+                            Layout.fillWidth: true
+                        }
                         ActionButton {
                             text: "Cancel"
                             onClicked: root.closeManagementOverlay()
@@ -929,47 +937,47 @@ FocusScope {
         active: root.itemMenuLoaded
         sourceComponent: ItemContextMenu {
             onPlayedToggled: (itemId, played) => {
-                if (appController)
-                    appController.setPlayed(itemId, played)
-            }
+                                 if (appController)
+                                 appController.setPlayed(itemId, played)
+                             }
             onFavoriteToggled: (itemId, favorite) => {
-                if (appController)
-                    appController.setFavorite(itemId, favorite)
-            }
-            onClearProgressRequested: (itemId) => {
-                if (appController)
-                    appController.clearProgress(itemId)
-            }
+                                   if (appController)
+                                   appController.setFavorite(itemId, favorite)
+                               }
+            onClearProgressRequested: itemId => {
+                                          if (appController)
+                                          appController.clearProgress(itemId)
+                                      }
             onOpenSeriesRequested: (seriesId, seriesName) => {
-                if (!appController || seriesId.length <= 0)
-                    return
-                root.replaceRoute("libraryGrid")
-                appController.openSeriesById(seriesId, seriesName)
-            }
+                                       if (!appController || seriesId.length <= 0)
+                                       return
+                                       root.replaceRoute("libraryGrid")
+                                       appController.openSeriesById(seriesId, seriesName)
+                                   }
             onOpenSeasonRequested: (seriesId, seasonId, seasonName) => {
-                if (!appController || seriesId.length <= 0)
-                    return
-                root.replaceRoute("libraryGrid")
-                appController.openSeasonById(seriesId, seasonId, seasonName)
-            }
-            onMediaInfoRequested: (snapshot) => root.openMediaInfo(snapshot)
-            onPlayNextRequested: (snapshot) => {
-                if (appController)
-                    appController.playNextFromItem(snapshot)
-            }
-            onAddToQueueRequested: (snapshot) => {
-                if (appController)
-                    appController.addToQueueFromItem(snapshot)
-            }
-            onAddToPlaylistRequested: (snapshot) => root.openManagementPicker("playlist", snapshot)
-            onAddToCollectionRequested: (snapshot) => root.openManagementPicker("collection", snapshot)
-            onRemoveFromParentRequested: (snapshot) => root.openRemoveConfirm(snapshot)
+                                       if (!appController || seriesId.length <= 0)
+                                       return
+                                       root.replaceRoute("libraryGrid")
+                                       appController.openSeasonById(seriesId, seasonId, seasonName)
+                                   }
+            onMediaInfoRequested: snapshot => root.openMediaInfo(snapshot)
+            onPlayNextRequested: snapshot => {
+                                     if (appController)
+                                     appController.playNextFromItem(snapshot)
+                                 }
+            onAddToQueueRequested: snapshot => {
+                                       if (appController)
+                                       appController.addToQueueFromItem(snapshot)
+                                   }
+            onAddToPlaylistRequested: snapshot => root.openManagementPicker("playlist", snapshot)
+            onAddToCollectionRequested: snapshot => root.openManagementPicker("collection", snapshot)
+            onRemoveFromParentRequested: snapshot => root.openRemoveConfirm(snapshot)
             onMovePlaylistItemRequested: (snapshot, delta) => {
-                if (appController)
-                    appController.movePlaylistItemInCurrent(snapshot, delta)
-            }
-            onRenameRequested: (snapshot) => root.openRenamePrompt(snapshot)
-            onDeleteRequested: (snapshot) => root.openDeleteConfirm(snapshot)
+                                             if (appController)
+                                             appController.movePlaylistItemInCurrent(snapshot, delta)
+                                         }
+            onRenameRequested: snapshot => root.openRenamePrompt(snapshot)
+            onDeleteRequested: snapshot => root.openDeleteConfirm(snapshot)
         }
     }
 
@@ -980,22 +988,14 @@ FocusScope {
         active: root.mediaInfoLoaded
         sourceComponent: MediaInfoOverlay {
             visible: root.mediaInfoVisible
-            item: visible ? (root.mediaInfoItem && Object.keys(root.mediaInfoItem).length > 0 ? root.mediaInfoItem : root.currentMediaItem()) : ({})
+            item: visible ? (root.mediaInfoItem && Object.keys(root.mediaInfoItem).length > 0 ? root.mediaInfoItem :
+                                                                                                root.currentMediaItem(
+                                                                                                    )) : ({})
             shell: root
             onClosed: {
-                root.mediaInfoVisible = false;
-                root.mediaInfoItem = ({});
+                root.mediaInfoVisible = false
+                root.mediaInfoItem = ({})
             }
-        }
-    }
-
-    Loader {
-        anchors.fill: parent
-        z: 60
-        active: root.shortcutOverlayLoaded
-        sourceComponent: ShortcutOverlay {
-            visible: root.shortcutOverlayVisible
-            onClosed: root.shortcutOverlayVisible = false
         }
     }
 
@@ -1037,7 +1037,7 @@ FocusScope {
         MouseArea {
             anchors.fill: parent
             onClicked: if (appController)
-                appController.clearError()
+                           appController.clearError()
         }
     }
 }

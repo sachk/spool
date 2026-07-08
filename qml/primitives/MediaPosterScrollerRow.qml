@@ -125,39 +125,31 @@ FocusScope {
             root.currentIndex = currentIndex
             root.ensureVisible()
         }
-        FastWheelHandler { flickable: listView; horizontal: true }
+        FastWheelHandler {
+            flickable: listView
+            horizontal: true
+        }
 
         delegate: Item {
             id: posterDelegate
             required property int index
-            required property string movieId
-            required property string title
+            required property var item
             required property string displayTitle
             required property string displaySubtitle
-            required property string subtitle
-            required property string posterUrl
-            required property string seriesPosterUrl
-            required property string thumbUrl
-            required property string backdropUrl
-            required property string landscapeCardUrl
-            required property string itemType
-            required property string seriesName
-            required property string seriesId
-            required property string seasonId
-            required property int seasonNumber
-            required property int year
             required property real progress
-            required property real resumeTicks
-            required property bool favorite
-            required property bool played
-            required property bool playable
+            readonly property var movie: item || ({})
             width: root.cardWidth
             height: listView.height
 
-            function handleAcceptPressed(key) { return card.handleAcceptPressed(key) }
-            function handleAcceptReleased(key) { return card.handleAcceptReleased(key) }
-            function handleKey(key) { return card.handleKey(key) }
-            function snapshot() { return root.rowModel.get(posterDelegate.index) || ({}) }
+            function handleAcceptPressed(key) {
+                return card.handleAcceptPressed(key)
+            }
+            function handleAcceptReleased(key) {
+                return card.handleAcceptReleased(key)
+            }
+            function handleKey(key) {
+                return card.handleKey(key)
+            }
 
             MediaItemCard {
                 id: card
@@ -167,46 +159,31 @@ FocusScope {
                 useSeriesPoster: root.useSeriesPoster
                 preferEpisodeTitle: root.preferEpisodeTitle
                 focused: posterDelegate.index === listView.currentIndex && listView.activeFocus
-                snapshotProvider: posterDelegate.snapshot
-                movieId: posterDelegate.movieId
-                title: posterDelegate.title
+                snapshotProvider: function () {
+                    return root.rowModel.get(posterDelegate.index) || ({})
+                }
+                item: posterDelegate.movie
                 displayTitle: posterDelegate.displayTitle
                 displaySubtitle: posterDelegate.displaySubtitle
-                subtitle: posterDelegate.subtitle
-                posterUrl: posterDelegate.posterUrl
-                seriesPosterUrl: posterDelegate.seriesPosterUrl
-                thumbUrl: posterDelegate.thumbUrl
-                backdropUrl: posterDelegate.backdropUrl
-                landscapeCardUrl: posterDelegate.landscapeCardUrl
-                itemType: posterDelegate.itemType
-                seriesName: posterDelegate.seriesName
-                seriesId: posterDelegate.seriesId
-                seasonId: posterDelegate.seasonId
-                seasonNumber: posterDelegate.seasonNumber
-                year: posterDelegate.year
                 progress: posterDelegate.progress
-                resumeTicks: posterDelegate.resumeTicks
-                favorite: posterDelegate.favorite
-                played: posterDelegate.played
-                playable: posterDelegate.playable
                 onActivated: {
                     listView.currentIndex = posterDelegate.index
                     root.currentIndex = posterDelegate.index
                     root.activated(posterDelegate.index)
                 }
-                onFavoriteToggled: (favorite) => appController.setFavorite(posterDelegate.movieId || "", favorite)
-                onPlayedToggled: (played) => appController.setPlayed(posterDelegate.movieId || "", played)
+                onFavoriteToggled: favorite => appController.setFavorite(posterDelegate.movie.movieId || "", favorite)
+                onPlayedToggled: played => appController.setPlayed(posterDelegate.movie.movieId || "", played)
                 onMediaInfoRequested: {
                     if (root.shell)
-                        root.shell.openMediaInfo(posterDelegate.snapshot())
+                        root.shell.openMediaInfo(root.rowModel.get(posterDelegate.index) || ({}))
                 }
             }
         }
 
-        Keys.onReleased: (event) => {
-            if (root.handleKey(event.key))
-                event.accepted = true
-        }
+        Keys.onReleased: event => {
+                             if (root.handleKey(event.key))
+                             event.accepted = true
+                         }
     }
 
     MonoText {

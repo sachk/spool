@@ -8,18 +8,17 @@
 
 namespace JellyfinNative::Diagnostics {
 
-void initialize(const QString &appId, const QString &rootPath);
+void initialize(const QString& appId, const QString& rootPath);
 void shutdown();
 bool enabled();
 QString rootPath();
-void logEvent(const QString &category, const QString &event, QJsonObject data = {});
-void setInstanceState(const QString &state, QJsonObject extra = {});
+void logEvent(const QString& category, const QString& event, QJsonObject data = {});
+void setInstanceState(const QString& state, QJsonObject extra = {});
 void writePreviousInstanceReport();
-void dumpDiagnostics(const QString &reason);
+void dumpDiagnostics(const QString& reason);
 void noteSignal(int signalNumber);
 
-class EventLoopWatchdog final : public QObject
-{
+class EventLoopWatchdog final : public QObject {
     Q_OBJECT
 
 public:
@@ -27,8 +26,7 @@ public:
     ~EventLoopWatchdog() override;
 };
 
-class Phase final
-{
+class Phase final {
 public:
     Phase(QString category, QString name, QJsonObject data = {});
     ~Phase();
@@ -40,8 +38,7 @@ private:
     bool m_active = false;
 };
 
-class Task final
-{
+class Task final {
 public:
     Task(QString name, QJsonObject data = {});
     ~Task();
@@ -53,8 +50,7 @@ private:
     bool m_active = false;
 };
 
-class ThreadScope final
-{
+class ThreadScope final {
 public:
     explicit ThreadScope(QString name);
     ~ThreadScope();
@@ -64,12 +60,11 @@ private:
     bool m_active = false;
 };
 
-class NetworkRequest final
-{
+class NetworkRequest final {
 public:
     NetworkRequest(QString method, QString url);
     ~NetworkRequest();
-    void finish(int statusCode, const QString &errorText = {});
+    void finish(int statusCode, const QString& errorText = {});
 
 private:
     QString m_id;

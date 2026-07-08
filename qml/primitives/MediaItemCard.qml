@@ -10,40 +10,41 @@ Item {
     property bool useSeriesPoster: false
     property bool preferEpisodeTitle: false
     property string longPressAction: "menu"
+    property var item: ({})
     property var snapshotProvider: null
-
-    property string movieId: ""
-    property string title: ""
     property string displayTitle: ""
     property string displaySubtitle: ""
-    property string subtitle: ""
-    property string posterUrl: ""
-    property string seriesPosterUrl: ""
-    property string thumbUrl: ""
-    property string landscapeCardUrl: ""
-    property string backdropUrl: ""
-    property string itemType: ""
-    property string seriesName: ""
-    property string seriesId: ""
-    property string seasonId: ""
-    property int year: 0
-    property int seasonNumber: 0
     property real progress: 0
-    property real resumeTicks: 0
-    property bool favorite: false
-    property bool played: false
-    property bool playable: true
+
+    readonly property string movieId: String(item.movieId || "")
+    readonly property string title: String(item.title || "")
+    readonly property string subtitle: String(item.subtitle || "")
+    readonly property string posterUrl: String(item.posterUrl || "")
+    readonly property string seriesPosterUrl: String(item.seriesPosterUrl || "")
+    readonly property string thumbUrl: String(item.thumbUrl || "")
+    readonly property string landscapeCardUrl: String(item.landscapeCardUrl || "")
+    readonly property string backdropUrl: String(item.backdropUrl || "")
+    readonly property string itemType: String(item.itemType || "")
+    readonly property string seriesName: String(item.seriesName || "")
+    readonly property string seriesId: String(item.seriesId || "")
+    readonly property string seasonId: String(item.seasonId || "")
+    readonly property int year: Number(item.year || 0)
+    readonly property int seasonNumber: Number(item.seasonNumber || 0)
+    readonly property real resumeTicks: Number(item.resumeTicks || 0)
+    readonly property bool favorite: Boolean(item.favorite)
+    readonly property bool played: Boolean(item.played)
+    readonly property bool playable: item.playable === undefined || item.playable
 
     readonly property bool posterKind: kind === "poster"
     readonly property real metadataHeight: metadataLabel.text.length > 0 ? metadataLabel.implicitHeight : 0
     readonly property real artHeight: posterKind ? width * 1.5 : width * 9 / 16
     readonly property real titleAvailableHeight: Math.max(0, height - art.height - 10 - metadataHeight)
 
-    signal activated()
-    signal detailsRequested()
+    signal activated
+    signal detailsRequested
     signal favoriteToggled(bool favorite)
     signal playedToggled(bool played)
-    signal mediaInfoRequested()
+    signal mediaInfoRequested
 
     clip: true
 
@@ -70,29 +71,7 @@ Item {
     }
 
     function snapshot() {
-        return snapshotProvider ? (snapshotProvider() || ({})) : ({
-            movieId: movieId,
-            title: title,
-            displayTitle: displayTitle,
-            displaySubtitle: displaySubtitle,
-            subtitle: subtitle,
-            posterUrl: posterUrl,
-            seriesPosterUrl: seriesPosterUrl,
-            thumbUrl: thumbUrl,
-            landscapeCardUrl: landscapeCardUrl,
-            backdropUrl: backdropUrl,
-            itemType: itemType,
-            seriesName: seriesName,
-            seriesId: seriesId,
-            seasonId: seasonId,
-            year: year,
-            seasonNumber: seasonNumber,
-            progress: progress,
-            resumeTicks: resumeTicks,
-            favorite: favorite,
-            played: played,
-            playable: playable
-        })
+        return snapshotProvider ? (snapshotProvider() || ({})) : (item || ({}))
     }
 
     function handleAcceptPressed(key) {
@@ -114,9 +93,9 @@ Item {
         anchors.right: parent.right
         height: root.artHeight
         imageUrl: root.posterKind ? root.posterImage() : root.landscapeImage()
-        fallbackText: root.posterKind
-                      ? (root.year > 0 ? String(root.year) : (root.itemType.length > 0 ? root.itemType : "Poster"))
-                      : (root.subtitleText().length > 0 ? root.subtitleText() : root.itemType)
+        fallbackText: root.posterKind ? (root.year > 0 ? String(root.year) : (root.itemType.length > 0 ? root.itemType :
+                                                                                                         "Poster")) : (
+                                            root.subtitleText().length > 0 ? root.subtitleText() : root.itemType)
         focused: root.focused
         retainWhileLoading: !root.posterKind
     }
@@ -175,11 +154,17 @@ Item {
 
         Behavior on width {
             enabled: !Theme.reducedMotion
-            NumberAnimation { duration: 100; easing.type: Easing.OutQuad }
+            NumberAnimation {
+                duration: 100
+                easing.type: Easing.OutQuad
+            }
         }
         Behavior on opacity {
             enabled: !Theme.reducedMotion
-            NumberAnimation { duration: 100; easing.type: Easing.OutQuad }
+            NumberAnimation {
+                duration: 100
+                easing.type: Easing.OutQuad
+            }
         }
     }
 
@@ -188,17 +173,13 @@ Item {
         anchors.fill: parent
         shell: root.shell
         focused: root.focused
-        movieId: root.movieId
-        itemType: root.itemType
-        favorite: root.favorite
-        played: root.played
-        resumeTicks: root.resumeTicks
+        item: root.item
         longPressAction: root.longPressAction
         snapshotProvider: root.snapshot
         onActivated: root.activated()
         onDetailsRequested: root.detailsRequested()
-        onFavoriteToggled: (favorite) => root.favoriteToggled(favorite)
-        onPlayedToggled: (played) => root.playedToggled(played)
+        onFavoriteToggled: favorite => root.favoriteToggled(favorite)
+        onPlayedToggled: played => root.playedToggled(played)
         onMediaInfoRequested: root.mediaInfoRequested()
     }
 }

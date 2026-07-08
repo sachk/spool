@@ -21,8 +21,8 @@ void require(bool condition, const char *message)
     std::exit(EXIT_FAILURE);
 }
 
-void requireBrowse(const BrowseSessionController &session, BrowseKind kind,
-                   const QString &id, const QString &name, const char *message)
+void requireBrowse(const BrowseSessionController& session, BrowseKind kind, const QString& id, const QString& name,
+    const char *message)
 {
     const auto descriptor = session.descriptor();
     require(descriptor.kind == kind, message);
@@ -49,24 +49,24 @@ int main()
     library.id = QStringLiteral("lib");
     library.name = QStringLiteral("Movies");
     library.collectionType = QStringLiteral("movies");
-    QVariantMap defaultQuery{{QStringLiteral("sortBy"), QStringLiteral("SortName")}};
+    QVariantMap defaultQuery { { QStringLiteral("sortBy"), QStringLiteral("SortName") } };
     session.enterLibrary(library, QStringLiteral("Movies"), defaultQuery);
-    requireBrowse(session, BrowseKind::Library, QStringLiteral("lib"), QStringLiteral("Movies"),
-                  "library descriptor set");
+    requireBrowse(
+        session, BrowseKind::Library, QStringLiteral("lib"), QStringLiteral("Movies"), "library descriptor set");
     require(session.libraryId() == QStringLiteral("lib"), "library id set");
     require(session.query().value(QStringLiteral("sortBy")).toString() == QStringLiteral("SortName"),
-            "default library query used");
+        "default library query used");
 
-    QVariantMap dateQuery{{QStringLiteral("sortBy"), QStringLiteral("DateCreated")}};
+    QVariantMap dateQuery { { QStringLiteral("sortBy"), QStringLiteral("DateCreated") } };
     require(session.setQuery(dateQuery), "query changed");
     session.enterLibrary(library, QStringLiteral("Movies"), defaultQuery);
     require(session.query().value(QStringLiteral("sortBy")).toString() == QStringLiteral("DateCreated"),
-            "library query retained by library id");
+        "library query retained by library id");
 
     const MovieItem series = item(QStringLiteral("series"), QStringLiteral("Show"), QStringLiteral("Series"));
     session.enterSeries(series);
-    requireBrowse(session, BrowseKind::SeriesSeasons, QStringLiteral("series"), QStringLiteral("Show"),
-                  "series descriptor set");
+    requireBrowse(
+        session, BrowseKind::SeriesSeasons, QStringLiteral("series"), QStringLiteral("Show"), "series descriptor set");
     require(session.viewKind() == QStringLiteral("seasons"), "series view kind set");
 
     MovieItem season = item(QStringLiteral("season"), QStringLiteral("Season 1"), QStringLiteral("Season"));
@@ -81,17 +81,17 @@ int main()
     require(session.descriptor().kind == BrowseKind::Studio, "studio descriptor set");
 
     session.enterPlaylist(item(QStringLiteral("playlist"), QStringLiteral("Queue"), QStringLiteral("Playlist")));
-    requireBrowse(session, BrowseKind::Playlist, QStringLiteral("playlist"), QStringLiteral("Queue"),
-                  "playlist descriptor set");
+    requireBrowse(
+        session, BrowseKind::Playlist, QStringLiteral("playlist"), QStringLiteral("Queue"), "playlist descriptor set");
     session.enterBoxSet(item(QStringLiteral("box"), QStringLiteral("Collection"), QStringLiteral("BoxSet")));
-    requireBrowse(session, BrowseKind::BoxSet, QStringLiteral("box"), QStringLiteral("Collection"),
-                  "box set descriptor set");
+    requireBrowse(
+        session, BrowseKind::BoxSet, QStringLiteral("box"), QStringLiteral("Collection"), "box set descriptor set");
     session.enterFolder(item(QStringLiteral("folder"), QStringLiteral("Folder"), QStringLiteral("Folder")));
     requireBrowse(session, BrowseKind::FolderChildren, QStringLiteral("folder"), QStringLiteral("Folder"),
-                  "folder descriptor set");
+        "folder descriptor set");
 
     PagedMovieItems page;
-    page.items = {item(QStringLiteral("movie"), QStringLiteral("Movie"), QStringLiteral("Movie"))};
+    page.items = { item(QStringLiteral("movie"), QStringLiteral("Movie"), QStringLiteral("Movie")) };
     page.totalRecordCount = 3;
     page.startIndex = 0;
     page.limit = 1;

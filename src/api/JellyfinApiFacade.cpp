@@ -1,18 +1,18 @@
 #include "JellyfinApiFacade.h"
 
-#include "../diagnostics/Diagnostics.h"
 #include "../common/MetaJson.h"
-#include "PlaybackNegotiation.h"
+#include "../diagnostics/Diagnostics.h"
 #include "ItemsQuery.h"
+#include "PlaybackNegotiation.h"
 
 #include <QCoroNetwork>
 #include <QCoroTimer>
 
+#include <QDebug>
 #include <QDir>
 #include <QHttpHeaders>
 #include <QJsonArray>
 #include <QJsonObject>
-#include <QDebug>
 #include <QNetworkReply>
 #if QT_CONFIG(ssl)
 #include <QSslConfiguration>
@@ -29,375 +29,390 @@ namespace JellyfinNative {
 
 namespace {
 
-QString requireString(const QJsonObject &object, const QString &key)
-{
-    const QString value = object.value(key).toString();
-    if (value.isEmpty())
-        throw std::runtime_error(QStringLiteral("Missing field: %1").arg(key).toStdString());
-    return value;
-}
-
-QString cleanContainerName(const QString &container)
-{
-    if (container.contains(QLatin1Char(',')))
-        return container.section(QLatin1Char(','), 0, 0).trimmed();
-    return container.trimmed();
-}
-
-bool isQuickConnectPath(const QString &path)
-{
-    return path.startsWith(QStringLiteral("/QuickConnect/")) ||
-           path == QStringLiteral("/Users/AuthenticateWithQuickConnect");
-}
-
-QJsonArray itemsArrayFromDocument(const QJsonDocument &document)
-{
-    if (document.isArray())
-        return document.array();
-    return document.object().value(QStringLiteral("Items")).toArray();
-}
-
-QString detailItemFields()
-{
-    return QStringLiteral("Overview,ProductionYear,PremiereDate,EndDate,ImageTags,BackdropImageTags,"
-                          "UserData,Path,RunTimeTicks,SeriesInfo,Genres,Tags,Studios,OfficialRating,"
-                          "CommunityRating,CriticRating,People,PrimaryImageAspectRatio,MediaSources");
-}
-
-QString libraryItemFields()
-{
-    return QStringLiteral("Overview,ProductionYear,PremiereDate,EndDate,ImageTags,BackdropImageTags,"
-                          "UserData,RunTimeTicks,SeriesInfo,Genres,Tags,Studios,OfficialRating,"
-                          "CommunityRating,CriticRating,PrimaryImageAspectRatio");
-}
-
-QString episodeSubtitle(const QJsonObject &object)
-{
-    const int season = object.value(QStringLiteral("ParentIndexNumber")).toInt();
-    const int episode = object.value(QStringLiteral("IndexNumber")).toInt();
-    if (season > 0 && episode > 0)
-        return QStringLiteral("S%1:E%2").arg(season, 2, 10, QLatin1Char('0')).arg(episode, 2, 10, QLatin1Char('0'));
-    if (episode > 0)
-        return QStringLiteral("Episode %1").arg(episode);
-    return QStringLiteral("Episode");
-}
-
-QString firstString(const QJsonArray &array)
-{
-    for (const QJsonValue &value : array) {
-        const QString stringValue = value.toString();
-        if (!stringValue.isEmpty())
-            return stringValue;
+    QString requireString(const QJsonObject& object, const QString& key)
+    {
+        const QString value = object.value(key).toString();
+        if (value.isEmpty())
+            throw std::runtime_error(QStringLiteral("Missing field: %1").arg(key).toStdString());
+        return value;
     }
-    return {};
-}
 
-QStringList stringsFromJsonArray(const QJsonArray &array)
-{
-    QStringList result;
-    result.reserve(array.size());
-    for (const QJsonValue &value : array) {
-        const QString stringValue = value.toString();
-        if (!stringValue.isEmpty())
-            result.push_back(stringValue);
+    QString cleanContainerName(const QString& container)
+    {
+        if (container.contains(QLatin1Char(',')))
+            return container.section(QLatin1Char(','), 0, 0).trimmed();
+        return container.trimmed();
     }
-    return result;
-}
 
-QString includeItemTypesForCollection(QString collectionType)
-{
-    if (collectionType == QStringLiteral("movies"))
-        return QStringLiteral("Movie");
-    if (collectionType == QStringLiteral("tvshows"))
-        return QStringLiteral("Series");
-    if (collectionType == QStringLiteral("playlists"))
-        return QStringLiteral("Playlist");
-    if (collectionType == QStringLiteral("boxsets"))
-        return QStringLiteral("BoxSet");
-    return QStringLiteral("Movie,Series,Episode,MusicVideo,Video");
-}
+    bool isQuickConnectPath(const QString& path)
+    {
+        return path.startsWith(QStringLiteral("/QuickConnect/"))
+            || path == QStringLiteral("/Users/AuthenticateWithQuickConnect");
+    }
 
-QStringList itemTypesList(const QString &types)
-{
-    return types.split(QLatin1Char(','), Qt::SkipEmptyParts);
-}
+    QJsonArray itemsArrayFromDocument(const QJsonDocument& document)
+    {
+        if (document.isArray())
+            return document.array();
+        return document.object().value(QStringLiteral("Items")).toArray();
+    }
 
-bool libraryBrowseNeedsVideoMediaType(const QString &collectionType)
-{
-    return collectionType != QStringLiteral("movies") &&
-           collectionType != QStringLiteral("tvshows") &&
-           collectionType != QStringLiteral("playlists") &&
-           collectionType != QStringLiteral("boxsets");
-}
+    QString detailItemFields()
+    {
+        return QStringLiteral("Overview,ProductionYear,PremiereDate,EndDate,ImageTags,BackdropImageTags,"
+                              "UserData,Path,RunTimeTicks,SeriesInfo,Genres,Tags,Studios,OfficialRating,"
+                              "CommunityRating,CriticRating,People,PrimaryImageAspectRatio,MediaSources");
+    }
 
-bool libraryBrowseUsesDirectChildren(const QString &collectionType)
-{
-    return collectionType == QStringLiteral("playlists") ||
-           collectionType == QStringLiteral("boxsets");
-}
+    QString libraryItemFields()
+    {
+        return QStringLiteral("Overview,ProductionYear,PremiereDate,EndDate,ImageTags,BackdropImageTags,"
+                              "UserData,RunTimeTicks,SeriesInfo,Genres,Tags,Studios,OfficialRating,"
+                              "CommunityRating,CriticRating,PrimaryImageAspectRatio");
+    }
 
-QStringList queryStringList(const QVariantMap &options, const QString &key)
-{
-    QStringList result;
-    const QVariant value = options.value(key);
-    if (value.typeId() == QMetaType::QStringList) {
-        result = value.toStringList();
-    } else if (value.typeId() == QMetaType::QVariantList) {
-        const QVariantList list = value.toList();
-        result.reserve(list.size());
-        for (const QVariant &item : list) {
-            const QString text = item.toString();
-            if (!text.isEmpty())
-                result.push_back(text);
+    QString episodeSubtitle(const QJsonObject& object)
+    {
+        const int season = object.value(QStringLiteral("ParentIndexNumber")).toInt();
+        const int episode = object.value(QStringLiteral("IndexNumber")).toInt();
+        if (season > 0 && episode > 0)
+            return QStringLiteral("S%1:E%2").arg(season, 2, 10, QLatin1Char('0')).arg(episode, 2, 10, QLatin1Char('0'));
+        if (episode > 0)
+            return QStringLiteral("Episode %1").arg(episode);
+        return QStringLiteral("Episode");
+    }
+
+    QString firstString(const QJsonArray& array)
+    {
+        for (const QJsonValue& value : array) {
+            const QString stringValue = value.toString();
+            if (!stringValue.isEmpty())
+                return stringValue;
         }
-    } else {
-        const QString text = value.toString();
-        if (!text.isEmpty())
-            result = text.split(QLatin1Char(','), Qt::SkipEmptyParts);
-    }
-    result.removeAll(QString());
-    return result;
-}
-
-void addJoinedQueryItem(QUrlQuery &query, const QVariantMap &options, const QString &key,
-                        const QString &queryKey, QLatin1Char delimiter)
-{
-    const QStringList values = queryStringList(options, key);
-    if (!values.isEmpty())
-        query.addQueryItem(queryKey, values.join(delimiter));
-}
-
-void addOptionalBoolQueryItem(QUrlQuery &query, const QVariantMap &options,
-                              const QString &key, const QString &queryKey)
-{
-    if (!options.contains(key))
-        return;
-    const QVariant value = options.value(key);
-    if (!value.isValid() || value.isNull())
-        return;
-    query.addQueryItem(queryKey, value.toBool() ? QStringLiteral("true") : QStringLiteral("false"));
-}
-
-void addLibraryQueryOptions(QUrlQuery &query, const QVariantMap &options)
-{
-    const QString sortBy = options.value(QStringLiteral("sortBy"), QStringLiteral("SortName")).toString();
-    const QString sortOrder = options.value(QStringLiteral("sortOrder"), QStringLiteral("Ascending")).toString();
-    query.addQueryItem(QStringLiteral("sortBy"), sortBy.isEmpty() ? QStringLiteral("SortName") : sortBy);
-    query.addQueryItem(QStringLiteral("sortOrder"), sortOrder.isEmpty() ? QStringLiteral("Ascending") : sortOrder);
-
-    addJoinedQueryItem(query, options, QStringLiteral("filters"), QStringLiteral("filters"), QLatin1Char(','));
-    addJoinedQueryItem(query, options, QStringLiteral("genres"), QStringLiteral("genres"), QLatin1Char('|'));
-    addJoinedQueryItem(query, options, QStringLiteral("officialRatings"), QStringLiteral("officialRatings"), QLatin1Char('|'));
-    addJoinedQueryItem(query, options, QStringLiteral("tags"), QStringLiteral("tags"), QLatin1Char('|'));
-    addJoinedQueryItem(query, options, QStringLiteral("years"), QStringLiteral("years"), QLatin1Char(','));
-    addJoinedQueryItem(query, options, QStringLiteral("studioIds"), QStringLiteral("studioIds"), QLatin1Char('|'));
-    addJoinedQueryItem(query, options, QStringLiteral("seriesStatus"), QStringLiteral("seriesStatus"), QLatin1Char(','));
-    addJoinedQueryItem(query, options, QStringLiteral("videoTypes"), QStringLiteral("videoTypes"), QLatin1Char(','));
-
-    addOptionalBoolQueryItem(query, options, QStringLiteral("isHd"), QStringLiteral("isHd"));
-    addOptionalBoolQueryItem(query, options, QStringLiteral("is4K"), QStringLiteral("is4K"));
-    addOptionalBoolQueryItem(query, options, QStringLiteral("is3D"), QStringLiteral("is3D"));
-    addOptionalBoolQueryItem(query, options, QStringLiteral("hasSubtitles"), QStringLiteral("hasSubtitles"));
-    addOptionalBoolQueryItem(query, options, QStringLiteral("hasTrailer"), QStringLiteral("hasTrailer"));
-    addOptionalBoolQueryItem(query, options, QStringLiteral("hasSpecialFeature"), QStringLiteral("hasSpecialFeature"));
-    addOptionalBoolQueryItem(query, options, QStringLiteral("hasThemeSong"), QStringLiteral("hasThemeSong"));
-    addOptionalBoolQueryItem(query, options, QStringLiteral("hasThemeVideo"), QStringLiteral("hasThemeVideo"));
-    addOptionalBoolQueryItem(query, options, QStringLiteral("isMissing"), QStringLiteral("isMissing"));
-    addOptionalBoolQueryItem(query, options, QStringLiteral("isUnaired"), QStringLiteral("isUnaired"));
-
-    const QVariant specialEpisode = options.value(QStringLiteral("specialEpisode"));
-    if (specialEpisode.isValid() && !specialEpisode.isNull() && specialEpisode.toBool())
-        query.addQueryItem(QStringLiteral("parentIndexNumber"), QStringLiteral("0"));
-
-    const QString alphabet = options.value(QStringLiteral("alphabet")).toString();
-    if (!alphabet.isEmpty()) {
-        if (alphabet == QStringLiteral("#"))
-            query.addQueryItem(QStringLiteral("nameLessThan"), QStringLiteral("A"));
-        else
-            query.addQueryItem(QStringLiteral("nameStartsWith"), alphabet);
-    }
-}
-
-QStringList studioNamesFromJsonArray(const QJsonArray &array)
-{
-    QStringList result;
-    result.reserve(array.size());
-    for (const QJsonValue &value : array) {
-        const QString name = value.toObject().value(QStringLiteral("Name")).toString();
-        if (!name.isEmpty())
-            result.push_back(name);
-    }
-    return result;
-}
-
-QList<PersonItem> peopleFromApiJson(const JellyfinApiFacade *api, const QJsonArray &array)
-{
-    QList<PersonItem> people;
-    people.reserve(array.size());
-    for (const QJsonValue &value : array) {
-        const QJsonObject object = value.toObject();
-        PersonItem person;
-        person.id = object.value(QStringLiteral("Id")).toString();
-        person.name = object.value(QStringLiteral("Name")).toString();
-        person.type = object.value(QStringLiteral("Type")).toString();
-        person.role = object.value(QStringLiteral("Role")).toString();
-        person.imageTag = object.value(QStringLiteral("PrimaryImageTag")).toString();
-        if (!person.id.isEmpty() && !person.imageTag.isEmpty())
-            person.imageUrl = api->buildImageUrl(person.id, person.imageTag, 360, 80);
-        if (!person.id.isEmpty() || !person.name.isEmpty())
-            people.push_back(person);
-    }
-    return people;
-}
-
-QList<MediaStreamInfo> mediaStreamsFromApiJson(const QJsonArray &array)
-{
-    QList<MediaStreamInfo> streams;
-    streams.reserve(array.size());
-    for (const QJsonValue &value : array) {
-        const QJsonObject object = value.toObject();
-        MediaStreamInfo stream = metaFromJson<MediaStreamInfo>(object, MetaJsonKeyPolicy::PascalCase);
-        stream.frameRate = object.value(QStringLiteral("AverageFrameRate")).toDouble();
-        if (stream.frameRate <= 0.0)
-            stream.frameRate = object.value(QStringLiteral("RealFrameRate")).toDouble();
-        if (!stream.type.isEmpty() || !stream.codec.isEmpty())
-            streams.push_back(stream);
-    }
-    return streams;
-}
-
-QList<MediaSourceInfo> mediaSourcesFromApiJson(const QJsonArray &array)
-{
-    QList<MediaSourceInfo> sources;
-    sources.reserve(array.size());
-    for (const QJsonValue &value : array) {
-        const QJsonObject object = value.toObject();
-        MediaSourceInfo source = metaFromJson<MediaSourceInfo>(object, MetaJsonKeyPolicy::PascalCase);
-        source.container = cleanContainerName(object.value(QStringLiteral("Container")).toString());
-        source.bitRate = object.value(QStringLiteral("Bitrate")).toInt();
-        if (source.bitRate <= 0)
-            source.bitRate = object.value(QStringLiteral("BitRate")).toInt();
-        source.runtimeTicks = object.value(QStringLiteral("RunTimeTicks")).toVariant().toLongLong();
-        source.streams = mediaStreamsFromApiJson(object.value(QStringLiteral("MediaStreams")).toArray());
-        if (!source.id.isEmpty() || !source.container.isEmpty() || !source.streams.isEmpty())
-            sources.push_back(source);
-    }
-    return sources;
-}
-
-MovieItem mediaItemFromJson(const JellyfinApiFacade *api, const QJsonObject &object)
-{
-    const QString itemId = object.value(QStringLiteral("Id")).toString();
-    const QString itemType = object.value(QStringLiteral("Type")).toString();
-    const QString seriesId = object.value(QStringLiteral("SeriesId")).toString();
-    const QString seasonId = object.value(QStringLiteral("SeasonId")).toString();
-    const QString seriesPrimaryImageTag = object.value(QStringLiteral("SeriesPrimaryImageTag")).toString();
-    const QJsonObject imageTags = object.value(QStringLiteral("ImageTags")).toObject();
-    const QString posterTag = imageTags.value(QStringLiteral("Primary")).toString();
-    const QString logoTag = imageTags.value(QStringLiteral("Logo")).toString();
-    const QString bannerTag = imageTags.value(QStringLiteral("Banner")).toString();
-    const QString thumbTag = imageTags.value(QStringLiteral("Thumb")).toString();
-    const QString backdropTag = firstString(object.value(QStringLiteral("BackdropImageTags")).toArray());
-    QString subtitle;
-    bool playable = itemType == QStringLiteral("Movie") ||
-                    itemType == QStringLiteral("Episode") ||
-                    itemType == QStringLiteral("MusicVideo") ||
-                    itemType == QStringLiteral("Video");
-
-    if (itemType == QStringLiteral("Series")) {
-        const int year = object.value(QStringLiteral("ProductionYear")).toInt();
-        subtitle = year > 0 ? QString::number(year) : QStringLiteral("Series");
-        playable = false;
-    } else if (itemType == QStringLiteral("Season")) {
-        subtitle = QStringLiteral("Season");
-        playable = false;
-    } else if (itemType == QStringLiteral("Episode")) {
-        subtitle = episodeSubtitle(object);
-    } else if (object.value(QStringLiteral("ProductionYear")).toInt() > 0) {
-        subtitle = QString::number(object.value(QStringLiteral("ProductionYear")).toInt());
+        return {};
     }
 
-    const int indexNumber = object.value(QStringLiteral("IndexNumber")).toInt();
-    const int parentIndexNumber = object.value(QStringLiteral("ParentIndexNumber")).toInt();
-    const QJsonObject userData = object.value(QStringLiteral("UserData")).toObject();
-    const qint64 resumeTicks = userData.value(QStringLiteral("PlaybackPositionTicks")).toVariant().toLongLong();
-    const qint64 runtimeTicks = object.value(QStringLiteral("RunTimeTicks")).toVariant().toLongLong();
+    QString serverPath(QString basePath, const QStringList& segments)
+    {
+        while (basePath.endsWith(QLatin1Char('/')))
+            basePath.chop(1);
 
-    MovieItem item;
-    item.id = itemId;
-    item.title = object.value(QStringLiteral("Name")).toString();
-    item.overview = object.value(QStringLiteral("Overview")).toString();
-    item.posterUrl = posterTag.isEmpty() ? QString() : api->buildImageUrl(itemId, posterTag);
-    item.posterTag = posterTag;
-    item.itemType = itemType;
-    item.playlistItemId = object.value(QStringLiteral("PlaylistItemId")).toString();
-    item.seriesId = seriesId;
-    item.seasonId = seasonId;
-    item.seriesName = object.value(QStringLiteral("SeriesName")).toString();
-    item.seriesPosterUrl = !seriesId.isEmpty() && !seriesPrimaryImageTag.isEmpty()
-        ? api->buildImageUrl(seriesId, seriesPrimaryImageTag, 360, 80)
-        : QString();
-    item.subtitle = subtitle;
-    item.path = object.value(QStringLiteral("Path")).toString();
-    item.year = object.value(QStringLiteral("ProductionYear")).toInt();
-    item.seasonNumber = itemType == QStringLiteral("Episode") ? parentIndexNumber : indexNumber;
-    item.episodeNumber = itemType == QStringLiteral("Episode") ? indexNumber : 0;
-    item.resumeTicks = normalizedResumeTicks(resumeTicks, runtimeTicks);
-    item.runtimeTicks = runtimeTicks;
-    item.playable = playable;
-    item.favorite = userData.value(QStringLiteral("IsFavorite")).toBool(false);
-    item.played = userData.value(QStringLiteral("Played")).toBool(false);
-    item.backdropUrl = backdropTag.isEmpty()
-        ? QString()
-        : api->buildImageUrl(itemId, backdropTag, 1920, 82, QStringLiteral("webp"), QStringLiteral("Backdrop"));
-    item.logoUrl = logoTag.isEmpty()
-        ? QString()
-        : api->buildImageUrl(itemId, logoTag, 720, 90, QStringLiteral("png"), QStringLiteral("Logo"));
-    item.bannerUrl = bannerTag.isEmpty()
-        ? QString()
-        : api->buildImageUrl(itemId, bannerTag, 1000, 86, QStringLiteral("webp"), QStringLiteral("Banner"));
-    item.thumbUrl = thumbTag.isEmpty()
-        ? QString()
-        : api->buildImageUrl(itemId, thumbTag, 720, 82, QStringLiteral("webp"), QStringLiteral("Thumb"));
-    const int landscapeCardWidth = api->landscapeCardImageWidth();
-    const int landscapeCardQuality = api->landscapeCardImageQuality();
-    if (!thumbTag.isEmpty()) {
-        item.landscapeCardUrl = api->buildImageUrl(
-            itemId, thumbTag, landscapeCardWidth, landscapeCardQuality,
-            QStringLiteral("webp"), QStringLiteral("Thumb"), landscapeCardWidth,
-            (landscapeCardWidth * 9) / 16);
-    } else if (!backdropTag.isEmpty()) {
-        item.landscapeCardUrl = api->buildImageUrl(
-            itemId, backdropTag, landscapeCardWidth, landscapeCardQuality,
-            QStringLiteral("webp"), QStringLiteral("Backdrop"),
-            landscapeCardWidth, (landscapeCardWidth * 9) / 16);
+        for (const QString& segment : segments) {
+            if (segment.isEmpty())
+                continue;
+            basePath += QLatin1Char('/');
+            basePath += QString::fromLatin1(QUrl::toPercentEncoding(segment));
+        }
+        return basePath.isEmpty() ? QStringLiteral("/") : basePath;
     }
-    item.genres = stringsFromJsonArray(object.value(QStringLiteral("Genres")).toArray());
-    item.tags = stringsFromJsonArray(object.value(QStringLiteral("Tags")).toArray());
-    item.studios = studioNamesFromJsonArray(object.value(QStringLiteral("Studios")).toArray());
-    item.officialRating = object.value(QStringLiteral("OfficialRating")).toString();
-    item.communityRating = object.value(QStringLiteral("CommunityRating")).toDouble();
-    item.criticRating = object.value(QStringLiteral("CriticRating")).toDouble();
-    item.premiereDate = object.value(QStringLiteral("PremiereDate")).toString();
-    item.endDate = object.value(QStringLiteral("EndDate")).toString();
-    item.people = peopleFromApiJson(api, object.value(QStringLiteral("People")).toArray());
-    item.mediaSources = mediaSourcesFromApiJson(object.value(QStringLiteral("MediaSources")).toArray());
-    return item;
-}
 
-std::vector<MovieItem> mediaItemsFromJson(const JellyfinApiFacade *api,
-                                          const QJsonArray &items,
-                                          const QStringList &allowedTypes)
-{
-    std::vector<MovieItem> result;
-    result.reserve(items.size());
-    for (const QJsonValue &value : items) {
-        const QJsonObject object = value.toObject();
-        if (allowedTypes.contains(object.value(QStringLiteral("Type")).toString()))
-            result.push_back(mediaItemFromJson(api, object));
+    QUrl serverUrlWithPath(const QString& serverUrl, const QStringList& segments)
+    {
+        QUrl url(serverUrl);
+        url.setPath(serverPath(url.path(), segments), QUrl::StrictMode);
+        return url;
     }
-    return result;
-}
+
+    QStringList stringsFromJsonArray(const QJsonArray& array)
+    {
+        QStringList result;
+        result.reserve(array.size());
+        for (const QJsonValue& value : array) {
+            const QString stringValue = value.toString();
+            if (!stringValue.isEmpty())
+                result.push_back(stringValue);
+        }
+        return result;
+    }
+
+    QString includeItemTypesForCollection(QString collectionType)
+    {
+        if (collectionType == QStringLiteral("movies"))
+            return QStringLiteral("Movie");
+        if (collectionType == QStringLiteral("tvshows"))
+            return QStringLiteral("Series");
+        if (collectionType == QStringLiteral("playlists"))
+            return QStringLiteral("Playlist");
+        if (collectionType == QStringLiteral("boxsets"))
+            return QStringLiteral("BoxSet");
+        return QStringLiteral("Movie,Series,Episode,MusicVideo,Video");
+    }
+
+    QStringList itemTypesList(const QString& types)
+    {
+        return types.split(QLatin1Char(','), Qt::SkipEmptyParts);
+    }
+
+    bool libraryBrowseNeedsVideoMediaType(const QString& collectionType)
+    {
+        return collectionType != QStringLiteral("movies") && collectionType != QStringLiteral("tvshows")
+            && collectionType != QStringLiteral("playlists") && collectionType != QStringLiteral("boxsets");
+    }
+
+    bool libraryBrowseUsesDirectChildren(const QString& collectionType)
+    {
+        return collectionType == QStringLiteral("playlists") || collectionType == QStringLiteral("boxsets");
+    }
+
+    QStringList queryStringList(const QVariantMap& options, const QString& key)
+    {
+        QStringList result;
+        const QVariant value = options.value(key);
+        if (value.typeId() == QMetaType::QStringList) {
+            result = value.toStringList();
+        } else if (value.typeId() == QMetaType::QVariantList) {
+            const QVariantList list = value.toList();
+            result.reserve(list.size());
+            for (const QVariant& item : list) {
+                const QString text = item.toString();
+                if (!text.isEmpty())
+                    result.push_back(text);
+            }
+        } else {
+            const QString text = value.toString();
+            if (!text.isEmpty())
+                result = text.split(QLatin1Char(','), Qt::SkipEmptyParts);
+        }
+        result.removeAll(QString());
+        return result;
+    }
+
+    void addJoinedQueryItem(QUrlQuery& query, const QVariantMap& options, const QString& key, const QString& queryKey,
+        QLatin1Char delimiter)
+    {
+        const QStringList values = queryStringList(options, key);
+        if (!values.isEmpty())
+            query.addQueryItem(queryKey, values.join(delimiter));
+    }
+
+    void addOptionalBoolQueryItem(
+        QUrlQuery& query, const QVariantMap& options, const QString& key, const QString& queryKey)
+    {
+        if (!options.contains(key))
+            return;
+        const QVariant value = options.value(key);
+        if (!value.isValid() || value.isNull())
+            return;
+        query.addQueryItem(queryKey, value.toBool() ? QStringLiteral("true") : QStringLiteral("false"));
+    }
+
+    void addLibraryQueryOptions(QUrlQuery& query, const QVariantMap& options)
+    {
+        const QString sortBy = options.value(QStringLiteral("sortBy"), QStringLiteral("SortName")).toString();
+        const QString sortOrder = options.value(QStringLiteral("sortOrder"), QStringLiteral("Ascending")).toString();
+        query.addQueryItem(QStringLiteral("sortBy"), sortBy.isEmpty() ? QStringLiteral("SortName") : sortBy);
+        query.addQueryItem(QStringLiteral("sortOrder"), sortOrder.isEmpty() ? QStringLiteral("Ascending") : sortOrder);
+
+        addJoinedQueryItem(query, options, QStringLiteral("filters"), QStringLiteral("filters"), QLatin1Char(','));
+        addJoinedQueryItem(query, options, QStringLiteral("genres"), QStringLiteral("genres"), QLatin1Char('|'));
+        addJoinedQueryItem(
+            query, options, QStringLiteral("officialRatings"), QStringLiteral("officialRatings"), QLatin1Char('|'));
+        addJoinedQueryItem(query, options, QStringLiteral("tags"), QStringLiteral("tags"), QLatin1Char('|'));
+        addJoinedQueryItem(query, options, QStringLiteral("years"), QStringLiteral("years"), QLatin1Char(','));
+        addJoinedQueryItem(query, options, QStringLiteral("studioIds"), QStringLiteral("studioIds"), QLatin1Char('|'));
+        addJoinedQueryItem(
+            query, options, QStringLiteral("seriesStatus"), QStringLiteral("seriesStatus"), QLatin1Char(','));
+        addJoinedQueryItem(
+            query, options, QStringLiteral("videoTypes"), QStringLiteral("videoTypes"), QLatin1Char(','));
+
+        addOptionalBoolQueryItem(query, options, QStringLiteral("isHd"), QStringLiteral("isHd"));
+        addOptionalBoolQueryItem(query, options, QStringLiteral("is4K"), QStringLiteral("is4K"));
+        addOptionalBoolQueryItem(query, options, QStringLiteral("is3D"), QStringLiteral("is3D"));
+        addOptionalBoolQueryItem(query, options, QStringLiteral("hasSubtitles"), QStringLiteral("hasSubtitles"));
+        addOptionalBoolQueryItem(query, options, QStringLiteral("hasTrailer"), QStringLiteral("hasTrailer"));
+        addOptionalBoolQueryItem(
+            query, options, QStringLiteral("hasSpecialFeature"), QStringLiteral("hasSpecialFeature"));
+        addOptionalBoolQueryItem(query, options, QStringLiteral("hasThemeSong"), QStringLiteral("hasThemeSong"));
+        addOptionalBoolQueryItem(query, options, QStringLiteral("hasThemeVideo"), QStringLiteral("hasThemeVideo"));
+        addOptionalBoolQueryItem(query, options, QStringLiteral("isMissing"), QStringLiteral("isMissing"));
+        addOptionalBoolQueryItem(query, options, QStringLiteral("isUnaired"), QStringLiteral("isUnaired"));
+
+        const QVariant specialEpisode = options.value(QStringLiteral("specialEpisode"));
+        if (specialEpisode.isValid() && !specialEpisode.isNull() && specialEpisode.toBool())
+            query.addQueryItem(QStringLiteral("parentIndexNumber"), QStringLiteral("0"));
+
+        const QString alphabet = options.value(QStringLiteral("alphabet")).toString();
+        if (!alphabet.isEmpty()) {
+            if (alphabet == QStringLiteral("#"))
+                query.addQueryItem(QStringLiteral("nameLessThan"), QStringLiteral("A"));
+            else
+                query.addQueryItem(QStringLiteral("nameStartsWith"), alphabet);
+        }
+    }
+
+    QStringList studioNamesFromJsonArray(const QJsonArray& array)
+    {
+        QStringList result;
+        result.reserve(array.size());
+        for (const QJsonValue& value : array) {
+            const QString name = value.toObject().value(QStringLiteral("Name")).toString();
+            if (!name.isEmpty())
+                result.push_back(name);
+        }
+        return result;
+    }
+
+    QList<PersonItem> peopleFromApiJson(const JellyfinApiFacade *api, const QJsonArray& array)
+    {
+        QList<PersonItem> people;
+        people.reserve(array.size());
+        for (const QJsonValue& value : array) {
+            const QJsonObject object = value.toObject();
+            PersonItem person;
+            person.id = object.value(QStringLiteral("Id")).toString();
+            person.name = object.value(QStringLiteral("Name")).toString();
+            person.type = object.value(QStringLiteral("Type")).toString();
+            person.role = object.value(QStringLiteral("Role")).toString();
+            person.imageTag = object.value(QStringLiteral("PrimaryImageTag")).toString();
+            if (!person.id.isEmpty() && !person.imageTag.isEmpty())
+                person.imageUrl = api->buildImageUrl(person.id, person.imageTag, 360, 80);
+            if (!person.id.isEmpty() || !person.name.isEmpty())
+                people.push_back(person);
+        }
+        return people;
+    }
+
+    QList<MediaStreamInfo> mediaStreamsFromApiJson(const QJsonArray& array)
+    {
+        QList<MediaStreamInfo> streams;
+        streams.reserve(array.size());
+        for (const QJsonValue& value : array) {
+            const QJsonObject object = value.toObject();
+            MediaStreamInfo stream = metaFromJson<MediaStreamInfo>(object, MetaJsonKeyPolicy::PascalCase);
+            stream.frameRate = object.value(QStringLiteral("AverageFrameRate")).toDouble();
+            if (stream.frameRate <= 0.0)
+                stream.frameRate = object.value(QStringLiteral("RealFrameRate")).toDouble();
+            if (!stream.type.isEmpty() || !stream.codec.isEmpty())
+                streams.push_back(stream);
+        }
+        return streams;
+    }
+
+    QList<MediaSourceInfo> mediaSourcesFromApiJson(const QJsonArray& array)
+    {
+        QList<MediaSourceInfo> sources;
+        sources.reserve(array.size());
+        for (const QJsonValue& value : array) {
+            const QJsonObject object = value.toObject();
+            MediaSourceInfo source = metaFromJson<MediaSourceInfo>(object, MetaJsonKeyPolicy::PascalCase);
+            source.container = cleanContainerName(object.value(QStringLiteral("Container")).toString());
+            source.bitRate = object.value(QStringLiteral("Bitrate")).toInt();
+            if (source.bitRate <= 0)
+                source.bitRate = object.value(QStringLiteral("BitRate")).toInt();
+            source.runtimeTicks = object.value(QStringLiteral("RunTimeTicks")).toVariant().toLongLong();
+            source.streams = mediaStreamsFromApiJson(object.value(QStringLiteral("MediaStreams")).toArray());
+            if (!source.id.isEmpty() || !source.container.isEmpty() || !source.streams.isEmpty())
+                sources.push_back(source);
+        }
+        return sources;
+    }
+
+    MovieItem mediaItemFromJson(const JellyfinApiFacade *api, const QJsonObject& object)
+    {
+        const QString itemId = object.value(QStringLiteral("Id")).toString();
+        const QString itemType = object.value(QStringLiteral("Type")).toString();
+        const QString seriesId = object.value(QStringLiteral("SeriesId")).toString();
+        const QString seasonId = object.value(QStringLiteral("SeasonId")).toString();
+        const QString seriesPrimaryImageTag = object.value(QStringLiteral("SeriesPrimaryImageTag")).toString();
+        const QJsonObject imageTags = object.value(QStringLiteral("ImageTags")).toObject();
+        const QString posterTag = imageTags.value(QStringLiteral("Primary")).toString();
+        const QString logoTag = imageTags.value(QStringLiteral("Logo")).toString();
+        const QString bannerTag = imageTags.value(QStringLiteral("Banner")).toString();
+        const QString thumbTag = imageTags.value(QStringLiteral("Thumb")).toString();
+        const QString backdropTag = firstString(object.value(QStringLiteral("BackdropImageTags")).toArray());
+        QString subtitle;
+        bool playable = itemType == QStringLiteral("Movie") || itemType == QStringLiteral("Episode")
+            || itemType == QStringLiteral("MusicVideo") || itemType == QStringLiteral("Video");
+
+        if (itemType == QStringLiteral("Series")) {
+            const int year = object.value(QStringLiteral("ProductionYear")).toInt();
+            subtitle = year > 0 ? QString::number(year) : QStringLiteral("Series");
+            playable = false;
+        } else if (itemType == QStringLiteral("Season")) {
+            subtitle = QStringLiteral("Season");
+            playable = false;
+        } else if (itemType == QStringLiteral("Episode")) {
+            subtitle = episodeSubtitle(object);
+        } else if (object.value(QStringLiteral("ProductionYear")).toInt() > 0) {
+            subtitle = QString::number(object.value(QStringLiteral("ProductionYear")).toInt());
+        }
+
+        const int indexNumber = object.value(QStringLiteral("IndexNumber")).toInt();
+        const int parentIndexNumber = object.value(QStringLiteral("ParentIndexNumber")).toInt();
+        const QJsonObject userData = object.value(QStringLiteral("UserData")).toObject();
+        const qint64 resumeTicks = userData.value(QStringLiteral("PlaybackPositionTicks")).toVariant().toLongLong();
+        const qint64 runtimeTicks = object.value(QStringLiteral("RunTimeTicks")).toVariant().toLongLong();
+
+        MovieItem item;
+        item.id = itemId;
+        item.title = object.value(QStringLiteral("Name")).toString();
+        item.overview = object.value(QStringLiteral("Overview")).toString();
+        item.posterUrl = posterTag.isEmpty() ? QString() : api->buildImageUrl(itemId, posterTag);
+        item.posterTag = posterTag;
+        item.itemType = itemType;
+        item.playlistItemId = object.value(QStringLiteral("PlaylistItemId")).toString();
+        item.seriesId = seriesId;
+        item.seasonId = seasonId;
+        item.seriesName = object.value(QStringLiteral("SeriesName")).toString();
+        item.seriesPosterUrl = !seriesId.isEmpty() && !seriesPrimaryImageTag.isEmpty()
+            ? api->buildImageUrl(seriesId, seriesPrimaryImageTag, 360, 80)
+            : QString();
+        item.subtitle = subtitle;
+        item.path = object.value(QStringLiteral("Path")).toString();
+        item.year = object.value(QStringLiteral("ProductionYear")).toInt();
+        item.seasonNumber = itemType == QStringLiteral("Episode") ? parentIndexNumber : indexNumber;
+        item.episodeNumber = itemType == QStringLiteral("Episode") ? indexNumber : 0;
+        item.resumeTicks = normalizedResumeTicks(resumeTicks, runtimeTicks);
+        item.runtimeTicks = runtimeTicks;
+        item.playable = playable;
+        item.favorite = userData.value(QStringLiteral("IsFavorite")).toBool(false);
+        item.played = userData.value(QStringLiteral("Played")).toBool(false);
+        item.backdropUrl = backdropTag.isEmpty()
+            ? QString()
+            : api->buildImageUrl(itemId, backdropTag, 1920, 82, QStringLiteral("webp"), QStringLiteral("Backdrop"));
+        item.logoUrl = logoTag.isEmpty()
+            ? QString()
+            : api->buildImageUrl(itemId, logoTag, 720, 90, QStringLiteral("png"), QStringLiteral("Logo"));
+        item.bannerUrl = bannerTag.isEmpty()
+            ? QString()
+            : api->buildImageUrl(itemId, bannerTag, 1000, 86, QStringLiteral("webp"), QStringLiteral("Banner"));
+        item.thumbUrl = thumbTag.isEmpty()
+            ? QString()
+            : api->buildImageUrl(itemId, thumbTag, 720, 82, QStringLiteral("webp"), QStringLiteral("Thumb"));
+        const int landscapeCardWidth = api->landscapeCardImageWidth();
+        const int landscapeCardQuality = api->landscapeCardImageQuality();
+        if (!thumbTag.isEmpty()) {
+            item.landscapeCardUrl = api->buildImageUrl(itemId, thumbTag, landscapeCardWidth, landscapeCardQuality,
+                QStringLiteral("webp"), QStringLiteral("Thumb"), landscapeCardWidth, (landscapeCardWidth * 9) / 16);
+        } else if (!backdropTag.isEmpty()) {
+            item.landscapeCardUrl = api->buildImageUrl(itemId, backdropTag, landscapeCardWidth, landscapeCardQuality,
+                QStringLiteral("webp"), QStringLiteral("Backdrop"), landscapeCardWidth, (landscapeCardWidth * 9) / 16);
+        }
+        item.genres = stringsFromJsonArray(object.value(QStringLiteral("Genres")).toArray());
+        item.tags = stringsFromJsonArray(object.value(QStringLiteral("Tags")).toArray());
+        item.studios = studioNamesFromJsonArray(object.value(QStringLiteral("Studios")).toArray());
+        item.officialRating = object.value(QStringLiteral("OfficialRating")).toString();
+        item.communityRating = object.value(QStringLiteral("CommunityRating")).toDouble();
+        item.criticRating = object.value(QStringLiteral("CriticRating")).toDouble();
+        item.premiereDate = object.value(QStringLiteral("PremiereDate")).toString();
+        item.endDate = object.value(QStringLiteral("EndDate")).toString();
+        item.people = peopleFromApiJson(api, object.value(QStringLiteral("People")).toArray());
+        item.mediaSources = mediaSourcesFromApiJson(object.value(QStringLiteral("MediaSources")).toArray());
+        return item;
+    }
+
+    std::vector<MovieItem> mediaItemsFromJson(
+        const JellyfinApiFacade *api, const QJsonArray& items, const QStringList& allowedTypes)
+    {
+        std::vector<MovieItem> result;
+        result.reserve(items.size());
+        for (const QJsonValue& value : items) {
+            const QJsonObject object = value.toObject();
+            if (allowedTypes.contains(object.value(QStringLiteral("Type")).toString()))
+                result.push_back(mediaItemFromJson(api, object));
+        }
+        return result;
+    }
 
 }
 
@@ -406,12 +421,9 @@ JellyfinApiFacade::JellyfinApiFacade(QNetworkAccessManager *networkAccessManager
     , m_networkAccessManager(networkAccessManager)
     , m_rest(networkAccessManager, this)
 {
-    m_requestFactory.setTransferTimeout(
-        std::chrono::milliseconds(HttpRequestPolicy::transferTimeoutMs()));
+    m_requestFactory.setTransferTimeout(std::chrono::milliseconds(HttpRequestPolicy::transferTimeoutMs()));
 
-    QHttpHeaders headers;
-    headers.append(QHttpHeaders::WellKnownHeader::Accept, QStringLiteral("application/json"));
-    m_requestFactory.setCommonHeaders(headers);
+    applyCommonHeaders();
 }
 
 JellyfinApiFacade::~JellyfinApiFacade()
@@ -419,7 +431,7 @@ JellyfinApiFacade::~JellyfinApiFacade()
     cancelRequests();
 }
 
-void JellyfinApiFacade::setServerUrl(const QString &serverUrl)
+void JellyfinApiFacade::setServerUrl(const QString& serverUrl)
 {
     m_serverUrl = serverUrl;
     while (m_serverUrl.endsWith(QLatin1Char('/')))
@@ -433,17 +445,16 @@ QString JellyfinApiFacade::serverUrl() const
     return m_serverUrl;
 }
 
-void JellyfinApiFacade::setAcceptLanguage(const QString &bcp47Tag)
+void JellyfinApiFacade::setAcceptLanguage(const QString& bcp47Tag)
 {
     if (bcp47Tag.isEmpty())
         return;
-    QHttpHeaders headers;
-    headers.append(QHttpHeaders::WellKnownHeader::Accept, QStringLiteral("application/json"));
-    headers.append(QHttpHeaders::WellKnownHeader::AcceptLanguage, bcp47Tag);
-    m_requestFactory.setCommonHeaders(headers);
+    m_acceptLanguage = bcp47Tag;
+    applyCommonHeaders();
 }
 
-void JellyfinApiFacade::setDeviceIdentity(const QString &deviceId, const QString &deviceName, const QString &clientVersion)
+void JellyfinApiFacade::setDeviceIdentity(
+    const QString& deviceId, const QString& deviceName, const QString& clientVersion)
 {
     m_deviceId = deviceId;
     m_deviceName = deviceName;
@@ -455,7 +466,7 @@ QString JellyfinApiFacade::deviceId() const
     return m_deviceId;
 }
 
-void JellyfinApiFacade::setSession(const AuthSession &session)
+void JellyfinApiFacade::setSession(const AuthSession& session)
 {
     m_session = session;
     m_authExpirationReported = false;
@@ -481,8 +492,7 @@ void JellyfinApiFacade::preconnectToServer()
     m_preconnectedAuthority = authority;
 #if QT_CONFIG(ssl)
     m_networkAccessManager->connectToHostEncrypted(
-        url.host(), static_cast<quint16>(port),
-        QSslConfiguration::defaultConfiguration());
+        url.host(), static_cast<quint16>(port), QSslConfiguration::defaultConfiguration());
 #else
     // The webOS Qt build has OpenSSL disabled; still warm DNS/TCP so the first
     // authenticated HTTPS request does not pay every socket setup cost.
@@ -490,11 +500,9 @@ void JellyfinApiFacade::preconnectToServer()
 #endif
 }
 
-void JellyfinApiFacade::setPlaybackPreferences(qint64 maxStreamingBitrate,
-                                               bool preferRemux)
+void JellyfinApiFacade::setPlaybackPreferences(qint64 maxStreamingBitrate, bool preferRemux)
 {
-    m_maxStreamingBitrate =
-        std::clamp<qint64>(maxStreamingBitrate, 1'000'000, 1'000'000'000);
+    m_maxStreamingBitrate = std::clamp<qint64>(maxStreamingBitrate, 1'000'000, 1'000'000'000);
     m_preferRemux = preferRemux;
 }
 
@@ -519,11 +527,13 @@ AuthSession JellyfinApiFacade::session() const
     return m_session;
 }
 
-QString JellyfinApiFacade::buildImageUrl(const QString &itemId, const QString &tag, int maxWidth,
-                                         int quality, const QString &format, const QString &imageType,
-                                         int fillWidth, int fillHeight) const
+QString JellyfinApiFacade::buildImageUrl(const QString& itemId, const QString& tag, int maxWidth, int quality,
+    const QString& format, const QString& imageType, int fillWidth, int fillHeight) const
 {
-    QUrl url(QStringLiteral("%1/Items/%2/Images/%3").arg(m_serverUrl, itemId, imageType));
+    if (m_serverUrl.isEmpty() || itemId.isEmpty() || tag.isEmpty() || imageType.isEmpty())
+        return {};
+
+    QUrl url = serverUrlWithPath(m_serverUrl, { QStringLiteral("Items"), itemId, QStringLiteral("Images"), imageType });
     QUrlQuery query;
     if (fillWidth > 0 && fillHeight > 0) {
         query.addQueryItem(QStringLiteral("fillWidth"), QString::number(fillWidth));
@@ -533,9 +543,7 @@ QString JellyfinApiFacade::buildImageUrl(const QString &itemId, const QString &t
     }
     query.addQueryItem(QStringLiteral("quality"), QString::number(quality));
     query.addQueryItem(QStringLiteral("format"), format);
-    query.addQueryItem(QStringLiteral("api_key"), m_session.accessToken);
-    if (!tag.isEmpty())
-        query.addQueryItem(QStringLiteral("tag"), tag);
+    query.addQueryItem(QStringLiteral("tag"), tag);
     url.setQuery(query);
     return url.toString(QUrl::FullyEncoded);
 }
@@ -552,23 +560,18 @@ void JellyfinApiFacade::cancelRequests()
     }
 }
 
-QCoro::Task<void> JellyfinApiFacade::probeServer()
-{
-    co_await requestJson(HttpMethod::Get, QStringLiteral("/System/Info/Public"));
-}
-
 QCoro::Task<AuthSession> JellyfinApiFacade::authenticateByName(QString username, QString password)
 {
-    const QJsonDocument response =
-        co_await requestJson(HttpMethod::Post, QStringLiteral("/Users/AuthenticateByName"), {},
-                             QJsonDocument(QJsonObject{
-                                 {QStringLiteral("Username"), username},
-                                 {QStringLiteral("Pw"), password},
-                             }));
+    const QJsonDocument response
+        = co_await requestJson(HttpMethod::Post, QStringLiteral("/Users/AuthenticateByName"), {},
+            QJsonDocument(QJsonObject {
+                { QStringLiteral("Username"), username },
+                { QStringLiteral("Pw"), password },
+            }));
 
     const QJsonObject object = response.object();
     const QJsonObject user = object.value(QStringLiteral("User")).toObject();
-    const AuthSession session{
+    const AuthSession session {
         requireString(user, QStringLiteral("Id")),
         requireString(user, QStringLiteral("Name")),
         requireString(object, QStringLiteral("AccessToken")),
@@ -594,21 +597,22 @@ QCoro::Task<QJsonObject> JellyfinApiFacade::pollQuickConnect(QString secret)
 {
     QUrlQuery query;
     query.addQueryItem(QStringLiteral("secret"), secret);
-    const QJsonDocument response = co_await requestJson(HttpMethod::Get, QStringLiteral("/QuickConnect/Connect"), query);
+    const QJsonDocument response
+        = co_await requestJson(HttpMethod::Get, QStringLiteral("/QuickConnect/Connect"), query);
     co_return response.object();
 }
 
 QCoro::Task<AuthSession> JellyfinApiFacade::authenticateWithQuickConnect(QString secret)
 {
-    const QJsonDocument response =
-        co_await requestJson(HttpMethod::Post, QStringLiteral("/Users/AuthenticateWithQuickConnect"), {},
-                             QJsonDocument(QJsonObject{
-                                 {QStringLiteral("Secret"), secret},
-                             }));
+    const QJsonDocument response
+        = co_await requestJson(HttpMethod::Post, QStringLiteral("/Users/AuthenticateWithQuickConnect"), {},
+            QJsonDocument(QJsonObject {
+                { QStringLiteral("Secret"), secret },
+            }));
 
     const QJsonObject object = response.object();
     const QJsonObject user = object.value(QStringLiteral("User")).toObject();
-    const AuthSession session{
+    const AuthSession session {
         requireString(user, QStringLiteral("Id")),
         requireString(user, QStringLiteral("Name")),
         requireString(object, QStringLiteral("AccessToken")),
@@ -623,8 +627,8 @@ QCoro::Task<QString> JellyfinApiFacade::fetchCurrentUserName()
     if (m_session.userId.isEmpty())
         co_return QString();
 
-    const QJsonDocument response =
-        co_await requestJson(HttpMethod::Get, QStringLiteral("/Users/%1").arg(m_session.userId));
+    const QJsonDocument response
+        = co_await requestJson(HttpMethod::Get, QStringLiteral("/Users/%1").arg(m_session.userId));
     co_return response.object().value(QStringLiteral("Name")).toString();
 }
 
@@ -633,8 +637,8 @@ QCoro::Task<QJsonObject> JellyfinApiFacade::fetchUserConfiguration()
     if (m_session.userId.isEmpty())
         co_return QJsonObject();
 
-    const QJsonDocument response =
-        co_await requestJson(HttpMethod::Get, QStringLiteral("/Users/%1").arg(m_session.userId));
+    const QJsonDocument response
+        = co_await requestJson(HttpMethod::Get, QStringLiteral("/Users/%1").arg(m_session.userId));
     co_return response.object().value(QStringLiteral("Configuration")).toObject();
 }
 
@@ -643,9 +647,8 @@ QCoro::Task<void> JellyfinApiFacade::updateUserConfiguration(QJsonObject configu
     if (m_session.userId.isEmpty())
         co_return;
 
-    co_await requestNoContent(HttpMethod::Post,
-                              QStringLiteral("/Users/%1/Configuration").arg(m_session.userId),
-                              QJsonDocument(configuration));
+    co_await requestNoContent(HttpMethod::Post, QStringLiteral("/Users/%1/Configuration").arg(m_session.userId),
+        QJsonDocument(configuration));
 }
 
 QCoro::Task<QJsonObject> JellyfinApiFacade::fetchCurrentUserPolicy()
@@ -653,17 +656,15 @@ QCoro::Task<QJsonObject> JellyfinApiFacade::fetchCurrentUserPolicy()
     if (m_session.userId.isEmpty())
         co_return QJsonObject();
 
-    const QJsonDocument response =
-        co_await requestJson(HttpMethod::Get, QStringLiteral("/Users/%1").arg(m_session.userId));
+    const QJsonDocument response
+        = co_await requestJson(HttpMethod::Get, QStringLiteral("/Users/%1").arg(m_session.userId));
     co_return response.object().value(QStringLiteral("Policy")).toObject();
 }
 
 QCoro::Task<QJsonArray> JellyfinApiFacade::fetchCultures()
 {
-    const QJsonDocument response =
-        co_await requestJson(HttpMethod::Get, QStringLiteral("/Localization/Options"));
-    co_return response.isArray() ? response.array()
-                                 : response.object().value(QStringLiteral("Items")).toArray();
+    const QJsonDocument response = co_await requestJson(HttpMethod::Get, QStringLiteral("/Localization/Options"));
+    co_return response.isArray() ? response.array() : response.object().value(QStringLiteral("Items")).toArray();
 }
 
 QCoro::Task<std::vector<LibraryItem>> JellyfinApiFacade::fetchLibraries()
@@ -675,15 +676,18 @@ QCoro::Task<std::vector<LibraryItem>> JellyfinApiFacade::fetchLibraries()
     query.addQueryItem(QStringLiteral("enableImageTypes"), QStringLiteral("Primary"));
     query.addQueryItem(QStringLiteral("imageTypeLimit"), QStringLiteral("1"));
 
-    const QJsonArray items =
-        (co_await requestJson(HttpMethod::Get, QStringLiteral("/UserViews"), query)).object().value(QStringLiteral("Items")).toArray();
+    const QJsonArray items = (co_await requestJson(HttpMethod::Get, QStringLiteral("/UserViews"), query))
+                                 .object()
+                                 .value(QStringLiteral("Items"))
+                                 .toArray();
 
     std::vector<LibraryItem> libraries;
     libraries.reserve(items.size());
-    for (const auto &value : items) {
+    for (const auto& value : items) {
         const auto object = value.toObject();
         const QString itemId = object.value(QStringLiteral("Id")).toString();
-        const QString imageTag = object.value(QStringLiteral("ImageTags")).toObject().value(QStringLiteral("Primary")).toString();
+        const QString imageTag
+            = object.value(QStringLiteral("ImageTags")).toObject().value(QStringLiteral("Primary")).toString();
         libraries.push_back({
             itemId,
             object.value(QStringLiteral("Name")).toString(),
@@ -696,39 +700,29 @@ QCoro::Task<std::vector<LibraryItem>> JellyfinApiFacade::fetchLibraries()
     co_return libraries;
 }
 
-QCoro::Task<PagedMovieItems> JellyfinApiFacade::fetchLibraryPage(QString libraryId, QString collectionType,
-                                                                 int startIndex, int limit,
-                                                                 QVariantMap queryOptions)
-{
-    return fetchBrowsePage(BrowseDescriptor::library(libraryId, collectionType),
-                           startIndex, limit, queryOptions);
-}
-
-QCoro::Task<PagedMovieItems> JellyfinApiFacade::fetchBrowsePage(BrowseDescriptor descriptor,
-                                                                int startIndex, int limit,
-                                                                QVariantMap queryOptions)
+QCoro::Task<PagedMovieItems> JellyfinApiFacade::fetchBrowsePage(
+    BrowseDescriptor descriptor, int startIndex, int limit, QVariantMap queryOptions)
 {
     if (!descriptor.isValid())
-        co_return PagedMovieItems{{}, 0, std::max(0, startIndex), std::clamp(limit, 1, 200)};
+        co_return PagedMovieItems { {}, 0, std::max(0, startIndex), std::clamp(limit, 1, 200) };
 
     QString path = QStringLiteral("/Items");
     QStringList allowedTypes;
     const int maximumLimit = descriptor.kind == BrowseKind::Library ? 100 : 200;
     ItemsQuery builder = ItemsQuery()
-        .userId(m_session.userId)
-        .fields(libraryItemFields())
-        .images()
-        .startIndex(startIndex)
-        .limit(limit, maximumLimit);
+                             .userId(m_session.userId)
+                             .fields(libraryItemFields())
+                             .images()
+                             .startIndex(startIndex)
+                             .limit(limit, maximumLimit);
 
     switch (descriptor.kind) {
     case BrowseKind::Library: {
         QString includeItemTypes = includeItemTypesForCollection(descriptor.collectionType);
-        const QString requestedTypes =
-            queryStringList(queryOptions, QStringLiteral("includeItemTypes")).join(QLatin1Char(','));
-        const bool collectionFilter =
-            descriptor.collectionType == QStringLiteral("movies") &&
-            requestedTypes == QStringLiteral("BoxSet");
+        const QString requestedTypes
+            = queryStringList(queryOptions, QStringLiteral("includeItemTypes")).join(QLatin1Char(','));
+        const bool collectionFilter
+            = descriptor.collectionType == QStringLiteral("movies") && requestedTypes == QStringLiteral("BoxSet");
         if (collectionFilter)
             includeItemTypes = requestedTypes;
         builder.parentId(descriptor.id)
@@ -742,8 +736,10 @@ QCoro::Task<PagedMovieItems> JellyfinApiFacade::fetchBrowsePage(BrowseDescriptor
     case BrowseKind::FolderChildren:
         builder.parentId(descriptor.id)
             .recursive(false)
-            .includeItemTypes(QStringLiteral("Folder,Movie,Series,Season,Episode,MusicVideo,Video,Playlist,BoxSet,MusicAlbum"));
-        allowedTypes = itemTypesList(QStringLiteral("Folder,Movie,Series,Season,Episode,MusicVideo,Video,Playlist,BoxSet,MusicAlbum"));
+            .includeItemTypes(
+                QStringLiteral("Folder,Movie,Series,Season,Episode,MusicVideo,Video,Playlist,BoxSet,MusicAlbum"));
+        allowedTypes = itemTypesList(
+            QStringLiteral("Folder,Movie,Series,Season,Episode,MusicVideo,Video,Playlist,BoxSet,MusicAlbum"));
         break;
     case BrowseKind::Person:
         builder.recursive()
@@ -770,7 +766,8 @@ QCoro::Task<PagedMovieItems> JellyfinApiFacade::fetchBrowsePage(BrowseDescriptor
         allowedTypes = itemTypesList(QStringLiteral("Movie,Series"));
         break;
     case BrowseKind::SeriesSeasons:
-        path = QStringLiteral("/Shows/%1/Seasons").arg(descriptor.seriesId.isEmpty() ? descriptor.id : descriptor.seriesId);
+        path = QStringLiteral("/Shows/%1/Seasons")
+                   .arg(descriptor.seriesId.isEmpty() ? descriptor.id : descriptor.seriesId);
         allowedTypes = itemTypesList(QStringLiteral("Season"));
         break;
     case BrowseKind::SeasonEpisodes:
@@ -806,17 +803,17 @@ QCoro::Task<PagedMovieItems> JellyfinApiFacade::fetchBrowsePage(BrowseDescriptor
         addLibraryQueryOptions(query, queryOptions);
 
     const QJsonObject response = (co_await requestJson(HttpMethod::Get, path, query)).object();
-    std::vector<MovieItem> items = mediaItemsFromJson(
-        this, response.value(QStringLiteral("Items")).toArray(), allowedTypes);
+    std::vector<MovieItem> items
+        = mediaItemsFromJson(this, response.value(QStringLiteral("Items")).toArray(), allowedTypes);
     if (descriptor.kind == BrowseKind::SeriesSeasons) {
         const QString seriesId = descriptor.seriesId.isEmpty() ? descriptor.id : descriptor.seriesId;
-        for (MovieItem &item : items) {
+        for (MovieItem& item : items) {
             if (item.seriesId.isEmpty())
                 item.seriesId = seriesId;
         }
     }
 
-    co_return PagedMovieItems{
+    co_return PagedMovieItems {
         items,
         response.value(QStringLiteral("TotalRecordCount")).toInt(0),
         std::max(0, startIndex),
@@ -832,25 +829,20 @@ QCoro::Task<QVariantMap> JellyfinApiFacade::fetchLibraryFilterOptions(QString li
 
     const QString includeItemTypes = includeItemTypesForCollection(collectionType);
 
-    QUrlQuery filterQuery = ItemsQuery()
-        .userId(m_session.userId)
-        .parentId(libraryId)
-        .includeItemTypes(includeItemTypes)
-        .toUrlQuery();
+    QUrlQuery filterQuery
+        = ItemsQuery().userId(m_session.userId).parentId(libraryId).includeItemTypes(includeItemTypes).toUrlQuery();
 
-    const QJsonObject filters =
-        (co_await requestJson(HttpMethod::Get, QStringLiteral("/Items/Filters"), filterQuery)).object();
-    options.insert(QStringLiteral("genres"),
-                   stringsFromJsonArray(filters.value(QStringLiteral("Genres")).toArray()));
+    const QJsonObject filters
+        = (co_await requestJson(HttpMethod::Get, QStringLiteral("/Items/Filters"), filterQuery)).object();
+    options.insert(QStringLiteral("genres"), stringsFromJsonArray(filters.value(QStringLiteral("Genres")).toArray()));
     options.insert(QStringLiteral("officialRatings"),
-                   stringsFromJsonArray(filters.value(QStringLiteral("OfficialRatings")).toArray()));
-    options.insert(QStringLiteral("tags"),
-                   stringsFromJsonArray(filters.value(QStringLiteral("Tags")).toArray()));
+        stringsFromJsonArray(filters.value(QStringLiteral("OfficialRatings")).toArray()));
+    options.insert(QStringLiteral("tags"), stringsFromJsonArray(filters.value(QStringLiteral("Tags")).toArray()));
 
     QVariantList years;
     const QJsonArray yearsArray = filters.value(QStringLiteral("Years")).toArray();
     years.reserve(yearsArray.size());
-    for (const QJsonValue &value : yearsArray) {
+    for (const QJsonValue& value : yearsArray) {
         const int year = value.toInt();
         if (year > 0)
             years.push_back(year);
@@ -858,25 +850,24 @@ QCoro::Task<QVariantMap> JellyfinApiFacade::fetchLibraryFilterOptions(QString li
     options.insert(QStringLiteral("years"), years);
 
     QUrlQuery studiosQuery = ItemsQuery()
-        .userId(m_session.userId)
-        .parentId(libraryId)
-        .includeItemTypes(includeItemTypes)
-        .sort(QStringLiteral("SortName"))
-        .toUrlQuery();
+                                 .userId(m_session.userId)
+                                 .parentId(libraryId)
+                                 .includeItemTypes(includeItemTypes)
+                                 .sort(QStringLiteral("SortName"))
+                                 .toUrlQuery();
 
-    const QJsonArray studioItems =
-        (co_await requestJson(HttpMethod::Get, QStringLiteral("/Studios"), studiosQuery))
-            .object()
-            .value(QStringLiteral("Items"))
-            .toArray();
+    const QJsonArray studioItems = (co_await requestJson(HttpMethod::Get, QStringLiteral("/Studios"), studiosQuery))
+                                       .object()
+                                       .value(QStringLiteral("Items"))
+                                       .toArray();
     QVariantList studios;
     studios.reserve(studioItems.size());
-    for (const QJsonValue &value : studioItems) {
+    for (const QJsonValue& value : studioItems) {
         const QJsonObject studio = value.toObject();
         const QString id = studio.value(QStringLiteral("Id")).toString();
         const QString name = studio.value(QStringLiteral("Name")).toString();
         if (!id.isEmpty() && !name.isEmpty())
-            studios.push_back(QVariantMap{{QStringLiteral("id"), id}, {QStringLiteral("name"), name}});
+            studios.push_back(QVariantMap { { QStringLiteral("id"), id }, { QStringLiteral("name"), name } });
     }
     options.insert(QStringLiteral("studios"), studios);
 
@@ -886,18 +877,13 @@ QCoro::Task<QVariantMap> JellyfinApiFacade::fetchLibraryFilterOptions(QString li
 QCoro::Task<MovieItem> JellyfinApiFacade::fetchItemDetails(QString itemId)
 {
     if (itemId.isEmpty() || m_session.userId.isEmpty())
-        co_return MovieItem{};
+        co_return MovieItem {};
 
-    QUrlQuery query = ItemsQuery()
-        .fields(detailItemFields())
-        .images()
-        .toUrlQuery();
+    QUrlQuery query = ItemsQuery().fields(detailItemFields()).images().toUrlQuery();
 
-    const QJsonObject object =
-        (co_await requestJson(HttpMethod::Get,
-                              QStringLiteral("/Users/%1/Items/%2").arg(m_session.userId, itemId),
-                              query))
-            .object();
+    const QJsonObject object = (co_await requestJson(HttpMethod::Get,
+                                    QStringLiteral("/Users/%1/Items/%2").arg(m_session.userId, itemId), query))
+                                   .object();
     co_return mediaItemFromJson(this, object);
 }
 
@@ -916,23 +902,21 @@ QCoro::Task<std::vector<MovieItem>> JellyfinApiFacade::fetchEpisodes(QString ser
 QCoro::Task<std::vector<MovieItem>> JellyfinApiFacade::fetchResumeItems(int limit)
 {
     QUrlQuery query = ItemsQuery()
-        .userId(m_session.userId)
-        .limit(limit, 60)
-        .recursive()
-        .fields(libraryItemFields())
-        .includeItemTypes(QStringLiteral("Movie,Episode"))
-        .images()
-        .mediaTypes(QStringLiteral("Video"))
-        .toUrlQuery();
+                          .userId(m_session.userId)
+                          .limit(limit, 60)
+                          .recursive()
+                          .fields(libraryItemFields())
+                          .includeItemTypes(QStringLiteral("Movie,Episode"))
+                          .images()
+                          .mediaTypes(QStringLiteral("Video"))
+                          .toUrlQuery();
 
-    const QJsonArray items =
-        itemsArrayFromDocument(co_await requestJson(HttpMethod::Get,
-                                                    QStringLiteral("/Users/%1/Items/Resume").arg(m_session.userId),
-                                                    query));
+    const QJsonArray items = itemsArrayFromDocument(
+        co_await requestJson(HttpMethod::Get, QStringLiteral("/Users/%1/Items/Resume").arg(m_session.userId), query));
 
     std::vector<MovieItem> result;
     result.reserve(items.size());
-    for (const auto &value : items) {
+    for (const auto& value : items) {
         auto item = mediaItemFromJson(this, value.toObject());
         if (item.playable && item.resumeTicks > 0)
             result.push_back(item);
@@ -943,19 +927,19 @@ QCoro::Task<std::vector<MovieItem>> JellyfinApiFacade::fetchResumeItems(int limi
 QCoro::Task<std::vector<MovieItem>> JellyfinApiFacade::fetchNextUpEpisodes(int limit)
 {
     QUrlQuery query = ItemsQuery()
-        .userId(m_session.userId)
-        .limit(limit, 60)
-        .fields(libraryItemFields())
-        .images()
-        .add(QStringLiteral("enableResumable"), QStringLiteral("false"))
-        .toUrlQuery();
+                          .userId(m_session.userId)
+                          .limit(limit, 60)
+                          .fields(libraryItemFields())
+                          .images()
+                          .add(QStringLiteral("enableResumable"), QStringLiteral("false"))
+                          .toUrlQuery();
 
-    const QJsonArray items =
-        itemsArrayFromDocument(co_await requestJson(HttpMethod::Get, QStringLiteral("/Shows/NextUp"), query));
+    const QJsonArray items
+        = itemsArrayFromDocument(co_await requestJson(HttpMethod::Get, QStringLiteral("/Shows/NextUp"), query));
 
     std::vector<MovieItem> result;
     result.reserve(items.size());
-    for (const auto &value : items) {
+    for (const auto& value : items) {
         auto item = mediaItemFromJson(this, value.toObject());
         if (item.itemType == QStringLiteral("Episode") && item.playable)
             result.push_back(item);
@@ -966,24 +950,22 @@ QCoro::Task<std::vector<MovieItem>> JellyfinApiFacade::fetchNextUpEpisodes(int l
 QCoro::Task<std::vector<MovieItem>> JellyfinApiFacade::fetchLatestItems(QString parentId, int limit)
 {
     QUrlQuery query = ItemsQuery()
-        .limit(limit, 60)
-        .fields(libraryItemFields())
-        .includeItemTypes(QStringLiteral("Movie,Series,Episode"))
-        .images()
-        .add(QStringLiteral("groupItems"), QStringLiteral("false"))
-        .parentId(parentId)
-        .toUrlQuery();
+                          .limit(limit, 60)
+                          .fields(libraryItemFields())
+                          .includeItemTypes(QStringLiteral("Movie,Series,Episode"))
+                          .images()
+                          .add(QStringLiteral("groupItems"), QStringLiteral("false"))
+                          .parentId(parentId)
+                          .toUrlQuery();
 
-    const QJsonDocument doc =
-        co_await requestJson(HttpMethod::Get,
-                             QStringLiteral("/Users/%1/Items/Latest").arg(m_session.userId),
-                             query);
+    const QJsonDocument doc
+        = co_await requestJson(HttpMethod::Get, QStringLiteral("/Users/%1/Items/Latest").arg(m_session.userId), query);
 
     const QJsonArray items = itemsArrayFromDocument(doc);
 
     std::vector<MovieItem> result;
     result.reserve(items.size());
-    for (const auto &value : items)
+    for (const auto& value : items)
         result.push_back(mediaItemFromJson(this, value.toObject()));
     co_return result;
 }
@@ -992,27 +974,27 @@ QCoro::Task<std::vector<MovieItem>> JellyfinApiFacade::searchItems(QString searc
 {
     searchTerm = searchTerm.trimmed();
     if (searchTerm.isEmpty())
-        co_return std::vector<MovieItem>{};
+        co_return std::vector<MovieItem> {};
 
     QUrlQuery query = ItemsQuery()
-        .userId(m_session.userId)
-        .recursive()
-        .add(QStringLiteral("searchTerm"), searchTerm)
-        .includeItemTypes(QStringLiteral("Movie,Series,Episode"))
-        .mediaTypes(QStringLiteral("Video"))
-        .fields(libraryItemFields())
-        .sort(QStringLiteral("SortName"))
-        .images()
-        .limit(limit, 200)
-        .toUrlQuery();
+                          .userId(m_session.userId)
+                          .recursive()
+                          .add(QStringLiteral("searchTerm"), searchTerm)
+                          .includeItemTypes(QStringLiteral("Movie,Series,Episode"))
+                          .mediaTypes(QStringLiteral("Video"))
+                          .fields(libraryItemFields())
+                          .sort(QStringLiteral("SortName"))
+                          .images()
+                          .limit(limit, 200)
+                          .toUrlQuery();
 
-    const QJsonArray items =
-        (co_await requestJson(HttpMethod::Get, QStringLiteral("/Items"), query)).object().value(QStringLiteral("Items")).toArray();
+    const QJsonArray items = (co_await requestJson(HttpMethod::Get, QStringLiteral("/Items"), query))
+                                 .object()
+                                 .value(QStringLiteral("Items"))
+                                 .toArray();
 
     const std::vector<MovieItem> result = mediaItemsFromJson(
-        this, items,
-        {QStringLiteral("Movie"), QStringLiteral("Series"),
-         QStringLiteral("Episode")});
+        this, items, { QStringLiteral("Movie"), QStringLiteral("Series"), QStringLiteral("Episode") });
 
     co_return result;
 }
@@ -1020,47 +1002,40 @@ QCoro::Task<std::vector<MovieItem>> JellyfinApiFacade::searchItems(QString searc
 QCoro::Task<std::vector<MovieItem>> JellyfinApiFacade::fetchSearchSuggestions(int limit)
 {
     QUrlQuery query = ItemsQuery()
-        .userId(m_session.userId)
-        .recursive()
-        .includeItemTypes(QStringLiteral("Movie,Series"))
-        .mediaTypes(QStringLiteral("Video"))
-        .fields(libraryItemFields())
-        .sort(QStringLiteral("IsFavoriteOrLiked,Random"), {})
-        .images()
-        .enableTotalRecordCount(false)
-        .limit(limit, 60)
-        .toUrlQuery();
+                          .userId(m_session.userId)
+                          .recursive()
+                          .includeItemTypes(QStringLiteral("Movie,Series"))
+                          .mediaTypes(QStringLiteral("Video"))
+                          .fields(libraryItemFields())
+                          .sort(QStringLiteral("IsFavoriteOrLiked,Random"), {})
+                          .images()
+                          .enableTotalRecordCount(false)
+                          .limit(limit, 60)
+                          .toUrlQuery();
 
-    const QJsonArray items =
-        (co_await requestJson(HttpMethod::Get, QStringLiteral("/Items"), query)).object().value(QStringLiteral("Items")).toArray();
+    const QJsonArray items = (co_await requestJson(HttpMethod::Get, QStringLiteral("/Items"), query))
+                                 .object()
+                                 .value(QStringLiteral("Items"))
+                                 .toArray();
 
-    const std::vector<MovieItem> result = mediaItemsFromJson(
-        this, items,
-        {QStringLiteral("Movie"), QStringLiteral("Series")});
+    const std::vector<MovieItem> result
+        = mediaItemsFromJson(this, items, { QStringLiteral("Movie"), QStringLiteral("Series") });
     co_return result;
 }
 
 QCoro::Task<std::vector<MovieItem>> JellyfinApiFacade::fetchSimilarItems(QString itemId, int limit)
 {
     if (itemId.isEmpty())
-        co_return std::vector<MovieItem>{};
+        co_return std::vector<MovieItem> {};
 
-    QUrlQuery query = ItemsQuery()
-        .userId(m_session.userId)
-        .limit(limit, 60)
-        .fields(libraryItemFields())
-        .images()
-        .toUrlQuery();
+    QUrlQuery query
+        = ItemsQuery().userId(m_session.userId).limit(limit, 60).fields(libraryItemFields()).images().toUrlQuery();
 
-    const QJsonArray items =
-        itemsArrayFromDocument(co_await requestJson(HttpMethod::Get,
-                                                    QStringLiteral("/Items/%1/Similar").arg(itemId),
-                                                    query));
+    const QJsonArray items = itemsArrayFromDocument(
+        co_await requestJson(HttpMethod::Get, QStringLiteral("/Items/%1/Similar").arg(itemId), query));
 
     const std::vector<MovieItem> result = mediaItemsFromJson(
-        this, items,
-        {QStringLiteral("Movie"), QStringLiteral("Series"),
-         QStringLiteral("Episode")});
+        this, items, { QStringLiteral("Movie"), QStringLiteral("Series"), QStringLiteral("Episode") });
     co_return result;
 }
 
@@ -1070,43 +1045,30 @@ QCoro::Task<std::vector<MovieItem>> JellyfinApiFacade::fetchItemsByPerson(QStrin
     co_return page.items;
 }
 
-QCoro::Task<std::vector<MovieItem>> JellyfinApiFacade::fetchItemsByGenre(QString genre, int limit)
-{
-    const PagedMovieItems page = co_await fetchBrowsePage(BrowseDescriptor::genre(genre.trimmed()), 0, limit);
-    co_return page.items;
-}
-
-QCoro::Task<std::vector<MovieItem>> JellyfinApiFacade::fetchItemsByStudio(QString studio, int limit)
-{
-    const PagedMovieItems page = co_await fetchBrowsePage(BrowseDescriptor::studio(studio.trimmed()), 0, limit);
-    co_return page.items;
-}
-
 QCoro::Task<std::vector<MovieItem>> JellyfinApiFacade::fetchManagementTargets(QString itemType)
 {
     if (m_session.userId.isEmpty())
-        co_return std::vector<MovieItem>{};
+        co_return std::vector<MovieItem> {};
 
     itemType = itemType.trimmed();
     if (itemType != QStringLiteral("Playlist") && itemType != QStringLiteral("BoxSet"))
-        co_return std::vector<MovieItem>{};
+        co_return std::vector<MovieItem> {};
 
     QUrlQuery query = ItemsQuery()
-        .userId(m_session.userId)
-        .recursive()
-        .includeItemTypes(itemType)
-        .fields(libraryItemFields())
-        .sort(QStringLiteral("SortName"))
-        .images()
-        .limit(200, 200)
-        .toUrlQuery();
+                          .userId(m_session.userId)
+                          .recursive()
+                          .includeItemTypes(itemType)
+                          .fields(libraryItemFields())
+                          .sort(QStringLiteral("SortName"))
+                          .images()
+                          .limit(200, 200)
+                          .toUrlQuery();
 
-    const QJsonArray items =
-        (co_await requestJson(HttpMethod::Get, QStringLiteral("/Items"), query))
-            .object()
-            .value(QStringLiteral("Items"))
-            .toArray();
-    co_return mediaItemsFromJson(this, items, {itemType});
+    const QJsonArray items = (co_await requestJson(HttpMethod::Get, QStringLiteral("/Items"), query))
+                                 .object()
+                                 .value(QStringLiteral("Items"))
+                                 .toArray();
+    co_return mediaItemsFromJson(this, items, { itemType });
 }
 
 QCoro::Task<QString> JellyfinApiFacade::createPlaylist(QString name, QStringList itemIds)
@@ -1116,18 +1078,18 @@ QCoro::Task<QString> JellyfinApiFacade::createPlaylist(QString name, QStringList
         throw std::runtime_error("Playlist name is required");
 
     QJsonArray ids;
-    for (const QString &itemId : itemIds) {
+    for (const QString& itemId : itemIds) {
         if (!itemId.isEmpty())
             ids.push_back(itemId);
     }
-    QJsonObject body{
-        {QStringLiteral("Name"), name},
-        {QStringLiteral("UserId"), m_session.userId},
-        {QStringLiteral("Ids"), ids},
-        {QStringLiteral("IsPublic"), false},
+    QJsonObject body {
+        { QStringLiteral("Name"), name },
+        { QStringLiteral("UserId"), m_session.userId },
+        { QStringLiteral("Ids"), ids },
+        { QStringLiteral("IsPublic"), false },
     };
-    const QJsonObject response =
-        (co_await requestJson(HttpMethod::Post, QStringLiteral("/Playlists"), {}, QJsonDocument(body))).object();
+    const QJsonObject response
+        = (co_await requestJson(HttpMethod::Post, QStringLiteral("/Playlists"), {}, QJsonDocument(body))).object();
     co_return response.value(QStringLiteral("Id")).toString();
 }
 
@@ -1141,9 +1103,7 @@ QCoro::Task<void> JellyfinApiFacade::addPlaylistItems(QString playlistId, QStrin
     query.addQueryItem(QStringLiteral("userId"), m_session.userId);
     if (position >= 0)
         query.addQueryItem(QStringLiteral("position"), QString::number(position));
-    co_await requestJson(HttpMethod::Post,
-                         QStringLiteral("/Playlists/%1/Items").arg(playlistId),
-                         query);
+    co_await requestJson(HttpMethod::Post, QStringLiteral("/Playlists/%1/Items").arg(playlistId), query);
 }
 
 QCoro::Task<void> JellyfinApiFacade::removePlaylistItems(QString playlistId, QStringList entryIds)
@@ -1153,9 +1113,7 @@ QCoro::Task<void> JellyfinApiFacade::removePlaylistItems(QString playlistId, QSt
 
     QUrlQuery query;
     query.addQueryItem(QStringLiteral("entryIds"), entryIds.join(QLatin1Char(',')));
-    co_await requestJson(HttpMethod::Delete,
-                         QStringLiteral("/Playlists/%1/Items").arg(playlistId),
-                         query);
+    co_await requestJson(HttpMethod::Delete, QStringLiteral("/Playlists/%1/Items").arg(playlistId), query);
 }
 
 QCoro::Task<void> JellyfinApiFacade::movePlaylistItem(QString playlistId, QString playlistItemId, int newIndex)
@@ -1163,10 +1121,8 @@ QCoro::Task<void> JellyfinApiFacade::movePlaylistItem(QString playlistId, QStrin
     if (playlistId.isEmpty() || playlistItemId.isEmpty() || newIndex < 0)
         co_return;
 
-    co_await requestNoContent(
-        HttpMethod::Post,
-        QStringLiteral("/Playlists/%1/Items/%2/Move/%3")
-            .arg(playlistId, playlistItemId, QString::number(newIndex)),
+    co_await requestNoContent(HttpMethod::Post,
+        QStringLiteral("/Playlists/%1/Items/%2/Move/%3").arg(playlistId, playlistItemId, QString::number(newIndex)),
         QJsonDocument());
 }
 
@@ -1176,9 +1132,8 @@ QCoro::Task<void> JellyfinApiFacade::updatePlaylistName(QString playlistId, QStr
     if (playlistId.isEmpty() || name.isEmpty())
         co_return;
 
-    co_await requestNoContent(HttpMethod::Post,
-                              QStringLiteral("/Playlists/%1").arg(playlistId),
-                              QJsonDocument(QJsonObject{{QStringLiteral("Name"), name}}));
+    co_await requestNoContent(HttpMethod::Post, QStringLiteral("/Playlists/%1").arg(playlistId),
+        QJsonDocument(QJsonObject { { QStringLiteral("Name"), name } }));
 }
 
 QCoro::Task<QString> JellyfinApiFacade::createCollection(QString name, QStringList itemIds)
@@ -1192,8 +1147,8 @@ QCoro::Task<QString> JellyfinApiFacade::createCollection(QString name, QStringLi
     if (!itemIds.isEmpty())
         query.addQueryItem(QStringLiteral("ids"), itemIds.join(QLatin1Char(',')));
     query.addQueryItem(QStringLiteral("isLocked"), QStringLiteral("false"));
-    const QJsonObject response =
-        (co_await requestJson(HttpMethod::Post, QStringLiteral("/Collections"), query)).object();
+    const QJsonObject response
+        = (co_await requestJson(HttpMethod::Post, QStringLiteral("/Collections"), query)).object();
     co_return response.value(QStringLiteral("Id")).toString();
 }
 
@@ -1204,9 +1159,7 @@ QCoro::Task<void> JellyfinApiFacade::addCollectionItems(QString collectionId, QS
 
     QUrlQuery query;
     query.addQueryItem(QStringLiteral("ids"), itemIds.join(QLatin1Char(',')));
-    co_await requestJson(HttpMethod::Post,
-                         QStringLiteral("/Collections/%1/Items").arg(collectionId),
-                         query);
+    co_await requestJson(HttpMethod::Post, QStringLiteral("/Collections/%1/Items").arg(collectionId), query);
 }
 
 QCoro::Task<void> JellyfinApiFacade::removeCollectionItems(QString collectionId, QStringList itemIds)
@@ -1216,9 +1169,7 @@ QCoro::Task<void> JellyfinApiFacade::removeCollectionItems(QString collectionId,
 
     QUrlQuery query;
     query.addQueryItem(QStringLiteral("ids"), itemIds.join(QLatin1Char(',')));
-    co_await requestJson(HttpMethod::Delete,
-                         QStringLiteral("/Collections/%1/Items").arg(collectionId),
-                         query);
+    co_await requestJson(HttpMethod::Delete, QStringLiteral("/Collections/%1/Items").arg(collectionId), query);
 }
 
 QCoro::Task<void> JellyfinApiFacade::renameItem(QString itemId, QString name)
@@ -1229,15 +1180,9 @@ QCoro::Task<void> JellyfinApiFacade::renameItem(QString itemId, QString name)
 
     QUrlQuery query;
     query.addQueryItem(QStringLiteral("userId"), m_session.userId);
-    QJsonObject item =
-        (co_await requestJson(HttpMethod::Get,
-                              QStringLiteral("/Items/%1").arg(itemId),
-                              query))
-            .object();
+    QJsonObject item = (co_await requestJson(HttpMethod::Get, QStringLiteral("/Items/%1").arg(itemId), query)).object();
     item.insert(QStringLiteral("Name"), name);
-    co_await requestNoContent(HttpMethod::Post,
-                              QStringLiteral("/Items/%1").arg(itemId),
-                              QJsonDocument(item));
+    co_await requestNoContent(HttpMethod::Post, QStringLiteral("/Items/%1").arg(itemId), QJsonDocument(item));
 }
 
 QCoro::Task<void> JellyfinApiFacade::deleteItem(QString itemId)
@@ -1245,9 +1190,7 @@ QCoro::Task<void> JellyfinApiFacade::deleteItem(QString itemId)
     if (itemId.isEmpty())
         co_return;
 
-    co_await requestNoContent(HttpMethod::Delete,
-                              QStringLiteral("/Items/%1").arg(itemId),
-                              QJsonDocument());
+    co_await requestNoContent(HttpMethod::Delete, QStringLiteral("/Items/%1").arg(itemId), QJsonDocument());
 }
 
 QCoro::Task<void> JellyfinApiFacade::setItemFavorite(QString itemId, bool favorite)
@@ -1275,28 +1218,25 @@ QCoro::Task<void> JellyfinApiFacade::setItemPlaybackPosition(QString itemId, qin
 
     QUrlQuery query;
     query.addQueryItem(QStringLiteral("userId"), m_session.userId);
-    const QJsonObject body{
-        {QStringLiteral("ItemId"), itemId},
-        {QStringLiteral("PlaybackPositionTicks"), std::max<qint64>(0, positionTicks)},
-        {QStringLiteral("Played"), false},
+    const QJsonObject body {
+        { QStringLiteral("ItemId"), itemId },
+        { QStringLiteral("PlaybackPositionTicks"), std::max<qint64>(0, positionTicks) },
+        { QStringLiteral("Played"), false },
     };
-    co_await requestJson(HttpMethod::Post,
-                         QStringLiteral("/UserItems/%1/UserData").arg(itemId),
-                         query,
-                         QJsonDocument(body));
+    co_await requestJson(
+        HttpMethod::Post, QStringLiteral("/UserItems/%1/UserData").arg(itemId), query, QJsonDocument(body));
 }
 
 QCoro::Task<std::vector<MediaSegment>> JellyfinApiFacade::fetchMediaSegments(QString itemId)
 {
-    Diagnostics::Task task(QStringLiteral("api_fetch_media_segments"), {{QStringLiteral("itemId"), itemId}});
+    Diagnostics::Task task(QStringLiteral("api_fetch_media_segments"), { { QStringLiteral("itemId"), itemId } });
     std::vector<MediaSegment> result;
     try {
-        const QJsonDocument doc =
-            co_await requestJson(HttpMethod::Get,
-                                 QStringLiteral("/MediaSegments/%1").arg(itemId));
+        const QJsonDocument doc
+            = co_await requestJson(HttpMethod::Get, QStringLiteral("/MediaSegments/%1").arg(itemId));
         const QJsonArray items = itemsArrayFromDocument(doc);
         result.reserve(items.size());
-        for (const auto &value : items) {
+        for (const auto& value : items) {
             const QJsonObject object = value.toObject();
             MediaSegment segment;
             segment.id = object.value(QStringLiteral("Id")).toString();
@@ -1307,7 +1247,7 @@ QCoro::Task<std::vector<MediaSegment>> JellyfinApiFacade::fetchMediaSegments(QSt
             if (segment.endTicks > segment.startTicks)
                 result.push_back(segment);
         }
-    } catch (const std::exception &e) {
+    } catch (const std::exception& e) {
         // Servers without the media-segments endpoint return 404. Treat any
         // failure as "no segments" — playback should keep working.
         qInfo() << "api: media segments unavailable for" << itemId << ":" << e.what();
@@ -1317,15 +1257,13 @@ QCoro::Task<std::vector<MediaSegment>> JellyfinApiFacade::fetchMediaSegments(QSt
 
 QCoro::Task<TrickplayInfo> JellyfinApiFacade::fetchTrickplay(QString itemId, QString mediaSourceId, int preferredWidth)
 {
-    Diagnostics::Task task(QStringLiteral("api_fetch_trickplay"), {{QStringLiteral("itemId"), itemId}});
+    Diagnostics::Task task(QStringLiteral("api_fetch_trickplay"), { { QStringLiteral("itemId"), itemId } });
     TrickplayInfo best;
     try {
         QUrlQuery query;
         query.addQueryItem(QStringLiteral("fields"), QStringLiteral("Trickplay"));
-        const QJsonDocument doc =
-            co_await requestJson(HttpMethod::Get,
-                                 QStringLiteral("/Users/%1/Items/%2").arg(m_session.userId, itemId),
-                                 query);
+        const QJsonDocument doc = co_await requestJson(
+            HttpMethod::Get, QStringLiteral("/Users/%1/Items/%2").arg(m_session.userId, itemId), query);
         const QJsonObject trickplay = doc.object().value(QStringLiteral("Trickplay")).toObject();
         // Trickplay = { "<mediaSourceId>": { "<width>": TrickplayInfo, ... }, ... }
         QJsonObject widths;
@@ -1350,27 +1288,21 @@ QCoro::Task<TrickplayInfo> JellyfinApiFacade::fetchTrickplay(QString itemId, QSt
                 best.bandwidth = info.value(QStringLiteral("Bandwidth")).toInt();
             }
         }
-    } catch (const std::exception &e) {
+    } catch (const std::exception& e) {
         qInfo() << "api: trickplay fetch failed for" << itemId << ":" << e.what();
     }
     co_return best;
 }
 
-QString JellyfinApiFacade::trickplayTileUrl(const QString &itemId, int width, int tileIndex) const
+QString JellyfinApiFacade::trickplayTileUrl(const QString& itemId, int width, int tileIndex) const
 {
-    if (m_serverUrl.isEmpty() || itemId.isEmpty() || width <= 0)
+    if (m_serverUrl.isEmpty() || itemId.isEmpty() || width <= 0 || tileIndex < 0)
         return {};
 
-    QUrl url(m_serverUrl);
-    QString path = url.path();
-    if (path.endsWith(QLatin1Char('/')))
-        path.chop(1);
-    url.setPath(QStringLiteral("%1/Videos/%2/Trickplay/%3/%4.jpg")
-                    .arg(path, itemId, QString::number(width), QString::number(tileIndex)));
+    QUrl url = serverUrlWithPath(m_serverUrl,
+        { QStringLiteral("Videos"), itemId, QStringLiteral("Trickplay"), QString::number(width),
+            QStringLiteral("%1.jpg").arg(tileIndex) });
 
-    QUrlQuery query;
-    query.addQueryItem(QStringLiteral("api_key"), m_session.accessToken);
-    url.setQuery(query);
     return url.toString(QUrl::FullyEncoded);
 }
 
@@ -1378,12 +1310,11 @@ QCoro::Task<QJsonArray> JellyfinApiFacade::fetchSyncPlayGroups()
 {
     Diagnostics::Task task(QStringLiteral("api_syncplay_list"));
     try {
-        const QJsonDocument doc =
-            co_await requestJson(HttpMethod::Get, QStringLiteral("/SyncPlay/List"));
+        const QJsonDocument doc = co_await requestJson(HttpMethod::Get, QStringLiteral("/SyncPlay/List"));
         if (doc.isArray())
             co_return doc.array();
         co_return doc.object().value(QStringLiteral("Items")).toArray();
-    } catch (const std::exception &e) {
+    } catch (const std::exception& e) {
         qInfo() << "api: syncplay list failed:" << e.what();
         co_return QJsonArray();
     }
@@ -1391,13 +1322,13 @@ QCoro::Task<QJsonArray> JellyfinApiFacade::fetchSyncPlayGroups()
 
 QCoro::Task<void> JellyfinApiFacade::createSyncPlayGroup(QString name)
 {
-    const QJsonObject body = {{QStringLiteral("GroupName"), name}};
+    const QJsonObject body = { { QStringLiteral("GroupName"), name } };
     co_await requestNoContent(HttpMethod::Post, QStringLiteral("/SyncPlay/New"), QJsonDocument(body));
 }
 
 QCoro::Task<void> JellyfinApiFacade::joinSyncPlayGroup(QString groupId)
 {
-    const QJsonObject body = {{QStringLiteral("GroupId"), groupId}};
+    const QJsonObject body = { { QStringLiteral("GroupId"), groupId } };
     co_await requestNoContent(HttpMethod::Post, QStringLiteral("/SyncPlay/Join"), QJsonDocument(body));
 }
 
@@ -1418,71 +1349,63 @@ QCoro::Task<void> JellyfinApiFacade::syncPlayRequestPause()
 
 QCoro::Task<void> JellyfinApiFacade::syncPlayRequestSeek(qint64 positionTicks)
 {
-    const QJsonObject body = {{QStringLiteral("PositionTicks"), QJsonValue(static_cast<qint64>(positionTicks))}};
+    const QJsonObject body = { { QStringLiteral("PositionTicks"), QJsonValue(static_cast<qint64>(positionTicks)) } };
     co_await requestNoContent(HttpMethod::Post, QStringLiteral("/SyncPlay/Seek"), QJsonDocument(body));
 }
 
 QCoro::Task<QJsonObject> JellyfinApiFacade::fetchUtcTime()
 {
-    co_return (co_await requestJson(HttpMethod::Get,
-                                    QStringLiteral("/GetUtcTime")))
-        .object();
+    co_return (co_await requestJson(HttpMethod::Get, QStringLiteral("/GetUtcTime"))).object();
 }
 
 QCoro::Task<void> JellyfinApiFacade::syncPlayReportPing(qint64 pingMs)
 {
     const QJsonObject body = {
-        {QStringLiteral("Ping"), std::max<qint64>(0, pingMs)},
+        { QStringLiteral("Ping"), std::max<qint64>(0, pingMs) },
     };
-    co_await requestNoContent(HttpMethod::Post, QStringLiteral("/SyncPlay/Ping"),
-                              QJsonDocument(body));
+    co_await requestNoContent(HttpMethod::Post, QStringLiteral("/SyncPlay/Ping"), QJsonDocument(body));
 }
 
 QCoro::Task<void> JellyfinApiFacade::syncPlayReportBuffering(
-    bool buffering, qint64 positionTicks, bool playing,
-    QString playlistItemId, QDateTime serverTime)
+    bool buffering, qint64 positionTicks, bool playing, QString playlistItemId, QDateTime serverTime)
 {
     if (playlistItemId.isEmpty()) {
-        playlistItemId =
-            QStringLiteral("00000000-0000-0000-0000-000000000000");
+        playlistItemId = QStringLiteral("00000000-0000-0000-0000-000000000000");
     }
     const QJsonObject body = {
-        {QStringLiteral("When"),
-         serverTime.toUTC().toString(Qt::ISODateWithMs)},
-        {QStringLiteral("PositionTicks"), positionTicks},
-        {QStringLiteral("IsPlaying"), playing},
-        {QStringLiteral("PlaylistItemId"), playlistItemId},
+        { QStringLiteral("When"), serverTime.toUTC().toString(Qt::ISODateWithMs) },
+        { QStringLiteral("PositionTicks"), positionTicks },
+        { QStringLiteral("IsPlaying"), playing },
+        { QStringLiteral("PlaylistItemId"), playlistItemId },
     };
-    const QString path = buffering ? QStringLiteral("/SyncPlay/Buffering")
-                                   : QStringLiteral("/SyncPlay/Ready");
+    const QString path = buffering ? QStringLiteral("/SyncPlay/Buffering") : QStringLiteral("/SyncPlay/Ready");
     co_await requestNoContent(HttpMethod::Post, path, QJsonDocument(body));
 }
 
 QCoro::Task<PlaybackSession> JellyfinApiFacade::negotiatePlayback(MovieItem movie)
 {
-    Diagnostics::Task task(QStringLiteral("api_negotiate_playback"), {{QStringLiteral("itemId"), movie.id}, {QStringLiteral("title"), movie.title}});
+    Diagnostics::Task task(QStringLiteral("api_negotiate_playback"),
+        { { QStringLiteral("itemId"), movie.id }, { QStringLiteral("title"), movie.title } });
     QUrlQuery query;
     query.addQueryItem(QStringLiteral("userId"), m_session.userId);
 
     const QJsonObject body = {
-        {QStringLiteral("UserId"), m_session.userId},
-        {QStringLiteral("MaxStreamingBitrate"), m_maxStreamingBitrate},
-        {QStringLiteral("StartTimeTicks"), movie.resumeTicks},
-        {QStringLiteral("AutoOpenLiveStream"), true},
-        {QStringLiteral("EnableDirectPlay"), true},
-        {QStringLiteral("EnableDirectStream"), true},
-        {QStringLiteral("EnableTranscoding"), true},
-        {QStringLiteral("AllowVideoStreamCopy"), true},
-        {QStringLiteral("AllowAudioStreamCopy"), true},
-        {QStringLiteral("DeviceProfile"), buildDeviceProfile()},
+        { QStringLiteral("UserId"), m_session.userId },
+        { QStringLiteral("MaxStreamingBitrate"), m_maxStreamingBitrate },
+        { QStringLiteral("StartTimeTicks"), movie.resumeTicks },
+        { QStringLiteral("AutoOpenLiveStream"), true },
+        { QStringLiteral("EnableDirectPlay"), true },
+        { QStringLiteral("EnableDirectStream"), true },
+        { QStringLiteral("EnableTranscoding"), true },
+        { QStringLiteral("AllowVideoStreamCopy"), true },
+        { QStringLiteral("AllowAudioStreamCopy"), true },
+        { QStringLiteral("DeviceProfile"), buildDeviceProfile() },
     };
 
-    const QJsonObject playbackResponse =
-        (co_await requestJson(HttpMethod::Post,
-                              QStringLiteral("/Items/%1/PlaybackInfo").arg(movie.id),
-                              query,
-                              QJsonDocument(body)))
-            .object();
+    const QJsonObject playbackResponse
+        = (co_await requestJson(
+               HttpMethod::Post, QStringLiteral("/Items/%1/PlaybackInfo").arg(movie.id), query, QJsonDocument(body)))
+              .object();
 
     co_return buildPlaybackSession(movie, playbackResponse);
 }
@@ -1490,32 +1413,32 @@ QCoro::Task<PlaybackSession> JellyfinApiFacade::negotiatePlayback(MovieItem movi
 QCoro::Task<void> JellyfinApiFacade::postCapabilities()
 {
     const QJsonObject body = {
-        {QStringLiteral("PlayableMediaTypes"), QJsonArray{QStringLiteral("Video"), QStringLiteral("Audio")}},
-        {QStringLiteral("SupportedCommands"),
-         QJsonArray{
-             QStringLiteral("MoveUp"),
-             QStringLiteral("MoveDown"),
-             QStringLiteral("MoveLeft"),
-             QStringLiteral("MoveRight"),
-             QStringLiteral("Select"),
-             QStringLiteral("Back"),
-             QStringLiteral("SetAudioStreamIndex"),
-             QStringLiteral("SetSubtitleStreamIndex"),
-             QStringLiteral("ToggleOsd"),
-         }},
-        {QStringLiteral("SupportsMediaControl"), true},
-        {QStringLiteral("SupportsPersistentIdentifier"), true},
-        {QStringLiteral("DeviceProfile"), buildDeviceProfile()},
+        { QStringLiteral("PlayableMediaTypes"), QJsonArray { QStringLiteral("Video"), QStringLiteral("Audio") } },
+        { QStringLiteral("SupportedCommands"),
+            QJsonArray {
+                QStringLiteral("MoveUp"),
+                QStringLiteral("MoveDown"),
+                QStringLiteral("MoveLeft"),
+                QStringLiteral("MoveRight"),
+                QStringLiteral("Select"),
+                QStringLiteral("Back"),
+                QStringLiteral("SetAudioStreamIndex"),
+                QStringLiteral("SetSubtitleStreamIndex"),
+                QStringLiteral("ToggleOsd"),
+            } },
+        { QStringLiteral("SupportsMediaControl"), true },
+        { QStringLiteral("SupportsPersistentIdentifier"), true },
+        { QStringLiteral("DeviceProfile"), buildDeviceProfile() },
     };
 
     co_await requestNoContent(HttpMethod::Post, QStringLiteral("/Sessions/Capabilities/Full"), QJsonDocument(body));
 }
 
-QJsonArray nowPlayingQueueJson(const std::vector<PlaybackQueueItem> &queue)
+QJsonArray nowPlayingQueueJson(const std::vector<PlaybackQueueItem>& queue)
 {
     QJsonArray array;
-    for (const PlaybackQueueItem &item : queue) {
-        QJsonObject object{{QStringLiteral("Id"), item.itemId}};
+    for (const PlaybackQueueItem& item : queue) {
+        QJsonObject object { { QStringLiteral("Id"), item.itemId } };
         if (!item.playlistItemId.isEmpty())
             object.insert(QStringLiteral("PlaylistItemId"), item.playlistItemId);
         array.push_back(object);
@@ -1526,12 +1449,12 @@ QJsonArray nowPlayingQueueJson(const std::vector<PlaybackQueueItem> &queue)
 QCoro::Task<void> JellyfinApiFacade::reportPlaybackStart(PlaybackSession session)
 {
     QJsonObject body = {
-        {QStringLiteral("CanSeek"), true},
-        {QStringLiteral("ItemId"), session.itemId},
-        {QStringLiteral("MediaSourceId"), session.mediaSourceId},
-        {QStringLiteral("PlayMethod"), session.playMethod},
-        {QStringLiteral("PlaySessionId"), session.playSessionId},
-        {QStringLiteral("PositionTicks"), session.startTimeTicks},
+        { QStringLiteral("CanSeek"), true },
+        { QStringLiteral("ItemId"), session.itemId },
+        { QStringLiteral("MediaSourceId"), session.mediaSourceId },
+        { QStringLiteral("PlayMethod"), session.playMethod },
+        { QStringLiteral("PlaySessionId"), session.playSessionId },
+        { QStringLiteral("PositionTicks"), session.startTimeTicks },
     };
     if (!session.nowPlayingQueue.empty())
         body.insert(QStringLiteral("NowPlayingQueue"), nowPlayingQueueJson(session.nowPlayingQueue));
@@ -1542,13 +1465,13 @@ QCoro::Task<void> JellyfinApiFacade::reportPlaybackStart(PlaybackSession session
 QCoro::Task<void> JellyfinApiFacade::reportPlaybackProgress(PlaybackSession session, qint64 positionTicks, bool paused)
 {
     QJsonObject body = {
-        {QStringLiteral("CanSeek"), true},
-        {QStringLiteral("ItemId"), session.itemId},
-        {QStringLiteral("MediaSourceId"), session.mediaSourceId},
-        {QStringLiteral("PlayMethod"), session.playMethod},
-        {QStringLiteral("PlaySessionId"), session.playSessionId},
-        {QStringLiteral("PositionTicks"), positionTicks},
-        {QStringLiteral("IsPaused"), paused},
+        { QStringLiteral("CanSeek"), true },
+        { QStringLiteral("ItemId"), session.itemId },
+        { QStringLiteral("MediaSourceId"), session.mediaSourceId },
+        { QStringLiteral("PlayMethod"), session.playMethod },
+        { QStringLiteral("PlaySessionId"), session.playSessionId },
+        { QStringLiteral("PositionTicks"), positionTicks },
+        { QStringLiteral("IsPaused"), paused },
     };
     if (!session.nowPlayingQueue.empty())
         body.insert(QStringLiteral("NowPlayingQueue"), nowPlayingQueueJson(session.nowPlayingQueue));
@@ -1559,27 +1482,27 @@ QCoro::Task<void> JellyfinApiFacade::reportPlaybackProgress(PlaybackSession sess
 QCoro::Task<void> JellyfinApiFacade::reportPlaybackStopped(PlaybackSession session, qint64 positionTicks, bool failed)
 {
     const QJsonObject body = {
-        {QStringLiteral("ItemId"), session.itemId},
-        {QStringLiteral("MediaSourceId"), session.mediaSourceId},
-        {QStringLiteral("PlaySessionId"), session.playSessionId},
-        {QStringLiteral("PositionTicks"), positionTicks},
-        {QStringLiteral("Failed"), failed},
+        { QStringLiteral("ItemId"), session.itemId },
+        { QStringLiteral("MediaSourceId"), session.mediaSourceId },
+        { QStringLiteral("PlaySessionId"), session.playSessionId },
+        { QStringLiteral("PositionTicks"), positionTicks },
+        { QStringLiteral("Failed"), failed },
     };
 
     co_await requestNoContent(HttpMethod::Post, QStringLiteral("/Sessions/Playing/Stopped"), QJsonDocument(body));
 }
 
-QNetworkRequest JellyfinApiFacade::createRequest(const QString &path, const QUrlQuery &query) const
+QNetworkRequest JellyfinApiFacade::createRequest(const QString& path, const QUrlQuery& query) const
 {
-    QNetworkRequest request = query.isEmpty() ? m_requestFactory.createRequest(path)
-                                              : m_requestFactory.createRequest(path, query);
-    request.setRawHeader("X-Emby-Authorization", createAuthorizationHeader().toUtf8());
+    QNetworkRequest request
+        = query.isEmpty() ? m_requestFactory.createRequest(path) : m_requestFactory.createRequest(path, query);
+    request.setRawHeader("Authorization", authorizationHeader().toUtf8());
     return request;
 }
 
-QString JellyfinApiFacade::createAuthorizationHeader(const QString &tokenOverride) const
+QString JellyfinApiFacade::authorizationHeader(const QString& tokenOverride) const
 {
-    QStringList parts{
+    QStringList parts {
         QStringLiteral("Client=\"Jellyfin Native\""),
         QStringLiteral("Device=\"%1\"").arg(m_deviceName),
         QStringLiteral("DeviceId=\"%1\"").arg(m_deviceId),
@@ -1592,8 +1515,17 @@ QString JellyfinApiFacade::createAuthorizationHeader(const QString &tokenOverrid
     return QStringLiteral("MediaBrowser %1").arg(parts.join(QStringLiteral(", ")));
 }
 
-QCoro::Task<QJsonDocument> JellyfinApiFacade::requestJson(HttpMethod method, QString path, QUrlQuery query,
-                                                          QJsonDocument body)
+void JellyfinApiFacade::applyCommonHeaders()
+{
+    QHttpHeaders headers;
+    headers.append(QHttpHeaders::WellKnownHeader::Accept, QStringLiteral("application/json"));
+    if (!m_acceptLanguage.isEmpty())
+        headers.append(QHttpHeaders::WellKnownHeader::AcceptLanguage, m_acceptLanguage);
+    m_requestFactory.setCommonHeaders(headers);
+}
+
+QCoro::Task<QJsonDocument> JellyfinApiFacade::requestJson(
+    HttpMethod method, QString path, QUrlQuery query, QJsonDocument body)
 {
     const QByteArray payload = co_await requestBytes(method, path, query, body);
     if (payload.isEmpty())
@@ -1611,12 +1543,12 @@ QCoro::Task<void> JellyfinApiFacade::requestNoContent(HttpMethod method, QString
     co_await requestBytes(method, path, {}, body);
 }
 
-QCoro::Task<QByteArray> JellyfinApiFacade::requestBytes(HttpMethod method, QString path, QUrlQuery query,
-                                                         QJsonDocument body)
+QCoro::Task<QByteArray> JellyfinApiFacade::requestBytes(
+    HttpMethod method, QString path, QUrlQuery query, QJsonDocument body)
 {
     const QString methodName = method == HttpMethod::Get ? QStringLiteral("GET")
-                             : method == HttpMethod::Post ? QStringLiteral("POST")
-                                                          : QStringLiteral("DELETE");
+        : method == HttpMethod::Post                     ? QStringLiteral("POST")
+                                                         : QStringLiteral("DELETE");
     const HttpOperation operation = operationFor(method, path);
     const int maximumAttempts = HttpRequestPolicy::maximumAttempts(operation);
 
@@ -1625,14 +1557,11 @@ QCoro::Task<QByteArray> JellyfinApiFacade::requestBytes(HttpMethod method, QStri
             throw std::runtime_error("Request canceled during shutdown");
 
         const QNetworkRequest request = createRequest(path, query);
-        Diagnostics::NetworkRequest diagnosticsRequest(
-            methodName, request.url().toString(QUrl::FullyEncoded));
+        Diagnostics::NetworkRequest diagnosticsRequest(methodName, request.url().toString(QUrl::FullyEncoded));
         QNetworkReply *reply = nullptr;
 
         if (isQuickConnectPath(path)) {
-            qInfo() << "api:" << methodName
-                    << request.url().toString(QUrl::FullyEncoded)
-                    << "deviceId" << m_deviceId;
+            qInfo() << "api:" << methodName << request.url().toString(QUrl::FullyEncoded) << "deviceId" << m_deviceId;
         }
 
         switch (method) {
@@ -1640,8 +1569,7 @@ QCoro::Task<QByteArray> JellyfinApiFacade::requestBytes(HttpMethod method, QStri
             reply = m_rest.get(request);
             break;
         case HttpMethod::Post:
-            reply = body.isNull() ? m_rest.post(request, QByteArray{})
-                                  : m_rest.post(request, body);
+            reply = body.isNull() ? m_rest.post(request, QByteArray {}) : m_rest.post(request, body);
             break;
         case HttpMethod::Delete:
             reply = m_rest.deleteResource(request);
@@ -1651,47 +1579,35 @@ QCoro::Task<QByteArray> JellyfinApiFacade::requestBytes(HttpMethod method, QStri
         m_activeReplies.insert(reply);
         reply = co_await reply;
         m_activeReplies.remove(reply);
-        const QByteArray payload = reply && reply->isReadable() ? reply->readAll() : QByteArray{};
-        const QString errorText =
-            reply ? reply->errorString() : QStringLiteral("Network reply disappeared");
-        const int statusCode =
-            reply ? reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt() : 500;
-        const auto networkError =
-            reply ? reply->error() : QNetworkReply::UnknownNetworkError;
+        const QByteArray payload = reply && reply->isReadable() ? reply->readAll() : QByteArray {};
+        const QString errorText = reply ? reply->errorString() : QStringLiteral("Network reply disappeared");
+        const int statusCode = reply ? reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt() : 500;
+        const auto networkError = reply ? reply->error() : QNetworkReply::UnknownNetworkError;
         if (reply)
             reply->deleteLater();
-        diagnosticsRequest.finish(
-            statusCode,
-            networkError == QNetworkReply::NoError ? QString() : errorText);
+        diagnosticsRequest.finish(statusCode, networkError == QNetworkReply::NoError ? QString() : errorText);
 
         if (networkError == QNetworkReply::NoError && statusCode < 400) {
             if (isQuickConnectPath(path)) {
-                qInfo() << "api:" << path << "ok" << statusCode
-                        << QString::fromUtf8(payload.left(256));
+                qInfo() << "api:" << path << "ok" << statusCode << QString::fromUtf8(payload.left(256));
             }
             co_return payload;
         }
 
-        const QString details =
-            payload.isEmpty() ? errorText : QString::fromUtf8(payload);
-        if (statusCode == 401 && shouldExpireSession(path) &&
-            !m_authExpirationReported) {
+        const QString details = payload.isEmpty() ? errorText : QString::fromUtf8(payload);
+        if (statusCode == 401 && shouldExpireSession(path) && !m_authExpirationReported) {
             m_authExpirationReported = true;
-            emit authenticationExpired(
-                QStringLiteral("Your Jellyfin session has expired. Sign in again."));
+            emit authenticationExpired(QStringLiteral("Your Jellyfin session has expired. Sign in again."));
         }
 
-        if (!HttpRequestPolicy::shouldRetry(operation, attempt, statusCode,
-                                            networkError)) {
+        if (!HttpRequestPolicy::shouldRetry(operation, attempt, statusCode, networkError)) {
             if (isQuickConnectPath(path))
                 qWarning() << "api:" << path << "failed" << statusCode << details;
-            throw std::runtime_error(
-                QStringLiteral("%1 (%2)").arg(details).arg(statusCode).toStdString());
+            throw std::runtime_error(QStringLiteral("%1 (%2)").arg(details).arg(statusCode).toStdString());
         }
 
         const int delayMs = HttpRequestPolicy::retryDelayMs(attempt);
-        qWarning() << "api:" << methodName << path << "attempt" << attempt
-                   << "failed with" << statusCode << errorText
+        qWarning() << "api:" << methodName << path << "attempt" << attempt << "failed with" << statusCode << errorText
                    << "- retrying in" << delayMs << "ms";
         co_await QCoro::sleepFor(std::chrono::milliseconds(delayMs));
     }
@@ -1699,19 +1615,17 @@ QCoro::Task<QByteArray> JellyfinApiFacade::requestBytes(HttpMethod method, QStri
     throw std::runtime_error("HTTP retry policy exhausted");
 }
 
-HttpOperation JellyfinApiFacade::operationFor(HttpMethod method,
-                                               const QString &path) const
+HttpOperation JellyfinApiFacade::operationFor(HttpMethod method, const QString& path) const
 {
     if (path.startsWith(QStringLiteral("/Sessions/Playing")))
         return HttpOperation::PlaybackReport;
-    return method == HttpMethod::Get ? HttpOperation::Read
-                                     : HttpOperation::Mutation;
+    return method == HttpMethod::Get ? HttpOperation::Read : HttpOperation::Mutation;
 }
 
-bool JellyfinApiFacade::shouldExpireSession(const QString &path) const
+bool JellyfinApiFacade::shouldExpireSession(const QString& path) const
 {
-    return !m_session.accessToken.isEmpty() && !isQuickConnectPath(path) &&
-           !path.startsWith(QStringLiteral("/Users/Authenticate"));
+    return !m_session.accessToken.isEmpty() && !isQuickConnectPath(path)
+        && !path.startsWith(QStringLiteral("/Users/Authenticate"));
 }
 
 QJsonObject JellyfinApiFacade::buildDeviceProfile() const
@@ -1719,14 +1633,14 @@ QJsonObject JellyfinApiFacade::buildDeviceProfile() const
     return PlaybackNegotiation::buildDeviceProfile(m_maxStreamingBitrate);
 }
 
-PlaybackSession JellyfinApiFacade::buildPlaybackSession(const MovieItem &movie, const QJsonObject &playbackResponse) const
+PlaybackSession JellyfinApiFacade::buildPlaybackSession(
+    const MovieItem& movie, const QJsonObject& playbackResponse) const
 {
     const QJsonArray mediaSources = playbackResponse.value(QStringLiteral("MediaSources")).toArray();
     if (mediaSources.isEmpty())
         throw std::runtime_error("No media sources returned by Jellyfin");
 
-    const PlaybackSelection selection =
-        PlaybackNegotiation::selectSource(mediaSources, m_preferRemux);
+    const PlaybackSelection selection = PlaybackNegotiation::selectSource(mediaSources, m_preferRemux);
     const QJsonObject selectedSource = selection.source;
 
     const QString mediaSourceId = requireString(selectedSource, QStringLiteral("Id"));
@@ -1736,8 +1650,7 @@ PlaybackSession JellyfinApiFacade::buildPlaybackSession(const MovieItem &movie, 
         movie.id,
         movie.title,
         movie.itemType,
-        PlaybackNegotiation::buildUrl(m_serverUrl, movie.id,
-                                      m_session.accessToken, selection),
+        PlaybackNegotiation::buildUrl(m_serverUrl, movie.id, m_session.accessToken, selection),
         mediaSourceId,
         playbackResponse.value(QStringLiteral("PlaySessionId")).toString(),
         selection.playMethod,

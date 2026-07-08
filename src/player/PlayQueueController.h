@@ -9,8 +9,7 @@
 
 namespace JellyfinNative {
 
-class PlayQueueController final : public QAbstractListModel
-{
+class PlayQueueController final : public QAbstractListModel {
     Q_OBJECT
     Q_PROPERTY(int count READ count NOTIFY queueChanged)
     Q_PROPERTY(int currentIndex READ currentIndex NOTIFY currentIndexChanged)
@@ -31,10 +30,13 @@ public:
         LandscapeCardUrlRole,
     };
 
-    explicit PlayQueueController(QObject *parent = nullptr);
+    explicit PlayQueueController(QObject *parent = nullptr)
+        : QAbstractListModel(parent)
+    {
+    }
 
-    int rowCount(const QModelIndex &parent = {}) const override;
-    QVariant data(const QModelIndex &index, int role) const override;
+    int rowCount(const QModelIndex& parent = {}) const override;
+    QVariant data(const QModelIndex& index, int role) const override;
     QHash<int, QByteArray> roleNames() const override;
 
     int count() const;
@@ -53,27 +55,23 @@ public:
     Q_INVOKABLE void clear();
     Q_INVOKABLE void removeAt(int index);
 
-    bool playNow(const std::vector<MovieItem> &items, int startIndex);
-    bool playNow(const MovieItem &item);
-    bool playNext(const MovieItem &item);
-    bool addToQueue(const MovieItem &item);
+    bool playNow(const std::vector<MovieItem>& items, int startIndex);
+    bool playNow(const MovieItem& item);
+    bool playNext(const MovieItem& item);
+    bool addToQueue(const MovieItem& item);
 
 signals:
     void queueChanged();
     void currentIndexChanged();
 
 private:
-    struct Entry {
-        MovieItem item;
-    };
-
-    static bool isQueueable(const MovieItem &item);
+    static bool isQueueable(const MovieItem& item);
     void rebuildNaturalOrder();
     void rebuildShuffledOrder(int currentNaturalIndex);
     void setCurrentOrderIndex(int orderIndex);
     void emitQueueStateChanged(int previousCurrentIndex);
 
-    std::vector<Entry> m_entries;
+    std::vector<MovieItem> m_entries;
     std::vector<int> m_order;
     int m_orderIndex = -1;
     bool m_shuffled = false;

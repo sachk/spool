@@ -11,13 +11,13 @@ FocusScope {
     focus: false
 
     property var shell
-    readonly property var player: appController ? appController.player : null
-    readonly property var playQueue: appController ? appController.playQueue : null
+    readonly property var player: playerController ? playerController : null
+    readonly property var playQueue: playQueueController ? playQueueController : null
     readonly property bool hasPlayer: player !== null && player !== undefined && player.sessionActive
     readonly property bool smartTvPlatform: nativeWindow ? nativeWindow.smartTvPlatform : true
     readonly property bool desktopControlsAvailable: !smartTvPlatform
-    readonly property int currentAudioDelayMs: appController ? appController.settings.audioDelayMs : 0
-    readonly property bool nightModeEnabled: appController ? appController.settings.nightModeEnabled : false
+    readonly property int currentAudioDelayMs: settingsController ? settingsController.audioDelayMs : 0
+    readonly property bool nightModeEnabled: settingsController ? settingsController.nightModeEnabled : false
     property bool mediaInfoVisible: false
     property bool diagnosticsVisible: false
 
@@ -84,26 +84,62 @@ FocusScope {
     }
     readonly property var actions: {
         const list = [
-            { label: "Rewind", value: "back" },
-            { label: hasPlayer && player.paused ? "Play" : "Pause", value: "pause" },
-            { label: "Fast forward", value: "forward" }
-        ]
+                  {
+                      label: "Rewind",
+                      value: "back"
+                  },
+                  {
+                      label: hasPlayer && player.paused ? "Play" : "Pause",
+                      value: "pause"
+                  },
+                  {
+                      label: "Fast forward",
+                      value: "forward"
+                  }
+              ]
         if (playlistNavigationAvailable && playQueue.canGoPrevious)
-            list.push({ label: "Previous item", value: "prevQueue" })
+            list.push({
+                          label: "Previous item",
+                          value: "prevQueue"
+                      })
         if (playlistNavigationAvailable && playQueue.canGoNext)
-            list.push({ label: "Next item", value: "nextQueue" })
+            list.push({
+                          label: "Next item",
+                          value: "nextQueue"
+                      })
         if (hasPlayer && player.hasChapters) {
-            list.push({ label: "Previous chapter", value: "prevChapter" })
-            list.push({ label: "Next chapter", value: "nextChapter" })
+            list.push({
+                          label: "Previous chapter",
+                          value: "prevChapter"
+                      })
+            list.push({
+                          label: "Next chapter",
+                          value: "nextChapter"
+                      })
         }
-        list.push({ label: "Subtitles", value: "subtitles" })
+        list.push({
+                      label: "Subtitles",
+                      value: "subtitles"
+                  })
         if (audioSelectable)
-            list.push({ label: "Audio", value: "audio" })
+            list.push({
+                          label: "Audio",
+                          value: "audio"
+                      })
         if (playQueue && playQueue.count > 0)
-            list.push({ label: "Queue", value: "queue" })
+            list.push({
+                          label: "Queue",
+                          value: "queue"
+                      })
         if (desktopControlsAvailable)
-            list.push({ label: nativeWindow.fullScreen ? "Exit full screen" : "Full screen", value: "fullscreen" })
-        list.push({ label: "Settings", value: "debug" })
+            list.push({
+                          label: nativeWindow.fullScreen ? "Exit full screen" : "Full screen",
+                          value: "fullscreen"
+                      })
+        list.push({
+                      label: "Settings",
+                      value: "debug"
+                  })
         return list
     }
     readonly property var queueOptions: {
@@ -114,12 +150,8 @@ FocusScope {
         return list
     }
     readonly property var audioSyncSteps: [1, 5, 10, 100]
-    readonly property var debugOptions: [
-        "Audio sync",
-        hasPlayer && player.debugOsdVisible ? "Hide debug stats" : "Show debug stats",
-        nightModeEnabled ? "Disable night mode" : "Enable night mode",
-        "Stop playback"
-    ]
+    readonly property var debugOptions: ["Audio sync", hasPlayer && player.debugOsdVisible ? "Hide debug stats" : "Show debug stats",
+        nightModeEnabled ? "Disable night mode" : "Enable night mode", "Stop playback"]
     function isMenuOpen() {
         return mode === "subtitles" || mode === "audio" || mode === "queue" || mode === "debug"
     }
@@ -153,14 +185,16 @@ FocusScope {
     }
 
     function actionIcon(value) {
-        return PlayerOverlayFormat.actionIcon(value, hasPlayer && player.paused, nativeWindow && nativeWindow.fullScreen)
+        return PlayerOverlayFormat.actionIcon(value, hasPlayer && player.paused, nativeWindow
+                                              && nativeWindow.fullScreen)
     }
 
     function actionCenterX(actionValue) {
         const idx = actions.findIndex(action => action.value === actionValue)
         if (idx < 0 || chrome.actionRowWidth <= 0)
             return width - dp(240)
-        return chrome.hudX + chrome.actionRowX + (idx * (actionTargetSize + chrome.actionRowSpacing)) + actionTargetSize / 2
+        return chrome.hudX + chrome.actionRowX + (idx * (actionTargetSize + chrome.actionRowSpacing)) + actionTargetSize
+                / 2
     }
 
     function setMenuAnchor(actionValue) {
@@ -175,12 +209,14 @@ FocusScope {
     }
 
     function positionSeconds() {
-        if (scrubbing) return scrubSeconds
+        if (scrubbing)
+            return scrubSeconds
         return hasPlayer ? player.positionSeconds : 0
     }
 
     function positionRatio() {
-        if (!hasPlayer || player.durationSeconds <= 0) return 0
+        if (!hasPlayer || player.durationSeconds <= 0)
+            return 0
         return Math.max(0, Math.min(1, positionSeconds() / player.durationSeconds))
     }
 
@@ -189,8 +225,10 @@ FocusScope {
             row = preferredRow || "timeline"
         if (!isMenuOpen() && !isAudioSyncOpen())
             mode = "controls"
-        if (isPinned()) autohide.stop()
-        else restartAutohide()
+        if (isPinned())
+            autohide.stop()
+        else
+            restartAutohide()
     }
 
     function maybeRestartAutohide() {
@@ -362,9 +400,8 @@ FocusScope {
     }
 
     function wheelVolumeDelta(event) {
-        const rawSteps = event.angleDelta.y !== 0 ? event.angleDelta.y / 120
-                       : event.pixelDelta.y !== 0 ? event.pixelDelta.y / 80
-                       : 0
+        const rawSteps = event.angleDelta.y !== 0 ? event.angleDelta.y / 120 : event.pixelDelta.y !== 0
+                                                    ? event.pixelDelta.y / 80 : 0
         if (rawSteps === 0)
             return 0
         const roundedSteps = Math.round(rawSteps)
@@ -388,32 +425,46 @@ FocusScope {
         const action = actions[Math.max(0, Math.min(actions.length - 1, actionIndex))].value
         if (!hasPlayer)
             return
-        if (action === "back") player.seekBack()
-        else if (action === "pause") player.togglePause()
-        else if (action === "forward") player.seekForward()
-        else if (action === "prevQueue") appController.playQueuePrevious()
-        else if (action === "nextQueue") appController.playQueueNext()
-        else if (action === "prevChapter") player.previousChapter()
-        else if (action === "nextChapter") player.nextChapter()
-        else if (action === "subtitles") openSubtitles()
-        else if (action === "audio") openAudio()
-        else if (action === "queue") openQueue()
-        else if (action === "fullscreen" && nativeWindow) nativeWindow.toggleFullScreen()
-        else if (action === "debug") openDebugMenu()
+        if (action === "back")
+            player.seekBack()
+        else if (action === "pause")
+            player.togglePause()
+        else if (action === "forward")
+            player.seekForward()
+        else if (action === "prevQueue")
+            appController.playQueuePrevious()
+        else if (action === "nextQueue")
+            appController.playQueueNext()
+        else if (action === "prevChapter")
+            player.previousChapter()
+        else if (action === "nextChapter")
+            player.nextChapter()
+        else if (action === "subtitles")
+            openSubtitles()
+        else if (action === "audio")
+            openAudio()
+        else if (action === "queue")
+            openQueue()
+        else if (action === "fullscreen" && nativeWindow)
+            nativeWindow.toggleFullScreen()
+        else if (action === "debug")
+            openDebugMenu()
     }
 
     function activateMenuItem() {
         if (mode === "subtitles") {
             if (!hasPlayer || player.subtitleTracks.length === 0)
                 return
-            if (hasPlayer) player.selectSubtitle(menuIndex)
+            if (hasPlayer)
+                player.selectSubtitle(menuIndex)
             closeMenu()
             return
         }
         if (mode === "audio") {
             if (!hasPlayer || player.audioTracks.length === 0)
                 return
-            if (hasPlayer) player.selectAudio(menuIndex)
+            if (hasPlayer)
+                player.selectAudio(menuIndex)
             closeMenu()
             return
         }
@@ -424,11 +475,17 @@ FocusScope {
             closeMenu()
             return
         }
-        if (menuIndex === 0) { openAudioSync(); return }
-        else if (menuIndex === 1) toggleDebugStats()
-        else if (menuIndex === 2 && appController) appController.settings.setNightModeEnabled(!nightModeEnabled)
-        else if (menuIndex === 3 && hasPlayer) player.stopWithReason("debug-menu-stop")
-        if (mode === "debug") closeMenu()
+        if (menuIndex === 0) {
+            openAudioSync()
+            return
+        } else if (menuIndex === 1)
+            toggleDebugStats()
+        else if (menuIndex === 2 && settingsController)
+            settingsController.setNightModeEnabled(!nightModeEnabled)
+        else if (menuIndex === 3 && hasPlayer)
+            player.stopWithReason("debug-menu-stop")
+        if (mode === "debug")
+            closeMenu()
     }
 
     function toggleDebugStats() {
@@ -450,8 +507,8 @@ FocusScope {
     }
 
     function setAudioDelayMs(value) {
-        if (appController)
-            appController.settings.setAudioDelayMs(clampAudioDelayMs(value))
+        if (settingsController)
+            settingsController.setAudioDelayMs(clampAudioDelayMs(value))
     }
 
     function adjustAudioDelay(direction) {
@@ -461,7 +518,8 @@ FocusScope {
 
     function handleAudioSyncKey(key) {
         if (key === Qt.Key_Up) {
-            if (audioSyncRow === "step") audioSyncRow = "delay"
+            if (audioSyncRow === "step")
+                audioSyncRow = "delay"
             else {
                 mode = "controls"
                 row = "actions"
@@ -471,7 +529,8 @@ FocusScope {
             return true
         }
         if (key === Qt.Key_Down) {
-            if (audioSyncRow === "delay") audioSyncRow = "step"
+            if (audioSyncRow === "delay")
+                audioSyncRow = "step"
             else {
                 mode = "controls"
                 row = "actions"
@@ -481,17 +540,22 @@ FocusScope {
             return true
         }
         if (key === Qt.Key_Left) {
-            if (audioSyncRow === "delay") adjustAudioDelay(-1)
-            else audioSyncStepIndex = Math.max(0, audioSyncStepIndex - 1)
+            if (audioSyncRow === "delay")
+                adjustAudioDelay(-1)
+            else
+                audioSyncStepIndex = Math.max(0, audioSyncStepIndex - 1)
             return true
         }
         if (key === Qt.Key_Right) {
-            if (audioSyncRow === "delay") adjustAudioDelay(1)
-            else audioSyncStepIndex = Math.min(audioSyncSteps.length - 1, audioSyncStepIndex + 1)
+            if (audioSyncRow === "delay")
+                adjustAudioDelay(1)
+            else
+                audioSyncStepIndex = Math.min(audioSyncSteps.length - 1, audioSyncStepIndex + 1)
             return true
         }
         if (InputKeys.isAccept(key)) {
-            if (audioSyncRow === "delay" && hasPlayer) player.togglePause()
+            if (audioSyncRow === "delay" && hasPlayer)
+                player.togglePause()
             return true
         }
         return false
@@ -517,8 +581,15 @@ FocusScope {
             row = "timeline"
             return true
         }
-        if (isAudioSyncOpen()) { mode = "controls"; showControls("actions"); return true }
-        if (isMenuOpen()) { closeMenu(); return true }
+        if (isAudioSyncOpen()) {
+            mode = "controls"
+            showControls("actions")
+            return true
+        }
+        if (isMenuOpen()) {
+            closeMenu()
+            return true
+        }
         if (mode !== "hidden") {
             autohide.stop()
             mode = "hidden"
@@ -556,7 +627,8 @@ FocusScope {
         }
     }
 
-    onScrubbingChanged: if (!scrubbing) maybeRestartAutohide()
+    onScrubbingChanged: if (!scrubbing)
+                            maybeRestartAutohide()
 
     PlayerOverlayInput {
         id: input
@@ -568,7 +640,11 @@ FocusScope {
         overlay: parent
     }
 
-    Timer { id: scrubTimer; interval: 650; onTriggered: overlay.commitScrub() }
+    Timer {
+        id: scrubTimer
+        interval: 650
+        onTriggered: overlay.commitScrub()
+    }
     Timer {
         id: previewBurstTimer
         interval: 1300

@@ -57,9 +57,9 @@ FocusScope {
         z: 2
 
         onVisibleChanged: if (visible)
-            InputKeys.focus(inputShield)
+                              InputKeys.focus(inputShield)
         onActiveFocusChanged: if (visible && !activeFocus)
-            Qt.callLater(() => InputKeys.focus(inputShield))
+                                  Qt.callLater(() => InputKeys.focus(inputShield))
 
         Keys.onPressed: event => root.pressed(event)
         Keys.onReleased: event => root.released(event)

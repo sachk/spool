@@ -7,19 +7,19 @@ DiscoveredServerModel::DiscoveredServerModel(QObject *parent)
 {
 }
 
-int DiscoveredServerModel::rowCount(const QModelIndex &parent) const
+int DiscoveredServerModel::rowCount(const QModelIndex& parent) const
 {
     if (parent.isValid())
         return 0;
     return static_cast<int>(m_servers.size());
 }
 
-QVariant DiscoveredServerModel::data(const QModelIndex &index, int role) const
+QVariant DiscoveredServerModel::data(const QModelIndex& index, int role) const
 {
     if (!index.isValid() || index.row() < 0 || index.row() >= rowCount())
         return {};
 
-    const auto &server = m_servers[static_cast<size_t>(index.row())];
+    const auto& server = m_servers[static_cast<size_t>(index.row())];
     switch (role) {
     case IdRole:
         return server.id;
@@ -35,23 +35,23 @@ QVariant DiscoveredServerModel::data(const QModelIndex &index, int role) const
 QHash<int, QByteArray> DiscoveredServerModel::roleNames() const
 {
     return {
-        {IdRole, "serverId"},
-        {NameRole, "name"},
-        {AddressRole, "address"},
+        { IdRole, "serverId" },
+        { NameRole, "name" },
+        { AddressRole, "address" },
     };
 }
 
-void DiscoveredServerModel::setServers(const std::vector<DiscoveredServer> &servers)
+void DiscoveredServerModel::setServers(const std::vector<DiscoveredServer>& servers)
 {
     beginResetModel();
     m_servers = servers;
     endResetModel();
 }
 
-void DiscoveredServerModel::upsertServer(const DiscoveredServer &server)
+void DiscoveredServerModel::upsertServer(const DiscoveredServer& server)
 {
     for (int i = 0; i < rowCount(); ++i) {
-        auto &existing = m_servers[static_cast<size_t>(i)];
+        auto& existing = m_servers[static_cast<size_t>(i)];
         if (existing.id == server.id || existing.address == server.address) {
             existing = server;
             emit dataChanged(index(i, 0), index(i, 0));

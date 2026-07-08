@@ -3,6 +3,7 @@
 #include "PlaybackTrackParser.h"
 
 #include <QByteArray>
+#include <QByteArrayList>
 #include <QList>
 #include <QStringList>
 #include <QVariantList>
@@ -11,8 +12,7 @@
 
 namespace JellyfinNative {
 
-class PlaybackTrackState final
-{
+class PlaybackTrackState final {
 public:
     QStringList subtitleTracks() const;
     bool subtitlesEnabled() const;
@@ -25,8 +25,8 @@ public:
 
     void resetForPlayback();
     bool clearChapters();
-    void applyParsedTracks(const ParsedPlaybackTracks &tracks);
-    void setChapters(const QVariantList &chapters);
+    void applyParsedTracks(const ParsedPlaybackTracks& tracks);
+    void setChapters(const QVariantList& chapters);
     bool setCurrentChapter(int chapter);
 
     std::optional<int> toggleSubtitleTarget() const;
@@ -34,8 +34,8 @@ public:
     std::optional<int> enableSubtitleTarget() const;
     std::optional<int> cycleAudioTarget() const;
 
-    std::optional<QByteArray> subtitleCommand(int index) const;
-    std::optional<QByteArray> audioCommand(int index) const;
+    std::optional<QByteArrayList> subtitleCommand(int index) const;
+    std::optional<QByteArrayList> audioCommand(int index) const;
     void applySubtitleSelection(int index);
     void applyAudioSelection(int index);
 

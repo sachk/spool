@@ -5,7 +5,7 @@
 
 namespace JellyfinNative {
 
-NativeAppWindow::NativeAppWindow(const QString &appId, QWindow *parent)
+NativeAppWindow::NativeAppWindow(const QString& appId, QWindow *parent)
     : QQuickView(parent)
     , m_appId(appId)
 {

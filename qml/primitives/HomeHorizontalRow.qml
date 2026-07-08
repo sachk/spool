@@ -25,7 +25,8 @@ FocusScope {
     signal mediaInfoRequested(int index)
 
     focus: true
-    onActiveFocusChanged: if (activeFocus) InputKeys.focus(rowList)
+    onActiveFocusChanged: if (activeFocus)
+                              InputKeys.focus(rowList)
     onCurrentIndexChanged: {
         if (rowList.currentIndex !== currentIndex)
             rowList.currentIndex = currentIndex
@@ -65,8 +66,7 @@ FocusScope {
     function handleKey(key) {
         const acceptKey = InputKeys.isAccept(key, !libraryRow)
         const card = currentCard()
-        if (!libraryRow && !acceptKey && card && card.handleKey
-                && card.handleKey(key))
+        if (!libraryRow && !acceptKey && card && card.handleKey && card.handleKey(key))
             return true
         if (key === Qt.Key_Left) {
             if (currentIndex > 0)
@@ -87,11 +87,9 @@ FocusScope {
             return true
         }
         if (acceptKey) {
-            if (!libraryRow && card && card.handleAcceptReleased
-                    && card.handleAcceptReleased(key))
+            if (!libraryRow && card && card.handleAcceptReleased && card.handleAcceptReleased(key))
                 return true
-            if (!libraryRow && card && card.handleKey
-                    && card.handleKey(key))
+            if (!libraryRow && card && card.handleKey && card.handleKey(key))
                 return true
             activateCurrent()
             return true
@@ -106,34 +104,24 @@ FocusScope {
             id: mediaDelegate
 
             required property int index
-            required property string movieId
+            required property var item
             required property string displayTitle
             required property string displaySubtitle
-            required property string posterUrl
-            required property string seriesPosterUrl
-            required property string thumbUrl
-            required property string landscapeCardUrl
-            required property string backdropUrl
             required property real progress
-            required property string itemType
-            required property string seriesId
-            required property string seasonId
-            required property bool favorite
-            required property bool played
-            required property real resumeTicks
-            required property bool playable
-            required property int year
-            required property string subtitle
-            required property string title
-            required property string seriesName
-            required property int seasonNumber
+            readonly property var movie: item || ({})
 
             width: root.cardWidth
             height: rowList.height
 
-            function handleAcceptPressed(key) { return mediaCard.handleAcceptPressed(key) }
-            function handleAcceptReleased(key) { return mediaCard.handleAcceptReleased(key) }
-            function handleKey(key) { return mediaCard.handleKey(key) }
+            function handleAcceptPressed(key) {
+                return mediaCard.handleAcceptPressed(key)
+            }
+            function handleAcceptReleased(key) {
+                return mediaCard.handleAcceptReleased(key)
+            }
+            function handleKey(key) {
+                return mediaCard.handleKey(key)
+            }
 
             MediaItemCard {
                 id: mediaCard
@@ -142,31 +130,16 @@ FocusScope {
                 kind: root.rowKind === "poster" ? "poster" : "landscape"
                 useSeriesPoster: root.useSeriesPoster
                 focused: mediaDelegate.index === rowList.currentIndex && root.activeFocus
-                snapshotProvider: function() { return root.itemAt(mediaDelegate.index) }
-                movieId: mediaDelegate.movieId
+                snapshotProvider: function () {
+                    return root.itemAt(mediaDelegate.index)
+                }
+                item: mediaDelegate.movie
                 displayTitle: mediaDelegate.displayTitle
                 displaySubtitle: mediaDelegate.displaySubtitle
-                posterUrl: mediaDelegate.posterUrl
-                seriesPosterUrl: mediaDelegate.seriesPosterUrl
-                thumbUrl: mediaDelegate.thumbUrl
-                landscapeCardUrl: mediaDelegate.landscapeCardUrl
-                backdropUrl: mediaDelegate.backdropUrl
                 progress: mediaDelegate.progress
-                itemType: mediaDelegate.itemType
-                seriesId: mediaDelegate.seriesId
-                seasonId: mediaDelegate.seasonId
-                favorite: mediaDelegate.favorite
-                played: mediaDelegate.played
-                resumeTicks: mediaDelegate.resumeTicks
-                playable: mediaDelegate.playable
-                year: mediaDelegate.year
-                subtitle: mediaDelegate.subtitle
-                title: mediaDelegate.title
-                seriesName: mediaDelegate.seriesName
-                seasonNumber: mediaDelegate.seasonNumber
                 onActivated: root.activated(mediaDelegate.index)
-                onFavoriteToggled: (favorite) => root.favoriteToggled(mediaDelegate.index, favorite)
-                onPlayedToggled: (played) => root.playedToggled(mediaDelegate.index, played)
+                onFavoriteToggled: favorite => root.favoriteToggled(mediaDelegate.index, favorite)
+                onPlayedToggled: played => root.playedToggled(mediaDelegate.index, played)
                 onMediaInfoRequested: root.mediaInfoRequested(mediaDelegate.index)
             }
         }
@@ -239,23 +212,23 @@ FocusScope {
                 horizontal: true
             }
 
-            Keys.onReleased: (event) => {
-                if (InputKeys.isAccept(event.key, !root.libraryRow)) {
-                    if (!root.libraryRow) {
-                        const card = root.currentCard()
-                        if (card && card.handleAcceptReleased
-                                && card.handleAcceptReleased(event.key)) {
-                            event.accepted = true
-                            return
-                        }
-                    }
-                    root.activateCurrent()
-                    event.accepted = true
-                } else if (event.key === Qt.Key_M && !root.libraryRow) {
-                    root.mediaInfoRequested(root.currentIndex)
-                    event.accepted = true
-                }
-            }
+            Keys.onReleased: event => {
+                                 if (InputKeys.isAccept(event.key, !root.libraryRow)) {
+                                     if (!root.libraryRow) {
+                                         const card = root.currentCard()
+                                         if (card && card.handleAcceptReleased && card.handleAcceptReleased(
+                                                 event.key)) {
+                                             event.accepted = true
+                                             return
+                                         }
+                                     }
+                                     root.activateCurrent()
+                                     event.accepted = true
+                                 } else if (event.key === Qt.Key_M && !root.libraryRow) {
+                                     root.mediaInfoRequested(root.currentIndex)
+                                     event.accepted = true
+                                 }
+                             }
         }
     }
 }
