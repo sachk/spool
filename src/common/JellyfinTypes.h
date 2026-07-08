@@ -77,9 +77,9 @@ struct BrowseDescriptor {
 
     bool isValid() const;
     QString kindKey() const;
-    QString cacheKey(const QVariantMap &query = {}) const;
+    QString cacheKey(const QVariantMap& query = {}) const;
     QVariantMap toVariantMap() const;
-    static BrowseDescriptor fromVariantMap(const QVariantMap &map);
+    static BrowseDescriptor fromVariantMap(const QVariantMap& map);
 };
 
 struct PersonItem {
@@ -99,7 +99,7 @@ public:
     QString imageUrl;
     QString imageTag;
 
-    friend bool operator==(const PersonItem &, const PersonItem &) = default;
+    friend bool operator==(const PersonItem&, const PersonItem&) = default;
 };
 
 struct MediaStreamInfo {
@@ -155,7 +155,7 @@ public:
     bool isExternal = false;
     bool isInterlaced = false;
 
-    friend bool operator==(const MediaStreamInfo &, const MediaStreamInfo &) = default;
+    friend bool operator==(const MediaStreamInfo&, const MediaStreamInfo&) = default;
 };
 
 struct MediaSourceInfo {
@@ -183,7 +183,7 @@ public:
     qint64 runtimeTicks = 0;
     QList<MediaStreamInfo> streams;
 
-    friend bool operator==(const MediaSourceInfo &, const MediaSourceInfo &) = default;
+    friend bool operator==(const MediaSourceInfo&, const MediaSourceInfo&) = default;
 };
 
 struct MovieItem {
@@ -263,7 +263,7 @@ public:
     QList<PersonItem> people;
     QList<MediaSourceInfo> mediaSources;
 
-    friend bool operator==(const MovieItem &, const MovieItem &) = default;
+    friend bool operator==(const MovieItem&, const MovieItem&) = default;
 };
 
 struct AuthSession {
@@ -292,8 +292,8 @@ public:
 struct TrickplayInfo {
     int width = 0;
     int height = 0;
-    int tileWidth = 0;     // tiles across in one image
-    int tileHeight = 0;    // tiles down in one image
+    int tileWidth = 0; // tiles across in one image
+    int tileHeight = 0; // tiles down in one image
     int thumbnailCount = 0;
     int intervalMs = 0;
     int bandwidth = 0;
@@ -344,11 +344,8 @@ struct PlaybackSession {
     std::vector<PlaybackQueueItem> nowPlayingQueue;
 };
 
-QVariantMap toVariantMap(const BrowseDescriptor &descriptor);
-BrowseDescriptor browseDescriptorFromVariantMap(const QVariantMap &map);
-
-QString exceptionMessage(const std::exception_ptr &exception);
-QString normalizedAudioOutputMode(const QString &mode);
+QString exceptionMessage(const std::exception_ptr& exception);
+QString normalizedAudioOutputMode(const QString& mode);
 QString sanitizedDiagnosticUrl(QString url, qsizetype maxLength = -1);
 bool isMeaningfulResumePosition(qint64 resumeTicks, qint64 runtimeTicks);
 qint64 normalizedResumeTicks(qint64 resumeTicks, qint64 runtimeTicks);

@@ -28,7 +28,7 @@ int main(int argc, char **argv)
     require(router.route() == QStringLiteral("home"), "reset route");
     require(!router.canPop(), "reset clears stack");
 
-    router.push(QStringLiteral("libraryGrid"), {{QStringLiteral("libraryId"), QStringLiteral("abc")}});
+    router.push(QStringLiteral("libraryGrid"), { { QStringLiteral("libraryId"), QStringLiteral("abc") } });
     require(router.route() == QStringLiteral("libraryGrid"), "push route");
     require(router.previousRoute() == QStringLiteral("home"), "push previous route");
     require(router.canPop(), "push creates stack frame");
@@ -39,7 +39,7 @@ int main(int argc, char **argv)
     require(router.previousRoute() == QStringLiteral("libraryGrid"), "replace previous route");
     require(router.canPop(), "replace keeps stack");
 
-    router.push(QStringLiteral("itemDetails"), {{QStringLiteral("itemId"), QStringLiteral("m1")}});
+    router.push(QStringLiteral("itemDetails"), { { QStringLiteral("itemId"), QStringLiteral("m1") } });
     require(router.route() == QStringLiteral("itemDetails"), "second push route");
     require(router.previousRoute() == QStringLiteral("libraries"), "second push previous route");
 

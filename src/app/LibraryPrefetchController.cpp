@@ -1,8 +1,8 @@
 #include "LibraryPrefetchController.h"
 
 #include "../api/JellyfinApiFacade.h"
-#include "ArtworkPrefetcher.h"
 #include "../common/AsyncTask.h"
+#include "ArtworkPrefetcher.h"
 #include "LibraryQuery.h"
 
 #include <QDebug>
@@ -14,174 +14,167 @@ namespace JellyfinNative {
 
 namespace {
 
-constexpr int kLibraryPageSize = 100;
-constexpr int kBackgroundLibraryPrefetchLimit = 3;
+    constexpr int kLibraryPageSize = 100;
+    constexpr int kBackgroundLibraryPrefetchLimit = 3;
 
-QString preferredImageUrl(const MovieItem &item,
-                          LibraryPrefetchController::ImageKind imageKind)
-{
-  if (imageKind == LibraryPrefetchController::ImageKind::Landscape) {
-    if (!item.landscapeCardUrl.isEmpty())
-      return item.landscapeCardUrl;
-    if (!item.thumbUrl.isEmpty())
-      return item.thumbUrl;
-    if (!item.backdropUrl.isEmpty())
-      return item.backdropUrl;
-  }
-  if (!item.posterUrl.isEmpty())
-    return item.posterUrl;
-  if (!item.seriesPosterUrl.isEmpty())
-    return item.seriesPosterUrl;
-  return {};
-}
+    QString preferredImageUrl(const MovieItem& item, LibraryPrefetchController::ImageKind imageKind)
+    {
+        if (imageKind == LibraryPrefetchController::ImageKind::Landscape) {
+            if (!item.landscapeCardUrl.isEmpty())
+                return item.landscapeCardUrl;
+            if (!item.thumbUrl.isEmpty())
+                return item.thumbUrl;
+            if (!item.backdropUrl.isEmpty())
+                return item.backdropUrl;
+        }
+        if (!item.posterUrl.isEmpty())
+            return item.posterUrl;
+        if (!item.seriesPosterUrl.isEmpty())
+            return item.seriesPosterUrl;
+        return {};
+    }
 
 } // namespace
 
-LibraryPrefetchController::LibraryPrefetchController(JellyfinApiFacade *api,
-                                                     ArtworkPrefetcher *artwork,
-                                                     QObject *parent)
-    : QObject(parent), m_api(api), m_artwork(artwork) {
-  m_timer.setSingleShot(true);
-  connect(&m_timer, &QTimer::timeout, this,
-          &LibraryPrefetchController::startNext);
+LibraryPrefetchController::LibraryPrefetchController(
+    JellyfinApiFacade *api, ArtworkPrefetcher *artwork, QObject *parent)
+    : QObject(parent)
+    , m_api(api)
+    , m_artwork(artwork)
+{
+    m_timer.setSingleShot(true);
+    connect(&m_timer, &QTimer::timeout, this, &LibraryPrefetchController::startNext);
 }
 
-void LibraryPrefetchController::stop() {
-  m_generation.invalidate();
-  m_timer.stop();
-  m_queue.clear();
-  m_index = 0;
-  m_active = false;
+void LibraryPrefetchController::stop()
+{
+    m_generation.invalidate();
+    m_timer.stop();
+    m_queue.clear();
+    m_index = 0;
+    m_active = false;
 }
 
-void LibraryPrefetchController::schedule(
-    const std::vector<LibraryItem> &libraries,
-    const QStringList &recentLibraryIds) {
-  stop();
-  if (!m_api || m_api->session().accessToken.isEmpty())
-    return;
+void LibraryPrefetchController::schedule(const std::vector<LibraryItem>& libraries, const QStringList& recentLibraryIds)
+{
+    stop();
+    if (!m_api || m_api->session().accessToken.isEmpty())
+        return;
 
-  std::vector<LibraryItem> selected;
-  selected.reserve(kBackgroundLibraryPrefetchLimit);
-  QSet<QString> selectedIds;
+    std::vector<LibraryItem> selected;
+    selected.reserve(kBackgroundLibraryPrefetchLimit);
+    QSet<QString> selectedIds;
 
-  auto trySelect = [&selected, &selectedIds](const LibraryItem &library) {
-    if (selected.size() >= static_cast<size_t>(kBackgroundLibraryPrefetchLimit))
-      return;
-    if (!supportsLatestLibraryRow(library) || selectedIds.contains(library.id))
-      return;
-    selectedIds.insert(library.id);
-    selected.push_back(library);
-  };
+    auto trySelect = [&selected, &selectedIds](const LibraryItem& library) {
+        if (selected.size() >= static_cast<size_t>(kBackgroundLibraryPrefetchLimit))
+            return;
+        if (!supportsLatestLibraryRow(library) || selectedIds.contains(library.id))
+            return;
+        selectedIds.insert(library.id);
+        selected.push_back(library);
+    };
 
-  for (const QString &recentId : recentLibraryIds) {
-    const auto it = std::find_if(libraries.begin(), libraries.end(),
-                                 [&recentId](const LibraryItem &library) {
-                                   return library.id == recentId;
-                                 });
-    if (it != libraries.end())
-      trySelect(*it);
-  }
-  for (const LibraryItem &library : libraries)
-    trySelect(library);
-
-  QSet<QString> retainedKeys;
-  for (const LibraryItem &library : selected) {
-    const QString key = libraryCacheKey(library);
-    retainedKeys.insert(key);
-    if (!m_cachedKeys.contains(key)) {
-      m_queue.push_back(PrefetchRequest{
-          BrowseDescriptor::library(library.id, library.collectionType, library.name),
-          key,
-          library.name,
-      });
+    for (const QString& recentId : recentLibraryIds) {
+        const auto it = std::find_if(libraries.begin(), libraries.end(),
+            [&recentId](const LibraryItem& library) { return library.id == recentId; });
+        if (it != libraries.end())
+            trySelect(*it);
     }
-  }
+    for (const LibraryItem& library : libraries)
+        trySelect(library);
 
-  for (auto it = m_pages.begin(); it != m_pages.end();) {
-    if (retainedKeys.contains(it.key()))
-      ++it;
-    else
-      it = m_pages.erase(it);
-  }
-  m_cachedKeys.intersect(retainedKeys);
+    QSet<QString> retainedKeys;
+    for (const LibraryItem& library : selected) {
+        const QString key = libraryCacheKey(library);
+        retainedKeys.insert(key);
+        if (!m_cachedKeys.contains(key)) {
+            m_queue.push_back(PrefetchRequest {
+                BrowseDescriptor::library(library.id, library.collectionType, library.name),
+                key,
+                library.name,
+            });
+        }
+    }
 
-  if (m_queue.empty())
-    return;
+    for (auto it = m_pages.begin(); it != m_pages.end();) {
+        if (retainedKeys.contains(it.key()))
+            ++it;
+        else
+            it = m_pages.erase(it);
+    }
+    m_cachedKeys.intersect(retainedKeys);
 
-  qInfo() << "library prefetch: scheduled" << m_queue.size()
-          << "libraries after home load";
-  m_timer.start(1500);
+    if (m_queue.empty())
+        return;
+
+    qInfo() << "library prefetch: scheduled" << m_queue.size() << "libraries after home load";
+    m_timer.start(1500);
 }
 
-std::optional<PagedMovieItems>
-LibraryPrefetchController::cachedPage(const QString &cacheKey) const {
-  const auto it = m_pages.constFind(cacheKey);
-  if (it == m_pages.constEnd())
-    return std::nullopt;
-  return it.value();
+std::optional<PagedMovieItems> LibraryPrefetchController::cachedPage(const QString& cacheKey) const
+{
+    const auto it = m_pages.constFind(cacheKey);
+    if (it == m_pages.constEnd())
+        return std::nullopt;
+    return it.value();
 }
 
 void LibraryPrefetchController::prefetchPosters(
-    const std::vector<MovieItem> &items, int firstIndex, int visibleCount,
-    ImageKind imageKind) {
-  if (items.empty())
-    return;
+    const std::vector<MovieItem>& items, int firstIndex, int visibleCount, ImageKind imageKind)
+{
+    if (items.empty())
+        return;
 
-  const int begin = std::clamp(firstIndex, 0, static_cast<int>(items.size()));
-  const int windowSize = std::max(1, visibleCount) + m_imagePrefetchAheadItems;
-  const int end =
-      std::min(static_cast<int>(items.size()), begin + windowSize);
-  QStringList urls;
-  urls.reserve(end - begin);
+    const int begin = std::clamp(firstIndex, 0, static_cast<int>(items.size()));
+    const int windowSize = std::max(1, visibleCount) + m_imagePrefetchAheadItems;
+    const int end = std::min(static_cast<int>(items.size()), begin + windowSize);
+    QStringList urls;
+    urls.reserve(end - begin);
 
-  for (int index = begin; index < end; ++index) {
-    const MovieItem &item = items[static_cast<size_t>(index)];
-    const QString url = preferredImageUrl(item, imageKind);
-    if (!url.isEmpty())
-      urls.push_back(url);
-  }
+    for (int index = begin; index < end; ++index) {
+        const MovieItem& item = items[static_cast<size_t>(index)];
+        const QString url = preferredImageUrl(item, imageKind);
+        if (!url.isEmpty())
+            urls.push_back(url);
+    }
 
-  if (!urls.isEmpty() && m_artwork)
-    m_artwork->prefetch(urls);
+    if (!urls.isEmpty() && m_artwork)
+        m_artwork->prefetch(urls);
 }
 
-void LibraryPrefetchController::configureImagePrefetch(int aheadItems,
-                                                       int maxConcurrent) {
-  m_imagePrefetchAheadItems = std::clamp(aheadItems, 4, 64);
-  if (m_artwork)
-    m_artwork->configurePrefetch(std::clamp(maxConcurrent, 1, 8));
+void LibraryPrefetchController::configureImagePrefetch(int aheadItems, int maxConcurrent)
+{
+    m_imagePrefetchAheadItems = std::clamp(aheadItems, 4, 64);
+    if (m_artwork)
+        m_artwork->configurePrefetch(std::clamp(maxConcurrent, 1, 8));
 }
 
-void LibraryPrefetchController::startNext() {
-  if (m_active || !m_api || m_api->session().accessToken.isEmpty())
-    return;
-  if (m_index < 0 || m_index >= static_cast<int>(m_queue.size()))
-    return;
+void LibraryPrefetchController::startNext()
+{
+    if (m_active || !m_api || m_api->session().accessToken.isEmpty())
+        return;
+    if (m_index < 0 || m_index >= static_cast<int>(m_queue.size()))
+        return;
 
-  const RequestGeneration::Token generation = m_generation.next();
-  const PrefetchRequest request = m_queue[static_cast<size_t>(m_index++)];
-  m_active = true;
-  qInfo() << "library prefetch: fetching" << request.title << request.cacheKey;
+    const RequestGeneration::Token generation = m_generation.next();
+    const PrefetchRequest request = m_queue[static_cast<size_t>(m_index++)];
+    m_active = true;
+    qInfo() << "library prefetch: fetching" << request.title << request.cacheKey;
 
-  Async::runLatest(
-      this,
-      m_api->fetchBrowsePage(request.descriptor, 0, kLibraryPageSize),
-      m_generation, generation,
-      [this, request](const PagedMovieItems &page) {
-        qInfo() << "library prefetch: cached" << request.title
-                << page.items.size();
-        m_pages.insert(request.cacheKey, page);
-        m_cachedKeys.insert(request.cacheKey);
-        m_active = false;
-        startNext();
-      },
-      [this, request](const std::exception_ptr &error) {
-        qWarning() << "library prefetch: failed" << request.title << request.cacheKey
-                   << exceptionMessage(error);
-        m_active = false;
-        startNext();
-      });
+    Async::runLatest(
+        this, m_api->fetchBrowsePage(request.descriptor, 0, kLibraryPageSize), m_generation, generation,
+        [this, request](const PagedMovieItems& page) {
+            qInfo() << "library prefetch: cached" << request.title << page.items.size();
+            m_pages.insert(request.cacheKey, page);
+            m_cachedKeys.insert(request.cacheKey);
+            m_active = false;
+            startNext();
+        },
+        [this, request](const std::exception_ptr& error) {
+            qWarning() << "library prefetch: failed" << request.title << request.cacheKey << exceptionMessage(error);
+            m_active = false;
+            startNext();
+        });
 }
 
 } // namespace JellyfinNative

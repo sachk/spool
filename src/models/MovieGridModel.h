@@ -8,70 +8,35 @@
 
 namespace JellyfinNative {
 
-class MovieGridModel final : public QAbstractListModel
-{
+class MovieGridModel final : public QAbstractListModel {
     Q_OBJECT
     Q_PROPERTY(int count READ count NOTIFY countChanged)
 
 public:
     enum Roles {
-        IdRole = Qt::UserRole + 1,
-        TitleRole,
-        OverviewRole,
-        PosterUrlRole,
-        PosterTagRole,
-        YearRole,
-        ItemTypeRole,
-        PlaylistItemIdRole,
-        SeriesIdRole,
-        SeasonIdRole,
-        SubtitleRole,
-        PathRole,
-        SeasonNumberRole,
-        EpisodeNumberRole,
-        ResumeTicksRole,
-        RuntimeTicksRole,
-        ProgressRole,
-        SeriesNameRole,
-        SeriesPosterUrlRole,
+        ItemRole = Qt::UserRole + 1,
         DisplayTitleRole,
         DisplaySubtitleRole,
+        ProgressRole,
         PlayActionLabelRole,
-        PlayableRole,
-        FavoriteRole,
-        PlayedRole,
-        BackdropUrlRole,
-        LogoUrlRole,
-        BannerUrlRole,
-        ThumbUrlRole,
-        LandscapeCardUrlRole,
-        GenresRole,
-        TagsRole,
-        StudiosRole,
-        OfficialRatingRole,
-        CommunityRatingRole,
-        CriticRatingRole,
-        PremiereDateRole,
-        EndDateRole,
     };
 
     explicit MovieGridModel(QObject *parent = nullptr);
 
-    int rowCount(const QModelIndex &parent = {}) const override;
+    int rowCount(const QModelIndex& parent = {}) const override;
     int count() const;
-    QVariant data(const QModelIndex &index, int role) const override;
+    QVariant data(const QModelIndex& index, int role) const override;
     QHash<int, QByteArray> roleNames() const override;
-    Q_INVOKABLE QVariantMap get(int index) const;
-    Q_INVOKABLE QVariantMap detailsAt(int index) const;
+    Q_INVOKABLE MovieItem get(int index) const;
 
-    void setMovies(const std::vector<MovieItem> &movies);
-    void appendMovies(const std::vector<MovieItem> &movies);
+    void setMovies(const std::vector<MovieItem>& movies);
+    void appendMovies(const std::vector<MovieItem>& movies);
     void clear();
     MovieItem movieAt(int index) const;
-    const std::vector<MovieItem> &movies() const;
-    bool updateResumeTicks(const QString &itemId, qint64 resumeTicks);
-    bool updateFavorite(const QString &itemId, bool favorite);
-    bool updatePlayed(const QString &itemId, bool played);
+    const std::vector<MovieItem>& movies() const;
+    bool updateResumeTicks(const QString& itemId, qint64 resumeTicks);
+    bool updateFavorite(const QString& itemId, bool favorite);
+    bool updatePlayed(const QString& itemId, bool played);
     bool removeUnresumable();
 
 signals:

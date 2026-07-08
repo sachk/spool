@@ -8,8 +8,7 @@
 
 namespace JellyfinNative {
 
-class LibraryListModel final : public QAbstractListModel
-{
+class LibraryListModel final : public QAbstractListModel {
     Q_OBJECT
     Q_PROPERTY(int count READ count NOTIFY countChanged)
 
@@ -24,17 +23,17 @@ public:
 
     explicit LibraryListModel(QObject *parent = nullptr);
 
-    int rowCount(const QModelIndex &parent = {}) const override;
+    int rowCount(const QModelIndex& parent = {}) const override;
     int count() const;
-    QVariant data(const QModelIndex &index, int role) const override;
+    QVariant data(const QModelIndex& index, int role) const override;
     QHash<int, QByteArray> roleNames() const override;
 
     Q_INVOKABLE QVariantMap get(int index) const;
 
-    void setLibraries(const std::vector<LibraryItem> &libraries);
+    void setLibraries(const std::vector<LibraryItem>& libraries);
     void clear();
     LibraryItem libraryAt(int index) const;
-    const std::vector<LibraryItem> &libraries() const;
+    const std::vector<LibraryItem>& libraries() const;
 
 signals:
     void countChanged();

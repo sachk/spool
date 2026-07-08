@@ -11,11 +11,11 @@ FocusScope {
     id: root
     property string currentRoute: "home"
     signal navigate(string route)
-    signal contentRequested()
+    signal contentRequested
 
     readonly property bool syncPlayMenuOpen: syncMenuLoader.item ? syncMenuLoader.item.menuOpen : false
     property bool syncPlayMenuLoaded: false
-    readonly property var syncPlay: appController ? appController.syncPlay : null
+    readonly property var syncPlay: syncPlayController ? syncPlayController : null
     readonly property bool syncActive: syncPlay ? syncPlay.enabled : false
     readonly property var syncGroups: syncPlay ? syncPlay.groups : []
     readonly property bool syncAvailable: syncGroups && syncGroups.length > 0
@@ -41,7 +41,8 @@ FocusScope {
             return
         }
         const item = railRepeater.itemAt(clamped)
-        if (item) item.forceButtonFocus()
+        if (item)
+            item.forceButtonFocus()
     }
 
     function focusCurrent() {
@@ -53,7 +54,8 @@ FocusScope {
             }
         }
         const first = railRepeater.itemAt(0)
-        if (first) first.forceButtonFocus()
+        if (first)
+            first.forceButtonFocus()
     }
 
     function syncMenu() {
@@ -100,15 +102,24 @@ FocusScope {
                 openSyncMenu()
             } else {
                 const item = railRepeater.itemAt(idx)
-                if (item) navigate(item.route)
+                if (item)
+                    navigate(item.route)
             }
             return true
         }
         return false
     }
 
-    Rectangle { anchors.fill: parent; color: Theme.bgRaised }
-    Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 1; color: Theme.border }
+    Rectangle {
+        anchors.fill: parent
+        color: Theme.bgRaised
+    }
+    Rectangle {
+        anchors.bottom: parent.bottom
+        width: parent.width
+        height: 1
+        color: Theme.border
+    }
 
     RowLayout {
         anchors.fill: parent
@@ -123,26 +134,52 @@ FocusScope {
             Layout.rightMargin: 10
             radius: 6
             gradient: Gradient {
-                GradientStop { position: 0; color: Theme.jellyfinBlue }
-                GradientStop { position: 1; color: Theme.jellyfinPurple }
+                GradientStop {
+                    position: 0
+                    color: Theme.jellyfinBlue
+                }
+                GradientStop {
+                    position: 1
+                    color: Theme.jellyfinPurple
+                }
             }
         }
 
         Repeater {
             id: railRepeater
             model: [
-                { label: "My Media", route: "home", icon: "home" },
-                { label: "Libraries", route: "libraries", icon: "video_library" },
-                { label: "Search", route: "search", icon: "search" },
-                { label: "Settings", route: "settings", icon: "settings" }
+                {
+                    label: "My Media",
+                    route: "home",
+                    icon: "home"
+                },
+                {
+                    label: "Libraries",
+                    route: "libraries",
+                    icon: "video_library"
+                },
+                {
+                    label: "Search",
+                    route: "search",
+                    icon: "search"
+                },
+                {
+                    label: "Settings",
+                    route: "settings",
+                    icon: "settings"
+                }
             ]
 
             delegate: Item {
                 id: railDelegate
                 required property var modelData
                 readonly property string route: modelData.route
-                function forceButtonFocus() { InputKeys.focus(button) }
-                function hasButtonFocus() { return button.activeFocus }
+                function forceButtonFocus() {
+                    InputKeys.focus(button)
+                }
+                function hasButtonFocus() {
+                    return button.activeFocus
+                }
                 Layout.preferredWidth: 50
                 Layout.fillHeight: true
 
@@ -154,12 +191,12 @@ FocusScope {
                     railStyle: true
                     selected: root.selectedRoute === modelData.route
                     onClicked: root.navigate(modelData.route)
-                    Keys.onReleased: (event) => {
-                        if (InputKeys.isAccept(event.key)) {
-                            root.navigate(modelData.route)
-                            event.accepted = true
-                        }
-                    }
+                    Keys.onReleased: event => {
+                                         if (InputKeys.isAccept(event.key)) {
+                                             root.navigate(modelData.route)
+                                             event.accepted = true
+                                         }
+                                     }
                 }
                 Rectangle {
                     y: Math.min(parent.height - height - 4, button.y + button.height + 4)
@@ -170,13 +207,25 @@ FocusScope {
                     color: Theme.accent
                     opacity: button.activeFocus ? 1.0 : (root.selectedRoute === modelData.route ? 0.85 : 0.0)
                     visible: opacity > 0
-                    Behavior on width { NumberAnimation { duration: 90; easing.type: Easing.OutCubic } }
-                    Behavior on opacity { NumberAnimation { duration: 90; easing.type: Easing.OutCubic } }
+                    Behavior on width {
+                        NumberAnimation {
+                            duration: 90
+                            easing.type: Easing.OutCubic
+                        }
+                    }
+                    Behavior on opacity {
+                        NumberAnimation {
+                            duration: 90
+                            easing.type: Easing.OutCubic
+                        }
+                    }
                 }
             }
         }
 
-        Item { Layout.fillWidth: true }
+        Item {
+            Layout.fillWidth: true
+        }
 
         Item {
             Layout.alignment: Qt.AlignVCenter
@@ -191,12 +240,12 @@ FocusScope {
                 railStyle: true
                 selected: root.syncPlayMenuOpen
                 onClicked: root.openSyncMenu()
-                Keys.onReleased: (event) => {
-                    if (InputKeys.isAccept(event.key)) {
-                        root.openSyncMenu()
-                        event.accepted = true
-                    }
-                }
+                Keys.onReleased: event => {
+                                     if (InputKeys.isAccept(event.key)) {
+                                         root.openSyncMenu()
+                                         event.accepted = true
+                                     }
+                                 }
 
                 // Status dot: accent when in a group, green when groups exist to join.
                 Rectangle {

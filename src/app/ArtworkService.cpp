@@ -2,18 +2,18 @@
 #include "ArtworkImageProvider.h"
 
 #include <QBuffer>
+#include <QDebug>
 #include <QDir>
 #include <QImageReader>
-#include <QDebug>
 #include <QMutexLocker>
 #include <QNetworkAccessManager>
 #include <QNetworkDiskCache>
 #include <QNetworkReply>
 #include <QNetworkRequest>
 #include <QQueue>
-#include <QSet>
-#include <QRunnable>
 #include <QQuickTextureFactory>
+#include <QRunnable>
+#include <QSet>
 
 #include <algorithm>
 #include <atomic>
@@ -24,80 +24,74 @@ namespace JellyfinNative {
 
 namespace {
 
-constexpr int kRenderConcurrency = 6;
+    constexpr int kRenderConcurrency = 6;
 
-QSize decodeSizeForRequest(const QSize &sourceSize, const QSize &requestedSize)
-{
-    if (!sourceSize.isValid() || !requestedSize.isValid() ||
-        requestedSize.width() <= 0 || requestedSize.height() <= 0)
-        return {};
-    return sourceSize.scaled(requestedSize, Qt::KeepAspectRatioByExpanding);
-}
-
-#if defined(JELLYFIN_ARTWORK_ASPECT_DIAGNOSTICS)
-bool shouldLogAspectDiagnostic(const QSize &source, const QSize &requested, const QSize &decoded)
-{
-    if (!source.isValid() || !requested.isValid() || !decoded.isValid() ||
-        source.width() <= 0 || source.height() <= 0 ||
-        requested.width() <= 0 || requested.height() <= 0)
-        return false;
-
-    const double sourceAspect = static_cast<double>(source.width()) / source.height();
-    const double requestedAspect = static_cast<double>(requested.width()) / requested.height();
-    if (std::abs(sourceAspect - requestedAspect) <= 0.02)
-        return false;
-
-    if (requested.width() <= 4 || requested.height() <= 4)
-        return true;
-
-    const double horizontalOverscan = static_cast<double>(decoded.width()) / requested.width();
-    const double verticalOverscan = static_cast<double>(decoded.height()) / requested.height();
-    return std::max(horizontalOverscan, verticalOverscan) > 1.35;
-}
-#endif
-
-QImage decodeArtwork(const QByteArray &bytes, const QSize &requestedSize,
-                     QString *error)
-{
-    QBuffer buffer;
-    buffer.setData(bytes);
-    if (!buffer.open(QIODevice::ReadOnly)) {
-        *error = QStringLiteral("Could not open artwork buffer");
-        return {};
+    QSize decodeSizeForRequest(const QSize& sourceSize, const QSize& requestedSize)
+    {
+        if (!sourceSize.isValid() || !requestedSize.isValid() || requestedSize.width() <= 0
+            || requestedSize.height() <= 0)
+            return {};
+        return sourceSize.scaled(requestedSize, Qt::KeepAspectRatioByExpanding);
     }
 
-    QImageReader reader(&buffer);
-    reader.setAutoTransform(false);
-    const QSize scaledSize = decodeSizeForRequest(reader.size(), requestedSize);
-    if (scaledSize.isValid()) {
 #if defined(JELLYFIN_ARTWORK_ASPECT_DIAGNOSTICS)
-        if (shouldLogAspectDiagnostic(reader.size(), requestedSize, scaledSize)) {
-            qWarning() << "artwork: aspect-preserving decode"
-                       << "source=" << reader.size()
-                       << "requested=" << requestedSize
-                       << "decode=" << scaledSize;
+    bool shouldLogAspectDiagnostic(const QSize& source, const QSize& requested, const QSize& decoded)
+    {
+        if (!source.isValid() || !requested.isValid() || !decoded.isValid() || source.width() <= 0
+            || source.height() <= 0 || requested.width() <= 0 || requested.height() <= 0)
+            return false;
+
+        const double sourceAspect = static_cast<double>(source.width()) / source.height();
+        const double requestedAspect = static_cast<double>(requested.width()) / requested.height();
+        if (std::abs(sourceAspect - requestedAspect) <= 0.02)
+            return false;
+
+        if (requested.width() <= 4 || requested.height() <= 4)
+            return true;
+
+        const double horizontalOverscan = static_cast<double>(decoded.width()) / requested.width();
+        const double verticalOverscan = static_cast<double>(decoded.height()) / requested.height();
+        return std::max(horizontalOverscan, verticalOverscan) > 1.35;
+    }
+#endif
+
+    QImage decodeArtwork(const QByteArray& bytes, const QSize& requestedSize, QString *error)
+    {
+        QBuffer buffer;
+        buffer.setData(bytes);
+        if (!buffer.open(QIODevice::ReadOnly)) {
+            *error = QStringLiteral("Could not open artwork buffer");
+            return {};
         }
-#endif
-        reader.setScaledSize(scaledSize);
-    }
-    QImage image = reader.read();
-    if (image.isNull())
-        *error = reader.errorString();
-    return image;
-}
 
-QString cacheKeyForUrl(const QUrl &url)
-{
-    return url.toString(QUrl::FullyEncoded);
-}
+        QImageReader reader(&buffer);
+        reader.setAutoTransform(false);
+        const QSize scaledSize = decodeSizeForRequest(reader.size(), requestedSize);
+        if (scaledSize.isValid()) {
+#if defined(JELLYFIN_ARTWORK_ASPECT_DIAGNOSTICS)
+            if (shouldLogAspectDiagnostic(reader.size(), requestedSize, scaledSize)) {
+                qWarning() << "artwork: aspect-preserving decode"
+                           << "source=" << reader.size() << "requested=" << requestedSize << "decode=" << scaledSize;
+            }
+#endif
+            reader.setScaledSize(scaledSize);
+        }
+        QImage image = reader.read();
+        if (image.isNull())
+            *error = reader.errorString();
+        return image;
+    }
+
+    QString cacheKeyForUrl(const QUrl& url)
+    {
+        return url.toString(QUrl::FullyEncoded);
+    }
 
 } // namespace
 
-class ArtworkFetchWorker final : public QObject
-{
+class ArtworkFetchWorker final : public QObject {
 public:
-    ArtworkFetchWorker(QString cacheDirectory, qint64 networkCacheBytes,
-                       ArtworkService *service)
+    ArtworkFetchWorker(QString cacheDirectory, qint64 networkCacheBytes, ArtworkService *service)
         : m_cacheDirectory(std::move(cacheDirectory))
         , m_networkCacheBytes(networkCacheBytes)
         , m_service(service)
@@ -112,7 +106,7 @@ public:
             return;
         }
 
-        m_renderQueue.enqueue({requestId, std::move(url)});
+        m_renderQueue.enqueue({ requestId, std::move(url) });
         drainRender();
     }
 
@@ -134,7 +128,7 @@ public:
     void prefetch(QStringList urls)
     {
         ensureNetwork();
-        for (const QString &urlString : urls) {
+        for (const QString& urlString : urls) {
             const QUrl url(urlString);
             const QString key = cacheKeyForUrl(url);
             if (key.isEmpty() || m_prefetchSeen.contains(key))
@@ -160,6 +154,11 @@ public:
     {
         m_prefetchMaxConcurrent = std::max(1, maxConcurrent);
         drainPrefetch();
+    }
+
+    void setAuthorizationHeader(QString header)
+    {
+        m_authorizationHeader = header.toUtf8();
     }
 
     void cancelAll()
@@ -193,11 +192,12 @@ private:
         }
     }
 
-    QNetworkRequest cachedRequest(const QUrl &url) const
+    QNetworkRequest cachedRequest(const QUrl& url) const
     {
         QNetworkRequest request(url);
-        request.setAttribute(QNetworkRequest::CacheLoadControlAttribute,
-                             QNetworkRequest::PreferCache);
+        request.setAttribute(QNetworkRequest::CacheLoadControlAttribute, QNetworkRequest::PreferCache);
+        if (!m_authorizationHeader.isEmpty())
+            request.setRawHeader("Authorization", m_authorizationHeader);
         return request;
     }
 
@@ -209,8 +209,7 @@ private:
             QNetworkReply *reply = m_network->get(cachedRequest(request.url));
             m_renderReplies.insert(request.requestId, reply);
             const QString key = cacheKeyForUrl(request.url);
-            connect(reply, &QNetworkReply::finished, this,
-                    [this, reply, requestId = request.requestId, key]() {
+            connect(reply, &QNetworkReply::finished, this, [this, reply, requestId = request.requestId, key]() {
                 m_renderReplies.remove(requestId);
                 finishReply(reply, [this, requestId, key](QByteArray bytes, QString error) {
                     deliverRender(requestId, key, std::move(bytes), std::move(error));
@@ -243,8 +242,7 @@ private:
         }
     }
 
-    template <typename Callback>
-    void finishReply(QNetworkReply *reply, Callback callback)
+    template <typename Callback> void finishReply(QNetworkReply *reply, Callback callback)
     {
         if (!reply) {
             callback({}, QStringLiteral("Network reply disappeared"));
@@ -264,25 +262,31 @@ private:
     void deliverRender(int requestId, QString key, QByteArray bytes, QString error)
     {
         QPointer<ArtworkService> service = m_service;
-        QMetaObject::invokeMethod(m_service, [service, requestId, key = std::move(key),
-                                             bytes = std::move(bytes), error = std::move(error)]() mutable {
-            if (service)
-                service->handleRenderFetched(requestId, std::move(key), std::move(bytes), std::move(error));
-        }, Qt::QueuedConnection);
+        QMetaObject::invokeMethod(
+            m_service,
+            [service, requestId, key = std::move(key), bytes = std::move(bytes), error = std::move(error)]() mutable {
+                if (service)
+                    service->handleRenderFetched(requestId, std::move(key), std::move(bytes), std::move(error));
+            },
+            Qt::QueuedConnection);
     }
 
     void deliverPrefetch(QString key, QByteArray bytes)
     {
         QPointer<ArtworkService> service = m_service;
-        QMetaObject::invokeMethod(m_service, [service, key = std::move(key), bytes = std::move(bytes)]() mutable {
-            if (service)
-                service->handlePrefetched(std::move(key), std::move(bytes));
-        }, Qt::QueuedConnection);
+        QMetaObject::invokeMethod(
+            m_service,
+            [service, key = std::move(key), bytes = std::move(bytes)]() mutable {
+                if (service)
+                    service->handlePrefetched(std::move(key), std::move(bytes));
+            },
+            Qt::QueuedConnection);
     }
 
     QString m_cacheDirectory;
     qint64 m_networkCacheBytes = 0;
     QPointer<ArtworkService> m_service;
+    QByteArray m_authorizationHeader;
     QNetworkAccessManager *m_network = nullptr;
     QQueue<RenderRequest> m_renderQueue;
     QHash<int, QNetworkReply *> m_renderReplies;
@@ -292,8 +296,7 @@ private:
     int m_prefetchMaxConcurrent = 3;
 };
 
-class ArtworkImageResponse final : public QQuickImageResponse
-{
+class ArtworkImageResponse final : public QQuickImageResponse {
 public:
     ArtworkImageResponse(ArtworkService *service, QUrl url, QSize requestedSize)
         : m_service(service)
@@ -363,14 +366,14 @@ ArtworkByteCache::ArtworkByteCache(int maximumBytes)
     m_cache.setMaxCost(std::max(1, maximumBytes));
 }
 
-QByteArray ArtworkByteCache::get(const QString &key)
+QByteArray ArtworkByteCache::get(const QString& key)
 {
     QMutexLocker locker(&m_mutex);
     const QByteArray *bytes = m_cache.object(key);
     return bytes ? *bytes : QByteArray();
 }
 
-void ArtworkByteCache::insert(const QString &key, QByteArray bytes)
+void ArtworkByteCache::insert(const QString& key, QByteArray bytes)
 {
     if (bytes.isEmpty())
         return;
@@ -386,9 +389,8 @@ void ArtworkByteCache::clear()
     m_cache.clear();
 }
 
-ArtworkService::ArtworkService(QString cacheDirectory, qint64 networkCacheBytes,
-                               int byteCacheBytes, int decodeThreads,
-                               QObject *parent)
+ArtworkService::ArtworkService(
+    QString cacheDirectory, qint64 networkCacheBytes, int byteCacheBytes, int decodeThreads, QObject *parent)
     : QObject(parent)
     , m_cacheDirectory(std::move(cacheDirectory))
     , m_networkCacheBytes(networkCacheBytes)
@@ -411,18 +413,17 @@ ArtworkService::~ArtworkService()
     m_decodePool.waitForDone();
 }
 
-QQuickImageResponse *ArtworkService::requestImageResponse(const QString &id,
-                                                          const QSize &requestedSize)
+QQuickImageResponse *ArtworkService::requestImageResponse(const QString& id, const QSize& requestedSize)
 {
     const QString urlString = QUrl::fromPercentEncoding(id.toUtf8());
     return new ArtworkImageResponse(this, QUrl(urlString), requestedSize);
 }
 
-void ArtworkService::prefetch(const QStringList &urls)
+void ArtworkService::prefetch(const QStringList& urls)
 {
     QStringList uncached;
     uncached.reserve(urls.size());
-    for (const QString &url : urls) {
+    for (const QString& url : urls) {
         const QString key = cacheKeyForUrl(QUrl(url));
         if (key.isEmpty() || !m_byteCache || !m_byteCache->get(key).isEmpty())
             continue;
@@ -430,9 +431,14 @@ void ArtworkService::prefetch(const QStringList &urls)
     }
     if (uncached.isEmpty())
         return;
-    invokeWorker([urls = std::move(uncached)](ArtworkFetchWorker *worker) mutable {
-        worker->prefetch(std::move(urls));
-    });
+    invokeWorker(
+        [urls = std::move(uncached)](ArtworkFetchWorker *worker) mutable { worker->prefetch(std::move(urls)); });
+}
+
+void ArtworkService::setAuthorizationHeader(QString header)
+{
+    invokeWorker([header = std::move(header)](
+                     ArtworkFetchWorker *worker) mutable { worker->setAuthorizationHeader(std::move(header)); });
 }
 
 void ArtworkService::cancelPrefetches()
@@ -442,9 +448,7 @@ void ArtworkService::cancelPrefetches()
 
 void ArtworkService::configurePrefetch(int maxConcurrent)
 {
-    invokeWorker([maxConcurrent](ArtworkFetchWorker *worker) {
-        worker->setPrefetchConcurrency(maxConcurrent);
-    });
+    invokeWorker([maxConcurrent](ArtworkFetchWorker *worker) { worker->setPrefetchConcurrency(maxConcurrent); });
 }
 
 void ArtworkService::releaseMemory(bool aggressive)
@@ -456,8 +460,7 @@ void ArtworkService::releaseMemory(bool aggressive)
         m_decodePool.clear();
 }
 
-int ArtworkService::requestImage(QUrl url, QSize requestedSize,
-                                 ArtworkImageResponse *response)
+int ArtworkService::requestImage(QUrl url, QSize requestedSize, ArtworkImageResponse *response)
 {
     if (!url.isValid() || url.scheme().isEmpty()) {
         if (response)
@@ -474,9 +477,8 @@ int ArtworkService::requestImage(QUrl url, QSize requestedSize,
 
     const int requestId = m_nextRequestId++;
     m_responses.insert(requestId, response);
-    invokeWorker([requestId, url = std::move(url)](ArtworkFetchWorker *worker) mutable {
-        worker->fetchRender(requestId, std::move(url));
-    });
+    invokeWorker([requestId, url = std::move(url)](
+                     ArtworkFetchWorker *worker) mutable { worker->fetchRender(requestId, std::move(url)); });
     return requestId;
 }
 
@@ -488,8 +490,7 @@ void ArtworkService::cancelRequest(int requestId)
     invokeWorker([requestId](ArtworkFetchWorker *worker) { worker->cancelRender(requestId); });
 }
 
-void ArtworkService::handleRenderFetched(int requestId, QString key, QByteArray bytes,
-                                         QString error)
+void ArtworkService::handleRenderFetched(int requestId, QString key, QByteArray bytes, QString error)
 {
     const QPointer<ArtworkImageResponse> response = m_responses.take(requestId);
     if (!response)
@@ -509,8 +510,7 @@ void ArtworkService::handlePrefetched(QString key, QByteArray bytes)
         m_byteCache->insert(key, std::move(bytes));
 }
 
-void ArtworkService::startDecode(ArtworkImageResponse *response, QByteArray bytes,
-                                 QSize requestedSize)
+void ArtworkService::startDecode(ArtworkImageResponse *response, QByteArray bytes, QSize requestedSize)
 {
     if (!response) {
         return;
@@ -523,10 +523,13 @@ void ArtworkService::startDecode(ArtworkImageResponse *response, QByteArray byte
         QImage image = decodeArtwork(bytes, requestedSize, &error);
         if (!self || self->cancelled())
             return;
-        QMetaObject::invokeMethod(self, [self, image = std::move(image), error = std::move(error)]() mutable {
-            if (self)
-                self->finish(std::move(image), std::move(error));
-        }, Qt::QueuedConnection);
+        QMetaObject::invokeMethod(
+            self,
+            [self, image = std::move(image), error = std::move(error)]() mutable {
+                if (self)
+                    self->finish(std::move(image), std::move(error));
+            },
+            Qt::QueuedConnection);
     }));
 }
 
@@ -535,10 +538,13 @@ void ArtworkService::invokeWorker(std::function<void(ArtworkFetchWorker *)> call
     if (!m_worker)
         return;
     QPointer<ArtworkFetchWorker> worker = m_worker;
-    QMetaObject::invokeMethod(m_worker, [worker, call = std::move(call)]() mutable {
-        if (worker)
-            call(worker);
-    }, Qt::QueuedConnection);
+    QMetaObject::invokeMethod(
+        m_worker,
+        [worker, call = std::move(call)]() mutable {
+            if (worker)
+                call(worker);
+        },
+        Qt::QueuedConnection);
 }
 
 ArtworkImageProvider::ArtworkImageProvider(ArtworkService *service)
@@ -546,8 +552,7 @@ ArtworkImageProvider::ArtworkImageProvider(ArtworkService *service)
 {
 }
 
-QQuickImageResponse *ArtworkImageProvider::requestImageResponse(const QString &id,
-                                                                const QSize &requestedSize)
+QQuickImageResponse *ArtworkImageProvider::requestImageResponse(const QString& id, const QSize& requestedSize)
 {
     return m_service ? m_service->requestImageResponse(id, requestedSize)
                      : new ArtworkImageResponse(nullptr, {}, requestedSize);

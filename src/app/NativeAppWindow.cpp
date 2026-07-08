@@ -19,7 +19,7 @@ extern "C" {
 
 namespace JellyfinNative {
 
-NativeAppWindow::NativeAppWindow(const QString &appId, QWindow *parent)
+NativeAppWindow::NativeAppWindow(const QString& appId, QWindow *parent)
     : QQuickView(parent)
     , m_appId(appId)
 {
@@ -150,8 +150,8 @@ bool NativeAppWindow::ensureVideoSurface()
     if (!m_webosForeign || !m_surface)
         return false;
 
-    m_exported =
-        wl_webos_foreign_export_element(m_webosForeign, m_surface, WL_WEBOS_FOREIGN_WEBOS_EXPORTED_TYPE_VIDEO_OBJECT);
+    m_exported
+        = wl_webos_foreign_export_element(m_webosForeign, m_surface, WL_WEBOS_FOREIGN_WEBOS_EXPORTED_TYPE_VIDEO_OBJECT);
     if (!m_exported)
         return false;
 
@@ -248,18 +248,15 @@ void NativeAppWindow::updateCropRegion()
     wl_display_flush(m_display);
 }
 
-void NativeAppWindow::setVideoCrop(int origW, int origH, int srcX, int srcY,
-                                   int srcW, int srcH, int dstX, int dstY,
-                                   int dstW, int dstH)
+void NativeAppWindow::setVideoCrop(
+    int origW, int origH, int srcX, int srcY, int srcW, int srcH, int dstX, int dstY, int dstW, int dstH)
 {
     if (origW <= 0 || origH <= 0 || srcW <= 0 || srcH <= 0 || dstW <= 0 || dstH <= 0)
         return;
 
-    const bool changed = m_cropOrigW != origW || m_cropOrigH != origH ||
-                         m_cropSrcX != srcX || m_cropSrcY != srcY ||
-                         m_cropSrcW != srcW || m_cropSrcH != srcH ||
-                         m_cropDstX != dstX || m_cropDstY != dstY ||
-                         m_cropDstW != dstW || m_cropDstH != dstH;
+    const bool changed = m_cropOrigW != origW || m_cropOrigH != origH || m_cropSrcX != srcX || m_cropSrcY != srcY
+        || m_cropSrcW != srcW || m_cropSrcH != srcH || m_cropDstX != dstX || m_cropDstY != dstY || m_cropDstW != dstW
+        || m_cropDstH != dstH;
     if (!changed)
         return;
 
@@ -276,23 +273,21 @@ void NativeAppWindow::setVideoCrop(int origW, int origH, int srcX, int srcY,
     updateCropRegion();
 }
 
-void NativeAppWindow::scheduleVideoCrop(int origW, int origH, int srcX, int srcY,
-                                        int srcW, int srcH, int dstX, int dstY,
-                                        int dstW, int dstH)
+void NativeAppWindow::scheduleVideoCrop(
+    int origW, int origH, int srcX, int srcY, int srcW, int srcH, int dstX, int dstY, int dstW, int dstH)
 {
     if (origW <= 0 || origH <= 0 || srcW <= 0 || srcH <= 0 || dstW <= 0 || dstH <= 0)
         return;
 
     if (QThread::currentThread() == thread()) {
-        setVideoCrop(origW, origH, srcX, srcY, srcW, srcH,
-                     dstX, dstY, dstW, dstH);
+        setVideoCrop(origW, origH, srcX, srcY, srcW, srcH, dstX, dstY, dstW, dstH);
         return;
     }
 
     bool shouldQueue = false;
     {
         QMutexLocker locker(&m_cropMutex);
-        m_pendingCrop = {origW, origH, srcX, srcY, srcW, srcH, dstX, dstY, dstW, dstH, true};
+        m_pendingCrop = { origW, origH, srcX, srcY, srcW, srcH, dstX, dstY, dstW, dstH, true };
         if (!m_cropUpdateQueued) {
             m_cropUpdateQueued = true;
             shouldQueue = true;
@@ -300,8 +295,7 @@ void NativeAppWindow::scheduleVideoCrop(int origW, int origH, int srcX, int srcY
     }
 
     if (shouldQueue) {
-        QMetaObject::invokeMethod(
-            this, [this]() { publishPendingVideoCrop(); }, Qt::QueuedConnection);
+        QMetaObject::invokeMethod(this, [this]() { publishPendingVideoCrop(); }, Qt::QueuedConnection);
     }
 }
 
@@ -317,8 +311,8 @@ void NativeAppWindow::publishPendingVideoCrop()
     if (!crop.valid)
         return;
 
-    setVideoCrop(crop.origW, crop.origH, crop.srcX, crop.srcY, crop.srcW, crop.srcH,
-                 crop.dstX, crop.dstY, crop.dstW, crop.dstH);
+    setVideoCrop(
+        crop.origW, crop.origH, crop.srcX, crop.srcY, crop.srcW, crop.srcH, crop.dstX, crop.dstY, crop.dstW, crop.dstH);
 }
 
 void NativeAppWindow::scheduleOverlayImage(QImage image)
@@ -334,8 +328,7 @@ void NativeAppWindow::scheduleOverlayImage(QImage image)
     }
 
     if (shouldQueue) {
-        QMetaObject::invokeMethod(
-            this, [this]() { publishPendingOverlayImage(); }, Qt::QueuedConnection);
+        QMetaObject::invokeMethod(this, [this]() { publishPendingOverlayImage(); }, Qt::QueuedConnection);
     }
 }
 
@@ -357,31 +350,29 @@ void NativeAppWindow::publishPendingOverlayImage()
         emit overlayRevisionChanged();
 }
 
-void NativeAppWindow::registryGlobal(void *data, wl_registry *registry, uint32_t name,
-                                     const char *interface, uint32_t version)
+void NativeAppWindow::registryGlobal(
+    void *data, wl_registry *registry, uint32_t name, const char *interface, uint32_t version)
 {
     auto *self = static_cast<NativeAppWindow *>(data);
     if (strcmp(interface, wl_compositor_interface.name) == 0) {
         const uint32_t bindVersion = version < 3 ? version : 3;
-        self->m_compositor =
-            static_cast<wl_compositor *>(wl_registry_bind(registry, name, &wl_compositor_interface, bindVersion));
+        self->m_compositor
+            = static_cast<wl_compositor *>(wl_registry_bind(registry, name, &wl_compositor_interface, bindVersion));
     } else if (strcmp(interface, wl_subcompositor_interface.name) == 0) {
-        self->m_subcompositor =
-            static_cast<wl_subcompositor *>(wl_registry_bind(registry, name, &wl_subcompositor_interface, 1));
+        self->m_subcompositor
+            = static_cast<wl_subcompositor *>(wl_registry_bind(registry, name, &wl_subcompositor_interface, 1));
     } else if (strcmp(interface, wl_webos_shell_interface.name) == 0) {
         const uint32_t bindVersion = version < 2 ? version : 2;
-        self->m_webosShell =
-            static_cast<wl_webos_shell *>(wl_registry_bind(registry, name, &wl_webos_shell_interface, bindVersion));
+        self->m_webosShell
+            = static_cast<wl_webos_shell *>(wl_registry_bind(registry, name, &wl_webos_shell_interface, bindVersion));
     } else if (strcmp(interface, wl_webos_foreign_interface.name) == 0) {
         const uint32_t bindVersion = version < 2 ? version : 2;
-        self->m_webosForeign =
-            static_cast<wl_webos_foreign *>(wl_registry_bind(registry, name, &wl_webos_foreign_interface, bindVersion));
+        self->m_webosForeign = static_cast<wl_webos_foreign *>(
+            wl_registry_bind(registry, name, &wl_webos_foreign_interface, bindVersion));
     }
 }
 
-void NativeAppWindow::registryRemove(void *, wl_registry *, uint32_t)
-{
-}
+void NativeAppWindow::registryRemove(void *, wl_registry *, uint32_t) { }
 
 void NativeAppWindow::exportedWindowIdAssigned(void *data, wl_webos_exported *, const char *window_id, uint32_t)
 {
@@ -389,8 +380,7 @@ void NativeAppWindow::exportedWindowIdAssigned(void *data, wl_webos_exported *, 
     self->m_windowId = window_id ? window_id : "";
 }
 
-void NativeAppWindow::overlayPresentCallback(void *data, const uint8_t *pixels,
-                                             int width, int height, int stride)
+void NativeAppWindow::overlayPresentCallback(void *data, const uint8_t *pixels, int width, int height, int stride)
 {
     auto *self = static_cast<NativeAppWindow *>(data);
     if (!self)
@@ -438,8 +428,7 @@ void NativeAppWindow::overlayPresentCallback(void *data, const uint8_t *pixels,
     // premultiplied). A single per-scanline memcpy is correct; the old
     // per-pixel unpack-and-repack via qRgba(r,g,b,a) was a no-op that ran
     // ~2M times per frame on the GUI thread.
-    static_assert(Q_BYTE_ORDER == Q_LITTLE_ENDIAN,
-                  "OSD copy fast-path assumes little-endian QImage layout");
+    static_assert(Q_BYTE_ORDER == Q_LITTLE_ENDIAN, "OSD copy fast-path assumes little-endian QImage layout");
     QImage image(width, height, QImage::Format_ARGB32_Premultiplied);
     const int dstStride = image.bytesPerLine();
     if (dstStride == stride) {
@@ -447,25 +436,21 @@ void NativeAppWindow::overlayPresentCallback(void *data, const uint8_t *pixels,
     } else {
         const int rowBytes = qMin(dstStride, stride);
         for (int y = 0; y < height; ++y) {
-            memcpy(image.scanLine(y),
-                   pixels + static_cast<size_t>(y) * stride,
-                   rowBytes);
+            memcpy(image.scanLine(y), pixels + static_cast<size_t>(y) * stride, rowBytes);
         }
     }
 
     self->scheduleOverlayImage(std::move(image));
 }
 
-void NativeAppWindow::exportedCropCallback(void *data, int origW, int origH,
-                                            int srcX, int srcY, int srcW, int srcH,
-                                            int dstX, int dstY, int dstW, int dstH)
+void NativeAppWindow::exportedCropCallback(
+    void *data, int origW, int origH, int srcX, int srcY, int srcW, int srcH, int dstX, int dstY, int dstW, int dstH)
 {
     auto *self = static_cast<NativeAppWindow *>(data);
     if (!self)
         return;
 
-    self->scheduleVideoCrop(origW, origH, srcX, srcY, srcW, srcH,
-                            dstX, dstY, dstW, dstH);
+    self->scheduleVideoCrop(origW, origH, srcX, srcY, srcW, srcH, dstX, dstY, dstW, dstH);
 }
 
 const wl_registry_listener NativeAppWindow::s_registryListener = {

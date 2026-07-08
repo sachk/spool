@@ -9,7 +9,7 @@
 namespace JellyfinNative {
 
 namespace {
-constexpr auto kSettingsKey = "i18n/locale";
+    constexpr auto kSettingsKey = "i18n/locale";
 }
 
 LocalizationManager::LocalizationManager(QObject *parent)
@@ -38,12 +38,7 @@ QString LocalizationManager::bcp47Locale() const
 
 QStringList LocalizationManager::availableLocales() const
 {
-    return {
-        QStringLiteral("system"),
-        QStringLiteral("en-AU"),
-        QStringLiteral("en-GB"),
-        QStringLiteral("en-US")
-    };
+    return { QStringLiteral("system"), QStringLiteral("en-AU"), QStringLiteral("en-GB"), QStringLiteral("en-US") };
 }
 
 void LocalizationManager::attachToEngine(QQmlEngine *engine)
@@ -53,7 +48,7 @@ void LocalizationManager::attachToEngine(QQmlEngine *engine)
         m_engine->setUiLanguage(m_currentLocale);
 }
 
-void LocalizationManager::setLocale(const QString &localeTag)
+void LocalizationManager::setLocale(const QString& localeTag)
 {
     if (localeTag == QLatin1String("system")) {
         useSystemDefault();
@@ -71,14 +66,14 @@ void LocalizationManager::useSystemDefault()
     applyLocale(QLocale::system().bcp47Name());
 }
 
-QString LocalizationManager::displayNameFor(const QString &localeTag) const
+QString LocalizationManager::displayNameFor(const QString& localeTag) const
 {
     if (localeTag == QLatin1String("system"))
         return QStringLiteral("System default");
     return QLocale(localeTag).nativeLanguageName();
 }
 
-void LocalizationManager::applyLocale(const QString &localeTag)
+void LocalizationManager::applyLocale(const QString& localeTag)
 {
     const QString normalized = localeTag.isEmpty() ? QStringLiteral("en-US") : localeTag;
     QLocale locale(normalized);

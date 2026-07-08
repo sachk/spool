@@ -1,5 +1,6 @@
 #pragma once
 
+#include "JellyfinTypes.h"
 #include "RequestGeneration.h"
 
 #include <QCoroTask>
@@ -15,47 +16,29 @@
 namespace JellyfinNative::Async {
 
 namespace detail {
-
-inline QString exceptionText(const std::exception_ptr &error)
-{
-    try {
-        if (error)
-            std::rethrow_exception(error);
-    } catch (const std::exception &exception) {
-        return QString::fromUtf8(exception.what());
-    } catch (...) {
-        return QStringLiteral("unknown exception");
+    template <typename Failure>
+    void reportFailure(const char *operation, Failure& failure, const std::exception_ptr& error)
+    {
+        qWarning().noquote() << "async:" << operation << "failed:" << exceptionMessage(error);
+        std::invoke(failure, error);
     }
-    return QStringLiteral("unknown exception");
-}
-
-template<typename Failure>
-void reportFailure(const char *operation, Failure &failure, const std::exception_ptr &error)
-{
-    qWarning().noquote() << "async:" << operation << "failed:" << exceptionText(error);
-    std::invoke(failure, error);
-}
 
 } // namespace detail
 
-template<typename T, typename Success, typename Failure>
-void runDetached(QCoro::Task<T> task, Success success, Failure failure,
-                 const char *operation = "detached task")
+template <typename T, typename Success, typename Failure>
+void runDetached(QCoro::Task<T> task, Success success, Failure failure, const char *operation = "detached task")
 {
-    std::move(task).then(
-        std::move(success),
-        [failure = std::move(failure), operation](const std::exception &) mutable {
-            detail::reportFailure(operation, failure, std::current_exception());
-        });
+    std::move(task).then(std::move(success), [failure = std::move(failure), operation](const std::exception&) mutable {
+        detail::reportFailure(operation, failure, std::current_exception());
+    });
 }
 
-template<typename Context, typename T, typename Success, typename Failure>
-void runScoped(Context *context, QCoro::Task<T> task, Success success, Failure failure,
-               const char *operation = "detached task")
+template <typename Context, typename T, typename Success, typename Failure>
+void runScoped(
+    Context *context, QCoro::Task<T> task, Success success, Failure failure, const char *operation = "detached task")
 {
     QPointer<Context> guard(context);
-    auto guardedFailure =
-        [guard, failure = std::move(failure)](const std::exception_ptr &error) mutable {
+    auto guardedFailure = [guard, failure = std::move(failure)](const std::exception_ptr& error) mutable {
         if (guard)
             std::invoke(failure, error);
     };
@@ -79,19 +62,16 @@ void runScoped(Context *context, QCoro::Task<T> task, Success success, Failure f
     }
 }
 
-template<typename Context, typename T, typename Success, typename Failure>
-void runLatest(Context *context, QCoro::Task<T> task,
-               const RequestGeneration &generation,
-               RequestGeneration::Token token,
-               Success success, Failure failure,
-               const char *operation = "latest task")
+template <typename Context, typename T, typename Success, typename Failure>
+void runLatest(Context *context, QCoro::Task<T> task, const RequestGeneration& generation,
+    RequestGeneration::Token token, Success success, Failure failure, const char *operation = "latest task")
 {
     const RequestGeneration *generationGuard = &generation;
-    auto guardedFailure =
-        [generationGuard, token, failure = std::move(failure)](const std::exception_ptr &error) mutable {
-        if (generationGuard->isCurrent(token))
-            std::invoke(failure, error);
-    };
+    auto guardedFailure
+        = [generationGuard, token, failure = std::move(failure)](const std::exception_ptr& error) mutable {
+              if (generationGuard->isCurrent(token))
+                  std::invoke(failure, error);
+          };
 
     if constexpr (std::is_void_v<T>) {
         runScoped(

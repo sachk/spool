@@ -8,6 +8,7 @@
 #include "PlaybackTrackState.h"
 
 #include <QByteArray>
+#include <QByteArrayList>
 #include <QObject>
 #include <QStringList>
 #include <QTimer>
@@ -22,42 +23,40 @@ namespace JellyfinNative {
 class JellyfinApiFacade;
 class NativeAppWindow;
 
-class PlayerController final : public QObject
-{
+class PlayerController final : public QObject {
     Q_OBJECT
     Q_PROPERTY(bool visible READ visible NOTIFY visibleChanged)
     Q_PROPERTY(bool sessionActive READ sessionActive NOTIFY sessionActiveChanged)
-    Q_PROPERTY(QString mediaKind READ mediaKind NOTIFY stateChanged)
-    Q_PROPERTY(bool paused READ paused NOTIFY stateChanged)
-    Q_PROPERTY(QString title READ title NOTIFY stateChanged)
-    Q_PROPERTY(QString statusText READ statusText NOTIFY stateChanged)
-    Q_PROPERTY(QString errorText READ errorText NOTIFY stateChanged)
-    Q_PROPERTY(bool buffering READ buffering NOTIFY stateChanged)
-    Q_PROPERTY(int bufferingPercent READ bufferingPercent NOTIFY stateChanged)
-    Q_PROPERTY(bool seeking READ seeking NOTIFY stateChanged)
-    Q_PROPERTY(bool debugOsdVisible READ debugOsdVisible NOTIFY stateChanged)
-    Q_PROPERTY(bool subtitlesEnabled READ subtitlesEnabled NOTIFY stateChanged)
-    Q_PROPERTY(QStringList subtitleTracks READ subtitleTracks NOTIFY stateChanged)
-    Q_PROPERTY(int selectedSubtitleIndex READ selectedSubtitleIndex NOTIFY stateChanged)
-    Q_PROPERTY(QStringList audioTracks READ audioTracks NOTIFY stateChanged)
-    Q_PROPERTY(int selectedAudioIndex READ selectedAudioIndex NOTIFY stateChanged)
-    Q_PROPERTY(bool backAllowed READ backAllowed NOTIFY stateChanged)
-    Q_PROPERTY(double positionSeconds READ positionSeconds NOTIFY stateChanged)
-    Q_PROPERTY(double durationSeconds READ durationSeconds NOTIFY stateChanged)
+    Q_PROPERTY(QString mediaKind READ mediaKind NOTIFY playbackStateChanged)
+    Q_PROPERTY(bool paused READ paused NOTIFY playbackStateChanged)
+    Q_PROPERTY(QString title READ title NOTIFY playbackStateChanged)
+    Q_PROPERTY(QString statusText READ statusText NOTIFY playbackStateChanged)
+    Q_PROPERTY(QString errorText READ errorText NOTIFY playbackStateChanged)
+    Q_PROPERTY(bool buffering READ buffering NOTIFY playbackStateChanged)
+    Q_PROPERTY(int bufferingPercent READ bufferingPercent NOTIFY playbackStateChanged)
+    Q_PROPERTY(bool seeking READ seeking NOTIFY playbackStateChanged)
+    Q_PROPERTY(bool debugOsdVisible READ debugOsdVisible NOTIFY playbackStateChanged)
+    Q_PROPERTY(bool subtitlesEnabled READ subtitlesEnabled NOTIFY tracksChanged)
+    Q_PROPERTY(QStringList subtitleTracks READ subtitleTracks NOTIFY tracksChanged)
+    Q_PROPERTY(int selectedSubtitleIndex READ selectedSubtitleIndex NOTIFY tracksChanged)
+    Q_PROPERTY(QStringList audioTracks READ audioTracks NOTIFY tracksChanged)
+    Q_PROPERTY(int selectedAudioIndex READ selectedAudioIndex NOTIFY tracksChanged)
+    Q_PROPERTY(bool backAllowed READ backAllowed NOTIFY playbackStateChanged)
+    Q_PROPERTY(double positionSeconds READ positionSeconds NOTIFY positionChanged)
+    Q_PROPERTY(double durationSeconds READ durationSeconds NOTIFY positionChanged)
     Q_PROPERTY(QVariantList chapters READ chapters NOTIFY chaptersChanged)
     Q_PROPERTY(bool hasChapters READ hasChapters NOTIFY chaptersChanged)
-    Q_PROPERTY(int currentChapter READ currentChapter NOTIFY stateChanged)
+    Q_PROPERTY(int currentChapter READ currentChapter NOTIFY chaptersChanged)
     Q_PROPERTY(bool nightModeEnabled READ nightModeEnabled WRITE setNightModeEnabled NOTIFY nightModeEnabledChanged)
-    Q_PROPERTY(bool toneMappingVisualizationEnabled READ toneMappingVisualizationEnabled
-               WRITE setToneMappingVisualizationEnabled
-               NOTIFY toneMappingVisualizationEnabledChanged)
+    Q_PROPERTY(bool toneMappingVisualizationEnabled READ toneMappingVisualizationEnabled WRITE
+            setToneMappingVisualizationEnabled NOTIFY toneMappingVisualizationEnabledChanged)
     Q_PROPERTY(int audioDelayMs READ audioDelayMs WRITE setAudioDelayMs NOTIFY audioDelayMsChanged)
     Q_PROPERTY(QString audioOutputMode READ audioOutputMode WRITE setAudioOutputMode NOTIFY audioOutputModeChanged)
     Q_PROPERTY(int volume READ volume WRITE setVolume NOTIFY volumeChanged)
-    Q_PROPERTY(QString activeSegmentType READ activeSegmentType NOTIFY stateChanged)
-    Q_PROPERTY(double activeSegmentEndSeconds READ activeSegmentEndSeconds NOTIFY stateChanged)
-    Q_PROPERTY(bool trickplayAvailable READ trickplayAvailable NOTIFY stateChanged)
-    Q_PROPERTY(QStringList trickplaySheetUrls READ trickplaySheetUrls NOTIFY stateChanged)
+    Q_PROPERTY(QString activeSegmentType READ activeSegmentType NOTIFY segmentsChanged)
+    Q_PROPERTY(double activeSegmentEndSeconds READ activeSegmentEndSeconds NOTIFY segmentsChanged)
+    Q_PROPERTY(bool trickplayAvailable READ trickplayAvailable NOTIFY trickplayChanged)
+    Q_PROPERTY(QStringList trickplaySheetUrls READ trickplaySheetUrls NOTIFY trickplayChanged)
 
 public:
     PlayerController(NativeAppWindow *window, JellyfinApiFacade *api, QObject *parent = nullptr);
@@ -97,7 +96,7 @@ public:
     Q_INVOKABLE void skipActiveSegment();
     Q_INVOKABLE QVariantMap trickplayForSeconds(double seconds) const;
 
-    Q_INVOKABLE void play(const JellyfinNative::PlaybackSession &session);
+    Q_INVOKABLE void play(const JellyfinNative::PlaybackSession& session);
     Q_INVOKABLE void togglePause();
     Q_INVOKABLE void seekBack();
     Q_INVOKABLE void seekForward();
@@ -116,22 +115,26 @@ public:
     Q_INVOKABLE void nextChapter();
     Q_INVOKABLE void previousChapter();
     Q_INVOKABLE void stop();
-    Q_INVOKABLE void stopWithReason(const QString &reason);
+    Q_INVOKABLE void stopWithReason(const QString& reason);
     Q_INVOKABLE void setNightModeEnabled(bool enabled);
     Q_INVOKABLE void setToneMappingVisualizationEnabled(bool enabled);
     Q_INVOKABLE void setAudioDelayMs(int delayMs);
-    Q_INVOKABLE void setAudioOutputMode(const QString &mode);
+    Q_INVOKABLE void setAudioOutputMode(const QString& mode);
     Q_INVOKABLE void setVolume(int volume);
     Q_INVOKABLE void adjustVolume(int delta);
-    void setSubtitlePreferences(const JellyfinNative::SubtitlePreferences &preferences);
-    void setDemuxerBudget(const QByteArray &maxBytes, const QByteArray &maxBackBytes);
+    void setSubtitlePreferences(const JellyfinNative::SubtitlePreferences& preferences);
+    void setDemuxerBudget(const QByteArray& maxBytes, const QByteArray& maxBackBytes);
 
 signals:
     void visibleChanged();
     void sessionActiveChanged();
-    void stateChanged();
+    void positionChanged();
+    void playbackStateChanged();
+    void tracksChanged();
+    void segmentsChanged();
+    void trickplayChanged();
     void chaptersChanged();
-    void playbackStopped(const QString &itemId, qint64 positionTicks, bool completed);
+    void playbackStopped(const QString& itemId, qint64 positionTicks, bool completed);
     void nightModeEnabledChanged();
     void toneMappingVisualizationEnabledChanged();
     void audioDelayMsChanged();
@@ -163,28 +166,29 @@ private:
     bool configureAndInitializeMpv(mpv_handle *handle);
     void observeMpvProperties(mpv_handle *handle);
     void scheduleMpvTeardown();
-    static QString mediaKindForSession(const PlaybackSession &session);
+    static QString mediaKindForSession(const PlaybackSession& session);
     void handleMpvEvent(mpv_event *event);
     void startProgressReporting();
     void stopProgressReporting(bool failed = false, bool completed = false);
-    bool mpvCommand(const char *command);
-    bool beginSeekCommand(double targetSeconds, const QByteArray &flags,
-                          bool markSeeking = true);
+    bool mpvCommand(QByteArrayList command);
+    bool beginSeekCommand(double targetSeconds, const QByteArray& flags, bool markSeeking = true);
+    QByteArrayList buildSeekCommand(double targetSeconds, const QByteArray& flags) const;
     bool beginRelativeSeekCommand(double deltaSeconds);
-    double seekAnchorPosition();
-    double projectedPositionSeconds() const;
+    void updatePlaybackStatusText();
+    void notifyPlaybackStateChanged();
+    void setPositionSeconds(double seconds, PlaybackPositionTracker::Source source, bool notifySegments = true);
     void requestMpvPositionRefresh(const char *reason);
     void restoreTrustedPosition(const char *reason);
-    QByteArray buildSeekCommand(double targetSeconds, const QByteArray &flags) const;
-    void updatePlaybackStatusText();
-    void setPositionSeconds(double seconds, PlaybackPositionTracker::Source source);
     double clampedPosition(double seconds) const;
+    double seekAnchorPosition();
+    double projectedPositionSeconds() const;
     void resetPlaybackUiState();
+    void rebuildTrickplaySheetUrls();
     bool applyMpvRuntimeOption(MpvRuntimeOption option, MpvOptionApplyMode mode, mpv_handle *handle);
     bool applyMpvSubtitleOptions(MpvOptionApplyMode mode, mpv_handle *handle);
     bool applyMpvRuntimeOptions(MpvOptionApplyMode mode, mpv_handle *handle);
     void discardPreparedMpvForOptionChange(const char *reason);
-    void handleVideoRenderError(const QString &message);
+    void handleVideoRenderError(const QString& message);
 
     NativeAppWindow *m_window = nullptr;
     JellyfinApiFacade *m_api = nullptr;
@@ -221,6 +225,7 @@ private:
     SubtitlePreferences m_subtitlePreferences;
     PlaybackPositionTracker m_positionTracker;
     PlaybackTimeline m_timeline;
+    QStringList m_trickplaySheetUrls;
 };
 
 } // namespace JellyfinNative

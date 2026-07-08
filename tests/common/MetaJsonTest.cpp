@@ -14,13 +14,13 @@ using JellyfinNative::LibraryItem;
 using JellyfinNative::MediaSegment;
 using JellyfinNative::MediaSourceInfo;
 using JellyfinNative::MediaStreamInfo;
-using JellyfinNative::MetaJsonKeyPolicy;
-using JellyfinNative::MovieItem;
-using JellyfinNative::PersonItem;
 using JellyfinNative::metaFromJson;
+using JellyfinNative::MetaJsonKeyPolicy;
 using JellyfinNative::metaListFromJson;
 using JellyfinNative::metaListToJson;
 using JellyfinNative::metaToJson;
+using JellyfinNative::MovieItem;
+using JellyfinNative::PersonItem;
 
 namespace {
 
@@ -35,22 +35,19 @@ void require(bool condition, const char *message)
 QJsonObject jsonObject(std::initializer_list<std::pair<QString, QJsonValue>> entries)
 {
     QJsonObject object;
-    for (const auto &entry : entries)
+    for (const auto& entry : entries)
         object.insert(entry.first, entry.second);
     return object;
 }
 
-void requireDiscoveredServer(const DiscoveredServer &actual,
-                             const DiscoveredServer &expected,
-                             const char *message)
+void requireDiscoveredServer(const DiscoveredServer& actual, const DiscoveredServer& expected, const char *message)
 {
     require(actual.id == expected.id, message);
     require(actual.name == expected.name, message);
     require(actual.address == expected.address, message);
 }
 
-void requireLibraryItem(const LibraryItem &actual, const LibraryItem &expected,
-                        const char *message)
+void requireLibraryItem(const LibraryItem& actual, const LibraryItem& expected, const char *message)
 {
     require(actual.id == expected.id, message);
     require(actual.name == expected.name, message);
@@ -59,8 +56,7 @@ void requireLibraryItem(const LibraryItem &actual, const LibraryItem &expected,
     require(actual.imageTag == expected.imageTag, message);
 }
 
-void requirePersonItem(const PersonItem &actual, const PersonItem &expected,
-                       const char *message)
+void requirePersonItem(const PersonItem& actual, const PersonItem& expected, const char *message)
 {
     require(actual.id == expected.id, message);
     require(actual.name == expected.name, message);
@@ -70,9 +66,7 @@ void requirePersonItem(const PersonItem &actual, const PersonItem &expected,
     require(actual.imageTag == expected.imageTag, message);
 }
 
-void requireMediaStreamInfo(const MediaStreamInfo &actual,
-                            const MediaStreamInfo &expected,
-                            const char *message)
+void requireMediaStreamInfo(const MediaStreamInfo& actual, const MediaStreamInfo& expected, const char *message)
 {
     require(actual.index == expected.index, message);
     require(actual.type == expected.type, message);
@@ -100,9 +94,7 @@ void requireMediaStreamInfo(const MediaStreamInfo &actual,
     require(actual.isInterlaced == expected.isInterlaced, message);
 }
 
-void requireMediaSourceInfo(const MediaSourceInfo &actual,
-                            const MediaSourceInfo &expected,
-                            const char *message)
+void requireMediaSourceInfo(const MediaSourceInfo& actual, const MediaSourceInfo& expected, const char *message)
 {
     require(actual.id == expected.id, message);
     require(actual.name == expected.name, message);
@@ -118,8 +110,7 @@ void requireMediaSourceInfo(const MediaSourceInfo &actual,
         requireMediaStreamInfo(actual.streams.at(i), expected.streams.at(i), message);
 }
 
-void requireMediaSegment(const MediaSegment &actual, const MediaSegment &expected,
-                         const char *message)
+void requireMediaSegment(const MediaSegment& actual, const MediaSegment& expected, const char *message)
 {
     require(actual.id == expected.id, message);
     require(actual.type == expected.type, message);
@@ -127,8 +118,7 @@ void requireMediaSegment(const MediaSegment &actual, const MediaSegment &expecte
     require(actual.endTicks == expected.endTicks, message);
 }
 
-void requireMovieItem(const MovieItem &actual, const MovieItem &expected,
-                      const char *message)
+void requireMovieItem(const MovieItem& actual, const MovieItem& expected, const char *message)
 {
     require(actual.id == expected.id, message);
     require(actual.title == expected.title, message);
@@ -169,8 +159,7 @@ void requireMovieItem(const MovieItem &actual, const MovieItem &expected,
         requirePersonItem(actual.people.at(i), expected.people.at(i), message);
     require(actual.mediaSources.size() == expected.mediaSources.size(), message);
     for (qsizetype i = 0; i < actual.mediaSources.size(); ++i)
-        requireMediaSourceInfo(actual.mediaSources.at(i), expected.mediaSources.at(i),
-                               message);
+        requireMediaSourceInfo(actual.mediaSources.at(i), expected.mediaSources.at(i), message);
 }
 
 MediaStreamInfo videoStream()
@@ -239,7 +228,7 @@ void testDtoRoundTrips()
     server.name = QStringLiteral("Living Room Jellyfin");
     server.address = QStringLiteral("https://jellyfin.example.test");
     requireDiscoveredServer(metaFromJson<DiscoveredServer>(metaToJson(server)), server,
-                            "DiscoveredServer did not survive MetaJson round trip");
+        "DiscoveredServer did not survive MetaJson round trip");
 
     LibraryItem library;
     library.id = QStringLiteral("library-id");
@@ -247,8 +236,8 @@ void testDtoRoundTrips()
     library.collectionType = QStringLiteral("movies");
     library.imageUrl = QStringLiteral("https://images.example.test/library.jpg");
     library.imageTag = QStringLiteral("library-tag");
-    requireLibraryItem(metaFromJson<LibraryItem>(metaToJson(library)), library,
-                       "LibraryItem did not survive MetaJson round trip");
+    requireLibraryItem(
+        metaFromJson<LibraryItem>(metaToJson(library)), library, "LibraryItem did not survive MetaJson round trip");
 
     PersonItem person;
     person.id = QStringLiteral("person-id");
@@ -257,24 +246,24 @@ void testDtoRoundTrips()
     person.role = QStringLiteral("Detective");
     person.imageUrl = QStringLiteral("https://images.example.test/person.jpg");
     person.imageTag = QStringLiteral("person-tag");
-    requirePersonItem(metaFromJson<PersonItem>(metaToJson(person)), person,
-                      "PersonItem did not survive MetaJson round trip");
+    requirePersonItem(
+        metaFromJson<PersonItem>(metaToJson(person)), person, "PersonItem did not survive MetaJson round trip");
 
     const MediaStreamInfo stream = videoStream();
     requireMediaStreamInfo(metaFromJson<MediaStreamInfo>(metaToJson(stream)), stream,
-                           "MediaStreamInfo did not survive MetaJson round trip");
+        "MediaStreamInfo did not survive MetaJson round trip");
 
     const MediaSourceInfo source = mediaSource();
     requireMediaSourceInfo(metaFromJson<MediaSourceInfo>(metaToJson(source)), source,
-                           "MediaSourceInfo did not survive MetaJson round trip");
+        "MediaSourceInfo did not survive MetaJson round trip");
 
     MediaSegment segment;
     segment.id = QStringLiteral("intro");
     segment.type = QStringLiteral("Intro");
     segment.startTicks = 10000000LL;
     segment.endTicks = 650000000LL;
-    requireMediaSegment(metaFromJson<MediaSegment>(metaToJson(segment)), segment,
-                        "MediaSegment did not survive MetaJson round trip");
+    requireMediaSegment(
+        metaFromJson<MediaSegment>(metaToJson(segment)), segment, "MediaSegment did not survive MetaJson round trip");
 }
 
 void testMovieRoundTripAndCamelCaseKey()
@@ -335,21 +324,23 @@ void testMovieRoundTripAndCamelCaseKey()
 
     const QJsonObject json = metaToJson(movie);
     require(json.value(QStringLiteral("movieId")).toString() == movie.id,
-            "MovieItem id was not serialized with the movieId CamelCase key");
-    require(!json.contains(QStringLiteral("id")),
-            "MovieItem id leaked through an id key instead of movieId");
+        "MovieItem id was not serialized with the movieId CamelCase key");
+    require(!json.contains(QStringLiteral("id")), "MovieItem id leaked through an id key instead of movieId");
     require(json.value(QStringLiteral("people")).toArray().size() == movie.people.size(),
-            "MovieItem people were not serialized as a nested array");
-    require(json.value(QStringLiteral("mediaSources")).toArray().size()
-                == movie.mediaSources.size(),
-            "MovieItem mediaSources were not serialized as a nested array");
-    require(json.value(QStringLiteral("mediaSources")).toArray().at(0).toObject()
-                .value(QStringLiteral("streams")).toArray().size()
-                == movie.mediaSources.at(0).streams.size(),
-            "MediaSourceInfo streams were not serialized as a nested array");
+        "MovieItem people were not serialized as a nested array");
+    require(json.value(QStringLiteral("mediaSources")).toArray().size() == movie.mediaSources.size(),
+        "MovieItem mediaSources were not serialized as a nested array");
+    require(json.value(QStringLiteral("mediaSources"))
+                .toArray()
+                .at(0)
+                .toObject()
+                .value(QStringLiteral("streams"))
+                .toArray()
+                .size()
+            == movie.mediaSources.at(0).streams.size(),
+        "MediaSourceInfo streams were not serialized as a nested array");
 
-    requireMovieItem(metaFromJson<MovieItem>(json), movie,
-                     "MovieItem nested DTOs did not survive MetaJson round trip");
+    requireMovieItem(metaFromJson<MovieItem>(json), movie, "MovieItem nested DTOs did not survive MetaJson round trip");
 }
 
 void testMetaListRoundTrip()
@@ -368,11 +359,9 @@ void testMetaListRoundTrip()
 
     const QList<MediaSegment> segments = { intro, credits };
     const QList<MediaSegment> restored = metaListFromJson<MediaSegment>(metaListToJson(segments));
-    require(restored.size() == segments.size(),
-            "MetaJson list round trip changed item count");
+    require(restored.size() == segments.size(), "MetaJson list round trip changed item count");
     for (qsizetype i = 0; i < restored.size(); ++i)
-        requireMediaSegment(restored.at(i), segments.at(i),
-                            "MetaJson list round trip changed a MediaSegment");
+        requireMediaSegment(restored.at(i), segments.at(i), "MetaJson list round trip changed a MediaSegment");
 }
 
 void testLegacyStringTicksAndUnknownKeys()
@@ -385,11 +374,9 @@ void testLegacyStringTicksAndUnknownKeys()
     });
     const MovieItem movie = metaFromJson<MovieItem>(movieJson);
     require(movie.id == QStringLiteral("movie-legacy"),
-            "MovieItem did not parse known keys when unknown keys were present");
-    require(movie.resumeTicks == 4567890123LL,
-            "MovieItem resumeTicks did not parse a legacy JSON string value");
-    require(movie.runtimeTicks == 9876543210LL,
-            "MovieItem runtimeTicks did not parse a legacy JSON string value");
+        "MovieItem did not parse known keys when unknown keys were present");
+    require(movie.resumeTicks == 4567890123LL, "MovieItem resumeTicks did not parse a legacy JSON string value");
+    require(movie.runtimeTicks == 9876543210LL, "MovieItem runtimeTicks did not parse a legacy JSON string value");
 
     const QJsonObject segmentJson = jsonObject({
         { QStringLiteral("id"), QStringLiteral("chapter-1") },
@@ -399,13 +386,10 @@ void testLegacyStringTicksAndUnknownKeys()
         { QStringLiteral("ignoredNestedObject"), QJsonObject({ { QStringLiteral("x"), 1 } }) },
     });
     const MediaSegment segment = metaFromJson<MediaSegment>(segmentJson);
-    require(segment.id == QStringLiteral("chapter-1")
-                && segment.type == QStringLiteral("Recap"),
-            "MediaSegment did not parse known keys when unknown keys were present");
-    require(segment.startTicks == 1234567890LL,
-            "MediaSegment startTicks did not parse a legacy JSON string value");
-    require(segment.endTicks == 2234567890LL,
-            "MediaSegment endTicks did not parse a legacy JSON string value");
+    require(segment.id == QStringLiteral("chapter-1") && segment.type == QStringLiteral("Recap"),
+        "MediaSegment did not parse known keys when unknown keys were present");
+    require(segment.startTicks == 1234567890LL, "MediaSegment startTicks did not parse a legacy JSON string value");
+    require(segment.endTicks == 2234567890LL, "MediaSegment endTicks did not parse a legacy JSON string value");
 }
 
 void testPascalCaseApiParsing()
@@ -420,16 +404,13 @@ void testPascalCaseApiParsing()
         { QStringLiteral("IsForced"), true },
         { QStringLiteral("IsExternal"), true },
     });
-    const MediaStreamInfo stream =
-        metaFromJson<MediaStreamInfo>(streamJson, MetaJsonKeyPolicy::PascalCase);
-    require(stream.index == 3 && stream.type == QStringLiteral("Subtitle")
-                && stream.codec == QStringLiteral("subrip"),
-            "MediaStreamInfo did not parse PascalCase identity fields");
-    require(stream.displayTitle == QStringLiteral("English SRT")
-                && stream.language == QStringLiteral("eng"),
-            "MediaStreamInfo did not parse PascalCase display fields");
+    const MediaStreamInfo stream = metaFromJson<MediaStreamInfo>(streamJson, MetaJsonKeyPolicy::PascalCase);
+    require(stream.index == 3 && stream.type == QStringLiteral("Subtitle") && stream.codec == QStringLiteral("subrip"),
+        "MediaStreamInfo did not parse PascalCase identity fields");
+    require(stream.displayTitle == QStringLiteral("English SRT") && stream.language == QStringLiteral("eng"),
+        "MediaStreamInfo did not parse PascalCase display fields");
     require(stream.isDefault && stream.isForced && stream.isExternal,
-            "MediaStreamInfo did not parse PascalCase boolean fields");
+        "MediaStreamInfo did not parse PascalCase boolean fields");
 
     const QJsonObject sourceJson = jsonObject({
         { QStringLiteral("Id"), QStringLiteral("source-api") },
@@ -443,23 +424,17 @@ void testPascalCaseApiParsing()
         { QStringLiteral("RuntimeTicks"), QStringLiteral("7654321098") },
         { QStringLiteral("Streams"), QJsonArray({ streamJson }) },
     });
-    const MediaSourceInfo source =
-        metaFromJson<MediaSourceInfo>(sourceJson, MetaJsonKeyPolicy::PascalCase);
-    require(source.id == QStringLiteral("source-api")
-                && source.name == QStringLiteral("API source")
-                && source.path == QStringLiteral("/api/movie.mkv"),
-            "MediaSourceInfo did not parse PascalCase identity fields");
-    require(source.container == QStringLiteral("mkv")
-                && source.protocol == QStringLiteral("File")
-                && source.videoType == QStringLiteral("VideoFile"),
-            "MediaSourceInfo did not parse PascalCase format fields");
-    require(source.size == 12345678901LL && source.bitRate == 6543210
-                && source.runtimeTicks == 7654321098LL,
-            "MediaSourceInfo did not parse PascalCase numeric fields");
-    require(source.streams.size() == 1,
-            "MediaSourceInfo did not parse PascalCase nested streams");
-    requireMediaStreamInfo(source.streams.at(0), stream,
-                           "MediaSourceInfo changed a PascalCase nested stream");
+    const MediaSourceInfo source = metaFromJson<MediaSourceInfo>(sourceJson, MetaJsonKeyPolicy::PascalCase);
+    require(source.id == QStringLiteral("source-api") && source.name == QStringLiteral("API source")
+            && source.path == QStringLiteral("/api/movie.mkv"),
+        "MediaSourceInfo did not parse PascalCase identity fields");
+    require(source.container == QStringLiteral("mkv") && source.protocol == QStringLiteral("File")
+            && source.videoType == QStringLiteral("VideoFile"),
+        "MediaSourceInfo did not parse PascalCase format fields");
+    require(source.size == 12345678901LL && source.bitRate == 6543210 && source.runtimeTicks == 7654321098LL,
+        "MediaSourceInfo did not parse PascalCase numeric fields");
+    require(source.streams.size() == 1, "MediaSourceInfo did not parse PascalCase nested streams");
+    requireMediaStreamInfo(source.streams.at(0), stream, "MediaSourceInfo changed a PascalCase nested stream");
 }
 
 } // namespace

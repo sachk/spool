@@ -6,8 +6,9 @@ import "../primitives"
 FocusScope {
     id: root
     property var shell
-    readonly property bool episodeGrid: Boolean(appController && appController.currentViewKind === "episodes")
-    property int columns: episodeGrid ? Math.max(2, Math.floor(width / Math.max(260, Metrics.homeLandscapeWidth(width)))) : Metrics.columns(width)
+    readonly property bool episodeGrid: Boolean(browseController && browseController.viewKind === "episodes")
+    property int columns: episodeGrid ? Math.max(2, Math.floor(width / Math.max(260, Metrics.homeLandscapeWidth(width)))) :
+                                        Metrics.columns(width)
     property bool sortOpen: false
     property bool filtersOpen: false
     property bool libraryOpen: false
@@ -16,16 +17,18 @@ FocusScope {
     property int libraryIndex: 0
     property var sortEntries: []
     property var filterEntries: []
-    readonly property string collectionType: appController ? appController.currentLibraryCollectionType : ""
-    readonly property var libraryQuery: appController ? appController.libraryQuery : ({})
-    readonly property var filterOptions: appController ? appController.libraryFilterOptions : ({})
-    readonly property int activeFilterCount: appController ? appController.libraryFilterActiveCount : 0
+    readonly property string collectionType: browseController ? browseController.libraryCollectionType : ""
+    readonly property var libraryQuery: browseController ? browseController.query : ({})
+    readonly property var filterOptions: browseController ? browseController.filterOptions : ({})
+    readonly property int activeFilterCount: browseController ? browseController.filterActiveCount : 0
     // Fixed descriptor-backed pages reuse this grid but have no library
     // switcher, sort, or filter controls.
-    readonly property bool isFixedBrowseView: appController && ["genre", "studio", "playlist", "boxset", "folder"].indexOf(appController.currentViewKind) >= 0
+    readonly property bool isFixedBrowseView: browseController && ["genre", "studio", "playlist", "boxset",
+                                                                   "folder"].indexOf(browseController.viewKind) >= 0
     focus: true
     Component.onCompleted: InputKeys.focus(grid)
-    onActiveFocusChanged: if (activeFocus) InputKeys.focus(grid)
+    onActiveFocusChanged: if (activeFocus)
+                              InputKeys.focus(grid)
 
     component ToolbarButton: FocusScope {
         id: buttonRoot
@@ -33,24 +36,23 @@ FocusScope {
         property string label: ""
         property bool checked: false
         property bool badge: false
-        signal activated()
+        signal activated
 
         width: Math.max(118, labelText.implicitWidth + 58)
         height: 42
         focus: true
 
-        HoverHandler { id: hover }
+        HoverHandler {
+            id: hover
+        }
 
         Rectangle {
             anchors.fill: parent
             radius: height / 2
-            color: buttonRoot.checked ? Theme.accentPanel
-                  : (buttonRoot.activeFocus || hover.hovered) ? Theme.bgHover
-                  : Theme.bgRaised
+            color: buttonRoot.checked ? Theme.accentPanel : (buttonRoot.activeFocus || hover.hovered) ? Theme.bgHover :
+                                                                                                        Theme.bgRaised
             border.width: buttonRoot.activeFocus ? 2 : 1
-            border.color: buttonRoot.activeFocus ? Theme.textPrimary
-                        : buttonRoot.checked ? Theme.accent
-                        : Theme.border
+            border.color: buttonRoot.activeFocus ? Theme.textPrimary : buttonRoot.checked ? Theme.accent : Theme.border
             antialiasing: true
         }
 
@@ -85,90 +87,27 @@ FocusScope {
             visible: buttonRoot.badge
         }
 
-        MouseArea { anchors.fill: parent; onClicked: buttonRoot.activated() }
-        Keys.onReleased: (event) => {
-            if (InputKeys.isAccept(event.key)) {
-                buttonRoot.activated()
-                event.accepted = true
-            }
-        }
-    }
-
-    component PopupRow: FocusScope {
-        id: rowRoot
-        property string label: ""
-        property string detail: ""
-        property string iconName: "check_box_outline_blank"
-        property bool selected: false
-        property int optionIndex: 0
-        signal activated()
-
-        width: parent ? parent.width : 320
-        height: detail.length > 0 ? 54 : 44
-        focus: true
-
-        Rectangle {
+        MouseArea {
             anchors.fill: parent
-            radius: Theme.radiusSmall
-            color: rowRoot.activeFocus ? Theme.focusedFill : "transparent"
-            border.width: rowRoot.activeFocus ? 1 : 0
-            border.color: Theme.accent
+            onClicked: buttonRoot.activated()
         }
-
-        Row {
-            anchors.left: parent.left
-            anchors.right: parent.right
-            anchors.verticalCenter: parent.verticalCenter
-            anchors.leftMargin: 10
-            anchors.rightMargin: 10
-            spacing: 9
-
-            MaterialIcon {
-                anchors.verticalCenter: parent.verticalCenter
-                name: rowRoot.iconName
-                iconSize: 20
-                iconColor: rowRoot.selected ? Theme.accent : Theme.textSecondary
-            }
-
-            Column {
-                anchors.verticalCenter: parent.verticalCenter
-                width: parent.width - 42
-                spacing: 1
-
-                AppText {
-                    width: parent.width
-                    text: rowRoot.label
-                    font.pixelSize: Metrics.metaPx(root.width) + 1
-                    font.weight: Font.Medium
-                    color: rowRoot.selected ? Theme.textPrimary : Theme.textSecondary
-                    maximumLineCount: 1
-                    elide: Text.ElideRight
-                }
-
-                MonoText {
-                    width: parent.width
-                    visible: rowRoot.detail.length > 0
-                    text: rowRoot.detail
-                    color: Theme.textMuted
-                    font.pixelSize: Metrics.metaPx(root.width) - 1
-                    maximumLineCount: 1
-                    elide: Text.ElideRight
-                }
-            }
-        }
-
-        MouseArea { anchors.fill: parent; onClicked: rowRoot.activated() }
+        Keys.onReleased: event => {
+                             if (InputKeys.isAccept(event.key)) {
+                                 buttonRoot.activated()
+                                 event.accepted = true
+                             }
+                         }
     }
 
     function libraryCount() {
-        return appController && appController.libraries ? appController.libraries.rowCount() : 0
+        return libraryModel ? libraryModel.rowCount() : 0
     }
 
     function currentLibraryModelIndex() {
-        const currentId = appController ? String(appController.currentLibraryId || "") : ""
+        const currentId = browseController ? String(browseController.libraryId || "") : ""
         const count = libraryCount()
         for (let i = 0; i < count; ++i) {
-            const library = appController.libraries.get(i)
+            const library = libraryModel.get(i)
             if (library && String(library.libraryId || "") === currentId)
                 return i
         }
@@ -176,11 +115,13 @@ FocusScope {
     }
 
     function headerDetail() {
-        const total = appController.currentItemsTotalCount
-        const count = appController.movies ? appController.movies.count : 0
+        const total = browseController ? browseController.totalCount : 0
+        const count = browseController && browseController.items ? browseController.items.count : 0
         const parts = []
-        if (count > 0) parts.push(count + (total > count ? " of " + total : "") + " items")
-        if (activeFilterCount > 0) parts.push(activeFilterCount + " filter" + (activeFilterCount === 1 ? "" : "s"))
+        if (count > 0)
+            parts.push(count + (total > count ? " of " + total : "") + " items")
+        if (activeFilterCount > 0)
+            parts.push(activeFilterCount + " filter" + (activeFilterCount === 1 ? "" : "s"))
         return parts.join(" · ")
     }
 
@@ -196,7 +137,9 @@ FocusScope {
                 result.push(String(value[i]))
             return result
         }
-        return String(value).split(",").filter(function(v) { return v.length > 0 })
+        return String(value).split(",").filter(function (v) {
+            return v.length > 0
+        })
     }
 
     function listHas(key, value) {
@@ -230,7 +173,8 @@ FocusScope {
     }
 
     function isMovieLikeLibrary() {
-        return collectionType === "movies" || collectionType === "homevideos" || collectionType === "musicvideos" || collectionType.length === 0
+        return collectionType === "movies" || collectionType === "homevideos" || collectionType === "musicvideos"
+                || collectionType.length === 0
     }
 
     function currentSortBy() {
@@ -251,39 +195,104 @@ FocusScope {
 
     function buildSortEntries() {
         const common = [
-            { label: "Name", value: "SortName" },
-            { label: "Random", value: "Random" },
-            { label: "Community rating", value: "CommunityRating" },
-            { label: "Date added", value: "DateCreated" },
-            { label: "Date played", value: isSeriesLibrary() ? "SeriesDatePlayed" : "DatePlayed" },
-            { label: "Parental rating", value: "OfficialRating" },
-            { label: "Release date", value: "PremiereDate" }
-        ]
+                  {
+                      label: "Name",
+                      value: "SortName"
+                  },
+                  {
+                      label: "Random",
+                      value: "Random"
+                  },
+                  {
+                      label: "Community rating",
+                      value: "CommunityRating"
+                  },
+                  {
+                      label: "Date added",
+                      value: "DateCreated"
+                  },
+                  {
+                      label: "Date played",
+                      value: isSeriesLibrary() ? "SeriesDatePlayed" : "DatePlayed"
+                  },
+                  {
+                      label: "Parental rating",
+                      value: "OfficialRating"
+                  },
+                  {
+                      label: "Release date",
+                      value: "PremiereDate"
+                  }
+              ]
         if (isSeriesLibrary())
-            common.splice(4, 0, { label: "Date episode added", value: "DateLastContentAdded" })
+            common.splice(4, 0, {
+                              label: "Date episode added",
+                              value: "DateLastContentAdded"
+                          })
         else
-            common.splice(3, 0, { label: "Critic rating", value: "CriticRating" })
-        common.push({ label: "Play count", value: "PlayCount" })
-        common.push({ label: "Runtime", value: "Runtime" })
-        common.push({ label: "Ascending", value: "order:Ascending" })
-        common.push({ label: "Descending", value: "order:Descending" })
+            common.splice(3, 0, {
+                              label: "Critic rating",
+                              value: "CriticRating"
+                          })
+        common.push({
+                        label: "Play count",
+                        value: "PlayCount"
+                    })
+        common.push({
+                        label: "Runtime",
+                        value: "Runtime"
+                    })
+        common.push({
+                        label: "Ascending",
+                        value: "order:Ascending"
+                    })
+        common.push({
+                        label: "Descending",
+                        value: "order:Descending"
+                    })
         return common
     }
 
     function addSection(entries, title) {
-        entries.push({ section: true, label: title })
+        entries.push({
+                         section: true,
+                         label: title
+                     })
     }
 
     function addListFilter(entries, section, label, key, value) {
-        entries.push({ section: false, sectionName: section, label: label, key: key, value: String(value), kind: "list", checked: listHas(key, value) })
+        entries.push({
+                         section: false,
+                         sectionName: section,
+                         label: label,
+                         key: key,
+                         value: String(value),
+                         kind: "list",
+                         checked: listHas(key, value)
+                     })
     }
 
     function addBoolFilter(entries, section, label, key) {
-        entries.push({ section: false, sectionName: section, label: label, key: key, kind: "bool", checked: boolHas(key, true) })
+        entries.push({
+                         section: false,
+                         sectionName: section,
+                         label: label,
+                         key: key,
+                         kind: "bool",
+                         checked: boolHas(key, true)
+                     })
     }
 
     function addNullableBoolFilter(entries, section, label, key, value) {
-        entries.push({ section: false, sectionName: section, label: label, key: key, value: value, kind: "nullableBool", checked: boolHas(key, value) })
+        entries.push({
+                         section: false,
+                         sectionName: section,
+                         label: label,
+                         key: key,
+                         value: value,
+                         kind: "nullableBool",
+                         checked: boolHas(key, value)
+                     })
     }
 
     function buildFilterEntries() {
@@ -358,22 +367,36 @@ FocusScope {
         return entries
     }
 
+    function firstActionableFilterIndex(entries) {
+        for (let i = 0; i < entries.length; ++i) {
+            if (!entries[i].section)
+                return i
+        }
+        return 0
+    }
+
     function openSortMenu() {
         libraryOpen = false
         filtersOpen = false
         sortEntries = buildSortEntries()
-        sortIndex = Math.max(0, sortEntries.findIndex(function(entry) { return entry.value === currentSortBy() }))
+        sortIndex = Math.max(0, sortEntries.findIndex(function (entry) {
+            return entry.value === currentSortBy()
+        }))
         sortOpen = true
-        Qt.callLater(function() { InputKeys.focus(sortList) })
+        Qt.callLater(function () {
+            InputKeys.focus(sortList)
+        })
     }
 
     function openFilterMenu() {
         libraryOpen = false
         sortOpen = false
         filterEntries = buildFilterEntries()
-        filterIndex = filterEntries.length > 1 ? 1 : 0
+        filterIndex = firstActionableFilterIndex(filterEntries)
         filtersOpen = true
-        Qt.callLater(function() { InputKeys.focus(filterList) })
+        Qt.callLater(function () {
+            InputKeys.focus(filterList)
+        })
     }
 
     function openLibraryMenu() {
@@ -383,7 +406,9 @@ FocusScope {
         filtersOpen = false
         libraryIndex = Math.max(0, currentLibraryModelIndex())
         libraryOpen = true
-        Qt.callLater(function() { InputKeys.focus(libraryList) })
+        Qt.callLater(function () {
+            InputKeys.focus(libraryList)
+        })
     }
 
     function closeMenus() {
@@ -464,16 +489,12 @@ FocusScope {
     }
 
     Connections {
-        target: appController
-        function onLibraryQueryChanged() {
+        target: browseController
+        function onChanged() {
             if (root.filtersOpen)
                 root.filterEntries = root.buildFilterEntries()
             if (root.sortOpen)
                 root.sortEntries = root.buildSortEntries()
-        }
-        function onLibraryFilterOptionsChanged() {
-            if (root.filtersOpen)
-                root.filterEntries = root.buildFilterEntries()
         }
     }
 
@@ -488,14 +509,14 @@ FocusScope {
         if (grid.currentIndex < 0)
             return
         setSavedGridIndex(grid.currentIndex)
-        const item = appController.movies ? (appController.movies.get(grid.currentIndex) || ({})) : ({})
+        const item = browseController.items ? (browseController.items.get(grid.currentIndex) || ({})) : ({})
         const type = String(item.itemType || "")
         if (type === "Playlist" || type === "Folder") {
-            appController.playMovie(grid.currentIndex)
+            appController.playFromModel(browseController.items, grid.currentIndex)
             return
         }
         if (hasShell())
-            shell.openDetailsAt(appController.movies, grid.currentIndex, "movies", "libraryGrid")
+            shell.openDetailsAt(browseController.items, grid.currentIndex, "movies", "libraryGrid")
     }
 
     function currentCard() {
@@ -508,104 +529,38 @@ FocusScope {
     }
 
     function handleKey(key) {
-        if (libraryList.activeFocus) {
-            if (InputKeys.isBack(key, false, false) || key === Qt.Key_Left) {
-                closeMenus()
-                return true
-            }
-            if (key === Qt.Key_Down) {
-                libraryIndex = Math.min(libraryCount() - 1, libraryIndex + 1)
-                libraryList.currentIndex = libraryIndex
-                return true
-            }
-            if (key === Qt.Key_Up) {
-                if (libraryIndex <= 0) {
-                    InputKeys.focus(libraryButton)
-                } else {
-                    libraryIndex = Math.max(0, libraryIndex - 1)
-                    libraryList.currentIndex = libraryIndex
-                }
-                return true
-            }
-            if (InputKeys.isAccept(key)) {
-                activateLibraryIndex(libraryIndex)
-                return true
-            }
-            return false
-        }
+        if (libraryList.activeFocus)
+            return libraryList.handleKey(key)
 
-        if (sortList.activeFocus) {
-            if (InputKeys.isBack(key, false, false) || key === Qt.Key_Left) {
-                closeMenus()
-                return true
-            }
-            if (key === Qt.Key_Down) {
-                sortIndex = Math.min(sortEntries.length - 1, sortIndex + 1)
-                sortList.currentIndex = sortIndex
-                return true
-            }
-            if (key === Qt.Key_Up) {
-                if (sortIndex <= 0) {
-                    InputKeys.focus(sortButton)
-                } else {
-                    sortIndex = Math.max(0, sortIndex - 1)
-                    sortList.currentIndex = sortIndex
-                }
-                return true
-            }
-            if (InputKeys.isAccept(key)) {
-                activateSortEntry(sortEntries[sortIndex])
-                return true
-            }
-            return false
-        }
+        if (sortList.activeFocus)
+            return sortList.handleKey(key)
 
-        if (filterList.activeFocus) {
-            if (InputKeys.isBack(key, false, false) || key === Qt.Key_Left) {
-                closeMenus()
-                return true
-            }
-            if (key === Qt.Key_Down) {
-                filterIndex = Math.min(filterEntries.length - 1, filterIndex + 1)
-                while (filterIndex < filterEntries.length - 1 && filterEntries[filterIndex].section)
-                    filterIndex += 1
-                filterList.currentIndex = filterIndex
-                return true
-            }
-            if (key === Qt.Key_Up) {
-                if (filterIndex <= 0) {
-                    InputKeys.focus(filterButton)
-                } else {
-                    filterIndex = Math.max(0, filterIndex - 1)
-                    while (filterIndex > 0 && filterEntries[filterIndex].section)
-                        filterIndex -= 1
-                    filterList.currentIndex = filterIndex
-                }
-                return true
-            }
-            if (InputKeys.isAccept(key)) {
-                activateFilterEntry(filterEntries[filterIndex])
-                return true
-            }
-            return false
-        }
+        if (filterList.activeFocus)
+            return filterList.handleKey(key)
 
-        if (libraryButton.activeFocus || sortButton.activeFocus || filterButton.activeFocus || clearFiltersButton.activeFocus) {
+        if (libraryButton.activeFocus || sortButton.activeFocus || filterButton.activeFocus
+                || clearFiltersButton.activeFocus) {
             if (key === Qt.Key_Up) {
                 if (hasShell())
                     shell.focusNavBar()
                 return true
             }
             if (key === Qt.Key_Left) {
-                if (sortButton.activeFocus) InputKeys.focus(libraryButton)
-                else if (filterButton.activeFocus) InputKeys.focus(sortButton)
-                else if (clearFiltersButton.activeFocus) InputKeys.focus(filterButton)
+                if (sortButton.activeFocus)
+                    InputKeys.focus(libraryButton)
+                else if (filterButton.activeFocus)
+                    InputKeys.focus(sortButton)
+                else if (clearFiltersButton.activeFocus)
+                    InputKeys.focus(filterButton)
                 return true
             }
             if (key === Qt.Key_Right) {
-                if (libraryButton.activeFocus && sortButton.visible) InputKeys.focus(sortButton)
-                else if (sortButton.activeFocus) InputKeys.focus(filterButton)
-                else if (filterButton.activeFocus && clearFiltersButton.visible) InputKeys.focus(clearFiltersButton)
+                if (libraryButton.activeFocus && sortButton.visible)
+                    InputKeys.focus(sortButton)
+                else if (sortButton.activeFocus)
+                    InputKeys.focus(filterButton)
+                else if (filterButton.activeFocus && clearFiltersButton.visible)
+                    InputKeys.focus(clearFiltersButton)
                 return true
             }
             if (key === Qt.Key_Down) {
@@ -613,10 +568,14 @@ FocusScope {
                 return true
             }
             if (InputKeys.isAccept(key)) {
-                if (libraryButton.activeFocus) openLibraryMenu()
-                else if (sortButton.activeFocus) openSortMenu()
-                else if (filterButton.activeFocus) openFilterMenu()
-                else appController.clearLibraryFilters()
+                if (libraryButton.activeFocus)
+                    openLibraryMenu()
+                else if (sortButton.activeFocus)
+                    openSortMenu()
+                else if (filterButton.activeFocus)
+                    openFilterMenu()
+                else
+                    appController.clearLibraryFilters()
                 return true
             }
         }
@@ -663,13 +622,14 @@ FocusScope {
                     anchors.leftMargin: 4
                     anchors.rightMargin: 8
                     spacing: 6
-                    width: Math.min(titleText.implicitWidth + 30, Math.max(160, parent.width - headerDetailText.width - 32))
+                    width: Math.min(titleText.implicitWidth + 30, Math.max(160, parent.width - headerDetailText.width
+                                                                           - 32))
 
                     AppText {
                         id: titleText
                         anchors.verticalCenter: parent.verticalCenter
                         width: Math.max(0, titleRow.width - 30)
-                        text: appController.currentLibraryName.length > 0 ? appController.currentLibraryName : "Library"
+                        text: browseController && browseController.title.length > 0 ? browseController.title : "Library"
                         font.pixelSize: Metrics.bodyPx(root.width) + 4
                         font.weight: Font.DemiBold
                         maximumLineCount: 1
@@ -681,7 +641,8 @@ FocusScope {
                         visible: !root.isFixedBrowseView
                         name: root.libraryOpen ? "expand_less" : "expand_more"
                         iconSize: 24
-                        iconColor: root.libraryOpen || libraryButton.activeFocus ? Theme.textPrimary : Theme.textSecondary
+                        iconColor: root.libraryOpen || libraryButton.activeFocus ? Theme.textPrimary :
+                                                                                   Theme.textSecondary
                     }
                 }
 
@@ -697,7 +658,10 @@ FocusScope {
                     width: Math.min(520, Math.max(0, parent.width * 0.52))
                 }
 
-                MouseArea { anchors.fill: parent; onClicked: root.openLibraryMenu() }
+                MouseArea {
+                    anchors.fill: parent
+                    onClicked: root.openLibraryMenu()
+                }
             }
 
             ToolbarButton {
@@ -740,7 +704,7 @@ FocusScope {
             keyNavigationEnabled: false
             reuseItems: true
             boundsBehavior: Flickable.StopAtBounds
-            model: appController.movies
+            model: browseController ? browseController.items : null
             cellWidth: Math.floor((width - Metrics.gap(root.width) * (columns - 1)) / columns)
             cellHeight: root.episodeGrid ? Math.round(cellWidth * 9 / 16 + 62) : cellWidth * 1.5 + 64
             cacheBuffer: 2 * cellHeight
@@ -762,7 +726,9 @@ FocusScope {
                 loadMoreDebounce.restart()
             }
 
-            FastWheelHandler { flickable: grid }
+            FastWheelHandler {
+                flickable: grid
+            }
             onEdgeUp: root.focusToolbar()
             onAccepted: root.activateCurrent()
 
@@ -787,8 +753,7 @@ FocusScope {
             function firstLikelyVisibleIndex() {
                 if (count <= 0 || cellHeight <= 0 || columns <= 0)
                     return -1
-                return Math.min(count - 1,
-                                Math.max(0, Math.floor(contentY / cellHeight) * columns))
+                return Math.min(count - 1, Math.max(0, Math.floor(contentY / cellHeight) * columns))
             }
 
             function requestMoreIfNeeded() {
@@ -817,34 +782,23 @@ FocusScope {
             delegate: Item {
                 id: gridDelegate
                 required property int index
-                required property string title
-                required property string posterUrl
-                required property string seriesPosterUrl
-                required property string thumbUrl
-                required property string backdropUrl
-                required property string landscapeCardUrl
-                required property int year
-                required property string subtitle
+                required property var item
                 required property string displayTitle
                 required property string displaySubtitle
-                required property string movieId
-                required property string itemType
-                required property string seriesId
-                required property string seasonId
-                required property string seriesName
-                required property int seasonNumber
                 required property real progress
-                required property real resumeTicks
-                required property bool favorite
-                required property bool played
-                required property bool playable
+                readonly property var movie: item || ({})
                 width: grid.cellWidth
                 height: grid.cellHeight
 
-                function snapshot() { return appController.movies.get(index) || ({}) }
-                function handleAcceptPressed(key) { return card.handleAcceptPressed(key) }
-                function handleAcceptReleased(key) { return card.handleAcceptReleased(key) }
-                function handleKey(key) { return card.handleKey(key) }
+                function handleAcceptPressed(key) {
+                    return card.handleAcceptPressed(key)
+                }
+                function handleAcceptReleased(key) {
+                    return card.handleAcceptReleased(key)
+                }
+                function handleKey(key) {
+                    return card.handleKey(key)
+                }
 
                 MediaItemCard {
                     id: card
@@ -859,28 +813,13 @@ FocusScope {
                     useSeriesPoster: !root.episodeGrid
                     focused: gridDelegate.GridView.isCurrentItem
                     longPressAction: "menu"
-                    snapshotProvider: gridDelegate.snapshot
-                    movieId: gridDelegate.movieId
-                    title: gridDelegate.title
+                    snapshotProvider: function () {
+                        return browseController.items.get(index) || ({})
+                    }
+                    item: gridDelegate.movie
                     displayTitle: gridDelegate.displayTitle
                     displaySubtitle: gridDelegate.displaySubtitle
-                    subtitle: gridDelegate.subtitle
-                    posterUrl: gridDelegate.posterUrl
-                    seriesPosterUrl: gridDelegate.seriesPosterUrl
-                    thumbUrl: gridDelegate.thumbUrl
-                    backdropUrl: gridDelegate.backdropUrl
-                    landscapeCardUrl: gridDelegate.landscapeCardUrl
-                    itemType: gridDelegate.itemType
-                    seriesId: gridDelegate.seriesId
-                    seasonId: gridDelegate.seasonId
-                    seriesName: gridDelegate.seriesName
-                    seasonNumber: gridDelegate.seasonNumber
-                    year: gridDelegate.year
                     progress: gridDelegate.progress
-                    resumeTicks: gridDelegate.resumeTicks
-                    favorite: gridDelegate.favorite
-                    played: gridDelegate.played
-                    playable: gridDelegate.playable
                     onActivated: {
                         grid.currentIndex = index
                         root.setSavedGridIndex(index)
@@ -891,11 +830,11 @@ FocusScope {
                         root.setSavedGridIndex(index)
                         root.openCurrentDetails()
                     }
-                    onFavoriteToggled: (favorite) => appController.setFavorite(gridDelegate.movieId || "", favorite)
-                    onPlayedToggled: (played) => appController.setPlayed(gridDelegate.movieId || "", played)
+                    onFavoriteToggled: favorite => appController.setFavorite(gridDelegate.movie.movieId || "", favorite)
+                    onPlayedToggled: played => appController.setPlayed(gridDelegate.movie.movieId || "", played)
                     onMediaInfoRequested: {
                         if (root.hasShell())
-                            shell.openMediaInfo(gridDelegate.snapshot())
+                            shell.openMediaInfo(browseController.items.get(index) || ({}))
                     }
                 }
             }
@@ -916,45 +855,32 @@ FocusScope {
         elevated: true
         clip: true
 
-        ListView {
+        MenuListView {
             id: libraryList
             anchors.fill: parent
             anchors.margins: 10
             visible: libraryPanel.visible
-            clip: true
-            focus: true
-            keyNavigationEnabled: false
-            model: appController.libraries
+            model: libraryModel
             currentIndex: root.libraryIndex
-            boundsBehavior: Flickable.StopAtBounds
-            onCurrentIndexChanged: {
-                root.libraryIndex = currentIndex
-                if (currentIndex >= 0)
-                    positionViewAtIndex(currentIndex, ListView.Contain)
-            }
+            edgeEscapeItem: libraryButton
+            onCurrentIndexChanged: root.libraryIndex = currentIndex
+            onDismissed: root.closeMenus()
+            onAccepted: index => root.activateLibraryIndex(index)
 
-            FastWheelHandler { flickable: libraryList }
-
-            delegate: PopupRow {
+            delegate: MenuRow {
                 required property int index
                 required property string name
                 required property string collectionType
                 required property string libraryId
                 width: libraryList.width
-                optionIndex: index
                 label: name
-                selected: String(libraryId || "") === String(appController.currentLibraryId || "")
-                iconName: selected ? "radio_button_checked" : "radio_button_unchecked"
-                focus: ListView.isCurrentItem && libraryList.activeFocus
-                onActivated: {
-                    libraryList.currentIndex = index
-                    root.activateLibraryIndex(index)
-                }
-            }
-
-            Keys.onReleased: (event) => {
-                if (root.handleKey(event.key))
-                    event.accepted = true
+                checked: String(libraryId || "") === String(browseController ? browseController.libraryId || "" : "")
+                iconName: checked ? "radio_button_checked" : "radio_button_unchecked"
+                highlighted: ListView.isCurrentItem && libraryList.activeFocus
+                metricsWidth: root.width
+                checkIconName: ""
+                onHovered: libraryList.currentIndex = index
+                onActivated: root.activateLibraryIndex(index)
             }
         }
     }
@@ -973,45 +899,33 @@ FocusScope {
         elevated: true
         clip: true
 
-        ListView {
+        MenuListView {
             id: sortList
             anchors.fill: parent
             anchors.margins: 10
             visible: sortPanel.visible
-            clip: true
-            focus: true
-            keyNavigationEnabled: false
             model: root.sortEntries
             currentIndex: root.sortIndex
-            boundsBehavior: Flickable.StopAtBounds
-            onCurrentIndexChanged: {
-                root.sortIndex = currentIndex
-                if (currentIndex >= 0)
-                    positionViewAtIndex(currentIndex, ListView.Contain)
-            }
+            edgeEscapeItem: sortButton
+            onCurrentIndexChanged: root.sortIndex = currentIndex
+            onDismissed: root.closeMenus()
+            onAccepted: index => root.activateSortEntry(root.sortEntries[index])
 
-            FastWheelHandler { flickable: sortList }
-
-            delegate: PopupRow {
+            delegate: MenuRow {
                 required property int index
                 required property var modelData
                 width: sortList.width
-                optionIndex: index
                 label: modelData.label || ""
-                selected: String(modelData.value || "").indexOf("order:") === 0
-                          ? String(modelData.value).split(":")[1] === root.currentSortOrder()
-                          : modelData.value === root.currentSortBy()
-                iconName: selected ? "radio_button_checked" : "radio_button_unchecked"
-                focus: ListView.isCurrentItem && sortList.activeFocus
-                onActivated: {
-                    sortList.currentIndex = index
-                    root.activateSortEntry(modelData)
-                }
-            }
-
-            Keys.onReleased: (event) => {
-                if (root.handleKey(event.key))
-                    event.accepted = true
+                checked: String(modelData.value || "").indexOf("order:") === 0 ? String(modelData.value).split(":")[1]
+                                                                                 === root.currentSortOrder() :
+                                                                                 modelData.value === root.currentSortBy(
+                                                                                     )
+                iconName: checked ? "radio_button_checked" : "radio_button_unchecked"
+                highlighted: ListView.isCurrentItem && sortList.activeFocus
+                metricsWidth: root.width
+                checkIconName: ""
+                onHovered: sortList.currentIndex = index
+                onActivated: root.activateSortEntry(modelData)
             }
         }
     }
@@ -1054,61 +968,35 @@ FocusScope {
                 }
             }
 
-            ListView {
+            MenuListView {
                 id: filterList
                 Layout.fillWidth: true
                 Layout.fillHeight: true
-                clip: true
-                focus: true
-                keyNavigationEnabled: false
                 model: root.filterEntries
                 currentIndex: root.filterIndex
-                boundsBehavior: Flickable.StopAtBounds
-                onCurrentIndexChanged: {
-                    root.filterIndex = currentIndex
-                    if (currentIndex >= 0)
-                        positionViewAtIndex(currentIndex, ListView.Contain)
+                edgeEscapeItem: filterButton
+                rowEnabled: function (entry, index) {
+                    const row = root.filterEntries[index] || ({})
+                    return row.section !== true
                 }
+                onCurrentIndexChanged: root.filterIndex = currentIndex
+                onDismissed: root.closeMenus()
+                onAccepted: index => root.activateFilterEntry(root.filterEntries[index])
 
-                FastWheelHandler { flickable: filterList }
-
-                delegate: Item {
+                delegate: MenuRow {
                     required property int index
                     required property var modelData
                     width: filterList.width
-                    height: modelData.section ? 34 : 48
-
-                    AppText {
-                        anchors.left: parent.left
-                        anchors.right: parent.right
-                        anchors.verticalCenter: parent.verticalCenter
-                        visible: modelData.section === true
-                        text: modelData.label || ""
-                        color: Theme.textMuted
-                        font.pixelSize: Metrics.metaPx(root.width)
-                        font.weight: Font.DemiBold
-                        maximumLineCount: 1
-                        elide: Text.ElideRight
-                    }
-
-                    PopupRow {
-                        anchors.fill: parent
-                        visible: modelData.section !== true
-                        optionIndex: index
-                        label: modelData.label || ""
-                        selected: modelData.checked === true
-                        iconName: selected ? "check_box" : "check_box_outline_blank"
-                        focus: ListView.isCurrentItem && filterList.activeFocus
-                        onActivated: {
-                            filterList.currentIndex = index
-                            root.activateFilterEntry(modelData)
-                        }
-                    }
-                }
-
-                Keys.onReleased: (event) => {
-                    if (root.handleKey(event.key))
-                        event.accepted = true
+                    section: modelData.section === true
+                    label: modelData.label || ""
+                    checked: modelData.checked === true
+                    iconName: checked ? "check_box" : "check_box_outline_blank"
+                    highlighted: ListView.isCurrentItem && filterList.activeFocus
+                    metricsWidth: root.width
+                    rowHeight: 48
+                    checkIconName: ""
+                    onHovered: filterList.currentIndex = index
+                    onActivated: root.activateFilterEntry(modelData)
                 }
             }
         }

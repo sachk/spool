@@ -29,7 +29,7 @@ MovieItem item(QString id, QString title, QString playlistItemId = {})
     return movie;
 }
 
-QString idAt(const PlayQueueController &queue, int index)
+QString idAt(const PlayQueueController& queue, int index)
 {
     return queue.get(index).value(QStringLiteral("movieId")).toString();
 }
@@ -55,14 +55,13 @@ int main(int argc, char **argv)
 
     const std::vector<PlaybackQueueItem> reported = queue.nowPlayingQueue();
     require(reported.size() == 3, "reported queue should include all queued entries");
-    require(reported[1].itemId == QStringLiteral("b") &&
-            reported[1].playlistItemId == QStringLiteral("pl-b"),
-            "reported queue should preserve item and playlist ids");
+    require(reported[1].itemId == QStringLiteral("b") && reported[1].playlistItemId == QStringLiteral("pl-b"),
+        "reported queue should preserve item and playlist ids");
 
     require(queue.playNext(item(QStringLiteral("d"), QStringLiteral("Episode D"), QStringLiteral("pl-d"))),
-            "playNext should accept playable item");
+        "playNext should accept playable item");
     require(queue.addToQueue(item(QStringLiteral("e"), QStringLiteral("Episode E"), QStringLiteral("pl-e"))),
-            "addToQueue should accept playable item");
+        "addToQueue should accept playable item");
     require(queue.count() == 5, "queue additions should append rows");
     require(queue.next(), "next should move to playNext item");
     require(queue.currentItem().id == QStringLiteral("d"), "playNext item should be first upcoming item");
@@ -84,7 +83,7 @@ int main(int argc, char **argv)
     require(!queue.shuffled(), "setShuffled(false) should disable shuffled mode");
     require(queue.currentIndex() == 2, "unshuffle should restore current natural index");
     require(idAt(queue, 0) == QStringLiteral("a") && idAt(queue, 4) == QStringLiteral("e"),
-            "unshuffle should preserve natural row order");
+        "unshuffle should preserve natural row order");
 
     queue.removeAt(queue.currentIndex());
     require(queue.count() == 4, "removeAt should remove one row");

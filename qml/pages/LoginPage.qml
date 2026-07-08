@@ -7,146 +7,151 @@ FocusScope {
     id: root
 
     property var shell
-    property bool addMode: !(appController && appController.hasDefaultProfile && appController.session.serverUrl.length > 0)
+    property bool addMode: !(appController && appController.hasDefaultProfile && sessionController
+                             && sessionController.serverUrl.length > 0)
     property int addStep: 1
     property string selectedServerName: ""
-    property string selectedServerAddress: appController ? appController.session.serverUrl : ""
+    property string selectedServerAddress: sessionController ? sessionController.serverUrl : ""
     property string manualServerDraft: ""
     property string manualServerAddress: ""
     property string manualServerStatus: ""
 
-    readonly property bool hasSavedPair: appController && appController.hasDefaultProfile && appController.session.serverUrl.length > 0
+    readonly property bool hasSavedPair: appController && appController.hasDefaultProfile && sessionController
+                                         && sessionController.serverUrl.length > 0
     readonly property bool textInputActive: shell ? shell.textInputActive : Qt.inputMethod.visible
     readonly property bool manualServerVisible: manualServerAddress.length > 0
     readonly property int tileSize: width >= 1920 ? 190 : width >= 1280 ? 164 : 152
     readonly property int contentWidth: Math.min(width - Metrics.pageMargin(width) * 2, 1040)
     readonly property string savedServerName: "Jellyfin Server"
-    readonly property string savedServerAddress: appController ? appController.session.serverUrl : ""
-    readonly property string savedUsername: appController && appController.session.username.length > 0 ? appController.session.username : "Saved user"
+    readonly property string savedServerAddress: sessionController ? sessionController.serverUrl : ""
+    readonly property string savedUsername: sessionController && sessionController.username.length > 0
+                                            ? sessionController.username : "Saved user"
     readonly property string chosenServerName: selectedServerName.length > 0 ? selectedServerName : savedServerName
-    readonly property string chosenServerAddress: selectedServerAddress.length > 0 ? selectedServerAddress : appController ? appController.session.serverUrl : ""
+    readonly property string chosenServerAddress: selectedServerAddress.length > 0 ? selectedServerAddress :
+                                                                                     sessionController
+                                                                                     ? sessionController.serverUrl : ""
 
     focus: true
 
     function firstInitial(value) {
-        const text = String(value || "").trim();
-        return text.length > 0 ? text.charAt(0).toUpperCase() : "?";
+        const text = String(value || "").trim()
+        return text.length > 0 ? text.charAt(0).toUpperCase() : "?"
     }
 
     function profileTint(value) {
-        const palette = ["#1F4631", "#314026", "#243F46", "#3E3147", "#49352B", "#2D3D55"];
-        let hash = 0;
-        const text = String(value || "");
+        const palette = ["#1F4631", "#314026", "#243F46", "#3E3147", "#49352B", "#2D3D55"]
+        let hash = 0
+        const text = String(value || "")
         for (let i = 0; i < text.length; ++i)
-            hash = ((hash << 5) - hash + text.charCodeAt(i)) | 0;
-        return palette[Math.abs(hash) % palette.length];
+            hash = ((hash << 5) - hash + text.charCodeAt(i)) | 0
+        return palette[Math.abs(hash) % palette.length]
     }
 
     function normalizeServerUrl(value) {
-        const trimmed = String(value || "").trim();
+        const trimmed = String(value || "").trim()
         if (trimmed.length === 0)
-            return "";
-        return /^https?:\/\//i.test(trimmed) ? trimmed : "https://" + trimmed;
+            return ""
+        return /^https?:\/\//i.test(trimmed) ? trimmed : "https://" + trimmed
     }
 
     function enterProfile() {
         if (!appController)
-            return;
-        appController.useDefaultProfile();
+            return
+        appController.useDefaultProfile()
     }
 
     function openAddAccount() {
-        addMode = true;
-        addStep = 1;
-        Qt.callLater(focusServerStep);
+        addMode = true
+        addStep = 1
+        Qt.callLater(focusServerStep)
     }
 
     function showProfiles() {
         if (!hasSavedPair)
-            return;
-        addMode = false;
+            return
+        addMode = false
         Qt.callLater(function () {
-            InputKeys.focus(profileTile);
-        });
+            InputKeys.focus(profileTile)
+        })
     }
 
     function submitManualServer() {
-        const address = normalizeServerUrl(manualServerDraft);
+        const address = normalizeServerUrl(manualServerDraft)
         if (address.length === 0)
-            return;
-        manualServerAddress = address;
-        manualServerStatus = "Checking";
-        selectedServerName = savedServerName;
-        selectedServerAddress = address;
-        if (appController)
-            appController.session.serverUrl = address;
-        manualProbe.restart();
+            return
+        manualServerAddress = address
+        manualServerStatus = "Checking"
+        selectedServerName = savedServerName
+        selectedServerAddress = address
+        if (sessionController)
+            sessionController.serverUrl = address
+        manualProbe.restart()
         Qt.callLater(function () {
-            InputKeys.focus(manualServerCard);
-        });
+            InputKeys.focus(manualServerCard)
+        })
     }
 
     function chooseManualServer() {
         if (!manualServerVisible || manualServerStatus !== "Online")
-            return;
-        selectedServerName = savedServerName;
-        selectedServerAddress = manualServerAddress;
-        if (appController)
-            appController.session.serverUrl = manualServerAddress;
-        addStep = 2;
+            return
+        selectedServerName = savedServerName
+        selectedServerAddress = manualServerAddress
+        if (sessionController)
+            sessionController.serverUrl = manualServerAddress
+        addStep = 2
         Qt.callLater(function () {
-            usernameRow.focusField();
-        });
+            usernameRow.focusField()
+        })
     }
 
     function chooseDiscoveredServer(index, name, address) {
         if (!appController || index < 0)
-            return;
-        appController.chooseDiscoveredServer(index);
-        selectedServerName = name && name.length > 0 ? name : savedServerName;
-        selectedServerAddress = address;
-        addStep = 2;
+            return
+        appController.chooseDiscoveredServer(index)
+        selectedServerName = name && name.length > 0 ? name : savedServerName
+        selectedServerAddress = address
+        addStep = 2
         Qt.callLater(function () {
-            usernameRow.focusField();
-        });
+            usernameRow.focusField()
+        })
     }
 
     function focusServerStep() {
         if (!addMode || addStep !== 1)
-            return;
+            return
         if (manualServerVisible)
-            InputKeys.focus(manualServerCard);
+            InputKeys.focus(manualServerCard)
         else if (discoveredList.count > 0) {
             if (discoveredList.currentIndex < 0)
-                discoveredList.currentIndex = 0;
-            InputKeys.focus(discoveredList);
+                discoveredList.currentIndex = 0
+            InputKeys.focus(discoveredList)
         } else {
-            urlRow.focusRow();
+            urlRow.focusRow()
         }
     }
 
     function signIn() {
         if (appController)
-            appController.login();
+            appController.login()
     }
 
     Keys.onPressed: event => {
-        if (InputKeys.isBackEvent(event, !textInputActive)) {
-            if (addMode && addStep === 2) {
-                addStep = 1;
-                Qt.callLater(focusServerStep);
-                event.accepted = true;
-            } else if (addMode && hasSavedPair) {
-                showProfiles();
-                event.accepted = true;
-            }
-            return;
-        }
-        if (InputKeys.isMedia(event.key)) {
-            signIn();
-            event.accepted = true;
-        }
-    }
+                        if (InputKeys.isBackEvent(event, !textInputActive)) {
+                            if (addMode && addStep === 2) {
+                                addStep = 1
+                                Qt.callLater(focusServerStep)
+                                event.accepted = true
+                            } else if (addMode && hasSavedPair) {
+                                showProfiles()
+                                event.accepted = true
+                            }
+                            return
+                        }
+                        if (InputKeys.isMedia(event.key)) {
+                            signIn()
+                            event.accepted = true
+                        }
+                    }
 
     Timer {
         id: manualProbe
@@ -157,9 +162,9 @@ FocusScope {
 
     Component.onCompleted: Qt.callLater(function () {
         if (hasSavedPair)
-            InputKeys.focus(profileTile);
+            InputKeys.focus(profileTile)
         else
-            focusServerStep();
+            focusServerStep()
     })
 
     Rectangle {
@@ -249,10 +254,10 @@ FocusScope {
             visible: root.hasSavedPair || root.addStep === 2
             onClicked: {
                 if (root.addStep === 2) {
-                    root.addStep = 1;
-                    Qt.callLater(root.focusServerStep);
+                    root.addStep = 1
+                    Qt.callLater(root.focusServerStep)
                 } else {
-                    root.showProfiles();
+                    root.showProfiles()
                 }
             }
         }
@@ -301,14 +306,15 @@ FocusScope {
                 focus: false
                 keyNavigationEnabled: true
                 boundsBehavior: Flickable.StopAtBounds
-                model: appController ? appController.discoveredServers : null
+                model: discoveredServersModel
                 currentIndex: count > 0 ? 0 : -1
                 onCountChanged: {
-                    if (root.addMode && root.addStep === 1 && count > 0 && !urlRow.editing && !manualServerCard.activeFocus)
-                        Qt.callLater(root.focusServerStep);
+                    if (root.addMode && root.addStep === 1 && count > 0 && !urlRow.editing &&
+                            !manualServerCard.activeFocus)
+                        Qt.callLater(root.focusServerStep)
                 }
                 onCurrentIndexChanged: if (currentIndex >= 0)
-                    positionViewAtIndex(currentIndex, ListView.Contain)
+                                           positionViewAtIndex(currentIndex, ListView.Contain)
 
                 FastWheelHandler {
                     flickable: discoveredList
@@ -329,25 +335,25 @@ FocusScope {
                     MouseArea {
                         anchors.fill: parent
                         onClicked: {
-                            discoveredList.currentIndex = index;
-                            root.chooseDiscoveredServer(index, title, address);
+                            discoveredList.currentIndex = index
+                            root.chooseDiscoveredServer(index, title, address)
                         }
                     }
                 }
 
                 Keys.onPressed: event => {
-                    if (InputKeys.isAccept(event.key, false)) {
-                        if (currentItem)
-                            currentItem.accepted();
-                        event.accepted = true;
-                    } else if (event.key === Qt.Key_Up && currentIndex <= 0) {
-                        if (root.manualServerVisible)
-                            InputKeys.focus(manualServerCard);
-                        else
-                            urlRow.focusRow();
-                        event.accepted = true;
-                    }
-                }
+                                    if (InputKeys.isAccept(event.key, false)) {
+                                        if (currentItem)
+                                        currentItem.accepted()
+                                        event.accepted = true
+                                    } else if (event.key === Qt.Key_Up && currentIndex <= 0) {
+                                        if (root.manualServerVisible)
+                                        InputKeys.focus(manualServerCard)
+                                        else
+                                        urlRow.focusRow()
+                                        event.accepted = true
+                                    }
+                                }
             }
 
             EmptyPlaceholder {
@@ -355,25 +361,6 @@ FocusScope {
                 visible: discoveredList.count === 0 && !root.manualServerVisible
                 title: "No servers found"
                 detail: ""
-            }
-
-            Surface {
-                Layout.fillWidth: true
-                Layout.preferredHeight: 74
-                visible: appController && appController.errorText.length > 0
-                baseColor: Theme.errorPanel
-
-                AppText {
-                    anchors.fill: parent
-                    anchors.margins: 14
-                    text: appController ? appController.errorText : ""
-                    color: Theme.errorText
-                    font.pixelSize: Metrics.metaPx(root.width)
-                    wrapMode: Text.WordWrap
-                    maximumLineCount: 2
-                    elide: Text.ElideRight
-                    verticalAlignment: Text.AlignVCenter
-                }
             }
         }
 
@@ -394,8 +381,8 @@ FocusScope {
                 status: "Online"
                 KeyNavigation.down: usernameRow
                 onAccepted: {
-                    root.addStep = 1;
-                    Qt.callLater(root.focusServerStep);
+                    root.addStep = 1
+                    Qt.callLater(root.focusServerStep)
                 }
             }
 
@@ -404,10 +391,10 @@ FocusScope {
                 Layout.fillWidth: true
                 label: "Username"
                 placeholderText: "Username"
-                text: appController ? appController.session.username : ""
+                text: sessionController ? sessionController.username : ""
                 inputMethodHints: Qt.ImhNoPredictiveText | Qt.ImhNoAutoUppercase
-                onTextEdited: if (appController)
-                    appController.session.username = text
+                onTextEdited: if (sessionController)
+                                  sessionController.username = text
                 onAccepted: passwordRow.focusField()
                 KeyNavigation.up: chosenServerCard
                 KeyNavigation.down: passwordRow
@@ -418,11 +405,11 @@ FocusScope {
                 Layout.fillWidth: true
                 label: "Password"
                 placeholderText: "Password"
-                text: appController ? appController.session.password : ""
+                text: sessionController ? sessionController.password : ""
                 echoMode: TextInput.Password
                 inputMethodHints: Qt.ImhSensitiveData | Qt.ImhNoPredictiveText
-                onTextEdited: if (appController)
-                    appController.session.password = text
+                onTextEdited: if (sessionController)
+                                  sessionController.password = text
                 onAccepted: InputKeys.focus(signInButton)
                 KeyNavigation.up: usernameRow
                 KeyNavigation.down: signInButton
@@ -445,17 +432,17 @@ FocusScope {
 
                 ActionButton {
                     id: quickConnectButton
-                    text: appController && appController.quickConnect.active ? "Cancel" : "Quick Connect"
+                    text: quickConnectController && quickConnectController.active ? "Cancel" : "Quick Connect"
                     iconName: "bolt"
                     Layout.fillWidth: true
                     onClicked: {
                         if (!appController)
-                            return;
-                        if (appController.quickConnect.active) {
-                            appController.quickConnect.cancel();
-                        } else {
-                            appController.clearError();
-                            appController.quickConnect.start(appController.session.serverUrl);
+                            return
+                        if (quickConnectController && quickConnectController.active) {
+                            quickConnectController.cancel()
+                        } else if (quickConnectController && sessionController) {
+                            appController.clearError()
+                            quickConnectController.start(sessionController.serverUrl)
                         }
                     }
                     KeyNavigation.up: passwordRow
@@ -466,7 +453,7 @@ FocusScope {
             Surface {
                 Layout.fillWidth: true
                 Layout.preferredHeight: 92
-                visible: appController && appController.quickConnect.active
+                visible: quickConnectController && quickConnectController.active
                 baseColor: Theme.accentPanel
 
                 Column {
@@ -475,35 +462,16 @@ FocusScope {
 
                     AppText {
                         anchors.horizontalCenter: parent.horizontalCenter
-                        text: appController ? appController.quickConnect.code : ""
+                        text: quickConnectController ? quickConnectController.code : ""
                         font.pixelSize: 32
                         font.weight: Font.Bold
                     }
 
                     MonoText {
                         anchors.horizontalCenter: parent.horizontalCenter
-                        text: appController ? appController.quickConnect.status : ""
+                        text: quickConnectController ? quickConnectController.status : ""
                         color: Theme.textSecondary
                     }
-                }
-            }
-
-            Surface {
-                Layout.fillWidth: true
-                Layout.preferredHeight: 74
-                visible: appController && appController.errorText.length > 0
-                baseColor: Theme.errorPanel
-
-                AppText {
-                    anchors.fill: parent
-                    anchors.margins: 14
-                    text: appController ? appController.errorText : ""
-                    color: Theme.errorText
-                    font.pixelSize: Metrics.metaPx(root.width)
-                    wrapMode: Text.WordWrap
-                    maximumLineCount: 2
-                    elide: Text.ElideRight
-                    verticalAlignment: Text.AlignVCenter
                 }
             }
         }
@@ -539,11 +507,11 @@ FocusScope {
         }
 
         Keys.onPressed: event => {
-            if (InputKeys.isAccept(event.key, false)) {
-                tile.accepted();
-                event.accepted = true;
-            }
-        }
+                            if (InputKeys.isAccept(event.key, false)) {
+                                tile.accepted()
+                                event.accepted = true
+                            }
+                        }
 
         Rectangle {
             id: avatar
@@ -664,11 +632,11 @@ FocusScope {
         focusPolicy: Qt.StrongFocus
 
         Keys.onPressed: event => {
-            if (InputKeys.isAccept(event.key, false) && choice.selectable) {
-                choice.accepted();
-                event.accepted = true;
-            }
-        }
+                            if (InputKeys.isAccept(event.key, false) && choice.selectable) {
+                                choice.accepted()
+                                event.accepted = true
+                            }
+                        }
 
         Rectangle {
             anchors.fill: parent

@@ -3,9 +3,8 @@
 #include <QDebug>
 #include <QElapsedTimer>
 
-
-#include <functional>
 #include <atomic>
+#include <functional>
 #include <mutex>
 #include <string>
 #include <thread>
@@ -27,27 +26,27 @@ extern "C" {
 // with actual usage: an entry missing here fails at app link time (undefined
 // reference), an entry missing in libmpv fails loudly at load time — both are
 // impossible to ship by accident.
-#define MPV_RUNTIME_SYMBOLS(X) \
-    X(mpv_create) \
-    X(mpv_initialize) \
-    X(mpv_destroy) \
-    X(mpv_terminate_destroy) \
-    X(mpv_wait_event) \
-    X(mpv_observe_property) \
-    X(mpv_set_option_string) \
-    X(mpv_set_property) \
-    X(mpv_set_property_string) \
-    X(mpv_get_property) \
-    X(mpv_get_property_async) \
-    X(mpv_command) \
-    X(mpv_command_async) \
-    X(mpv_command_string) \
-    X(mpv_error_string) \
-    X(mpv_render_context_create) \
-    X(mpv_render_context_free) \
-    X(mpv_render_context_render) \
-    X(mpv_render_context_set_update_callback) \
-    X(starfish_overlay_set_present_cb) \
+#define MPV_RUNTIME_SYMBOLS(X)                                                                                         \
+    X(mpv_create)                                                                                                      \
+    X(mpv_initialize)                                                                                                  \
+    X(mpv_destroy)                                                                                                     \
+    X(mpv_terminate_destroy)                                                                                           \
+    X(mpv_wait_event)                                                                                                  \
+    X(mpv_observe_property)                                                                                            \
+    X(mpv_set_option_string)                                                                                           \
+    X(mpv_set_property)                                                                                                \
+    X(mpv_set_property_string)                                                                                         \
+    X(mpv_get_property)                                                                                                \
+    X(mpv_get_property_async)                                                                                          \
+    X(mpv_command)                                                                                                     \
+    X(mpv_command_async)                                                                                               \
+    X(mpv_command_string)                                                                                              \
+    X(mpv_error_string)                                                                                                \
+    X(mpv_render_context_create)                                                                                       \
+    X(mpv_render_context_free)                                                                                         \
+    X(mpv_render_context_render)                                                                                       \
+    X(mpv_render_context_set_update_callback)                                                                          \
+    X(starfish_overlay_set_present_cb)                                                                                 \
     X(starfish_exported_set_crop_cb)
 
 namespace {
@@ -59,7 +58,7 @@ struct MpvApi {
 };
 
 MpvApi g_api;
-std::atomic<bool> g_loaded{false};
+std::atomic<bool> g_loaded { false };
 std::mutex g_loadLock;
 std::mutex g_loadCallbackLock;
 std::vector<std::function<void()>> g_loadCallbacks;
@@ -72,12 +71,11 @@ std::vector<std::function<void()>> takeLoadCallbacks()
 
 void runLoadCallbacks()
 {
-    for (auto &callback : takeLoadCallbacks()) {
+    for (auto& callback : takeLoadCallbacks()) {
         if (callback)
             callback();
     }
 }
-
 
 // The NativeAppWindow constructor registers the starfish OSD/crop callbacks
 // long before libmpv is loaded. Record them here and replay once the library
@@ -127,11 +125,11 @@ bool loadNow()
 
     MpvApi api;
     bool ok = true;
-#define RESOLVE_MEMBER(name) \
-    api.name = reinterpret_cast<decltype(&::name)>(dlsym(handle, #name)); \
-    if (!api.name) { \
-        qWarning() << "MpvRuntime: missing symbol" << #name; \
-        ok = false; \
+#define RESOLVE_MEMBER(name)                                                                                           \
+    api.name = reinterpret_cast<decltype(&::name)>(dlsym(handle, #name));                                              \
+    if (!api.name) {                                                                                                   \
+        qWarning() << "MpvRuntime: missing symbol" << #name;                                                           \
+        ok = false;                                                                                                    \
     }
     MPV_RUNTIME_SYMBOLS(RESOLVE_MEMBER)
 #undef RESOLVE_MEMBER
@@ -148,8 +146,7 @@ bool loadNow()
         g_api.starfish_exported_set_crop_cb(g_cropCb, g_cropOpaque);
     }
 
-    qInfo() << "MpvRuntime: libmpv loaded in" << timer.elapsed() << "ms from"
-            << path.c_str();
+    qInfo() << "MpvRuntime: libmpv loaded in" << timer.elapsed() << "ms from" << path.c_str();
     return true;
 }
 
@@ -244,8 +241,7 @@ mpv_event *mpv_wait_event(mpv_handle *ctx, double timeout)
     return g_api.mpv_wait_event(ctx, timeout);
 }
 
-int mpv_observe_property(mpv_handle *mpv, uint64_t reply_userdata,
-                         const char *name, mpv_format format)
+int mpv_observe_property(mpv_handle *mpv, uint64_t reply_userdata, const char *name, mpv_format format)
 {
     if (!JellyfinNative::MpvRuntime::ensureLoaded())
         return MPV_ERROR_GENERIC;
@@ -259,8 +255,7 @@ int mpv_set_option_string(mpv_handle *ctx, const char *name, const char *data)
     return g_api.mpv_set_option_string(ctx, name, data);
 }
 
-int mpv_set_property(mpv_handle *ctx, const char *name, mpv_format format,
-                     void *data)
+int mpv_set_property(mpv_handle *ctx, const char *name, mpv_format format, void *data)
 {
     if (!JellyfinNative::MpvRuntime::ensureLoaded())
         return MPV_ERROR_GENERIC;
@@ -274,16 +269,14 @@ int mpv_set_property_string(mpv_handle *ctx, const char *name, const char *data)
     return g_api.mpv_set_property_string(ctx, name, data);
 }
 
-int mpv_get_property(mpv_handle *ctx, const char *name, mpv_format format,
-                     void *data)
+int mpv_get_property(mpv_handle *ctx, const char *name, mpv_format format, void *data)
 {
     if (!JellyfinNative::MpvRuntime::ensureLoaded())
         return MPV_ERROR_GENERIC;
     return g_api.mpv_get_property(ctx, name, format, data);
 }
 
-int mpv_get_property_async(mpv_handle *ctx, uint64_t reply_userdata,
-                           const char *name, mpv_format format)
+int mpv_get_property_async(mpv_handle *ctx, uint64_t reply_userdata, const char *name, mpv_format format)
 {
     if (!JellyfinNative::MpvRuntime::ensureLoaded())
         return MPV_ERROR_GENERIC;
@@ -297,8 +290,7 @@ int mpv_command(mpv_handle *ctx, const char **args)
     return g_api.mpv_command(ctx, args);
 }
 
-int mpv_command_async(mpv_handle *ctx, uint64_t reply_userdata,
-                      const char **args)
+int mpv_command_async(mpv_handle *ctx, uint64_t reply_userdata, const char **args)
 {
     if (!JellyfinNative::MpvRuntime::ensureLoaded())
         return MPV_ERROR_GENERIC;
@@ -323,8 +315,7 @@ const char *mpv_error_string(int error)
 // (vo=starfish renders out-of-process); the definitions exist to satisfy the
 // linker and fail safely if ever reached.
 
-int mpv_render_context_create(mpv_render_context **res, mpv_handle *mpv,
-                              mpv_render_param *params)
+int mpv_render_context_create(mpv_render_context **res, mpv_handle *mpv, mpv_render_param *params)
 {
     if (!JellyfinNative::MpvRuntime::ensureLoaded())
         return MPV_ERROR_GENERIC;
@@ -344,9 +335,7 @@ int mpv_render_context_render(mpv_render_context *ctx, mpv_render_param *params)
     return g_api.mpv_render_context_render(ctx, params);
 }
 
-void mpv_render_context_set_update_callback(mpv_render_context *ctx,
-                                            mpv_render_update_fn callback,
-                                            void *callback_ctx)
+void mpv_render_context_set_update_callback(mpv_render_context *ctx, mpv_render_update_fn callback, void *callback_ctx)
 {
     if (ctx && JellyfinNative::MpvRuntime::ensureLoaded())
         g_api.mpv_render_context_set_update_callback(ctx, callback, callback_ctx);
@@ -356,8 +345,7 @@ void mpv_render_context_set_update_callback(mpv_render_context *ctx,
 // constructor before libmpv exists. Store-and-replay instead of forcing a
 // synchronous load on the startup path.
 
-void starfish_overlay_set_present_cb(starfish_overlay_present_cb cb,
-                                     void *opaque)
+void starfish_overlay_set_present_cb(starfish_overlay_present_cb cb, void *opaque)
 {
     std::lock_guard<std::mutex> lock(g_starfishLock);
     g_overlayCb = cb;

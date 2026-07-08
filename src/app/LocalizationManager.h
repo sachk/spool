@@ -15,8 +15,7 @@ namespace JellyfinNative {
 //
 // Today we ship English variants only, but the manager is BCP-47 friendly so
 // we can land more locales without code changes.
-class LocalizationManager final : public QObject
-{
+class LocalizationManager final : public QObject {
     Q_OBJECT
     Q_PROPERTY(QString currentLocale READ currentLocale NOTIFY localeChanged)
     Q_PROPERTY(QStringList availableLocales READ availableLocales CONSTANT)
@@ -27,22 +26,25 @@ public:
 
     QString currentLocale() const;
     QStringList availableLocales() const;
-    bool useSystemLocale() const { return m_useSystem; }
+    bool useSystemLocale() const
+    {
+        return m_useSystem;
+    }
 
     // BCP-47 form for protocol headers (Accept-Language).
     QString bcp47Locale() const;
 
     void attachToEngine(QQmlEngine *engine);
 
-    Q_INVOKABLE void setLocale(const QString &localeTag);
+    Q_INVOKABLE void setLocale(const QString& localeTag);
     Q_INVOKABLE void useSystemDefault();
-    Q_INVOKABLE QString displayNameFor(const QString &localeTag) const;
+    Q_INVOKABLE QString displayNameFor(const QString& localeTag) const;
 
 signals:
     void localeChanged();
 
 private:
-    void applyLocale(const QString &localeTag);
+    void applyLocale(const QString& localeTag);
 
     QTranslator m_translator;
     QQmlEngine *m_engine = nullptr;

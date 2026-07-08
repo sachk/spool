@@ -11,8 +11,8 @@
 #include <QNetworkReply>
 #include <QNetworkRequestFactory>
 #include <QObject>
-#include <QSet>
 #include <QRestAccessManager>
+#include <QSet>
 #include <QString>
 #include <QStringList>
 #include <QUrlQuery>
@@ -20,42 +20,39 @@
 
 #include <vector>
 
-
 namespace JellyfinNative {
 
-class JellyfinApiFacade final : public QObject
-{
+class JellyfinApiFacade final : public QObject {
     Q_OBJECT
 
 public:
     explicit JellyfinApiFacade(QNetworkAccessManager *networkAccessManager, QObject *parent = nullptr);
     ~JellyfinApiFacade() override;
 
-    void setServerUrl(const QString &serverUrl);
+    void setServerUrl(const QString& serverUrl);
     QString serverUrl() const;
 
-    void setDeviceIdentity(const QString &deviceId, const QString &deviceName, const QString &clientVersion);
+    void setDeviceIdentity(const QString& deviceId, const QString& deviceName, const QString& clientVersion);
     QString deviceId() const;
 
     // Forwarded into the QNetworkRequestFactory common headers so every API
     // call hints the server about our locale. Jellyfin uses this to localise
     // server-returned strings (Continue Watching titles, etc.).
-    void setAcceptLanguage(const QString &bcp47Tag);
+    void setAcceptLanguage(const QString& bcp47Tag);
 
-    void setSession(const AuthSession &session);
+    void setSession(const AuthSession& session);
     AuthSession session() const;
     void setPlaybackPreferences(qint64 maxStreamingBitrate, bool preferRemux);
     void setArtworkUiWidth(int width);
     int landscapeCardImageWidth() const;
     int landscapeCardImageQuality() const;
 
-    QString buildImageUrl(const QString &itemId, const QString &tag = {}, int maxWidth = 280,
-                          int quality = 75, const QString &format = QStringLiteral("webp"),
-                          const QString &imageType = QStringLiteral("Primary"),
-                          int fillWidth = 0, int fillHeight = 0) const;
+    QString buildImageUrl(const QString& itemId, const QString& tag = {}, int maxWidth = 280, int quality = 75,
+        const QString& format = QStringLiteral("webp"), const QString& imageType = QStringLiteral("Primary"),
+        int fillWidth = 0, int fillHeight = 0) const;
+    QString authorizationHeader(const QString& tokenOverride = {}) const;
     void cancelRequests();
 
-    QCoro::Task<void> probeServer();
     QCoro::Task<AuthSession> authenticateByName(QString username, QString password);
     QCoro::Task<bool> quickConnectEnabled();
     QCoro::Task<QJsonObject> initiateQuickConnect();
@@ -67,12 +64,8 @@ public:
     QCoro::Task<QJsonObject> fetchCurrentUserPolicy();
     QCoro::Task<QJsonArray> fetchCultures();
     QCoro::Task<std::vector<LibraryItem>> fetchLibraries();
-    QCoro::Task<PagedMovieItems> fetchLibraryPage(QString libraryId, QString collectionType = {},
-                                                  int startIndex = 0, int limit = 72,
-                                                  QVariantMap queryOptions = {});
-    QCoro::Task<PagedMovieItems> fetchBrowsePage(BrowseDescriptor descriptor,
-                                                 int startIndex = 0, int limit = 72,
-                                                 QVariantMap queryOptions = {});
+    QCoro::Task<PagedMovieItems> fetchBrowsePage(
+        BrowseDescriptor descriptor, int startIndex = 0, int limit = 72, QVariantMap queryOptions = {});
     QCoro::Task<QVariantMap> fetchLibraryFilterOptions(QString libraryId, QString collectionType = {});
     QCoro::Task<MovieItem> fetchItemDetails(QString itemId);
     QCoro::Task<std::vector<MovieItem>> fetchSeasons(QString seriesId);
@@ -84,8 +77,6 @@ public:
     QCoro::Task<std::vector<MovieItem>> fetchSearchSuggestions(int limit = 20);
     QCoro::Task<std::vector<MovieItem>> fetchSimilarItems(QString itemId, int limit = 24);
     QCoro::Task<std::vector<MovieItem>> fetchItemsByPerson(QString personId, int limit = 80);
-    QCoro::Task<std::vector<MovieItem>> fetchItemsByGenre(QString genre, int limit = 200);
-    QCoro::Task<std::vector<MovieItem>> fetchItemsByStudio(QString studio, int limit = 200);
     QCoro::Task<std::vector<MovieItem>> fetchManagementTargets(QString itemType);
     QCoro::Task<QString> createPlaylist(QString name, QStringList itemIds = {});
     QCoro::Task<void> addPlaylistItems(QString playlistId, QStringList itemIds, int position = -1);
@@ -102,7 +93,7 @@ public:
     QCoro::Task<void> setItemPlaybackPosition(QString itemId, qint64 positionTicks);
     QCoro::Task<std::vector<MediaSegment>> fetchMediaSegments(QString itemId);
     QCoro::Task<TrickplayInfo> fetchTrickplay(QString itemId, QString mediaSourceId, int preferredWidth = 320);
-    QString trickplayTileUrl(const QString &itemId, int width, int tileIndex) const;
+    QString trickplayTileUrl(const QString& itemId, int width, int tileIndex) const;
     QCoro::Task<PlaybackSession> negotiatePlayback(MovieItem movie);
 
     // SyncPlay REST endpoints used alongside SyncPlayController's WebSocket.
@@ -116,8 +107,7 @@ public:
     QCoro::Task<QJsonObject> fetchUtcTime();
     QCoro::Task<void> syncPlayReportPing(qint64 pingMs);
     QCoro::Task<void> syncPlayReportBuffering(
-        bool buffering, qint64 positionTicks, bool playing,
-        QString playlistItemId, QDateTime serverTime);
+        bool buffering, qint64 positionTicks, bool playing, QString playlistItemId, QDateTime serverTime);
 
     QCoro::Task<void> postCapabilities();
     QCoro::Task<void> reportPlaybackStart(PlaybackSession session);
@@ -125,7 +115,7 @@ public:
     QCoro::Task<void> reportPlaybackStopped(PlaybackSession session, qint64 positionTicks, bool failed);
 
 signals:
-    void authenticationExpired(const QString &message);
+    void authenticationExpired(const QString& message);
 
 private:
     enum class HttpMethod {
@@ -134,19 +124,19 @@ private:
         Delete,
     };
 
-    QNetworkRequest createRequest(const QString &path, const QUrlQuery &query = {}) const;
-    QString createAuthorizationHeader(const QString &tokenOverride = {}) const;
-    QCoro::Task<QJsonDocument> requestJson(HttpMethod method, QString path, QUrlQuery query = {},
-                                           QJsonDocument body = {});
+    QNetworkRequest createRequest(const QString& path, const QUrlQuery& query = {}) const;
+    QCoro::Task<QJsonDocument> requestJson(
+        HttpMethod method, QString path, QUrlQuery query = {}, QJsonDocument body = {});
     QCoro::Task<void> requestNoContent(HttpMethod method, QString path, QJsonDocument body);
-    QCoro::Task<QByteArray> requestBytes(HttpMethod method, QString path, QUrlQuery query = {},
-                                         QJsonDocument body = {});
+    QCoro::Task<QByteArray> requestBytes(
+        HttpMethod method, QString path, QUrlQuery query = {}, QJsonDocument body = {});
 
     QJsonObject buildDeviceProfile() const;
-    PlaybackSession buildPlaybackSession(const MovieItem &movie, const QJsonObject &playbackResponse) const;
-    HttpOperation operationFor(HttpMethod method, const QString &path) const;
-    bool shouldExpireSession(const QString &path) const;
+    PlaybackSession buildPlaybackSession(const MovieItem& movie, const QJsonObject& playbackResponse) const;
+    HttpOperation operationFor(HttpMethod method, const QString& path) const;
+    bool shouldExpireSession(const QString& path) const;
     void preconnectToServer();
+    void applyCommonHeaders();
 
     QNetworkAccessManager *m_networkAccessManager = nullptr;
     QRestAccessManager m_rest;
@@ -158,6 +148,7 @@ private:
     AuthSession m_session;
     QSet<QNetworkReply *> m_activeReplies;
     QString m_preconnectedAuthority;
+    QString m_acceptLanguage;
     int m_artworkUiWidth = 1920;
     qint64 m_maxStreamingBitrate = 120'000'000;
     bool m_preferRemux = true;

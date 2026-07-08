@@ -17,8 +17,7 @@ extern "C" {
 
 namespace JellyfinNative {
 
-class NativeAppWindow final : public QQuickView
-{
+class NativeAppWindow final : public QQuickView {
     Q_OBJECT
     Q_PROPERTY(int overlayRevision READ overlayRevision NOTIFY overlayRevisionChanged)
     Q_PROPERTY(bool tvPlatform READ tvPlatform CONSTANT)
@@ -26,7 +25,7 @@ class NativeAppWindow final : public QQuickView
     Q_PROPERTY(bool fullScreen READ fullScreen NOTIFY fullScreenChanged)
 
 public:
-    explicit NativeAppWindow(const QString &appId, QWindow *parent = nullptr);
+    explicit NativeAppWindow(const QString& appId, QWindow *parent = nullptr);
     ~NativeAppWindow() override;
 
     bool prepareForUiSurface();
@@ -73,23 +72,21 @@ private:
     bool ensureVideoSurface();
     bool bindGlobals();
     void updateCropRegion();
-    void setVideoCrop(int origW, int origH, int srcX, int srcY, int srcW, int srcH,
-                      int dstX, int dstY, int dstW, int dstH);
-    void scheduleVideoCrop(int origW, int origH, int srcX, int srcY, int srcW, int srcH,
-                           int dstX, int dstY, int dstW, int dstH);
+    void setVideoCrop(
+        int origW, int origH, int srcX, int srcY, int srcW, int srcH, int dstX, int dstY, int dstW, int dstH);
+    void scheduleVideoCrop(
+        int origW, int origH, int srcX, int srcY, int srcW, int srcH, int dstX, int dstY, int dstW, int dstH);
     void publishPendingVideoCrop();
     void scheduleOverlayImage(QImage image);
     void publishPendingOverlayImage();
 
-    static void registryGlobal(void *data, wl_registry *registry, uint32_t name,
-                               const char *interface, uint32_t version);
+    static void registryGlobal(
+        void *data, wl_registry *registry, uint32_t name, const char *interface, uint32_t version);
     static void registryRemove(void *, wl_registry *, uint32_t);
     static void exportedWindowIdAssigned(void *data, wl_webos_exported *, const char *window_id, uint32_t);
-    static void overlayPresentCallback(void *data, const uint8_t *pixels,
-                                       int width, int height, int stride);
-    static void exportedCropCallback(void *data, int origW, int origH,
-                                     int srcX, int srcY, int srcW, int srcH,
-                                     int dstX, int dstY, int dstW, int dstH);
+    static void overlayPresentCallback(void *data, const uint8_t *pixels, int width, int height, int stride);
+    static void exportedCropCallback(void *data, int origW, int origH, int srcX, int srcY, int srcW, int srcH, int dstX,
+        int dstY, int dstW, int dstH);
 #endif
 
     QString m_appId;

@@ -16,7 +16,7 @@ T.Control {
     readonly property bool editing: field.activeFocus
 
     signal textEdited(string text)
-    signal accepted()
+    signal accepted
 
     focusPolicy: Qt.StrongFocus
     implicitHeight: 56
@@ -33,12 +33,12 @@ T.Control {
         Qt.inputMethod.show()
     }
 
-    Keys.onPressed: (event) => {
-        if (InputKeys.isAccept(event.key)) {
-            row.focusField()
-            event.accepted = true
-        }
-    }
+    Keys.onPressed: event => {
+                        if (InputKeys.isAccept(event.key)) {
+                            row.focusField()
+                            event.accepted = true
+                        }
+                    }
 
     background: Rectangle {
         radius: Theme.radiusMedium
@@ -80,21 +80,21 @@ T.Control {
         // Catch Back / Escape before the input method consumes the press so
         // the user can cleanly exit the keyboard with the TV remote's Back.
         Keys.priority: Keys.BeforeItem
-        Keys.onPressed: (event) => {
-            if (InputKeys.isBackEvent(event, false)) {
-                Qt.inputMethod.hide()
-                row.focusRow()
-                event.accepted = true
-                return
-            }
-            if (!Qt.inputMethod.visible
-                    && (event.key === Qt.Key_Up || event.key === Qt.Key_Down
-                        || event.key === Qt.Key_Tab || event.key === Qt.Key_Backtab)) {
-                row.focusRow()
-                event.accepted = false
-                return
-            }
-        }
+        Keys.onPressed: event => {
+                            if (InputKeys.isBackEvent(event, false)) {
+                                Qt.inputMethod.hide()
+                                row.focusRow()
+                                event.accepted = true
+                                return
+                            }
+                            if (!Qt.inputMethod.visible && (event.key === Qt.Key_Up || event.key === Qt.Key_Down
+                                                            || event.key === Qt.Key_Tab || event.key
+                                                            === Qt.Key_Backtab)) {
+                                row.focusRow()
+                                event.accepted = false
+                                return
+                            }
+                        }
     }
 
     MouseArea {

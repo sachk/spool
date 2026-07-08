@@ -1,13 +1,13 @@
 #include "BrowseSessionController.h"
 
 #include "LibraryPrefetchController.h"
+#include "LibraryQuery.h"
 
 #include <algorithm>
 
 namespace JellyfinNative {
 
-BrowseSessionController::BrowseSessionController(
-    LibraryPrefetchController *prefetch, QObject *parent)
+BrowseSessionController::BrowseSessionController(LibraryPrefetchController *prefetch, QObject *parent)
     : QObject(parent)
     , m_prefetch(prefetch)
 {
@@ -93,6 +93,11 @@ QVariantMap BrowseSessionController::filterOptions() const
     return m_filterOptions;
 }
 
+int BrowseSessionController::filterActiveCount() const
+{
+    return activeLibraryFilterCount(m_query);
+}
+
 BrowseDescriptor BrowseSessionController::descriptor() const
 {
     return m_descriptor;
@@ -103,7 +108,7 @@ MovieItem BrowseSessionController::itemAt(int index) const
     return m_items.movieAt(index);
 }
 
-int BrowseSessionController::applyCachedPage(const QString &cacheKey)
+int BrowseSessionController::applyCachedPage(const QString& cacheKey)
 {
     if (!m_prefetch) {
         m_items.clear();
@@ -133,9 +138,10 @@ void BrowseSessionController::reset()
     m_filterOptions.clear();
     m_items.clear();
     resetPaging();
+    emit changed();
 }
 
-void BrowseSessionController::resetPaging(const QString &cacheKey)
+void BrowseSessionController::resetPaging(const QString& cacheKey)
 {
     m_cacheKey = cacheKey;
     m_loadingMore = false;
@@ -145,8 +151,7 @@ void BrowseSessionController::resetPaging(const QString &cacheKey)
     emit pagingChanged();
 }
 
-void BrowseSessionController::setItems(const std::vector<MovieItem> &items,
-                                       const QString &cacheKey)
+void BrowseSessionController::setItems(const std::vector<MovieItem>& items, const QString& cacheKey)
 {
     resetPaging(cacheKey);
     m_items.setMovies(items);
@@ -154,8 +159,7 @@ void BrowseSessionController::setItems(const std::vector<MovieItem> &items,
         m_prefetch->prefetchPosters(items);
 }
 
-void BrowseSessionController::setPage(const PagedMovieItems &page,
-                                      const QString &cacheKey, bool append)
+void BrowseSessionController::setPage(const PagedMovieItems& page, const QString& cacheKey, bool append)
 {
     if (append)
         m_items.appendMovies(page.items);
@@ -167,11 +171,9 @@ void BrowseSessionController::setPage(const PagedMovieItems &page,
     const bool hasServerTotal = page.totalRecordCount > 0;
     m_cacheKey = cacheKey;
     m_nextStartIndex = std::max(loadedCount, pageEnd);
-    m_totalCount = hasServerTotal ? std::max(page.totalRecordCount, m_nextStartIndex)
-                                  : m_nextStartIndex;
-    m_hasMore = hasServerTotal
-                    ? m_nextStartIndex < m_totalCount
-                    : page.items.size() >= static_cast<size_t>(std::max(1, page.limit));
+    m_totalCount = hasServerTotal ? std::max(page.totalRecordCount, m_nextStartIndex) : m_nextStartIndex;
+    m_hasMore = hasServerTotal ? m_nextStartIndex < m_totalCount
+                               : page.items.size() >= static_cast<size_t>(std::max(1, page.limit));
     if (page.items.empty())
         m_hasMore = false;
     m_loadingMore = false;
@@ -202,29 +204,26 @@ void BrowseSessionController::prefetchVisibleRange(int firstIndex, int lastIndex
 {
     if (!m_prefetch || firstIndex < 0 || lastIndex < firstIndex || m_items.rowCount() <= 0)
         return;
-    m_prefetch->prefetchPosters(
-        m_items.movies(), firstIndex, lastIndex - firstIndex + 1);
+    m_prefetch->prefetchPosters(m_items.movies(), firstIndex, lastIndex - firstIndex + 1);
 }
 
-void BrowseSessionController::updateResumeTicks(const QString &itemId,
-                                                qint64 positionTicks)
+void BrowseSessionController::updateResumeTicks(const QString& itemId, qint64 positionTicks)
 {
     m_items.updateResumeTicks(itemId, positionTicks);
 }
 
-void BrowseSessionController::updateFavorite(const QString &itemId, bool favorite)
+void BrowseSessionController::updateFavorite(const QString& itemId, bool favorite)
 {
     m_items.updateFavorite(itemId, favorite);
 }
 
-void BrowseSessionController::updatePlayed(const QString &itemId, bool played)
+void BrowseSessionController::updatePlayed(const QString& itemId, bool played)
 {
     m_items.updatePlayed(itemId, played);
 }
 
-void BrowseSessionController::enterLibrary(const LibraryItem &library,
-                                           const QString &contentLabel,
-                                           const QVariantMap &defaultQuery)
+void BrowseSessionController::enterLibrary(
+    const LibraryItem& library, const QString& contentLabel, const QVariantMap& defaultQuery)
 {
     m_libraryId = library.id;
     m_libraryCollectionType = library.collectionType;
@@ -236,9 +235,10 @@ void BrowseSessionController::enterLibrary(const LibraryItem &library,
     m_descriptor = BrowseDescriptor::library(library.id, library.collectionType, library.name);
     m_query = m_libraryQueries.value(library.id, defaultQuery);
     m_filterOptions.clear();
+    emit changed();
 }
 
-void BrowseSessionController::enterSeries(const MovieItem &series)
+void BrowseSessionController::enterSeries(const MovieItem& series)
 {
     m_libraryId.clear();
     m_libraryCollectionType.clear();
@@ -250,10 +250,10 @@ void BrowseSessionController::enterSeries(const MovieItem &series)
     m_contentLabel = QStringLiteral("Seasons");
     m_query.clear();
     m_filterOptions.clear();
+    emit changed();
 }
 
-void BrowseSessionController::enterSeason(const QString &seriesId,
-                                          const MovieItem &season)
+void BrowseSessionController::enterSeason(const QString& seriesId, const MovieItem& season)
 {
     m_libraryId.clear();
     m_libraryCollectionType.clear();
@@ -265,10 +265,10 @@ void BrowseSessionController::enterSeason(const QString &seriesId,
     m_contentLabel = QStringLiteral("Episodes");
     m_query.clear();
     m_filterOptions.clear();
+    emit changed();
 }
 
-void BrowseSessionController::enterNamedCollection(const QString &viewKind,
-                                                   const QString &name)
+void BrowseSessionController::enterNamedCollection(const QString& viewKind, const QString& name)
 {
     clearBrowseIdentity();
     if (viewKind == QStringLiteral("genre"))
@@ -282,9 +282,10 @@ void BrowseSessionController::enterNamedCollection(const QString &viewKind,
     m_contentLabel = QStringLiteral("Titles");
     m_query.clear();
     m_filterOptions.clear();
+    emit changed();
 }
 
-void BrowseSessionController::enterPlaylist(const MovieItem &playlist)
+void BrowseSessionController::enterPlaylist(const MovieItem& playlist)
 {
     clearBrowseIdentity();
     m_descriptor = BrowseDescriptor::playlist(playlist.id, playlist.title);
@@ -293,9 +294,10 @@ void BrowseSessionController::enterPlaylist(const MovieItem &playlist)
     m_contentLabel = QStringLiteral("Items");
     m_query.clear();
     m_filterOptions.clear();
+    emit changed();
 }
 
-void BrowseSessionController::enterBoxSet(const MovieItem &boxSet)
+void BrowseSessionController::enterBoxSet(const MovieItem& boxSet)
 {
     clearBrowseIdentity();
     m_descriptor = BrowseDescriptor::boxSet(boxSet.id, boxSet.title);
@@ -304,9 +306,10 @@ void BrowseSessionController::enterBoxSet(const MovieItem &boxSet)
     m_contentLabel = QStringLiteral("Titles");
     m_query.clear();
     m_filterOptions.clear();
+    emit changed();
 }
 
-void BrowseSessionController::enterFolder(const MovieItem &folder)
+void BrowseSessionController::enterFolder(const MovieItem& folder)
 {
     clearBrowseIdentity();
     m_descriptor = BrowseDescriptor::folderChildren(folder.id, folder.title);
@@ -315,26 +318,30 @@ void BrowseSessionController::enterFolder(const MovieItem &folder)
     m_contentLabel = QStringLiteral("Items");
     m_query.clear();
     m_filterOptions.clear();
+    emit changed();
 }
 
-bool BrowseSessionController::setQuery(const QVariantMap &query)
+bool BrowseSessionController::setQuery(const QVariantMap& query)
 {
     if (m_query == query)
         return false;
     m_query = query;
     if (!m_libraryId.isEmpty())
         m_libraryQueries.insert(m_libraryId, m_query);
+    emit changed();
     return true;
 }
 
 void BrowseSessionController::clearFilterOptions()
 {
     m_filterOptions.clear();
+    emit changed();
 }
 
-void BrowseSessionController::setFilterOptions(const QVariantMap &options)
+void BrowseSessionController::setFilterOptions(const QVariantMap& options)
 {
     m_filterOptions = options;
+    emit changed();
 }
 
 void BrowseSessionController::clearBrowseIdentity()

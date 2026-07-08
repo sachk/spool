@@ -322,7 +322,6 @@ qt_add_qml_module(jellyfin-native
         qml/Main.qml
         qml/pages/HomePage.qml
         qml/pages/ItemDetailsPage.qml
-        qml/pages/LibrariesPage.qml
         qml/pages/LibraryGridPage.qml
         qml/pages/LoginPage.qml
         qml/pages/PersonDetailsPage.qml
@@ -352,6 +351,8 @@ qt_add_qml_module(jellyfin-native
         qml/primitives/MediaItemCard.qml
         qml/primitives/MediaPosterScrollerRow.qml
         qml/primitives/MetadataChip.qml
+        qml/primitives/MenuListView.qml
+        qml/primitives/MenuRow.qml
         qml/primitives/MonoText.qml
         qml/primitives/NavGrid.qml
         qml/primitives/NavList.qml
@@ -373,7 +374,6 @@ qt_add_qml_module(jellyfin-native
         qml/shell/MediaInfoOverlay.qml
         qml/shell/RoutePolicy.js
         qml/shell/RouteStack.qml
-        qml/shell/ShortcutOverlay.qml
         qml/shell/SyncPlayMenu.qml
         qml/shell/ToastLayer.qml
         qml/shell/TopBar.qml
@@ -493,6 +493,7 @@ if(BUILD_TESTING AND NOT CMAKE_CROSSCOMPILING)
         http-request-policy tests/api/HttpRequestPolicyTest.cpp
         items-query tests/api/ItemsQueryTest.cpp
         playback-negotiation tests/api/PlaybackNegotiationTest.cpp
+        jellyfin-api-facade-url tests/api/JellyfinApiFacadeUrlTest.cpp
         database-manager tests/cache/DatabaseManagerTest.cpp
     )
 

@@ -12,21 +12,22 @@ T.Control {
     property bool pendingAccept: false
     property bool longPressOpened: false
     property bool pointerLongPress: false
-    property bool favorite: false
-    property bool played: false
+    property var item: ({})
+    readonly property string movieId: String(item.movieId || "")
+    readonly property string itemType: String(item.itemType || "")
+    readonly property real resumeTicks: Number(item.resumeTicks || 0)
+    readonly property bool favorite: Boolean(item.favorite)
+    readonly property bool played: Boolean(item.played)
     property bool favoriteState: favorite
     property bool playedState: played
-    property string movieId: ""
-    property string itemType: ""
-    property real resumeTicks: 0
     property string longPressAction: "menu"
     readonly property bool actionable: movieId.length > 0
 
-    signal activated()
-    signal detailsRequested()
+    signal activated
+    signal detailsRequested
     signal favoriteToggled(bool favorite)
     signal playedToggled(bool played)
-    signal mediaInfoRequested()
+    signal mediaInfoRequested
 
     anchors.fill: parent
     hoverEnabled: true
@@ -42,7 +43,7 @@ T.Control {
     }
 
     function snapshot() {
-        return snapshotProvider ? (snapshotProvider() || ({})) : ({ movieId: movieId, itemType: itemType, favorite: favoriteState, played: playedState, resumeTicks: resumeTicks })
+        return snapshotProvider ? (snapshotProvider() || ({})) : (item || ({}))
     }
 
     function openMenu() {
@@ -81,7 +82,7 @@ T.Control {
         id: buttonRoot
         property string iconName: "favorite"
         property bool checked: false
-        signal clicked()
+        signal clicked
 
         width: 36
         height: 36
@@ -127,16 +128,16 @@ T.Control {
         acceptedButtons: Qt.LeftButton | Qt.RightButton
         pressAndHoldInterval: 520
         onPressed: root.pointerLongPress = false
-        onClicked: (mouse) => {
-            if (mouse.button === Qt.RightButton) {
-                root.pointerLongPress = true
-                root.openMenu()
-                return
-            }
-            if (!root.pointerLongPress)
-                root.activated()
-            root.pointerLongPress = false
-        }
+        onClicked: mouse => {
+                       if (mouse.button === Qt.RightButton) {
+                           root.pointerLongPress = true
+                           root.openMenu()
+                           return
+                       }
+                       if (!root.pointerLongPress)
+                       root.activated()
+                       root.pointerLongPress = false
+                   }
         onPressAndHold: {
             root.pointerLongPress = true
             if (root.longPressAction === "details")
@@ -152,8 +153,7 @@ T.Control {
         anchors.margins: 8
         spacing: 7
         z: 4
-        visible: root.actionable && !root.tvPlatform
-                 && (root.hovered || root.playedState || root.favoriteState)
+        visible: root.actionable && !root.tvPlatform && (root.hovered || root.playedState || root.favoriteState)
 
         OverlayButton {
             iconName: root.playedState ? "check_circle" : "radio_button_unchecked"

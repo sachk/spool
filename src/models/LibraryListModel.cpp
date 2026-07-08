@@ -7,7 +7,7 @@ LibraryListModel::LibraryListModel(QObject *parent)
 {
 }
 
-int LibraryListModel::rowCount(const QModelIndex &parent) const
+int LibraryListModel::rowCount(const QModelIndex& parent) const
 {
     if (parent.isValid())
         return 0;
@@ -19,12 +19,12 @@ int LibraryListModel::count() const
     return rowCount();
 }
 
-QVariant LibraryListModel::data(const QModelIndex &index, int role) const
+QVariant LibraryListModel::data(const QModelIndex& index, int role) const
 {
     if (!index.isValid() || index.row() < 0 || index.row() >= rowCount())
         return {};
 
-    const auto &library = m_libraries[static_cast<size_t>(index.row())];
+    const auto& library = m_libraries[static_cast<size_t>(index.row())];
     switch (role) {
     case IdRole:
         return library.id;
@@ -44,11 +44,11 @@ QVariant LibraryListModel::data(const QModelIndex &index, int role) const
 QHash<int, QByteArray> LibraryListModel::roleNames() const
 {
     return {
-        {IdRole, "libraryId"},
-        {NameRole, "name"},
-        {CollectionTypeRole, "collectionType"},
-        {ImageUrlRole, "imageUrl"},
-        {ImageTagRole, "imageTag"},
+        { IdRole, "libraryId" },
+        { NameRole, "name" },
+        { CollectionTypeRole, "collectionType" },
+        { ImageUrlRole, "imageUrl" },
+        { ImageTagRole, "imageTag" },
     };
 }
 
@@ -57,17 +57,17 @@ QVariantMap LibraryListModel::get(int index) const
     if (index < 0 || index >= rowCount())
         return {};
 
-    const auto &library = m_libraries[static_cast<size_t>(index)];
+    const auto& library = m_libraries[static_cast<size_t>(index)];
     return {
-        {QStringLiteral("libraryId"), library.id},
-        {QStringLiteral("name"), library.name},
-        {QStringLiteral("collectionType"), library.collectionType},
-        {QStringLiteral("imageUrl"), library.imageUrl},
-        {QStringLiteral("imageTag"), library.imageTag},
+        { QStringLiteral("libraryId"), library.id },
+        { QStringLiteral("name"), library.name },
+        { QStringLiteral("collectionType"), library.collectionType },
+        { QStringLiteral("imageUrl"), library.imageUrl },
+        { QStringLiteral("imageTag"), library.imageTag },
     };
 }
 
-void LibraryListModel::setLibraries(const std::vector<LibraryItem> &libraries)
+void LibraryListModel::setLibraries(const std::vector<LibraryItem>& libraries)
 {
     const int oldCount = rowCount();
     beginResetModel();
@@ -94,7 +94,7 @@ LibraryItem LibraryListModel::libraryAt(int index) const
     return m_libraries[static_cast<size_t>(index)];
 }
 
-const std::vector<LibraryItem> &LibraryListModel::libraries() const
+const std::vector<LibraryItem>& LibraryListModel::libraries() const
 {
     return m_libraries;
 }

@@ -4,13 +4,13 @@
 #include "app/CpuTopology.h"
 #include "app/LocalizationManager.h"
 #include "app/MemoryBudget.h"
-#include "app/RouterController.h"
 #include "app/NativeAppWindow.h"
+#include "app/RouterController.h"
 #include "cache/DatabaseManager.h"
 #include "diagnostics/Diagnostics.h"
 #include "discovery/DiscoveryController.h"
-#include "player/PlayerController.h"
 #include "player/MpvVideoItem.h"
+#include "player/PlayerController.h"
 #ifdef JELLYFIN_NATIVE_WEBOS
 #include "player/MpvRuntime.h"
 #endif
@@ -45,37 +45,37 @@ Q_IMPORT_PLUGIN(QSQLiteDriverPlugin)
 #include <QCoreApplication>
 #include <QDateTime>
 #include <QDir>
-#include <QJsonDocument>
-#include <QJsonObject>
+#include <QElapsedTimer>
 #include <QFile>
 #include <QGuiApplication>
+#include <QJsonDocument>
+#include <QJsonObject>
 #include <QList>
-#include <QMessageLogContext>
-#include <QQmlError>
-#include <QQmlContext>
-#include <QQmlEngine>
-#include <qqml.h>
-#include <QElapsedTimer>
 #include <QLoggingCategory>
+#include <QMessageLogContext>
+#include <QMetaObject>
 #include <QNetworkAccessManager>
 #include <QNetworkDiskCache>
-#include <QMetaObject>
-#include <QQuickStyle>
+#include <QQmlContext>
+#include <QQmlEngine>
+#include <QQmlError>
 #include <QQuickGraphicsConfiguration>
+#include <QQuickStyle>
 #include <QQuickWindow>
 #include <QSGRendererInterface>
 #include <QSocketNotifier>
-#include <QSurfaceFormat>
 #include <QStandardPaths>
+#include <QSurfaceFormat>
 #include <QThread>
 #include <QTimer>
 #include <QUuid>
+#include <qqml.h>
 
 #include <clocale>
-#include <cstring>
 #include <cstdarg>
 #include <cstdio>
 #include <cstdlib>
+#include <cstring>
 #include <memory>
 #include <thread>
 #include <utility>
@@ -110,21 +110,21 @@ void rotateLogFile(const char *path)
     char newer[PATH_MAX];
     if (snprintf(older, sizeof(older), "%s.2", path) < static_cast<int>(sizeof(older)))
         unlink(older);
-    if (snprintf(older, sizeof(older), "%s.1", path) < static_cast<int>(sizeof(older)) &&
-        snprintf(newer, sizeof(newer), "%s.2", path) < static_cast<int>(sizeof(newer)))
+    if (snprintf(older, sizeof(older), "%s.1", path) < static_cast<int>(sizeof(older))
+        && snprintf(newer, sizeof(newer), "%s.2", path) < static_cast<int>(sizeof(newer)))
         rename(older, newer);
     if (snprintf(newer, sizeof(newer), "%s.1", path) < static_cast<int>(sizeof(newer)))
         rename(path, newer);
 }
 
-FILE *openRotatedLogFile(const QByteArray &path)
+FILE *openRotatedLogFile(const QByteArray& path)
 {
     rotateLogFile(path.constData());
     return fopen(path.constData(), "w");
 }
 
 #ifdef JELLYFIN_NATIVE_WEBOS
-QByteArray logPathInDir(const QByteArray &dir, const QByteArray &fileName)
+QByteArray logPathInDir(const QByteArray& dir, const QByteArray& fileName)
 {
     QByteArray path = dir;
     if (!path.endsWith('/'))
@@ -133,7 +133,7 @@ QByteArray logPathInDir(const QByteArray &dir, const QByteArray &fileName)
     return path;
 }
 
-FILE *openLogFileInDir(const QByteArray &dir, const QByteArray &fileName)
+FILE *openLogFileInDir(const QByteArray& dir, const QByteArray& fileName)
 {
     QDir().mkpath(QString::fromUtf8(dir));
     const QByteArray path = logPathInDir(dir, fileName);
@@ -145,7 +145,7 @@ FILE *openLogFileInDir(const QByteArray &dir, const QByteArray &fileName)
     return nullptr;
 }
 
-void removeLegacyAppLogs(const QString &appRootPath)
+void removeLegacyAppLogs(const QString& appRootPath)
 {
     const QString legacyPersistentDir = QDir(appRootPath).filePath(QStringLiteral(".cache/logs"));
     const QStringList fileNames = {
@@ -156,18 +156,17 @@ void removeLegacyAppLogs(const QString &appRootPath)
         QStringLiteral("com.codex.jellyfinnative-mpv.log.1"),
         QStringLiteral("com.codex.jellyfinnative-mpv.log.2"),
     };
-    for (const QString &fileName : fileNames) {
+    for (const QString& fileName : fileNames) {
         QFile::remove(QDir(legacyPersistentDir).filePath(fileName));
         QFile::remove(QDir(QStringLiteral("/tmp")).filePath(fileName));
     }
 }
 #endif
 
-FILE *openAppLogFile(const QString &appRootPath)
+FILE *openAppLogFile(const QString& appRootPath)
 {
 #ifdef JELLYFIN_NATIVE_WEBOS
-    if (FILE *file = openLogFileInDir(QByteArrayLiteral(kDefaultLogDir),
-                                      QByteArrayLiteral(kAppLogFileName))) {
+    if (FILE *file = openLogFileInDir(QByteArrayLiteral(kDefaultLogDir), QByteArrayLiteral(kAppLogFileName))) {
         removeLegacyAppLogs(appRootPath);
         return file;
     }
@@ -222,7 +221,7 @@ bool environmentDisablesFeature(const char *name)
     return value == "0" || value == "false" || value == "no" || value == "off";
 }
 
-QString startupCacheRoot(const QString &appRootPath)
+QString startupCacheRoot(const QString& appRootPath)
 {
     const QByteArray configured = qgetenv("JELLYFIN_NATIVE_CACHE_HOME");
     if (!configured.isEmpty())
@@ -240,7 +239,7 @@ QString startupCacheRoot(const QString &appRootPath)
 #endif
 }
 
-void configurePersistentStartupCaches(const QString &cacheRoot)
+void configurePersistentStartupCaches(const QString& cacheRoot)
 {
     const QString fontconfigCache = QDir(cacheRoot).filePath(QStringLiteral("fontconfig"));
     const QString qtShaderCache = QDir(cacheRoot).filePath(QStringLiteral("qtshadercache"));
@@ -255,7 +254,7 @@ void configurePersistentStartupCaches(const QString &cacheRoot)
     qputenv("QT_SHADER_CACHE_PATH", QFile::encodeName(qtShaderCache));
 }
 
-void configurePersistentRhiPipelineCache(QQuickWindow &window, const QString &cacheRoot)
+void configurePersistentRhiPipelineCache(QQuickWindow& window, const QString& cacheRoot)
 {
     const QString rhiCacheDir = QDir(cacheRoot).filePath(QStringLiteral("rhi-pipeline-cache"));
     QDir().mkpath(rhiCacheDir);
@@ -269,7 +268,7 @@ void configurePersistentRhiPipelineCache(QQuickWindow &window, const QString &ca
 }
 
 #if defined(__linux__)
-void adviseWillNeed(const QByteArray &path)
+void adviseWillNeed(const QByteArray& path)
 {
     const int fd = open(path.constData(), O_RDONLY | O_CLOEXEC);
     if (fd < 0)
@@ -280,7 +279,7 @@ void adviseWillNeed(const QByteArray &path)
     close(fd);
 }
 
-void startStartupReadahead(const QString &appRootPath)
+void startStartupReadahead(const QString& appRootPath)
 {
     if (environmentDisablesFeature("JELLYFIN_STARTUP_READAHEAD"))
         return;
@@ -290,9 +289,8 @@ void startStartupReadahead(const QString &appRootPath)
     paths.reserve(24);
     paths.push_back(QByteArrayLiteral("/proc/self/exe"));
 
-    auto addAppPath = [&paths, &appRoot](const char *relativePath) {
-        paths.push_back(appRoot + '/' + QByteArray(relativePath));
-    };
+    auto addAppPath
+        = [&paths, &appRoot](const char *relativePath) { paths.push_back(appRoot + '/' + QByteArray(relativePath)); };
     addAppPath("lib/libQt6Core.so.6");
     addAppPath("lib/libQt6Gui.so.6");
     addAppPath("lib/libQt6Network.so.6");
@@ -311,14 +309,12 @@ void startStartupReadahead(const QString &appRootPath)
     addAppPath("qt-qml/JellyfinWebOS/libJellyfinWebOSplugin.so");
 
     std::thread([paths = std::move(paths)]() {
-        for (const QByteArray &path : paths)
+        for (const QByteArray& path : paths)
             adviseWillNeed(path);
     }).detach();
 }
 #else
-void startStartupReadahead(const QString &)
-{
-}
+void startStartupReadahead(const QString&) { }
 #endif
 
 #ifdef JELLYFIN_NATIVE_WEBOS
@@ -335,8 +331,8 @@ bool ensureWaylandEnv()
     if (!display || !display[0]) {
         if (runtimeDir && runtimeDir[0]) {
             char candidate[PATH_MAX];
-            if (snprintf(candidate, sizeof(candidate), "%s/wayland-0", runtimeDir) < static_cast<int>(sizeof(candidate)) &&
-                access(candidate, F_OK) == 0) {
+            if (snprintf(candidate, sizeof(candidate), "%s/wayland-0", runtimeDir) < static_cast<int>(sizeof(candidate))
+                && access(candidate, F_OK) == 0) {
                 setenv("WAYLAND_DISPLAY", "wayland-0", 1);
                 display = "wayland-0";
             }
@@ -353,7 +349,7 @@ bool ensureWaylandEnv()
 // the deferred posted event never gets a chance to run, so Ctrl+C is silently
 // ignored. The signal handler instead writes a single byte to the pipe; a
 // QSocketNotifier on the main thread reads it and calls quit() safely.
-int g_signalPipe[2] = {-1, -1};
+int g_signalPipe[2] = { -1, -1 };
 
 void handleSignal(int signalNumber)
 {
@@ -366,9 +362,7 @@ void handleSignal(int signalNumber)
 
 void logLine(const char *fmt, ...)
 {
-    const long long elapsedMs = g_startupTimer.isValid()
-                                    ? static_cast<long long>(g_startupTimer.elapsed())
-                                    : 0;
+    const long long elapsedMs = g_startupTimer.isValid() ? static_cast<long long>(g_startupTimer.elapsed()) : 0;
 
     va_list ap;
     va_start(ap, fmt);
@@ -388,13 +382,13 @@ void logLine(const char *fmt, ...)
     va_end(ap);
 }
 
-void qtMessageHandler(QtMsgType type, const QMessageLogContext &context, const QString &message)
+void qtMessageHandler(QtMsgType type, const QMessageLogContext& context, const QString& message)
 {
     if (type == QtWarningMsg && !qEnvironmentVariableIsSet("JELLYFIN_NATIVE_VERBOSE_QT")) {
         const QString category = context.category ? QString::fromLatin1(context.category) : QString();
-        if (message.startsWith(QStringLiteral("Detected locale \"C\"")) ||
-            (category == QStringLiteral("qt.qpa.wayland") &&
-             message.contains(QStringLiteral("\"wl-shell\" is a deprecated shell extension"))))
+        if (message.startsWith(QStringLiteral("Detected locale \"C\""))
+            || (category == QStringLiteral("qt.qpa.wayland")
+                && message.contains(QStringLiteral("\"wl-shell\" is a deprecated shell extension"))))
             return;
     }
 
@@ -427,9 +421,9 @@ void qtMessageHandler(QtMsgType type, const QMessageLogContext &context, const Q
         abort();
 }
 
-void logQmlWarnings(const QList<QQmlError> &warnings)
+void logQmlWarnings(const QList<QQmlError>& warnings)
 {
-    for (const QQmlError &warning : warnings)
+    for (const QQmlError& warning : warnings)
         logLine("[qml] %s", qPrintable(warning.toString()));
 }
 
@@ -468,10 +462,13 @@ bool lunaLifecycleCallback(LSHandle *, LSMessage *message, void *)
     if (event == QStringLiteral("relaunch")) {
         if (g_lifecycleWindow) {
             JellyfinNative::NativeAppWindow *window = g_lifecycleWindow;
-            QMetaObject::invokeMethod(window, [window]() {
-                logLine("[ls2-lifecycle] relaunch -> bringToFront");
-                window->bringToFront();
-            }, Qt::QueuedConnection);
+            QMetaObject::invokeMethod(
+                window,
+                [window]() {
+                    logLine("[ls2-lifecycle] relaunch -> bringToFront");
+                    window->bringToFront();
+                },
+                Qt::QueuedConnection);
         }
     } else if (event == QStringLiteral("close")) {
         const QString reason = doc.object().value(QStringLiteral("reason")).toString();
@@ -479,10 +476,13 @@ bool lunaLifecycleCallback(LSHandle *, LSMessage *message, void *)
             logLine("[ls2-lifecycle] memoryReclaim close ignored");
             return true;
         }
-        QMetaObject::invokeMethod(qApp, []() {
-            logLine("[ls2-lifecycle] close -> QCoreApplication::quit");
-            QCoreApplication::quit();
-        }, Qt::QueuedConnection);
+        QMetaObject::invokeMethod(
+            qApp,
+            []() {
+                logLine("[ls2-lifecycle] close -> QCoreApplication::quit");
+                QCoreApplication::quit();
+            },
+            Qt::QueuedConnection);
     }
 
     return true;
@@ -502,8 +502,8 @@ bool lunaMemoryStatusCallback(LSHandle *, LSMessage *message, void *)
     }
 
     const QJsonObject object = doc.object();
-    if (!object.value(QStringLiteral("returnValue")).toBool(true) &&
-        object.value(QStringLiteral("errorText")).toString().contains(QStringLiteral("Service does not exist"))) {
+    if (!object.value(QStringLiteral("returnValue")).toBool(true)
+        && object.value(QStringLiteral("errorText")).toString().contains(QStringLiteral("Service does not exist"))) {
         static bool loggedUnavailable = false;
         if (!loggedUnavailable) {
             logLine("[ls2-memory] service unavailable (non-fatal)");
@@ -517,9 +517,8 @@ bool lunaMemoryStatusCallback(LSHandle *, LSMessage *message, void *)
     if (level.isEmpty() || !g_appController)
         return true;
     JellyfinNative::AppController *controller = g_appController;
-    QMetaObject::invokeMethod(controller, [controller, level]() {
-        controller->onMemoryPressure(level);
-    }, Qt::QueuedConnection);
+    QMetaObject::invokeMethod(
+        controller, [controller, level]() { controller->onMemoryPressure(level); }, Qt::QueuedConnection);
     return true;
 }
 #endif
@@ -529,7 +528,7 @@ bool lunaMemoryStatusCallback(LSHandle *, LSMessage *message, void *)
 int main(int argc, char **argv)
 {
     g_startupTimer.start();
-    QElapsedTimer &startupTimer = g_startupTimer;
+    QElapsedTimer& startupTimer = g_startupTimer;
     for (int i = 1; i < argc; ++i) {
         if (strcmp(argv[i], "--version") == 0 || strcmp(argv[i], "-v") == 0) {
             printf("Jellyfin Native %s\n", kAppVersion);
@@ -594,9 +593,7 @@ int main(int argc, char **argv)
     setenv("JELLYFIN_QT_NO_CURSOR_SURFACE", "1", 1);
     if (qEnvironmentVariableIsSet("JELLYFIN_NATIVE_VERBOSE_QT")) {
         setenv("QT_DEBUG_PLUGINS", "1", 1);
-        setenv("QT_LOGGING_RULES",
-               "qt.qml*=true;qt.qpa*=true;qt.scenegraph*=true;qt.quick*=true;qt.plugin*=true",
-               1);
+        setenv("QT_LOGGING_RULES", "qt.qml*=true;qt.qpa*=true;qt.scenegraph*=true;qt.quick*=true;qt.plugin*=true", 1);
     } else {
         unsetenv("QT_DEBUG_PLUGINS");
         unsetenv("QT_LOGGING_RULES");
@@ -613,15 +610,12 @@ int main(int argc, char **argv)
     // Default to wayland on Linux desktop; the user can override via the env.
     // Don't touch QT_QPA_PLATFORM on macOS — Qt picks "cocoa" automatically
     // and forcing "wayland" makes the platform-plugin loader fail to start.
-    qputenv("QT_QPA_PLATFORM", qEnvironmentVariableIsSet("QT_QPA_PLATFORM")
-                                  ? qgetenv("QT_QPA_PLATFORM")
-                                  : QByteArrayLiteral("wayland"));
+    qputenv("QT_QPA_PLATFORM",
+        qEnvironmentVariableIsSet("QT_QPA_PLATFORM") ? qgetenv("QT_QPA_PLATFORM") : QByteArrayLiteral("wayland"));
 #endif
     if (qEnvironmentVariableIsSet("JELLYFIN_NATIVE_VERBOSE_QT")) {
         setenv("QT_DEBUG_PLUGINS", "1", 1);
-        setenv("QT_LOGGING_RULES",
-               "qt.qml*=true;qt.qpa*=true;qt.scenegraph*=true;qt.quick*=true;qt.plugin*=true",
-               1);
+        setenv("QT_LOGGING_RULES", "qt.qml*=true;qt.qpa*=true;qt.scenegraph*=true;qt.quick*=true;qt.plugin*=true", 1);
     }
 #endif
 
@@ -643,7 +637,7 @@ int main(int argc, char **argv)
     if (pipe(g_signalPipe) == 0) {
         // Non-blocking write so the signal handler never stalls; reads on the
         // notifier side are also non-blocking via QSocketNotifier semantics.
-        for (int fd : {g_signalPipe[0], g_signalPipe[1]}) {
+        for (int fd : { g_signalPipe[0], g_signalPipe[1] }) {
             int flags = fcntl(fd, F_GETFL, 0);
             if (flags >= 0)
                 fcntl(fd, F_SETFL, flags | O_NONBLOCK);
@@ -688,16 +682,16 @@ int main(int argc, char **argv)
     app.setApplicationDisplayName(QStringLiteral("Jellyfin Native"));
 
     const QString diagnosticsRoot = qEnvironmentVariableIsSet("JELLYFIN_DIAGNOSTICS_DIR")
-                                        ? QString::fromLocal8Bit(qgetenv("JELLYFIN_DIAGNOSTICS_DIR"))
-                                        : QStandardPaths::writableLocation(QStandardPaths::AppDataLocation) + QStringLiteral("/diagnostics");
+        ? QString::fromLocal8Bit(qgetenv("JELLYFIN_DIAGNOSTICS_DIR"))
+        : QStandardPaths::writableLocation(QStandardPaths::AppDataLocation) + QStringLiteral("/diagnostics");
     JellyfinNative::Diagnostics::initialize(QString::fromLatin1(kAppId), diagnosticsRoot);
     JellyfinNative::Diagnostics::ThreadScope guiThread(QStringLiteral("gui"));
     JellyfinNative::Diagnostics::EventLoopWatchdog eventLoopWatchdog(&app);
 
     const QStringList arguments = app.arguments();
     const bool smokeAndExit = arguments.contains(QStringLiteral("--smoke-and-exit"));
-    if (arguments.contains(QStringLiteral("--diagnose-and-exit")) ||
-        arguments.contains(QStringLiteral("--dump-diagnostics"))) {
+    if (arguments.contains(QStringLiteral("--diagnose-and-exit"))
+        || arguments.contains(QStringLiteral("--dump-diagnostics"))) {
         JellyfinNative::Diagnostics::dumpDiagnostics(QStringLiteral("command-line"));
         JellyfinNative::Diagnostics::shutdown();
         return 0;
@@ -705,7 +699,8 @@ int main(int argc, char **argv)
     if (qEnvironmentVariableIntValue("JELLYFIN_DIAGNOSTICS_BLOCK_GUI_MS") > 0) {
         const int blockMs = qEnvironmentVariableIntValue("JELLYFIN_DIAGNOSTICS_BLOCK_GUI_MS");
         QTimer::singleShot(1000, &app, [blockMs]() {
-            JellyfinNative::Diagnostics::logEvent(QStringLiteral("simulation"), QStringLiteral("block_gui_begin"), {{QStringLiteral("durationMs"), blockMs}});
+            JellyfinNative::Diagnostics::logEvent(QStringLiteral("simulation"), QStringLiteral("block_gui_begin"),
+                { { QStringLiteral("durationMs"), blockMs } });
             QThread::msleep(static_cast<unsigned long>(blockMs));
             JellyfinNative::Diagnostics::logEvent(QStringLiteral("simulation"), QStringLiteral("block_gui_end"));
         });
@@ -713,29 +708,25 @@ int main(int argc, char **argv)
 
     std::unique_ptr<QSocketNotifier> signalNotifier;
     if (g_signalPipe[0] >= 0) {
-        signalNotifier = std::make_unique<QSocketNotifier>(
-            g_signalPipe[0], QSocketNotifier::Read);
-        QObject::connect(signalNotifier.get(), &QSocketNotifier::activated,
-                         &app, [&app](QSocketDescriptor, QSocketNotifier::Type) {
-            char buf[16];
-            ssize_t count = 0;
-            while ((count = read(g_signalPipe[0], buf, sizeof(buf))) > 0) {
-                for (ssize_t i = 0; i < count; ++i)
-                    JellyfinNative::Diagnostics::noteSignal(static_cast<int>(buf[i]));
-            }
-            logLine("signal received, quitting");
-            app.quit();
-        });
+        signalNotifier = std::make_unique<QSocketNotifier>(g_signalPipe[0], QSocketNotifier::Read);
+        QObject::connect(
+            signalNotifier.get(), &QSocketNotifier::activated, &app, [&app](QSocketDescriptor, QSocketNotifier::Type) {
+                char buf[16];
+                ssize_t count = 0;
+                while ((count = read(g_signalPipe[0], buf, sizeof(buf))) > 0) {
+                    for (ssize_t i = 0; i < count; ++i)
+                        JellyfinNative::Diagnostics::noteSignal(static_cast<int>(buf[i]));
+                }
+                logLine("signal received, quitting");
+                app.quit();
+            });
     }
 
     const JellyfinNative::MemoryBudget memoryBudget = JellyfinNative::MemoryBudget::detect();
     logLine("memory budget: memTotal=%lld networkDisk=%lld qmlImageDisk=%lld artworkBytes=%d demuxer=%s/%s",
-            static_cast<long long>(memoryBudget.memTotalBytes),
-            static_cast<long long>(memoryBudget.networkDiskCacheBytes),
-            static_cast<long long>(memoryBudget.qmlImageDiskCacheBytes),
-            memoryBudget.artworkByteCacheBytes,
-            memoryBudget.mpvDemuxerMaxBytes.constData(),
-            memoryBudget.mpvDemuxerMaxBackBytes.constData());
+        static_cast<long long>(memoryBudget.memTotalBytes), static_cast<long long>(memoryBudget.networkDiskCacheBytes),
+        static_cast<long long>(memoryBudget.qmlImageDiskCacheBytes), memoryBudget.artworkByteCacheBytes,
+        memoryBudget.mpvDemuxerMaxBytes.constData(), memoryBudget.mpvDemuxerMaxBackBytes.constData());
 
     auto *networkAccessManager = new QNetworkAccessManager(&app);
     auto *diskCache = new QNetworkDiskCache(networkAccessManager);
@@ -749,22 +740,22 @@ int main(int argc, char **argv)
     JellyfinNative::NativeAppWindow window(QString::fromLatin1(kAppId));
     configurePersistentRhiPipelineCache(window, cachePath);
     {
-    JellyfinNative::Diagnostics::Phase phase(QStringLiteral("startup"), QStringLiteral("prepare_ui_surface"));
-    if (!window.prepareForUiSurface()) {
-        logLine("failed to initialize Qt webOS UI surface");
-        return 1;
+        JellyfinNative::Diagnostics::Phase phase(QStringLiteral("startup"), QStringLiteral("prepare_ui_surface"));
+        if (!window.prepareForUiSurface()) {
+            logLine("failed to initialize Qt webOS UI surface");
+            return 1;
+        }
     }
-    }
-    logLine("startup: prepareForUiSurface completed in %lld ms",
-            static_cast<long long>(startupTimer.elapsed()));
+    logLine("startup: prepareForUiSurface completed in %lld ms", static_cast<long long>(startupTimer.elapsed()));
 
     // Keep SQLite off the pre-window path. It still has to be ready before
     // AppController is exposed to QML because controller construction reads
     // DB-backed settings and session state synchronously.
     {
-    JellyfinNative::Diagnostics::Phase phase(QStringLiteral("startup"), QStringLiteral("database_initialize"));
-    if (!database.initialize(QStandardPaths::writableLocation(QStandardPaths::AppDataLocation) + QStringLiteral("/cache.sqlite")))
-        return 1;
+        JellyfinNative::Diagnostics::Phase phase(QStringLiteral("startup"), QStringLiteral("database_initialize"));
+        if (!database.initialize(
+                QStandardPaths::writableLocation(QStandardPaths::AppDataLocation) + QStringLiteral("/cache.sqlite")))
+            return 1;
     }
 
     QString deviceId = database.loadDeviceId();
@@ -777,38 +768,34 @@ int main(int argc, char **argv)
     auto api = std::make_unique<JellyfinNative::JellyfinApiFacade>(networkAccessManager);
     api->setDeviceIdentity(deviceId,
 #ifdef JELLYFIN_NATIVE_WEBOS
-                           QStringLiteral("LG webOS TV"),
+        QStringLiteral("LG webOS TV"),
 #else
-                           QStringLiteral("Linux Wayland"),
+        QStringLiteral("Linux Wayland"),
 #endif
-                           QString::fromLatin1(kAppVersion));
+        QString::fromLatin1(kAppVersion));
     api->setArtworkUiWidth(window.width());
 
     const JellyfinNative::CpuTopology cpuTopology = JellyfinNative::detectCpuTopology();
-    logLine("artwork: cpu logical=%d physical=%d smt=%s source=%s decodeThreads=%d",
-            cpuTopology.logicalCpus,
-            cpuTopology.physicalCores,
-            cpuTopology.smtDetected ? "true" : "false",
-            qPrintable(cpuTopology.source),
-            cpuTopology.artworkDecodeThreads);
-    auto artworkService = std::make_unique<JellyfinNative::ArtworkService>(
-        qmlImageCachePath + QStringLiteral("/artwork"),
-        memoryBudget.qmlImageDiskCacheBytes,
-        memoryBudget.artworkByteCacheBytes,
+    logLine("artwork: cpu logical=%d physical=%d smt=%s source=%s decodeThreads=%d", cpuTopology.logicalCpus,
+        cpuTopology.physicalCores, cpuTopology.smtDetected ? "true" : "false", qPrintable(cpuTopology.source),
         cpuTopology.artworkDecodeThreads);
+    auto artworkService
+        = std::make_unique<JellyfinNative::ArtworkService>(qmlImageCachePath + QStringLiteral("/artwork"),
+            memoryBudget.qmlImageDiskCacheBytes, memoryBudget.artworkByteCacheBytes, cpuTopology.artworkDecodeThreads);
 
     auto player = std::make_unique<JellyfinNative::PlayerController>(&window, api.get());
-    player->setDemuxerBudget(memoryBudget.mpvDemuxerMaxBytes,
-                             memoryBudget.mpvDemuxerMaxBackBytes);
+    player->setDemuxerBudget(memoryBudget.mpvDemuxerMaxBytes, memoryBudget.mpvDemuxerMaxBackBytes);
     auto controller = std::make_unique<JellyfinNative::AppController>(
         &database, discovery.get(), api.get(), artworkService.get(), player.get());
 #ifdef JELLYFIN_NATIVE_WEBOS
     g_appController = controller.get();
-    QObject::connect(controller.get(), &JellyfinNative::AppController::aggressiveMemoryPressure,
-                     &window, [&window]() {
-        logLine("memory pressure: releasing QQuickWindow resources");
-        window.releaseResources();
-    }, Qt::QueuedConnection);
+    QObject::connect(
+        controller.get(), &JellyfinNative::AppController::aggressiveMemoryPressure, &window,
+        [&window]() {
+            logLine("memory pressure: releasing QQuickWindow resources");
+            window.releaseResources();
+        },
+        Qt::QueuedConnection);
 #endif
 
 #ifdef JELLYFIN_NATIVE_WEBOS
@@ -823,20 +810,20 @@ int main(int argc, char **argv)
     // active — the decode/audio pipeline keeps running otherwise and the
     // user comes back to find playback drifted. pauseForBackground() is
     // a no-op if the player isn't visible or is already paused.
-    QObject::connect(&app, &QGuiApplication::applicationStateChanged, &app,
-                     [player = player.get()](Qt::ApplicationState state) {
-        logLine("application state changed: %d", static_cast<int>(state));
-        if (state == Qt::ApplicationHidden || state == Qt::ApplicationSuspended) {
-            if (player)
-                player->pauseForBackground();
-        } else if (state == Qt::ApplicationInactive) {
-            if (player)
-                player->prepareForBackground();
-        } else if (state == Qt::ApplicationActive) {
-            if (player)
-                player->resyncForForeground();
-        }
-    });
+    QObject::connect(
+        &app, &QGuiApplication::applicationStateChanged, &app, [player = player.get()](Qt::ApplicationState state) {
+            logLine("application state changed: %d", static_cast<int>(state));
+            if (state == Qt::ApplicationHidden || state == Qt::ApplicationSuspended) {
+                if (player)
+                    player->pauseForBackground();
+            } else if (state == Qt::ApplicationInactive) {
+                if (player)
+                    player->prepareForBackground();
+            } else if (state == Qt::ApplicationActive) {
+                if (player)
+                    player->resyncForForeground();
+            }
+        });
 #endif
 
     // Shutdown sequence (runs while the event loop and scene graph are still
@@ -854,7 +841,8 @@ int main(int argc, char **argv)
         logLine("aboutToQuit: stopping controllers");
         if (qEnvironmentVariableIntValue("JELLYFIN_DIAGNOSTICS_SHUTDOWN_HANG_MS") > 0) {
             const int hangMs = qEnvironmentVariableIntValue("JELLYFIN_DIAGNOSTICS_SHUTDOWN_HANG_MS");
-            JellyfinNative::Diagnostics::logEvent(QStringLiteral("simulation"), QStringLiteral("shutdown_hang_begin"), {{QStringLiteral("durationMs"), hangMs}});
+            JellyfinNative::Diagnostics::logEvent(QStringLiteral("simulation"), QStringLiteral("shutdown_hang_begin"),
+                { { QStringLiteral("durationMs"), hangMs } });
             QThread::msleep(static_cast<unsigned long>(hangMs));
             JellyfinNative::Diagnostics::logEvent(QStringLiteral("simulation"), QStringLiteral("shutdown_hang_end"));
         }
@@ -870,26 +858,34 @@ int main(int argc, char **argv)
         logLine("aboutToQuit: QML source cleared");
     });
 
-    window.engine()->addImageProvider(QStringLiteral("artwork"),
-                                      new JellyfinNative::ArtworkImageProvider(artworkService.get()));
-    window.engine()->addImageProvider(QStringLiteral("mpv-overlay"),
-                                      window.createOverlayImageProvider());
+    window.engine()->addImageProvider(
+        QStringLiteral("artwork"), new JellyfinNative::ArtworkImageProvider(artworkService.get()));
+    window.engine()->addImageProvider(QStringLiteral("mpv-overlay"), window.createOverlayImageProvider());
     window.engine()->addImportPath(appRootPath + QStringLiteral("/qt-qml"));
     QObject::connect(window.engine(), &QQmlEngine::warnings, &logQmlWarnings);
-    QObject::connect(&window, &QQuickView::statusChanged, [](QQuickView::Status status) {
-        logLine("view status changed: %d", static_cast<int>(status));
-    });
+    QObject::connect(&window, &QQuickView::statusChanged,
+        [](QQuickView::Status status) { logLine("view status changed: %d", static_cast<int>(status)); });
     auto localization = std::make_unique<JellyfinNative::LocalizationManager>();
     localization->attachToEngine(window.engine());
     if (api) {
         api->setAcceptLanguage(localization->bcp47Locale());
-        QObject::connect(localization.get(), &JellyfinNative::LocalizationManager::localeChanged,
-                         api.get(), [api = api.get(), loc = localization.get()]() {
-            api->setAcceptLanguage(loc->bcp47Locale());
-        });
+        QObject::connect(localization.get(), &JellyfinNative::LocalizationManager::localeChanged, api.get(),
+            [api = api.get(), loc = localization.get()]() { api->setAcceptLanguage(loc->bcp47Locale()); });
     }
     auto router = std::make_unique<JellyfinNative::RouterController>();
     window.rootContext()->setContextProperty(QStringLiteral("appController"), controller.get());
+    window.rootContext()->setContextProperty(QStringLiteral("browseController"), controller->browse());
+    window.rootContext()->setContextProperty(QStringLiteral("homeController"), controller->home());
+    window.rootContext()->setContextProperty(QStringLiteral("contentController"), controller->content());
+    window.rootContext()->setContextProperty(QStringLiteral("searchController"), controller->search());
+    window.rootContext()->setContextProperty(QStringLiteral("libraryModel"), controller->libraries());
+    window.rootContext()->setContextProperty(QStringLiteral("discoveredServersModel"), controller->discoveredServers());
+    window.rootContext()->setContextProperty(QStringLiteral("sessionController"), controller->session());
+    window.rootContext()->setContextProperty(QStringLiteral("quickConnectController"), controller->quickConnect());
+    window.rootContext()->setContextProperty(QStringLiteral("settingsController"), controller->settings());
+    window.rootContext()->setContextProperty(QStringLiteral("playerController"), controller->player());
+    window.rootContext()->setContextProperty(QStringLiteral("playQueueController"), controller->playQueue());
+    window.rootContext()->setContextProperty(QStringLiteral("syncPlayController"), controller->syncPlay());
     window.rootContext()->setContextProperty(QStringLiteral("router"), router.get());
     window.rootContext()->setContextProperty(QStringLiteral("nativeWindow"), &window);
     window.rootContext()->setContextProperty(QStringLiteral("i18n"), localization.get());
@@ -900,19 +896,18 @@ int main(int argc, char **argv)
 #endif
     qmlRegisterType<JellyfinNative::MpvVideoItem>("JellyfinWebOS", 1, 0, "MpvVideoItem");
     {
-    JellyfinNative::Diagnostics::Phase phase(QStringLiteral("startup"), QStringLiteral("load_qml"));
-    // Load through the module registry (not a raw qrc: URL) so the engine uses
-    // the qmlcachegen AOT units instead of recompiling every QML file at runtime
-    // (which retained ~47MB of QtQml compiler buffers on the private heap and
-    // pushed us into webOS memoryReclaim).
-    window.loadFromModule("JellyfinWebOS", "Main");
+        JellyfinNative::Diagnostics::Phase phase(QStringLiteral("startup"), QStringLiteral("load_qml"));
+        // Load through the module registry (not a raw qrc: URL) so the engine uses
+        // the qmlcachegen AOT units instead of recompiling every QML file at runtime
+        // (which retained ~47MB of QtQml compiler buffers on the private heap and
+        // pushed us into webOS memoryReclaim).
+        window.loadFromModule("JellyfinWebOS", "Main");
     }
     if (window.status() == QQuickView::Error) {
         logQmlWarnings(window.errors());
         return 1;
     }
-    logLine("startup: QML source loaded in %lld ms",
-            static_cast<long long>(startupTimer.elapsed()));
+    logLine("startup: QML source loaded in %lld ms", static_cast<long long>(startupTimer.elapsed()));
 
     if (smokeAndExit) {
         logLine("startup smoke completed without showing window");
@@ -935,14 +930,17 @@ int main(int argc, char **argv)
     // frame is on screen, so its map/relocate cost lands in UI idle time
     // instead of the launch path. frameSwapped fires on the render thread;
     // queue onto the GUI thread and only ever start one loader.
-    QObject::connect(&window, &QQuickWindow::frameSwapped, &window, [] {
-        static bool started = false;
-        if (started)
-            return;
-        started = true;
-        logLine("startup: first frame swapped, preloading libmpv");
-        JellyfinNative::MpvRuntime::preloadAsync();
-    }, Qt::QueuedConnection);
+    QObject::connect(
+        &window, &QQuickWindow::frameSwapped, &window,
+        [] {
+            static bool started = false;
+            if (started)
+                return;
+            started = true;
+            logLine("startup: first frame swapped, preloading libmpv");
+            JellyfinNative::MpvRuntime::preloadAsync();
+        },
+        Qt::QueuedConnection);
 
     std::unique_ptr<HContext> lunaContext(new HContext());
     lunaContext->pub = true;
@@ -961,7 +959,8 @@ int main(int argc, char **argv)
     imeContext->multiple = true;
     imeContext->callback = &lunaNoopCallback;
     imeContext->userdata = nullptr;
-    if (HLunaServiceCall("luna://com.webos.service.ime/registerRemoteKeyboard", "{\"subscribe\":true}", imeContext.get())) {
+    if (HLunaServiceCall(
+            "luna://com.webos.service.ime/registerRemoteKeyboard", "{\"subscribe\":true}", imeContext.get())) {
         logLine("HLunaServiceCall registerRemoteKeyboard failed (non-fatal)");
         imeContext.reset();
     } else {
@@ -973,8 +972,8 @@ int main(int argc, char **argv)
     memoryContext->multiple = true;
     memoryContext->callback = &lunaMemoryStatusCallback;
     memoryContext->userdata = nullptr;
-    if (HLunaServiceCall("luna://com.webos.service.memorymanager/getMemoryStatus",
-                         "{\"subscribe\":true}", memoryContext.get())) {
+    if (HLunaServiceCall(
+            "luna://com.webos.service.memorymanager/getMemoryStatus", "{\"subscribe\":true}", memoryContext.get())) {
         logLine("HLunaServiceCall getMemoryStatus failed (non-fatal)");
         memoryContext.reset();
     } else {
@@ -984,8 +983,8 @@ int main(int argc, char **argv)
 
     QTimer::singleShot(0, controller.get(), &JellyfinNative::AppController::initialize);
     QTimer::singleShot(0, &window, [&window, &startupTimer]() {
-        logLine("startup: event loop entered, first-frame path at %lld ms",
-                static_cast<long long>(startupTimer.elapsed()));
+        logLine(
+            "startup: event loop entered, first-frame path at %lld ms", static_cast<long long>(startupTimer.elapsed()));
         JellyfinNative::Diagnostics::setInstanceState(QStringLiteral("running"));
 #ifdef JELLYFIN_NATIVE_WEBOS
         window.bringToFront();
@@ -997,7 +996,8 @@ int main(int argc, char **argv)
 
     const int exitCode = app.exec();
     logLine("app.exec returned: %d", exitCode);
-    JellyfinNative::Diagnostics::setInstanceState(QStringLiteral("app_exec_returned"), {{QStringLiteral("exitCode"), exitCode}});
+    JellyfinNative::Diagnostics::setInstanceState(
+        QStringLiteral("app_exec_returned"), { { QStringLiteral("exitCode"), exitCode } });
     JellyfinNative::Diagnostics::shutdown();
     return exitCode;
 }

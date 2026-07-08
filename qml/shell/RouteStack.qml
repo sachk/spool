@@ -8,15 +8,13 @@ FocusScope {
     focus: true
     property bool ready: false
 
-
     function routeSource(nextRoute) {
         switch (nextRoute) {
         case "login":
             return Qt.resolvedUrl("../pages/LoginPage.qml")
         case "home":
-            return Qt.resolvedUrl("../pages/HomePage.qml")
         case "libraries":
-            return Qt.resolvedUrl("../pages/LibrariesPage.qml")
+            return Qt.resolvedUrl("../pages/HomePage.qml")
         case "libraryGrid":
             return Qt.resolvedUrl("../pages/LibraryGridPage.qml")
         case "itemDetails":
@@ -36,11 +34,13 @@ FocusScope {
 
     function loadRoute() {
         const source = routeSource(route)
-        loader.setSource(source, { "shell": root.shell })
+        loader.setSource(source, {
+                             "shell": root.shell
+                         })
     }
 
     onRouteChanged: if (ready)
-        loadRoute()
+                        loadRoute()
     onShellChanged: {
         if (ready && loader.item)
             loader.item.shell = root.shell

@@ -83,7 +83,9 @@ T.Control {
             valueField.text = formatted
     }
 
-    HoverHandler { id: hover }
+    HoverHandler {
+        id: hover
+    }
     TapHandler {
         onTapped: InputKeys.focus(root)
     }
@@ -142,12 +144,12 @@ T.Control {
             }
             onAccepted: root.setSliderValue(text)
             onEditingFinished: root.setSliderValue(text)
-            Keys.onReleased: (event) => {
-                if (event.key === Qt.Key_Right) {
-                    InputKeys.focus(valueSlider)
-                    event.accepted = true
-                }
-            }
+            Keys.onReleased: event => {
+                                 if (event.key === Qt.Key_Right) {
+                                     InputKeys.focus(valueSlider)
+                                     event.accepted = true
+                                 }
+                             }
         }
 
         AppText {
@@ -198,35 +200,35 @@ T.Control {
             }
 
             onMoved: root.setSliderValue(value)
-            Keys.onReleased: (event) => {
-                if (event.key === Qt.Key_Left || event.key === Qt.Key_Right) {
-                    if (root.handledNavigationPress) {
-                        root.handledNavigationPress = false
-                        event.accepted = true
-                        return
-                    }
-                    root.adjust(event.key === Qt.Key_Right ? 1 : -1)
-                    event.accepted = true
-                } else if (InputKeys.isAccept(event.key, false)) {
-                    InputKeys.focus(root)
-                    event.accepted = true
-                }
-            }
+            Keys.onReleased: event => {
+                                 if (event.key === Qt.Key_Left || event.key === Qt.Key_Right) {
+                                     if (root.handledNavigationPress) {
+                                         root.handledNavigationPress = false
+                                         event.accepted = true
+                                         return
+                                     }
+                                     root.adjust(event.key === Qt.Key_Right ? 1 : -1)
+                                     event.accepted = true
+                                 } else if (InputKeys.isAccept(event.key, false)) {
+                                     InputKeys.focus(root)
+                                     event.accepted = true
+                                 }
+                             }
         }
     }
 
-    Keys.onReleased: (event) => {
-        if (event.key === Qt.Key_Left || event.key === Qt.Key_Right) {
-            if (handledNavigationPress) {
-                handledNavigationPress = false
-                event.accepted = true
-                return
-            }
-            root.adjust(event.key === Qt.Key_Right ? 1 : -1)
-            event.accepted = true
-        } else if (InputKeys.isAccept(event.key, false)) {
-            InputKeys.focus(valueSlider)
-            event.accepted = true
-        }
-    }
+    Keys.onReleased: event => {
+                         if (event.key === Qt.Key_Left || event.key === Qt.Key_Right) {
+                             if (handledNavigationPress) {
+                                 handledNavigationPress = false
+                                 event.accepted = true
+                                 return
+                             }
+                             root.adjust(event.key === Qt.Key_Right ? 1 : -1)
+                             event.accepted = true
+                         } else if (InputKeys.isAccept(event.key, false)) {
+                             InputKeys.focus(valueSlider)
+                             event.accepted = true
+                         }
+                     }
 }

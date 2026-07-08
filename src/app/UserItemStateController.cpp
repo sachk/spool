@@ -1,16 +1,14 @@
 #include "UserItemStateController.h"
 
-#include "ContentModelController.h"
 #include "BrowseSessionController.h"
+#include "ContentModelController.h"
 #include "HomeModelController.h"
 #include "SearchController.h"
 
 namespace JellyfinNative {
 
-UserItemStateController::UserItemStateController(
-    BrowseSessionController *currentItems, HomeModelController *home,
-    ContentModelController *content, SearchController *search,
-    QObject *parent)
+UserItemStateController::UserItemStateController(BrowseSessionController *currentItems, HomeModelController *home,
+    ContentModelController *content, SearchController *search, QObject *parent)
     : QObject(parent)
     , m_browse(currentItems)
     , m_home(home)
@@ -19,8 +17,7 @@ UserItemStateController::UserItemStateController(
 {
 }
 
-void UserItemStateController::applyResumeTicks(const QString &itemId,
-                                               qint64 positionTicks)
+void UserItemStateController::applyResumeTicks(const QString& itemId, qint64 positionTicks)
 {
     if (itemId.isEmpty() || positionTicks < 0)
         return;
@@ -35,8 +32,7 @@ void UserItemStateController::applyResumeTicks(const QString &itemId,
         m_search->updateResumeTicks(itemId, positionTicks);
 }
 
-void UserItemStateController::applyFavorite(const QString &itemId,
-                                            bool favorite)
+void UserItemStateController::applyFavorite(const QString& itemId, bool favorite)
 {
     if (itemId.isEmpty())
         return;
@@ -52,7 +48,7 @@ void UserItemStateController::applyFavorite(const QString &itemId,
     emit favoriteChanged(itemId, favorite);
 }
 
-void UserItemStateController::applyPlayed(const QString &itemId, bool played)
+void UserItemStateController::applyPlayed(const QString& itemId, bool played)
 {
     if (itemId.isEmpty())
         return;

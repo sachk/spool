@@ -7,7 +7,7 @@ import "../primitives"
 FocusScope {
     id: root
     property var shell
-    readonly property var search: appController ? appController.searchController : null
+    readonly property var search: searchController
     readonly property string query: search ? search.query : ""
     readonly property int resultCount: search && search.results ? search.results.count : 0
     readonly property int suggestionCount: search && search.suggestions ? search.suggestions.count : 0
@@ -32,15 +32,16 @@ FocusScope {
             if (field.text !== root.query)
                 field.text = root.query
         }
-        function onResultsChanged() { root.clampResultIndex() }
+        function onResultsChanged() {
+            root.clampResultIndex()
+        }
     }
 
     function clampResultIndex() {
         if (!results)
             return
         const savedIndex = root.shell ? root.shell.lastSearchIndex : 0
-        results.currentIndex = root.resultCount > 0
-                ? Math.max(0, Math.min(savedIndex, root.resultCount - 1)) : -1
+        results.currentIndex = root.resultCount > 0 ? Math.max(0, Math.min(savedIndex, root.resultCount - 1)) : -1
     }
 
     function activateSuggestion(index) {
@@ -192,7 +193,7 @@ FocusScope {
                     label: "Search Jellyfin"
                     placeholderText: "Titles, series, episodes"
                     inputMethodHints: Qt.ImhNoPredictiveText | Qt.ImhNoAutoUppercase
-                    onTextEdited: (text) => root.setQuery(text)
+                    onTextEdited: text => root.setQuery(text)
                     onAccepted: root.runSearchNow()
                     KeyNavigation.down: root.resultCount > 0 ? results : suggestionsRow
                 }
@@ -210,7 +211,7 @@ FocusScope {
                     loading: root.suggestionsBusy
                     emptyText: "Loading suggestions..."
                     visible: root.query.length < 2
-                    onActivated: (index) => root.activateSuggestion(index)
+                    onActivated: index => root.activateSuggestion(index)
                 }
 
                 EmptyPlaceholder {
@@ -233,7 +234,9 @@ FocusScope {
                     Layout.fillHeight: true
                     focus: false
                     keyNavigationEnabled: false
-                    currentIndex: root.resultCount > 0 ? Math.max(0, Math.min(root.shell ? root.shell.lastSearchIndex : 0, root.resultCount - 1)) : -1
+                    currentIndex: root.resultCount > 0 ? Math.max(0, Math.min(root.shell ? root.shell.lastSearchIndex :
+                                                                                           0, root.resultCount - 1)) :
+                                                         -1
                     spacing: 10
                     clip: true
                     model: root.search ? root.search.results : null
@@ -247,31 +250,30 @@ FocusScope {
                         }
                     }
 
-                    FastWheelHandler { flickable: results }
+                    FastWheelHandler {
+                        flickable: results
+                    }
 
                     delegate: Surface {
                         id: resultDelegate
                         required property int index
-                        required property string title
+                        required property var item
                         required property string displayTitle
                         required property string displaySubtitle
-                        required property string subtitle
-                        required property string overview
-                        required property string posterUrl
-                        required property string itemType
-                        required property int year
-                        required property string movieId
-                        required property bool favorite
-                        required property bool played
-
-                        function snapshot() { return root.search && root.search.results ? root.search.results.get(index) || ({}) : ({}) }
+                        readonly property var movie: item || ({})
 
                         width: results.width
                         height: 118
                         focused: ListView.isCurrentItem && results.activeFocus
-                        function handleAcceptPressed(key) { return actions.handleAcceptPressed(key) }
-                        function handleAcceptReleased(key) { return actions.handleAcceptReleased(key) }
-                        function handleKey(key) { return actions.handleKey(key) }
+                        function handleAcceptPressed(key) {
+                            return actions.handleAcceptPressed(key)
+                        }
+                        function handleAcceptReleased(key) {
+                            return actions.handleAcceptReleased(key)
+                        }
+                        function handleKey(key) {
+                            return actions.handleKey(key)
+                        }
 
                         RowLayout {
                             anchors.fill: parent
@@ -281,8 +283,9 @@ FocusScope {
                             ImageCard {
                                 Layout.preferredWidth: 154
                                 Layout.preferredHeight: 86
-                                imageUrl: posterUrl
-                                fallbackText: itemType.length > 0 ? itemType : "Item"
+                                imageUrl: resultDelegate.movie.posterUrl || ""
+                                fallbackText: (resultDelegate.movie.itemType || "").length > 0
+                                              ? resultDelegate.movie.itemType : "Item"
                                 aspectRatio: 16 / 9
                                 focused: false
                                 retainWhileLoading: true
@@ -294,7 +297,7 @@ FocusScope {
 
                                 AppText {
                                     Layout.fillWidth: true
-                                    text: displayTitle || title
+                                    text: displayTitle || resultDelegate.movie.title || ""
                                     font.pixelSize: Metrics.bodyPx(root.width) + 1
                                     font.weight: Font.DemiBold
                                     elide: Text.ElideRight
@@ -303,13 +306,14 @@ FocusScope {
 
                                 TechMetadataLine {
                                     Layout.fillWidth: true
-                                    metadata: displaySubtitle || subtitle || itemType
+                                    metadata: displaySubtitle || resultDelegate.movie.subtitle
+                                              || resultDelegate.movie.itemType || ""
                                 }
 
                                 AppText {
                                     Layout.fillWidth: true
-                                    visible: overview.length > 0
-                                    text: overview
+                                    visible: (resultDelegate.movie.overview || "").length > 0
+                                    text: resultDelegate.movie.overview || ""
                                     color: Theme.textMuted
                                     font.pixelSize: Metrics.metaPx(root.width)
                                     elide: Text.ElideRight
@@ -318,7 +322,8 @@ FocusScope {
                             }
 
                             MetadataChip {
-                                text: year > 0 ? String(year) : itemType
+                                text: Number(resultDelegate.movie.year || 0) > 0 ? String(resultDelegate.movie.year) :
+                                                                                   resultDelegate.movie.itemType || ""
                             }
                         }
 
@@ -327,38 +332,41 @@ FocusScope {
                             anchors.fill: parent
                             shell: root.shell
                             focused: resultDelegate.focused
-                            movieId: resultDelegate.movieId
-                            itemType: resultDelegate.itemType
-                            favorite: resultDelegate.favorite
-                            played: resultDelegate.played
-                            snapshotProvider: resultDelegate.snapshot
+                            item: resultDelegate.movie
+                            snapshotProvider: function () {
+                                return root.search && root.search.results ? root.search.results.get(index) || ({}) : (
+                                                                                {})
+                            }
                             onActivated: {
                                 results.currentIndex = index
                                 root.activateCurrent()
                             }
-                            onFavoriteToggled: (favorite) => appController.setFavorite(resultDelegate.movieId || "", favorite)
-                            onPlayedToggled: (played) => appController.setPlayed(resultDelegate.movieId || "", played)
-                            onMediaInfoRequested: root.shell.openMediaInfo(resultDelegate.snapshot())
+                            onFavoriteToggled: favorite => appController.setFavorite(resultDelegate.movie.movieId || "",
+                                                                                     favorite)
+                            onPlayedToggled: played => appController.setPlayed(resultDelegate.movie.movieId || "",
+                                                                               played)
+                            onMediaInfoRequested: root.shell.openMediaInfo(root.search.results.get(index) || ({}))
                         }
                     }
 
-                    Keys.onReleased: (event) => {
-                        if (event.key === Qt.Key_Up && currentIndex <= 0) {
-                            root.focusFieldForTyping()
-                            event.accepted = true
-                        } else if (InputKeys.isAccept(event.key)) {
-                            const row = root.currentResultRow()
-                            if (row && row.handleAcceptReleased && row.handleAcceptReleased(event.key)) {
-                                event.accepted = true
-                                return
-                            }
-                            root.activateCurrent()
-                            event.accepted = true
-                        } else if (event.key === Qt.Key_M && currentIndex >= 0) {
-                            root.shell.openMediaInfo(root.search.results.get(currentIndex))
-                            event.accepted = true
-                        }
-                    }
+                    Keys.onReleased: event => {
+                                         if (event.key === Qt.Key_Up && currentIndex <= 0) {
+                                             root.focusFieldForTyping()
+                                             event.accepted = true
+                                         } else if (InputKeys.isAccept(event.key)) {
+                                             const row = root.currentResultRow()
+                                             if (row && row.handleAcceptReleased && row.handleAcceptReleased(
+                                                     event.key)) {
+                                                 event.accepted = true
+                                                 return
+                                             }
+                                             root.activateCurrent()
+                                             event.accepted = true
+                                         } else if (event.key === Qt.Key_M && currentIndex >= 0) {
+                                             root.shell.openMediaInfo(root.search.results.get(currentIndex))
+                                             event.accepted = true
+                                         }
+                                     }
                 }
 
                 EmptyPlaceholder {

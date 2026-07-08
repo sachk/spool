@@ -14,9 +14,16 @@ T.Button {
 
     background: Rectangle {
         radius: Theme.radiusMedium
-        color: root.kind === "primary" ? root.down ? Theme.accentDim : root.pointerHovered || root.activeFocus ? Theme.accent : Theme.accentDim : root.down ? Theme.bgRaised : root.kind === "flat" ? "transparent" : Theme.bgPanel
+        color: root.kind === "primary" ? root.down ? Theme.accentDim : root.pointerHovered || root.activeFocus
+                                                     ? Theme.accent : Theme.accentDim : root.down ? Theme.bgRaised :
+                                                                                                    root.kind
+                                                                                                    === "flat"
+                                                                                                    ? "transparent" :
+                                                                                                      Theme.bgPanel
         border.width: root.activeFocus ? 2 : root.pointerHovered ? 1 : root.kind === "flat" ? 0 : 1
-        border.color: root.activeFocus ? Theme.textPrimary : root.pointerHovered ? Theme.borderStrong : root.kind === "primary" ? Theme.accentDim : Theme.border
+        border.color: root.activeFocus ? Theme.textPrimary : root.pointerHovered ? Theme.borderStrong : root.kind
+                                                                                   === "primary" ? Theme.accentDim :
+                                                                                                   Theme.border
         antialiasing: true
     }
 

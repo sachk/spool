@@ -16,20 +16,17 @@ struct SyncPlayTimeMeasurement {
     double pingMs() const;
 };
 
-class SyncPlayClock final
-{
+class SyncPlayClock final {
 public:
     void reset();
-    void addMeasurement(const SyncPlayTimeMeasurement &measurement);
+    void addMeasurement(const SyncPlayTimeMeasurement& measurement);
 
     bool ready() const;
     double offsetMs() const;
     double pingMs() const;
-    std::int64_t localDelayUntil(std::int64_t serverTimeMs,
-                                 std::int64_t localNowMs) const;
-    std::int64_t estimatePositionTicks(std::int64_t positionTicks,
-                                       std::int64_t serverTimeMs,
-                                       std::int64_t localNowMs) const;
+    std::int64_t localDelayUntil(std::int64_t serverTimeMs, std::int64_t localNowMs) const;
+    std::int64_t estimatePositionTicks(
+        std::int64_t positionTicks, std::int64_t serverTimeMs, std::int64_t localNowMs) const;
 
 private:
     void selectBestMeasurement();

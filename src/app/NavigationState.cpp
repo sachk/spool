@@ -12,7 +12,7 @@ void NavigationState::reset()
     m_page = QStringLiteral("login");
 }
 
-bool NavigationState::setPage(const QString &page)
+bool NavigationState::setPage(const QString& page)
 {
     if (m_page == page)
         return false;

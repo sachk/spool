@@ -7,7 +7,9 @@ SettingRow {
     property int currentIndex: 0
     property bool handledNavigationPress: false
     property real metricsWidth: 1920
-    readonly property string selectedText: options.length > 0 ? String(options[Math.max(0, Math.min(options.length - 1, currentIndex))]) : ""
+    readonly property string selectedText: options.length > 0 ? String(options[Math.max(0, Math.min(options.length - 1,
+                                                                                                    currentIndex))]) :
+                                                                ""
     signal selected(int index, string value)
     valueText: selectedText
     valueTextVisible: false
@@ -75,16 +77,16 @@ SettingRow {
         return false
     }
 
-    Keys.onReleased: (event) => {
-        if ((event.key === Qt.Key_Left || event.key === Qt.Key_Right) && options.length > 0) {
-            if (handledNavigationPress) {
-                handledNavigationPress = false
-                event.accepted = true
-                return
-            }
-            const dir = event.key === Qt.Key_Right ? 1 : -1
-            move(dir)
-            event.accepted = true
-        }
-    }
+    Keys.onReleased: event => {
+                         if ((event.key === Qt.Key_Left || event.key === Qt.Key_Right) && options.length > 0) {
+                             if (handledNavigationPress) {
+                                 handledNavigationPress = false
+                                 event.accepted = true
+                                 return
+                             }
+                             const dir = event.key === Qt.Key_Right ? 1 : -1
+                             move(dir)
+                             event.accepted = true
+                         }
+                     }
 }

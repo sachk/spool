@@ -82,11 +82,17 @@ Item {
 
         Behavior on width {
             enabled: !Theme.reducedMotion
-            NumberAnimation { duration: 100; easing.type: Easing.OutQuad }
+            NumberAnimation {
+                duration: 100
+                easing.type: Easing.OutQuad
+            }
         }
         Behavior on opacity {
             enabled: !Theme.reducedMotion
-            NumberAnimation { duration: 100; easing.type: Easing.OutQuad }
+            NumberAnimation {
+                duration: 100
+                easing.type: Easing.OutQuad
+            }
         }
     }
 }

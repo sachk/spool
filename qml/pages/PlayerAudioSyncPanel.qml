@@ -61,14 +61,20 @@ Rectangle {
 
     Behavior on scale {
         enabled: !Theme.reducedMotion && !audioSyncPanel.instantOpen
-        NumberAnimation { duration: 160; easing.type: Easing.OutCubic }
+        NumberAnimation {
+            duration: 160
+            easing.type: Easing.OutCubic
+        }
     }
 
     transform: Translate {
         y: audioSyncPanel.instantOpen || audioSyncPanel.opacity > 0.5 ? 0 : audioSyncPanel.dp(14)
         Behavior on y {
             enabled: !Theme.reducedMotion && !audioSyncPanel.instantOpen
-            NumberAnimation { duration: 160; easing.type: Easing.OutCubic }
+            NumberAnimation {
+                duration: 160
+                easing.type: Easing.OutCubic
+            }
         }
     }
 
@@ -149,7 +155,8 @@ Rectangle {
                     }
 
                     Rectangle {
-                        x: Math.max(0, Math.min(parent.width - width, ((overlay.currentAudioDelayMs + 2000) / 4000) * parent.width - width / 2))
+                        x: Math.max(0, Math.min(parent.width - width, ((overlay.currentAudioDelayMs + 2000) / 4000) * parent.width
+                                                - width / 2))
                         anchors.verticalCenter: parent.verticalCenter
                         width: dp(24)
                         height: width
@@ -192,9 +199,12 @@ Rectangle {
                     Layout.fillWidth: true
                     Layout.preferredHeight: dp(52)
                     radius: dp(10)
-                    color: focused ? Qt.alpha(overlay.accent, 0.2) : selected ? Qt.alpha(overlay.accent, 0.15) : overlay.colFillSubtle
+                    color: focused ? Qt.alpha(overlay.accent, 0.2) : selected ? Qt.alpha(overlay.accent, 0.15) :
+                                                                                overlay.colFillSubtle
+
                     border.width: focused ? 2 : selected ? 1 : 1
-                    border.color: focused ? overlay.accentBright : selected ? Qt.alpha(overlay.accent, 0.3) : overlay.colHairlineSoft
+                    border.color: focused ? overlay.accentBright : selected ? Qt.alpha(overlay.accent, 0.3) :
+                                                                              overlay.colHairlineSoft
 
                     Text {
                         anchors.centerIn: parent
