@@ -83,15 +83,6 @@ namespace {
         return url;
     }
 
-    void addAccessToken(QUrl *url, const QString& accessToken)
-    {
-        QUrlQuery query(*url);
-        if (!accessToken.isEmpty() && !query.hasQueryItem(QStringLiteral("api_key"))) {
-            query.addQueryItem(QStringLiteral("api_key"), accessToken);
-            url->setQuery(query);
-        }
-    }
-
 } // namespace
 
 PlaybackSelection PlaybackNegotiation::selectSource(const QJsonArray& mediaSources, bool preferRemux)
@@ -118,7 +109,7 @@ PlaybackSelection PlaybackNegotiation::selectSource(const QJsonArray& mediaSourc
 }
 
 QString PlaybackNegotiation::buildUrl(
-    const QString& serverUrl, const QString& itemId, const QString& accessToken, const PlaybackSelection& selection)
+    const QString& serverUrl, const QString& itemId, const PlaybackSelection& selection)
 {
     const QString mediaSourceId = selection.source.value(QStringLiteral("Id")).toString();
     if (mediaSourceId.isEmpty())
@@ -138,7 +129,6 @@ QString PlaybackNegotiation::buildUrl(
         }
     }
 
-    addAccessToken(&url, accessToken);
     return url.toString(QUrl::FullyEncoded);
 }
 

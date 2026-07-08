@@ -5,14 +5,39 @@ import "../primitives"
 Item {
     id: root
     property string message: ""
+    property var pending: []
+
     function show(text) {
-        message = text
+        const normalized = String(text || "")
+        if (normalized.length === 0)
+            return
+        if (message.length === 0) {
+            message = normalized
+            timer.restart()
+            return
+        }
+        const next = pending.slice()
+        next.push(normalized)
+        while (next.length > 2)
+            next.shift()
+        pending = next
+    }
+
+    function showNext() {
+        if (pending.length === 0) {
+            message = ""
+            return
+        }
+        const next = pending.slice()
+        message = next.shift()
+        pending = next
         timer.restart()
     }
+
     Timer {
         id: timer
         interval: 2400
-        onTriggered: root.message = ""
+        onTriggered: root.showNext()
     }
 
     Surface {

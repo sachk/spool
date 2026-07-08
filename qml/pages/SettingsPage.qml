@@ -11,7 +11,7 @@ FocusScope {
     property int categoryIndex: 0
     property var settingsRows: []
 
-    readonly property bool smartTvPlatform: nativeWindow ? nativeWindow.smartTvPlatform : true
+    readonly property bool smartTvPlatform: NativeWindow.smartTvPlatform
     readonly property bool gpuNextDiagnosticsAvailable: !smartTvPlatform
     readonly property var categories: [
         {
@@ -204,7 +204,7 @@ FocusScope {
     }
 
     function controllerSchemaRows() {
-        return settingsController ? settingsController.settingsSchema : []
+        return Settings.settingsSchema
     }
 
     function rowVisible(row) {
@@ -296,9 +296,7 @@ FocusScope {
     }
 
     function settingsValue(row) {
-        if (!settingsController)
-            return row.defaultValue
-        const values = settingsController.values
+        const values = Settings.values
         const value = values[row.key]
         return value === undefined ? row.defaultValue : value
     }
@@ -337,20 +335,20 @@ FocusScope {
             return "Use custom styling when it improves readability"
         }
         if (row.key === "session/server")
-            return sessionController ? sessionController.serverUrl : ""
+            return Session.serverUrl
         if (row.key === "about/locale")
-            return i18n ? "Active translation tag" : ""
+            return "Active translation tag"
         return row.description || ""
     }
 
     function rowValueText(row) {
         switch (row.key) {
         case "session/server":
-            return sessionController && sessionController.serverUrl.length > 0 ? "Connected" : "Offline"
+            return Session.serverUrl.length > 0 ? "Connected" : "Offline"
         case "about/version":
             return "v" + Qt.application.version
         case "about/locale":
-            return i18n ? i18n.currentLocale : "en-US"
+            return I18n.currentLocale
         default:
             return row.valueText || ""
         }
@@ -360,16 +358,14 @@ FocusScope {
         switch (row.key) {
         case "i18n/locale":
         {
-            if (!i18n)
-                return ["System default"]
             const result = []
-            const list = i18n.availableLocales
+            const list = I18n.availableLocales
             for (let i = 0; i < list.length; ++i)
-                result.push(i18n.displayNameFor(list[i]))
+                result.push(I18n.displayNameFor(list[i]))
             return result
         }
         case "subtitles/language":
-            return settingsController ? settingsController.subtitleLanguageOptions : ["Any language"]
+            return Settings.subtitleLanguageOptions
         default:
             return row.choiceLabels || []
         }
@@ -378,7 +374,7 @@ FocusScope {
     function rowChoiceValues(row) {
         switch (row.key) {
         case "i18n/locale":
-            return i18n ? i18n.availableLocales : ["system"]
+            return I18n.availableLocales
         case "theme/accent":
         case "metrics/posterSize":
             return [0, 1, 2]
@@ -399,11 +395,9 @@ FocusScope {
         switch (row.key) {
         case "i18n/locale":
         {
-            if (!i18n)
-                return 0
-            const list = i18n.availableLocales
+            const list = I18n.availableLocales
             for (let i = 0; i < list.length; ++i) {
-                if ((list[i] === "system" && i18n.useSystemLocale) || list[i] === i18n.currentLocale)
+                if ((list[i] === "system" && I18n.useSystemLocale) || list[i] === I18n.currentLocale)
                     return i
             }
             return 0
@@ -438,7 +432,7 @@ FocusScope {
                 return 2
             return 0
         case "subtitles/language":
-            return settingsController ? settingsController.subtitleLanguageIndex : 0
+            return Settings.subtitleLanguageIndex
         default:
             return valueIndex(rowChoiceValues(row), settingsValue(row))
         }
@@ -470,11 +464,9 @@ FocusScope {
         switch (row.key) {
         case "i18n/locale":
         {
-            if (!i18n)
-                return
-            const list = i18n.availableLocales
+            const list = I18n.availableLocales
             if (index >= 0 && index < list.length)
-                i18n.setLocale(list[index])
+                I18n.setLocale(list[index])
             return
         }
         case "theme/accent":
@@ -496,14 +488,12 @@ FocusScope {
             Theme.technicalMetadataMode = String(rowOptions(row)[index])
             return
         case "subtitles/language":
-            if (settingsController)
-                settingsController.setSubtitleLanguageIndex(index)
+            Settings.setSubtitleLanguageIndex(index)
             return
         default:
-            if (settingsController) {
-                const values = rowChoiceValues(row)
-                settingsController.setValue(row.key, valueFromIndex(values, index))
-            }
+            const values = rowChoiceValues(row)
+            Settings.setValue(row.key, valueFromIndex(values, index))
+            return
         }
     }
 
@@ -520,8 +510,7 @@ FocusScope {
                 shell.diagnosticsVisible = checked
             return
         default:
-            if (settingsController)
-                settingsController.setValue(row.key, checked)
+            Settings.setValue(row.key, checked)
         }
     }
 
@@ -531,8 +520,7 @@ FocusScope {
             Metrics.userUiScale = value
             return
         default:
-            if (settingsController)
-                settingsController.setValue(row.key, Math.round(value))
+            Settings.setValue(row.key, Math.round(value))
         }
     }
 
@@ -545,8 +533,8 @@ FocusScope {
         case "action":
             if (row.key === "action/switchUser" && shell)
                 shell.switchUser()
-            else if (row.key === "action/logout" && appController)
-                appController.logout()
+            else if (row.key === "action/logout")
+                App.logout()
             return
         case "toggle":
             setRowBool(row, !rowBool(row))
@@ -623,7 +611,7 @@ FocusScope {
     })
 
     Connections {
-        target: settingsController ? settingsController : null
+        target: Settings
         function onSettingsValuesChanged() {
             settingsList.forceLayout()
         }

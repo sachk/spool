@@ -532,7 +532,6 @@ QUrl SyncPlayController::socketUrl() const
     url.setPath(path + QStringLiteral("/socket"));
 
     QUrlQuery query;
-    query.addQueryItem(QStringLiteral("api_key"), m_api->session().accessToken);
     if (!m_api->deviceId().isEmpty()) {
         query.addQueryItem(QStringLiteral("deviceId"), m_api->deviceId());
     }

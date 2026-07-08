@@ -69,8 +69,6 @@ FocusScope {
             return false
         const acceptKey = InputKeys.isAccept(key)
         const card = currentCard()
-        if (!acceptKey && card && card.handleKey && card.handleKey(key))
-            return true
         if (key === Qt.Key_Left) {
             if (listView.currentIndex > 0)
                 listView.currentIndex = listView.currentIndex - 1
@@ -87,8 +85,6 @@ FocusScope {
         if (acceptKey) {
             currentIndex = listView.currentIndex
             if (card && card.handleAcceptReleased && card.handleAcceptReleased(key))
-                return true
-            if (card && card.handleKey && card.handleKey(key))
                 return true
             activated(listView.currentIndex)
             return true
@@ -147,9 +143,6 @@ FocusScope {
             function handleAcceptReleased(key) {
                 return card.handleAcceptReleased(key)
             }
-            function handleKey(key) {
-                return card.handleKey(key)
-            }
 
             MediaItemCard {
                 id: card
@@ -159,7 +152,7 @@ FocusScope {
                 useSeriesPoster: root.useSeriesPoster
                 preferEpisodeTitle: root.preferEpisodeTitle
                 focused: posterDelegate.index === listView.currentIndex && listView.activeFocus
-                snapshotProvider: function () {
+                itemProvider: function () {
                     return root.rowModel.get(posterDelegate.index) || ({})
                 }
                 item: posterDelegate.movie
@@ -171,8 +164,8 @@ FocusScope {
                     root.currentIndex = posterDelegate.index
                     root.activated(posterDelegate.index)
                 }
-                onFavoriteToggled: favorite => appController.setFavorite(posterDelegate.movie.movieId || "", favorite)
-                onPlayedToggled: played => appController.setPlayed(posterDelegate.movie.movieId || "", played)
+                onFavoriteToggled: favorite => App.setFavorite(posterDelegate.movie.movieId || "", favorite)
+                onPlayedToggled: played => App.setPlayed(posterDelegate.movie.movieId || "", played)
                 onMediaInfoRequested: {
                     if (root.shell)
                         root.shell.openMediaInfo(root.rowModel.get(posterDelegate.index) || ({}))

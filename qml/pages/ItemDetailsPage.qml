@@ -7,11 +7,11 @@ FocusScope {
     id: root
 
     property var shell
-    readonly property var itemModel: shell && shell.detailsModel ? shell.detailsModel : browseController.items
+    readonly property var itemModel: shell && shell.detailsModel ? shell.detailsModel : Browse.items
     readonly property int itemCount: itemModel && itemModel.rowCount ? itemModel.rowCount() : 0
     readonly property int selectedIndex: itemCount > 0 && shell ? shell.detailsIndexForModel(itemModel) : -1
     readonly property var item: selectedIndex >= 0 && itemModel ? itemModel.get(selectedIndex) : ({})
-    readonly property string detailSource: shell && shell.detailsRoute ? shell.detailsRoute.source : "movies"
+    readonly property string detailSource: shell ? shell.detailsSource : "movies"
     readonly property string typeText: item.itemType || "Media"
     readonly property string titleText: typeText === "Episode" && item.title ? item.title : (item.displayTitle
                                                                                              || item.title
@@ -35,11 +35,9 @@ FocusScope {
                                        || item.seriesPosterUrl || ""
     readonly property bool showSideArt: width >= 1120 && stillArt.length > 0
     readonly property real copyWidth: showSideArt ? Math.min(width * 0.56, 940) : width - contentMargin * 2
-    readonly property bool loadingDetailRows: contentController ? contentController.detailRowsBusy : false
-    readonly property int contextCount: contentController && contentController.detailSeasons
-                                        ? contentController.detailSeasons.count : 0
-    readonly property int similarCount: contentController && contentController.detailSimilarItems
-                                        ? contentController.detailSimilarItems.count : 0
+    readonly property bool loadingDetailRows: Content.detailRowsBusy
+    readonly property int contextCount: Content.detailSeasons ? Content.detailSeasons.count : 0
+    readonly property int similarCount: Content.detailSimilarItems ? Content.detailSimilarItems.count : 0
     readonly property bool contextPosterCards: typeText === "Series" || typeText === "BoxSet"
     readonly property bool contextItemsPossible: contextPosterCards || ((typeText === "Episode" || typeText
                                                                          === "Season") && seriesIdText.length > 0)
@@ -47,10 +45,8 @@ FocusScope {
     readonly property bool showContextPlaybackActions: contextCount > 0 && typeText !== "Series"
     readonly property bool showContextRow: contextCount > 0 || reserveContextRow
     readonly property bool showSimilarRow: similarCount > 0
-    readonly property var fullDetailItem: contentController && contentController.detailItem && String(
-                                              contentController.detailItem.movieId || "") === String(item.movieId
-                                                                                                     || "") ? contentController.detailItem :
-                                                                                                              ({})
+    readonly property var fullDetailItem: Content.detailItem && String(Content.detailItem.movieId || "") === String(
+                                              item.movieId || "") ? Content.detailItem : ({})
     readonly property var metadataPeople: fullDetailItem.people && fullDetailItem.people.length > 0
                                           ? fullDetailItem.people : (item.people || [])
     readonly property var people: metadataPeople
@@ -390,14 +386,14 @@ FocusScope {
     }
 
     Connections {
-        target: contentController
+        target: Content
         function onDetailRowsChanged() {
             root.updateDetailCounts()
         }
     }
 
     Connections {
-        target: appController
+        target: App
         function onItemFavoriteChanged(itemId, favorite) {
             if ((root.item.movieId || "") === itemId)
                 root.favoriteState = favorite
@@ -409,7 +405,7 @@ FocusScope {
     }
 
     Connections {
-        target: contentController ? contentController.detailSeasons : null
+        target: Content.detailSeasons
         function onModelReset() {
             root.updateDetailCounts()
         }
@@ -422,7 +418,7 @@ FocusScope {
     }
 
     Connections {
-        target: contentController ? contentController.detailSimilarItems : null
+        target: Content.detailSimilarItems
         function onModelReset() {
             root.updateDetailCounts()
         }
@@ -457,14 +453,13 @@ FocusScope {
         loadedDetailKey = key
         contextRow.currentIndex = 0
         similarRow.currentIndex = 0
-        if (contentController)
-            contentController.loadDetailRows(itemId, typeText, seriesIdText, seasonIdText)
+        Content.loadDetailRows(itemId, typeText, seriesIdText, seasonIdText)
     }
 
     function refreshItemDetail() {
         const itemId = item.movieId || ""
-        if (itemId.length > 0 && contentController)
-            contentController.loadItemDetail(itemId)
+        if (itemId.length > 0)
+            Content.loadItemDetail(itemId)
     }
 
     function syncUserState() {
@@ -603,28 +598,28 @@ FocusScope {
     function activatePrimary(fromStart) {
         if (selectedIndex < 0 || !canPlay)
             return
-        appController.playFromModel(itemModel, selectedIndex, fromStart === true)
+        App.playFromModel(itemModel, selectedIndex, fromStart === true)
     }
 
     function playDetailContext(shuffled) {
-        if (!appController || !showContextPlaybackActions)
+        if (!showContextPlaybackActions)
             return
-        appController.playDetailContext(shuffled === true)
+        App.playDetailContext(shuffled === true)
         overflowOpen = false
     }
 
     function toggleFavorite() {
-        if (!item.movieId || !appController)
+        if (!item.movieId)
             return
         favoriteState = !favoriteState
-        appController.setFavorite(item.movieId, favoriteState)
+        App.setFavorite(item.movieId, favoriteState)
     }
 
     function togglePlayed() {
-        if (!item.movieId || !appController)
+        if (!item.movieId)
             return
         playedState = !playedState
-        appController.setPlayed(item.movieId, playedState)
+        App.setPlayed(item.movieId, playedState)
     }
 
     function firstOverflowOption() {
@@ -648,39 +643,37 @@ FocusScope {
     }
 
     function openSeriesLink() {
-        if (seriesIdText.length <= 0 || !appController)
+        if (seriesIdText.length <= 0)
             return
         if (shell)
             shell.replaceRoute("libraryGrid")
-        appController.openSeriesById(seriesIdText, seriesTitle)
+        App.openSeriesById(seriesIdText, seriesTitle)
     }
 
     function openSeasonLink() {
-        if (seriesIdText.length <= 0 || !appController)
+        if (seriesIdText.length <= 0)
             return
         if (shell)
             shell.replaceRoute("libraryGrid")
-        appController.openSeasonById(seriesIdText, seasonIdText, seasonTitleText)
+        App.openSeasonById(seriesIdText, seasonIdText, seasonTitleText)
     }
 
     function openContextItem(index) {
-        if (index < 0 || !appController)
+        if (index < 0)
             return
         if (typeText === "Series") {
-            appController.openDetailSeason(index)
+            App.openDetailSeason(index)
             if (shell)
                 shell.replaceRoute("libraryGrid")
             return
         }
         if (shell)
-            shell.openDetailsAt(contentController.detailSeasons, index, "context", shell.detailsReturnRoute
-                                || "libraryGrid")
+            shell.openDetailsAt(Content.detailSeasons, index, "context", shell.detailsReturnRoute || "libraryGrid")
     }
 
     function openSimilarItem(index) {
-        if (index >= 0 && shell && contentController)
-            shell.openDetailsAt(contentController.detailSimilarItems, index, "similar", shell.detailsReturnRoute
-                                || "libraryGrid")
+        if (index >= 0 && shell)
+            shell.openDetailsAt(Content.detailSimilarItems, index, "similar", shell.detailsReturnRoute || "libraryGrid")
     }
 
     function openPerson(person) {
@@ -689,17 +682,17 @@ FocusScope {
     }
 
     function openGenrePage(value) {
-        if (!value || !appController)
+        if (!value)
             return
-        appController.openGenre(value)
+        App.openGenre(value)
         if (shell)
             shell.replaceRoute("libraryGrid")
     }
 
     function openStudioPage(value) {
-        if (!value || !appController)
+        if (!value)
             return
-        appController.openStudio(value)
+        App.openStudio(value)
         if (shell)
             shell.replaceRoute("libraryGrid")
     }
@@ -1356,7 +1349,7 @@ FocusScope {
                     anchors.rightMargin: root.contentMargin
                     y: detailRowsArea.contextY
                     title: root.contextRowTitle()
-                    rowModel: contentController ? contentController.detailSeasons : null
+                    rowModel: Content.detailSeasons
                     shell: root.shell
                     cardWidth: root.contextPosterCards ? root.rowPosterWidth : root.rowLandscapeWidth
                     cardKind: root.contextPosterCards ? "poster" : "landscape"
@@ -1395,7 +1388,7 @@ FocusScope {
                     anchors.rightMargin: root.contentMargin
                     y: detailRowsArea.similarY
                     title: "More Like This"
-                    rowModel: contentController ? contentController.detailSimilarItems : null
+                    rowModel: Content.detailSimilarItems
                     shell: root.shell
                     cardWidth: root.typeText === "Episode" ? root.rowLandscapeWidth : root.rowPosterWidth
                     cardKind: root.typeText === "Episode" ? "landscape" : "poster"

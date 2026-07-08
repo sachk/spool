@@ -8,8 +8,7 @@ FocusScope {
 
     property var shell
     readonly property var person: shell ? shell.personItem : ({})
-    property int itemCount: contentController && contentController.personItems ? contentController.personItems.rowCount(
-                                                                                     ) : 0
+    property int itemCount: Content.personItems ? Content.personItems.rowCount() : 0
     property int currentIndex: itemCount > 0 ? 0 : -1
     readonly property int contentMargin: Metrics.pageMargin(width)
     readonly property int portraitWidth: Math.min(176, Math.max(128, width * 0.1))
@@ -25,7 +24,7 @@ FocusScope {
                               focusKnownFor()
 
     Connections {
-        target: contentController ? contentController.personItems : null
+        target: Content.personItems
         function onModelReset() {
             root.refreshCount()
         }
@@ -38,7 +37,7 @@ FocusScope {
     }
 
     Connections {
-        target: contentController
+        target: Content
         function onPersonItemsChanged() {
             root.refreshCount()
         }
@@ -46,8 +45,8 @@ FocusScope {
 
     function loadPerson() {
         currentIndex = 0
-        if (contentController && person && person.personId)
-            contentController.loadPersonItems(person.personId)
+        if (Content && person && person.personId)
+            Content.loadPersonItems(person.personId)
     }
 
     function focusKnownFor() {
@@ -73,7 +72,7 @@ FocusScope {
     }
 
     function refreshCount() {
-        itemCount = contentController && contentController.personItems ? contentController.personItems.rowCount() : 0
+        itemCount = Content.personItems ? Content.personItems.rowCount() : 0
         currentIndex = itemCount > 0 ? Math.max(0, Math.min(currentIndex, itemCount - 1)) : -1
         knownFor.currentIndex = currentIndex
         if (activeFocus)
@@ -91,7 +90,7 @@ FocusScope {
 
     function openCurrent() {
         if (currentIndex >= 0)
-            shell.openDetailsAt(contentController.personItems, currentIndex, "person", "personDetails")
+            shell.openDetailsAt(Content.personItems, currentIndex, "person", "personDetails")
     }
 
     function handleKey(key) {
@@ -166,7 +165,7 @@ FocusScope {
                 id: knownFor
                 Layout.fillWidth: true
                 title: "Known For"
-                rowModel: contentController ? contentController.personItems : null
+                rowModel: Content.personItems
                 shell: root.shell
                 cardWidth: root.knownForCardWidth
                 rowGap: Metrics.gap(root.width)
@@ -181,7 +180,7 @@ FocusScope {
 
             EmptyPlaceholder {
                 Layout.fillWidth: true
-                visible: root.itemCount === 0 && !(contentController && contentController.personItemsBusy)
+                visible: root.itemCount === 0 && !Content.personItemsBusy
                 title: "No items"
                 detail: "This person has no matching movies or episodes in your libraries."
             }

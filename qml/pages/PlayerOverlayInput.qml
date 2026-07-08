@@ -86,16 +86,14 @@ Item {
     }
 
     function actionForColorKey(key) {
-        if (!settingsController)
-            return ""
         if (key === Qt.Key_Red)
-            return settingsController.redButtonAction
+            return Settings.redButtonAction
         if (key === Qt.Key_Green)
-            return settingsController.greenButtonAction
+            return Settings.greenButtonAction
         if (key === Qt.Key_Yellow)
-            return settingsController.yellowButtonAction
+            return Settings.yellowButtonAction
         if (key === Qt.Key_Blue)
-            return settingsController.blueButtonAction
+            return Settings.blueButtonAction
         return ""
     }
 
@@ -153,11 +151,11 @@ Item {
             return true
         }
         if (action === "queuePrevious") {
-            overlay.appController.playQueuePrevious()
+            overlay.App.playQueuePrevious()
             return true
         }
         if (action === "queueNext") {
-            overlay.appController.playQueueNext()
+            overlay.App.playQueueNext()
             return true
         }
         if (action === "showInfo") {
@@ -215,11 +213,11 @@ Item {
             return true
         }
         if (InputKeys.isMediaPrevious(event.key)) {
-            overlay.appController.playQueuePrevious()
+            overlay.App.playQueuePrevious()
             return true
         }
         if (InputKeys.isMediaNext(event.key)) {
-            overlay.appController.playQueueNext()
+            overlay.App.playQueueNext()
             return true
         }
         if (overlay.mode === "hidden") {

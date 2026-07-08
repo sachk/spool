@@ -8,10 +8,11 @@ DTO structs stay hand-written; only the serialization becomes generic.
 
 - One phase = one reviewable unit. Land phases in order; later phases assume
   earlier ones. Within a phase, commit in the listed step order.
-- Both targets must stay green after every phase: the desktop build
-  (`-DJELLYFIN_NATIVE_WEBOS=OFF`) with `ctest`, and a webOS cross-build
-  (config + compile; on-device smoke via `tools/smoke-native-app.sh` /
-  `--smoke-and-exit` when touching startup paths).
+- Current completion pass verification is desktop-only unless the user explicitly
+  asks otherwise: use a foreground `nix develop .#native -c ...` app run that
+  exits or is killed after about 10 seconds, and inspect its stdout/stderr for
+  homepage render/startup regressions. Do not spend time on webOS cross-builds,
+  IPK install, on-device smoke, or broader acceptance loops during this pass.
 - Do not pick up `PERFORMANCE_PLAN.md` items opportunistically; the only
   sanctioned overlaps are noted inline (Phase 9 DB, Phase 10 skeletons).
 - When a phase says "sweep", run the given grep first, record the count, and
@@ -378,14 +379,13 @@ spine); Agent B takes P7 and P8 (independent files), then joins for P6.
 
 ## Verification appendix
 
-- Desktop: configure with `-DJELLYFIN_NATIVE_WEBOS=OFF`, build, `ctest
-  --output-on-failure`, then run the app against a test server (browse,
-  play, seek, tracks, context menu, management, search, settings, syncplay
-  menu).
-- webOS: cross-configure + build; `readelf -d` on the binary to confirm no
-  new `DT_NEEDED` regressions (libmpv must remain dlopen-only); install IPK
-  and run `--smoke-and-exit`, then a manual D-pad pass.
-- QML: `cmake --build <dir> --target jellyfin-native_qmllint` (Phase 3+).
+- Desktop foreground smoke only for this completion pass: run the native app
+  through `nix develop .#native -c ...`, make it exit or kill it after about
+  10 seconds, and inspect stdout/stderr for startup/homepage/QML regressions.
+  The user will perform full webOS/manual acceptance after the plan is done.
+- QML: `cmake --build <dir> --target jellyfin-native_qmllint` is useful after
+  Phase 3, but during this pass the required runtime check remains the
+  foreground nix app run above.
 - Greps that must trend to zero: `setContextProperty` (P3),
   `movieFromSnapshot|QVariantMap &item` in `AppController` (P2),
   `function handleKey` count > 4 in `qml/` (P6), `api_key` in `src/api`

@@ -7,6 +7,7 @@
 #include "app/NativeAppWindow.h"
 #include "app/RouterController.h"
 #include "cache/DatabaseManager.h"
+#include "common/LogRotation.h"
 #include "diagnostics/Diagnostics.h"
 #include "discovery/DiscoveryController.h"
 #include "player/MpvVideoItem.h"
@@ -14,6 +15,7 @@
 #ifdef JELLYFIN_NATIVE_WEBOS
 #include "player/MpvRuntime.h"
 #endif
+#include <QCoroTask>
 
 extern "C" {
 #include <fcntl.h>
@@ -59,6 +61,7 @@ Q_IMPORT_PLUGIN(QSQLiteDriverPlugin)
 #include <QQmlContext>
 #include <QQmlEngine>
 #include <QQmlError>
+#include <QQmlPropertyMap>
 #include <QQuickGraphicsConfiguration>
 #include <QQuickStyle>
 #include <QQuickWindow>
@@ -104,22 +107,9 @@ JellyfinNative::NativeAppWindow *g_lifecycleWindow = nullptr;
 JellyfinNative::AppController *g_appController = nullptr;
 #endif
 
-void rotateLogFile(const char *path)
-{
-    char older[PATH_MAX];
-    char newer[PATH_MAX];
-    if (snprintf(older, sizeof(older), "%s.2", path) < static_cast<int>(sizeof(older)))
-        unlink(older);
-    if (snprintf(older, sizeof(older), "%s.1", path) < static_cast<int>(sizeof(older))
-        && snprintf(newer, sizeof(newer), "%s.2", path) < static_cast<int>(sizeof(newer)))
-        rename(older, newer);
-    if (snprintf(newer, sizeof(newer), "%s.1", path) < static_cast<int>(sizeof(newer)))
-        rename(path, newer);
-}
-
 FILE *openRotatedLogFile(const QByteArray& path)
 {
-    rotateLogFile(path.constData());
+    JellyfinNative::rotateLogFile(path.constData());
     return fopen(path.constData(), "w");
 }
 
@@ -758,7 +748,7 @@ int main(int argc, char **argv)
             return 1;
     }
 
-    QString deviceId = database.loadDeviceId();
+    QString deviceId = QCoro::waitFor(database.loadDeviceIdAsync());
     if (deviceId.isEmpty()) {
         deviceId = QUuid::createUuid().toString(QUuid::WithoutBraces);
         database.saveDeviceId(deviceId);
@@ -873,27 +863,30 @@ int main(int argc, char **argv)
             [api = api.get(), loc = localization.get()]() { api->setAcceptLanguage(loc->bcp47Locale()); });
     }
     auto router = std::make_unique<JellyfinNative::RouterController>();
-    window.rootContext()->setContextProperty(QStringLiteral("appController"), controller.get());
-    window.rootContext()->setContextProperty(QStringLiteral("browseController"), controller->browse());
-    window.rootContext()->setContextProperty(QStringLiteral("homeController"), controller->home());
-    window.rootContext()->setContextProperty(QStringLiteral("contentController"), controller->content());
-    window.rootContext()->setContextProperty(QStringLiteral("searchController"), controller->search());
-    window.rootContext()->setContextProperty(QStringLiteral("libraryModel"), controller->libraries());
-    window.rootContext()->setContextProperty(QStringLiteral("discoveredServersModel"), controller->discoveredServers());
-    window.rootContext()->setContextProperty(QStringLiteral("sessionController"), controller->session());
-    window.rootContext()->setContextProperty(QStringLiteral("quickConnectController"), controller->quickConnect());
-    window.rootContext()->setContextProperty(QStringLiteral("settingsController"), controller->settings());
-    window.rootContext()->setContextProperty(QStringLiteral("playerController"), controller->player());
-    window.rootContext()->setContextProperty(QStringLiteral("playQueueController"), controller->playQueue());
-    window.rootContext()->setContextProperty(QStringLiteral("syncPlayController"), controller->syncPlay());
-    window.rootContext()->setContextProperty(QStringLiteral("router"), router.get());
-    window.rootContext()->setContextProperty(QStringLiteral("nativeWindow"), &window);
-    window.rootContext()->setContextProperty(QStringLiteral("i18n"), localization.get());
+    QQmlPropertyMap *platformInfo = QQmlPropertyMap::create(&app);
 #ifdef JELLYFIN_NATIVE_WEBOS
-    window.rootContext()->setContextProperty(QStringLiteral("isWebOS"), true);
+    platformInfo->insert(QStringLiteral("isWebOS"), true);
 #else
-    window.rootContext()->setContextProperty(QStringLiteral("isWebOS"), false);
+    platformInfo->insert(QStringLiteral("isWebOS"), false);
 #endif
+    qmlRegisterSingletonInstance("JellyfinWebOS", 1, 0, "App", controller.get());
+    qmlRegisterSingletonInstance("JellyfinWebOS", 1, 0, "Browse", controller->browse());
+    qmlRegisterSingletonInstance("JellyfinWebOS", 1, 0, "Home", controller->home());
+    qmlRegisterSingletonInstance("JellyfinWebOS", 1, 0, "Content", controller->content());
+    qmlRegisterSingletonInstance("JellyfinWebOS", 1, 0, "Search", controller->search());
+    qmlRegisterSingletonInstance("JellyfinWebOS", 1, 0, "Libraries", controller->libraries());
+    qmlRegisterSingletonInstance("JellyfinWebOS", 1, 0, "DiscoveredServers", controller->discoveredServers());
+    qmlRegisterSingletonInstance("JellyfinWebOS", 1, 0, "Session", controller->session());
+    qmlRegisterSingletonInstance("JellyfinWebOS", 1, 0, "QuickConnect", controller->quickConnect());
+    qmlRegisterSingletonInstance("JellyfinWebOS", 1, 0, "Settings", controller->settings());
+    qmlRegisterSingletonInstance("JellyfinWebOS", 1, 0, "Player", controller->player());
+    qmlRegisterSingletonInstance("JellyfinWebOS", 1, 0, "PlayQueue", controller->playQueue());
+    qmlRegisterSingletonInstance("JellyfinWebOS", 1, 0, "SyncPlay", controller->syncPlay());
+    qmlRegisterSingletonInstance("JellyfinWebOS", 1, 0, "Management", controller->management());
+    qmlRegisterSingletonInstance("JellyfinWebOS", 1, 0, "Router", router.get());
+    qmlRegisterSingletonInstance("JellyfinWebOS", 1, 0, "NativeWindow", &window);
+    qmlRegisterSingletonInstance("JellyfinWebOS", 1, 0, "I18n", localization.get());
+    qmlRegisterSingletonInstance("JellyfinWebOS", 1, 0, "Platform", platformInfo);
     qmlRegisterType<JellyfinNative::MpvVideoItem>("JellyfinWebOS", 1, 0, "MpvVideoItem");
     {
         JellyfinNative::Diagnostics::Phase phase(QStringLiteral("startup"), QStringLiteral("load_qml"));

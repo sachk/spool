@@ -92,7 +92,6 @@ public:
     QCoro::Task<void> setItemPlayed(QString itemId, bool played);
     QCoro::Task<void> setItemPlaybackPosition(QString itemId, qint64 positionTicks);
     QCoro::Task<std::vector<MediaSegment>> fetchMediaSegments(QString itemId);
-    QCoro::Task<TrickplayInfo> fetchTrickplay(QString itemId, QString mediaSourceId, int preferredWidth = 320);
     QString trickplayTileUrl(const QString& itemId, int width, int tileIndex) const;
     QCoro::Task<PlaybackSession> negotiatePlayback(MovieItem movie);
 

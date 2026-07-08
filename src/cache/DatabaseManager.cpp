@@ -7,6 +7,7 @@
 #include <QFileInfo>
 #include <QJsonDocument>
 #include <QMetaObject>
+#include <QPointer>
 #include <QSqlDatabase>
 #include <QSqlError>
 #include <QSqlQuery>
@@ -14,6 +15,7 @@
 #include <QVector>
 
 #include <algorithm>
+#include <optional>
 
 namespace JellyfinNative {
 
@@ -261,6 +263,92 @@ private:
     QSqlDatabase m_database;
 };
 
+namespace {
+
+    template <typename Callback> class WorkerAwaiter {
+    public:
+        using Result = std::invoke_result_t<Callback>;
+
+        WorkerAwaiter(DatabaseWorker *worker, QObject *context, Callback callback)
+            : m_worker(worker)
+            , m_context(context)
+            , m_callback(std::move(callback))
+        {
+        }
+
+        bool await_ready() const noexcept
+        {
+            return false;
+        }
+
+        void await_suspend(std::coroutine_handle<> handle)
+        {
+            if (!m_worker) {
+                m_result.emplace();
+                handle.resume();
+                return;
+            }
+
+            const bool queued = QMetaObject::invokeMethod(
+                m_worker,
+                [this, handle]() mutable {
+                    try {
+                        m_result.emplace(std::invoke(m_callback));
+                    } catch (...) {
+                        m_exception = std::current_exception();
+                    }
+                    if (!m_context)
+                        return;
+                    QMetaObject::invokeMethod(m_context, [handle]() mutable { handle.resume(); }, Qt::QueuedConnection);
+                },
+                Qt::QueuedConnection);
+            if (!queued) {
+                m_result.emplace();
+                handle.resume();
+            }
+        }
+
+        Result await_resume()
+        {
+            if (m_exception)
+                std::rethrow_exception(m_exception);
+            return std::move(*m_result);
+        }
+
+    private:
+        DatabaseWorker *m_worker = nullptr;
+        QPointer<QObject> m_context;
+        Callback m_callback;
+        std::optional<Result> m_result;
+        std::exception_ptr m_exception;
+    };
+
+    template <typename Callback>
+    QCoro::Task<std::invoke_result_t<Callback>> workerTask(DatabaseWorker *worker, QObject *context, Callback callback)
+    {
+        co_return co_await WorkerAwaiter<Callback>(worker, context, std::move(callback));
+    }
+
+    AuthSession authSessionFromWorker(DatabaseWorker *worker)
+    {
+        AuthSession session;
+        session.accessToken = worker->value(QStringLiteral("login/accessToken")).toString();
+        session.userId = worker->value(QStringLiteral("login/userId")).toString();
+        session.userName = worker->value(QStringLiteral("login/userName")).toString();
+        session.serverId = worker->value(QStringLiteral("login/serverId")).toString();
+        return session;
+    }
+
+    QString settingFromWorker(DatabaseWorker *worker, const QString& key, const QString& defaultValue)
+    {
+        const QVariant value = worker->value(key);
+        if (!value.isValid() || value.toString().isEmpty())
+            return defaultValue;
+        return value.toString();
+    }
+
+} // namespace
+
 DatabaseManager::DatabaseManager(QObject *parent)
     : QObject(parent)
 {
@@ -303,14 +391,18 @@ void DatabaseManager::shutdown()
     m_worker = nullptr;
 }
 
-QString DatabaseManager::loadLastServerUrl()
+QCoro::Task<QString> DatabaseManager::loadLastServerUrlAsync()
 {
-    return invokeOnWorker([this]() { return m_worker->value(QStringLiteral("login/serverUrl")); }).toString();
+    DatabaseWorker *worker = m_worker;
+    co_return co_await workerTask(worker, this,
+        [worker]() { return worker ? worker->value(QStringLiteral("login/serverUrl")).toString() : QString(); });
 }
 
-QString DatabaseManager::loadLastUsername()
+QCoro::Task<QString> DatabaseManager::loadLastUsernameAsync()
 {
-    return invokeOnWorker([this]() { return m_worker->value(QStringLiteral("login/username")); }).toString();
+    DatabaseWorker *worker = m_worker;
+    co_return co_await workerTask(worker, this,
+        [worker]() { return worker ? worker->value(QStringLiteral("login/username")).toString() : QString(); });
 }
 
 void DatabaseManager::saveLoginHints(const QString& serverUrl, const QString& username)
@@ -321,16 +413,11 @@ void DatabaseManager::saveLoginHints(const QString& serverUrl, const QString& us
     });
 }
 
-AuthSession DatabaseManager::loadAuthSession()
+QCoro::Task<AuthSession> DatabaseManager::loadAuthSessionAsync()
 {
-    return invokeOnWorker([this]() {
-        AuthSession session;
-        session.accessToken = m_worker->value(QStringLiteral("login/accessToken")).toString();
-        session.userId = m_worker->value(QStringLiteral("login/userId")).toString();
-        session.userName = m_worker->value(QStringLiteral("login/userName")).toString();
-        session.serverId = m_worker->value(QStringLiteral("login/serverId")).toString();
-        return session;
-    });
+    DatabaseWorker *worker = m_worker;
+    co_return co_await workerTask(
+        worker, this, [worker]() { return worker ? authSessionFromWorker(worker) : AuthSession(); });
 }
 
 void DatabaseManager::saveAuthSession(const AuthSession& session)
@@ -353,9 +440,11 @@ void DatabaseManager::clearAuthSession()
     });
 }
 
-QString DatabaseManager::loadDeviceId()
+QCoro::Task<QString> DatabaseManager::loadDeviceIdAsync()
 {
-    return invokeOnWorker([this]() { return m_worker->value(QStringLiteral("client/deviceId")); }).toString();
+    DatabaseWorker *worker = m_worker;
+    co_return co_await workerTask(worker, this,
+        [worker]() { return worker ? worker->value(QStringLiteral("client/deviceId")).toString() : QString(); });
 }
 
 void DatabaseManager::saveDeviceId(const QString& deviceId)
@@ -363,18 +452,21 @@ void DatabaseManager::saveDeviceId(const QString& deviceId)
     invokeOnWorkerAsync([this, deviceId]() { m_worker->setValue(QStringLiteral("client/deviceId"), deviceId); });
 }
 
-QJsonArray DatabaseManager::loadDiscoveredServers()
+QCoro::Task<QJsonArray> DatabaseManager::loadDiscoveredServersAsync()
 {
-    constexpr qint64 maxAgeMs = 7LL * 24 * 60 * 60 * 1000;
-    QByteArray encoded = loadCacheEntry(QStringLiteral("discovery"), QStringLiteral("servers"), maxAgeMs);
-    if (encoded.isEmpty()) {
-        encoded = invokeOnWorker([this]() {
-            return m_worker->value(QStringLiteral("cache/discoveredServers"));
-        }).toByteArray();
-        if (!encoded.isEmpty())
-            saveCacheEntry(QStringLiteral("discovery"), QStringLiteral("servers"), encoded, maxAgeMs);
-    }
-    return QJsonDocument::fromJson(encoded).array();
+    DatabaseWorker *worker = m_worker;
+    co_return co_await workerTask(worker, this, [worker]() {
+        if (!worker)
+            return QJsonArray();
+        constexpr qint64 maxAgeMs = 7LL * 24 * 60 * 60 * 1000;
+        QByteArray encoded = worker->cacheValue(QStringLiteral("discovery"), QStringLiteral("servers"), maxAgeMs);
+        if (encoded.isEmpty()) {
+            encoded = worker->value(QStringLiteral("cache/discoveredServers")).toByteArray();
+            if (!encoded.isEmpty())
+                worker->setCacheValue(QStringLiteral("discovery"), QStringLiteral("servers"), encoded, maxAgeMs);
+        }
+        return QJsonDocument::fromJson(encoded).array();
+    });
 }
 
 void DatabaseManager::saveDiscoveredServers(const QJsonArray& servers)
@@ -385,11 +477,13 @@ void DatabaseManager::saveDiscoveredServers(const QJsonArray& servers)
     evictCacheEntries(512);
 }
 
-QJsonObject DatabaseManager::loadHomePayload(const QString& key, int schemaVersion)
+QCoro::Task<QJsonObject> DatabaseManager::loadHomePayloadAsync(const QString& key, int schemaVersion)
 {
     if (key.isEmpty())
-        return {};
-    return invokeOnWorker([this, key, schemaVersion]() { return m_worker->homePayload(key, schemaVersion); });
+        co_return QJsonObject();
+    DatabaseWorker *worker = m_worker;
+    co_return co_await workerTask(worker, this,
+        [worker, key, schemaVersion]() { return worker ? worker->homePayload(key, schemaVersion) : QJsonObject(); });
 }
 
 void DatabaseManager::saveHomePayload(const QString& key, int schemaVersion, const QJsonObject& payload)
@@ -405,12 +499,11 @@ void DatabaseManager::invalidateHomePayloads()
     invokeOnWorkerAsync([this]() { m_worker->clearHomePayloads(); });
 }
 
-QString DatabaseManager::loadSetting(const QString& key, const QString& defaultValue)
+QCoro::Task<QString> DatabaseManager::loadSettingAsync(const QString& key, const QString& defaultValue)
 {
-    const QVariant value = invokeOnWorker([this, key]() { return m_worker->value(key); });
-    if (!value.isValid() || value.toString().isEmpty())
-        return defaultValue;
-    return value.toString();
+    DatabaseWorker *worker = m_worker;
+    co_return co_await workerTask(worker, this,
+        [worker, key, defaultValue]() { return worker ? settingFromWorker(worker, key, defaultValue) : defaultValue; });
 }
 
 void DatabaseManager::saveSetting(const QString& key, const QString& value)
@@ -418,15 +511,19 @@ void DatabaseManager::saveSetting(const QString& key, const QString& value)
     invokeOnWorkerAsync([this, key, value]() { m_worker->setValue(key, value); });
 }
 
-int DatabaseManager::schemaVersion()
+QCoro::Task<int> DatabaseManager::schemaVersionAsync()
 {
-    return invokeOnWorker([this]() { return m_worker->schemaVersion(); });
+    DatabaseWorker *worker = m_worker;
+    co_return co_await workerTask(worker, this, [worker]() { return worker ? worker->schemaVersion() : 0; });
 }
 
-QByteArray DatabaseManager::loadCacheEntry(const QString& nameSpace, const QString& key, qint64 maxAgeMs)
+QCoro::Task<QByteArray> DatabaseManager::loadCacheEntryAsync(
+    const QString& nameSpace, const QString& key, qint64 maxAgeMs)
 {
-    return invokeOnWorker(
-        [this, nameSpace, key, maxAgeMs]() { return m_worker->cacheValue(nameSpace, key, maxAgeMs); });
+    DatabaseWorker *worker = m_worker;
+    co_return co_await workerTask(worker, this, [worker, nameSpace, key, maxAgeMs]() {
+        return worker ? worker->cacheValue(nameSpace, key, maxAgeMs) : QByteArray();
+    });
 }
 
 void DatabaseManager::saveCacheEntry(

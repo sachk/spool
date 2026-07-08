@@ -181,6 +181,8 @@ set(JELLYFIN_CORE_SOURCES
     src/app/BrowseSessionController.h
     src/app/HomeModelController.cpp
     src/app/HomeModelController.h
+    src/app/LibraryManagementController.cpp
+    src/app/LibraryManagementController.h
     src/app/LibraryQuery.cpp
     src/app/LibraryQuery.h
     src/app/LibraryPrefetchController.cpp
@@ -213,8 +215,11 @@ set(JELLYFIN_CORE_SOURCES
     src/common/JellyfinTypes.cpp
     src/common/JellyfinTypes.h
     src/common/MetaJson.h
+    src/common/LogRotation.h
     src/common/AsyncTask.h
     src/common/RequestGeneration.h
+    src/common/VariantUtils.cpp
+    src/common/VariantUtils.h
     src/discovery/DiscoveryController.cpp
     src/discovery/DiscoveryController.h
     src/diagnostics/Diagnostics.cpp
@@ -354,6 +359,7 @@ qt_add_qml_module(jellyfin-native
         qml/primitives/NavList.qml
         qml/primitives/MaterialIcon.qml
         qml/primitives/PersonScrollerRow.qml
+        qml/primitives/PopupMenuPanel.qml
         qml/primitives/SectionHeader.qml
         qml/primitives/SelectRow.qml
         qml/primitives/SettingRow.qml
@@ -366,7 +372,9 @@ qt_add_qml_module(jellyfin-native
         qml/shell/BusyOverlay.qml
         qml/shell/DiagnosticsOverlay.qml
         qml/shell/ItemContextMenu.qml
+        qml/shell/ManagementDialog.qml
         qml/shell/MediaInfoOverlay.qml
+        qml/shell/OverlayDialog.qml
         qml/shell/RoutePolicy.js
         qml/shell/RouteStack.qml
         qml/shell/SyncPlayMenu.qml

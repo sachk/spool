@@ -15,7 +15,7 @@ FocusScope {
 
     readonly property bool syncPlayMenuOpen: syncMenuLoader.item ? syncMenuLoader.item.menuOpen : false
     property bool syncPlayMenuLoaded: false
-    readonly property var syncPlay: syncPlayController ? syncPlayController : null
+    readonly property var syncPlay: SyncPlay
     readonly property bool syncActive: syncPlay ? syncPlay.enabled : false
     readonly property var syncGroups: syncPlay ? syncPlay.groups : []
     readonly property bool syncAvailable: syncGroups && syncGroups.length > 0

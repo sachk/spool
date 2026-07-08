@@ -8,7 +8,7 @@ FocusScope {
     focus: true
 
     Connections {
-        target: appController
+        target: App
         function onAggressiveMemoryPressure() {
             Qt.inputMethod.hide()
         }

@@ -12,15 +12,17 @@
 #include "BrowseSessionController.h"
 #include "ContentModelController.h"
 #include "HomeModelController.h"
+#include "LibraryManagementController.h"
 #include "QuickConnectController.h"
 #include "SearchController.h"
 #include "SessionController.h"
 #include "SettingsController.h"
 #include "SyncPlayController.h"
 
+#include <QCoroTask>
 #include <QJsonObject>
 #include <QObject>
-#include <QVariantList>
+#include <QVariantMap>
 
 #include <vector>
 
@@ -37,13 +39,6 @@ class AppController final : public QObject {
     Q_PROPERTY(QString errorText MEMBER m_errorText NOTIFY errorTextChanged)
     Q_PROPERTY(bool hasDefaultProfile MEMBER m_hasDefaultProfile NOTIFY defaultProfileChanged)
     Q_PROPERTY(QString currentViewKind READ currentViewKind NOTIFY currentLibraryNameChanged)
-    Q_PROPERTY(bool currentUserCanManagePlaylists MEMBER m_currentUserCanManagePlaylists NOTIFY managementPolicyChanged)
-    Q_PROPERTY(
-        bool currentUserCanManageCollections MEMBER m_currentUserCanManageCollections NOTIFY managementPolicyChanged)
-    Q_PROPERTY(bool currentUserCanRenameItems MEMBER m_currentUserCanRenameItems NOTIFY managementPolicyChanged)
-    Q_PROPERTY(bool currentUserCanDeleteItems MEMBER m_currentUserCanDeleteItems NOTIFY managementPolicyChanged)
-    Q_PROPERTY(QVariantList playlistTargets MEMBER m_playlistTargets NOTIFY managementTargetsChanged)
-    Q_PROPERTY(QVariantList collectionTargets MEMBER m_collectionTargets NOTIFY managementTargetsChanged)
 
 public:
     AppController(DatabaseManager *database, DiscoveryController *discovery, JellyfinApiFacade *api,
@@ -62,6 +57,7 @@ public:
     SettingsController *settings();
     SessionController *session();
     QuickConnectController *quickConnect();
+    LibraryManagementController *management();
 
     Q_INVOKABLE void initialize();
     void shutdown();
@@ -96,15 +92,6 @@ public:
     Q_INVOKABLE void setFavorite(const QString& itemId, bool favorite);
     Q_INVOKABLE void setPlayed(const QString& itemId, bool played);
     Q_INVOKABLE void clearProgress(const QString& itemId);
-    Q_INVOKABLE void refreshManagementTargets(const QString& kind);
-    Q_INVOKABLE void createPlaylistForItem(const QString& name, const MovieItem& item);
-    Q_INVOKABLE void addItemToPlaylist(const QString& playlistId, const MovieItem& item);
-    Q_INVOKABLE void createCollectionForItem(const QString& name, const MovieItem& item);
-    Q_INVOKABLE void addItemToCollection(const QString& collectionId, const MovieItem& item);
-    Q_INVOKABLE void removeItemFromCurrentParent(const MovieItem& item);
-    Q_INVOKABLE void movePlaylistItemInCurrent(const MovieItem& item, int delta);
-    Q_INVOKABLE void renameManagedItem(const MovieItem& item, const QString& name);
-    Q_INVOKABLE void deleteManagedItem(const MovieItem& item);
     Q_INVOKABLE void onMemoryPressure(const QString& level);
     Q_INVOKABLE void clearError();
 
@@ -116,34 +103,33 @@ signals:
     void itemFavoriteChanged(const QString& itemId, bool favorite);
     void aggressiveMemoryPressure();
     void itemPlayedChanged(const QString& itemId, bool played);
-    void managementPolicyChanged();
-    void managementTargetsChanged();
-    void managementOperationSucceeded(const QString& action);
+    void toastMessage(const QString& message);
 
 private:
     void setBusy(bool busy, const QString& busyText = {});
     void setErrorText(const QString& errorText);
+    void showToast(const QString& message);
+    QCoro::Task<void> initializeAsync();
     void resetApplicationState();
-    void applyDiscoveredServersCache();
+    QCoro::Task<void> applyDiscoveredServersCacheAsync();
     void loadLibraries();
     void refreshHomeRows();
     QString homePayloadCacheKey() const;
-    void applyCachedHomePayload();
+    QCoro::Task<void> configureImagePrefetchAsync();
+    QCoro::Task<void> applyCachedHomePayloadAsync();
     void saveHomePayload(const QJsonObject& payload);
     void showCurrentItemsPage(const PagedMovieItems& page, const QString& cacheKey, bool append);
     void setLibraryQuery(const QVariantMap& query);
     void loadLibraryFilterOptions(RequestGeneration::Token generation, const LibraryItem& library);
-    void loadCurrentBrowsePage(const QString& loadingText);
-    void loadCurrentUserPolicy();
-    void setManagementTargets(const QString& kind, const std::vector<MovieItem>& items);
-    QStringList itemIdsForManagement(const MovieItem& item) const;
-    void refreshAfterManagementMutation(const QString& changedItemId = {});
+    void loadCurrentBrowsePage();
     void openSeries(const MovieItem& series);
     void openSeason(const MovieItem& season);
     void openPlaylist(const MovieItem& playlist);
     void openBoxSet(const MovieItem& boxSet);
     void openFolder(const MovieItem& folder);
+    QCoro::Task<bool> useDefaultProfileAsync();
     void playMediaItem(const MovieItem& item, bool fromStart = false);
+    QCoro::Task<void> startPlayback(MovieItem playItem);
     void playQueuedItems(const std::vector<MovieItem>& items, int startIndex, bool fromStart = false);
     void playQueuedModel(MovieGridModel *model, bool shuffled = false);
     void playQueuedItem(const MovieItem& item, bool fromStart = false);
@@ -154,11 +140,6 @@ private:
     void playOrOpen(const MovieItem& item, bool fromStart = false);
     void playOrOpenFromModel(MovieGridModel *model, int index, bool fromStart = false);
     void handlePlaybackStopped(const QString& itemId, qint64 positionTicks, bool completed);
-    bool authenticatedForManagement();
-    bool playlistMutationAllowed();
-    bool collectionMutationAllowed();
-    bool renameMutationAllowed(const QString& itemType);
-    bool deleteMutationAllowed();
 
     DatabaseManager *m_database = nullptr;
     DiscoveryController *m_discovery = nullptr;
@@ -176,6 +157,7 @@ private:
     LibraryPrefetchController *m_prefetch = nullptr;
     UserItemStateController *m_itemState = nullptr;
     SearchController *m_search = nullptr;
+    LibraryManagementController *m_management = nullptr;
     DiscoveredServerModel m_discoveredServers;
     LibraryListModel m_libraries;
     MovieItem m_activePlaybackItem;
@@ -184,12 +166,6 @@ private:
     QString m_busyText;
     QString m_errorText;
     RequestGeneration m_libraryLoadGeneration;
-    QVariantList m_playlistTargets;
-    QVariantList m_collectionTargets;
-    bool m_currentUserCanManagePlaylists = false;
-    bool m_currentUserCanManageCollections = false;
-    bool m_currentUserCanRenameItems = false;
-    bool m_currentUserCanDeleteItems = false;
     bool m_shuttingDown = false;
 };
 

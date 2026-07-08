@@ -20,6 +20,14 @@ Item {
         return overlay ? overlay.dp(n) : Math.round(n)
     }
 
+    function artworkSource(url) {
+        if (!url)
+            return ""
+        if (url.indexOf("http://") === 0 || url.indexOf("https://") === 0)
+            return "image://artwork/" + encodeURIComponent(url)
+        return url
+    }
+
     function positionMenuAtTop() {
         menuPanel.positionAtTop()
     }
@@ -31,7 +39,7 @@ Item {
             model: overlay.visible && overlay.hasPlayer ? overlay.player.trickplaySheetUrls : []
             delegate: Image {
                 required property string modelData
-                source: modelData
+                source: root.artworkSource(modelData)
                 asynchronous: true
                 cache: true
             }

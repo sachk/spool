@@ -119,11 +119,11 @@ QVariant SettingsController::value(const QString& key) const
     return {};
 }
 
-void SettingsController::loadLocal()
+QCoro::Task<void> SettingsController::loadLocalAsync()
 {
     for (const SettingSpec& spec : settingSpecs()) {
         const QString key = keyString(spec);
-        const QString stored = m_database->loadSetting(key, spec.defaultValue);
+        const QString stored = co_await m_database->loadSettingAsync(key, spec.defaultValue);
         const QVariant normalized = normalizedSettingValue(spec, stored);
         m_values.insert(key, normalized);
         applySchemaValue(spec, normalized, false);

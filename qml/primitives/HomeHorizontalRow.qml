@@ -66,8 +66,6 @@ FocusScope {
     function handleKey(key) {
         const acceptKey = InputKeys.isAccept(key, !libraryRow)
         const card = currentCard()
-        if (!libraryRow && !acceptKey && card && card.handleKey && card.handleKey(key))
-            return true
         if (key === Qt.Key_Left) {
             if (currentIndex > 0)
                 currentIndex = currentIndex - 1
@@ -88,8 +86,6 @@ FocusScope {
         }
         if (acceptKey) {
             if (!libraryRow && card && card.handleAcceptReleased && card.handleAcceptReleased(key))
-                return true
-            if (!libraryRow && card && card.handleKey && card.handleKey(key))
                 return true
             activateCurrent()
             return true
@@ -119,9 +115,6 @@ FocusScope {
             function handleAcceptReleased(key) {
                 return mediaCard.handleAcceptReleased(key)
             }
-            function handleKey(key) {
-                return mediaCard.handleKey(key)
-            }
 
             MediaItemCard {
                 id: mediaCard
@@ -130,7 +123,7 @@ FocusScope {
                 kind: root.rowKind === "poster" ? "poster" : "landscape"
                 useSeriesPoster: root.useSeriesPoster
                 focused: mediaDelegate.index === rowList.currentIndex && root.activeFocus
-                snapshotProvider: function () {
+                itemProvider: function () {
                     return root.itemAt(mediaDelegate.index)
                 }
                 item: mediaDelegate.movie
