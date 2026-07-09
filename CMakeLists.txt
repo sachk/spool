@@ -270,6 +270,35 @@ if(JELLYFIN_NATIVE_WEBOS)
     foreach(target IN LISTS JELLYFIN_NATIVE_TARGETS)
         target_compile_definitions(${target} PRIVATE JELLYFIN_NATIVE_WEBOS=1)
     endforeach()
+
+    # Static input context plugin that drives the stock webOS on-screen
+    # keyboard (MaliitServer) via the compositor's text_model protocol.
+    # Selected at runtime through QT_IM_MODULE=webosim in main.cpp.
+    #
+    # The protocol stubs are generated from src/platform/webos/protocol/
+    # text.xml, whose request order matches the TV firmware tables — NOT the
+    # SDK sysroot's libwayland-webos-client, whose text_model opcodes differ
+    # (see the comment in that text.xml). Do not link the sysroot lib here.
+    enable_language(C)
+    qt_add_plugin(webos-im-plugin STATIC
+        CLASS_NAME WebOSPlatformInputContextPlugin
+        PLUGIN_TYPE platforminputcontexts
+    )
+    target_sources(webos-im-plugin PRIVATE
+        src/platform/webos/WebOSInputContext.cpp
+        src/platform/webos/WebOSInputContext.h
+        src/platform/webos/WebOSInputContextPlugin.cpp
+        src/platform/webos/WebOSKeysymMap.h
+        src/platform/webos/protocol/wayland-text-client-protocol.c
+        src/platform/webos/protocol/wayland-text-client-protocol.h
+    )
+    target_link_libraries(webos-im-plugin PRIVATE
+        Qt6::Core
+        Qt6::Gui
+        Qt6::GuiPrivate
+        ${WAYLAND_CLIENT_LIB}
+    )
+    target_link_libraries(jellyfin-native PRIVATE webos-im-plugin)
 else()
     target_sources(jellyfin-core PRIVATE
         src/app/HostNativeAppWindow.cpp
