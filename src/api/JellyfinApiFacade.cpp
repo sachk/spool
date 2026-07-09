@@ -1620,7 +1620,7 @@ PlaybackSession JellyfinApiFacade::buildPlaybackSession(
         movie.id,
         movie.title,
         movie.itemType,
-        PlaybackNegotiation::buildUrl(m_serverUrl, movie.id, selection),
+        PlaybackNegotiation::buildUrl(m_serverUrl, movie.id, m_session.accessToken, selection),
         mediaSourceId,
         playbackResponse.value(QStringLiteral("PlaySessionId")).toString(),
         selection.playMethod,

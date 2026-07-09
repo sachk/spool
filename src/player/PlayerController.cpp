@@ -38,7 +38,8 @@ namespace JellyfinNative {
 
 namespace {
 
-    constexpr auto kDefaultMpvLogPath = "/tmp/com.codex.jellyfinwebosnative/com.codex.jellyfinnative-mpv.log";
+    constexpr auto kDefaultMpvLogPath = "/tmp/com.codex.jellyfinnative-mpv.log";
+
     constexpr uint64_t kTimePosRefreshReply = 0x6a666e7074730001ULL;
     constexpr uint64_t kPlaybackTimeRefreshReply = 0x6a666e7074730002ULL;
     constexpr auto kNightModeFilter
@@ -80,7 +81,7 @@ namespace {
     {
         const QByteArray logDir = qgetenv("JELLYFIN_NATIVE_LOG_DIR");
         if (logDir.isEmpty())
-            return QByteArrayLiteral(kDefaultMpvLogPath);
+            return QByteArray(kDefaultMpvLogPath);
 
         QByteArray path = logDir;
         if (!path.endsWith('/'))
@@ -110,27 +111,6 @@ namespace {
     {
         const int error = mpv_set_property_string(handle, name, value);
         return error >= 0 || error == MPV_ERROR_OPTION_NOT_FOUND;
-    }
-
-    bool setMpvStringListProperty(mpv_handle *handle, const char *name, const QByteArray& entry)
-    {
-        mpv_node item {};
-        item.format = MPV_FORMAT_STRING;
-        item.u.string = const_cast<char *>(entry.constData());
-
-        mpv_node_list list {};
-        list.num = 1;
-        list.values = &item;
-
-        mpv_node value {};
-        value.format = MPV_FORMAT_NODE_ARRAY;
-        value.u.list = &list;
-
-        const int error = mpv_set_property(handle, name, MPV_FORMAT_NODE, &value);
-        if (error >= 0)
-            return true;
-        qWarning() << "player: failed to set mpv property" << name << mpv_error_string(error);
-        return false;
     }
 
     bool setMpvDoubleProperty(mpv_handle *handle, const char *name, double value, double *appliedValue = nullptr)
@@ -801,16 +781,6 @@ void PlayerController::play(const PlaybackSession& session)
 
     auto *handle = m_mpvLifecycle.handle();
     m_mpvLifecycle.beginFileLoad();
-    const QByteArray authorizationHeader = m_api ? m_api->authorizationHeader().toUtf8() : QByteArray();
-    if (!authorizationHeader.isEmpty()) {
-        const QByteArray header = QByteArrayLiteral("Authorization: ") + authorizationHeader;
-        if (!setMpvStringListProperty(handle, "file-local-options/http-header-fields", header)) {
-            m_mpvLifecycle.cancelFileLoad();
-            m_errorText = QStringLiteral("libmpv rejected the playback authorization header.");
-            stopProgressReporting(true);
-            return;
-        }
-    }
 
     const QByteArray urlBytes = session.url.toUtf8();
     if (startSeconds > 0.0) {
@@ -831,6 +801,18 @@ void PlayerController::play(const PlaybackSession& session)
         return;
     }
     mpv_command_string(handle, "set pause no");
+}
+
+void PlayerController::setMediaSegments(const QString& itemId, const std::vector<MediaSegment>& segments)
+{
+    if (!m_sessionActive || itemId != m_session.itemId)
+        return;
+
+    m_session.segments = segments;
+    m_timeline.setSession(m_session);
+    m_timeline.updatePosition(m_positionTracker.position());
+    qInfo() << "player: media segments updated" << itemId << "count=" << segments.size();
+    emit segmentsChanged();
 }
 
 void PlayerController::togglePause()

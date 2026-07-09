@@ -92,7 +92,7 @@ void DiscoveryController::sendProbe()
     if (!m_active)
         return;
 
-    m_socket.writeDatagram(QByteArrayLiteral(kDiscoveryPayload), QHostAddress::Broadcast, kDiscoveryPort);
+    m_socket.writeDatagram(QByteArray(kDiscoveryPayload), QHostAddress::Broadcast, kDiscoveryPort);
     qInfo() << "discovery probe sent" << QHostAddress(QHostAddress::Broadcast).toString() << kDiscoveryPort;
 
     const auto interfaces = QNetworkInterface::allInterfaces();
@@ -106,7 +106,7 @@ void DiscoveryController::sendProbe()
             if (entry.ip().protocol() != QAbstractSocket::IPv4Protocol || entry.broadcast().isNull())
                 continue;
 
-            m_socket.writeDatagram(QByteArrayLiteral(kDiscoveryPayload), entry.broadcast(), kDiscoveryPort);
+            m_socket.writeDatagram(QByteArray(kDiscoveryPayload), entry.broadcast(), kDiscoveryPort);
             qInfo() << "discovery probe sent" << iface.humanReadableName() << entry.broadcast().toString()
                     << kDiscoveryPort;
         }
@@ -117,7 +117,7 @@ void DiscoveryController::handlePendingDatagrams()
 {
     while (m_socket.hasPendingDatagrams()) {
         const QNetworkDatagram datagram = m_socket.receiveDatagram();
-        if (datagram.data() == QByteArrayLiteral(kDiscoveryPayload))
+        if (datagram.data() == QByteArray(kDiscoveryPayload))
             continue;
 
         const auto document = QJsonDocument::fromJson(datagram.data());

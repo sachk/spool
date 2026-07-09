@@ -173,9 +173,12 @@ FocusScope {
             }
         }
 
+        // Direction keys are dispatched on press by the shell; handling them
+        // here too moved the selection twice per key tap. Only accept lands here.
         Keys.onReleased: event => {
-                             if (root.handleKey(event.key))
-                             event.accepted = true
+                             if (!InputKeys.isAccept(event.key))
+                             return
+                             event.accepted = event.isAutoRepeat || root.handleKey(event.key)
                          }
     }
 

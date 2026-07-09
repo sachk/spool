@@ -15,6 +15,7 @@
 #include <QVariant>
 
 #include <atomic>
+#include <vector>
 
 struct mpv_handle;
 
@@ -97,6 +98,7 @@ public:
     Q_INVOKABLE QVariantMap trickplayForSeconds(double seconds) const;
 
     Q_INVOKABLE void play(const JellyfinNative::PlaybackSession& session);
+    void setMediaSegments(const QString& itemId, const std::vector<MediaSegment>& segments);
     Q_INVOKABLE void togglePause();
     Q_INVOKABLE void seekBack();
     Q_INVOKABLE void seekForward();

@@ -89,7 +89,7 @@ namespace {
 constexpr auto kAppId = "com.codex.jellyfinwebosnative";
 constexpr auto kAppVersion = JELLYFIN_VERSION;
 #ifdef JELLYFIN_NATIVE_WEBOS
-constexpr auto kDefaultLogDir = "/tmp/com.codex.jellyfinwebosnative";
+constexpr auto kDefaultLogDir = "/tmp";
 constexpr auto kAppLogFileName = "com.codex.jellyfinwebosnative.log";
 #else
 constexpr auto kDefaultAppLogPath = "/tmp/com.codex.jellyfinnative-linux.log";
@@ -135,38 +135,20 @@ FILE *openLogFileInDir(const QByteArray& dir, const QByteArray& fileName)
     return nullptr;
 }
 
-void removeLegacyAppLogs(const QString& appRootPath)
-{
-    const QString legacyPersistentDir = QDir(appRootPath).filePath(QStringLiteral(".cache/logs"));
-    const QStringList fileNames = {
-        QStringLiteral("com.codex.jellyfinwebosnative.log"),
-        QStringLiteral("com.codex.jellyfinwebosnative.log.1"),
-        QStringLiteral("com.codex.jellyfinwebosnative.log.2"),
-        QStringLiteral("com.codex.jellyfinnative-mpv.log"),
-        QStringLiteral("com.codex.jellyfinnative-mpv.log.1"),
-        QStringLiteral("com.codex.jellyfinnative-mpv.log.2"),
-    };
-    for (const QString& fileName : fileNames) {
-        QFile::remove(QDir(legacyPersistentDir).filePath(fileName));
-        QFile::remove(QDir(QStringLiteral("/tmp")).filePath(fileName));
-    }
-}
 #endif
 
 FILE *openAppLogFile(const QString& appRootPath)
 {
 #ifdef JELLYFIN_NATIVE_WEBOS
-    if (FILE *file = openLogFileInDir(QByteArrayLiteral(kDefaultLogDir), QByteArrayLiteral(kAppLogFileName))) {
-        removeLegacyAppLogs(appRootPath);
+    if (FILE *file = openLogFileInDir(QByteArray(kDefaultLogDir), QByteArray(kAppLogFileName)))
         return file;
-    }
 
     const QString fallbackDir = QDir(appRootPath).filePath(QStringLiteral(".cache/logs"));
     const QByteArray encodedFallbackDir = QFile::encodeName(fallbackDir);
-    return openLogFileInDir(encodedFallbackDir, QByteArrayLiteral(kAppLogFileName));
+    return openLogFileInDir(encodedFallbackDir, QByteArray(kAppLogFileName));
 #else
     Q_UNUSED(appRootPath);
-    const QByteArray preferred = QByteArrayLiteral(kDefaultAppLogPath);
+    const QByteArray preferred = QByteArray(kDefaultAppLogPath);
     if (FILE *file = openRotatedLogFile(preferred)) {
         g_logPath = preferred;
         return file;

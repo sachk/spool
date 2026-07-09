@@ -60,15 +60,16 @@ int main(int argc, char **argv)
     const PlaybackSelection transcode = PlaybackNegotiation::selectSource(fallbackSources, false);
     require(transcode.playMethod == QStringLiteral("Transcode"), "disabling remux preference should select transcode");
 
-    const QString url = PlaybackNegotiation::buildUrl(
-        QStringLiteral("https://example.test/jellyfin"), QStringLiteral("item"), transcode);
+    const QString url = PlaybackNegotiation::buildUrl(QStringLiteral("https://example.test/jellyfin"),
+        QStringLiteral("item"), QStringLiteral("playback-token/with space"), transcode);
     const QUrl parsed(url);
     if (parsed.path() != QStringLiteral("/jellyfin/Videos/item/master.m3u8"))
         std::cerr << "resolved playback URL: " << url.toStdString() << '\n';
     require(parsed.path() == QStringLiteral("/jellyfin/Videos/item/master.m3u8"),
         "relative playback URLs should retain the server base path");
-    require(
-        !QUrlQuery(parsed).hasQueryItem(QStringLiteral("api_key")), "playback URLs should not include access tokens");
+    const QUrlQuery playbackQuery(parsed);
+    require(playbackQuery.queryItemValue(QStringLiteral("api_key")) == QStringLiteral("playback-token/with space"),
+        "playback URLs should carry the access token as api_key for mpv URL auth");
 
     const QJsonObject profile = PlaybackNegotiation::buildDeviceProfile(25'000'000);
     require(profile.value(QStringLiteral("MaxStreamingBitrate")).toInteger() == 25'000'000,

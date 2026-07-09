@@ -740,6 +740,7 @@ void AppController::playMediaItem(const MovieItem& item, bool fromStart)
     if (fromStart || !isMeaningfulResumePosition(playItem.resumeTicks, playItem.runtimeTicks))
         playItem.resumeTicks = 0;
     m_activePlaybackItem = playItem;
+    setBusy(true, QStringLiteral("Negotiating playback…"));
     Async::runScoped(
         this, startPlayback(playItem), []() {},
         [this](const std::exception_ptr& error) {
@@ -756,14 +757,20 @@ QCoro::Task<void> AppController::startPlayback(MovieItem playItem)
             { QStringLiteral("type"), playItem.itemType } });
 
     PlaybackSession session = co_await m_api->negotiatePlayback(playItem);
-    try {
-        session.segments = co_await m_api->fetchMediaSegments(playItem.id);
-    } catch (const std::exception& error) {
-        qInfo() << "app: media segments unavailable for" << playItem.id << ":" << error.what();
-    }
     session.nowPlayingQueue = m_playQueue->nowPlayingQueue();
     setBusy(false);
     m_player->play(session);
+
+    const QString itemId = playItem.id;
+    Async::runScoped(
+        this, m_api->fetchMediaSegments(itemId),
+        [this, itemId](const std::vector<MediaSegment>& segments) {
+            if (m_player && !segments.empty())
+                m_player->setMediaSegments(itemId, segments);
+        },
+        [itemId](const std::exception_ptr& error) {
+            qInfo() << "app: media segments unavailable for" << itemId << ":" << exceptionMessage(error);
+        });
 }
 
 void AppController::onMemoryPressure(const QString& level)
