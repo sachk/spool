@@ -547,14 +547,16 @@ int main(int argc, char **argv)
     setenv("QSG_RHI_BACKEND", "opengl", 1);
     // Some webOS shells export legacy Qt 5 scenegraph/input-module knobs.
     // Qt 6 probes those names as plugins and logs noisy startup warnings before
-    // falling back. The app supplies its own QML keyboard and selects OpenGL
-    // through Qt 6 RHI knobs, so drop the inherited client-side overrides.
+    // falling back. The app selects OpenGL through Qt 6 RHI knobs, so drop the
+    // inherited client-side overrides.
     unsetenv("QT_QUICK_BACKEND");
     unsetenv("QMLSCENE_DEVICE");
-    unsetenv("QT_IM_MODULE");
     unsetenv("QT_IM_MODULES");
+    // Drive the stock webOS on-screen keyboard (MaliitServer) through the
+    // compositor's text_model protocol via our statically linked input
+    // context plugin (src/platform/webos/WebOSInputContext.cpp).
+    setenv("QT_IM_MODULE", "webosim", 1);
     setenv("QT_WAYLAND_SHELL_INTEGRATION", "wl-shell", 1);
-    setenv("QT_WAYLAND_TEXT_INPUT_PROTOCOL", "qt_text_input_method_v1", 1);
     setenv("QT_QPA_FONTDIR", "/usr/share/fonts", 1);
     setenv("QT_NO_GLIB", "1", 1);
     // Suppress all client-side wl_pointer.set_cursor calls so the webOS
@@ -600,7 +602,7 @@ int main(int argc, char **argv)
     logLine("QT_PLUGIN_PATH=%s", qgetenv("QT_PLUGIN_PATH").constData());
     logLine("QML2_IMPORT_PATH=%s", qgetenv("QML2_IMPORT_PATH").constData());
 #ifdef JELLYFIN_NATIVE_WEBOS
-    logLine("QT_WAYLAND_TEXT_INPUT_PROTOCOL=%s", qgetenv("QT_WAYLAND_TEXT_INPUT_PROTOCOL").constData());
+    logLine("QT_IM_MODULE=%s", qgetenv("QT_IM_MODULE").constData());
 #endif
 
     qInstallMessageHandler(qtMessageHandler);
