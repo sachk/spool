@@ -231,6 +231,8 @@ FocusScope {
         if (!rebuildMenu())
             return false
         menuIndex = 0
+        acceptArmed = false
+        openedAtMs = Date.now()
         menuPopup.open()
         InputKeys.focus(menuList)
         positionMenu()
@@ -294,16 +296,33 @@ FocusScope {
         closeMenu()
     }
 
+    // The long-press that opens this menu is usually still held when the menu
+    // appears; its release (and any auto-repeat press/release pairs) must not
+    // activate the focused entry. Require a fresh, settled press after opening.
+    property bool acceptArmed: false
+    property double openedAtMs: 0
+
     function handlePressed(event) {
-        return opened
+        if (!opened)
+            return false
+        if (InputKeys.isAccept(event.key) && !event.isAutoRepeat && Date.now() - openedAtMs > 300)
+            acceptArmed = true
+        return true
     }
 
     function handleReleased(event) {
         if (!opened)
             return false
+        if (event.isAutoRepeat)
+            return true
         if (InputKeys.isBackEvent(event, true) || InputKeys.isHorizontal(event.key)) {
             closeMenu()
             return true
+        }
+        if (InputKeys.isAccept(event.key)) {
+            if (!acceptArmed)
+                return true
+            acceptArmed = false
         }
         if (menuList.handleKey(event.key))
             return true

@@ -517,6 +517,12 @@ FocusScope {
     Keys.priority: Keys.BeforeItem
 
     Keys.onPressed: event => {
+                        // Auto-repeated OK/Enter must never re-trigger activations
+                        // or long-press hold timers anywhere in the app.
+                        if (event.isAutoRepeat && InputKeys.isAccept(event.key)) {
+                            event.accepted = true
+                            return
+                        }
                         if (managementOverlayVisible) {
                             if (handleManagementKey(event, false))
                             event.accepted = true
@@ -557,6 +563,10 @@ FocusScope {
                     }
 
     Keys.onReleased: event => {
+                         if (event.isAutoRepeat && InputKeys.isAccept(event.key)) {
+                             event.accepted = true
+                             return
+                         }
                          if (playerBackPressHandled && InputKeys.isBackEvent(event, !textInputActive)) {
                              playerBackPressHandled = false
                              event.accepted = true

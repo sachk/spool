@@ -69,6 +69,18 @@ Item {
                 font.pixelSize: 13
             }
         }
+
+        // Focus ring painted above the artwork: frame's own border renders
+        // beneath its children, so a loaded poster covers it completely.
+        Rectangle {
+            anchors.fill: parent
+            radius: frame.radius
+            color: "transparent"
+            border.width: 3
+            border.color: Theme.accent
+            visible: root.focused
+            antialiasing: true
+        }
     }
 
     HoverHandler {

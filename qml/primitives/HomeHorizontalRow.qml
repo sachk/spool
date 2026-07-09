@@ -206,6 +206,10 @@ FocusScope {
             }
 
             Keys.onReleased: event => {
+                                 if (event.isAutoRepeat) {
+                                     event.accepted = InputKeys.isAccept(event.key, !root.libraryRow)
+                                     return
+                                 }
                                  if (InputKeys.isAccept(event.key, !root.libraryRow)) {
                                      if (!root.libraryRow) {
                                          const card = root.currentCard()

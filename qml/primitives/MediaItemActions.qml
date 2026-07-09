@@ -55,6 +55,10 @@ T.Control {
     function handleAcceptPressed(key) {
         if (!InputKeys.isAccept(key))
             return false
+        // Key auto-repeat re-delivers press events while OK is held; restarting
+        // the hold timer on each one kept the long-press menu from ever opening.
+        if (pendingAccept)
+            return true
         pendingAccept = true
         longPressOpened = false
         if (tvPlatform && (actionable || longPressAction === "details"))
