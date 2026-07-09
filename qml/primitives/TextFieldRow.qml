@@ -12,6 +12,7 @@ T.Control {
     property alias placeholderText: field.placeholderText
     property alias inputMethodHints: field.inputMethodHints
     property alias echoMode: field.echoMode
+    property int enterKeyType: Qt.EnterKeyDefault
     property string label: ""
     readonly property bool editing: field.activeFocus
 
@@ -61,6 +62,7 @@ T.Control {
 
     T.TextField {
         id: field
+        EnterKey.type: row.enterKeyType
         anchors.fill: parent
         anchors.leftMargin: 12
         anchors.rightMargin: 12
