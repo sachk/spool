@@ -148,10 +148,33 @@ FocusScope {
         return false
     }
 
+    // Height of the on-screen keyboard overlapping this page, so the layout
+    // can keep the field and results visible above the panel.
+    readonly property real keyboardInset: {
+        if (!Qt.inputMethod.visible)
+            return 0
+        const kb = Qt.inputMethod.keyboardRectangle
+        if (kb.height <= 0)
+            return 0
+        const pageBottom = root.mapToItem(null, 0, root.height).y
+        return Math.max(0, Math.min(root.height, pageBottom - kb.y))
+    }
+
     ColumnLayout {
         anchors.fill: parent
         anchors.margins: Metrics.pageMargin(width)
+        anchors.bottomMargin: Metrics.pageMargin(width) + root.keyboardInset
         spacing: 16
+
+        // The TV keyboard re-maps its panel when the prediction row toggles,
+        // briefly reporting hidden -> shown; smooth the inset so the page
+        // does not bounce while typing.
+        Behavior on anchors.bottomMargin {
+            NumberAnimation {
+                duration: 120
+                easing.type: Easing.OutCubic
+            }
+        }
 
         RowLayout {
             Layout.fillWidth: true
@@ -182,8 +205,14 @@ FocusScope {
             spacing: 18
 
             ColumnLayout {
+                // Nested layouts default to fillWidth: true, which makes this
+                // column race the results column for surplus width and win
+                // ~proportionally to preferred sizes, squeezing the results
+                // into a sliver. Pin it to its preferred width instead.
+                Layout.fillWidth: false
                 Layout.preferredWidth: Math.min(560, Math.max(360, root.width * 0.34))
                 Layout.fillHeight: true
+                Layout.alignment: Qt.AlignTop
                 spacing: 14
 
                 TextFieldRow {
@@ -193,6 +222,7 @@ FocusScope {
                     label: "Search Jellyfin"
                     placeholderText: "Titles, series, episodes"
                     inputMethodHints: Qt.ImhNoPredictiveText | Qt.ImhNoAutoUppercase
+                    enterKeyType: Qt.EnterKeySearch
                     onTextEdited: text => root.setQuery(text)
                     onAccepted: root.runSearchNow()
                     KeyNavigation.down: root.resultCount > 0 ? results : suggestionsRow
