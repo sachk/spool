@@ -52,7 +52,7 @@ FocusScope {
     function focusKnownFor() {
         if (itemCount > 0) {
             InputKeys.focus(knownFor)
-            InputKeys.ensureVisible(personFlick, knownFor)
+            InputKeys.positionChild(personFlick, knownFor)
         }
     }
 
