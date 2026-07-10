@@ -17,7 +17,6 @@ T.Control {
     property int settingIndex: -1
     property bool selected: false
     readonly property bool rowFocus: selected || activeFocus || valueField.activeFocus || valueSlider.activeFocus
-    property bool handledNavigationPress: false
     property int valueBoxWidth: 86
     property int sliderPreferredWidth: 300
     property real controlValue: value
@@ -61,19 +60,6 @@ T.Control {
 
     function adjust(dir) {
         setSliderValue(controlValue + step * dir)
-    }
-
-    function handleKey(key) {
-        if (key === Qt.Key_Left || key === Qt.Key_Right) {
-            handledNavigationPress = true
-            adjust(key === Qt.Key_Right ? 1 : -1)
-            return true
-        }
-        if (InputKeys.isAccept(key)) {
-            InputKeys.focus(valueSlider)
-            return true
-        }
-        return false
     }
 
     onValueChanged: {
@@ -144,12 +130,6 @@ T.Control {
             }
             onAccepted: root.setSliderValue(text)
             onEditingFinished: root.setSliderValue(text)
-            Keys.onReleased: event => {
-                                 if (event.key === Qt.Key_Right) {
-                                     InputKeys.focus(valueSlider)
-                                     event.accepted = true
-                                 }
-                             }
         }
 
         AppText {
@@ -200,35 +180,6 @@ T.Control {
             }
 
             onMoved: root.setSliderValue(value)
-            Keys.onReleased: event => {
-                                 if (event.key === Qt.Key_Left || event.key === Qt.Key_Right) {
-                                     if (root.handledNavigationPress) {
-                                         root.handledNavigationPress = false
-                                         event.accepted = true
-                                         return
-                                     }
-                                     root.adjust(event.key === Qt.Key_Right ? 1 : -1)
-                                     event.accepted = true
-                                 } else if (InputKeys.isAccept(event.key, false)) {
-                                     InputKeys.focus(root)
-                                     event.accepted = true
-                                 }
-                             }
         }
     }
-
-    Keys.onReleased: event => {
-                         if (event.key === Qt.Key_Left || event.key === Qt.Key_Right) {
-                             if (handledNavigationPress) {
-                                 handledNavigationPress = false
-                                 event.accepted = true
-                                 return
-                             }
-                             root.adjust(event.key === Qt.Key_Right ? 1 : -1)
-                             event.accepted = true
-                         } else if (InputKeys.isAccept(event.key, false)) {
-                             InputKeys.focus(valueSlider)
-                             event.accepted = true
-                         }
-                     }
 }

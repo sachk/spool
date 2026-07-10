@@ -97,12 +97,6 @@ FocusScope {
             App.setPlayed(item.movieId, played)
     }
 
-    function openMediaInfoAt(source, rowIndex, index) {
-        const item = modelItem(source, rowIndex, index)
-        if (item)
-            shell.openMediaInfo(item)
-    }
-
     function visibleSections() {
         const rows = []
         if (librariesRow.rowVisible)
@@ -179,24 +173,20 @@ FocusScope {
         focusCurrentSection()
     }
 
-    function handlePressedKey(key) {
+    function routeKey(key, phase, repeat) {
         const section = activeSection()
-        return section && section.handlePressedKey ? section.handlePressedKey(key) : false
+        return Boolean(section && section.routeKey && section.routeKey(key, phase, repeat))
     }
 
-    function handleKey(key) {
+    function activate() {
         const section = activeSection()
-        if (section && section.handleKey && section.handleKey(key))
-            return true
-        if (key === Qt.Key_Up) {
-            focusRelative(section, -1)
-            return true
-        }
-        if (key === Qt.Key_Down) {
-            focusRelative(section, 1)
-            return true
-        }
-        return false
+        if (section)
+            section.activateCurrent()
+    }
+
+    function longPress() {
+        const section = activeSection()
+        return Boolean(section && section.longPress && section.longPress())
     }
 
     Component.onCompleted: {
@@ -275,7 +265,6 @@ FocusScope {
                 onActivated: index => root.activateAt("resumeItems", index, -1)
                 onFavoriteToggled: (index, favorite) => root.setFavoriteAt("resumeItems", -1, index, favorite)
                 onPlayedToggled: (index, played) => root.setPlayedAt("resumeItems", -1, index, played)
-                onMediaInfoRequested: index => root.openMediaInfoAt("resumeItems", -1, index)
             }
 
             HomeHorizontalRow {
@@ -295,7 +284,6 @@ FocusScope {
                 onActivated: index => root.activateAt("nextUpItems", index, -1)
                 onFavoriteToggled: (index, favorite) => root.setFavoriteAt("nextUpItems", -1, index, favorite)
                 onPlayedToggled: (index, played) => root.setPlayedAt("nextUpItems", -1, index, played)
-                onMediaInfoRequested: index => root.openMediaInfoAt("nextUpItems", -1, index)
             }
 
             Repeater {
@@ -329,7 +317,6 @@ FocusScope {
                                                                                    itemIndex, favorite)
                     onPlayedToggled: (itemIndex, played) => root.setPlayedAt("latestLibrary", sourceRowIndex, itemIndex,
                                                                              played)
-                    onMediaInfoRequested: itemIndex => root.openMediaInfoAt("latestLibrary", sourceRowIndex, itemIndex)
                 }
             }
         }

@@ -13,11 +13,4 @@ SettingRow {
     }
 
     onClicked: toggle()
-
-    Keys.onReleased: event => {
-                         if (InputKeys.isAccept(event.key)) {
-                             toggle()
-                             event.accepted = true
-                         }
-                     }
 }

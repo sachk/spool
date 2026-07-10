@@ -22,7 +22,6 @@ FocusScope {
     signal moveVertical(int direction)
     signal favoriteToggled(int index, bool favorite)
     signal playedToggled(int index, bool played)
-    signal mediaInfoRequested(int index)
 
     focus: true
     onActiveFocusChanged: if (activeFocus)
@@ -58,17 +57,10 @@ FocusScope {
             activated(currentIndex)
     }
 
-    function handlePressedKey(key) {
-        const card = currentCard()
-        return card && card.handleAcceptPressed ? card.handleAcceptPressed(key) : false
-    }
-
-    function handleKey(key) {
-        const acceptKey = InputKeys.isAccept(key, !libraryRow)
-        const card = currentCard()
+    function routeKey(key, phase, repeat) {
         if (key === Qt.Key_Left) {
             if (currentIndex > 0)
-                currentIndex = currentIndex - 1
+                --currentIndex
             return true
         }
         if (key === Qt.Key_Right) {
@@ -84,13 +76,13 @@ FocusScope {
             moveVertical(1)
             return true
         }
-        if (acceptKey) {
-            if (!libraryRow && card && card.handleAcceptReleased && card.handleAcceptReleased(key))
-                return true
-            activateCurrent()
-            return true
-        }
         return false
+    }
+
+    function longPress() {
+        if (libraryRow || currentIndex < 0 || !shell)
+            return false
+        return shell.openItemMenu(itemAt(currentIndex), currentCard())
     }
 
     Component {
@@ -109,13 +101,6 @@ FocusScope {
             width: root.cardWidth
             height: rowList.height
 
-            function handleAcceptPressed(key) {
-                return mediaCard.handleAcceptPressed(key)
-            }
-            function handleAcceptReleased(key) {
-                return mediaCard.handleAcceptReleased(key)
-            }
-
             MediaItemCard {
                 id: mediaCard
                 anchors.fill: parent
@@ -123,9 +108,6 @@ FocusScope {
                 kind: root.rowKind === "poster" ? "poster" : "landscape"
                 useSeriesPoster: root.useSeriesPoster
                 focused: mediaDelegate.index === rowList.currentIndex && root.activeFocus
-                itemProvider: function () {
-                    return root.itemAt(mediaDelegate.index)
-                }
                 item: mediaDelegate.movie
                 displayTitle: mediaDelegate.displayTitle
                 displaySubtitle: mediaDelegate.displaySubtitle
@@ -133,7 +115,6 @@ FocusScope {
                 onActivated: root.activated(mediaDelegate.index)
                 onFavoriteToggled: favorite => root.favoriteToggled(mediaDelegate.index, favorite)
                 onPlayedToggled: played => root.playedToggled(mediaDelegate.index, played)
-                onMediaInfoRequested: root.mediaInfoRequested(mediaDelegate.index)
             }
         }
     }
@@ -204,28 +185,6 @@ FocusScope {
                 flickable: rowList
                 horizontal: true
             }
-
-            Keys.onReleased: event => {
-                                 if (event.isAutoRepeat) {
-                                     event.accepted = InputKeys.isAccept(event.key, !root.libraryRow)
-                                     return
-                                 }
-                                 if (InputKeys.isAccept(event.key, !root.libraryRow)) {
-                                     if (!root.libraryRow) {
-                                         const card = root.currentCard()
-                                         if (card && card.handleAcceptReleased && card.handleAcceptReleased(
-                                                 event.key)) {
-                                             event.accepted = true
-                                             return
-                                         }
-                                     }
-                                     root.activateCurrent()
-                                     event.accepted = true
-                                 } else if (event.key === Qt.Key_M && !root.libraryRow) {
-                                     root.mediaInfoRequested(root.currentIndex)
-                                     event.accepted = true
-                                 }
-                             }
         }
     }
 }

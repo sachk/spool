@@ -1,81 +1,31 @@
 import QtQuick
-import QtQuick.Templates as T
 import "../theme"
 
-T.Control {
+Item {
     id: root
 
     property var shell
-    property var itemProvider: null
-    property bool focused: false
     property bool tvPlatform: NativeWindow.tvPlatform
-    property bool pendingAccept: false
-    property bool longPressOpened: false
-    property bool pointerLongPress: false
     property var item: ({})
-    readonly property string movieId: String(item.movieId || "")
-    readonly property string itemType: String(item.itemType || "")
-    readonly property real resumeTicks: Number(item.resumeTicks || 0)
-    readonly property bool favorite: Boolean(item.favorite)
-    readonly property bool played: Boolean(item.played)
-    property bool favoriteState: favorite
-    property bool playedState: played
-    property string longPressAction: "menu"
-    readonly property bool actionable: movieId.length > 0
+    property bool favoriteState: Boolean(item.favorite)
+    property bool playedState: Boolean(item.played)
+    readonly property bool actionable: String(item.movieId || "").length > 0
 
     signal activated
-    signal detailsRequested
     signal favoriteToggled(bool favorite)
     signal playedToggled(bool played)
-    signal mediaInfoRequested
 
     anchors.fill: parent
-    hoverEnabled: true
 
-    onFavoriteChanged: favoriteState = favorite
-    onPlayedChanged: playedState = played
-    onMovieIdChanged: {
-        favoriteState = favorite
-        playedState = played
-        pendingAccept = false
-        longPressOpened = false
-        holdTimer.stop()
-    }
-
-    function providedItem() {
-        return itemProvider ? (itemProvider() || ({})) : (item || ({}))
+    onItemChanged: {
+        favoriteState = Boolean(item.favorite)
+        playedState = Boolean(item.played)
     }
 
     function openMenu() {
         if (!shell || !shell.openItemMenu)
             return false
-        return shell.openItemMenu(providedItem(), root)
-    }
-
-    function handleAcceptPressed(key) {
-        if (!InputKeys.isAccept(key))
-            return false
-        // Key auto-repeat re-delivers press events while OK is held; restarting
-        // the hold timer on each one kept the long-press menu from ever opening.
-        if (pendingAccept)
-            return true
-        pendingAccept = true
-        longPressOpened = false
-        if (tvPlatform && (actionable || longPressAction === "details"))
-            holdTimer.restart()
-        return true
-    }
-
-    function handleAcceptReleased(key) {
-        if (!InputKeys.isAccept(key) || !pendingAccept)
-            return false
-        holdTimer.stop()
-        const opened = longPressOpened
-        pendingAccept = false
-        longPressOpened = false
-        if (!opened)
-            activated()
-        return true
+        return shell.openItemMenu(item || ({}), root)
     }
 
     component OverlayButton: Item {
@@ -109,41 +59,23 @@ T.Control {
         }
     }
 
-    Timer {
-        id: holdTimer
-        interval: 520
-        repeat: false
-        onTriggered: {
-            if (root.longPressAction === "details") {
-                root.longPressOpened = true
-                root.detailsRequested()
-            } else {
-                root.longPressOpened = root.openMenu()
-            }
-        }
-    }
-
     MouseArea {
+        property bool longPressed: false
         anchors.fill: parent
         acceptedButtons: Qt.LeftButton | Qt.RightButton
         pressAndHoldInterval: 520
-        onPressed: root.pointerLongPress = false
+        onPressed: longPressed = false
         onClicked: mouse => {
                        if (mouse.button === Qt.RightButton) {
-                           root.pointerLongPress = true
                            root.openMenu()
-                           return
+                       } else if (!longPressed) {
+                           root.activated()
                        }
-                       if (!root.pointerLongPress)
-                       root.activated()
-                       root.pointerLongPress = false
+                       longPressed = false
                    }
         onPressAndHold: {
-            root.pointerLongPress = true
-            if (root.longPressAction === "details")
-                root.detailsRequested()
-            else
-                root.openMenu()
+            longPressed = true
+            root.openMenu()
         }
     }
 
@@ -153,7 +85,7 @@ T.Control {
         anchors.margins: 8
         spacing: 7
         z: 4
-        visible: root.actionable && !root.tvPlatform && (root.hovered || root.playedState || root.favoriteState)
+        visible: root.actionable && !root.tvPlatform && (hover.hovered || root.playedState || root.favoriteState)
 
         OverlayButton {
             iconName: root.playedState ? "check_circle" : "radio_button_unchecked"
@@ -172,5 +104,8 @@ T.Control {
                 root.favoriteToggled(root.favoriteState)
             }
         }
+    }
+    HoverHandler {
+        id: hover
     }
 }

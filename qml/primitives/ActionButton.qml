@@ -2,11 +2,13 @@ import QtQuick
 import QtQuick.Templates as T
 import "../theme"
 
-T.Button {
+T.Control {
     id: root
     property string kind: "secondary"
     property string iconName: ""
     property bool pointerHovered: hover.hovered
+    property string text: ""
+    signal clicked
 
     implicitWidth: Math.max(132, buttonContent.implicitWidth + 34)
     implicitHeight: Metrics.controlHeight(root.Window.window ? root.Window.window.width : 1920)
@@ -14,12 +16,10 @@ T.Button {
 
     background: Rectangle {
         radius: Theme.radiusMedium
-        color: root.kind === "primary" ? root.down ? Theme.accentDim : root.pointerHovered || root.activeFocus
-                                                     ? Theme.accent : Theme.accentDim : root.down ? Theme.bgRaised :
-                                                                                                    root.kind
-                                                                                                    === "flat"
-                                                                                                    ? "transparent" :
-                                                                                                      Theme.bgPanel
+        color: root.kind === "primary" ? (tap.pressed ? Theme.accentDim : (root.pointerHovered || root.activeFocus
+                                                                           ? Theme.accent : Theme.accentDim)) : (
+                                             tap.pressed ? Theme.bgRaised : root.kind === "flat" ? "transparent" :
+                                                                                                   Theme.bgPanel)
         border.width: root.activeFocus ? 2 : root.pointerHovered ? 1 : root.kind === "flat" ? 0 : 1
         border.color: root.activeFocus ? Theme.textPrimary : root.pointerHovered ? Theme.borderStrong : root.kind
                                                                                    === "primary" ? Theme.accentDim :
@@ -51,6 +51,14 @@ T.Button {
                 elide: Text.ElideRight
                 maximumLineCount: 1
             }
+        }
+    }
+
+    TapHandler {
+        id: tap
+        onTapped: {
+            InputKeys.focus(root)
+            root.clicked()
         }
     }
 

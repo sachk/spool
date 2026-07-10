@@ -22,10 +22,10 @@ GridView {
         return true
     }
 
-    function handleKey(key) {
+    function routeKey(key, phase, repeat) {
         const columns = columnCount()
         if (key === Qt.Key_Left)
-            return currentIndex % columns === 0 ? true : moveBy(-1)
+            return currentIndex % columns === 0 || moveBy(-1)
         if (key === Qt.Key_Right)
             return moveBy(1)
         if (key === Qt.Key_Up) {
@@ -35,12 +35,11 @@ GridView {
             }
             return moveBy(-columns)
         }
-        if (key === Qt.Key_Down)
-            return moveBy(columns)
-        if (InputKeys.isAccept(key, false)) {
+        return key === Qt.Key_Down && moveBy(columns)
+    }
+
+    function activate() {
+        if (currentIndex >= 0)
             accepted(currentIndex)
-            return true
-        }
-        return false
     }
 }

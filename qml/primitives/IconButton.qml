@@ -2,24 +2,25 @@ import QtQuick
 import QtQuick.Templates as T
 import "../theme"
 
-T.Button {
+T.Control {
     id: root
     property string iconText: ""
     property string iconName: ""
     property bool selected: false
+    property bool checked: false
     property bool railStyle: false
     property bool pointerHovered: hover.hovered
     property string accessibleName: ""
+    signal clicked
 
     width: 44
     height: 44
-    text: iconText
     focusPolicy: Qt.StrongFocus
 
     background: Rectangle {
         radius: Theme.radiusSmall
-        color: root.down ? Theme.bgHover : root.railStyle && root.selected ? Theme.accentPanel : root.selected
-                                                                             ? Theme.bgPanel : "transparent"
+        color: tap.pressed ? Theme.bgHover : root.railStyle && root.selected ? Theme.accentPanel : root.selected
+                                                                               ? Theme.bgPanel : "transparent"
         border.width: root.activeFocus ? 3 : root.selected ? 1 : root.pointerHovered ? 1 : 0
         border.color: root.activeFocus ? Theme.textPrimary : root.selected ? Theme.accent : Theme.borderStrong
         antialiasing: true
@@ -53,6 +54,14 @@ T.Button {
             color: root.activeFocus ? Theme.textPrimary : root.selected ? Theme.accent : Theme.textSecondary
             horizontalAlignment: Text.AlignHCenter
             verticalAlignment: Text.AlignVCenter
+        }
+    }
+
+    TapHandler {
+        id: tap
+        onTapped: {
+            InputKeys.focus(root)
+            root.clicked()
         }
     }
 

@@ -7,8 +7,7 @@ FocusScope {
     property bool active: false
     property bool mediaInfoVisible: false
     property bool diagnosticsVisible: false
-    signal pressed(var event)
-    signal released(var event)
+    readonly property bool directionRelease: true
 
     visible: active
     enabled: active
@@ -18,16 +17,16 @@ FocusScope {
         InputKeys.focus(inputShield)
     }
 
-    function handleBack() {
-        return playerOverlay.handleBack()
+    function back() {
+        return playerOverlay.back()
     }
 
-    function handlePressed(event) {
-        return playerOverlay.handlePressed(event)
+    function routeKey(key, phase, repeat) {
+        return playerOverlay.routeKey(key, phase, repeat)
     }
 
-    function handleReleased(event) {
-        return playerOverlay.handleReleased(event)
+    function activate() {
+        playerOverlay.activate()
     }
 
     Image {
@@ -60,8 +59,5 @@ FocusScope {
                               InputKeys.focus(inputShield)
         onActiveFocusChanged: if (visible && !activeFocus)
                                   Qt.callLater(() => InputKeys.focus(inputShield))
-
-        Keys.onPressed: event => root.pressed(event)
-        Keys.onReleased: event => root.released(event)
     }
 }

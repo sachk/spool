@@ -98,7 +98,7 @@ FocusScope {
         menuOpen = false
     }
 
-    function activate(index) {
+    function activateEntry(index) {
         const entry = entries[index]
         if (!entry || !syncPlay)
             return
@@ -113,8 +113,17 @@ FocusScope {
         requestClose()
     }
 
-    function handleKey(key) {
-        return list.handleKey(key)
+    function routeKey(key, phase, repeat) {
+        return list.routeKey(key, phase, repeat)
+    }
+
+    function activate() {
+        list.activate()
+    }
+
+    function back() {
+        requestClose()
+        return true
     }
 
     Connections {
@@ -174,7 +183,7 @@ FocusScope {
                 }
                 onCurrentIndexChanged: menu.currentIndex = currentIndex
                 onDismissed: menu.requestClose()
-                onAccepted: index => menu.activate(index)
+                onAccepted: index => menu.activateEntry(index)
 
                 delegate: MenuRow {
                     required property int index
@@ -189,7 +198,7 @@ FocusScope {
                     metricsWidth: menu.width
                     checkIconName: ""
                     onHovered: list.currentIndex = index
-                    onActivated: menu.activate(index)
+                    onActivated: menu.activateEntry(index)
                 }
             }
         }

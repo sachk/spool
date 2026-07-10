@@ -38,32 +38,23 @@ FocusScope {
             peopleList.positionViewAtIndex(peopleList.currentIndex, ListView.Contain)
     }
 
-    function handlePressedKey(key) {
-        return false
-    }
-
-    function handleKey(key) {
+    function routeKey(key, phase, repeat) {
         if (rowCount <= 0)
             return false
-        if (key === Qt.Key_Left) {
-            if (peopleList.currentIndex > 0)
-                peopleList.currentIndex = peopleList.currentIndex - 1
-            currentIndex = peopleList.currentIndex
-            ensureVisible()
-            return true
-        }
-        if (key === Qt.Key_Right) {
+        if (key === Qt.Key_Left)
+            peopleList.currentIndex = Math.max(0, peopleList.currentIndex - 1)
+        else if (key === Qt.Key_Right)
             peopleList.currentIndex = Math.min(rowCount - 1, peopleList.currentIndex + 1)
-            currentIndex = peopleList.currentIndex
-            ensureVisible()
-            return true
-        }
-        if (InputKeys.isAccept(key)) {
-            currentIndex = peopleList.currentIndex
+        else
+            return false
+        currentIndex = peopleList.currentIndex
+        ensureVisible()
+        return true
+    }
+
+    function activate() {
+        if (peopleList.currentIndex >= 0)
             activated(peopleModel[peopleList.currentIndex] || ({}))
-            return true
-        }
-        return false
     }
 
     SectionHeader {
@@ -153,13 +144,5 @@ FocusScope {
                 }
             }
         }
-
-        // Direction keys are dispatched on press by the shell; handling them
-        // here too moved the selection twice per key tap. Only accept lands here.
-        Keys.onReleased: event => {
-                             if (!InputKeys.isAccept(event.key))
-                             return
-                             event.accepted = event.isAutoRepeat || root.handleKey(event.key)
-                         }
     }
 }

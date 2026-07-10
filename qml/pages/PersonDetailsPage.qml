@@ -79,24 +79,23 @@ FocusScope {
             Qt.callLater(focusKnownFor)
     }
 
-    function currentCard() {
-        return knownFor.currentCard ? knownFor.currentCard() : null
+    function routeKey(key, phase, repeat) {
+        if (key === Qt.Key_Up && phase === "press") {
+            if (shell)
+                shell.focusNavBar()
+            return true
+        }
+        if (key === Qt.Key_Down)
+            return true
+        return knownFor.routeKey(key, phase, repeat)
     }
 
-    function handlePressedKey(key) {
-        const card = currentCard()
-        return card && card.handleAcceptPressed ? card.handleAcceptPressed(key) : false
+    function activate() {
+        knownFor.activate()
     }
 
-    function openCurrent() {
-        if (currentIndex >= 0)
-            shell.openDetailsAt(Content.personItems, currentIndex, "person", "personDetails")
-    }
-
-    function handleKey(key) {
-        if (itemCount <= 0)
-            return false
-        return knownFor.handleKey ? knownFor.handleKey(key) : false
+    function longPress() {
+        return knownFor.longPress()
     }
 
     Rectangle {

@@ -585,7 +585,7 @@ FocusScope {
     // playback once nothing is left to dismiss. The on-screen back button
     // (mouse click or row="back" activation) is an explicit exit gesture
     // and should call stopPlayback() directly instead.
-    function handleBack() {
+    function back() {
         cancelHeldNavigation()
         if (scrubbing) {
             scrubTimer.stop()
@@ -613,12 +613,12 @@ FocusScope {
         return stopPlayback("overlay-back")
     }
 
-    function handleReleased(event) {
-        return input.handleReleased(event)
+    function routeKey(key, phase, repeat) {
+        return phase === "press" ? input.pressed(key, repeat) : input.released(key, repeat)
     }
 
-    function handlePressed(event) {
-        return input.handlePressed(event)
+    function activate() {
+        input.released(Qt.Key_Return, false)
     }
 
     onVisibleChanged: {

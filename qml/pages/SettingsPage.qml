@@ -568,18 +568,18 @@ FocusScope {
         return false
     }
 
-    function handleKey(key) {
+    function routeKey(key, phase, repeat) {
         if (categoryList.activeFocus) {
-            if (key === Qt.Key_Right || InputKeys.isAccept(key, false)) {
+            if (phase === "press" && key === Qt.Key_Right) {
                 activateCategory(categoryIndex)
                 return true
             }
-            if (key === Qt.Key_Up && categoryIndex <= 0) {
+            if (phase === "press" && key === Qt.Key_Up && categoryIndex <= 0) {
                 if (shell)
                     shell.focusNavBar()
                 return true
             }
-            return categoryList.handleKey(key)
+            return categoryList.routeKey(key, phase, repeat)
         }
 
         const row = rowAt(settingsList.currentIndex)
@@ -594,16 +594,19 @@ FocusScope {
                 shell.focusNavBar()
             return true
         }
-        return settingsList.handleKey(key)
+        return settingsList.routeKey(key, phase, repeat)
+    }
+
+    function activate() {
+        if (categoryList.activeFocus)
+            activateCategory(categoryIndex)
+        else
+            activateRow(rowAt(settingsList.currentIndex), settingsList.currentIndex)
     }
 
     focus: true
     onActiveFocusChanged: if (activeFocus)
                               focusRow(currentIndex)
-    Keys.onReleased: event => {
-                         if (handleKey(event.key))
-                         event.accepted = true
-                     }
 
     Component.onCompleted: Qt.callLater(function () {
         rebuildSettingsRows()
@@ -625,11 +628,13 @@ FocusScope {
         anchors.margins: Metrics.pageMargin(width)
         spacing: 18
 
-        NavList {
+        MenuListView {
             id: categoryList
             Layout.preferredWidth: 260
             Layout.fillHeight: true
             model: root.categories
+            dismissOnBack: false
+            dismissOnHorizontal: false
             spacing: 8
             currentIndex: root.categoryIndex
             clip: true
@@ -640,9 +645,6 @@ FocusScope {
             onAccepted: index => root.activateCategory(index)
             onEdgeUp: if (root.shell)
                           root.shell.focusNavBar()
-            FastWheelHandler {
-                flickable: categoryList
-            }
 
             delegate: Surface {
                 required property int index
@@ -670,11 +672,13 @@ FocusScope {
             }
         }
 
-        NavList {
+        MenuListView {
             id: settingsList
             Layout.fillWidth: true
             Layout.fillHeight: true
             model: root.settingsRows
+            dismissOnBack: false
+            dismissOnHorizontal: false
             spacing: 10
             clip: true
             boundsBehavior: Flickable.StopAtBounds
@@ -687,9 +691,6 @@ FocusScope {
             onAccepted: index => root.activateRow(root.rowAt(index), index)
             onEdgeUp: if (root.shell)
                           root.shell.focusNavBar()
-            FastWheelHandler {
-                flickable: settingsList
-            }
 
             delegate: Column {
                 required property int index

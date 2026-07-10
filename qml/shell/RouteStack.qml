@@ -47,22 +47,21 @@ FocusScope {
         ready = true
         loadRoute()
     }
-    function handleKey(key) {
-        if (loader.item && loader.item.handleKey)
-            return loader.item.handleKey(key)
-        return false
+    function routeKey(key, phase, repeat) {
+        return Boolean(loader.item && loader.item.routeKey && loader.item.routeKey(key, phase, repeat))
     }
 
-    function handlePressedKey(key) {
-        if (loader.item && loader.item.handlePressedKey)
-            return loader.item.handlePressedKey(key)
-        return false
+    function activate() {
+        if (loader.item && loader.item.activate)
+            loader.item.activate()
     }
 
-    function handleBack() {
-        if (loader.item && loader.item.handleBack)
-            return loader.item.handleBack()
-        return false
+    function longPress() {
+        return Boolean(loader.item && loader.item.longPress && loader.item.longPress())
+    }
+
+    function back() {
+        return Boolean(loader.item && loader.item.back && loader.item.back())
     }
 
     Loader {

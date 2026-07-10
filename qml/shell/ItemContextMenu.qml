@@ -1,5 +1,4 @@
 import QtQuick
-import QtQuick.Controls.Basic as QQC
 import QtQuick.Layouts
 import "../theme"
 import "../primitives"
@@ -13,7 +12,7 @@ FocusScope {
     property var menuOptions: []
     property bool favoriteState: Boolean(item && item.favorite)
     property bool playedState: Boolean(item && item.played)
-    readonly property bool opened: menuPopup.opened
+    property bool opened: false
     readonly property int windowWidth: root.Window.window ? root.Window.window.width : 1920
     readonly property int menuEdgeMargin: Math.max(12, Metrics.gap(windowWidth))
     readonly property int menuRowHeight: Math.max(46, Metrics.controlHeight(windowWidth))
@@ -69,10 +68,6 @@ FocusScope {
             if (root.itemId === changedItemId)
                 root.playedState = played
         }
-    }
-
-    function menuParentItem() {
-        return root.Window.window ? root.Window.window.contentItem : root
     }
 
     function clamp(value, minimum, maximum) {
@@ -207,47 +202,34 @@ FocusScope {
     }
 
     function positionMenu() {
-        const target = menuParentItem()
-        const edge = root.menuEdgeMargin
-        const maxX = Math.max(edge, target.width - menuPopup.width - edge)
-        const maxY = Math.max(edge, target.height - menuPopup.height - edge)
-        let desiredX = Math.round((target.width - menuPopup.width) / 2)
-        let desiredY = Math.round((target.height - menuPopup.height) / 2)
+        const edge = menuEdgeMargin
+        let desiredX = Math.round((width - menuPanel.width) / 2)
+        let desiredY = Math.round((height - menuPanel.height) / 2)
         if (anchorItem) {
-            const anchor = anchorItem.mapToItem(target, 0, 0)
-            desiredX = anchor.x + anchorItem.width - menuPopup.width
-            const belowY = anchor.y + Math.min(anchorItem.height, root.menuRowHeight) + 8
-            const aboveY = anchor.y - menuPopup.height - 8
-            desiredY = belowY + menuPopup.height <= target.height - edge ? belowY : aboveY
+            const anchor = anchorItem.mapToItem(root, 0, 0)
+            desiredX = anchor.x + anchorItem.width - menuPanel.width
+            const below = anchor.y + Math.min(anchorItem.height, menuRowHeight) + 8
+            desiredY = below + menuPanel.height <= height - edge ? below : anchor.y - menuPanel.height - 8
         }
-        menuPopup.x = clamp(desiredX, edge, maxX)
-        menuPopup.y = clamp(desiredY, edge, maxY)
+        menuPanel.x = clamp(desiredX, edge, Math.max(edge, width - menuPanel.width - edge))
+        menuPanel.y = clamp(desiredY, edge, Math.max(edge, height - menuPanel.height - edge))
     }
 
-    function openForItem(item, anchor) {
-        item = item || ({})
+    function openForItem(nextItem, anchor) {
+        item = nextItem || ({})
         anchorItem = anchor || null
         syncItemState()
         if (!rebuildMenu())
             return false
         menuIndex = 0
-        acceptArmed = false
-        openedAtMs = Date.now()
-        menuPopup.open()
+        opened = true
         InputKeys.focus(menuList)
-        positionMenu()
-        Qt.callLater(function () {
-            InputKeys.focus(menuList)
-            positionMenu()
-        })
+        Qt.callLater(positionMenu)
         return true
     }
 
     function closeMenu() {
-        if (menuPopup.opened) {
-            menuPopup.close()
-            return
-        }
+        opened = false
         item = ({})
         anchorItem = null
         menuOptions = []
@@ -296,97 +278,60 @@ FocusScope {
         closeMenu()
     }
 
-    // The long-press that opens this menu is usually still held when the menu
-    // appears; its release (and any auto-repeat press/release pairs) must not
-    // activate the focused entry. Require a fresh, settled press after opening.
-    property bool acceptArmed: false
-    property double openedAtMs: 0
+    function routeKey(key, phase, repeat) {
+        return opened && menuList.routeKey(key, phase, repeat)
+    }
 
-    function handlePressed(event) {
+    function activate() {
+        if (opened)
+            menuList.activate()
+    }
+
+    function back() {
         if (!opened)
             return false
-        if (InputKeys.isAccept(event.key) && !event.isAutoRepeat && Date.now() - openedAtMs > 300)
-            acceptArmed = true
+        closeMenu()
         return true
     }
 
-    function handleReleased(event) {
-        if (!opened)
-            return false
-        if (event.isAutoRepeat)
-            return true
-        if (InputKeys.isBackEvent(event, true) || InputKeys.isHorizontal(event.key)) {
-            closeMenu()
-            return true
-        }
-        if (InputKeys.isAccept(event.key)) {
-            if (!acceptArmed)
-                return true
-            acceptArmed = false
-        }
-        if (menuList.handleKey(event.key))
-            return true
-        return true
+    MouseArea {
+        anchors.fill: parent
+        onClicked: root.closeMenu()
     }
 
-    QQC.Popup {
-        id: menuPopup
-
-        parent: root.Window.window ? root.Window.window.contentItem : root
+    Rectangle {
+        id: menuPanel
         width: root.menuPanelWidth
         height: root.menuPanelHeight
-        padding: 0
-        modal: false
-        dim: false
-        focus: true
-        closePolicy: QQC.Popup.CloseOnEscape | QQC.Popup.CloseOnPressOutside
-        onClosed: root.closeMenu()
+        radius: Theme.radiusPanel
+        color: Theme.floatingPanel
+        border.width: 1
+        border.color: Theme.borderStrong
+        antialiasing: true
 
-        background: Rectangle {
-            radius: Theme.radiusPanel
-            color: Theme.floatingPanel
-            border.width: 1
-            border.color: Theme.borderStrong
-            antialiasing: true
-        }
+        MenuListView {
+            id: menuList
+            anchors.fill: parent
+            anchors.margins: 8
+            spacing: 4
+            model: root.menuOptions
+            currentIndex: root.menuIndex
+            onCurrentIndexChanged: root.menuIndex = currentIndex
+            onDismissed: root.closeMenu()
+            onAccepted: index => root.activateMenuIndex(index)
 
-        contentItem: Item {
-            clip: true
-            focus: true
-
-            Keys.onPressed: event => {
-                                if (root.handlePressed(event))
-                                event.accepted = true
-                            }
-            Keys.onReleased: event => {
-                                 if (root.handleReleased(event))
-                                 event.accepted = true
-                             }
-
-            MenuListView {
-                id: menuList
-                anchors.fill: parent
-                anchors.margins: 8
-                spacing: 4
-                model: root.menuOptions
-                currentIndex: root.menuIndex
-                onCurrentIndexChanged: root.menuIndex = currentIndex
-                onDismissed: root.closeMenu()
-                onAccepted: index => root.activateMenuIndex(index)
-
-                delegate: MenuRow {
-                    required property int index
-                    required property var modelData
-                    width: menuList.width
-                    label: modelData.label || ""
-                    iconName: modelData.icon || "more_horiz"
-                    checked: Boolean(modelData.checked)
-                    highlighted: ListView.isCurrentItem
-                    metricsWidth: root.windowWidth
-                    rowHeight: root.menuRowHeight
-                    onHovered: menuList.currentIndex = index
-                    onActivated: root.activateMenuIndex(index)
-                }
+            delegate: MenuRow {
+                required property int index
+                required property var modelData
+                width: menuList.width
+                label: modelData.label || ""
+                iconName: modelData.icon || "more_horiz"
+                checked: Boolean(modelData.checked)
+                highlighted: ListView.isCurrentItem
+                metricsWidth: root.windowWidth
+                rowHeight: root.menuRowHeight
+                onHovered: menuList.currentIndex = index
+                onActivated: root.activateMenuIndex(index)
             }
         }
     }

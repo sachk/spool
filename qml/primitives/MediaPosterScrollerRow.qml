@@ -59,37 +59,31 @@ FocusScope {
         return listView.currentItem
     }
 
-    function handlePressedKey(key) {
-        const card = currentCard()
-        return card && card.handleAcceptPressed ? card.handleAcceptPressed(key) : false
-    }
-
-    function handleKey(key) {
+    function routeKey(key, phase, repeat) {
         if (rowCount <= 0)
             return false
-        const acceptKey = InputKeys.isAccept(key)
-        const card = currentCard()
         if (key === Qt.Key_Left) {
-            if (listView.currentIndex > 0)
-                listView.currentIndex = listView.currentIndex - 1
-            currentIndex = listView.currentIndex
-            ensureVisible()
-            return true
-        }
-        if (key === Qt.Key_Right) {
+            listView.currentIndex = Math.max(0, listView.currentIndex - 1)
+        } else if (key === Qt.Key_Right) {
             listView.currentIndex = Math.min(rowCount - 1, listView.currentIndex + 1)
-            currentIndex = listView.currentIndex
-            ensureVisible()
-            return true
+        } else {
+            return false
         }
-        if (acceptKey) {
-            currentIndex = listView.currentIndex
-            if (card && card.handleAcceptReleased && card.handleAcceptReleased(key))
-                return true
+        currentIndex = listView.currentIndex
+        ensureVisible()
+        return true
+    }
+
+    function activate() {
+        if (listView.currentIndex >= 0)
             activated(listView.currentIndex)
-            return true
-        }
-        return false
+    }
+
+    function longPress() {
+        if (listView.currentIndex < 0 || !shell)
+            return false
+        const item = rowModel && rowModel.get ? rowModel.get(listView.currentIndex) : null
+        return Boolean(item && shell.openItemMenu(item, currentCard()))
     }
 
     SectionHeader {
@@ -137,13 +131,6 @@ FocusScope {
             width: root.cardWidth
             height: listView.height
 
-            function handleAcceptPressed(key) {
-                return card.handleAcceptPressed(key)
-            }
-            function handleAcceptReleased(key) {
-                return card.handleAcceptReleased(key)
-            }
-
             MediaItemCard {
                 id: card
                 anchors.fill: parent
@@ -152,9 +139,6 @@ FocusScope {
                 useSeriesPoster: root.useSeriesPoster
                 preferEpisodeTitle: root.preferEpisodeTitle
                 focused: posterDelegate.index === listView.currentIndex && listView.activeFocus
-                itemProvider: function () {
-                    return root.rowModel.get(posterDelegate.index) || ({})
-                }
                 item: posterDelegate.movie
                 displayTitle: posterDelegate.displayTitle
                 displaySubtitle: posterDelegate.displaySubtitle
@@ -166,20 +150,8 @@ FocusScope {
                 }
                 onFavoriteToggled: favorite => App.setFavorite(posterDelegate.movie.movieId || "", favorite)
                 onPlayedToggled: played => App.setPlayed(posterDelegate.movie.movieId || "", played)
-                onMediaInfoRequested: {
-                    if (root.shell)
-                        root.shell.openMediaInfo(root.rowModel.get(posterDelegate.index) || ({}))
-                }
             }
         }
-
-        // Direction keys are dispatched on press by the shell; handling them
-        // here too moved the selection twice per key tap. Only accept lands here.
-        Keys.onReleased: event => {
-                             if (!InputKeys.isAccept(event.key))
-                             return
-                             event.accepted = event.isAutoRepeat || root.handleKey(event.key)
-                         }
     }
 
     MonoText {

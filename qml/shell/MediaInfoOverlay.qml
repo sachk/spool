@@ -61,12 +61,6 @@ FocusScope {
         }
     }
 
-    Keys.onPressed: event => event.accepted = visible
-    Keys.onReleased: event => {
-                         if (handleReleased(event))
-                         event.accepted = true
-                     }
-
     function text(value) {
         return value === undefined || value === null ? "" : String(value)
     }
@@ -277,25 +271,28 @@ FocusScope {
         else
             closeOverlay()
     }
-    function handleReleased(event) {
-        if (!visible)
-            return false
-        if (InputKeys.isBackEvent(event, true) || event.key === Qt.Key_I) {
+    function routeKey(key, phase, repeat) {
+        if (phase === "release" && key === Qt.Key_I) {
             closeOverlay()
             return true
         }
-        if (event.key === Qt.Key_Up || event.key === Qt.Key_Left) {
+        if (key === Qt.Key_Up || key === Qt.Key_Left) {
             focusAction(currentActionIndex - 1)
             return true
         }
-        if (event.key === Qt.Key_Down || event.key === Qt.Key_Right) {
+        if (key === Qt.Key_Down || key === Qt.Key_Right) {
             focusAction(currentActionIndex + 1)
             return true
         }
-        if (InputKeys.isAccept(event.key, false)) {
-            activateCurrent()
-            return true
-        }
+        return false
+    }
+
+    function activate() {
+        activateCurrent()
+    }
+
+    function back() {
+        closeOverlay()
         return true
     }
 
