@@ -18,30 +18,14 @@ FocusScope {
     readonly property bool hasSavedPair: App.hasDefaultProfile && Session.serverUrl.length > 0
     readonly property bool textInputActive: shell ? shell.textInputActive : Qt.inputMethod.visible
     readonly property bool manualServerVisible: manualServerAddress.length > 0
-    readonly property int tileSize: width >= 1920 ? 190 : width >= 1280 ? 164 : 152
     readonly property int contentWidth: Math.min(width - Metrics.pageMargin(width) * 2, 1040)
     readonly property string savedServerName: "Jellyfin Server"
-    readonly property string savedServerAddress: Session.serverUrl
     readonly property string savedUsername: Session.username.length > 0 ? Session.username : "Saved user"
     readonly property string chosenServerName: selectedServerName.length > 0 ? selectedServerName : savedServerName
     readonly property string chosenServerAddress: selectedServerAddress.length > 0 ? selectedServerAddress : Session
                                                                                      ? Session.serverUrl : ""
 
     focus: true
-
-    function firstInitial(value) {
-        const text = String(value || "").trim()
-        return text.length > 0 ? text.charAt(0).toUpperCase() : "?"
-    }
-
-    function profileTint(value) {
-        const palette = ["#1F4631", "#314026", "#243F46", "#3E3147", "#49352B", "#2D3D55"]
-        let hash = 0
-        const text = String(value || "")
-        for (let i = 0; i < text.length; ++i)
-            hash = ((hash << 5) - hash + text.charCodeAt(i)) | 0
-        return palette[Math.abs(hash) % palette.length]
-    }
 
     function normalizeServerUrl(value) {
         const trimmed = String(value || "").trim()
@@ -283,26 +267,23 @@ FocusScope {
 
         Row {
             anchors.centerIn: parent
-            spacing: 28
+            spacing: 16
 
-            ProfileTile {
+            ActionButton {
                 id: profileTile
-                tileSize: root.tileSize
-                username: root.savedUsername
-                serverName: root.savedServerName
-                serverAddress: root.savedServerAddress
-                avatarColor: root.profileTint(username + serverAddress)
-                initial: root.firstInitial(username)
-                defaultProfile: App.hasDefaultProfile
-                onAccepted: root.enterProfile()
+                width: 280
+                text: root.savedUsername + " — " + root.savedServerName
+                iconName: "person"
+                kind: "primary"
+                onClicked: root.enterProfile()
             }
 
-            ProfileTile {
+            ActionButton {
                 id: addAccountTile
-                tileSize: root.tileSize
-                addTile: true
-                username: "Add account"
-                onAccepted: root.openAddAccount()
+                width: 200
+                text: "Add account"
+                iconName: "person_add"
+                onClicked: root.openAddAccount()
             }
         }
     }
@@ -514,138 +495,6 @@ FocusScope {
                     }
                 }
             }
-        }
-    }
-
-    component ProfileTile: FocusScope {
-        id: tile
-
-        property int tileSize: 152
-        property string username: ""
-        property string serverName: ""
-        property string serverAddress: ""
-        property string initial: ""
-        property color avatarColor: "#1F4631"
-        property bool defaultProfile: false
-        property bool addTile: false
-        property bool pointerHovered: hover.hovered
-
-        signal accepted
-
-        width: tileSize
-        height: tileSize + 76
-        focus: true
-        focusPolicy: Qt.StrongFocus
-        scale: activeFocus && !Theme.reducedMotion ? 1.055 : 1.0
-
-        Behavior on scale {
-            enabled: !Theme.reducedMotion
-            NumberAnimation {
-                duration: 120
-                easing.type: Easing.OutCubic
-            }
-        }
-
-        Rectangle {
-            id: avatar
-            anchors.top: parent.top
-            anchors.horizontalCenter: parent.horizontalCenter
-            width: tile.tileSize
-            height: tile.tileSize
-            radius: Theme.radiusMedium
-            color: tile.addTile ? Theme.bgRaised : tile.avatarColor
-            border.width: tile.activeFocus ? 3 : tile.pointerHovered ? 1 : 0
-            border.color: tile.activeFocus ? Theme.accent : Theme.borderStrong
-            antialiasing: true
-
-            AppText {
-                anchors.centerIn: parent
-                text: tile.addTile ? "+" : tile.initial
-                color: tile.addTile ? Theme.accent : Theme.textPrimary
-                font.pixelSize: tile.addTile ? Math.round(tile.tileSize * 0.34) : Math.round(tile.tileSize * 0.42)
-                font.weight: Font.DemiBold
-            }
-
-            AppText {
-                anchors.right: parent.right
-                anchors.top: parent.top
-                anchors.rightMargin: 10
-                anchors.topMargin: 8
-                visible: tile.defaultProfile && !tile.addTile
-                text: "★"
-                color: "#F6C544"
-                font.pixelSize: 22
-                font.weight: Font.Bold
-            }
-        }
-
-        Rectangle {
-            anchors.top: avatar.bottom
-            anchors.topMargin: 8
-            anchors.horizontalCenter: parent.horizontalCenter
-            width: tile.activeFocus ? Math.round(tile.tileSize * 0.74) : 0
-            height: 3
-            radius: 2
-            color: Theme.accentPurple
-            opacity: tile.activeFocus ? 1 : 0
-
-            Behavior on width {
-                enabled: !Theme.reducedMotion
-                NumberAnimation {
-                    duration: 120
-                    easing.type: Easing.OutCubic
-                }
-            }
-        }
-
-        Column {
-            anchors.top: avatar.bottom
-            anchors.topMargin: 14
-            anchors.left: parent.left
-            anchors.right: parent.right
-            spacing: 3
-
-            AppText {
-                width: parent.width
-                text: tile.username
-                color: Theme.textPrimary
-                font.pixelSize: 18
-                font.weight: Font.DemiBold
-                horizontalAlignment: Text.AlignHCenter
-                maximumLineCount: 1
-                elide: Text.ElideRight
-            }
-
-            AppText {
-                width: parent.width
-                visible: !tile.addTile
-                text: tile.serverName
-                color: Theme.textSecondary
-                font.pixelSize: 13
-                horizontalAlignment: Text.AlignHCenter
-                maximumLineCount: 1
-                elide: Text.ElideRight
-            }
-
-            MonoText {
-                width: parent.width
-                visible: !tile.addTile
-                text: tile.serverAddress
-                color: Theme.textMuted
-                font.pixelSize: 11
-                horizontalAlignment: Text.AlignHCenter
-                maximumLineCount: 1
-                elide: Text.ElideRight
-            }
-        }
-
-        MouseArea {
-            anchors.fill: parent
-            onClicked: tile.accepted()
-        }
-
-        HoverHandler {
-            id: hover
         }
     }
 

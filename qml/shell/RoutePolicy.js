@@ -13,9 +13,7 @@ function modelCount(model) {
 }
 
 function modelItem(model, index) {
-    return model && model.get && index >= 0 && index < modelCount(model)
-            ? model.get(index)
-            : ({})
+    return model && model.get && index >= 0 && index < modelCount(model) ? model.get(index) : ({})
 }
 
 function modelIndexForItemId(model, itemId, fallbackIndex) {
@@ -27,15 +25,25 @@ function modelIndexForItemId(model, itemId, fallbackIndex) {
                 return i
         }
     }
-    return count > 0
-            ? Math.max(0, Math.min(Number(fallbackIndex || 0), count - 1))
-            : -1
+    return count > 0 ? Math.max(0, Math.min(Number(fallbackIndex || 0), count - 1)) : -1
+}
+
+function detailsContext(args, fallbackModel) {
+    const routeArgs = args || ({})
+    const model = routeArgs.model || fallbackModel
+    const index = modelIndexForItemId(model, routeArgs.itemId, routeArgs.focusIndex)
+    return {
+        model: model,
+        index: index,
+        item: modelItem(model, index),
+        source: String(routeArgs.source || "movies"),
+        returnRoute: String(routeArgs.returnRoute || "libraryGrid")
+    }
 }
 
 function normalizeDetailsRoute(request, fallbackModel, currentRoute) {
     const nextModel = request && request.model ? request.model : fallbackModel
-    const focusIndex = Math.max(0, Number(request && request.focusIndex !== undefined
-                                          ? request.focusIndex : 0))
+    const focusIndex = Math.max(0, Number(request && request.focusIndex !== undefined ? request.focusIndex : 0))
     const fallbackItem = modelItem(nextModel, focusIndex)
     const requestedItemId = request ? String(request.itemId || "") : ""
     const itemId = requestedItemId.length > 0 ? requestedItemId : itemIdFor(fallbackItem)
@@ -45,11 +53,9 @@ function normalizeDetailsRoute(request, fallbackModel, currentRoute) {
     return {
         model: nextModel,
         itemId: itemId,
-        itemType: request && request.itemType
-                  ? String(request.itemType) : itemTypeFor(fallbackItem),
+        itemType: request && request.itemType ? String(request.itemType) : itemTypeFor(fallbackItem),
         source: request && request.source ? String(request.source) : "movies",
-        returnRoute: request && request.returnRoute
-                     ? String(request.returnRoute) : (currentRoute || "libraryGrid"),
+        returnRoute: request && request.returnRoute ? String(request.returnRoute) : (currentRoute || "libraryGrid"),
         focusIndex: focusIndex
     }
 }
@@ -58,11 +64,11 @@ function detailsRouteAt(model, index, source, returnRoute, currentRoute) {
     const focusIndex = Math.max(0, Number(index || 0))
     const item = modelItem(model, focusIndex)
     return normalizeDetailsRoute({
-        model: model,
-        itemId: itemIdFor(item),
-        itemType: itemTypeFor(item),
-        source: source || "movies",
-        returnRoute: returnRoute || currentRoute || "libraryGrid",
-        focusIndex: focusIndex
-    }, model, currentRoute)
+                                     model: model,
+                                     itemId: itemIdFor(item),
+                                     itemType: itemTypeFor(item),
+                                     source: source || "movies",
+                                     returnRoute: returnRoute || currentRoute || "libraryGrid",
+                                     focusIndex: focusIndex
+                                 }, model, currentRoute)
 }
