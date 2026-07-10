@@ -10,13 +10,9 @@ namespace JellyfinNative::Diagnostics {
 
 void initialize(const QString& appId, const QString& rootPath);
 void shutdown();
-bool enabled();
-QString rootPath();
 void logEvent(const QString& category, const QString& event, QJsonObject data = {});
 void setInstanceState(const QString& state, QJsonObject extra = {});
-void writePreviousInstanceReport();
 void dumpDiagnostics(const QString& reason);
-void noteSignal(int signalNumber);
 
 class EventLoopWatchdog final : public QObject {
     Q_OBJECT
@@ -47,16 +43,6 @@ private:
     QString m_name;
     QString m_id;
     qint64 m_startedMs = 0;
-    bool m_active = false;
-};
-
-class ThreadScope final {
-public:
-    explicit ThreadScope(QString name);
-    ~ThreadScope();
-
-private:
-    QString m_name;
     bool m_active = false;
 };
 

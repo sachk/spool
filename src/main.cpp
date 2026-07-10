@@ -660,7 +660,6 @@ int main(int argc, char **argv)
         ? QString::fromLocal8Bit(qgetenv("JELLYFIN_DIAGNOSTICS_DIR"))
         : QStandardPaths::writableLocation(QStandardPaths::AppDataLocation) + QStringLiteral("/diagnostics");
     JellyfinNative::Diagnostics::initialize(QString::fromLatin1(kAppId), diagnosticsRoot);
-    JellyfinNative::Diagnostics::ThreadScope guiThread(QStringLiteral("gui"));
     JellyfinNative::Diagnostics::EventLoopWatchdog eventLoopWatchdog(&app);
 
     const QStringList arguments = app.arguments();
@@ -689,8 +688,10 @@ int main(int argc, char **argv)
                 char buf[16];
                 ssize_t count = 0;
                 while ((count = read(g_signalPipe[0], buf, sizeof(buf))) > 0) {
-                    for (ssize_t i = 0; i < count; ++i)
-                        JellyfinNative::Diagnostics::noteSignal(static_cast<int>(buf[i]));
+                    for (ssize_t i = 0; i < count; ++i) {
+                        JellyfinNative::Diagnostics::logEvent(QStringLiteral("signal"), QStringLiteral("received"),
+                            { { QStringLiteral("signal"), static_cast<int>(buf[i]) } });
+                    }
                 }
                 logLine("signal received, quitting");
                 app.quit();

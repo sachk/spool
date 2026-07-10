@@ -12,8 +12,6 @@
 
 #include "../common/JellyfinTypes.h"
 
-#include <functional>
-#include <type_traits>
 #include <utility>
 
 namespace JellyfinNative {

@@ -241,6 +241,20 @@ namespace {
         }
     }
 
+    void writePreviousInstanceReport()
+    {
+        QJsonObject object;
+        object.insert(QStringLiteral("ts"), timestamp());
+        object.insert(QStringLiteral("pid"), QCoreApplication::applicationPid());
+        object.insert(QStringLiteral("processes"), findMatchingProcesses());
+        const QByteArray previous = readSmallFile(jsonPath(QStringLiteral("current-instance.json")));
+        if (!previous.isEmpty())
+            object.insert(QStringLiteral("previousCurrentInstance"), QJsonDocument::fromJson(previous).object());
+        writeJsonFile(jsonPath(QStringLiteral("stale-processes.json")), object);
+        logEvent(QStringLiteral("lifecycle"), QStringLiteral("previous_instance_scan"),
+            { { QStringLiteral("matches"), object.value(QStringLiteral("processes")).toArray().size() } });
+    }
+
 } // namespace
 
 void initialize(const QString& appId, const QString& rootPath)
@@ -288,16 +302,6 @@ void shutdown()
         s.watchdogThread.join();
 }
 
-bool enabled()
-{
-    return kDiagnosticsEnabled;
-}
-
-QString rootPath()
-{
-    return state().root;
-}
-
 void logEvent(const QString& category, const QString& event, QJsonObject data)
 {
     if (!kDiagnosticsEnabled || state().root.isEmpty())
@@ -325,22 +329,6 @@ void setInstanceState(const QString& stateName, QJsonObject extra)
     }
     writeInstance(stateName, std::move(extra));
     logEvent(QStringLiteral("lifecycle"), QStringLiteral("instance_state"), { { QStringLiteral("state"), stateName } });
-}
-
-void writePreviousInstanceReport()
-{
-    if (!kDiagnosticsEnabled)
-        return;
-    QJsonObject object;
-    object.insert(QStringLiteral("ts"), timestamp());
-    object.insert(QStringLiteral("pid"), QCoreApplication::applicationPid());
-    object.insert(QStringLiteral("processes"), findMatchingProcesses());
-    const QByteArray previous = readSmallFile(jsonPath(QStringLiteral("current-instance.json")));
-    if (!previous.isEmpty())
-        object.insert(QStringLiteral("previousCurrentInstance"), QJsonDocument::fromJson(previous).object());
-    writeJsonFile(jsonPath(QStringLiteral("stale-processes.json")), object);
-    logEvent(QStringLiteral("lifecycle"), QStringLiteral("previous_instance_scan"),
-        { { QStringLiteral("matches"), object.value(QStringLiteral("processes")).toArray().size() } });
 }
 
 void dumpDiagnostics(const QString& reason)
@@ -372,11 +360,6 @@ void dumpDiagnostics(const QString& reason)
             QStringLiteral("watchdog"), QStringLiteral("stackdump_requested"), { { QStringLiteral("path"), output } });
 #endif
     }
-}
-
-void noteSignal(int signalNumber)
-{
-    logEvent(QStringLiteral("signal"), QStringLiteral("received"), { { QStringLiteral("signal"), signalNumber } });
 }
 
 EventLoopWatchdog::EventLoopWatchdog(QObject *parent)
@@ -439,23 +422,6 @@ Task::~Task()
         logEvent(QStringLiteral("task"), QStringLiteral("end"),
             { { QStringLiteral("task"), m_name }, { QStringLiteral("taskId"), m_id },
                 { QStringLiteral("durationMs"), nowMs() - m_startedMs } });
-}
-
-ThreadScope::ThreadScope(QString name)
-    : m_name(std::move(name))
-    , m_active(kDiagnosticsEnabled)
-{
-    if (m_active)
-        logEvent(QStringLiteral("thread"), QStringLiteral("registered"),
-            { { QStringLiteral("name"), m_name },
-                { QStringLiteral("qtThread"),
-                    QString::number(reinterpret_cast<quintptr>(QThread::currentThreadId()), 16) } });
-}
-
-ThreadScope::~ThreadScope()
-{
-    if (m_active)
-        logEvent(QStringLiteral("thread"), QStringLiteral("unregistered"), { { QStringLiteral("name"), m_name } });
 }
 
 NetworkRequest::NetworkRequest(QString method, QString url)
