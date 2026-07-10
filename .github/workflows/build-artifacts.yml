@@ -37,6 +37,7 @@ jobs:
       - uses: actions/checkout@v6
         with:
           fetch-depth: 2
+          submodules: recursive
 
       - name: Check commit whitespace
         run: git show --check --format= HEAD
@@ -183,8 +184,8 @@ jobs:
             build/webos-qcoro
             build/third_party
             .ccache
-            mpv_webos/build/webos-libmpv
-          key: webos2-${{ runner.os }}-${{ hashFiles('flake.nix', 'flake.lock', 'mpv_webos/meson.build', 'build-ipk.sh', 'tools/lib/*.sh', 'tools/manifests/qt-webos-6.11.json', 'tools/manifests/webos-third-party.json', 'tools/webos-native/**') }}
+            mpv/build/webos-libmpv
+          key: webos2-${{ runner.os }}-${{ hashFiles('flake.nix', 'flake.lock', 'mpv/meson.build', 'build-ipk.sh', 'tools/lib/*.sh', 'tools/manifests/qt-webos-6.11.json', 'tools/manifests/webos-third-party.json', 'tools/webos-native/**') }}
           restore-keys: |
             webos2-${{ runner.os }}-
             webos-${{ runner.os }}-
@@ -222,7 +223,7 @@ jobs:
             build/webos-qcoro
             build/third_party
             .ccache
-            mpv_webos/build/webos-libmpv
+            mpv/build/webos-libmpv
           key: ${{ steps.webos-cache.outputs.cache-primary-key }}
 
       - name: Build IPK

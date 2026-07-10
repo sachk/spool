@@ -20,36 +20,14 @@
     "mpv-src": {
       "flake": false,
       "locked": {
-        "lastModified": 1780554980,
-        "narHash": "sha256-I0b0PPLtIVTrOsBDoYpvpNcHG0nW5ANXNqDtSxNcOkk=",
-        "owner": "sachk",
-        "repo": "mpv",
-        "rev": "c8a35dca3da187bbfffa0c4720087bf17bc2c240",
-        "type": "github"
+        "path": "./mpv",
+        "type": "path"
       },
       "original": {
-        "owner": "sachk",
-        "repo": "mpv",
-        "rev": "c8a35dca3da187bbfffa0c4720087bf17bc2c240",
-        "type": "github"
-      }
-    },
-    "mpv-webos-src": {
-      "flake": false,
-      "locked": {
-        "lastModified": 1783431352,
-        "narHash": "sha256-nBoE8/JZVEeCxYPP/IwyLGnld8yrJ1FOvBudnncvKgo=",
-        "owner": "sachk",
-        "repo": "mpv",
-        "rev": "24142a6c546418befcc7a3d39928a4de82d6d495",
-        "type": "github"
+        "path": "./mpv",
+        "type": "path"
       },
-      "original": {
-        "owner": "sachk",
-        "repo": "mpv",
-        "rev": "24142a6c546418befcc7a3d39928a4de82d6d495",
-        "type": "github"
-      }
+      "parent": []
     },
     "nixpkgs": {
       "locked": {
@@ -71,7 +49,6 @@
       "inputs": {
         "libplacebo-src": "libplacebo-src",
         "mpv-src": "mpv-src",
-        "mpv-webos-src": "mpv-webos-src",
         "nixpkgs": "nixpkgs"
       }
     }

@@ -358,6 +358,7 @@ native_mpv_common_args() {
     -Db_lto=true
     -Dbuild-date=false
     -Dlibmpv=true
+    -Dlibcurl=enabled
     "-Dcplayer=$cplayer"
   )
 }

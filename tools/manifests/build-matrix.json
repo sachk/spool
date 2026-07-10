@@ -33,7 +33,7 @@
       "qtSource": "cached-archive",
       "qtLinkage": "static",
       "mediaBackend": "webos-starfish",
-      "mpvSubmodule": "mpv_webos",
+      "mpvSubmodule": "mpv",
       "packageFormat": "ipk"
     }
   }

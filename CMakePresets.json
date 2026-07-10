@@ -51,7 +51,7 @@
         "CMAKE_FIND_ROOT_PATH": "$env{WEBOS_SDK_ROOT}/arm-webos-linux-gnueabi/sysroot;${sourceDir}/build/qt6-611-target-static-install",
         "CMAKE_PREFIX_PATH": "${sourceDir}/build/qt6-611-target-static-install",
         "JELLYFIN_NATIVE_WEBOS": "ON",
-        "MPV_WEBOS_BUILD_DIR": "${sourceDir}/mpv_webos/build/webos-libmpv",
+        "MPV_WEBOS_BUILD_DIR": "${sourceDir}/mpv/build/webos-libmpv",
         "QT_HOST_PATH": "${sourceDir}/build/qt6-611-host-install"
       }
     }

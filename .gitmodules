@@ -1,8 +1,4 @@
 [submodule "mpv"]
 	path = mpv
 	url = https://github.com/sachk/mpv.git
-	branch = libmpv-gpu-next
-[submodule "mpv_webos"]
-	path = mpv_webos
-	url = https://github.com/sachk/mpv.git
-	branch = webos
+	branch = network-threaded-mpv

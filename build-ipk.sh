@@ -43,7 +43,7 @@ esac
 SDK_ROOT="${WEBOS_SDK_ROOT:-$ROOT/build/webos-sdk/arm-webos-linux-gnueabi_sdk-buildroot}"
 SYSROOT="$SDK_ROOT/arm-webos-linux-gnueabi/sysroot"
 PREFIX="$SYSROOT/usr/local/webos-native"
-MPV_SRC="${MPV_SRC:-$ROOT/mpv_webos}"
+MPV_SRC="${MPV_SRC:-$ROOT/mpv}"
 MPV_BUILD="${MPV_BUILD:-$MPV_SRC/build/webos-libmpv}"
 WEBOS_CROSS_FILE="${WEBOS_CROSS_FILE:-$ROOT/build/webos-thirdparty-build/webos.cross.ini}"
 QT6_HOST_PREFIX="${QT6_HOST_PREFIX:-$ROOT/build/qt6-611-host-install}"
@@ -180,6 +180,7 @@ MPV_SETUP_ARGS=(
   -Db_lto=true
   -Dcplayer=false
   -Dlibmpv=true
+  -Dlibcurl=enabled
   -Dtests=false
   -Dfuzzers=false
   -Dmanpage-build=disabled

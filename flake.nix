@@ -8,16 +8,12 @@
       flake = false;
     };
     mpv-src = {
-      url = "github:sachk/mpv/c8a35dca3da187bbfffa0c4720087bf17bc2c240";
-      flake = false;
-    };
-    mpv-webos-src = {
-      url = "github:sachk/mpv/24142a6c546418befcc7a3d39928a4de82d6d495";
+      url = "path:./mpv";
       flake = false;
     };
   };
 
-  outputs = { self, nixpkgs, libplacebo-src, mpv-src, mpv-webos-src, ... }:
+  outputs = { self, nixpkgs, libplacebo-src, mpv-src, ... }:
     let
       systems = [ "x86_64-linux" "aarch64-darwin" "x86_64-darwin" ];
 
@@ -250,7 +246,7 @@
       apps = forAllSystems (pkgs:
         let
           stagedSourceId = builtins.substring 0 12
-            (builtins.hashString "sha256" "${self}-${mpv-src}-${mpv-webos-src}");
+            (builtins.hashString "sha256" "${self}-${mpv-src}");
           buildScript =
             if pkgs.stdenv.isDarwin
             then "tools/build-macos.sh"
@@ -303,7 +299,6 @@
 
             FLAKE_SOURCE="${self}"
             MPV_SOURCE="${mpv-src}"
-            MPV_WEBOS_SOURCE="${mpv-webos-src}"
 
             is_repo_root() {
               [ -f "$1/CMakeLists.txt" ] && [ -f "$1/tools/build-macos.sh" ] && [ -f "$1/mpv/meson.build" ]
@@ -319,9 +314,8 @@
                 mkdir -p "$cache_base"
                 cp -R "$FLAKE_SOURCE/." "$tmp"
                 chmod -R u+w "$tmp"
-                rm -rf "$tmp/mpv" "$tmp/mpv_webos"
+                rm -rf "$tmp/mpv"
                 ln -s "$MPV_SOURCE" "$tmp/mpv"
-                ln -s "$MPV_WEBOS_SOURCE" "$tmp/mpv_webos"
                 printf '%s\n' "${stagedSourceId}" > "$tmp/.jellyfin-staged-source"
                 rm -rf "$staged"
                 mv "$tmp" "$staged"
