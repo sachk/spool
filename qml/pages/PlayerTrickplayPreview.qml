@@ -1,99 +1,77 @@
 import QtQuick
+import "../theme"
+import "../primitives"
 
 Item {
-    id: trickplayPreview
+    id: root
 
     required property var overlay
-    readonly property real uiScale: overlay ? overlay.uiScale : 1
-    readonly property bool active: overlay && overlay.hasPlayer && overlay.player.trickplayAvailable && (overlay.scrubbing
-                                                                                                         || overlay.seekHoldActive
-                                                                                                         || overlay.previewBurstActive)
-                                   && overlay.mode !== "hidden"
+    readonly property bool active: overlay.hasPlayer && overlay.controlsVisible && overlay.player.trickplayAvailable && (
+                                       overlay.scrubbing || overlay.previewing)
     readonly property var trickplayData: active ? overlay.player.trickplayForSeconds(overlay.scrubbing
                                                                                      ? overlay.scrubSeconds :
                                                                                        overlay.positionSeconds()) : ({})
-    readonly property bool dataReady: trickplayData && trickplayData.available === true
+    readonly property bool ready: trickplayData && trickplayData.available === true
+    readonly property real scaleFactor: overlay.uiScale * 1.4
 
-    function dp(n) {
-        return Math.round(n * uiScale)
+    function dp(value) {
+        return overlay.dp(value)
     }
 
     function artworkSource(url) {
         if (!url)
             return ""
-        if (url.indexOf("http://") === 0 || url.indexOf("https://") === 0)
-            return "image://artwork/" + encodeURIComponent(url)
-        return url
+        return url.indexOf("http://") === 0 || url.indexOf("https://") === 0 ? "image://artwork/" + encodeURIComponent(
+                                                                                   url) : url
     }
 
     anchors.left: parent.left
     anchors.right: parent.right
     anchors.bottom: parent.bottom
     anchors.bottomMargin: dp(310)
-    height: dataReady ? Math.round((trickplayData.height || 0) * uiScale * 1.4) : 0
-    visible: dataReady
-    opacity: visible ? 1 : 0
+    height: ready ? Math.round((trickplayData.height || 0) * scaleFactor) + dp(24) : 0
+    visible: ready
     z: 22
 
-    Behavior on opacity {
-        NumberAnimation {
-            duration: 100
-        }
-    }
-
     Item {
-        id: thumbContainer
-
-        readonly property real thumbWidth: trickplayPreview.dataReady ? trickplayPreview.trickplayData.width
-                                                                        * trickplayPreview.uiScale * 1.4 : 0
-        readonly property real thumbHeight: trickplayPreview.dataReady ? trickplayPreview.trickplayData.height
-                                                                         * trickplayPreview.uiScale * 1.4 : 0
-
-        x: Math.max(dp(52), Math.min(parent.width - thumbWidth - dp(52), overlay.positionRatio() * parent.width
-                                     - thumbWidth / 2))
-        y: 0
-        width: thumbWidth
-        height: thumbHeight + dp(24)
+        readonly property real imageWidth: root.ready ? root.trickplayData.width * root.scaleFactor : 0
+        readonly property real imageHeight: root.ready ? root.trickplayData.height * root.scaleFactor : 0
+        x: Math.max(root.dp(52), Math.min(parent.width - imageWidth - root.dp(52), root.overlay.positionRatio()
+                                          * parent.width - imageWidth / 2))
+        width: imageWidth
+        height: imageHeight + root.dp(24)
 
         Rectangle {
-            id: thumbFrame
-
-            width: thumbContainer.thumbWidth
-            height: thumbContainer.thumbHeight
+            id: frame
+            width: parent.imageWidth
+            height: parent.imageHeight
             color: "black"
-            border.color: overlay.colHairline
+            border.color: Theme.borderStrong
             border.width: 1
-            radius: dp(8)
+            radius: Theme.radiusLarge
             clip: true
 
             Image {
-                source: trickplayPreview.dataReady ? trickplayPreview.artworkSource(trickplayPreview.trickplayData.url) :
-                                                     ""
-                visible: status === Image.Ready
-                x: trickplayPreview.dataReady ? trickplayPreview.trickplayData.offsetX * trickplayPreview.uiScale * 1.4 :
-                                                0
-                y: trickplayPreview.dataReady ? trickplayPreview.trickplayData.offsetY * trickplayPreview.uiScale * 1.4 :
-                                                0
-                width: trickplayPreview.dataReady ? trickplayPreview.trickplayData.sheetWidth
-                                                    * trickplayPreview.uiScale * 1.4 : 0
-                height: trickplayPreview.dataReady ? trickplayPreview.trickplayData.sheetHeight
-                                                     * trickplayPreview.uiScale * 1.4 : 0
+                source: root.ready ? root.artworkSource(root.trickplayData.url) : ""
+                x: root.ready ? root.trickplayData.offsetX * root.scaleFactor : 0
+                y: root.ready ? root.trickplayData.offsetY * root.scaleFactor : 0
+                width: root.ready ? root.trickplayData.sheetWidth * root.scaleFactor : 0
+                height: root.ready ? root.trickplayData.sheetHeight * root.scaleFactor : 0
                 fillMode: Image.Stretch
                 cache: true
                 asynchronous: true
             }
         }
 
-        Text {
-            anchors.horizontalCenter: thumbFrame.horizontalCenter
-            anchors.top: thumbFrame.bottom
-            anchors.topMargin: dp(4)
-            text: overlay.formatClock(overlay.scrubbing ? overlay.scrubSeconds : overlay.positionSeconds())
-            color: overlay.colTextStrong
-            font.pixelSize: dp(16)
+        AppText {
+            anchors.horizontalCenter: frame.horizontalCenter
+            anchors.top: frame.bottom
+            anchors.topMargin: root.dp(4)
+            text: root.overlay.formatClock(root.overlay.scrubbing ? root.overlay.scrubSeconds : root.overlay.positionSeconds(
+                                                                        ))
+            color: Theme.textPrimary
+            font.pixelSize: root.dp(16)
             font.weight: Font.Medium
-            font.hintingPreference: Font.PreferNoHinting
-            renderType: Text.QtRendering
         }
     }
 }

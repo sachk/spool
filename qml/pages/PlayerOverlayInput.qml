@@ -6,201 +6,171 @@ Item {
     visible: false
 
     required property var overlay
+    property int seekKey: 0
+    property int seekRepeats: 0
+    property int downRepeats: 0
+    readonly property bool previewing: seekKey !== 0
 
-    function resetDownHold() {
-        downHoldTimer.stop()
-        overlay.downHoldActive = false
+    function reset() {
+        seekKey = 0
+        seekRepeats = 0
+        downRepeats = 0
+    }
+
+    function seekDelta(key) {
+        return key === Qt.Key_Left ? -10 : key === Qt.Key_Right ? 10 : 0
+    }
+
+    function repeatedSeekDelta(delta) {
+        if (seekRepeats >= 16)
+            return delta * 12
+        if (seekRepeats >= 8)
+            return delta * 6
+        if (seekRepeats >= 4)
+            return delta * 3
+        return delta
+    }
+
+    function pressed(key, repeat) {
+        const delta = seekDelta(key)
+        if (delta !== 0 && overlay.hasPlayer && overlay.canPreviewSeek()) {
+            if (!repeat || seekKey !== key) {
+                seekKey = key
+                seekRepeats = 0
+                overlay.seekBy(delta)
+            } else {
+                ++seekRepeats
+                overlay.seekBy(repeatedSeekDelta(delta))
+            }
+            return true
+        }
+        if (key === Qt.Key_Down && repeat && overlay.hasPlayer) {
+            ++downRepeats
+            if (downRepeats === 1 || downRepeats % 4 === 0) {
+                overlay.player.cycleSubtitles()
+                overlay.showControls("actions")
+            }
+            return true
+        }
+        if (!repeat && key !== Qt.Key_Down)
+            downRepeats = 0
+        return false
     }
 
     function handleControlsKey(key) {
         if (key === Qt.Key_Up) {
-            overlay.row = overlay.row === "actions" ? "timeline" : "back"
-            overlay.showControls(overlay.row)
+            overlay.focusZone = overlay.focusZone === "actions" ? "timeline" : "back"
+            overlay.showControls(overlay.focusZone)
             return true
         }
         if (key === Qt.Key_Down) {
-            if (overlay.row === "actions" && overlay.actionIndex === 1) {
+            if (overlay.focusZone === "actions" && overlay.actionIndex === 1) {
                 overlay.openAudioSync()
                 return true
             }
-            if (overlay.row === "timeline")
+            if (overlay.focusZone === "timeline")
                 overlay.actionIndex = 1
-            overlay.row = overlay.row === "back" ? "timeline" : "actions"
-            overlay.showControls(overlay.row)
+            overlay.focusZone = overlay.focusZone === "back" ? "timeline" : "actions"
+            overlay.showControls(overlay.focusZone)
             return true
         }
         if (key === Qt.Key_Left) {
-            if (overlay.row === "timeline")
+            if (overlay.focusZone === "timeline")
                 overlay.seekBy(-10)
-            else if (overlay.row === "actions")
+            else if (overlay.focusZone === "actions")
                 overlay.actionIndex = Math.max(0, overlay.actionIndex - 1)
-            overlay.showControls(overlay.row)
+            overlay.showControls(overlay.focusZone)
             return true
         }
         if (key === Qt.Key_Right) {
-            if (overlay.row === "timeline")
+            if (overlay.focusZone === "timeline")
                 overlay.seekBy(10)
-            else if (overlay.row === "actions")
+            else if (overlay.focusZone === "actions")
                 overlay.actionIndex = Math.min(overlay.actions.length - 1, overlay.actionIndex + 1)
-            overlay.showControls(overlay.row)
-            return true
-        }
-        if (InputKeys.isAccept(key)) {
-            if (overlay.row === "back")
-                return overlay.stopPlayback("overlay-back")
-            if (overlay.row === "timeline") {
-                if (!overlay.commitScrub() && overlay.hasPlayer)
-                    overlay.player.togglePause()
-            } else {
-                overlay.activateAction()
-            }
-            overlay.showControls(overlay.row)
+            overlay.showControls(overlay.focusZone)
             return true
         }
         return false
-    }
-
-    function handleMenuKey(key) {
-        const count = overlay.mode === "subtitles" && overlay.hasPlayer ? overlay.player.subtitleTracks.length :
-                                                                          overlay.mode === "audio" && overlay.hasPlayer
-                                                                          ? overlay.player.audioTracks.length :
-                                                                            overlay.mode === "queue"
-                                                                            && overlay.playQueue
-                                                                            ? overlay.playQueue.count :
-                                                                              overlay.debugOptions.length
-        if (key === Qt.Key_Up) {
-            overlay.menuIndex = Math.max(0, overlay.menuIndex - 1)
-            return true
-        }
-        if (key === Qt.Key_Down) {
-            overlay.menuIndex = Math.min(Math.max(0, count - 1), overlay.menuIndex + 1)
-            return true
-        }
-        if (key === Qt.Key_Left || key === Qt.Key_Right)
-            return true
-        if (InputKeys.isAccept(key)) {
-            overlay.activateMenuItem()
-            return true
-        }
-        return false
-    }
-
-    function actionForColorKey(key) {
-        if (key === Qt.Key_Red)
-            return Settings.redButtonAction
-        if (key === Qt.Key_Green)
-            return Settings.greenButtonAction
-        if (key === Qt.Key_Yellow)
-            return Settings.yellowButtonAction
-        if (key === Qt.Key_Blue)
-            return Settings.blueButtonAction
-        return ""
     }
 
     function dispatchRemapAction(action) {
         if (!overlay.hasPlayer || !action || action === "none")
             return false
-        if (action === "togglePause") {
+        switch (action) {
+        case "togglePause":
             overlay.player.togglePause()
             overlay.showControls("actions")
-            return true
-        }
-        if (action === "toggleSubs") {
+            break
+        case "toggleSubs":
             overlay.player.toggleSubtitles()
-            return true
-        }
-        if (action === "cycleSubs") {
+            break
+        case "cycleSubs":
             overlay.player.cycleSubtitles()
-            return true
-        }
-        if (action === "cycleAudio") {
+            break
+        case "cycleAudio":
             overlay.player.cycleAudio()
-            return true
-        }
-        if (action === "skipBack10") {
+            break
+        case "skipBack10":
             overlay.seekBy(-10)
-            return true
-        }
-        if (action === "skipForward10") {
+            break
+        case "skipForward10":
             overlay.seekBy(10)
-            return true
-        }
-        if (action === "skipBack30") {
+            break
+        case "skipBack30":
             overlay.seekBy(-30)
-            return true
-        }
-        if (action === "skipForward30") {
+            break
+        case "skipForward30":
             overlay.seekBy(30)
-            return true
-        }
-        if (action === "skipBack90") {
+            break
+        case "skipBack90":
             overlay.seekBy(-90)
-            return true
-        }
-        if (action === "skipForward90") {
+            break
+        case "skipForward90":
             overlay.seekBy(90)
-            return true
-        }
-        if (action === "skipBackAndEnableSubs") {
+            break
+        case "skipBackAndEnableSubs":
             overlay.seekBy(-10)
             overlay.player.enableSubtitles()
-            return true
-        }
-        if (action === "skipSegment") {
+            break
+        case "skipSegment":
             overlay.player.skipActiveSegment()
-            return true
-        }
-        if (action === "queuePrevious") {
-            overlay.App.playQueuePrevious()
-            return true
-        }
-        if (action === "queueNext") {
-            overlay.App.playQueueNext()
-            return true
-        }
-        if (action === "showInfo") {
+            break
+        case "queuePrevious":
+            overlay.playPrevious()
+            break
+        case "queueNext":
+            overlay.playNext()
+            break
+        case "showInfo":
             overlay.toggleDebugStats()
-            return true
-        }
-        if (action === "stop") {
+            break
+        case "stop":
             overlay.player.stopWithReason("remap-stop")
-            return true
+            break
+        default:
+            return false
         }
-        return false
+        return true
     }
 
     function released(key, repeat) {
-        if (key === Qt.Key_Down) {
-            downHoldTimer.stop()
-            if (overlay.downHoldActive) {
-                overlay.downHoldActive = false
-                return true
-            }
+        if (key === seekKey) {
+            seekKey = 0
+            seekRepeats = 0
+            overlay.maybeRestartAutohide()
+            return true
+        }
+        if (key === Qt.Key_Down && downRepeats > 0) {
+            downRepeats = 0
+            return true
         }
         if (key === Qt.Key_T && overlay.hasPlayer && overlay.player.activeSegmentType.length > 0) {
             overlay.player.skipActiveSegment()
             return true
         }
-        if (InputKeys.isColor(key) && dispatchRemapAction(actionForColorKey(key)))
+        if (InputKeys.isColor(key) && dispatchRemapAction(overlay.colorAction(key)))
             return true
-        if (overlay.seekHoldKey !== 0 && key === overlay.seekHoldKey) {
-            if (!repeat) {
-                if (overlay.seekHoldActive) {
-                    overlay.stopPreviewSeekHold()
-                } else {
-                    const delta = overlay.seekHoldDelta
-                    overlay.stopPreviewSeekHold()
-                    overlay.seekBy(delta)
-                }
-            }
-            return true
-        }
-        const releaseSeekDelta = overlay.seekDeltaForKey(key)
-        if (releaseSeekDelta !== 0 && repeat)
-            return true
-        if (InputKeys.isBack(key))
-            return overlay.back()
-        if (key === Qt.Key_I || key === Qt.Key_Info) {
+        if ((key === Qt.Key_I || key === Qt.Key_Info) && overlay.hasPlayer) {
             overlay.toggleDebugStats()
             return true
         }
@@ -209,80 +179,36 @@ Item {
             return true
         }
         if (InputKeys.isMediaPrevious(key)) {
-            overlay.App.playQueuePrevious()
+            overlay.playPrevious()
             return true
         }
         if (InputKeys.isMediaNext(key)) {
-            overlay.App.playQueueNext()
+            overlay.playNext()
             return true
         }
-        if (overlay.mode === "hidden") {
-            if (key === Qt.Key_Left) {
-                overlay.seekBy(-10)
-                return true
-            }
-            if (key === Qt.Key_Right) {
-                overlay.seekBy(10)
-                return true
-            }
-            if (InputKeys.isAccept(key) && overlay.hasPlayer) {
-                overlay.actionIndex = 1
-                overlay.player.togglePause()
-                overlay.showControls("actions")
-                return true
-            }
+        if (InputKeys.isMedia(key) && overlay.hasPlayer) {
+            overlay.player.togglePause()
+            overlay.showControls("actions")
+            return true
+        }
+        if (!overlay.controlsVisible) {
             overlay.showControls("timeline")
             return true
         }
-        if (overlay.isAudioSyncOpen() && overlay.handleAudioSyncKey(key))
-            return true
-        if (overlay.isMenuOpen() && handleMenuKey(key))
-            return true
         if (handleControlsKey(key))
             return true
         if (key === Qt.Key_S) {
-            overlay.openSubtitles()
+            overlay.openMenu("subtitles")
             return true
         }
         if (key === Qt.Key_A) {
-            overlay.openAudio()
+            overlay.openMenu("audio")
             return true
         }
-        return false
+        return repeat && InputKeys.isDirection(key)
     }
 
-    function pressed(key, repeat) {
-        if (key !== Qt.Key_Down && downHoldTimer.running)
-            resetDownHold()
-        if (key === Qt.Key_Left)
-            return overlay.startPreviewSeekHold(key, -10)
-        if (key === Qt.Key_Right)
-            return overlay.startPreviewSeekHold(key, 10)
-        if (key === Qt.Key_Down) {
-            if (!repeat) {
-                overlay.downHoldActive = false
-                downHoldTimer.interval = 450
-                downHoldTimer.restart()
-            }
-            return false
-        }
-        return false
-    }
-
-    Timer {
-        id: downHoldTimer
-        interval: 450
-        repeat: false
-        onTriggered: {
-            if (!overlay.hasPlayer) {
-                stop()
-                return
-            }
-            overlay.downHoldActive = true
-            overlay.player.cycleSubtitles()
-            overlay.showControls("actions")
-            interval = 400
-            restart()
-        }
+    function routeKey(key, phase, repeat) {
+        return phase === "press" ? pressed(key, repeat) : released(key, repeat)
     }
 }

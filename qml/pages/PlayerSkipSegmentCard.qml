@@ -1,84 +1,65 @@
 import QtQuick
 import QtQuick.Layouts
+import "../theme"
 import "../primitives"
 
 Rectangle {
-    id: skipSegmentCard
+    id: root
 
     required property var overlay
-    readonly property real uiScale: overlay ? overlay.uiScale : 1
-    readonly property string segmentType: overlay && overlay.hasPlayer ? overlay.player.activeSegmentType : ""
-    readonly property string label: segmentType === "Intro" ? "Skip Intro" : segmentType === "Outro" ? "Skip Outro" :
-                                                                                                       segmentType
-                                                                                                       === "Recap"
-                                                                                                       ? "Skip Recap" :
-                                                                                                         segmentType
-                                                                                                         === "Preview"
-                                                                                                         ? "Skip Preview" :
-                                                                                                           segmentType.length
-                                                                                                           > 0 ? "Skip "
-                                                                                                                 + segmentType :
-                                                                                                                 ""
-
-    function dp(n) {
-        return Math.round(n * uiScale)
+    readonly property string segmentType: overlay.hasPlayer ? overlay.player.activeSegmentType : ""
+    readonly property string label: {
+        if (segmentType === "Intro")
+            return "Skip intro"
+        if (segmentType === "Outro")
+            return "Skip outro"
+        if (segmentType === "Recap")
+            return "Skip recap"
+        if (segmentType === "Preview")
+            return "Skip preview"
+        return segmentType.length > 0 ? "Skip " + segmentType : ""
     }
 
     anchors.right: parent.right
     anchors.bottom: parent.bottom
-    anchors.rightMargin: dp(48)
-    anchors.bottomMargin: dp(220)
-    width: dp(220)
-    height: dp(60)
-    radius: dp(12)
-    color: Qt.alpha(overlay.accent, 0.9)
+    anchors.rightMargin: overlay.dp(48)
+    anchors.bottomMargin: overlay.dp(220)
+    width: overlay.dp(220)
+    height: overlay.dp(60)
+    radius: Theme.radiusPanel
+    color: Theme.accentDim
     border.width: 1
-    border.color: overlay.accentBright
-    visible: segmentType.length > 0 && overlay.mode !== "hidden"
-    opacity: visible ? 1 : 0
+    border.color: Theme.accent
+    visible: segmentType.length > 0 && overlay.controlsVisible
     z: 30
-
-    Behavior on opacity {
-        NumberAnimation {
-            duration: 200
-            easing.type: Easing.OutCubic
-        }
-    }
 
     RowLayout {
         anchors.fill: parent
-        anchors.leftMargin: dp(16)
-        anchors.rightMargin: dp(16)
-        spacing: dp(10)
+        anchors.leftMargin: root.overlay.dp(16)
+        anchors.rightMargin: root.overlay.dp(16)
+        spacing: root.overlay.dp(10)
 
         MaterialIcon {
             name: "skip_next"
-            iconColor: overlay.colTextStrong
-            iconSize: dp(24)
+            iconColor: Theme.textPrimary
+            iconSize: root.overlay.dp(24)
         }
-
-        Text {
+        AppText {
             Layout.fillWidth: true
-            text: skipSegmentCard.label
-            color: overlay.colTextStrong
-            font.pixelSize: dp(18)
+            text: root.label
+            color: Theme.textPrimary
+            font.pixelSize: root.overlay.dp(18)
             font.weight: Font.DemiBold
-            font.hintingPreference: Font.PreferNoHinting
-            renderType: Text.QtRendering
         }
-
-        Text {
+        AppText {
             text: "T"
-            color: overlay.colTextStrong
-            font.pixelSize: dp(13)
-            font.weight: Font.Medium
-            opacity: 0.7
+            color: Theme.textSecondary
+            font.pixelSize: root.overlay.dp(13)
         }
     }
 
-    MouseArea {
-        anchors.fill: parent
-        onClicked: if (overlay.hasPlayer)
-                       overlay.player.skipActiveSegment()
+    TapHandler {
+        onTapped: if (root.overlay.hasPlayer)
+                      root.overlay.player.skipActiveSegment()
     }
 }
