@@ -18,17 +18,6 @@ namespace {
         return item.title;
     }
 
-    QString displaySubtitle(const MovieItem& item)
-    {
-        if (item.itemType == QStringLiteral("Episode")) {
-            if (!item.subtitle.isEmpty() && !item.title.isEmpty())
-                return QStringLiteral("%1 · %2").arg(item.subtitle, item.title);
-            if (!item.title.isEmpty())
-                return item.title;
-        }
-        return item.subtitle;
-    }
-
     QVariantMap itemSnapshot(const MovieItem& item)
     {
         return {
@@ -36,11 +25,9 @@ namespace {
             { QStringLiteral("playlistItemId"), item.playlistItemId },
             { QStringLiteral("title"), item.title },
             { QStringLiteral("displayTitle"), displayTitle(item) },
-            { QStringLiteral("displaySubtitle"), displaySubtitle(item) },
+            { QStringLiteral("displaySubtitle"), itemDisplaySubtitle(item) },
             { QStringLiteral("itemType"), item.itemType },
-            { QStringLiteral("playable"), item.playable },
-            { QStringLiteral("posterUrl"), item.posterUrl },
-            { QStringLiteral("landscapeCardUrl"), item.landscapeCardUrl },
+            { QStringLiteral("playable"), isPlayableItem(item) },
         };
     }
 
@@ -75,15 +62,11 @@ QVariant PlayQueueController::data(const QModelIndex& index, int role) const
     case DisplayTitleRole:
         return displayTitle(item);
     case DisplaySubtitleRole:
-        return displaySubtitle(item);
+        return itemDisplaySubtitle(item);
     case ItemTypeRole:
         return item.itemType;
     case PlayableRole:
-        return item.playable;
-    case PosterUrlRole:
-        return item.posterUrl;
-    case LandscapeCardUrlRole:
-        return item.landscapeCardUrl;
+        return isPlayableItem(item);
     default:
         return {};
     }
@@ -99,8 +82,6 @@ QHash<int, QByteArray> PlayQueueController::roleNames() const
         { DisplaySubtitleRole, "displaySubtitle" },
         { ItemTypeRole, "itemType" },
         { PlayableRole, "playable" },
-        { PosterUrlRole, "posterUrl" },
-        { LandscapeCardUrlRole, "landscapeCardUrl" },
     };
 }
 
@@ -278,7 +259,7 @@ void PlayQueueController::enqueueEpisodeSuccessors(const MovieItem& episode)
                 return;
             std::vector<MovieItem> successors;
             std::copy_if(++current, episodes.end(), std::back_inserter(successors),
-                [](const MovieItem& item) { return !item.id.isEmpty() && item.playable; });
+                [](const MovieItem& item) { return !item.id.isEmpty() && isPlayableItem(item); });
             if (playNow(successors, 0))
                 emit successorPlaybackReady();
         },
@@ -289,7 +270,7 @@ void PlayQueueController::enqueueEpisodeSuccessors(const MovieItem& episode)
 
 bool PlayQueueController::isQueueable(const MovieItem& item)
 {
-    return !item.id.isEmpty() && item.playable;
+    return !item.id.isEmpty() && isPlayableItem(item);
 }
 
 void PlayQueueController::rebuildNaturalOrder()

@@ -27,8 +27,6 @@ public:
         DisplaySubtitleRole,
         ItemTypeRole,
         PlayableRole,
-        PosterUrlRole,
-        LandscapeCardUrlRole,
     };
 
     explicit PlayQueueController(JellyfinApiFacade *api = nullptr, QObject *parent = nullptr);

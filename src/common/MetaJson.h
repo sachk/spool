@@ -36,6 +36,16 @@ namespace MetaJsonDetail {
             return value;
         if (policy == MetaJsonKeyPolicy::PascalCase && key == QStringLiteral("RuntimeTicks"))
             return object.value(QStringLiteral("RunTimeTicks"));
+        if (policy == MetaJsonKeyPolicy::PascalCase && key == QStringLiteral("ImageTag"))
+            return object.value(QStringLiteral("PrimaryImageTag"));
+        if (policy == MetaJsonKeyPolicy::PascalCase && key == QStringLiteral("MovieId"))
+            return object.value(QStringLiteral("Id"));
+        if (policy == MetaJsonKeyPolicy::PascalCase && key == QStringLiteral("Title"))
+            return object.value(QStringLiteral("Name"));
+        if (policy == MetaJsonKeyPolicy::PascalCase && key == QStringLiteral("ItemType"))
+            return object.value(QStringLiteral("Type"));
+        if (policy == MetaJsonKeyPolicy::PascalCase && key == QStringLiteral("Year"))
+            return object.value(QStringLiteral("ProductionYear"));
         return {};
     }
 
@@ -58,6 +68,24 @@ namespace MetaJsonDetail {
                 items.push_back(item);
         }
         return items;
+    }
+
+    inline void collectStringPath(
+        const QJsonValue& value, const QStringList& path, qsizetype depth, QStringList& result)
+    {
+        if (value.isArray()) {
+            for (const QJsonValue& entry : value.toArray())
+                collectStringPath(entry, path, depth, result);
+            return;
+        }
+        if (depth < path.size()) {
+            if (value.isObject())
+                collectStringPath(value.toObject().value(path[depth]), path, depth + 1, result);
+            return;
+        }
+        const QString text = value.toString();
+        if (!text.isEmpty())
+            result.push_back(text);
     }
 
     template <typename T> QJsonObject metaToJson(const T& value, MetaJsonKeyPolicy policy);
@@ -148,6 +176,8 @@ namespace MetaJsonDetail {
         const QMetaObject& meta = T::staticMetaObject;
         for (int i = meta.propertyOffset(); i < meta.propertyCount(); ++i) {
             const QMetaProperty property = meta.property(i);
+            if (!property.isWritable())
+                continue;
             object.insert(jsonKey(property.name(), policy),
                 variantToJson(property.readOnGadget(&value), property.metaType(), policy));
         }
@@ -160,6 +190,8 @@ namespace MetaJsonDetail {
         const QMetaObject& meta = T::staticMetaObject;
         for (int i = meta.propertyOffset(); i < meta.propertyCount(); ++i) {
             const QMetaProperty property = meta.property(i);
+            if (!property.isWritable())
+                continue;
             const QJsonValue jsonValue = objectValueForProperty(object, property.name(), policy);
             if (jsonValue.isUndefined())
                 continue;
@@ -171,6 +203,13 @@ namespace MetaJsonDetail {
     }
 
 } // namespace MetaJsonDetail
+
+inline QStringList metaStringListFromJson(const QJsonObject& object, const QStringList& path)
+{
+    QStringList result;
+    MetaJsonDetail::collectStringPath(object, path, 0, result);
+    return result;
+}
 
 template <typename T> QJsonObject metaToJson(const T& value, MetaJsonKeyPolicy policy = MetaJsonKeyPolicy::CamelCase)
 {

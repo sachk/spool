@@ -748,7 +748,6 @@ int main(int argc, char **argv)
         QStringLiteral("Linux Wayland"),
 #endif
         QString::fromLatin1(kAppVersion));
-    api->setArtworkUiWidth(window.width());
 
     const JellyfinNative::CpuTopology cpuTopology = JellyfinNative::detectCpuTopology();
     logLine("artwork: cpu logical=%d physical=%d smt=%s source=%s decodeThreads=%d", cpuTopology.logicalCpus,
@@ -757,6 +756,7 @@ int main(int argc, char **argv)
     auto artworkService
         = std::make_unique<JellyfinNative::ArtworkService>(qmlImageCachePath + QStringLiteral("/artwork"),
             memoryBudget.qmlImageDiskCacheBytes, memoryBudget.artworkByteCacheBytes, cpuTopology.artworkDecodeThreads);
+    artworkService->setUiWidth(window.width());
 
     auto player = std::make_unique<JellyfinNative::PlayerController>(&window, api.get());
     player->setDemuxerBudget(memoryBudget.mpvDemuxerMaxBytes, memoryBudget.mpvDemuxerMaxBackBytes);
@@ -855,6 +855,7 @@ int main(int argc, char **argv)
     platformInfo->insert(QStringLiteral("isWebOS"), false);
 #endif
     qmlRegisterSingletonInstance("JellyfinWebOS", 1, 0, "App", controller.get());
+    qmlRegisterSingletonInstance("JellyfinWebOS", 1, 0, "Art", artworkService.get());
     qmlRegisterSingletonInstance("JellyfinWebOS", 1, 0, "Browse", controller->browse());
     qmlRegisterSingletonInstance("JellyfinWebOS", 1, 0, "Home", controller->home());
     qmlRegisterSingletonInstance("JellyfinWebOS", 1, 0, "Content", controller->content());

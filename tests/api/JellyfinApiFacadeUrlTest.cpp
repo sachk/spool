@@ -1,7 +1,9 @@
 #include "api/JellyfinApiFacade.h"
+#include "app/ArtworkService.h"
 
 #include <QCoreApplication>
 #include <QNetworkAccessManager>
+#include <QTemporaryDir>
 #include <QUrl>
 #include <QUrlQuery>
 
@@ -52,11 +54,18 @@ int main(int argc, char **argv)
     JellyfinApiFacade api(&network);
     api.setServerUrl(QStringLiteral("https://media.example.test/jellyfin/root/"));
 
-    const QString imageUrl = api.buildImageUrl(QStringLiteral("folder/item 1"), QStringLiteral("tag/one two"), 640, 82,
-        QStringLiteral("webp"), QStringLiteral("Primary/Poster"), 320, 180);
+    QTemporaryDir cacheDirectory;
+    require(cacheDirectory.isValid(), "artwork test cache should be available");
+    ArtworkService artwork(cacheDirectory.path(), 1024 * 1024, 1024 * 1024, 1);
+    artwork.setServerUrl(QStringLiteral("https://media.example.test/jellyfin/root/"));
+    MovieItem imageItem;
+    imageItem.id = QStringLiteral("folder/item 1");
+    imageItem.thumbTag = QStringLiteral("tag/one two");
+
+    const QString imageUrl = artwork.url(QVariant::fromValue(imageItem), QStringLiteral("landscape"), 320);
     const QUrl parsedImage(imageUrl);
-    requireUrlPathBytes(imageUrl, QStringLiteral("/jellyfin/root/Items/folder%2Fitem%201/Images/Primary%2FPoster"),
-        "image URLs should retain the server base path and encode path segments");
+    requireUrlPathBytes(imageUrl, QStringLiteral("/jellyfin/root/Items/folder%2Fitem%201/Images/Thumb"),
+        "artwork URLs should retain the server base path and encode path segments");
 
     const QUrlQuery imageQuery(parsedImage);
     requireQueryValue(
@@ -65,14 +74,13 @@ int main(int argc, char **argv)
         "filled image URLs should include fill height");
     requireMissingQueryValue(
         imageQuery, QStringLiteral("maxWidth"), "filled image URLs should not also request max width");
-    requireQueryValue(imageQuery, QStringLiteral("quality"), QStringLiteral("82"), "image URLs should include quality");
+    requireQueryValue(imageQuery, QStringLiteral("quality"), QStringLiteral("68"), "image URLs should include quality");
     requireQueryValue(imageQuery, QStringLiteral("format"), QStringLiteral("webp"), "image URLs should include format");
     requireQueryValue(imageQuery, QStringLiteral("tag"), QStringLiteral("tag/one two"),
         "image URLs should include the image tag query item");
 
-    require(api.buildImageUrl(QStringLiteral("folder/item 1"), QString(), 640, 82, QStringLiteral("webp"),
-                   QStringLiteral("Primary"))
-                .isEmpty(),
+    imageItem.thumbTag.clear();
+    require(artwork.url(QVariant::fromValue(imageItem), QStringLiteral("landscape"), 320).isEmpty(),
         "image URLs should be omitted when the image tag is empty");
 
     const QString trickplayUrl = api.trickplayTileUrl(QStringLiteral("episode/id 2"), 320, 7);

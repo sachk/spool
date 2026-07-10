@@ -19,7 +19,7 @@
 namespace JellyfinNative {
 
 namespace {
-    constexpr int kHomePayloadSchemaVersion = 2;
+    constexpr int kHomePayloadSchemaVersion = 3;
 
     QString homeItemSample(const std::vector<MovieItem>& items)
     {
@@ -401,7 +401,7 @@ QJsonObject HomeModelController::payloadFromSections(const std::vector<MovieItem
         });
     }
     return {
-        { QStringLiteral("schemaVersion"), 2 },
+        { QStringLiteral("schemaVersion"), kHomePayloadSchemaVersion },
         { QStringLiteral("resumeItems"), movieArrayToJson(resumeItems) },
         { QStringLiteral("nextUpItems"), movieArrayToJson(nextUpItems) },
         { QStringLiteral("latestRows"), latestRows },

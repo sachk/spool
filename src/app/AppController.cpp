@@ -68,6 +68,11 @@ AppController::AppController(DatabaseManager *database, DiscoveryController *dis
     m_content = new ContentModelController(api, m_prefetch, this);
     m_search = new SearchController(api, m_prefetch, this);
     m_itemState = new UserItemStateController(api, m_browse, m_home, m_content, m_search, this);
+    if (m_artwork) {
+        m_artwork->setServerUrl(m_session->serverUrl());
+        connect(m_session, &SessionController::serverUrlChanged, m_artwork,
+            [this]() { m_artwork->setServerUrl(m_session->serverUrl()); });
+    }
     connect(m_playQueue, &PlayQueueController::successorPlaybackReady, this, [this]() { playQueueCurrent(false); });
     connect(m_browse, &BrowseSessionController::reloadRequested, this, [this]() { beginBrowse(); });
     connect(m_browse, &BrowseSessionController::moreItemsRequested, this, &AppController::loadMoreCurrentItems);
@@ -388,7 +393,7 @@ void AppController::playModel(MovieGridModel *model, bool shuffled)
         return;
     const std::vector<MovieItem>& items = model->movies();
     const auto firstPlayable = std::find_if(
-        items.begin(), items.end(), [](const MovieItem& item) { return !item.id.isEmpty() && item.playable; });
+        items.begin(), items.end(), [](const MovieItem& item) { return !item.id.isEmpty() && isPlayableItem(item); });
     if (firstPlayable == items.end()) {
         setErrorText(QStringLiteral("This list has no playable items."));
         return;

@@ -25,7 +25,6 @@ MovieItem item(QString id, QString title, QString playlistItemId = {})
     movie.title = std::move(title);
     movie.itemType = QStringLiteral("Episode");
     movie.playlistItemId = std::move(playlistItemId);
-    movie.playable = true;
     return movie;
 }
 
@@ -89,7 +88,7 @@ int main(int argc, char **argv)
     require(queue.count() == 0 && queue.currentIndex() == -1, "clear should empty queue and reset current index");
 
     MovieItem blocked = item(QStringLiteral("x"), QStringLiteral("Blocked"));
-    blocked.playable = false;
+    blocked.itemType = QStringLiteral("Series");
     require(!queue.playNow(blocked), "unplayable item should not become the queue");
 
     return EXIT_SUCCESS;

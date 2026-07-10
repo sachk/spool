@@ -1,5 +1,6 @@
 #pragma once
 
+#include "../common/JellyfinTypes.h"
 #include "ArtworkPrefetcher.h"
 
 #include <QByteArray>
@@ -14,6 +15,7 @@
 #include <QThread>
 #include <QThreadPool>
 #include <QUrl>
+#include <QVariant>
 
 #include <functional>
 #include <memory>
@@ -39,11 +41,16 @@ class ArtworkFetchWorker;
 class ArtworkImageResponse;
 
 class ArtworkService final : public QObject, public ArtworkPrefetcher {
+    Q_OBJECT
 public:
     ArtworkService(QString cacheDirectory, qint64 networkCacheBytes, int byteCacheBytes, int decodeThreads,
         QObject *parent = nullptr);
     ~ArtworkService() override;
 
+    Q_INVOKABLE QString url(const QVariant& item, const QString& kind, int width = 0) const;
+    QString itemUrl(const MovieItem& item, bool landscape, int width = 0) const override;
+    void setServerUrl(QString serverUrl);
+    void setUiWidth(int width);
     QQuickImageResponse *requestImageResponse(const QString& id, const QSize& requestedSize);
     void prefetch(const QStringList& urls) override;
     void cancelPrefetches() override;
@@ -59,8 +66,13 @@ public:
 private:
     void startDecode(ArtworkImageResponse *response, QByteArray bytes, QSize requestedSize);
     void invokeWorker(std::function<void(ArtworkFetchWorker *)> call);
+    QString movieUrl(const MovieItem& item, const QString& kind, int width) const;
+    QString buildUrl(const QString& itemId, const QString& tag, const QString& imageType, int maxWidth, int quality,
+        const QString& format = QStringLiteral("webp"), int fillWidth = 0, int fillHeight = 0) const;
 
     QString m_cacheDirectory;
+    QString m_serverUrl;
+    int m_uiWidth = 1920;
     qint64 m_networkCacheBytes = 0;
     std::shared_ptr<ArtworkByteCache> m_byteCache;
     QThreadPool m_decodePool;

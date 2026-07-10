@@ -131,7 +131,7 @@ FocusScope {
                     Layout.preferredWidth: root.portraitWidth
                     Layout.preferredHeight: Math.round(root.portraitWidth * 1.22)
                     Layout.alignment: Qt.AlignTop
-                    imageUrl: person.imageUrl || ""
+                    imageUrl: Art.url(person, "poster", Math.ceil(root.portraitWidth))
                     fallbackText: person.type || "Person"
                     focused: false
                     retainWhileLoading: true
