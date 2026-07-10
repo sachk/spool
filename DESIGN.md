@@ -46,10 +46,10 @@ Statically linked on webOS; the module list is in `CMakeLists.txt:51-76`.
   `QCoro::Task<T>` methods that hop to the worker thread without blocking the
   GUI thread; startup initialization and shutdown are the only synchronous
   worker barriers.
-- **QtVirtualKeyboard** — in-process IME on webOS because the LSM's native
-  IME is unreliable for arbitrary native apps (`src/main.cpp:376-384`);
-  supplies D-pad key navigation between keys. Slated for size/startup review
-  in the performance plan.
+- **webOS system keyboard** — a small statically linked platform input
+  context speaks LG's compositor `text_model` protocol and lets
+  `MaliitServer` render the stock TV keyboard; Qt Virtual Keyboard is not
+  built or shipped.
 - **QtWaylandClient + GuiPrivate** (webOS only) — wayland-egl QPA against
   LG's compositor, with a local qtwayland patch to suppress client cursor
   surfaces so the magic-remote pointer keeps working (`src/main.cpp:387-392`).
