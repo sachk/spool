@@ -5,65 +5,90 @@ Item {
     id: root
 
     property var shell
+    property var item: ({})
     property string kind: "poster"
+    property string titleOverride: ""
+    property string subtitleOverride: ""
+    property string imageOverride: ""
+    property string fallbackOverride: ""
     property bool focused: false
     property bool useSeriesPoster: false
     property bool preferEpisodeTitle: false
-    property var item: ({})
-    property string displayTitle: ""
-    property string displaySubtitle: ""
-    property real progress: 0
-
-    readonly property string movieId: String(item.movieId || "")
-    readonly property string title: String(item.title || "")
-    readonly property string subtitle: String(item.subtitle || "")
-    readonly property string posterUrl: String(item.posterUrl || "")
-    readonly property string seriesPosterUrl: String(item.seriesPosterUrl || "")
-    readonly property string thumbUrl: String(item.thumbUrl || "")
-    readonly property string landscapeCardUrl: String(item.landscapeCardUrl || "")
-    readonly property string backdropUrl: String(item.backdropUrl || "")
-    readonly property string itemType: String(item.itemType || "")
-    readonly property string seriesName: String(item.seriesName || "")
-    readonly property string seriesId: String(item.seriesId || "")
-    readonly property string seasonId: String(item.seasonId || "")
-    readonly property int year: Number(item.year || 0)
-    readonly property int seasonNumber: Number(item.seasonNumber || 0)
-    readonly property real resumeTicks: Number(item.resumeTicks || 0)
-    readonly property bool favorite: Boolean(item.favorite)
-    readonly property bool played: Boolean(item.played)
-    readonly property bool playable: item.playable === undefined || item.playable
+    property real progress: -1
 
     readonly property bool posterKind: kind === "poster"
     readonly property real metadataHeight: metadataLabel.text.length > 0 ? metadataLabel.implicitHeight : 0
     readonly property real artHeight: posterKind ? width * 1.5 : width * 9 / 16
     readonly property real titleAvailableHeight: Math.max(0, height - art.height - 10 - metadataHeight)
+    readonly property real effectiveProgress: playbackProgress()
 
     signal activated
-    signal favoriteToggled(bool favorite)
-    signal playedToggled(bool played)
 
     clip: true
 
+    function text(field) {
+        return item && item[field] !== undefined && item[field] !== null ? String(item[field]) : ""
+    }
+
     function titleText() {
-        if (preferEpisodeTitle && itemType === "Episode" && title.length > 0)
+        if (titleOverride.length > 0)
+            return titleOverride
+        const title = text("title")
+        const seriesName = text("seriesName")
+        if (preferEpisodeTitle && text("itemType") === "Episode")
             return title
-        return displayTitle || title || seriesName || ""
+        if (text("itemType") === "Episode" && seriesName.length > 0)
+            return seriesName
+        return title || seriesName
     }
 
     function subtitleText() {
-        if (preferEpisodeTitle && itemType === "Episode")
-            return subtitle || ""
-        return displaySubtitle || subtitle || (year > 0 ? String(year) : "")
+        if (subtitleOverride.length > 0)
+            return subtitleOverride
+        const subtitle = text("subtitle")
+        const title = text("title")
+        if (text("itemType") === "Episode") {
+            if (preferEpisodeTitle)
+                return subtitle
+            if (subtitle.length > 0 && title.length > 0)
+                return subtitle + " · " + title
+            if (title.length > 0)
+                return title
+        }
+        const year = Number(item && item.year || 0)
+        return subtitle || (year > 0 ? String(year) : "")
     }
 
-    function posterImage() {
-        if (useSeriesPoster && itemType === "Episode" && seriesPosterUrl.length > 0)
-            return seriesPosterUrl
-        return posterUrl || seriesPosterUrl || thumbUrl || ""
+    function imageSource() {
+        if (imageOverride.length > 0)
+            return imageOverride
+        const poster = text("posterUrl")
+        const seriesPoster = text("seriesPosterUrl")
+        const thumb = text("thumbUrl")
+        if (posterKind) {
+            if (useSeriesPoster && text("itemType") === "Episode" && seriesPoster.length > 0)
+                return seriesPoster
+            return poster || seriesPoster || thumb
+        }
+        return text("landscapeCardUrl") || thumb || text("backdropUrl") || poster || seriesPoster
     }
 
-    function landscapeImage() {
-        return landscapeCardUrl || thumbUrl || backdropUrl || posterUrl || seriesPosterUrl || ""
+    function fallbackText() {
+        if (fallbackOverride.length > 0)
+            return fallbackOverride
+        const type = text("itemType")
+        if (!posterKind)
+            return subtitleText() || type
+        const year = Number(item && item.year || 0)
+        return year > 0 ? String(year) : (type || "Poster")
+    }
+
+    function playbackProgress() {
+        if (progress >= 0)
+            return Math.max(0, Math.min(1, progress))
+        const resumeTicks = Number(item && item.resumeTicks || 0)
+        const runtimeTicks = Number(item && item.runtimeTicks || 0)
+        return resumeTicks > 0 && runtimeTicks > 0 ? Math.max(0, Math.min(1, resumeTicks / runtimeTicks)) : 0
     }
 
     ImageCard {
@@ -72,10 +97,8 @@ Item {
         anchors.left: parent.left
         anchors.right: parent.right
         height: root.artHeight
-        imageUrl: root.posterKind ? root.posterImage() : root.landscapeImage()
-        fallbackText: root.posterKind ? (root.year > 0 ? String(root.year) : (root.itemType.length > 0 ? root.itemType :
-                                                                                                         "Poster")) : (
-                                            root.subtitleText().length > 0 ? root.subtitleText() : root.itemType)
+        imageUrl: root.imageSource()
+        fallbackText: root.fallbackText()
         focused: root.focused
         retainWhileLoading: !root.posterKind
     }
@@ -85,10 +108,11 @@ Item {
         anchors.right: art.right
         anchors.bottom: art.bottom
         height: 4
-        visible: !root.posterKind && root.progress > 0
+        visible: !root.posterKind && root.effectiveProgress > 0
         color: "#66000000"
+
         Rectangle {
-            width: parent.width * Math.max(0, Math.min(1, root.progress))
+            width: parent.width * root.effectiveProgress
             height: parent.height
             color: Theme.accent
         }
@@ -124,12 +148,9 @@ Item {
     }
 
     MediaItemActions {
-        id: actions
         anchors.fill: parent
         shell: root.shell
         item: root.item
         onActivated: root.activated()
-        onFavoriteToggled: favorite => root.favoriteToggled(favorite)
-        onPlayedToggled: played => root.playedToggled(played)
     }
 }

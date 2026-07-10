@@ -47,21 +47,6 @@ FocusScope {
         focusRepairTimer.restart()
     }
 
-    function rowHeight(kind) {
-        if (kind === "library")
-            return 276
-        if (kind === "poster")
-            return 338
-        return 304
-    }
-
-    function modelItem(source, rowIndex, index) {
-        const model = modelFor(source, rowIndex)
-        if (!model || typeof model.rowCount !== "function" || index < 0 || index >= model.rowCount())
-            return null
-        return model.get(index)
-    }
-
     function activateAt(source, index, rowIndex) {
         const model = modelFor(source, rowIndex)
         if (!model || typeof model.rowCount !== "function" || index < 0 || index >= model.rowCount())
@@ -83,18 +68,6 @@ FocusScope {
         }
         if (source === "latestLibrary")
             shell.openDetailsAt(model, index, "latestLibrary:" + rowIndex, "home")
-    }
-
-    function setFavoriteAt(source, rowIndex, index, favorite) {
-        const item = modelItem(source, rowIndex, index)
-        if (item && item.movieId)
-            App.setFavorite(item.movieId, favorite)
-    }
-
-    function setPlayedAt(source, rowIndex, index, played) {
-        const item = modelItem(source, rowIndex, index)
-        if (item && item.movieId)
-            App.setPlayed(item.movieId, played)
     }
 
     function visibleSections() {
@@ -175,13 +148,19 @@ FocusScope {
 
     function routeKey(key, phase, repeat) {
         const section = activeSection()
-        return Boolean(section && section.routeKey && section.routeKey(key, phase, repeat))
+        if (!section)
+            return false
+        if (key === Qt.Key_Up || key === Qt.Key_Down) {
+            focusRelative(section, key === Qt.Key_Down ? 1 : -1)
+            return true
+        }
+        return section.routeKey(key, phase, repeat)
     }
 
     function activate() {
         const section = activeSection()
         if (section)
-            section.activateCurrent()
+            section.activate()
     }
 
     function longPress() {
@@ -231,59 +210,48 @@ FocusScope {
                 title: root.librariesOnly ? "Libraries" : "My Media"
             }
 
-            HomeHorizontalRow {
+            MediaRow {
                 id: librariesRow
 
                 width: contentColumn.width
-                height: rowVisible ? root.rowHeight("library") : 0
-                visible: rowVisible
                 title: "Libraries"
-                rowModel: root.librariesModel
+                model: root.librariesModel
                 shell: root.shell
-                rowKind: "library"
+                cardKind: "library"
                 cardWidth: Metrics.homeLandscapeWidth(root.width)
                 cardGap: Metrics.gap(root.width)
                 onRowVisibleChanged: root.scheduleFocusRepair()
-                onMoveVertical: direction => root.focusRelative(librariesRow, direction)
                 onActivated: index => root.activateAt("libraries", index, -1)
             }
 
-            HomeHorizontalRow {
+            MediaRow {
                 id: resumeRow
 
                 width: contentColumn.width
-                height: !root.librariesOnly && rowVisible ? root.rowHeight("landscape") : 0
-                visible: !root.librariesOnly && rowVisible
                 title: "Continue Watching"
-                rowModel: root.resumeModel
+                model: root.resumeModel
                 shell: root.shell
-                rowKind: "landscape"
+                cardKind: "landscape"
                 cardWidth: Metrics.homeLandscapeWidth(root.width)
                 cardGap: Metrics.gap(root.width)
+                enabledRow: !root.librariesOnly
                 onRowVisibleChanged: root.scheduleFocusRepair()
-                onMoveVertical: direction => root.focusRelative(resumeRow, direction)
                 onActivated: index => root.activateAt("resumeItems", index, -1)
-                onFavoriteToggled: (index, favorite) => root.setFavoriteAt("resumeItems", -1, index, favorite)
-                onPlayedToggled: (index, played) => root.setPlayedAt("resumeItems", -1, index, played)
             }
 
-            HomeHorizontalRow {
+            MediaRow {
                 id: nextUpRow
 
                 width: contentColumn.width
-                height: !root.librariesOnly && rowVisible ? root.rowHeight("landscape") : 0
-                visible: !root.librariesOnly && rowVisible
                 title: "Next Up"
-                rowModel: root.nextUpModel
+                model: root.nextUpModel
                 shell: root.shell
-                rowKind: "landscape"
+                cardKind: "landscape"
                 cardWidth: Metrics.homeLandscapeWidth(root.width)
                 cardGap: Metrics.gap(root.width)
+                enabledRow: !root.librariesOnly
                 onRowVisibleChanged: root.scheduleFocusRepair()
-                onMoveVertical: direction => root.focusRelative(nextUpRow, direction)
                 onActivated: index => root.activateAt("nextUpItems", index, -1)
-                onFavoriteToggled: (index, favorite) => root.setFavoriteAt("nextUpItems", -1, index, favorite)
-                onPlayedToggled: (index, played) => root.setPlayedAt("nextUpItems", -1, index, played)
             }
 
             Repeater {
@@ -291,7 +259,7 @@ FocusScope {
 
                 model: root.latestRows || []
 
-                HomeHorizontalRow {
+                MediaRow {
                     id: latestRow
 
                     required property int index
@@ -300,23 +268,17 @@ FocusScope {
                                                                  ? modelData.rowIndex : index)
 
                     width: contentColumn.width
-                    height: !root.librariesOnly && rowVisible ? root.rowHeight(rowKind) : 0
-                    visible: !root.librariesOnly && rowVisible
                     title: modelData && modelData.title ? modelData.title : "Recently Added"
-                    rowModel: Home.latestLibraryItems(sourceRowIndex)
+                    model: Home.latestLibraryItems(sourceRowIndex)
                     shell: root.shell
-                    rowKind: modelData && modelData.kind ? modelData.kind : "poster"
+                    cardKind: modelData && modelData.kind ? modelData.kind : "poster"
                     useSeriesPoster: true
-                    cardWidth: rowKind === "poster" ? Metrics.homePosterWidth(root.width) : Metrics.homeLandscapeWidth(
-                                                          root.width)
+                    cardWidth: cardKind === "poster" ? Metrics.homePosterWidth(root.width) : Metrics.homeLandscapeWidth(
+                                                           root.width)
                     cardGap: Metrics.gap(root.width)
+                    enabledRow: !root.librariesOnly
                     onRowVisibleChanged: root.scheduleFocusRepair()
-                    onMoveVertical: direction => root.focusRelative(latestRow, direction)
                     onActivated: itemIndex => root.activateAt("latestLibrary", itemIndex, sourceRowIndex)
-                    onFavoriteToggled: (itemIndex, favorite) => root.setFavoriteAt("latestLibrary", sourceRowIndex,
-                                                                                   itemIndex, favorite)
-                    onPlayedToggled: (itemIndex, played) => root.setPlayedAt("latestLibrary", sourceRowIndex, itemIndex,
-                                                                             played)
                 }
             }
         }

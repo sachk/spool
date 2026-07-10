@@ -9,11 +9,10 @@ Item {
     property var item: ({})
     property bool favoriteState: Boolean(item.favorite)
     property bool playedState: Boolean(item.played)
-    readonly property bool actionable: String(item.movieId || "").length > 0
+    readonly property string itemId: String(item.movieId || "")
+    readonly property bool actionable: itemId.length > 0
 
     signal activated
-    signal favoriteToggled(bool favorite)
-    signal playedToggled(bool played)
 
     anchors.fill: parent
 
@@ -92,7 +91,7 @@ Item {
             checked: root.playedState
             onClicked: {
                 root.playedState = !root.playedState
-                root.playedToggled(root.playedState)
+                App.setPlayed(root.itemId, root.playedState)
             }
         }
 
@@ -101,7 +100,7 @@ Item {
             checked: root.favoriteState
             onClicked: {
                 root.favoriteState = !root.favoriteState
-                root.favoriteToggled(root.favoriteState)
+                App.setFavorite(root.itemId, root.favoriteState)
             }
         }
     }

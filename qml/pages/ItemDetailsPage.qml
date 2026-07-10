@@ -1358,7 +1358,7 @@ FocusScope {
                 implicitHeight: rowsHeight + root.contentMargin
                 height: implicitHeight
 
-                MediaPosterScrollerRow {
+                MediaRow {
                     id: contextRow
                     anchors.left: parent.left
                     anchors.right: parent.right
@@ -1366,11 +1366,11 @@ FocusScope {
                     anchors.rightMargin: root.contentMargin
                     y: detailRowsArea.contextY
                     title: root.contextRowTitle()
-                    rowModel: Content.detailSeasons
+                    model: Content.detailSeasons
                     shell: root.shell
                     cardWidth: root.contextPosterCards ? root.rowPosterWidth : root.rowLandscapeWidth
                     cardKind: root.contextPosterCards ? "poster" : "landscape"
-                    rowGap: root.rowGap
+                    cardGap: root.rowGap
                     enabledRow: root.showContextRow
                     reserveWhenEmpty: root.reserveContextRow
                     loading: root.reserveContextRow
@@ -1382,7 +1382,7 @@ FocusScope {
                     onActivated: index => root.openContextItem(index)
                 }
 
-                PersonScrollerRow {
+                MediaRow {
                     id: peopleRow
                     anchors.left: parent.left
                     anchors.right: parent.right
@@ -1390,14 +1390,16 @@ FocusScope {
                     anchors.rightMargin: root.contentMargin
                     y: detailRowsArea.peopleY
                     title: "Cast & Crew"
-                    peopleModel: root.people
+                    model: root.people
                     shell: root.shell
-                    rowGap: root.rowGap
+                    cardKind: "person"
+                    cardWidth: root.rowPosterWidth
+                    cardGap: root.rowGap
                     enabledRow: root.showPeopleRow
-                    onActivated: person => root.openPerson(person)
+                    onActivated: (index, person) => root.openPerson(person)
                 }
 
-                MediaPosterScrollerRow {
+                MediaRow {
                     id: similarRow
                     anchors.left: parent.left
                     anchors.right: parent.right
@@ -1405,11 +1407,11 @@ FocusScope {
                     anchors.rightMargin: root.contentMargin
                     y: detailRowsArea.similarY
                     title: "More Like This"
-                    rowModel: Content.detailSimilarItems
+                    model: Content.detailSimilarItems
                     shell: root.shell
                     cardWidth: root.typeText === "Episode" ? root.rowLandscapeWidth : root.rowPosterWidth
                     cardKind: root.typeText === "Episode" ? "landscape" : "poster"
-                    rowGap: root.rowGap
+                    cardGap: root.rowGap
                     enabledRow: root.showSimilarRow
                     useSeriesPoster: root.typeText !== "Episode"
                     preferEpisodeTitle: root.typeText === "Episode"
