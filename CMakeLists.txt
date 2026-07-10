@@ -20,14 +20,9 @@ option(JELLYFIN_DIAGNOSTICS_ABORT_ON_HANG "Abort after watchdog hang diagnostics
 option(JELLYFIN_ARTWORK_ASPECT_DIAGNOSTICS "Log artwork decode requests whose target aspect would stretch the source" OFF)
 include(CTest)
 
-set(MPV_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/mpv" CACHE PATH "desktop mpv source tree")
-set(MPV_WEBOS_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/mpv_webos" CACHE PATH "webOS mpv source tree")
-set(MPV_WEBOS_BUILD_DIR "${MPV_WEBOS_SOURCE_DIR}/build/webos-libmpv" CACHE PATH "webOS libmpv build directory")
-if(JELLYFIN_NATIVE_WEBOS)
-    set(MPV_ACTIVE_SOURCE_DIR "${MPV_WEBOS_SOURCE_DIR}")
-else()
-    set(MPV_ACTIVE_SOURCE_DIR "${MPV_SOURCE_DIR}")
-endif()
+set(MPV_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/mpv" CACHE PATH "mpv source tree")
+set(MPV_ACTIVE_SOURCE_DIR "${MPV_SOURCE_DIR}")
+set(MPV_WEBOS_BUILD_DIR "${MPV_SOURCE_DIR}/build/webos-libmpv" CACHE PATH "webOS libmpv build directory")
 
 if(JELLYFIN_NATIVE_DEV_BUILD)
     set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
@@ -440,7 +435,6 @@ set_property(TARGET jellyfin-native APPEND PROPERTY
         -exclude build-linux-dev
         -exclude dist
         -exclude mpv
-        -exclude mpv_webos
         -exclude squashfs-root
         -exclude third_party
 )

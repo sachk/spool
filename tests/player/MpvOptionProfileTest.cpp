@@ -37,6 +37,10 @@ int main(int argc, char **argv)
     require(valueFor(desktop, "vo") == "libmpv", "desktop should render through libmpv");
     require(valueFor(desktop, "hwdec") == "auto-safe", "desktop should enable safe hardware decoding");
     require(valueFor(desktop, "log-file") == "/tmp/mpv.log", "profile should carry the configured log path");
+    require(valueFor(desktop, "curl-enabled") == "yes", "desktop should use the libcurl stream backend");
+    require(valueFor(desktop, "curl-buffer-size") == "4194304", "desktop should use a 4 MiB network ring");
+    require(valueFor(desktop, "curl-max-request-size") == "1048576", "desktop should issue 1 MiB ranges");
+    require(valueFor(desktop, "curl-parallel-requests") == "4", "desktop should fetch four ranges concurrently");
 
     const auto customDemuxerBudget
         = MpvOptionProfile::startupOptions(MpvOptionProfile::Platform::Desktop, QStringLiteral("alsa"),
@@ -51,6 +55,10 @@ int main(int argc, char **argv)
     require(valueFor(webOSPcm, "vo") == "starfish", "webOS should use the Starfish video output");
     require(valueFor(webOSPcm, "ao") == "starfish,null", "PCM mode should use Starfish audio");
     require(valueFor(webOSPcm, "audio-format") == "s16", "Starfish PCM should use signed 16-bit samples");
+    require(valueFor(webOSPcm, "curl-enabled") == "yes", "webOS should use the libcurl stream backend");
+    require(valueFor(webOSPcm, "curl-buffer-size") == "2097152", "webOS should use a 2 MiB network ring");
+    require(valueFor(webOSPcm, "curl-max-request-size") == "524288", "webOS should issue 512 KiB ranges");
+    require(valueFor(webOSPcm, "curl-parallel-requests") == "4", "webOS should fetch four ranges concurrently");
 
     const auto webOSAlsa = MpvOptionProfile::startupOptions(
         MpvOptionProfile::Platform::WebOS, QStringLiteral("alsa"), QByteArrayLiteral("/tmp/mpv.log"));

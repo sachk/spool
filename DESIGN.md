@@ -64,7 +64,7 @@ they need joins or database reads (`AppController::startPlayback`,
 `src/common/AsyncTask.h` bridge remains for leaf fire-and-forget calls with
 `RequestGeneration` latest-request-wins semantics.
 
-### libmpv (custom fork, `mpv_webos/`)
+### libmpv (custom fork, `mpv/`)
 
 The playback engine. On webOS the fork adds a **Starfish** VO/VD/AO family:
 video ES is fed to LG's `StarfishMediaAPIs` for hardware decode and

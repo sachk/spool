@@ -110,6 +110,10 @@ std::vector<MpvOption> MpvOptionProfile::startupOptions(Platform platform, const
         { "cache-pause", "no" },
         { "demuxer-max-bytes", demuxerMaxBytes },
         { "demuxer-max-back-bytes", demuxerMaxBackBytes },
+        { "curl-enabled", "yes" },
+        { "curl-buffer-size", webOS ? "2097152" : "4194304" },
+        { "curl-max-request-size", webOS ? "524288" : "1048576" },
+        { "curl-parallel-requests", "4" },
         { "initial-audio-sync", "no" },
         { "force-window", "no" },
     };
