@@ -1,7 +1,4 @@
 #include "MpvLifecycle.h"
-
-#include "../diagnostics/Diagnostics.h"
-
 extern "C" {
 #include <mpv/client.h>
 }
@@ -91,7 +88,6 @@ bool MpvLifecycle::hasPendingFileLoads() const
 
 void MpvLifecycle::runEventLoop(mpv_handle *handle, EventHandler eventHandler)
 {
-    Diagnostics::ThreadScope threadScope(QStringLiteral("mpv-event"));
     while (!m_terminating.load()) {
         mpv_event *event = mpv_wait_event(handle, 0.1);
         if (event && eventHandler)
