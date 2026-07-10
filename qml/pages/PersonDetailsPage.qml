@@ -160,14 +160,14 @@ FocusScope {
                 }
             }
 
-            MediaPosterScrollerRow {
+            MediaRow {
                 id: knownFor
                 Layout.fillWidth: true
                 title: "Known For"
-                rowModel: Content.personItems
+                model: Content.personItems
                 shell: root.shell
                 cardWidth: root.knownForCardWidth
-                rowGap: Metrics.gap(root.width)
+                cardGap: Metrics.gap(root.width)
                 enabledRow: root.itemCount > 0
                 currentIndex: root.currentIndex
                 onCurrentIndexChanged: root.currentIndex = knownFor.currentIndex

@@ -223,12 +223,12 @@ FocusScope {
                     onAccepted: root.runSearchNow()
                 }
 
-                MediaPosterScrollerRow {
+                MediaRow {
                     id: suggestionsRow
                     Layout.fillWidth: true
                     Layout.preferredHeight: implicitHeight
                     title: "Suggestions"
-                    rowModel: root.search ? root.search.suggestions : null
+                    model: root.search ? root.search.suggestions : null
                     shell: root.shell
                     cardWidth: Math.min(176, Math.max(132, root.width * 0.096))
                     enabledRow: root.query.length < 2
@@ -351,8 +351,6 @@ FocusScope {
                                 results.currentIndex = index
                                 root.activateCurrent()
                             }
-                            onFavoriteToggled: favorite => App.setFavorite(resultDelegate.movie.movieId || "", favorite)
-                            onPlayedToggled: played => App.setPlayed(resultDelegate.movie.movieId || "", played)
                         }
                     }
                 }

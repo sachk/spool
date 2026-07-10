@@ -372,21 +372,18 @@ qt_add_qml_module(jellyfin-native
         qml/primitives/AppText.qml
         qml/primitives/EmptyPlaceholder.qml
         qml/primitives/FastWheelHandler.qml
-        qml/primitives/HomeHorizontalRow.qml
         qml/primitives/IconButton.qml
         qml/primitives/ImageCard.qml
         qml/primitives/InputKeys.qml
-        qml/primitives/LandscapeCard.qml
         qml/primitives/MediaItemActions.qml
         qml/primitives/MediaItemCard.qml
-        qml/primitives/MediaPosterScrollerRow.qml
+        qml/primitives/MediaRow.qml
         qml/primitives/MetadataChip.qml
         qml/primitives/MenuListView.qml
         qml/primitives/MenuRow.qml
         qml/primitives/MonoText.qml
         qml/primitives/NavGrid.qml
         qml/primitives/MaterialIcon.qml
-        qml/primitives/PersonScrollerRow.qml
         qml/primitives/PopupMenuPanel.qml
         qml/primitives/SectionHeader.qml
         qml/primitives/SelectRow.qml

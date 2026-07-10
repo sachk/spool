@@ -787,9 +787,6 @@ FocusScope {
                 id: gridDelegate
                 required property int index
                 required property var item
-                required property string displayTitle
-                required property string displaySubtitle
-                required property real progress
                 readonly property var movie: item || ({})
                 width: grid.cellWidth
                 height: grid.cellHeight
@@ -807,24 +804,10 @@ FocusScope {
                     useSeriesPoster: !root.episodeGrid
                     focused: gridDelegate.GridView.isCurrentItem
                     item: gridDelegate.movie
-                    displayTitle: gridDelegate.displayTitle
-                    displaySubtitle: gridDelegate.displaySubtitle
-                    progress: gridDelegate.progress
                     onActivated: {
                         grid.currentIndex = index
                         root.setSavedGridIndex(index)
                         root.activateCurrent()
-                    }
-                    onDetailsRequested: {
-                        grid.currentIndex = index
-                        root.setSavedGridIndex(index)
-                        root.openCurrentDetails()
-                    }
-                    onFavoriteToggled: favorite => App.setFavorite(gridDelegate.movie.movieId || "", favorite)
-                    onPlayedToggled: played => App.setPlayed(gridDelegate.movie.movieId || "", played)
-                    onMediaInfoRequested: {
-                        if (root.hasShell())
-                            shell.openMediaInfo(Browse.items.get(index) || ({}))
                     }
                 }
             }
