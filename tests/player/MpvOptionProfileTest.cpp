@@ -67,6 +67,12 @@ int main(int argc, char **argv)
     subtitles.textColor = QStringLiteral("#00ffcc");
     subtitles.dropShadow = QStringLiteral("uniform");
     subtitles.verticalPosition = 4;
+    const SubtitlePreferences identicalSubtitles = subtitles;
+    require(identicalSubtitles == subtitles, "identical subtitle preferences should be idempotent");
+    SubtitlePreferences changedSubtitles = subtitles;
+    changedSubtitles.language = QStringLiteral("fra");
+    require(changedSubtitles != subtitles, "changed subtitle preferences must invalidate prepared playback state");
+
     const auto subtitleOptions = MpvOptionProfile::subtitleOptions(subtitles, true);
     require(valueFor(subtitleOptions, "sid") == "auto", "enabled subtitles should select automatic subtitle tracks");
     require(valueFor(subtitleOptions, "slang") == "eng", "subtitle language was not propagated");
