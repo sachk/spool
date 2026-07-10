@@ -776,13 +776,6 @@ FocusScope {
                 onTriggered: grid.requestMoreIfNeeded()
             }
 
-            Connections {
-                target: App
-                function onCurrentItemsPagingChanged() {
-                    loadMoreDebounce.restart()
-                }
-            }
-
             delegate: Item {
                 id: gridDelegate
                 required property int index
