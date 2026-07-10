@@ -9,9 +9,13 @@ app_id="${APP_ID:-com.codex.jellyfinwebosnative}"
 ipk=""
 outdir=""
 install=1
+launch=1
 screenshot=1
 launch_wait="${LAUNCH_WAIT:-8}"
+http_port="${HTTP_PORT:-18927}"
+install_timeout="${INSTALL_TIMEOUT:-120}"
 luna_bin="${LUNA_BIN:-luna-send}"
+serve_pid=""
 
 usage() {
   cat <<EOF
@@ -27,9 +31,13 @@ Options:
   --app-id ID          app id (default: $app_id)
   --ipk PATH           IPK to install; defaults to newest matching build IPK
   --out DIR            output directory (default: build/webos/verify/<timestamp>)
-  --no-install         skip ares-install and only verify/launch/capture
-  --skip-screenshot   skip screenshot capture
+  --no-install         skip install and only verify/launch/capture
+  --no-launch          install and verify registration without launching
+  --skip-screenshot    skip screenshot capture
   --launch-wait SEC    seconds to wait after launch before capture (default: $launch_wait)
+  --http-port PORT     temporary package server port (default: $http_port)
+  --install-timeout SEC
+                       install subscription timeout (default: $install_timeout)
   -h, --help           show this help
 EOF
 }
@@ -42,8 +50,11 @@ while [[ $# -gt 0 ]]; do
     --ipk) ipk="$2"; shift 2 ;;
     --out) outdir="$2"; shift 2 ;;
     --no-install) install=0; shift ;;
+    --no-launch) launch=0; shift ;;
     --skip-screenshot) screenshot=0; shift ;;
     --launch-wait) launch_wait="$2"; shift 2 ;;
+    --http-port) http_port="$2"; shift 2 ;;
+    --install-timeout) install_timeout="$2"; shift 2 ;;
     -h|--help) usage; exit 0 ;;
     --*) echo "unknown option: $1" >&2; usage >&2; exit 2 ;;
     *)
@@ -77,8 +88,85 @@ find_default_ipk() {
 
 run_luna() {
   local uri="$1"
-  local payload="${2:-{}}"
+  local payload="${2:-}"
+  [[ -n "$payload" ]] || payload="{}"
   ssh -F /dev/null -tt "$host" "$luna_bin -n 1 '$uri' '$payload'"
+}
+
+stop_ipk_server() {
+  if [[ -n "$serve_pid" ]]; then
+    kill "$serve_pid" 2>/dev/null || true
+    wait "$serve_pid" 2>/dev/null || true
+    serve_pid=""
+  fi
+}
+trap stop_ipk_server EXIT
+
+monitored_luna() {
+  local uri="$1"
+  local payload="$2"
+  local log_file="$3"
+
+  {
+    timeout "${install_timeout}s" ssh -F /dev/null -tt "$host" \
+      "$luna_bin -i -f '$uri' '$payload'" 2>&1 &
+    echo "$!"
+  } | {
+    read -r pid
+    awk -v pid="$pid" '
+      BEGIN { result = 2 }
+      {
+        print
+        fflush()
+        if ($0 ~ /"finished"[[:space:]]*:[[:space:]]*true/ ||
+            $0 ~ /"statusText"[[:space:]]*:[[:space:]]*"Finished."/ ||
+            $0 ~ /"state"[[:space:]]*:[[:space:]]*"installed"/) {
+          result = 0
+          system("kill -TERM " pid " 2>/dev/null")
+          exit
+        }
+        if ($0 ~ /"returnValue"[[:space:]]*:[[:space:]]*false/ ||
+            $0 ~ /"errorText"[[:space:]]*:/) {
+          result = 1
+          system("kill -TERM " pid " 2>/dev/null")
+          exit
+        }
+      }
+      END { exit result }
+    '
+  } | tee "$log_file"
+}
+
+install_ipk() {
+  local package="$1"
+  local package_dir package_name package_hash tv_ip host_ip url payload
+
+  package_dir="$(dirname "$package")"
+  package_name="$(basename "$package")"
+  package_hash="$(sha256sum "$package" | cut -d' ' -f1)"
+  tv_ip="${host##*@}"
+  tv_ip="${tv_ip%%:*}"
+  host_ip="$(ip route get "$tv_ip" 2>/dev/null |
+    awk '{ for (i = 1; i <= NF; ++i) if ($i == "src") { print $(i + 1); exit } }' || true)"
+  [[ -n "$host_ip" ]] || host_ip="$(hostname -I | awk '{ print $1 }')"
+  url="http://${host_ip}:${http_port}/${package_name}"
+  payload="$(printf '{"ipkHash":"%s","ipkUrl":"%s","subscribe":true}' "$package_hash" "$url")"
+
+  echo "Serving $package_name at $url"
+  python3 -m http.server "$http_port" --bind "$host_ip" --directory "$package_dir" \
+    >"$outdir/http-server.log" 2>&1 &
+  serve_pid="$!"
+  sleep 1
+  if ! kill -0 "$serve_pid" 2>/dev/null || ! curl -fsSI --max-time 2 "$url" >/dev/null; then
+    cat "$outdir/http-server.log" >&2
+    echo "failed to serve $package at $url" >&2
+    exit 1
+  fi
+
+  echo "Installing through Homebrew Channel"
+  monitored_luna "luna://org.webosbrew.hbchannel.service/install" "$payload" \
+    "$outdir/install.log"
+  stop_ipk_server
 }
 
 ares_args=()
@@ -92,12 +180,20 @@ if [[ "$install" == "1" ]]; then
     echo "no IPK found; pass --ipk PATH or use --no-install" >&2
     exit 1
   fi
-  require_command ares-install
+  require_command curl
+  require_command ip
+  require_command python3
+  require_command sha256sum
+  require_command timeout
 fi
 
-require_command ares-launch
+if [[ "$launch" == "1" ]]; then
+  require_command ares-launch
+fi
 require_command ssh
-require_command scp
+if [[ "$launch" == "1" && "$screenshot" == "1" ]]; then
+  require_command scp
+fi
 
 if [[ -z "$outdir" ]]; then
   outdir="$ROOT/build/webos/verify/$(date -u +%Y%m%d-%H%M%S)"
@@ -106,21 +202,26 @@ mkdir -p "$outdir"
 
 echo "Output: $outdir"
 
+
 if [[ "$install" == "1" ]]; then
   echo "Installing $ipk"
-  ares-install "${ares_args[@]}" "$ipk" | tee "$outdir/ares-install.log"
+  install_ipk "$ipk"
 fi
 
 echo "Checking app registration for $app_id"
-if ! run_luna "luna://com.webos.applicationManager/dev/listApps" "{}" >"$outdir/listApps.json" 2>"$outdir/listApps.err"; then
-  run_luna "luna://com.webos.applicationManager/listApps" "{}" >"$outdir/listApps.json"
-fi
-if ! grep -Fq "$app_id" "$outdir/listApps.json"; then
-  echo "app id $app_id was not present in applicationManager listApps output" >&2
+run_luna "luna://com.webos.applicationManager/listLaunchPoints" "{}" \
+  >"$outdir/listLaunchPoints.json" 2>"$outdir/listLaunchPoints.err"
+if ! grep -Fq "$app_id" "$outdir/listLaunchPoints.json"; then
+  echo "app id $app_id was not present in applicationManager launch points" >&2
   exit 1
 fi
-run_luna "luna://com.webos.service.applicationManager/getAppInfo" "{\"id\":\"$app_id\"}" \
+run_luna "luna://com.webos.applicationManager/getAppInfo" "{\"id\":\"$app_id\"}" \
   >"$outdir/getAppInfo.json" 2>"$outdir/getAppInfo.err" || true
+
+if [[ "$launch" != "1" ]]; then
+  echo "Installed and verified $app_id; launch skipped"
+  exit 0
+fi
 
 echo "Launching $app_id"
 ares-launch "${ares_args[@]}" "$app_id" | tee "$outdir/ares-launch.log"
