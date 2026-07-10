@@ -17,23 +17,6 @@ namespace {
     constexpr int kLibraryPageSize = 100;
     constexpr int kBackgroundLibraryPrefetchLimit = 3;
 
-    QString preferredImageUrl(const MovieItem& item, LibraryPrefetchController::ImageKind imageKind)
-    {
-        if (imageKind == LibraryPrefetchController::ImageKind::Landscape) {
-            if (!item.landscapeCardUrl.isEmpty())
-                return item.landscapeCardUrl;
-            if (!item.thumbUrl.isEmpty())
-                return item.thumbUrl;
-            if (!item.backdropUrl.isEmpty())
-                return item.backdropUrl;
-        }
-        if (!item.posterUrl.isEmpty())
-            return item.posterUrl;
-        if (!item.seriesPosterUrl.isEmpty())
-            return item.seriesPosterUrl;
-        return {};
-    }
-
 } // namespace
 
 LibraryPrefetchController::LibraryPrefetchController(
@@ -122,7 +105,7 @@ std::optional<PagedMovieItems> LibraryPrefetchController::cachedPage(const QStri
 void LibraryPrefetchController::prefetchPosters(
     const std::vector<MovieItem>& items, int firstIndex, int visibleCount, ImageKind imageKind)
 {
-    if (items.empty())
+    if (items.empty() || !m_artwork)
         return;
 
     const int begin = std::clamp(firstIndex, 0, static_cast<int>(items.size()));
@@ -133,12 +116,12 @@ void LibraryPrefetchController::prefetchPosters(
 
     for (int index = begin; index < end; ++index) {
         const MovieItem& item = items[static_cast<size_t>(index)];
-        const QString url = preferredImageUrl(item, imageKind);
+        const QString url = m_artwork->itemUrl(item, imageKind == ImageKind::Landscape);
         if (!url.isEmpty())
             urls.push_back(url);
     }
 
-    if (!urls.isEmpty() && m_artwork)
+    if (!urls.isEmpty())
         m_artwork->prefetch(urls);
 }
 

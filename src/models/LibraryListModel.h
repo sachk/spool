@@ -17,7 +17,7 @@ public:
         IdRole = Qt::UserRole + 1,
         NameRole,
         CollectionTypeRole,
-        ImageUrlRole,
+        ItemRole,
         ImageTagRole,
     };
 

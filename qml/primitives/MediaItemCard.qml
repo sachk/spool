@@ -62,15 +62,8 @@ Item {
     function imageSource() {
         if (imageOverride.length > 0)
             return imageOverride
-        const poster = text("posterUrl")
-        const seriesPoster = text("seriesPosterUrl")
-        const thumb = text("thumbUrl")
-        if (posterKind) {
-            if (useSeriesPoster && text("itemType") === "Episode" && seriesPoster.length > 0)
-                return seriesPoster
-            return poster || seriesPoster || thumb
-        }
-        return text("landscapeCardUrl") || thumb || text("backdropUrl") || poster || seriesPoster
+        const artKind = posterKind && useSeriesPoster && text("itemType") === "Episode" ? "seriesPoster" : kind
+        return Art.url(item, artKind, Math.ceil(width))
     }
 
     function fallbackText() {

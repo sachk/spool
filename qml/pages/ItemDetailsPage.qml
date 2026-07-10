@@ -22,7 +22,7 @@ FocusScope {
     readonly property string seasonTitleText: seasonTitle()
     readonly property string seriesIdText: item.seriesId || ""
     readonly property string seasonIdText: item.seasonId || ""
-    readonly property bool canPlay: item.playable === undefined || item.playable
+    readonly property bool canPlay: item.playable
     readonly property bool showPrimaryAction: selectedIndex >= 0 && canPlay
     readonly property bool hasProgress: Number(item.resumeTicks || 0) > 0 && Number(item.runtimeTicks || 0) > 0
     readonly property int detailTitlePx: Math.min(68, Metrics.titlePx(width) + 24)
@@ -30,10 +30,8 @@ FocusScope {
     readonly property int rowPosterWidth: Metrics.detailRowPosterWidth(width)
     readonly property int rowLandscapeWidth: Math.round(rowPosterWidth * 1.75)
     readonly property int rowGap: Math.max(14, Metrics.gap(width))
-    readonly property string backgroundArt: item.backdropUrl || item.thumbUrl || item.landscapeCardUrl || item.posterUrl
-                                            || ""
-    readonly property string stillArt: item.landscapeCardUrl || item.thumbUrl || item.backdropUrl || item.posterUrl
-                                       || item.seriesPosterUrl || ""
+    readonly property string backgroundArt: Art.url(item, "backdrop", Math.ceil(width))
+    readonly property string stillArt: Art.url(item, "landscape", Math.ceil(rowLandscapeWidth))
     readonly property bool showSideArt: width >= 1120 && stillArt.length > 0
     readonly property real copyWidth: showSideArt ? Math.min(width * 0.56, 940) : width - contentMargin * 2
     readonly property bool loadingDetailRows: Content.detailRowsBusy

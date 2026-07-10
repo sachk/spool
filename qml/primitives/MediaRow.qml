@@ -127,7 +127,7 @@ FocusScope {
             required property int index
             required property string name
             required property string collectionType
-            required property string imageUrl
+            required property var item
 
             width: root.cardWidth
             height: listView.height
@@ -138,7 +138,7 @@ FocusScope {
                 focused: delegateRoot.index === listView.currentIndex && listView.activeFocus
                 titleOverride: delegateRoot.name
                 subtitleOverride: delegateRoot.collectionType
-                imageOverride: delegateRoot.imageUrl
+                imageOverride: Art.url(delegateRoot.item, "landscape", Math.ceil(root.cardWidth))
                 onActivated: root.activateIndex(delegateRoot.index)
             }
         }
@@ -161,7 +161,7 @@ FocusScope {
                 focused: delegateRoot.index === listView.currentIndex && listView.activeFocus
                 titleOverride: String(delegateRoot.modelData.name || "")
                 subtitleOverride: String(delegateRoot.modelData.role || delegateRoot.modelData.type || "")
-                imageOverride: String(delegateRoot.modelData.imageUrl || "")
+                imageOverride: Art.url(delegateRoot.modelData, "poster", Math.ceil(root.cardWidth))
                 fallbackOverride: String(delegateRoot.modelData.type || "Person")
                 onActivated: root.activateIndex(delegateRoot.index)
             }
@@ -194,10 +194,12 @@ FocusScope {
         cacheBuffer: Math.round(2 * (root.cardWidth + root.cardGap))
         reuseItems: true
         model: root.model
-        delegate: root.cardKind === "library" ? libraryDelegate : root.cardKind === "person" ? personDelegate : mediaDelegate
+        delegate: root.cardKind === "library" ? libraryDelegate : root.cardKind === "person" ? personDelegate :
+                                                                                               mediaDelegate
+
         currentIndex: root.count > 0 ? Math.max(0, Math.min(root.currentIndex, root.count - 1)) : -1
         onCurrentIndexChanged: if (currentIndex >= 0)
-                                   positionViewAtIndex(currentIndex, ListView.Contain)
+        positionViewAtIndex(currentIndex, ListView.Contain)
 
         FastWheelHandler {
             flickable: listView

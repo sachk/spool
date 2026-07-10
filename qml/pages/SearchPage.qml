@@ -298,7 +298,7 @@ FocusScope {
                             ImageCard {
                                 Layout.preferredWidth: 154
                                 Layout.preferredHeight: 86
-                                imageUrl: resultDelegate.movie.posterUrl || ""
+                                imageUrl: Art.url(resultDelegate.movie, "landscape", 154)
                                 fallbackText: (resultDelegate.movie.itemType || "").length > 0
                                               ? resultDelegate.movie.itemType : "Item"
                                 aspectRatio: 16 / 9

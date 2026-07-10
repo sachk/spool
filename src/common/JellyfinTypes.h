@@ -7,6 +7,7 @@
 #include <QObject>
 #include <QString>
 #include <QStringList>
+#include <QUrl>
 #include <QVariantMap>
 
 #include <exception>
@@ -31,14 +32,12 @@ struct LibraryItem {
     Q_PROPERTY(QString id MEMBER id)
     Q_PROPERTY(QString name MEMBER name)
     Q_PROPERTY(QString collectionType MEMBER collectionType)
-    Q_PROPERTY(QString imageUrl MEMBER imageUrl)
     Q_PROPERTY(QString imageTag MEMBER imageTag)
 
 public:
     QString id;
     QString name;
     QString collectionType;
-    QString imageUrl;
     QString imageTag;
 };
 
@@ -86,7 +85,6 @@ struct PersonItem {
     Q_PROPERTY(QString name MEMBER name)
     Q_PROPERTY(QString type MEMBER type)
     Q_PROPERTY(QString role MEMBER role)
-    Q_PROPERTY(QString imageUrl MEMBER imageUrl)
     Q_PROPERTY(QString imageTag MEMBER imageTag)
 
 public:
@@ -94,7 +92,6 @@ public:
     QString name;
     QString type;
     QString role;
-    QString imageUrl;
     QString imageTag;
 
     friend bool operator==(const PersonItem&, const PersonItem&) = default;
@@ -189,29 +186,27 @@ struct MovieItem {
     Q_PROPERTY(QString movieId MEMBER id)
     Q_PROPERTY(QString title MEMBER title)
     Q_PROPERTY(QString overview MEMBER overview)
-    Q_PROPERTY(QString posterUrl MEMBER posterUrl)
     Q_PROPERTY(QString posterTag MEMBER posterTag)
     Q_PROPERTY(QString itemType MEMBER itemType)
     Q_PROPERTY(QString playlistItemId MEMBER playlistItemId)
     Q_PROPERTY(QString seriesId MEMBER seriesId)
     Q_PROPERTY(QString seasonId MEMBER seasonId)
     Q_PROPERTY(QString seriesName MEMBER seriesName)
-    Q_PROPERTY(QString seriesPosterUrl MEMBER seriesPosterUrl)
-    Q_PROPERTY(QString subtitle MEMBER subtitle)
+    Q_PROPERTY(QString seriesPrimaryImageTag MEMBER seriesPrimaryImageTag)
     Q_PROPERTY(QString path MEMBER path)
     Q_PROPERTY(int year MEMBER year)
     Q_PROPERTY(int seasonNumber MEMBER seasonNumber)
     Q_PROPERTY(int episodeNumber MEMBER episodeNumber)
     Q_PROPERTY(qint64 resumeTicks MEMBER resumeTicks)
     Q_PROPERTY(qint64 runtimeTicks MEMBER runtimeTicks)
-    Q_PROPERTY(bool playable MEMBER playable)
+    Q_PROPERTY(bool playable READ isPlayable)
+    Q_PROPERTY(QString subtitle READ subtitle)
     Q_PROPERTY(bool favorite MEMBER favorite)
     Q_PROPERTY(bool played MEMBER played)
-    Q_PROPERTY(QString backdropUrl MEMBER backdropUrl)
-    Q_PROPERTY(QString logoUrl MEMBER logoUrl)
-    Q_PROPERTY(QString bannerUrl MEMBER bannerUrl)
-    Q_PROPERTY(QString thumbUrl MEMBER thumbUrl)
-    Q_PROPERTY(QString landscapeCardUrl MEMBER landscapeCardUrl)
+    Q_PROPERTY(QString backdropTag MEMBER backdropTag)
+    Q_PROPERTY(QString logoTag MEMBER logoTag)
+    Q_PROPERTY(QString bannerTag MEMBER bannerTag)
+    Q_PROPERTY(QString thumbTag MEMBER thumbTag)
     Q_PROPERTY(QStringList genres MEMBER genres)
     Q_PROPERTY(QStringList tags MEMBER tags)
     Q_PROPERTY(QStringList studios MEMBER studios)
@@ -227,29 +222,25 @@ public:
     QString id;
     QString title;
     QString overview;
-    QString posterUrl;
     QString posterTag;
     QString itemType;
     QString playlistItemId;
     QString seriesId;
     QString seasonId;
     QString seriesName;
-    QString seriesPosterUrl;
-    QString subtitle;
+    QString seriesPrimaryImageTag;
     QString path;
     int year = 0;
     int seasonNumber = 0;
     int episodeNumber = 0;
     qint64 resumeTicks = 0;
     qint64 runtimeTicks = 0;
-    bool playable = false;
     bool favorite = false;
     bool played = false;
-    QString backdropUrl;
-    QString logoUrl;
-    QString bannerUrl;
-    QString thumbUrl;
-    QString landscapeCardUrl;
+    QString backdropTag;
+    QString logoTag;
+    QString bannerTag;
+    QString thumbTag;
     QStringList genres;
     QStringList tags;
     QStringList studios;
@@ -261,8 +252,15 @@ public:
     QList<PersonItem> people;
     QList<MediaSourceInfo> mediaSources;
 
+    bool isPlayable() const;
+    QString subtitle() const;
+
     friend bool operator==(const MovieItem&, const MovieItem&) = default;
 };
+
+bool isPlayableItem(const MovieItem& item);
+QString itemSubtitle(const MovieItem& item);
+QString itemDisplaySubtitle(const MovieItem& item);
 
 struct AuthSession {
     QString userId;
@@ -345,6 +343,7 @@ struct PlaybackSession {
 QString exceptionMessage(const std::exception_ptr& exception);
 QString normalizedAudioOutputMode(const QString& mode);
 QString sanitizedDiagnosticUrl(QString url, qsizetype maxLength = -1);
+QUrl serverUrlWithPath(const QString& serverUrl, const QStringList& segments);
 bool isMeaningfulResumePosition(qint64 resumeTicks, qint64 runtimeTicks);
 qint64 normalizedResumeTicks(qint64 resumeTicks, qint64 runtimeTicks);
 

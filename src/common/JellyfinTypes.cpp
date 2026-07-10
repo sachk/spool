@@ -108,6 +108,17 @@ namespace {
         return parts.join(QLatin1Char('&'));
     }
 
+    QString serverPath(QString basePath, const QStringList& segments)
+    {
+        while (basePath.endsWith(QLatin1Char('/')))
+            basePath.chop(1);
+        for (const QString& segment : segments) {
+            if (!segment.isEmpty())
+                basePath += QLatin1Char('/') + QString::fromLatin1(QUrl::toPercentEncoding(segment));
+        }
+        return basePath.isEmpty() ? QStringLiteral("/") : basePath;
+    }
+
 }
 
 BrowseDescriptor BrowseDescriptor::library(QString libraryId, QString collectionType, QString name)
@@ -274,6 +285,55 @@ QString sanitizedDiagnosticUrl(QString url, qsizetype maxLength)
         QStringLiteral("([?&](?:api_key|access_token|token)=)[^&]+"), QRegularExpression::CaseInsensitiveOption);
     url.replace(secretQuery, QStringLiteral("\\1<redacted>"));
     return maxLength >= 0 ? url.left(maxLength) : url;
+}
+
+QUrl serverUrlWithPath(const QString& serverUrl, const QStringList& segments)
+{
+    QUrl url(serverUrl);
+    url.setPath(serverPath(url.path(), segments), QUrl::StrictMode);
+    return url;
+}
+
+bool MovieItem::isPlayable() const
+{
+    return isPlayableItem(*this);
+}
+
+QString MovieItem::subtitle() const
+{
+    return itemSubtitle(*this);
+}
+
+bool isPlayableItem(const MovieItem& item)
+{
+    return item.itemType == QStringLiteral("Movie") || item.itemType == QStringLiteral("Episode")
+        || item.itemType == QStringLiteral("MusicVideo") || item.itemType == QStringLiteral("Video");
+}
+
+QString itemSubtitle(const MovieItem& item)
+{
+    if (item.itemType == QStringLiteral("Series"))
+        return item.year > 0 ? QString::number(item.year) : QStringLiteral("Series");
+    if (item.itemType == QStringLiteral("Season"))
+        return QStringLiteral("Season");
+    if (item.itemType == QStringLiteral("Episode")) {
+        if (item.seasonNumber > 0 && item.episodeNumber > 0) {
+            return QStringLiteral("S%1:E%2")
+                .arg(item.seasonNumber, 2, 10, QLatin1Char('0'))
+                .arg(item.episodeNumber, 2, 10, QLatin1Char('0'));
+        }
+        return item.episodeNumber > 0 ? QStringLiteral("Episode %1").arg(item.episodeNumber)
+                                      : QStringLiteral("Episode");
+    }
+    return item.year > 0 ? QString::number(item.year) : QString();
+}
+
+QString itemDisplaySubtitle(const MovieItem& item)
+{
+    const QString subtitle = itemSubtitle(item);
+    if (item.itemType == QStringLiteral("Episode") && !item.title.isEmpty())
+        return subtitle.isEmpty() ? item.title : QStringLiteral("%1 · %2").arg(subtitle, item.title);
+    return subtitle;
 }
 
 bool isMeaningfulResumePosition(qint64 resumeTicks, qint64 runtimeTicks)

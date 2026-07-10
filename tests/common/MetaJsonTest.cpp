@@ -10,6 +10,8 @@
 #include <utility>
 
 using JellyfinNative::DiscoveredServer;
+using JellyfinNative::isPlayableItem;
+using JellyfinNative::itemSubtitle;
 using JellyfinNative::LibraryItem;
 using JellyfinNative::MediaSegment;
 using JellyfinNative::MediaSourceInfo;
@@ -18,6 +20,7 @@ using JellyfinNative::metaFromJson;
 using JellyfinNative::MetaJsonKeyPolicy;
 using JellyfinNative::metaListFromJson;
 using JellyfinNative::metaListToJson;
+using JellyfinNative::metaStringListFromJson;
 using JellyfinNative::metaToJson;
 using JellyfinNative::MovieItem;
 using JellyfinNative::PersonItem;
@@ -52,7 +55,6 @@ void requireLibraryItem(const LibraryItem& actual, const LibraryItem& expected, 
     require(actual.id == expected.id, message);
     require(actual.name == expected.name, message);
     require(actual.collectionType == expected.collectionType, message);
-    require(actual.imageUrl == expected.imageUrl, message);
     require(actual.imageTag == expected.imageTag, message);
 }
 
@@ -62,7 +64,6 @@ void requirePersonItem(const PersonItem& actual, const PersonItem& expected, con
     require(actual.name == expected.name, message);
     require(actual.type == expected.type, message);
     require(actual.role == expected.role, message);
-    require(actual.imageUrl == expected.imageUrl, message);
     require(actual.imageTag == expected.imageTag, message);
 }
 
@@ -123,29 +124,27 @@ void requireMovieItem(const MovieItem& actual, const MovieItem& expected, const 
     require(actual.id == expected.id, message);
     require(actual.title == expected.title, message);
     require(actual.overview == expected.overview, message);
-    require(actual.posterUrl == expected.posterUrl, message);
     require(actual.posterTag == expected.posterTag, message);
     require(actual.itemType == expected.itemType, message);
     require(actual.playlistItemId == expected.playlistItemId, message);
     require(actual.seriesId == expected.seriesId, message);
     require(actual.seasonId == expected.seasonId, message);
     require(actual.seriesName == expected.seriesName, message);
-    require(actual.seriesPosterUrl == expected.seriesPosterUrl, message);
-    require(actual.subtitle == expected.subtitle, message);
+    require(actual.seriesPrimaryImageTag == expected.seriesPrimaryImageTag, message);
+    require(itemSubtitle(actual) == itemSubtitle(expected), message);
     require(actual.path == expected.path, message);
     require(actual.year == expected.year, message);
     require(actual.seasonNumber == expected.seasonNumber, message);
     require(actual.episodeNumber == expected.episodeNumber, message);
     require(actual.resumeTicks == expected.resumeTicks, message);
     require(actual.runtimeTicks == expected.runtimeTicks, message);
-    require(actual.playable == expected.playable, message);
+    require(isPlayableItem(actual) == isPlayableItem(expected), message);
     require(actual.favorite == expected.favorite, message);
     require(actual.played == expected.played, message);
-    require(actual.backdropUrl == expected.backdropUrl, message);
-    require(actual.logoUrl == expected.logoUrl, message);
-    require(actual.bannerUrl == expected.bannerUrl, message);
-    require(actual.thumbUrl == expected.thumbUrl, message);
-    require(actual.landscapeCardUrl == expected.landscapeCardUrl, message);
+    require(actual.backdropTag == expected.backdropTag, message);
+    require(actual.logoTag == expected.logoTag, message);
+    require(actual.bannerTag == expected.bannerTag, message);
+    require(actual.thumbTag == expected.thumbTag, message);
     require(actual.genres == expected.genres, message);
     require(actual.tags == expected.tags, message);
     require(actual.studios == expected.studios, message);
@@ -234,7 +233,6 @@ void testDtoRoundTrips()
     library.id = QStringLiteral("library-id");
     library.name = QStringLiteral("Movies");
     library.collectionType = QStringLiteral("movies");
-    library.imageUrl = QStringLiteral("https://images.example.test/library.jpg");
     library.imageTag = QStringLiteral("library-tag");
     requireLibraryItem(
         metaFromJson<LibraryItem>(metaToJson(library)), library, "LibraryItem did not survive MetaJson round trip");
@@ -244,7 +242,6 @@ void testDtoRoundTrips()
     person.name = QStringLiteral("Ada Actor");
     person.type = QStringLiteral("Actor");
     person.role = QStringLiteral("Detective");
-    person.imageUrl = QStringLiteral("https://images.example.test/person.jpg");
     person.imageTag = QStringLiteral("person-tag");
     requirePersonItem(
         metaFromJson<PersonItem>(metaToJson(person)), person, "PersonItem did not survive MetaJson round trip");
@@ -273,7 +270,6 @@ void testMovieRoundTripAndCamelCaseKey()
     actor.name = QStringLiteral("Ada Actor");
     actor.type = QStringLiteral("Actor");
     actor.role = QStringLiteral("Lead");
-    actor.imageUrl = QStringLiteral("https://images.example.test/actor.jpg");
     actor.imageTag = QStringLiteral("actor-tag");
 
     PersonItem director;
@@ -281,36 +277,31 @@ void testMovieRoundTripAndCamelCaseKey()
     director.name = QStringLiteral("Drew Director");
     director.type = QStringLiteral("Director");
     director.role = QStringLiteral("Director");
-    director.imageUrl = QStringLiteral("https://images.example.test/director.jpg");
     director.imageTag = QStringLiteral("director-tag");
 
     MovieItem movie;
     movie.id = QStringLiteral("movie-1");
     movie.title = QStringLiteral("A Generic Mapper");
     movie.overview = QStringLiteral("Round-trips DTOs through QMetaProperty.");
-    movie.posterUrl = QStringLiteral("https://images.example.test/poster.jpg");
     movie.posterTag = QStringLiteral("poster-tag");
-    movie.itemType = QStringLiteral("Movie");
+    movie.itemType = QStringLiteral("Episode");
     movie.playlistItemId = QStringLiteral("playlist-item-1");
     movie.seriesId = QStringLiteral("series-1");
     movie.seasonId = QStringLiteral("season-1");
     movie.seriesName = QStringLiteral("Mapper Anthology");
-    movie.seriesPosterUrl = QStringLiteral("https://images.example.test/series.jpg");
-    movie.subtitle = QStringLiteral("Episode subtitle");
+    movie.seriesPrimaryImageTag = QStringLiteral("series-tag");
     movie.path = QStringLiteral("/media/movie.mkv");
     movie.year = 2026;
     movie.seasonNumber = 2;
     movie.episodeNumber = 7;
     movie.resumeTicks = 4567890123LL;
     movie.runtimeTicks = 9876543210LL;
-    movie.playable = false;
     movie.favorite = true;
     movie.played = true;
-    movie.backdropUrl = QStringLiteral("https://images.example.test/backdrop.jpg");
-    movie.logoUrl = QStringLiteral("https://images.example.test/logo.png");
-    movie.bannerUrl = QStringLiteral("https://images.example.test/banner.jpg");
-    movie.thumbUrl = QStringLiteral("https://images.example.test/thumb.jpg");
-    movie.landscapeCardUrl = QStringLiteral("https://images.example.test/landscape.jpg");
+    movie.backdropTag = QStringLiteral("backdrop-tag");
+    movie.logoTag = QStringLiteral("logo-tag");
+    movie.bannerTag = QStringLiteral("banner-tag");
+    movie.thumbTag = QStringLiteral("thumb-tag");
     movie.genres = { QStringLiteral("Mystery"), QStringLiteral("Drama") };
     movie.tags = { QStringLiteral("tag-a"), QStringLiteral("tag-b") };
     movie.studios = { QStringLiteral("Studio One"), QStringLiteral("Studio Two") };
@@ -326,6 +317,8 @@ void testMovieRoundTripAndCamelCaseKey()
     require(json.value(QStringLiteral("movieId")).toString() == movie.id,
         "MovieItem id was not serialized with the movieId CamelCase key");
     require(!json.contains(QStringLiteral("id")), "MovieItem id leaked through an id key instead of movieId");
+    require(!json.contains(QStringLiteral("playable")) && !json.contains(QStringLiteral("subtitle")),
+        "MovieItem derived properties should not be serialized into cache payloads");
     require(json.value(QStringLiteral("people")).toArray().size() == movie.people.size(),
         "MovieItem people were not serialized as a nested array");
     require(json.value(QStringLiteral("mediaSources")).toArray().size() == movie.mediaSources.size(),
@@ -394,6 +387,19 @@ void testLegacyStringTicksAndUnknownKeys()
 
 void testPascalCaseApiParsing()
 {
+    const QJsonObject movieJson = jsonObject({
+        { QStringLiteral("Id"), QStringLiteral("movie-api") },
+        { QStringLiteral("Name"), QStringLiteral("API Movie") },
+        { QStringLiteral("Type"), QStringLiteral("Movie") },
+        { QStringLiteral("ProductionYear"), 2026 },
+        { QStringLiteral("Playable"), false },
+    });
+    const MovieItem apiMovie = metaFromJson<MovieItem>(movieJson, MetaJsonKeyPolicy::PascalCase);
+    require(apiMovie.id == QStringLiteral("movie-api") && apiMovie.title == QStringLiteral("API Movie")
+            && apiMovie.itemType == QStringLiteral("Movie") && apiMovie.year == 2026,
+        "MovieItem did not map its PascalCase API aliases");
+    require(isPlayableItem(apiMovie), "MovieItem playability should be derived instead of read from API JSON");
+
     const QJsonObject streamJson = jsonObject({
         { QStringLiteral("Index"), 3 },
         { QStringLiteral("Type"), QStringLiteral("Subtitle") },
@@ -435,6 +441,15 @@ void testPascalCaseApiParsing()
         "MediaSourceInfo did not parse PascalCase numeric fields");
     require(source.streams.size() == 1, "MediaSourceInfo did not parse PascalCase nested streams");
     requireMediaStreamInfo(source.streams.at(0), stream, "MediaSourceInfo changed a PascalCase nested stream");
+
+    const QJsonObject studiosJson {
+        { QStringLiteral("Studios"),
+            QJsonArray { QJsonObject { { QStringLiteral("Name"), QStringLiteral("Studio One") } },
+                QJsonObject { { QStringLiteral("Name"), QStringLiteral("Studio Two") } } } },
+    };
+    require(metaStringListFromJson(studiosJson, { QStringLiteral("Studios"), QStringLiteral("Name") })
+            == QStringList({ QStringLiteral("Studio One"), QStringLiteral("Studio Two") }),
+        "MetaJson did not flatten nested string paths");
 }
 
 } // namespace

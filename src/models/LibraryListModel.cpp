@@ -32,8 +32,8 @@ QVariant LibraryListModel::data(const QModelIndex& index, int role) const
         return library.name;
     case CollectionTypeRole:
         return library.collectionType;
-    case ImageUrlRole:
-        return library.imageUrl;
+    case ItemRole:
+        return QVariant::fromValue(library);
     case ImageTagRole:
         return library.imageTag;
     default:
@@ -47,7 +47,7 @@ QHash<int, QByteArray> LibraryListModel::roleNames() const
         { IdRole, "libraryId" },
         { NameRole, "name" },
         { CollectionTypeRole, "collectionType" },
-        { ImageUrlRole, "imageUrl" },
+        { ItemRole, "item" },
         { ImageTagRole, "imageTag" },
     };
 }
@@ -62,7 +62,6 @@ QVariantMap LibraryListModel::get(int index) const
         { QStringLiteral("libraryId"), library.id },
         { QStringLiteral("name"), library.name },
         { QStringLiteral("collectionType"), library.collectionType },
-        { QStringLiteral("imageUrl"), library.imageUrl },
         { QStringLiteral("imageTag"), library.imageTag },
     };
 }

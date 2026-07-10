@@ -26,17 +26,6 @@ namespace {
         return movie.title;
     }
 
-    QString displaySubtitle(const MovieItem& movie)
-    {
-        if (movie.itemType == QStringLiteral("Episode")) {
-            if (!movie.subtitle.isEmpty() && !movie.title.isEmpty())
-                return QStringLiteral("%1 · %2").arg(movie.subtitle, movie.title);
-            if (!movie.title.isEmpty())
-                return movie.title;
-        }
-        return movie.subtitle;
-    }
-
 }
 
 MovieGridModel::MovieGridModel(QObject *parent)
@@ -68,7 +57,7 @@ QVariant MovieGridModel::data(const QModelIndex& index, int role) const
     case DisplayTitleRole:
         return displayTitle(movie);
     case DisplaySubtitleRole:
-        return displaySubtitle(movie);
+        return itemDisplaySubtitle(movie);
     case ProgressRole:
         return playbackProgress(movie);
     case PlayActionLabelRole:
