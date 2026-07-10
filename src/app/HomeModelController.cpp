@@ -1,6 +1,7 @@
 #include "HomeModelController.h"
 
 #include "../api/JellyfinApiFacade.h"
+#include "../cache/DatabaseManager.h"
 #include "../common/AsyncTask.h"
 #include "../common/MetaJson.h"
 #include "LibraryPrefetchController.h"
@@ -18,6 +19,7 @@
 namespace JellyfinNative {
 
 namespace {
+    constexpr int kHomePayloadSchemaVersion = 2;
 
     QString homeItemSample(const std::vector<MovieItem>& items)
     {
@@ -89,21 +91,13 @@ namespace {
 
 } // namespace
 
-HomeModelController::HomeModelController(JellyfinApiFacade *api, LibraryPrefetchController *prefetch, QObject *parent)
+HomeModelController::HomeModelController(
+    DatabaseManager *database, JellyfinApiFacade *api, LibraryPrefetchController *prefetch, QObject *parent)
     : QObject(parent)
+    , m_database(database)
     , m_api(api)
     , m_prefetch(prefetch)
 {
-}
-
-MovieGridModel *HomeModelController::resumeItems()
-{
-    return &m_resumeItems;
-}
-
-MovieGridModel *HomeModelController::nextUpItems()
-{
-    return &m_nextUpItems;
 }
 
 QVariantList HomeModelController::latestLibraryRows() const
@@ -158,6 +152,45 @@ bool HomeModelController::applyCachedPayload(const QJsonObject& payload)
     replaceLatestLibraryRows(std::move(sections));
     emit latestLibraryRowsChanged();
     return m_resumeItems.rowCount() > 0 || m_nextUpItems.rowCount() > 0 || !m_latestLibrarySections.empty();
+}
+
+void HomeModelController::loadCachedPayload()
+{
+    Async::runScoped(
+        this, loadCachedPayloadAsync(), []() {},
+        [](const std::exception_ptr& error) {
+            qWarning() << "home: warm payload cache failed" << exceptionMessage(error);
+        },
+        "home cache");
+}
+
+QCoro::Task<void> HomeModelController::loadCachedPayloadAsync()
+{
+    if (!m_database)
+        co_return;
+    const QString key = payloadCacheKey();
+    if (key.isEmpty())
+        co_return;
+    const QJsonObject payload = co_await m_database->loadHomePayloadAsync(key, kHomePayloadSchemaVersion);
+    if (applyCachedPayload(payload))
+        qInfo() << "home: warm payload cache applied" << key;
+}
+
+QString HomeModelController::payloadCacheKey() const
+{
+    if (!m_api)
+        return {};
+    const AuthSession session = m_api->session();
+    const QString userKey = session.userId.isEmpty() ? session.userName : session.userId;
+    const QString serverKey = session.serverId.isEmpty() ? m_api->serverUrl() : session.serverId;
+    return userKey.isEmpty() || serverKey.isEmpty() ? QString() : QStringLiteral("%1/%2").arg(serverKey, userKey);
+}
+
+void HomeModelController::saveCachedPayload(const QJsonObject& payload)
+{
+    const QString key = payloadCacheKey();
+    if (m_database && !payload.isEmpty() && !key.isEmpty())
+        m_database->saveHomePayload(key, kHomePayloadSchemaVersion, payload);
 }
 
 void HomeModelController::refresh(const std::vector<LibraryItem>& libraries)
@@ -231,7 +264,7 @@ QCoro::Task<void> HomeModelController::refreshAsync(
     m_loaded = true;
     m_resumeItems.setMovies(resumeItems);
     m_nextUpItems.setMovies(nextUpItems);
-    emit homePayloadReady(payloadFromSections(resumeItems, nextUpItems, latestSections));
+    saveCachedPayload(payloadFromSections(resumeItems, nextUpItems, latestSections));
     replaceLatestLibraryRows(std::move(latestSections));
 
     m_prefetch->prefetchPosters(resumeItems, 0, 12, LibraryPrefetchController::ImageKind::Landscape);

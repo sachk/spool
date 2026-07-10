@@ -22,31 +22,6 @@ SearchController::SearchController(JellyfinApiFacade *api, LibraryPrefetchContro
     connect(&m_debounceTimer, &QTimer::timeout, this, &SearchController::submit);
 }
 
-QString SearchController::query() const
-{
-    return m_query;
-}
-
-bool SearchController::busy() const
-{
-    return m_busy;
-}
-
-bool SearchController::suggestionsBusy() const
-{
-    return m_suggestionsBusy;
-}
-
-MovieGridModel *SearchController::results()
-{
-    return &m_results;
-}
-
-MovieGridModel *SearchController::suggestions()
-{
-    return &m_suggestions;
-}
-
 void SearchController::setQuery(const QString& query)
 {
     const QString trimmed = query.trimmed();

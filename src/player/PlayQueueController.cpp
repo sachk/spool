@@ -1,5 +1,9 @@
 #include "PlayQueueController.h"
 
+#include "../api/JellyfinApiFacade.h"
+#include "../common/AsyncTask.h"
+
+#include <QDebug>
 #include <algorithm>
 #include <numeric>
 
@@ -41,6 +45,12 @@ namespace {
     }
 
 } // namespace
+
+PlayQueueController::PlayQueueController(JellyfinApiFacade *api, QObject *parent)
+    : QAbstractListModel(parent)
+    , m_api(api)
+{
+}
 
 int PlayQueueController::rowCount(const QModelIndex& parent) const
 {
@@ -92,41 +102,6 @@ QHash<int, QByteArray> PlayQueueController::roleNames() const
         { PosterUrlRole, "posterUrl" },
         { LandscapeCardUrlRole, "landscapeCardUrl" },
     };
-}
-
-int PlayQueueController::count() const
-{
-    return rowCount();
-}
-
-int PlayQueueController::currentIndex() const
-{
-    if (m_orderIndex < 0 || m_orderIndex >= static_cast<int>(m_order.size()))
-        return -1;
-    return m_order[static_cast<size_t>(m_orderIndex)];
-}
-
-bool PlayQueueController::shuffled() const
-{
-    return m_shuffled;
-}
-
-bool PlayQueueController::canGoNext() const
-{
-    return m_orderIndex >= 0 && m_orderIndex + 1 < static_cast<int>(m_order.size());
-}
-
-bool PlayQueueController::canGoPrevious() const
-{
-    return m_orderIndex > 0;
-}
-
-MovieItem PlayQueueController::currentItem() const
-{
-    const int index = currentIndex();
-    if (index < 0 || index >= rowCount())
-        return {};
-    return m_entries[static_cast<size_t>(index)];
 }
 
 std::vector<PlaybackQueueItem> PlayQueueController::nowPlayingQueue() const
@@ -286,6 +261,30 @@ bool PlayQueueController::addToQueue(const MovieItem& item)
     m_order.push_back(naturalIndex);
     emitQueueStateChanged(previousCurrent);
     return true;
+}
+
+void PlayQueueController::enqueueEpisodeSuccessors(const MovieItem& episode)
+{
+    if (!m_api || episode.itemType != QStringLiteral("Episode") || episode.seriesId.isEmpty()
+        || m_api->session().accessToken.isEmpty()) {
+        return;
+    }
+    Async::runScoped(
+        this, m_api->fetchEpisodes(episode.seriesId),
+        [this, episode](const std::vector<MovieItem>& episodes) {
+            auto current = std::find_if(episodes.begin(), episodes.end(),
+                [&episode](const MovieItem& candidate) { return candidate.id == episode.id; });
+            if (current == episodes.end())
+                return;
+            std::vector<MovieItem> successors;
+            std::copy_if(++current, episodes.end(), std::back_inserter(successors),
+                [](const MovieItem& item) { return !item.id.isEmpty() && item.playable; });
+            if (playNow(successors, 0))
+                emit successorPlaybackReady();
+        },
+        [](const std::exception_ptr& error) {
+            qWarning() << "play queue: episode successor lookup failed" << exceptionMessage(error);
+        });
 }
 
 bool PlayQueueController::isQueueable(const MovieItem& item)

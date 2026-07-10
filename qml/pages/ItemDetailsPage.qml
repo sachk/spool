@@ -395,7 +395,7 @@ FocusScope {
     }
 
     Connections {
-        target: App
+        target: ItemState
         function onItemFavoriteChanged(itemId, favorite) {
             if ((root.item.movieId || "") === itemId)
                 root.favoriteState = favorite
@@ -592,7 +592,7 @@ FocusScope {
     function playDetailContext(shuffled) {
         if (!showContextPlaybackActions)
             return
-        App.playDetailContext(shuffled === true)
+        App.playModel(Content.detailSeasons, shuffled === true)
         overflowOpen = false
     }
 
@@ -600,14 +600,14 @@ FocusScope {
         if (!item.movieId)
             return
         favoriteState = !favoriteState
-        App.setFavorite(item.movieId, favoriteState)
+        ItemState.setFavorite(item.movieId, favoriteState)
     }
 
     function togglePlayed() {
         if (!item.movieId)
             return
         playedState = !playedState
-        App.setPlayed(item.movieId, playedState)
+        ItemState.setPlayed(item.movieId, playedState)
     }
 
     function overflowOptions() {
@@ -657,7 +657,7 @@ FocusScope {
         if (index < 0)
             return
         if (typeText === "Series") {
-            App.openDetailSeason(index)
+            App.playFromModel(Content.detailSeasons, index)
             if (shell)
                 shell.replaceRoute("libraryGrid")
             return
@@ -676,18 +676,11 @@ FocusScope {
             shell.openPerson(person)
     }
 
-    function openGenrePage(value) {
-        if (!value)
+    function openNamedCollection(kind, value) {
+        const name = chipText(value)
+        if (!name)
             return
-        App.openGenre(value)
-        if (shell)
-            shell.replaceRoute("libraryGrid")
-    }
-
-    function openStudioPage(value) {
-        if (!value)
-            return
-        App.openStudio(value)
+        App.openNamedCollection(kind, name)
         if (shell)
             shell.replaceRoute("libraryGrid")
     }
@@ -947,10 +940,8 @@ FocusScope {
     }
 
     function activateMetadata(kind, value) {
-        if (kind === "genre")
-            openGenrePage(chipText(value))
-        else if (kind === "studio")
-            openStudioPage(chipText(value))
+        if (kind === "genre" || kind === "studio")
+            openNamedCollection(kind, value)
         else if (kind === "person")
             openPerson(value)
     }

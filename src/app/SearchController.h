@@ -23,11 +23,26 @@ class SearchController final : public QObject {
 public:
     SearchController(JellyfinApiFacade *api, LibraryPrefetchController *prefetch, QObject *parent = nullptr);
 
-    QString query() const;
-    bool busy() const;
-    bool suggestionsBusy() const;
-    MovieGridModel *results();
-    MovieGridModel *suggestions();
+    QString query() const
+    {
+        return m_query;
+    }
+    bool busy() const
+    {
+        return m_busy;
+    }
+    bool suggestionsBusy() const
+    {
+        return m_suggestionsBusy;
+    }
+    MovieGridModel *results()
+    {
+        return &m_results;
+    }
+    MovieGridModel *suggestions()
+    {
+        return &m_suggestions;
+    }
 
     Q_INVOKABLE void setQuery(const QString& query);
     Q_INVOKABLE void submit();

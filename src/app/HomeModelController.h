@@ -15,6 +15,7 @@
 
 namespace JellyfinNative {
 
+class DatabaseManager;
 class JellyfinApiFacade;
 class LibraryPrefetchController;
 
@@ -25,14 +26,22 @@ class HomeModelController final : public QObject {
     Q_PROPERTY(QVariantList latestLibraryRows READ latestLibraryRows NOTIFY latestLibraryRowsChanged)
 
 public:
-    HomeModelController(JellyfinApiFacade *api, LibraryPrefetchController *prefetch, QObject *parent = nullptr);
+    HomeModelController(DatabaseManager *database, JellyfinApiFacade *api, LibraryPrefetchController *prefetch,
+        QObject *parent = nullptr);
 
-    MovieGridModel *resumeItems();
-    MovieGridModel *nextUpItems();
+    MovieGridModel *resumeItems()
+    {
+        return &m_resumeItems;
+    }
+    MovieGridModel *nextUpItems()
+    {
+        return &m_nextUpItems;
+    }
     QVariantList latestLibraryRows() const;
     Q_INVOKABLE QObject *latestLibraryItems(int rowIndex);
 
     bool applyCachedPayload(const QJsonObject& payload);
+    void loadCachedPayload();
     void refresh(const std::vector<LibraryItem>& libraries);
     void recordLibraryUse(const LibraryItem& library);
     void upsertResumeItem(MovieItem item, qint64 positionTicks);
@@ -43,7 +52,6 @@ public:
 
 signals:
     void latestLibraryRowsChanged();
-    void homePayloadReady(const QJsonObject& payload);
 
 private:
     struct LatestLibrarySection {
@@ -60,7 +68,11 @@ private:
     void replaceLatestLibraryRows(std::vector<PendingLatestLibrarySection> sections);
     QJsonObject payloadFromSections(const std::vector<MovieItem>& resumeItems,
         const std::vector<MovieItem>& nextUpItems, const std::vector<PendingLatestLibrarySection>& sections) const;
+    QCoro::Task<void> loadCachedPayloadAsync();
+    QString payloadCacheKey() const;
+    void saveCachedPayload(const QJsonObject& payload);
 
+    DatabaseManager *m_database = nullptr;
     JellyfinApiFacade *m_api = nullptr;
     LibraryPrefetchController *m_prefetch = nullptr;
     MovieGridModel m_resumeItems;

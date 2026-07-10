@@ -23,15 +23,34 @@ class ContentModelController final : public QObject {
 public:
     ContentModelController(JellyfinApiFacade *api, LibraryPrefetchController *prefetch, QObject *parent = nullptr);
 
-    MovieGridModel *detailSeasons();
-    MovieGridModel *detailSimilarItems();
-    MovieGridModel *personItems();
-
-    bool detailRowsBusy() const;
-    bool personItemsBusy() const;
-    MovieItem detailItem() const;
-
-    MovieItem detailSeasonAt(int index) const;
+    MovieGridModel *detailSeasons()
+    {
+        return &m_detailSeasons;
+    }
+    MovieGridModel *detailSimilarItems()
+    {
+        return &m_detailSimilarItems;
+    }
+    MovieGridModel *personItems()
+    {
+        return &m_personItems;
+    }
+    bool detailRowsBusy() const
+    {
+        return m_detailRowsBusy;
+    }
+    bool personItemsBusy() const
+    {
+        return m_personItemsBusy;
+    }
+    MovieItem detailItem() const
+    {
+        return m_detailItem;
+    }
+    MovieItem detailSeasonAt(int index) const
+    {
+        return m_detailSeasons.movieAt(index);
+    }
 
     Q_INVOKABLE void loadDetailRows(
         const QString& itemId, const QString& itemType, const QString& seriesId = {}, const QString& seasonId = {});

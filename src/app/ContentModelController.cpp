@@ -16,41 +16,6 @@ ContentModelController::ContentModelController(
 {
 }
 
-MovieGridModel *ContentModelController::detailSeasons()
-{
-    return &m_detailSeasons;
-}
-
-MovieGridModel *ContentModelController::detailSimilarItems()
-{
-    return &m_detailSimilarItems;
-}
-
-MovieGridModel *ContentModelController::personItems()
-{
-    return &m_personItems;
-}
-
-bool ContentModelController::detailRowsBusy() const
-{
-    return m_detailRowsBusy;
-}
-
-bool ContentModelController::personItemsBusy() const
-{
-    return m_personItemsBusy;
-}
-
-MovieItem ContentModelController::detailItem() const
-{
-    return m_detailItem;
-}
-
-MovieItem ContentModelController::detailSeasonAt(int index) const
-{
-    return m_detailSeasons.movieAt(index);
-}
-
 void ContentModelController::loadDetailRows(
     const QString& itemId, const QString& itemType, const QString& seriesId, const QString& seasonId)
 {

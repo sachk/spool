@@ -91,7 +91,7 @@ Item {
             checked: root.playedState
             onClicked: {
                 root.playedState = !root.playedState
-                App.setPlayed(root.itemId, root.playedState)
+                ItemState.setPlayed(root.itemId, root.playedState)
             }
         }
 
@@ -100,7 +100,7 @@ Item {
             checked: root.favoriteState
             onClicked: {
                 root.favoriteState = !root.favoriteState
-                App.setFavorite(root.itemId, root.favoriteState)
+                ItemState.setFavorite(root.itemId, root.favoriteState)
             }
         }
     }

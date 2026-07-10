@@ -63,8 +63,25 @@ int main()
     require(session.query().value(QStringLiteral("sortBy")).toString() == QStringLiteral("DateCreated"),
         "library query retained by library id");
 
+    int reloads = 0;
+    QObject::connect(&session, &BrowseSessionController::reloadRequested, [&reloads]() { ++reloads; });
+    session.setSort(QStringLiteral("DateCreated"), QStringLiteral("Descending"));
+    require(session.query().value(QStringLiteral("sortOrder")) == QStringLiteral("Descending"), "sort mutated");
+    session.setQueryListValue(QStringLiteral("Genres"), QStringLiteral("Drama"), true);
+    require(session.query().value(QStringLiteral("Genres")).toStringList() == QStringList { QStringLiteral("Drama") },
+        "list filter added");
+    session.setQueryValue(QStringLiteral("IsPlayed"), true);
+    require(session.query().value(QStringLiteral("IsPlayed")).toBool(), "bool filter added");
+    session.setQueryValue(QStringLiteral("IsPlayed"), {});
+    require(!session.query().contains(QStringLiteral("IsPlayed")), "nullable filter removed");
+    session.clearFilters();
+    require(session.query().size() == 2 && session.query().contains(QStringLiteral("sortBy"))
+            && session.query().contains(QStringLiteral("sortOrder")),
+        "clear filters preserves sort");
+    require(reloads == 5, "each query mutation requests one reload");
+
     const MovieItem series = item(QStringLiteral("series"), QStringLiteral("Show"), QStringLiteral("Series"));
-    session.enterSeries(series);
+    require(session.enterItem(series), "series accepted as browse item");
     requireBrowse(
         session, BrowseKind::SeriesSeasons, QStringLiteral("series"), QStringLiteral("Show"), "series descriptor set");
     require(session.viewKind() == QStringLiteral("seasons"), "series view kind set");
@@ -80,13 +97,16 @@ int main()
     session.enterNamedCollection(QStringLiteral("studio"), QStringLiteral("Studio"));
     require(session.descriptor().kind == BrowseKind::Studio, "studio descriptor set");
 
-    session.enterPlaylist(item(QStringLiteral("playlist"), QStringLiteral("Queue"), QStringLiteral("Playlist")));
+    require(session.enterItem(item(QStringLiteral("playlist"), QStringLiteral("Queue"), QStringLiteral("Playlist"))),
+        "playlist accepted as browse item");
     requireBrowse(
         session, BrowseKind::Playlist, QStringLiteral("playlist"), QStringLiteral("Queue"), "playlist descriptor set");
-    session.enterBoxSet(item(QStringLiteral("box"), QStringLiteral("Collection"), QStringLiteral("BoxSet")));
+    require(session.enterItem(item(QStringLiteral("box"), QStringLiteral("Collection"), QStringLiteral("BoxSet"))),
+        "box set accepted as browse item");
     requireBrowse(
         session, BrowseKind::BoxSet, QStringLiteral("box"), QStringLiteral("Collection"), "box set descriptor set");
-    session.enterFolder(item(QStringLiteral("folder"), QStringLiteral("Folder"), QStringLiteral("Folder")));
+    require(session.enterItem(item(QStringLiteral("folder"), QStringLiteral("Folder"), QStringLiteral("Folder"))),
+        "folder accepted as browse item");
     requireBrowse(session, BrowseKind::FolderChildren, QStringLiteral("folder"), QStringLiteral("Folder"),
         "folder descriptor set");
 
@@ -99,6 +119,11 @@ int main()
     require(session.items()->count() == 1, "page stored one item");
     require(session.hasMore(), "page tracks remaining items");
     require(session.nextStartIndex() == 1, "next start index updated");
+    int moreRequests = 0;
+    QObject::connect(&session, &BrowseSessionController::moreItemsRequested, [&moreRequests]() { ++moreRequests; });
+    session.prefetchVisibleRange(0, 0);
+    session.prefetchVisibleRange(-1, 0);
+    require(moreRequests == 1, "visible tail requests the next page once");
     session.reset();
     require(!session.descriptor().isValid(), "reset clears descriptor");
     require(session.items()->count() == 0, "reset clears items");

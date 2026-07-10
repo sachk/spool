@@ -20,7 +20,6 @@
 #include "SyncPlayController.h"
 
 #include <QCoroTask>
-#include <QJsonObject>
 #include <QObject>
 #include <QVariantMap>
 
@@ -38,31 +37,71 @@ class AppController final : public QObject {
     Q_PROPERTY(QString busyText MEMBER m_busyText NOTIFY busyChanged)
     Q_PROPERTY(QString errorText MEMBER m_errorText NOTIFY errorTextChanged)
     Q_PROPERTY(bool hasDefaultProfile MEMBER m_hasDefaultProfile NOTIFY defaultProfileChanged)
-    Q_PROPERTY(QString currentViewKind READ currentViewKind NOTIFY currentLibraryNameChanged)
 
 public:
     AppController(DatabaseManager *database, DiscoveryController *discovery, JellyfinApiFacade *api,
         ArtworkService *artwork, PlayerController *player, QObject *parent = nullptr);
 
-    QString currentViewKind() const;
-    DiscoveredServerModel *discoveredServers();
-    LibraryListModel *libraries();
-    BrowseSessionController *browse();
-    HomeModelController *home();
-    ContentModelController *content();
-    SearchController *search();
-    PlayerController *player();
-    PlayQueueController *playQueue();
-    SyncPlayController *syncPlay();
-    SettingsController *settings();
-    SessionController *session();
-    QuickConnectController *quickConnect();
-    LibraryManagementController *management();
+    DiscoveredServerModel *discoveredServers()
+    {
+        return &m_discoveredServers;
+    }
+    LibraryListModel *libraries()
+    {
+        return &m_libraries;
+    }
+    BrowseSessionController *browse()
+    {
+        return m_browse;
+    }
+    HomeModelController *home()
+    {
+        return m_home;
+    }
+    ContentModelController *content()
+    {
+        return m_content;
+    }
+    UserItemStateController *itemState()
+    {
+        return m_itemState;
+    }
+    SearchController *search()
+    {
+        return m_search;
+    }
+    PlayerController *player()
+    {
+        return m_player;
+    }
+    PlayQueueController *playQueue()
+    {
+        return m_playQueue;
+    }
+    SyncPlayController *syncPlay()
+    {
+        return m_syncPlay;
+    }
+    SettingsController *settings()
+    {
+        return m_settings;
+    }
+    SessionController *session()
+    {
+        return m_session;
+    }
+    QuickConnectController *quickConnect()
+    {
+        return m_quickConnect;
+    }
+    LibraryManagementController *management()
+    {
+        return m_management;
+    }
 
     Q_INVOKABLE void initialize();
     void shutdown();
     Q_INVOKABLE void chooseDiscoveredServer(int index);
-    Q_INVOKABLE void login();
     Q_INVOKABLE bool useDefaultProfile();
     Q_INVOKABLE void switchUser();
     Q_INVOKABLE void logout();
@@ -76,22 +115,8 @@ public:
     Q_INVOKABLE void addToQueueFromItem(const MovieItem& item);
     Q_INVOKABLE void openSeriesById(const QString& seriesId, const QString& seriesName);
     Q_INVOKABLE void openSeasonById(const QString& seriesId, const QString& seasonId, const QString& seasonName);
-    Q_INVOKABLE void loadMoreCurrentItems();
-    Q_INVOKABLE void prefetchCurrentItems(int firstIndex, int lastIndex);
-    Q_INVOKABLE void maybeLoadMoreCurrentItems(int visibleIndex);
-    Q_INVOKABLE void setLibrarySort(const QString& sortBy, const QString& sortOrder);
-    Q_INVOKABLE void setLibraryQueryListValue(const QString& key, const QString& value, bool enabled);
-    Q_INVOKABLE void setLibraryQueryBoolValue(const QString& key, bool enabled);
-    Q_INVOKABLE void setLibraryQueryNullableBoolValue(const QString& key, const QVariant& value);
-    Q_INVOKABLE void clearLibraryFilters();
-    Q_INVOKABLE void refreshCurrentLibrary();
-    Q_INVOKABLE void openDetailSeason(int index);
-    Q_INVOKABLE void playDetailContext(bool shuffled = false);
-    Q_INVOKABLE void openGenre(const QString& genre);
-    Q_INVOKABLE void openStudio(const QString& studio);
-    Q_INVOKABLE void setFavorite(const QString& itemId, bool favorite);
-    Q_INVOKABLE void setPlayed(const QString& itemId, bool played);
-    Q_INVOKABLE void clearProgress(const QString& itemId);
+    Q_INVOKABLE void playModel(MovieGridModel *model, bool shuffled = false);
+    Q_INVOKABLE void openNamedCollection(const QString& kind, const QString& name);
     Q_INVOKABLE void onMemoryPressure(const QString& level);
     Q_INVOKABLE void clearError();
 
@@ -99,10 +124,7 @@ signals:
     void busyChanged();
     void errorTextChanged();
     void defaultProfileChanged();
-    void currentLibraryNameChanged();
-    void itemFavoriteChanged(const QString& itemId, bool favorite);
     void aggressiveMemoryPressure();
-    void itemPlayedChanged(const QString& itemId, bool played);
     void toastMessage(const QString& message);
 
 private:
@@ -113,32 +135,27 @@ private:
     void resetApplicationState();
     QCoro::Task<void> applyDiscoveredServersCacheAsync();
     void loadLibraries();
-    void refreshHomeRows();
-    QString homePayloadCacheKey() const;
-    QCoro::Task<void> configureImagePrefetchAsync();
-    QCoro::Task<void> applyCachedHomePayloadAsync();
-    void saveHomePayload(const QJsonObject& payload);
-    void showCurrentItemsPage(const PagedMovieItems& page, const QString& cacheKey, bool append);
-    void setLibraryQuery(const QVariantMap& query);
+    void loadMoreCurrentItems();
+    void refreshHomeRows()
+    {
+        m_home->refresh(m_libraries.libraries());
+    }
+    void showCurrentItemsPage(const PagedMovieItems& page, const QString& cacheKey, bool append)
+    {
+        m_browse->setPage(page, cacheKey, append);
+        setBusy(false);
+    }
     void loadLibraryFilterOptions(RequestGeneration::Token generation, const LibraryItem& library);
-    void loadCurrentBrowsePage();
-    void openSeries(const MovieItem& series);
+    RequestGeneration::Token beginBrowse(bool useWarmCache = false, bool descendIntoEmptySeries = false);
     void openSeason(const MovieItem& season);
-    void openPlaylist(const MovieItem& playlist);
-    void openBoxSet(const MovieItem& boxSet);
-    void openFolder(const MovieItem& folder);
     QCoro::Task<bool> useDefaultProfileAsync();
-    void playMediaItem(const MovieItem& item, bool fromStart = false);
     QCoro::Task<void> startPlayback(MovieItem playItem);
     void playQueuedItems(const std::vector<MovieItem>& items, int startIndex, bool fromStart = false);
-    void playQueuedModel(MovieGridModel *model, bool shuffled = false);
     void playQueuedItem(const MovieItem& item, bool fromStart = false);
     void playQueueCurrent(bool fromStart = false);
     bool queueMutationAllowed();
-    void enqueueEpisodeSuccessors(const MovieItem& episode);
     // Series/Season open their child listing; everything else plays directly.
     void playOrOpen(const MovieItem& item, bool fromStart = false);
-    void playOrOpenFromModel(MovieGridModel *model, int index, bool fromStart = false);
     void handlePlaybackStopped(const QString& itemId, qint64 positionTicks, bool completed);
 
     DatabaseManager *m_database = nullptr;

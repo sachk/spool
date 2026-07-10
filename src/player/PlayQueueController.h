@@ -8,6 +8,7 @@
 #include <vector>
 
 namespace JellyfinNative {
+class JellyfinApiFacade;
 
 class PlayQueueController final : public QAbstractListModel {
     Q_OBJECT
@@ -30,21 +31,39 @@ public:
         LandscapeCardUrlRole,
     };
 
-    explicit PlayQueueController(QObject *parent = nullptr)
-        : QAbstractListModel(parent)
-    {
-    }
+    explicit PlayQueueController(JellyfinApiFacade *api = nullptr, QObject *parent = nullptr);
 
     int rowCount(const QModelIndex& parent = {}) const override;
     QVariant data(const QModelIndex& index, int role) const override;
     QHash<int, QByteArray> roleNames() const override;
 
-    int count() const;
-    int currentIndex() const;
-    bool shuffled() const;
-    bool canGoNext() const;
-    bool canGoPrevious() const;
-    MovieItem currentItem() const;
+    int count() const
+    {
+        return rowCount();
+    }
+    int currentIndex() const
+    {
+        return m_orderIndex < 0 || m_orderIndex >= static_cast<int>(m_order.size())
+            ? -1
+            : m_order[static_cast<size_t>(m_orderIndex)];
+    }
+    bool shuffled() const
+    {
+        return m_shuffled;
+    }
+    bool canGoNext() const
+    {
+        return m_orderIndex >= 0 && m_orderIndex + 1 < static_cast<int>(m_order.size());
+    }
+    bool canGoPrevious() const
+    {
+        return m_orderIndex > 0;
+    }
+    MovieItem currentItem() const
+    {
+        const int index = currentIndex();
+        return index < 0 || index >= rowCount() ? MovieItem {} : m_entries[static_cast<size_t>(index)];
+    }
     std::vector<PlaybackQueueItem> nowPlayingQueue() const;
 
     Q_INVOKABLE QVariantMap get(int index) const;
@@ -58,10 +77,13 @@ public:
     bool playNow(const MovieItem& item);
     bool playNext(const MovieItem& item);
     bool addToQueue(const MovieItem& item);
+    void enqueueEpisodeSuccessors(const MovieItem& episode);
 
 signals:
     void queueChanged();
     void currentIndexChanged();
+
+    void successorPlaybackReady();
 
 private:
     static bool isQueueable(const MovieItem& item);
@@ -70,6 +92,7 @@ private:
     void setCurrentOrderIndex(int orderIndex);
     void emitQueueStateChanged(int previousCurrentIndex);
 
+    JellyfinApiFacade *m_api = nullptr;
     std::vector<MovieItem> m_entries;
     std::vector<int> m_order;
     int m_orderIndex = -1;

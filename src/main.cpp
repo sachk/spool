@@ -6,6 +6,7 @@
 #include "app/MemoryBudget.h"
 #include "app/NativeAppWindow.h"
 #include "app/RouterController.h"
+#include "app/UserItemStateController.h"
 #include "cache/DatabaseManager.h"
 #include "common/LogRotation.h"
 #include "diagnostics/Diagnostics.h"
@@ -857,6 +858,7 @@ int main(int argc, char **argv)
     qmlRegisterSingletonInstance("JellyfinWebOS", 1, 0, "Browse", controller->browse());
     qmlRegisterSingletonInstance("JellyfinWebOS", 1, 0, "Home", controller->home());
     qmlRegisterSingletonInstance("JellyfinWebOS", 1, 0, "Content", controller->content());
+    qmlRegisterSingletonInstance("JellyfinWebOS", 1, 0, "ItemState", controller->itemState());
     qmlRegisterSingletonInstance("JellyfinWebOS", 1, 0, "Search", controller->search());
     qmlRegisterSingletonInstance("JellyfinWebOS", 1, 0, "Libraries", controller->libraries());
     qmlRegisterSingletonInstance("JellyfinWebOS", 1, 0, "DiscoveredServers", controller->discoveredServers());
