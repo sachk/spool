@@ -21,6 +21,9 @@ WEBOS_BUILD_MEMORY_PER_JOB_MIB="${WEBOS_BUILD_MEMORY_PER_JOB_MIB:-1536}"
 WEBOS_BUILD_MEMORY_RESERVE_MIB="${WEBOS_BUILD_MEMORY_RESERVE_MIB:-2048}"
 WEBOS_BUILD_JOBS="$(recommended_parallel_jobs "$WEBOS_BUILD_MEMORY_PER_JOB_MIB" "$WEBOS_BUILD_MEMORY_RESERVE_MIB")"
 FFMPEG_PGO_FLAGS="$(webos_pgo_flags FFMPEG "$ROOT/build/pgo/ffmpeg")"
+# Keep unwind tables and debug information out of release libraries unless an
+# instrumented build explicitly supplies FFMPEG_DIAG_CFLAGS.
+FFMPEG_DIAG_CFLAGS="${FFMPEG_DIAG_CFLAGS:-}"
 
 mkdir -p "$ROOT/build"
 
@@ -120,7 +123,7 @@ describe_parallel_jobs "$WEBOS_BUILD_JOBS" "FFmpeg" "$WEBOS_BUILD_MEMORY_PER_JOB
   --enable-bsf=aac_adtstoasc \
   --enable-bsf=h264_mp4toannexb \
   --enable-bsf=hevc_mp4toannexb \
-  --extra-cflags="--sysroot=$SYSROOT -I$PREFIX/include $(webos_tune_cflags) ${FFMPEG_DIAG_CFLAGS:--fasynchronous-unwind-tables -funwind-tables -g} $FFMPEG_PGO_FLAGS" \
+  --extra-cflags="--sysroot=$SYSROOT -I$PREFIX/include $(webos_tune_cflags) $FFMPEG_DIAG_CFLAGS $FFMPEG_PGO_FLAGS" \
   --extra-ldflags="--sysroot=$SYSROOT -L$PREFIX/lib -Wl,-rpath-link,$PREFIX/lib $FFMPEG_PGO_FLAGS"
 
 make -j"$WEBOS_BUILD_JOBS"
