@@ -29,6 +29,7 @@
 namespace JellyfinNative {
 
 namespace {
+    constexpr int kConnectionCacheExpirySeconds = 15 * 60;
 
     QString requireString(const QJsonObject& object, const QString& key)
     {
@@ -294,6 +295,8 @@ JellyfinApiFacade::JellyfinApiFacade(QNetworkAccessManager *networkAccessManager
     , m_rest(networkAccessManager, this)
 {
     m_requestFactory.setTransferTimeout(std::chrono::milliseconds(HttpRequestPolicy::transferTimeoutMs()));
+    m_requestFactory.setAttribute(
+        QNetworkRequest::ConnectionCacheExpiryTimeoutSecondsAttribute, kConnectionCacheExpirySeconds);
 
     applyCommonHeaders();
 }
@@ -331,6 +334,11 @@ void JellyfinApiFacade::setDeviceIdentity(
     m_deviceId = deviceId;
     m_deviceName = deviceName;
     m_clientVersion = clientVersion;
+}
+
+void JellyfinApiFacade::setDeviceId(const QString& deviceId)
+{
+    m_deviceId = deviceId;
 }
 
 QString JellyfinApiFacade::deviceId() const

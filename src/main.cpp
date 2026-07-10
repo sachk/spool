@@ -16,7 +16,6 @@
 #ifdef JELLYFIN_NATIVE_WEBOS
 #include "player/MpvRuntime.h"
 #endif
-#include <QCoroTask>
 
 extern "C" {
 #include <fcntl.h>
@@ -72,7 +71,6 @@ Q_IMPORT_PLUGIN(QSQLiteDriverPlugin)
 #include <QSurfaceFormat>
 #include <QThread>
 #include <QTimer>
-#include <QUuid>
 #include <qqml.h>
 
 #include <clocale>
@@ -81,9 +79,6 @@ Q_IMPORT_PLUGIN(QSQLiteDriverPlugin)
 #include <cstdlib>
 #include <cstring>
 #include <memory>
-#include <thread>
-#include <utility>
-#include <vector>
 
 namespace {
 
@@ -188,12 +183,6 @@ bool resolveAppRoot(char *buffer, size_t size)
     return true;
 }
 
-bool environmentDisablesFeature(const char *name)
-{
-    const QByteArray value = qgetenv(name).trimmed().toLower();
-    return value == "0" || value == "false" || value == "no" || value == "off";
-}
-
 QString startupCacheRoot(const QString& appRootPath)
 {
     const QByteArray configured = qgetenv("JELLYFIN_NATIVE_CACHE_HOME");
@@ -239,56 +228,6 @@ void configurePersistentRhiPipelineCache(QQuickWindow& window, const QString& ca
     graphicsConfig.setPipelineCacheSaveFile(cacheFile);
     window.setGraphicsConfiguration(graphicsConfig);
 }
-
-#if defined(__linux__)
-void adviseWillNeed(const QByteArray& path)
-{
-    const int fd = open(path.constData(), O_RDONLY | O_CLOEXEC);
-    if (fd < 0)
-        return;
-
-    posix_fadvise(fd, 0, 0, POSIX_FADV_SEQUENTIAL);
-    posix_fadvise(fd, 0, 0, POSIX_FADV_WILLNEED);
-    close(fd);
-}
-
-void startStartupReadahead(const QString& appRootPath)
-{
-    if (environmentDisablesFeature("JELLYFIN_STARTUP_READAHEAD"))
-        return;
-
-    const QByteArray appRoot = QFile::encodeName(appRootPath);
-    std::vector<QByteArray> paths;
-    paths.reserve(24);
-    paths.push_back(QByteArrayLiteral("/proc/self/exe"));
-
-    auto addAppPath
-        = [&paths, &appRoot](const char *relativePath) { paths.push_back(appRoot + '/' + QByteArray(relativePath)); };
-    addAppPath("lib/libQt6Core.so.6");
-    addAppPath("lib/libQt6Gui.so.6");
-    addAppPath("lib/libQt6Network.so.6");
-    addAppPath("lib/libQt6Qml.so.6");
-    addAppPath("lib/libQt6QmlModels.so.6");
-    addAppPath("lib/libQt6Quick.so.6");
-    addAppPath("lib/libQt6QuickControls2.so.6");
-    addAppPath("lib/libQt6QuickTemplates2.so.6");
-    addAppPath("lib/libQt6Sql.so.6");
-    addAppPath("lib/libQt6OpenGL.so.6");
-    addAppPath("lib/libQt6WaylandClient.so.6");
-    addAppPath("qt-plugins/platforms/libqwayland-egl.so");
-    addAppPath("qt-plugins/sqldrivers/libqsqlite.so");
-    addAppPath("qt-plugins/imageformats/libqjpeg.so");
-    addAppPath("qt-plugins/imageformats/libqwebp.so");
-    addAppPath("qt-qml/JellyfinWebOS/libJellyfinWebOSplugin.so");
-
-    std::thread([paths = std::move(paths)]() {
-        for (const QByteArray& path : paths)
-            adviseWillNeed(path);
-    }).detach();
-}
-#else
-void startStartupReadahead(const QString&) { }
-#endif
 
 #ifdef JELLYFIN_NATIVE_WEBOS
 bool ensureWaylandEnv()
@@ -596,7 +535,6 @@ int main(int argc, char **argv)
 
     const QString cachePath = startupCacheRoot(appRootPath);
     configurePersistentStartupCaches(cachePath);
-    startStartupReadahead(appRootPath);
 
     logLine("app root: %s", appRoot);
     logLine("QT_QPA_PLATFORM=%s", qgetenv("QT_QPA_PLATFORM").constData());
@@ -724,9 +662,8 @@ int main(int argc, char **argv)
     }
     logLine("startup: prepareForUiSurface completed in %lld ms", static_cast<long long>(startupTimer.elapsed()));
 
-    // Keep SQLite off the pre-window path. It still has to be ready before
-    // AppController is exposed to QML because controller construction reads
-    // DB-backed settings and session state synchronously.
+    // Start the SQLite worker before constructing the controllers. Device
+    // identity and session reads are awaited after the first frame.
     {
         JellyfinNative::Diagnostics::Phase phase(QStringLiteral("startup"), QStringLiteral("database_initialize"));
         if (!database.initialize(
@@ -734,15 +671,9 @@ int main(int argc, char **argv)
             return 1;
     }
 
-    QString deviceId = QCoro::waitFor(database.loadDeviceIdAsync());
-    if (deviceId.isEmpty()) {
-        deviceId = QUuid::createUuid().toString(QUuid::WithoutBraces);
-        database.saveDeviceId(deviceId);
-    }
-
     auto discovery = std::make_unique<JellyfinNative::DiscoveryController>();
     auto api = std::make_unique<JellyfinNative::JellyfinApiFacade>(networkAccessManager);
-    api->setDeviceIdentity(deviceId,
+    api->setDeviceIdentity({},
 #ifdef JELLYFIN_NATIVE_WEBOS
         QStringLiteral("LG webOS TV"),
 #else
