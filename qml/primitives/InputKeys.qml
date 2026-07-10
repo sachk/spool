@@ -8,7 +8,7 @@ QtObject {
             item.forceActiveFocus()
     }
 
-    function ensureVisible(view, item) {
+    function positionChild(view, item) {
         if (!view || !item)
             return
         Qt.callLater(function () {

@@ -530,7 +530,7 @@ FocusScope {
             similarRow.focusList()
         else
             InputKeys.focus(target)
-        InputKeys.ensureVisible(detailsFlick, target)
+        InputKeys.positionChild(detailsFlick, target)
         return true
     }
 

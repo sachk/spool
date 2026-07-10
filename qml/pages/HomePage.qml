@@ -102,7 +102,7 @@ FocusScope {
         if (!section)
             return false
         section.focusList()
-        InputKeys.ensureVisible(scroller, section)
+        InputKeys.positionChild(scroller, section)
         return true
     }
 
