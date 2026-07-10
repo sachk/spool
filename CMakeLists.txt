@@ -356,6 +356,7 @@ qt_add_qml_module(jellyfin-native
         qml/pages/ItemDetailsPage.qml
         qml/pages/LibraryGridPage.qml
         qml/pages/LoginPage.qml
+        qml/pages/ScaleSetupPage.qml
         qml/pages/PersonDetailsPage.qml
         qml/pages/PlayerAudioSyncPanel.qml
         qml/pages/PlayerOverlayChrome.qml
@@ -522,6 +523,7 @@ if(BUILD_TESTING AND NOT CMAKE_CROSSCOMPILING)
         play-queue-controller tests/player/PlayQueueControllerTest.cpp
         browse-session-controller tests/app/BrowseSessionControllerTest.cpp
         settings-schema tests/app/SettingsSchemaTest.cpp
+        settings-controller tests/app/SettingsControllerTest.cpp
         router-controller tests/app/RouterControllerTest.cpp
         library-query tests/app/LibraryQueryTest.cpp
         content-model-controller tests/app/ContentModelControllerTest.cpp

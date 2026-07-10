@@ -150,14 +150,14 @@ OverlayDialog {
             height: Metrics.controlHeight(root.width)
             radius: Theme.radiusMedium
             color: root.targetIndex === index ? Theme.focusedFill : "transparent"
-            border.width: root.targetIndex === index ? Theme.focusBorderWidth : 1
+            border.width: root.targetIndex === index ? Theme.focusBorderWidth : Theme.hoverBorderWidth
             border.color: root.targetIndex === index ? Theme.accent : Theme.border
 
             RowLayout {
                 anchors.fill: parent
-                anchors.leftMargin: 14
-                anchors.rightMargin: 14
-                spacing: 12
+                anchors.leftMargin: Metrics.scaled(14)
+                anchors.rightMargin: Metrics.scaled(14)
+                spacing: Metrics.scaled(12)
                 MaterialIcon {
                     name: root.mode === "collection" ? "collections_bookmark" : "playlist_play"
                     iconColor: Theme.textPrimary

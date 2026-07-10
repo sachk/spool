@@ -36,9 +36,10 @@ namespace {
     {
         if (!items.empty()) {
             const QString& type = items.front().itemType;
-            if (type == QStringLiteral("Episode") || type == QStringLiteral("Video"))
+            if (type == QStringLiteral("Video"))
                 return true;
-            if (type == QStringLiteral("Movie") || type == QStringLiteral("Series") || type == QStringLiteral("Season"))
+            if (type == QStringLiteral("Movie") || type == QStringLiteral("Series") || type == QStringLiteral("Season")
+                || type == QStringLiteral("Episode"))
                 return false;
         }
         return library.collectionType != QStringLiteral("movies")
@@ -197,6 +198,8 @@ void HomeModelController::refresh(const std::vector<LibraryItem>& libraries)
 {
     if (!m_api || m_api->session().accessToken.isEmpty())
         return;
+    if (libraries.empty())
+        return;
     if (m_loaded || m_refreshInFlight)
         return;
 
@@ -224,9 +227,16 @@ QCoro::Task<void> HomeModelController::refreshAsync(
             latestLibraries.push_back(library);
     }
 
+    auto resumeTask = m_api->fetchResumeItems();
+    auto nextUpTask = m_api->fetchNextUpEpisodes();
+    std::vector<QCoro::Task<std::vector<MovieItem>>> latestTasks;
+    latestTasks.reserve(latestLibraries.size());
+    for (const LibraryItem& library : latestLibraries)
+        latestTasks.push_back(m_api->fetchLatestItems(library.id, latestLibraryLimit(library)));
+
     std::vector<MovieItem> resumeItems;
     try {
-        resumeItems = co_await m_api->fetchResumeItems();
+        resumeItems = co_await resumeTask;
         qInfo() << "home: resume items" << resumeItems.size() << homeItemSample(resumeItems);
     } catch (const std::exception& error) {
         qWarning() << "home: resume fetch failed" << error.what();
@@ -236,7 +246,7 @@ QCoro::Task<void> HomeModelController::refreshAsync(
 
     std::vector<MovieItem> nextUpItems;
     try {
-        nextUpItems = co_await m_api->fetchNextUpEpisodes();
+        nextUpItems = co_await nextUpTask;
         qInfo() << "home: next-up items" << nextUpItems.size() << homeItemSample(nextUpItems);
     } catch (const std::exception& error) {
         qWarning() << "home: next-up fetch failed" << error.what();
@@ -244,12 +254,15 @@ QCoro::Task<void> HomeModelController::refreshAsync(
     if (!m_generation.isCurrent(generation))
         co_return;
 
+    m_resumeItems.setMovies(resumeItems);
+    m_nextUpItems.setMovies(nextUpItems);
+
     std::vector<PendingLatestLibrarySection> latestSections;
     latestSections.reserve(latestLibraries.size());
     for (int order = 0; order < static_cast<int>(latestLibraries.size()); ++order) {
-        const LibraryItem library = latestLibraries[static_cast<size_t>(order)];
+        const LibraryItem& library = latestLibraries[static_cast<size_t>(order)];
         try {
-            std::vector<MovieItem> items = co_await m_api->fetchLatestItems(library.id, latestLibraryLimit(library));
+            std::vector<MovieItem> items = co_await latestTasks[static_cast<size_t>(order)];
             qInfo() << "home: latest items" << library.name << items.size() << homeItemSample(items);
             if (!items.empty())
                 latestSections.push_back({ order, library, std::move(items) });
@@ -262,8 +275,6 @@ QCoro::Task<void> HomeModelController::refreshAsync(
 
     m_refreshInFlight = false;
     m_loaded = true;
-    m_resumeItems.setMovies(resumeItems);
-    m_nextUpItems.setMovies(nextUpItems);
     saveCachedPayload(payloadFromSections(resumeItems, nextUpItems, latestSections));
     replaceLatestLibraryRows(std::move(latestSections));
 

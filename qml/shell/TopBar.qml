@@ -129,22 +129,22 @@ FocusScope {
     Rectangle {
         anchors.bottom: parent.bottom
         width: parent.width
-        height: 1
+        height: Theme.hoverBorderWidth
         color: Theme.border
     }
 
     RowLayout {
         anchors.fill: parent
-        anchors.leftMargin: 14
-        anchors.rightMargin: 14
-        spacing: 4
+        anchors.leftMargin: Metrics.scaled(14)
+        anchors.rightMargin: Metrics.scaled(14)
+        spacing: Metrics.scaled(4)
 
         Rectangle {
             Layout.alignment: Qt.AlignVCenter
-            Layout.preferredWidth: 28
-            Layout.preferredHeight: 28
-            Layout.rightMargin: 10
-            radius: 6
+            Layout.preferredWidth: Metrics.scaled(28)
+            Layout.preferredHeight: width
+            Layout.rightMargin: Metrics.scaled(10)
+            radius: Theme.radiusMedium
             gradient: Gradient {
                 GradientStop {
                     position: 0
@@ -192,7 +192,7 @@ FocusScope {
                 function hasButtonFocus() {
                     return button.activeFocus
                 }
-                Layout.preferredWidth: 50
+                Layout.preferredWidth: Metrics.scaled(50)
                 Layout.fillHeight: true
 
                 IconButton {
@@ -205,11 +205,12 @@ FocusScope {
                     onClicked: root.navigate(modelData.route)
                 }
                 Rectangle {
-                    y: Math.min(parent.height - height - 4, button.y + button.height + 4)
+                    y: Math.min(parent.height - height - Metrics.scaled(4), button.y + button.height + Metrics.scaled(
+                                    4))
                     anchors.horizontalCenter: button.horizontalCenter
-                    width: button.activeFocus ? 30 : (root.selectedRoute === modelData.route ? 22 : 0)
-                    height: 3
-                    radius: 1.5
+                    width: Metrics.scaled(button.activeFocus ? 30 : (root.selectedRoute === modelData.route ? 22 : 0))
+                    height: Metrics.scaled(3)
+                    radius: height / 2
                     color: Theme.accent
                     opacity: button.activeFocus ? 1.0 : (root.selectedRoute === modelData.route ? 0.85 : 0.0)
                     visible: opacity > 0
@@ -235,7 +236,7 @@ FocusScope {
 
         Item {
             Layout.alignment: Qt.AlignVCenter
-            Layout.preferredWidth: 50
+            Layout.preferredWidth: Metrics.scaled(50)
             Layout.fillHeight: true
 
             IconButton {
@@ -250,15 +251,15 @@ FocusScope {
                 // Status dot: accent when in a group, green when groups exist to join.
                 Rectangle {
                     visible: root.syncActive || root.syncAvailable
-                    width: 9
-                    height: 9
-                    radius: 4.5
+                    width: Metrics.scaled(9)
+                    height: width
+                    radius: width / 2
                     anchors.right: parent.right
                     anchors.top: parent.top
-                    anchors.rightMargin: 7
-                    anchors.topMargin: 7
+                    anchors.rightMargin: Metrics.scaled(7)
+                    anchors.topMargin: Metrics.scaled(7)
                     color: root.syncActive ? Theme.accent : Theme.success
-                    border.width: 2
+                    border.width: Theme.focusBorderWidth
                     border.color: Theme.bgRaised
                 }
             }
@@ -267,11 +268,11 @@ FocusScope {
 
     Loader {
         id: syncMenuLoader
-        width: 320
+        width: Metrics.scaled(320)
         anchors.top: parent.bottom
         anchors.right: parent.right
-        anchors.topMargin: 6
-        anchors.rightMargin: 14
+        anchors.topMargin: Metrics.scaled(6)
+        anchors.rightMargin: Metrics.scaled(14)
         z: 50
         active: root.syncPlayMenuLoaded
         sourceComponent: SyncPlayMenu {

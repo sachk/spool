@@ -13,14 +13,14 @@ Item {
     property bool highlighted: false
     property bool actionable: true
     property int metricsWidth: root.Window.window ? root.Window.window.width : 1920
-    property int rowHeight: detail.length > 0 ? 54 : 46
+    property int rowHeight: Metrics.scaled(detail.length > 0 ? 54 : 46)
     property string checkIconName: "done"
 
     signal activated
     signal hovered
 
-    width: parent ? parent.width : 320
-    height: section ? 34 : rowHeight
+    width: parent ? parent.width : Metrics.scaled(320)
+    height: section ? Metrics.scaled(34) : rowHeight
 
     AppText {
         anchors.left: parent.left
@@ -42,24 +42,24 @@ Item {
         color: root.highlighted ? Theme.focusedFill : hover.hovered && root.actionable ? Theme.bgHover : root.checked
                                                                                          ? Theme.accentPanel :
                                                                                            "transparent"
-        border.width: root.highlighted ? 1 : 0
+        border.width: root.highlighted ? Theme.hoverBorderWidth : 0
         border.color: Theme.accent
         antialiasing: true
     }
 
     RowLayout {
         anchors.fill: parent
-        anchors.leftMargin: 10
-        anchors.rightMargin: 10
+        anchors.leftMargin: Metrics.scaled(10)
+        anchors.rightMargin: Metrics.scaled(10)
         visible: !root.section
-        spacing: 10
+        spacing: Metrics.scaled(10)
 
         MaterialIcon {
             visible: root.iconName.length > 0
-            Layout.preferredWidth: 28
-            Layout.preferredHeight: 28
+            Layout.preferredWidth: Metrics.scaled(28)
+            Layout.preferredHeight: width
             name: root.iconName
-            iconSize: 22
+            iconSize: Metrics.scaled(22)
             iconColor: root.checked || root.highlighted ? Theme.accent : root.actionable ? Theme.textSecondary :
                                                                                            Theme.textMuted
 
@@ -67,7 +67,7 @@ Item {
 
         ColumnLayout {
             Layout.fillWidth: true
-            spacing: 1
+            spacing: Metrics.scaled(1)
 
             AppText {
                 Layout.fillWidth: true
@@ -91,10 +91,10 @@ Item {
 
         MaterialIcon {
             visible: root.checked && root.checkIconName.length > 0
-            Layout.preferredWidth: 24
-            Layout.preferredHeight: 24
+            Layout.preferredWidth: Metrics.scaled(24)
+            Layout.preferredHeight: width
             name: root.checkIconName
-            iconSize: 21
+            iconSize: Metrics.scaled(21)
             iconColor: Theme.accent
         }
     }

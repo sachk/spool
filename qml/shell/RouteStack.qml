@@ -12,6 +12,8 @@ FocusScope {
         switch (nextRoute) {
         case "login":
             return Qt.resolvedUrl("../pages/LoginPage.qml")
+        case "scaleSetup":
+            return Qt.resolvedUrl("../pages/ScaleSetupPage.qml")
         case "home":
         case "libraries":
             return Qt.resolvedUrl("../pages/HomePage.qml")

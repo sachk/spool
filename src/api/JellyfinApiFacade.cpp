@@ -788,7 +788,6 @@ QCoro::Task<std::vector<MovieItem>> JellyfinApiFacade::fetchLatestItems(QString 
     QUrlQuery query = ItemsQuery()
                           .limit(limit, 60)
                           .fields(libraryItemFields())
-                          .includeItemTypes(QStringLiteral("Movie,Series,Episode"))
                           .images()
                           .add(QStringLiteral("groupItems"), QStringLiteral("false"))
                           .parentId(parentId)

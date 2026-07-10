@@ -7,6 +7,7 @@
 #include <QString>
 #include <QTimer>
 
+#include <vector>
 namespace JellyfinNative {
 
 class JellyfinApiFacade;
@@ -16,7 +17,10 @@ class SearchController final : public QObject {
     Q_OBJECT
     Q_PROPERTY(QString query READ query NOTIFY queryChanged)
     Q_PROPERTY(bool busy READ busy NOTIFY busyChanged)
-    Q_PROPERTY(JellyfinNative::MovieGridModel *results READ results CONSTANT)
+    Q_PROPERTY(JellyfinNative::MovieGridModel *movieResults READ movieResults CONSTANT)
+    Q_PROPERTY(JellyfinNative::MovieGridModel *seriesResults READ seriesResults CONSTANT)
+    Q_PROPERTY(JellyfinNative::MovieGridModel *episodeResults READ episodeResults CONSTANT)
+    Q_PROPERTY(int resultCount READ resultCount NOTIFY resultsChanged)
     Q_PROPERTY(JellyfinNative::MovieGridModel *suggestions READ suggestions CONSTANT)
     Q_PROPERTY(bool suggestionsBusy READ suggestionsBusy NOTIFY suggestionsChanged)
 
@@ -35,9 +39,21 @@ public:
     {
         return m_suggestionsBusy;
     }
-    MovieGridModel *results()
+    MovieGridModel *movieResults()
     {
-        return &m_results;
+        return &m_movieResults;
+    }
+    MovieGridModel *seriesResults()
+    {
+        return &m_seriesResults;
+    }
+    MovieGridModel *episodeResults()
+    {
+        return &m_episodeResults;
+    }
+    int resultCount() const
+    {
+        return m_movieResults.count() + m_seriesResults.count() + m_episodeResults.count();
     }
     MovieGridModel *suggestions()
     {
@@ -67,9 +83,13 @@ private:
     void setBusy(bool busy);
     void setSuggestionsBusy(bool busy);
 
+    void clearResults();
+    void setResults(std::vector<MovieItem> items);
     JellyfinApiFacade *m_api = nullptr;
     LibraryPrefetchController *m_prefetch = nullptr;
-    MovieGridModel m_results;
+    MovieGridModel m_movieResults;
+    MovieGridModel m_seriesResults;
+    MovieGridModel m_episodeResults;
     MovieGridModel m_suggestions;
     QString m_query;
     bool m_busy = false;

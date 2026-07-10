@@ -26,9 +26,12 @@ FocusScope {
 
     Surface {
         anchors.centerIn: parent
-        width: Math.min(parent.width - 96, root.preferredWidth)
-        height: Math.min(parent.height - 96, root.preferredHeight > 0 ? root.preferredHeight : body.implicitHeight
-                                                                        + root.padding * 2)
+        width: Math.min(parent.width - Metrics.scaled(96), Metrics.scaled(root.preferredWidth))
+        height: Math.min(parent.height - Metrics.scaled(96), root.preferredHeight > 0 ? Metrics.scaled(
+                                                                                            root.preferredHeight) :
+                                                                                        body.implicitHeight
+                                                                                        + Metrics.scaled(root.padding
+                                                                                                         * 2))
         elevated: true
         baseColor: root.panelColor
 
@@ -39,8 +42,8 @@ FocusScope {
         ColumnLayout {
             id: body
             anchors.fill: parent
-            anchors.margins: root.padding
-            spacing: 14
+            anchors.margins: Metrics.scaled(root.padding)
+            spacing: Metrics.scaled(14)
         }
     }
 }

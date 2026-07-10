@@ -6,6 +6,8 @@
 
 #include <QDebug>
 
+#include <utility>
+
 namespace JellyfinNative {
 
 namespace {
@@ -46,7 +48,7 @@ void SearchController::submit()
     if (m_query.size() < 2 || !authenticated()) {
         m_searchGeneration.invalidate();
         setBusy(false);
-        m_results.clear();
+        clearResults();
         emit resultsChanged();
         return;
     }
@@ -56,15 +58,15 @@ void SearchController::submit()
 
     Async::runLatest(
         this, m_api->searchItems(m_query), m_searchGeneration, generation,
-        [this](const std::vector<MovieItem>& items) {
-            m_results.setMovies(items);
+        [this](std::vector<MovieItem> items) {
             if (m_prefetch)
                 m_prefetch->prefetchPosters(items);
+            setResults(std::move(items));
             setBusy(false);
             emit resultsChanged();
         },
         [this](const std::exception_ptr& error) {
-            m_results.clear();
+            clearResults();
             setBusy(false);
             emit resultsChanged();
             emit errorOccurred(exceptionMessage(error));
@@ -90,7 +92,7 @@ void SearchController::clear()
         emit queryChanged();
     }
     setBusy(false);
-    m_results.clear();
+    clearResults();
     emit resultsChanged();
 }
 
@@ -122,19 +124,25 @@ void SearchController::loadSuggestions()
 
 void SearchController::updateResumeTicks(const QString& itemId, qint64 positionTicks)
 {
-    m_results.updateResumeTicks(itemId, positionTicks);
+    m_movieResults.updateResumeTicks(itemId, positionTicks);
+    m_seriesResults.updateResumeTicks(itemId, positionTicks);
+    m_episodeResults.updateResumeTicks(itemId, positionTicks);
     m_suggestions.updateResumeTicks(itemId, positionTicks);
 }
 
 void SearchController::updateFavorite(const QString& itemId, bool favorite)
 {
-    m_results.updateFavorite(itemId, favorite);
+    m_movieResults.updateFavorite(itemId, favorite);
+    m_seriesResults.updateFavorite(itemId, favorite);
+    m_episodeResults.updateFavorite(itemId, favorite);
     m_suggestions.updateFavorite(itemId, favorite);
 }
 
 void SearchController::updatePlayed(const QString& itemId, bool played)
 {
-    m_results.updatePlayed(itemId, played);
+    m_movieResults.updatePlayed(itemId, played);
+    m_seriesResults.updatePlayed(itemId, played);
+    m_episodeResults.updatePlayed(itemId, played);
     m_suggestions.updatePlayed(itemId, played);
 }
 
@@ -143,7 +151,7 @@ void SearchController::reset()
     m_debounceTimer.stop();
     m_searchGeneration.invalidate();
     m_suggestionsGeneration.invalidate();
-    m_results.clear();
+    clearResults();
     m_suggestions.clear();
     if (!m_query.isEmpty()) {
         m_query.clear();
@@ -154,6 +162,31 @@ void SearchController::reset()
     m_suggestionsLoaded = false;
     emit resultsChanged();
     emit suggestionsChanged();
+}
+
+void SearchController::clearResults()
+{
+    m_movieResults.clear();
+    m_seriesResults.clear();
+    m_episodeResults.clear();
+}
+
+void SearchController::setResults(std::vector<MovieItem> items)
+{
+    std::vector<MovieItem> movies;
+    std::vector<MovieItem> series;
+    std::vector<MovieItem> episodes;
+    for (MovieItem& item : items) {
+        if (item.itemType == QStringLiteral("Movie"))
+            movies.push_back(std::move(item));
+        else if (item.itemType == QStringLiteral("Series"))
+            series.push_back(std::move(item));
+        else if (item.itemType == QStringLiteral("Episode"))
+            episodes.push_back(std::move(item));
+    }
+    m_movieResults.setMovies(movies);
+    m_seriesResults.setMovies(series);
+    m_episodeResults.setMovies(episodes);
 }
 
 bool SearchController::authenticated() const

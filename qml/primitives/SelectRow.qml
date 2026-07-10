@@ -24,9 +24,9 @@ SettingRow {
 
     Row {
         anchors.right: parent.right
-        anchors.rightMargin: 14
+        anchors.rightMargin: Metrics.scaled(14)
         anchors.verticalCenter: parent.verticalCenter
-        spacing: 8
+        spacing: Metrics.scaled(8)
 
         MaterialIcon {
             anchors.verticalCenter: parent.verticalCenter
@@ -36,19 +36,20 @@ SettingRow {
         }
 
         Rectangle {
-            width: Math.min(Math.max(valueLabel.implicitWidth + 28, 112), Math.max(112, root.width * 0.42))
-            height: Math.max(32, Metrics.metaPx(root.metricsWidth) + 18)
+            width: Math.min(Math.max(valueLabel.implicitWidth + Metrics.scaled(28), Metrics.scaled(112)), Math.max(
+                                Metrics.scaled(112), root.width * 0.42))
+            height: Math.max(Metrics.scaled(32), Metrics.metaPx(root.metricsWidth) + Metrics.scaled(18))
             radius: Theme.radiusMedium
             color: root.activeFocus ? Theme.accentPanel : Theme.bgRaised
-            border.width: root.activeFocus ? 2 : 1
+            border.width: root.activeFocus ? Theme.focusBorderWidth : Theme.hoverBorderWidth
             border.color: root.activeFocus ? Theme.accent : Theme.border
             antialiasing: true
 
             AppText {
                 id: valueLabel
                 anchors.fill: parent
-                anchors.leftMargin: 14
-                anchors.rightMargin: 14
+                anchors.leftMargin: Metrics.scaled(14)
+                anchors.rightMargin: Metrics.scaled(14)
                 text: root.selectedText
                 color: Theme.textPrimary
                 font.pixelSize: Metrics.metaPx(root.metricsWidth)

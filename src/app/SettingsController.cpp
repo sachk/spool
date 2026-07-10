@@ -14,6 +14,9 @@ namespace JellyfinNative {
 
 namespace {
 
+    constexpr auto kUiScaleSetupVersionKey = "appearance/uiScaleSetupVersion";
+    constexpr int kUiScaleSetupVersion = 1;
+
     QString keyString(const SettingSpec& spec)
     {
         return QString::fromLatin1(spec.key);
@@ -132,6 +135,9 @@ QCoro::Task<void> SettingsController::loadLocalAsync()
         if (serialized != stored)
             m_database->saveSetting(key, serialized);
     }
+    const QString setupVersion
+        = co_await m_database->loadSettingAsync(QString::fromLatin1(kUiScaleSetupVersionKey), QStringLiteral("0"));
+    m_uiScaleSetupVersion = setupVersion.toInt() > 0 ? kUiScaleSetupVersion : 0;
 
     if (m_player) {
         m_player->setNightModeEnabled(m_nightModeEnabled);
@@ -150,6 +156,7 @@ QCoro::Task<void> SettingsController::loadLocalAsync()
     emit audioOutputModeChanged();
     emit subtitleSettingsChanged();
     emit buttonRemapChanged();
+    emit appearanceChanged();
 }
 
 void SettingsController::loadRemote()
@@ -248,6 +255,19 @@ void SettingsController::setAudioDelayMs(int delayMs)
 void SettingsController::setAudioOutputMode(const QString& mode)
 {
     setValue(QStringLiteral("settings/audioOutputMode"), mode);
+}
+void SettingsController::setUiScalePercent(int percent)
+{
+    setValue(QStringLiteral("appearance/uiScalePercent"), percent);
+}
+void SettingsController::completeUiScaleSetup(int percent)
+{
+    setUiScalePercent(percent);
+    if (m_uiScaleSetupVersion >= kUiScaleSetupVersion)
+        return;
+    m_uiScaleSetupVersion = kUiScaleSetupVersion;
+    m_database->saveSetting(QString::fromLatin1(kUiScaleSetupVersionKey), QString::number(kUiScaleSetupVersion));
+    emit appearanceChanged();
 }
 void SettingsController::setSubtitleLanguageIndex(int index)
 {
@@ -379,6 +399,9 @@ void SettingsController::applySchemaValue(const SettingSpec& spec, const QVarian
         if (apply && m_player)
             m_player->setAudioOutputMode(m_audioOutputMode);
         break;
+    case SettingTarget::UiScale:
+        m_uiScalePercent = value.toInt();
+        break;
     case SettingTarget::SubtitleLanguage:
         m_subtitlePreferences.language = value.toString();
         if (apply) {
@@ -473,6 +496,9 @@ void SettingsController::emitSchemaSignals(const SettingSpec& spec)
         break;
     case SettingTarget::AudioOutput:
         emit audioOutputModeChanged();
+        break;
+    case SettingTarget::UiScale:
+        emit appearanceChanged();
         break;
     case SettingTarget::SubtitleLanguage:
     case SettingTarget::SubtitleMode:

@@ -13,6 +13,7 @@ KeyRouter {
     property int lastLibraryIndex: 0
     property int lastGridIndex: 0
     property int lastSearchIndex: 0
+    property string lastSearchKind: "movies"
     property bool diagnosticsVisible: false
     property bool mediaInfoVisible: false
     property bool itemMenuLoaded: false
@@ -61,7 +62,7 @@ KeyRouter {
         const keyboardTop = keyboardRect && keyboardRect.height > 0 ? keyboardRect.y : root.height
         const focusPos = focusItem.mapToItem(root, 0, 0)
         const focusBottom = focusPos.y + focusItem.height + keyboardAvoidance
-        const overlap = focusBottom + 24 - keyboardTop
+        const overlap = focusBottom + Metrics.scaled(24) - keyboardTop
         keyboardAvoidance = Math.max(0, Math.min(overlap, root.height * 0.45))
     }
 
@@ -104,14 +105,14 @@ KeyRouter {
         }
     }
     function defaultRoute() {
-        return Session.authenticated ? "home" : "login"
+        return Session.authenticated ? (Settings.uiScaleSetupComplete ? "home" : "scaleSetup") : "login"
     }
 
     Connections {
         target: Session
         function onAuthenticatedStateChanged() {
             if (Session.authenticated)
-                Router.replace("home")
+                Router.replace(root.defaultRoute())
             else
                 Router.reset("login")
         }
@@ -151,8 +152,11 @@ KeyRouter {
 
         if (normalized.source === "movies")
             lastGridIndex = normalized.focusIndex
-        else if (normalized.source === "search" || normalized.source === "suggestion")
+        else if (normalized.source === "search" || normalized.source === "suggestion") {
             lastSearchIndex = normalized.focusIndex
+            if (normalized.source === "suggestion")
+                lastSearchKind = "suggestions"
+        }
 
         if (route === "itemDetails") {
             Router.replace("itemDetails", normalized)
@@ -294,17 +298,28 @@ KeyRouter {
         pushRoute("personDetails")
     }
 
+    function searchModel() {
+        if (lastSearchKind === "series")
+            return Search.seriesResults
+        if (lastSearchKind === "episodes")
+            return Search.episodeResults
+        if (lastSearchKind === "suggestions")
+            return Search.suggestions
+        return Search.movieResults
+    }
+
     function currentMediaItem() {
         if (route === "itemDetails") {
             const details = RoutePolicy.detailsContext(routeArgs, Browse.items)
             if (details.index >= 0)
                 return details.item
         }
-        if (route === "search" && Search.results) {
-            const searchCount = Search.results.rowCount()
+        if (route === "search") {
+            const model = searchModel()
+            const searchCount = model ? model.rowCount() : 0
             if (searchCount > 0) {
                 const searchIdx = Math.max(0, Math.min(lastSearchIndex, searchCount - 1))
-                return Search.results.get(searchIdx) || ({})
+                return model.get(searchIdx) || ({})
             }
         }
         const count = Browse.items.rowCount()
@@ -329,10 +344,8 @@ KeyRouter {
         InputKeys.focus(routeStack)
     }
 
-    function setUiScale(value) {
-        const step = 0.05
-        const rounded = Math.round(Number(value || 1.0) / step) * step
-        Metrics.userUiScale = Math.max(0.75, Math.min(1.5, rounded))
+    function setUiScale(percent) {
+        Settings.setUiScalePercent(Math.max(80, Math.min(125, Math.round(Number(percent || 100) / 5) * 5)))
     }
 
     function globalShortcut(key, phase, repeat, modifiers) {
@@ -340,15 +353,15 @@ KeyRouter {
             return false
         if (modifiers & Qt.ControlModifier) {
             if (key === Qt.Key_Plus || key === Qt.Key_Equal) {
-                setUiScale(Metrics.userUiScale + 0.05)
+                setUiScale(Settings.uiScalePercent + 5)
                 return true
             }
             if (key === Qt.Key_Minus || key === Qt.Key_Underscore) {
-                setUiScale(Metrics.userUiScale - 0.05)
+                setUiScale(Settings.uiScalePercent - 5)
                 return true
             }
             if (key === Qt.Key_0) {
-                setUiScale(1.0)
+                setUiScale(100)
                 return true
             }
             if (key === Qt.Key_D) {
@@ -398,8 +411,8 @@ KeyRouter {
         TopBar {
             id: navBar
             Layout.fillWidth: true
-            Layout.preferredHeight: route === "login" ? 0 : Metrics.topBarHeight(root.width)
-            visible: route !== "login"
+            Layout.preferredHeight: route === "login" || route === "scaleSetup" ? 0 : Metrics.topBarHeight(root.width)
+            visible: route !== "login" && route !== "scaleSetup"
             z: 1
             currentRoute: root.route
             onActiveFocusChanged: if (activeFocus)
@@ -509,16 +522,16 @@ KeyRouter {
     Surface {
         anchors.horizontalCenter: parent.horizontalCenter
         anchors.bottom: parent.bottom
-        anchors.bottomMargin: 32
-        width: Math.min(parent.width * 0.72, 960)
-        height: root.errorTextValue.length > 0 ? errorText.implicitHeight + 28 : 0
+        anchors.bottomMargin: Metrics.scaled(32)
+        width: Math.min(parent.width * 0.72, Metrics.scaled(960))
+        height: root.errorTextValue.length > 0 ? errorText.implicitHeight + Metrics.scaled(28) : 0
         visible: root.errorTextValue.length > 0
         baseColor: Theme.errorPanel
         z: 80
         AppText {
             id: errorText
             anchors.centerIn: parent
-            width: Math.max(0, parent.width - 28)
+            width: Math.max(0, parent.width - Metrics.scaled(28))
             text: root.errorTextValue
             color: Theme.errorText
             wrapMode: Text.Wrap

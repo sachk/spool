@@ -33,7 +33,7 @@ Item {
         anchors.fill: parent
         radius: Theme.radiusMedium
         color: Theme.bgRaised
-        border.width: root.focused ? 2 : root.hovered ? 1 : 1
+        border.width: root.focused ? Theme.focusBorderWidth : Theme.hoverBorderWidth
         border.color: root.focused ? Theme.accent : root.hovered ? Theme.borderStrong : Theme.border
         clip: true
         antialiasing: true
@@ -56,17 +56,17 @@ Item {
             anchors.fill: parent
             visible: artwork.status !== Image.Ready
             color: Theme.bgRaised
-            border.width: 1
+            border.width: Theme.hoverBorderWidth
             border.color: Theme.border
 
             MonoText {
                 anchors.centerIn: parent
-                width: parent.width - 20
+                width: parent.width - Metrics.scaled(20)
                 text: root.fallbackText.length > 0 ? root.fallbackText : "..."
                 color: Theme.textMuted
                 horizontalAlignment: Text.AlignHCenter
                 wrapMode: Text.Wrap
-                font.pixelSize: 13
+                font.pixelSize: Metrics.scaled(13)
             }
         }
 
@@ -76,7 +76,7 @@ Item {
             anchors.fill: parent
             radius: frame.radius
             color: "transparent"
-            border.width: 3
+            border.width: Theme.focusBorderWidth + Theme.hoverBorderWidth
             border.color: Theme.accent
             visible: root.focused
             antialiasing: true
