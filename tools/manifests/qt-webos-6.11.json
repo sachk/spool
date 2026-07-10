@@ -42,6 +42,6 @@
     "targetStatic": ["release", "examples=off", "tests=off", "static"]
   },
   "submodules": {
-    "mpv": "d9b3f10a34546f100537d2f391ea6f08c80359e5"
+    "mpv": "5400500fa716b0655ee7373a492b6acc5369188c"
   }
 }
