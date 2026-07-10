@@ -1074,6 +1074,9 @@ void PlayerController::adjustVolume(int delta)
 
 void PlayerController::setSubtitlePreferences(const SubtitlePreferences& preferences)
 {
+    if (m_subtitlePreferences == preferences)
+        return;
+
     m_subtitlePreferences = preferences;
     qInfo() << "player: subtitle preferences changed"
             << "mode=" << preferences.mode << "language=" << preferences.language << "styling=" << preferences.styling;

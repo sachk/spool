@@ -309,6 +309,8 @@ struct SubtitlePreferences {
     QString dropShadow;
     QString textBackground = QStringLiteral("transparent");
     int verticalPosition = -3;
+
+    friend bool operator==(const SubtitlePreferences&, const SubtitlePreferences&) = default;
 };
 
 struct PagedMovieItems {
