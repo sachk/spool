@@ -24,6 +24,7 @@
 #include <QPixmapCache>
 #include <QStringList>
 #include <QTimer>
+#include <QUuid>
 #include <QVariantMap>
 
 #include <algorithm>
@@ -131,6 +132,13 @@ void AppController::initialize()
 QCoro::Task<void> AppController::initializeAsync()
 {
     Diagnostics::Task task(QStringLiteral("app_initialize"));
+    QString deviceId = co_await m_database->loadDeviceIdAsync();
+    if (deviceId.isEmpty()) {
+        deviceId = QUuid::createUuid().toString(QUuid::WithoutBraces);
+        m_database->saveDeviceId(deviceId);
+    }
+    m_api->setDeviceId(deviceId);
+
     co_await m_settings->loadLocalAsync();
     m_prefetch->configureImagePrefetch(m_settings->value(QStringLiteral("network/imagePrefetchAhead")).toInt(),
         m_settings->value(QStringLiteral("network/imagePrefetchConcurrency")).toInt());

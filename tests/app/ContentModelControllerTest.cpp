@@ -134,12 +134,15 @@ private:
 class FakeNetworkAccessManager final : public QNetworkAccessManager {
 public:
     QVector<QUrl> requestedUrls;
+    QVector<int> connectionCacheExpirySeconds;
 
 protected:
     QNetworkReply *createRequest(Operation operation, const QNetworkRequest& request, QIODevice *outgoingData) override
     {
         Q_UNUSED(outgoingData);
         requestedUrls.push_back(request.url());
+        connectionCacheExpirySeconds.push_back(
+            request.attribute(QNetworkRequest::ConnectionCacheExpiryTimeoutSecondsAttribute).toInt());
 
         const QUrl url = request.url();
         const QUrlQuery query(url);
@@ -360,6 +363,11 @@ int main(int argc, char **argv)
     require(boxSetRow.id == QStringLiteral("boxset-child-1"),
         "box set child id was not populated from the browse response");
     require(boxSetRow.itemType == QStringLiteral("Movie"), "box set child type was not preserved");
+
+    require(!network.connectionCacheExpirySeconds.isEmpty()
+            && std::all_of(network.connectionCacheExpirySeconds.cbegin(), network.connectionCacheExpirySeconds.cend(),
+                [](int seconds) { return seconds >= 15 * 60; }),
+        "API requests did not preserve idle server connections across navigation pauses");
 
     return EXIT_SUCCESS;
 }

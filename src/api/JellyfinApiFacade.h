@@ -33,6 +33,7 @@ public:
     QString serverUrl() const;
 
     void setDeviceIdentity(const QString& deviceId, const QString& deviceName, const QString& clientVersion);
+    void setDeviceId(const QString& deviceId);
     QString deviceId() const;
 
     // Forwarded into the QNetworkRequestFactory common headers so every API
