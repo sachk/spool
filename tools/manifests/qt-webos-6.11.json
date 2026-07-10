@@ -12,8 +12,7 @@
     {"name": "qtwayland", "sha256": "95788aa502f75441d4edf65932b235f76523084e13dbbb7b9ee2d207b32bd9b3"},
     {"name": "qtopenapi", "sha256": "440d04bec92de754df3dc0861fb5a9ec26f0b332fb67b35c35cdad5b7849f45b"},
     {"name": "qtimageformats", "sha256": "b2bf6c6845ac175ed7f819145483ba4676f617aaa6a5012c8efee63c8bbac413"},
-    {"name": "qtsvg", "sha256": "7f3cf02f4824bf03c2c5859ea6db173bf1482a1daf24e6cdf7bc78cfa26a8a94"},
-    {"name": "qtvirtualkeyboard", "sha256": "a1c6967b326243b2ca8d50bc7b7f7852c3975d9aa6ce4b186ebdf35bb1007e1c"}
+    {"name": "qtsvg", "sha256": "7f3cf02f4824bf03c2c5859ea6db173bf1482a1daf24e6cdf7bc78cfa26a8a94"}
   ],
   "patches": [
     "tools/webos-native/patches/qtbase-6.11-webos-qstorageinfo-linux.patch",

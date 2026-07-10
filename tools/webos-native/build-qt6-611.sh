@@ -26,7 +26,6 @@ QT_BASE_URL="${QT_BASE_URL:-$(manifest_qt_field "$QT_MANIFEST" baseUrl)}"
 QT_STATIC="${QT_STATIC:-0}"
 PHASE="${1:-all}"
 BUILD_QTOPENAPI="${BUILD_QTOPENAPI:-0}"
-BUILD_QTVIRTUALKEYBOARD="${BUILD_QTVIRTUALKEYBOARD:-0}"
 QT_BUILD_CLEAN_POISONED="${QT_BUILD_CLEAN_POISONED:-1}"
 QT_BUILD_MEMORY_PER_JOB_MIB="${QT_BUILD_MEMORY_PER_JOB_MIB:-1536}"
 QT_BUILD_MEMORY_RESERVE_MIB="${QT_BUILD_MEMORY_RESERVE_MIB:-2048}"
@@ -50,7 +49,6 @@ QTWAYLAND_TARBALL="$SRC_DIR/qtwayland-everywhere-src-$QT_VERSION.tar.xz"
 QTOPENAPI_TARBALL="$SRC_DIR/qtopenapi-everywhere-src-$QT_VERSION.tar.xz"
 QTIMAGEFORMATS_TARBALL="$SRC_DIR/qtimageformats-everywhere-src-$QT_VERSION.tar.xz"
 QTSVG_TARBALL="$SRC_DIR/qtsvg-everywhere-src-$QT_VERSION.tar.xz"
-QTVIRTUALKEYBOARD_TARBALL="$SRC_DIR/qtvirtualkeyboard-everywhere-src-$QT_VERSION.tar.xz"
 
 QTBASE_SRC="$SRC_DIR/qtbase-everywhere-src-$QT_VERSION"
 QTSHADERTOOLS_SRC="$SRC_DIR/qtshadertools-everywhere-src-$QT_VERSION"
@@ -61,7 +59,6 @@ QTWAYLAND_SRC="$SRC_DIR/qtwayland-everywhere-src-$QT_VERSION"
 QTOPENAPI_SRC="$SRC_DIR/qtopenapi-everywhere-src-$QT_VERSION"
 QTIMAGEFORMATS_SRC="$SRC_DIR/qtimageformats-everywhere-src-$QT_VERSION"
 QTSVG_SRC="$SRC_DIR/qtsvg-everywhere-src-$QT_VERSION"
-QTVIRTUALKEYBOARD_SRC="$SRC_DIR/qtvirtualkeyboard-everywhere-src-$QT_VERSION"
 
 QT_BUILD_TAG="${QT_SERIES//./}"
 HOST_BUILD_ROOT="$ROOT/build/qt6-$QT_BUILD_TAG-host"
@@ -231,7 +228,7 @@ maybe_clean_poisoned_build_dir() {
   if ! grep -Fqx "CMAKE_HOME_DIRECTORY:INTERNAL=$expected_source" "$dir/CMakeCache.txt"; then
     log "Removing stale-source CMake cache: $dir"
     rm -rf "$dir"
-  elif grep -Eq '/nix/store/[^ ;"]*-qt(base|declarative|tools|websockets|wayland|imageformats|svg|virtualkeyboard)-' "$dir/CMakeCache.txt"; then
+  elif grep -Eq '/nix/store/[^ ;"]*-qt(base|declarative|tools|websockets|wayland|imageformats|svg)-' "$dir/CMakeCache.txt"; then
     log "Removing nixpkgs-poisoned CMake cache: $dir"
     rm -rf "$dir"
   fi
@@ -333,9 +330,6 @@ fetch_sources() {
   fi
   download_submodule qtimageformats "$QTIMAGEFORMATS_TARBALL"
   download_submodule qtsvg "$QTSVG_TARBALL"
-  if [[ "$BUILD_QTVIRTUALKEYBOARD" == "1" ]]; then
-    download_submodule qtvirtualkeyboard "$QTVIRTUALKEYBOARD_TARBALL"
-  fi
 
   extract_if_needed "$QTBASE_TARBALL" "$QTBASE_SRC"
   extract_if_needed "$QTSHADERTOOLS_TARBALL" "$QTSHADERTOOLS_SRC"
@@ -348,9 +342,6 @@ fetch_sources() {
   fi
   extract_if_needed "$QTIMAGEFORMATS_TARBALL" "$QTIMAGEFORMATS_SRC"
   extract_if_needed "$QTSVG_TARBALL" "$QTSVG_SRC"
-  if [[ "$BUILD_QTVIRTUALKEYBOARD" == "1" ]]; then
-    extract_if_needed "$QTVIRTUALKEYBOARD_TARBALL" "$QTVIRTUALKEYBOARD_SRC"
-  fi
 
   apply_local_patches
 }
@@ -481,31 +472,6 @@ OPENAPI_EOF
   printf '%s\n' "$jar"
 }
 
-remove_virtualkeyboard_install_artifacts() {
-  local prefix="$1"
-  [[ -d "$prefix" ]] || return 0
-
-  rm -rf \
-    "$prefix"/include/QtVirtualKeyboard* \
-    "$prefix"/lib/cmake/Qt6VirtualKeyboard* \
-    "$prefix"/lib/cmake/Qt6Gui/Qt6QVirtualKeyboard* \
-    "$prefix"/lib/cmake/Qt6Qml/QmlPlugins/*VirtualKeyboard* \
-    "$prefix"/lib/cmake/Qt6Qml/QmlPlugins/*qtvkb* \
-    "$prefix"/lib/libQt6VirtualKeyboard* \
-    "$prefix"/lib/objects-*/*virtualkeyboard* \
-    "$prefix"/lib/objects-*/*qtvkb* \
-    "$prefix"/lib/pkgconfig/Qt6VirtualKeyboard*.pc \
-    "$prefix"/metatypes/qt6virtualkeyboard* \
-    "$prefix"/modules/*VirtualKeyboard*.json \
-    "$prefix"/mkspecs/modules/qt_lib_*virtualkeyboard* \
-    "$prefix"/mkspecs/modules/qt_plugin_qtvirtualkeyboard* \
-    "$prefix"/plugins/platforminputcontexts/*virtualkeyboard* \
-    "$prefix"/plugins/platforminputcontexts/objects-*/*VirtualKeyboard* \
-    "$prefix"/plugins/virtualkeyboard \
-    "$prefix"/qml/QtQuick/VirtualKeyboard \
-    "$prefix"/sbom/qtvirtualkeyboard-*.spdx \
-    "$prefix"/sbom/qtvirtualkeyboard-*.json
-}
 
 
 build_all_host_modules() {
@@ -580,17 +546,6 @@ build_all_host_modules() {
     build_host_module qtsvg
   fi
 
-  if [[ "$BUILD_QTVIRTUALKEYBOARD" == "1" ]]; then
-    if host_module_up_to_date qtvirtualkeyboard "lib/cmake/Qt6VirtualKeyboard/Qt6VirtualKeyboardConfig.cmake"; then
-      log "host qtvirtualkeyboard: up to date, skipping"
-    else
-      configure_host_module qtvirtualkeyboard "$QTVIRTUALKEYBOARD_SRC"
-      build_host_module qtvirtualkeyboard
-    fi
-  else
-    log "host qtvirtualkeyboard: disabled by BUILD_QTVIRTUALKEYBOARD=0"
-    remove_virtualkeyboard_install_artifacts "$HOST_INSTALL"
-  fi
 }
 
 configure_target_qtbase() {
@@ -885,17 +840,6 @@ build_all_target_modules() {
     build_target_module qtsvg
   fi
 
-  if [[ "$BUILD_QTVIRTUALKEYBOARD" == "1" ]]; then
-    if target_module_up_to_date qtvirtualkeyboard "$(target_lib_marker Qt6VirtualKeyboard)"; then
-      log "target qtvirtualkeyboard: up to date, skipping"
-    else
-      configure_target_module qtvirtualkeyboard "$QTVIRTUALKEYBOARD_SRC"
-      build_target_module qtvirtualkeyboard
-    fi
-  else
-    log "target qtvirtualkeyboard: disabled by BUILD_QTVIRTUALKEYBOARD=0"
-    remove_virtualkeyboard_install_artifacts "$TARGET_STAGING"
-  fi
 }
 
 ensure_host() {
@@ -933,7 +877,6 @@ Environment knobs:
   QT_BUILD_FORCE_MODULES=a,b    rebuild selected modules
   QT_BUILD_CLEAN_POISONED=0|1   auto-remove CMake caches that mention nixpkgs Qt
   BUILD_QTOPENAPI=0|1           optional QtOpenApi module (default: 0)
-  BUILD_QTVIRTUALKEYBOARD=0|1
   WEBOS_SDK_ROOT=/path/to/arm-webos-linux-gnueabi_sdk-buildroot
 USAGE_EOF
 }
