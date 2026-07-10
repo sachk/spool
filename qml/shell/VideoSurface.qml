@@ -42,8 +42,6 @@ FocusScope {
         id: playerOverlay
         anchors.fill: parent
         visible: root.active
-        mediaInfoVisible: root.mediaInfoVisible
-        diagnosticsVisible: root.diagnosticsVisible
         z: 1
     }
 
