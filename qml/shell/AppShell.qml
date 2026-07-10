@@ -14,19 +14,13 @@ KeyRouter {
     property int lastGridIndex: 0
     property int lastSearchIndex: 0
     property bool diagnosticsVisible: false
-    property bool diagnosticsLoaded: false
     property bool mediaInfoVisible: false
-    property bool mediaInfoLoaded: false
     property bool itemMenuLoaded: false
     readonly property bool itemMenuOpen: itemContextMenuLoader.item ? itemContextMenuLoader.item.opened : false
     property var mediaInfoItem: ({})
     property bool managementOverlayVisible: false
     property string managementMode: ""
     property var managementItem: ({})
-    property string managementInitialName: ""
-    property bool managementFocusNamePending: false
-    readonly property var managementTargets: managementMode === "collection" ? Management.collectionTargets :
-                                                                               Management.playlistTargets
     property var personItem: ({})
     textInputActive: Qt.inputMethod.visible || InputKeys.isTextInputItem(root.Window.window
                                                                          ? root.Window.window.activeFocusItem : null)
@@ -102,10 +96,6 @@ KeyRouter {
     Connections {
         target: App
         function onAggressiveMemoryPressure() {
-            if (!root.diagnosticsVisible)
-                root.diagnosticsLoaded = false
-            if (!root.mediaInfoVisible)
-                root.mediaInfoLoaded = false
             if (!root.itemMenuOpen)
                 root.itemMenuLoaded = false
         }
@@ -226,7 +216,7 @@ KeyRouter {
             return true
         }
         if (mediaInfoVisible) {
-            mediaInfoVisible = false
+            closeMediaInfo()
             return true
         }
         if (root.hasPlayer && root.player.visible) {
@@ -270,111 +260,27 @@ KeyRouter {
         mediaInfoItem = item || ({})
         if (mediaInfoItem.movieId)
             Content.loadItemDetail(mediaInfoItem.movieId)
-        mediaInfoLoaded = true
         mediaInfoVisible = true
     }
 
-    function itemTitle(item) {
-        return String(item && (item.displayTitle || item.title || item.seriesName || item.name) || "Selected item")
+    function closeMediaInfo() {
+        mediaInfoVisible = false
+        mediaInfoItem = ({})
+        InputKeys.focus(routeStack)
     }
 
-    function focusManagementOverlay() {
-        const overlay = managementOverlayLoader.item
-        if (overlay)
-            InputKeys.focus(overlay)
-    }
-
-    function focusManagementNameField() {
-        const overlay = managementOverlayLoader.item
-        if (!overlay) {
-            managementFocusNamePending = true
-            return
-        }
-        managementFocusNamePending = false
-        overlay.focusNameField()
-    }
-
-    function openManagementPicker(mode, item) {
+    function openManagement(mode, item) {
         managementMode = mode
         managementItem = item || ({})
-        managementInitialName = ""
         managementOverlayVisible = true
-        Management.refreshTargets(mode)
-        Qt.callLater(focusManagementOverlay)
-    }
-
-    function openRenamePrompt(item) {
-        managementMode = "rename"
-        managementItem = item || ({})
-        managementInitialName = itemTitle(managementItem)
-        managementOverlayVisible = true
-        managementFocusNamePending = true
-        Qt.callLater(focusManagementNameField)
-    }
-
-    function openDeleteConfirm(item) {
-        managementMode = "delete"
-        managementItem = item || ({})
-        managementInitialName = ""
-        managementOverlayVisible = true
-        Qt.callLater(focusManagementOverlay)
-    }
-
-    function openRemoveConfirm(item) {
-        managementMode = "remove"
-        managementItem = item || ({})
-        managementInitialName = ""
-        managementOverlayVisible = true
-        Qt.callLater(focusManagementOverlay)
     }
 
     function closeManagementOverlay() {
         managementOverlayVisible = false
         managementMode = ""
         managementItem = ({})
-        managementInitialName = ""
-        managementFocusNamePending = false
         Qt.inputMethod.hide()
         InputKeys.focus(routeStack)
-    }
-
-    function submitManagementCreate(name) {
-        const trimmed = String(name || "").trim()
-        if (trimmed.length <= 0)
-            return
-        if (managementMode === "playlist")
-            Management.createPlaylistForItem(trimmed, managementItem)
-        else if (managementMode === "collection")
-            Management.createCollectionForItem(trimmed, managementItem)
-        else if (managementMode === "rename")
-            Management.renameItem(managementItem, trimmed)
-        closeManagementOverlay()
-    }
-
-    function submitManagementTarget(index) {
-        if (index < 0)
-            return
-        if (index === 0) {
-            focusManagementNameField()
-            return
-        }
-        const target = managementTargets[index - 1] || ({})
-        const targetId = String(target.movieId || target.id || "")
-        if (targetId.length <= 0)
-            return
-        if (managementMode === "playlist")
-            Management.addItemToPlaylist(targetId, managementItem)
-        else if (managementMode === "collection")
-            Management.addItemToCollection(targetId, managementItem)
-        closeManagementOverlay()
-    }
-
-    function confirmManagementAction() {
-        if (managementMode === "delete")
-            Management.deleteItem(managementItem)
-        else if (managementMode === "remove")
-            Management.removeItemFromCurrentParent(managementItem)
-        closeManagementOverlay()
     }
 
     function openPerson(person) {
@@ -446,7 +352,6 @@ KeyRouter {
                 return true
             }
             if (key === Qt.Key_D) {
-                diagnosticsLoaded = true
                 diagnosticsVisible = !diagnosticsVisible
                 return true
             }
@@ -456,12 +361,10 @@ KeyRouter {
             return true
         }
         if (key === Qt.Key_I) {
-            if (mediaInfoVisible) {
-                mediaInfoVisible = false
-                mediaInfoItem = ({})
-            } else {
+            if (mediaInfoVisible)
+                closeMediaInfo()
+            else
                 openMediaInfo(currentMediaItem())
-            }
             return true
         }
         if (key === Qt.Key_M || key === Qt.Key_Menu) {
@@ -559,25 +462,9 @@ KeyRouter {
         sourceComponent: ManagementDialog {
             mode: root.managementMode
             item: root.managementItem
-            targets: root.managementTargets
-            currentViewKind: Browse.viewKind
-            nameDraft: root.managementInitialName
-            targetIndex: 0
             onDismissed: root.closeManagementOverlay()
-            onCreateRequested: name => root.submitManagementCreate(name)
-            onTargetRequested: index => root.submitManagementTarget(index)
-            onConfirmRequested: root.confirmManagementAction()
         }
-        onLoaded: {
-            if (!item)
-                return
-            if (root.managementFocusNamePending) {
-                root.managementFocusNamePending = false
-                item.focusNameField()
-            } else {
-                InputKeys.focus(item)
-            }
-        }
+        onLoaded: item.prepare()
     }
 
     Loader {
@@ -586,30 +473,7 @@ KeyRouter {
         z: 58
         active: root.itemMenuLoaded
         sourceComponent: ItemContextMenu {
-            onPlayedToggled: (itemId, played) => ItemState.setPlayed(itemId, played)
-            onFavoriteToggled: (itemId, favorite) => ItemState.setFavorite(itemId, favorite)
-            onClearProgressRequested: itemId => ItemState.clearProgress(itemId)
-            onOpenSeriesRequested: (seriesId, seriesName) => {
-                                       if (seriesId.length <= 0)
-                                       return
-                                       root.replaceRoute("libraryGrid")
-                                       App.openSeriesById(seriesId, seriesName)
-                                   }
-            onOpenSeasonRequested: (seriesId, seasonId, seasonName) => {
-                                       if (seriesId.length <= 0)
-                                       return
-                                       root.replaceRoute("libraryGrid")
-                                       App.openSeasonById(seriesId, seasonId, seasonName)
-                                   }
-            onMediaInfoRequested: item => root.openMediaInfo(item)
-            onPlayNextRequested: item => App.playNextFromItem(item)
-            onAddToQueueRequested: item => App.addToQueueFromItem(item)
-            onAddToPlaylistRequested: item => root.openManagementPicker("playlist", item)
-            onAddToCollectionRequested: item => root.openManagementPicker("collection", item)
-            onRemoveFromParentRequested: item => root.openRemoveConfirm(item)
-            onMovePlaylistItemRequested: (item, delta) => Management.movePlaylistItemInCurrent(item, delta)
-            onRenameRequested: item => root.openRenamePrompt(item)
-            onDeleteRequested: item => root.openDeleteConfirm(item)
+            shell: root
         }
     }
 
@@ -617,26 +481,22 @@ KeyRouter {
         id: mediaInfoOverlayLoader
         anchors.fill: parent
         z: 59
-        active: root.mediaInfoLoaded
+        active: root.mediaInfoVisible
         sourceComponent: MediaInfoOverlay {
             visible: root.mediaInfoVisible
             item: visible ? (root.mediaInfoItem && Object.keys(root.mediaInfoItem).length > 0 ? root.mediaInfoItem :
                                                                                                 root.currentMediaItem(
                                                                                                     )) : ({})
             shell: root
-            onClosed: {
-                root.mediaInfoVisible = false
-                root.mediaInfoItem = ({})
-            }
+            onClosed: root.closeMediaInfo()
         }
     }
 
     Loader {
         anchors.fill: parent
         z: 61
-        active: root.diagnosticsLoaded
+        active: root.diagnosticsVisible && !(root.hasPlayer && root.player.visible)
         sourceComponent: DiagnosticsOverlay {
-            visible: root.diagnosticsVisible && !(root.hasPlayer && root.player.visible)
             route: root.route
             focusedItemId: RoutePolicy.itemIdFor(root.currentMediaItem())
         }

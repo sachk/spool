@@ -8,6 +8,7 @@ FocusScope {
 
     property var item: ({})
     property var anchorItem: null
+    property var shell
     property int menuIndex: 0
     property var menuOptions: []
     property bool favoriteState: Boolean(item && item.favorite)
@@ -38,21 +39,6 @@ FocusScope {
     readonly property bool canManageCollections: Management.currentUserCanManageCollections
     readonly property bool canRenameItem: Management.currentUserCanRenameItems
     readonly property bool canDeleteItem: Management.currentUserCanDeleteItems
-
-    signal playedToggled(string itemId, bool played)
-    signal favoriteToggled(string itemId, bool favorite)
-    signal clearProgressRequested(string itemId)
-    signal openSeriesRequested(string seriesId, string seriesName)
-    signal openSeasonRequested(string seriesId, string seasonId, string seasonName)
-    signal mediaInfoRequested(var item)
-    signal playNextRequested(var item)
-    signal addToQueueRequested(var item)
-    signal addToPlaylistRequested(var item)
-    signal addToCollectionRequested(var item)
-    signal removeFromParentRequested(var item)
-    signal movePlaylistItemRequested(var item, int delta)
-    signal renameRequested(var item)
-    signal deleteRequested(var item)
 
     visible: opened
     focus: opened
@@ -240,40 +226,42 @@ FocusScope {
             return
         const action = menuOptions[index].action
         if (action === "series") {
-            openSeriesRequested(String(item.seriesId || ""), String(item.seriesName || ""))
+            const seriesId = String(item.seriesId || "")
+            if (seriesId.length > 0) {
+                shell.replaceRoute("libraryGrid")
+                App.openSeriesById(seriesId, String(item.seriesName || ""))
+            }
         } else if (action === "season") {
-            openSeasonRequested(String(item.seriesId || ""), itemType === "Season" ? itemId : String(item.seasonId
-                                                                                                     || ""), itemType
-                                === "Season" ? String(item.title || seasonTitle()) : seasonTitle())
+            const seasonId = itemType === "Season" ? itemId : String(item.seasonId || "")
+            if (item.seriesId && seasonId) {
+                shell.replaceRoute("libraryGrid")
+                App.openSeasonById(String(item.seriesId), seasonId, itemType === "Season" ? String(item.title || seasonTitle(
+                                                                                                       )) : seasonTitle(
+                                                                                                ))
+            }
         } else if (action === "playNext") {
-            playNextRequested(item)
+            App.playNextFromItem(item)
         } else if (action === "addQueue") {
-            addToQueueRequested(item)
+            App.addToQueueFromItem(item)
         } else if (action === "played") {
             playedState = !playedState
-            playedToggled(itemId, playedState)
+            ItemState.setPlayed(itemId, playedState)
         } else if (action === "clear") {
             playedState = false
-            clearProgressRequested(itemId)
+            ItemState.clearProgress(itemId)
         } else if (action === "favorite") {
             favoriteState = !favoriteState
-            favoriteToggled(itemId, favoriteState)
-        } else if (action === "playlist") {
-            addToPlaylistRequested(item)
-        } else if (action === "collection") {
-            addToCollectionRequested(item)
+            ItemState.setFavorite(itemId, favoriteState)
+        } else if (action === "playlist" || action === "collection") {
+            shell.openManagement(action, item)
         } else if (action === "removeParent") {
-            removeFromParentRequested(item)
-        } else if (action === "moveUp") {
-            movePlaylistItemRequested(item, -1)
-        } else if (action === "moveDown") {
-            movePlaylistItemRequested(item, 1)
-        } else if (action === "rename") {
-            renameRequested(item)
-        } else if (action === "delete") {
-            deleteRequested(item)
+            shell.openManagement("remove", item)
+        } else if (action === "moveUp" || action === "moveDown") {
+            Management.movePlaylistItemInCurrent(item, action === "moveUp" ? -1 : 1)
+        } else if (action === "rename" || action === "delete") {
+            shell.openManagement(action, item)
         } else if (action === "info") {
-            mediaInfoRequested(item)
+            shell.openMediaInfo(item)
         }
         closeMenu()
     }
@@ -299,15 +287,12 @@ FocusScope {
         onClicked: root.closeMenu()
     }
 
-    Rectangle {
+    PopupMenuPanel {
         id: menuPanel
         width: root.menuPanelWidth
-        height: root.menuPanelHeight
-        radius: Theme.radiusPanel
-        color: Theme.floatingPanel
-        border.width: 1
-        border.color: Theme.borderStrong
-        antialiasing: true
+        open: root.opened
+        openHeight: root.menuPanelHeight
+        baseColor: Theme.floatingPanel
 
         MenuListView {
             id: menuList

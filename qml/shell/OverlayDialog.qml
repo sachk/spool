@@ -7,6 +7,9 @@ FocusScope {
     id: root
     default property alias content: body.data
     property real preferredWidth: 620
+    property real preferredHeight: -1
+    property real padding: 24
+    property color panelColor: Theme.bgPanel
     signal dismissed
 
     anchors.fill: parent
@@ -24,14 +27,19 @@ FocusScope {
     Surface {
         anchors.centerIn: parent
         width: Math.min(parent.width - 96, root.preferredWidth)
-        height: Math.min(parent.height - 96, body.implicitHeight + 48)
+        height: Math.min(parent.height - 96, root.preferredHeight > 0 ? root.preferredHeight : body.implicitHeight
+                                                                        + root.padding * 2)
         elevated: true
-        baseColor: Theme.bgPanel
+        baseColor: root.panelColor
+
+        MouseArea {
+            anchors.fill: parent
+        }
 
         ColumnLayout {
             id: body
             anchors.fill: parent
-            anchors.margins: 24
+            anchors.margins: root.padding
             spacing: 14
         }
     }

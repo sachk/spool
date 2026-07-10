@@ -8,29 +8,20 @@ OverlayDialog {
 
     property string mode: ""
     property var item: ({})
-    property var targets: []
-    property string currentViewKind: ""
     property string nameDraft: ""
     property int targetIndex: 0
-
-    signal createRequested(string name)
-    signal targetRequested(int index)
-    signal confirmRequested
+    readonly property var targets: mode === "collection" ? Management.collectionTargets : Management.playlistTargets
+    readonly property string heading: mode === "playlist" ? "Add to playlist" : mode === "collection"
+                                                            ? "Add to collection" : mode === "rename" ? "Rename" : mode
+                                                                                                        === "delete"
+                                                                                                        ? "Delete item" :
+                                                                                                          Browse.viewKind
+                                                                                                          === "playlist"
+                                                                                                          ? "Remove from playlist" :
+                                                                                                            "Remove from collection"
 
     function itemTitle(value) {
         return String(value && (value.displayTitle || value.title || value.seriesName || value.name) || "Selected item")
-    }
-
-    function title() {
-        if (mode === "playlist")
-            return "Add to playlist"
-        if (mode === "collection")
-            return "Add to collection"
-        if (mode === "rename")
-            return "Rename"
-        if (mode === "delete")
-            return "Delete item"
-        return currentViewKind === "playlist" ? "Remove from playlist" : "Remove from collection"
     }
 
     function focusNameField() {
@@ -38,27 +29,72 @@ OverlayDialog {
         managementNameField.focusField()
     }
 
+    function prepare() {
+        targetIndex = 0
+        nameDraft = mode === "rename" ? itemTitle(item) : ""
+        if (mode === "playlist" || mode === "collection")
+            Management.refreshTargets(mode)
+        if (mode === "rename")
+            Qt.callLater(focusNameField)
+        else
+            Qt.callLater(function () {
+                InputKeys.focus(root)
+            })
+    }
+
+    function submitName(name) {
+        const value = String(name || "").trim()
+        if (value.length === 0)
+            return
+        if (mode === "playlist")
+            Management.createPlaylistForItem(value, item)
+        else if (mode === "collection")
+            Management.createCollectionForItem(value, item)
+        else
+            Management.renameItem(item, value)
+        dismissed()
+    }
+
+    function selectTarget(index) {
+        const target = targets[index] || ({})
+        const targetId = String(target.movieId || target.id || "")
+        if (targetId.length === 0)
+            return
+        if (mode === "playlist")
+            Management.addItemToPlaylist(targetId, item)
+        else
+            Management.addItemToCollection(targetId, item)
+        dismissed()
+    }
+
+    function confirm() {
+        if (mode === "delete")
+            Management.deleteItem(item)
+        else
+            Management.removeItemFromCurrentParent(item)
+        dismissed()
+    }
+
     function routeKey(key, phase, repeat) {
         if (mode !== "playlist" && mode !== "collection")
             return false
-        if (key === Qt.Key_Up) {
-            targetIndex = Math.max(0, targetIndex - 1)
+        if (key === Qt.Key_Up && targetIndex === 0) {
+            focusNameField()
             return true
         }
-        if (key === Qt.Key_Down) {
-            targetIndex = Math.min(targets.length, targetIndex + 1)
-            return true
-        }
-        return InputKeys.isHorizontal(key)
+        targetIndex = Math.max(0, Math.min(targets.length - 1, targetIndex + (key === Qt.Key_Down ? 1 : key
+                                                                                                    === Qt.Key_Up ? -1 :
+                                                                                                                    0)))
+        return InputKeys.isHorizontal(key) || key === Qt.Key_Up || key === Qt.Key_Down
     }
 
     function activate() {
         if (mode === "playlist" || mode === "collection")
-            targetRequested(targetIndex)
+            selectTarget(targetIndex)
         else if (mode === "rename")
-            createRequested(nameDraft.trim())
-        else if (mode === "delete" || mode === "remove")
-            confirmRequested()
+            submitName(nameDraft)
+        else
+            confirm()
     }
 
     function back() {
@@ -66,11 +102,9 @@ OverlayDialog {
         return true
     }
 
-    onDismissed: root.forceActiveFocus()
-
     AppText {
         Layout.fillWidth: true
-        text: root.title()
+        text: root.heading
         color: Theme.textPrimary
         font.pixelSize: Metrics.titlePx(root.width)
         font.weight: Font.DemiBold
@@ -93,7 +127,7 @@ OverlayDialog {
                                                                                "New playlist name")
         text: root.nameDraft
         onTextEdited: value => root.nameDraft = value
-        onAccepted: root.createRequested(root.nameDraft.trim())
+        onAccepted: root.submitName(root.nameDraft)
     }
 
     AppText {
@@ -107,7 +141,7 @@ OverlayDialog {
     }
 
     Repeater {
-        model: root.mode === "playlist" || root.mode === "collection" ? root.targets.length + 1 : 0
+        model: root.mode === "playlist" || root.mode === "collection" ? root.targets.length : 0
         delegate: Rectangle {
             required property int index
             Layout.fillWidth: true
@@ -123,13 +157,13 @@ OverlayDialog {
                 anchors.rightMargin: 14
                 spacing: 12
                 MaterialIcon {
-                    name: index === 0 ? "add" : (root.mode === "collection" ? "collections_bookmark" : "playlist_play")
+                    name: root.mode === "collection" ? "collections_bookmark" : "playlist_play"
                     iconColor: Theme.textPrimary
                     iconSize: Metrics.iconPx(root.width)
                 }
                 AppText {
                     Layout.fillWidth: true
-                    text: index === 0 ? "Create new" : root.itemTitle(root.targets[index - 1] || ({}))
+                    text: root.itemTitle(root.targets[index] || ({}))
                     color: Theme.textPrimary
                     font.pixelSize: Metrics.bodyPx(root.width)
                     elide: Text.ElideRight
@@ -138,10 +172,7 @@ OverlayDialog {
 
             MouseArea {
                 anchors.fill: parent
-                onClicked: {
-                    root.targetIndex = index
-                    root.targetRequested(index)
-                }
+                onClicked: root.selectTarget(index)
             }
         }
     }
@@ -159,7 +190,7 @@ OverlayDialog {
         ActionButton {
             text: root.mode === "delete" ? "Delete" : "Remove"
             kind: "primary"
-            onClicked: root.confirmRequested()
+            onClicked: root.confirm()
         }
     }
 }
