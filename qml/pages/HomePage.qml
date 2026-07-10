@@ -188,11 +188,11 @@ FocusScope {
             id: contentColumn
 
             width: scroller.width
-            spacing: 14
+            spacing: Metrics.scaled(14)
 
             SectionHeader {
                 width: contentColumn.width
-                height: implicitHeight + 18
+                height: implicitHeight + Metrics.scaled(18)
                 title: root.librariesOnly ? "Libraries" : "My Media"
             }
 
@@ -259,6 +259,7 @@ FocusScope {
                     shell: root.shell
                     cardKind: modelData && modelData.kind ? modelData.kind : "poster"
                     useSeriesPoster: true
+                    preferEpisodeTitle: true
                     cardWidth: cardKind === "poster" ? Metrics.homePosterWidth(root.width) : Metrics.homeLandscapeWidth(
                                                            root.width)
                     cardGap: Metrics.gap(root.width)

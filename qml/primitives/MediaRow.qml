@@ -12,8 +12,8 @@ FocusScope {
     property string cardKind: "poster" // poster, landscape, library, or person
     property bool useSeriesPoster: false
     property bool preferEpisodeTitle: false
-    property int cardWidth: 156
-    property int cardGap: 16
+    property int cardWidth: Metrics.scaled(156)
+    property int cardGap: Metrics.scaled(16)
     property int currentIndex: 0
     property bool enabledRow: true
     property bool reserveWhenEmpty: false
@@ -23,13 +23,13 @@ FocusScope {
     readonly property int count: modelCount()
     readonly property bool rowVisible: enabledRow && (count > 0 || reserveWhenEmpty)
     readonly property bool posterCard: cardKind === "poster" || cardKind === "person"
-    readonly property int headerHeight: 34
-    readonly property int cardHeight: Math.round(cardWidth * (posterCard ? 1.5 : 9 / 16) + 60)
+    readonly property int headerHeight: Metrics.scaled(34)
+    readonly property int cardHeight: Math.round(cardWidth * (posterCard ? 1.5 : 9 / 16) + Metrics.scaled(60))
 
     signal activated(int index, var item)
 
     width: parent ? parent.width : implicitWidth
-    height: rowVisible ? headerHeight + 10 + cardHeight : 0
+    height: rowVisible ? headerHeight + Metrics.scaled(10) + cardHeight : 0
     implicitHeight: height
     visible: rowVisible
     focus: true
@@ -182,7 +182,7 @@ FocusScope {
         anchors.left: parent.left
         anchors.right: parent.right
         anchors.top: rowHeader.bottom
-        anchors.topMargin: 10
+        anchors.topMargin: Metrics.scaled(10)
         height: root.cardHeight
         visible: root.count > 0
         focus: true
@@ -211,7 +211,7 @@ FocusScope {
         anchors.left: parent.left
         anchors.right: parent.right
         anchors.top: rowHeader.bottom
-        anchors.topMargin: 18
+        anchors.topMargin: Metrics.scaled(18)
         height: root.cardHeight
         visible: root.count <= 0 && root.reserveWhenEmpty
         text: root.loading ? root.emptyText : ""

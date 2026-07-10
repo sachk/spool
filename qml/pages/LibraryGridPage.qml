@@ -10,7 +10,8 @@ FocusScope {
     id: root
     property var shell
     readonly property bool episodeGrid: Browse.viewKind === "episodes"
-    property int columns: episodeGrid ? Math.max(2, Math.floor(width / Math.max(260, Metrics.homeLandscapeWidth(width)))) :
+    property int columns: episodeGrid ? Math.max(2, Math.floor(width / Math.max(Metrics.scaled(260),
+                                                                                Metrics.homeLandscapeWidth(width)))) :
                                         Metrics.columns(width)
     property bool sortOpen: false
     property bool filtersOpen: false
@@ -712,7 +713,8 @@ FocusScope {
             boundsBehavior: Flickable.StopAtBounds
             model: Browse.items
             cellWidth: Math.floor((width - Metrics.gap(root.width) * (columns - 1)) / columns)
-            cellHeight: root.episodeGrid ? Math.round(cellWidth * 9 / 16 + 62) : cellWidth * 1.5 + 64
+            cellHeight: root.episodeGrid ? Math.round(cellWidth * 9 / 16 + Metrics.scaled(62)) : cellWidth * 1.5
+                                           + Metrics.scaled(64)
             cacheBuffer: 2 * cellHeight
             Component.onCompleted: {
                 restoreIndex()

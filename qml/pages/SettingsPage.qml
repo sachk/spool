@@ -23,18 +23,19 @@ FocusScope {
                                                                                       "Fixed dark TV interface"),
         makeRow("i18n/locale", "General", "select", "Language", "Restart the app to update cached server text"), makeRow(
             "theme/accent", "Appearance", "select", "Accent", "", ["Jellyfin Blue", "Jellyfin Purple", "Blue-Purple"],
-            [0, 1, 2]), sliderRow("metrics/uiScale", "Appearance", "UI Scale", "Runtime type and spacing scale", 0.75, 1.5, 0.05,
-                                  2, "x"), makeRow("metrics/posterSize", "Appearance", "select", "Poster Size", "",
-                                                   ["Compact", "Normal", "Large"], [-1, 0, 1]), makeRow(
-            "metrics/gridColumns", "Appearance", "select", "Grid Columns", "", ["Auto", "4", "5", "6", "7", "8", "9"],
-            [0, 4, 5, 6, 7, 8, 9]), makeRow("theme/railLabels", "Appearance", "select", "Side Rail Labels", "", ["Never",
-                                                                                                                 "On focus",
-                                                                                                                 "Always"],
-                                            ["Never", "On focus", "Always"]), makeRow("theme/reducedMotion",
-                                                                                      "Appearance", "toggle",
-                                                                                      "Reduced Motion"), makeRow(
-            "theme/renderMode", "Appearance", "select", "Text Render Mode", "", ["Qt", "Curve"], [Text.QtRendering,
-                                                                                                  Text.CurveRendering]),
+            [0, 1, 2]), makeRow("action/uiScaleSetup", "Appearance", "action", "Scale Setup",
+                                "Compare Compact, Balanced, and Relaxed layouts"), makeRow("theme/railLabels",
+                                                                                           "Appearance", "select",
+                                                                                           "Side Rail Labels", "",
+                                                                                           ["Never", "On focus",
+                                                                                            "Always"], ["Never",
+                                                                                                        "On focus",
+                                                                                                        "Always"]),
+        makeRow("theme/reducedMotion", "Appearance", "toggle", "Reduced Motion"), makeRow("theme/renderMode",
+                                                                                          "Appearance", "select",
+                                                                                          "Text Render Mode", "", ["Qt",
+                                                                                                                   "Curve"], [Text.QtRendering,
+                                                                                                                              Text.CurveRendering]),
         makeRow("theme/antialiasedText", "Appearance", "toggle", "Antialiased Text"), makeRow("theme/technicalMetadata",
                                                                                               "Appearance", "select",
                                                                                               "Show Technical Metadata",
@@ -118,12 +119,6 @@ FocusScope {
             return I18n.useSystemLocale ? "system" : I18n.currentLocale
         case "theme/accent":
             return Theme.accentIndex
-        case "metrics/uiScale":
-            return Metrics.userUiScale
-        case "metrics/posterSize":
-            return Metrics.userPosterSizeBias
-        case "metrics/gridColumns":
-            return Metrics.userColumnOverride
         case "theme/railLabels":
             return Theme.sideRailLabels
         case "theme/reducedMotion":
@@ -153,6 +148,8 @@ FocusScope {
             return "Choose"
         if (row.key === "action/logout")
             return "Sign out"
+        if (row.key === "action/uiScaleSetup")
+            return "Open"
         if (row.key === "session/server")
             return Session.serverUrl.length > 0 ? "Connected" : "Offline"
         if (row.key === "theme/name")
@@ -205,15 +202,6 @@ FocusScope {
         case "theme/accent":
             Theme.accentIndex = value
             break
-        case "metrics/uiScale":
-            Metrics.userUiScale = value
-            break
-        case "metrics/posterSize":
-            Metrics.userPosterSizeBias = value
-            break
-        case "metrics/gridColumns":
-            Metrics.userColumnOverride = value
-            break
         case "theme/railLabels":
             Theme.sideRailLabels = value
             break
@@ -256,6 +244,10 @@ FocusScope {
                 shell.switchUser()
             else if (row.key === "action/logout")
                 App.logout()
+            else if (row.key === "action/uiScaleSetup" && shell)
+                shell.pushRoute("scaleSetup", {
+                                    "returnRoute": "settings"
+                                })
         } else if (row.type === "toggle") {
             setRowValue(row, !Boolean(settingsValue(row)), -1)
         } else if (row.type === "select") {
@@ -323,7 +315,7 @@ FocusScope {
         model: root.settingsRows
         dismissOnBack: false
         dismissOnHorizontal: false
-        spacing: 10
+        spacing: Metrics.scaled(10)
         currentIndex: root.currentIndex
         onCurrentIndexChanged: if (currentIndex >= 0) {
             root.currentIndex = currentIndex
@@ -337,7 +329,7 @@ FocusScope {
             required property int index
             required property var modelData
             width: settingsList.width
-            spacing: 10
+            spacing: Metrics.scaled(10)
 
             SectionHeader {
                 width: parent.width

@@ -26,7 +26,8 @@ FocusScope {
     property double scrubSeconds: 0
 
     readonly property bool previewing: input.previewing
-    readonly property real uiScale: Math.max(0.78, Math.min(1.0, height / 1440))
+    readonly property real uiScale: Math.max(0.65, Math.min(1.25, Math.max(0.78, Math.min(1.0, height / 1440))
+                                                            * Metrics.uiScale))
     readonly property int actionTargetSize: dp(64)
     readonly property var audioSyncSteps: [1, 5, 10, 100]
     readonly property bool audioSelectable: hasPlayer && player.audioTracks.length > 1

@@ -85,6 +85,7 @@ QHash<QString, QString> choicesByLabelFromRow(const QVariantMap& row)
 void requiredPersistedKeysArePresentExactlyOnce()
 {
     const QStringList expectedKeys {
+        QStringLiteral("appearance/uiScalePercent"),
         QStringLiteral("settings/nightMode"),
         QStringLiteral("playback/maxStreamingBitrateMbps"),
         QStringLiteral("playback/preferRemux"),
@@ -145,6 +146,13 @@ void normalizersPreservePersistedValueSemantics()
         QStringLiteral("streaming bitrate above the ceiling was not clamped"));
     require(serializedSettingValue(bitrate, QStringLiteral("42")) == QStringLiteral("42"),
         QStringLiteral("in-range streaming bitrate was not serialized unchanged"));
+    const SettingSpec& uiScale = requiredSpec(QStringLiteral("appearance/uiScalePercent"));
+    require(normalizedSettingValue(uiScale, QStringLiteral("65")).toInt() == 80,
+        QStringLiteral("UI scale below the floor was not clamped"));
+    require(normalizedSettingValue(uiScale, QStringLiteral("140")).toInt() == 125,
+        QStringLiteral("UI scale above the ceiling was not clamped"));
+    require(serializedSettingValue(uiScale, QStringLiteral("115")) == QStringLiteral("115"),
+        QStringLiteral("in-range UI scale was not serialized as a percentage"));
 
     const SettingSpec& nightMode = requiredSpec(QStringLiteral("settings/nightMode"));
     require(normalizedSettingValue(nightMode, true).toBool(),

@@ -15,11 +15,11 @@ T.Control {
     signal clicked
     focusPolicy: Qt.StrongFocus
     focus: true
-    implicitHeight: Math.max(68, textColumn.implicitHeight + 28)
-    leftPadding: 14
-    rightPadding: 14
-    topPadding: 14
-    bottomPadding: 14
+    implicitHeight: Math.max(Metrics.scaled(68), textColumn.implicitHeight + Metrics.scaled(28))
+    leftPadding: Metrics.scaled(14)
+    rightPadding: Metrics.scaled(14)
+    topPadding: Metrics.scaled(14)
+    bottomPadding: Metrics.scaled(14)
 
     background: Surface {
         focused: root.rowFocus
@@ -38,12 +38,12 @@ T.Control {
     }
 
     contentItem: RowLayout {
-        spacing: 18
+        spacing: Metrics.scaled(18)
 
         ColumnLayout {
             id: textColumn
             Layout.fillWidth: true
-            spacing: 3
+            spacing: Metrics.scaled(3)
             AppText {
                 Layout.fillWidth: true
                 text: root.title
@@ -67,7 +67,7 @@ T.Control {
             text: root.valueText
             color: Theme.textSecondary
             font.pixelSize: Metrics.metaPx(root.Window.window ? root.Window.window.width : 1920)
-            Layout.maximumWidth: Math.max(96, root.width * 0.42)
+            Layout.maximumWidth: Math.max(Metrics.scaled(96), root.width * 0.42)
             maximumLineCount: 1
             elide: Text.ElideRight
         }

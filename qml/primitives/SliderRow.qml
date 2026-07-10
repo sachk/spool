@@ -26,11 +26,11 @@ T.Control {
 
     focus: true
     focusPolicy: Qt.StrongFocus
-    implicitHeight: Math.max(74, contentRow.implicitHeight + 24)
-    leftPadding: 12
-    rightPadding: 12
-    topPadding: 12
-    bottomPadding: 12
+    implicitHeight: Math.max(Metrics.scaled(74), contentRow.implicitHeight + Metrics.scaled(24))
+    leftPadding: Metrics.scaled(12)
+    rightPadding: Metrics.scaled(12)
+    topPadding: Metrics.scaled(12)
+    bottomPadding: Metrics.scaled(12)
     readonly property int valueFontPx: Metrics.metaPx(metricsWidth) + 1
 
     background: Surface {
@@ -78,11 +78,11 @@ T.Control {
 
     contentItem: RowLayout {
         id: contentRow
-        spacing: 14
+        spacing: Metrics.scaled(14)
 
         ColumnLayout {
             Layout.fillWidth: true
-            spacing: 3
+            spacing: Metrics.scaled(3)
 
             AppText {
                 Layout.fillWidth: true
@@ -106,8 +106,8 @@ T.Control {
 
         T.TextField {
             id: valueField
-            Layout.preferredWidth: root.valueBoxWidth
-            Layout.preferredHeight: 30
+            Layout.preferredWidth: Metrics.scaled(root.valueBoxWidth)
+            Layout.preferredHeight: Metrics.scaled(30)
             text: root.formatValue(root.controlValue)
             horizontalAlignment: TextInput.AlignRight
             inputMethodHints: Qt.ImhFormattedNumbersOnly
@@ -125,7 +125,7 @@ T.Control {
             background: Rectangle {
                 radius: Theme.radiusSmall
                 color: Theme.bgRaised
-                border.width: valueField.activeFocus ? 2 : 1
+                border.width: valueField.activeFocus ? Theme.focusBorderWidth : Theme.hoverBorderWidth
                 border.color: valueField.activeFocus ? Theme.accent : Theme.border
             }
             onAccepted: root.setSliderValue(text)
@@ -134,7 +134,7 @@ T.Control {
 
         AppText {
             visible: root.unitText.length > 0
-            Layout.preferredWidth: visible ? Math.max(18, implicitWidth) : 0
+            Layout.preferredWidth: visible ? Math.max(Metrics.scaled(18), implicitWidth) : 0
             text: root.unitText
             color: Theme.textPrimary
             font.pixelSize: root.valueFontPx
@@ -145,7 +145,8 @@ T.Control {
 
         T.Slider {
             id: valueSlider
-            Layout.preferredWidth: Math.min(root.sliderPreferredWidth, Math.max(180, root.width * 0.28))
+            Layout.preferredWidth: Math.min(Metrics.scaled(root.sliderPreferredWidth), Math.max(Metrics.scaled(180),
+                                                                                                root.width * 0.28))
             from: root.from
             to: root.to
             stepSize: root.step
@@ -156,7 +157,7 @@ T.Control {
                 x: valueSlider.leftPadding
                 y: valueSlider.topPadding + valueSlider.availableHeight / 2 - height / 2
                 width: valueSlider.availableWidth
-                height: valueSlider.activeFocus ? 9 : 7
+                height: valueSlider.activeFocus ? Metrics.scaled(9) : Metrics.scaled(7)
                 radius: height / 2
                 color: Theme.borderStrong
 
@@ -171,11 +172,11 @@ T.Control {
             handle: Rectangle {
                 x: valueSlider.leftPadding + valueSlider.visualPosition * (valueSlider.availableWidth - width)
                 y: valueSlider.topPadding + valueSlider.availableHeight / 2 - height / 2
-                width: valueSlider.activeFocus ? 24 : 20
+                width: Metrics.scaled(valueSlider.activeFocus ? 24 : 20)
                 height: width
                 radius: width / 2
                 color: Theme.textPrimary
-                border.width: 3
+                border.width: Theme.focusBorderWidth
                 border.color: Theme.accent
             }
 

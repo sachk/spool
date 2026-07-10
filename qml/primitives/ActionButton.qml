@@ -10,7 +10,7 @@ T.Control {
     property string text: ""
     signal clicked
 
-    implicitWidth: Math.max(132, buttonContent.implicitWidth + 34)
+    implicitWidth: Math.max(Metrics.scaled(132), buttonContent.implicitWidth + Metrics.scaled(34))
     implicitHeight: Metrics.controlHeight(root.Window.window ? root.Window.window.width : 1920)
     focusPolicy: Qt.StrongFocus
 
@@ -20,7 +20,9 @@ T.Control {
                                                                            ? Theme.accent : Theme.accentDim)) : (
                                              tap.pressed ? Theme.bgRaised : root.kind === "flat" ? "transparent" :
                                                                                                    Theme.bgPanel)
-        border.width: root.activeFocus ? 2 : root.pointerHovered ? 1 : root.kind === "flat" ? 0 : 1
+        border.width: root.activeFocus ? Theme.focusBorderWidth : root.pointerHovered ? Theme.hoverBorderWidth :
+                                                                                        root.kind === "flat" ? 0 :
+                                                                                                               Theme.hoverBorderWidth
         border.color: root.activeFocus ? Theme.textPrimary : root.pointerHovered ? Theme.borderStrong : root.kind
                                                                                    === "primary" ? Theme.accentDim :
                                                                                                    Theme.border
@@ -32,7 +34,7 @@ T.Control {
         Row {
             id: buttonContent
             anchors.centerIn: parent
-            spacing: 8
+            spacing: Metrics.scaled(8)
 
             MaterialIcon {
                 anchors.verticalCenter: parent.verticalCenter

@@ -26,6 +26,8 @@ class SettingsController final : public QObject {
     Q_PROPERTY(bool preferRemux MEMBER m_preferRemux WRITE setPreferRemux NOTIFY playbackPreferencesChanged)
     Q_PROPERTY(int audioDelayMs MEMBER m_audioDelayMs WRITE setAudioDelayMs NOTIFY audioDelayChanged)
     Q_PROPERTY(QString audioOutputMode MEMBER m_audioOutputMode WRITE setAudioOutputMode NOTIFY audioOutputModeChanged)
+    Q_PROPERTY(int uiScalePercent READ uiScalePercent WRITE setUiScalePercent NOTIFY appearanceChanged)
+    Q_PROPERTY(bool uiScaleSetupComplete READ uiScaleSetupComplete NOTIFY appearanceChanged)
     Q_PROPERTY(QStringList subtitleLanguageOptions READ subtitleLanguageOptions NOTIFY subtitleSettingsChanged)
     Q_PROPERTY(int subtitleLanguageIndex READ subtitleLanguageIndex WRITE setSubtitleLanguageIndex NOTIFY
             subtitleSettingsChanged)
@@ -59,6 +61,14 @@ public:
     SettingsController(
         DatabaseManager *database, JellyfinApiFacade *api, PlayerController *player, QObject *parent = nullptr);
 
+    int uiScalePercent() const
+    {
+        return m_uiScalePercent;
+    }
+    bool uiScaleSetupComplete() const
+    {
+        return m_uiScaleSetupVersion > 0;
+    }
     bool subtitleRenderPgs() const;
     bool subtitleAlwaysBurnIn() const;
     int subtitleLanguageIndex() const;
@@ -87,6 +97,8 @@ public:
     Q_INVOKABLE void setPreferRemux(bool enabled);
     Q_INVOKABLE void setAudioDelayMs(int delayMs);
     Q_INVOKABLE void setAudioOutputMode(const QString& mode);
+    Q_INVOKABLE void setUiScalePercent(int percent);
+    Q_INVOKABLE void completeUiScaleSetup(int percent);
     Q_INVOKABLE void setSubtitleLanguageIndex(int index);
     Q_INVOKABLE void setSubtitleMode(const QString& mode);
     Q_INVOKABLE void setSubtitleBurnIn(const QString& mode);
@@ -112,6 +124,7 @@ signals:
     void audioOutputModeChanged();
     void subtitleSettingsChanged();
     void buttonRemapChanged();
+    void appearanceChanged();
     void settingChanged(const QString& key);
     void settingsValuesChanged();
     void errorOccurred(const QString& message);
@@ -134,6 +147,8 @@ private:
     bool m_preferRemux = true;
     int m_audioDelayMs = 0;
     QString m_audioOutputMode = QStringLiteral("alsa");
+    int m_uiScalePercent = 100;
+    int m_uiScaleSetupVersion = 0;
     SubtitlePreferences m_subtitlePreferences;
     QStringList m_subtitleLanguageCodes { QString() };
     QStringList m_subtitleLanguageLabels { QStringLiteral("Any language") };

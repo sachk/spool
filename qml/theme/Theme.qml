@@ -38,13 +38,13 @@ QtObject {
     readonly property color backdropScrimCenter: "#22000000"
     readonly property color backdropScrimRight: "#C4000000"
 
-    readonly property int radiusTiny: 2
-    readonly property int radiusSmall: 4
-    readonly property int radiusMedium: 6
-    readonly property int radiusLarge: 10
-    readonly property int radiusPanel: 12
-    readonly property int focusBorderWidth: 2
-    readonly property int hoverBorderWidth: 1
+    readonly property int radiusTiny: Metrics.scaled(2)
+    readonly property int radiusSmall: Metrics.scaled(4)
+    readonly property int radiusMedium: Metrics.scaled(6)
+    readonly property int radiusLarge: Metrics.scaled(10)
+    readonly property int radiusPanel: Metrics.scaled(12)
+    readonly property int focusBorderWidth: Math.max(2, Metrics.scaled(2))
+    readonly property int hoverBorderWidth: Math.max(1, Metrics.scaled(1))
 
     property int normalTextRenderType: Text.QtRendering
     property int largeTextRenderType: Text.QtRendering

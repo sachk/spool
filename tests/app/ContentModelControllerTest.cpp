@@ -1,6 +1,8 @@
 #include "app/ContentModelController.h"
 #include "api/JellyfinApiFacade.h"
+#include "app/HomeModelController.h"
 #include "app/LibraryPrefetchController.h"
+#include "app/SearchController.h"
 #include "common/AsyncTask.h"
 
 #include <QCoreApplication>
@@ -24,11 +26,14 @@
 using JellyfinNative::AuthSession;
 using JellyfinNative::BrowseDescriptor;
 using JellyfinNative::ContentModelController;
+using JellyfinNative::HomeModelController;
 using JellyfinNative::JellyfinApiFacade;
+using JellyfinNative::LibraryItem;
 using JellyfinNative::LibraryPrefetchController;
 using JellyfinNative::MovieGridModel;
 using JellyfinNative::MovieItem;
 using JellyfinNative::PagedMovieItems;
+using JellyfinNative::SearchController;
 
 namespace {
 
@@ -54,9 +59,45 @@ QJsonObject episodeObject()
         { QStringLiteral("SeriesId"), QStringLiteral("series-1") },
         { QStringLiteral("SeasonId"), QStringLiteral("season-1") },
         { QStringLiteral("SeriesName"), QStringLiteral("Series One") },
+        { QStringLiteral("SeriesPrimaryImageTag"), QStringLiteral("series-primary-tag") },
         { QStringLiteral("ParentIndexNumber"), 2 },
         { QStringLiteral("IndexNumber"), 7 },
     };
+}
+QJsonObject movieObject()
+{
+    return {
+        { QStringLiteral("Id"), QStringLiteral("movie-1") },
+        { QStringLiteral("Name"), QStringLiteral("Movie One") },
+        { QStringLiteral("Type"), QStringLiteral("Movie") },
+    };
+}
+
+QJsonObject seriesObject()
+{
+    return {
+        { QStringLiteral("Id"), QStringLiteral("series-1") },
+        { QStringLiteral("Name"), QStringLiteral("Series One") },
+        { QStringLiteral("Type"), QStringLiteral("Series") },
+    };
+}
+
+QJsonObject photoObject()
+{
+    return {
+        { QStringLiteral("Id"), QStringLiteral("photo-1") },
+        { QStringLiteral("Name"), QStringLiteral("Photo One") },
+        { QStringLiteral("Type"), QStringLiteral("Photo") },
+    };
+}
+
+LibraryItem library(const QString& id, const QString& name, const QString& collectionType)
+{
+    LibraryItem item;
+    item.id = id;
+    item.name = name;
+    item.collectionType = collectionType;
+    return item;
 }
 
 QJsonObject playlistMovieObject()
@@ -146,6 +187,30 @@ protected:
 
         const QUrl url = request.url();
         const QUrlQuery query(url);
+        if (operation == GetOperation && url.path() == QStringLiteral("/Items")
+            && query.queryItemValue(QStringLiteral("searchTerm")) == QStringLiteral("mixed")) {
+            return new MemoryReply(request, operation,
+                jsonBytes(
+                    { { QStringLiteral("Items"), QJsonArray { movieObject(), seriesObject(), episodeObject() } } }),
+                200, this);
+        }
+
+        if (operation == GetOperation && url.path() == QStringLiteral("/Users/user-1/Items/Resume"))
+            return new MemoryReply(
+                request, operation, jsonBytes({ { QStringLiteral("Items"), QJsonArray {} } }), 200, this);
+
+        if (operation == GetOperation && url.path() == QStringLiteral("/Shows/NextUp"))
+            return new MemoryReply(
+                request, operation, jsonBytes({ { QStringLiteral("Items"), QJsonArray {} } }), 200, this);
+
+        if (operation == GetOperation && url.path() == QStringLiteral("/Users/user-1/Items/Latest")) {
+            const QString parentId = query.queryItemValue(QStringLiteral("parentId"));
+            const QJsonArray items = parentId == QStringLiteral("shows-id") ? QJsonArray { episodeObject() }
+                : parentId == QStringLiteral("photos-id")                   ? QJsonArray { photoObject() }
+                                                                            : QJsonArray {};
+            return new MemoryReply(request, operation, jsonBytes({ { QStringLiteral("Items"), items } }), 200, this);
+        }
+
         if (operation == GetOperation && url.path() == QStringLiteral("/Shows/series-1/Episodes")
             && query.queryItemValue(QStringLiteral("seasonId")) == QStringLiteral("season-1")) {
             return new MemoryReply(request, operation,
@@ -242,10 +307,63 @@ bool waitForBrowsePage(JellyfinApiFacade& api, const BrowseDescriptor& descripto
     return finished && error.isEmpty();
 }
 
+bool waitForSearch(SearchController& search, int timeoutMs)
+{
+    QEventLoop loop;
+    QTimer timeout;
+    timeout.setSingleShot(true);
+    QObject::connect(&timeout, &QTimer::timeout, &loop, &QEventLoop::quit);
+    QObject::connect(&search, &SearchController::resultsChanged, &loop, &QEventLoop::quit);
+    search.search(QStringLiteral("mixed"));
+    timeout.start(timeoutMs);
+    if (search.busy())
+        loop.exec();
+    return !search.busy() && search.resultCount() == 3;
+}
+
+bool waitForHomeRows(HomeModelController& home, int timeoutMs)
+{
+    bool changed = false;
+    QEventLoop loop;
+    QTimer timeout;
+    timeout.setSingleShot(true);
+    QObject::connect(&timeout, &QTimer::timeout, &loop, &QEventLoop::quit);
+    QObject::connect(&home, &HomeModelController::latestLibraryRowsChanged, &loop, [&]() {
+        changed = true;
+        loop.quit();
+    });
+    timeout.start(timeoutMs);
+    loop.exec();
+    return changed;
+}
+
+int searchRequestCount(const QVector<QUrl>& urls)
+{
+    return static_cast<int>(std::count_if(urls.cbegin(), urls.cend(), [](const QUrl& url) {
+        return url.path() == QStringLiteral("/Items")
+            && QUrlQuery(url).queryItemValue(QStringLiteral("searchTerm")) == QStringLiteral("mixed");
+    }));
+}
+
+int latestRequestCount(const QVector<QUrl>& urls)
+{
+    return static_cast<int>(std::count_if(urls.cbegin(), urls.cend(),
+        [](const QUrl& url) { return url.path() == QStringLiteral("/Users/user-1/Items/Latest"); }));
+}
+
+bool latestRequestsAreUnfiltered(const QVector<QUrl>& urls)
+{
+    return std::all_of(urls.cbegin(), urls.cend(), [](const QUrl& url) {
+        return url.path() != QStringLiteral("/Users/user-1/Items/Latest")
+            || !QUrlQuery(url).hasQueryItem(QStringLiteral("includeItemTypes"));
+    });
+}
+
 bool requestedOrderedPlaylistItems(const QVector<QUrl>& urls)
 {
     return std::any_of(urls.cbegin(), urls.cend(), [](const QUrl& url) {
         const QUrlQuery query(url);
+
         return url.path() == QStringLiteral("/Playlists/playlist-1/Items")
             && !query.hasQueryItem(QStringLiteral("parentId")) && !query.hasQueryItem(QStringLiteral("sortBy"));
     });
@@ -299,6 +417,17 @@ int main(int argc, char **argv)
         QStringLiteral("user-1"), QStringLiteral("Tester"), QStringLiteral("token-1"), QStringLiteral("server-1") });
     LibraryPrefetchController prefetch(&api);
     ContentModelController controller(&api, &prefetch);
+    SearchController search(&api, &prefetch);
+    require(waitForSearch(search, 1000), "mixed search did not finish with all result types");
+    require(searchRequestCount(network.requestedUrls) == 1, "mixed search issued more than one API request");
+    require(search.movieResults()->rowCount() == 1, "mixed search did not partition its movie result");
+    require(search.seriesResults()->rowCount() == 1, "mixed search did not partition its series result");
+    require(search.episodeResults()->rowCount() == 1, "mixed search did not partition its episode result");
+    const MovieItem searchEpisode = search.episodeResults()->get(0);
+    require(searchEpisode.seriesPrimaryImageTag == QStringLiteral("series-primary-tag"),
+        "episode search result did not retain its series primary artwork tag");
+    require(searchEpisode.subtitle() == QStringLiteral("S02:E07"),
+        "episode search result did not expose its season and episode label");
 
     PagedMovieItems playlistPage;
     QString browseError;
@@ -363,6 +492,28 @@ int main(int argc, char **argv)
     require(boxSetRow.id == QStringLiteral("boxset-child-1"),
         "box set child id was not populated from the browse response");
     require(boxSetRow.itemType == QStringLiteral("Movie"), "box set child type was not preserved");
+
+    HomeModelController home(nullptr, &api, &prefetch);
+    const std::vector<LibraryItem> homeLibraries {
+        library(QStringLiteral("shows-id"), QStringLiteral("Shows"), QStringLiteral("tvshows")),
+        library(QStringLiteral("photos-id"), QStringLiteral("Photos"), QStringLiteral("photos")),
+    };
+    home.refresh(homeLibraries);
+    require(latestRequestCount(network.requestedUrls) == 2,
+        "home latest requests were not all dispatched before the event loop resumed");
+    require(latestRequestsAreUnfiltered(network.requestedUrls),
+        "home latest requests retained a movie/series/episode-only filter");
+    require(waitForHomeRows(home, 1000), "home latest rows did not finish loading");
+
+    const QVariantList latestRows = home.latestLibraryRows();
+    require(latestRows.size() == 2, "home did not expose one latest row for each supported library");
+    auto *showItems = qobject_cast<MovieGridModel *>(home.latestLibraryItems(0));
+    auto *photoItems = qobject_cast<MovieGridModel *>(home.latestLibraryItems(1));
+    require(showItems && showItems->rowCount() == 1, "home did not expose the latest TV episode");
+    require(photoItems && photoItems->rowCount() == 1 && photoItems->get(0).itemType == QStringLiteral("Photo"),
+        "home did not expose an arbitrary-library latest item");
+    require(showItems->get(0).seriesPrimaryImageTag == QStringLiteral("series-primary-tag"),
+        "home episode row did not retain series primary artwork");
 
     require(!network.connectionCacheExpirySeconds.isEmpty()
             && std::all_of(network.connectionCacheExpirySeconds.cbegin(), network.connectionCacheExpirySeconds.cend(),

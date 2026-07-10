@@ -2,61 +2,68 @@ pragma Singleton
 import QtQuick
 
 QtObject {
-    property int userColumnOverride: 0
-    property real userUiScale: 1.0
-    property int userPosterSizeBias: 0
+    readonly property int uiScalePercent: Math.max(80, Math.min(125, Number(Settings.uiScalePercent || 100)))
+    readonly property real uiScale: uiScalePercent / 100
 
-    function densityForWidth(w) {
-        if (w >= 3840)
+    function scaled(value) {
+        return Math.max(1, Math.round(value * uiScale))
+    }
+
+    function densityForWidth(width) {
+        if (width >= 3840)
             return 3
-        if (w >= 1920)
+        if (width >= 1920)
             return 2
-        if (w >= 1280)
+        if (width >= 1280)
             return 1
         return 0
     }
 
-    function topBarHeight(w) {
-        return [52, 56, 62, 72][densityForWidth(w)]
+    function topBarHeight(width) {
+        return scaled([52, 56, 62, 72][densityForWidth(width)])
     }
-    function pageMargin(w) {
-        return [24, 32, 44, 64][densityForWidth(w)]
+    function pageMargin(width) {
+        return scaled([24, 32, 44, 64][densityForWidth(width)])
     }
-    function gap(w) {
-        return [14, 18, 22, 28][densityForWidth(w)]
+    function gap(width) {
+        return scaled([14, 18, 22, 28][densityForWidth(width)])
     }
-    function controlHeight(w) {
-        return [42, 46, 48, 54][densityForWidth(w)]
+    function controlHeight(width) {
+        return scaled([42, 46, 48, 54][densityForWidth(width)])
     }
-    function detailRowPosterWidth(w) {
-        return [132, 152, 176, 208][densityForWidth(w)]
+    function detailRowPosterWidth(width) {
+        return scaled([132, 152, 176, 208][densityForWidth(width)])
     }
-    function detailHeroHeight(h) {
-        return Math.max(500, Math.min(660, Math.round(h * 0.64)))
+    function detailHeroHeight(height) {
+        return Math.max(scaled(420), Math.min(scaled(660), Math.round(height * 0.64)))
     }
-    function sectionGap(w) {
-        return [22, 26, 28, 34][densityForWidth(w)]
+    function sectionGap(width) {
+        return scaled([22, 26, 28, 34][densityForWidth(width)])
     }
-    function homePosterWidth(w) {
-        return [140, 180, 156, 180][densityForWidth(w)] + userPosterSizeBias * 18
+    function homePosterWidth(width) {
+        return scaled([140, 180, 156, 180][densityForWidth(width)])
     }
-    function homeLandscapeWidth(w) {
-        return [260, 300, 248, 248][densityForWidth(w)]
+    function homeLandscapeWidth(width) {
+        return scaled([260, 300, 248, 248][densityForWidth(width)])
     }
-    function autoColumns(w) {
-        return [5, 6, 8, 12][densityForWidth(w)]
-    }
-    function columns(w) {
-        return userColumnOverride > 0 ? userColumnOverride : autoColumns(w)
+    function columns(width) {
+        const density = densityForWidth(width)
+        const targetWidth = scaled([120, 176, 190, 290][density])
+        const available = Math.max(targetWidth, width - pageMargin(width) * 2)
+        return Math.max(2, Math.min(12, Math.floor((available + gap(width)) / (targetWidth + gap(width)))))
     }
 
-    function titlePx(w) {
-        return Math.round([26, 30, 34, 42][densityForWidth(w)] * userUiScale)
+    function iconPx(width) {
+        return scaled([18, 20, 22, 26][densityForWidth(width)])
     }
-    function bodyPx(w) {
-        return Math.round([14, 15, 16, 19][densityForWidth(w)] * userUiScale)
+
+    function titlePx(width) {
+        return scaled([26, 30, 34, 42][densityForWidth(width)])
     }
-    function metaPx(w) {
-        return Math.round([12, 13, 14, 16][densityForWidth(w)] * userUiScale)
+    function bodyPx(width) {
+        return scaled([14, 15, 16, 19][densityForWidth(width)])
+    }
+    function metaPx(width) {
+        return scaled([12, 13, 14, 16][densityForWidth(width)])
     }
 }

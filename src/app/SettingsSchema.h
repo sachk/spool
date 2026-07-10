@@ -19,6 +19,7 @@ enum class SettingTarget {
     PreferRemux,
     AudioDelay,
     AudioOutput,
+    UiScale,
     SubtitleLanguage,
     SubtitleMode,
     SubtitleBurnIn,

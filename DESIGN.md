@@ -97,7 +97,7 @@ per the performance plan. **Lua 5.2** is bundled solely for mpv's scripting
 - **Build**: CMake ≥3.22 + Ninja; meson for libmpv; buildroot GCC 14.2
   cross-toolchain (armv7, softfp); Nix flake for reproducible dev shells;
   `tools/` shell scripts for IPK/AppImage/DMG packaging.
-- **Tests**: 20 plain-`main`/Qt test executables plus three qmltestrunner
+- **Tests**: 21 plain-`main`/Qt test executables plus three qmltestrunner
   contracts (`RoutePolicy`, `KeyRouter`, and `PlayerOverlayInput`) are wired
   through CTest.
 
@@ -136,6 +136,16 @@ item.
 - Item context, media information, management, and sync-play overlays use the
   same dialog/list primitives. `AppShell` owns their precedence and routes
   input only to the topmost visible layer.
+- Search makes one mixed Movie/Series/Episode request and partitions the
+  response into three local `MovieGridModel` sections. Episode cards reuse the
+  series primary image while retaining the episode title and Sxx:Exx label.
+- Home starts Continue Watching, Next Up, and every supported library's Latest
+  request together. Completed library responses become data-driven `MediaRow`
+  sections, including generic content types rather than a movie/TV-only set.
+- `SettingsController` persists one integer UI-scale percentage. `Metrics`
+  derives typography, controls, spacing, cards, grids, navigation, and overlay
+  geometry from it; the first authenticated route is a three-preset showcase
+  until its completion marker is stored.
 
 ### C++ ownership
 

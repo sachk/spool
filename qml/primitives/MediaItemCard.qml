@@ -19,7 +19,7 @@ Item {
     readonly property bool posterKind: kind === "poster"
     readonly property real metadataHeight: metadataLabel.text.length > 0 ? metadataLabel.implicitHeight : 0
     readonly property real artHeight: posterKind ? width * 1.5 : width * 9 / 16
-    readonly property real titleAvailableHeight: Math.max(0, height - art.height - 10 - metadataHeight)
+    readonly property real titleAvailableHeight: Math.max(0, height - art.height - Metrics.scaled(10) - metadataHeight)
     readonly property real effectiveProgress: playbackProgress()
 
     signal activated
@@ -100,7 +100,7 @@ Item {
         anchors.left: art.left
         anchors.right: art.right
         anchors.bottom: art.bottom
-        height: 4
+        height: Metrics.scaled(4)
         visible: !root.posterKind && root.effectiveProgress > 0
         color: "#66000000"
 
@@ -114,7 +114,7 @@ Item {
     AppText {
         id: titleLabel
         anchors.top: art.bottom
-        anchors.topMargin: 8
+        anchors.topMargin: Metrics.scaled(8)
         anchors.left: parent.left
         anchors.right: parent.right
         visible: text.length > 0 && root.titleAvailableHeight > 0
@@ -130,7 +130,7 @@ Item {
     MonoText {
         id: metadataLabel
         anchors.top: titleLabel.bottom
-        anchors.topMargin: 2
+        anchors.topMargin: Metrics.scaled(2)
         anchors.left: parent.left
         anchors.right: parent.right
         visible: text.length > 0 && root.height > y
