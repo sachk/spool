@@ -2,21 +2,20 @@
 
 ## Brief summary
 
-Jellyfin Native is a C++/QML client for LG webOS TVs (with Linux/macOS dev
-builds) that talks directly to a Jellyfin server — no embedded browser. A
-C++ core owns app state: a coroutine-based REST facade (`JellyfinApiFacade`,
-QCoro + `QRestAccessManager`), feature controllers (browse, home, search,
-session, settings, sync-play, play queue) aggregated behind one
-`AppController` context property, route state owned by `RouterController`, list
-models derived from `QAbstractListModel`, an SQLite cache on a worker thread
-with coroutine read APIs, and a player layer that drives a custom libmpv fork
-whose video decodes through LG's Starfish hardware pipeline (dlopen'd after
-first frame to keep launch fast).
-An ~11k-line QML layer renders a fully remote-driven TV UI: a shell that
-routes D-pad input, a route stack of lazily loaded pages, and hand-rolled
-focus/navigation primitives tuned for the magic remote. Everything is
-statically linked against Qt 6.11 where possible, AOT-compiled with
-qmlcachegen, and packaged as an IPK for armv7 webOS.
+Jellyfin Native is a C++/QML client for LG webOS TVs, with native Linux and
+macOS development builds, that talks directly to a Jellyfin server. The C++
+core owns durable state and I/O: a coroutine-based REST facade, focused
+feature controllers, `QAbstractListModel` models, an SQLite worker, and the
+custom libmpv/Starfish playback stack. Those objects are registered as
+`JellyfinWebOS` singleton instances; QML does not depend on ambient context
+properties.
+
+The 10k-line QML layer is intentionally shallow. `AppShell` owns lazy routes
+and overlays, `KeyRouter` is the only non-text key event boundary, pages expose
+small zone-level input contracts, and reusable `MediaRow`, `MediaItemCard`,
+`OverlayDialog`, and `MenuListView` components cover repeated UI structures.
+Qt 6.11 compiles the module with qmlcachegen direct calls. The webOS build is
+otherwise statically linked and packages the native app as an armv7 IPK.
 
 ## Libraries and toolchain in detail
 
@@ -26,18 +25,16 @@ Statically linked on webOS; the module list is in `CMakeLists.txt:51-76`.
 
 - **QtCore / QtGui / QtQuick / QtQml / QtQuickControls2 (Basic style)** — the
   UI stack. QML is compiled ahead-of-time via **qmlcachegen** with
-  `QT_QMLCACHEGEN_DIRECT_CALLS` (`CMakeLists.txt:370-372`); the app loads the
-  QML module through `loadFromModule` so the AOT units are actually used
-  (`src/main.cpp:699`). Controllers are exposed as **context properties**
-  (`src/main.cpp:684-692`), not registered QML types — see the refactor
-  report; this is the main thing blocking `qmllint`/`pragma Strict`/qmltc.
+  `QT_QMLCACHEGEN_DIRECT_CALLS`; the app loads the module through
+  `loadFromModule`, so the generated compilation units are used. Controllers
+  and services are registered singleton instances in the `JellyfinWebOS`
+  module before the engine loads.
 - **QtNetwork** — one shared `QNetworkAccessManager` with a
-  `QNetworkDiskCache` (`src/main.cpp:535-542`). The API facade uses the
-  modern Qt 6.7+ HTTP trio: **`QRestAccessManager`**,
-  **`QNetworkRequestFactory`** (base URL, common headers, transfer timeout)
-  and **`QHttpHeaders`** (`src/api/JellyfinApiFacade.h:151-152`,
-  `src/api/JellyfinApiFacade.cpp:429-440`). Retry/timeout policy is a small
-  in-house constexpr class (`src/api/HttpRequestPolicy.h`).
+  `QNetworkDiskCache`. The API facade uses `QRestAccessManager`,
+  `QNetworkRequestFactory`, and `QHttpHeaders`. Its request factory sets an
+  explicit 15-minute connection-cache expiry so idle browse connections do not
+  inherit Qt 6.11's shorter default. Retry and timeout policy remains a small
+  constexpr class (`src/api/HttpRequestPolicy.h`).
 - **QtWebSockets** — SyncPlay group session socket
   (`src/app/SyncPlayController.h:11`).
 - **QtSql (SQLite driver)** — single `cache.sqlite` for auth session, device
@@ -99,17 +96,81 @@ per the performance plan. **Lua 5.2** is bundled solely for mpv's scripting
   a tiny `MaterialIcon` primitive — no icon-image assets.
 - **Build**: CMake ≥3.22 + Ninja; meson for libmpv; buildroot GCC 14.2
   cross-toolchain (armv7, softfp); Nix flake for reproducible dev shells;
-  `tools/` shell scripts for IPK/AppImage/DMG packaging;
-  `tools/reduce_openapi.py` can slice the Jellyfin OpenAPI spec (currently
-  unused by the build — candidate for DTO codegen).
-- **Tests**: 21 QtTest-less plain-`main` executables under `tests/` wired via
-  CTest (`CMakeLists.txt:455-736`), plus one qmltestrunner test for
-  `RoutePolicy.js`.
+  `tools/` shell scripts for IPK/AppImage/DMG packaging.
+- **Tests**: 20 plain-`main`/Qt test executables plus three qmltestrunner
+  contracts (`RoutePolicy`, `KeyRouter`, and `PlayerOverlayInput`) are wired
+  through CTest.
 
 No embedded browser/jellyfin-web, no JS runtime beyond QML, no
 openapi-generator client (a past attempt hit `cpp-qt6-client` generator bugs,
 see `docs/codebase-audit.md:181`), no third-party JSON/serialization library.
 DTO cache/API mapping uses a small in-tree Qt meta-object mapper
-(`src/common/MetaJson.h`) over hand-written `Q_GADGET` value types; bespoke
-code remains only where server fields need real interpretation (image URLs,
-playability, browse-descriptor cache keys).
+(`src/common/MetaJson.h`) over hand-written `Q_GADGET` value types. Bespoke
+mapping remains only where Jellyfin's wire shape needs interpretation.
+`MovieItem` stores raw ids, image tags, and media data; playability, labels,
+and `image://artwork` URLs are derived at the use site rather than retained per
+item.
+
+## Refactored runtime boundaries
+
+### Input and focus
+
+- `qml/shell/KeyRouter.qml` owns press/release normalization, auto-repeat,
+  accept long-press, back handling, and ignored player-key noise.
+- `AppShell` selects exactly one route target. Pages navigate named focus
+  zones; lists expose `moveSelection()`/`activate()` instead of installing
+  competing `Keys` handlers.
+- Text entry is the sole exception: `TextFieldRow` consumes editing keys and
+  delegates keyboard display to LG's system IME.
+- Flickable visibility uses Qt 6.11's `positionViewAtChild()` through
+  `InputKeys.positionChild()`. No page carries its own scrolling algorithm.
+
+### Reusable presentation
+
+- `MediaRow` represents poster, landscape, library, and person rows.
+  `MediaItemCard` handles the corresponding card layouts without forwarding
+  copies of model properties.
+- Player subtitles, audio tracks, queue entries, and playback settings share
+  `OverlayDialog` + `MenuListView`; the complete player overlay is 1,433 QML
+  lines.
+- Item context, media information, management, and sync-play overlays use the
+  same dialog/list primitives. `AppShell` owns their precedence and routes
+  input only to the topmost visible layer.
+
+### C++ ownership
+
+- `AppController` is the 668-line application coordinator. Browse state,
+  content/detail models, home data, settings, item-state mutation, library
+  management, play queue, and sync play live in focused controllers.
+- `MovieItem` is a raw value type. `ArtworkService` composes image requests on
+  demand; `MetaJson` handles writable gadget properties and nested string
+  lists; the API facade keeps only wire-format fixups.
+- Database reads resume through Qt continuations on the GUI thread. Diagnostics
+  use typed phase/task objects, and CPU topology comes from sysfs rather than
+  subprocess parsing.
+
+## Refactor measurements
+
+Tracked C++ (`src/**/*.cpp`, `src/**/*.h`) changed from 20,038 to 19,430 lines.
+Tracked QML/JS changed from 12,466 to 9,997 lines. Combined: 32,504 to 29,427,
+a net deletion of 3,077 lines against the plan's 2,700-line floor.
+
+The phase commits netted A −415, B −395, C −874, D −593, E −352, F −10,
+G −193, and H −150 lines in their target trees. The per-phase estimates were
+not forced when code moved to its correct owner: notably, F moved URL
+composition into `ArtworkService` instead of deleting required behavior.
+The aggregate floor still clears by 377 lines, while the explicit acceptance
+ceilings hold (`AppController.cpp` 668; player QML 1,433).
+
+The Qt 6.11 qmltc leaf experiment was rejected. Compiling only `AppText` while
+continuing to instantiate the root with `loadFromModule` changed median
+isolated login-page load from 93.5 ms to 95 ms (12 interleaved samples), added
+528,248 bytes to the stripped executable, and added 46,781 bytes of runtime
+sections. qmltc only avoids `QQmlComponent` construction when C++ directly
+instantiates its generated class, so leaf-only compilation added cost without
+serving the application's construction path. qmlcachegen direct mode remains
+the measured choice.
+
+The M2 post-diet playback log snapshot recorded 277 MiB RSS, 195 MiB anonymous,
+and 580 MiB VmData on the target TV. Treat it as a point measurement, not an
+attribution of the full process delta to `MovieItem`.
