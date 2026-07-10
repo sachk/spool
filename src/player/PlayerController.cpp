@@ -561,12 +561,6 @@ bool PlayerController::applyMpvRuntimeOption(MpvRuntimeOption option, MpvOptionA
     case MpvRuntimeOption::NightMode:
         name = "af";
         value = m_nightModeEnabled.load() ? QByteArray(kNightModeFilter) : QByteArray();
-#ifdef JELLYFIN_NATIVE_WEBOS
-        if (m_audioOutputMode == QStringLiteral("alsa") && !value.isEmpty()) {
-            qWarning() << "player: night mode disabled for webOS ALSA split-clock";
-            value.clear();
-        }
-#endif
         break;
     case MpvRuntimeOption::ToneMappingVisualization:
         name = "tone-mapping-visualize";
