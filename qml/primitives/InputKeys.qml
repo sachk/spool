@@ -8,6 +8,15 @@ QtObject {
             item.forceActiveFocus()
     }
 
+    function ensureVisible(view, item) {
+        if (!view || !item)
+            return
+        Qt.callLater(function () {
+            if (view && item)
+                view.positionViewAtChild(item, Flickable.Contain)
+        })
+    }
+
     function isAccept(key, includeSpace) {
         return key === Qt.Key_Return || key === Qt.Key_Enter || key === Qt.Key_Select || (includeSpace !== false && key
                                                                                           === Qt.Key_Space)

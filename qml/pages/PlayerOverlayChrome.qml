@@ -1,7 +1,6 @@
 pragma ComponentBehavior: Bound
 
 import QtQuick
-import QtQuick.Controls.Basic
 import QtQuick.Layouts
 import JellyfinWebOS
 import "../theme"
@@ -53,10 +52,13 @@ Item {
         }
     }
 
+    // Registered dynamically by main.cpp, so no static .qmltypes entry exists.
+    // qmllint disable import unresolved-type
     MpvVideoItem {
         anchors.fill: parent
         z: -1
     }
+    // qmllint enable import unresolved-type
 
     TapHandler {
         onTapped: root.overlay.showControls("timeline")

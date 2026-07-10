@@ -1,3 +1,5 @@
+pragma ComponentBehavior: Bound
+
 import QtQuick
 import QtQuick.Layouts
 import "../theme"
@@ -32,14 +34,14 @@ OverlayDialog {
     onDismissed: closeOverlay()
 
     onVisibleChanged: if (visible) {
-                          currentActionIndex = closeActionIndex
-                          Qt.callLater(ensureFocus)
-                          Qt.callLater(refreshItemDetail)
-                      }
+        currentActionIndex = closeActionIndex
+        Qt.callLater(ensureFocus)
+        Qt.callLater(refreshItemDetail)
+    }
     onItemChanged: if (visible)
-                       Qt.callLater(refreshItemDetail)
+    Qt.callLater(refreshItemDetail)
     onActiveFocusChanged: if (visible && !activeFocus)
-                              InputKeys.focus(root)
+    InputKeys.focus(root)
 
     component Pair: ColumnLayout {
         property string label: ""
@@ -331,7 +333,7 @@ OverlayDialog {
             focus: root.currentActionIndex === root.showActionIndex
             onClicked: root.openSeries()
             onActiveFocusChanged: if (activeFocus)
-                                      root.currentActionIndex = root.showActionIndex
+            root.currentActionIndex = root.showActionIndex
         }
         ActionButton {
             id: seasonBtn
@@ -341,7 +343,7 @@ OverlayDialog {
             focus: root.currentActionIndex === root.seasonActionIndex
             onClicked: root.openSeason()
             onActiveFocusChanged: if (activeFocus)
-                                      root.currentActionIndex = root.seasonActionIndex
+            root.currentActionIndex = root.seasonActionIndex
         }
         ActionButton {
             id: closeBtn
@@ -350,7 +352,7 @@ OverlayDialog {
             focus: root.currentActionIndex === root.closeActionIndex
             onClicked: root.closeOverlay()
             onActiveFocusChanged: if (activeFocus)
-                                      root.currentActionIndex = root.closeActionIndex
+            root.currentActionIndex = root.closeActionIndex
         }
     }
 

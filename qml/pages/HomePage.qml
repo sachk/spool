@@ -1,5 +1,6 @@
+pragma ComponentBehavior: Bound
+
 import QtQuick
-import QtQuick.Layouts
 import "../theme"
 import "../primitives"
 
@@ -96,27 +97,12 @@ FocusScope {
         return rows[currentSection]
     }
 
-    function ensureItemVisible(item) {
-        if (!item)
-            return
-        const margin = Math.round(20 * Math.max(0.78, Math.min(1.0, root.height / 1440)))
-        const top = Math.max(0, item.y - margin)
-        const bottom = item.y + item.height + margin
-        const viewportTop = scroller.contentY
-        const viewportBottom = scroller.contentY + scroller.height
-        const maxY = Math.max(0, scroller.contentHeight - scroller.height)
-        if (top < viewportTop)
-            scroller.contentY = Math.max(0, top)
-        else if (bottom > viewportBottom)
-            scroller.contentY = Math.min(maxY, bottom - scroller.height)
-    }
-
     function focusCurrentSection() {
         const section = activeSection()
         if (!section)
             return false
         section.focusList()
-        ensureItemVisible(section)
+        InputKeys.ensureVisible(scroller, section)
         return true
     }
 
@@ -172,7 +158,7 @@ FocusScope {
         scheduleFocusRepair()
     }
     onActiveFocusChanged: if (activeFocus)
-                              focusCurrentSection()
+    focusCurrentSection()
 
     Flickable {
         id: scroller

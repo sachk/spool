@@ -413,6 +413,18 @@ qt_add_qml_module(jellyfin-native
         qml/fonts/MaterialIcons-Regular.ttf
 )
 
+add_custom_target(jellyfin-native_qmllint_strict
+    COMMAND Qt6::qmllint
+        --unqualified disable
+        --missing-property disable
+        --property-override warning
+        "@${CMAKE_CURRENT_BINARY_DIR}/.rcc/qmllint/jellyfin-native.rsp"
+    WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
+    COMMENT "Linting QML property overrides"
+    VERBATIM
+)
+add_dependencies(jellyfin-native_qmllint_strict all_qmltyperegistrations)
+
 set_target_properties(jellyfin-native PROPERTIES
     QT_QMLCACHEGEN_DIRECT_CALLS ON
 )

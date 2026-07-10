@@ -1,3 +1,5 @@
+pragma ComponentBehavior: Bound
+
 import QtQuick
 import QtQuick.Layouts
 import "../theme"
@@ -359,11 +361,11 @@ FocusScope {
                 currentIndex: count > 0 ? 0 : -1
                 onCountChanged: {
                     if (root.addMode && root.addStep === 1 && count > 0 && !urlRow.editing &&
-                            !manualServerCard.activeFocus)
-                        Qt.callLater(root.focusServerStep)
+                        !manualServerCard.activeFocus)
+                    Qt.callLater(root.focusServerStep)
                 }
                 onCurrentIndexChanged: if (currentIndex >= 0)
-                                           positionViewAtIndex(currentIndex, ListView.Contain)
+                positionViewAtIndex(currentIndex, ListView.Contain)
 
                 FastWheelHandler {
                     flickable: discoveredList

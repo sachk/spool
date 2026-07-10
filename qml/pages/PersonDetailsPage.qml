@@ -52,23 +52,8 @@ FocusScope {
     function focusKnownFor() {
         if (itemCount > 0) {
             InputKeys.focus(knownFor)
-            ensurePersonItemVisible(knownFor)
+            InputKeys.ensureVisible(personFlick, knownFor)
         }
-    }
-
-    function ensurePersonItemVisible(item) {
-        if (!item || !personFlick || !contentColumn)
-            return
-        Qt.callLater(function () {
-            const mapped = item.mapToItem(contentColumn, 0, 0)
-            const top = Math.max(0, mapped.y - 18)
-            const bottom = mapped.y + item.height + 18
-            const maxY = Math.max(0, personFlick.contentHeight - personFlick.height)
-            if (top < personFlick.contentY)
-                personFlick.contentY = Math.max(0, top)
-            else if (bottom > personFlick.contentY + personFlick.height)
-                personFlick.contentY = Math.min(maxY, bottom - personFlick.height)
-        })
     }
 
     function refreshCount() {
