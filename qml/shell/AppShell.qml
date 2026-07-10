@@ -13,11 +13,6 @@ KeyRouter {
     property int lastLibraryIndex: 0
     property int lastGridIndex: 0
     property int lastSearchIndex: 0
-    readonly property var detailsModel: route === "itemDetails" && routeArgs.model ? routeArgs.model : Browse.items
-    readonly property int detailsIndex: Math.max(0, Number(routeArgs.focusIndex || 0))
-    readonly property string detailsItemId: String(routeArgs.itemId || "")
-    readonly property string detailsSource: String(routeArgs.source || "movies")
-    readonly property string detailsReturnRoute: String(routeArgs.returnRoute || "libraryGrid")
     property bool diagnosticsVisible: false
     property bool diagnosticsLoaded: false
     property bool mediaInfoVisible: false
@@ -156,10 +151,6 @@ KeyRouter {
         InputKeys.focus(routeStack)
     }
 
-    function detailsIndexForModel(model) {
-        return RoutePolicy.modelIndexForItemId(model, detailsItemId, detailsIndex)
-    }
-
     function openDetailsRoute(request) {
         const normalized = RoutePolicy.normalizeDetailsRoute(request, Browse.items, route)
         if (!normalized) {
@@ -246,7 +237,7 @@ KeyRouter {
         if (routeStack.back())
             return true
         if (route === "itemDetails") {
-            Router.pop(detailsReturnRoute.length > 0 ? detailsReturnRoute : "libraryGrid")
+            Router.pop(String(routeArgs.returnRoute || "libraryGrid"))
             InputKeys.focus(routeStack)
             return true
         }
@@ -398,12 +389,10 @@ KeyRouter {
     }
 
     function currentMediaItem() {
-        if (route === "itemDetails" && detailsModel && detailsModel.rowCount) {
-            const detailsCount = detailsModel.rowCount()
-            if (detailsCount > 0) {
-                const detailsIdx = detailsIndexForModel(detailsModel)
-                return detailsModel.get(detailsIdx) || ({})
-            }
+        if (route === "itemDetails") {
+            const details = RoutePolicy.detailsContext(routeArgs, Browse.items)
+            if (details.index >= 0)
+                return details.item
         }
         if (route === "search" && Search.results) {
             const searchCount = Search.results.rowCount()

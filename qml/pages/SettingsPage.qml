@@ -1,3 +1,5 @@
+pragma ComponentBehavior: Bound
+
 import QtQuick
 import QtQuick.Layouts
 import "../theme"
@@ -8,269 +10,98 @@ FocusScope {
 
     property var shell
     property int currentIndex: 0
-    property int categoryIndex: 0
     property var settingsRows: []
 
-    readonly property bool smartTvPlatform: NativeWindow.smartTvPlatform
-    readonly property bool gpuNextDiagnosticsAvailable: !smartTvPlatform
-    readonly property var categories: [
-        {
-            label: "General",
-            group: "General"
-        },
-        {
-            label: "Appearance",
-            group: "Appearance"
-        },
-        {
-            label: "Playback",
-            group: "Playback"
-        },
-        {
-            label: "Subtitles",
-            group: "Subtitles"
-        },
-        {
-            label: "Diagnostics",
-            group: "Diagnostics"
-        },
-        {
-            label: "Input",
-            group: "Button Remap"
-        },
-        {
-            label: "About",
-            group: "About"
-        }
-    ]
-    readonly property var topRows: [
-        {
-            key: "action/switchUser",
-            source: "page",
-            group: "General",
-            type: "action",
-            title: "Switch User",
-            description: "Return to profile selection",
-            valueText: "Choose"
-        },
-        {
-            key: "action/logout",
-            source: "page",
-            group: "General",
-            type: "action",
-            title: "Logout",
-            description: "Clear the saved session and return to sign in",
-            valueText: "Sign out"
-        },
-        {
-            key: "session/server",
-            source: "page",
-            group: "General",
-            type: "readonly",
-            title: "Connected Server"
-        }
-    ]
-    readonly property var pageSchemaRows: [
-        {
-            key: "theme/name",
-            source: "page",
-            group: "General",
-            type: "readonly",
-            title: "Theme",
-            description: "Fixed dark TV interface",
-            valueText: "Jellyfin Dark"
-        },
-        {
-            key: "i18n/locale",
-            source: "page",
-            group: "General",
-            type: "select",
-            title: "Language",
-            description: "Restart the app to update cached server text"
-        },
-        {
-            key: "theme/accent",
-            source: "page",
-            group: "General",
-            type: "select",
-            title: "Accent",
-            choiceLabels: ["Jellyfin Blue", "Jellyfin Purple", "Blue-Purple"]
-        },
-        {
-            key: "metrics/uiScale",
-            source: "page",
-            group: "General",
-            type: "slider",
-            title: "UI Scale",
-            description: "Runtime type and spacing scale",
-            from: 0.75,
-            to: 1.5,
-            step: 0.05,
-            decimals: 2,
-            unitText: "x",
-            valueBoxWidth: 78,
-            sliderPreferredWidth: 280
-        },
-        {
-            key: "metrics/posterSize",
-            source: "page",
-            group: "Appearance",
-            type: "select",
-            title: "Poster Size",
-            choiceLabels: ["Compact", "Normal", "Large"]
-        },
-        {
-            key: "metrics/gridColumns",
-            source: "page",
-            group: "Appearance",
-            type: "select",
-            title: "Grid Columns",
-            choiceLabels: ["Auto", "4", "5", "6", "7", "8", "9"]
-        },
-        {
-            key: "theme/railLabels",
-            source: "page",
-            group: "Appearance",
-            type: "select",
-            title: "Side Rail Labels",
-            choiceLabels: ["Never", "On focus", "Always"]
-        },
-        {
-            key: "theme/reducedMotion",
-            source: "page",
-            group: "Appearance",
-            type: "toggle",
-            title: "Reduced Motion"
-        },
-        {
-            key: "theme/renderMode",
-            source: "page",
-            group: "Appearance",
-            type: "select",
-            title: "Text Render Mode",
-            choiceLabels: ["Qt", "Curve"]
-        },
-        {
-            key: "theme/antialiasedText",
-            source: "page",
-            group: "Appearance",
-            type: "toggle",
-            title: "Antialiased Text"
-        },
-        {
-            key: "theme/technicalMetadata",
-            source: "page",
-            group: "Appearance",
-            type: "select",
-            title: "Show Technical Metadata",
-            choiceLabels: ["Always", "On details only", "Hidden"]
-        },
-        {
-            key: "shell/diagnostics",
-            source: "page",
-            group: "Diagnostics",
-            type: "toggle",
-            title: "Diagnostics Overlay"
-        }
-    ]
-    readonly property var aboutRows: [
-        {
-            key: "about/version",
-            source: "page",
-            group: "About",
-            type: "readonly",
-            title: "Jellyfin Native for webOS",
-            description: "Qt 6.11 client, native mpv playback"
-        },
-        {
-            key: "about/locale",
-            source: "page",
-            group: "About",
-            type: "readonly",
-            title: "UI Locale"
-        }
-    ]
+    readonly property bool gpuNextDiagnosticsAvailable: !NativeWindow.smartTvPlatform
+    readonly property var groupOrder: ["General", "Appearance", "Playback", "Subtitles", "Subtitle Appearance",
+        "Diagnostics", "Button Remap", "About"]
+    readonly property var pageRows: [makeRow("action/switchUser", "General", "action", "Switch User",
+                                             "Return to profile selection"), makeRow("action/logout", "General",
+                                                                                     "action", "Logout",
+                                                                                     "Clear the saved session and return to sign in"),
+        makeRow("session/server", "General", "readonly", "Connected Server"), makeRow("theme/name", "General",
+                                                                                      "readonly", "Theme",
+                                                                                      "Fixed dark TV interface"),
+        makeRow("i18n/locale", "General", "select", "Language", "Restart the app to update cached server text"), makeRow(
+            "theme/accent", "Appearance", "select", "Accent", "", ["Jellyfin Blue", "Jellyfin Purple", "Blue-Purple"],
+            [0, 1, 2]), sliderRow("metrics/uiScale", "Appearance", "UI Scale", "Runtime type and spacing scale", 0.75, 1.5, 0.05,
+                                  2, "x"), makeRow("metrics/posterSize", "Appearance", "select", "Poster Size", "",
+                                                   ["Compact", "Normal", "Large"], [-1, 0, 1]), makeRow(
+            "metrics/gridColumns", "Appearance", "select", "Grid Columns", "", ["Auto", "4", "5", "6", "7", "8", "9"],
+            [0, 4, 5, 6, 7, 8, 9]), makeRow("theme/railLabels", "Appearance", "select", "Side Rail Labels", "", ["Never",
+                                                                                                                 "On focus",
+                                                                                                                 "Always"],
+                                            ["Never", "On focus", "Always"]), makeRow("theme/reducedMotion",
+                                                                                      "Appearance", "toggle",
+                                                                                      "Reduced Motion"), makeRow(
+            "theme/renderMode", "Appearance", "select", "Text Render Mode", "", ["Qt", "Curve"], [Text.QtRendering,
+                                                                                                  Text.CurveRendering]),
+        makeRow("theme/antialiasedText", "Appearance", "toggle", "Antialiased Text"), makeRow("theme/technicalMetadata",
+                                                                                              "Appearance", "select",
+                                                                                              "Show Technical Metadata",
+                                                                                              "", ["Always",
+                                                                                                   "On details only",
+                                                                                                   "Hidden"], ["Always",
+                                                                                                               "On details only",
+                                                                                                               "Hidden"]),
+        makeRow("shell/diagnostics", "Diagnostics", "toggle", "Diagnostics Overlay"), makeRow("about/version", "About",
+                                                                                              "readonly",
+                                                                                              "Jellyfin Native for webOS",
+                                                                                              "Qt 6.11 client, native mpv playback"),
+        makeRow("about/locale", "About", "readonly", "UI Locale")]
 
-    component SettingsSelectRow: SelectRow {
-        metricsWidth: root.width
-        focus: false
-        focusPolicy: Qt.NoFocus
+    function makeRow(key, group, type, title, description, labels, values) {
+        return {
+            key: key,
+            source: "page",
+            group: group,
+            type: type,
+            title: title,
+            description: description || "",
+            choiceLabels: labels || [],
+            choiceValues: values || []
+        }
     }
 
-    component SettingsSliderRow: SliderRow {
-        metricsWidth: root.width
-        focus: false
-        focusPolicy: Qt.NoFocus
-    }
-
-    function controllerSchemaRows() {
-        return Settings.settingsSchema
+    function sliderRow(key, group, title, description, from, to, step, decimals, unit) {
+        const row = makeRow(key, group, "slider", title, description)
+        row.from = from
+        row.to = to
+        row.step = step
+        row.decimals = decimals
+        row.unitText = unit
+        return row
     }
 
     function rowVisible(row) {
-        if (!row || row.visible === false)
-            return false
-        if (row.key === "settings/toneMappingVisualization")
-            return gpuNextDiagnosticsAvailable
-        return true
+        return row && row.visible !== false && (row.key !== "settings/toneMappingVisualization"
+                                                || gpuNextDiagnosticsAvailable)
     }
 
     function rebuildSettingsRows() {
+        const schema = Settings.settingsSchema
         const rows = []
-        const append = function (list) {
-            for (let i = 0; i < list.length; ++i) {
-                if (rowVisible(list[i]))
-                    rows.push(list[i])
-            }
+        for (let groupIndex = 0; groupIndex < groupOrder.length; ++groupIndex) {
+            const group = groupOrder[groupIndex]
+            for (let index = 0; index < pageRows.length; ++index)
+                if (pageRows[index].group === group && rowVisible(pageRows[index]))
+                    rows.push(pageRows[index])
+            for (let index = 0; index < schema.length; ++index)
+                if (schema[index].group === group && rowVisible(schema[index]))
+                    rows.push(schema[index])
         }
-        append(topRows)
-        append(pageSchemaRows)
-        append(controllerSchemaRows())
-        append(aboutRows)
         settingsRows = rows
-        currentIndex = Math.max(0, Math.min(currentIndex, settingsRows.length - 1))
-        settingsList.currentIndex = currentIndex
-        syncCategoryForRow(currentIndex)
+        focusRow(Math.min(currentIndex, rows.length - 1))
     }
 
     function rowAt(index) {
         return index >= 0 && index < settingsRows.length ? settingsRows[index] : null
     }
 
-    function previousRow(index) {
-        return index > 0 ? settingsRows[index - 1] : null
-    }
-
-    function showPreferencesHeader(index) {
-        return index === 0
-    }
-
     function showGroupHeader(index) {
         const row = rowAt(index)
-        const previous = previousRow(index)
+        const previous = rowAt(index - 1)
         return row && (!previous || previous.group !== row.group)
-    }
-
-    function categoryTarget(index) {
-        if (settingsRows.length <= 0)
-            return 0
-        const category = categories[Math.max(0, Math.min(categories.length - 1, index))]
-        for (let i = 0; i < settingsRows.length; ++i) {
-            if (settingsRows[i].group === category.group)
-                return i
-        }
-        return 0
-    }
-
-    function syncCategoryForRow(rowIndex) {
-        let nextCategory = 0
-        for (let i = 0; i < categories.length; ++i) {
-            if (rowIndex >= categoryTarget(i))
-                nextCategory = i
-        }
-        categoryIndex = nextCategory
-        if (categoryList.currentIndex !== categoryIndex)
-            categoryList.currentIndex = categoryIndex
     }
 
     function focusRow(index) {
@@ -279,271 +110,157 @@ FocusScope {
         currentIndex = Math.max(0, Math.min(settingsRows.length - 1, index))
         settingsList.currentIndex = currentIndex
         InputKeys.focus(settingsList)
-        syncCategoryForRow(currentIndex)
         settingsList.positionViewAtIndex(currentIndex, ListView.Contain)
     }
 
-    function focusCategory(index) {
-        categoryIndex = Math.max(0, Math.min(categories.length - 1, index))
-        categoryList.currentIndex = categoryIndex
-        InputKeys.focus(categoryList)
-        categoryList.positionViewAtIndex(categoryIndex, ListView.Contain)
-    }
-
-    function activateCategory(index) {
-        categoryIndex = Math.max(0, Math.min(categories.length - 1, index))
-        focusRow(categoryTarget(categoryIndex))
-    }
-
     function settingsValue(row) {
-        const values = Settings.values
-        const value = values[row.key]
-        return value === undefined ? row.defaultValue : value
-    }
-
-    function valueIndex(values, currentValue) {
-        for (let i = 0; i < values.length; ++i) {
-            if (values[i] === currentValue)
-                return i
-        }
-        return 0
-    }
-
-    function valueFromIndex(values, index) {
-        return index >= 0 && index < values.length ? values[index] : values[0]
-    }
-
-    function rowDescription(row) {
-        if (row.key === "subtitles/mode") {
-            const mode = String(settingsValue(row))
-            if (mode === "Smart")
-                return "Show subtitles when audio is not in your preferred language"
-            if (mode === "OnlyForced")
-                return "Show only forced subtitle tracks"
-            if (mode === "Always")
-                return "Show subtitles whenever a matching track is available"
-            if (mode === "None")
-                return "Do not automatically show subtitles"
-            return "Use the Jellyfin account default"
-        }
-        if (row.key === "subtitles/styling") {
-            const styling = String(settingsValue(row))
-            if (styling === "Custom")
-                return "Use the subtitle appearance values below"
-            if (styling === "Native")
-                return "Respect embedded subtitle styling when available"
-            return "Use custom styling when it improves readability"
-        }
-        if (row.key === "session/server")
-            return Session.serverUrl
-        if (row.key === "about/locale")
-            return "Active translation tag"
-        return row.description || ""
-    }
-
-    function rowValueText(row) {
-        switch (row.key) {
-        case "session/server":
-            return Session.serverUrl.length > 0 ? "Connected" : "Offline"
-        case "about/version":
-            return "v" + Qt.application.version
-        case "about/locale":
-            return I18n.currentLocale
-        default:
-            return row.valueText || ""
-        }
-    }
-
-    function rowOptions(row) {
         switch (row.key) {
         case "i18n/locale":
-        {
-            const result = []
-            const list = I18n.availableLocales
-            for (let i = 0; i < list.length; ++i)
-                result.push(I18n.displayNameFor(list[i]))
-            return result
-        }
-        case "subtitles/language":
-            return Settings.subtitleLanguageOptions
-        default:
-            return row.choiceLabels || []
-        }
-    }
-
-    function rowChoiceValues(row) {
-        switch (row.key) {
-        case "i18n/locale":
-            return I18n.availableLocales
-        case "theme/accent":
-        case "metrics/posterSize":
-            return [0, 1, 2]
-        case "metrics/gridColumns":
-            return [0, 4, 5, 6, 7, 8, 9]
-        case "theme/railLabels":
-            return ["Never", "On focus", "Always"]
-        case "theme/renderMode":
-            return [Text.QtRendering, Text.CurveRendering]
-        case "theme/technicalMetadata":
-            return ["Always", "On details only", "Hidden"]
-        default:
-            return row.choiceValues || []
-        }
-    }
-
-    function rowCurrentIndex(row) {
-        switch (row.key) {
-        case "i18n/locale":
-        {
-            const list = I18n.availableLocales
-            for (let i = 0; i < list.length; ++i) {
-                if ((list[i] === "system" && I18n.useSystemLocale) || list[i] === I18n.currentLocale)
-                    return i
-            }
-            return 0
-        }
+            return I18n.useSystemLocale ? "system" : I18n.currentLocale
         case "theme/accent":
             return Theme.accentIndex
+        case "metrics/uiScale":
+            return Metrics.userUiScale
         case "metrics/posterSize":
-            return Metrics.userPosterSizeBias + 1
+            return Metrics.userPosterSizeBias
         case "metrics/gridColumns":
-        {
-            if (Metrics.userColumnOverride <= 0)
-                return 0
-            const columns = [4, 5, 6, 7, 8, 9]
-            for (let i = 0; i < columns.length; ++i) {
-                if (columns[i] === Metrics.userColumnOverride)
-                    return i + 1
-            }
-            return 0
-        }
+            return Metrics.userColumnOverride
         case "theme/railLabels":
-            if (Theme.sideRailLabels === "Never")
-                return 0
-            if (Theme.sideRailLabels === "Always")
-                return 2
-            return 1
+            return Theme.sideRailLabels
+        case "theme/reducedMotion":
+            return Theme.reducedMotion
         case "theme/renderMode":
-            return Theme.normalTextRenderType === Text.CurveRendering ? 1 : 0
+            return Theme.normalTextRenderType
+        case "theme/antialiasedText":
+            return Theme.antialiasedText
         case "theme/technicalMetadata":
-            if (Theme.technicalMetadataMode === "On details only")
-                return 1
-            if (Theme.technicalMetadataMode === "Hidden")
-                return 2
-            return 0
+            return Theme.technicalMetadataMode
+        case "shell/diagnostics":
+            return shell ? shell.diagnosticsVisible : false
         case "subtitles/language":
             return Settings.subtitleLanguageIndex
         default:
-            return valueIndex(rowChoiceValues(row), settingsValue(row))
+            const value = Settings.values[row.key]
+            return value === undefined ? row.defaultValue : value
         }
     }
 
-    function rowBool(row) {
-        switch (row.key) {
-        case "theme/reducedMotion":
-            return Theme.reducedMotion
-        case "theme/antialiasedText":
-            return Theme.antialiasedText
-        case "shell/diagnostics":
-            return shell ? shell.diagnosticsVisible : false
-        default:
-            return Boolean(settingsValue(row))
-        }
+    function rowDescription(row) {
+        return row.key === "session/server" ? Session.serverUrl : row.description || ""
     }
 
-    function rowNumber(row) {
+    function rowValueText(row) {
+        if (row.key === "action/switchUser")
+            return "Choose"
+        if (row.key === "action/logout")
+            return "Sign out"
+        if (row.key === "session/server")
+            return Session.serverUrl.length > 0 ? "Connected" : "Offline"
+        if (row.key === "theme/name")
+            return "Jellyfin Dark"
+        if (row.key === "about/version")
+            return "v" + Qt.application.version
+        if (row.key === "about/locale")
+            return I18n.currentLocale
+        return ""
+    }
+
+    function rowOptions(row) {
+        if (row.key === "i18n/locale") {
+            const result = []
+            for (let index = 0; index < I18n.availableLocales.length; ++index)
+                result.push(I18n.displayNameFor(I18n.availableLocales[index]))
+            return result
+        }
+        if (row.key === "subtitles/language")
+            return Settings.subtitleLanguageOptions
+        return row.choiceLabels || []
+    }
+
+    function rowChoiceValues(row) {
+        if (row.key === "i18n/locale")
+            return I18n.availableLocales
+        if (row.key === "subtitles/language")
+            return Settings.subtitleLanguageOptions
+        return row.choiceValues || []
+    }
+
+    function valueIndex(values, value) {
+        for (let index = 0; index < values.length; ++index)
+            if (values[index] === value)
+                return index
+        return 0
+    }
+
+    function rowCurrentIndex(row) {
+        if (row.key === "subtitles/language")
+            return Settings.subtitleLanguageIndex
+        return valueIndex(rowChoiceValues(row), settingsValue(row))
+    }
+
+    function setRowValue(row, value, index) {
         switch (row.key) {
+        case "i18n/locale":
+            I18n.setLocale(value)
+            break
+        case "theme/accent":
+            Theme.accentIndex = value
+            break
         case "metrics/uiScale":
-            return Metrics.userUiScale
+            Metrics.userUiScale = value
+            break
+        case "metrics/posterSize":
+            Metrics.userPosterSizeBias = value
+            break
+        case "metrics/gridColumns":
+            Metrics.userColumnOverride = value
+            break
+        case "theme/railLabels":
+            Theme.sideRailLabels = value
+            break
+        case "theme/reducedMotion":
+            Theme.reducedMotion = value
+            break
+        case "theme/renderMode":
+            Theme.normalTextRenderType = value
+            break
+        case "theme/antialiasedText":
+            Theme.antialiasedText = value
+            break
+        case "theme/technicalMetadata":
+            Theme.technicalMetadataMode = value
+            break
+        case "shell/diagnostics":
+            if (shell)
+                shell.diagnosticsVisible = value
+            break
+        case "subtitles/language":
+            Settings.setSubtitleLanguageIndex(index)
+            break
         default:
-            return Number(settingsValue(row))
+            Settings.setValue(row.key, value)
         }
     }
 
     function setRowChoice(row, index) {
-        switch (row.key) {
-        case "i18n/locale":
-        {
-            const list = I18n.availableLocales
-            if (index >= 0 && index < list.length)
-                I18n.setLocale(list[index])
-            return
-        }
-        case "theme/accent":
-            Theme.accentIndex = index
-            return
-        case "metrics/posterSize":
-            Metrics.userPosterSizeBias = index - 1
-            return
-        case "metrics/gridColumns":
-            Metrics.userColumnOverride = index === 0 ? 0 : Number(rowOptions(row)[index])
-            return
-        case "theme/railLabels":
-            Theme.sideRailLabels = String(rowOptions(row)[index])
-            return
-        case "theme/renderMode":
-            Theme.normalTextRenderType = index === 1 ? Text.CurveRendering : Text.QtRendering
-            return
-        case "theme/technicalMetadata":
-            Theme.technicalMetadataMode = String(rowOptions(row)[index])
-            return
-        case "subtitles/language":
-            Settings.setSubtitleLanguageIndex(index)
-            return
-        default:
-            const values = rowChoiceValues(row)
-            Settings.setValue(row.key, valueFromIndex(values, index))
-            return
-        }
-    }
-
-    function setRowBool(row, checked) {
-        switch (row.key) {
-        case "theme/reducedMotion":
-            Theme.reducedMotion = checked
-            return
-        case "theme/antialiasedText":
-            Theme.antialiasedText = checked
-            return
-        case "shell/diagnostics":
-            if (shell)
-                shell.diagnosticsVisible = checked
-            return
-        default:
-            Settings.setValue(row.key, checked)
-        }
-    }
-
-    function setRowNumber(row, value) {
-        switch (row.key) {
-        case "metrics/uiScale":
-            Metrics.userUiScale = value
-            return
-        default:
-            Settings.setValue(row.key, Math.round(value))
-        }
+        const values = rowChoiceValues(row)
+        if (index >= 0 && index < values.length)
+            setRowValue(row, values[index], index)
     }
 
     function activateRow(row, index) {
         if (!row)
             return
         currentIndex = index
-        settingsList.currentIndex = index
-        switch (row.type) {
-        case "action":
+        if (row.type === "action") {
             if (row.key === "action/switchUser" && shell)
                 shell.switchUser()
             else if (row.key === "action/logout")
                 App.logout()
-            return
-        case "toggle":
-            setRowBool(row, !rowBool(row))
-            return
-        case "select":
+        } else if (row.type === "toggle") {
+            setRowValue(row, !Boolean(settingsValue(row)), -1)
+        } else if (row.type === "select") {
             adjustRow(row, 1)
-            return
-        default:
-            return
         }
     }
 
@@ -552,43 +269,24 @@ FocusScope {
             return false
         if (row.type === "select") {
             const options = rowOptions(row)
-            if (options.length <= 0)
-                return true
-            setRowChoice(row, (rowCurrentIndex(row) + direction + options.length) % options.length)
+            if (options.length > 0)
+                setRowChoice(row, (rowCurrentIndex(row) + direction + options.length) % options.length)
             return true
         }
         if (row.type === "slider") {
-            const step = Number(row.step || 1)
             const from = Number(row.from || 0)
             const to = Number(row.to || 100)
-            const next = Math.max(from, Math.min(to, rowNumber(row) + step * direction))
-            setRowNumber(row, next)
+            const next = Math.max(from, Math.min(to, Number(settingsValue(row)) + Number(row.step || 1) * direction))
+            setRowValue(row, next, -1)
             return true
         }
         return false
     }
 
     function routeKey(key, phase, repeat) {
-        if (categoryList.activeFocus) {
-            if (phase === "press" && key === Qt.Key_Right) {
-                activateCategory(categoryIndex)
-                return true
-            }
-            if (phase === "press" && key === Qt.Key_Up && categoryIndex <= 0) {
-                if (shell)
-                    shell.focusNavBar()
-                return true
-            }
-            return categoryList.routeKey(key, phase, repeat)
-        }
-
         const row = rowAt(settingsList.currentIndex)
-        if ((key === Qt.Key_Left || key === Qt.Key_Right) && adjustRow(row, key === Qt.Key_Right ? 1 : -1))
+        if (InputKeys.isHorizontal(key) && adjustRow(row, key === Qt.Key_Right ? 1 : -1))
             return true
-        if (key === Qt.Key_Left) {
-            focusCategory(categoryIndex)
-            return true
-        }
         if (key === Qt.Key_Up && settingsList.currentIndex <= 0) {
             if (shell)
                 shell.focusNavBar()
@@ -598,16 +296,12 @@ FocusScope {
     }
 
     function activate() {
-        if (categoryList.activeFocus)
-            activateCategory(categoryIndex)
-        else
-            activateRow(rowAt(settingsList.currentIndex), settingsList.currentIndex)
+        activateRow(rowAt(settingsList.currentIndex), settingsList.currentIndex)
     }
 
     focus: true
     onActiveFocusChanged: if (activeFocus)
-                              focusRow(currentIndex)
-
+    focusRow(currentIndex)
     Component.onCompleted: Qt.callLater(function () {
         rebuildSettingsRows()
         focusRow(0)
@@ -623,105 +317,44 @@ FocusScope {
         }
     }
 
-    RowLayout {
+    MenuListView {
+        id: settingsList
         anchors.fill: parent
         anchors.margins: Metrics.pageMargin(width)
-        spacing: 18
-
-        MenuListView {
-            id: categoryList
-            Layout.preferredWidth: 260
-            Layout.fillHeight: true
-            model: root.categories
-            dismissOnBack: false
-            dismissOnHorizontal: false
-            spacing: 8
-            currentIndex: root.categoryIndex
-            clip: true
-            onCurrentIndexChanged: if (currentIndex >= 0) {
-                                       root.categoryIndex = currentIndex
-                                       positionViewAtIndex(currentIndex, ListView.Contain)
-                                   }
-            onAccepted: index => root.activateCategory(index)
-            onEdgeUp: if (root.shell)
-                          root.shell.focusNavBar()
-
-            delegate: Surface {
-                required property int index
-                required property var modelData
-                width: 250
-                height: 38
-                focused: categoryList.activeFocus && root.categoryIndex === index
-                baseColor: root.categoryIndex === index ? Theme.accentPanel : Theme.bgPanel
-
-                AppText {
-                    anchors.fill: parent
-                    anchors.leftMargin: 12
-                    anchors.rightMargin: 12
-                    text: modelData.label
-                    color: root.categoryIndex === index ? Theme.textPrimary : Theme.textSecondary
-                    font.pixelSize: Metrics.metaPx(root.width)
-                    font.weight: root.categoryIndex === index ? Font.DemiBold : Font.Medium
-                    verticalAlignment: Text.AlignVCenter
-                    elide: Text.ElideRight
-                }
-
-                TapHandler {
-                    onTapped: root.activateCategory(index)
-                }
-            }
+        model: root.settingsRows
+        dismissOnBack: false
+        dismissOnHorizontal: false
+        spacing: 10
+        currentIndex: root.currentIndex
+        onCurrentIndexChanged: if (currentIndex >= 0) {
+            root.currentIndex = currentIndex
+            positionViewAtIndex(currentIndex, ListView.Contain)
         }
+        onAccepted: index => root.activateRow(root.rowAt(index), index)
+        onEdgeUp: if (root.shell)
+        root.shell.focusNavBar()
 
-        MenuListView {
-            id: settingsList
-            Layout.fillWidth: true
-            Layout.fillHeight: true
-            model: root.settingsRows
-            dismissOnBack: false
-            dismissOnHorizontal: false
+        delegate: Column {
+            required property int index
+            required property var modelData
+            width: settingsList.width
             spacing: 10
-            clip: true
-            boundsBehavior: Flickable.StopAtBounds
-            currentIndex: root.currentIndex
-            onCurrentIndexChanged: if (currentIndex >= 0) {
-                                       root.currentIndex = currentIndex
-                                       root.syncCategoryForRow(currentIndex)
-                                       positionViewAtIndex(currentIndex, ListView.Contain)
-                                   }
-            onAccepted: index => root.activateRow(root.rowAt(index), index)
-            onEdgeUp: if (root.shell)
-                          root.shell.focusNavBar()
 
-            delegate: Column {
-                required property int index
-                required property var modelData
-                width: settingsList.width
-                spacing: 10
-
-                SectionHeader {
-                    width: parent.width
-                    visible: root.showPreferencesHeader(index)
-                    title: "Preferences"
-                }
-                SectionHeader {
-                    width: parent.width
-                    visible: root.showGroupHeader(index)
-                    title: modelData.group
-                }
-                Loader {
-                    id: rowLoader
-                    width: parent.width
-                    property var row: modelData
-                    property int rowIndex: index
-                    sourceComponent: modelData.type === "toggle" ? toggleComponent : modelData.type === "select" ? selectComponent :
-                                                                                                                   modelData.type
-                                                                                                                   === "slider"
-                                                                                                                   ? sliderComponent :
-                                                                                                                     settingComponent
-                    onLoaded: {
-                        item.row = row
-                        item.rowIndex = rowIndex
-                    }
+            SectionHeader {
+                width: parent.width
+                visible: root.showGroupHeader(index)
+                title: modelData.group
+            }
+            Loader {
+                width: parent.width
+                property var row: modelData
+                property int rowIndex: index
+                sourceComponent: modelData.type === "toggle" ? toggleComponent : modelData.type === "select"
+                                                               ? selectComponent : modelData.type === "slider"
+                                                                 ? sliderComponent : settingComponent
+                onLoaded: {
+                    item.row = row
+                    item.rowIndex = rowIndex
                 }
             }
         }
@@ -755,32 +388,38 @@ FocusScope {
             rowFocus: settingsList.activeFocus && settingsList.currentIndex === rowIndex
             title: row ? row.title : ""
             description: row ? root.rowDescription(row) : ""
-            checked: row ? root.rowBool(row) : false
-            onToggled: checked => root.setRowBool(row, checked)
+            checked: row ? Boolean(root.settingsValue(row)) : false
+            onToggled: checked => root.setRowValue(row, checked, -1)
         }
     }
 
     Component {
         id: selectComponent
-        SettingsSelectRow {
+        SelectRow {
             property var row
             property int rowIndex: -1
             width: settingsList.width
+            metricsWidth: root.width
+            focus: false
+            focusPolicy: Qt.NoFocus
             rowFocus: settingsList.activeFocus && settingsList.currentIndex === rowIndex
             title: row ? row.title : ""
             description: row ? root.rowDescription(row) : ""
             options: row ? root.rowOptions(row) : []
             currentIndex: row ? root.rowCurrentIndex(row) : 0
-            onSelected: (i, v) => root.setRowChoice(row, i)
+            onSelected: (index, value) => root.setRowChoice(row, index)
         }
     }
 
     Component {
         id: sliderComponent
-        SettingsSliderRow {
+        SliderRow {
             property var row
             property int rowIndex: -1
             width: settingsList.width
+            metricsWidth: root.width
+            focus: false
+            focusPolicy: Qt.NoFocus
             selected: settingsList.activeFocus && settingsList.currentIndex === rowIndex
             title: row ? row.title : ""
             description: row ? root.rowDescription(row) : ""
@@ -791,8 +430,8 @@ FocusScope {
             unitText: row ? String(row.unitText || "") : ""
             valueBoxWidth: row && row.valueBoxWidth > 0 ? row.valueBoxWidth : 86
             sliderPreferredWidth: row && row.sliderPreferredWidth > 0 ? row.sliderPreferredWidth : 300
-            value: row ? root.rowNumber(row) : 0
-            onValueEdited: value => root.setRowNumber(row, value)
+            value: row ? Number(root.settingsValue(row)) : 0
+            onValueEdited: value => root.setRowValue(row, value, -1)
         }
     }
 }

@@ -2,16 +2,17 @@ import QtQuick
 import QtQuick.Layouts
 import "../theme"
 import "../primitives"
+import "../shell/RoutePolicy.js" as RoutePolicy
 
 FocusScope {
     id: root
 
     property var shell
-    readonly property var itemModel: shell && shell.detailsModel ? shell.detailsModel : Browse.items
-    readonly property int itemCount: itemModel && itemModel.rowCount ? itemModel.rowCount() : 0
-    readonly property int selectedIndex: itemCount > 0 && shell ? shell.detailsIndexForModel(itemModel) : -1
-    readonly property var item: selectedIndex >= 0 && itemModel ? itemModel.get(selectedIndex) : ({})
-    readonly property string detailSource: shell ? shell.detailsSource : "movies"
+    readonly property var routeContext: RoutePolicy.detailsContext(shell ? shell.routeArgs : ({}), Browse.items)
+    readonly property var itemModel: routeContext.model
+    readonly property int selectedIndex: routeContext.index
+    readonly property var item: routeContext.item
+    readonly property string detailsReturnRoute: routeContext.returnRoute
     readonly property string typeText: item.itemType || "Media"
     readonly property string titleText: typeText === "Episode" && item.title ? item.title : (item.displayTitle
                                                                                              || item.title
@@ -474,91 +475,86 @@ FocusScope {
     function focusDefaultAction() {
         if (detailsFlick)
             detailsFlick.contentY = 0
-        focusActionRow()
+        actionIndex = 0
+        focusNamedZone("actions")
     }
 
-    function focusActionRow() {
-        focusActionIndex(0)
-        ensureDetailsItemVisible(actionRow)
+    function focusZones() {
+        const zones = []
+        if (seriesLink.visible)
+            zones.push("series")
+        if (seasonLink.visible)
+            zones.push("season")
+        zones.push("actions")
+        if (showMetadataPanel)
+            zones.push("metadata")
+        if (showContextRow && contextCount > 0)
+            zones.push("context")
+        if (showPeopleRow)
+            zones.push("people")
+        if (showSimilarRow)
+            zones.push("similar")
+        return zones
     }
 
-    function focusHeaderAboveActions() {
-        if (seasonLink.visible) {
-            focusZone = "season"
-            InputKeys.focus(seasonLink)
-            ensureDetailsItemVisible(seasonLink)
-        } else if (seriesLink.visible) {
-            focusZone = "series"
-            InputKeys.focus(seriesLink)
-            ensureDetailsItemVisible(seriesLink)
-        } else {
+    function zoneTarget(zone) {
+        if (zone === "series")
+            return seriesLink
+        if (zone === "season")
+            return seasonLink
+        if (zone === "actions")
+            return actionRow
+        if (zone === "metadata")
+            return metadataPanel
+        if (zone === "context")
+            return contextRow
+        if (zone === "people")
+            return peopleRow
+        return similarRow
+    }
+
+    function focusNamedZone(zone) {
+        const target = zoneTarget(zone)
+        if (!target)
+            return false
+        focusZone = zone
+        if (zone === "actions")
+            focusActionIndex(actionIndex)
+        else if (zone === "metadata")
+            metadataPanel.focusPanel()
+        else if (zone === "context")
+            contextRow.focusList()
+        else if (zone === "people")
+            peopleRow.focusList()
+        else if (zone === "similar")
+            similarRow.focusList()
+        else
+            InputKeys.focus(target)
+        ensureDetailsItemVisible(target)
+        return true
+    }
+
+    function moveFocusZone(delta) {
+        const zones = focusZones()
+        const current = Math.max(0, zones.indexOf(focusZone))
+        const next = current + delta
+        if (next < 0) {
             if (detailsFlick)
                 detailsFlick.contentY = 0
             if (shell)
                 shell.focusNavBar()
+            return true
         }
-        return true
+        return next >= zones.length || focusNamedZone(zones[next])
     }
 
-    function focusDetailsPanel() {
-        if (!showMetadataPanel)
-            return focusFirstMediaRow()
-        focusZone = "metadata"
-        metadataPanel.focusPanel()
-        ensureDetailsItemVisible(metadataPanel)
-        return true
-    }
-
-    function focusBeforeMediaRows() {
-        return showMetadataPanel ? focusDetailsPanel() : focusActionRow()
+    function focusActionRow() {
+        actionIndex = 0
+        return focusNamedZone("actions")
     }
 
     function focusFirstMediaRow() {
-        if (showContextRow && contextCount > 0) {
-            focusZone = "context"
-            contextRow.focusList()
-            ensureDetailsItemVisible(contextRow)
-            return true
-        }
-        if (showPeopleRow) {
-            focusZone = "people"
-            peopleRow.focusList()
-            ensureDetailsItemVisible(peopleRow)
-            return true
-        }
-        if (showSimilarRow) {
-            focusZone = "similar"
-            similarRow.focusList()
-            ensureDetailsItemVisible(similarRow)
-            return true
-        }
-        return false
-    }
-
-    function focusRowAfterContext() {
-        if (showPeopleRow) {
-            focusZone = "people"
-            peopleRow.focusList()
-            ensureDetailsItemVisible(peopleRow)
-        } else if (showSimilarRow) {
-            focusZone = "similar"
-            similarRow.focusList()
-            ensureDetailsItemVisible(similarRow)
-        }
-    }
-
-    function focusRowBeforeSimilar() {
-        if (showPeopleRow) {
-            focusZone = "people"
-            peopleRow.focusList()
-            ensureDetailsItemVisible(peopleRow)
-        } else if (showContextRow && contextCount > 0) {
-            focusZone = "context"
-            contextRow.focusList()
-            ensureDetailsItemVisible(contextRow)
-        } else {
-            focusBeforeMediaRows()
-        }
+        return moveFocusZone(1)
     }
 
     function orderedActions() {
@@ -667,12 +663,12 @@ FocusScope {
             return
         }
         if (shell)
-            shell.openDetailsAt(Content.detailSeasons, index, "context", shell.detailsReturnRoute || "libraryGrid")
+            shell.openDetailsAt(Content.detailSeasons, index, "context", detailsReturnRoute)
     }
 
     function openSimilarItem(index) {
         if (index >= 0 && shell)
-            shell.openDetailsAt(Content.detailSimilarItems, index, "similar", shell.detailsReturnRoute || "libraryGrid")
+            shell.openDetailsAt(Content.detailSimilarItems, index, "similar", detailsReturnRoute)
     }
 
     function openPerson(person) {
@@ -697,54 +693,17 @@ FocusScope {
     }
 
     function routeKey(key, phase, repeat) {
-        if (focusZone === "series") {
-            if (key === Qt.Key_Up) {
-                if (shell)
-                    shell.focusNavBar()
-            } else if (key === Qt.Key_Down) {
-                if (seasonLink.visible) {
-                    focusZone = "season"
-                    InputKeys.focus(seasonLink)
-                } else {
-                    focusActionRow()
-                }
-            } else {
-                return InputKeys.isHorizontal(key)
-            }
-            return true
-        }
-        if (focusZone === "season") {
-            if (key === Qt.Key_Up) {
-                if (seriesLink.visible) {
-                    focusZone = "series"
-                    InputKeys.focus(seriesLink)
-                } else if (shell) {
-                    shell.focusNavBar()
-                }
-            } else if (key === Qt.Key_Down) {
-                focusActionRow()
-            } else {
-                return InputKeys.isHorizontal(key)
-            }
-            return true
-        }
         if (focusZone === "overflow") {
             const options = overflowOptions()
-            if (key === Qt.Key_Up) {
-                if (overflowIndex > 0)
-                    focusOverflow(overflowIndex - 1)
-                else {
-                    overflowOpen = false
-                    focusActionIndex(orderedActions().indexOf(menuAction))
-                }
+            if (key === Qt.Key_Up && overflowIndex > 0) {
+                focusOverflow(overflowIndex - 1)
+            } else if (key === Qt.Key_Down && overflowIndex + 1 < options.length) {
+                focusOverflow(overflowIndex + 1)
             } else if (key === Qt.Key_Down) {
-                if (overflowIndex + 1 < options.length)
-                    focusOverflow(overflowIndex + 1)
-                else {
-                    overflowOpen = false
-                    focusDetailsPanel()
-                }
-            } else if (InputKeys.isHorizontal(key)) {
+                overflowOpen = false
+                focusZone = "actions"
+                moveFocusZone(1)
+            } else if (key === Qt.Key_Up || InputKeys.isHorizontal(key)) {
                 overflowOpen = false
                 focusActionIndex(orderedActions().indexOf(menuAction))
             } else {
@@ -754,60 +713,25 @@ FocusScope {
         }
         if (focusZone === "metadata")
             return metadataPanel.routeKey(key, phase, repeat)
-        if (focusZone === "context") {
-            if (key === Qt.Key_Up)
-                return focusBeforeMediaRows()
-            if (key === Qt.Key_Down) {
-                focusRowAfterContext()
-                return true
-            }
-            return contextRow.routeKey(key, phase, repeat)
-        }
-        if (focusZone === "people") {
-            if (key === Qt.Key_Up) {
-                if (showContextRow && contextCount > 0) {
-                    focusZone = "context"
-                    contextRow.focusList()
-                    ensureDetailsItemVisible(contextRow)
-                } else {
-                    focusBeforeMediaRows()
-                }
-                return true
-            }
-            if (key === Qt.Key_Down) {
-                if (showSimilarRow) {
-                    focusZone = "similar"
-                    similarRow.focusList()
-                    ensureDetailsItemVisible(similarRow)
-                }
-                return true
-            }
-            return peopleRow.routeKey(key, phase, repeat)
-        }
-        if (focusZone === "similar") {
-            if (key === Qt.Key_Up) {
-                focusRowBeforeSimilar()
-                return true
-            }
-            if (key === Qt.Key_Down)
-                return true
-            return similarRow.routeKey(key, phase, repeat)
-        }
-
-        if (key === Qt.Key_Left)
-            return focusNextAction(-1)
-        if (key === Qt.Key_Right)
-            return focusNextAction(1)
-        if (key === Qt.Key_Up)
-            return focusHeaderAboveActions()
-        if (key === Qt.Key_Down) {
-            if (overflowOpen && orderedActions()[actionIndex] === menuAction)
+        if (InputKeys.isVertical(key)) {
+            if (focusZone === "actions" && key === Qt.Key_Down && overflowOpen && orderedActions()[actionIndex]
+                    === menuAction) {
                 focusOverflow(0)
-            else
-                focusDetailsPanel()
-            return true
+                return true
+            }
+            return moveFocusZone(key === Qt.Key_Down ? 1 : -1)
         }
-        return false
+        if (focusZone === "actions") {
+            if (key === Qt.Key_Left)
+                return focusNextAction(-1)
+            if (key === Qt.Key_Right)
+                return focusNextAction(1)
+            return false
+        }
+        if (focusZone === "series" || focusZone === "season")
+            return InputKeys.isHorizontal(key)
+        const target = zoneTarget(focusZone)
+        return Boolean(target && target.routeKey && target.routeKey(key, phase, repeat))
     }
 
     function activate() {
