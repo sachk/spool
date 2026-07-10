@@ -50,9 +50,6 @@ Item {
                 text: "FPS: " + root.fps
             }
             MonoText {
-                text: "Render loop: threaded/basic"
-            }
-            MonoText {
                 text: "Screen: " + root.width + "x" + root.height
             }
             MonoText {
@@ -60,12 +57,6 @@ Item {
             }
             MonoText {
                 text: "Grid columns: " + Metrics.columns(root.width)
-            }
-            MonoText {
-                text: "Image cache: Qt network cache"
-            }
-            MonoText {
-                text: "Last API: unavailable"
             }
             MonoText {
                 text: "Route: " + root.route
@@ -76,9 +67,6 @@ Item {
             MonoText {
                 text: "Text render: " + (Theme.normalTextRenderType === Text.CurveRendering ? "CurveRendering" :
                                                                                               "QtRendering")
-            }
-            MonoText {
-                text: "QSG backend: Qt Quick"
             }
         }
     }

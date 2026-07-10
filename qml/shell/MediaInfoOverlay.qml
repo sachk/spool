@@ -3,9 +3,13 @@ import QtQuick.Layouts
 import "../theme"
 import "../primitives"
 
-FocusScope {
+OverlayDialog {
     id: root
 
+    preferredWidth: 1120
+    preferredHeight: 800
+    padding: 28
+    panelColor: Theme.bgRaised
     property var item: ({})
     property var shell
     property int currentActionIndex: 0
@@ -25,8 +29,8 @@ FocusScope {
     readonly property int actionCount: closeActionIndex + 1
 
     signal closed
+    onDismissed: closeOverlay()
 
-    focus: visible
     onVisibleChanged: if (visible) {
                           currentActionIndex = closeActionIndex
                           Qt.callLater(ensureFocus)
@@ -296,180 +300,154 @@ FocusScope {
         return true
     }
 
-    Rectangle {
-        anchors.fill: parent
-        color: Theme.overlayScrimStrong
-    }
-    MouseArea {
-        anchors.fill: parent
-        onClicked: root.closed()
+    RowLayout {
+        Layout.fillWidth: true
+        spacing: 12
+        ColumnLayout {
+            Layout.fillWidth: true
+            spacing: 5
+            AppText {
+                Layout.fillWidth: true
+                text: root.titleText()
+                font.pixelSize: Metrics.titlePx(root.width)
+                font.weight: Font.DemiBold
+                wrapMode: Text.Wrap
+                maximumLineCount: 2
+                elide: Text.ElideRight
+            }
+            TechMetadataLine {
+                Layout.fillWidth: true
+                metadata: [item.itemType || "", item.year > 0 ? String(item.year) : "", item.displaySubtitle || "", root.ratingText(
+                        )].filter(function (v) {
+                            return v.length > 0
+                        }).join(" · ")
+            }
+        }
+        ActionButton {
+            id: showBtn
+            visible: root.showLinkVisible
+            text: "Show"
+            iconName: "live_tv"
+            focus: root.currentActionIndex === root.showActionIndex
+            onClicked: root.openSeries()
+            onActiveFocusChanged: if (activeFocus)
+                                      root.currentActionIndex = root.showActionIndex
+        }
+        ActionButton {
+            id: seasonBtn
+            visible: root.seasonLinkVisible
+            text: root.seasonTitle()
+            iconName: "video_library"
+            focus: root.currentActionIndex === root.seasonActionIndex
+            onClicked: root.openSeason()
+            onActiveFocusChanged: if (activeFocus)
+                                      root.currentActionIndex = root.seasonActionIndex
+        }
+        ActionButton {
+            id: closeBtn
+            text: "Close"
+            iconName: "close"
+            focus: root.currentActionIndex === root.closeActionIndex
+            onClicked: root.closeOverlay()
+            onActiveFocusChanged: if (activeFocus)
+                                      root.currentActionIndex = root.closeActionIndex
+        }
     }
 
-    Surface {
-        anchors.centerIn: parent
-        width: Math.min(parent.width - 120, 1120)
-        height: Math.min(parent.height - 120, 800)
-        baseColor: Theme.bgRaised
-        elevated: true
-        MouseArea {
-            anchors.fill: parent
+    Flickable {
+        Layout.fillWidth: true
+        Layout.fillHeight: true
+        contentWidth: width
+        contentHeight: infoColumn.implicitHeight
+        boundsBehavior: Flickable.StopAtBounds
+        clip: true
+        FastWheelHandler {
+            flickable: parent
         }
 
         ColumnLayout {
-            anchors.fill: parent
-            anchors.margins: 28
-            spacing: 14
+            id: infoColumn
+            width: parent.width
+            spacing: 18
 
-            RowLayout {
+            EmptyPlaceholder {
                 Layout.fillWidth: true
-                spacing: 12
-                ColumnLayout {
-                    Layout.fillWidth: true
-                    spacing: 5
-                    AppText {
-                        Layout.fillWidth: true
-                        text: root.titleText()
-                        font.pixelSize: Metrics.titlePx(root.width)
-                        font.weight: Font.DemiBold
-                        wrapMode: Text.Wrap
-                        maximumLineCount: 2
-                        elide: Text.ElideRight
-                    }
-                    TechMetadataLine {
-                        Layout.fillWidth: true
-                        metadata: [item.itemType || "", item.year > 0 ? String(item.year) : "", item.displaySubtitle || "",
-                            root.ratingText()].filter(function (v) {
-                                return v.length > 0
-                            }).join(" · ")
-                    }
-                }
-                ActionButton {
-                    id: showBtn
-                    visible: root.showLinkVisible
-                    text: "Show"
-                    iconName: "live_tv"
-                    focus: root.currentActionIndex === root.showActionIndex
-                    onClicked: root.openSeries()
-                    onActiveFocusChanged: if (activeFocus)
-                                              root.currentActionIndex = root.showActionIndex
-                }
-                ActionButton {
-                    id: seasonBtn
-                    visible: root.seasonLinkVisible
-                    text: root.seasonTitle()
-                    iconName: "video_library"
-                    focus: root.currentActionIndex === root.seasonActionIndex
-                    onClicked: root.openSeason()
-                    onActiveFocusChanged: if (activeFocus)
-                                              root.currentActionIndex = root.seasonActionIndex
-                }
-                ActionButton {
-                    id: closeBtn
-                    text: "Close"
-                    iconName: "close"
-                    focus: root.currentActionIndex === root.closeActionIndex
-                    onClicked: root.closeOverlay()
-                    onActiveFocusChanged: if (activeFocus)
-                                              root.currentActionIndex = root.closeActionIndex
-                }
+                visible: root.sources.length === 0
+                title: "No media source data"
+                detail: "This item did not include codec or stream metadata in the loaded Jellyfin response."
             }
 
-            Flickable {
-                Layout.fillWidth: true
-                Layout.fillHeight: true
-                contentWidth: width
-                contentHeight: infoColumn.implicitHeight
-                boundsBehavior: Flickable.StopAtBounds
-                clip: true
-                FastWheelHandler {
-                    flickable: parent
-                }
+            Repeater {
+                model: root.sources
+                Surface {
+                    required property var modelData
+                    readonly property var source: modelData || ({})
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: sourceColumn.implicitHeight + 24
+                    baseColor: Theme.bgPanel
 
-                ColumnLayout {
-                    id: infoColumn
-                    width: parent.width
-                    spacing: 18
-
-                    EmptyPlaceholder {
-                        Layout.fillWidth: true
-                        visible: root.sources.length === 0
-                        title: "No media source data"
-                        detail: "This item did not include codec or stream metadata in the loaded Jellyfin response."
-                    }
-
-                    Repeater {
-                        model: root.sources
-                        Surface {
-                            required property var modelData
-                            readonly property var source: modelData || ({})
+                    ColumnLayout {
+                        id: sourceColumn
+                        anchors.left: parent.left
+                        anchors.right: parent.right
+                        anchors.top: parent.top
+                        anchors.margins: 12
+                        spacing: 12
+                        SectionHeader {
                             Layout.fillWidth: true
-                            Layout.preferredHeight: sourceColumn.implicitHeight + 24
-                            baseColor: Theme.bgPanel
-
-                            ColumnLayout {
-                                id: sourceColumn
-                                anchors.left: parent.left
-                                anchors.right: parent.right
-                                anchors.top: parent.top
-                                anchors.margins: 12
-                                spacing: 12
-                                SectionHeader {
+                            title: source.name && source.name.length > 0 ? source.name : "Media source"
+                            detail: root.sourceSummary(source)
+                        }
+                        GridLayout {
+                            Layout.fillWidth: true
+                            columns: root.width >= 1400 ? 4 : 2
+                            columnSpacing: 18
+                            rowSpacing: 12
+                            Repeater {
+                                model: root.sourcePairs(source)
+                                Pair {
+                                    required property var modelData
                                     Layout.fillWidth: true
-                                    title: source.name && source.name.length > 0 ? source.name : "Media source"
-                                    detail: root.sourceSummary(source)
+                                    label: modelData.label
+                                    value: modelData.value
                                 }
-                                GridLayout {
-                                    Layout.fillWidth: true
-                                    columns: root.width >= 1400 ? 4 : 2
-                                    columnSpacing: 18
-                                    rowSpacing: 12
-                                    Repeater {
-                                        model: root.sourcePairs(source)
-                                        Pair {
-                                            required property var modelData
+                            }
+                        }
+                        Repeater {
+                            model: source.streams || []
+                            Surface {
+                                required property var modelData
+                                readonly property var stream: modelData || ({})
+                                Layout.fillWidth: true
+                                Layout.preferredHeight: streamColumn.implicitHeight + 20
+                                baseColor: Theme.bg
+                                ColumnLayout {
+                                    id: streamColumn
+                                    anchors.fill: parent
+                                    anchors.margins: 10
+                                    spacing: 6
+                                    RowLayout {
+                                        Layout.fillWidth: true
+                                        spacing: 8
+                                        MetadataChip {
+                                            text: root.text(stream.type || "Stream")
+                                            selected: true
+                                        }
+                                        AppText {
                                             Layout.fillWidth: true
-                                            label: modelData.label
-                                            value: modelData.value
+                                            text: stream.displayTitle || root.streamSummary(stream) || root.text(
+                                                      stream.type || "Stream")
+                                            font.pixelSize: Metrics.bodyPx(root.width)
+                                            font.weight: Font.DemiBold
+                                            elide: Text.ElideRight
                                         }
                                     }
-                                }
-                                Repeater {
-                                    model: source.streams || []
-                                    Surface {
-                                        required property var modelData
-                                        readonly property var stream: modelData || ({})
+                                    TechMetadataLine {
                                         Layout.fillWidth: true
-                                        Layout.preferredHeight: streamColumn.implicitHeight + 20
-                                        baseColor: Theme.bg
-                                        ColumnLayout {
-                                            id: streamColumn
-                                            anchors.fill: parent
-                                            anchors.margins: 10
-                                            spacing: 6
-                                            RowLayout {
-                                                Layout.fillWidth: true
-                                                spacing: 8
-                                                MetadataChip {
-                                                    text: root.text(stream.type || "Stream")
-                                                    selected: true
-                                                }
-                                                AppText {
-                                                    Layout.fillWidth: true
-                                                    text: stream.displayTitle || root.streamSummary(stream) || root.text(
-                                                              stream.type || "Stream")
-                                                    font.pixelSize: Metrics.bodyPx(root.width)
-                                                    font.weight: Font.DemiBold
-                                                    elide: Text.ElideRight
-                                                }
-                                            }
-                                            TechMetadataLine {
-                                                Layout.fillWidth: true
-                                                metadata: [root.streamSummary(stream), root.streamFlags(stream)].filter(
-                                                    function (v) {
-                                                        return v.length > 0
-                                                    }).join(" · ")
-                                            }
-                                        }
+                                        metadata: [root.streamSummary(stream), root.streamFlags(stream)].filter(
+                                            function (v) {
+                                                return v.length > 0
+                                            }).join(" · ")
                                     }
                                 }
                             }
