@@ -389,9 +389,8 @@ KeyRouter {
     ColumnLayout {
         id: contentLayer
         anchors.fill: parent
-        transform: Translate {
-            y: -root.keyboardAvoidance
-        }
+        anchors.topMargin: -root.keyboardAvoidance
+        anchors.bottomMargin: root.keyboardAvoidance
         spacing: 0
         visible: !(root.hasPlayer && root.player.visible)
         enabled: !(root.hasPlayer && root.player.visible)

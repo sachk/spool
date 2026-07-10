@@ -49,7 +49,7 @@ ListView {
         return currentIndex >= 0
     }
 
-    function move(step) {
+    function moveSelection(step) {
         if (!clampEnabled())
             return true
         const next = firstEnabled(currentIndex + step, step)
@@ -77,9 +77,9 @@ ListView {
             return true
         }
         if (key === Qt.Key_Up)
-            return move(-1)
+            return moveSelection(-1)
         if (key === Qt.Key_Down)
-            return move(1)
+            return moveSelection(1)
         return false
     }
 

@@ -1,3 +1,5 @@
+pragma ComponentBehavior: Bound
+
 import QtQuick
 import QtQuick.Controls.Basic
 import QtQuick.Layouts
@@ -30,7 +32,7 @@ FocusScope {
     focus: true
     Component.onCompleted: InputKeys.focus(grid)
     onActiveFocusChanged: if (activeFocus)
-                              InputKeys.focus(grid)
+    InputKeys.focus(grid)
 
     component ToolbarButton: FocusScope {
         id: buttonRoot
@@ -718,9 +720,9 @@ FocusScope {
             }
             onCountChanged: {
                 if (count <= 0)
-                    currentIndex = -1
+                currentIndex = -1
                 else if (currentIndex < 0 || currentIndex >= count)
-                    restoreIndex()
+                restoreIndex()
                 requestMoreIfNeeded()
             }
             onContentYChanged: loadMoreDebounce.restart()

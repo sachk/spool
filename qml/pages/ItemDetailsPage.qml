@@ -1,3 +1,5 @@
+pragma ComponentBehavior: Bound
+
 import QtQuick
 import QtQuick.Layouts
 import "../theme"
@@ -377,7 +379,7 @@ FocusScope {
     }
 
     onActiveFocusChanged: if (activeFocus)
-                              focusDefaultAction()
+    focusDefaultAction()
     onItemChanged: {
         overflowOpen = false
         syncUserState()
@@ -394,11 +396,11 @@ FocusScope {
 
     Connections {
         target: ItemState
-        function onItemFavoriteChanged(itemId, favorite) {
+        function onFavoriteChanged(itemId, favorite) {
             if ((root.item.movieId || "") === itemId)
                 root.favoriteState = favorite
         }
-        function onItemPlayedChanged(itemId, played) {
+        function onPlayedChanged(itemId, played) {
             if ((root.item.movieId || "") === itemId)
                 root.playedState = played
         }
@@ -528,7 +530,7 @@ FocusScope {
             similarRow.focusList()
         else
             InputKeys.focus(target)
-        ensureDetailsItemVisible(target)
+        InputKeys.ensureVisible(detailsFlick, target)
         return true
     }
 
@@ -767,21 +769,6 @@ FocusScope {
         if (focusZone === "similar")
             return similarRow.longPress()
         return focusZone === "actions" && shell ? shell.openItemMenu(item, orderedActions()[actionIndex]) : false
-    }
-
-    function ensureDetailsItemVisible(target) {
-        if (!target || !detailsFlick || !contentColumn)
-            return
-        Qt.callLater(function () {
-            const mapped = target.mapToItem(contentColumn, 0, 0)
-            const top = Math.max(0, mapped.y - 18)
-            const bottom = mapped.y + target.height + 18
-            const maxY = Math.max(0, detailsFlick.contentHeight - detailsFlick.height)
-            if (top < detailsFlick.contentY)
-                detailsFlick.contentY = Math.max(0, top)
-            else if (bottom > detailsFlick.contentY + detailsFlick.height)
-                detailsFlick.contentY = Math.min(maxY, bottom - detailsFlick.height)
-        })
     }
 
     function primaryLabel() {
@@ -1269,7 +1256,6 @@ FocusScope {
                 readonly property int similarY: peopleY + (peopleRow.visible ? peopleRow.height + rowSpacing : 0)
                 Layout.preferredHeight: rowsHeight + root.contentMargin
                 implicitHeight: rowsHeight + root.contentMargin
-                height: implicitHeight
 
                 MediaRow {
                     id: contextRow

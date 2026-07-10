@@ -1,5 +1,6 @@
+pragma ComponentBehavior: Bound
+
 import QtQuick
-import QtQuick.Layouts
 import "../theme"
 import "../primitives"
 
@@ -46,11 +47,11 @@ FocusScope {
     Connections {
         target: ItemState
         enabled: root.opened
-        function onItemFavoriteChanged(changedItemId, favorite) {
+        function onFavoriteChanged(changedItemId, favorite) {
             if (root.itemId === changedItemId)
                 root.favoriteState = favorite
         }
-        function onItemPlayedChanged(changedItemId, played) {
+        function onPlayedChanged(changedItemId, played) {
             if (root.itemId === changedItemId)
                 root.playedState = played
         }

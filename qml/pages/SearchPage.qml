@@ -1,3 +1,5 @@
+pragma ComponentBehavior: Bound
+
 import QtQuick
 import QtQuick.Controls.Basic
 import QtQuick.Layouts
@@ -18,7 +20,7 @@ FocusScope {
 
     Component.onCompleted: {
         if (root.search)
-            root.search.loadSuggestions()
+        root.search.loadSuggestions()
         field.text = root.query
         root.clampResultIndex()
         field.focusField()
@@ -148,10 +150,10 @@ FocusScope {
     // can keep the field and results visible above the panel.
     readonly property real keyboardInset: {
         if (!Qt.inputMethod.visible)
-            return 0
+        return 0
         const kb = Qt.inputMethod.keyboardRectangle
         if (kb.height <= 0)
-            return 0
+        return 0
         const pageBottom = root.mapToItem(null, 0, root.height).y
         return Math.max(0, Math.min(root.height, pageBottom - kb.y))
     }
@@ -270,7 +272,7 @@ FocusScope {
                         if (currentIndex >= 0) {
                             positionViewAtIndex(currentIndex, ListView.Contain)
                             if (activeFocus && root.shell)
-                                root.shell.lastSearchIndex = currentIndex
+                            root.shell.lastSearchIndex = currentIndex
                         }
                     }
 
