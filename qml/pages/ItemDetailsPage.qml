@@ -67,6 +67,9 @@ FocusScope {
     property bool favoriteState: false
     property bool playedState: false
     property bool overflowOpen: false
+    property string focusZone: "actions"
+    property int actionIndex: 0
+    property int overflowIndex: 0
     property string loadedDetailKey: ""
 
     focus: true
@@ -163,12 +166,6 @@ FocusScope {
             hoverEnabled: true
             onClicked: link.activated()
         }
-        Keys.onReleased: event => {
-                             if (InputKeys.isAccept(event.key, false)) {
-                                 link.activated()
-                                 event.accepted = true
-                             }
-                         }
     }
 
     component MetadataPanel: FocusScope {
@@ -251,15 +248,11 @@ FocusScope {
             InputKeys.focus(panel)
         }
 
-        function handleKey(key) {
+        function routeKey(key, phase, repeat) {
             if (!hasRows)
                 return false
             normalizeSelection()
             if (!browsing) {
-                if (InputKeys.isAccept(key, false)) {
-                    browsing = true
-                    return true
-                }
                 if (key === Qt.Key_Up) {
                     leaveUp()
                     return true
@@ -268,14 +261,8 @@ FocusScope {
                     leaveDown()
                     return true
                 }
-                return key === Qt.Key_Left || key === Qt.Key_Right
+                return InputKeys.isHorizontal(key)
             }
-            if (InputKeys.isBack(key, false, false)) {
-                leaveBrowse()
-                return true
-            }
-            if (InputKeys.isAccept(key, false))
-                return activateCurrent()
             if (key === Qt.Key_Left)
                 return moveChip(-1)
             if (key === Qt.Key_Right)
@@ -285,6 +272,20 @@ FocusScope {
             if (key === Qt.Key_Down)
                 return moveRow(1)
             return false
+        }
+
+        function activate() {
+            if (!browsing)
+                browsing = true
+            else
+                activateCurrent()
+        }
+
+        function back() {
+            if (!browsing)
+                return false
+            leaveBrowse()
+            return true
         }
 
         width: parent ? parent.width : implicitWidth
@@ -430,9 +431,12 @@ FocusScope {
         }
     }
 
-    function handleBack() {
-        if (metadataPanel.activeFocus && metadataPanel.browsing) {
-            metadataPanel.leaveBrowse()
+    function back() {
+        if (focusZone === "metadata" && metadataPanel.back())
+            return true
+        if (overflowOpen) {
+            overflowOpen = false
+            focusActionIndex(orderedActions().indexOf(menuAction))
             return true
         }
         return false
@@ -474,34 +478,32 @@ FocusScope {
     }
 
     function focusActionRow() {
-        if (showPrimaryAction && primaryAction.enabledButton)
-            InputKeys.focus(primaryAction)
-        else
-            InputKeys.focus(playedAction)
+        focusActionIndex(0)
         ensureDetailsItemVisible(actionRow)
     }
 
     function focusHeaderAboveActions() {
         if (seasonLink.visible) {
+            focusZone = "season"
             InputKeys.focus(seasonLink)
             ensureDetailsItemVisible(seasonLink)
-            return true
-        }
-        if (seriesLink.visible) {
+        } else if (seriesLink.visible) {
+            focusZone = "series"
             InputKeys.focus(seriesLink)
             ensureDetailsItemVisible(seriesLink)
-            return true
+        } else {
+            if (detailsFlick)
+                detailsFlick.contentY = 0
+            if (shell)
+                shell.focusNavBar()
         }
-        if (detailsFlick)
-            detailsFlick.contentY = 0
-        if (shell)
-            shell.focusNavBar()
         return true
     }
 
     function focusDetailsPanel() {
         if (!showMetadataPanel)
             return focusFirstMediaRow()
+        focusZone = "metadata"
         metadataPanel.focusPanel()
         ensureDetailsItemVisible(metadataPanel)
         return true
@@ -513,16 +515,19 @@ FocusScope {
 
     function focusFirstMediaRow() {
         if (showContextRow && contextCount > 0) {
+            focusZone = "context"
             contextRow.focusList()
             ensureDetailsItemVisible(contextRow)
             return true
         }
         if (showPeopleRow) {
+            focusZone = "people"
             peopleRow.focusList()
             ensureDetailsItemVisible(peopleRow)
             return true
         }
         if (showSimilarRow) {
+            focusZone = "similar"
             similarRow.focusList()
             ensureDetailsItemVisible(similarRow)
             return true
@@ -532,9 +537,11 @@ FocusScope {
 
     function focusRowAfterContext() {
         if (showPeopleRow) {
+            focusZone = "people"
             peopleRow.focusList()
             ensureDetailsItemVisible(peopleRow)
         } else if (showSimilarRow) {
+            focusZone = "similar"
             similarRow.focusList()
             ensureDetailsItemVisible(similarRow)
         }
@@ -542,9 +549,11 @@ FocusScope {
 
     function focusRowBeforeSimilar() {
         if (showPeopleRow) {
+            focusZone = "people"
             peopleRow.focusList()
             ensureDetailsItemVisible(peopleRow)
         } else if (showContextRow && contextCount > 0) {
+            focusZone = "context"
             contextRow.focusList()
             ensureDetailsItemVisible(contextRow)
         } else {
@@ -564,35 +573,18 @@ FocusScope {
         return actions
     }
 
-    function focusedActionIndex() {
-        const actions = orderedActions()
-        for (let i = 0; i < actions.length; ++i) {
-            if (actions[i].activeFocus)
-                return i
-        }
-        return -1
-    }
-
     function focusActionIndex(index) {
         const actions = orderedActions()
         if (actions.length === 0)
             return false
-        InputKeys.focus(actions[Math.max(0, Math.min(index, actions.length - 1))])
+        focusZone = "actions"
+        actionIndex = Math.max(0, Math.min(index, actions.length - 1))
+        InputKeys.focus(actions[actionIndex])
         return true
     }
 
     function focusNextAction(delta) {
-        const actions = orderedActions()
-        const current = focusedActionIndex()
-        if (current < 0)
-            return focusActionIndex(0)
-        const next = current + delta
-        if (next < 0)
-            return false
-        if (next >= actions.length)
-            return true
-        InputKeys.focus(actions[next])
-        return true
+        return focusActionIndex(actionIndex + delta)
     }
 
     function activatePrimary(fromStart) {
@@ -622,18 +614,25 @@ FocusScope {
         App.setPlayed(item.movieId, playedState)
     }
 
-    function firstOverflowOption() {
-        return showContextPlaybackActions ? playAllOption : mediaInfoOption
+    function overflowOptions() {
+        return showContextPlaybackActions ? [playAllOption, shuffleOption, mediaInfoOption] : [mediaInfoOption]
+    }
+
+    function focusOverflow(index) {
+        const options = overflowOptions()
+        overflowIndex = Math.max(0, Math.min(index, options.length - 1))
+        focusZone = "overflow"
+        InputKeys.focus(options[overflowIndex])
     }
 
     function toggleOverflow() {
         overflowOpen = !overflowOpen
         if (overflowOpen)
             Qt.callLater(function () {
-                InputKeys.focus(firstOverflowOption())
+                focusOverflow(0)
             })
         else
-            InputKeys.focus(menuAction)
+            focusActionIndex(orderedActions().indexOf(menuAction))
     }
 
     function openMediaInfo() {
@@ -697,81 +696,77 @@ FocusScope {
             shell.replaceRoute("libraryGrid")
     }
 
-    function handlePressedKey(key) {
-        if (contextRow.activeFocus)
-            return contextRow.handlePressedKey(key)
-        if (similarRow.activeFocus)
-            return similarRow.handlePressedKey(key)
-        return false
-    }
-
-    function handleKey(key) {
-        if (mediaInfoOption.activeFocus) {
-            if (key === Qt.Key_Up || key === Qt.Key_Left || key === Qt.Key_Right) {
-                overflowOpen = false
-                InputKeys.focus(menuAction)
-                return true
-            }
-            if (key === Qt.Key_Down) {
-                overflowOpen = false
-                focusDetailsPanel()
-                return true
-            }
-            if (InputKeys.isAccept(key, false)) {
-                openMediaInfo()
-                return true
-            }
-        }
-
-        if (seriesLink.activeFocus) {
+    function routeKey(key, phase, repeat) {
+        if (focusZone === "series") {
             if (key === Qt.Key_Up) {
                 if (shell)
                     shell.focusNavBar()
-                return true
+            } else if (key === Qt.Key_Down) {
+                if (seasonLink.visible) {
+                    focusZone = "season"
+                    InputKeys.focus(seasonLink)
+                } else {
+                    focusActionRow()
+                }
+            } else {
+                return InputKeys.isHorizontal(key)
             }
-            if (key === Qt.Key_Down) {
-                seasonLink.visible ? InputKeys.focus(seasonLink) : focusActionRow()
-                return true
-            }
-            if (InputKeys.isAccept(key, false)) {
-                openSeriesLink()
-                return true
-            }
+            return true
         }
-
-        if (seasonLink.activeFocus) {
+        if (focusZone === "season") {
             if (key === Qt.Key_Up) {
-                seriesLink.visible ? InputKeys.focus(seriesLink) : (shell ? shell.focusNavBar() : null)
-                return true
-            }
-            if (key === Qt.Key_Down) {
+                if (seriesLink.visible) {
+                    focusZone = "series"
+                    InputKeys.focus(seriesLink)
+                } else if (shell) {
+                    shell.focusNavBar()
+                }
+            } else if (key === Qt.Key_Down) {
                 focusActionRow()
-                return true
+            } else {
+                return InputKeys.isHorizontal(key)
             }
-            if (InputKeys.isAccept(key, false)) {
-                openSeasonLink()
-                return true
-            }
+            return true
         }
-
-        if (metadataPanel.activeFocus)
-            return metadataPanel.handleKey(key)
-
-        if (contextRow.activeFocus) {
+        if (focusZone === "overflow") {
+            const options = overflowOptions()
             if (key === Qt.Key_Up) {
-                focusBeforeMediaRows()
-                return true
+                if (overflowIndex > 0)
+                    focusOverflow(overflowIndex - 1)
+                else {
+                    overflowOpen = false
+                    focusActionIndex(orderedActions().indexOf(menuAction))
+                }
+            } else if (key === Qt.Key_Down) {
+                if (overflowIndex + 1 < options.length)
+                    focusOverflow(overflowIndex + 1)
+                else {
+                    overflowOpen = false
+                    focusDetailsPanel()
+                }
+            } else if (InputKeys.isHorizontal(key)) {
+                overflowOpen = false
+                focusActionIndex(orderedActions().indexOf(menuAction))
+            } else {
+                return false
             }
+            return true
+        }
+        if (focusZone === "metadata")
+            return metadataPanel.routeKey(key, phase, repeat)
+        if (focusZone === "context") {
+            if (key === Qt.Key_Up)
+                return focusBeforeMediaRows()
             if (key === Qt.Key_Down) {
                 focusRowAfterContext()
                 return true
             }
-            return contextRow.handleKey(key)
+            return contextRow.routeKey(key, phase, repeat)
         }
-
-        if (peopleRow.activeFocus) {
+        if (focusZone === "people") {
             if (key === Qt.Key_Up) {
                 if (showContextRow && contextCount > 0) {
+                    focusZone = "context"
                     contextRow.focusList()
                     ensureDetailsItemVisible(contextRow)
                 } else {
@@ -781,60 +776,82 @@ FocusScope {
             }
             if (key === Qt.Key_Down) {
                 if (showSimilarRow) {
+                    focusZone = "similar"
                     similarRow.focusList()
                     ensureDetailsItemVisible(similarRow)
                 }
                 return true
             }
-            return peopleRow.handleKey(key)
+            return peopleRow.routeKey(key, phase, repeat)
         }
-
-        if (similarRow.activeFocus) {
+        if (focusZone === "similar") {
             if (key === Qt.Key_Up) {
                 focusRowBeforeSimilar()
                 return true
             }
             if (key === Qt.Key_Down)
                 return true
-            return similarRow.handleKey(key)
+            return similarRow.routeKey(key, phase, repeat)
         }
 
-        if (key === Qt.Key_Left) {
-            focusNextAction(-1)
-            return true
-        }
-        if (key === Qt.Key_Right) {
-            focusNextAction(1)
-            return true
-        }
+        if (key === Qt.Key_Left)
+            return focusNextAction(-1)
+        if (key === Qt.Key_Right)
+            return focusNextAction(1)
         if (key === Qt.Key_Up)
             return focusHeaderAboveActions()
         if (key === Qt.Key_Down) {
-            if (overflowOpen && menuAction.activeFocus) {
-                InputKeys.focus(firstOverflowOption())
-                return true
-            }
-            focusDetailsPanel()
-            return true
-        }
-        if (InputKeys.isAccept(key, false)) {
-            if (playAllOption.activeFocus)
-                playDetailContext(false)
-            else if (shuffleOption.activeFocus)
-                playDetailContext(true)
-            else if (playedAction.activeFocus)
-                togglePlayed()
-            else if (favoriteAction.activeFocus)
-                toggleFavorite()
-            else if (menuAction.activeFocus)
-                toggleOverflow()
-            else if (restartAction.activeFocus)
-                activatePrimary(true)
+            if (overflowOpen && orderedActions()[actionIndex] === menuAction)
+                focusOverflow(0)
             else
-                activatePrimary(false)
+                focusDetailsPanel()
             return true
         }
         return false
+    }
+
+    function activate() {
+        if (focusZone === "series") {
+            openSeriesLink()
+        } else if (focusZone === "season") {
+            openSeasonLink()
+        } else if (focusZone === "metadata") {
+            metadataPanel.activate()
+        } else if (focusZone === "context") {
+            contextRow.activate()
+        } else if (focusZone === "people") {
+            peopleRow.activate()
+        } else if (focusZone === "similar") {
+            similarRow.activate()
+        } else if (focusZone === "overflow") {
+            const option = overflowOptions()[overflowIndex]
+            if (option === playAllOption)
+                playDetailContext(false)
+            else if (option === shuffleOption)
+                playDetailContext(true)
+            else
+                openMediaInfo()
+        } else {
+            const action = orderedActions()[actionIndex]
+            if (action === playedAction)
+                togglePlayed()
+            else if (action === favoriteAction)
+                toggleFavorite()
+            else if (action === menuAction)
+                toggleOverflow()
+            else if (action === restartAction)
+                activatePrimary(true)
+            else
+                activatePrimary(false)
+        }
+    }
+
+    function longPress() {
+        if (focusZone === "context")
+            return contextRow.longPress()
+        if (focusZone === "similar")
+            return similarRow.longPress()
+        return focusZone === "actions" && shell ? shell.openItemMenu(item, orderedActions()[actionIndex]) : false
     }
 
     function ensureDetailsItemVisible(target) {

@@ -9,9 +9,7 @@ Item {
     property bool focused: false
     property bool useSeriesPoster: false
     property bool preferEpisodeTitle: false
-    property string longPressAction: "menu"
     property var item: ({})
-    property var itemProvider: null
     property string displayTitle: ""
     property string displaySubtitle: ""
     property real progress: 0
@@ -41,10 +39,8 @@ Item {
     readonly property real titleAvailableHeight: Math.max(0, height - art.height - 10 - metadataHeight)
 
     signal activated
-    signal detailsRequested
     signal favoriteToggled(bool favorite)
     signal playedToggled(bool played)
-    signal mediaInfoRequested
 
     clip: true
 
@@ -68,18 +64,6 @@ Item {
 
     function landscapeImage() {
         return landscapeCardUrl || thumbUrl || backdropUrl || posterUrl || seriesPosterUrl || ""
-    }
-
-    function providedItem() {
-        return itemProvider ? (itemProvider() || ({})) : (item || ({}))
-    }
-
-    function handleAcceptPressed(key) {
-        return actions.handleAcceptPressed(key)
-    }
-
-    function handleAcceptReleased(key) {
-        return actions.handleAcceptReleased(key)
     }
 
     ImageCard {
@@ -143,14 +127,9 @@ Item {
         id: actions
         anchors.fill: parent
         shell: root.shell
-        focused: root.focused
         item: root.item
-        longPressAction: root.longPressAction
-        itemProvider: root.providedItem
         onActivated: root.activated()
-        onDetailsRequested: root.detailsRequested()
         onFavoriteToggled: favorite => root.favoriteToggled(favorite)
         onPlayedToggled: played => root.playedToggled(played)
-        onMediaInfoRequested: root.mediaInfoRequested()
     }
 }

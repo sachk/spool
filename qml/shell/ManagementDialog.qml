@@ -38,38 +38,31 @@ OverlayDialog {
         managementNameField.focusField()
     }
 
-    function handleKey(event, released) {
-        if (!released)
-            return true
-        if (InputKeys.isBackEvent(event, true)) {
-            dismissed()
+    function routeKey(key, phase, repeat) {
+        if (mode !== "playlist" && mode !== "collection")
+            return false
+        if (key === Qt.Key_Up) {
+            targetIndex = Math.max(0, targetIndex - 1)
             return true
         }
-        if (mode === "playlist" || mode === "collection") {
-            const lastIndex = targets.length
-            if (event.key === Qt.Key_Up) {
-                targetIndex = Math.max(0, targetIndex - 1)
-                return true
-            }
-            if (event.key === Qt.Key_Down) {
-                targetIndex = Math.min(lastIndex, targetIndex + 1)
-                return true
-            }
-            if (InputKeys.isAccept(event.key)) {
-                targetRequested(targetIndex)
-                return true
-            }
-        } else if (mode === "rename") {
-            if (InputKeys.isAccept(event.key)) {
-                createRequested(nameDraft.trim())
-                return true
-            }
-        } else if (mode === "delete" || mode === "remove") {
-            if (InputKeys.isAccept(event.key)) {
-                confirmRequested()
-                return true
-            }
+        if (key === Qt.Key_Down) {
+            targetIndex = Math.min(targets.length, targetIndex + 1)
+            return true
         }
+        return InputKeys.isHorizontal(key)
+    }
+
+    function activate() {
+        if (mode === "playlist" || mode === "collection")
+            targetRequested(targetIndex)
+        else if (mode === "rename")
+            createRequested(nameDraft.trim())
+        else if (mode === "delete" || mode === "remove")
+            confirmRequested()
+    }
+
+    function back() {
+        dismissed()
         return true
     }
 

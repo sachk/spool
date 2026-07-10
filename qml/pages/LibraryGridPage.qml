@@ -93,12 +93,6 @@ FocusScope {
             anchors.fill: parent
             onClicked: buttonRoot.activated()
         }
-        Keys.onReleased: event => {
-                             if (InputKeys.isAccept(event.key)) {
-                                 buttonRoot.activated()
-                                 event.accepted = true
-                             }
-                         }
     }
 
     function libraryCount() {
@@ -438,16 +432,6 @@ FocusScope {
             shell.lastLibraryIndex = index
     }
 
-    // Consume Back when a toolbar menu is open so it dismisses the menu rather
-    // than navigating out of the library.
-    function handleBack() {
-        if (libraryOpen || sortOpen || filtersOpen) {
-            closeMenus()
-            return true
-        }
-        return false
-    }
-
     function activateLibraryIndex(index) {
         if (index < 0 || index >= libraryCount())
             return
@@ -525,20 +509,13 @@ FocusScope {
         return grid.currentItem
     }
 
-    function handlePressedKey(key) {
-        const card = currentCard()
-        return card && card.handleAcceptPressed ? card.handleAcceptPressed(key) : false
-    }
-
-    function handleKey(key) {
+    function routeKey(key, phase, repeat) {
         if (libraryList.activeFocus)
-            return libraryList.handleKey(key)
-
+            return libraryList.routeKey(key, phase, repeat)
         if (sortList.activeFocus)
-            return sortList.handleKey(key)
-
+            return sortList.routeKey(key, phase, repeat)
         if (filterList.activeFocus)
-            return filterList.handleKey(key)
+            return filterList.routeKey(key, phase, repeat)
 
         if (libraryButton.activeFocus || sortButton.activeFocus || filterButton.activeFocus
                 || clearFiltersButton.activeFocus) {
@@ -569,26 +546,42 @@ FocusScope {
                 InputKeys.focus(grid)
                 return true
             }
-            if (InputKeys.isAccept(key)) {
-                if (libraryButton.activeFocus)
-                    openLibraryMenu()
-                else if (sortButton.activeFocus)
-                    openSortMenu()
-                else if (filterButton.activeFocus)
-                    openFilterMenu()
-                else
-                    App.clearLibraryFilters()
-                return true
-            }
-        }
-
-        if (grid.count <= 0)
             return false
-        const acceptKey = InputKeys.isAccept(key)
-        const card = currentCard()
-        if (acceptKey && card && card.handleAcceptReleased && card.handleAcceptReleased(key))
+        }
+        return grid.count > 0 && grid.routeKey(key, phase, repeat)
+    }
+
+    function activate() {
+        if (libraryList.activeFocus)
+            libraryList.activate()
+        else if (sortList.activeFocus)
+            sortList.activate()
+        else if (filterList.activeFocus)
+            filterList.activate()
+        else if (libraryButton.activeFocus)
+            openLibraryMenu()
+        else if (sortButton.activeFocus)
+            openSortMenu()
+        else if (filterButton.activeFocus)
+            openFilterMenu()
+        else if (clearFiltersButton.activeFocus)
+            App.clearLibraryFilters()
+        else
+            grid.activate()
+    }
+
+    function longPress() {
+        if (!grid.activeFocus || grid.currentIndex < 0 || !hasShell())
+            return false
+        return shell.openItemMenu(Browse.items.get(grid.currentIndex) || ({}), currentCard())
+    }
+
+    function back() {
+        if (libraryOpen || sortOpen || filtersOpen) {
+            closeMenus()
             return true
-        return grid.handleKey(key)
+        }
+        return false
     }
     ColumnLayout {
         anchors.fill: parent
@@ -801,13 +794,6 @@ FocusScope {
                 width: grid.cellWidth
                 height: grid.cellHeight
 
-                function handleAcceptPressed(key) {
-                    return card.handleAcceptPressed(key)
-                }
-                function handleAcceptReleased(key) {
-                    return card.handleAcceptReleased(key)
-                }
-
                 MediaItemCard {
                     id: card
                     anchors.left: parent.left
@@ -820,10 +806,6 @@ FocusScope {
                     preferEpisodeTitle: root.episodeGrid
                     useSeriesPoster: !root.episodeGrid
                     focused: gridDelegate.GridView.isCurrentItem
-                    longPressAction: "menu"
-                    itemProvider: function () {
-                        return Browse.items.get(index) || ({})
-                    }
                     item: gridDelegate.movie
                     displayTitle: gridDelegate.displayTitle
                     displaySubtitle: gridDelegate.displaySubtitle

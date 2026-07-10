@@ -1,6 +1,6 @@
 import QtQuick
 
-NavList {
+ListView {
     id: root
 
     property bool dismissOnBack: true
@@ -10,8 +10,12 @@ NavList {
         return !(entry && entry.section === true)
     }
 
+    signal edgeUp
+    signal edgeDown
+    signal accepted(int index)
     signal dismissed
 
+    focus: true
     clip: true
     keyNavigationEnabled: false
     boundsBehavior: Flickable.StopAtBounds
@@ -21,9 +25,7 @@ NavList {
             return null
         if (model && model.get)
             return model.get(index)
-        if (Array.isArray(model))
-            return model[index]
-        return null
+        return Array.isArray(model) ? model[index] : null
     }
 
     function isRowEnabled(index) {
@@ -31,15 +33,10 @@ NavList {
     }
 
     function firstEnabled(start, step) {
-        if (count <= 0)
-            return -1
         const direction = step < 0 ? -1 : 1
-        let index = Math.max(0, Math.min(count - 1, start))
-        while (index >= 0 && index < count) {
+        for (let index = Math.max(0, Math.min(count - 1, start)); index >= 0 && index < count; index += direction)
             if (isRowEnabled(index))
                 return index
-            index += direction
-        }
         return -1
     }
 
@@ -59,9 +56,7 @@ NavList {
         if (next >= 0) {
             currentIndex = next
             positionViewAtIndex(currentIndex, ListView.Contain)
-            return true
-        }
-        if (step < 0) {
+        } else if (step < 0) {
             if (edgeEscapeItem)
                 InputKeys.focus(edgeEscapeItem)
             else
@@ -72,7 +67,7 @@ NavList {
         return true
     }
 
-    function handleKey(key) {
+    function routeKey(key, phase, repeat) {
         if (dismissOnBack && InputKeys.isBack(key, false, false)) {
             dismissed()
             return true
@@ -85,12 +80,19 @@ NavList {
             return move(-1)
         if (key === Qt.Key_Down)
             return move(1)
-        if (InputKeys.isAccept(key, false)) {
-            if (clampEnabled())
-                accepted(currentIndex)
-            return true
-        }
         return false
+    }
+
+    function activate() {
+        if (clampEnabled())
+            accepted(currentIndex)
+    }
+
+    function back() {
+        if (!dismissOnBack)
+            return false
+        dismissed()
+        return true
     }
 
     onCountChanged: clampEnabled()
@@ -100,52 +102,4 @@ NavList {
     FastWheelHandler {
         flickable: root
     }
-
-    // Direction moves on press (so the shell's press dispatch never races a
-    // second move on release), accept fires on release — and only after a
-    // fresh press seen while this list was focused, never the tail end of the
-    // long-press that opened the menu.
-    property bool acceptPressArmed: false
-    property double focusGainedAtMs: 0
-
-    onActiveFocusChanged: {
-        acceptPressArmed = false
-        if (activeFocus)
-            focusGainedAtMs = Date.now()
-    }
-
-    Keys.onPressed: event => {
-                        if (InputKeys.isVertical(event.key)) {
-                            move(event.key === Qt.Key_Up ? -1 : 1)
-                            event.accepted = true
-                            return
-                        }
-                        if (InputKeys.isAccept(event.key, false)) {
-                            if (!event.isAutoRepeat && Date.now() - focusGainedAtMs > 250)
-                            acceptPressArmed = true
-                            event.accepted = true
-                        }
-                    }
-
-    Keys.onReleased: event => {
-                         if (event.isAutoRepeat) {
-                             event.accepted = InputKeys.isVertical(event.key) || InputKeys.isAccept(event.key, false)
-                             return
-                         }
-                         if (InputKeys.isVertical(event.key)) {
-                             event.accepted = true
-                             return
-                         }
-                         if (InputKeys.isAccept(event.key, false)) {
-                             event.accepted = true
-                             if (!acceptPressArmed)
-                             return
-                             acceptPressArmed = false
-                             if (clampEnabled())
-                             accepted(currentIndex)
-                             return
-                         }
-                         if (root.handleKey(event.key))
-                         event.accepted = true
-                     }
 }

@@ -127,23 +127,103 @@ FocusScope {
         App.login()
     }
 
-    Keys.onPressed: event => {
-                        if (InputKeys.isBackEvent(event, !textInputActive)) {
-                            if (addMode && addStep === 2) {
-                                addStep = 1
-                                Qt.callLater(focusServerStep)
-                                event.accepted = true
-                            } else if (addMode && hasSavedPair) {
-                                showProfiles()
-                                event.accepted = true
-                            }
-                            return
-                        }
-                        if (InputKeys.isMedia(event.key)) {
-                            signIn()
-                            event.accepted = true
-                        }
-                    }
+    function back() {
+        if (addMode && addStep === 2) {
+            addStep = 1
+            Qt.callLater(focusServerStep)
+            return true
+        }
+        if (addMode && hasSavedPair) {
+            showProfiles()
+            return true
+        }
+        return false
+    }
+
+    function controls() {
+        if (!addMode)
+            return [profileTile, addAccountTile]
+        if (addStep === 2)
+            return [chosenServerCard, usernameRow, passwordRow, signInButton, quickConnectButton]
+        const items = [urlRow]
+        if (manualServerVisible)
+            items.push(manualServerCard)
+        if (discoveredList.count > 0)
+            items.push(discoveredList)
+        return items
+    }
+
+    function focusedControl() {
+        const items = controls()
+        for (let i = 0; i < items.length; ++i)
+            if (items[i].activeFocus)
+                return items[i]
+        return items[0]
+    }
+
+    function focusControl(item) {
+        if (item === urlRow || item === usernameRow || item === passwordRow)
+            item.focusRow()
+        else
+            InputKeys.focus(item)
+    }
+
+    function moveControl(delta) {
+        const items = controls()
+        const current = focusedControl()
+        if (current === discoveredList) {
+            const next = discoveredList.currentIndex + delta
+            if (next >= 0 && next < discoveredList.count) {
+                discoveredList.currentIndex = next
+                return
+            }
+        }
+        focusControl(items[Math.max(0, Math.min(items.length - 1, items.indexOf(current) + delta))])
+    }
+
+    function routeKey(key, phase, repeat) {
+        if (InputKeys.isMedia(key) && phase === "press") {
+            signIn()
+            return true
+        }
+        if (!InputKeys.isDirection(key))
+            return false
+        const current = focusedControl()
+        if (InputKeys.isHorizontal(key)) {
+            if (!addMode || current === signInButton || current === quickConnectButton)
+                moveControl(key === Qt.Key_Right ? 1 : -1)
+            return true
+        }
+        if (!addMode)
+            return true
+        if (addStep === 2 && current === quickConnectButton && key === Qt.Key_Up)
+            focusControl(passwordRow)
+        else
+            moveControl(key === Qt.Key_Down ? 1 : -1)
+        return true
+    }
+
+    function activate() {
+        const control = focusedControl()
+        if (control === profileTile)
+            enterProfile()
+        else if (control === addAccountTile)
+            openAddAccount()
+        else if (control === manualServerCard)
+            chooseManualServer()
+        else if (control === discoveredList && discoveredList.currentItem)
+            discoveredList.currentItem.accepted()
+        else if (control === urlRow || control === usernameRow || control === passwordRow)
+            control.focusField()
+        else if (control === chosenServerCard) {
+            addStep = 1
+            Qt.callLater(focusServerStep)
+        } else if (control === quickConnectButton) {
+            quickConnectButton.clicked()
+        } else {
+            signIn()
+        }
+    }
 
     Timer {
         id: manualProbe
@@ -214,7 +294,6 @@ FocusScope {
                 avatarColor: root.profileTint(username + serverAddress)
                 initial: root.firstInitial(username)
                 defaultProfile: App.hasDefaultProfile
-                KeyNavigation.right: addAccountTile
                 onAccepted: root.enterProfile()
             }
 
@@ -223,7 +302,6 @@ FocusScope {
                 tileSize: root.tileSize
                 addTile: true
                 username: "Add account"
-                KeyNavigation.left: profileTile
                 onAccepted: root.openAddAccount()
             }
         }
@@ -272,7 +350,6 @@ FocusScope {
                 inputMethodHints: Qt.ImhUrlCharactersOnly | Qt.ImhNoPredictiveText | Qt.ImhNoAutoUppercase
                 onTextEdited: root.manualServerDraft = text
                 onAccepted: root.submitManualServer()
-                KeyNavigation.down: root.manualServerVisible ? manualServerCard : discoveredList
             }
 
             ServerChoice {
@@ -284,8 +361,6 @@ FocusScope {
                 address: root.manualServerAddress
                 status: root.manualServerStatus
                 selectable: root.manualServerStatus === "Online"
-                KeyNavigation.up: urlRow
-                KeyNavigation.down: discoveredList
                 onAccepted: root.chooseManualServer()
             }
 
@@ -296,7 +371,7 @@ FocusScope {
                 clip: true
                 spacing: 10
                 focus: false
-                keyNavigationEnabled: true
+                keyNavigationEnabled: false
                 boundsBehavior: Flickable.StopAtBounds
                 model: DiscoveredServers
                 currentIndex: count > 0 ? 0 : -1
@@ -332,20 +407,6 @@ FocusScope {
                         }
                     }
                 }
-
-                Keys.onPressed: event => {
-                                    if (InputKeys.isAccept(event.key, false)) {
-                                        if (currentItem)
-                                        currentItem.accepted()
-                                        event.accepted = true
-                                    } else if (event.key === Qt.Key_Up && currentIndex <= 0) {
-                                        if (root.manualServerVisible)
-                                        InputKeys.focus(manualServerCard)
-                                        else
-                                        urlRow.focusRow()
-                                        event.accepted = true
-                                    }
-                                }
             }
 
             EmptyPlaceholder {
@@ -371,7 +432,6 @@ FocusScope {
                 title: root.chosenServerName
                 address: root.chosenServerAddress
                 status: "Online"
-                KeyNavigation.down: usernameRow
                 onAccepted: {
                     root.addStep = 1
                     Qt.callLater(root.focusServerStep)
@@ -387,8 +447,6 @@ FocusScope {
                 inputMethodHints: Qt.ImhNoPredictiveText | Qt.ImhNoAutoUppercase
                 onTextEdited: Session.username = text
                 onAccepted: passwordRow.focusField()
-                KeyNavigation.up: chosenServerCard
-                KeyNavigation.down: passwordRow
             }
 
             TextFieldRow {
@@ -401,8 +459,6 @@ FocusScope {
                 inputMethodHints: Qt.ImhSensitiveData | Qt.ImhNoPredictiveText
                 onTextEdited: Session.password = text
                 onAccepted: InputKeys.focus(signInButton)
-                KeyNavigation.up: usernameRow
-                KeyNavigation.down: signInButton
             }
 
             RowLayout {
@@ -416,8 +472,6 @@ FocusScope {
                     kind: "primary"
                     Layout.fillWidth: true
                     onClicked: root.signIn()
-                    KeyNavigation.up: passwordRow
-                    KeyNavigation.right: quickConnectButton
                 }
 
                 ActionButton {
@@ -433,8 +487,6 @@ FocusScope {
                             QuickConnect.start(Session.serverUrl)
                         }
                     }
-                    KeyNavigation.up: passwordRow
-                    KeyNavigation.left: signInButton
                 }
             }
 
@@ -493,13 +545,6 @@ FocusScope {
                 easing.type: Easing.OutCubic
             }
         }
-
-        Keys.onPressed: event => {
-                            if (InputKeys.isAccept(event.key, false)) {
-                                tile.accepted()
-                                event.accepted = true
-                            }
-                        }
 
         Rectangle {
             id: avatar
@@ -618,13 +663,6 @@ FocusScope {
 
         implicitHeight: 78
         focusPolicy: Qt.StrongFocus
-
-        Keys.onPressed: event => {
-                            if (InputKeys.isAccept(event.key, false) && choice.selectable) {
-                                choice.accepted()
-                                event.accepted = true
-                            }
-                        }
 
         Rectangle {
             anchors.fill: parent

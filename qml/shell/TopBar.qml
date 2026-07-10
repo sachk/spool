@@ -78,10 +78,33 @@ FocusScope {
         InputKeys.focus(syncButton)
     }
 
-    function handleKey(key) {
+    function activate() {
+        const menu = syncMenuLoader.item
+        if (menu && menu.menuOpen) {
+            menu.activate()
+            return
+        }
+        const index = focusedIndex()
+        if (index >= railRepeater.count) {
+            openSyncMenu()
+        } else {
+            const item = railRepeater.itemAt(index)
+            if (item)
+                navigate(item.route)
+        }
+    }
+
+    function back() {
+        if (!syncPlayMenuOpen)
+            return false
+        closeSyncPlayMenu()
+        return true
+    }
+
+    function routeKey(key, phase, repeat) {
         const menu = syncMenuLoader.item
         if (menu && menu.menuOpen)
-            return menu.handleKey(key)
+            return menu.routeKey(key, phase, repeat)
         if (key === Qt.Key_Down) {
             contentRequested()
             return true
@@ -94,20 +117,7 @@ FocusScope {
             focusIndex(focusedIndex() - 1)
             return true
         }
-        if (key === Qt.Key_Up)
-            return true
-        if (InputKeys.isAccept(key)) {
-            const idx = focusedIndex()
-            if (idx >= railRepeater.count) {
-                openSyncMenu()
-            } else {
-                const item = railRepeater.itemAt(idx)
-                if (item)
-                    navigate(item.route)
-            }
-            return true
-        }
-        return false
+        return key === Qt.Key_Up
     }
 
     Rectangle {
@@ -191,12 +201,6 @@ FocusScope {
                     railStyle: true
                     selected: root.selectedRoute === modelData.route
                     onClicked: root.navigate(modelData.route)
-                    Keys.onReleased: event => {
-                                         if (InputKeys.isAccept(event.key)) {
-                                             root.navigate(modelData.route)
-                                             event.accepted = true
-                                         }
-                                     }
                 }
                 Rectangle {
                     y: Math.min(parent.height - height - 4, button.y + button.height + 4)
@@ -240,12 +244,6 @@ FocusScope {
                 railStyle: true
                 selected: root.syncPlayMenuOpen
                 onClicked: root.openSyncMenu()
-                Keys.onReleased: event => {
-                                     if (InputKeys.isAccept(event.key)) {
-                                         root.openSyncMenu()
-                                         event.accepted = true
-                                     }
-                                 }
 
                 // Status dot: accent when in a group, green when groups exist to join.
                 Rectangle {

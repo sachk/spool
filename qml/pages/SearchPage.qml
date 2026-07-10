@@ -90,62 +90,58 @@ FocusScope {
         return false
     }
 
-    function handleBack() {
-        if (results.activeFocus || suggestionsRow.activeFocus) {
-            focusFieldForTyping()
-            return true
-        }
-        return false
-    }
-
-    function handlePressedKey(key) {
-        if (suggestionsRow.activeFocus)
-            return suggestionsRow.handlePressedKey ? suggestionsRow.handlePressedKey(key) : false
-        if (!results.activeFocus)
+    function back() {
+        if (!results.activeFocus && !suggestionsRow.activeFocus)
             return false
-        const row = currentResultRow()
-        return row && row.handleAcceptPressed ? row.handleAcceptPressed(key) : false
+        focusFieldForTyping()
+        return true
     }
 
-    function handleKey(key) {
-        const acceptKey = InputKeys.isAccept(key)
+    function routeKey(key, phase, repeat) {
         if (suggestionsRow.activeFocus) {
-            if (suggestionsRow.handleKey(key))
-                return true
-            if (key === Qt.Key_Up) {
+            if (key === Qt.Key_Up && phase === "press") {
                 focusFieldForTyping()
                 return true
             }
             if (key === Qt.Key_Down)
                 return true
-            return false
+            return suggestionsRow.routeKey(key, phase, repeat)
         }
-        if (results.activeFocus && !acceptKey) {
-            const menuRow = currentResultRow()
-            if (menuRow && menuRow.handleKey && menuRow.handleKey(key))
+        if (results.activeFocus) {
+            if (key === Qt.Key_Up) {
+                if (results.currentIndex <= 0)
+                    focusFieldForTyping()
+                else
+                    --results.currentIndex
                 return true
+            }
+            if (key === Qt.Key_Down) {
+                results.currentIndex = Math.min(resultCount - 1, results.currentIndex + 1)
+                return true
+            }
+            return InputKeys.isHorizontal(key)
         }
         if (key === Qt.Key_Up && field.activeFocus && !field.editing) {
-            if (root.shell)
-                root.shell.focusNavBar()
+            if (shell)
+                shell.focusNavBar()
             return true
         }
-        if (key === Qt.Key_Down && field.activeFocus)
-            return focusResultsOrSuggestions()
-        if (key === Qt.Key_Up && results.activeFocus && results.currentIndex <= 0) {
-            focusFieldForTyping()
-            return true
-        }
-        if (acceptKey && results.activeFocus) {
-            const row = currentResultRow()
-            if (row && row.handleAcceptReleased && row.handleAcceptReleased(key))
-                return true
-            if (row && row.handleKey && row.handleKey(key))
-                return true
+        return key === Qt.Key_Down && field.activeFocus && focusResultsOrSuggestions()
+    }
+
+    function activate() {
+        if (suggestionsRow.activeFocus)
+            suggestionsRow.activate()
+        else if (results.activeFocus)
             activateCurrent()
-            return true
-        }
-        return false
+    }
+
+    function longPress() {
+        if (suggestionsRow.activeFocus)
+            return suggestionsRow.longPress()
+        if (!results.activeFocus || results.currentIndex < 0 || !shell)
+            return false
+        return shell.openItemMenu(search.results.get(results.currentIndex) || ({}), currentResultRow())
     }
 
     // Height of the on-screen keyboard overlapping this page, so the layout
@@ -225,7 +221,6 @@ FocusScope {
                     enterKeyType: Qt.EnterKeySearch
                     onTextEdited: text => root.setQuery(text)
                     onAccepted: root.runSearchNow()
-                    KeyNavigation.down: root.resultCount > 0 ? results : suggestionsRow
                 }
 
                 MediaPosterScrollerRow {
@@ -270,7 +265,6 @@ FocusScope {
                     spacing: 10
                     clip: true
                     model: root.search ? root.search.results : null
-                    KeyNavigation.up: field
                     visible: root.resultCount > 0
                     onCurrentIndexChanged: {
                         if (currentIndex >= 0) {
@@ -295,12 +289,6 @@ FocusScope {
                         width: results.width
                         height: 118
                         focused: ListView.isCurrentItem && results.activeFocus
-                        function handleAcceptPressed(key) {
-                            return actions.handleAcceptPressed(key)
-                        }
-                        function handleAcceptReleased(key) {
-                            return actions.handleAcceptReleased(key)
-                        }
 
                         RowLayout {
                             anchors.fill: parent
@@ -358,40 +346,15 @@ FocusScope {
                             id: actions
                             anchors.fill: parent
                             shell: root.shell
-                            focused: resultDelegate.focused
                             item: resultDelegate.movie
-                            itemProvider: function () {
-                                return root.search && root.search.results ? root.search.results.get(index) || ({}) : (
-                                                                                {})
-                            }
                             onActivated: {
                                 results.currentIndex = index
                                 root.activateCurrent()
                             }
                             onFavoriteToggled: favorite => App.setFavorite(resultDelegate.movie.movieId || "", favorite)
                             onPlayedToggled: played => App.setPlayed(resultDelegate.movie.movieId || "", played)
-                            onMediaInfoRequested: root.shell.openMediaInfo(root.search.results.get(index) || ({}))
                         }
                     }
-
-                    Keys.onReleased: event => {
-                                         if (event.key === Qt.Key_Up && currentIndex <= 0) {
-                                             root.focusFieldForTyping()
-                                             event.accepted = true
-                                         } else if (InputKeys.isAccept(event.key)) {
-                                             const row = root.currentResultRow()
-                                             if (row && row.handleAcceptReleased && row.handleAcceptReleased(
-                                                     event.key)) {
-                                                 event.accepted = true
-                                                 return
-                                             }
-                                             root.activateCurrent()
-                                             event.accepted = true
-                                         } else if (event.key === Qt.Key_M && currentIndex >= 0) {
-                                             root.shell.openMediaInfo(root.search.results.get(currentIndex))
-                                             event.accepted = true
-                                         }
-                                     }
                 }
 
                 EmptyPlaceholder {

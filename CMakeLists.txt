@@ -385,7 +385,6 @@ qt_add_qml_module(jellyfin-native
         qml/primitives/MenuRow.qml
         qml/primitives/MonoText.qml
         qml/primitives/NavGrid.qml
-        qml/primitives/NavList.qml
         qml/primitives/MaterialIcon.qml
         qml/primitives/PersonScrollerRow.qml
         qml/primitives/PopupMenuPanel.qml
@@ -398,6 +397,7 @@ qt_add_qml_module(jellyfin-native
         qml/primitives/TextFieldRow.qml
         qml/primitives/ToggleRow.qml
         qml/shell/AppShell.qml
+        qml/shell/KeyRouter.qml
         qml/shell/BusyOverlay.qml
         qml/shell/DiagnosticsOverlay.qml
         qml/shell/ItemContextMenu.qml
