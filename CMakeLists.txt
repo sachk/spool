@@ -560,13 +560,17 @@ if(BUILD_TESTING AND NOT CMAKE_CROSSCOMPILING)
             COMMAND "${QMLTESTRUNNER_EXECUTABLE}"
                 -input "${CMAKE_CURRENT_SOURCE_DIR}/tests/qml/tst_RoutePolicy.qml"
         )
-        set(JELLYFIN_ROUTE_POLICY_ENV
+        add_test(NAME key-router
+            COMMAND "${QMLTESTRUNNER_EXECUTABLE}"
+                -input "${CMAKE_CURRENT_SOURCE_DIR}/tests/qml/tst_KeyRouter.qml"
+        )
+        set(JELLYFIN_QML_TEST_ENV
             "QT_QPA_PLATFORM=offscreen"
             "QT_QUICK_BACKEND=software"
             ${JELLYFIN_TEST_ENV}
         )
-        set_tests_properties(route-policy PROPERTIES
-            ENVIRONMENT "${JELLYFIN_ROUTE_POLICY_ENV}"
+        set_tests_properties(route-policy key-router PROPERTIES
+            ENVIRONMENT "${JELLYFIN_QML_TEST_ENV}"
         )
     endif()
 endif()

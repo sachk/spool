@@ -24,7 +24,7 @@ FocusScope {
         return InputKeys.isBackEvent(event, !textInputActive) ? Qt.Key_Back : event.key
     }
 
-    function route(target, key, phase, repeat) {
+    function deliver(target, key, phase, repeat) {
         return Boolean(target && target.routeKey && target.routeKey(key, phase, repeat))
     }
 
@@ -40,7 +40,7 @@ FocusScope {
             return true
         const target = activeTarget
         if (!target || (!target.activate && !target.longPress))
-            return route(target, key, "press", false)
+            return router.deliver(target, key, "press", false)
         armedTarget = target
         armedKey = key
         longPressHandled = false
@@ -54,7 +54,7 @@ FocusScope {
             return true
         const target = armedTarget
         if (!target)
-            return route(activeTarget, key, "release", false)
+            return router.deliver(activeTarget, key, "release", false)
         longPressTimer.stop()
         const swallowed = longPressHandled
         clearAccept()
@@ -67,7 +67,7 @@ FocusScope {
         if (phase === "release")
             return backClaimed
         const target = activeTarget
-        backClaimed = route(target, Qt.Key_Back, phase, repeat)
+        backClaimed = router.deliver(target, Qt.Key_Back, phase, repeat)
         if (!backClaimed && target && target.back)
             backClaimed = Boolean(target.back())
         if (!backClaimed && backHandler)
@@ -90,12 +90,12 @@ FocusScope {
             return false
         if (phase === "release" && InputKeys.isDirection(key)) {
             if (activeTarget && activeTarget.directionRelease)
-                route(activeTarget, key, phase, repeat)
+                router.deliver(activeTarget, key, phase, repeat)
             return true
         }
         if (InputKeys.isAccept(key))
             return phase === "press" ? pressAccept(key, repeat) : releaseAccept(key, repeat)
-        const handled = route(activeTarget, key, phase, repeat)
+        const handled = router.deliver(activeTarget, key, phase, repeat)
         return handled || Boolean(globalHandler && globalHandler(key, phase, repeat, event.modifiers))
     }
 
