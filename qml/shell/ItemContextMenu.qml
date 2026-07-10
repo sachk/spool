@@ -29,7 +29,7 @@ FocusScope {
     readonly property bool partialEpisode: itemType === "Episode" && hasProgress && !playedState
     readonly property bool actionable: itemId.length > 0
     readonly property bool queueable: actionable && item && item.playable !== false
-    readonly property string currentViewKind: String(App.currentViewKind || "")
+    readonly property string currentViewKind: String(Browse.viewKind || "")
     readonly property bool inPlaylist: currentViewKind === "playlist"
     readonly property bool inCollection: currentViewKind === "boxset" || currentViewKind === "collection"
     readonly property bool collectionEligible: actionable && (itemType === "Movie" || itemType === "Series" || itemType
@@ -58,7 +58,7 @@ FocusScope {
     focus: opened
 
     Connections {
-        target: App
+        target: ItemState
         enabled: root.opened
         function onItemFavoriteChanged(changedItemId, favorite) {
             if (root.itemId === changedItemId)

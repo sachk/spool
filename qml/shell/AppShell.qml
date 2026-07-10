@@ -560,7 +560,7 @@ KeyRouter {
             mode: root.managementMode
             item: root.managementItem
             targets: root.managementTargets
-            currentViewKind: App.currentViewKind
+            currentViewKind: Browse.viewKind
             nameDraft: root.managementInitialName
             targetIndex: 0
             onDismissed: root.closeManagementOverlay()
@@ -586,9 +586,9 @@ KeyRouter {
         z: 58
         active: root.itemMenuLoaded
         sourceComponent: ItemContextMenu {
-            onPlayedToggled: (itemId, played) => App.setPlayed(itemId, played)
-            onFavoriteToggled: (itemId, favorite) => App.setFavorite(itemId, favorite)
-            onClearProgressRequested: itemId => App.clearProgress(itemId)
+            onPlayedToggled: (itemId, played) => ItemState.setPlayed(itemId, played)
+            onFavoriteToggled: (itemId, favorite) => ItemState.setFavorite(itemId, favorite)
+            onClearProgressRequested: itemId => ItemState.clearProgress(itemId)
             onOpenSeriesRequested: (seriesId, seriesName) => {
                                        if (seriesId.length <= 0)
                                        return

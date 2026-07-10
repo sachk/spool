@@ -108,7 +108,8 @@ FocusScope {
     }
 
     function signIn() {
-        App.login()
+        App.clearError()
+        Session.login()
     }
 
     function back() {

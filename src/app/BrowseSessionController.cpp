@@ -13,99 +13,9 @@ BrowseSessionController::BrowseSessionController(LibraryPrefetchController *pref
 {
 }
 
-MovieGridModel *BrowseSessionController::items()
-{
-    return &m_items;
-}
-
-QString BrowseSessionController::cacheKey() const
-{
-    return m_cacheKey;
-}
-
-bool BrowseSessionController::loadingMore() const
-{
-    return m_loadingMore;
-}
-
-bool BrowseSessionController::hasMore() const
-{
-    return m_hasMore;
-}
-
-int BrowseSessionController::totalCount() const
-{
-    return m_totalCount;
-}
-
-int BrowseSessionController::nextStartIndex() const
-{
-    return m_nextStartIndex;
-}
-
-int BrowseSessionController::rowCount() const
-{
-    return m_items.rowCount();
-}
-
-QString BrowseSessionController::libraryId() const
-{
-    return m_libraryId;
-}
-
-QString BrowseSessionController::libraryCollectionType() const
-{
-    return m_libraryCollectionType;
-}
-
-QString BrowseSessionController::title() const
-{
-    return m_title;
-}
-
-QString BrowseSessionController::contentLabel() const
-{
-    return m_contentLabel;
-}
-
-QString BrowseSessionController::viewKind() const
-{
-    return m_viewKind;
-}
-
-QString BrowseSessionController::seriesId() const
-{
-    return m_seriesId;
-}
-
-QString BrowseSessionController::seasonId() const
-{
-    return m_seasonId;
-}
-
-QVariantMap BrowseSessionController::query() const
-{
-    return m_query;
-}
-
-QVariantMap BrowseSessionController::filterOptions() const
-{
-    return m_filterOptions;
-}
-
 int BrowseSessionController::filterActiveCount() const
 {
     return activeLibraryFilterCount(m_query);
-}
-
-BrowseDescriptor BrowseSessionController::descriptor() const
-{
-    return m_descriptor;
-}
-
-MovieItem BrowseSessionController::itemAt(int index) const
-{
-    return m_items.movieAt(index);
 }
 
 int BrowseSessionController::applyCachedPage(const QString& cacheKey)
@@ -194,9 +104,12 @@ void BrowseSessionController::setWarmCachePaging(int cachedCount, int pageSize)
 
 void BrowseSessionController::prefetchVisibleRange(int firstIndex, int lastIndex)
 {
-    if (!m_prefetch || firstIndex < 0 || lastIndex < firstIndex || m_items.rowCount() <= 0)
+    if (firstIndex < 0 || lastIndex < firstIndex || m_items.rowCount() <= 0)
         return;
-    m_prefetch->prefetchPosters(m_items.movies(), firstIndex, lastIndex - firstIndex + 1);
+    if (m_prefetch)
+        m_prefetch->prefetchPosters(m_items.movies(), firstIndex, lastIndex - firstIndex + 1);
+    if (lastIndex + 200 >= m_items.rowCount())
+        emit moreItemsRequested();
 }
 
 void BrowseSessionController::updateResumeTicks(const QString& itemId, qint64 positionTicks)
@@ -230,19 +143,41 @@ void BrowseSessionController::enterLibrary(
     emit changed();
 }
 
-void BrowseSessionController::enterSeries(const MovieItem& series)
+bool BrowseSessionController::enterItem(const MovieItem& item)
 {
-    m_libraryId.clear();
-    m_libraryCollectionType.clear();
-    m_seriesId = series.id;
-    m_seasonId.clear();
-    m_descriptor = BrowseDescriptor::seriesSeasons(series.id, series.title);
-    m_viewKind = QStringLiteral("seasons");
-    m_title = series.title;
-    m_contentLabel = QStringLiteral("Seasons");
+    BrowseDescriptor descriptor;
+    QString viewKind;
+    QString contentLabel;
+    if (item.itemType == QStringLiteral("Series")) {
+        descriptor = BrowseDescriptor::seriesSeasons(item.id, item.title);
+        viewKind = QStringLiteral("seasons");
+        contentLabel = QStringLiteral("Seasons");
+    } else if (item.itemType == QStringLiteral("Playlist")) {
+        descriptor = BrowseDescriptor::playlist(item.id, item.title);
+        viewKind = QStringLiteral("playlist");
+        contentLabel = QStringLiteral("Items");
+    } else if (item.itemType == QStringLiteral("BoxSet")) {
+        descriptor = BrowseDescriptor::boxSet(item.id, item.title);
+        viewKind = QStringLiteral("boxset");
+        contentLabel = QStringLiteral("Titles");
+    } else if (item.itemType == QStringLiteral("Folder")) {
+        descriptor = BrowseDescriptor::folderChildren(item.id, item.title);
+        viewKind = QStringLiteral("folder");
+        contentLabel = QStringLiteral("Items");
+    } else {
+        return false;
+    }
+    clearBrowseIdentity();
+    if (item.itemType == QStringLiteral("Series"))
+        m_seriesId = item.id;
+    m_descriptor = std::move(descriptor);
+    m_viewKind = std::move(viewKind);
+    m_title = item.title;
+    m_contentLabel = std::move(contentLabel);
     m_query.clear();
     m_filterOptions.clear();
     emit changed();
+    return true;
 }
 
 void BrowseSessionController::enterSeason(const QString& seriesId, const MovieItem& season)
@@ -277,51 +212,71 @@ void BrowseSessionController::enterNamedCollection(const QString& viewKind, cons
     emit changed();
 }
 
-void BrowseSessionController::enterPlaylist(const MovieItem& playlist)
+void BrowseSessionController::setSort(const QString& sortBy, const QString& sortOrder)
 {
-    clearBrowseIdentity();
-    m_descriptor = BrowseDescriptor::playlist(playlist.id, playlist.title);
-    m_viewKind = QStringLiteral("playlist");
-    m_title = playlist.title;
-    m_contentLabel = QStringLiteral("Items");
-    m_query.clear();
-    m_filterOptions.clear();
-    emit changed();
+    QVariantMap next = m_query;
+    next.insert(QStringLiteral("sortBy"), sortBy.isEmpty() ? QStringLiteral("SortName") : sortBy);
+    next.insert(QStringLiteral("sortOrder"),
+        sortOrder == QStringLiteral("Descending") ? QStringLiteral("Descending") : QStringLiteral("Ascending"));
+    requestQuery(std::move(next));
 }
 
-void BrowseSessionController::enterBoxSet(const MovieItem& boxSet)
+void BrowseSessionController::setQueryListValue(const QString& key, const QString& value, bool enabled)
 {
-    clearBrowseIdentity();
-    m_descriptor = BrowseDescriptor::boxSet(boxSet.id, boxSet.title);
-    m_viewKind = QStringLiteral("boxset");
-    m_title = boxSet.title;
-    m_contentLabel = QStringLiteral("Titles");
-    m_query.clear();
-    m_filterOptions.clear();
-    emit changed();
+    if (key.isEmpty() || value.isEmpty())
+        return;
+    QVariantMap next = m_query;
+    QStringList values = libraryQueryStringList(next, key);
+    values.removeAll(value);
+    if (enabled)
+        values.push_back(value);
+    values.removeDuplicates();
+    if (values.isEmpty())
+        next.remove(key);
+    else
+        next.insert(key, values);
+    requestQuery(std::move(next));
 }
 
-void BrowseSessionController::enterFolder(const MovieItem& folder)
+void BrowseSessionController::setQueryValue(const QString& key, const QVariant& value)
 {
-    clearBrowseIdentity();
-    m_descriptor = BrowseDescriptor::folderChildren(folder.id, folder.title);
-    m_viewKind = QStringLiteral("folder");
-    m_title = folder.title;
-    m_contentLabel = QStringLiteral("Items");
-    m_query.clear();
-    m_filterOptions.clear();
-    emit changed();
+    if (key.isEmpty())
+        return;
+    QVariantMap next = m_query;
+    if (!value.isValid() || value.isNull())
+        next.remove(key);
+    else
+        next.insert(key, value);
+    requestQuery(std::move(next));
 }
 
-bool BrowseSessionController::setQuery(const QVariantMap& query)
+void BrowseSessionController::clearFilters()
+{
+    if (m_libraryId.isEmpty())
+        return;
+    QVariantMap next;
+    next.insert(
+        QStringLiteral("sortBy"), m_query.value(QStringLiteral("sortBy"), QStringLiteral("SortName")).toString());
+    next.insert(QStringLiteral("sortOrder"),
+        m_query.value(QStringLiteral("sortOrder"), QStringLiteral("Ascending")).toString());
+    requestQuery(std::move(next));
+}
+
+bool BrowseSessionController::setQuery(QVariantMap query)
 {
     if (m_query == query)
         return false;
-    m_query = query;
+    m_query = std::move(query);
     if (!m_libraryId.isEmpty())
         m_libraryQueries.insert(m_libraryId, m_query);
     emit changed();
     return true;
+}
+
+void BrowseSessionController::requestQuery(QVariantMap query)
+{
+    if (setQuery(std::move(query)))
+        emit reloadRequested();
 }
 
 void BrowseSessionController::clearFilterOptions()

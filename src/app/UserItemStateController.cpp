@@ -1,5 +1,8 @@
 #include "UserItemStateController.h"
 
+#include "../api/JellyfinApiFacade.h"
+#include "../common/AsyncTask.h"
+
 #include "BrowseSessionController.h"
 #include "ContentModelController.h"
 #include "HomeModelController.h"
@@ -7,9 +10,10 @@
 
 namespace JellyfinNative {
 
-UserItemStateController::UserItemStateController(BrowseSessionController *currentItems, HomeModelController *home,
-    ContentModelController *content, SearchController *search, QObject *parent)
+UserItemStateController::UserItemStateController(JellyfinApiFacade *api, BrowseSessionController *currentItems,
+    HomeModelController *home, ContentModelController *content, SearchController *search, QObject *parent)
     : QObject(parent)
+    , m_api(api)
     , m_browse(currentItems)
     , m_home(home)
     , m_content(content)
@@ -62,6 +66,60 @@ void UserItemStateController::applyPlayed(const QString& itemId, bool played)
     if (m_search)
         m_search->updatePlayed(itemId, played);
     emit playedChanged(itemId, played);
+}
+
+void UserItemStateController::recordPlaybackStopped(
+    const MovieItem& item, const QString& itemId, qint64 positionTicks, bool completed)
+{
+    if (!completed) {
+        applyResumeTicks(itemId, positionTicks);
+        if (m_home && item.id == itemId)
+            m_home->upsertResumeItem(item, positionTicks);
+        return;
+    }
+    applyPlayed(itemId, true);
+    if (!m_api || m_api->session().accessToken.isEmpty())
+        return;
+    Async::runScoped(
+        this, m_api->setItemPlayed(itemId, true), []() {},
+        [this](const std::exception_ptr& error) { emit errorOccurred(exceptionMessage(error)); });
+}
+
+void UserItemStateController::setFavorite(const QString& itemId, bool favorite)
+{
+    if (itemId.isEmpty() || !m_api || m_api->session().accessToken.isEmpty())
+        return;
+    applyFavorite(itemId, favorite);
+    Async::runScoped(
+        this, m_api->setItemFavorite(itemId, favorite), []() {},
+        [this, itemId, favorite](const std::exception_ptr& error) {
+            applyFavorite(itemId, !favorite);
+            emit errorOccurred(exceptionMessage(error));
+        });
+}
+
+void UserItemStateController::setPlayed(const QString& itemId, bool played)
+{
+    if (itemId.isEmpty() || !m_api || m_api->session().accessToken.isEmpty())
+        return;
+    applyPlayed(itemId, played);
+    Async::runScoped(
+        this, m_api->setItemPlayed(itemId, played), []() {},
+        [this, itemId, played](const std::exception_ptr& error) {
+            applyPlayed(itemId, !played);
+            emit errorOccurred(exceptionMessage(error));
+        });
+}
+
+void UserItemStateController::clearProgress(const QString& itemId)
+{
+    if (itemId.isEmpty() || !m_api || m_api->session().accessToken.isEmpty())
+        return;
+    applyResumeTicks(itemId, 0);
+    applyPlayed(itemId, false);
+    Async::runScoped(
+        this, m_api->setItemPlaybackPosition(itemId, 0), []() {},
+        [this](const std::exception_ptr& error) { emit errorOccurred(exceptionMessage(error)); });
 }
 
 } // namespace JellyfinNative

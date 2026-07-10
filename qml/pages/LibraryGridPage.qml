@@ -451,9 +451,9 @@ FocusScope {
             return
         setSavedGridIndex(0)
         if (String(entry.value).indexOf("order:") === 0)
-            App.setLibrarySort(currentSortBy(), String(entry.value).split(":")[1])
+            Browse.setSort(currentSortBy(), String(entry.value).split(":")[1])
         else
-            App.setLibrarySort(entry.value, currentSortOrder())
+            Browse.setSort(entry.value, currentSortOrder())
         sortEntries = buildSortEntries()
     }
 
@@ -462,11 +462,11 @@ FocusScope {
             return
         setSavedGridIndex(0)
         if (entry.kind === "list")
-            App.setLibraryQueryListValue(entry.key, entry.value, !entry.checked)
+            Browse.setQueryListValue(entry.key, entry.value, !entry.checked)
         else if (entry.kind === "bool")
-            App.setLibraryQueryBoolValue(entry.key, !entry.checked)
+            Browse.setQueryValue(entry.key, entry.checked ? null : true)
         else if (entry.kind === "nullableBool")
-            App.setLibraryQueryNullableBoolValue(entry.key, entry.checked ? null : entry.value)
+            Browse.setQueryValue(entry.key, entry.checked ? null : entry.value)
         filterEntries = buildFilterEntries()
     }
 
@@ -565,7 +565,7 @@ FocusScope {
         else if (filterButton.activeFocus)
             openFilterMenu()
         else if (clearFiltersButton.activeFocus)
-            App.clearLibraryFilters()
+            Browse.clearFilters()
         else
             grid.activate()
     }
@@ -693,7 +693,7 @@ FocusScope {
                 visible: !root.isFixedBrowseView && root.activeFilterCount > 0
                 onActivated: {
                     root.setSavedGridIndex(0)
-                    App.clearLibraryFilters()
+                    Browse.clearFilters()
                 }
             }
         }
@@ -765,8 +765,7 @@ FocusScope {
                     return
                 const visibleHead = firstLikelyVisibleIndex()
                 const visibleTail = Math.max(currentIndex, lastLikelyVisibleIndex())
-                App.prefetchCurrentItems(visibleHead, visibleTail)
-                App.maybeLoadMoreCurrentItems(visibleTail)
+                Browse.prefetchVisibleRange(visibleHead, visibleTail)
             }
 
             Timer {
@@ -920,7 +919,7 @@ FocusScope {
                     enabled: root.activeFilterCount > 0
                     onClicked: {
                         root.setSavedGridIndex(0)
-                        App.clearLibraryFilters()
+                        Browse.clearFilters()
                     }
                 }
             }

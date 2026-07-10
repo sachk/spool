@@ -32,28 +32,79 @@ class BrowseSessionController final : public QObject {
 public:
     explicit BrowseSessionController(LibraryPrefetchController *prefetch, QObject *parent = nullptr);
 
-    MovieGridModel *items();
-
-    QString cacheKey() const;
-    bool loadingMore() const;
-    bool hasMore() const;
-    int totalCount() const;
-    int nextStartIndex() const;
-    int rowCount() const;
-
-    QString libraryId() const;
-    QString libraryCollectionType() const;
-    QString title() const;
-    QString contentLabel() const;
-    QString viewKind() const;
-    QString seriesId() const;
-    QString seasonId() const;
-    QVariantMap query() const;
-    QVariantMap filterOptions() const;
+    MovieGridModel *items()
+    {
+        return &m_items;
+    }
+    QString cacheKey() const
+    {
+        return m_cacheKey;
+    }
+    bool loadingMore() const
+    {
+        return m_loadingMore;
+    }
+    bool hasMore() const
+    {
+        return m_hasMore;
+    }
+    int totalCount() const
+    {
+        return m_totalCount;
+    }
+    int nextStartIndex() const
+    {
+        return m_nextStartIndex;
+    }
+    int rowCount() const
+    {
+        return m_items.rowCount();
+    }
+    QString libraryId() const
+    {
+        return m_libraryId;
+    }
+    QString libraryCollectionType() const
+    {
+        return m_libraryCollectionType;
+    }
+    QString title() const
+    {
+        return m_title;
+    }
+    QString contentLabel() const
+    {
+        return m_contentLabel;
+    }
+    QString viewKind() const
+    {
+        return m_viewKind;
+    }
+    QString seriesId() const
+    {
+        return m_seriesId;
+    }
+    QString seasonId() const
+    {
+        return m_seasonId;
+    }
+    QVariantMap query() const
+    {
+        return m_query;
+    }
+    QVariantMap filterOptions() const
+    {
+        return m_filterOptions;
+    }
     int filterActiveCount() const;
-    BrowseDescriptor descriptor() const;
-
-    MovieItem itemAt(int index) const;
+    BrowseDescriptor descriptor() const
+    {
+        return m_descriptor;
+    }
+    MovieItem itemAt(int index) const
+    {
+        return m_items.movieAt(index);
+    }
     int applyCachedPage(const QString& cacheKey);
     void clear();
     void reset();
@@ -61,28 +112,32 @@ public:
     void setPage(const PagedMovieItems& page, const QString& cacheKey, bool append);
     void setLoadingMore(bool loading);
     void setWarmCachePaging(int cachedCount, int pageSize);
-    void prefetchVisibleRange(int firstIndex, int lastIndex);
+    Q_INVOKABLE void prefetchVisibleRange(int firstIndex, int lastIndex);
     void updateResumeTicks(const QString& itemId, qint64 positionTicks);
     void updateFavorite(const QString& itemId, bool favorite);
     void updatePlayed(const QString& itemId, bool played);
 
     void enterLibrary(const LibraryItem& library, const QString& contentLabel, const QVariantMap& defaultQuery);
-    void enterSeries(const MovieItem& series);
+    bool enterItem(const MovieItem& item);
     void enterSeason(const QString& seriesId, const MovieItem& season);
     void enterNamedCollection(const QString& viewKind, const QString& name);
-    void enterPlaylist(const MovieItem& playlist);
-    void enterBoxSet(const MovieItem& boxSet);
-    void enterFolder(const MovieItem& folder);
-    bool setQuery(const QVariantMap& query);
+    Q_INVOKABLE void setSort(const QString& sortBy, const QString& sortOrder);
+    Q_INVOKABLE void setQueryListValue(const QString& key, const QString& value, bool enabled);
+    Q_INVOKABLE void setQueryValue(const QString& key, const QVariant& value);
+    Q_INVOKABLE void clearFilters();
+    bool setQuery(QVariantMap query);
     void clearFilterOptions();
     void setFilterOptions(const QVariantMap& options);
 
 signals:
     void pagingChanged();
     void changed();
+    void reloadRequested();
+    void moreItemsRequested();
 
 private:
     void clearBrowseIdentity();
+    void requestQuery(QVariantMap query);
 
     LibraryPrefetchController *m_prefetch = nullptr;
     MovieGridModel m_items;
