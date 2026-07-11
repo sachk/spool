@@ -19,6 +19,9 @@ FocusScope {
     property bool reserveWhenEmpty: false
     property bool loading: false
     property string emptyText: "Loading..."
+    property bool atomicPopulate: false
+    property bool delegatesPresented: !atomicPopulate
+    property bool artworkPresented: !atomicPopulate
 
     readonly property int count: modelCount()
     readonly property bool rowVisible: enabledRow && (count > 0 || reserveWhenEmpty)
@@ -34,7 +37,13 @@ FocusScope {
     visible: rowVisible
     focus: true
 
-    onCountChanged: currentIndex = count > 0 ? Math.max(0, Math.min(currentIndex, count - 1)) : -1
+    Component.onCompleted: resetPresentation()
+    onAtomicPopulateChanged: Qt.callLater(resetPresentation)
+    onModelChanged: Qt.callLater(resetPresentation)
+    onCountChanged: {
+        currentIndex = count > 0 ? Math.max(0, Math.min(currentIndex, count - 1)) : -1
+        Qt.callLater(resetPresentation)
+    }
 
     function modelCount() {
         if (!model)
@@ -95,74 +104,94 @@ FocusScope {
         return Boolean(shell.openItemMenu(itemAt(currentIndex), currentCard()))
     }
 
+    function resetPresentation() {
+        presentationTimer.stop()
+        const immediate = !atomicPopulate || count <= 0
+        delegatesPresented = immediate
+        artworkPresented = immediate
+        if (immediate)
+            return
+        presentationTimer.restart()
+    }
+
+    function schedulePresentation() {
+        if (atomicPopulate && count > 0 && (!delegatesPresented || !artworkPresented))
+            presentationTimer.restart()
+    }
+
+    function updatePresentation() {
+        listView.forceLayout()
+        const stride = cardWidth + cardGap
+        const required = Math.min(count, Math.max(1, Math.ceil((listView.width + cardGap) / stride)))
+        let delegatesReady = required > 0
+        let imagesReady = delegatesReady
+        for (let index = 0; index < required; ++index) {
+            const delegate = listView.itemAtIndex(index)
+            if (!delegate) {
+                delegatesReady = false
+                imagesReady = false
+                break
+            }
+            if (!delegate.artworkReady)
+                imagesReady = false
+        }
+        if (delegatesReady)
+            delegatesPresented = true
+        if (imagesReady) {
+            artworkPresented = true
+        }
+    }
+
+    Timer {
+        id: presentationTimer
+        interval: 0
+        repeat: false
+        onTriggered: root.updatePresentation()
+    }
+
     Component {
-        id: mediaDelegate
+        id: cardDelegate
 
         Item {
             id: delegateRoot
+
             required property int index
-            required property var item
+            required property var model
+            readonly property var cardItem: model.item !== undefined ? model.item : model.modelData
+            readonly property bool libraryCard: root.cardKind === "library"
+            readonly property bool personCard: root.cardKind === "person"
+            readonly property bool artworkReady: card.artworkReady
 
             width: root.cardWidth
             height: listView.height
 
+            Component.onCompleted: root.schedulePresentation()
+            onArtworkReadyChanged: root.schedulePresentation()
+
             MediaItemCard {
+                id: card
+
                 anchors.fill: parent
-                shell: root.shell
-                kind: root.cardKind
+                shell: delegateRoot.libraryCard || delegateRoot.personCard ? null : root.shell
+                kind: delegateRoot.libraryCard ? "landscape" : delegateRoot.personCard ? "poster" : root.cardKind
+                item: delegateRoot.cardItem || ({})
+                titleOverride: delegateRoot.libraryCard ? String(delegateRoot.model.name || "") :
+                                                          delegateRoot.personCard ? String(delegateRoot.cardItem.name
+                                                                                           || "") : ""
+                subtitleOverride: delegateRoot.libraryCard ? String(delegateRoot.model.collectionType || "") :
+                                                             delegateRoot.personCard ? String(
+                                                                                           delegateRoot.cardItem.role
+                                                                                           || delegateRoot.cardItem.type
+                                                                                           || "") : ""
+                imageOverride: delegateRoot.libraryCard ? Art.url(delegateRoot.cardItem, "landscape", Math.ceil(
+                                                                      root.cardWidth)) : delegateRoot.personCard
+                                                          ? Art.url(delegateRoot.cardItem, "poster", Math.ceil(
+                                                                        root.cardWidth)) : ""
+                fallbackOverride: delegateRoot.personCard ? String(delegateRoot.cardItem.type || "Person") : ""
                 useSeriesPoster: root.useSeriesPoster
                 preferEpisodeTitle: root.preferEpisodeTitle
                 focused: delegateRoot.index === listView.currentIndex && listView.activeFocus
-                item: delegateRoot.item
-                onActivated: root.activateIndex(delegateRoot.index)
-            }
-        }
-    }
-
-    Component {
-        id: libraryDelegate
-
-        Item {
-            id: delegateRoot
-            required property int index
-            required property string name
-            required property string collectionType
-            required property var item
-
-            width: root.cardWidth
-            height: listView.height
-
-            MediaItemCard {
-                anchors.fill: parent
-                kind: "landscape"
-                focused: delegateRoot.index === listView.currentIndex && listView.activeFocus
-                titleOverride: delegateRoot.name
-                subtitleOverride: delegateRoot.collectionType
-                imageOverride: Art.url(delegateRoot.item, "landscape", Math.ceil(root.cardWidth))
-                onActivated: root.activateIndex(delegateRoot.index)
-            }
-        }
-    }
-
-    Component {
-        id: personDelegate
-
-        Item {
-            id: delegateRoot
-            required property int index
-            required property var modelData
-
-            width: root.cardWidth
-            height: listView.height
-
-            MediaItemCard {
-                anchors.fill: parent
-                kind: "poster"
-                focused: delegateRoot.index === listView.currentIndex && listView.activeFocus
-                titleOverride: String(delegateRoot.modelData.name || "")
-                subtitleOverride: String(delegateRoot.modelData.role || delegateRoot.modelData.type || "")
-                imageOverride: Art.url(delegateRoot.modelData, "poster", Math.ceil(root.cardWidth))
-                fallbackOverride: String(delegateRoot.modelData.type || "Person")
+                artworkVisible: !root.atomicPopulate || root.artworkPresented
                 onActivated: root.activateIndex(delegateRoot.index)
             }
         }
@@ -185,6 +214,7 @@ FocusScope {
         anchors.topMargin: Metrics.scaled(10)
         height: root.cardHeight
         visible: root.count > 0
+        opacity: root.delegatesPresented ? 1 : 0
         focus: true
         keyNavigationEnabled: false
         clip: true
@@ -194,8 +224,7 @@ FocusScope {
         cacheBuffer: Math.round(2 * (root.cardWidth + root.cardGap))
         reuseItems: true
         model: root.model
-        delegate: root.cardKind === "library" ? libraryDelegate : root.cardKind === "person" ? personDelegate :
-                                                                                               mediaDelegate
+        delegate: cardDelegate
 
         currentIndex: root.count > 0 ? Math.max(0, Math.min(root.currentIndex, root.count - 1)) : -1
         onCurrentIndexChanged: if (currentIndex >= 0)

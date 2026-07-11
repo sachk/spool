@@ -29,7 +29,7 @@ public:
     QHash<int, QByteArray> roleNames() const override;
     Q_INVOKABLE MovieItem get(int index) const;
 
-    void setMovies(const std::vector<MovieItem>& movies);
+    void setMovies(std::vector<MovieItem> movies);
     void appendMovies(const std::vector<MovieItem>& movies);
     void clear();
     MovieItem movieAt(int index) const;

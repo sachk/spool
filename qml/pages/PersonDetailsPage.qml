@@ -119,7 +119,6 @@ FocusScope {
                     imageUrl: Art.url(person, "poster", Math.ceil(root.portraitWidth))
                     fallbackText: person.type || "Person"
                     focused: false
-                    retainWhileLoading: true
                 }
 
                 ColumnLayout {

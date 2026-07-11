@@ -1,6 +1,7 @@
 #include "MovieGridModel.h"
 
 #include <algorithm>
+#include <utility>
 
 namespace JellyfinNative {
 
@@ -83,18 +84,18 @@ MovieItem MovieGridModel::get(int index) const
     return movieAt(index);
 }
 
-void MovieGridModel::setMovies(const std::vector<MovieItem>& movies)
+void MovieGridModel::setMovies(std::vector<MovieItem> movies)
 {
     const int oldCount = rowCount();
     if (oldCount == static_cast<int>(movies.size())) {
-        m_movies = movies;
+        m_movies = std::move(movies);
         if (oldCount > 0)
             emit dataChanged(index(0, 0), index(oldCount - 1, 0));
         return;
     }
 
     beginResetModel();
-    m_movies = movies;
+    m_movies = std::move(movies);
     endResetModel();
     emit countChanged();
 }
