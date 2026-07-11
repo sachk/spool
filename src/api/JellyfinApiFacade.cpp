@@ -11,6 +11,7 @@
 
 #include <QDebug>
 #include <QDir>
+#include <QElapsedTimer>
 #include <QHttpHeaders>
 #include <QJsonArray>
 #include <QJsonObject>
@@ -639,7 +640,18 @@ QCoro::Task<PagedMovieItems> JellyfinApiFacade::fetchBrowsePage(
     if (descriptor.kind == BrowseKind::Library)
         addLibraryQueryOptions(query, queryOptions);
 
-    const QJsonObject response = (co_await requestJson(HttpMethod::Get, path, query)).object();
+    const QString pageName = descriptor.name.isEmpty() ? descriptor.id : descriptor.name;
+    QElapsedTimer requestTimer;
+    requestTimer.start();
+    QJsonObject response;
+    try {
+        response = (co_await requestJson(HttpMethod::Get, path, query)).object();
+    } catch (...) {
+        qWarning() << "browse page: request failed" << pageName << "start=" << std::max(0, startIndex)
+                   << "limit=" << std::clamp(limit, 1, maximumLimit) << "ms=" << requestTimer.elapsed();
+        throw;
+    }
+
     std::vector<MovieItem> items = mediaItemsFromJson(response.value(QStringLiteral("Items")).toArray(), allowedTypes);
     if (descriptor.kind == BrowseKind::SeriesSeasons) {
         const QString seriesId = descriptor.seriesId.isEmpty() ? descriptor.id : descriptor.seriesId;
@@ -649,12 +661,12 @@ QCoro::Task<PagedMovieItems> JellyfinApiFacade::fetchBrowsePage(
         }
     }
 
-    co_return PagedMovieItems {
-        items,
-        response.value(QStringLiteral("TotalRecordCount")).toInt(0),
-        std::max(0, startIndex),
-        std::clamp(limit, 1, maximumLimit),
-    };
+    const int effectiveStart = std::max(0, startIndex);
+    const int effectiveLimit = std::clamp(limit, 1, maximumLimit);
+    const int totalCount = response.value(QStringLiteral("TotalRecordCount")).toInt(0);
+    qInfo() << "browse page: request complete" << pageName << "start=" << effectiveStart << "limit=" << effectiveLimit
+            << "items=" << items.size() << "total=" << totalCount << "ms=" << requestTimer.elapsed();
+    co_return PagedMovieItems { std::move(items), totalCount, effectiveStart, effectiveLimit };
 }
 
 QCoro::Task<QVariantMap> JellyfinApiFacade::fetchLibraryFilterOptions(QString libraryId, QString collectionType)
