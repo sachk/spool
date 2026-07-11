@@ -26,6 +26,7 @@ FocusScope {
     readonly property var filterOptions: Browse.filterOptions
     readonly property int activeFilterCount: Browse.filterActiveCount
     readonly property bool browseLoading: Browse.loadingMore
+    property bool gridCacheEnabled: false
     // Fixed descriptor-backed pages reuse this grid but have no library
     // switcher, sort, or filter controls.
     readonly property bool isFixedBrowseView: ["genre", "studio", "playlist", "boxset", "folder"].indexOf(
@@ -496,6 +497,7 @@ FocusScope {
         view: grid
         enabled: grid.count > 0 && grid.cellHeight > 0 && grid.width > 0 && grid.height > 0
         logName: Browse.title.length > 0 ? Browse.title : "Library"
+        onDelegatesReadyChanged: root.gridCacheEnabled = delegatesReady
         firstIndex: Math.min(grid.count - 1, Math.max(0, Math.floor(grid.contentY / grid.cellHeight) * root.columns))
         lastIndex: Math.min(grid.count - 1, Math.max(firstIndex, Math.ceil((grid.contentY + grid.height)
                                                                            / grid.cellHeight) * root.columns - 1))
@@ -730,7 +732,7 @@ FocusScope {
             cellWidth: Math.floor((width - Metrics.gap(root.width) * (columns - 1)) / columns)
             cellHeight: root.episodeGrid ? Math.round(cellWidth * 9 / 16 + Metrics.scaled(62)) : cellWidth * 1.5
                                            + Metrics.scaled(64)
-            cacheBuffer: 2 * cellHeight
+            cacheBuffer: root.gridCacheEnabled ? 2 * cellHeight : 0
             Component.onCompleted: {
                 restoreIndex()
                 requestMoreIfNeeded()
