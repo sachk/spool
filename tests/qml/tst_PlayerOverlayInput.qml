@@ -51,6 +51,9 @@ TestCase {
         subtitleCycles = 0
         controlsShown = 0
         input.reset()
+        overlayStub.controlsVisible = true
+        overlayStub.focusZone = "timeline"
+        overlayStub.actionIndex = 1
     }
 
     function test_shortSeekUsesOneRouterGesture() {
@@ -59,6 +62,14 @@ TestCase {
         verify(input.previewing)
         verify(input.released(Qt.Key_Left, false))
         verify(!input.previewing)
+    }
+
+    function test_actionRowNavigatesWithoutSeeking() {
+        overlayStub.focusZone = "actions"
+        verify(input.pressed(Qt.Key_Right, false))
+        compare(seekDeltas, [])
+        verify(input.released(Qt.Key_Right, false))
+        compare(overlayStub.actionIndex, 2)
     }
 
     function test_repeatedSeekAccelerates() {
