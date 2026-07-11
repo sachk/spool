@@ -64,15 +64,17 @@ FocusScope {
     }
 
     function routeBack(phase, repeat) {
-        if (phase === "release")
-            return backClaimed
+        if (phase === "release" && backClaimed)
+            return true
         const target = activeTarget
-        backClaimed = router.deliver(target, Qt.Key_Back, phase, repeat)
-        if (!backClaimed && target && target.back)
-            backClaimed = Boolean(target.back())
-        if (!backClaimed && backHandler)
-            backClaimed = Boolean(backHandler())
-        return backClaimed
+        let claimed = router.deliver(target, Qt.Key_Back, phase, repeat)
+        if (!claimed && target && target.back)
+            claimed = Boolean(target.back())
+        if (!claimed && backHandler)
+            claimed = Boolean(backHandler())
+        if (phase !== "release")
+            backClaimed = claimed
+        return claimed
     }
 
     function dispatch(event, phase) {

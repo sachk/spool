@@ -62,6 +62,13 @@ TestCase {
         verify(keyRouter.routeBack("release", false))
     }
 
+    function test_releaseOnlyBackFallsThroughToTarget() {
+        routeResult = false
+        verify(keyRouter.routeBack("release", false))
+        compare(routeCalls, 1)
+        compare(backCalls, 1)
+    }
+
     function test_acceptActivatesOnRelease() {
         verify(keyRouter.pressAccept(Qt.Key_Return, false))
         compare(activateCalls, 0)
