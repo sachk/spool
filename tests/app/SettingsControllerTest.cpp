@@ -35,26 +35,35 @@ int main(int argc, char **argv)
 
     SettingsController settings(&database, nullptr, nullptr);
     QCoro::waitFor(settings.loadLocalAsync());
-    require(settings.uiScalePercent() == 100, "UI scale default was not 100 percent");
+    require(settings.uiScalePercent() == 115, "UI scale default was not 115 percent");
     require(!settings.uiScaleSetupComplete(), "fresh profile unexpectedly skipped scale setup");
 
-    settings.setUiScalePercent(65);
-    require(settings.uiScalePercent() == 80, "UI scale setter did not clamp to its lower bound");
-    settings.completeUiScaleSetup(115);
-    require(settings.uiScalePercent() == 115, "setup did not apply the selected scale");
+    settings.setUiScalePercent(80);
+    require(settings.uiScalePercent() == 95, "UI scale setter did not clamp to its lower bound");
+    settings.completeUiScaleSetup(135);
+    require(settings.uiScalePercent() == 135, "setup did not apply the selected scale");
     require(settings.uiScaleSetupComplete(), "setup completion marker was not exposed");
 
     require(
-        QCoro::waitFor(database.loadSettingAsync(QStringLiteral("appearance/uiScalePercent"))) == QStringLiteral("115"),
+        QCoro::waitFor(database.loadSettingAsync(QStringLiteral("appearance/uiScalePercent"))) == QStringLiteral("135"),
         "selected UI scale was not persisted");
     require(QCoro::waitFor(database.loadSettingAsync(QStringLiteral("appearance/uiScaleSetupVersion")))
-            == QStringLiteral("1"),
+            == QStringLiteral("2"),
         "scale setup completion was not persisted");
 
     SettingsController restored(&database, nullptr, nullptr);
     QCoro::waitFor(restored.loadLocalAsync());
-    require(restored.uiScalePercent() == 115, "persisted UI scale was not restored");
+    require(restored.uiScalePercent() == 135, "persisted UI scale was not restored");
     require(restored.uiScaleSetupComplete(), "persisted setup completion was not restored");
+
+    database.saveSetting(QStringLiteral("appearance/uiScalePercent"), QStringLiteral("100"));
+    database.saveSetting(QStringLiteral("appearance/uiScaleSetupVersion"), QStringLiteral("1"));
+    SettingsController migrated(&database, nullptr, nullptr);
+    QCoro::waitFor(migrated.loadLocalAsync());
+    require(migrated.uiScalePercent() == 115, "legacy UI scale was not rebased");
+    require(QCoro::waitFor(database.loadSettingAsync(QStringLiteral("appearance/uiScaleSetupVersion")))
+            == QStringLiteral("2"),
+        "UI scale migration version was not persisted");
 
     database.shutdown();
     return EXIT_SUCCESS;

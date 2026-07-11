@@ -15,7 +15,8 @@ namespace JellyfinNative {
 namespace {
 
     constexpr auto kUiScaleSetupVersionKey = "appearance/uiScaleSetupVersion";
-    constexpr int kUiScaleSetupVersion = 1;
+    constexpr int kUiScaleSetupVersion = 2;
+    constexpr int kUiScaleRebasePercent = 15;
 
     QString keyString(const SettingSpec& spec)
     {
@@ -137,7 +138,17 @@ QCoro::Task<void> SettingsController::loadLocalAsync()
     }
     const QString setupVersion
         = co_await m_database->loadSettingAsync(QString::fromLatin1(kUiScaleSetupVersionKey), QStringLiteral("0"));
-    m_uiScaleSetupVersion = setupVersion.toInt() > 0 ? kUiScaleSetupVersion : 0;
+    const int storedSetupVersion = setupVersion.toInt();
+    m_uiScaleSetupVersion = storedSetupVersion > 0 ? qMin(storedSetupVersion, kUiScaleSetupVersion) : 0;
+    if (storedSetupVersion == 1) {
+        const SettingSpec& scaleSpec = specForKey("appearance/uiScalePercent");
+        const int rebasedScale = normalizedSettingValue(scaleSpec, m_uiScalePercent + kUiScaleRebasePercent).toInt();
+        m_values.insert(keyString(scaleSpec), rebasedScale);
+        applySchemaValue(scaleSpec, rebasedScale, false);
+        m_database->saveSetting(keyString(scaleSpec), serializedSettingValue(scaleSpec, rebasedScale));
+        m_uiScaleSetupVersion = kUiScaleSetupVersion;
+        m_database->saveSetting(QString::fromLatin1(kUiScaleSetupVersionKey), QString::number(kUiScaleSetupVersion));
+    }
 
     if (m_player) {
         m_player->setNightModeEnabled(m_nightModeEnabled);

@@ -15,17 +15,17 @@ FocusScope {
     readonly property var presets: [
         {
             "name": "Compact",
-            "percent": 85,
+            "percent": 100,
             "description": "More titles on screen"
         },
         {
             "name": "Balanced",
-            "percent": 100,
+            "percent": 115,
             "description": "The recommended layout"
         },
         {
             "name": "Relaxed",
-            "percent": 115,
+            "percent": 135,
             "description": "Larger type and controls"
         }
     ]
@@ -119,7 +119,7 @@ FocusScope {
             AppText {
                 Layout.fillWidth: true
                 text: "Make Jellyfin yours"
-                font.pixelSize: Metrics.titlePx(root.width) + Metrics.scaled(8)
+                font.pixelSize: Metrics.titlePx(root.width) + Metrics.scaled(18)
                 font.weight: Font.DemiBold
                 horizontalAlignment: Text.AlignHCenter
             }
@@ -128,7 +128,7 @@ FocusScope {
                 Layout.fillWidth: true
                 text: "Choose the density that feels right from your seat. You can change it later in Settings."
                 color: Theme.textSecondary
-                font.pixelSize: Metrics.bodyPx(root.width)
+                font.pixelSize: Metrics.bodyPx(root.width) + Metrics.scaled(4)
                 horizontalAlignment: Text.AlignHCenter
             }
         }
@@ -185,14 +185,14 @@ FocusScope {
 
                                 AppText {
                                     text: presetCard.modelData.name
-                                    font.pixelSize: Metrics.bodyPx(root.width) + Metrics.scaled(3)
+                                    font.pixelSize: Metrics.bodyPx(root.width) + Metrics.scaled(6)
                                     font.weight: Font.DemiBold
                                 }
 
                                 MonoText {
                                     text: presetCard.modelData.description
                                     color: Theme.textSecondary
-                                    font.pixelSize: Metrics.metaPx(root.width)
+                                    font.pixelSize: Metrics.metaPx(root.width) + Metrics.scaled(3)
                                 }
                             }
 
@@ -206,6 +206,7 @@ FocusScope {
                                     text: presetCard.modelData.percent + "%"
                                     color: presetCard.selected ? Theme.accentText : Theme.textSecondary
                                     font.weight: Font.DemiBold
+                                    font.pixelSize: Metrics.bodyPx(root.width)
                                 }
                             }
                         }

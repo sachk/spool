@@ -274,7 +274,8 @@ FocusScope {
 
             ActionButton {
                 id: profileTile
-                width: 280
+                width: Metrics.scaled(340)
+                height: Metrics.scaled(68)
                 text: root.savedUsername + " — " + root.savedServerName
                 iconName: "person"
                 kind: "primary"
@@ -283,7 +284,8 @@ FocusScope {
 
             ActionButton {
                 id: addAccountTile
-                width: 200
+                width: Metrics.scaled(250)
+                height: Metrics.scaled(68)
                 text: "Add account"
                 iconName: "person_add"
                 onClicked: root.openAddAccount()
@@ -324,6 +326,22 @@ FocusScope {
             anchors.topMargin: Math.max(110, Math.round(parent.height * 0.21))
             width: root.contentWidth
             spacing: 16
+
+            AppText {
+                Layout.fillWidth: true
+                text: "Choose a server"
+                font.pixelSize: Metrics.titlePx(root.width) + Metrics.scaled(8)
+                font.weight: Font.DemiBold
+                horizontalAlignment: Text.AlignHCenter
+            }
+
+            MonoText {
+                Layout.fillWidth: true
+                text: "Select a discovered server or enter its address"
+                color: Theme.textSecondary
+                font.pixelSize: Metrics.bodyPx(root.width)
+                horizontalAlignment: Text.AlignHCenter
+            }
 
             TextFieldRow {
                 id: urlRow
@@ -407,8 +425,16 @@ FocusScope {
             anchors.horizontalCenter: parent.horizontalCenter
             anchors.top: parent.top
             anchors.topMargin: Math.max(110, Math.round(parent.height * 0.19))
-            width: Math.min(root.contentWidth, 620)
-            spacing: 16
+            width: Math.min(root.contentWidth, Metrics.scaled(760))
+            spacing: Metrics.scaled(16)
+
+            AppText {
+                Layout.fillWidth: true
+                text: "Sign in"
+                font.pixelSize: Metrics.titlePx(root.width) + Metrics.scaled(8)
+                font.weight: Font.DemiBold
+                horizontalAlignment: Text.AlignHCenter
+            }
 
             ServerChoice {
                 id: chosenServerCard
@@ -455,6 +481,7 @@ FocusScope {
                     iconName: "login"
                     kind: "primary"
                     Layout.fillWidth: true
+                    Layout.preferredHeight: Metrics.scaled(62)
                     onClicked: root.signIn()
                 }
 
@@ -463,6 +490,7 @@ FocusScope {
                     text: QuickConnect.active ? "Cancel" : "Quick Connect"
                     iconName: "bolt"
                     Layout.fillWidth: true
+                    Layout.preferredHeight: Metrics.scaled(62)
                     onClicked: {
                         if (QuickConnect.active) {
                             QuickConnect.cancel()
@@ -513,7 +541,7 @@ FocusScope {
 
         signal accepted
 
-        implicitHeight: 78
+        implicitHeight: Metrics.scaled(94)
         focusPolicy: Qt.StrongFocus
 
         Rectangle {
@@ -528,23 +556,23 @@ FocusScope {
 
         RowLayout {
             anchors.fill: parent
-            anchors.margins: 14
-            spacing: 14
+            anchors.margins: Metrics.scaled(18)
+            spacing: Metrics.scaled(16)
 
             MaterialIcon {
                 name: "dns"
-                iconSize: 24
+                iconSize: Metrics.scaled(30)
                 iconColor: choice.focused ? Theme.accent : Theme.textSecondary
             }
 
             ColumnLayout {
                 Layout.fillWidth: true
-                spacing: 3
+                spacing: Metrics.scaled(5)
 
                 AppText {
                     Layout.fillWidth: true
                     text: choice.title
-                    font.pixelSize: Metrics.bodyPx(root.width)
+                    font.pixelSize: Metrics.bodyPx(root.width) + Metrics.scaled(3)
                     font.weight: Font.Medium
                     maximumLineCount: 1
                     elide: Text.ElideRight
@@ -554,7 +582,7 @@ FocusScope {
                     Layout.fillWidth: true
                     text: choice.address
                     color: Theme.textMuted
-                    font.pixelSize: Metrics.metaPx(root.width)
+                    font.pixelSize: Metrics.metaPx(root.width) + Metrics.scaled(3)
                     maximumLineCount: 1
                     elide: Text.ElideRight
                 }
@@ -563,7 +591,7 @@ FocusScope {
             AppText {
                 text: choice.status
                 color: choice.status === "Online" ? Theme.success : Theme.textSecondary
-                font.pixelSize: Metrics.metaPx(root.width)
+                font.pixelSize: Metrics.metaPx(root.width) + Metrics.scaled(3)
                 font.weight: Font.Medium
                 maximumLineCount: 1
             }

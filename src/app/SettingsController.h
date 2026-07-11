@@ -147,7 +147,7 @@ private:
     bool m_preferRemux = true;
     int m_audioDelayMs = 0;
     QString m_audioOutputMode = QStringLiteral("alsa");
-    int m_uiScalePercent = 100;
+    int m_uiScalePercent = 115;
     int m_uiScaleSetupVersion = 0;
     SubtitlePreferences m_subtitlePreferences;
     QStringList m_subtitleLanguageCodes { QString() };

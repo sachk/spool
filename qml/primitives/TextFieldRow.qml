@@ -20,8 +20,8 @@ T.Control {
     signal accepted
 
     focusPolicy: Qt.StrongFocus
-    implicitHeight: 56
-    implicitWidth: 320
+    implicitHeight: Metrics.scaled(68)
+    implicitWidth: Metrics.scaled(400)
 
     function focusRow() {
         if (field.activeFocus)
@@ -50,12 +50,12 @@ T.Control {
         Text {
             anchors.left: parent.left
             anchors.top: parent.top
-            anchors.leftMargin: 14
-            anchors.topMargin: 6
+            anchors.leftMargin: Metrics.scaled(16)
+            anchors.topMargin: Metrics.scaled(7)
             visible: row.label.length > 0
             text: row.label
             color: Theme.textMuted
-            font.pixelSize: 11
+            font.pixelSize: Metrics.metaPx(row.width) + Metrics.scaled(2)
             font.weight: Font.Medium
         }
     }
@@ -64,13 +64,13 @@ T.Control {
         id: field
         EnterKey.type: row.enterKeyType
         anchors.fill: parent
-        anchors.leftMargin: 12
-        anchors.rightMargin: 12
-        anchors.topMargin: row.label.length > 0 ? 18 : 8
-        anchors.bottomMargin: 8
+        anchors.leftMargin: Metrics.scaled(15)
+        anchors.rightMargin: Metrics.scaled(15)
+        anchors.topMargin: row.label.length > 0 ? Metrics.scaled(22) : Metrics.scaled(9)
+        anchors.bottomMargin: Metrics.scaled(9)
         background: Item {}
         color: Theme.textPrimary
-        font.pixelSize: 18
+        font.pixelSize: Metrics.bodyPx(row.width) + Metrics.scaled(2)
         verticalAlignment: TextInput.AlignVCenter
         selectByMouse: true
         focus: false
