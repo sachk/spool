@@ -106,8 +106,8 @@ FocusScope {
 
     ColumnLayout {
         anchors.fill: parent
-        anchors.leftMargin: Metrics.pageMargin(width) * 1.5
-        anchors.rightMargin: Metrics.pageMargin(width) * 1.5
+        anchors.leftMargin: Metrics.pageMargin(root.width) * 1.5
+        anchors.rightMargin: Metrics.pageMargin(root.width) * 1.5
         anchors.topMargin: Metrics.scaled(46)
         anchors.bottomMargin: Metrics.scaled(36)
         spacing: Metrics.sectionGap(root.width)
