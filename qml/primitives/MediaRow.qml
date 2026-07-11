@@ -20,8 +20,8 @@ FocusScope {
     property bool loading: false
     property string emptyText: "Loading..."
     property bool atomicPopulate: false
-    property bool delegatesPresented: !atomicPopulate
-    property bool artworkPresented: !atomicPopulate
+    readonly property bool delegatesPresented: presentation.delegatesReady
+    readonly property bool artworkPresented: presentation.artworkReady
 
     readonly property int count: modelCount()
     readonly property bool rowVisible: enabledRow && (count > 0 || reserveWhenEmpty)
@@ -105,48 +105,21 @@ FocusScope {
     }
 
     function resetPresentation() {
-        presentationTimer.stop()
-        const immediate = !atomicPopulate || count <= 0
-        delegatesPresented = immediate
-        artworkPresented = immediate
-        if (immediate)
-            return
-        presentationTimer.restart()
+        presentation.reset()
     }
 
     function schedulePresentation() {
-        if (atomicPopulate && count > 0 && (!delegatesPresented || !artworkPresented))
-            presentationTimer.restart()
+        presentation.schedule()
     }
 
-    function updatePresentation() {
-        listView.forceLayout()
-        const stride = cardWidth + cardGap
-        const required = Math.min(count, Math.max(1, Math.ceil((listView.width + cardGap) / stride)))
-        let delegatesReady = required > 0
-        let imagesReady = delegatesReady
-        for (let index = 0; index < required; ++index) {
-            const delegate = listView.itemAtIndex(index)
-            if (!delegate) {
-                delegatesReady = false
-                imagesReady = false
-                break
-            }
-            if (!delegate.artworkReady)
-                imagesReady = false
-        }
-        if (delegatesReady)
-            delegatesPresented = true
-        if (imagesReady) {
-            artworkPresented = true
-        }
-    }
+    AtomicViewReveal {
+        id: presentation
 
-    Timer {
-        id: presentationTimer
-        interval: 0
-        repeat: false
-        onTriggered: root.updatePresentation()
+        view: listView
+        enabled: root.atomicPopulate && root.count > 0 && listView.width > 0
+        firstIndex: 0
+        lastIndex: Math.min(root.count, Math.max(1, Math.ceil((listView.width + root.cardGap) / (root.cardWidth
+                                                                                                 + root.cardGap)))) - 1
     }
 
     Component {
