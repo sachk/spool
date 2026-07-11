@@ -365,6 +365,7 @@ qt_add_qml_module(jellyfin-native
         qml/pages/SettingsPage.qml
         qml/primitives/ActionButton.qml
         qml/primitives/AppText.qml
+        qml/primitives/AtomicViewReveal.qml
         qml/primitives/EmptyPlaceholder.qml
         qml/primitives/FastWheelHandler.qml
         qml/primitives/IconButton.qml
@@ -582,12 +583,16 @@ if(BUILD_TESTING AND NOT CMAKE_CROSSCOMPILING)
             COMMAND "${QMLTESTRUNNER_EXECUTABLE}"
                 -input "${CMAKE_CURRENT_SOURCE_DIR}/tests/qml/tst_PlayerOverlayInput.qml"
         )
+        add_test(NAME atomic-view-reveal
+            COMMAND "${QMLTESTRUNNER_EXECUTABLE}"
+                -input "${CMAKE_CURRENT_SOURCE_DIR}/tests/qml/tst_AtomicViewReveal.qml"
+        )
         set(JELLYFIN_QML_TEST_ENV
             "QT_QPA_PLATFORM=offscreen"
             "QT_QUICK_BACKEND=software"
             ${JELLYFIN_TEST_ENV}
         )
-        set_tests_properties(route-policy key-router player-overlay-input PROPERTIES
+        set_tests_properties(route-policy key-router player-overlay-input atomic-view-reveal PROPERTIES
             ENVIRONMENT "${JELLYFIN_QML_TEST_ENV}"
         )
     endif()

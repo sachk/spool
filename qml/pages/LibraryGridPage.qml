@@ -443,6 +443,7 @@ FocusScope {
         filtersOpen = false
         setSavedLibraryIndex(index)
         setSavedGridIndex(0)
+        gridReveal.reset()
         App.openLibrary(index)
         if (hasShell())
             shell.replaceRoute("libraryGrid")
@@ -453,6 +454,7 @@ FocusScope {
         if (!entry)
             return
         setSavedGridIndex(0)
+        gridReveal.reset()
         if (String(entry.value).indexOf("order:") === 0)
             Browse.setSort(currentSortBy(), String(entry.value).split(":")[1])
         else
@@ -464,6 +466,7 @@ FocusScope {
         if (!entry || entry.section)
             return
         setSavedGridIndex(0)
+        gridReveal.reset()
         if (entry.kind === "list")
             Browse.setQueryListValue(entry.key, entry.value, !entry.checked)
         else if (entry.kind === "bool")
@@ -485,6 +488,16 @@ FocusScope {
             if (root.sortOpen)
                 root.sortEntries = root.buildSortEntries()
         }
+    }
+
+    AtomicViewReveal {
+        id: gridReveal
+
+        view: grid
+        enabled: grid.count > 0 && grid.cellHeight > 0 && grid.width > 0 && grid.height > 0
+        firstIndex: Math.min(grid.count - 1, Math.max(0, Math.floor(grid.contentY / grid.cellHeight) * root.columns))
+        lastIndex: Math.min(grid.count - 1, Math.max(firstIndex, Math.ceil((grid.contentY + grid.height)
+                                                                           / grid.cellHeight) * root.columns - 1))
     }
 
     function activateCurrent() {
@@ -696,6 +709,7 @@ FocusScope {
                 visible: !root.isFixedBrowseView && root.activeFilterCount > 0
                 onActivated: {
                     root.setSavedGridIndex(0)
+                    gridReveal.reset()
                     Browse.clearFilters()
                 }
             }
@@ -709,7 +723,7 @@ FocusScope {
             clip: true
             keyNavigationEnabled: false
             reuseItems: true
-            opacity: root.browseLoading && count > 0 ? 0.62 : 1
+            opacity: gridReveal.delegatesReady ? (root.browseLoading && count > 0 ? 0.62 : 1) : 0
             boundsBehavior: Flickable.StopAtBounds
             model: Browse.items
             cellWidth: Math.floor((width - Metrics.gap(root.width) * (columns - 1)) / columns)
@@ -719,6 +733,7 @@ FocusScope {
             Component.onCompleted: {
                 restoreIndex()
                 requestMoreIfNeeded()
+                gridReveal.reset()
             }
             onCountChanged: {
                 if (count <= 0)
@@ -787,6 +802,11 @@ FocusScope {
                 width: grid.cellWidth
                 height: grid.cellHeight
 
+                readonly property bool artworkReady: card.artworkReady
+
+                Component.onCompleted: gridReveal.schedule()
+                onArtworkReadyChanged: gridReveal.schedule()
+
                 MediaItemCard {
                     id: card
                     anchors.left: parent.left
@@ -800,6 +820,7 @@ FocusScope {
                     useSeriesPoster: !root.episodeGrid
                     focused: gridDelegate.GridView.isCurrentItem
                     item: gridDelegate.movie
+                    artworkVisible: gridReveal.artworkReady
                     onActivated: {
                         grid.currentIndex = index
                         root.setSavedGridIndex(index)
