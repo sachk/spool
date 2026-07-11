@@ -4,6 +4,7 @@
 #include "app/LibraryPrefetchController.h"
 #include "app/SearchController.h"
 #include "common/AsyncTask.h"
+#include "common/MetaJson.h"
 
 #include <QCoreApplication>
 #include <QDebug>
@@ -507,13 +508,43 @@ int main(int argc, char **argv)
 
     const QVariantList latestRows = home.latestLibraryRows();
     require(latestRows.size() == 2, "home did not expose one latest row for each supported library");
-    auto *showItems = qobject_cast<MovieGridModel *>(home.latestLibraryItems(0));
-    auto *photoItems = qobject_cast<MovieGridModel *>(home.latestLibraryItems(1));
+    auto *showItems = qobject_cast<MovieGridModel *>(
+        latestRows.at(0).toMap().value(QStringLiteral("model")).value<QObject *>());
+    auto *photoItems = qobject_cast<MovieGridModel *>(
+        latestRows.at(1).toMap().value(QStringLiteral("model")).value<QObject *>());
     require(showItems && showItems->rowCount() == 1, "home did not expose the latest TV episode");
     require(photoItems && photoItems->rowCount() == 1 && photoItems->get(0).itemType == QStringLiteral("Photo"),
         "home did not expose an arbitrary-library latest item");
     require(showItems->get(0).seriesPrimaryImageTag == QStringLiteral("series-primary-tag"),
         "home episode row did not retain series primary artwork");
+
+    int latestStructureChanges = 0;
+    QObject::connect(
+        &home, &HomeModelController::latestLibraryRowsChanged, [&latestStructureChanges]() { ++latestStructureChanges; });
+    MovieItem updatedShow = showItems->get(0);
+    updatedShow.title = QStringLiteral("Updated episode");
+    const QJsonObject updatedPayload {
+        { QStringLiteral("latestRows"),
+            QJsonArray {
+                QJsonObject {
+                    { QStringLiteral("order"), 0 },
+                    { QStringLiteral("library"), JellyfinNative::metaToJson(homeLibraries[0]) },
+                    { QStringLiteral("items"), QJsonArray { JellyfinNative::metaToJson(updatedShow) } },
+                },
+                QJsonObject {
+                    { QStringLiteral("order"), 1 },
+                    { QStringLiteral("library"), JellyfinNative::metaToJson(homeLibraries[1]) },
+                    { QStringLiteral("items"), QJsonArray { JellyfinNative::metaToJson(photoItems->get(0)) } },
+                },
+            } },
+    };
+    require(home.applyCachedPayload(updatedPayload), "home rejected an updated snapshot");
+    const QVariantList updatedRows = home.latestLibraryRows();
+    require(updatedRows.at(0).toMap().value(QStringLiteral("model")).value<QObject *>() == showItems,
+        "home replaced a stable latest-row model");
+    require(showItems->get(0).title == QStringLiteral("Updated episode"),
+        "home did not update a stable latest-row model");
+    require(latestStructureChanges == 0, "home emitted a row-structure change for content-only updates");
 
     require(!network.connectionCacheExpirySeconds.isEmpty()
             && std::all_of(network.connectionCacheExpirySeconds.cbegin(), network.connectionCacheExpirySeconds.cend(),

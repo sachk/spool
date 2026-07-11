@@ -117,18 +117,12 @@ QVariantList HomeModelController::latestLibraryRows() const
             { QStringLiteral("libraryId"), section.library.id },
             { QStringLiteral("collectionType"), section.library.collectionType },
             { QStringLiteral("kind"), latestRowKind(section.library, items) },
-            { QStringLiteral("count"), section.model->rowCount() },
+            { QStringLiteral("model"), QVariant::fromValue(static_cast<QObject *>(section.model.get())) },
         });
     }
     return rows;
 }
 
-QObject *HomeModelController::latestLibraryItems(int rowIndex)
-{
-    if (rowIndex < 0 || rowIndex >= static_cast<int>(m_latestLibrarySections.size()))
-        return nullptr;
-    return m_latestLibrarySections[static_cast<size_t>(rowIndex)].model.get();
-}
 
 bool HomeModelController::applyCachedPayload(const QJsonObject& payload)
 {
@@ -150,8 +144,8 @@ bool HomeModelController::applyCachedPayload(const QJsonObject& payload)
 
     m_resumeItems.setMovies(movieArrayFromJson(payload.value(QStringLiteral("resumeItems")).toArray()));
     m_nextUpItems.setMovies(movieArrayFromJson(payload.value(QStringLiteral("nextUpItems")).toArray()));
-    replaceLatestLibraryRows(std::move(sections));
-    emit latestLibraryRowsChanged();
+    if (updateLatestLibraryRows(std::move(sections)))
+        emit latestLibraryRowsChanged();
     return m_resumeItems.rowCount() > 0 || m_nextUpItems.rowCount() > 0 || !m_latestLibrarySections.empty();
 }
 
@@ -276,7 +270,7 @@ QCoro::Task<void> HomeModelController::refreshAsync(
     m_refreshInFlight = false;
     m_loaded = true;
     saveCachedPayload(payloadFromSections(resumeItems, nextUpItems, latestSections));
-    replaceLatestLibraryRows(std::move(latestSections));
+    const bool latestRowsChanged = updateLatestLibraryRows(std::move(latestSections));
 
     m_prefetch->prefetchPosters(resumeItems, 0, 12, LibraryPrefetchController::ImageKind::Landscape);
     m_prefetch->prefetchPosters(nextUpItems, 0, 12, LibraryPrefetchController::ImageKind::Landscape);
@@ -289,7 +283,8 @@ QCoro::Task<void> HomeModelController::refreshAsync(
                 : LibraryPrefetchController::ImageKind::Poster);
     }
     m_prefetch->schedule(libraries, m_recentLibraryIds);
-    emit latestLibraryRowsChanged();
+    if (latestRowsChanged)
+        emit latestLibraryRowsChanged();
 }
 
 void HomeModelController::recordLibraryUse(const LibraryItem& library)
@@ -382,20 +377,42 @@ void HomeModelController::reset()
     emit latestLibraryRowsChanged();
 }
 
-void HomeModelController::replaceLatestLibraryRows(std::vector<PendingLatestLibrarySection> sections)
+bool HomeModelController::updateLatestLibraryRows(std::vector<PendingLatestLibrarySection> sections)
 {
     std::sort(sections.begin(), sections.end(),
         [](const PendingLatestLibrarySection& left, const PendingLatestLibrarySection& right) {
             return left.order < right.order;
         });
 
+    const bool sameRows = sections.size() == m_latestLibrarySections.size()
+        && std::equal(sections.cbegin(), sections.cend(), m_latestLibrarySections.cbegin(),
+            [](const PendingLatestLibrarySection& next, const LatestLibrarySection& current) {
+                return current.model && next.library.id == current.library.id;
+            });
+    if (sameRows) {
+        bool metadataChanged = false;
+        for (size_t index = 0; index < sections.size(); ++index) {
+            PendingLatestLibrarySection& next = sections[index];
+            LatestLibrarySection& current = m_latestLibrarySections[index];
+            metadataChanged = metadataChanged || current.library.name != next.library.name
+                || current.library.collectionType != next.library.collectionType
+                || latestRowKind(current.library, current.model->movies()) != latestRowKind(next.library, next.items);
+            current.order = next.order;
+            current.library = std::move(next.library);
+            current.model->setMovies(std::move(next.items));
+        }
+        return metadataChanged;
+    }
+
     m_latestLibrarySections.clear();
-    for (const PendingLatestLibrarySection& pending : sections) {
+    m_latestLibrarySections.reserve(sections.size());
+    for (PendingLatestLibrarySection& pending : sections) {
         auto model = std::make_unique<MovieGridModel>();
         QQmlEngine::setObjectOwnership(model.get(), QQmlEngine::CppOwnership);
-        model->setMovies(pending.items);
-        m_latestLibrarySections.push_back({ pending.order, pending.library, std::move(model) });
+        model->setMovies(std::move(pending.items));
+        m_latestLibrarySections.push_back({ pending.order, std::move(pending.library), std::move(model) });
     }
+    return true;
 }
 
 QJsonObject HomeModelController::payloadFromSections(const std::vector<MovieItem>& resumeItems,

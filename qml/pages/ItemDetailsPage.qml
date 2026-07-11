@@ -1200,7 +1200,6 @@ FocusScope {
                         imageUrl: root.stillArt
                         fallbackText: root.typeText
                         focused: false
-                        retainWhileLoading: true
                     }
 
                     Rectangle {

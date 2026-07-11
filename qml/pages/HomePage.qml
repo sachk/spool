@@ -15,7 +15,7 @@ FocusScope {
     readonly property bool librariesOnly: Router.route === "libraries"
     property int currentSection: 0
 
-    function modelFor(source, rowIndex) {
+    function modelFor(source, row) {
         if (source === "libraries")
             return librariesModel
         if (source === "resumeItems")
@@ -23,7 +23,7 @@ FocusScope {
         if (source === "nextUpItems")
             return nextUpModel
         if (source === "latestLibrary")
-            return Home.latestLibraryItems(rowIndex)
+            return row && row.model ? row.model : null
         return null
     }
 
@@ -48,8 +48,8 @@ FocusScope {
         focusRepairTimer.restart()
     }
 
-    function activateAt(source, index, rowIndex) {
-        const model = modelFor(source, rowIndex)
+    function activateAt(source, index, row) {
+        const model = modelFor(source, row)
         if (!model || typeof model.rowCount !== "function" || index < 0 || index >= model.rowCount())
             return
         if (source === "resumeItems") {
@@ -68,7 +68,7 @@ FocusScope {
             return
         }
         if (source === "latestLibrary")
-            shell.openDetailsAt(model, index, "latestLibrary:" + rowIndex, "home")
+            shell.openDetailsAt(model, index, "latestLibrary:" + Number(row && row.rowIndex || 0), "home")
     }
 
     function visibleSections() {
@@ -206,6 +206,7 @@ FocusScope {
                 cardKind: "library"
                 cardWidth: Metrics.homeLandscapeWidth(root.width)
                 cardGap: Metrics.gap(root.width)
+                atomicPopulate: true
                 onRowVisibleChanged: root.scheduleFocusRepair()
                 onActivated: index => root.activateAt("libraries", index, -1)
             }
@@ -221,6 +222,7 @@ FocusScope {
                 cardWidth: Metrics.homeLandscapeWidth(root.width)
                 cardGap: Metrics.gap(root.width)
                 enabledRow: !root.librariesOnly
+                atomicPopulate: true
                 onRowVisibleChanged: root.scheduleFocusRepair()
                 onActivated: index => root.activateAt("resumeItems", index, -1)
             }
@@ -236,6 +238,7 @@ FocusScope {
                 cardWidth: Metrics.homeLandscapeWidth(root.width)
                 cardGap: Metrics.gap(root.width)
                 enabledRow: !root.librariesOnly
+                atomicPopulate: true
                 onRowVisibleChanged: root.scheduleFocusRepair()
                 onActivated: index => root.activateAt("nextUpItems", index, -1)
             }
@@ -255,7 +258,7 @@ FocusScope {
 
                     width: contentColumn.width
                     title: modelData && modelData.title ? modelData.title : "Recently Added"
-                    model: Home.latestLibraryItems(sourceRowIndex)
+                    model: modelData && modelData.model ? modelData.model : null
                     shell: root.shell
                     cardKind: modelData && modelData.kind ? modelData.kind : "poster"
                     useSeriesPoster: true
@@ -263,9 +266,10 @@ FocusScope {
                     cardWidth: cardKind === "poster" ? Metrics.homePosterWidth(root.width) : Metrics.homeLandscapeWidth(
                                                            root.width)
                     cardGap: Metrics.gap(root.width)
+                    atomicPopulate: true
                     enabledRow: !root.librariesOnly
                     onRowVisibleChanged: root.scheduleFocusRepair()
-                    onActivated: itemIndex => root.activateAt("latestLibrary", itemIndex, sourceRowIndex)
+                    onActivated: itemIndex => root.activateAt("latestLibrary", itemIndex, modelData)
                 }
             }
         }

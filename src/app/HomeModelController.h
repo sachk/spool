@@ -38,7 +38,6 @@ public:
         return &m_nextUpItems;
     }
     QVariantList latestLibraryRows() const;
-    Q_INVOKABLE QObject *latestLibraryItems(int rowIndex);
 
     bool applyCachedPayload(const QJsonObject& payload);
     void loadCachedPayload();
@@ -65,7 +64,7 @@ private:
         std::vector<MovieItem> items;
     };
     QCoro::Task<void> refreshAsync(std::vector<LibraryItem> libraries, RequestGeneration::Token generation);
-    void replaceLatestLibraryRows(std::vector<PendingLatestLibrarySection> sections);
+    bool updateLatestLibraryRows(std::vector<PendingLatestLibrarySection> sections);
     QJsonObject payloadFromSections(const std::vector<MovieItem>& resumeItems,
         const std::vector<MovieItem>& nextUpItems, const std::vector<PendingLatestLibrarySection>& sections) const;
     QCoro::Task<void> loadCachedPayloadAsync();

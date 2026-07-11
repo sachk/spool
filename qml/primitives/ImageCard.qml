@@ -8,9 +8,11 @@ Item {
     property real aspectRatio: 2 / 3
     property bool focused: false
     property bool hovered: hover.hovered
-    property bool retainWhileLoading: false
+    property bool artworkVisible: true
     readonly property int sourcePixelWidth: Math.max(1, Math.round(width * Screen.devicePixelRatio))
     readonly property int sourcePixelHeight: Math.max(1, Math.round(height * Screen.devicePixelRatio))
+    readonly property bool artworkReady: imageUrl.length === 0 || artwork.status === Image.Ready || artwork.status
+                                         === Image.Error
 
     function artworkSource(url) {
         if (url.indexOf("http://") === 0 || url.indexOf("https://") === 0)
@@ -38,23 +40,8 @@ Item {
         clip: true
         antialiasing: true
 
-        Image {
-            id: artwork
-            anchors.fill: parent
-            source: root.imageUrl.length > 0 ? root.artworkSource(root.imageUrl) : ""
-            fillMode: Image.PreserveAspectCrop
-            asynchronous: true
-            cache: true
-            smooth: true
-            mipmap: false
-            sourceSize.width: root.sourcePixelWidth
-            sourceSize.height: root.sourcePixelHeight
-            opacity: status === Image.Ready ? 1 : root.retainWhileLoading ? 0.35 : 0
-        }
-
         Rectangle {
             anchors.fill: parent
-            visible: artwork.status !== Image.Ready
             color: Theme.bgRaised
             border.width: Theme.hoverBorderWidth
             border.color: Theme.border
@@ -68,6 +55,21 @@ Item {
                 wrapMode: Text.Wrap
                 font.pixelSize: Metrics.scaled(13)
             }
+        }
+
+        Image {
+            id: artwork
+            anchors.fill: parent
+            source: root.imageUrl.length > 0 ? root.artworkSource(root.imageUrl) : ""
+            fillMode: Image.PreserveAspectCrop
+            asynchronous: true
+            retainWhileLoading: true
+            cache: true
+            smooth: true
+            mipmap: false
+            sourceSize.width: root.sourcePixelWidth
+            sourceSize.height: root.sourcePixelHeight
+            opacity: root.artworkVisible ? 1 : 0
         }
 
         // Focus ring painted above the artwork: frame's own border renders
