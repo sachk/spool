@@ -371,7 +371,6 @@ qt_add_qml_module(jellyfin-native
         qml/primitives/IconButton.qml
         qml/primitives/ImageCard.qml
         qml/primitives/InputKeys.qml
-        qml/primitives/MediaItemActions.qml
         qml/primitives/MediaItemCard.qml
         qml/primitives/MediaRow.qml
         qml/primitives/MetadataChip.qml

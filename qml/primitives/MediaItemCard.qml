@@ -5,7 +5,7 @@ Item {
     id: root
 
     property var shell
-    property var item: ({})
+    required property var item
     property string kind: "poster"
     property string titleOverride: ""
     property string subtitleOverride: ""
@@ -86,6 +86,12 @@ Item {
         return resumeTicks > 0 && runtimeTicks > 0 ? Math.max(0, Math.min(1, resumeTicks / runtimeTicks)) : 0
     }
 
+    function openMenu() {
+        if (!shell || !shell.openItemMenu)
+            return false
+        return shell.openItemMenu(item, root)
+    }
+
     ImageCard {
         id: art
         anchors.top: parent.top
@@ -100,17 +106,11 @@ Item {
 
     Rectangle {
         anchors.left: art.left
-        anchors.right: art.right
         anchors.bottom: art.bottom
+        width: art.width * root.effectiveProgress
         height: Metrics.scaled(4)
         visible: !root.posterKind && root.effectiveProgress > 0
-        color: "#66000000"
-
-        Rectangle {
-            width: parent.width * root.effectiveProgress
-            height: parent.height
-            color: Theme.accent
-        }
+        color: Theme.accent
     }
 
     AppText {
@@ -142,10 +142,24 @@ Item {
         elide: Text.ElideRight
     }
 
-    MediaItemActions {
+    MouseArea {
+        property bool longPressed: false
+
         anchors.fill: parent
-        shell: root.shell
-        item: root.item
-        onActivated: root.activated()
+        acceptedButtons: Qt.LeftButton | Qt.RightButton
+        pressAndHoldInterval: 520
+        onPressed: longPressed = false
+        onClicked: mouse => {
+                       if (mouse.button === Qt.RightButton) {
+                           root.openMenu()
+                       } else if (!longPressed) {
+                           root.activated()
+                       }
+                       longPressed = false
+                   }
+        onPressAndHold: {
+            longPressed = true
+            root.openMenu()
+        }
     }
 }
