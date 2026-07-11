@@ -125,48 +125,39 @@ FocusScope {
     Component {
         id: cardDelegate
 
-        Item {
-            id: delegateRoot
+        MediaItemCard {
+            id: card
 
             required property int index
             required property var model
             readonly property var cardItem: model.item !== undefined ? model.item : model.modelData
             readonly property bool libraryCard: root.cardKind === "library"
             readonly property bool personCard: root.cardKind === "person"
-            readonly property bool artworkReady: card.artworkReady
 
             width: root.cardWidth
             height: listView.height
+            shell: card.libraryCard || card.personCard ? null : root.shell
+            kind: card.libraryCard ? "landscape" : card.personCard ? "poster" : root.cardKind
+            item: card.cardItem || ({})
+            titleOverride: card.libraryCard ? String(card.model.name || "") : card.personCard ? String(
+                                                                                                    card.cardItem.name
+                                                                                                    || "") : ""
+            subtitleOverride: card.libraryCard ? String(card.model.collectionType || "") : card.personCard ? String(
+                                                                                                                 card.cardItem.role
+                                                                                                                 || card.cardItem.type
+                                                                                                                 || "") : ""
+            imageOverride: card.libraryCard ? Art.url(card.cardItem, "landscape", Math.ceil(root.cardWidth)) :
+                                              card.personCard ? Art.url(card.cardItem, "poster", Math.ceil(
+                                                                            root.cardWidth)) : ""
+            fallbackOverride: card.personCard ? String(card.cardItem.type || "Person") : ""
+            useSeriesPoster: root.useSeriesPoster
+            preferEpisodeTitle: root.preferEpisodeTitle
+            focused: card.index === listView.currentIndex && listView.activeFocus
+            artworkVisible: !root.atomicPopulate || root.artworkPresented
 
             Component.onCompleted: root.schedulePresentation()
             onArtworkReadyChanged: root.schedulePresentation()
-
-            MediaItemCard {
-                id: card
-
-                anchors.fill: parent
-                shell: delegateRoot.libraryCard || delegateRoot.personCard ? null : root.shell
-                kind: delegateRoot.libraryCard ? "landscape" : delegateRoot.personCard ? "poster" : root.cardKind
-                item: delegateRoot.cardItem || ({})
-                titleOverride: delegateRoot.libraryCard ? String(delegateRoot.model.name || "") :
-                                                          delegateRoot.personCard ? String(delegateRoot.cardItem.name
-                                                                                           || "") : ""
-                subtitleOverride: delegateRoot.libraryCard ? String(delegateRoot.model.collectionType || "") :
-                                                             delegateRoot.personCard ? String(
-                                                                                           delegateRoot.cardItem.role
-                                                                                           || delegateRoot.cardItem.type
-                                                                                           || "") : ""
-                imageOverride: delegateRoot.libraryCard ? Art.url(delegateRoot.cardItem, "landscape", Math.ceil(
-                                                                      root.cardWidth)) : delegateRoot.personCard
-                                                          ? Art.url(delegateRoot.cardItem, "poster", Math.ceil(
-                                                                        root.cardWidth)) : ""
-                fallbackOverride: delegateRoot.personCard ? String(delegateRoot.cardItem.type || "Person") : ""
-                useSeriesPoster: root.useSeriesPoster
-                preferEpisodeTitle: root.preferEpisodeTitle
-                focused: delegateRoot.index === listView.currentIndex && listView.activeFocus
-                artworkVisible: !root.atomicPopulate || root.artworkPresented
-                onActivated: root.activateIndex(delegateRoot.index)
-            }
+            onActivated: root.activateIndex(card.index)
         }
     }
 

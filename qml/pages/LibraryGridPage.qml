@@ -795,38 +795,26 @@ FocusScope {
                 onTriggered: grid.requestMoreIfNeeded()
             }
 
-            delegate: Item {
+            delegate: MediaItemCard {
                 id: gridDelegate
-                required property int index
-                required property var item
-                readonly property var movie: item || ({})
-                width: grid.cellWidth
-                height: grid.cellHeight
 
-                readonly property bool artworkReady: card.artworkReady
+                required property int index
+
+                width: grid.cellWidth - Metrics.gap(root.width)
+                height: grid.cellHeight
+                shell: root.shell
+                kind: root.episodeGrid ? "landscape" : "poster"
+                preferEpisodeTitle: root.episodeGrid
+                useSeriesPoster: !root.episodeGrid
+                focused: gridDelegate.GridView.isCurrentItem
+                artworkVisible: gridReveal.artworkReady
 
                 Component.onCompleted: gridReveal.schedule()
                 onArtworkReadyChanged: gridReveal.schedule()
-
-                MediaItemCard {
-                    id: card
-                    anchors.left: parent.left
-                    anchors.right: parent.right
-                    anchors.top: parent.top
-                    anchors.rightMargin: Metrics.gap(root.width)
-                    height: parent.height
-                    shell: root.shell
-                    kind: root.episodeGrid ? "landscape" : "poster"
-                    preferEpisodeTitle: root.episodeGrid
-                    useSeriesPoster: !root.episodeGrid
-                    focused: gridDelegate.GridView.isCurrentItem
-                    item: gridDelegate.movie
-                    artworkVisible: gridReveal.artworkReady
-                    onActivated: {
-                        grid.currentIndex = index
-                        root.setSavedGridIndex(index)
-                        root.activateCurrent()
-                    }
+                onActivated: {
+                    grid.currentIndex = index
+                    root.setSavedGridIndex(index)
+                    root.activateCurrent()
                 }
             }
         }
