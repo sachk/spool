@@ -561,6 +561,13 @@ if(BUILD_TESTING AND NOT CMAKE_CROSSCOMPILING)
         endif()
     endforeach()
 
+    find_package(Python3 REQUIRED COMPONENTS Interpreter)
+    add_test(NAME network-shaper
+        COMMAND "${Python3_EXECUTABLE}"
+            "${CMAKE_CURRENT_SOURCE_DIR}/tests/tools/NetworkShaperTest.py"
+            "${CMAKE_CURRENT_SOURCE_DIR}/tools/network-shaper.py"
+    )
+
     find_program(QMLTESTRUNNER_EXECUTABLE NAMES qmltestrunner)
     if(QMLTESTRUNNER_EXECUTABLE)
         add_test(NAME route-policy
