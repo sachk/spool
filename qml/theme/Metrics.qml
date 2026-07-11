@@ -2,7 +2,7 @@ pragma Singleton
 import QtQuick
 
 QtObject {
-    readonly property int uiScalePercent: Math.max(80, Math.min(125, Number(Settings.uiScalePercent || 100)))
+    readonly property int uiScalePercent: Math.max(95, Math.min(140, Number(Settings.uiScalePercent || 115)))
     readonly property real uiScale: uiScalePercent / 100
 
     function scaled(value) {

@@ -95,7 +95,7 @@ const QVector<SettingSpec>& settingSpecs()
 {
     static const QVector<SettingSpec> specs {
         { "appearance/uiScalePercent", "Appearance", "UI Scale",
-            "Scale text, controls, spacing, cards, rows, and grids", SettingType::Slider, "100", nullptr, 0, 80, 125, 5,
+            "Scale text, controls, spacing, cards, rows, and grids", SettingType::Slider, "115", nullptr, 0, 95, 140, 5,
             0, "%", 86, 300, SettingTarget::UiScale, SettingNormalizer::IntRange, true, false },
         { "settings/nightMode", "Playback", "Night Mode", "Dialogue lift and late-night dynamic range",
             SettingType::Toggle, "false", nullptr, 0, 0, 0, 1, 0, "", 0, 0, SettingTarget::NightMode,
