@@ -32,6 +32,11 @@ int main(int argc, char **argv)
 {
     QCoreApplication app(argc, argv);
 
+    const auto desktopNetwork = MpvOptionProfile::networkProfile(MpvOptionProfile::Platform::Desktop);
+    require(desktopNetwork.ringBytes == 4 * 1024 * 1024, "desktop curl ring profile changed");
+    require(desktopNetwork.rangeBytes == 1024 * 1024, "desktop curl range profile changed");
+    require(desktopNetwork.parallelRequests == 4, "desktop curl parallelism profile changed");
+
     const auto desktop = MpvOptionProfile::startupOptions(
         MpvOptionProfile::Platform::Desktop, QStringLiteral("alsa"), QByteArrayLiteral("/tmp/mpv.log"));
     require(valueFor(desktop, "vo") == "libmpv", "desktop should render through libmpv");
@@ -49,6 +54,11 @@ int main(int argc, char **argv)
         "custom demuxer max byte budget was not propagated");
     require(valueFor(customDemuxerBudget, "demuxer-max-back-bytes") == "9876543",
         "custom demuxer back byte budget was not propagated");
+
+    const auto webOSNetwork = MpvOptionProfile::networkProfile(MpvOptionProfile::Platform::WebOS);
+    require(webOSNetwork.ringBytes == 2 * 1024 * 1024, "webOS curl ring profile changed");
+    require(webOSNetwork.rangeBytes == 512 * 1024, "webOS curl range profile changed");
+    require(webOSNetwork.parallelRequests == 4, "webOS curl parallelism profile changed");
 
     const auto webOSPcm = MpvOptionProfile::startupOptions(
         MpvOptionProfile::Platform::WebOS, QStringLiteral("starfish-pcm"), QByteArrayLiteral("/tmp/mpv.log"));
