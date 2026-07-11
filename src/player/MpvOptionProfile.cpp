@@ -90,10 +90,17 @@ namespace {
 
 } // namespace
 
+MpvOptionProfile::NetworkProfile MpvOptionProfile::networkProfile(Platform platform)
+{
+    return platform == Platform::WebOS ? NetworkProfile { 2 * 1024 * 1024, 512 * 1024, 4 }
+                                       : NetworkProfile { 4 * 1024 * 1024, 1024 * 1024, 4 };
+}
+
 std::vector<MpvOption> MpvOptionProfile::startupOptions(Platform platform, const QString& audioOutputMode,
     const QByteArray& logPath, const QByteArray& demuxerMaxBytes, const QByteArray& demuxerMaxBackBytes)
 {
     const bool webOS = platform == Platform::WebOS;
+    const NetworkProfile network = networkProfile(platform);
     const bool starfishPcm
         = audioOutputMode == QStringLiteral("starfish") || audioOutputMode == QStringLiteral("starfish-pcm");
     const bool starfishAudio = webOS && starfishPcm;
@@ -111,9 +118,9 @@ std::vector<MpvOption> MpvOptionProfile::startupOptions(Platform platform, const
         { "demuxer-max-bytes", demuxerMaxBytes },
         { "demuxer-max-back-bytes", demuxerMaxBackBytes },
         { "curl-enabled", "yes" },
-        { "curl-buffer-size", webOS ? "2097152" : "4194304" },
-        { "curl-max-request-size", webOS ? "524288" : "1048576" },
-        { "curl-parallel-requests", "4" },
+        { "curl-buffer-size", QByteArray::number(network.ringBytes) },
+        { "curl-max-request-size", QByteArray::number(network.rangeBytes) },
+        { "curl-parallel-requests", QByteArray::number(network.parallelRequests) },
         { "initial-audio-sync", "no" },
         { "force-window", "no" },
     };

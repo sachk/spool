@@ -364,6 +364,11 @@ bool PlayerController::configureAndInitializeMpv(mpv_handle *handle)
 #else
     constexpr auto platform = MpvOptionProfile::Platform::Desktop;
 #endif
+    const MpvOptionProfile::NetworkProfile network = MpvOptionProfile::networkProfile(platform);
+    qInfo().nospace() << "player: curl profile source=MpvOptionProfile platform="
+                      << (platform == MpvOptionProfile::Platform::WebOS ? "webOS" : "desktop")
+                      << " requestsPerStream=" << network.parallelRequests << " rangeBytes=" << network.rangeBytes
+                      << " ringBytes=" << network.ringBytes;
     const auto startupOptions = MpvOptionProfile::startupOptions(
         platform, m_audioOutputMode, mpvLogPath(), m_demuxerMaxBytes, m_demuxerMaxBackBytes);
     const bool configured
