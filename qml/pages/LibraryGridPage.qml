@@ -495,6 +495,7 @@ FocusScope {
 
         view: grid
         enabled: grid.count > 0 && grid.cellHeight > 0 && grid.width > 0 && grid.height > 0
+        logName: Browse.title.length > 0 ? Browse.title : "Library"
         firstIndex: Math.min(grid.count - 1, Math.max(0, Math.floor(grid.contentY / grid.cellHeight) * root.columns))
         lastIndex: Math.min(grid.count - 1, Math.max(firstIndex, Math.ceil((grid.contentY + grid.height)
                                                                            / grid.cellHeight) * root.columns - 1))

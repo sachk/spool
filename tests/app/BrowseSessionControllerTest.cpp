@@ -124,6 +124,26 @@ int main()
     session.prefetchVisibleRange(0, 0);
     session.prefetchVisibleRange(-1, 0);
     require(moreRequests == 1, "visible tail requests the next page once");
+
+    PagedMovieItems secondPage;
+    secondPage.items = { item(QStringLiteral("movie-2"), QStringLiteral("Movie 2"), QStringLiteral("Movie")) };
+    secondPage.totalRecordCount = 3;
+    secondPage.startIndex = 1;
+    secondPage.limit = 1;
+    session.setPage(secondPage, QStringLiteral("cache"), true);
+    require(session.items()->count() == 2, "second page appended its item");
+    require(session.nextStartIndex() == 2, "second page advanced the next start index");
+    require(session.hasMore(), "second page retained the remaining-page state");
+
+    PagedMovieItems finalPage;
+    finalPage.items = { item(QStringLiteral("movie-3"), QStringLiteral("Movie 3"), QStringLiteral("Movie")) };
+    finalPage.totalRecordCount = 3;
+    finalPage.startIndex = 2;
+    finalPage.limit = 1;
+    session.setPage(finalPage, QStringLiteral("cache"), true);
+    require(session.items()->count() == 3, "final page appended its item");
+    require(session.nextStartIndex() == 3, "final page advanced to the server total");
+    require(!session.hasMore(), "final page stopped pagination");
     session.reset();
     require(!session.descriptor().isValid(), "reset clears descriptor");
     require(session.items()->count() == 0, "reset clears items");

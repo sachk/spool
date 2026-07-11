@@ -3,6 +3,8 @@
 #include "LibraryPrefetchController.h"
 #include "LibraryQuery.h"
 
+#include <QDebug>
+#include <QElapsedTimer>
 #include <algorithm>
 
 namespace JellyfinNative {
@@ -63,12 +65,17 @@ void BrowseSessionController::resetPaging(const QString& cacheKey)
 
 void BrowseSessionController::setPage(const PagedMovieItems& page, const QString& cacheKey, bool append)
 {
+    QElapsedTimer applyTimer;
+    applyTimer.start();
     if (append)
         m_items.appendMovies(page.items);
     else
         m_items.setMovies(page.items);
 
     const int loadedCount = m_items.rowCount();
+    qInfo() << "browse page: model applied"
+            << "start=" << page.startIndex << "append=" << append << "items=" << page.items.size()
+            << "loaded=" << loadedCount << "ms=" << applyTimer.elapsed();
     const int pageEnd = page.startIndex + static_cast<int>(page.items.size());
     const bool hasServerTotal = page.totalRecordCount > 0;
     m_cacheKey = cacheKey;
