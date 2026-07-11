@@ -108,6 +108,12 @@ if [[ ! -f "$DOVI_TOOL_ROOT/dolby_vision/Cargo.toml" ]]; then
   exit 1
 fi
 
+if [[ ! -f "$PREFIX/lib/libcurl.a" ]]; then
+  echo "error: private static curl is missing from $PREFIX." >&2
+  echo "       Run: bash $WEBOS_TOOLS_ROOT/build-curl.sh build" >&2
+  exit 1
+fi
+
 echo "Building libdovi..."
 (
   cd "$DOVI_TOOL_ROOT/dolby_vision"
@@ -276,6 +282,16 @@ cp -f "$INSTALL_DIR/bin/jellyfin-native" "$STAGE_BIN/jellyfin-native"
 # patch-level dependency upgrades do not require edits here.
 MPV_STAGED_LIBRARY="$(stage_elf_shared_library \
   "$MPV_BUILD/libmpv.so.*" "$STAGE_LIB" "$READELF_BIN")"
+
+# The Starfish build owns its HTTP/TLS stack. A dynamic dependency here would
+# silently bind to arbitrary firmware ABIs and recreate playback-start crashes.
+MPV_DYNAMIC_SECTION="$("$READELF_BIN" -d "$MPV_STAGED_LIBRARY")"
+for network_library in libcurl libssl libcrypto; do
+  if [[ "$MPV_DYNAMIC_SECTION" == *"[$network_library.so"* ]]; then
+    echo "error: libmpv unexpectedly depends on firmware $network_library" >&2
+    exit 1
+  fi
+done
 
 for pattern in \
   "$PREFIX/lib/libavcodec.so.*" \
