@@ -164,7 +164,7 @@ FocusScope {
         id: scroller
 
         anchors.fill: parent
-        anchors.margins: Metrics.pageMargin(width)
+        anchors.margins: Metrics.pageMargin(root.width)
         clip: true
         contentWidth: width
         contentHeight: contentColumn.implicitHeight

@@ -201,8 +201,8 @@ FocusScope {
 
     ColumnLayout {
         anchors.fill: parent
-        anchors.margins: Metrics.pageMargin(width)
-        anchors.bottomMargin: Metrics.pageMargin(width) + root.keyboardInset
+        anchors.margins: Metrics.pageMargin(root.width)
+        anchors.bottomMargin: Metrics.pageMargin(root.width) + root.keyboardInset
         spacing: Metrics.gap(root.width)
 
         Behavior on anchors.bottomMargin {

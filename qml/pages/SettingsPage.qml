@@ -311,7 +311,7 @@ FocusScope {
     MenuListView {
         id: settingsList
         anchors.fill: parent
-        anchors.margins: Metrics.pageMargin(width)
+        anchors.margins: Metrics.pageMargin(root.width)
         model: root.settingsRows
         dismissOnBack: false
         dismissOnHorizontal: false

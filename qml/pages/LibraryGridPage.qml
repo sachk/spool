@@ -588,7 +588,7 @@ FocusScope {
     }
     ColumnLayout {
         anchors.fill: parent
-        anchors.margins: Metrics.pageMargin(width)
+        anchors.margins: Metrics.pageMargin(root.width)
         spacing: 12
         RowLayout {
             Layout.fillWidth: true
