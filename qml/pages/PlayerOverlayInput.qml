@@ -33,6 +33,8 @@ Item {
 
     function pressed(key, repeat) {
         const delta = seekDelta(key)
+        if (delta !== 0 && overlay.controlsVisible && overlay.focusZone !== "timeline")
+            return true
         if (delta !== 0 && overlay.hasPlayer && overlay.canPreviewSeek()) {
             if (!repeat || seekKey !== key) {
                 seekKey = key
@@ -164,6 +166,8 @@ Item {
             downRepeats = 0
             return true
         }
+        if (overlay.controlsVisible && handleControlsKey(key))
+            return true
         if (key === Qt.Key_T && overlay.hasPlayer && overlay.player.activeSegmentType.length > 0) {
             overlay.player.skipActiveSegment()
             return true
@@ -195,8 +199,6 @@ Item {
             overlay.showControls("timeline")
             return true
         }
-        if (handleControlsKey(key))
-            return true
         if (key === Qt.Key_S) {
             overlay.openMenu("subtitles")
             return true
