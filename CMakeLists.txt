@@ -219,6 +219,8 @@ set(JELLYFIN_CORE_SOURCES
     src/discovery/DiscoveryController.h
     src/diagnostics/Diagnostics.cpp
     src/diagnostics/Diagnostics.h
+    src/diagnostics/InputLatencyMonitor.cpp
+    src/diagnostics/InputLatencyMonitor.h
     src/models/DiscoveredServerModel.cpp
     src/models/DiscoveredServerModel.h
     src/models/LibraryListModel.cpp
@@ -392,6 +394,7 @@ qt_add_qml_module(jellyfin-native
         qml/shell/KeyRouter.qml
         qml/shell/BusyOverlay.qml
         qml/shell/DiagnosticsOverlay.qml
+        qml/shell/InputLatencyWarning.qml
         qml/shell/ItemContextMenu.qml
         qml/shell/ManagementDialog.qml
         qml/shell/MediaInfoOverlay.qml
@@ -530,6 +533,7 @@ if(BUILD_TESTING AND NOT CMAKE_CROSSCOMPILING)
         playback-negotiation tests/api/PlaybackNegotiationTest.cpp
         jellyfin-api-facade-url tests/api/JellyfinApiFacadeUrlTest.cpp
         database-manager tests/cache/DatabaseManagerTest.cpp
+        input-latency-monitor tests/diagnostics/InputLatencyMonitorTest.cpp
     )
 
 
@@ -586,12 +590,16 @@ if(BUILD_TESTING AND NOT CMAKE_CROSSCOMPILING)
             COMMAND "${QMLTESTRUNNER_EXECUTABLE}"
                 -input "${CMAKE_CURRENT_SOURCE_DIR}/tests/qml/tst_AtomicViewReveal.qml"
         )
+        add_test(NAME input-latency-warning
+            COMMAND "${QMLTESTRUNNER_EXECUTABLE}"
+                -input "${CMAKE_CURRENT_SOURCE_DIR}/tests/qml/tst_InputLatencyWarning.qml"
+        )
         set(JELLYFIN_QML_TEST_ENV
             "QT_QPA_PLATFORM=offscreen"
             "QT_QUICK_BACKEND=software"
             ${JELLYFIN_TEST_ENV}
         )
-        set_tests_properties(route-policy key-router player-overlay-input atomic-view-reveal PROPERTIES
+        set_tests_properties(route-policy key-router player-overlay-input atomic-view-reveal input-latency-warning PROPERTIES
             ENVIRONMENT "${JELLYFIN_QML_TEST_ENV}"
         )
     endif()

@@ -1,4 +1,5 @@
 #include "NativeAppWindow.h"
+#include "diagnostics/InputLatencyMonitor.h"
 
 #include <QMutexLocker>
 #include <QQuickImageProvider>
@@ -34,6 +35,20 @@ namespace {
     };
 
 } // namespace
+
+void NativeAppWindow::setInputLatencyMonitor(InputLatencyMonitor *monitor)
+{
+    m_inputLatencyMonitor = monitor;
+}
+
+bool NativeAppWindow::event(QEvent *event)
+{
+    const quint64 token = m_inputLatencyMonitor ? m_inputLatencyMonitor->beginInput(event) : 0;
+    const bool handled = QQuickView::event(event);
+    if (m_inputLatencyMonitor)
+        m_inputLatencyMonitor->endInput(token);
+    return handled;
+}
 
 int NativeAppWindow::overlayRevision() const
 {

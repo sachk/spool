@@ -7,18 +7,6 @@ Item {
     id: root
     property string route: ""
     property string focusedItemId: ""
-    property int frames: 0
-    property int fps: 0
-
-    Timer {
-        interval: 1000
-        running: root.visible
-        repeat: true
-        onTriggered: {
-            root.fps = root.frames
-            root.frames = 0
-        }
-    }
     NumberAnimation on opacity {
         running: root.visible
         from: 0
@@ -47,7 +35,22 @@ Item {
                 font.weight: Font.DemiBold
             }
             MonoText {
-                text: "FPS: " + root.fps
+                text: "Input samples: " + InputLatency.sampleCount
+            }
+            MonoText {
+                text: "Late samples: " + InputLatency.lateCount
+            }
+            MonoText {
+                text: "Last latency: " + InputLatency.lastLatencyMs.toFixed(2) + " ms"
+            }
+            MonoText {
+                text: "Worst latency: " + InputLatency.worstLatencyMs.toFixed(2) + " ms"
+            }
+            MonoText {
+                text: "Frame budget: " + InputLatency.frameBudgetMs.toFixed(2) + " ms"
+            }
+            MonoText {
+                text: "Last stage: " + InputLatency.lastStage
             }
             MonoText {
                 text: "Screen: " + root.width + "x" + root.height

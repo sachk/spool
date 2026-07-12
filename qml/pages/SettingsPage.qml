@@ -44,10 +44,11 @@ FocusScope {
                                                                                                    "Hidden"], ["Always",
                                                                                                                "On details only",
                                                                                                                "Hidden"]),
-        makeRow("shell/diagnostics", "Diagnostics", "toggle", "Diagnostics Overlay"), makeRow("about/version", "About",
-                                                                                              "readonly",
-                                                                                              "Jellyfin Native for webOS",
-                                                                                              "Qt 6.11 client, native mpv playback"),
+        makeRow("shell/diagnostics", "Diagnostics", "toggle", "Diagnostics Overlay"), makeRow("shell/latencyGuard",
+                                                                                              "Diagnostics", "toggle",
+                                                                                              "Latency Guard"), makeRow(
+            "action/clearLatencyStatistics", "Diagnostics", "action", "Clear Latency Statistics"), makeRow(
+            "about/version", "About", "readonly", "Jellyfin Native for webOS", "Qt 6.11 client, native mpv playback"),
         makeRow("about/locale", "About", "readonly", "UI Locale")]
 
     function makeRow(key, group, type, title, description, labels, values) {
@@ -131,6 +132,8 @@ FocusScope {
             return Theme.technicalMetadataMode
         case "shell/diagnostics":
             return shell ? shell.diagnosticsVisible : false
+        case "shell/latencyGuard":
+            return InputLatency.enabled
         case "subtitles/language":
             return Settings.subtitleLanguageIndex
         default:
@@ -150,6 +153,8 @@ FocusScope {
             return "Sign out"
         if (row.key === "action/uiScaleSetup")
             return "Open"
+        if (row.key === "action/clearLatencyStatistics")
+            return "Clear"
         if (row.key === "session/server")
             return Session.serverUrl.length > 0 ? "Connected" : "Offline"
         if (row.key === "theme/name")
@@ -221,6 +226,9 @@ FocusScope {
             if (shell)
                 shell.diagnosticsVisible = value
             break
+        case "shell/latencyGuard":
+            InputLatency.enabled = value
+            break
         case "subtitles/language":
             Settings.setSubtitleLanguageIndex(index)
             break
@@ -244,6 +252,8 @@ FocusScope {
                 shell.switchUser()
             else if (row.key === "action/logout")
                 App.logout()
+            else if (row.key === "action/clearLatencyStatistics")
+                InputLatency.clearStatistics()
             else if (row.key === "action/uiScaleSetup" && shell)
                 shell.pushRoute("scaleSetup", {
                                     "returnRoute": "settings"
