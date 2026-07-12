@@ -724,7 +724,7 @@ FocusScope {
             clip: true
             keyNavigationEnabled: false
             reuseItems: true
-            opacity: gridReveal.delegatesReady ? (root.browseLoading && count > 0 ? 0.62 : 1) : 0
+            opacity: gridReveal.delegatesReady ? 1 : 0
             boundsBehavior: Flickable.StopAtBounds
             model: Browse.items
             cellWidth: Math.floor((width - Metrics.gap(root.width) * (columns - 1)) / columns)
