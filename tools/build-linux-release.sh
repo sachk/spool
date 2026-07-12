@@ -15,7 +15,9 @@ APP_INSTALL="${APP_INSTALL:-$BUILD_ROOT/install}"
 setup_native_ccache "$APP_ROOT"
 mkdir -p "$MPV_PREFIX" "$APP_BUILD" "$APP_INSTALL" "$APP_INSTALL/lib"
 
-native_mpv_common_args "$MPV_PREFIX" release true
+# cplayer is unused by Jellyfin, and Linux LTO currently leaves generated
+# Wayland protocol symbols undefined in libmpv under nixpkgs' Meson/ar setup.
+native_mpv_common_args "$MPV_PREFIX" release false false
 MPV_SETUP_ARGS=(
   "${MPV_NATIVE_ARGS[@]}"
   -Dwayland=enabled
