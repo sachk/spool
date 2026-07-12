@@ -746,7 +746,6 @@ FocusScope {
             onContentYChanged: loadMoreDebounce.restart()
             onCurrentIndexChanged: {
                 root.setSavedGridIndex(currentIndex)
-                ensureCurrentVisible()
                 loadMoreDebounce.restart()
             }
 
