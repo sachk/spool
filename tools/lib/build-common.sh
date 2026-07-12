@@ -350,12 +350,13 @@ native_mpv_common_args() {
   local prefix="$1"
   local build_type="$2"
   local cplayer="$3"
+  local lto="${4:-true}"
   MPV_NATIVE_ARGS=(
     --prefix "$prefix"
     --libdir lib
     --buildtype "$build_type"
     --default-library shared
-    -Db_lto=true
+    "-Db_lto=$lto"
     -Dbuild-date=false
     -Dlibmpv=true
     -Dlibcurl=enabled
