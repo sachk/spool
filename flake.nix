@@ -223,6 +223,7 @@
       nativeShellHook = pkgs: commonShellHook pkgs + ''
         # This shell intentionally includes nixpkgs Qt for native Linux/macOS
         # development. Do not use it for tools/webos-native/build-qt6-611.sh.
+        export JELLYFIN_NATIVE_SHELL=1
       '';
     in
     {
