@@ -543,4 +543,9 @@ KeyRouter {
             onClicked: App.clearError()
         }
     }
+    InputLatencyWarning {
+        anchors.fill: parent
+        z: 90
+        monitor: InputLatency
+    }
 }

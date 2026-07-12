@@ -17,6 +17,7 @@ extern "C" {
 
 namespace JellyfinNative {
 
+class InputLatencyMonitor;
 class NativeAppWindow final : public QQuickView {
     Q_OBJECT
     Q_PROPERTY(int overlayRevision READ overlayRevision NOTIFY overlayRevisionChanged)
@@ -29,6 +30,7 @@ public:
     ~NativeAppWindow() override;
 
     bool prepareForUiSurface();
+    void setInputLatencyMonitor(InputLatencyMonitor *monitor);
     bool prepareForPlaybackSurface();
     // Bring the surface to the foreground. On webOS this re-issues
     // wl_webos_shell_surface_set_state(FULLSCREEN); on host Qt it
@@ -63,6 +65,7 @@ signals:
     void fullScreenChanged();
 
 protected:
+    bool event(QEvent *event) override;
     void exposeEvent(QExposeEvent *event) override;
     void resizeEvent(QResizeEvent *event) override;
 
@@ -89,6 +92,7 @@ private:
         int dstY, int dstW, int dstH);
 #endif
 
+    InputLatencyMonitor *m_inputLatencyMonitor = nullptr;
     QString m_appId;
     mutable QMutex m_overlayMutex;
     QImage m_overlayImage;

@@ -10,6 +10,7 @@
 #include "cache/DatabaseManager.h"
 #include "common/LogRotation.h"
 #include "diagnostics/Diagnostics.h"
+#include "diagnostics/InputLatencyMonitor.h"
 #include "discovery/DiscoveryController.h"
 #include "player/MpvVideoItem.h"
 #include "player/PlayerController.h"
@@ -651,7 +652,10 @@ int main(int argc, char **argv)
     networkAccessManager->setCache(diskCache);
 
     JellyfinNative::DatabaseManager database;
+    JellyfinNative::InputLatencyMonitor inputLatencyMonitor;
     JellyfinNative::NativeAppWindow window(QString::fromLatin1(kAppId));
+    inputLatencyMonitor.attachWindow(&window);
+    window.setInputLatencyMonitor(&inputLatencyMonitor);
     configurePersistentRhiPipelineCache(window, cachePath);
     {
         JellyfinNative::Diagnostics::Phase phase(QStringLiteral("startup"), QStringLiteral("prepare_ui_surface"));
@@ -804,6 +808,7 @@ int main(int argc, char **argv)
     qmlRegisterSingletonInstance("JellyfinWebOS", 1, 0, "Management", controller->management());
     qmlRegisterSingletonInstance("JellyfinWebOS", 1, 0, "Router", router.get());
     qmlRegisterSingletonInstance("JellyfinWebOS", 1, 0, "NativeWindow", &window);
+    qmlRegisterSingletonInstance("JellyfinWebOS", 1, 0, "InputLatency", &inputLatencyMonitor);
     qmlRegisterSingletonInstance("JellyfinWebOS", 1, 0, "I18n", localization.get());
     qmlRegisterSingletonInstance("JellyfinWebOS", 1, 0, "Platform", platformInfo);
     qmlRegisterType<JellyfinNative::MpvVideoItem>("JellyfinWebOS", 1, 0, "MpvVideoItem");
