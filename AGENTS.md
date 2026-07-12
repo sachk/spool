@@ -27,6 +27,14 @@
 ## webOS
 
 - Do not build, install, launch, deploy, or test on a TV unless the user explicitly requests the final webOS pass.
+- Treat “deploy” as install-only. Never launch or relaunch the app unless the user separately asks to launch it.
+- For every requested deployment, create a fresh package from current sources in this order:
+  - `nix develop -c bash build-ipk.sh app`
+  - `nix develop -c bash build-ipk.sh stage`
+  - `nix develop -c bash build-ipk.sh package`
+  - Verify that the executable inside the IPK exactly matches `build/webos/stage/app/bin/jellyfin-native`.
+  - Install with `nix develop -c bash tools/webos/verify-device.sh --no-launch <ipk>`.
+- After installation, terminate any stale `jellyfin-native` process without launching a replacement, then verify that the installed executable SHA-256 matches the packaged executable.
 - Do not use `ares-*`, `luna-send`, ApplicationInstallerUtility, or TV SSH as routine development checks.
 - Never run `webos-mpv-demo-cycle.sh` unless explicitly requested.
 - If webOS diagnosis is requested, read current logs first and make one targeted source change. Do not run speculative deploy loops.
