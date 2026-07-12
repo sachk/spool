@@ -16,6 +16,7 @@
   - `nix develop .#native -c cmake --build build/linux-dev/app --target jellyfin-native`
 - Foreground-test the real local app with `timeout 10s nix run`. Do not add a smoke-only exit path; a visible launch catches GUI and runtime failures.
 - During large refactors, batch coherent edits before rebuilding. Prefer a focused target or touched test over repeated project-wide verification.
+- Never compile or `qmlformat` files one at a time. After a coherent edit batch, run one target build and pass all touched QML files to one `qmlformat` invocation (and all touched C++ files to one `clang-format` invocation).
 - Run touched C++ tests with `nix develop .#native -c ctest --test-dir <build-dir> -R '<tests>' --output-on-failure`.
 - Before committing C++/QML, format touched files with `clang-format`/`qmlformat`, then run `git diff --check`.
 - For Linux release packaging use:
