@@ -45,24 +45,12 @@ jobs:
           path: |
             C:\Qt\6.11.1\msvc2022_64
             C:\Qt\qcoro-0.12-msvc2022
-          key: windows-qt-6.11.1-qcoro-ef1231ae490465b4f592ca326eee6d56a3d802ae-v1
+          key: windows-qt-6.11.1-qcoro-ef1231ae490465b4f592ca326eee6d56a3d802ae-v2
 
-      - name: Install Qt without pip
+      - name: Install Qt from pinned official archives
         if: steps.qt-cache.outputs.cache-hit != 'true'
         shell: pwsh
-        run: |
-          $aqt = Join-Path $env:RUNNER_TEMP 'aqt.exe'
-          Invoke-WebRequest `
-            -Uri 'https://github.com/miurahr/aqtinstall/releases/download/v3.3.0/aqt_x64.exe' `
-            -OutFile $aqt
-          & $aqt install-qt windows desktop $env:QT_VERSION $env:QT_ARCH `
-            --outputdir C:\Qt `
-            --modules qtimageformats qtshadertools qttools qtwebsockets
-          if ($LASTEXITCODE -ne 0) { throw 'Qt installation failed.' }
-          if (-not (Test-Path "$env:JELLYFIN_QT_ROOT\imageformats\qwebp.dll") -and
-              -not (Test-Path "$env:JELLYFIN_QT_ROOT\plugins\imageformats\qwebp.dll")) {
-            throw 'The Qt WebP image plugin was not installed.'
-          }
+        run: tools\windows\install-qt.ps1 -Force
 
       - name: Build QCoro
         if: steps.qt-cache.outputs.cache-hit != 'true'
