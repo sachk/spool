@@ -346,20 +346,31 @@ describe_parallel_jobs() {
     "$per_job_mib" "$reserve_mib" >&2
 }
 
-native_mpv_common_args() {
+native_mpv_args() {
   local prefix="$1"
   local build_type="$2"
-  local cplayer="$3"
+  local platform="$3"
+  local manifest="${MPV_NATIVE_MANIFEST:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)/tools/manifests/mpv-native.json}"
+  command -v jq >/dev/null 2>&1 || {
+    echo "error: jq is required to read $manifest" >&2
+    return 1
+  }
+  [[ -f "$manifest" ]] || {
+    echo "error: mpv feature manifest not found: $manifest" >&2
+    return 1
+  }
+
+  local feature_args=()
+  mapfile -t feature_args < <(
+    jq -er --arg platform "$platform" \
+      '(.common + .platforms[$platform])[] | "-D" + .' "$manifest"
+  )
   MPV_NATIVE_ARGS=(
     --prefix "$prefix"
     --libdir lib
     --buildtype "$build_type"
     --default-library shared
-    -Db_lto=true
-    -Dbuild-date=false
-    -Dlibmpv=true
-    -Dlibcurl=enabled
-    "-Dcplayer=$cplayer"
+    "${feature_args[@]}"
   )
 }
 

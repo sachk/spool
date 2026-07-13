@@ -18,10 +18,12 @@
 #endif
 
 extern "C" {
+#ifndef Q_OS_WIN
 #include <fcntl.h>
 #include <limits.h>
 #include <signal.h>
 #include <unistd.h>
+#endif
 
 #ifdef __APPLE__
 #include <mach-o/dyld.h>
@@ -49,6 +51,7 @@ Q_IMPORT_PLUGIN(QSQLiteDriverPlugin)
 #include <QDir>
 #include <QElapsedTimer>
 #include <QFile>
+#include <QFileInfo>
 #include <QGuiApplication>
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -80,6 +83,10 @@ Q_IMPORT_PLUGIN(QSQLiteDriverPlugin)
 #include <cstring>
 #include <memory>
 
+#ifdef Q_OS_WIN
+#include <windows.h>
+#endif
+
 namespace {
 
 constexpr auto kAppId = "com.codex.jellyfinwebosnative";
@@ -87,8 +94,6 @@ constexpr auto kAppVersion = JELLYFIN_VERSION;
 #ifdef JELLYFIN_NATIVE_WEBOS
 constexpr auto kDefaultLogDir = "/tmp";
 constexpr auto kAppLogFileName = "com.codex.jellyfinwebosnative.log";
-#else
-constexpr auto kDefaultAppLogPath = "/tmp/com.codex.jellyfinnative-linux.log";
 #endif
 
 FILE *g_logFile = nullptr;
@@ -144,43 +149,67 @@ FILE *openAppLogFile(const QString& appRootPath)
     return openLogFileInDir(encodedFallbackDir, QByteArray(kAppLogFileName));
 #else
     Q_UNUSED(appRootPath);
-    const QByteArray preferred = QByteArray(kDefaultAppLogPath);
+#ifdef Q_OS_WIN
+    const QString dataRoot
+        = QString::fromLocal8Bit(qgetenv("LOCALAPPDATA")) + QLatin1Char('/') + QString::fromLatin1(kAppId);
+#else
+    const QString dataRoot = QStandardPaths::writableLocation(QStandardPaths::AppLocalDataLocation);
+#endif
+    const QString logDir = dataRoot + QStringLiteral("/logs");
+    QDir().mkpath(logDir);
+    const QByteArray preferred = QFile::encodeName(QDir(logDir).filePath(QStringLiteral("jellyfin-native.log")));
     if (FILE *file = openRotatedLogFile(preferred)) {
         g_logPath = preferred;
+        qputenv("JELLYFIN_NATIVE_LOG_DIR", QFile::encodeName(logDir));
         return file;
     }
     return nullptr;
 #endif
 }
 
-bool resolveAppRoot(char *buffer, size_t size)
+QString resolveAppRoot(const char *argv0)
 {
 #ifdef __APPLE__
+    char buffer[PATH_MAX];
+    const size_t size = sizeof(buffer);
     uint32_t length = static_cast<uint32_t>(size);
     if (_NSGetExecutablePath(buffer, &length) != 0)
-        return false;
+        return { };
     char resolved[PATH_MAX];
     if (realpath(buffer, resolved)) {
         if (strlen(resolved) >= size)
-            return false;
+            return { };
         strcpy(buffer, resolved);
     }
-#else
+#elif !defined(Q_OS_WIN)
+    char buffer[PATH_MAX];
+    const size_t size = sizeof(buffer);
     const ssize_t length = readlink("/proc/self/exe", buffer, size - 1);
     if (length < 0)
-        return false;
+        return { };
     buffer[length] = '\0';
+#else
+    Q_UNUSED(argv0);
+    wchar_t executablePath[32768] { };
+    const DWORD length = GetModuleFileNameW(nullptr, executablePath, static_cast<DWORD>(std::size(executablePath)));
+    if (length == 0 || length >= std::size(executablePath))
+        return { };
+    const QString path = QString::fromWCharArray(executablePath, static_cast<qsizetype>(length));
+    const qsizetype separator = path.lastIndexOf(QLatin1Char('\\'));
+    return separator > 0 ? path.left(separator) : QString();
 #endif
 
+#ifndef Q_OS_WIN
     char *lastSlash = strrchr(buffer, '/');
     if (!lastSlash)
-        return false;
+        return { };
     *lastSlash = '\0';
     lastSlash = strrchr(buffer, '/');
     if (!lastSlash)
-        return false;
+        return { };
     *lastSlash = '\0';
-    return true;
+    return QString::fromUtf8(buffer);
+#endif
 }
 
 QString startupCacheRoot(const QString& appRootPath)
@@ -197,7 +226,22 @@ QString startupCacheRoot(const QString& appRootPath)
     return QDir(appRootPath).filePath(QStringLiteral(".cache"));
 #else
     Q_UNUSED(appRootPath);
-    return QDir(QDir::home().filePath(QStringLiteral(".cache"))).filePath(QString::fromLatin1(kAppId));
+#ifdef Q_OS_WIN
+    const QString cacheRoot = QString::fromLocal8Bit(qgetenv("LOCALAPPDATA")) + QLatin1Char('/')
+        + QString::fromLatin1(kAppId) + QStringLiteral("/cache");
+#else
+    const QString cacheRoot = QStandardPaths::writableLocation(QStandardPaths::CacheLocation);
+#endif
+    return cacheRoot;
+#endif
+}
+
+QString persistentDataRoot()
+{
+#ifdef Q_OS_WIN
+    return QString::fromLocal8Bit(qgetenv("LOCALAPPDATA")) + QLatin1Char('/') + QString::fromLatin1(kAppId);
+#else
+    return QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
 #endif
 }
 
@@ -261,6 +305,7 @@ bool ensureWaylandEnv()
 // the deferred posted event never gets a chance to run, so Ctrl+C is silently
 // ignored. The signal handler instead writes a single byte to the pipe; a
 // QSocketNotifier on the main thread reads it and calls quit() safely.
+#ifndef Q_OS_WIN
 int g_signalPipe[2] = { -1, -1 };
 
 void handleSignal(int signalNumber)
@@ -271,17 +316,20 @@ void handleSignal(int signalNumber)
     ssize_t n = write(g_signalPipe[1], &byte, 1);
     (void)n;
 }
+#endif
 
 void logLine(const char *fmt, ...)
 {
     const long long elapsedMs = g_startupTimer.isValid() ? static_cast<long long>(g_startupTimer.elapsed()) : 0;
 
     va_list ap;
+#ifndef Q_OS_WIN
     va_start(ap, fmt);
     fprintf(stderr, "[%7lld ms] ", elapsedMs);
     vfprintf(stderr, fmt, ap);
     fputc('\n', stderr);
     va_end(ap);
+#endif
 
     if (!g_logFile)
         return;
@@ -448,16 +496,21 @@ int main(int argc, char **argv)
         }
     }
 
-    char appRoot[PATH_MAX];
-    if (!resolveAppRoot(appRoot, sizeof(appRoot)))
+    const QString appRootPath = resolveAppRoot(argv[0]);
+    if (appRootPath.isEmpty())
         return 1;
 
-    const QString appRootPath = QString::fromUtf8(appRoot);
-
     g_logFile = openAppLogFile(appRootPath);
+#ifndef Q_OS_WIN
     setvbuf(stderr, nullptr, _IOLBF, 0);
-    if (g_logFile)
+#endif
+    if (g_logFile) {
+#ifdef Q_OS_WIN
+        setvbuf(g_logFile, nullptr, _IONBF, 0);
+#else
         setvbuf(g_logFile, nullptr, _IOLBF, 0);
+#endif
+    }
 
     logLine("%s starting", kAppId);
     if (!g_logPath.isEmpty())
@@ -469,13 +522,13 @@ int main(int argc, char **argv)
     // to C for both this process and any inherited child env so the user does
     // not have to set LC_NUMERIC=C themselves.
     setlocale(LC_NUMERIC, "C");
-    setenv("LC_NUMERIC", "C", 1);
+    qputenv("LC_NUMERIC", QByteArrayLiteral("C"));
     if (setlocale(LC_CTYPE, "C.UTF-8")) {
-        setenv("LANG", "C.UTF-8", 1);
-        setenv("LC_CTYPE", "C.UTF-8", 1);
+        qputenv("LANG", QByteArrayLiteral("C.UTF-8"));
+        qputenv("LC_CTYPE", QByteArrayLiteral("C.UTF-8"));
     } else if (setlocale(LC_CTYPE, "en_US.UTF-8")) {
-        setenv("LANG", "en_US.UTF-8", 1);
-        setenv("LC_CTYPE", "en_US.UTF-8", 1);
+        qputenv("LANG", QByteArrayLiteral("en_US.UTF-8"));
+        qputenv("LC_CTYPE", QByteArrayLiteral("en_US.UTF-8"));
     }
 
 #ifdef JELLYFIN_NATIVE_WEBOS
@@ -528,15 +581,16 @@ int main(int argc, char **argv)
         qEnvironmentVariableIsSet("QT_QPA_PLATFORM") ? qgetenv("QT_QPA_PLATFORM") : QByteArrayLiteral("wayland"));
 #endif
     if (qEnvironmentVariableIsSet("JELLYFIN_NATIVE_VERBOSE_QT")) {
-        setenv("QT_DEBUG_PLUGINS", "1", 1);
-        setenv("QT_LOGGING_RULES", "qt.qml*=true;qt.qpa*=true;qt.scenegraph*=true;qt.quick*=true;qt.plugin*=true", 1);
+        qputenv("QT_DEBUG_PLUGINS", QByteArrayLiteral("1"));
+        qputenv("QT_LOGGING_RULES",
+            QByteArrayLiteral("qt.qml*=true;qt.qpa*=true;qt.scenegraph*=true;qt.quick*=true;qt.plugin*=true"));
     }
 #endif
 
     const QString cachePath = startupCacheRoot(appRootPath);
     configurePersistentStartupCaches(cachePath);
 
-    logLine("app root: %s", appRoot);
+    logLine("app root: %s", qPrintable(appRootPath));
     logLine("QT_QPA_PLATFORM=%s", qgetenv("QT_QPA_PLATFORM").constData());
     logLine("QT_PLUGIN_PATH=%s", qgetenv("QT_PLUGIN_PATH").constData());
     logLine("QML2_IMPORT_PATH=%s", qgetenv("QML2_IMPORT_PATH").constData());
@@ -547,6 +601,7 @@ int main(int argc, char **argv)
     qInstallMessageHandler(qtMessageHandler);
     QLoggingCategory::setFilterRules(QStringLiteral("qt.*.debug=false\nqt.*.info=false"));
 
+#ifndef Q_OS_WIN
     if (pipe(g_signalPipe) == 0) {
         // Non-blocking write so the signal handler never stalls; reads on the
         // notifier side are also non-blocking via QSocketNotifier semantics.
@@ -557,7 +612,7 @@ int main(int argc, char **argv)
         }
     }
 
-    struct sigaction action = {};
+    struct sigaction action = { };
     action.sa_handler = handleSignal;
     sigemptyset(&action.sa_mask);
     // SA_RESTART so handler doesn't break long-running syscalls in worker
@@ -565,6 +620,7 @@ int main(int argc, char **argv)
     action.sa_flags = SA_RESTART;
     sigaction(SIGINT, &action, nullptr);
     sigaction(SIGTERM, &action, nullptr);
+#endif
 
     QQuickStyle::setStyle(QStringLiteral("Basic"));
 
@@ -619,6 +675,7 @@ int main(int argc, char **argv)
     }
 
     std::unique_ptr<QSocketNotifier> signalNotifier;
+#ifndef Q_OS_WIN
     if (g_signalPipe[0] >= 0) {
         signalNotifier = std::make_unique<QSocketNotifier>(g_signalPipe[0], QSocketNotifier::Read);
         QObject::connect(
@@ -635,6 +692,7 @@ int main(int argc, char **argv)
                 app.quit();
             });
     }
+#endif
 
     const JellyfinNative::MemoryBudget memoryBudget = JellyfinNative::MemoryBudget::detect();
     logLine("memory budget: memTotal=%lld networkDisk=%lld qmlImageDisk=%lld artworkBytes=%d demuxer=%s/%s",
@@ -666,14 +724,14 @@ int main(int argc, char **argv)
     // identity and session reads are awaited after the first frame.
     {
         JellyfinNative::Diagnostics::Phase phase(QStringLiteral("startup"), QStringLiteral("database_initialize"));
-        if (!database.initialize(
-                QStandardPaths::writableLocation(QStandardPaths::AppDataLocation) + QStringLiteral("/cache.sqlite")))
+        const QString databasePath = persistentDataRoot() + QStringLiteral("/cache.sqlite");
+        if (!database.initialize(databasePath))
             return 1;
     }
 
     auto discovery = std::make_unique<JellyfinNative::DiscoveryController>();
     auto api = std::make_unique<JellyfinNative::JellyfinApiFacade>(networkAccessManager);
-    api->setDeviceIdentity({},
+    api->setDeviceIdentity({ },
 #ifdef JELLYFIN_NATIVE_WEBOS
         QStringLiteral("LG webOS TV"),
 #else

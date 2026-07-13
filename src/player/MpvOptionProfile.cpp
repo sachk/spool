@@ -144,7 +144,13 @@ std::vector<MpvOption> MpvOptionProfile::startupOptions(Platform platform, const
     } else {
         options.push_back({ "vo", "libmpv" });
         options.push_back({ "hwdec", "auto-safe" });
+#ifdef Q_OS_WIN
+        options.push_back({ "ao", "wasapi" });
+#elif defined(Q_OS_MACOS)
+        options.push_back({ "ao", "coreaudio" });
+#else
         options.push_back({ "ao", "pipewire,pulse,alsa" });
+#endif
     }
 
     const MpvOption applicationOptions[] = {
