@@ -724,6 +724,7 @@ FocusScope {
             clip: true
             keyNavigationEnabled: false
             reuseItems: true
+            highlightMoveDuration: 16
             opacity: gridReveal.delegatesReady ? 1 : 0
             boundsBehavior: Flickable.StopAtBounds
             model: Browse.items
@@ -751,6 +752,7 @@ FocusScope {
 
             FastWheelHandler {
                 flickable: grid
+                animationDuration: 16
             }
             onEdgeUp: root.focusToolbar()
             onAccepted: root.activateCurrent()
