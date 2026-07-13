@@ -26,6 +26,10 @@ class DatabaseWorker final : public QObject {
 public:
     bool initialize(const QString& databasePath)
     {
+        if (!QDir().mkpath(QFileInfo(databasePath).absolutePath())) {
+            qWarning() << "database: failed to create cache directory for" << databasePath;
+            return false;
+        }
         const QString connectionName = QStringLiteral("jellyfin_native_cache");
         if (QSqlDatabase::contains(connectionName))
             m_database = QSqlDatabase::database(connectionName);
@@ -33,8 +37,10 @@ public:
             m_database = QSqlDatabase::addDatabase(QStringLiteral("QSQLITE"), connectionName);
 
         m_database.setDatabaseName(databasePath);
-        if (!m_database.open())
+        if (!m_database.open()) {
+            qWarning() << "database: failed to open" << databasePath << m_database.lastError().text();
             return false;
+        }
 
         QSqlQuery query(m_database);
         if (!query.exec(QStringLiteral("PRAGMA user_version")) || !query.next())
@@ -89,7 +95,7 @@ public:
         query.prepare(QStringLiteral("SELECT value FROM kv WHERE key = ?"));
         query.addBindValue(key);
         if (!query.exec() || !query.next())
-            return {};
+            return { };
         return query.value(0);
     }
 
@@ -111,7 +117,7 @@ public:
         query.addBindValue(key);
         query.addBindValue(schemaVersion);
         if (!query.exec() || !query.next())
-            return {};
+            return { };
         return QJsonDocument::fromJson(query.value(0).toByteArray()).object();
     }
 
@@ -157,7 +163,7 @@ public:
         query.addBindValue(nameSpace);
         query.addBindValue(key);
         if (!query.exec() || !query.next())
-            return {};
+            return { };
 
         const qint64 updatedAt = query.value(1).toLongLong();
         const qint64 expiresAt = query.value(2).toLongLong();
@@ -165,7 +171,7 @@ public:
         const bool stale = maxAgeMs >= 0 && updatedAt < now - maxAgeMs;
         if (expired || stale) {
             removeCacheValue(nameSpace, key);
-            return {};
+            return { };
         }
 
         const QByteArray result = query.value(0).toByteArray();
@@ -255,7 +261,7 @@ public:
         if (m_database.isValid()) {
             const QString connectionName = m_database.connectionName();
             m_database.close();
-            m_database = {};
+            m_database = { };
             QSqlDatabase::removeDatabase(connectionName);
         }
     }

@@ -10,6 +10,9 @@
 #ifdef __APPLE__
 #include <sys/sysctl.h>
 #endif
+#ifdef Q_OS_WIN
+#include <windows.h>
+#endif
 
 namespace JellyfinNative {
 
@@ -45,6 +48,12 @@ namespace {
 #endif
 #ifdef __linux__
         return readLinuxMemTotal();
+#elif defined(Q_OS_WIN)
+        MEMORYSTATUSEX status { };
+        status.dwLength = sizeof(status);
+        if (GlobalMemoryStatusEx(&status))
+            return static_cast<qint64>(status.ullTotalPhys);
+        return 0;
 #else
         return 0;
 #endif

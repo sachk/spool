@@ -18,22 +18,9 @@ DEPLOY_APP="${DEPLOY_APP:-1}"
 setup_native_ccache "$APP_ROOT"
 mkdir -p "$MPV_PREFIX" "$APP_BUILD" "$APP_INSTALL"
 
-native_mpv_common_args "$MPV_PREFIX" release false
+native_mpv_args "$MPV_PREFIX" release macos
 MPV_SETUP_ARGS=(
   "${MPV_NATIVE_ARGS[@]}"
-  -Dcoreaudio=enabled
-  -Dcocoa=disabled
-  -Dgl-cocoa=disabled
-  -Dmacos-cocoa-cb=disabled
-  -Dmacos-media-player=disabled
-  -Dswift-build=disabled
-  -Djavascript=disabled
-  -Dlua=luajit
-  -Dlibarchive=enabled
-  -Dlibbluray=enabled
-  -Drubberband=enabled
-  -Duchardet=enabled
-  -Dvulkan=disabled
 )
 
 clean_mpv_install_prefix "$MPV_PREFIX"
