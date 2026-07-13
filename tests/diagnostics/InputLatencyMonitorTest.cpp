@@ -410,6 +410,7 @@ void testMissStatsFormatterAndClear()
         "one miss should emit one qWarning-compatible formatted line");
     require(timeline.sampleCount() == 1 && timeline.lateCount() == 1,
         "single published miss should increment sample and late counts once");
+    require(timeline.missedFrameCount() == 1, "20 ms response should miss one 16.67 ms frame");
     require(timeline.lastLatencyMs() == 20.0 && timeline.worstLatencyMs() == 20.0,
         "miss should update last and worst latency");
     require(timeline.lastStage() == QStringLiteral("present_queued"), "miss should update last terminal stage");
@@ -423,9 +424,18 @@ void testMissStatsFormatterAndClear()
     require(timeline.lastLatencyMs() == 10.0 && timeline.worstLatencyMs() == 20.0,
         "statistics should retain worst while updating last latency");
 
+    timeline.beginInput(keyEvent(Qt::Key_Down), ms(50), budget, InputLatencyRefreshSource::Screen, true);
+    timeline.beforeSynchronizing(ms(51));
+    timeline.afterRendering(ms(60));
+    const InputLatencySample multiFrameMiss = completeSubmitted(timeline, ms(101));
+    require(timeline.publish(multiFrameMiss), "multi-frame miss should publish");
+    require(timeline.missedFrameCount() == 4,
+        "51 ms response should add three actually missed frames to the cumulative count");
+
     timeline.clearStatistics();
     require(timeline.enabled(), "clear should leave enabled state unchanged");
     require(timeline.sampleCount() == 0 && timeline.lateCount() == 0, "clear should reset counters");
+    require(timeline.missedFrameCount() == 0, "clear should reset the missed-frame count");
     require(timeline.lastLatencyMs() == 0.0 && timeline.worstLatencyMs() == 0.0 && timeline.lastStage().isEmpty(),
         "clear should reset last, worst, and stage statistics");
     require(!timeline.nextDeadline(), "clear should cancel pending and current measurements");

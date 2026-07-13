@@ -117,6 +117,7 @@ namespace Detail {
         quint64 sampleCount() const;
         quint64 lateCount() const;
         double lastLatencyMs() const;
+        quint64 missedFrameCount() const;
         double worstLatencyMs() const;
         QString lastStage() const;
         quint64 epoch() const;
@@ -174,6 +175,7 @@ namespace Detail {
 
         quint64 m_sampleCount = 0;
         quint64 m_lateCount = 0;
+        quint64 m_missedFrameCount = 0;
         qint64 m_lastLatencyNs = 0;
         qint64 m_worstLatencyNs = 0;
         InputLatencyStage m_lastStage = InputLatencyStage::None;
@@ -192,6 +194,7 @@ class InputLatencyMonitor final : public QObject {
     Q_PROPERTY(QString lastStage READ lastStage NOTIFY statisticsChanged)
     Q_PROPERTY(quint64 sampleCount READ sampleCount NOTIFY statisticsChanged)
     Q_PROPERTY(quint64 lateCount READ lateCount NOTIFY statisticsChanged)
+    Q_PROPERTY(quint64 missedFrameCount READ missedFrameCount NOTIFY statisticsChanged)
     Q_PROPERTY(double frameBudgetMs READ frameBudgetMs NOTIFY frameBudgetChanged)
 
 public:
@@ -211,6 +214,7 @@ public:
     QString lastStage() const;
     quint64 sampleCount() const;
     quint64 lateCount() const;
+    quint64 missedFrameCount() const;
     double frameBudgetMs() const;
 
     Q_INVOKABLE void clearStatistics();

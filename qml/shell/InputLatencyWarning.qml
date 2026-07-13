@@ -11,7 +11,7 @@ Item {
 
     Surface {
         anchors.top: parent.top
-        anchors.right: parent.right
+        anchors.left: parent.left
         anchors.margins: Metrics.scaled(32)
         width: Math.min(parent.width - Metrics.scaled(64), Metrics.scaled(680))
         height: warningColumn.implicitHeight + Metrics.scaled(28)

@@ -41,6 +41,9 @@ Item {
                 text: "Late samples: " + InputLatency.lateCount
             }
             MonoText {
+                text: "Missed frames: " + InputLatency.missedFrameCount
+            }
+            MonoText {
                 text: "Last latency: " + InputLatency.lastLatencyMs.toFixed(2) + " ms"
             }
             MonoText {

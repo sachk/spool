@@ -9,6 +9,7 @@
 #include <QMouseEvent>
 #include <QQuickWindow>
 #include <QScreen>
+#include <QSettings>
 #include <QTabletEvent>
 #include <QTouchEvent>
 #include <QWheelEvent>
@@ -470,6 +471,7 @@ void InputLatencyTimeline::clearStatistics()
     cancel();
     m_sampleCount = 0;
     m_lateCount = 0;
+    m_missedFrameCount = 0;
     m_lastLatencyNs = 0;
     m_worstLatencyNs = 0;
     m_lastStage = InputLatencyStage::None;
@@ -490,6 +492,8 @@ bool InputLatencyTimeline::publish(const InputLatencySample& sample)
     ++m_sampleCount;
     if (sample.late)
         ++m_lateCount;
+    if (sample.late && sample.budgetNs > 0)
+        m_missedFrameCount += static_cast<quint64>((sample.totalNs - 1) / sample.budgetNs);
     m_lastLatencyNs = sample.totalNs;
     m_worstLatencyNs = std::max(m_worstLatencyNs, sample.totalNs);
     m_lastStage = sample.stage;
@@ -504,6 +508,11 @@ quint64 InputLatencyTimeline::sampleCount() const
 quint64 InputLatencyTimeline::lateCount() const
 {
     return m_lateCount;
+}
+
+quint64 InputLatencyTimeline::missedFrameCount() const
+{
+    return m_missedFrameCount;
 }
 
 double InputLatencyTimeline::lastLatencyMs() const
@@ -530,6 +539,10 @@ quint64 InputLatencyTimeline::epoch() const
 
 namespace JellyfinNative {
 
+namespace {
+    constexpr auto kEnabledSetting = "diagnostics/inputLatencyGuard";
+}
+
 using Detail::InputLatencyRefreshSource;
 using Detail::InputLatencySample;
 using Detail::InputLatencyTimeline;
@@ -546,8 +559,9 @@ InputLatencyMonitor::InputLatencyMonitor(QObject *parent)
     m_warningTimer.setInterval(std::chrono::seconds(2));
     connect(&m_warningTimer, &QTimer::timeout, this, &InputLatencyMonitor::hideWarning);
 
-    if (qEnvironmentVariable("JELLYFIN_INPUT_LATENCY_DIAGNOSTICS") == QLatin1String("1"))
-        m_timeline.setEnabled(true);
+    const bool persistedEnabled = QSettings().value(QLatin1String(kEnabledSetting), false).toBool();
+    const bool environmentEnabled = qEnvironmentVariable("JELLYFIN_INPUT_LATENCY_DIAGNOSTICS") == QLatin1String("1");
+    m_timeline.setEnabled(persistedEnabled || environmentEnabled);
 }
 
 InputLatencyTimeline::Nanoseconds InputLatencyMonitor::now()
@@ -650,6 +664,7 @@ void InputLatencyMonitor::setEnabled(bool enabled)
     if (m_timeline.enabled() == enabled)
         return;
     m_timeline.setEnabled(enabled);
+    QSettings().setValue(QLatin1String(kEnabledSetting), enabled);
     finishCancellationOnGuiThread();
     emit enabledChanged();
 }
@@ -692,6 +707,11 @@ quint64 InputLatencyMonitor::sampleCount() const
 quint64 InputLatencyMonitor::lateCount() const
 {
     return m_timeline.lateCount();
+}
+
+quint64 InputLatencyMonitor::missedFrameCount() const
+{
+    return m_timeline.missedFrameCount();
 }
 
 double InputLatencyMonitor::frameBudgetMs() const
