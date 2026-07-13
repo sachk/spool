@@ -41,7 +41,7 @@ jobs:
 
       - name: Restore Qt and QCoro
         id: qt-cache
-        uses: actions/cache@v5
+        uses: actions/cache/restore@v5
         with:
           path: |
             C:\Qt\6.11.1\msvc2022_64
@@ -81,6 +81,15 @@ jobs:
           cmake --install $build
           if ($LASTEXITCODE -ne 0) { throw 'QCoro installation failed.' }
 
+      - name: Save Qt and QCoro
+        if: steps.qt-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v5
+        with:
+          path: |
+            C:\Qt\6.11.1\msvc2022_64
+            C:\Qt\qcoro-0.12-msvc2022
+          key: windows-qt-6.11.1-qcoro-ef1231ae490465b4f592ca326eee6d56a3d802ae-v2
+
       - name: Read mpv revision
         id: mpv-revision
         shell: pwsh
@@ -89,7 +98,7 @@ jobs:
 
       - name: Restore source-built libmpv
         id: mpv-cache
-        uses: actions/cache@v5
+        uses: actions/cache/restore@v5
         with:
           path: build/windows-deps/mpv
           key: windows-mpv-${{ runner.os }}-${{ steps.mpv-revision.outputs.revision }}-${{ hashFiles('tools/windows/build-mpv.ps1', 'tools/windows/common.ps1', 'tools/manifests/mpv-native.json') }}
@@ -99,6 +108,13 @@ jobs:
         timeout-minutes: 45
         shell: pwsh
         run: tools\windows\build-mpv.ps1 -Clean
+
+      - name: Save source-built libmpv
+        if: steps.mpv-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v5
+        with:
+          path: build/windows-deps/mpv
+          key: windows-mpv-${{ runner.os }}-${{ steps.mpv-revision.outputs.revision }}-${{ hashFiles('tools/windows/build-mpv.ps1', 'tools/windows/common.ps1', 'tools/manifests/mpv-native.json') }}
 
       - name: Build application
         shell: pwsh
