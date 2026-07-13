@@ -1,0 +1,145 @@
+name: Windows packages
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: windows-packages-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  QT_VERSION: 6.11.1
+  QT_ARCH: win64_msvc2022_64
+  JELLYFIN_QT_ROOT: C:\Qt\6.11.1\msvc2022_64
+  JELLYFIN_QCORO_ROOT: C:\Qt\qcoro-0.12-msvc2022
+  QCORO_REVISION: ef1231ae490465b4f592ca326eee6d56a3d802ae
+
+jobs:
+  windows-x64:
+    name: Windows x64 portable and installer
+    runs-on: windows-2022
+    timeout-minutes: 180
+
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          submodules: recursive
+
+      - name: Install build and packaging tools
+        shell: pwsh
+        run: |
+          choco install meson nasm nsis -y --no-progress
+          $env:PATH = "C:\Program Files\LLVM\bin;C:\Program Files\NASM;$env:PATH"
+          foreach ($tool in @('cmake', 'ninja', 'clang', 'lld-link', 'meson', 'nasm', 'makensis')) {
+            $command = Get-Command $tool -ErrorAction SilentlyContinue
+            if (-not $command) { throw "Required build tool is missing: $tool" }
+            Write-Host "$tool -> $($command.Source)"
+          }
+
+      - name: Restore Qt and QCoro
+        id: qt-cache
+        uses: actions/cache@v5
+        with:
+          path: |
+            C:\Qt\6.11.1\msvc2022_64
+            C:\Qt\qcoro-0.12-msvc2022
+          key: windows-qt-6.11.1-qcoro-ef1231ae490465b4f592ca326eee6d56a3d802ae-v1
+
+      - name: Install Qt without pip
+        if: steps.qt-cache.outputs.cache-hit != 'true'
+        shell: pwsh
+        run: |
+          $aqt = Join-Path $env:RUNNER_TEMP 'aqt.exe'
+          Invoke-WebRequest `
+            -Uri 'https://github.com/miurahr/aqtinstall/releases/download/v3.3.0/aqt_x64.exe' `
+            -OutFile $aqt
+          & $aqt install-qt windows desktop $env:QT_VERSION $env:QT_ARCH `
+            --outputdir C:\Qt `
+            --modules qtimageformats qtshadertools qttools qtwebsockets
+          if ($LASTEXITCODE -ne 0) { throw 'Qt installation failed.' }
+          if (-not (Test-Path "$env:JELLYFIN_QT_ROOT\imageformats\qwebp.dll") -and
+              -not (Test-Path "$env:JELLYFIN_QT_ROOT\plugins\imageformats\qwebp.dll")) {
+            throw 'The Qt WebP image plugin was not installed.'
+          }
+
+      - name: Build QCoro
+        if: steps.qt-cache.outputs.cache-hit != 'true'
+        shell: pwsh
+        run: |
+          . tools\windows\common.ps1
+          Import-MsvcEnvironment
+          $source = Join-Path $env:RUNNER_TEMP 'qcoro'
+          $build = Join-Path $env:RUNNER_TEMP 'qcoro-build'
+          git clone --filter=blob:none --no-checkout https://github.com/danvratil/qcoro.git $source
+          git -C $source fetch --depth 1 origin $env:QCORO_REVISION
+          git -C $source checkout --detach FETCH_HEAD
+          cmake -S $source -B $build -G Ninja `
+            -DCMAKE_BUILD_TYPE=Release `
+            "-DCMAKE_PREFIX_PATH=$env:JELLYFIN_QT_ROOT" `
+            "-DCMAKE_INSTALL_PREFIX=$env:JELLYFIN_QCORO_ROOT" `
+            -DQCORO_BUILD_EXAMPLES=OFF `
+            -DQCORO_BUILD_TESTING=OFF `
+            -DQCORO_WITH_QTDBUS=OFF `
+            -DQCORO_WITH_QML=OFF `
+            -DQCORO_WITH_QTQUICK=OFF `
+            -DQCORO_WITH_QTTEST=OFF `
+            -DQCORO_WITH_QTWEBSOCKETS=OFF
+          if ($LASTEXITCODE -ne 0) { throw 'QCoro configuration failed.' }
+          cmake --build $build
+          if ($LASTEXITCODE -ne 0) { throw 'QCoro build failed.' }
+          cmake --install $build
+          if ($LASTEXITCODE -ne 0) { throw 'QCoro installation failed.' }
+
+      - name: Read mpv revision
+        id: mpv-revision
+        shell: pwsh
+        run: |
+          "revision=$(git -C mpv rev-parse HEAD)" >> $env:GITHUB_OUTPUT
+
+      - name: Restore source-built libmpv
+        id: mpv-cache
+        uses: actions/cache@v5
+        with:
+          path: build/windows-deps/mpv
+          key: windows-mpv-${{ runner.os }}-${{ steps.mpv-revision.outputs.revision }}-${{ hashFiles('tools/windows/build-mpv.ps1', 'tools/windows/common.ps1', 'tools/manifests/mpv-native.json') }}
+
+      - name: Build libmpv from the fork
+        if: steps.mpv-cache.outputs.cache-hit != 'true'
+        shell: pwsh
+        run: tools\windows\build-mpv.ps1 -Clean
+
+      - name: Build application
+        shell: pwsh
+        run: tools\windows\build.ps1 -Clean
+
+      - name: Run tests
+        shell: pwsh
+        run: tools\windows\test.ps1
+
+      - name: Stage release payload
+        shell: pwsh
+        run: tools\windows\stage.ps1
+
+      - name: Build portable and installer packages
+        shell: pwsh
+        run: tools\windows\package.ps1
+
+      - name: Upload portable executable
+        uses: actions/upload-artifact@v7
+        with:
+          name: jellyfin-native-windows-x64-portable
+          path: |
+            dist/*-Portable.exe
+            dist/*-SHA256SUMS.txt
+          if-no-files-found: error
+
+      - name: Upload installer executable
+        uses: actions/upload-artifact@v7
+        with:
+          name: jellyfin-native-windows-x64-installer
+          path: |
+            dist/*-Setup.exe
+            dist/*-SHA256SUMS.txt
+          if-no-files-found: error
