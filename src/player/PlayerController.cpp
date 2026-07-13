@@ -22,6 +22,7 @@ extern "C" {
 #include <QDir>
 #include <QElapsedTimer>
 #include <QFile>
+#include <QHash>
 #include <QMetaObject>
 #include <QPointer>
 #include <QStandardPaths>
@@ -31,6 +32,7 @@ extern "C" {
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
+#include <iterator>
 #include <utility>
 
 #if defined(__GLIBC__)
@@ -45,6 +47,30 @@ namespace {
 
     constexpr uint64_t kTimePosRefreshReply = 0x6a666e7074730001ULL;
     constexpr uint64_t kPlaybackTimeRefreshReply = 0x6a666e7074730002ULL;
+    constexpr uint64_t kDebugStatsReplyPrefix = 0x6a666e6400000000ULL;
+    constexpr uint64_t kDebugStatsReplyMask = 0xffffffff00000000ULL;
+
+    struct DebugProperty {
+        const char *name;
+        mpv_format format;
+    };
+
+    constexpr DebugProperty kDebugProperties[] = {
+        { "decoder-frame-drop-count", MPV_FORMAT_INT64 },
+        { "frame-drop-count", MPV_FORMAT_INT64 },
+        { "mistimed-frame-count", MPV_FORMAT_INT64 },
+        { "vo-delayed-frame-count", MPV_FORMAT_INT64 },
+        { "avsync", MPV_FORMAT_DOUBLE },
+        { "estimated-vf-fps", MPV_FORMAT_DOUBLE },
+        { "estimated-display-fps", MPV_FORMAT_DOUBLE },
+        { "vsync-jitter", MPV_FORMAT_DOUBLE },
+        { "demuxer-cache-duration", MPV_FORMAT_DOUBLE },
+        { "cache-speed", MPV_FORMAT_INT64 },
+        { "video-codec", MPV_FORMAT_STRING },
+        { "hwdec-current", MPV_FORMAT_STRING },
+        { "current-vo", MPV_FORMAT_STRING },
+        { "current-gpu-context", MPV_FORMAT_STRING },
+    };
     constexpr auto kNightModeFilter
         = "lavfi=[pan=stereo|FL<0.5*FL+1.0*FC+0.25*BL|FR<0.5*FR+1.0*FC+0.25*BR,"
           "dialoguenhance=original=0.25:enhance=2.0,"
@@ -227,6 +253,9 @@ PlayerController::PlayerController(NativeAppWindow *window, JellyfinApiFacade *a
     m_backGuardTimer.setInterval(1500);
     m_seekWatchdogTimer.setSingleShot(true);
     m_seekWatchdogTimer.setInterval(2500);
+    m_debugStatsTimer.setInterval(1000);
+    m_debugStatsTimer.setTimerType(Qt::CoarseTimer);
+    connect(&m_debugStatsTimer, &QTimer::timeout, this, &PlayerController::requestDebugStats);
     connect(&m_backGuardTimer, &QTimer::timeout, this, [this]() {
         if (!m_sessionActive || m_backAllowed)
             return;
@@ -478,6 +507,11 @@ bool PlayerController::seeking() const
 bool PlayerController::debugOsdVisible() const
 {
     return m_debugOsdVisible;
+}
+
+QStringList PlayerController::debugStats() const
+{
+    return m_debugStats;
 }
 
 bool PlayerController::subtitlesEnabled() const
@@ -904,10 +938,134 @@ void PlayerController::previewSeekBy(double deltaSeconds)
 
 void PlayerController::toggleDebugOsd()
 {
-    if (!mpvCommand({ QByteArrayLiteral("script-binding"), QByteArrayLiteral("stats/display-stats-toggle") }))
+    if (!m_mpvLifecycle.handle())
         return;
     m_debugOsdVisible = !m_debugOsdVisible;
+#ifndef JELLYFIN_NATIVE_WEBOS
+    if (auto *videoItem = MpvVideoItem::instance())
+        videoItem->setDiagnosticsEnabled(m_debugOsdVisible);
+#endif
+    if (m_debugOsdVisible) {
+        m_debugCounterPrevious.clear();
+        requestDebugStats();
+        m_debugStatsTimer.start();
+    } else {
+        m_debugStatsTimer.stop();
+        m_debugStats.clear();
+        m_debugSample.clear();
+        m_debugSamplePending = 0;
+        emit debugStatsChanged();
+    }
     emit playbackStateChanged();
+}
+
+void PlayerController::requestDebugStats()
+{
+    auto *handle = m_mpvLifecycle.handle();
+    if (!m_debugOsdVisible || !handle)
+        return;
+
+    m_debugSampleGeneration = (m_debugSampleGeneration + 1) & 0x00ffffffU;
+    if (m_debugSampleGeneration == 0)
+        m_debugSampleGeneration = 1;
+    m_debugSample.clear();
+    m_debugSamplePending = static_cast<int>(std::size(kDebugProperties));
+
+#ifndef JELLYFIN_NATIVE_WEBOS
+    if (auto *videoItem = MpvVideoItem::instance()) {
+        const MpvVideoItem::RenderDiagnostics render = videoItem->takeRenderDiagnostics();
+        m_debugSample.insert(QStringLiteral("qt-render-requests"), QVariant::fromValue(render.requests));
+        m_debugSample.insert(QStringLiteral("qt-render-frames"), QVariant::fromValue(render.frames));
+        m_debugSample.insert(QStringLiteral("qt-render-total-ns"), QVariant::fromValue(render.totalNanoseconds));
+        m_debugSample.insert(QStringLiteral("qt-render-max-ns"), QVariant::fromValue(render.maxNanoseconds));
+    }
+#endif
+
+    for (int index = 0; index < static_cast<int>(std::size(kDebugProperties)); ++index) {
+        const uint64_t reply = kDebugStatsReplyPrefix | (static_cast<uint64_t>(m_debugSampleGeneration) << 8)
+            | static_cast<uint64_t>(index);
+        const DebugProperty& property = kDebugProperties[index];
+        if (mpv_get_property_async(handle, reply, property.name, property.format) < 0)
+            --m_debugSamplePending;
+    }
+    if (m_debugSamplePending == 0)
+        publishDebugStats();
+}
+
+void PlayerController::acceptDebugStatReply(quint32 generation, int index, const QVariant& value)
+{
+    if (!m_debugOsdVisible || generation != m_debugSampleGeneration || index < 0
+        || index >= static_cast<int>(std::size(kDebugProperties))) {
+        return;
+    }
+
+    if (value.isValid())
+        m_debugSample.insert(QString::fromLatin1(kDebugProperties[index].name), value);
+    if (m_debugSamplePending > 0)
+        --m_debugSamplePending;
+    if (m_debugSamplePending == 0)
+        publishDebugStats();
+}
+
+void PlayerController::publishDebugStats()
+{
+    auto counter = [this](const QString& name) {
+        const qint64 value = m_debugSample.value(name).toLongLong();
+        const qint64 delta
+            = m_debugCounterPrevious.contains(name) ? qMax<qint64>(0, value - m_debugCounterPrevious.value(name)) : 0;
+        m_debugCounterPrevious.insert(name, value);
+        return QStringLiteral("%1 (+%2)").arg(value).arg(delta);
+    };
+    auto number = [this](const QString& name, int precision, const QString& fallback = QStringLiteral("n/a")) {
+        const QVariant value = m_debugSample.value(name);
+        return value.isValid() ? QString::number(value.toDouble(), 'f', precision) : fallback;
+    };
+    auto scaledNumber = [this](const QString& name, double scale, int precision) {
+        const QVariant value = m_debugSample.value(name);
+        return value.isValid() ? QString::number(value.toDouble() * scale, 'f', precision) : QStringLiteral("n/a");
+    };
+    auto text = [this](const QString& name, const QString& fallback = QStringLiteral("n/a")) {
+        const QString value = m_debugSample.value(name).toString();
+        return value.isEmpty() ? fallback : value;
+    };
+
+    QStringList lines {
+        QStringLiteral("Mistimed %1    externally delayed %2")
+            .arg(counter(QStringLiteral("mistimed-frame-count")), counter(QStringLiteral("vo-delayed-frame-count"))),
+        QStringLiteral("Dropped: decoder %1    output %2")
+            .arg(counter(QStringLiteral("decoder-frame-drop-count")), counter(QStringLiteral("frame-drop-count"))),
+        QStringLiteral("A/V sync %1 ms    video %2 fps    display %3 fps")
+            .arg(scaledNumber(QStringLiteral("avsync"), 1000.0, 2))
+            .arg(number(QStringLiteral("estimated-vf-fps"), 3))
+            .arg(number(QStringLiteral("estimated-display-fps"), 3)),
+        QStringLiteral("VSync jitter %1%    cache %2 s    input %3 Mbps")
+            .arg(scaledNumber(QStringLiteral("vsync-jitter"), 100.0, 2))
+            .arg(number(QStringLiteral("demuxer-cache-duration"), 1))
+            .arg(m_debugSample.contains(QStringLiteral("cache-speed"))
+                    ? QString::number(
+                          m_debugSample.value(QStringLiteral("cache-speed")).toDouble() * 8.0 / 1000000.0, 'f', 1)
+                    : QStringLiteral("n/a")),
+        QStringLiteral("Path: %1    codec %2    hwdec %3    GPU %4")
+            .arg(text(QStringLiteral("current-vo")), text(QStringLiteral("video-codec")),
+                text(QStringLiteral("hwdec-current"), QStringLiteral("software")),
+                text(QStringLiteral("current-gpu-context"))),
+    };
+
+    const quint64 renderFrames = m_debugSample.value(QStringLiteral("qt-render-frames")).toULongLong();
+    const quint64 renderTotal = m_debugSample.value(QStringLiteral("qt-render-total-ns")).toULongLong();
+    const quint64 renderMaximum = m_debugSample.value(QStringLiteral("qt-render-max-ns")).toULongLong();
+    if (m_debugSample.contains(QStringLiteral("qt-render-frames"))) {
+        const double averageMs = renderFrames > 0 ? static_cast<double>(renderTotal) / renderFrames / 1000000.0 : 0.0;
+        lines.push_back(QStringLiteral("Qt/libmpv render: %1 frames    avg %2 ms    max %3 ms    requests %4")
+                .arg(renderFrames)
+                .arg(averageMs, 0, 'f', 2)
+                .arg(static_cast<double>(renderMaximum) / 1000000.0, 0, 'f', 2)
+                .arg(m_debugSample.value(QStringLiteral("qt-render-requests")).toULongLong()));
+    }
+
+    m_debugStats = lines;
+    emit debugStatsChanged();
+    qInfo().noquote() << "player-perf:" << lines.join(QStringLiteral(" | "));
 }
 
 void PlayerController::toggleSubtitles()
@@ -1170,6 +1328,18 @@ void PlayerController::resetPlaybackUiState()
     m_seeking = false;
     m_positionTracker.clear();
     m_debugOsdVisible = false;
+    m_debugStatsTimer.stop();
+    m_debugSamplePending = 0;
+    m_debugSample.clear();
+    m_debugCounterPrevious.clear();
+    if (!m_debugStats.isEmpty()) {
+        m_debugStats.clear();
+        emit debugStatsChanged();
+    }
+#ifndef JELLYFIN_NATIVE_WEBOS
+    if (auto *videoItem = MpvVideoItem::instance())
+        videoItem->setDiagnosticsEnabled(false);
+#endif
     m_timeline.clear();
     rebuildTrickplaySheetUrls();
     m_statusText = QStringLiteral("Ready");
@@ -1283,6 +1453,34 @@ void PlayerController::handleMpvEvent(mpv_event *event)
         });
         break;
     case MPV_EVENT_GET_PROPERTY_REPLY: {
+        if ((event->reply_userdata & kDebugStatsReplyMask) == kDebugStatsReplyPrefix) {
+            const quint32 generation = static_cast<quint32>((event->reply_userdata >> 8) & 0x00ffffffU);
+            const int index = static_cast<int>(event->reply_userdata & 0xffU);
+            const auto *property = static_cast<mpv_event_property *>(event->data);
+            QVariant value;
+            if (property && property->data) {
+                switch (property->format) {
+                case MPV_FORMAT_INT64:
+                    value = QVariant::fromValue(*static_cast<int64_t *>(property->data));
+                    break;
+                case MPV_FORMAT_DOUBLE:
+                    value = *static_cast<double *>(property->data);
+                    break;
+                case MPV_FORMAT_FLAG:
+                    value = *static_cast<int *>(property->data) != 0;
+                    break;
+                case MPV_FORMAT_STRING:
+                    value = QString::fromUtf8(static_cast<char *>(property->data));
+                    break;
+                default:
+                    break;
+                }
+            }
+            QMetaObject::invokeMethod(
+                this, [this, generation, index, value]() { acceptDebugStatReply(generation, index, value); });
+            break;
+        }
+
         if (event->reply_userdata != kTimePosRefreshReply && event->reply_userdata != kPlaybackTimeRefreshReply)
             break;
 

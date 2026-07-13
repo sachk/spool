@@ -9,6 +9,7 @@
 
 #include <QByteArray>
 #include <QByteArrayList>
+#include <QHash>
 #include <QObject>
 #include <QStringList>
 #include <QTimer>
@@ -37,6 +38,7 @@ class PlayerController final : public QObject {
     Q_PROPERTY(int bufferingPercent READ bufferingPercent NOTIFY playbackStateChanged)
     Q_PROPERTY(bool seeking READ seeking NOTIFY playbackStateChanged)
     Q_PROPERTY(bool debugOsdVisible READ debugOsdVisible NOTIFY playbackStateChanged)
+    Q_PROPERTY(QStringList debugStats READ debugStats NOTIFY debugStatsChanged)
     Q_PROPERTY(bool subtitlesEnabled READ subtitlesEnabled NOTIFY tracksChanged)
     Q_PROPERTY(QStringList subtitleTracks READ subtitleTracks NOTIFY tracksChanged)
     Q_PROPERTY(int selectedSubtitleIndex READ selectedSubtitleIndex NOTIFY tracksChanged)
@@ -74,6 +76,7 @@ public:
     int bufferingPercent() const;
     bool seeking() const;
     bool debugOsdVisible() const;
+    QStringList debugStats() const;
     bool subtitlesEnabled() const;
     QStringList subtitleTracks() const;
     int selectedSubtitleIndex() const;
@@ -142,6 +145,7 @@ signals:
     void audioDelayMsChanged();
     void audioOutputModeChanged();
     void volumeChanged();
+    void debugStatsChanged();
 
 public:
     // Called from main on aboutToQuit so we tear down before the scene graph
@@ -191,6 +195,9 @@ private:
     bool applyMpvRuntimeOptions(MpvOptionApplyMode mode, mpv_handle *handle);
     void discardPreparedMpvForOptionChange(const char *reason);
     void handleVideoRenderError(const QString& message);
+    void requestDebugStats();
+    void acceptDebugStatReply(quint32 generation, int index, const QVariant& value);
+    void publishDebugStats();
 
     NativeAppWindow *m_window = nullptr;
     JellyfinApiFacade *m_api = nullptr;
@@ -204,6 +211,7 @@ private:
     QTimer m_backGuardTimer;
     QTimer m_uiPositionTimer;
     QTimer m_seekWatchdogTimer;
+    QTimer m_debugStatsTimer;
     bool m_visible = false;
     bool m_sessionActive = false;
     bool m_paused = false;
@@ -211,6 +219,11 @@ private:
     int m_bufferingPercent = 0;
     bool m_seeking = false;
     bool m_debugOsdVisible = false;
+    QStringList m_debugStats;
+    QVariantMap m_debugSample;
+    QHash<QString, qint64> m_debugCounterPrevious;
+    quint32 m_debugSampleGeneration = 0;
+    int m_debugSamplePending = 0;
     PlaybackTrackState m_tracks;
     bool m_backAllowed = true;
     QString m_title;
