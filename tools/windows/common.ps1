@@ -2,30 +2,37 @@ $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 
 function Import-MsvcEnvironment {
-    if (Get-Command cl.exe -ErrorAction SilentlyContinue) {
-        return
-    }
-
-    $vswhere = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio\Installer\vswhere.exe'
-    if (-not (Test-Path -LiteralPath $vswhere)) {
-        throw 'vswhere.exe was not found. Install Visual Studio 2022 with Desktop development with C++.'
-    }
-
-    $installPath = & $vswhere -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
-    if (-not $installPath) {
-        throw 'No Visual Studio installation with the x64 C++ toolchain was found.'
-    }
-
-    $vcvars = Join-Path $installPath 'VC\Auxiliary\Build\vcvars64.bat'
-    $environment = & $env:ComSpec /d /s /c "`"$vcvars`" >nul && set"
-    foreach ($line in $environment) {
-        if ($line -match '^([^=]+)=(.*)$') {
-            # Codex and some terminal hosts expose both PATH and Path. vcvars
-            # updates PATH; importing the stale mixed-case duplicate afterward
-            # would silently discard the compiler directories.
-            if ($Matches[1] -ceq 'Path') { continue }
-            Set-Item -Path "Env:$($Matches[1])" -Value $Matches[2]
+    if (-not (Get-Command cl.exe -ErrorAction SilentlyContinue)) {
+        $vswhere = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio\Installer\vswhere.exe'
+        if (-not (Test-Path -LiteralPath $vswhere)) {
+            throw 'vswhere.exe was not found. Install Visual Studio 2022 with Desktop development with C++.'
         }
+
+        $installPath = & $vswhere -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
+        if (-not $installPath) {
+            throw 'No Visual Studio installation with the x64 C++ toolchain was found.'
+        }
+
+        $vcvars = Join-Path $installPath 'VC\Auxiliary\Build\vcvars64.bat'
+        $environment = & $env:ComSpec /d /s /c "`"$vcvars`" >nul && set"
+        foreach ($line in $environment) {
+            if ($line -match '^([^=]+)=(.*)$') {
+                # Codex and some terminal hosts expose both PATH and Path. vcvars
+                # updates PATH; importing the stale mixed-case duplicate afterward
+                # would silently discard the compiler directories.
+                if ($Matches[1] -ceq 'Path') { continue }
+                Set-Item -Path "Env:$($Matches[1])" -Value $Matches[2]
+            }
+        }
+    }
+
+    # GitHub's Windows image also exposes MinGW. Ninja otherwise discovers its
+    # c++.exe before cl.exe and silently mixes the GNU ABI with MSVC Qt/QCoro.
+    $compiler = (Get-Command cl.exe -ErrorAction Stop).Source
+    $env:CC = $compiler
+    $env:CXX = $compiler
+    foreach ($name in @('CC_LD', 'CXX_LD', 'WINDRES')) {
+        Remove-Item -Path "Env:$name" -ErrorAction SilentlyContinue
     }
 }
 
