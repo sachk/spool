@@ -33,4 +33,11 @@ $mpvDll = Get-ChildItem (Join-Path $env:JELLYFIN_MPV_ROOT 'bin') -Filter '*mpv*.
 if (-not $mpvDll) { throw "libmpv DLL was not found below $env:JELLYFIN_MPV_ROOT\bin" }
 Copy-Item -LiteralPath $mpvDll.FullName -Destination $stageDir
 
+$licenseDir = Join-Path $stageDir 'licenses'
+New-Item -ItemType Directory -Path $licenseDir | Out-Null
+Copy-Item -LiteralPath (Join-Path $root 'qml\fonts\Inter-LICENSE.txt') `
+    -Destination (Join-Path $licenseDir 'Inter-OFL.txt')
+Copy-Item -LiteralPath (Join-Path $root 'qml\fonts\MaterialIcons-LICENSE.txt') `
+    -Destination (Join-Path $licenseDir 'MaterialIcons-Apache-2.0.txt')
+
 Write-Host "Staged Windows release: $stageDir"

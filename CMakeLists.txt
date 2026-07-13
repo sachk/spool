@@ -433,6 +433,7 @@ qt_add_qml_module(jellyfin-native
         qml/theme/Theme.qml
         qml/theme/Typography.qml
     RESOURCES
+        qml/fonts/Inter-Variable.ttf
         qml/fonts/MaterialIcons-Regular.ttf
 )
 
