@@ -24,6 +24,8 @@ FocusScope {
     property int audioSyncStepIndex: 2
     property bool scrubbing: false
     property double scrubSeconds: 0
+    property bool timelineHovering: false
+    property double timelineHoverSeconds: 0
 
     readonly property bool previewing: input.previewing
     readonly property real uiScale: Math.max(0.65, Math.min(1.25, Math.max(0.78, Math.min(1.0, height / 1440))
@@ -130,7 +132,7 @@ FocusScope {
     }
 
     function isPinned() {
-        return scrubbing || isMenuOpen() || audioSyncVisible
+        return scrubbing || timelineHovering || isMenuOpen() || audioSyncVisible
     }
 
     function isControlsActive() {

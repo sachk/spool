@@ -46,6 +46,7 @@ Item {
         anchors.left: parent.left
         anchors.right: parent.right
         anchors.bottom: parent.bottom
+        anchors.bottomMargin: root.dp(18)
         height: root.focused ? root.dp(16) : root.dp(10)
         radius: height / 2
         color: Theme.borderStrong
@@ -104,27 +105,53 @@ Item {
     }
 
     MouseArea {
+        id: hoverArea
+
         anchors.fill: parent
         acceptedButtons: Qt.LeftButton
+        hoverEnabled: true
+
+        function secondsForX(x) {
+            return root.overlay.clampSeconds(x / Math.max(1, width) * (root.overlay.hasPlayer
+                                                                       ? root.overlay.player.durationSeconds : 0))
+        }
+
+        function updateHover(x) {
+            root.overlay.timelineHoverSeconds = secondsForX(x)
+            root.overlay.timelineHovering = true
+            root.overlay.showControls("timeline")
+        }
 
         function updatePosition(mouse) {
+            root.overlay.timelineHovering = false
             root.overlay.focusZone = "timeline"
             root.overlay.controlsVisible = true
             root.overlay.scrubbing = true
-            root.overlay.scrubSeconds = root.overlay.clampSeconds(mouse.x / Math.max(1, width) * (
-                                                                      root.overlay.hasPlayer
-                                                                      ? root.overlay.player.durationSeconds : 0))
+            root.overlay.scrubSeconds = secondsForX(mouse.x)
         }
 
+        onEntered: updateHover(mouseX)
+        onExited: {
+            root.overlay.timelineHovering = false
+            root.overlay.maybeRestartAutohide()
+        }
         onPressed: mouse => updatePosition(mouse)
         onPositionChanged: mouse => {
-            if (root.overlay.scrubbing)
+            if (pressed || root.overlay.scrubbing)
             updatePosition(mouse)
+            else
+            updateHover(mouse.x)
         }
         onReleased: mouse => {
             updatePosition(mouse)
             root.overlay.commitScrub()
+            if (containsMouse)
+            updateHover(mouse.x)
         }
-        onCanceled: root.overlay.scrubbing = false
+        onCanceled: {
+            root.overlay.scrubbing = false
+            if (containsMouse)
+            updateHover(mouseX)
+        }
     }
 }

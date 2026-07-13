@@ -624,12 +624,17 @@ if(BUILD_TESTING AND NOT CMAKE_CROSSCOMPILING)
             COMMAND "${QMLTESTRUNNER_EXECUTABLE}"
                 -input "${CMAKE_CURRENT_SOURCE_DIR}/tests/qml/tst_InputLatencyWarning.qml"
         )
+        add_test(NAME player-seek-bar-hover
+            COMMAND "${QMLTESTRUNNER_EXECUTABLE}"
+                -input "${CMAKE_CURRENT_SOURCE_DIR}/tests/qml/tst_PlayerSeekBarHover.qml"
+        )
         set(JELLYFIN_QML_TEST_ENV
             "QT_QPA_PLATFORM=offscreen"
             "QT_QUICK_BACKEND=software"
             ${JELLYFIN_TEST_ENV}
         )
-        set_tests_properties(route-policy key-router player-overlay-input atomic-view-reveal input-latency-warning PROPERTIES
+        set_tests_properties(route-policy key-router player-overlay-input atomic-view-reveal input-latency-warning
+            player-seek-bar-hover PROPERTIES
             ENVIRONMENT "${JELLYFIN_QML_TEST_ENV}"
         )
     endif()

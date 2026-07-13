@@ -7,12 +7,17 @@ Item {
 
     required property var overlay
     readonly property bool active: overlay.hasPlayer && overlay.controlsVisible && overlay.player.trickplayAvailable && (
-                                       overlay.scrubbing || overlay.previewing)
-    readonly property var trickplayData: active ? overlay.player.trickplayForSeconds(overlay.scrubbing
-                                                                                     ? overlay.scrubSeconds :
-                                                                                       overlay.positionSeconds()) : ({})
+                                       overlay.scrubbing || overlay.timelineHovering || overlay.previewing)
+    readonly property double previewSeconds: overlay.scrubbing ? overlay.scrubSeconds : overlay.timelineHovering
+                                                                 ? overlay.timelineHoverSeconds :
+                                                                   overlay.positionSeconds()
+    readonly property var trickplayData: active ? overlay.player.trickplayForSeconds(previewSeconds) : ({})
     readonly property bool ready: trickplayData && trickplayData.available === true
     readonly property real scaleFactor: overlay.uiScale * 1.4
+    readonly property real previewRatio: overlay.hasPlayer && overlay.player.durationSeconds > 0 ? Math.max(0, Math.min(
+                                                                                                                1, previewSeconds
+                                                                                                                / overlay.player.durationSeconds)) :
+                                                                                                   0
 
     function dp(value) {
         return overlay.dp(value)
@@ -36,8 +41,8 @@ Item {
     Item {
         readonly property real imageWidth: root.ready ? root.trickplayData.width * root.scaleFactor : 0
         readonly property real imageHeight: root.ready ? root.trickplayData.height * root.scaleFactor : 0
-        x: Math.max(root.dp(52), Math.min(parent.width - imageWidth - root.dp(52), root.overlay.positionRatio()
-                                          * parent.width - imageWidth / 2))
+        x: Math.max(root.dp(52), Math.min(parent.width - imageWidth - root.dp(52), root.previewRatio * parent.width
+                                          - imageWidth / 2))
         width: imageWidth
         height: imageHeight + root.dp(24)
 
@@ -67,8 +72,7 @@ Item {
             anchors.horizontalCenter: frame.horizontalCenter
             anchors.top: frame.bottom
             anchors.topMargin: root.dp(4)
-            text: root.overlay.formatClock(root.overlay.scrubbing ? root.overlay.scrubSeconds : root.overlay.positionSeconds(
-                                                                        ))
+            text: root.overlay.formatClock(root.previewSeconds)
             color: Theme.textPrimary
             font.pixelSize: root.dp(16)
             font.weight: Font.Medium
