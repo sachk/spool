@@ -1,4 +1,5 @@
 #pragma once
+#include "../common/JellyfinTypes.h"
 
 #include <QJsonArray>
 #include <QJsonObject>
@@ -16,6 +17,8 @@ public:
     static PlaybackSelection selectSource(const QJsonArray& mediaSources, bool preferRemux);
     static QString buildUrl(const QString& serverUrl, const QString& itemId, const QString& accessToken,
         const PlaybackSelection& selection);
+    static TrickplayInfo selectTrickplay(
+        const QJsonObject& trickplay, const QString& mediaSourceId, int preferredWidth);
     static QJsonObject buildDeviceProfile(qint64 maxStreamingBitrate);
 };
 

@@ -204,46 +204,6 @@ namespace {
         return source;
     }
 
-    bool isTrickplayWidthMap(const QJsonObject& object)
-    {
-        if (object.isEmpty())
-            return false;
-        const QJsonObject first = object.constBegin().value().toObject();
-        return first.contains(QStringLiteral("Width")) || first.contains(QStringLiteral("TileWidth"))
-            || first.contains(QStringLiteral("Interval"));
-    }
-
-    TrickplayInfo trickplayFromApiJson(const QJsonObject& trickplay, const QString& mediaSourceId, int preferredWidth)
-    {
-        QJsonObject widths;
-        if (isTrickplayWidthMap(trickplay)) {
-            widths = trickplay;
-        } else if (!mediaSourceId.isEmpty() && trickplay.contains(mediaSourceId)) {
-            widths = trickplay.value(mediaSourceId).toObject();
-        } else if (!trickplay.isEmpty()) {
-            widths = trickplay.constBegin().value().toObject();
-        }
-
-        TrickplayInfo best;
-        int bestDiff = std::numeric_limits<int>::max();
-        for (auto it = widths.begin(); it != widths.end(); ++it) {
-            const QJsonObject info = it.value().toObject();
-            const int width = info.value(QStringLiteral("Width")).toInt();
-            const int diff = std::abs(width - preferredWidth);
-            if (diff < bestDiff) {
-                bestDiff = diff;
-                best.width = width;
-                best.height = info.value(QStringLiteral("Height")).toInt();
-                best.tileWidth = info.value(QStringLiteral("TileWidth")).toInt();
-                best.tileHeight = info.value(QStringLiteral("TileHeight")).toInt();
-                best.thumbnailCount = info.value(QStringLiteral("ThumbnailCount")).toInt();
-                best.intervalMs = info.value(QStringLiteral("Interval")).toInt();
-                best.bandwidth = info.value(QStringLiteral("Bandwidth")).toInt();
-            }
-        }
-        return best;
-    }
-
     MovieItem mediaItemFromJson(const QJsonObject& object)
     {
         MovieItem item = metaFromJson<MovieItem>(object, MetaJsonKeyPolicy::PascalCase);
@@ -1174,6 +1134,25 @@ QCoro::Task<void> JellyfinApiFacade::syncPlayReportBuffering(
     co_await requestNoContent(HttpMethod::Post, path, QJsonDocument(body));
 }
 
+QCoro::Task<void> JellyfinApiFacade::syncPlaySetNewQueue(
+    QStringList itemIds, int playingItemPosition, qint64 startPositionTicks)
+{
+    QJsonArray playingQueue;
+    for (const QString& itemId : itemIds) {
+        if (!itemId.isEmpty())
+            playingQueue.append(itemId);
+    }
+    if (playingQueue.isEmpty() || playingItemPosition < 0 || playingItemPosition >= playingQueue.size())
+        throw std::runtime_error("SyncPlay queue has no playable item");
+
+    const QJsonObject body = {
+        { QStringLiteral("PlayingQueue"), playingQueue },
+        { QStringLiteral("PlayingItemPosition"), playingItemPosition },
+        { QStringLiteral("StartPositionTicks"), startPositionTicks },
+    };
+    co_await requestNoContent(HttpMethod::Post, QStringLiteral("/SyncPlay/SetNewQueue"), QJsonDocument(body));
+}
+
 QCoro::Task<PlaybackSession> JellyfinApiFacade::negotiatePlayback(MovieItem movie)
 {
     Diagnostics::Task task(QStringLiteral("api_negotiate_playback"),
@@ -1200,7 +1179,16 @@ QCoro::Task<PlaybackSession> JellyfinApiFacade::negotiatePlayback(MovieItem movi
                HttpMethod::Post, QStringLiteral("/Items/%1/PlaybackInfo").arg(movie.id), query, QJsonDocument(body)))
               .object();
 
-    co_return buildPlaybackSession(movie, playbackResponse);
+    PlaybackSession session = buildPlaybackSession(movie, playbackResponse);
+    if (session.trickplay.width <= 0) {
+        const QUrlQuery itemQuery = ItemsQuery().fields(QStringLiteral("Trickplay")).toUrlQuery();
+        const QJsonObject item = (co_await requestJson(HttpMethod::Get,
+                                      QStringLiteral("/Users/%1/Items/%2").arg(m_session.userId, movie.id), itemQuery))
+                                     .object();
+        session.trickplay = PlaybackNegotiation::selectTrickplay(
+            item.value(QStringLiteral("Trickplay")).toObject(), session.mediaSourceId, 320);
+    }
+    co_return session;
 }
 
 QCoro::Task<void> JellyfinApiFacade::postCapabilities()
@@ -1439,11 +1427,11 @@ PlaybackSession JellyfinApiFacade::buildPlaybackSession(
     const QString mediaSourceId = requireString(selectedSource, QStringLiteral("Id"));
     const QString container = cleanContainerName(selectedSource.value(QStringLiteral("Container")).toString());
 
-    TrickplayInfo trickplay
-        = trickplayFromApiJson(playbackResponse.value(QStringLiteral("Trickplay")).toObject(), mediaSourceId, 320);
+    TrickplayInfo trickplay = PlaybackNegotiation::selectTrickplay(
+        playbackResponse.value(QStringLiteral("Trickplay")).toObject(), mediaSourceId, 320);
     if (trickplay.width <= 0) {
-        trickplay
-            = trickplayFromApiJson(selectedSource.value(QStringLiteral("Trickplay")).toObject(), mediaSourceId, 320);
+        trickplay = PlaybackNegotiation::selectTrickplay(
+            selectedSource.value(QStringLiteral("Trickplay")).toObject(), mediaSourceId, 320);
     }
 
     return {

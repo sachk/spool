@@ -4,6 +4,7 @@
 #include <QUrlQuery>
 
 #include <algorithm>
+#include <limits>
 #include <stdexcept>
 
 namespace JellyfinNative {
@@ -115,6 +116,44 @@ PlaybackSelection PlaybackNegotiation::selectSource(const QJsonArray& mediaSourc
     if (bestRank < 0 || selected.source.isEmpty())
         throw std::runtime_error("No playable media source available");
     return selected;
+}
+
+TrickplayInfo PlaybackNegotiation::selectTrickplay(
+    const QJsonObject& trickplay, const QString& mediaSourceId, int preferredWidth)
+{
+    QJsonObject widths;
+    const QJsonObject first
+        = trickplay.constBegin() == trickplay.constEnd() ? QJsonObject {} : trickplay.constBegin().value().toObject();
+    const bool widthMap = first.contains(QStringLiteral("Width")) || first.contains(QStringLiteral("TileWidth"))
+        || first.contains(QStringLiteral("Interval"));
+    if (widthMap) {
+        widths = trickplay;
+    } else if (!mediaSourceId.isEmpty() && trickplay.contains(mediaSourceId)) {
+        widths = trickplay.value(mediaSourceId).toObject();
+    } else if (!trickplay.isEmpty()) {
+        widths = first;
+    }
+
+    TrickplayInfo best;
+    int bestDiff = std::numeric_limits<int>::max();
+    for (auto it = widths.constBegin(); it != widths.constEnd(); ++it) {
+        const QJsonObject info = it.value().toObject();
+        const int width = info.value(QStringLiteral("Width")).toInt();
+        if (width <= 0)
+            continue;
+        const int diff = std::abs(width - preferredWidth);
+        if (diff >= bestDiff)
+            continue;
+        bestDiff = diff;
+        best.width = width;
+        best.height = info.value(QStringLiteral("Height")).toInt();
+        best.tileWidth = info.value(QStringLiteral("TileWidth")).toInt();
+        best.tileHeight = info.value(QStringLiteral("TileHeight")).toInt();
+        best.thumbnailCount = info.value(QStringLiteral("ThumbnailCount")).toInt();
+        best.intervalMs = info.value(QStringLiteral("Interval")).toInt();
+        best.bandwidth = info.value(QStringLiteral("Bandwidth")).toInt();
+    }
+    return best;
 }
 
 QString PlaybackNegotiation::buildUrl(

@@ -98,6 +98,7 @@ public:
     QCoro::Task<void> syncPlayReportPing(qint64 pingMs);
     QCoro::Task<void> syncPlayReportBuffering(
         bool buffering, qint64 positionTicks, bool playing, QString playlistItemId, QDateTime serverTime);
+    QCoro::Task<void> syncPlaySetNewQueue(QStringList itemIds, int playingItemPosition, qint64 startPositionTicks);
 
     QCoro::Task<void> postCapabilities();
     QCoro::Task<void> reportPlaybackStart(PlaybackSession session);

@@ -71,6 +71,36 @@ int main(int argc, char **argv)
     require(playbackQuery.queryItemValue(QStringLiteral("api_key")) == QStringLiteral("playback-token/with space"),
         "playback URLs should carry the access token as api_key for mpv URL auth");
 
+    const QJsonObject smallTrickplay {
+        { QStringLiteral("Width"), 160 },
+        { QStringLiteral("Height"), 90 },
+        { QStringLiteral("TileWidth"), 10 },
+        { QStringLiteral("TileHeight"), 10 },
+        { QStringLiteral("ThumbnailCount"), 123 },
+        { QStringLiteral("Interval"), 10'000 },
+    };
+    const QJsonObject preferredTrickplay {
+        { QStringLiteral("Width"), 320 },
+        { QStringLiteral("Height"), 180 },
+        { QStringLiteral("TileWidth"), 5 },
+        { QStringLiteral("TileHeight"), 5 },
+        { QStringLiteral("ThumbnailCount"), 50 },
+        { QStringLiteral("Interval"), 5'000 },
+    };
+    const QJsonObject itemTrickplay {
+        { QStringLiteral("media-source"),
+            QJsonObject {
+                { QStringLiteral("160"), smallTrickplay },
+                { QStringLiteral("320"), preferredTrickplay },
+            } },
+    };
+    const TrickplayInfo trickplay
+        = PlaybackNegotiation::selectTrickplay(itemTrickplay, QStringLiteral("media-source"), 320);
+    require(trickplay.width == 320 && trickplay.height == 180,
+        "item trickplay metadata should select the closest requested width");
+    require(trickplay.tileWidth == 5 && trickplay.tileHeight == 5 && trickplay.intervalMs == 5'000,
+        "item trickplay metadata should retain sprite layout and interval");
+
     const QJsonObject profile = PlaybackNegotiation::buildDeviceProfile(25'000'000);
     require(profile.value(QStringLiteral("MaxStreamingBitrate")).toInteger() == 25'000'000,
         "device profile should carry the configured bitrate");

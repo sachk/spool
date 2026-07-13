@@ -386,13 +386,11 @@ void AppController::loadMoreCurrentItems()
 
 void AppController::playQueuedItems(const std::vector<MovieItem>& items, int startIndex, bool fromStart)
 {
-    if (!queueMutationAllowed())
-        return;
     if (!m_playQueue->playNow(items, startIndex)) {
-        setErrorText(QStringLiteral("This item cannot be queued."));
+        showToast(QStringLiteral("This item cannot be queued."));
         return;
     }
-    playQueueCurrent(fromStart);
+    startQueuedPlayback(fromStart);
 }
 
 void AppController::playModel(MovieGridModel *model, bool shuffled)
@@ -403,7 +401,7 @@ void AppController::playModel(MovieGridModel *model, bool shuffled)
     const auto firstPlayable = std::find_if(
         items.begin(), items.end(), [](const MovieItem& item) { return !item.id.isEmpty() && isPlayableItem(item); });
     if (firstPlayable == items.end()) {
-        setErrorText(QStringLiteral("This list has no playable items."));
+        showToast(QStringLiteral("This list has no playable items."));
         return;
     }
     playQueuedItems(items, static_cast<int>(std::distance(items.begin(), firstPlayable)), false);
@@ -413,13 +411,38 @@ void AppController::playModel(MovieGridModel *model, bool shuffled)
 
 void AppController::playQueuedItem(const MovieItem& item, bool fromStart)
 {
-    if (!queueMutationAllowed())
-        return;
     if (!m_playQueue->playNow(item)) {
-        setErrorText(QStringLiteral("This item cannot be queued."));
+        showToast(QStringLiteral("This item cannot be queued."));
         return;
     }
-    playQueueCurrent(fromStart);
+    startQueuedPlayback(fromStart);
+}
+
+void AppController::startQueuedPlayback(bool fromStart)
+{
+    if (!m_syncPlay || !m_syncPlay->enabled()) {
+        playQueueCurrent(fromStart);
+        return;
+    }
+
+    const std::vector<PlaybackQueueItem> queue = m_playQueue->nowPlayingQueue();
+    QStringList itemIds;
+    itemIds.reserve(static_cast<qsizetype>(queue.size()));
+    for (const PlaybackQueueItem& item : queue)
+        itemIds.push_back(item.itemId);
+
+    const MovieItem item = m_playQueue->currentItem();
+    const qint64 startPositionTicks
+        = fromStart || !isMeaningfulResumePosition(item.resumeTicks, item.runtimeTicks) ? 0 : item.resumeTicks;
+    setBusy(true, QStringLiteral("Updating SyncPlay queue…"));
+    Async::runScoped(
+        this, m_api->syncPlaySetNewQueue(itemIds, m_playQueue->currentIndex(), startPositionTicks),
+        [this, fromStart]() { playQueueCurrent(fromStart); },
+        [this](const std::exception_ptr& error) {
+            setBusy(false);
+            showToast(exceptionMessage(error));
+        },
+        "syncplay queue update");
 }
 
 void AppController::playQueueCurrent(bool fromStart)
@@ -435,7 +458,7 @@ void AppController::playQueueCurrent(bool fromStart)
         this, startPlayback(item), []() {},
         [this](const std::exception_ptr& error) {
             setBusy(false);
-            setErrorText(exceptionMessage(error));
+            showToast(exceptionMessage(error));
         },
         "playback startup");
 }
@@ -443,7 +466,7 @@ void AppController::playQueueCurrent(bool fromStart)
 bool AppController::queueMutationAllowed()
 {
     if (m_syncPlay && m_syncPlay->enabled()) {
-        setErrorText(QStringLiteral("Leave SyncPlay before changing the play queue."));
+        showToast(QStringLiteral("Leave SyncPlay before changing the play queue."));
         return false;
     }
     return true;

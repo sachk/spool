@@ -153,6 +153,7 @@ private:
     void playQueuedItems(const std::vector<MovieItem>& items, int startIndex, bool fromStart = false);
     void playQueuedItem(const MovieItem& item, bool fromStart = false);
     void playQueueCurrent(bool fromStart = false);
+    void startQueuedPlayback(bool fromStart = false);
     bool queueMutationAllowed();
     // Series/Season open their child listing; everything else plays directly.
     void playOrOpen(const MovieItem& item, bool fromStart = false);
