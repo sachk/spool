@@ -19,9 +19,12 @@ extern "C" {
 #include <QByteArray>
 #include <QCoreApplication>
 #include <QDebug>
+#include <QDir>
 #include <QElapsedTimer>
+#include <QFile>
 #include <QMetaObject>
 #include <QPointer>
+#include <QStandardPaths>
 #include <QtGlobal>
 
 #include <cmath>
@@ -38,7 +41,7 @@ namespace JellyfinNative {
 
 namespace {
 
-    constexpr auto kDefaultMpvLogPath = "/tmp/com.codex.jellyfinnative-mpv.log";
+    constexpr auto kMpvLogFileName = "com.codex.jellyfinnative-mpv.log";
 
     constexpr uint64_t kTimePosRefreshReply = 0x6a666e7074730001ULL;
     constexpr uint64_t kPlaybackTimeRefreshReply = 0x6a666e7074730002ULL;
@@ -80,13 +83,15 @@ namespace {
     QByteArray mpvLogPath()
     {
         const QByteArray logDir = qgetenv("JELLYFIN_NATIVE_LOG_DIR");
-        if (logDir.isEmpty())
-            return QByteArray(kDefaultMpvLogPath);
+        if (logDir.isEmpty()) {
+            const QString fallback = QStandardPaths::writableLocation(QStandardPaths::CacheLocation);
+            return QFile::encodeName(QDir(fallback).filePath(QString::fromLatin1(kMpvLogFileName)));
+        }
 
         QByteArray path = logDir;
         if (!path.endsWith('/'))
             path += '/';
-        path += QByteArrayLiteral("com.codex.jellyfinnative-mpv.log");
+        path += QByteArray(kMpvLogFileName);
         return path;
     }
 

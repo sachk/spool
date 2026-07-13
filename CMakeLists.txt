@@ -8,6 +8,10 @@ endif()
 
 project(JellyfinNativeWebOS VERSION "${JELLYFIN_VERSION}" LANGUAGES CXX)
 
+if(WIN32)
+    add_compile_definitions(NOMINMAX WIN32_LEAN_AND_MEAN)
+endif()
+
 set(JELLYFIN_NATIVE_WEBOS_DEFAULT OFF)
 if(CMAKE_CROSSCOMPILING)
     set(JELLYFIN_NATIVE_WEBOS_DEFAULT ON)
@@ -41,7 +45,9 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
-find_package(PkgConfig REQUIRED)
+if(NOT WIN32)
+    find_package(PkgConfig REQUIRED)
+endif()
 
 set(JELLYFIN_QT_COMPONENTS
     Core
@@ -147,7 +153,25 @@ if(JELLYFIN_NATIVE_WEBOS)
         endif()
     endforeach()
 else()
-    pkg_check_modules(MPV REQUIRED IMPORTED_TARGET mpv)
+    if(WIN32)
+        set(MPV_ROOT "" CACHE PATH "Windows libmpv SDK prefix")
+        find_path(MPV_INCLUDE_DIR mpv/client.h
+            HINTS "${MPV_ROOT}/include"
+            REQUIRED
+        )
+        find_library(MPV_LIBRARY
+            NAMES mpv libmpv
+            HINTS "${MPV_ROOT}/lib"
+            REQUIRED
+        )
+        add_library(MPV::MPV UNKNOWN IMPORTED)
+        set_target_properties(MPV::MPV PROPERTIES
+            IMPORTED_LOCATION "${MPV_LIBRARY}"
+            INTERFACE_INCLUDE_DIRECTORIES "${MPV_INCLUDE_DIR}"
+        )
+    else()
+        pkg_check_modules(MPV REQUIRED IMPORTED_TARGET mpv)
+    endif()
     if(UNIX AND NOT APPLE)
         find_package(OpenGL REQUIRED)
     endif()
@@ -502,7 +526,11 @@ if(JELLYFIN_NATIVE_WEBOS)
         "-Wl,-rpath-link,${WEBOS_SYSROOT_BASE_LIB_DIR}"
     )
 else()
-    target_link_libraries(jellyfin-core PUBLIC PkgConfig::MPV)
+    if(WIN32)
+        target_link_libraries(jellyfin-core PUBLIC MPV::MPV)
+    else()
+        target_link_libraries(jellyfin-core PUBLIC PkgConfig::MPV)
+    endif()
     if(UNIX AND NOT APPLE)
         target_link_libraries(jellyfin-core PUBLIC OpenGL::GL)
         target_include_directories(jellyfin-core PUBLIC "${OPENGL_INCLUDE_DIR}")

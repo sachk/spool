@@ -1,0 +1,36 @@
+. (Join-Path $PSScriptRoot 'common.ps1')
+Initialize-WindowsBuildEnvironment
+$root = Get-RepositoryRoot
+$buildDir = Join-Path $root 'build\windows-release\app'
+$stageDir = Join-Path $root 'build\windows-release\stage'
+$exe = Join-Path $buildDir 'jellyfin-native.exe'
+
+if (-not (Test-Path -LiteralPath $exe)) {
+    throw "Release executable was not found: $exe"
+}
+
+if (Test-Path -LiteralPath $stageDir) {
+    Remove-Item -LiteralPath $stageDir -Recurse -Force
+}
+New-Item -ItemType Directory -Path $stageDir | Out-Null
+Copy-Item -LiteralPath $exe -Destination $stageDir
+
+& (Join-Path $env:JELLYFIN_QT_ROOT 'bin\windeployqt.exe') `
+    --release --no-translations --no-system-d3d-compiler --no-system-dxc-compiler `
+    --no-compiler-runtime --no-opengl-sw `
+    --skip-plugin-types qmltooling,generic `
+    --include-plugins qwebp `
+    --exclude-plugins qsqlibase,qsqlmimer,qsqloci,qsqlodbc,qsqlpsql `
+    --qmldir (Join-Path $root 'qml') (Join-Path $stageDir 'jellyfin-native.exe')
+if ($LASTEXITCODE -ne 0) { throw 'windeployqt failed.' }
+
+$webpPlugin = Join-Path $stageDir 'imageformats\qwebp.dll'
+if (-not (Test-Path -LiteralPath $webpPlugin)) {
+    throw 'Qt WebP support was not deployed. Install qt.qt6.6111.addons.qtimageformats with MaintenanceTool.'
+}
+
+$mpvDll = Get-ChildItem (Join-Path $env:JELLYFIN_MPV_ROOT 'bin') -Filter '*mpv*.dll' | Select-Object -First 1
+if (-not $mpvDll) { throw "libmpv DLL was not found below $env:JELLYFIN_MPV_ROOT\bin" }
+Copy-Item -LiteralPath $mpvDll.FullName -Destination $stageDir
+
+Write-Host "Staged Windows release: $stageDir"
