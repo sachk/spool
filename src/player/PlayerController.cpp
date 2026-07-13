@@ -278,14 +278,15 @@ void PlayerController::teardownMpv()
     m_idleMpvPreparationEnabled = false;
     m_idleMpvPreparationScheduled = false;
     destroyIdleMpv("teardown");
-    m_mpvLifecycle.destroy([](mpv_handle *) {
 #ifndef JELLYFIN_NATIVE_WEBOS
-        // Free the render context first; this is thread-safe and decouples us from
-        // the scene-graph render thread (which may already be shutting down).
-        if (auto *videoItem = MpvVideoItem::instance())
-            videoItem->setMpvHandle(nullptr);
+    // All OpenGL render API calls must run with Qt's original context current.
+    // Hand destruction to the render thread before destroying the mpv core.
+    if (auto *videoItem = MpvVideoItem::instance(); videoItem && !videoItem->releaseMpvHandle()) {
+        qCritical() << "player: timed out releasing the mpv render context; preserving the mpv core";
+        return;
+    }
 #endif
-    });
+    m_mpvLifecycle.destroy();
 }
 
 void PlayerController::scheduleIdleMpvPreparation()
@@ -694,7 +695,7 @@ bool PlayerController::ensureMpv(bool needsVideoSurface)
 #ifndef JELLYFIN_NATIVE_WEBOS
         if (needsVideoSurface) {
             if (auto *videoItem = MpvVideoItem::instance())
-                videoItem->setMpvHandle(nullptr);
+                videoItem->releaseMpvHandle();
         }
 #endif
         mpv_terminate_destroy(handle);

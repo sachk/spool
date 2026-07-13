@@ -1,11 +1,13 @@
 #include "MpvVideoItem.h"
 
+#include <QEventLoop>
 #include <QMutexLocker>
 #include <QOpenGLContext>
 #include <QOpenGLFramebufferObject>
 #include <QOpenGLFramebufferObjectFormat>
 #include <QPointer>
 #include <QQuickWindow>
+#include <QTimer>
 #include <QtDebug>
 
 extern "C" {
@@ -35,10 +37,7 @@ namespace {
 
         ~MpvFboRenderer() override
         {
-            if (m_item) {
-                if (auto *ctx = m_item->m_renderCtxAtomic.exchange(nullptr))
-                    mpv_render_context_free(ctx);
-            }
+            releaseRenderContext();
         }
 
         QOpenGLFramebufferObject *createFramebufferObject(const QSize& size) override
@@ -56,17 +55,57 @@ namespace {
             const auto snap = item->takePendingHandle();
             if (!snap.dirty)
                 return;
-            mpv_handle *next = snap.handle;
 
-            // Free the old context (if still ours — setMpvHandle(nullptr) may
-            // have already claimed and freed it from the GUI thread).
-            if (auto *old = item->m_renderCtxAtomic.exchange(nullptr))
-                mpv_render_context_free(old);
+            m_nextHandle = snap.handle;
+            m_handleDirty = true;
+            m_releaseWaiter = snap.releaseWaiter;
+            m_releaseCompleted = snap.releaseCompleted;
+        }
 
-            if (!next)
+        void render() override
+        {
+            if (!m_item)
                 return;
 
-            mpv_opengl_init_params glInit {};
+            if (m_handleDirty) {
+                releaseRenderContext();
+                if (m_nextHandle)
+                    createRenderContext(m_nextHandle);
+                m_nextHandle = nullptr;
+                m_handleDirty = false;
+                completeReleaseWaiter();
+            }
+
+            mpv_render_context *ctx = m_item->m_renderCtxAtomic.load();
+            if (!ctx)
+                return;
+
+            QOpenGLFramebufferObject *fbo = framebufferObject();
+            if (!fbo)
+                return;
+
+            mpv_opengl_fbo mpfbo { };
+            mpfbo.fbo = static_cast<int>(fbo->handle());
+            mpfbo.w = fbo->width();
+            mpfbo.h = fbo->height();
+            mpfbo.internal_format = 0;
+
+            mpv_render_param params[] = {
+                { MPV_RENDER_PARAM_OPENGL_FBO, &mpfbo },
+                { MPV_RENDER_PARAM_INVALID, nullptr },
+            };
+
+            if (m_window)
+                m_window->beginExternalCommands();
+            mpv_render_context_render(ctx, params);
+            if (m_window)
+                m_window->endExternalCommands();
+        }
+
+    private:
+        void createRenderContext(mpv_handle *next)
+        {
+            mpv_opengl_init_params glInit { };
             glInit.get_proc_address = &getProcAddressGl;
             // Deliberately do NOT set MPV_RENDER_PARAM_ADVANCED_CONTROL.
             //
@@ -97,9 +136,9 @@ namespace {
                 const QString message = QStringLiteral("Failed to initialize video rendering: %1")
                                             .arg(QString::fromUtf8(mpv_error_string(err)));
                 qCritical() << "MpvVideoItem:" << message;
-                const QPointer<MpvVideoItem> guardedItem(item);
+                const QPointer<MpvVideoItem> guardedItem(m_item);
                 QMetaObject::invokeMethod(
-                    item,
+                    m_item,
                     [guardedItem, message]() {
                         if (guardedItem)
                             emit guardedItem->renderError(message);
@@ -107,45 +146,31 @@ namespace {
                     Qt::QueuedConnection);
                 return;
             }
-            mpv_render_context_set_update_callback(newCtx, &MpvFboRenderer::onMpvUpdate, static_cast<void *>(item));
-            item->m_renderCtxAtomic.store(newCtx);
+            mpv_render_context_set_update_callback(newCtx, &MpvFboRenderer::onMpvUpdate, static_cast<void *>(m_item));
+            m_item->m_renderCtxAtomic.store(newCtx);
         }
 
-        void render() override
+        void releaseRenderContext()
         {
             if (!m_item)
                 return;
-            // Atomic load so a concurrent setMpvHandle(nullptr) that frees the
-            // context doesn't leave us with a dangling pointer. If the GUI thread
-            // claims the context between the load and the call below,
-            // mpv_render_context_free blocks until our render finishes — safe.
-            mpv_render_context *ctx = m_item->m_renderCtxAtomic.load();
-            if (!ctx)
-                return;
-
-            QOpenGLFramebufferObject *fbo = framebufferObject();
-            if (!fbo)
-                return;
-
-            mpv_opengl_fbo mpfbo {};
-            mpfbo.fbo = static_cast<int>(fbo->handle());
-            mpfbo.w = fbo->width();
-            mpfbo.h = fbo->height();
-            mpfbo.internal_format = 0;
-
-            mpv_render_param params[] = {
-                { MPV_RENDER_PARAM_OPENGL_FBO, &mpfbo },
-                { MPV_RENDER_PARAM_INVALID, nullptr },
-            };
-
-            if (m_window)
-                m_window->beginExternalCommands();
-            mpv_render_context_render(ctx, params);
-            if (m_window)
-                m_window->endExternalCommands();
+            if (auto *ctx = m_item->m_renderCtxAtomic.exchange(nullptr)) {
+                mpv_render_context_set_update_callback(ctx, nullptr, nullptr);
+                mpv_render_context_free(ctx);
+            }
         }
 
-    private:
+        void completeReleaseWaiter()
+        {
+            if (!m_releaseCompleted)
+                return;
+            m_releaseCompleted->store(true);
+            if (m_releaseWaiter)
+                QMetaObject::invokeMethod(m_releaseWaiter, "quit", Qt::QueuedConnection);
+            m_releaseWaiter = nullptr;
+            m_releaseCompleted.reset();
+        }
+
         static void onMpvUpdate(void *ctx)
         {
             auto *item = static_cast<MpvVideoItem *>(ctx);
@@ -154,6 +179,10 @@ namespace {
 
         MpvVideoItem *m_item = nullptr;
         QQuickWindow *m_window = nullptr;
+        mpv_handle *m_nextHandle = nullptr;
+        bool m_handleDirty = false;
+        QPointer<QObject> m_releaseWaiter;
+        std::shared_ptr<std::atomic_bool> m_releaseCompleted;
     };
 
 } // namespace
@@ -181,25 +210,39 @@ MpvVideoItem *MpvVideoItem::instance()
 
 void MpvVideoItem::setMpvHandle(mpv_handle *handle)
 {
+    Q_ASSERT(handle);
     {
         QMutexLocker locker(&m_handleMutex);
         m_pendingHandle = handle;
         m_handleDirty = true;
+        m_releaseWaiter = nullptr;
+        m_releaseCompleted.reset();
+    }
+    update();
+}
+
+bool MpvVideoItem::releaseMpvHandle(int timeoutMs)
+{
+    QEventLoop releaseLoop;
+    const auto completed = std::make_shared<std::atomic_bool>(false);
+    {
+        QMutexLocker locker(&m_handleMutex);
+        const bool needsRenderHandoff = m_renderCtxAtomic.load() || m_pendingHandle;
+        m_pendingHandle = nullptr;
+        m_handleDirty = true;
+        if (!needsRenderHandoff)
+            return true;
+        m_releaseWaiter = &releaseLoop;
+        m_releaseCompleted = completed;
     }
 
-    if (handle) {
-        update();
-        return;
-    }
-
-    // Tearing the handle down. Atomically claim the render context published
-    // by the renderer and free it ourselves; mpv_render_context_free is
-    // documented as thread-safe and waits for any in-progress render to
-    // finish, so the renderer's render() (which loads the same atomic) is
-    // either skipped entirely or completes before free returns. After this,
-    // PlayerController can mpv_destroy() the handle without risk.
-    if (auto *ctx = m_renderCtxAtomic.exchange(nullptr))
-        mpv_render_context_free(ctx);
+    QTimer timeout;
+    timeout.setSingleShot(true);
+    QObject::connect(&timeout, &QTimer::timeout, &releaseLoop, &QEventLoop::quit);
+    timeout.start(timeoutMs);
+    update();
+    releaseLoop.exec(QEventLoop::ExcludeUserInputEvents);
+    return completed->load();
 }
 
 QQuickFramebufferObject::Renderer *MpvVideoItem::createRenderer() const
@@ -210,8 +253,10 @@ QQuickFramebufferObject::Renderer *MpvVideoItem::createRenderer() const
 MpvVideoItem::HandleSnapshot MpvVideoItem::takePendingHandle()
 {
     QMutexLocker locker(&m_handleMutex);
-    HandleSnapshot snap { m_pendingHandle, m_handleDirty };
+    HandleSnapshot snap { m_pendingHandle, m_handleDirty, m_releaseWaiter, m_releaseCompleted };
     m_handleDirty = false;
+    m_releaseWaiter = nullptr;
+    m_releaseCompleted.reset();
     return snap;
 }
 
