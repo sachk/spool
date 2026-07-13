@@ -6,6 +6,7 @@
 #include <QtQmlIntegration/qqmlintegration.h>
 
 #include <atomic>
+#include <memory>
 
 struct mpv_handle;
 struct mpv_render_context;
@@ -25,13 +26,13 @@ public:
     explicit MpvVideoItem(QQuickItem *parent = nullptr);
     ~MpvVideoItem() override;
 
-    // Called from the GUI thread. Pass nullptr to release the current handle
-    // before PlayerController destroys the mpv_handle. The render context is
-    // freed synchronously here via mpv_render_context_free (thread-safe, and
-    // it waits for any in-progress render), so we do not depend on the
-    // scene-graph render thread still being alive — this is safe to call from
-    // QCoreApplication::aboutToQuit on shutdown.
+    // Called from the GUI thread. A non-null handle is adopted by the renderer
+    // on its next frame, with Qt's OpenGL context current.
     void setMpvHandle(mpv_handle *handle);
+
+    // Release the render context on Qt's render thread and wait for that short
+    // handoff before PlayerController destroys the underlying mpv core.
+    bool releaseMpvHandle(int timeoutMs = 5000);
 
     static MpvVideoItem *instance();
 
@@ -42,14 +43,13 @@ public:
     struct HandleSnapshot {
         mpv_handle *handle;
         bool dirty;
+        QPointer<QObject> releaseWaiter;
+        std::shared_ptr<std::atomic_bool> releaseCompleted;
     };
     HandleSnapshot takePendingHandle();
 
-    // Published by the renderer in synchronize() once the render context is
-    // created. setMpvHandle(nullptr) atomically claims and frees it. The
-    // renderer's render() also loads this and skips when null, so a free
-    // racing with a render is safe (mpv_render_context_free waits for the
-    // in-progress mpv_render_context_render call to finish).
+    // Published for lifecycle diagnostics. Creation and destruction happen
+    // exclusively in Renderer::render(), with the original GL context current.
     std::atomic<mpv_render_context *> m_renderCtxAtomic { nullptr };
 
 signals:
@@ -61,6 +61,8 @@ private:
     QMutex m_handleMutex;
     mpv_handle *m_pendingHandle = nullptr;
     bool m_handleDirty = false;
+    QPointer<QObject> m_releaseWaiter;
+    std::shared_ptr<std::atomic_bool> m_releaseCompleted;
 };
 
 } // namespace JellyfinNative
