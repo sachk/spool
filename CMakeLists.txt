@@ -423,6 +423,7 @@ qt_add_qml_module(jellyfin-native
         qml/shell/ManagementDialog.qml
         qml/shell/MediaInfoOverlay.qml
         qml/shell/OverlayDialog.qml
+        qml/shell/PlaybackDiagnosticsOverlay.qml
         qml/shell/RoutePolicy.js
         qml/shell/RouteStack.qml
         qml/shell/SyncPlayMenu.qml

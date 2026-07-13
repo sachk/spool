@@ -38,11 +38,18 @@ FocusScope {
         z: 0
     }
 
+    PlaybackDiagnosticsOverlay {
+        anchors.fill: parent
+        visible: root.active && Player.debugOsdVisible
+        stats: Player.debugStats
+        z: 1
+    }
+
     PlayerOverlayPage {
         id: playerOverlay
         anchors.fill: parent
         visible: root.active
-        z: 1
+        z: 2
     }
 
     FocusScope {
@@ -51,7 +58,7 @@ FocusScope {
         visible: root.active
         enabled: visible
         focus: visible
-        z: 2
+        z: 3
 
         onVisibleChanged: if (visible)
                               InputKeys.focus(inputShield)
