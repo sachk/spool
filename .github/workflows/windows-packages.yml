@@ -20,7 +20,7 @@ jobs:
   windows-x64:
     name: Windows x64 portable and installer
     runs-on: windows-2022
-    timeout-minutes: 180
+    timeout-minutes: 75
 
     steps:
       - uses: actions/checkout@v6
@@ -30,7 +30,8 @@ jobs:
       - name: Install build and packaging tools
         shell: pwsh
         run: |
-          choco install meson nasm nsis -y --no-progress
+          choco install meson --version=1.9.1 -y --no-progress
+          choco install nasm nsis -y --no-progress
           $env:PATH = "C:\Program Files\LLVM\bin;C:\Program Files\Meson;C:\Program Files\NASM;${env:ProgramFiles(x86)}\NSIS;$env:PATH"
           foreach ($tool in @('cmake', 'ninja', 'clang', 'lld-link', 'meson', 'nasm', 'makensis')) {
             $command = Get-Command $tool -ErrorAction SilentlyContinue
@@ -95,6 +96,7 @@ jobs:
 
       - name: Build libmpv from the fork
         if: steps.mpv-cache.outputs.cache-hit != 'true'
+        timeout-minutes: 45
         shell: pwsh
         run: tools\windows\build-mpv.ps1 -Clean
 
