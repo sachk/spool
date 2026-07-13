@@ -1,0 +1,33 @@
+{
+  "version": "6.11.1",
+  "architecture": "msvc2022_64",
+  "repository": "https://download.qt.io/online/qtsdkrepository/windows_x86/desktop/qt6_6111/qt6_6111_msvc2022_64",
+  "packageVersion": "6.11.1-0-202605090529",
+  "archives": [
+    {
+      "package": "qt.qt6.6111.win64_msvc2022_64",
+      "file": "qtbase-Windows-Windows_11_24H2-MSVC2022-Windows-Windows_11_24H2-X86_64.7z",
+      "sha1": "6f554628540ab947d48294e208cc3caae7f023d2"
+    },
+    {
+      "package": "qt.qt6.6111.win64_msvc2022_64",
+      "file": "qtdeclarative-Windows-Windows_11_24H2-MSVC2022-Windows-Windows_11_24H2-X86_64.7z",
+      "sha1": "7fb3f0f07ddcdb491c39f5dd4e42e0f0f07d2d72"
+    },
+    {
+      "package": "qt.qt6.6111.win64_msvc2022_64",
+      "file": "qttools-Windows-Windows_11_24H2-MSVC2022-Windows-Windows_11_24H2-X86_64.7z",
+      "sha1": "f8f33d511bbf38b85aa701425b41455b3512b36d"
+    },
+    {
+      "package": "qt.qt6.6111.addons.qtimageformats.win64_msvc2022_64",
+      "file": "qtimageformats-Windows-Windows_11_24H2-MSVC2022-Windows-Windows_11_24H2-X86_64.7z",
+      "sha1": "50ef50e84bf83ce1a3125572c15f729f1c5470ee"
+    },
+    {
+      "package": "qt.qt6.6111.addons.qtwebsockets.win64_msvc2022_64",
+      "file": "qtwebsockets-Windows-Windows_11_24H2-MSVC2022-Windows-Windows_11_24H2-X86_64.7z",
+      "sha1": "23de94ad3c83b161a374b2504a590877ee64e5cd"
+    }
+  ]
+}
