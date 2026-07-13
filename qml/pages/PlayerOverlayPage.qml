@@ -59,7 +59,7 @@ FocusScope {
         values.push("debug")
         return values
     }
-    readonly property var debugOptions: ["Audio sync", hasPlayer && player.debugOsdVisible ? "Hide debug stats" : "Show debug stats",
+    readonly property var debugOptions: ["Audio sync", hasPlayer && player.debugOsdVisible ? "Hide performance stats" : "Show performance stats",
         nightModeEnabled ? "Disable night mode" : "Enable night mode", "Stop playback"]
     readonly property var menuOptions: {
         if (menuKind === "subtitles")
