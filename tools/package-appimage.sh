@@ -341,6 +341,15 @@ download_verified \
   "$(manifest_tool_field "$TOOL_MANIFEST" type2-runtime sha256)" \
   "$APPIMAGE_RUNTIME"
 
+QT_DEPLOY_SHADOW="$APP_ROOT/build/appimage/qt-host-tools"
+qt_deploy_path="$(qt_deploy_linuxdeploy_qt_shadow \
+  "${APP_BUILD_NINJA:-$APP_ROOT/build/linux-release/app/build.ninja}" "$QT_DEPLOY_SHADOW")"
+if [[ -z "$qt_deploy_path" || ! -x "$qt_deploy_path/qmlimportscanner" ]]; then
+  echo "error: qmlimportscanner is required for AppImage QML deployment" >&2
+  exit 1
+fi
+export PATH="$qt_deploy_path${PATH:+:$PATH}"
+
 append_library_path "$MPV_PREFIX/lib"
 IFS=':' read -r -a cmake_library_dirs <<< "${CMAKE_LIBRARY_PATH:-}"
 for lib_dir in "${cmake_library_dirs[@]}"; do
