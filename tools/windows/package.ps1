@@ -22,6 +22,20 @@ if ($version -notmatch '^\d+\.\d+\.\d+$') {
     throw "VERSION is not a three-part semantic version: $version"
 }
 
+$fingerprintLines = Get-ChildItem -LiteralPath $stage -Recurse -File |
+    Sort-Object FullName |
+    ForEach-Object {
+        $relative = $_.FullName.Substring($stage.TrimEnd('\').Length + 1).Replace('\', '/')
+        "$relative`:$((Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash)"
+    }
+$fingerprintBytes = [Text.Encoding]::UTF8.GetBytes(($fingerprintLines -join "`n"))
+$sha256 = [Security.Cryptography.SHA256]::Create()
+try {
+    $payloadId = ([BitConverter]::ToString($sha256.ComputeHash($fingerprintBytes))).Replace('-', '').Substring(0, 16).ToLowerInvariant()
+} finally {
+    $sha256.Dispose()
+}
+
 if (-not $MakeNsis) {
     $command = Get-Command makensis.exe -ErrorAction SilentlyContinue
     $candidates = @()
@@ -47,6 +61,7 @@ function Invoke-NsisPackage {
         '/V2',
         '/NOCD',
         "/DVERSION=$version",
+        "/DPAYLOAD_ID=$payloadId",
         "/DSTAGE_DIR=$stage",
         "/DSOURCE_ROOT=$root",
         "/DOUTPUT_FILE=$Artifact",
