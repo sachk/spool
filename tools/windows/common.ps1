@@ -15,14 +15,23 @@ function Import-MsvcEnvironment {
 
         $vcvars = Join-Path $installPath 'VC\Auxiliary\Build\vcvars64.bat'
         $environment = & $env:ComSpec /d /s /c "`"$vcvars`" >nul && set"
+        $importedPath = $null
         foreach ($line in $environment) {
             if ($line -match '^([^=]+)=(.*)$') {
                 # Codex and some terminal hosts expose both PATH and Path. vcvars
-                # updates PATH; importing the stale mixed-case duplicate afterward
-                # would silently discard the compiler directories.
-                if ($Matches[1] -ceq 'Path') { continue }
+                # updates PATH; prefer that spelling when both are present, but
+                # GitHub runners expose only the conventional mixed-case Path.
+                if ($Matches[1] -ieq 'PATH') {
+                    if ($Matches[1] -ceq 'PATH' -or $null -eq $importedPath) {
+                        $importedPath = $Matches[2]
+                    }
+                    continue
+                }
                 Set-Item -Path "Env:$($Matches[1])" -Value $Matches[2]
             }
+        }
+        if ($null -ne $importedPath) {
+            Set-Item -Path Env:PATH -Value $importedPath
         }
     }
 
