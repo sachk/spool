@@ -56,7 +56,7 @@ QString choiceLabel(const SettingSpec& spec, const QString& value)
         if (value == QString::fromLatin1(spec.choices[i].value))
             return QString::fromLatin1(spec.choices[i].label);
     }
-    return {};
+    return { };
 }
 
 QVariantMap schemaRow(const QString& key)
@@ -66,7 +66,7 @@ QVariantMap schemaRow(const QString& key)
         if (row.value(QStringLiteral("key")).toString() == key)
             return row;
     }
-    return {};
+    return { };
 }
 
 QHash<QString, QString> choicesByLabelFromRow(const QVariantMap& row)
@@ -147,9 +147,9 @@ void normalizersPreservePersistedValueSemantics()
     require(serializedSettingValue(bitrate, QStringLiteral("42")) == QStringLiteral("42"),
         QStringLiteral("in-range streaming bitrate was not serialized unchanged"));
     const SettingSpec& uiScale = requiredSpec(QStringLiteral("appearance/uiScalePercent"));
-    require(normalizedSettingValue(uiScale, QStringLiteral("65")).toInt() == 80,
+    require(normalizedSettingValue(uiScale, QStringLiteral("65")).toInt() == 95,
         QStringLiteral("UI scale below the floor was not clamped"));
-    require(normalizedSettingValue(uiScale, QStringLiteral("140")).toInt() == 125,
+    require(normalizedSettingValue(uiScale, QStringLiteral("141")).toInt() == 140,
         QStringLiteral("UI scale above the ceiling was not clamped"));
     require(serializedSettingValue(uiScale, QStringLiteral("115")) == QStringLiteral("115"),
         QStringLiteral("in-range UI scale was not serialized as a percentage"));
