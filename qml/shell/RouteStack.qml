@@ -27,6 +27,8 @@ FocusScope {
             return Qt.resolvedUrl("../pages/SearchPage.qml")
         case "settings":
             return Qt.resolvedUrl("../pages/SettingsPage.qml")
+        case "subtitleSettings":
+            return Qt.resolvedUrl("../pages/SettingsPage.qml")
         default:
             return Qt.resolvedUrl("../pages/HomePage.qml")
         }
@@ -34,9 +36,12 @@ FocusScope {
 
     function loadRoute() {
         const source = routeSource(route)
-        loader.setSource(source, {
-                             "shell": root.shell
-                         })
+        const properties = {
+            "shell": root.shell
+        }
+        if (route === "subtitleSettings")
+            properties.subtitleEditor = true
+        loader.setSource(source, properties)
     }
 
     onRouteChanged: if (ready)

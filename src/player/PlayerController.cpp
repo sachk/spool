@@ -292,7 +292,7 @@ PlayerController::PlayerController(NativeAppWindow *window, JellyfinApiFacade *a
         if (!m_sessionActive || !m_seeking)
             return;
 
-        qWarning() << "player: clearing stale seek state";
+        qInfo() << "player: clearing stale seek state";
         m_seeking = false;
         m_positionTracker.cancelSeek();
         notifyPlaybackStateChanged();
@@ -711,6 +711,11 @@ bool PlayerController::applyMpvSubtitleOptions(MpvOptionApplyMode mode, mpv_hand
     if (!ok) {
         qWarning() << "player: failed to apply subtitle preferences"
                    << "mode=" << (mode == MpvOptionApplyMode::Initial ? "initial" : "runtime");
+    } else {
+        qInfo() << "player: subtitle appearance applied"
+                << "mode=" << (mode == MpvOptionApplyMode::Initial ? "initial" : "runtime") << "hdr=" << m_hdrPlayback
+                << "dimInHdr=" << m_subtitlePreferences.dimInHdr
+                << "brightnessPercent=" << m_subtitlePreferences.hdrBrightnessPercent;
     }
     return ok;
 }
@@ -815,6 +820,8 @@ void PlayerController::play(const PlaybackSession& session)
     if (hadSubtitleDelay)
         emit subtitleDelayMsChanged();
 
+    m_hdrPlayback = MpvOptionProfile::isHdrPlayback(session.mediaStreams);
+    qInfo() << "player: HDR subtitle mode" << (m_hdrPlayback ? "enabled" : "disabled") << "source=media-metadata";
     m_window->clearOverlay();
     if (needsVideoSurface) {
         QElapsedTimer playbackSurfaceTimer;
@@ -1648,17 +1655,18 @@ void PlayerController::handleMpvEvent(mpv_event *event)
             });
         } else if (strcmp(property->name, "video-params/transfer") == 0 && property->format == MPV_FORMAT_STRING) {
             const QByteArray transfer(static_cast<const char *>(property->data));
-            const bool hdrPlayback = transfer == QByteArrayLiteral("pq") || transfer == QByteArrayLiteral("hlg");
-            QMetaObject::invokeMethod(this, [this, hdrPlayback]() {
-#ifdef JELLYFIN_NATIVE_WEBOS
-                if (m_hdrPlayback != hdrPlayback) {
-                    m_hdrPlayback = hdrPlayback;
+            const QByteArray normalizedTransfer = transfer.toLower();
+            const bool hdrPlayback = normalizedTransfer == QByteArrayLiteral("pq")
+                || normalizedTransfer == QByteArrayLiteral("hlg") || normalizedTransfer.contains("2084")
+                || normalizedTransfer.contains("b67");
+            QMetaObject::invokeMethod(this, [this, hdrPlayback, transfer]() {
+                if (hdrPlayback && !m_hdrPlayback) {
+                    m_hdrPlayback = true;
                     if (auto *handle = m_mpvLifecycle.handle())
                         applyMpvSubtitleOptions(MpvOptionApplyMode::Runtime, handle);
                 }
-#else
-                Q_UNUSED(hdrPlayback);
-#endif
+                qInfo() << "player: video transfer" << transfer << "HDR subtitle mode"
+                        << (m_hdrPlayback ? "enabled" : "disabled");
             });
         } else if (strcmp(property->name, "track-list") == 0 && property->format == MPV_FORMAT_NODE) {
             const auto *node = static_cast<mpv_node *>(property->data);

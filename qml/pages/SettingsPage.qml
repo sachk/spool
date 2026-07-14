@@ -10,10 +10,16 @@ FocusScope {
     property var shell
     property int currentIndex: 0
     property var settingsRows: []
+    property bool subtitleEditor: false
+    property bool playbackPreview: false
+    property bool choiceDialogVisible: false
+    property var choiceDialogRow: null
+
+    signal dismissed
 
     readonly property bool gpuNextDiagnosticsAvailable: !NativeWindow.smartTvPlatform
-    readonly property var groupOrder: ["General", "Appearance", "Playback", "Subtitles", "Subtitle Appearance",
-        "Diagnostics", "Button Remap", "About"]
+    readonly property var groupOrder: ["General", "Appearance", "Playback", "Subtitles", "Diagnostics", "Button Remap",
+        "About"]
     readonly property var pageRows: [makeRow("action/switchUser", "General", "action", "Switch User",
                                              "Return to profile selection"), makeRow("action/logout", "General",
                                                                                      "action", "Logout",
@@ -44,12 +50,14 @@ FocusScope {
                                                                                                    "Hidden"], ["Always",
                                                                                                                "On details only",
                                                                                                                "Hidden"]),
-        makeRow("shell/diagnostics", "Diagnostics", "toggle", "Diagnostics Overlay"), makeRow("shell/latencyGuard",
-                                                                                              "Diagnostics", "toggle",
-                                                                                              "Latency Guard"), makeRow(
-            "action/clearLatencyStatistics", "Diagnostics", "action", "Clear Latency Statistics"), makeRow(
-            "about/version", "About", "readonly", "Jellyfin Native for webOS", "Qt 6.11 client, native mpv playback"),
-        makeRow("about/locale", "About", "readonly", "UI Locale")]
+        makeRow("action/subtitleSettings", "Subtitles", "action", "Subtitle settings",
+                "Preview and adjust subtitle language and appearance"), makeRow("shell/diagnostics", "Diagnostics",
+                                                                                "toggle", "Diagnostics Overlay"),
+        makeRow("shell/latencyGuard", "Diagnostics", "toggle", "Latency Guard"), makeRow("action/clearLatencyStatistics",
+                                                                                         "Diagnostics", "action",
+                                                                                         "Clear Latency Statistics"),
+        makeRow("about/version", "About", "readonly", "Jellyfin Native for webOS",
+                "Qt 6.11 client, native mpv playback"), makeRow("about/locale", "About", "readonly", "UI Locale")]
 
     function makeRow(key, group, type, title, description, labels, values) {
         return {
@@ -97,21 +105,74 @@ FocusScope {
         return expanded
     }
 
+    function previewFontFamily() {
+        const value = String(Settings.values["subtitles/font"] || "")
+        if (value.indexOf("system:") === 0)
+            return value.slice(7)
+        if (value === "serif")
+            return previewSerif.name
+        if (value === "typewriter")
+            return "Courier New"
+        if (value === "print")
+            return "Georgia"
+        if (value === "console")
+            return "Consolas"
+        if (value === "cursive")
+            return "Lucida Handwriting"
+        if (value === "casual")
+            return "Segoe Print"
+        if (value === "smallcaps")
+            return "Copperplate Gothic"
+        return Typography.regularFamily
+    }
+
+    function previewTextSize() {
+        const value = String(Settings.values["subtitles/textSize"] || "")
+        const factors = {
+            "smaller": 0.8,
+            "small": 0.91,
+            "large": 1.16,
+            "extralarge": 1.53
+        }
+        return Metrics.scaled(28) * Number(factors[value] || 1) * Number(Settings.values["subtitles/scalePercent"]
+                                                                         || 100) / 100
+    }
+
+    function previewBackgroundColor() {
+        const value = String(Settings.values["subtitles/textBackground"] || "transparent")
+        if (value === "opaque")
+            return "#ff000000"
+        if (value === "translucent")
+            return "#a0000000"
+        return "transparent"
+    }
+
     function rebuildSettingsRows() {
         const schema = Settings.settingsSchema
         const rows = []
         const zoomKey = "appearance/uiScalePercent"
-        for (let index = 0; index < schema.length; ++index)
-            if (schema[index].key === zoomKey && rowVisible(schema[index]))
-                rows.push(expandedSchemaRow(schema[index]))
-        for (let groupIndex = 0; groupIndex < groupOrder.length; ++groupIndex) {
-            const group = groupOrder[groupIndex]
-            for (let index = 0; index < pageRows.length; ++index)
-                if (pageRows[index].group === group && rowVisible(pageRows[index]))
-                    rows.push(pageRows[index])
+        if (subtitleEditor) {
+            for (let index = 0; index < schema.length; ++index) {
+                const row = schema[index]
+                if ((row.group === "Subtitles" || row.group === "Subtitle Appearance") && rowVisible(row))
+                    rows.push(expandedSchemaRow(row))
+            }
+        } else {
             for (let index = 0; index < schema.length; ++index)
-                if (schema[index].group === group && schema[index].key !== zoomKey && rowVisible(schema[index]))
+                if (schema[index].key === zoomKey && rowVisible(schema[index]))
                     rows.push(expandedSchemaRow(schema[index]))
+            for (let groupIndex = 0; groupIndex < groupOrder.length; ++groupIndex) {
+                const group = groupOrder[groupIndex]
+                for (let index = 0; index < pageRows.length; ++index)
+                    if (pageRows[index].group === group && rowVisible(pageRows[index]))
+                        rows.push(pageRows[index])
+                for (let index = 0; index < schema.length; ++index) {
+                    const row = schema[index]
+                    if (row.group === group && row.key !== zoomKey && rowVisible(row) && row.group !== "Subtitles"
+                            && row.group !== "Subtitle Appearance")
+                        rows.push(expandedSchemaRow(row))
+                }
+            }
         }
         settingsRows = rows
         focusRow(Math.min(currentIndex, rows.length - 1))
@@ -185,6 +246,8 @@ FocusScope {
             return "v" + Qt.application.version
         if (row.key === "about/locale")
             return I18n.currentLocale
+        if (row.key === "action/subtitleSettings")
+            return "Open"
         return ""
     }
 
@@ -280,10 +343,16 @@ FocusScope {
                 shell.pushRoute("scaleSetup", {
                                     "returnRoute": "settings"
                                 })
+            else if (row.key === "action/subtitleSettings" && shell)
+                shell.pushRoute("subtitleSettings")
         } else if (row.type === "toggle") {
             setRowValue(row, !Boolean(settingsValue(row)), -1)
         } else if (row.type === "select") {
-            adjustRow(row, 1)
+            choiceDialogRow = row
+            choiceDialogVisible = true
+            Qt.callLater(function () {
+                choiceDialog.focusCurrent()
+            })
         }
     }
 
@@ -306,7 +375,29 @@ FocusScope {
         return false
     }
 
+    function closeChoiceDialog() {
+        choiceDialogVisible = false
+        choiceDialogRow = null
+        Qt.callLater(function () {
+            focusRow(currentIndex)
+        })
+    }
+
+    function back() {
+        if (choiceDialogVisible) {
+            closeChoiceDialog()
+            return true
+        }
+        if (subtitleEditor && playbackPreview) {
+            dismissed()
+            return true
+        }
+        return false
+    }
+
     function routeKey(key, phase, repeat) {
+        if (choiceDialogVisible)
+            return choiceDialog.routeKey(key, phase, repeat)
         const row = rowAt(settingsList.currentIndex)
         if (InputKeys.isHorizontal(key) && adjustRow(row, key === Qt.Key_Right ? 1 : -1))
             return true
@@ -319,7 +410,10 @@ FocusScope {
     }
 
     function activate() {
-        activateRow(rowAt(settingsList.currentIndex), settingsList.currentIndex)
+        if (choiceDialogVisible)
+            choiceDialog.activate()
+        else
+            activateRow(rowAt(settingsList.currentIndex), settingsList.currentIndex)
     }
 
     focus: true
@@ -339,10 +433,59 @@ FocusScope {
             settingsList.forceLayout()
         }
     }
+    FontLoader {
+        id: previewSerif
+        source: Qt.resolvedUrl("../fonts/SourceSerif4-Regular.ttf")
+    }
+
+    Rectangle {
+        anchors.fill: parent
+        visible: root.subtitleEditor && !root.playbackPreview
+        color: "black"
+    }
+
+    Rectangle {
+        anchors.fill: settingsList
+        anchors.margins: -Metrics.scaled(12)
+        visible: root.subtitleEditor
+        radius: Theme.radiusLarge
+        color: "#d9000000"
+        border.width: Theme.hoverBorderWidth
+        border.color: Theme.border
+    }
+
+    Rectangle {
+        id: subtitlePreviewBackground
+        visible: root.subtitleEditor && !root.playbackPreview && Settings.values["subtitles/textBackground"]
+        !== "transparent"
+        anchors.horizontalCenter: parent.horizontalCenter
+        anchors.bottom: parent.bottom
+        anchors.bottomMargin: Metrics.scaled(46 + Number(Settings.values["subtitles/verticalPosition"] || 0))
+        width: subtitlePreviewText.implicitWidth + Metrics.scaled(24)
+        height: subtitlePreviewText.implicitHeight + Metrics.scaled(12)
+        radius: Theme.radiusSmall
+        color: root.previewBackgroundColor()
+    }
+
+    AppText {
+        id: subtitlePreviewText
+        visible: root.subtitleEditor && !root.playbackPreview
+        text: "This is how your subtitles will look."
+        font.family: root.previewFontFamily()
+        font.pixelSize: root.previewTextSize()
+        font.weight: Settings.values["subtitles/textWeight"] === "bold" ? Font.Bold : Font.Normal
+        style: Settings.values["subtitles/dropShadow"] === "none" ? Text.Normal : Text.Outline
+        styleColor: "#cc000000"
+        color: Settings.values["subtitles/textColor"] || "white"
+        horizontalAlignment: Text.AlignHCenter
+    }
 
     MenuListView {
         id: settingsList
-        anchors.fill: parent
+        width: root.subtitleEditor ? Math.min(parent.width - Metrics.scaled(48), Metrics.scaled(760)) : parent.width
+        anchors.top: parent.top
+        anchors.bottom: parent.bottom
+        anchors.right: parent.right
         anchors.margins: Metrics.pageMargin(root.width)
         model: root.settingsRows
         dismissOnBack: false
@@ -354,9 +497,8 @@ FocusScope {
             positionViewAtIndex(currentIndex, ListView.Contain)
         }
         onAccepted: index => root.activateRow(root.rowAt(index), index)
-        onEdgeUp: if (root.shell)
+        onEdgeUp: if (root.shell && !root.subtitleEditor)
         root.shell.focusNavBar()
-
         delegate: Column {
             required property int index
             required property var modelData
@@ -428,6 +570,7 @@ FocusScope {
             rowFocus: settingsList.activeFocus && settingsList.currentIndex === rowIndex
             title: row ? row.title : ""
             description: row ? root.rowDescription(row) : ""
+            onOpened: root.activateRow(row, rowIndex)
             options: row ? root.rowOptions(row) : []
             currentIndex: row ? root.rowCurrentIndex(row) : 0
             onSelected: (index, value) => root.setRowChoice(row, index)
@@ -456,5 +599,18 @@ FocusScope {
             value: row ? Number(root.settingsValue(row)) : 0
             onValueEdited: value => root.setRowValue(row, value, -1)
         }
+    }
+    OptionPickerDialog {
+        id: choiceDialog
+        visible: root.choiceDialogVisible
+        title: root.choiceDialogRow ? root.choiceDialogRow.title : "Choose an option"
+        options: root.choiceDialogRow ? root.rowOptions(root.choiceDialogRow) : []
+        currentIndex: root.choiceDialogRow ? root.rowCurrentIndex(root.choiceDialogRow) : 0
+        onSelected: index => {
+            if (root.choiceDialogRow)
+            root.setRowChoice(root.choiceDialogRow, index)
+            root.closeChoiceDialog()
+        }
+        onDismissed: root.closeChoiceDialog()
     }
 }

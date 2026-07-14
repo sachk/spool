@@ -212,8 +212,7 @@ void schemaModelRowsMatchVisibilityContract()
         require(modelKeys.contains(key), QStringLiteral("schema model missed setting row %1").arg(key));
     }
 
-    require(hiddenKeys == QStringList { QStringLiteral("subtitles/textBackground") },
-        QStringLiteral("schema model should expose only visible rows plus hidden subtitles/textBackground"));
+    require(hiddenKeys.isEmpty(), QStringLiteral("schema model unexpectedly hid a user-facing setting"));
 }
 
 void buttonChoicesAndLabelsExposePlayerActions()

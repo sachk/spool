@@ -51,7 +51,7 @@ RowLayout {
 
     RowLayout {
         visible: root.overlay.desktopControlsAvailable
-        Layout.preferredWidth: visible ? root.overlay.dp(300) : 0
+        Layout.preferredWidth: visible ? Math.min(root.width * 0.15, root.overlay.dp(300)) : 0
         spacing: root.overlay.dp(10)
 
         MaterialIcon {

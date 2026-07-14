@@ -17,7 +17,7 @@ OverlayDialog {
 
     AppText {
         Layout.fillWidth: true
-        text: "Playback sync"
+        text: root.overlay.syncTarget === "subtitle" ? "Subtitle sync" : "Audio sync"
         color: Theme.textPrimary
         font.pixelSize: Metrics.titlePx(root.width)
         font.weight: Font.DemiBold
@@ -25,11 +25,13 @@ OverlayDialog {
 
     RowLayout {
         Layout.fillWidth: true
+        visible: root.overlay.syncTarget !== "subtitle"
+        Layout.preferredHeight: visible ? implicitHeight : 0
         spacing: 10
 
         ActionButton {
             Layout.fillWidth: true
-            text: "Audio · This video"
+            text: "This file"
             kind: root.overlay.syncTarget === "audioFile" ? "primary" : "secondary"
             onClicked: {
                 root.overlay.syncTarget = "audioFile"
@@ -38,19 +40,10 @@ OverlayDialog {
         }
         ActionButton {
             Layout.fillWidth: true
-            text: "Audio · All videos"
+            text: "Global"
             kind: root.overlay.syncTarget === "audioGlobal" ? "primary" : "secondary"
             onClicked: {
                 root.overlay.syncTarget = "audioGlobal"
-                root.overlay.audioSyncRow = "target"
-            }
-        }
-        ActionButton {
-            Layout.fillWidth: true
-            text: "Subtitles · This video"
-            kind: root.overlay.syncTarget === "subtitle" ? "primary" : "secondary"
-            onClicked: {
-                root.overlay.syncTarget = "subtitle"
                 root.overlay.audioSyncRow = "target"
             }
         }

@@ -345,6 +345,10 @@ public:
             return;
         if (m_cancelled.load() && error.isEmpty()) {
             m_error = QStringLiteral("Cancelled");
+        } else if (image.isNull() && !error.isEmpty()) {
+            qInfo() << "artwork: using fallback:" << error;
+            m_image = QImage(1, 1, QImage::Format_ARGB32_Premultiplied);
+            m_image.fill(Qt::transparent);
         } else {
             m_image = std::move(image);
             m_error = std::move(error);

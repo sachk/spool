@@ -22,6 +22,7 @@ FocusScope {
     property int actionIndex: 1
     property string menuKind: ""
     property bool audioSyncVisible: false
+    property bool subtitleSettingsVisible: false
     property string audioSyncRow: "delay"
     property int audioSyncStepIndex: 2
     property string syncTarget: "audioFile"
@@ -64,9 +65,9 @@ FocusScope {
         values.push("debug")
         return values
     }
-    readonly property var debugOptions: ["Audio & subtitle sync", hasPlayer && player.debugOsdVisible
-        ? "Hide performance stats" : "Show performance stats", nightModeEnabled ? "Disable night mode" :
-                                                                                  "Enable night mode", "Stop playback"]
+    readonly property var debugOptions: ["Audio sync", "Subtitle sync", "Subtitle settings", hasPlayer
+        && player.debugOsdVisible ? "Hide performance stats" : "Show performance stats", nightModeEnabled
+        ? "Disable night mode" : "Enable night mode", "Stop playback"]
     readonly property var menuOptions: {
         if (menuKind === "subtitles")
             return hasPlayer ? player.subtitleTracks : []
@@ -136,7 +137,7 @@ FocusScope {
     }
 
     function isPinned() {
-        return scrubbing || timelineHovering || isMenuOpen() || audioSyncVisible
+        return scrubbing || timelineHovering || isMenuOpen() || audioSyncVisible || subtitleSettingsVisible
     }
 
     function isControlsActive() {
@@ -226,6 +227,7 @@ FocusScope {
     function openMenu(kind) {
         menuKind = kind
         audioSyncVisible = false
+        subtitleSettingsVisible = false
         controlsVisible = true
         const initialIndex = kind === "audio" && hasPlayer ? player.selectedAudioIndex : kind === "queue" && playQueue
                                                              ? playQueue.currentIndex : 0
@@ -254,11 +256,19 @@ FocusScope {
                 openAudioSync()
                 return
             }
-            if (index === 1)
+            if (index === 1) {
+                openSubtitleSync()
+                return
+            }
+            if (index === 2) {
+                openSubtitleSettings()
+                return
+            }
+            if (index === 3)
                 toggleDebugStats()
-            else if (index === 2)
+            else if (index === 4)
                 Settings.setNightModeEnabled(!nightModeEnabled)
-            else if (index === 3 && hasPlayer)
+            else if (index === 5 && hasPlayer)
                 player.stopWithReason("debug-menu-stop")
             if (controlsVisible)
                 maybeRestartAutohide()
@@ -271,10 +281,38 @@ FocusScope {
 
     function openAudioSync() {
         menuKind = ""
+        syncTarget = "audioFile"
         audioSyncVisible = true
         controlsVisible = true
         audioSyncRow = "target"
         autohide.stop()
+    }
+
+    function openSubtitleSync() {
+        menuKind = ""
+        syncTarget = "subtitle"
+        audioSyncVisible = true
+        controlsVisible = true
+        audioSyncRow = "delay"
+        autohide.stop()
+    }
+
+    function openSubtitleSettings() {
+        menuKind = ""
+        audioSyncVisible = false
+        subtitleSettingsVisible = true
+        controlsVisible = false
+        autohide.stop()
+        Qt.callLater(function () {
+            subtitleSettings.focusRow(0)
+        })
+    }
+
+    function closeSubtitleSettings() {
+        if (!subtitleSettingsVisible)
+            return
+        subtitleSettingsVisible = false
+        showControls("actions")
     }
 
     function closeAudioSync() {
@@ -305,26 +343,25 @@ FocusScope {
     }
 
     function handleAudioSyncKey(key) {
+        const subtitleSync = syncTarget === "subtitle"
         if (key === Qt.Key_Up) {
             if (audioSyncRow === "step")
                 audioSyncRow = "delay"
-            else if (audioSyncRow === "delay")
+            else if (audioSyncRow === "delay" && !subtitleSync)
                 audioSyncRow = "target"
             else
                 closeAudioSync()
             return true
         }
         if (key === Qt.Key_Down) {
-            if (audioSyncRow === "target")
-                audioSyncRow = "delay"
-            else if (audioSyncRow === "delay")
-                audioSyncRow = "step"
+            if (audioSyncRow === "target" || audioSyncRow === "delay")
+                audioSyncRow = audioSyncRow === "target" ? "delay" : "step"
             else
                 closeAudioSync()
             return true
         }
         if (audioSyncRow === "target") {
-            const targets = ["audioFile", "audioGlobal", "subtitle"]
+            const targets = ["audioFile", "audioGlobal"]
             const direction = key === Qt.Key_Left ? -1 : key === Qt.Key_Right ? 1 : 0
             if (direction !== 0) {
                 syncTarget = targets[(targets.indexOf(syncTarget) + direction + targets.length) % targets.length]
@@ -439,6 +476,10 @@ FocusScope {
             autohide.stop()
             return true
         }
+        if (subtitleSettingsVisible) {
+            closeSubtitleSettings()
+            return true
+        }
         if (audioSyncVisible) {
             closeAudioSync()
             return true
@@ -453,6 +494,8 @@ FocusScope {
     }
 
     function routeKey(key, phase, repeat) {
+        if (subtitleSettingsVisible)
+            return subtitleSettings.routeKey(key, phase, repeat)
         if (phase === "press" && (isMenuOpen() || audioSyncVisible) && InputKeys.isDirection(key))
             return true
         if (phase === "release" && isMenuOpen() && chrome.routeMenuKey(key))
@@ -463,6 +506,10 @@ FocusScope {
     }
 
     function activate() {
+        if (subtitleSettingsVisible) {
+            subtitleSettings.activate()
+            return
+        }
         if (isMenuOpen()) {
             chrome.activateMenu()
             return
@@ -498,6 +545,7 @@ FocusScope {
         scrubbing = false
         menuKind = ""
         audioSyncVisible = false
+        subtitleSettingsVisible = false
         focusZone = "timeline"
         actionIndex = 1
         controlsVisible = visible
@@ -516,6 +564,17 @@ FocusScope {
         id: autohide
         interval: 3000
         onTriggered: overlay.hideControls()
+    }
+
+    SettingsPage {
+        id: subtitleSettings
+        anchors.fill: parent
+        visible: overlay.subtitleSettingsVisible
+        enabled: visible
+        z: 60
+        subtitleEditor: true
+        playbackPreview: true
+        onDismissed: overlay.closeSubtitleSettings()
     }
 
     PlayerOverlayChrome {

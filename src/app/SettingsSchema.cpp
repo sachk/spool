@@ -27,6 +27,8 @@ namespace {
         { "#0000ff", "Blue" }, { "#ff00ff", "Magenta" }, { "#ff0000", "Red" }, { "#000000", "Black" } };
     constexpr SettingChoice kSubtitleDropShadowChoices[] = { { "none", "None" }, { "raised", "Raised" },
         { "depressed", "Depressed" }, { "uniform", "Uniform" }, { "", "Drop shadow" } };
+    constexpr SettingChoice kSubtitleBackgroundChoices[]
+        = { { "transparent", "None" }, { "translucent", "Translucent black" }, { "opaque", "Solid black" } };
     constexpr SettingChoice kSubtitleBitmapSmoothingChoices[]
         = { { "sharp", "Sharp" }, { "soft", "Smooth" }, { "softer", "Extra smooth" } };
     constexpr SettingChoice kButtonActionChoices[] = { { "none", "No action" }, { "togglePause", "Play / Pause" },
@@ -154,8 +156,8 @@ const QVector<SettingSpec>& settingSpecs()
             kSubtitleDropShadowChoices, countOf(kSubtitleDropShadowChoices), 0, 0, 1, 0, "", 0, 0,
             SettingTarget::SubtitleDropShadow, SettingNormalizer::SubtitleDropShadow, true, true },
         { "subtitles/textBackground", "Subtitle Appearance", "Text Background", "", SettingType::Select, "transparent",
-            nullptr, 0, 0, 0, 1, 0, "", 0, 0, SettingTarget::SubtitleTextBackground, SettingNormalizer::String, false,
-            false },
+            kSubtitleBackgroundChoices, countOf(kSubtitleBackgroundChoices), 0, 0, 1, 0, "", 0, 0,
+            SettingTarget::SubtitleTextBackground, SettingNormalizer::String, true, false },
         { "subtitles/verticalPosition", "Subtitle Appearance", "Vertical Position",
             "Negative values place subtitles near the bottom", SettingType::Slider, "-3", nullptr, 0, -16, 16, 1, 0, "",
             72, 300, SettingTarget::SubtitleVerticalPosition, SettingNormalizer::IntRange, true, false },

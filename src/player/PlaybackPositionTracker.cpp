@@ -84,9 +84,9 @@ bool PlaybackPositionTracker::update(double seconds, Source source)
         && m_lastTrustedPositionSeconds > kPositionRegressionToleranceSeconds
         && clamped + kPositionRegressionToleranceSeconds < m_lastTrustedPositionSeconds) {
         if (source == Source::Mpv) {
-            qWarning() << "player: ignoring stale mpv position"
-                       << "position=" << clamped << "ui=" << m_positionSeconds
-                       << "trusted=" << m_lastTrustedPositionSeconds;
+            qInfo() << "player: ignoring stale mpv position"
+                    << "position=" << clamped << "ui=" << m_positionSeconds
+                    << "trusted=" << m_lastTrustedPositionSeconds;
         }
         clamped = clamp(m_lastTrustedPositionSeconds);
     }

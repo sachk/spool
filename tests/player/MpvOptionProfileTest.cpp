@@ -78,6 +78,16 @@ int main(int argc, char **argv)
     require(valueFor(webOSAlsa, "video-sync") == "display-resample", "ALSA mode should follow the display clock");
     require(valueFor(webOSAlsa, "initial-audio-sync") == "no", "webOS should retain its Starfish sync workaround");
 
+    MediaStreamInfo sdrStream;
+    sdrStream.type = QStringLiteral("Video");
+    sdrStream.videoRange = QStringLiteral("SDR");
+    require(!MpvOptionProfile::isHdrPlayback({ sdrStream }), "SDR metadata was misidentified as HDR");
+    MediaStreamInfo dolbyVisionStream = sdrStream;
+    dolbyVisionStream.videoRange = QStringLiteral("DOVI");
+    dolbyVisionStream.colorTransfer = QStringLiteral("smpte2084");
+    require(MpvOptionProfile::isHdrPlayback({ dolbyVisionStream }),
+        "Dolby Vision metadata did not enable HDR subtitle handling");
+
     SubtitlePreferences subtitles;
     subtitles.language = QStringLiteral("eng");
     subtitles.mode = QStringLiteral("OnlyForced");
@@ -114,6 +124,9 @@ int main(int argc, char **argv)
     require(valueFor(subtitleOptions, "sub-shadow-offset") == "0", "uniform shadow should disable shadow offset");
     require(valueFor(subtitleOptions, "sub-scale") == "1.25", "overall subtitle scale was not propagated");
     require(valueFor(subtitleOptions, "sub-gauss") == "1.0", "bitmap subtitle smoothing was not propagated");
+    subtitles.textBackground = QStringLiteral("translucent");
+    require(valueFor(MpvOptionProfile::subtitleOptions(subtitles, true), "sub-back-color") == "#A0000000",
+        "subtitle background preference was not mapped");
 
     SubtitlePreferences hdrSubtitles = subtitles;
     hdrSubtitles.textColor = QStringLiteral("#ffffff");

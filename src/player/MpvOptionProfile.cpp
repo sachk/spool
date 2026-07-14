@@ -85,6 +85,15 @@ namespace {
         return QByteArrayLiteral("sans-serif");
     }
 
+    QByteArray subtitleBackgroundColor(const QString& value)
+    {
+        if (value == QStringLiteral("opaque"))
+            return QByteArrayLiteral("#FF000000");
+        if (value == QStringLiteral("translucent"))
+            return QByteArrayLiteral("#A0000000");
+        return QByteArrayLiteral("#00000000");
+    }
+
     struct SubtitleShadowOptions {
         QByteArray borderSize = QByteArrayLiteral("3.5");
         QByteArray shadowOffset = QByteArrayLiteral("1");
@@ -112,6 +121,23 @@ namespace {
     }
 
 } // namespace
+
+bool MpvOptionProfile::isHdrPlayback(const QList<MediaStreamInfo>& streams)
+{
+    for (const MediaStreamInfo& stream : streams) {
+        if (stream.type.compare(QStringLiteral("Video"), Qt::CaseInsensitive) != 0)
+            continue;
+        const QString metadata
+            = (stream.videoRange + QLatin1Char(' ') + stream.colorTransfer + QLatin1Char(' ') + stream.profile)
+                  .toLower();
+        if (metadata.contains(QStringLiteral("hdr")) || metadata.contains(QStringLiteral("dovi"))
+            || metadata.contains(QStringLiteral("dolby")) || metadata.contains(QStringLiteral("2084"))
+            || metadata.contains(QStringLiteral("pq")) || metadata.contains(QStringLiteral("b67"))
+            || metadata.contains(QStringLiteral("hlg")))
+            return true;
+    }
+    return false;
+}
 
 MpvOptionProfile::NetworkProfile MpvOptionProfile::networkProfile(Platform platform)
 {
@@ -241,6 +267,7 @@ std::vector<MpvOption> MpvOptionProfile::subtitleOptions(
         { "sub-border-color", "#FF000000" },
         { "sub-shadow-offset", shadow.shadowOffset },
         { "sub-shadow-color", shadow.shadowColor },
+        { "sub-back-color", subtitleBackgroundColor(prefs.textBackground) },
     };
 }
 

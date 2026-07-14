@@ -10,6 +10,7 @@ SettingRow {
                                                                                                     currentIndex))]) :
                                                                 ""
     signal selected(int index, string value)
+    signal opened
     valueText: selectedText
     valueTextVisible: false
 
@@ -20,7 +21,7 @@ SettingRow {
         selected(currentIndex, String(options[currentIndex]))
     }
 
-    onClicked: move(1)
+    onClicked: opened()
 
     Row {
         anchors.right: parent.right
@@ -30,9 +31,9 @@ SettingRow {
 
         MaterialIcon {
             anchors.verticalCenter: parent.verticalCenter
-            name: "chevron_left"
+            name: "unfold_more"
             iconSize: Math.max(18, Metrics.metaPx(root.metricsWidth) + 6)
-            iconColor: root.enabled && root.options.length > 1 ? Theme.textSecondary : Theme.textDisabled
+            iconColor: root.enabled && root.options.length > 0 ? Theme.textSecondary : Theme.textDisabled
         }
 
         Rectangle {
@@ -58,13 +59,6 @@ SettingRow {
                 verticalAlignment: Text.AlignVCenter
                 elide: Text.ElideRight
             }
-        }
-
-        MaterialIcon {
-            anchors.verticalCenter: parent.verticalCenter
-            name: "chevron_right"
-            iconSize: Math.max(18, Metrics.metaPx(root.metricsWidth) + 6)
-            iconColor: root.enabled && root.options.length > 1 ? Theme.textSecondary : Theme.textDisabled
         }
     }
 }
