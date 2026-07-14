@@ -26,8 +26,8 @@ if ! git -C "$ROOT" ls-files --stage -- mpv | grep -q '^160000 '; then
 fi
 
 if ! read_file .gitmodules | grep -A3 -F '[submodule "mpv"]' \
-    | grep -q 'branch = network-threaded-mpv'; then
-  echo "error: mpv must track the network-threaded-mpv branch" >&2
+    | grep -q 'branch = universal'; then
+  echo "error: mpv must track the universal branch" >&2
   exit 1
 fi
 
