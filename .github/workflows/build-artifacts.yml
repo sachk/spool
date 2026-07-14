@@ -91,9 +91,9 @@ jobs:
             .ccache
             build/linux-release
             build/appimage
-          key: linux2-${{ runner.os }}-${{ hashFiles('mpv/meson.build', 'tools/build-linux-release.sh', 'tools/lib/build-common.sh', 'CMakeLists.txt') }}
+          key: linux3-${{ runner.os }}-${{ hashFiles('mpv/meson.build', 'mpv/meson.options', 'tools/manifests/mpv-native.json', 'tools/build-linux-release.sh', 'tools/lib/build-common.sh', 'CMakeLists.txt') }}
           restore-keys: |
-            linux2-${{ runner.os }}-
+            linux3-${{ runner.os }}-
 
       # The default dev shell has no Qt on purpose (it is the hermetic Qt-source
       # build shell). The native app build needs nixpkgs Qt, so use .#native.

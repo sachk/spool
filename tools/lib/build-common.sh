@@ -402,7 +402,11 @@ mpv_meson_build() {
   fi
 
   if [[ -f "$build/build.ninja" ]]; then
-    meson setup --reconfigure "$build" "$src" "${setup_args[@]}"
+    if ! meson setup --reconfigure "$build" "$src" "${setup_args[@]}"; then
+      echo "mpv reconfigure failed; retrying with a clean build directory" >&2
+      rm -rf "$build"
+      meson setup "$build" "$src" "${setup_args[@]}"
+    fi
   else
     meson setup "$build" "$src" "${setup_args[@]}"
   fi
