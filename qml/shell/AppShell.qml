@@ -105,7 +105,7 @@ KeyRouter {
         }
     }
     function defaultRoute() {
-        return Session.authenticated ? (Settings.uiScaleSetupComplete ? "home" : "scaleSetup") : "login"
+        return !Settings.uiScaleSetupComplete ? "scaleSetup" : Session.authenticated ? "home" : "login"
     }
 
     Connections {
@@ -114,7 +114,7 @@ KeyRouter {
             if (Session.authenticated)
                 Router.replace(root.defaultRoute())
             else
-                Router.reset("login")
+                Router.reset(root.defaultRoute())
         }
     }
 

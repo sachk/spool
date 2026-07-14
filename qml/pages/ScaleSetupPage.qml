@@ -15,18 +15,15 @@ FocusScope {
     readonly property var presets: [
         {
             "name": "Compact",
-            "percent": 100,
-            "description": "More titles on screen"
+            "percent": 90
         },
         {
             "name": "Balanced",
-            "percent": 115,
-            "description": "The recommended layout"
+            "percent": 110
         },
         {
-            "name": "Relaxed",
-            "percent": 135,
-            "description": "Larger type and controls"
+            "name": "Large",
+            "percent": 130
         }
     ]
 
@@ -50,7 +47,7 @@ FocusScope {
 
     function confirm() {
         Settings.completeUiScaleSetup(presets[currentIndex].percent)
-        Router.replace(returnRoute || "home")
+        Router.replace(returnRoute || (Session.authenticated ? "home" : "login"))
         if (shell)
             shell.focusContent()
     }
@@ -112,25 +109,12 @@ FocusScope {
         anchors.bottomMargin: Metrics.scaled(36)
         spacing: Metrics.sectionGap(root.width)
 
-        ColumnLayout {
+        AppText {
             Layout.fillWidth: true
-            spacing: Metrics.scaled(8)
-
-            AppText {
-                Layout.fillWidth: true
-                text: "Make Jellyfin yours"
-                font.pixelSize: Metrics.titlePx(root.width) + Metrics.scaled(18)
-                font.weight: Font.DemiBold
-                horizontalAlignment: Text.AlignHCenter
-            }
-
-            AppText {
-                Layout.fillWidth: true
-                text: "Choose the density that feels right from your seat. You can change it later in Settings."
-                color: Theme.textSecondary
-                font.pixelSize: Metrics.bodyPx(root.width) + Metrics.scaled(4)
-                horizontalAlignment: Text.AlignHCenter
-            }
+            text: "Choose a comfortable zoom"
+            font.pixelSize: Metrics.titlePx(root.width) + Metrics.scaled(18)
+            font.weight: Font.DemiBold
+            horizontalAlignment: Text.AlignHCenter
         }
 
         RowLayout {
@@ -147,6 +131,7 @@ FocusScope {
                     required property int index
                     required property var modelData
                     readonly property real previewScale: Number(modelData.percent) / 100
+                    readonly property int previewCardCount: Math.max(2, Math.floor(420 / (105 * previewScale)))
                     readonly property bool selected: index === root.currentIndex
 
                     Layout.fillWidth: true
@@ -176,39 +161,12 @@ FocusScope {
                         anchors.margins: Metrics.scaled(18)
                         spacing: Metrics.scaled(12)
 
-                        RowLayout {
+                        AppText {
                             Layout.fillWidth: true
-
-                            ColumnLayout {
-                                Layout.fillWidth: true
-                                spacing: Metrics.scaled(2)
-
-                                AppText {
-                                    text: presetCard.modelData.name
-                                    font.pixelSize: Metrics.bodyPx(root.width) + Metrics.scaled(6)
-                                    font.weight: Font.DemiBold
-                                }
-
-                                MonoText {
-                                    text: presetCard.modelData.description
-                                    color: Theme.textSecondary
-                                    font.pixelSize: Metrics.metaPx(root.width) + Metrics.scaled(3)
-                                }
-                            }
-
-                            Surface {
-                                Layout.preferredWidth: Metrics.scaled(58)
-                                Layout.preferredHeight: Metrics.scaled(30)
-                                baseColor: presetCard.selected ? Theme.accent : Theme.bgRaised
-
-                                MonoText {
-                                    anchors.centerIn: parent
-                                    text: presetCard.modelData.percent + "%"
-                                    color: presetCard.selected ? Theme.accentText : Theme.textSecondary
-                                    font.weight: Font.DemiBold
-                                    font.pixelSize: Metrics.bodyPx(root.width)
-                                }
-                            }
+                            text: presetCard.modelData.name
+                            font.pixelSize: Metrics.bodyPx(root.width) + Metrics.scaled(6)
+                            font.weight: Font.DemiBold
+                            horizontalAlignment: Text.AlignHCenter
                         }
 
                         Surface {
@@ -297,13 +255,12 @@ FocusScope {
                                     spacing: Metrics.scaled(8) * presetCard.previewScale
 
                                     Repeater {
-                                        model: presetCard.modelData.percent >= 115 ? 3 : 4
+                                        model: presetCard.previewCardCount
 
                                         Column {
                                             required property int index
-                                            width: (parent.width - parent.spacing * (presetCard.modelData.percent
-                                                                                     >= 115 ? 2 : 3)) / (
-                                                       presetCard.modelData.percent >= 115 ? 3 : 4)
+                                            width: (parent.width - parent.spacing * (presetCard.previewCardCount - 1))
+                                                   / presetCard.previewCardCount
                                             spacing: Metrics.scaled(4) * presetCard.previewScale
 
                                             Rectangle {
@@ -313,11 +270,12 @@ FocusScope {
                                                 color: index === 0 ? Theme.accentDim : index === 1 ? Theme.bgHover :
                                                                                                      Theme.border
                                             }
-                                            Rectangle {
-                                                width: parent.width * 0.76
-                                                height: Metrics.scaled(5) * presetCard.previewScale
-                                                radius: height / 2
+                                            AppText {
+                                                width: parent.width
+                                                text: "Title " + (index + 1)
                                                 color: Theme.textSecondary
+                                                font.pixelSize: Math.round(11 * presetCard.previewScale)
+                                                elide: Text.ElideRight
                                             }
                                         }
                                     }

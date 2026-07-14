@@ -21,7 +21,7 @@ FocusScope {
     function normalizedKey(event) {
         if (InputKeys.isIgnoredPlayerNoise(event))
             return 0
-        return InputKeys.isBackEvent(event, !textInputActive) ? Qt.Key_Back : event.key
+        return InputKeys.isBackEvent(event, Platform.isWebOS || !textInputActive) ? Qt.Key_Back : event.key
     }
 
     function deliver(target, key, phase, repeat) {
@@ -82,7 +82,7 @@ FocusScope {
         const repeat = Boolean(event.isAutoRepeat)
         if (key === 0)
             return true
-        if (InputKeys.isBack(key)) {
+        if (InputKeys.isBack(key, false)) {
             const handled = routeBack(phase, repeat)
             if (phase === "release")
                 backClaimed = false

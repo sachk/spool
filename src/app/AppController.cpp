@@ -113,10 +113,7 @@ AppController::AppController(DatabaseManager *database, DiscoveryController *dis
         [this](const AuthSession& session) { m_session->acceptSession(session); });
     connect(m_discovery, &DiscoveryController::serverDiscovered, this, [this](const DiscoveredServer& server) {
         m_discoveredServers.upsertServer(server);
-        QJsonArray cache;
-        for (const auto& entry : m_discoveredServers.servers())
-            cache.push_back(metaToJson(entry));
-        m_database->saveDiscoveredServers(cache);
+        cacheDiscoveredServers();
     });
 
     connect(m_player, &PlayerController::playbackStopped, this, &AppController::handlePlaybackStopped);
@@ -159,6 +156,26 @@ void AppController::chooseDiscoveredServer(int index)
     if (server.address.isEmpty())
         return;
     m_session->setServerUrl(server.address);
+}
+
+void AppController::rememberServer(const QString& name, const QString& address)
+{
+    const QString normalizedAddress = address.trimmed();
+    if (normalizedAddress.isEmpty())
+        return;
+
+    m_discoveredServers.upsertServer({ normalizedAddress,
+        name.trimmed().isEmpty() ? QStringLiteral("Jellyfin Server") : name.trimmed(), normalizedAddress });
+    cacheDiscoveredServers();
+    m_session->setServerUrl(normalizedAddress);
+}
+
+void AppController::cacheDiscoveredServers()
+{
+    QJsonArray cache;
+    for (const auto& entry : m_discoveredServers.servers())
+        cache.push_back(metaToJson(entry));
+    m_database->saveDiscoveredServers(cache);
 }
 
 bool AppController::useDefaultProfile()

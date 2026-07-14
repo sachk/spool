@@ -197,6 +197,7 @@ struct MovieItem {
     Q_PROPERTY(int year MEMBER year)
     Q_PROPERTY(int seasonNumber MEMBER seasonNumber)
     Q_PROPERTY(int episodeNumber MEMBER episodeNumber)
+    Q_PROPERTY(QString episodeLabel MEMBER episodeLabel)
     Q_PROPERTY(qint64 resumeTicks MEMBER resumeTicks)
     Q_PROPERTY(qint64 runtimeTicks MEMBER runtimeTicks)
     Q_PROPERTY(bool playable READ isPlayable)
@@ -233,6 +234,7 @@ public:
     int year = 0;
     int seasonNumber = 0;
     int episodeNumber = 0;
+    QString episodeLabel;
     qint64 resumeTicks = 0;
     qint64 runtimeTicks = 0;
     bool favorite = false;
@@ -309,6 +311,10 @@ struct SubtitlePreferences {
     QString dropShadow;
     QString textBackground = QStringLiteral("transparent");
     int verticalPosition = -3;
+    int scalePercent = 100;
+    QString bitmapSmoothing = QStringLiteral("soft");
+    bool dimInHdr = true;
+    int hdrBrightnessPercent = 75;
 
     friend bool operator==(const SubtitlePreferences&, const SubtitlePreferences&) = default;
 };

@@ -8,8 +8,10 @@
 #include "LibraryQuery.h"
 
 #include <QDebug>
+#include <QHash>
 #include <QJsonArray>
 #include <QQmlEngine>
+#include <QSet>
 #include <QStringList>
 #include <QVariantMap>
 
@@ -19,7 +21,7 @@
 namespace JellyfinNative {
 
 namespace {
-    constexpr int kHomePayloadSchemaVersion = 3;
+    constexpr int kHomePayloadSchemaVersion = 4;
 
     QString homeItemSample(const std::vector<MovieItem>& items)
     {
@@ -68,6 +70,50 @@ namespace {
         if (library.collectionType == QStringLiteral("tvshows"))
             return 12;
         return 16;
+    }
+
+    std::vector<MovieItem> groupLatestEpisodes(const LibraryItem& library, std::vector<MovieItem> items)
+    {
+        if (library.collectionType != QStringLiteral("tvshows"))
+            return items;
+
+        QHash<QString, QList<int>> episodeNumbers;
+        for (const MovieItem& item : items) {
+            if (item.itemType != QStringLiteral("Episode") || item.seriesId.isEmpty())
+                continue;
+            const QString seasonKey = !item.seasonId.isEmpty() ? item.seasonId : QString::number(item.seasonNumber);
+            episodeNumbers[item.seriesId + QLatin1Char('/') + seasonKey].push_back(item.episodeNumber);
+        }
+
+        QSet<QString> emittedSeasons;
+        std::vector<MovieItem> grouped;
+        grouped.reserve(items.size());
+        for (MovieItem& item : items) {
+            if (item.itemType != QStringLiteral("Episode") || item.seriesId.isEmpty()) {
+                grouped.push_back(std::move(item));
+                continue;
+            }
+
+            const QString seasonKey = !item.seasonId.isEmpty() ? item.seasonId : QString::number(item.seasonNumber);
+            const QString groupKey = item.seriesId + QLatin1Char('/') + seasonKey;
+            if (emittedSeasons.contains(groupKey))
+                continue;
+            emittedSeasons.insert(groupKey);
+
+            QList<int> numbers = episodeNumbers.value(groupKey);
+            numbers.removeAll(0);
+            std::sort(numbers.begin(), numbers.end());
+            numbers.erase(std::unique(numbers.begin(), numbers.end()), numbers.end());
+            if (numbers.size() > 1 && numbers.back() - numbers.front() + 1 == numbers.size()) {
+                item.title = item.seriesName.isEmpty() ? item.title : item.seriesName;
+                item.episodeLabel = QStringLiteral("S%1 · E%2-E%3")
+                                        .arg(item.seasonNumber, 2, 10, QLatin1Char('0'))
+                                        .arg(numbers.front(), 2, 10, QLatin1Char('0'))
+                                        .arg(numbers.back(), 2, 10, QLatin1Char('0'));
+            }
+            grouped.push_back(std::move(item));
+        }
+        return grouped;
     }
 
     QJsonArray movieArrayToJson(const std::vector<MovieItem>& items)
@@ -122,7 +168,6 @@ QVariantList HomeModelController::latestLibraryRows() const
     }
     return rows;
 }
-
 
 bool HomeModelController::applyCachedPayload(const QJsonObject& payload)
 {
@@ -257,6 +302,7 @@ QCoro::Task<void> HomeModelController::refreshAsync(
         const LibraryItem& library = latestLibraries[static_cast<size_t>(order)];
         try {
             std::vector<MovieItem> items = co_await latestTasks[static_cast<size_t>(order)];
+            items = groupLatestEpisodes(library, std::move(items));
             qInfo() << "home: latest items" << library.name << items.size() << homeItemSample(items);
             if (!items.empty())
                 latestSections.push_back({ order, library, std::move(items) });

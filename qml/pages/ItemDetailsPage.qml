@@ -1094,7 +1094,7 @@ FocusScope {
 
                         IconAction {
                             id: playedAction
-                            iconName: root.playedState ? "check_circle" : "radio_button_unchecked"
+                            iconName: root.playedState ? "visibility_off" : "visibility"
                             label: root.playedState ? "Mark unwatched" : "Mark watched"
                             checked: root.playedState
                             enabledButton: root.selectedIndex >= 0

@@ -76,7 +76,7 @@ FocusScope {
             return
         selectedServerName = savedServerName
         selectedServerAddress = manualServerAddress
-        Session.serverUrl = manualServerAddress
+        App.rememberServer(selectedServerName, manualServerAddress)
         addStep = 2
         Qt.callLater(function () {
             usernameRow.focusField()
@@ -504,7 +504,7 @@ FocusScope {
 
             Surface {
                 Layout.fillWidth: true
-                Layout.preferredHeight: 92
+                Layout.preferredHeight: Metrics.scaled(118)
                 visible: QuickConnect.active
                 baseColor: Theme.accentPanel
 
@@ -517,6 +517,13 @@ FocusScope {
                         text: QuickConnect.code
                         font.pixelSize: 32
                         font.weight: Font.Bold
+                    }
+
+                    AppText {
+                        anchors.horizontalCenter: parent.horizontalCenter
+                        text: "Log in from another device"
+                        color: Theme.textSecondary
+                        font.pixelSize: Metrics.scaled(16)
                     }
 
                     MonoText {

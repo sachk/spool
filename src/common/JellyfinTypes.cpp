@@ -317,6 +317,8 @@ QString itemSubtitle(const MovieItem& item)
     if (item.itemType == QStringLiteral("Season"))
         return QStringLiteral("Season");
     if (item.itemType == QStringLiteral("Episode")) {
+        if (!item.episodeLabel.isEmpty())
+            return item.episodeLabel;
         if (item.seasonNumber > 0 && item.episodeNumber > 0) {
             return QStringLiteral("S%1:E%2")
                 .arg(item.seasonNumber, 2, 10, QLatin1Char('0'))

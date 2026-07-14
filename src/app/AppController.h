@@ -102,6 +102,7 @@ public:
     Q_INVOKABLE void initialize();
     void shutdown();
     Q_INVOKABLE void chooseDiscoveredServer(int index);
+    Q_INVOKABLE void rememberServer(const QString& name, const QString& address);
     Q_INVOKABLE bool useDefaultProfile();
     Q_INVOKABLE void switchUser();
     Q_INVOKABLE void logout();
@@ -134,6 +135,7 @@ private:
     QCoro::Task<void> initializeAsync();
     void resetApplicationState();
     QCoro::Task<void> applyDiscoveredServersCacheAsync();
+    void cacheDiscoveredServers();
     void loadLibraries();
     void loadMoreCurrentItems();
     void refreshHomeRows()

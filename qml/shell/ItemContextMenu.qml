@@ -104,7 +104,7 @@ FocusScope {
             }
             options.push({
                              action: "played",
-                             icon: "check_circle",
+                             icon: playedState ? "visibility_off" : "visibility",
                              label: playedState ? "Mark unwatched" : "Mark watched",
                              checked: playedState
                          })

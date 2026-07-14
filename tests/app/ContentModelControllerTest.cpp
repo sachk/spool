@@ -51,18 +51,21 @@ QByteArray jsonBytes(const QJsonObject& object)
     return QJsonDocument(object).toJson(QJsonDocument::Compact);
 }
 
-QJsonObject episodeObject()
+QJsonObject episodeObject(int episodeNumber = 7)
 {
     return {
-        { QStringLiteral("Id"), QStringLiteral("episode-row") },
-        { QStringLiteral("Name"), QStringLiteral("The Loaded Episode") },
+        { QStringLiteral("Id"),
+            episodeNumber == 7 ? QStringLiteral("episode-row") : QStringLiteral("episode-%1").arg(episodeNumber) },
+        { QStringLiteral("Name"),
+            episodeNumber == 7 ? QStringLiteral("The Loaded Episode")
+                               : QStringLiteral("Episode %1").arg(episodeNumber) },
         { QStringLiteral("Type"), QStringLiteral("Episode") },
         { QStringLiteral("SeriesId"), QStringLiteral("series-1") },
         { QStringLiteral("SeasonId"), QStringLiteral("season-1") },
         { QStringLiteral("SeriesName"), QStringLiteral("Series One") },
         { QStringLiteral("SeriesPrimaryImageTag"), QStringLiteral("series-primary-tag") },
         { QStringLiteral("ParentIndexNumber"), 2 },
-        { QStringLiteral("IndexNumber"), 7 },
+        { QStringLiteral("IndexNumber"), episodeNumber },
     };
 }
 QJsonObject movieObject()
@@ -206,9 +209,10 @@ protected:
 
         if (operation == GetOperation && url.path() == QStringLiteral("/Users/user-1/Items/Latest")) {
             const QString parentId = query.queryItemValue(QStringLiteral("parentId"));
-            const QJsonArray items = parentId == QStringLiteral("shows-id") ? QJsonArray { episodeObject() }
-                : parentId == QStringLiteral("photos-id")                   ? QJsonArray { photoObject() }
-                                                                            : QJsonArray {};
+            const QJsonArray items = parentId == QStringLiteral("shows-id")
+                ? QJsonArray { episodeObject(7), episodeObject(6), episodeObject(5) }
+                : parentId == QStringLiteral("photos-id") ? QJsonArray { photoObject() }
+                                                          : QJsonArray {};
             return new MemoryReply(request, operation, jsonBytes({ { QStringLiteral("Items"), items } }), 200, this);
         }
 
@@ -508,19 +512,23 @@ int main(int argc, char **argv)
 
     const QVariantList latestRows = home.latestLibraryRows();
     require(latestRows.size() == 2, "home did not expose one latest row for each supported library");
-    auto *showItems = qobject_cast<MovieGridModel *>(
-        latestRows.at(0).toMap().value(QStringLiteral("model")).value<QObject *>());
-    auto *photoItems = qobject_cast<MovieGridModel *>(
-        latestRows.at(1).toMap().value(QStringLiteral("model")).value<QObject *>());
-    require(showItems && showItems->rowCount() == 1, "home did not expose the latest TV episode");
+    auto *showItems
+        = qobject_cast<MovieGridModel *>(latestRows.at(0).toMap().value(QStringLiteral("model")).value<QObject *>());
+    auto *photoItems
+        = qobject_cast<MovieGridModel *>(latestRows.at(1).toMap().value(QStringLiteral("model")).value<QObject *>());
+    require(showItems && showItems->rowCount() == 1, "home did not group latest episodes from one season");
     require(photoItems && photoItems->rowCount() == 1 && photoItems->get(0).itemType == QStringLiteral("Photo"),
         "home did not expose an arbitrary-library latest item");
     require(showItems->get(0).seriesPrimaryImageTag == QStringLiteral("series-primary-tag"),
         "home episode row did not retain series primary artwork");
+    require(showItems->get(0).title == QStringLiteral("Series One"),
+        "grouped latest episodes did not use the series title");
+    require(showItems->get(0).episodeLabel == QStringLiteral("S02 · E05-E07"),
+        "grouped latest episodes did not expose the contiguous episode range");
 
     int latestStructureChanges = 0;
-    QObject::connect(
-        &home, &HomeModelController::latestLibraryRowsChanged, [&latestStructureChanges]() { ++latestStructureChanges; });
+    QObject::connect(&home, &HomeModelController::latestLibraryRowsChanged,
+        [&latestStructureChanges]() { ++latestStructureChanges; });
     MovieItem updatedShow = showItems->get(0);
     updatedShow.title = QStringLiteral("Updated episode");
     const QJsonObject updatedPayload {
@@ -542,8 +550,8 @@ int main(int argc, char **argv)
     const QVariantList updatedRows = home.latestLibraryRows();
     require(updatedRows.at(0).toMap().value(QStringLiteral("model")).value<QObject *>() == showItems,
         "home replaced a stable latest-row model");
-    require(showItems->get(0).title == QStringLiteral("Updated episode"),
-        "home did not update a stable latest-row model");
+    require(
+        showItems->get(0).title == QStringLiteral("Updated episode"), "home did not update a stable latest-row model");
     require(latestStructureChanges == 0, "home emitted a row-structure change for content-only updates");
 
     require(!network.connectionCacheExpirySeconds.isEmpty()
