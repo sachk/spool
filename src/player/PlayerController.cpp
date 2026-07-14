@@ -121,6 +121,22 @@ namespace {
         return path;
     }
 
+    QByteArray bundledSubtitleFontsPath()
+    {
+        const QString fontsPath
+            = QDir(QStandardPaths::writableLocation(QStandardPaths::CacheLocation)).filePath(QStringLiteral("fonts"));
+        if (!QDir().mkpath(fontsPath))
+            return {};
+
+        const QString target = QDir(fontsPath).filePath(QStringLiteral("SourceSerif4-Regular.ttf"));
+        if (!QFile::exists(target)
+            && !QFile::copy(QStringLiteral(":/qt/qml/JellyfinWebOS/qml/fonts/SourceSerif4-Regular.ttf"), target)) {
+            qWarning() << "player: failed to extract bundled subtitle font";
+            return {};
+        }
+        return QFile::encodeName(fontsPath);
+    }
+
     bool setOption(mpv_handle *handle, const char *name, const char *value)
     {
         const int error = mpv_set_option_string(handle, name, value);
@@ -404,8 +420,11 @@ bool PlayerController::configureAndInitializeMpv(mpv_handle *handle)
                       << (platform == MpvOptionProfile::Platform::WebOS ? "webOS" : "desktop")
                       << " requestsPerStream=" << network.parallelRequests << " rangeBytes=" << network.rangeBytes
                       << " ringBytes=" << network.ringBytes;
-    const auto startupOptions = MpvOptionProfile::startupOptions(
+    auto startupOptions = MpvOptionProfile::startupOptions(
         platform, m_audioOutputMode, mpvLogPath(), m_demuxerMaxBytes, m_demuxerMaxBackBytes);
+    const QByteArray subtitleFontsPath = bundledSubtitleFontsPath();
+    if (!subtitleFontsPath.isEmpty())
+        startupOptions.push_back({ "sub-fonts-dir", subtitleFontsPath });
     const bool configured
         = applyOptions(handle, startupOptions) && applyMpvRuntimeOptions(MpvOptionApplyMode::Initial, handle);
 
@@ -424,6 +443,7 @@ void PlayerController::observeMpvProperties(mpv_handle *handle)
     mpv_observe_property(handle, 0, "track-list", MPV_FORMAT_NODE);
     mpv_observe_property(handle, 0, "chapter-list", MPV_FORMAT_NODE);
     mpv_observe_property(handle, 0, "chapter", MPV_FORMAT_INT64);
+    mpv_observe_property(handle, 0, "video-params/transfer", MPV_FORMAT_STRING);
 }
 
 void PlayerController::scheduleMpvTeardown()
@@ -584,6 +604,21 @@ int PlayerController::audioDelayMs() const
     return m_audioDelayMs.load();
 }
 
+int PlayerController::fileAudioDelayMs() const
+{
+    return m_fileAudioDelayMs.load();
+}
+
+int PlayerController::effectiveAudioDelayMs() const
+{
+    return qBound(-4000, m_audioDelayMs.load() + m_fileAudioDelayMs.load(), 4000);
+}
+
+int PlayerController::subtitleDelayMs() const
+{
+    return m_subtitleDelayMs.load();
+}
+
 QString PlayerController::audioOutputMode() const
 {
     return m_audioOutputMode;
@@ -613,22 +648,28 @@ bool PlayerController::applyMpvRuntimeOption(MpvRuntimeOption option, MpvOptionA
         break;
     case MpvRuntimeOption::AudioDelay:
         name = "audio-delay";
-        doubleValue = static_cast<double>(m_audioDelayMs.load()) / 1000.0;
+        doubleValue = static_cast<double>(effectiveAudioDelayMs()) / 1000.0;
+        value = QByteArray::number(doubleValue, 'f', 3);
+        break;
+    case MpvRuntimeOption::SubtitleDelay:
+        name = "sub-delay";
+        doubleValue = static_cast<double>(m_subtitleDelayMs.load()) / 1000.0;
         value = QByteArray::number(doubleValue, 'f', 3);
         break;
     }
 
     double appliedDoubleValue = doubleValue;
+    const bool delayOption = option == MpvRuntimeOption::AudioDelay || option == MpvRuntimeOption::SubtitleDelay;
     const bool ok = mode == MpvOptionApplyMode::Initial ? setOption(handle, name, value.constData())
-        : option == MpvRuntimeOption::AudioDelay ? setMpvDoubleProperty(handle, name, doubleValue, &appliedDoubleValue)
-                                                 : setMpvProperty(handle, name, value.constData());
+        : delayOption ? setMpvDoubleProperty(handle, name, doubleValue, &appliedDoubleValue)
+                      : setMpvProperty(handle, name, value.constData());
     if (!ok) {
         qWarning() << "player: failed to apply mpv runtime option" << name
                    << "mode=" << (mode == MpvOptionApplyMode::Initial ? "initial" : "runtime");
-    } else if (option == MpvRuntimeOption::AudioDelay) {
-        qInfo() << "player: applied audio delay"
+    } else if (delayOption) {
+        qInfo() << "player: applied playback delay" << name
                 << "mode=" << (mode == MpvOptionApplyMode::Initial ? "initial" : "runtime")
-                << "requestedMs=" << m_audioDelayMs.load() << "appliedSeconds=" << appliedDoubleValue;
+                << "requestedSeconds=" << doubleValue << "appliedSeconds=" << appliedDoubleValue;
     }
     return ok;
 }
@@ -637,7 +678,9 @@ bool PlayerController::applyMpvRuntimeOptions(MpvOptionApplyMode mode, mpv_handl
 {
     return applyMpvRuntimeOption(MpvRuntimeOption::NightMode, mode, handle)
         && applyMpvRuntimeOption(MpvRuntimeOption::ToneMappingVisualization, mode, handle)
-        && applyMpvRuntimeOption(MpvRuntimeOption::AudioDelay, mode, handle) && applyMpvSubtitleOptions(mode, handle);
+        && applyMpvRuntimeOption(MpvRuntimeOption::AudioDelay, mode, handle)
+        && applyMpvRuntimeOption(MpvRuntimeOption::SubtitleDelay, mode, handle)
+        && applyMpvSubtitleOptions(mode, handle);
 }
 
 void PlayerController::discardPreparedMpvForOptionChange(const char *reason)
@@ -660,7 +703,8 @@ bool PlayerController::applyMpvSubtitleOptions(MpvOptionApplyMode mode, mpv_hand
     };
 
     bool ok = true;
-    const auto options = MpvOptionProfile::subtitleOptions(m_subtitlePreferences, m_tracks.subtitlesEnabled());
+    const auto options
+        = MpvOptionProfile::subtitleOptions(m_subtitlePreferences, m_tracks.subtitlesEnabled(), m_hdrPlayback);
     for (const MpvOption& option : options)
         ok &= applyString(option.name.constData(), option.value);
 
@@ -761,6 +805,15 @@ void PlayerController::play(const PlaybackSession& session)
         qInfo() << "player: tearing down stale mpv before play";
         teardownMpv();
     }
+
+    const bool hadFileAudioDelay = m_fileAudioDelayMs.exchange(0) != 0;
+    const bool hadSubtitleDelay = m_subtitleDelayMs.exchange(0) != 0;
+    if (hadFileAudioDelay) {
+        emit fileAudioDelayMsChanged();
+        emit effectiveAudioDelayMsChanged();
+    }
+    if (hadSubtitleDelay)
+        emit subtitleDelayMsChanged();
 
     m_window->clearOverlay();
     if (needsVideoSurface) {
@@ -1208,6 +1261,28 @@ void PlayerController::setAudioDelayMs(int delayMs)
     }
 
     emit audioDelayMsChanged();
+    emit effectiveAudioDelayMsChanged();
+}
+
+void PlayerController::setFileAudioDelayMs(int delayMs)
+{
+    const int clampedDelayMs = qBound(-2000, delayMs, 2000);
+    if (m_fileAudioDelayMs.exchange(clampedDelayMs) == clampedDelayMs)
+        return;
+    if (auto *handle = m_mpvLifecycle.handle())
+        applyMpvRuntimeOption(MpvRuntimeOption::AudioDelay, MpvOptionApplyMode::Runtime, handle);
+    emit fileAudioDelayMsChanged();
+    emit effectiveAudioDelayMsChanged();
+}
+
+void PlayerController::setSubtitleDelayMs(int delayMs)
+{
+    const int clampedDelayMs = qBound(-2000, delayMs, 2000);
+    if (m_subtitleDelayMs.exchange(clampedDelayMs) == clampedDelayMs)
+        return;
+    if (auto *handle = m_mpvLifecycle.handle())
+        applyMpvRuntimeOption(MpvRuntimeOption::SubtitleDelay, MpvOptionApplyMode::Runtime, handle);
+    emit subtitleDelayMsChanged();
 }
 
 void PlayerController::setAudioOutputMode(const QString& mode)
@@ -1570,6 +1645,20 @@ void PlayerController::handleMpvEvent(mpv_event *event)
                     return;
                 m_volume = clampedVolume;
                 emit volumeChanged();
+            });
+        } else if (strcmp(property->name, "video-params/transfer") == 0 && property->format == MPV_FORMAT_STRING) {
+            const QByteArray transfer(static_cast<const char *>(property->data));
+            const bool hdrPlayback = transfer == QByteArrayLiteral("pq") || transfer == QByteArrayLiteral("hlg");
+            QMetaObject::invokeMethod(this, [this, hdrPlayback]() {
+#ifdef JELLYFIN_NATIVE_WEBOS
+                if (m_hdrPlayback != hdrPlayback) {
+                    m_hdrPlayback = hdrPlayback;
+                    if (auto *handle = m_mpvLifecycle.handle())
+                        applyMpvSubtitleOptions(MpvOptionApplyMode::Runtime, handle);
+                }
+#else
+                Q_UNUSED(hdrPlayback);
+#endif
             });
         } else if (strcmp(property->name, "track-list") == 0 && property->format == MPV_FORMAT_NODE) {
             const auto *node = static_cast<mpv_node *>(property->data);

@@ -79,17 +79,39 @@ FocusScope {
                                                 || gpuNextDiagnosticsAvailable)
     }
 
+    function expandedSchemaRow(row) {
+        if (!row || row.key !== "subtitles/font" || Platform.isWebOS)
+            return row
+        const expanded = Object.assign({}, row)
+        expanded.choiceLabels = []
+        expanded.choiceValues = []
+        for (let index = 0; index < row.choiceLabels.length; ++index) {
+            expanded.choiceLabels.push(row.choiceLabels[index])
+            expanded.choiceValues.push(row.choiceValues[index])
+        }
+        const families = Settings.systemSubtitleFonts
+        for (let index = 0; index < families.length; ++index) {
+            expanded.choiceLabels.push("System — " + families[index])
+            expanded.choiceValues.push("system:" + families[index])
+        }
+        return expanded
+    }
+
     function rebuildSettingsRows() {
         const schema = Settings.settingsSchema
         const rows = []
+        const zoomKey = "appearance/uiScalePercent"
+        for (let index = 0; index < schema.length; ++index)
+            if (schema[index].key === zoomKey && rowVisible(schema[index]))
+                rows.push(expandedSchemaRow(schema[index]))
         for (let groupIndex = 0; groupIndex < groupOrder.length; ++groupIndex) {
             const group = groupOrder[groupIndex]
             for (let index = 0; index < pageRows.length; ++index)
                 if (pageRows[index].group === group && rowVisible(pageRows[index]))
                     rows.push(pageRows[index])
             for (let index = 0; index < schema.length; ++index)
-                if (schema[index].group === group && rowVisible(schema[index]))
-                    rows.push(schema[index])
+                if (schema[index].group === group && schema[index].key !== zoomKey && rowVisible(schema[index]))
+                    rows.push(expandedSchemaRow(schema[index]))
         }
         settingsRows = rows
         focusRow(Math.min(currentIndex, rows.length - 1))

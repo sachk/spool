@@ -438,6 +438,7 @@ qt_add_qml_module(jellyfin-native
         qml/fonts/Inter-Medium.ttf
         qml/fonts/Inter-SemiBold.ttf
         qml/fonts/Inter-Bold.ttf
+        qml/fonts/SourceSerif4-Regular.ttf
         qml/fonts/MaterialIcons-Regular.ttf
 )
 

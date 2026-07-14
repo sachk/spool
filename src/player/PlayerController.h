@@ -54,6 +54,9 @@ class PlayerController final : public QObject {
     Q_PROPERTY(bool toneMappingVisualizationEnabled READ toneMappingVisualizationEnabled WRITE
             setToneMappingVisualizationEnabled NOTIFY toneMappingVisualizationEnabledChanged)
     Q_PROPERTY(int audioDelayMs READ audioDelayMs WRITE setAudioDelayMs NOTIFY audioDelayMsChanged)
+    Q_PROPERTY(int fileAudioDelayMs READ fileAudioDelayMs WRITE setFileAudioDelayMs NOTIFY fileAudioDelayMsChanged)
+    Q_PROPERTY(int effectiveAudioDelayMs READ effectiveAudioDelayMs NOTIFY effectiveAudioDelayMsChanged)
+    Q_PROPERTY(int subtitleDelayMs READ subtitleDelayMs WRITE setSubtitleDelayMs NOTIFY subtitleDelayMsChanged)
     Q_PROPERTY(QString audioOutputMode READ audioOutputMode WRITE setAudioOutputMode NOTIFY audioOutputModeChanged)
     Q_PROPERTY(int volume READ volume WRITE setVolume NOTIFY volumeChanged)
     Q_PROPERTY(QString activeSegmentType READ activeSegmentType NOTIFY segmentsChanged)
@@ -91,6 +94,9 @@ public:
     bool nightModeEnabled() const;
     bool toneMappingVisualizationEnabled() const;
     int audioDelayMs() const;
+    int fileAudioDelayMs() const;
+    int effectiveAudioDelayMs() const;
+    int subtitleDelayMs() const;
     QString audioOutputMode() const;
     int volume() const;
     QString activeSegmentType() const;
@@ -124,6 +130,8 @@ public:
     Q_INVOKABLE void setNightModeEnabled(bool enabled);
     Q_INVOKABLE void setToneMappingVisualizationEnabled(bool enabled);
     Q_INVOKABLE void setAudioDelayMs(int delayMs);
+    Q_INVOKABLE void setFileAudioDelayMs(int delayMs);
+    Q_INVOKABLE void setSubtitleDelayMs(int delayMs);
     Q_INVOKABLE void setAudioOutputMode(const QString& mode);
     Q_INVOKABLE void setVolume(int volume);
     Q_INVOKABLE void adjustVolume(int delta);
@@ -143,6 +151,9 @@ signals:
     void nightModeEnabledChanged();
     void toneMappingVisualizationEnabledChanged();
     void audioDelayMsChanged();
+    void fileAudioDelayMsChanged();
+    void effectiveAudioDelayMsChanged();
+    void subtitleDelayMsChanged();
     void audioOutputModeChanged();
     void volumeChanged();
     void debugStatsChanged();
@@ -162,6 +173,7 @@ private:
         NightMode,
         ToneMappingVisualization,
         AudioDelay,
+        SubtitleDelay,
     };
 
     bool ensureMpv(bool needsVideoSurface);
@@ -233,11 +245,14 @@ private:
     std::atomic_bool m_nightModeEnabled = false;
     std::atomic_bool m_toneMappingVisualizationEnabled = false;
     std::atomic<int> m_audioDelayMs = 0;
+    std::atomic<int> m_fileAudioDelayMs = 0;
+    std::atomic<int> m_subtitleDelayMs = 0;
     std::atomic<int> m_volume = 100;
     QString m_audioOutputMode = QStringLiteral("alsa");
     QByteArray m_demuxerMaxBytes = QByteArrayLiteral("64M");
     QByteArray m_demuxerMaxBackBytes = QByteArrayLiteral("32M");
     SubtitlePreferences m_subtitlePreferences;
+    bool m_hdrPlayback = false;
     PlaybackPositionTracker m_positionTracker;
     PlaybackTimeline m_timeline;
     QStringList m_trickplaySheetUrls;

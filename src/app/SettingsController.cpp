@@ -7,6 +7,7 @@
 #include "SettingsSchema.h"
 
 #include <QDebug>
+#include <QFontDatabase>
 #include <QJsonArray>
 #include <QSet>
 
@@ -102,6 +103,18 @@ QStringList SettingsController::availableButtonActions() const
     for (qsizetype i = 0; i < spec.choiceCount; ++i)
         actions.push_back(QLatin1String(spec.choices[i].value));
     return actions;
+}
+
+QStringList SettingsController::systemSubtitleFonts() const
+{
+#ifdef JELLYFIN_NATIVE_WEBOS
+    return {};
+#else
+    QStringList families = QFontDatabase::families();
+    families.sort(Qt::CaseInsensitive);
+    families.removeDuplicates();
+    return families;
+#endif
 }
 
 QVariantList SettingsController::settingsSchema() const
@@ -474,6 +487,26 @@ void SettingsController::applySchemaValue(const SettingSpec& spec, const QVarian
         if (apply)
             applySubtitlePreferencesToPlayer();
         break;
+    case SettingTarget::SubtitleScale:
+        m_subtitlePreferences.scalePercent = value.toInt();
+        if (apply)
+            applySubtitlePreferencesToPlayer();
+        break;
+    case SettingTarget::SubtitleBitmapSmoothing:
+        m_subtitlePreferences.bitmapSmoothing = value.toString();
+        if (apply)
+            applySubtitlePreferencesToPlayer();
+        break;
+    case SettingTarget::SubtitleDimInHdr:
+        m_subtitlePreferences.dimInHdr = value.toBool();
+        if (apply)
+            applySubtitlePreferencesToPlayer();
+        break;
+    case SettingTarget::SubtitleHdrBrightness:
+        m_subtitlePreferences.hdrBrightnessPercent = value.toInt();
+        if (apply)
+            applySubtitlePreferencesToPlayer();
+        break;
     case SettingTarget::RedButton:
         m_redButtonAction = value.toString();
         break;
@@ -524,6 +557,10 @@ void SettingsController::emitSchemaSignals(const SettingSpec& spec)
     case SettingTarget::SubtitleDropShadow:
     case SettingTarget::SubtitleTextBackground:
     case SettingTarget::SubtitleVerticalPosition:
+    case SettingTarget::SubtitleScale:
+    case SettingTarget::SubtitleBitmapSmoothing:
+    case SettingTarget::SubtitleDimInHdr:
+    case SettingTarget::SubtitleHdrBrightness:
         emit subtitleSettingsChanged();
         break;
     case SettingTarget::RedButton:

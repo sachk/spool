@@ -19,14 +19,16 @@ namespace {
     constexpr SettingChoice kSubtitleTextSizeChoices[] = { { "smaller", "Smaller" }, { "small", "Small" },
         { "", "Normal" }, { "large", "Large" }, { "larger", "Larger" }, { "extralarge", "Extra large" } };
     constexpr SettingChoice kSubtitleTextWeightChoices[] = { { "normal", "Normal" }, { "bold", "Bold" } };
-    constexpr SettingChoice kSubtitleFontChoices[]
-        = { { "", "Default" }, { "typewriter", "Typewriter" }, { "print", "Print" }, { "console", "Console" },
-              { "cursive", "Cursive" }, { "casual", "Casual" }, { "smallcaps", "Small caps" } };
+    constexpr SettingChoice kSubtitleFontChoices[] = { { "", "Default" }, { "serif", "Source Serif 4" },
+        { "typewriter", "Typewriter" }, { "print", "Print" }, { "console", "Console" }, { "cursive", "Cursive" },
+        { "casual", "Casual" }, { "smallcaps", "Small caps" } };
     constexpr SettingChoice kSubtitleTextColorChoices[] = { { "#ffffff", "White" }, { "#d3d3d3", "Light gray" },
         { "#808080", "Gray" }, { "#ffff00", "Yellow" }, { "#008000", "Green" }, { "#00ffff", "Cyan" },
         { "#0000ff", "Blue" }, { "#ff00ff", "Magenta" }, { "#ff0000", "Red" }, { "#000000", "Black" } };
     constexpr SettingChoice kSubtitleDropShadowChoices[] = { { "none", "None" }, { "raised", "Raised" },
         { "depressed", "Depressed" }, { "uniform", "Uniform" }, { "", "Drop shadow" } };
+    constexpr SettingChoice kSubtitleBitmapSmoothingChoices[]
+        = { { "sharp", "Sharp" }, { "soft", "Smooth" }, { "softer", "Extra smooth" } };
     constexpr SettingChoice kButtonActionChoices[] = { { "none", "No action" }, { "togglePause", "Play / Pause" },
         { "toggleSubs", "Toggle subtitles" }, { "cycleSubs", "Cycle subtitles" }, { "cycleAudio", "Cycle audio track" },
         { "queuePrevious", "Previous queue item" }, { "queueNext", "Next queue item" },
@@ -95,7 +97,7 @@ const QVector<SettingSpec>& settingSpecs()
 {
     static const QVector<SettingSpec> specs {
         { "appearance/uiScalePercent", "Appearance", "UI Scale",
-            "Scale text, controls, spacing, cards, rows, and grids", SettingType::Slider, "115", nullptr, 0, 95, 140, 5,
+            "Scale text, controls, spacing, cards, rows, and grids", SettingType::Slider, "115", nullptr, 0, 80, 160, 5,
             0, "%", 86, 300, SettingTarget::UiScale, SettingNormalizer::IntRange, true, false },
         { "settings/nightMode", "Playback", "Night Mode", "Dialogue lift and late-night dynamic range",
             SettingType::Toggle, "false", nullptr, 0, 0, 0, 1, 0, "", 0, 0, SettingTarget::NightMode,
@@ -132,6 +134,13 @@ const QVector<SettingSpec>& settingSpecs()
         { "subtitles/textSize", "Subtitle Appearance", "Text Size", "", SettingType::Select, "",
             kSubtitleTextSizeChoices, countOf(kSubtitleTextSizeChoices), 0, 0, 1, 0, "", 0, 0,
             SettingTarget::SubtitleTextSize, SettingNormalizer::SubtitleTextSize, true, true },
+        { "subtitles/scalePercent", "Subtitle Appearance", "Overall Scale",
+            "Scales text, styled, and bitmap subtitles together", SettingType::Slider, "100", nullptr, 0, 50, 200, 5, 0,
+            "%", 86, 300, SettingTarget::SubtitleScale, SettingNormalizer::IntRange, true, false },
+        { "subtitles/bitmapSmoothing", "Subtitle Appearance", "Bitmap Smoothing",
+            "Controls scaling of PGS, VobSub, and other image subtitles", SettingType::Select, "soft",
+            kSubtitleBitmapSmoothingChoices, countOf(kSubtitleBitmapSmoothingChoices), 0, 0, 1, 0, "", 0, 0,
+            SettingTarget::SubtitleBitmapSmoothing, SettingNormalizer::String, true, true },
         { "subtitles/textWeight", "Subtitle Appearance", "Text Weight", "", SettingType::Select, "normal",
             kSubtitleTextWeightChoices, countOf(kSubtitleTextWeightChoices), 0, 0, 1, 0, "", 0, 0,
             SettingTarget::SubtitleTextWeight, SettingNormalizer::SubtitleTextWeight, true, true },
@@ -150,6 +159,12 @@ const QVector<SettingSpec>& settingSpecs()
         { "subtitles/verticalPosition", "Subtitle Appearance", "Vertical Position",
             "Negative values place subtitles near the bottom", SettingType::Slider, "-3", nullptr, 0, -16, 16, 1, 0, "",
             72, 300, SettingTarget::SubtitleVerticalPosition, SettingNormalizer::IntRange, true, false },
+        { "subtitles/dimInHdr", "Subtitle Appearance", "HDR Paper White",
+            "Automatically reduce subtitle brightness during HDR playback", SettingType::Toggle, "true", nullptr, 0, 0,
+            0, 1, 0, "", 0, 0, SettingTarget::SubtitleDimInHdr, SettingNormalizer::Bool, true, false },
+        { "subtitles/hdrBrightnessPercent", "Subtitle Appearance", "HDR Brightness",
+            "Paper-white subtitle level relative to the selected colour", SettingType::Slider, "75", nullptr, 0, 40,
+            100, 5, 0, "%", 86, 300, SettingTarget::SubtitleHdrBrightness, SettingNormalizer::IntRange, true, false },
         { "settings/toneMappingVisualization", "Diagnostics", "GPU-next Tone Mapping View",
             "False-colour libplacebo tone-mapping diagnostic", SettingType::Toggle, "false", nullptr, 0, 0, 0, 1, 0, "",
             0, 0, SettingTarget::ToneMappingVisualization, SettingNormalizer::Bool, true, false },
@@ -205,7 +220,10 @@ QVariant normalizedSettingValue(const SettingSpec& spec, const QVariant& value)
     case SettingNormalizer::SubtitleStyling:
     case SettingNormalizer::SubtitleTextSize:
     case SettingNormalizer::SubtitleTextWeight:
-    case SettingNormalizer::SubtitleFont:
+    case SettingNormalizer::SubtitleFont: {
+        const QString font = value.toString();
+        return font.startsWith(QStringLiteral("system:")) && font.size() > 7 ? font : choiceOrDefault(spec, font);
+    }
     case SettingNormalizer::SubtitleDropShadow:
         return choiceOrDefault(spec, value.toString());
     case SettingNormalizer::SubtitleTextColor:

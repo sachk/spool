@@ -30,6 +30,25 @@ namespace {
         return QByteArrayLiteral("#FF") + color.toUpper().toLatin1();
     }
 
+    QByteArray scaledSubtitleColor(const QString& rgb, int percent)
+    {
+        QString color = rgb.trimmed();
+        if (color.startsWith(QLatin1Char('#')))
+            color.remove(0, 1);
+        bool ok = false;
+        const uint value = color.toUInt(&ok, 16);
+        if (!ok || color.size() != 6)
+            return QByteArrayLiteral("#FFFFFFFF");
+
+        const int scale = qBound(40, percent, 100);
+        const auto channel = [scale](uint component) { return qBound(0, qRound(component * scale / 100.0), 255); };
+        return (QStringLiteral("#FF%1%2%3")
+                    .arg(channel((value >> 16) & 0xff), 2, 16, QLatin1Char('0'))
+                    .arg(channel((value >> 8) & 0xff), 2, 16, QLatin1Char('0'))
+                    .arg(channel(value & 0xff), 2, 16, QLatin1Char('0'))
+                    .toUpper())
+            .toLatin1();
+    }
     QByteArray subtitleFontSize(const QString& value)
     {
         if (value == QStringLiteral("smaller"))
@@ -47,10 +66,14 @@ namespace {
 
     QByteArray subtitleFontFamily(const QString& value)
     {
+        if (value == QStringLiteral("serif"))
+            return QByteArrayLiteral("Source Serif 4");
         if (value == QStringLiteral("typewriter"))
             return QByteArrayLiteral("Courier New");
         if (value == QStringLiteral("print"))
             return QByteArrayLiteral("Georgia");
+        if (value.startsWith(QStringLiteral("system:")))
+            return value.sliced(7).toUtf8();
         if (value == QStringLiteral("console"))
             return QByteArrayLiteral("Consolas");
         if (value == QStringLiteral("cursive"))
@@ -121,11 +144,11 @@ std::vector<MpvOption> MpvOptionProfile::startupOptions(Platform platform, const
         { "curl-buffer-size", QByteArray::number(network.ringBytes) },
         { "curl-max-request-size", QByteArray::number(network.rangeBytes) },
         { "curl-parallel-requests", QByteArray::number(network.parallelRequests) },
-        { "initial-audio-sync", "no" },
         { "force-window", "no" },
     };
 
     if (webOS) {
+        options.push_back({ "initial-audio-sync", "no" });
         options.push_back({ "vo", "starfish" });
         options.push_back({ "vd", "starfish" });
         options.push_back({ "ao", starfishAudio ? "starfish,null" : "alsa,null" });
@@ -174,7 +197,8 @@ std::vector<MpvOption> MpvOptionProfile::startupOptions(Platform platform, const
     return options;
 }
 
-std::vector<MpvOption> MpvOptionProfile::subtitleOptions(const SubtitlePreferences& preferences, bool subtitlesEnabled)
+std::vector<MpvOption> MpvOptionProfile::subtitleOptions(
+    const SubtitlePreferences& preferences, bool subtitlesEnabled, bool hdrPlayback)
 {
     const SubtitlePreferences prefs = preferences;
     const QString subtitleMode = prefs.mode.isEmpty() ? QStringLiteral("Default") : prefs.mode;
@@ -186,6 +210,12 @@ std::vector<MpvOption> MpvOptionProfile::subtitleOptions(const SubtitlePreferenc
     const int vertical = qBound(-16, prefs.verticalPosition, 16);
     const int margin = vertical < 0 ? std::abs(vertical + 1) * 20 : vertical * 20;
     const SubtitleShadowOptions shadow = subtitleShadowOptions(prefs.dropShadow);
+    const QByteArray subtitleColor = hdrPlayback && prefs.dimInHdr
+        ? scaledSubtitleColor(prefs.textColor, prefs.hdrBrightnessPercent)
+        : mpvArgbColor(prefs.textColor, QByteArrayLiteral("#FFFFFFFF"));
+    const QByteArray bitmapSmoothing = prefs.bitmapSmoothing == QStringLiteral("softer") ? QByteArrayLiteral("1.0")
+        : prefs.bitmapSmoothing == QStringLiteral("sharp")                               ? QByteArrayLiteral("0.0")
+                                                                                         : QByteArrayLiteral("0.5");
 
     return {
         { "sid", !subtitlesEnabled || noSubtitles ? QByteArrayLiteral("no") : QByteArrayLiteral("auto") },
@@ -201,10 +231,12 @@ std::vector<MpvOption> MpvOptionProfile::subtitleOptions(const SubtitlePreferenc
         { "sub-use-margins", "yes" },
         { "sub-font", subtitleFontFamily(prefs.font) },
         { "sub-font-size", subtitleFontSize(prefs.textSize) },
+        { "sub-scale", QByteArray::number(qBound(50, prefs.scalePercent, 200) / 100.0, 'f', 2) },
+        { "sub-gauss", bitmapSmoothing },
         { "sub-bold", mpvBool(prefs.textWeight == QStringLiteral("bold")) },
         { "sub-pos", vertical < 0 ? QByteArrayLiteral("100") : QByteArrayLiteral("0") },
         { "sub-margin-y", QByteArray::number(margin) },
-        { "sub-color", mpvArgbColor(prefs.textColor, QByteArrayLiteral("#FFFFFFFF")) },
+        { "sub-color", subtitleColor },
         { "sub-border-size", shadow.borderSize },
         { "sub-border-color", "#FF000000" },
         { "sub-shadow-offset", shadow.shadowOffset },

@@ -17,10 +17,43 @@ OverlayDialog {
 
     AppText {
         Layout.fillWidth: true
-        text: "Audio sync"
+        text: "Playback sync"
         color: Theme.textPrimary
         font.pixelSize: Metrics.titlePx(root.width)
         font.weight: Font.DemiBold
+    }
+
+    RowLayout {
+        Layout.fillWidth: true
+        spacing: 10
+
+        ActionButton {
+            Layout.fillWidth: true
+            text: "Audio · This video"
+            kind: root.overlay.syncTarget === "audioFile" ? "primary" : "secondary"
+            onClicked: {
+                root.overlay.syncTarget = "audioFile"
+                root.overlay.audioSyncRow = "target"
+            }
+        }
+        ActionButton {
+            Layout.fillWidth: true
+            text: "Audio · All videos"
+            kind: root.overlay.syncTarget === "audioGlobal" ? "primary" : "secondary"
+            onClicked: {
+                root.overlay.syncTarget = "audioGlobal"
+                root.overlay.audioSyncRow = "target"
+            }
+        }
+        ActionButton {
+            Layout.fillWidth: true
+            text: "Subtitles · This video"
+            kind: root.overlay.syncTarget === "subtitle" ? "primary" : "secondary"
+            onClicked: {
+                root.overlay.syncTarget = "subtitle"
+                root.overlay.audioSyncRow = "target"
+            }
+        }
     }
 
     RowLayout {
@@ -41,7 +74,7 @@ OverlayDialog {
             spacing: 4
             AppText {
                 Layout.fillWidth: true
-                text: root.overlay.formatAudioDelay(root.overlay.currentAudioDelayMs)
+                text: root.overlay.formatAudioDelay(root.overlay.currentSyncDelayMs)
                 color: Theme.textPrimary
                 font.pixelSize: Math.round(Metrics.titlePx(root.width) * 1.8)
                 font.weight: Font.Bold
@@ -49,7 +82,17 @@ OverlayDialog {
             }
             AppText {
                 Layout.fillWidth: true
-                text: "Negative values advance audio; positive values delay it"
+                text: root.overlay.syncTarget === "subtitle" ? "Negative values show subtitles earlier" :
+                                                               "Negative values advance audio; positive values delay it"
+                color: Theme.textMuted
+                font.pixelSize: Metrics.metaPx(root.width)
+                horizontalAlignment: Text.AlignHCenter
+            }
+            AppText {
+                Layout.fillWidth: true
+                visible: root.overlay.syncTarget !== "subtitle"
+                text: "Effective audio delay: " + root.overlay.formatAudioDelay(
+                          root.overlay.player.effectiveAudioDelayMs)
                 color: Theme.textMuted
                 font.pixelSize: Metrics.metaPx(root.width)
                 horizontalAlignment: Text.AlignHCenter

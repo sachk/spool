@@ -46,6 +46,8 @@ int main(int argc, char **argv)
     require(valueFor(desktop, "curl-buffer-size") == "4194304", "desktop should use a 4 MiB network ring");
     require(valueFor(desktop, "curl-max-request-size") == "1048576", "desktop should issue 1 MiB ranges");
     require(valueFor(desktop, "curl-parallel-requests") == "4", "desktop should fetch four ranges concurrently");
+    require(
+        valueFor(desktop, "initial-audio-sync").isEmpty(), "desktop should retain mpv's initial audio sync default");
 
     const auto customDemuxerBudget
         = MpvOptionProfile::startupOptions(MpvOptionProfile::Platform::Desktop, QStringLiteral("alsa"),
@@ -74,6 +76,7 @@ int main(int argc, char **argv)
         MpvOptionProfile::Platform::WebOS, QStringLiteral("alsa"), QByteArrayLiteral("/tmp/mpv.log"));
     require(valueFor(webOSAlsa, "ao") == "alsa,null", "ALSA mode should use the ALSA output");
     require(valueFor(webOSAlsa, "video-sync") == "display-resample", "ALSA mode should follow the display clock");
+    require(valueFor(webOSAlsa, "initial-audio-sync") == "no", "webOS should retain its Starfish sync workaround");
 
     SubtitlePreferences subtitles;
     subtitles.language = QStringLiteral("eng");
@@ -85,6 +88,8 @@ int main(int argc, char **argv)
     subtitles.textColor = QStringLiteral("#00ffcc");
     subtitles.dropShadow = QStringLiteral("uniform");
     subtitles.verticalPosition = 4;
+    subtitles.scalePercent = 125;
+    subtitles.bitmapSmoothing = QStringLiteral("softer");
     const SubtitlePreferences identicalSubtitles = subtitles;
     require(identicalSubtitles == subtitles, "identical subtitle preferences should be idempotent");
     SubtitlePreferences changedSubtitles = subtitles;
@@ -107,7 +112,18 @@ int main(int argc, char **argv)
     require(valueFor(subtitleOptions, "sub-color") == "#FF00FFCC", "subtitle color was not converted to ARGB");
     require(valueFor(subtitleOptions, "sub-border-size") == "4.5", "uniform shadow should increase border size");
     require(valueFor(subtitleOptions, "sub-shadow-offset") == "0", "uniform shadow should disable shadow offset");
+    require(valueFor(subtitleOptions, "sub-scale") == "1.25", "overall subtitle scale was not propagated");
+    require(valueFor(subtitleOptions, "sub-gauss") == "1.0", "bitmap subtitle smoothing was not propagated");
 
+    SubtitlePreferences hdrSubtitles = subtitles;
+    hdrSubtitles.textColor = QStringLiteral("#ffffff");
+    hdrSubtitles.hdrBrightnessPercent = 75;
+    const auto hdrSubtitleOptions = MpvOptionProfile::subtitleOptions(hdrSubtitles, true, true);
+    require(valueFor(hdrSubtitleOptions, "sub-color") == "#FFBFBFBF",
+        "HDR subtitle colour was not reduced to the configured paper-white level");
+    hdrSubtitles.font = QStringLiteral("serif");
+    require(valueFor(MpvOptionProfile::subtitleOptions(hdrSubtitles, true), "sub-font") == "Source Serif 4",
+        "bundled Source Serif preference was not mapped");
     SubtitlePreferences hidden;
     hidden.mode = QStringLiteral("None");
     hidden.textColor = QStringLiteral("not-a-color");

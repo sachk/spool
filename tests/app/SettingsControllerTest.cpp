@@ -38,8 +38,8 @@ int main(int argc, char **argv)
     require(settings.uiScalePercent() == 115, "UI scale default was not 115 percent");
     require(!settings.uiScaleSetupComplete(), "fresh profile unexpectedly skipped scale setup");
 
-    settings.setUiScalePercent(80);
-    require(settings.uiScalePercent() == 95, "UI scale setter did not clamp to its lower bound");
+    settings.setUiScalePercent(70);
+    require(settings.uiScalePercent() == 80, "UI scale setter did not clamp to its lower bound");
     settings.completeUiScaleSetup(135);
     require(settings.uiScalePercent() == 135, "setup did not apply the selected scale");
     require(settings.uiScaleSetupComplete(), "setup completion marker was not exposed");

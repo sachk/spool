@@ -12,7 +12,9 @@ FocusScope {
     readonly property bool hasPlayer: player.sessionActive
     readonly property bool smartTvPlatform: NativeWindow.smartTvPlatform
     readonly property bool desktopControlsAvailable: !smartTvPlatform
-    readonly property int currentAudioDelayMs: Settings.audioDelayMs
+    readonly property int currentSyncDelayMs: syncTarget === "audioGlobal" ? Settings.audioDelayMs : syncTarget
+                                                                             === "subtitle" ? player.subtitleDelayMs :
+                                                                                              player.fileAudioDelayMs
     readonly property bool nightModeEnabled: Settings.nightModeEnabled
 
     property bool controlsVisible: false
@@ -22,6 +24,7 @@ FocusScope {
     property bool audioSyncVisible: false
     property string audioSyncRow: "delay"
     property int audioSyncStepIndex: 2
+    property string syncTarget: "audioFile"
     property bool scrubbing: false
     property double scrubSeconds: 0
     property bool timelineHovering: false
@@ -61,8 +64,9 @@ FocusScope {
         values.push("debug")
         return values
     }
-    readonly property var debugOptions: ["Audio sync", hasPlayer && player.debugOsdVisible ? "Hide performance stats" : "Show performance stats",
-        nightModeEnabled ? "Disable night mode" : "Enable night mode", "Stop playback"]
+    readonly property var debugOptions: ["Audio & subtitle sync", hasPlayer && player.debugOsdVisible
+        ? "Hide performance stats" : "Show performance stats", nightModeEnabled ? "Disable night mode" :
+                                                                                  "Enable night mode", "Stop playback"]
     readonly property var menuOptions: {
         if (menuKind === "subtitles")
             return hasPlayer ? player.subtitleTracks : []
@@ -269,7 +273,7 @@ FocusScope {
         menuKind = ""
         audioSyncVisible = true
         controlsVisible = true
-        audioSyncRow = "delay"
+        audioSyncRow = "target"
         autohide.stop()
     }
 
@@ -291,23 +295,41 @@ FocusScope {
 
     function adjustAudioDelay(direction) {
         const index = Math.max(0, Math.min(audioSyncSteps.length - 1, audioSyncStepIndex))
-        Settings.setAudioDelayMs(clampAudioDelayMs(currentAudioDelayMs + direction * audioSyncSteps[index]))
+        const next = clampAudioDelayMs(currentSyncDelayMs + direction * audioSyncSteps[index])
+        if (syncTarget === "audioGlobal")
+            Settings.setAudioDelayMs(next)
+        else if (syncTarget === "subtitle")
+            player.setSubtitleDelayMs(next)
+        else
+            player.setFileAudioDelayMs(next)
     }
 
     function handleAudioSyncKey(key) {
         if (key === Qt.Key_Up) {
             if (audioSyncRow === "step")
                 audioSyncRow = "delay"
+            else if (audioSyncRow === "delay")
+                audioSyncRow = "target"
             else
                 closeAudioSync()
             return true
         }
         if (key === Qt.Key_Down) {
-            if (audioSyncRow === "delay")
+            if (audioSyncRow === "target")
+                audioSyncRow = "delay"
+            else if (audioSyncRow === "delay")
                 audioSyncRow = "step"
             else
                 closeAudioSync()
             return true
+        }
+        if (audioSyncRow === "target") {
+            const targets = ["audioFile", "audioGlobal", "subtitle"]
+            const direction = key === Qt.Key_Left ? -1 : key === Qt.Key_Right ? 1 : 0
+            if (direction !== 0) {
+                syncTarget = targets[(targets.indexOf(syncTarget) + direction + targets.length) % targets.length]
+                return true
+            }
         }
         if (key === Qt.Key_Left) {
             if (audioSyncRow === "delay")

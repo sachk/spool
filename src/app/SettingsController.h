@@ -54,6 +54,7 @@ class SettingsController final : public QObject {
         QString yellowButtonAction MEMBER m_yellowButtonAction WRITE setYellowButtonAction NOTIFY buttonRemapChanged)
     Q_PROPERTY(QString blueButtonAction MEMBER m_blueButtonAction WRITE setBlueButtonAction NOTIFY buttonRemapChanged)
     Q_PROPERTY(QStringList availableButtonActions READ availableButtonActions CONSTANT)
+    Q_PROPERTY(QStringList systemSubtitleFonts READ systemSubtitleFonts CONSTANT)
     Q_PROPERTY(QVariantList settingsSchema READ settingsSchema CONSTANT)
     Q_PROPERTY(QVariantMap values READ values NOTIFY settingsValuesChanged)
 
@@ -83,6 +84,7 @@ public:
     QString subtitleDropShadow() const;
     QStringList subtitleLanguageOptions() const;
     QStringList availableButtonActions() const;
+    QStringList systemSubtitleFonts() const;
     QVariantList settingsSchema() const;
     QVariantMap values() const;
     Q_INVOKABLE QVariant value(const QString& key) const;
