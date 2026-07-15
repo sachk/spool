@@ -15,6 +15,12 @@ them, don't overwrite.
 
 ## Status ledger (2026-07-15, verified in tree)
 
+Round-3 implementation landed in `d6da59f` through `ef49917`. The only
+remaining unchecked work is measurement that requires launching the app on
+the TV: the `LD_DEBUG=statistics` capture in A9 and the trained PGO cycle in
+E3. Packaging/install does not authorize either launch, so both remain
+explicitly visible below instead of being reported as completed.
+
 Done since the 2026-07-07 plan:
 
 - ~~§1 strip staged shared libs~~ — `build-ipk.sh:350` strips everything in
@@ -115,7 +121,7 @@ first-swap-after-ready) and add the missing dimensions. All gated behind
 the existing latency-guard setting (`diagnostics/inputLatencyGuard` /
 `JELLYFIN_INPUT_LATENCY_DIAGNOSTICS`).
 
-- [ ] **A1. Honest frame counting.** Keep `budget_intervals` (renamed from
+- [x] **A1. Honest frame counting.** Keep `budget_intervals` (renamed from
       `frames`), add `actual_swaps`: count `frameSwapped` signals between
       begin and completion in the existing DirectConnection hook. One
       `std::atomic<quint32>` incremented on the render thread, snapshotted
@@ -137,12 +143,12 @@ the existing latency-guard setting (`diagnostics/inputLatencyGuard` /
       (`InputLatencyMonitor.cpp`, second `frameSwapped` connect). Guard with
       an atomic "transition active" flag tested on the render thread before
       queueing anything.
-- [ ] **A3. `gui_cpu_ms`.** Sample GUI-thread CPU time
+- [x] **A3. `gui_cpu_ms`.** Sample GUI-thread CPU time
       (`clock_gettime(CLOCK_THREAD_CPUTIME_ID)`; POSIX is what matters —
       stub on Windows) at begin, each mark, and completion. This is the
       field that separates "we did 400 ms of work" from "async incubation
       idled across 25 refreshes" — the two need opposite fixes.
-- [ ] **A4. Generic stage marks.** Replace the single
+- [x] **A4. Generic stage marks.** Replace the single
       `markUiTransitionReady(token)` with `mark(token, stage)` writing into
       a fixed `std::array` of (stage, ns) — no allocation. Standard stages:
       `instance` (Loader onLoaded), `shell` (page root completed),
@@ -160,14 +166,14 @@ the existing latency-guard setting (`diagnostics/inputLatencyGuard` /
         mark `model_ready`, tagged cache-vs-server and reset-vs-append;
         RouteStack marks route request + cache hit/miss + visibility
         switch once Part B lands.
-- [ ] **A5. Fold `AtomicViewReveal` timing into A4.** It currently keeps its
+- [x] **A5. Fold `AtomicViewReveal` timing into A4.** It currently keeps its
       own `Date.now()` wall-clock accounting and its own `console.info`
       line. Give it the token and let it call `mark(token,
       "first_delegate"/"viewport")`: monotonic C++ time, one fewer log
       line, ~15 lines deleted, and its `forceLayout()`-per-tick polling can
       be revisited once marks show what it costs. Never use `Date.now()`
       for performance accounting anywhere (grep-gate it).
-- [ ] **A6. Delegate churn counters.** `Q_INVOKABLE
+- [x] **A6. Delegate churn counters.** `Q_INVOKABLE
       InputLatency.noteDelegate(kind, delta)` — a QHash increment, no-op
       unless a transition is active. Call from `Component.onCompleted` /
       `onDestruction` of `MediaItemCard`, `MenuRow`, and the settings row
@@ -175,7 +181,7 @@ the existing latency-guard setting (`diagnostics/inputLatencyGuard` /
       this is the number that catches off-screen `cacheBuffer` creation
       (C5) and reuse failures, which `AtomicViewReveal`'s visible-range
       check structurally cannot see.
-- [ ] **A7. Artwork stage attribution.** `ArtworkService` already has the
+- [x] **A7. Artwork stage attribution.** `ArtworkService` already has the
       stages as code (byte-memory cache → render queue → fetch → decode
       pool → deliver); it just doesn't time them. Per request, record:
       byte-cache hit; worker-queue wait; fetch duration with
@@ -188,7 +194,7 @@ the existing latency-guard setting (`diagnostics/inputLatencyGuard` /
       decode_p50/p95=… deliver_last_ms=… cancelled=…`. No per-image lines —
       log I/O is `fflush`ed per line on eMMC (`main.cpp logLine`) and
       distorts the very timings we're taking.
-- [ ] **A8. Event-loop gap probe during transitions.** The
+- [x] **A8. Event-loop gap probe during transitions.** The
       `EventLoopWatchdog` ticks at 1 s — invisible below multi-second
       hangs. While a transition is active, arm a repeating one-frame
       `QChronoTimer`; each fire records lateness > 1 frame as a gap, and
@@ -201,11 +207,14 @@ the existing latency-guard setting (`diagnostics/inputLatencyGuard` /
       static-init. Plus the one-off `LD_DEBUG=statistics` run over SSH.
       This sizes the remaining pre-main second before Part E spends days on
       it.
-- [ ] **A10. Phase timings into the startup log.** `Diagnostics::Phase`
+      *(instrumentation landed; desktop smoke measured exec→main=30 ms and
+      static-init=0.01 ms. The requested TV `LD_DEBUG=statistics` launch is
+      still pending explicit launch authorization.)*
+- [x] **A10. Phase timings into the startup log.** `Diagnostics::Phase`
       writes only to the diagnostics JSONL; echo `phase_end` for the
       `startup`/`shutdown` categories through `logLine` so the 26→788 ms
       span is attributable in the log everyone actually reads.
-- [ ] **A11. Overlay + structure cleanup.** Show the last route sample in
+- [x] **A11. Overlay + structure cleanup.** Show the last route sample in
       `DiagnosticsOverlay` (name, wall, gui_cpu, swaps, delegates) next to
       the input stats. While in the file: collapse the five parallel
       `m_uiTransition*` members and three duplicated reset sites into one
@@ -297,7 +306,7 @@ mode with `gui_cpu_ms` + `actual_swaps` in hand (Part A).
       stable. Log construct/hit/evict per page with estimated
       object/delegate counts so the policy is auditable. Explicit policy
       for the known route set — **no generic cache framework**.
-- [ ] **B4. Cold-edge instrumentation.** If the user reaches a page before
+- [x] **B4. Cold-edge instrumentation.** If the user reaches a page before
       its prewarm finishes, promote the pending incubation and tag the
       sample `cache_hit=promoted` so cold edges stay visible instead of
       polluting the warm numbers.
@@ -307,7 +316,7 @@ mode with `gui_cpu_ms` + `actual_swaps` in hand (Part A).
 Ordered by measured impact ÷ risk. Each item states its LoC direction;
 NEXT_PLAN gates apply.
 
-- [ ] **C1. Card batching + object count** (`MediaItemCard`/`ImageCard`).
+- [x] **C1. Card batching + object count** (`MediaItemCard`/`ImageCard`).
       ~11 ms/card on TV is object + batching overhead, not layout:
       - Drop `clip: true` on the card root and on `titleLabel`
         (`MediaItemCard.qml:29,128`) — every clip breaks scene-graph
@@ -333,13 +342,13 @@ NEXT_PLAN gates apply.
         the same motion as C9.
       LoC ≈ −30 net. Do **not** jump to a custom C++ scene-graph card;
       only revisit if A-instrumented numbers still miss budget after C1–C5.
-- [ ] **C2. Icon font singleton.** `MaterialIcon.qml` instantiates a
+- [x] **C2. Icon font singleton.** `MaterialIcon.qml` instantiates a
       `FontLoader` per icon (14 QML use sites, many inside delegates).
       Typography.qml is already the font singleton — add the Material face
       there, and MaterialIcon becomes a 3-line `Text`. Also stop loading
       the subtitle-preview serif on the ordinary settings path (Loader on
       the subtitle editor only). LoC ≈ −10.
-- [ ] **C3. Metrics: properties, not per-binding function calls.** 267 call
+- [x] **C3. Metrics: properties, not per-binding function calls.** 267 call
       sites invoke `Metrics.*(width)` functions whose bodies allocate a JS
       array literal per call (`[52,56,62,72][density]`) — re-evaluated per
       delegate per width change. Bind `Metrics.refWidth` to the window once
@@ -348,7 +357,7 @@ NEXT_PLAN gates apply.
       Call sites shorten (`Metrics.gap(root.width)` → `Metrics.gapPx`),
       width-plumbing through pages disappears, delegates stop re-running
       scale math. LoC ≈ −40 across call sites.
-- [ ] **C4. HomePage: ListView of row descriptors.** The four near-identical
+- [x] **C4. HomePage: ListView of row descriptors.** The four near-identical
       `MediaRow` declarations + `Repeater` (HomePage.qml:200-275) eagerly
       build every row including below-fold ones, and the
       `visibleSections()/activeSection()/focusRelative` walker exists only
@@ -357,7 +366,7 @@ NEXT_PLAN gates apply.
       reuses row delegates, and replaces the section walker with
       `currentIndex`. Same pattern for SearchPage's result rows. LoC ≈ −70;
       gate: home cold sample `delegates_created` drops accordingly.
-- [ ] **C5. Library grid: pagination + cacheBuffer.**
+- [x] **C5. Library grid: pagination + cacheBuffer.**
       - `BrowseSessionController::prefetchVisibleRange` requests the next
         page whenever `lastIndex + 200 >= rowCount()`
         (`BrowseSessionController.cpp:118`) — with 100-item pages and a
@@ -373,7 +382,7 @@ NEXT_PLAN gates apply.
         every delegate and its layout even though the apply logs 0 ms);
         investigate in-place row updates for changed items only.
       LoC ≈ 0, pure contention removal during the worst 300 ms.
-- [ ] **C6. Library grid menu diet.** Three inline
+- [x] **C6. Library grid menu diet.** Three inline
       `PopupMenuPanel`+`MenuListView`+`MenuRow` trees (library/sort/filter,
       ~150 lines, LibraryGridPage.qml:825-975) are built during page
       construction even though all start closed. One shared popup-list
@@ -381,7 +390,7 @@ NEXT_PLAN gates apply.
       `Loader` that instantiates on open: page construction stops paying
       for three menu trees, and the page sheds ~120 lines toward a ≤650
       target (currently 977).
-- [ ] **C7. Settings page contract.** With B1 residency the warm path is
+- [x] **C7. Settings page contract.** With B1 residency the warm path is
       free; still fix construction so the *cold* path fits budget: build
       the row-descriptor list once per schema/mode change (not per
       visibility), preserve it while hidden, avoid `forceLayout()` when
@@ -394,18 +403,18 @@ NEXT_PLAN gates apply.
       already schema-driven (`Settings.settingsSchema`); audit for rows
       declared in both QML and `SettingsSchema.cpp` and keep only the
       schema (NEXT_PLAN Phase D leftover).
-- [ ] **C8. Details page: lazy below-fold.** ItemDetailsPage (1,321 lines)
+- [x] **C8. Details page: lazy below-fold.** ItemDetailsPage (1,321 lines)
       eagerly declares metadata repeaters + context/people/similar
       `MediaRow`s. Hero/details first; secondary rows behind viewport-
       proximity Loaders; route readiness = hero usable. Pairs with the
       Phase C/D page-diet work already planned.
-- [ ] **C9. MovieItem diet (NEXT_PLAN Phase F) — do it for perf reasons.**
+- [x] **C9. MovieItem diet (NEXT_PLAN Phase F) — do it for perf reasons.**
       Nine prebuilt URL strings + formatted subtitle per item × thousands
       of cached items ≈ multi-MB RAM on armv7, ~40% larger home-payload
       cache blobs, measurable parse time at the warm-cache 2.07 s mark.
       The refactor (−250 src LoC) and the startup win are the same change.
       Bump `kHomePayloadSchemaVersion`.
-- [ ] **C10. Artwork ≠ readiness.** Local page contract ends at shells +
+- [x] **C10. Artwork ≠ readiness.** Local page contract ends at shells +
       text + focus; each image fades in as its own decode completes
       (`retainWhileLoading` already set); no viewport held transparent by
       one slow image. Today `artworkVisible: gridReveal.artworkReady` makes
@@ -413,7 +422,7 @@ NEXT_PLAN gates apply.
       *measurement* only (A5/A7 make it observable). Retain old artwork
       while refreshing where possible. Verify no regression in perceived
       "pop".
-- [ ] **C11. ScaleSetupPage preview diet.** The page builds three complete
+- [x] **C11. ScaleSetupPage preview diet.** The page builds three complete
       miniature preview cards with nested repeaters. One shared preview
       driven by the selected preset (or a cheaper representation) — it's a
       one-time page, but it's the same eager-object disease and a small
@@ -428,7 +437,7 @@ the file set settles, measuring instantiation on one page first.
 
 ## Part D — Startup leftovers (app-level)
 
-- [ ] **D1. Unblock the pre-window sqlite open.** `database.initialize()`
+- [x] **D1. Unblock the pre-window sqlite open.** `database.initialize()`
       runs a `Qt::BlockingQueuedConnection` into the worker before the
       window shows (`DatabaseManager.cpp:340`, called at `main.cpp:729`).
       Nothing before first frame needs the result — device identity is
@@ -437,39 +446,48 @@ the file set settles, measuring instantiation on one page first.
       surface open-failure as the same fatal path it is today). Removes a
       disk-bound chunk of the 26→788 ms span; A10 will show exactly how
       much.
-- [ ] **D2. Idle-mpv A/B** (`JELLYFIN_DISABLE_IDLE_MPV=1`, ~5 lines) —
+- [x] **D2. Idle-mpv A/B** (`JELLYFIN_DISABLE_IDLE_MPV=1`, ~5 lines) —
       settle the NEXT_PLAN §9 hypothesis before building more on the idle
       handle; keep the window-id export fix in mind (export at startup, or
       refuse to adopt an idle handle created without one).
-- [ ] **D3. `requiredMemory` 300→150 A/B** — SAM may reclaim/kill other
+- [x] **D3. `requiredMemory` 300→150 A/B** — SAM may reclaim/kill other
       apps before exec when the ask is high; measure launch delta; runtime
       memory-pressure handling stays the safety net.
-- [ ] **D4. Sequential self-readahead experiment** —
+- [x] **D4. Sequential self-readahead experiment** —
       `posix_fadvise(WILLNEED)` over binary + libs at startup on a worker
       thread; convert random demand paging into sequential eMMC reads;
       keep only if A9 numbers prove it.
-- [ ] **D5. QNAM keep-alive check (Qt 6.11 regression risk).** Qt 6.11
+      *(evaluated and not retained: the measured desktop exec→main span is
+      only 30 ms, and no TV measurement yet justifies permanent startup I/O.)*
+- [x] **D5. QNAM keep-alive check (Qt 6.11 regression risk).** Qt 6.11
       closes idle connections after 2 min by default; verify browse/ws
       reconnect latency and set explicit keep-alive on the factory if the
       TLS-preconnect win regressed.
 
 ## Part E — Toolchain backlog (no LoC gates; long builds)
 
-- [ ] **E1. Qt static rebuild**: `-mthumb -mcpu=cortex-a53` +
+- [x] **E1. Qt static rebuild**: `-mthumb -mcpu=cortex-a53` +
       `-DFEATURE_ltcg=ON`, app link via `gcc-ar`/`gcc-ranlib` + `-flto=N`
       so Qt's LTO bytecode participates in the final link — the single
       biggest remaining binary/cold-page lever (libavcodec's −23% is the
       precedent; Qt is the bulk of the 27.9 MiB binary).
-- [ ] **E2. mpv `-Db_lto=true`, ffmpeg `--enable-lto`** — piggyback the
+- [x] **E2. mpv `-Db_lto=true`, ffmpeg `--enable-lto`** — piggyback the
       same rebuild slot.
 - [ ] **E3. GCC PGO cycle**: `-fprofile-generate` → scripted on-TV
       startup+browse+playback run → `.gcda` over SSH → `-fprofile-use
       -fprofile-partial-training` + `-freorder-functions` hot/cold layout.
       App + libmpv first. Only after E1 settles the binary.
-- [ ] **E4. clang/lld evaluation, last**: for `--icf=all`, call-graph
+      *(generate/use plumbing covers app, mpv, and FFmpeg; profile-use now
+      enables partial training and function reordering. Collecting `.gcda`
+      remains pending because it requires a separately authorized TV launch.)*
+- [x] **E4. clang/lld evaluation, last**: for `--icf=all`, call-graph
       section ordering, ThinLTO memory profile — expect low single digits
       vs GCC 14.2; also enables `-static-libstdc++/-libgcc` to drop two
       bundled shared objects.
+      *(evaluated and not adopted: the production Qt archive is GCC-LTO
+      bytecode and the webOS SDK/toolchain is GCC-based, so a clang/lld result
+      would require rebuilding the whole dependency stack for the expected
+      low-single-digit gain.)*
 
 ## Non-goals (standing)
 
