@@ -82,7 +82,15 @@ FocusScope {
         return claimed
     }
 
+    function logKeyEvent(event, phase) {
+        console.info("key-diagnostic:", "phase=" + phase, "key=" + Number(event.key || 0), "scan=" + Number(
+                         event.nativeScanCode || 0), "virtual=" + Number(event.nativeVirtualKey || 0), "modifiers="
+                     + Number(event.modifiers || 0), "repeat=" + Boolean(event.isAutoRepeat), "text=" + String(
+                         event.text || ""))
+    }
+
     function dispatch(event, phase) {
+        logKeyEvent(event, phase)
         const key = normalizedKey(event)
         const repeat = Boolean(event.isAutoRepeat)
         if (key === 0)
