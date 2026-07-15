@@ -13,40 +13,53 @@ RowLayout {
     Layout.fillWidth: true
     spacing: overlay.dp(8)
 
+    component ActionTarget: Rectangle {
+        required property string action
+        readonly property int globalIndex: root.overlay.actions.indexOf(action)
+        readonly property bool focused: root.overlay.isControlsActive() && root.overlay.focusZone === "actions"
+                                        && root.overlay.actionIndex === globalIndex
+        Layout.preferredWidth: root.overlay.actionTargetSize
+        Layout.preferredHeight: root.overlay.actionTargetSize
+        radius: width / 2
+        color: focused ? Qt.alpha(Theme.accent, 0.2) : "transparent"
+        border.width: focused ? Theme.focusBorderWidth : 0
+        border.color: Theme.accent
+
+        MaterialIcon {
+            anchors.centerIn: parent
+            name: parent.action.length > 0 ? root.overlay.actionIcon(parent.action) : ""
+            iconColor: parent.focused ? Theme.textPrimary : Theme.textSecondary
+            iconSize: root.overlay.dp(parent.action === "debug" ? 30 : 36)
+        }
+
+        TapHandler {
+            onTapped: {
+                root.overlay.controlsVisible = true
+                root.overlay.focusZone = "actions"
+                root.overlay.actionIndex = parent.globalIndex
+                root.overlay.activateAction()
+            }
+        }
+    }
+
     Repeater {
-        model: root.overlay.actions
-        delegate: Rectangle {
-            required property int index
+        model: root.overlay.transportActions
+        delegate: ActionTarget {
             required property string modelData
-            readonly property bool focused: root.overlay.isControlsActive() && root.overlay.focusZone === "actions"
-                                            && root.overlay.actionIndex === index
-            Layout.preferredWidth: root.overlay.actionTargetSize
-            Layout.preferredHeight: root.overlay.actionTargetSize
-            radius: width / 2
-            color: focused ? Qt.alpha(Theme.accent, 0.2) : "transparent"
-            border.width: focused ? Theme.focusBorderWidth : 0
-            border.color: Theme.accent
-
-            MaterialIcon {
-                anchors.centerIn: parent
-                name: root.overlay.actionIcon(modelData)
-                iconColor: focused ? Theme.textPrimary : Theme.textSecondary
-                iconSize: root.overlay.dp(modelData === "debug" ? 30 : 36)
-            }
-
-            TapHandler {
-                onTapped: {
-                    root.overlay.controlsVisible = true
-                    root.overlay.focusZone = "actions"
-                    root.overlay.actionIndex = index
-                    root.overlay.activateAction()
-                }
-            }
+            action: modelData
         }
     }
 
     Item {
         Layout.fillWidth: true
+    }
+
+    Repeater {
+        model: root.overlay.utilityActions
+        delegate: ActionTarget {
+            required property string modelData
+            action: modelData
+        }
     }
 
     RowLayout {

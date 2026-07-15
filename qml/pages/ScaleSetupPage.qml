@@ -23,7 +23,7 @@ FocusScope {
         },
         {
             "name": "Large",
-            "percent": 130
+            "percent": 160
         }
     ]
     readonly property var selectedPreset: presets[currentIndex]

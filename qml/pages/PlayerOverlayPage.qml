@@ -47,7 +47,7 @@ FocusScope {
         }
         return false
     }
-    readonly property var actions: {
+    readonly property var transportActions: {
         const values = ["back", "pause", "forward"]
         if (playlistNavigationAvailable && playQueue.canGoPrevious)
             values.push("prevQueue")
@@ -55,6 +55,10 @@ FocusScope {
             values.push("nextQueue")
         if (hasPlayer && player.hasChapters)
             values.push("prevChapter", "nextChapter")
+        return values
+    }
+    readonly property var utilityActions: {
+        const values = []
         values.push("subtitles")
         if (audioSelectable)
             values.push("audio")
@@ -65,6 +69,7 @@ FocusScope {
         values.push("debug")
         return values
     }
+    readonly property var actions: transportActions.concat(utilityActions)
     readonly property var debugOptions: ["Audio sync", "Subtitle sync", "Subtitle settings", hasPlayer
         && player.debugOsdVisible ? "Hide performance stats" : "Show performance stats", nightModeEnabled
         ? "Disable night mode" : "Enable night mode", "Stop playback"]

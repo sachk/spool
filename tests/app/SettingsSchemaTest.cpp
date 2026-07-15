@@ -153,7 +153,7 @@ void normalizersPreservePersistedValueSemantics()
     const SettingSpec& uiScale = requiredSpec(QStringLiteral("appearance/uiScalePercent"));
     require(normalizedSettingValue(uiScale, QStringLiteral("65")).toInt() == 80,
         QStringLiteral("UI scale below the floor was not clamped"));
-    require(normalizedSettingValue(uiScale, QStringLiteral("161")).toInt() == 160,
+    require(normalizedSettingValue(uiScale, QStringLiteral("181")).toInt() == 180,
         QStringLiteral("UI scale above the ceiling was not clamped"));
     require(serializedSettingValue(uiScale, QStringLiteral("115")) == QStringLiteral("115"),
         QStringLiteral("in-range UI scale was not serialized as a percentage"));
