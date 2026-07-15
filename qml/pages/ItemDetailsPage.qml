@@ -27,11 +27,11 @@ FocusScope {
     readonly property bool canPlay: item.playable
     readonly property bool showPrimaryAction: selectedIndex >= 0 && canPlay
     readonly property bool hasProgress: Number(item.resumeTicks || 0) > 0 && Number(item.runtimeTicks || 0) > 0
-    readonly property int detailTitlePx: Math.min(68, Metrics.titlePx(width) + 24)
-    readonly property int contentMargin: Metrics.pageMargin(width)
+    readonly property int detailTitlePx: Math.min(68, Metrics.titleSizePx + 24)
+    readonly property int contentMargin: Metrics.pageMarginPx
     readonly property int rowPosterWidth: Metrics.detailRowPosterWidth(width)
     readonly property int rowLandscapeWidth: Math.round(rowPosterWidth * 1.75)
-    readonly property int rowGap: Math.max(14, Metrics.gap(width))
+    readonly property int rowGap: Math.max(14, Metrics.gapPx)
     readonly property string backgroundArt: Art.url(item, "backdrop", Math.ceil(width))
     readonly property string stillArt: Art.url(item, "landscape", Math.ceil(rowLandscapeWidth))
     readonly property bool showSideArt: width >= 1120 && stillArt.length > 0
@@ -93,7 +93,7 @@ FocusScope {
         property bool enabledButton: true
         signal activated
 
-        width: Metrics.controlHeight(root.width)
+        width: Metrics.controlHeightPx
         height: width
         selected: checked
         enabled: enabledButton
@@ -329,7 +329,7 @@ FocusScope {
                             color: panel.browsing && panel.currentRow === rowDelegate.index ? Theme.textPrimary :
                                                                                               Theme.textMuted
 
-                            font.pixelSize: Metrics.metaPx(root.width)
+                            font.pixelSize: Metrics.metaSizePx
                             font.weight: Font.DemiBold
                             font.letterSpacing: 1.7
                             maximumLineCount: 1
@@ -1009,7 +1009,7 @@ FocusScope {
             id: contentColumn
             width: detailsFlick.width
             height: implicitHeight
-            spacing: Metrics.sectionGap(root.width)
+            spacing: Metrics.sectionGapPx
 
             Item {
                 id: hero
@@ -1066,7 +1066,7 @@ FocusScope {
                         text: root.item.overview || ""
                         color: Theme.textSecondary
                         wrapMode: Text.Wrap
-                        font.pixelSize: Metrics.bodyPx(root.width) + 1
+                        font.pixelSize: Metrics.bodySizePx + 1
                         lineHeight: 1.18
                         maximumLineCount: 5
                         elide: Text.ElideRight
@@ -1129,7 +1129,7 @@ FocusScope {
                         visible: root.hasProgress && root.remainingText().length > 0
                         text: root.progressText() + " / " + root.remainingText()
                         color: Theme.textMuted
-                        font.pixelSize: Metrics.metaPx(root.width)
+                        font.pixelSize: Metrics.metaSizePx
                     }
 
                     Rectangle {
@@ -1233,13 +1233,13 @@ FocusScope {
                             Layout.fillWidth: true
                             text: root.progressText()
                             color: Theme.textMuted
-                            font.pixelSize: Metrics.metaPx(root.width)
+                            font.pixelSize: Metrics.metaSizePx
                             elide: Text.ElideRight
                         }
                         MonoText {
                             text: root.remainingText()
                             color: Theme.textMuted
-                            font.pixelSize: Metrics.metaPx(root.width)
+                            font.pixelSize: Metrics.metaSizePx
                         }
                     }
                 }
@@ -1248,7 +1248,7 @@ FocusScope {
             Item {
                 id: detailRowsArea
                 Layout.fillWidth: true
-                readonly property int rowSpacing: Metrics.sectionGap(root.width)
+                readonly property int rowSpacing: Metrics.sectionGapPx
                 readonly property int visibleRowCount: (contextRow.visible ? 1 : 0) + (peopleRow.visible ? 1 : 0) + (
                                                            similarRow.visible ? 1 : 0)
                 readonly property int rowsHeight: contextRow.height + peopleRow.height + similarRow.height + Math.max(0,

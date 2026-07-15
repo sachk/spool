@@ -108,7 +108,7 @@ OverlayDialog {
         Layout.fillWidth: true
         text: root.heading
         color: Theme.textPrimary
-        font.pixelSize: Metrics.titlePx(root.width)
+        font.pixelSize: Metrics.titleSizePx
         font.weight: Font.DemiBold
     }
 
@@ -116,7 +116,7 @@ OverlayDialog {
         Layout.fillWidth: true
         text: root.itemTitle(root.item)
         color: Theme.textMuted
-        font.pixelSize: Metrics.bodyPx(root.width)
+        font.pixelSize: Metrics.bodySizePx
         elide: Text.ElideRight
         visible: root.mode.length > 0
     }
@@ -138,7 +138,7 @@ OverlayDialog {
         text: root.mode === "delete" ? "This permanently deletes the item from the server." :
                                        "This removes the item from the current playlist or collection."
         color: Theme.textMuted
-        font.pixelSize: Metrics.bodyPx(root.width)
+        font.pixelSize: Metrics.bodySizePx
         wrapMode: Text.Wrap
     }
 
@@ -147,7 +147,7 @@ OverlayDialog {
         delegate: Rectangle {
             required property int index
             Layout.fillWidth: true
-            height: Metrics.controlHeight(root.width)
+            height: Metrics.controlHeightPx
             radius: Theme.radiusMedium
             color: root.targetIndex === index ? Theme.focusedFill : "transparent"
             border.width: root.targetIndex === index ? Theme.focusBorderWidth : Theme.hoverBorderWidth
@@ -161,13 +161,13 @@ OverlayDialog {
                 MaterialIcon {
                     name: root.mode === "collection" ? "collections_bookmark" : "playlist_play"
                     iconColor: Theme.textPrimary
-                    iconSize: Metrics.iconPx(root.width)
+                    iconSize: Metrics.iconSizePx
                 }
                 AppText {
                     Layout.fillWidth: true
                     text: root.itemTitle(root.targets[index] || ({}))
                     color: Theme.textPrimary
-                    font.pixelSize: Metrics.bodyPx(root.width)
+                    font.pixelSize: Metrics.bodySizePx
                     elide: Text.ElideRight
                 }
             }

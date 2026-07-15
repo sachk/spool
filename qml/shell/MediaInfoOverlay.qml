@@ -52,14 +52,14 @@ OverlayDialog {
             Layout.fillWidth: true
             text: label
             color: Theme.textMuted
-            font.pixelSize: Metrics.metaPx(root.width) - 1
+            font.pixelSize: Metrics.metaSizePx - 1
             elide: Text.ElideRight
         }
         AppText {
             Layout.fillWidth: true
             text: value
             color: Theme.textPrimary
-            font.pixelSize: Metrics.metaPx(root.width) + 1
+            font.pixelSize: Metrics.metaSizePx + 1
             font.weight: Font.Medium
             wrapMode: Text.Wrap
             maximumLineCount: 2
@@ -311,7 +311,7 @@ OverlayDialog {
             AppText {
                 Layout.fillWidth: true
                 text: root.titleText()
-                font.pixelSize: Metrics.titlePx(root.width)
+                font.pixelSize: Metrics.titleSizePx
                 font.weight: Font.DemiBold
                 wrapMode: Text.Wrap
                 maximumLineCount: 2
@@ -439,7 +439,7 @@ OverlayDialog {
                                             Layout.fillWidth: true
                                             text: stream.displayTitle || root.streamSummary(stream) || root.text(
                                                       stream.type || "Stream")
-                                            font.pixelSize: Metrics.bodyPx(root.width)
+                                            font.pixelSize: Metrics.bodySizePx
                                             font.weight: Font.DemiBold
                                             elide: Text.ElideRight
                                         }

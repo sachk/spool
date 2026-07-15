@@ -154,11 +154,10 @@ FocusScope {
             useSeriesPoster: root.useSeriesPoster
             preferEpisodeTitle: root.preferEpisodeTitle
             focused: card.index === listView.currentIndex && listView.activeFocus
-            artworkVisible: !root.atomicPopulate || root.artworkPresented
+            artworkVisible: true
 
             Component.onCompleted: root.schedulePresentation()
             onArtworkReadyChanged: root.schedulePresentation()
-            onActivated: root.activateIndex(card.index)
         }
     }
 
@@ -190,6 +189,15 @@ FocusScope {
         reuseItems: true
         model: root.model
         delegate: cardDelegate
+        highlightFollowsCurrentItem: true
+        highlightMoveDuration: 16
+        highlight: Rectangle {
+            color: "transparent"
+            radius: Theme.radiusMedium
+            border.width: Theme.focusBorderWidth
+            border.color: listView.activeFocus ? Theme.accent : "transparent"
+            z: 2
+        }
 
         currentIndex: root.count > 0 ? Math.max(0, Math.min(root.currentIndex, root.count - 1)) : -1
         onCurrentIndexChanged: if (currentIndex >= 0)
@@ -198,6 +206,37 @@ FocusScope {
         FastWheelHandler {
             flickable: listView
             horizontal: true
+        }
+
+        MouseArea {
+            property int pressedIndex: -1
+            property bool longPressed: false
+            anchors.fill: parent
+            z: 3
+            acceptedButtons: Qt.LeftButton | Qt.RightButton
+            pressAndHoldInterval: 520
+            onPressed: mouse => {
+                longPressed = false
+                pressedIndex = listView.indexAt(mouse.x + listView.contentX, mouse.y + listView.contentY)
+                if (pressedIndex >= 0)
+                root.currentIndex = pressedIndex
+            }
+            onClicked: mouse => {
+                if (pressedIndex < 0)
+                return
+                if (longPressed) {
+                    longPressed = false
+                    return
+                }
+                if (mouse.button === Qt.RightButton && root.shell)
+                root.shell.openItemMenu(root.itemAt(pressedIndex), listView.itemAtIndex(pressedIndex))
+                else
+                root.activateIndex(pressedIndex)
+            }
+            onPressAndHold: if (pressedIndex >= 0 && root.shell) {
+                longPressed = true
+                root.shell.openItemMenu(root.itemAt(pressedIndex), listView.itemAtIndex(pressedIndex))
+            }
         }
     }
 
@@ -210,7 +249,7 @@ FocusScope {
         visible: root.count <= 0 && root.reserveWhenEmpty
         text: root.loading ? root.emptyText : ""
         color: Theme.textMuted
-        font.pixelSize: Metrics.metaPx(root.Window.window ? root.Window.window.width : 1920)
+        font.pixelSize: Metrics.metaSizePx
         verticalAlignment: Text.AlignTop
     }
 }

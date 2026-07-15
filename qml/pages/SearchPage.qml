@@ -62,8 +62,8 @@ FocusScope {
 
     function resultRows() {
         const rows = []
-        for (let index = 0; index < resultRepeater.count; ++index) {
-            const row = resultRepeater.itemAt(index)
+        for (let index = 0; index < resultsScroller.count; ++index) {
+            const row = resultsScroller.itemAtIndex(index)
             if (row && row.rowVisible)
                 rows.push(row)
         }
@@ -206,9 +206,9 @@ FocusScope {
 
     ColumnLayout {
         anchors.fill: parent
-        anchors.margins: Metrics.pageMargin(root.width)
-        anchors.bottomMargin: Metrics.pageMargin(root.width) + root.keyboardInset
-        spacing: Metrics.gap(root.width)
+        anchors.margins: Metrics.pageMarginPx
+        anchors.bottomMargin: Metrics.pageMarginPx + root.keyboardInset
+        spacing: Metrics.gapPx
 
         Behavior on anchors.bottomMargin {
             enabled: !Theme.reducedMotion
@@ -220,7 +220,7 @@ FocusScope {
 
         RowLayout {
             Layout.fillWidth: true
-            spacing: Metrics.gap(root.width)
+            spacing: Metrics.gapPx
 
             SectionHeader {
                 Layout.fillWidth: true
@@ -244,14 +244,14 @@ FocusScope {
         RowLayout {
             Layout.fillWidth: true
             Layout.fillHeight: true
-            spacing: Metrics.gap(root.width)
+            spacing: Metrics.gapPx
 
             ColumnLayout {
                 Layout.fillWidth: false
                 Layout.preferredWidth: Math.min(Metrics.scaled(520), Math.max(Metrics.scaled(320), root.width * 0.3))
                 Layout.fillHeight: true
                 Layout.alignment: Qt.AlignTop
-                spacing: Metrics.gap(root.width)
+                spacing: Metrics.gapPx
 
                 TextFieldRow {
                     id: field
@@ -276,7 +276,7 @@ FocusScope {
                     model: root.search ? root.search.suggestions : null
                     shell: root.shell
                     cardWidth: Metrics.homePosterWidth(root.width)
-                    cardGap: Metrics.gap(root.width)
+                    cardGap: Metrics.gapPx
                     enabledRow: root.query.length < 2
                     reserveWhenEmpty: root.query.length < 2 && root.suggestionsBusy
                     loading: root.suggestionsBusy
@@ -297,57 +297,46 @@ FocusScope {
                 }
             }
 
-            Flickable {
+            ListView {
                 id: resultsScroller
 
                 Layout.fillWidth: true
                 Layout.fillHeight: true
                 clip: true
-                contentWidth: width
-                contentHeight: resultColumn.implicitHeight
                 boundsBehavior: Flickable.StopAtBounds
+                spacing: Metrics.sectionGapPx
+                reuseItems: true
+                cacheBuffer: 0
+                model: root.resultSections
 
                 FastWheelHandler {
                     flickable: resultsScroller
                 }
 
-                Column {
-                    id: resultColumn
+                delegate: MediaRow {
+                    required property var modelData
+                    readonly property string resultKind: modelData.key
 
                     width: resultsScroller.width
-                    spacing: Metrics.sectionGap(root.width)
+                    title: modelData.title
+                    model: modelData.model
+                    shell: root.shell
+                    cardKind: "poster"
+                    useSeriesPoster: resultKind === "episodes"
+                    preferEpisodeTitle: resultKind === "episodes"
+                    cardWidth: Metrics.homePosterWidth(root.width)
+                    cardGap: Metrics.gapPx
+                    onCurrentIndexChanged: if (activeFocus)
+                    root.preferredKind = resultKind
+                    onActivated: root.activateResult(this)
+                }
 
-                    Repeater {
-                        id: resultRepeater
-
-                        model: root.resultSections
-
-                        MediaRow {
-                            required property var modelData
-                            readonly property string resultKind: modelData.key
-
-                            width: resultColumn.width
-                            title: modelData.title
-                            model: modelData.model
-                            shell: root.shell
-                            cardKind: "poster"
-                            useSeriesPoster: resultKind === "episodes"
-                            preferEpisodeTitle: resultKind === "episodes"
-                            cardWidth: Metrics.homePosterWidth(root.width)
-                            cardGap: Metrics.gap(root.width)
-                            onCurrentIndexChanged: if (activeFocus)
-                            root.preferredKind = resultKind
-                            onActivated: root.activateResult(this)
-                        }
-                    }
-
-                    EmptyPlaceholder {
-                        width: resultColumn.width
-                        height: resultsScroller.height
-                        visible: root.query.length >= 2 && root.resultCount === 0 && !root.searchBusy
-                        title: "No results"
-                        detail: "Try another movie, series, or episode title."
-                    }
+                footer: EmptyPlaceholder {
+                    width: resultsScroller.width
+                    height: resultsScroller.height
+                    visible: root.query.length >= 2 && root.resultCount === 0 && !root.searchBusy
+                    title: "No results"
+                    detail: "Try another movie, series, or episode title."
                 }
             }
         }

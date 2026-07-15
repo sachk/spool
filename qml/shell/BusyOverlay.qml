@@ -30,7 +30,7 @@ Item {
 
                 AppText {
                     text: root.text
-                    font.pixelSize: Metrics.bodyPx(root.width) + 2
+                    font.pixelSize: Metrics.bodySizePx + 2
                     anchors.verticalCenter: parent.verticalCenter
                 }
             }

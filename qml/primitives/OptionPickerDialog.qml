@@ -14,7 +14,7 @@ FocusScope {
     property bool spaceRequested: false
     property var inputKeys: InputKeys
     readonly property real edgeMargin: Metrics.scaled(12)
-    readonly property real rowHeight: Math.max(Metrics.scaled(44), Metrics.controlHeight(width))
+    readonly property real rowHeight: Math.max(Metrics.scaled(44), Metrics.controlHeightPx)
     readonly property real panelWidth: Math.min(width - edgeMargin * 2, Math.max(Metrics.scaled(280), Math.min(Metrics.scaled(
                                                                                                                    520), anchorItem
                                                                                                                ? anchorItem.width

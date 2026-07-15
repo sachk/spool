@@ -47,7 +47,7 @@ T.Control {
             AppText {
                 Layout.fillWidth: true
                 text: root.title
-                font.pixelSize: Metrics.bodyPx(root.Window.window ? root.Window.window.width : 1920)
+                font.pixelSize: Metrics.bodySizePx
                 font.weight: Font.Medium
                 maximumLineCount: 1
                 elide: Text.ElideRight
@@ -56,7 +56,7 @@ T.Control {
                 text: root.description
                 visible: text.length > 0
                 color: Theme.textMuted
-                font.pixelSize: Metrics.metaPx(root.Window.window ? root.Window.window.width : 1920)
+                font.pixelSize: Metrics.metaSizePx
                 elide: Text.ElideRight
                 Layout.fillWidth: true
             }
@@ -66,7 +66,7 @@ T.Control {
             visible: root.valueTextVisible
             text: root.valueText
             color: Theme.textSecondary
-            font.pixelSize: Metrics.metaPx(root.Window.window ? root.Window.window.width : 1920)
+            font.pixelSize: Metrics.metaSizePx
             Layout.maximumWidth: Math.max(Metrics.scaled(96), root.width * 0.42)
             maximumLineCount: 1
             elide: Text.ElideRight

@@ -12,7 +12,7 @@ Item {
         anchors.left: parent.left
         anchors.verticalCenter: parent.verticalCenter
         text: root.title
-        font.pixelSize: Metrics.bodyPx(root.Window.window ? root.Window.window.width : 1920) + 4
+        font.pixelSize: Metrics.bodySizePx + 4
         font.weight: Font.DemiBold
     }
 
@@ -22,6 +22,6 @@ Item {
         anchors.verticalCenter: parent.verticalCenter
         text: root.detail
         color: Theme.textMuted
-        font.pixelSize: Metrics.metaPx(root.Window.window ? root.Window.window.width : 1920)
+        font.pixelSize: Metrics.metaSizePx
     }
 }

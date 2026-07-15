@@ -10,7 +10,7 @@ FocusScope {
     readonly property var person: shell ? shell.personItem : ({})
     property int itemCount: Content.personItems ? Content.personItems.rowCount() : 0
     property int currentIndex: itemCount > 0 ? 0 : -1
-    readonly property int contentMargin: Metrics.pageMargin(width)
+    readonly property int contentMargin: Metrics.pageMarginPx
     readonly property int portraitWidth: Math.min(176, Math.max(128, width * 0.1))
     readonly property int knownForCardWidth: width >= 1600 ? 170 : 145
     focus: true
@@ -129,7 +129,7 @@ FocusScope {
                     AppText {
                         Layout.fillWidth: true
                         text: person.name || "Person"
-                        font.pixelSize: Math.min(46, Metrics.titlePx(root.width) + 8)
+                        font.pixelSize: Math.min(46, Metrics.titleSizePx + 8)
                         font.weight: Font.DemiBold
                         maximumLineCount: 2
                         wrapMode: Text.Wrap
@@ -151,7 +151,7 @@ FocusScope {
                 model: Content.personItems
                 shell: root.shell
                 cardWidth: root.knownForCardWidth
-                cardGap: Metrics.gap(root.width)
+                cardGap: Metrics.gapPx
                 enabledRow: root.itemCount > 0
                 currentIndex: root.currentIndex
                 onCurrentIndexChanged: root.currentIndex = knownFor.currentIndex

@@ -55,7 +55,7 @@ T.Control {
             visible: row.label.length > 0
             text: row.label
             color: Theme.textMuted
-            font.pixelSize: Metrics.metaPx(row.width) + Metrics.scaled(2)
+            font.pixelSize: Metrics.metaSizePx + Metrics.scaled(2)
             font.weight: Font.Medium
         }
     }
@@ -70,7 +70,7 @@ T.Control {
         anchors.bottomMargin: Metrics.scaled(9)
         background: Item {}
         color: Theme.textPrimary
-        font.pixelSize: Metrics.bodyPx(row.width) + Metrics.scaled(2)
+        font.pixelSize: Metrics.bodySizePx + Metrics.scaled(2)
         verticalAlignment: TextInput.AlignVCenter
         selectByMouse: true
         focus: false

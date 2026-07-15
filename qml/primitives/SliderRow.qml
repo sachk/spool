@@ -32,7 +32,7 @@ T.Control {
     rightPadding: Metrics.scaled(12)
     topPadding: Metrics.scaled(12)
     bottomPadding: Metrics.scaled(12)
-    readonly property int valueFontPx: Metrics.metaPx(metricsWidth) + 1
+    readonly property int valueFontPx: Metrics.metaSizePx + 1
 
     background: Surface {
         focused: root.rowFocus
@@ -96,7 +96,7 @@ T.Control {
             AppText {
                 Layout.fillWidth: true
                 text: root.title
-                font.pixelSize: Metrics.bodyPx(root.metricsWidth)
+                font.pixelSize: Metrics.bodySizePx
                 font.weight: Font.Medium
                 maximumLineCount: 1
                 elide: Text.ElideRight
@@ -107,7 +107,7 @@ T.Control {
                 visible: text.length > 0
                 text: root.description
                 color: Theme.textMuted
-                font.pixelSize: Metrics.metaPx(root.metricsWidth)
+                font.pixelSize: Metrics.metaSizePx
                 maximumLineCount: 1
                 elide: Text.ElideRight
             }

@@ -20,8 +20,12 @@ QtObject {
         source: Qt.resolvedUrl("../fonts/Inter-Bold.ttf")
         onStatusChanged: root.reportFontStatus("bold", status, name)
     }
+    readonly property FontLoader materialIcons: FontLoader {
+        source: Qt.resolvedUrl("../fonts/MaterialIcons-Regular.ttf")
+    }
 
     readonly property string sans: interRegular.status === FontLoader.Ready ? interRegular.name : "sans-serif"
+    readonly property string material: materialIcons.status === FontLoader.Ready ? materialIcons.name : "Material Icons"
 
     function reportFontStatus(face, status, family) {
         if (status === FontLoader.Ready)

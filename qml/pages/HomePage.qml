@@ -8,277 +8,208 @@ FocusScope {
     id: root
 
     property var shell
-    readonly property var resumeModel: Home.resumeItems
-    readonly property var nextUpModel: Home.nextUpItems
-    readonly property var librariesModel: Libraries
-    property var latestRows: Home.latestLibraryRows
+    property var uiTransitionToken: 0
     readonly property bool librariesOnly: Router.route === "libraries"
-    property int currentSection: 0
-    readonly property bool contentReady: librariesRow.count > 0 && librariesRow.delegatesPresented
-
-    function modelFor(source, row) {
-        if (source === "libraries")
-            return librariesModel
-        if (source === "resumeItems")
-            return resumeModel
-        if (source === "nextUpItems")
-            return nextUpModel
-        if (source === "latestLibrary")
-            return row && row.model ? row.model : null
-        return null
-    }
+    property var sections: []
+    property bool firstRowReady: false
+    readonly property bool contentReady: firstRowReady
 
     focus: true
 
-    Connections {
-        target: Home
-        function onLatestLibraryRowsChanged() {
-            root.latestRows = Home.latestLibraryRows
-            root.scheduleFocusRepair()
-        }
-    }
-
-    Timer {
-        id: focusRepairTimer
-        interval: 0
-        repeat: false
-        onTriggered: root.ensureValidFocus()
-    }
-
-    function scheduleFocusRepair() {
-        focusRepairTimer.restart()
-    }
-
-    function activateAt(source, index, row) {
-        const model = modelFor(source, row)
-        if (!model || typeof model.rowCount !== "function" || index < 0 || index >= model.rowCount())
-            return
-        if (source === "resumeItems") {
-            App.playFromModel(model, index)
-            return
-        }
-        if (source === "nextUpItems") {
-            shell.openDetailsAt(nextUpModel, index, "nextup", "home")
-            return
-        }
-        if (source === "libraries") {
-            App.openLibrary(index)
-            if (shell)
-                shell.replaceRoute("libraryGrid")
-            return
-        }
-        if (source === "latestLibrary")
-            shell.openDetailsAt(model, index, "latestLibrary:" + Number(row && row.rowIndex || 0), "home")
-    }
-
-    function visibleSections() {
-        const rows = []
-        if (librariesRow.rowVisible)
-            rows.push(librariesRow)
+    function buildSections() {
+        const rows = [
+                  {
+                      "source": "libraries",
+                      "title": "Libraries",
+                      "model": Libraries,
+                      "kind": "library"
+                  }
+              ]
         if (librariesOnly)
             return rows
-        if (resumeRow.rowVisible)
-            rows.push(resumeRow)
-        if (nextUpRow.rowVisible)
-            rows.push(nextUpRow)
-        for (let i = 0; i < latestRepeater.count; ++i) {
-            const row = latestRepeater.itemAt(i)
-            if (row && row.rowVisible)
-                rows.push(row)
+        rows.push({
+                      "source": "resumeItems",
+                      "title": "Continue Watching",
+                      "model": Home.resumeItems,
+                      "kind": "landscape"
+                  }, {
+                      "source": "nextUpItems",
+                      "title": "Next Up",
+                      "model": Home.nextUpItems,
+                      "kind": "landscape"
+                  })
+        const latest = Home.latestLibraryRows || []
+        for (let index = 0; index < latest.length; ++index) {
+            const row = latest[index]
+            rows.push({
+                          "source": "latestLibrary",
+                          "title": row && row.title ? row.title : "Recently Added",
+                          "model": row && row.model ? row.model : null,
+                          "kind": row && row.kind ? row.kind : "poster",
+                          "sourceRowIndex": Number(row && row.rowIndex !== undefined ? row.rowIndex : index)
+                      })
         }
         return rows
     }
 
-    function activeSection() {
-        const rows = visibleSections()
-        if (rows.length <= 0)
-            return null
-        currentSection = Math.max(0, Math.min(currentSection, rows.length - 1))
-        return rows[currentSection]
+    function modelCount(model) {
+        if (!model)
+            return 0
+        if (model.count !== undefined)
+            return Number(model.count)
+        if (model.length !== undefined)
+            return Number(model.length)
+        return model.rowCount ? Number(model.rowCount()) : 0
+    }
+
+    function itemAt(model, index) {
+        if (!model || index < 0 || index >= modelCount(model))
+            return ({})
+        return model.get ? (model.get(index) || ({})) : (model[index] || ({}))
+    }
+
+    function rebuildSections() {
+        firstRowReady = false
+        sections = buildSections()
+        sectionList.currentIndex = firstPopulatedSection(0, 1)
+        Qt.callLater(focusCurrentSection)
+    }
+
+    function firstPopulatedSection(start, direction) {
+        for (let index = start; index >= 0 && index < sections.length; index += direction) {
+            if (modelCount(sections[index].model) > 0)
+                return index
+        }
+        return -1
+    }
+
+    function currentRow() {
+        return sectionList.currentIndex >= 0 ? sectionList.itemAtIndex(sectionList.currentIndex) : null
     }
 
     function focusCurrentSection() {
-        const section = activeSection()
-        if (!section)
+        const row = currentRow()
+        if (!row)
             return false
-        section.focusList()
-        InputKeys.positionChild(scroller, section)
+        if (!row.focusList())
+            return false
+        sectionList.positionViewAtIndex(sectionList.currentIndex, ListView.Contain)
         return true
     }
 
-    function ensureValidFocus() {
-        const rows = visibleSections()
-        if (rows.length <= 0)
-            return
-        currentSection = Math.max(0, Math.min(currentSection, rows.length - 1))
-        if (activeFocus)
-            focusCurrentSection()
-    }
-
-    function focusRelative(section, direction) {
-        const rows = visibleSections()
-        if (rows.length <= 0)
-            return
-        const index = rows.indexOf(section)
-        currentSection = index >= 0 ? index : Math.max(0, Math.min(currentSection, rows.length - 1))
-        const next = currentSection + direction
+    function moveSection(direction) {
+        const next = firstPopulatedSection(sectionList.currentIndex + direction, direction)
         if (next < 0) {
-            shell.focusNavBar()
-            return
+            if (direction < 0 && shell)
+                shell.focusNavBar()
+            return true
         }
-        if (next >= rows.length)
-            return
-        currentSection = next
-        focusCurrentSection()
+        sectionList.currentIndex = next
+        sectionList.positionViewAtIndex(next, ListView.Contain)
+        Qt.callLater(focusCurrentSection)
+        return true
     }
 
     function routeKey(key, phase, repeat) {
-        const section = activeSection()
-        if (!section)
+        const row = currentRow()
+        if (!row)
             return false
-        if (key === Qt.Key_Up || key === Qt.Key_Down) {
-            focusRelative(section, key === Qt.Key_Down ? 1 : -1)
-            return true
+        if (key === Qt.Key_Up || key === Qt.Key_Down)
+            return moveSection(key === Qt.Key_Down ? 1 : -1)
+        return row.routeKey(key, phase, repeat)
+    }
+
+    function activateAt(descriptor, index) {
+        const model = descriptor.model
+        if (!model || index < 0 || index >= modelCount(model))
+            return
+        if (descriptor.source === "resumeItems") {
+            App.playFromModel(model, index)
+        } else if (descriptor.source === "libraries") {
+            App.openLibrary(index)
+            if (shell)
+                shell.replaceRoute("libraryGrid")
+        } else if (shell) {
+            const source = descriptor.source === "latestLibrary" ? "latestLibrary:" + descriptor.sourceRowIndex :
+                                                                   "nextup"
+            shell.openDetailsAt(model, index, source, "home")
         }
-        return section.routeKey(key, phase, repeat)
     }
 
     function activate() {
-        const section = activeSection()
-        if (section)
-            section.activate()
+        const row = currentRow()
+        if (row)
+            activateAt(sections[sectionList.currentIndex], row.currentIndex)
     }
 
     function longPress() {
-        const section = activeSection()
-        return Boolean(section && section.longPress && section.longPress())
+        const row = currentRow()
+        return Boolean(row && row.longPress && row.longPress())
     }
 
     function currentMediaItem() {
-        const section = activeSection()
-        if (!section || section.currentIndex < 0)
-            return ({})
-        return section.itemAt(section.currentIndex)
+        const row = currentRow()
+        return row ? itemAt(sections[sectionList.currentIndex].model, row.currentIndex) : ({})
     }
 
-    Component.onCompleted: {
-        scheduleFocusRepair()
-    }
+    Component.onCompleted: rebuildSections()
+    onLibrariesOnlyChanged: rebuildSections()
     onActiveFocusChanged: if (activeFocus)
-    focusCurrentSection()
+    Qt.callLater(focusCurrentSection)
 
-    Flickable {
-        id: scroller
+    Connections {
+        target: Home
+        function onLatestLibraryRowsChanged() {
+            root.rebuildSections()
+        }
+    }
+
+    ListView {
+        id: sectionList
 
         anchors.fill: parent
-        anchors.margins: Metrics.pageMargin(root.width)
+        anchors.margins: Metrics.pageMarginPx
+        model: root.sections
+        spacing: Metrics.scaled(14)
         clip: true
-        contentWidth: width
-        contentHeight: contentColumn.implicitHeight
+        reuseItems: true
+        cacheBuffer: 0
         boundsBehavior: Flickable.StopAtBounds
-        maximumFlickVelocity: 7200
-        flickDeceleration: 6200
+        keyNavigationEnabled: false
+        focus: true
+
+        header: SectionHeader {
+            width: sectionList.width
+            height: implicitHeight + Metrics.scaled(18)
+            title: root.librariesOnly ? "Libraries" : "My Media"
+        }
 
         FastWheelHandler {
-            flickable: scroller
+            flickable: sectionList
         }
 
-        Behavior on contentY {
-            enabled: !Theme.reducedMotion
-            NumberAnimation {
-                duration: 90
-                easing.type: Easing.OutCubic
+        delegate: MediaRow {
+            id: mediaRow
+
+            required property int index
+            required property var modelData
+
+            width: sectionList.width
+            title: modelData.title
+            model: modelData.model
+            shell: root.shell
+            cardKind: modelData.kind
+            useSeriesPoster: modelData.source === "latestLibrary"
+            preferEpisodeTitle: modelData.source === "latestLibrary"
+            cardWidth: cardKind === "poster" ? Metrics.homePosterWidth(root.width) : Metrics.homeLandscapeWidth(
+                                                   root.width)
+            cardGap: Metrics.gapPx
+            atomicPopulate: index === 0
+            onDelegatesPresentedChanged: if (index === 0 && delegatesPresented) {
+                root.firstRowReady = true
+                InputLatency.mark(root.uiTransitionToken, "first_delegate")
             }
-        }
-
-        Column {
-            id: contentColumn
-
-            width: scroller.width
-            spacing: Metrics.scaled(14)
-
-            SectionHeader {
-                width: contentColumn.width
-                height: implicitHeight + Metrics.scaled(18)
-                title: root.librariesOnly ? "Libraries" : "My Media"
-            }
-
-            MediaRow {
-                id: librariesRow
-
-                width: contentColumn.width
-                title: "Libraries"
-                model: root.librariesModel
-                shell: root.shell
-                cardKind: "library"
-                cardWidth: Metrics.homeLandscapeWidth(root.width)
-                cardGap: Metrics.gap(root.width)
-                atomicPopulate: true
-                onRowVisibleChanged: root.scheduleFocusRepair()
-                onActivated: index => root.activateAt("libraries", index, -1)
-            }
-
-            MediaRow {
-                id: resumeRow
-
-                width: contentColumn.width
-                title: "Continue Watching"
-                model: root.resumeModel
-                shell: root.shell
-                cardKind: "landscape"
-                cardWidth: Metrics.homeLandscapeWidth(root.width)
-                cardGap: Metrics.gap(root.width)
-                enabledRow: !root.librariesOnly
-                atomicPopulate: true
-                onRowVisibleChanged: root.scheduleFocusRepair()
-                onActivated: index => root.activateAt("resumeItems", index, -1)
-            }
-
-            MediaRow {
-                id: nextUpRow
-
-                width: contentColumn.width
-                title: "Next Up"
-                model: root.nextUpModel
-                shell: root.shell
-                cardKind: "landscape"
-                cardWidth: Metrics.homeLandscapeWidth(root.width)
-                cardGap: Metrics.gap(root.width)
-                enabledRow: !root.librariesOnly
-                atomicPopulate: true
-                onRowVisibleChanged: root.scheduleFocusRepair()
-                onActivated: index => root.activateAt("nextUpItems", index, -1)
-            }
-
-            Repeater {
-                id: latestRepeater
-
-                model: root.latestRows || []
-
-                MediaRow {
-                    id: latestRow
-
-                    required property int index
-                    required property var modelData
-                    readonly property int sourceRowIndex: Number(modelData && modelData.rowIndex !== undefined
-                                                                 ? modelData.rowIndex : index)
-
-                    width: contentColumn.width
-                    title: modelData && modelData.title ? modelData.title : "Recently Added"
-                    model: modelData && modelData.model ? modelData.model : null
-                    shell: root.shell
-                    cardKind: modelData && modelData.kind ? modelData.kind : "poster"
-                    useSeriesPoster: true
-                    preferEpisodeTitle: true
-                    cardWidth: cardKind === "poster" ? Metrics.homePosterWidth(root.width) : Metrics.homeLandscapeWidth(
-                                                           root.width)
-                    cardGap: Metrics.gap(root.width)
-                    atomicPopulate: true
-                    enabledRow: !root.librariesOnly
-                    onRowVisibleChanged: root.scheduleFocusRepair()
-                    onActivated: itemIndex => root.activateAt("latestLibrary", itemIndex, modelData)
-                }
-            }
+            onActivated: itemIndex => root.activateAt(modelData, itemIndex)
         }
     }
 }

@@ -230,7 +230,7 @@ Item {
             Layout.fillWidth: true
             text: root.overlay.menuTitle()
             color: Theme.textPrimary
-            font.pixelSize: Metrics.titlePx(root.width)
+            font.pixelSize: Metrics.titleSizePx
             font.weight: Font.DemiBold
         }
 
@@ -240,7 +240,7 @@ Item {
             visible: menuList.count === 0
             text: root.overlay.menuPlaceholder()
             color: Theme.textMuted
-            font.pixelSize: Metrics.bodyPx(root.width)
+            font.pixelSize: Metrics.bodySizePx
         }
 
         MenuListView {

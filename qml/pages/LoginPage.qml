@@ -20,7 +20,7 @@ FocusScope {
     readonly property bool hasSavedPair: App.hasDefaultProfile && Session.serverUrl.length > 0
     readonly property bool textInputActive: shell ? shell.textInputActive : Qt.inputMethod.visible
     readonly property bool manualServerVisible: manualServerAddress.length > 0
-    readonly property int contentWidth: Math.min(width - Metrics.pageMargin(width) * 2, 1040)
+    readonly property int contentWidth: Math.min(width - Metrics.pageMarginPx * 2, 1040)
     readonly property string savedServerName: "Jellyfin Server"
     readonly property string savedUsername: Session.username.length > 0 ? Session.username : "Saved user"
     readonly property string chosenServerName: selectedServerName.length > 0 ? selectedServerName : savedServerName
@@ -235,7 +235,7 @@ FocusScope {
         id: brand
         anchors.left: parent.left
         anchors.top: parent.top
-        anchors.leftMargin: Metrics.pageMargin(root.width)
+        anchors.leftMargin: Metrics.pageMarginPx
         anchors.topMargin: 18
         spacing: 10
 
@@ -302,7 +302,7 @@ FocusScope {
             id: backButton
             anchors.left: parent.left
             anchors.top: parent.top
-            anchors.leftMargin: Metrics.pageMargin(root.width)
+            anchors.leftMargin: Metrics.pageMarginPx
             anchors.topMargin: 64
             width: 46
             height: 46
@@ -330,7 +330,7 @@ FocusScope {
             AppText {
                 Layout.fillWidth: true
                 text: "Choose a server"
-                font.pixelSize: Metrics.titlePx(root.width) + Metrics.scaled(8)
+                font.pixelSize: Metrics.titleSizePx + Metrics.scaled(8)
                 font.weight: Font.DemiBold
                 horizontalAlignment: Text.AlignHCenter
             }
@@ -339,7 +339,7 @@ FocusScope {
                 Layout.fillWidth: true
                 text: "Select a discovered server or enter its address"
                 color: Theme.textSecondary
-                font.pixelSize: Metrics.bodyPx(root.width)
+                font.pixelSize: Metrics.bodySizePx
                 horizontalAlignment: Text.AlignHCenter
             }
 
@@ -431,7 +431,7 @@ FocusScope {
             AppText {
                 Layout.fillWidth: true
                 text: "Sign in"
-                font.pixelSize: Metrics.titlePx(root.width) + Metrics.scaled(8)
+                font.pixelSize: Metrics.titleSizePx + Metrics.scaled(8)
                 font.weight: Font.DemiBold
                 horizontalAlignment: Text.AlignHCenter
             }
@@ -579,7 +579,7 @@ FocusScope {
                 AppText {
                     Layout.fillWidth: true
                     text: choice.title
-                    font.pixelSize: Metrics.bodyPx(root.width) + Metrics.scaled(3)
+                    font.pixelSize: Metrics.bodySizePx + Metrics.scaled(3)
                     font.weight: Font.Medium
                     maximumLineCount: 1
                     elide: Text.ElideRight
@@ -589,7 +589,7 @@ FocusScope {
                     Layout.fillWidth: true
                     text: choice.address
                     color: Theme.textMuted
-                    font.pixelSize: Metrics.metaPx(root.width) + Metrics.scaled(3)
+                    font.pixelSize: Metrics.metaSizePx + Metrics.scaled(3)
                     maximumLineCount: 1
                     elide: Text.ElideRight
                 }
@@ -598,7 +598,7 @@ FocusScope {
             AppText {
                 text: choice.status
                 color: choice.status === "Online" ? Theme.success : Theme.textSecondary
-                font.pixelSize: Metrics.metaPx(root.width) + Metrics.scaled(3)
+                font.pixelSize: Metrics.metaSizePx + Metrics.scaled(3)
                 font.weight: Font.Medium
                 maximumLineCount: 1
             }

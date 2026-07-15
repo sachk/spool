@@ -6,6 +6,7 @@ import "RoutePolicy.js" as RoutePolicy
 
 KeyRouter {
     id: root
+    onWidthChanged: Metrics.refWidth = width
     focus: true
     backspaceNavigatesInTextInput: NativeWindow.smartTvPlatform
     webOsColorScanCodes: NativeWindow.smartTvPlatform
@@ -377,7 +378,7 @@ KeyRouter {
         TopBar {
             id: navBar
             Layout.fillWidth: true
-            Layout.preferredHeight: route === "login" || route === "scaleSetup" ? 0 : Metrics.topBarHeight(root.width)
+            Layout.preferredHeight: route === "login" || route === "scaleSetup" ? 0 : Metrics.topBarHeightPx
             visible: route !== "login" && route !== "scaleSetup"
             z: 1
             currentRoute: root.route

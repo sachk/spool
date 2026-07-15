@@ -24,8 +24,6 @@ Item {
     readonly property real effectiveProgress: playbackProgress()
     readonly property bool artworkReady: art.artworkReady
 
-    signal activated
-
     Component.onCompleted: InputLatency.noteDelegate("media_card", 1)
     Component.onDestruction: InputLatency.noteDelegate("media_card", -1)
 
@@ -87,12 +85,6 @@ Item {
         return resumeTicks > 0 && runtimeTicks > 0 ? Math.max(0, Math.min(1, resumeTicks / runtimeTicks)) : 0
     }
 
-    function openMenu() {
-        if (!shell || !shell.openItemMenu)
-            return false
-        return shell.openItemMenu(item, root)
-    }
-
     ImageCard {
         id: art
         anchors.top: parent.top
@@ -101,7 +93,6 @@ Item {
         height: root.artHeight
         imageUrl: root.imageSource()
         fallbackText: root.fallbackText()
-        focused: root.focused
         artworkVisible: root.artworkVisible
     }
 
@@ -122,11 +113,10 @@ Item {
         anchors.right: parent.right
         visible: text.length > 0 && root.titleAvailableHeight > 0
         text: root.titleText()
-        font.pixelSize: Metrics.bodyPx(root.Window.window ? root.Window.window.width : 1920)
+        font.pixelSize: Metrics.bodySizePx
         font.weight: Font.Medium
         color: root.posterKind && !root.focused ? Theme.textSecondary : Theme.textPrimary
         maximumLineCount: root.titleAvailableHeight >= font.pixelSize * 2.25 ? 2 : 1
-        clip: true
         elide: Text.ElideRight
     }
 
@@ -139,28 +129,7 @@ Item {
         visible: text.length > 0 && root.height > y
         text: root.subtitleText()
         color: Theme.textMuted
-        font.pixelSize: Metrics.metaPx(root.Window.window ? root.Window.window.width : 1920)
+        font.pixelSize: Metrics.metaSizePx
         elide: Text.ElideRight
-    }
-
-    MouseArea {
-        property bool longPressed: false
-
-        anchors.fill: parent
-        acceptedButtons: Qt.LeftButton | Qt.RightButton
-        pressAndHoldInterval: 520
-        onPressed: longPressed = false
-        onClicked: mouse => {
-                       if (mouse.button === Qt.RightButton) {
-                           root.openMenu()
-                       } else if (!longPressed) {
-                           root.activated()
-                       }
-                       longPressed = false
-                   }
-        onPressAndHold: {
-            longPressed = true
-            root.openMenu()
-        }
     }
 }

@@ -15,6 +15,6 @@ Surface {
         anchors.centerIn: parent
         text: root.text
         color: root.selected ? Theme.textPrimary : Theme.textSecondary
-        font.pixelSize: Metrics.metaPx(root.Window.window ? root.Window.window.width : 1920)
+        font.pixelSize: Metrics.metaSizePx
     }
 }

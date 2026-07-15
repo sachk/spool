@@ -32,14 +32,14 @@ SettingRow {
         MaterialIcon {
             anchors.verticalCenter: parent.verticalCenter
             name: "unfold_more"
-            iconSize: Math.max(18, Metrics.metaPx(root.metricsWidth) + 6)
+            iconSize: Math.max(18, Metrics.metaSizePx + 6)
             iconColor: root.enabled && root.options.length > 0 ? Theme.textSecondary : Theme.textDisabled
         }
 
         Rectangle {
             width: Math.min(Math.max(valueLabel.implicitWidth + Metrics.scaled(28), Metrics.scaled(112)), Math.max(
                                 Metrics.scaled(112), root.width * 0.42))
-            height: Math.max(Metrics.scaled(32), Metrics.metaPx(root.metricsWidth) + Metrics.scaled(18))
+            height: Math.max(Metrics.scaled(32), Metrics.metaSizePx + Metrics.scaled(18))
             radius: Theme.radiusMedium
             color: root.activeFocus ? Theme.accentPanel : Theme.bgRaised
             border.width: root.activeFocus ? Theme.focusBorderWidth : Theme.hoverBorderWidth
@@ -53,7 +53,7 @@ SettingRow {
                 anchors.rightMargin: Metrics.scaled(14)
                 text: root.selectedText
                 color: Theme.textPrimary
-                font.pixelSize: Metrics.metaPx(root.metricsWidth)
+                font.pixelSize: Metrics.metaSizePx
                 font.weight: Font.Medium
                 horizontalAlignment: Text.AlignHCenter
                 verticalAlignment: Text.AlignVCenter

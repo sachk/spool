@@ -15,6 +15,7 @@ FocusScope {
     property bool playbackPreview: false
     property bool choiceDialogVisible: false
     property var choiceDialogRow: null
+    readonly property var choiceDialog: choiceDialogLoader.item
     property bool contentReady: false
 
     signal dismissed
@@ -113,7 +114,7 @@ FocusScope {
         if (value.indexOf("system:") === 0)
             return value.slice(7)
         if (value === "serif")
-            return String(previewSerif.name || Typography.regularFamily || "Inter")
+            return String(previewSerif.item ? previewSerif.item.name : Typography.sans)
         if (value === "typewriter")
             return "Courier New"
         if (value === "print")
@@ -363,9 +364,12 @@ FocusScope {
         } else if (row.type === "select") {
             settingsList.positionViewAtIndex(index, ListView.Contain)
             Qt.callLater(function () {
-                choiceDialogRow = row
-                choiceDialog.anchorItem = rowControlAt(index)
                 choiceDialogVisible = true
+                choiceDialogRow = row
+                Qt.callLater(function () {
+                    if (choiceDialog)
+                        choiceDialog.anchorItem = rowControlAt(index)
+                })
             })
         } else if (row.type === "slider") {
             const control = rowControlAt(index)
@@ -395,7 +399,8 @@ FocusScope {
 
     function closeChoiceDialog() {
         choiceDialogVisible = false
-        choiceDialog.anchorItem = null
+        if (choiceDialog)
+            choiceDialog.anchorItem = null
         choiceDialogRow = null
         Qt.callLater(function () {
             focusRow(currentIndex)
@@ -405,7 +410,8 @@ FocusScope {
     function makeChoiceSpace(pixels) {
         const maximum = Math.max(0, settingsList.contentHeight + settingsList.bottomMargin - settingsList.height)
         settingsList.contentY = Math.min(maximum, Math.max(0, settingsList.contentY + pixels))
-        Qt.callLater(choiceDialog.positionPopup)
+        if (choiceDialog)
+            Qt.callLater(choiceDialog.positionPopup)
     }
 
     function back() {
@@ -465,16 +471,13 @@ FocusScope {
 
     Connections {
         target: Settings
-        function onSettingsValuesChanged() {
-            settingsList.forceLayout()
-        }
-        function onSubtitleSettingsChanged() {
-            settingsList.forceLayout()
-        }
     }
-    FontLoader {
+    Loader {
         id: previewSerif
-        source: Qt.resolvedUrl("../fonts/SourceSerif4-Regular.ttf")
+        active: root.subtitleEditor
+        sourceComponent: FontLoader {
+            source: Qt.resolvedUrl("../fonts/SourceSerif4-Regular.ttf")
+        }
     }
 
     Rectangle {
@@ -522,7 +525,7 @@ FocusScope {
 
     MenuListView {
         id: settingsList
-        readonly property real pageInset: Metrics.pageMargin(root.width)
+        readonly property real pageInset: Metrics.pageMarginPx
         width: root.subtitleEditor ? Math.min(parent.width - pageInset * 2, Metrics.scaled(760)) : Math.max(0,
                                                                                                             parent.width
                                                                                                             - pageInset
@@ -533,7 +536,8 @@ FocusScope {
         anchors.topMargin: pageInset
         anchors.rightMargin: pageInset
         anchors.bottomMargin: pageInset
-        bottomMargin: root.choiceDialogVisible ? choiceDialog.panelHeight + Metrics.scaled(16) : 0
+        bottomMargin: root.choiceDialogVisible && root.choiceDialog ? root.choiceDialog.panelHeight + Metrics.scaled(16) :
+                                                                      0
         model: root.settingsRows
         dismissOnBack: false
         dismissOnHorizontal: false
@@ -654,18 +658,21 @@ FocusScope {
             onInteractionStarted: root.selectRow(rowIndex, false)
         }
     }
-    OptionPickerDialog {
-        id: choiceDialog
-        visible: root.choiceDialogVisible
-        title: root.choiceDialogRow ? root.choiceDialogRow.title : "Choose an option"
-        options: root.choiceDialogRow ? root.rowOptions(root.choiceDialogRow) : []
-        currentIndex: root.choiceDialogRow ? root.rowCurrentIndex(root.choiceDialogRow) : 0
-        onSelected: index => {
-            if (root.choiceDialogRow)
-            root.setRowChoice(root.choiceDialogRow, index)
-            root.closeChoiceDialog()
+    Loader {
+        id: choiceDialogLoader
+        active: root.choiceDialogVisible
+        sourceComponent: OptionPickerDialog {
+            visible: true
+            title: root.choiceDialogRow ? root.choiceDialogRow.title : "Choose an option"
+            options: root.choiceDialogRow ? root.rowOptions(root.choiceDialogRow) : []
+            currentIndex: root.choiceDialogRow ? root.rowCurrentIndex(root.choiceDialogRow) : 0
+            onSelected: index => {
+                if (root.choiceDialogRow)
+                root.setRowChoice(root.choiceDialogRow, index)
+                root.closeChoiceDialog()
+            }
+            onDismissed: root.closeChoiceDialog()
+            onSpaceBelowRequired: pixels => root.makeChoiceSpace(pixels)
         }
-        onDismissed: root.closeChoiceDialog()
-        onSpaceBelowRequired: pixels => root.makeChoiceSpace(pixels)
     }
 }

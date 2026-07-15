@@ -9,6 +9,6 @@ MonoText {
     wrapMode: Text.Wrap
     maximumLineCount: 2
     elide: Text.ElideRight
-    font.pixelSize: Metrics.metaPx(root.Window.window ? root.Window.window.width : 1920)
+    font.pixelSize: Metrics.metaSizePx
     lineHeight: 1.12
 }

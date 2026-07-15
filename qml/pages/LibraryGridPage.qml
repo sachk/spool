@@ -79,7 +79,7 @@ FocusScope {
                 id: labelText
                 anchors.verticalCenter: parent.verticalCenter
                 text: buttonRoot.label
-                font.pixelSize: Metrics.metaPx(root.width) + 1
+                font.pixelSize: Metrics.metaSizePx + 1
                 font.weight: Font.Medium
                 maximumLineCount: 1
                 elide: Text.ElideRight
@@ -496,6 +496,8 @@ FocusScope {
         firstIndex: Math.min(grid.count - 1, Math.max(0, Math.floor(grid.contentY / grid.cellHeight) * root.columns))
         lastIndex: Math.min(grid.count - 1, Math.max(firstIndex, Math.ceil((grid.contentY + grid.height)
                                                                            / grid.cellHeight) * root.columns - 1))
+        onDelegatesReadyChanged: if (delegatesReady)
+        grid.requestMoreIfNeeded()
     }
 
     function activateCurrent() {
@@ -599,7 +601,7 @@ FocusScope {
     }
     ColumnLayout {
         anchors.fill: parent
-        anchors.margins: Metrics.pageMargin(root.width)
+        anchors.margins: Metrics.pageMarginPx
         spacing: 12
         RowLayout {
             Layout.fillWidth: true
@@ -637,7 +639,7 @@ FocusScope {
                         anchors.verticalCenter: parent.verticalCenter
                         width: Math.max(0, titleRow.width - 30)
                         text: Browse.title.length > 0 ? Browse.title : "Library"
-                        font.pixelSize: Metrics.bodyPx(root.width) + 4
+                        font.pixelSize: Metrics.bodySizePx + 4
                         font.weight: Font.DemiBold
                         maximumLineCount: 1
                         elide: Text.ElideRight
@@ -659,7 +661,7 @@ FocusScope {
                     anchors.verticalCenter: parent.verticalCenter
                     text: root.headerDetail()
                     color: Theme.textMuted
-                    font.pixelSize: Metrics.metaPx(root.width)
+                    font.pixelSize: Metrics.metaSizePx
                     maximumLineCount: 1
                     elide: Text.ElideRight
                     width: Math.min(520, Math.max(0, parent.width * 0.52))
@@ -725,10 +727,10 @@ FocusScope {
             opacity: gridReveal.delegatesReady ? 1 : 0
             boundsBehavior: Flickable.StopAtBounds
             model: Browse.items
-            cellWidth: Math.floor((width - Metrics.gap(root.width) * (columns - 1)) / columns)
+            cellWidth: Math.floor((width - Metrics.gapPx * (columns - 1)) / columns)
             cellHeight: root.episodeGrid ? Math.round(cellWidth * 9 / 16 + Metrics.scaled(62)) : cellWidth * 1.5
                                            + Metrics.scaled(64)
-            cacheBuffer: 2 * cellHeight
+            cacheBuffer: gridReveal.delegatesReady ? cellHeight : 0
             Component.onCompleted: {
                 restoreIndex()
                 requestMoreIfNeeded()
@@ -780,7 +782,7 @@ FocusScope {
             }
 
             function requestMoreIfNeeded() {
-                if (count <= 0)
+                if (count <= 0 || !gridReveal.delegatesReady)
                     return
                 const visibleHead = firstLikelyVisibleIndex()
                 const visibleTail = Math.max(currentIndex, lastLikelyVisibleIndex())
@@ -799,21 +801,55 @@ FocusScope {
 
                 required property int index
 
-                width: grid.cellWidth - Metrics.gap(root.width)
+                width: grid.cellWidth - Metrics.gapPx
                 height: grid.cellHeight
                 shell: root.shell
                 kind: root.episodeGrid ? "landscape" : "poster"
                 preferEpisodeTitle: root.episodeGrid
                 useSeriesPoster: !root.episodeGrid
                 focused: gridDelegate.GridView.isCurrentItem
-                artworkVisible: gridReveal.artworkReady
+                artworkVisible: true
 
                 Component.onCompleted: gridReveal.schedule()
                 onArtworkReadyChanged: gridReveal.schedule()
-                onActivated: {
-                    grid.currentIndex = index
-                    root.savedIndex = index
+            }
+            highlightFollowsCurrentItem: true
+            highlight: Rectangle {
+                color: "transparent"
+                radius: Theme.radiusMedium
+                border.width: Theme.focusBorderWidth
+                border.color: grid.activeFocus ? Theme.accent : "transparent"
+                z: 2
+            }
+
+            MouseArea {
+                property int pressedIndex: -1
+                property bool longPressed: false
+                anchors.fill: parent
+                z: 3
+                acceptedButtons: Qt.LeftButton | Qt.RightButton
+                pressAndHoldInterval: 520
+                onPressed: mouse => {
+                    longPressed = false
+                    pressedIndex = grid.indexAt(mouse.x + grid.contentX, mouse.y + grid.contentY)
+                    if (pressedIndex >= 0)
+                    grid.currentIndex = pressedIndex
+                }
+                onClicked: mouse => {
+                    if (pressedIndex < 0)
+                    return
+                    if (longPressed) {
+                        longPressed = false
+                        return
+                    }
+                    if (mouse.button === Qt.RightButton && root.shell)
+                    root.shell.openItemMenu(Browse.items.get(pressedIndex), grid.itemAtIndex(pressedIndex))
+                    else
                     root.activateCurrent()
+                }
+                onPressAndHold: if (pressedIndex >= 0 && root.shell) {
+                    longPressed = true
+                    root.shell.openItemMenu(Browse.items.get(pressedIndex), grid.itemAtIndex(pressedIndex))
                 }
             }
         }
@@ -823,8 +859,8 @@ FocusScope {
         id: libraryPanel
         anchors.top: parent.top
         anchors.left: parent.left
-        anchors.topMargin: Metrics.pageMargin(root.width) + 52
-        anchors.leftMargin: Metrics.pageMargin(root.width)
+        anchors.topMargin: Metrics.pageMarginPx + 52
+        anchors.leftMargin: Metrics.pageMarginPx
         width: 360
         open: root.libraryOpen
         openHeight: Math.min(420, libraryList.contentHeight + 20)
@@ -864,8 +900,8 @@ FocusScope {
         id: sortPanel
         anchors.top: parent.top
         anchors.right: parent.right
-        anchors.topMargin: Metrics.pageMargin(root.width) + 52
-        anchors.rightMargin: Metrics.pageMargin(root.width)
+        anchors.topMargin: Metrics.pageMarginPx + 52
+        anchors.rightMargin: Metrics.pageMarginPx
         width: 320
         open: root.sortOpen
         openHeight: Math.min(430, sortList.contentHeight + 20)
@@ -906,11 +942,11 @@ FocusScope {
         id: filterPanel
         anchors.top: parent.top
         anchors.right: parent.right
-        anchors.topMargin: Metrics.pageMargin(root.width) + 52
-        anchors.rightMargin: Metrics.pageMargin(root.width)
+        anchors.topMargin: Metrics.pageMarginPx + 52
+        anchors.rightMargin: Metrics.pageMarginPx
         width: 380
         open: root.filtersOpen
-        openHeight: Math.min(root.height - Metrics.pageMargin(root.width) * 2 - 70, 620)
+        openHeight: Math.min(root.height - Metrics.pageMarginPx * 2 - 70, 620)
         z: 21
 
         ColumnLayout {
@@ -924,7 +960,7 @@ FocusScope {
                 AppText {
                     Layout.fillWidth: true
                     text: "Filters"
-                    font.pixelSize: Metrics.bodyPx(root.width)
+                    font.pixelSize: Metrics.bodySizePx
                     font.weight: Font.DemiBold
                 }
                 ActionButton {

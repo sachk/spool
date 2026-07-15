@@ -115,7 +115,9 @@ void BrowseSessionController::prefetchVisibleRange(int firstIndex, int lastIndex
         return;
     if (m_prefetch)
         m_prefetch->prefetchPosters(m_items.movies(), firstIndex, lastIndex - firstIndex + 1);
-    if (lastIndex + 200 >= m_items.rowCount())
+    const int visibleCount = lastIndex - firstIndex + 1;
+    const int prefetchThreshold = std::max(8, visibleCount * 2);
+    if (lastIndex + prefetchThreshold >= m_items.rowCount())
         emit moreItemsRequested();
 }
 

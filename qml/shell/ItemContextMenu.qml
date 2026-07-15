@@ -16,8 +16,8 @@ FocusScope {
     property bool playedState: Boolean(item && item.played)
     property bool opened: false
     readonly property int windowWidth: root.Window.window ? root.Window.window.width : 1920
-    readonly property int menuEdgeMargin: Math.max(12, Metrics.gap(windowWidth))
-    readonly property int menuRowHeight: Math.max(46, Metrics.controlHeight(windowWidth))
+    readonly property int menuEdgeMargin: Math.max(12, Metrics.gapPx)
+    readonly property int menuRowHeight: Math.max(46, Metrics.controlHeightPx)
     readonly property int menuPanelWidth: Math.min(windowWidth - menuEdgeMargin * 2, Math.max(320, Math.min(392,
                                                                                                             Math.round(
                                                                                                                 windowWidth

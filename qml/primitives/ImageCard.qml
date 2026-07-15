@@ -5,7 +5,6 @@ Item {
     id: root
     property string imageUrl: ""
     property string fallbackText: ""
-    property bool focused: false
     property bool artworkVisible: true
     readonly property bool artworkReady: imageUrl.length === 0 || artwork.status === Image.Ready || artwork.status
                                          === Image.Error
@@ -21,19 +20,22 @@ Item {
         anchors.fill: parent
         radius: Theme.radiusMedium
         color: Theme.bgRaised
-        border.width: root.focused ? Theme.focusBorderWidth : Theme.hoverBorderWidth
-        border.color: root.focused ? Theme.accent : Theme.border
+        border.width: Theme.hoverBorderWidth
+        border.color: Theme.border
         clip: true
-        antialiasing: true
 
-        MonoText {
-            anchors.centerIn: parent
-            width: parent.width - Metrics.scaled(20)
-            text: root.fallbackText.length > 0 ? root.fallbackText : "..."
-            color: Theme.textMuted
-            horizontalAlignment: Text.AlignHCenter
-            wrapMode: Text.Wrap
-            font.pixelSize: Metrics.scaled(13)
+        Loader {
+            anchors.fill: parent
+            active: root.imageUrl.length === 0 || artwork.status === Image.Error
+            sourceComponent: MonoText {
+                anchors.centerIn: parent
+                width: parent.width - Metrics.scaled(20)
+                text: root.fallbackText.length > 0 ? root.fallbackText : "..."
+                color: Theme.textMuted
+                horizontalAlignment: Text.AlignHCenter
+                wrapMode: Text.Wrap
+                font.pixelSize: Metrics.scaled(13)
+            }
         }
 
         Image {
@@ -50,6 +52,11 @@ Item {
             sourceSize.width: Math.max(1, Math.round(root.width * Screen.devicePixelRatio))
             sourceSize.height: Math.max(1, Math.round(root.height * Screen.devicePixelRatio))
             opacity: root.artworkVisible ? 1 : 0
+            Behavior on opacity {
+                NumberAnimation {
+                    duration: Theme.reducedMotion ? 0 : 90
+                }
+            }
         }
     }
 }

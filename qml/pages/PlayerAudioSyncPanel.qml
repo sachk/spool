@@ -19,7 +19,7 @@ OverlayDialog {
         Layout.fillWidth: true
         text: root.overlay.syncTarget === "subtitle" ? "Subtitle sync" : "Audio sync"
         color: Theme.textPrimary
-        font.pixelSize: Metrics.titlePx(root.width)
+        font.pixelSize: Metrics.titleSizePx
         font.weight: Font.DemiBold
     }
 
@@ -69,7 +69,7 @@ OverlayDialog {
                 Layout.fillWidth: true
                 text: root.overlay.formatAudioDelay(root.overlay.currentSyncDelayMs)
                 color: Theme.textPrimary
-                font.pixelSize: Math.round(Metrics.titlePx(root.width) * 1.8)
+                font.pixelSize: Math.round(Metrics.titleSizePx * 1.8)
                 font.weight: Font.Bold
                 horizontalAlignment: Text.AlignHCenter
             }
@@ -78,7 +78,7 @@ OverlayDialog {
                 text: root.overlay.syncTarget === "subtitle" ? "Negative values show subtitles earlier" :
                                                                "Negative values advance audio; positive values delay it"
                 color: Theme.textMuted
-                font.pixelSize: Metrics.metaPx(root.width)
+                font.pixelSize: Metrics.metaSizePx
                 horizontalAlignment: Text.AlignHCenter
             }
             AppText {
@@ -87,7 +87,7 @@ OverlayDialog {
                 text: "Effective audio delay: " + root.overlay.formatAudioDelay(
                           root.overlay.player.effectiveAudioDelayMs)
                 color: Theme.textMuted
-                font.pixelSize: Metrics.metaPx(root.width)
+                font.pixelSize: Metrics.metaSizePx
                 horizontalAlignment: Text.AlignHCenter
             }
         }
@@ -106,7 +106,7 @@ OverlayDialog {
         Layout.fillWidth: true
         text: "Step size"
         color: root.overlay.audioSyncRow === "step" ? Theme.textPrimary : Theme.textSecondary
-        font.pixelSize: Metrics.bodyPx(root.width)
+        font.pixelSize: Metrics.bodySizePx
         font.weight: Font.DemiBold
     }
 

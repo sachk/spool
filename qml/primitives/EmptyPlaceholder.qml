@@ -13,14 +13,14 @@ Surface {
         AppText {
             anchors.horizontalCenter: parent.horizontalCenter
             text: root.title
-            font.pixelSize: Metrics.bodyPx(root.Window.window ? root.Window.window.width : 1920) + 2
+            font.pixelSize: Metrics.bodySizePx + 2
             font.weight: Font.DemiBold
         }
         MonoText {
             anchors.horizontalCenter: parent.horizontalCenter
             text: root.detail
             color: Theme.textMuted
-            font.pixelSize: Metrics.metaPx(root.Window.window ? root.Window.window.width : 1920)
+            font.pixelSize: Metrics.metaSizePx
         }
     }
 }

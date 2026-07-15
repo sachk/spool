@@ -11,7 +11,7 @@ T.Control {
     signal clicked
 
     implicitWidth: Math.max(Metrics.scaled(132), buttonContent.implicitWidth + Metrics.scaled(34))
-    implicitHeight: Metrics.controlHeight(root.Window.window ? root.Window.window.width : 1920)
+    implicitHeight: Metrics.controlHeightPx
     focusPolicy: Qt.StrongFocus
 
     background: Rectangle {
@@ -40,7 +40,7 @@ T.Control {
                 anchors.verticalCenter: parent.verticalCenter
                 visible: root.iconName.length > 0
                 name: root.iconName
-                iconSize: Metrics.bodyPx(root.Window.window ? root.Window.window.width : 1920) + 6
+                iconSize: Metrics.bodySizePx + 6
                 iconColor: root.enabled ? Theme.textPrimary : Theme.textDisabled
             }
 
@@ -48,7 +48,7 @@ T.Control {
                 anchors.verticalCenter: parent.verticalCenter
                 text: root.text
                 color: root.enabled ? Theme.textPrimary : Theme.textDisabled
-                font.pixelSize: Metrics.bodyPx(root.Window.window ? root.Window.window.width : 1920)
+                font.pixelSize: Metrics.bodySizePx
                 font.weight: root.kind === "primary" ? Font.DemiBold : Font.Medium
                 elide: Text.ElideRight
                 maximumLineCount: 1

@@ -32,7 +32,7 @@ Item {
         visible: root.section
         text: root.label
         color: Theme.textMuted
-        font.pixelSize: Metrics.metaPx(root.metricsWidth)
+        font.pixelSize: Metrics.metaSizePx
         font.weight: Font.DemiBold
         maximumLineCount: 1
         elide: Text.ElideRight
@@ -76,7 +76,7 @@ Item {
                 Layout.fillWidth: true
                 text: root.label
                 color: root.actionable || root.highlighted ? Theme.textPrimary : Theme.textSecondary
-                font.pixelSize: Metrics.bodyPx(root.metricsWidth)
+                font.pixelSize: Metrics.bodySizePx
                 font.weight: root.highlighted ? Font.DemiBold : Font.Medium
                 maximumLineCount: 1
                 elide: Text.ElideRight
@@ -86,7 +86,7 @@ Item {
                 visible: root.detail.length > 0
                 text: root.detail
                 color: Theme.textMuted
-                font.pixelSize: Metrics.metaPx(root.metricsWidth) - 1
+                font.pixelSize: Metrics.metaSizePx - 1
                 maximumLineCount: 1
                 elide: Text.ElideRight
             }
