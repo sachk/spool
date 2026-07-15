@@ -228,8 +228,7 @@ void testIndependentDeadlines()
     require(timeline.nextDeadline() == std::optional<Nanoseconds>(ms(25) + ns(1)),
         "pending deadline should remain after current finalization");
     const InputLatencyExpiredSamples pending = timeline.expire(ms(25) + ns(1), true);
-    require(pending.count == 1 && pending.samples[0].event.key == Qt::Key_Down,
-        "pending batch should expire at its own deadline");
+    require(pending.count == 0, "input without a scene-graph frame should expire silently");
     require(!timeline.nextDeadline(), "all finalized deadlines should be removed");
 }
 
@@ -249,7 +248,7 @@ void testExactPeriodBoundary()
     require(timeline.expire(ms(20) + budget, true).count == 0,
         "pending sample should remain unresolved exactly at its deadline");
     const InputLatencyExpiredSamples over = timeline.expire(ms(20) + budget + ns(1), true);
-    require(over.count == 1 && over.samples[0].late, "one nanosecond over one period should be late");
+    require(over.count == 0 && !timeline.nextDeadline(), "input without a rendered frame should not become a sample");
 }
 
 InputLatencySample expireAtStage(InputLatencyStage expected)
@@ -273,8 +272,11 @@ InputLatencySample expireAtStage(InputLatencyStage expected)
 
 void testEveryTerminalStage()
 {
-    const InputLatencySample waiting = expireAtStage(InputLatencyStage::WaitingForSync);
-    require(waiting.syncBeginNs < 0, "waiting-for-sync sample should omit sync timestamp");
+    InputLatencyTimeline waiting;
+    enable(waiting);
+    waiting.beginInput(keyEvent(), ns(0), ns(10), InputLatencyRefreshSource::Fallback60, true);
+    require(waiting.expire(ns(11), true).count == 0,
+        "waiting-for-sync input should be discarded when no visual frame starts");
     const InputLatencySample synchronizing = expireAtStage(InputLatencyStage::Synchronizing);
     require(synchronizing.syncBeginNs == 1 && synchronizing.syncEndNs < 0,
         "synchronizing sample should include only sync begin");

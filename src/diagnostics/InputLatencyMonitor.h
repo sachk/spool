@@ -323,6 +323,7 @@ private:
     // Read on the render thread each frame swap; queue work to the GUI
     // thread only while a transition is actually being measured.
     std::atomic_bool m_uiTransitionActive { false };
+    std::atomic_bool m_hasPresentedFrame { false };
 };
 
 } // namespace JellyfinNative

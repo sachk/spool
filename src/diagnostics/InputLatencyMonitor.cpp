@@ -457,11 +457,12 @@ InputLatencyExpiredSamples InputLatencyTimeline::expire(Nanoseconds now, bool)
     }
 
     if (m_pending.active && m_pending.epoch == activeEpoch && nowNs > m_pending.deadlineNs && !m_pending.finalized) {
+        // If the scene graph never started a frame, the event did not have
+        // a visual response to measure. Publishing it as input latency ties
+        // the event to an arbitrary later wake-up (often hundreds of
+        // milliseconds on render-on-demand webOS) and produces a false
+        // stall. Route transitions separately diagnose missing UI work.
         m_pending.finalized = true;
-        expired.samples[expired.count] = sampleFromPending(nowNs);
-        m_publicationPermits[static_cast<std::size_t>(InputLatencyRecordSlot::Pending)].store(
-            expired.samples[expired.count].sequence, std::memory_order_release);
-        ++expired.count;
         m_pending.active = false;
     }
 
@@ -671,7 +672,12 @@ void InputLatencyMonitor::attachWindow(QQuickWindow *window)
         },
         Qt::DirectConnection);
     connect(
-        window, &QQuickWindow::frameSwapped, this, [this] { m_timeline.frameSwapped(now()); }, Qt::DirectConnection);
+        window, &QQuickWindow::frameSwapped, this,
+        [this] {
+            m_hasPresentedFrame.store(true, std::memory_order_release);
+            m_timeline.frameSwapped(now());
+        },
+        Qt::DirectConnection);
     connect(
         window, &QQuickWindow::frameSwapped, this,
         [this] {
@@ -1086,7 +1092,8 @@ void InputLatencyMonitor::hideWarning()
 
 bool InputLatencyMonitor::canCaptureInput() const
 {
-    if (!m_timeline.enabled() || !m_window || !m_window->isVisible() || !m_window->isExposed())
+    if (!m_timeline.enabled() || !m_hasPresentedFrame.load(std::memory_order_acquire) || !m_window
+        || !m_window->isVisible() || !m_window->isExposed())
         return false;
     if (const auto *application = qGuiApp) {
         const Qt::ApplicationState state = application->applicationState();
