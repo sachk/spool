@@ -6,6 +6,7 @@ FocusScope {
 
     property var activeTarget: null
     property bool textInputActive: false
+    property bool backspaceNavigatesInTextInput: false
     property var backHandler: null
     property var globalHandler: null
     property int longPressInterval: 520
@@ -18,10 +19,14 @@ FocusScope {
     focus: true
     Keys.priority: Keys.BeforeItem
 
+    function backspaceNavigates() {
+        return backspaceNavigatesInTextInput || !textInputActive
+    }
+
     function normalizedKey(event) {
         if (InputKeys.isIgnoredPlayerNoise(event))
             return 0
-        return InputKeys.isBackEvent(event, Platform.isWebOS || !textInputActive) ? Qt.Key_Back : event.key
+        return InputKeys.isBackEvent(event, backspaceNavigates()) ? Qt.Key_Back : event.key
     }
 
     function deliver(target, key, phase, repeat) {

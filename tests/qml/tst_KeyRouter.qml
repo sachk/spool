@@ -47,6 +47,8 @@ TestCase {
         routeResult = true
         keyRouter.clearAccept()
         keyRouter.backClaimed = false
+        keyRouter.textInputActive = false
+        keyRouter.backspaceNavigatesInTextInput = false
     }
 
     function test_directionUsesRouterHelper() {
@@ -67,6 +69,19 @@ TestCase {
         verify(keyRouter.routeBack("release", false))
         compare(routeCalls, 1)
         compare(backCalls, 1)
+    }
+
+    function test_backspaceNavigatesOnWebOSWithTextInput() {
+        keyRouter.textInputActive = true
+        keyRouter.backspaceNavigatesInTextInput = true
+
+        verify(keyRouter.backspaceNavigates())
+    }
+
+    function test_backspaceStaysInDesktopTextInput() {
+        keyRouter.textInputActive = true
+
+        verify(!keyRouter.backspaceNavigates())
     }
 
     function test_acceptActivatesOnRelease() {
