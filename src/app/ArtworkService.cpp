@@ -15,6 +15,7 @@
 #include <QRunnable>
 #include <QSet>
 #include <QUrlQuery>
+#include <chrono>
 
 #include <algorithm>
 #include <atomic>
@@ -26,6 +27,12 @@ namespace JellyfinNative {
 namespace {
 
     constexpr int kRenderConcurrency = 6;
+
+    qint64 monotonicNs()
+    {
+        return std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now().time_since_epoch())
+            .count();
+    }
 
     QSize decodeSizeForRequest(const QSize& sourceSize, const QSize& requestedSize)
     {
@@ -103,11 +110,11 @@ public:
     {
         ensureNetwork();
         if (!m_network || !url.isValid() || url.scheme().isEmpty()) {
-            deliverRender(requestId, cacheKeyForUrl(url), {}, QStringLiteral("Invalid artwork URL"));
+            deliverRender(requestId, cacheKeyForUrl(url), {}, QStringLiteral("Invalid artwork URL"), false);
             return;
         }
 
-        m_renderQueue.enqueue({ requestId, std::move(url) });
+        m_renderQueue.enqueue({ requestId, std::move(url), monotonicNs() });
         drainRender();
     }
 
@@ -177,6 +184,7 @@ private:
     struct RenderRequest {
         int requestId = 0;
         QUrl url;
+        qint64 queuedNs = 0;
     };
 
     void ensureNetwork()
@@ -207,17 +215,25 @@ private:
         ensureNetwork();
         while (m_network && m_renderReplies.size() < kRenderConcurrency && !m_renderQueue.isEmpty()) {
             const RenderRequest request = m_renderQueue.dequeue();
+            const qint64 fetchStartedNs = monotonicNs();
             QNetworkReply *reply = m_network->get(cachedRequest(request.url));
             m_renderReplies.insert(request.requestId, reply);
             const QString key = cacheKeyForUrl(request.url);
-            connect(reply, &QNetworkReply::finished, this, [this, reply, requestId = request.requestId, key]() {
-                m_renderReplies.remove(requestId);
-                finishReply(reply, [this, requestId, key](QByteArray bytes, QString error) {
-                    deliverRender(requestId, key, std::move(bytes), std::move(error));
+            connect(reply, &QNetworkReply::finished, this,
+                [this, reply, requestId = request.requestId, key, queuedNs = request.queuedNs, fetchStartedNs]() {
+                    m_renderReplies.remove(requestId);
+                    const bool diskCache = reply->attribute(QNetworkRequest::SourceIsFromCacheAttribute).toBool();
+                    const qint64 finishedNs = monotonicNs();
+                    finishReply(reply,
+                        [this, requestId, key, diskCache, queuedNs, fetchStartedNs, finishedNs](
+                            QByteArray bytes, QString error) {
+                            deliverRender(requestId, key, std::move(bytes), std::move(error), diskCache,
+                                std::max<qint64>(0, fetchStartedNs - queuedNs),
+                                std::max<qint64>(0, finishedNs - fetchStartedNs));
+                        });
+                    drainRender();
+                    drainPrefetch();
                 });
-                drainRender();
-                drainPrefetch();
-            });
         }
     }
 
@@ -260,14 +276,17 @@ private:
             callback(std::move(bytes), error);
     }
 
-    void deliverRender(int requestId, QString key, QByteArray bytes, QString error)
+    void deliverRender(int requestId, QString key, QByteArray bytes, QString error, bool diskCache, qint64 queueNs = 0,
+        qint64 fetchNs = 0)
     {
         QPointer<ArtworkService> service = m_service;
         QMetaObject::invokeMethod(
             m_service,
-            [service, requestId, key = std::move(key), bytes = std::move(bytes), error = std::move(error)]() mutable {
+            [service, requestId, key = std::move(key), bytes = std::move(bytes), error = std::move(error), diskCache,
+                queueNs, fetchNs]() mutable {
                 if (service)
-                    service->handleRenderFetched(requestId, std::move(key), std::move(bytes), std::move(error));
+                    service->handleRenderFetched(
+                        requestId, std::move(key), std::move(bytes), std::move(error), diskCache, queueNs, fetchNs);
             },
             Qt::QueuedConnection);
     }
@@ -346,7 +365,6 @@ public:
         if (m_cancelled.load() && error.isEmpty()) {
             m_error = QStringLiteral("Cancelled");
         } else if (image.isNull() && !error.isEmpty()) {
-            qInfo() << "artwork: using fallback:" << error;
             m_image = QImage(1, 1, QImage::Format_ARGB32_Premultiplied);
             m_image.fill(Qt::transparent);
         } else {
@@ -403,6 +421,9 @@ ArtworkService::ArtworkService(
 {
     m_decodePool.setMaxThreadCount(std::max(1, decodeThreads));
     m_decodePool.setExpiryTimeout(30000);
+    m_timingBatchTimer.setSingleShot(true);
+    m_timingBatchTimer.setInterval(120);
+    connect(&m_timingBatchTimer, &QTimer::timeout, this, &ArtworkService::flushTimingBatch);
 
     m_worker = new ArtworkFetchWorker(m_cacheDirectory, m_networkCacheBytes, this);
     m_worker->moveToThread(&m_workerThread);
@@ -594,12 +615,17 @@ int ArtworkService::requestImage(QUrl url, QSize requestedSize, ArtworkImageResp
     const QString key = cacheKeyForUrl(url);
     const QByteArray cached = m_byteCache ? m_byteCache->get(key) : QByteArray();
     if (!cached.isEmpty()) {
-        startDecode(response, cached, requestedSize);
+        Timing timing;
+        timing.memoryCache = true;
+        timing.requestedSize = requestedSize;
+        timing.totalNs = monotonicNs();
+        startDecode(response, cached, timing);
         return 0;
     }
 
     const int requestId = m_nextRequestId++;
     m_responses.insert(requestId, response);
+    m_requestStarts.insert(requestId, monotonicNs());
     invokeWorker([requestId, url = std::move(url)](
                      ArtworkFetchWorker *worker) mutable { worker->fetchRender(requestId, std::move(url)); });
     return requestId;
@@ -610,21 +636,37 @@ void ArtworkService::cancelRequest(int requestId)
     if (requestId <= 0)
         return;
     m_responses.remove(requestId);
+    Timing timing;
+    timing.cancelled = true;
+    const qint64 startedNs = m_requestStarts.take(requestId);
+    timing.totalNs = startedNs > 0 ? monotonicNs() - startedNs : 0;
+    finishTiming(timing);
     invokeWorker([requestId](ArtworkFetchWorker *worker) { worker->cancelRender(requestId); });
 }
 
-void ArtworkService::handleRenderFetched(int requestId, QString key, QByteArray bytes, QString error)
+void ArtworkService::handleRenderFetched(
+    int requestId, QString key, QByteArray bytes, QString error, bool diskCache, qint64 queueNs, qint64 fetchNs)
 {
+    const qint64 startedNs = m_requestStarts.take(requestId);
     const QPointer<ArtworkImageResponse> response = m_responses.take(requestId);
     if (!response)
         return;
+    Timing timing;
+    timing.diskCache = diskCache;
+    timing.network = !diskCache;
+    timing.queueNs = queueNs;
+    timing.fetchNs = fetchNs;
+    timing.requestedSize = response->requestedSize();
+    timing.totalNs = startedNs > 0 ? startedNs : monotonicNs();
     if (!error.isEmpty() || bytes.isEmpty()) {
         response->finish({}, std::move(error));
+        timing.totalNs = monotonicNs() - timing.totalNs;
+        finishTiming(timing);
         return;
     }
     if (m_byteCache)
         m_byteCache->insert(key, bytes);
-    startDecode(response, std::move(bytes), response->requestedSize());
+    startDecode(response, std::move(bytes), timing);
 }
 
 void ArtworkService::handlePrefetched(QString key, QByteArray bytes)
@@ -633,27 +675,98 @@ void ArtworkService::handlePrefetched(QString key, QByteArray bytes)
         m_byteCache->insert(key, std::move(bytes));
 }
 
-void ArtworkService::startDecode(ArtworkImageResponse *response, QByteArray bytes, QSize requestedSize)
+void ArtworkService::startDecode(ArtworkImageResponse *response, QByteArray bytes, Timing timing)
 {
     if (!response) {
         return;
     }
     const QPointer<ArtworkImageResponse> self(response);
-    m_decodePool.start(QRunnable::create([self, bytes = std::move(bytes), requestedSize]() {
+    const qint64 queuedNs = monotonicNs();
+    m_decodePool.start(QRunnable::create([this, self, bytes = std::move(bytes), timing, queuedNs]() mutable {
         if (!self || self->cancelled())
             return;
+        const qint64 decodeStartedNs = monotonicNs();
         QString error;
-        QImage image = decodeArtwork(bytes, requestedSize, &error);
+        QImage image = decodeArtwork(bytes, timing.requestedSize, &error);
+        const qint64 decodeFinishedNs = monotonicNs();
         if (!self || self->cancelled())
             return;
+        timing.decodeQueueNs = std::max<qint64>(0, decodeStartedNs - queuedNs);
+        timing.decodeNs = std::max<qint64>(0, decodeFinishedNs - decodeStartedNs);
+        timing.resultSize = image.size();
         QMetaObject::invokeMethod(
-            self,
-            [self, image = std::move(image), error = std::move(error)]() mutable {
-                if (self)
+            this,
+            [this, self, image = std::move(image), error = std::move(error), timing]() mutable {
+                if (self) {
                     self->finish(std::move(image), std::move(error));
+                    Timing completed = timing;
+                    completed.totalNs = monotonicNs() - completed.totalNs;
+                    finishTiming(completed);
+                }
             },
             Qt::QueuedConnection);
     }));
+}
+
+void ArtworkService::finishTiming(Timing timing)
+{
+    m_timingBatch.push_back(std::move(timing));
+    m_timingBatchTimer.start();
+}
+
+void ArtworkService::flushTimingBatch()
+{
+    if (m_timingBatch.isEmpty())
+        return;
+    auto percentile = [](QList<qint64> values, double fraction) {
+        if (values.isEmpty())
+            return qint64(0);
+        std::sort(values.begin(), values.end());
+        return values.at(std::min(values.size() - 1, static_cast<qsizetype>(std::floor(values.size() * fraction))));
+    };
+    QList<qint64> queues;
+    QList<qint64> fetches;
+    QList<qint64> decodes;
+    qint64 deliveredLastNs = 0;
+    int memory = 0;
+    int disk = 0;
+    int network = 0;
+    int cancelled = 0;
+    QSize requestedSize;
+    QSize resultSize;
+    for (const Timing& timing : std::as_const(m_timingBatch)) {
+        memory += timing.memoryCache;
+        disk += timing.diskCache;
+        network += timing.network;
+        cancelled += timing.cancelled;
+        queues.push_back(timing.queueNs + timing.decodeQueueNs);
+        if (timing.fetchNs > 0)
+            fetches.push_back(timing.fetchNs);
+        if (timing.decodeNs > 0)
+            decodes.push_back(timing.decodeNs);
+        deliveredLastNs = std::max(deliveredLastNs, timing.totalNs);
+        if (!requestedSize.isValid() && timing.requestedSize.isValid())
+            requestedSize = timing.requestedSize;
+        if (!resultSize.isValid() && timing.resultSize.isValid())
+            resultSize = timing.resultSize;
+    }
+    const auto ms = [](qint64 ns) { return QString::number(static_cast<double>(ns) / 1000000.0, 'f', 2); };
+    qInfo().noquote() << QStringLiteral(
+        "artwork batch: n=%1 mem=%2 disk=%3 net=%4 queue_p50=%5 fetch_p50=%6 fetch_p95=%7 "
+        "decode_p50=%8 decode_p95=%9 deliver_last_ms=%10 requested=%11x%12 result=%13x%14 cancelled=%15")
+                             .arg(m_timingBatch.size())
+                             .arg(memory)
+                             .arg(disk)
+                             .arg(network)
+                             .arg(ms(percentile(queues, 0.50)), ms(percentile(fetches, 0.50)),
+                                 ms(percentile(fetches, 0.95)), ms(percentile(decodes, 0.50)),
+                                 ms(percentile(decodes, 0.95)), ms(deliveredLastNs))
+                             .arg(requestedSize.width())
+                             .arg(requestedSize.height())
+                             .arg(resultSize.width())
+                             .arg(resultSize.height())
+                             .arg(cancelled);
+    m_timingBatch.clear();
 }
 
 void ArtworkService::invokeWorker(std::function<void(ArtworkFetchWorker *)> call)

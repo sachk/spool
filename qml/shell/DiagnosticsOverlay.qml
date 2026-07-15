@@ -56,6 +56,11 @@ Item {
                 text: "Last stage: " + InputLatency.lastStage
             }
             MonoText {
+                Layout.maximumWidth: 360
+                text: "Last route: " + InputLatency.lastRouteSample
+                wrapMode: Text.Wrap
+            }
+            MonoText {
                 text: "Screen: " + root.width + "x" + root.height
             }
             MonoText {

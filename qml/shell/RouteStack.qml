@@ -16,6 +16,7 @@ FocusScope {
     property var pages: ({})
     property var activeLoader: null
     property var pendingLoader: null
+    property string activeRoute: ""
     readonly property Item activeItem: activeLoader ? activeLoader.item : null
 
     function pageKey(nextRoute) {
@@ -64,26 +65,40 @@ FocusScope {
     }
 
     function loaderFor(key) {
-        if (pages[key])
+        if (pages[key]) {
+            console.info("route host: hit", key)
             return pages[key]
+        }
         const loader = pageLoaderComponent.createObject(root)
         loader.setSource(pageSource(key), {
                              "shell": root.shell
                          })
         pages[key] = loader
+        console.info("route host: construct", key)
         return loader
     }
 
     function showRoute() {
-        const loader = loaderFor(pageKey(route))
+        const key = pageKey(route)
+        const existing = pages[key]
+        const promoted = existing && existing.status === Loader.Loading
+        const loader = loaderFor(key)
         pendingLoader = loader
         const warm = loader.status === Loader.Ready && Boolean(loader.item)
-        uiTransitionToken = InputLatency.beginUiTransition("route:" + route + (warm ? ":warm" : ":cold"))
-        if (warm)
+        const cacheHit = warm ? "hit" : promoted ? "promoted" : "miss"
+        uiTransitionToken = InputLatency.beginUiTransition("route:" + route + (warm ? ":warm" : ":cold"), activeRoute, route,
+                                                           cacheHit)
+        if (warm) {
+            InputLatency.mark(uiTransitionToken, "instance")
             activatePending()
+        }
     }
 
     function handleLoaded(loader) {
+        console.info("route host: ready", pageKey(route), "objects=" + (loader.item ? loader.item.children.length + 1 :
+                                                                                      0))
+        if (pendingLoader === loader)
+            InputLatency.mark(uiTransitionToken, "instance")
         if (pendingLoader === loader)
             activatePending()
     }
@@ -94,6 +109,8 @@ FocusScope {
             return
         pendingLoader = null
         const item = loader.item
+        if (typeof item.uiTransitionToken !== "undefined")
+            item.uiTransitionToken = uiTransitionToken
         if (item.shell !== root.shell)
             item.shell = root.shell
         if (pageKey(route) === "settings")
@@ -106,6 +123,8 @@ FocusScope {
                 previous.visible = false
         }
         InputKeys.focus(item)
+        activeRoute = route
+        InputLatency.mark(uiTransitionToken, "shell")
         dropTransientPages()
         if (Session.authenticated && !pages["settings"])
             prewarmTimer.start()
@@ -130,7 +149,8 @@ FocusScope {
             if (loader && loader !== activeLoader) {
                 delete pages[key]
                 loader.destroy()
-                console.info("route host: evicted", key)
+                console.info("route host: evicted", key, "objects=" + (loader.item ? loader.item.children.length + 1 :
+                                                                                     0))
             }
         }
     }
@@ -140,7 +160,8 @@ FocusScope {
             return
         if (typeof activeItem.contentReady !== "undefined" && !activeItem.contentReady)
             return
-        InputLatency.markUiTransitionReady(uiTransitionToken)
+        InputLatency.mark(uiTransitionToken, "model_ready")
+        InputLatency.mark(uiTransitionToken, "content_ready")
         uiTransitionToken = 0
     }
 

@@ -16,6 +16,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <ctime>
 
 namespace JellyfinNative::Detail {
 
@@ -203,11 +204,31 @@ QString formatInputLatencyMiss(const InputLatencySample& sample)
 
 QString formatUiLatency(const UiLatencySample& sample)
 {
-    return QStringLiteral(
-        "ui latency: name=%1 budget_ms=%2 total_ms=%3 load_ms=%4 present_ms=%5 frames=%6 stage=content_presented")
-        .arg(sample.name, millisecondsText(sample.budgetNs), millisecondsText(sample.totalNs),
-            millisecondsText(sample.loadNs), millisecondsText(sample.presentNs))
-        .arg(sample.frames);
+    static constexpr std::array<QLatin1StringView, 6> stageNames { QLatin1StringView("instance_ms"),
+        QLatin1StringView("shell_ms"), QLatin1StringView("model_ready_ms"), QLatin1StringView("first_delegate_ms"),
+        QLatin1StringView("viewport_ms"), QLatin1StringView("content_ready_ms") };
+    QStringList fields;
+    fields.reserve(26);
+    fields << QStringLiteral("ui latency: name=%1").arg(sample.name)
+           << QStringLiteral("route_from=%1").arg(sample.routeFrom) << QStringLiteral("route_to=%1").arg(sample.routeTo)
+           << QStringLiteral("cache_hit=%1").arg(sample.cacheHit)
+           << QStringLiteral("refresh_budget_ms=%1").arg(millisecondsText(sample.budgetNs))
+           << QStringLiteral("wall_ms=%1").arg(millisecondsText(sample.totalNs))
+           << QStringLiteral("gui_cpu_ms=%1").arg(millisecondsText(sample.guiCpuNs));
+    appendElapsed(fields, QLatin1StringView("input_ms"), sample.inputNs);
+    for (std::size_t index = 0; index < sample.stageNs.size(); ++index)
+        appendElapsed(fields, stageNames[index], sample.stageNs[index]);
+    fields << QStringLiteral("present_ms=%1").arg(millisecondsText(sample.presentNs))
+           << QStringLiteral("budget_intervals=%1").arg(sample.budgetIntervals)
+           << QStringLiteral("actual_swaps=%1").arg(sample.actualSwaps)
+           << QStringLiteral("sync_ms_total=%1").arg(millisecondsText(sample.syncNs))
+           << QStringLiteral("render_ms_total=%1").arg(millisecondsText(sample.renderNs))
+           << QStringLiteral("swap_wait_ms=%1").arg(millisecondsText(sample.swapWaitNs))
+           << QStringLiteral("delegates_created=%1").arg(sample.delegatesCreated)
+           << QStringLiteral("delegates_destroyed=%1").arg(sample.delegatesDestroyed)
+           << QStringLiteral("max_gap_ms=%1").arg(millisecondsText(sample.maxGapNs))
+           << QStringLiteral("stage=content_presented");
+    return fields.join(QLatin1Char(' '));
 }
 
 bool InputLatencyTimeline::enabled() const
@@ -550,6 +571,19 @@ namespace JellyfinNative {
 
 namespace {
     constexpr auto kEnabledSetting = "diagnostics/inputLatencyGuard";
+
+    qint64 threadCpuNowNs()
+    {
+#ifdef Q_OS_WIN
+        return 0;
+#else
+        timespec value {};
+        return clock_gettime(CLOCK_THREAD_CPUTIME_ID, &value) == 0
+            ? static_cast<qint64>(value.tv_sec) * 1000000000LL + value.tv_nsec
+            : 0;
+#endif
+    }
+
 }
 
 using Detail::InputLatencyRefreshSource;
@@ -567,6 +601,9 @@ InputLatencyMonitor::InputLatencyMonitor(QObject *parent)
     m_warningTimer.setTimerType(Qt::PreciseTimer);
     m_warningTimer.setInterval(std::chrono::seconds(2));
     connect(&m_warningTimer, &QTimer::timeout, this, &InputLatencyMonitor::hideWarning);
+
+    m_uiGapTimer.setTimerType(Qt::PreciseTimer);
+    connect(&m_uiGapTimer, &QChronoTimer::timeout, this, &InputLatencyMonitor::handleUiGapTimer);
 
     const bool persistedEnabled = QSettings().value(QLatin1String(kEnabledSetting), false).toBool();
     const bool environmentEnabled = qEnvironmentVariable("JELLYFIN_INPUT_LATENCY_DIAGNOSTICS") == QLatin1String("1");
@@ -599,13 +636,39 @@ void InputLatencyMonitor::attachWindow(QQuickWindow *window)
     });
 
     connect(
-        window, &QQuickWindow::beforeSynchronizing, this, [this] { m_timeline.beforeSynchronizing(now()); },
+        window, &QQuickWindow::beforeSynchronizing, this,
+        [this] {
+            const qint64 timestamp = now().count();
+            m_timeline.beforeSynchronizing(InputLatencyTimeline::Nanoseconds(timestamp));
+            if (m_uiTransitionActive.load(std::memory_order_acquire))
+                m_uiSyncBeginNs.store(timestamp, std::memory_order_release);
+        },
         Qt::DirectConnection);
     connect(
-        window, &QQuickWindow::afterSynchronizing, this, [this] { m_timeline.afterSynchronizing(now()); },
+        window, &QQuickWindow::afterSynchronizing, this,
+        [this] {
+            const qint64 timestamp = now().count();
+            m_timeline.afterSynchronizing(InputLatencyTimeline::Nanoseconds(timestamp));
+            if (m_uiTransitionActive.load(std::memory_order_acquire)) {
+                const qint64 begin = m_uiSyncBeginNs.exchange(-1, std::memory_order_acq_rel);
+                if (begin >= 0)
+                    m_uiSyncNs.fetch_add(std::max<qint64>(0, timestamp - begin));
+                m_uiRenderBeginNs.store(timestamp, std::memory_order_release);
+            }
+        },
         Qt::DirectConnection);
     connect(
-        window, &QQuickWindow::afterRendering, this, [this] { m_timeline.afterRendering(now()); },
+        window, &QQuickWindow::afterRendering, this,
+        [this] {
+            const qint64 timestamp = now().count();
+            m_timeline.afterRendering(InputLatencyTimeline::Nanoseconds(timestamp));
+            if (m_uiTransitionActive.load(std::memory_order_acquire)) {
+                const qint64 begin = m_uiRenderBeginNs.exchange(-1, std::memory_order_acq_rel);
+                if (begin >= 0)
+                    m_uiRenderNs.fetch_add(std::max<qint64>(0, timestamp - begin));
+                m_uiRenderBeginNs.store(timestamp, std::memory_order_release);
+            }
+        },
         Qt::DirectConnection);
     connect(
         window, &QQuickWindow::frameSwapped, this, [this] { m_timeline.frameSwapped(now()); }, Qt::DirectConnection);
@@ -615,6 +678,10 @@ void InputLatencyMonitor::attachWindow(QQuickWindow *window)
             if (!m_uiTransitionActive.load(std::memory_order_acquire))
                 return;
             const qint64 frameNs = now().count();
+            m_uiActualSwaps.fetch_add(1, std::memory_order_relaxed);
+            const qint64 renderEnd = m_uiRenderBeginNs.exchange(-1, std::memory_order_acq_rel);
+            if (renderEnd >= 0)
+                m_uiSwapWaitNs.fetch_add(std::max<qint64>(0, frameNs - renderEnd));
             QMetaObject::invokeMethod(
                 this, [this, frameNs] { handleUiTransitionFrame(frameNs); }, Qt::QueuedConnection);
         },
@@ -659,8 +726,12 @@ quint64 InputLatencyMonitor::beginInput(const QEvent *event)
     const auto metadata = Detail::classifyInputEvent(event, event && event->spontaneous());
     if (!metadata)
         return 0;
-    return m_timeline.beginInput(
-        *metadata, now(), InputLatencyTimeline::Nanoseconds(m_frameBudgetNs), m_refreshSource, m_window->isExposed());
+    const auto timestamp = now();
+    const quint64 token = m_timeline.beginInput(*metadata, timestamp,
+        InputLatencyTimeline::Nanoseconds(m_frameBudgetNs), m_refreshSource, m_window->isExposed());
+    if (token != 0)
+        m_lastInputBeginNs = timestamp.count();
+    return token;
 }
 
 void InputLatencyMonitor::endInput(quint64 token)
@@ -673,49 +744,115 @@ void InputLatencyMonitor::endInput(quint64 token)
     scheduleDeadline();
 }
 
-quint64 InputLatencyMonitor::beginUiTransition(const QString& name)
+void InputLatencyMonitor::UiTransition::reset()
+{
+    const quint64 previousSequence = sequence;
+    *this = UiTransition {};
+    sequence = previousSequence;
+}
+
+quint64 InputLatencyMonitor::beginUiTransition(
+    const QString& name, const QString& routeFrom, const QString& routeTo, const QString& cacheHit)
 {
     if (!canCaptureInput() || name.isEmpty())
         return 0;
 
-    m_uiTransitionToken = ++m_uiTransitionSequence;
-    m_uiTransitionName = name;
-    m_uiTransitionBeginNs = now().count();
-    m_uiTransitionReadyNs = -1;
+    resetUiTransition();
+    m_uiTransition.token = ++m_uiTransition.sequence;
+    m_uiTransition.name = name;
+    m_uiTransition.routeFrom = routeFrom;
+    m_uiTransition.routeTo = routeTo;
+    m_uiTransition.cacheHit = cacheHit;
+    m_uiTransition.beginNs = now().count();
+    m_uiTransition.beginCpuNs = threadCpuNowNs();
+    if (m_lastInputBeginNs >= 0 && m_uiTransition.beginNs - m_lastInputBeginNs <= m_frameBudgetNs * 2)
+        m_uiTransition.inputBeginNs = m_lastInputBeginNs;
+    m_uiActualSwaps.store(0, std::memory_order_relaxed);
+    m_uiSyncNs.store(0, std::memory_order_relaxed);
+    m_uiRenderNs.store(0, std::memory_order_relaxed);
+    m_uiSwapWaitNs.store(0, std::memory_order_relaxed);
     m_uiTransitionActive.store(true, std::memory_order_release);
-    return m_uiTransitionToken;
+    m_uiTransition.expectedGapFireNs = m_uiTransition.beginNs + m_frameBudgetNs;
+    m_uiGapTimer.setInterval(std::chrono::nanoseconds(m_frameBudgetNs));
+    m_uiGapTimer.start();
+    return m_uiTransition.token;
 }
 
-void InputLatencyMonitor::markUiTransitionReady(quint64 token)
+void InputLatencyMonitor::mark(quint64 token, const QString& stage)
 {
-    if (token == 0 || token != m_uiTransitionToken || m_uiTransitionReadyNs >= 0)
+    std::optional<UiTransition::Stage> parsed;
+    if (stage == QLatin1String("instance"))
+        parsed = UiTransition::Stage::Instance;
+    else if (stage == QLatin1String("shell"))
+        parsed = UiTransition::Stage::Shell;
+    else if (stage == QLatin1String("model_ready"))
+        parsed = UiTransition::Stage::ModelReady;
+    else if (stage == QLatin1String("first_delegate"))
+        parsed = UiTransition::Stage::FirstDelegate;
+    else if (stage == QLatin1String("viewport"))
+        parsed = UiTransition::Stage::Viewport;
+    else if (stage == QLatin1String("content_ready"))
+        parsed = UiTransition::Stage::ContentReady;
+    if (!parsed || token == 0 || token != m_uiTransition.token)
         return;
-    m_uiTransitionReadyNs = now().count();
+    auto& destination = m_uiTransition.marks[static_cast<std::size_t>(*parsed)];
+    if (destination.elapsedNs >= 0)
+        return;
+    destination.elapsedNs = std::max<qint64>(0, now().count() - m_uiTransition.beginNs);
+    destination.cpuNs = std::max<qint64>(0, threadCpuNowNs() - m_uiTransition.beginCpuNs);
     if (m_window)
         m_window->update();
 }
 
+void InputLatencyMonitor::noteDelegate(const QString& kind, int delta)
+{
+    if (!m_uiTransitionActive.load(std::memory_order_acquire) || delta == 0)
+        return;
+    m_uiTransition.delegateCounts[kind] += delta;
+    if (delta > 0)
+        m_uiTransition.delegatesCreated += static_cast<quint64>(delta);
+    else
+        m_uiTransition.delegatesDestroyed += static_cast<quint64>(-delta);
+}
+
 void InputLatencyMonitor::handleUiTransitionFrame(qint64 frameNs)
 {
-    if (m_uiTransitionToken == 0 || m_uiTransitionReadyNs < 0 || frameNs < m_uiTransitionReadyNs)
+    const auto& ready = m_uiTransition.marks[static_cast<std::size_t>(UiTransition::Stage::ContentReady)];
+    if (m_uiTransition.token == 0 || ready.elapsedNs < 0 || frameNs < m_uiTransition.beginNs + ready.elapsedNs)
         return;
 
-    const Detail::UiLatencySample sample {
-        m_uiTransitionName,
-        m_frameBudgetNs,
-        std::max<qint64>(0, frameNs - m_uiTransitionBeginNs),
-        std::max<qint64>(0, m_uiTransitionReadyNs - m_uiTransitionBeginNs),
-        std::max<qint64>(0, frameNs - m_uiTransitionReadyNs),
-        static_cast<quint64>(
-            std::max<qint64>(1, (frameNs - m_uiTransitionBeginNs + m_frameBudgetNs - 1) / m_frameBudgetNs)),
-    };
-    m_uiTransitionToken = 0;
-    m_uiTransitionName.clear();
-    m_uiTransitionBeginNs = -1;
-    m_uiTransitionReadyNs = -1;
-    m_uiTransitionActive.store(false, std::memory_order_release);
+    Detail::UiLatencySample sample;
+    sample.name = m_uiTransition.name;
+    sample.routeFrom = m_uiTransition.routeFrom;
+    sample.routeTo = m_uiTransition.routeTo;
+    sample.cacheHit = m_uiTransition.cacheHit;
+    sample.budgetNs = m_frameBudgetNs;
+    sample.totalNs = std::max<qint64>(0, frameNs - m_uiTransition.beginNs);
+    sample.guiCpuNs = std::max<qint64>(0, threadCpuNowNs() - m_uiTransition.beginCpuNs);
+    sample.inputNs = m_uiTransition.inputBeginNs < 0 ? -1 : frameNs - m_uiTransition.inputBeginNs;
+    sample.presentNs = std::max<qint64>(0, sample.totalNs - ready.elapsedNs);
+    sample.syncNs = m_uiSyncNs.load(std::memory_order_acquire);
+    sample.renderNs = m_uiRenderNs.load(std::memory_order_acquire);
+    sample.swapWaitNs = m_uiSwapWaitNs.load(std::memory_order_acquire);
+    sample.maxGapNs = m_uiTransition.maxGapNs;
+    sample.budgetIntervals
+        = static_cast<quint64>(std::max<qint64>(1, (sample.totalNs + m_frameBudgetNs - 1) / m_frameBudgetNs));
+    sample.actualSwaps = m_uiActualSwaps.load(std::memory_order_acquire);
+    sample.delegatesCreated = m_uiTransition.delegatesCreated;
+    sample.delegatesDestroyed = m_uiTransition.delegatesDestroyed;
+    for (std::size_t index = 0; index < sample.stageNs.size(); ++index)
+        sample.stageNs[index] = m_uiTransition.marks[index].elapsedNs;
 
     const QString line = Detail::formatUiLatency(sample);
+    const auto milliseconds
+        = [](qint64 nanoseconds) { return QString::number(static_cast<double>(nanoseconds) / 1000000.0, 'f', 2); };
+    m_lastRouteSample = QStringLiteral("%1  %2 ms / %3 ms CPU  %4 swaps  %5+/%6- delegates")
+                            .arg(sample.name, milliseconds(sample.totalNs), milliseconds(sample.guiCpuNs))
+                            .arg(sample.actualSwaps)
+                            .arg(sample.delegatesCreated)
+                            .arg(sample.delegatesDestroyed);
+    emit routeSampleChanged();
+    resetUiTransition();
     if (sample.totalNs <= sample.budgetNs * 2) {
         qInfo().noquote() << line;
         return;
@@ -727,7 +864,7 @@ void InputLatencyMonitor::handleUiTransitionFrame(qint64 frameNs)
         m_warningVisible = true;
         m_warningLatencyNs = sample.totalNs;
         m_warningStage = QStringLiteral("content_presented");
-        m_warningText = QStringLiteral("UI content took %1 frames: %2").arg(sample.frames).arg(sample.name);
+        m_warningText = QStringLiteral("UI content took %1 swaps: %2").arg(sample.actualSwaps).arg(sample.name);
         emit warningChanged();
     }
     m_warningTimer.start();
@@ -796,6 +933,30 @@ quint64 InputLatencyMonitor::missedFrameCount() const
 double InputLatencyMonitor::frameBudgetMs() const
 {
     return static_cast<double>(m_frameBudgetNs) / 1000000.0;
+}
+
+QString InputLatencyMonitor::lastRouteSample() const
+{
+    return m_lastRouteSample;
+}
+
+void InputLatencyMonitor::handleUiGapTimer()
+{
+    if (m_uiTransition.token == 0)
+        return;
+    const qint64 timestamp = now().count();
+    m_uiTransition.maxGapNs
+        = std::max(m_uiTransition.maxGapNs, std::max<qint64>(0, timestamp - m_uiTransition.expectedGapFireNs));
+    m_uiTransition.expectedGapFireNs = timestamp + m_frameBudgetNs;
+}
+
+void InputLatencyMonitor::resetUiTransition()
+{
+    m_uiTransitionActive.store(false, std::memory_order_release);
+    m_uiGapTimer.stop();
+    m_uiTransition.reset();
+    m_uiSyncBeginNs.store(-1, std::memory_order_relaxed);
+    m_uiRenderBeginNs.store(-1, std::memory_order_relaxed);
 }
 
 void InputLatencyMonitor::clearStatistics()
@@ -901,11 +1062,7 @@ void InputLatencyMonitor::handleCompletedSample(const InputLatencySample& sample
 void InputLatencyMonitor::cancelMeasurements()
 {
     m_timeline.cancel();
-    m_uiTransitionToken = 0;
-    m_uiTransitionName.clear();
-    m_uiTransitionBeginNs = -1;
-    m_uiTransitionReadyNs = -1;
-    m_uiTransitionActive.store(false, std::memory_order_release);
+    resetUiTransition();
     finishCancellationOnGuiThread();
 }
 

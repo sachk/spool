@@ -8,6 +8,7 @@ FocusScope {
     id: root
 
     property var shell
+    property var uiTransitionToken: 0
     property int currentIndex: 0
     property var settingsRows: []
     property bool subtitleEditor: false
@@ -549,8 +550,12 @@ FocusScope {
             required property int index
             required property var modelData
             width: settingsList.width
-            Component.onCompleted: if (index === 0)
-            root.contentReady = true
+            Component.onCompleted: {
+                InputLatency.noteDelegate("settings_row", 1)
+                if (index === 0)
+                root.contentReady = true
+            }
+            Component.onDestruction: InputLatency.noteDelegate("settings_row", -1)
             readonly property Item controlItem: rowLoader.item
             spacing: Metrics.scaled(10)
 

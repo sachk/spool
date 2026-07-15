@@ -398,9 +398,15 @@ Phase::Phase(QString category, QString name, QJsonObject data)
 
 Phase::~Phase()
 {
-    if (m_active)
+    if (m_active) {
+        const qint64 durationMs = nowMs() - m_startedMs;
         logEvent(m_category, QStringLiteral("phase_end"),
-            { { QStringLiteral("phase"), m_name }, { QStringLiteral("durationMs"), nowMs() - m_startedMs } });
+            { { QStringLiteral("phase"), m_name }, { QStringLiteral("durationMs"), durationMs } });
+        if (m_category == QLatin1String("startup") || m_category == QLatin1String("shutdown"))
+            qInfo().noquote() << QStringLiteral("phase_end: category=%1 phase=%2 duration_ms=%3")
+                                     .arg(m_category, m_name)
+                                     .arg(durationMs);
+    }
 }
 
 Task::Task(QString name, QJsonObject data)

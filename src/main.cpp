@@ -100,6 +100,16 @@ constexpr auto kAppLogFileName = "com.sachk.tern.log";
 FILE *g_logFile = nullptr;
 QByteArray g_logPath;
 QElapsedTimer g_startupTimer;
+qint64 g_staticInitializationNs = 0;
+
+#ifndef Q_OS_WIN
+__attribute__((constructor)) void recordStaticInitializationStart()
+{
+    timespec value {};
+    if (clock_gettime(CLOCK_MONOTONIC, &value) == 0)
+        g_staticInitializationNs = static_cast<qint64>(value.tv_sec) * 1000000000LL + value.tv_nsec;
+}
+#endif
 
 #ifdef JELLYFIN_NATIVE_WEBOS
 // Window pointer captured for the LS2 lifecycle callback, which runs on
@@ -175,11 +185,11 @@ QString resolveAppRoot(const char *argv0)
     const size_t size = sizeof(buffer);
     uint32_t length = static_cast<uint32_t>(size);
     if (_NSGetExecutablePath(buffer, &length) != 0)
-        return { };
+        return {};
     char resolved[PATH_MAX];
     if (realpath(buffer, resolved)) {
         if (strlen(resolved) >= size)
-            return { };
+            return {};
         strcpy(buffer, resolved);
     }
 #elif !defined(Q_OS_WIN)
@@ -187,14 +197,14 @@ QString resolveAppRoot(const char *argv0)
     const size_t size = sizeof(buffer);
     const ssize_t length = readlink("/proc/self/exe", buffer, size - 1);
     if (length < 0)
-        return { };
+        return {};
     buffer[length] = '\0';
 #else
     Q_UNUSED(argv0);
-    wchar_t executablePath[32768] { };
+    wchar_t executablePath[32768] {};
     const DWORD length = GetModuleFileNameW(nullptr, executablePath, static_cast<DWORD>(std::size(executablePath)));
     if (length == 0 || length >= std::size(executablePath))
-        return { };
+        return {};
     const QString path = QString::fromWCharArray(executablePath, static_cast<qsizetype>(length));
     const qsizetype separator = path.lastIndexOf(QLatin1Char('\\'));
     return separator > 0 ? path.left(separator) : QString();
@@ -203,11 +213,11 @@ QString resolveAppRoot(const char *argv0)
 #ifndef Q_OS_WIN
     char *lastSlash = strrchr(buffer, '/');
     if (!lastSlash)
-        return { };
+        return {};
     *lastSlash = '\0';
     lastSlash = strrchr(buffer, '/');
     if (!lastSlash)
-        return { };
+        return {};
     *lastSlash = '\0';
     return QString::fromUtf8(buffer);
 #endif
@@ -488,6 +498,11 @@ bool lunaMemoryStatusCallback(LSHandle *, LSMessage *message, void *)
 
 int main(int argc, char **argv)
 {
+#ifndef Q_OS_WIN
+    timespec mainTimestamp {};
+    clock_gettime(CLOCK_MONOTONIC, &mainTimestamp);
+    const qint64 mainNs = static_cast<qint64>(mainTimestamp.tv_sec) * 1000000000LL + mainTimestamp.tv_nsec;
+#endif
     g_startupTimer.start();
     QElapsedTimer& startupTimer = g_startupTimer;
     for (int i = 1; i < argc; ++i) {
@@ -514,6 +529,26 @@ int main(int argc, char **argv)
     }
 
     logLine("%s starting", kAppId);
+#ifndef Q_OS_WIN
+    QFile statFile(QStringLiteral("/proc/self/stat"));
+    QFile uptimeFile(QStringLiteral("/proc/uptime"));
+    qint64 execToMainMs = -1;
+    if (statFile.open(QIODevice::ReadOnly) && uptimeFile.open(QIODevice::ReadOnly)) {
+        const QByteArray stat = statFile.readAll();
+        const qsizetype commEnd = stat.lastIndexOf(')');
+        const QList<QByteArray> fields = commEnd >= 0 ? stat.mid(commEnd + 2).split(' ') : QList<QByteArray> {};
+        const QByteArray uptimeText = uptimeFile.readAll().split(' ').value(0);
+        bool startOk = false;
+        bool uptimeOk = false;
+        const qulonglong startTicks = fields.value(19).toULongLong(&startOk);
+        const double uptimeSeconds = uptimeText.toDouble(&uptimeOk);
+        const long ticksPerSecond = sysconf(_SC_CLK_TCK);
+        if (startOk && uptimeOk && ticksPerSecond > 0)
+            execToMainMs = qRound64((uptimeSeconds - static_cast<double>(startTicks) / ticksPerSecond) * 1000.0);
+    }
+    logLine("startup: exec_to_main_ms=%lld static_init_ms=%.2f", static_cast<long long>(execToMainMs),
+        g_staticInitializationNs > 0 ? static_cast<double>(mainNs - g_staticInitializationNs) / 1000000.0 : -1.0);
+#endif
     if (!g_logPath.isEmpty())
         logLine("log file: %s", g_logPath.constData());
 
@@ -613,7 +648,7 @@ int main(int argc, char **argv)
         }
     }
 
-    struct sigaction action = { };
+    struct sigaction action = {};
     action.sa_handler = handleSignal;
     sigemptyset(&action.sa_mask);
     // SA_RESTART so handler doesn't break long-running syscalls in worker
@@ -735,7 +770,7 @@ int main(int argc, char **argv)
 
     auto discovery = std::make_unique<JellyfinNative::DiscoveryController>();
     auto api = std::make_unique<JellyfinNative::JellyfinApiFacade>(networkAccessManager);
-    api->setDeviceIdentity({ },
+    api->setDeviceIdentity({},
 #ifdef JELLYFIN_NATIVE_WEBOS
         QStringLiteral("LG webOS TV"),
 #else

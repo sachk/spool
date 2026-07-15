@@ -14,6 +14,7 @@
 #include <QStringList>
 #include <QThread>
 #include <QThreadPool>
+#include <QTimer>
 #include <QUrl>
 #include <QVariant>
 
@@ -60,11 +61,27 @@ public:
 
     int requestImage(QUrl url, QSize requestedSize, ArtworkImageResponse *response);
     void cancelRequest(int requestId);
-    void handleRenderFetched(int requestId, QString key, QByteArray bytes, QString error);
+    void handleRenderFetched(
+        int requestId, QString key, QByteArray bytes, QString error, bool diskCache, qint64 queueNs, qint64 fetchNs);
     void handlePrefetched(QString key, QByteArray bytes);
 
 private:
-    void startDecode(ArtworkImageResponse *response, QByteArray bytes, QSize requestedSize);
+    struct Timing {
+        bool memoryCache = false;
+        bool diskCache = false;
+        bool network = false;
+        bool cancelled = false;
+        qint64 queueNs = 0;
+        qint64 fetchNs = 0;
+        qint64 decodeQueueNs = 0;
+        qint64 decodeNs = 0;
+        qint64 totalNs = 0;
+        QSize requestedSize;
+        QSize resultSize;
+    };
+    void startDecode(ArtworkImageResponse *response, QByteArray bytes, Timing timing);
+    void finishTiming(Timing timing);
+    void flushTimingBatch();
     void invokeWorker(std::function<void(ArtworkFetchWorker *)> call);
     QString movieUrl(const MovieItem& item, const QString& kind, int width) const;
     QString buildUrl(const QString& itemId, const QString& tag, const QString& imageType, int maxWidth, int quality,
@@ -79,6 +96,9 @@ private:
     QThread m_workerThread;
     ArtworkFetchWorker *m_worker = nullptr;
     QHash<int, QPointer<ArtworkImageResponse>> m_responses;
+    QHash<int, qint64> m_requestStarts;
+    QList<Timing> m_timingBatch;
+    QTimer m_timingBatchTimer;
     int m_nextRequestId = 1;
 };
 

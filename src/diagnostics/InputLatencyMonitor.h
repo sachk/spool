@@ -1,6 +1,7 @@
 #pragma once
 
 #include <QChronoTimer>
+#include <QHash>
 #include <QObject>
 #include <QString>
 #include <QTimer>
@@ -86,11 +87,23 @@ namespace Detail {
     };
     struct UiLatencySample {
         QString name;
+        QString routeFrom;
+        QString routeTo;
+        QString cacheHit;
         qint64 budgetNs = 0;
         qint64 totalNs = 0;
-        qint64 loadNs = 0;
+        qint64 guiCpuNs = 0;
+        qint64 inputNs = -1;
         qint64 presentNs = 0;
-        quint64 frames = 0;
+        qint64 syncNs = 0;
+        qint64 renderNs = 0;
+        qint64 swapWaitNs = 0;
+        qint64 maxGapNs = 0;
+        quint64 budgetIntervals = 0;
+        quint64 actualSwaps = 0;
+        quint64 delegatesCreated = 0;
+        quint64 delegatesDestroyed = 0;
+        std::array<qint64, 6> stageNs {};
     };
 
     std::optional<InputLatencyEventMetadata> classifyInputEvent(const QEvent *event, bool spontaneous);
@@ -205,6 +218,7 @@ class InputLatencyMonitor final : public QObject {
     Q_PROPERTY(quint64 lateCount READ lateCount NOTIFY statisticsChanged)
     Q_PROPERTY(quint64 missedFrameCount READ missedFrameCount NOTIFY statisticsChanged)
     Q_PROPERTY(double frameBudgetMs READ frameBudgetMs NOTIFY frameBudgetChanged)
+    Q_PROPERTY(QString lastRouteSample READ lastRouteSample NOTIFY routeSampleChanged)
 
 public:
     explicit InputLatencyMonitor(QObject *parent = nullptr);
@@ -225,16 +239,20 @@ public:
     quint64 lateCount() const;
     quint64 missedFrameCount() const;
     double frameBudgetMs() const;
+    QString lastRouteSample() const;
 
     Q_INVOKABLE void clearStatistics();
-    Q_INVOKABLE quint64 beginUiTransition(const QString& name);
-    Q_INVOKABLE void markUiTransitionReady(quint64 token);
+    Q_INVOKABLE quint64 beginUiTransition(
+        const QString& name, const QString& routeFrom = {}, const QString& routeTo = {}, const QString& cacheHit = {});
+    Q_INVOKABLE void mark(quint64 token, const QString& stage);
+    Q_INVOKABLE void noteDelegate(const QString& kind, int delta);
 
 signals:
     void enabledChanged();
     void warningChanged();
     void statisticsChanged();
     void frameBudgetChanged();
+    void routeSampleChanged();
 
 protected:
     bool eventFilter(QObject *watched, QEvent *event) override;
@@ -247,6 +265,8 @@ private:
     void handleDeadline();
     void handleCompletedSample(const Detail::InputLatencySample& sample);
     void handleUiTransitionFrame(qint64 frameNs);
+    void handleUiGapTimer();
+    void resetUiTransition();
     void cancelMeasurements();
     void finishCancellationOnGuiThread();
     void hideWarning();
@@ -264,11 +284,42 @@ private:
     QString m_warningStage;
     qint64 m_warningLatencyNs = 0;
     bool m_warningVisible = false;
-    quint64 m_uiTransitionSequence = 0;
-    quint64 m_uiTransitionToken = 0;
-    QString m_uiTransitionName;
-    qint64 m_uiTransitionBeginNs = -1;
-    qint64 m_uiTransitionReadyNs = -1;
+    struct UiTransition {
+        enum class Stage : quint8 { Instance, Shell, ModelReady, FirstDelegate, Viewport, ContentReady, Count };
+        struct Mark {
+            qint64 elapsedNs = -1;
+            qint64 cpuNs = -1;
+        };
+
+        quint64 sequence = 0;
+        quint64 token = 0;
+        QString name;
+        QString routeFrom;
+        QString routeTo;
+        QString cacheHit;
+        qint64 beginNs = -1;
+        qint64 beginCpuNs = -1;
+        qint64 inputBeginNs = -1;
+        qint64 expectedGapFireNs = -1;
+        qint64 maxGapNs = 0;
+        quint64 delegatesCreated = 0;
+        quint64 delegatesDestroyed = 0;
+        QHash<QString, qint64> delegateCounts;
+        std::array<Mark, static_cast<std::size_t>(Stage::Count)> marks;
+
+        void reset();
+    };
+
+    UiTransition m_uiTransition;
+    QChronoTimer m_uiGapTimer;
+    QString m_lastRouteSample;
+    qint64 m_lastInputBeginNs = -1;
+    std::atomic<quint32> m_uiActualSwaps { 0 };
+    std::atomic<qint64> m_uiSyncBeginNs { -1 };
+    std::atomic<qint64> m_uiRenderBeginNs { -1 };
+    std::atomic<qint64> m_uiSyncNs { 0 };
+    std::atomic<qint64> m_uiRenderNs { 0 };
+    std::atomic<qint64> m_uiSwapWaitNs { 0 };
     // Read on the render thread each frame swap; queue work to the GUI
     // thread only while a transition is actually being measured.
     std::atomic_bool m_uiTransitionActive { false };

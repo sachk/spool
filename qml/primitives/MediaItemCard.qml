@@ -26,7 +26,8 @@ Item {
 
     signal activated
 
-    clip: true
+    Component.onCompleted: InputLatency.noteDelegate("media_card", 1)
+    Component.onDestruction: InputLatency.noteDelegate("media_card", -1)
 
     function text(field) {
         return item && item[field] !== undefined && item[field] !== null ? String(item[field]) : ""

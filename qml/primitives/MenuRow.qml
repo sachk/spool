@@ -5,6 +5,9 @@ import "../theme"
 Item {
     id: root
 
+    Component.onCompleted: InputLatency.noteDelegate("menu_row", 1)
+    Component.onDestruction: InputLatency.noteDelegate("menu_row", -1)
+
     property string label: ""
     property string detail: ""
     property string iconName: ""

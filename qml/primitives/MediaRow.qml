@@ -116,6 +116,7 @@ FocusScope {
         id: presentation
 
         view: listView
+        latencyMonitor: InputLatency
         enabled: root.atomicPopulate && root.count > 0 && listView.width > 0
         firstIndex: 0
         lastIndex: Math.min(root.count, Math.max(1, Math.ceil((listView.width + root.cardGap) / (root.cardWidth

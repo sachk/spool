@@ -447,19 +447,32 @@ void testUiLatencyFormatter()
 {
     const UiLatencySample sample {
         QStringLiteral("route:settings"),
+        QStringLiteral("home"),
+        QStringLiteral("settings"),
+        QStringLiteral("hit"),
         ms(16).count(),
         ms(300).count(),
-        ms(280).count(),
+        ms(120).count(),
+        ms(310).count(),
         ms(20).count(),
+        ms(10).count(),
+        ms(20).count(),
+        ms(5).count(),
+        ms(4).count(),
         19,
+        3,
+        4,
+        1,
+        { ms(10).count(), ms(20).count(), ms(100).count(), ms(150).count(), ms(260).count(), ms(280).count() },
     };
     const QString line = formatUiLatency(sample);
     require(line.startsWith(QStringLiteral("ui latency: name=route:settings")),
         "UI latency line should identify the measured transition");
-    require(line.contains(QStringLiteral("total_ms=300.00")), "UI latency line should contain total latency");
-    require(line.contains(QStringLiteral("load_ms=280.00")), "UI latency line should isolate content preparation");
+    require(line.contains(QStringLiteral("wall_ms=300.00")), "UI latency line should contain total latency");
+    require(line.contains(QStringLiteral("gui_cpu_ms=120.00")), "UI latency line should contain GUI CPU time");
     require(line.contains(QStringLiteral("present_ms=20.00")), "UI latency line should isolate presentation");
-    require(line.contains(QStringLiteral("frames=19")), "UI latency line should report frame count");
+    require(line.contains(QStringLiteral("budget_intervals=19")), "UI latency line should report budget intervals");
+    require(line.contains(QStringLiteral("actual_swaps=3")), "UI latency line should report actual swaps");
     require(line.endsWith(QStringLiteral("stage=content_presented")),
         "UI latency line should identify the content presentation stage");
 }

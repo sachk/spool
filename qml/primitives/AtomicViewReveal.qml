@@ -6,19 +6,16 @@ QtObject {
     id: root
 
     required property var view
+    property var latencyMonitor: null
     property bool enabled: true
+    property var transitionToken: 0
     property int firstIndex: 0
     property int lastIndex: -1
-    property string logName: ""
-    property double startedAtMs: 0
-    property int delegatesElapsedMs: -1
     property bool delegatesReady: !enabled
     property bool artworkReady: !enabled
 
     function reset() {
         updateTimer.stop()
-        startedAtMs = Date.now()
-        delegatesElapsedMs = -1
         delegatesReady = !enabled
         artworkReady = !enabled
         schedule()
@@ -49,16 +46,15 @@ QtObject {
             if (delegate.artworkReady === false)
                 artworkSettled = false
         }
-        const elapsedMs = Math.max(0, Math.round(Date.now() - startedAtMs))
         if (delegatesSettled && !delegatesReady) {
             delegatesReady = true
-            delegatesElapsedMs = elapsedMs
+            if (latencyMonitor)
+                latencyMonitor.mark(transitionToken, "first_delegate")
         }
         if (artworkSettled && !artworkReady) {
             artworkReady = true
-            if (logName.length > 0)
-                console.info("library viewport: render complete", logName, "range=" + first + "-" + last, "items=" + (
-                                 last - first + 1), "delegatesMs=" + delegatesElapsedMs, "artworkMs=" + elapsedMs)
+            if (latencyMonitor)
+                latencyMonitor.mark(transitionToken, "viewport")
         }
     }
 
