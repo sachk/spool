@@ -2,41 +2,21 @@
 
 ## Project
 
-- This is the current Jellyfin Native client for webOS and desktop, with future mobile and TV targets.
+- Jellyfin Native client for webOS and desktop.
 - Prefer a smaller, faster, easier-to-extend codebase over compatibility scaffolding or speculative abstractions.
-- The app is unreleased. Cache/schema changes use a clean cutover: bump or reset the cache instead of adding legacy migrations or fallback readers.
-- The `mpv/` directory is a submodule. Commit mpv changes inside `mpv/`, then commit its pointer here.
+- The app is unreleased: bump/reset caches on schema changes instead of adding migrations or fallback readers.
+- `mpv/` is a submodule. Commit mpv changes inside `mpv/`, then commit its pointer here.
 - Make small conventional commits as coherent work finishes. Never push unless the user explicitly asks.
 
 ## Local Development
 
-- Use `nix develop .#native -c ...` from the repository root.
-- Configure and build the native app with:
-  - `nix develop .#native -c cmake --preset linux-dev`
-  - `nix develop .#native -c cmake --build build/linux-dev/app --target jellyfin-native`
-- Foreground-test the real local app with `timeout 10s nix run`. Do not add a smoke-only exit path; a visible launch catches GUI and runtime failures.
-- During large refactors, batch coherent edits before rebuilding. Prefer a focused target or touched test over repeated project-wide verification.
-- Never compile or `qmlformat` files one at a time. After a coherent edit batch, run one target build and pass all touched QML files to one `qmlformat` invocation (and all touched C++ files to one `clang-format` invocation).
-- Run touched C++ tests with `nix develop .#native -c ctest --test-dir <build-dir> -R '<tests>' --output-on-failure`.
-- Before committing C++/QML, format touched files with `clang-format`/`qmlformat`, then run `git diff --check`.
-- For Linux release packaging use:
-  - `nix develop .#native -c bash tools/build-linux-release.sh`
-  - `nix develop .#native -c bash tools/package-appimage.sh`
-- Syntax-check changed shell scripts with `bash -n`.
-- Use `nix-shell` only for a one-off tool absent from the dev shell.
+- Use `nix develop .#native -c ...` from the repository root (e.g. `cmake --preset linux-dev`, then `cmake --build build/linux-dev/app --target jellyfin-native`).
+- Foreground-test the real app with `timeout 10s nix run` — a visible launch catches GUI and runtime failures.
+- Batch coherent edits, then run one build and one `qmlformat`/`clang-format` invocation over all touched files; don't build or format file-by-file.
 
 ## webOS
 
-- Do not build, install, launch, deploy, or test on a TV unless the user explicitly requests the final webOS pass.
-- Treat “deploy” as install-only. Never launch or relaunch the app unless the user separately asks to launch it.
-- For every requested deployment, create a fresh package from current sources in this order:
-  - `nix develop -c bash build-ipk.sh app`
-  - `nix develop -c bash build-ipk.sh stage`
-  - `nix develop -c bash build-ipk.sh package`
-  - Verify that the executable inside the IPK exactly matches `build/webos/stage/app/bin/jellyfin-native`.
-  - Install with `nix develop -c bash tools/webos/verify-device.sh --no-launch <ipk>`.
-- After installation, terminate any stale `jellyfin-native` process without launching a replacement, then verify that the installed executable SHA-256 matches the packaged executable.
-- Do not use `ares-*`, `luna-send`, ApplicationInstallerUtility, or TV SSH as routine development checks.
-- Never run `webos-mpv-demo-cycle.sh` unless explicitly requested.
-- If webOS diagnosis is requested, read current logs first and make one targeted source change. Do not run speculative deploy loops.
-- Never write to TV partitions, patch package metadata, modify installer internals, restart system services, or wipe app/user data.
+- Do not build, install, launch, deploy, or test on a TV unless the user explicitly requests it. "Deploy" means install-only; never launch unless separately asked.
+- For a requested deployment: fresh package via `build-ipk.sh app`/`stage`/`package`, then install with `tools/webos/verify-device.sh --no-launch <ipk>`.
+- If webOS diagnosis is requested, read current logs first and make one targeted change — no speculative deploy loops.
+- Never write to TV partitions, patch package metadata, restart system services, or wipe app/user data.
