@@ -56,13 +56,15 @@ FocusScope {
         id: inputShield
         anchors.fill: parent
         visible: root.active
-        enabled: visible
-        focus: visible
+        enabled: visible && !playerOverlay.subtitleSettingsVisible
+        focus: enabled
         z: 3
 
-        onVisibleChanged: if (visible)
+        onVisibleChanged: if (enabled)
                               InputKeys.focus(inputShield)
-        onActiveFocusChanged: if (visible && !activeFocus)
+        onEnabledChanged: if (enabled)
+                              InputKeys.focus(inputShield)
+        onActiveFocusChanged: if (enabled && !activeFocus)
                                   Qt.callLater(() => InputKeys.focus(inputShield))
     }
 }
