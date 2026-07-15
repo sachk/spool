@@ -1,6 +1,7 @@
 #pragma once
 
 #include "../common/JellyfinTypes.h"
+#include "../common/RequestGeneration.h"
 
 #include <QCoroTask>
 #include <QJsonObject>
@@ -25,7 +26,9 @@ class SettingsController final : public QObject {
     Q_PROPERTY(int maxStreamingBitrateMbps MEMBER m_maxStreamingBitrateMbps WRITE setMaxStreamingBitrateMbps NOTIFY
             playbackPreferencesChanged)
     Q_PROPERTY(bool preferRemux MEMBER m_preferRemux WRITE setPreferRemux NOTIFY playbackPreferencesChanged)
-    Q_PROPERTY(int audioDelayMs MEMBER m_audioDelayMs WRITE setAudioDelayMs NOTIFY audioDelayChanged)
+    Q_PROPERTY(int audioDelayMs READ audioDelayMs WRITE setAudioDelayMs NOTIFY audioDelayChanged)
+    Q_PROPERTY(int automaticAudioDelayMs READ automaticAudioDelayMs NOTIFY audioOutputDeviceChanged)
+    Q_PROPERTY(QString audioDelayTargetLabel READ audioDelayTargetLabel NOTIFY audioOutputDeviceChanged)
     Q_PROPERTY(QString audioOutputMode MEMBER m_audioOutputMode WRITE setAudioOutputMode NOTIFY audioOutputModeChanged)
     Q_PROPERTY(int uiScalePercent READ uiScalePercent WRITE setUiScalePercent NOTIFY appearanceChanged)
     Q_PROPERTY(bool uiScaleSetupComplete READ uiScaleSetupComplete NOTIFY appearanceChanged)
@@ -71,6 +74,15 @@ public:
     {
         return m_uiScaleSetupVersion > 0;
     }
+    int audioDelayMs() const
+    {
+        return m_audioDelayMs;
+    }
+    int automaticAudioDelayMs() const
+    {
+        return m_automaticAudioDelayMs;
+    }
+    QString audioDelayTargetLabel() const;
     bool subtitleRenderPgs() const;
     bool subtitleAlwaysBurnIn() const;
     int subtitleLanguageIndex() const;
@@ -118,12 +130,14 @@ public:
     Q_INVOKABLE void setGreenButtonAction(const QString& action);
     Q_INVOKABLE void setYellowButtonAction(const QString& action);
     Q_INVOKABLE void setBlueButtonAction(const QString& action);
+    void updateWebOSAudioOutput(const QString& output, int displayLatencyMs, int outputLatencyMs);
 
 signals:
     void nightModeChanged();
     void toneMappingVisualizationChanged();
     void playbackPreferencesChanged();
     void audioDelayChanged();
+    void audioOutputDeviceChanged();
     void audioOutputModeChanged();
     void subtitleSettingsChanged();
     void buttonRemapChanged();
@@ -137,6 +151,9 @@ private:
     void applySchemaValue(const SettingSpec& spec, const QVariant& value, bool apply);
     void emitSchemaSignals(const SettingSpec& spec);
     void applyPlaybackPreferences();
+    void applyAudioDelayToPlayer();
+    void loadCurrentWebOSAudioDelay();
+    void applyLoadedWebOSAudioDelay(const QString& output, int delayMs);
     void saveSubtitleUserConfiguration();
     void applySubtitlePreferencesToPlayer();
 
@@ -149,6 +166,10 @@ private:
     int m_maxStreamingBitrateMbps = 120;
     bool m_preferRemux = true;
     int m_audioDelayMs = 0;
+    int m_automaticAudioDelayMs = 0;
+    QString m_currentAudioOutput;
+    bool m_localSettingsLoaded = false;
+    RequestGeneration m_audioOutputLoadGeneration;
     QString m_audioOutputMode = QStringLiteral("alsa");
     int m_uiScalePercent = 115;
     int m_uiScaleSetupVersion = 0;

@@ -38,6 +38,11 @@ int main(int argc, char **argv)
     require(settings.uiScalePercent() == 115, "UI scale default was not 115 percent");
     require(!settings.uiScaleSetupComplete(), "fresh profile unexpectedly skipped scale setup");
 
+    settings.setAudioDelayMs(120);
+    require(settings.audioDelayMs() == 120, "audio delay setter did not update the global desktop value");
+    require(QCoro::waitFor(database.loadSettingAsync(QStringLiteral("settings/audioDelayMs"))) == QStringLiteral("120"),
+        "global desktop audio delay was not persisted");
+
     settings.setUiScalePercent(70);
     require(settings.uiScalePercent() == 80, "UI scale setter did not clamp to its lower bound");
     settings.completeUiScaleSetup(135);
@@ -55,6 +60,7 @@ int main(int argc, char **argv)
     QCoro::waitFor(restored.loadLocalAsync());
     require(restored.uiScalePercent() == 135, "persisted UI scale was not restored");
     require(restored.uiScaleSetupComplete(), "persisted setup completion was not restored");
+    require(restored.audioDelayMs() == 120, "persisted global desktop audio delay was not restored");
 
     database.saveSetting(QStringLiteral("appearance/uiScalePercent"), QStringLiteral("100"));
     database.saveSetting(QStringLiteral("appearance/uiScaleSetupVersion"), QStringLiteral("1"));

@@ -12,7 +12,7 @@ FocusScope {
     readonly property bool hasPlayer: player.sessionActive
     readonly property bool smartTvPlatform: NativeWindow.smartTvPlatform
     readonly property bool desktopControlsAvailable: !smartTvPlatform
-    readonly property int currentSyncDelayMs: syncTarget === "audioGlobal" ? Settings.audioDelayMs : syncTarget
+    readonly property int currentSyncDelayMs: syncTarget === "audioOutput" ? Settings.audioDelayMs : syncTarget
                                                                              === "subtitle" ? player.subtitleDelayMs :
                                                                                               player.fileAudioDelayMs
     readonly property bool nightModeEnabled: Settings.nightModeEnabled
@@ -340,7 +340,7 @@ FocusScope {
     function adjustAudioDelay(direction) {
         const index = Math.max(0, Math.min(audioSyncSteps.length - 1, audioSyncStepIndex))
         const next = clampAudioDelayMs(currentSyncDelayMs + direction * audioSyncSteps[index])
-        if (syncTarget === "audioGlobal")
+        if (syncTarget === "audioOutput")
             Settings.setAudioDelayMs(next)
         else if (syncTarget === "subtitle")
             player.setSubtitleDelayMs(next)
@@ -367,7 +367,7 @@ FocusScope {
             return true
         }
         if (audioSyncRow === "target") {
-            const targets = ["audioFile", "audioGlobal"]
+            const targets = ["audioFile", "audioOutput"]
             const direction = key === Qt.Key_Left ? -1 : key === Qt.Key_Right ? 1 : 0
             if (direction !== 0) {
                 syncTarget = targets[(targets.indexOf(syncTarget) + direction + targets.length) % targets.length]

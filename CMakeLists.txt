@@ -129,6 +129,7 @@ if(JELLYFIN_NATIVE_WEBOS)
     find_webos_sysroot_library(WAYLAND_WEBOS_CLIENT_LIB wayland-webos-client)
     find_webos_sysroot_library(WEBOS_HELPERS_LIB helpers)
     find_webos_sysroot_library(LUNA_SERVICE_LIB luna-service2)
+    find_webos_sysroot_library(ALSA_LIB asound)
     set(AVCODEC_LIB "${WEBOS_NATIVE_LIB_DIR}/libavcodec.so")
     set(AVFILTER_LIB "${WEBOS_NATIVE_LIB_DIR}/libavfilter.so")
     set(AVFORMAT_LIB "${WEBOS_NATIVE_LIB_DIR}/libavformat.so")
@@ -253,6 +254,8 @@ set(JELLYFIN_CORE_SOURCES
     src/models/MovieGridModel.h
     src/player/MpvLifecycle.cpp
     src/player/MpvLifecycle.h
+    src/player/AudioSyncPolicy.cpp
+    src/player/AudioSyncPolicy.h
     src/player/PlayerController.cpp
     src/player/PlayerController.h
     src/player/PlayQueueController.cpp
@@ -520,6 +523,7 @@ if(JELLYFIN_NATIVE_WEBOS)
         ${WAYLAND_WEBOS_CLIENT_LIB}
         ${WEBOS_HELPERS_LIB}
         ${LUNA_SERVICE_LIB}
+        ${ALSA_LIB}
         # libmpv (and its ffmpeg/lua dependencies) is deliberately NOT linked:
         # src/player/MpvRuntime.cpp dlopen()s it after first frame so the
         # dynamic linker does not map + relocate the ~40 MB player stack
@@ -551,6 +555,7 @@ if(BUILD_TESTING AND NOT CMAKE_CROSSCOMPILING)
         playback-track-parser tests/player/PlaybackTrackParserTest.cpp
         playback-track-state tests/player/PlaybackTrackStateTest.cpp
         playback-position-tracker tests/player/PlaybackPositionTrackerTest.cpp
+        audio-sync-policy tests/player/AudioSyncPolicyTest.cpp
         mpv-option-profile tests/player/MpvOptionProfileTest.cpp
         play-queue-controller tests/player/PlayQueueControllerTest.cpp
         browse-session-controller tests/app/BrowseSessionControllerTest.cpp

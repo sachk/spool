@@ -95,15 +95,20 @@ The experiment strengthens this explanation:
   samples. It does not read these platform controls and cannot see latency
   after the direct PCM device.
 
-## Recommended sync change
+## Implemented sync change
 
-Add a small webOS audio-output monitor in the app:
+The app now has a small webOS audio-output monitor:
 
-1. Subscribe to `getSoundOutput` and log every payload.
-2. At playback start and after every output change, read and log controls 62
-   and 96 through ALSA's control API.
-3. Store the user's trim per sound output instead of globally.
-4. Apply an automatic base delay per output, then add the user's trim.
+1. It subscribes to `getSoundOutput` and logs every payload.
+2. It reads and logs controls 62 and 96 through ALSA's control API immediately
+   and again after the route has settled.
+3. It stores the user's trim under
+   `settings/webosAudioDelayMs/<sound-output>` instead of using the global
+   webOS value.
+4. It applies an automatic base delay per output, then adds the active output's
+   user trim. Desktop builds retain the global setting.
+5. The playback sync panel names the active output and shows the automatic
+   component alongside the effective audio delay.
 
 For ARC and speakers, `Adec Lipsync Offset - Audio Latency Time` is a useful
 initial automatic base. Bluetooth needs a calibrated route value because the

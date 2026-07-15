@@ -40,10 +40,10 @@ OverlayDialog {
         }
         ActionButton {
             Layout.fillWidth: true
-            text: "Global"
-            kind: root.overlay.syncTarget === "audioGlobal" ? "primary" : "secondary"
+            text: Settings.audioDelayTargetLabel
+            kind: root.overlay.syncTarget === "audioOutput" ? "primary" : "secondary"
             onClicked: {
-                root.overlay.syncTarget = "audioGlobal"
+                root.overlay.syncTarget = "audioOutput"
                 root.overlay.audioSyncRow = "target"
             }
         }
@@ -85,7 +85,11 @@ OverlayDialog {
                 Layout.fillWidth: true
                 visible: root.overlay.syncTarget !== "subtitle"
                 text: "Effective audio delay: " + root.overlay.formatAudioDelay(
-                          root.overlay.player.effectiveAudioDelayMs)
+                          root.overlay.player.effectiveAudioDelayMs) + (Platform.isWebOS && root.overlay.syncTarget
+                                                                        === "audioOutput" ? " (automatic "
+                                                                                            + root.overlay.formatAudioDelay(
+                                                                                                Settings.automaticAudioDelayMs)
+                                                                                            + ")" : "")
                 color: Theme.textMuted
                 font.pixelSize: Metrics.metaSizePx
                 horizontalAlignment: Text.AlignHCenter

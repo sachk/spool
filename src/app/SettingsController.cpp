@@ -3,6 +3,7 @@
 #include "../api/JellyfinApiFacade.h"
 #include "../cache/DatabaseManager.h"
 #include "../common/AsyncTask.h"
+#include "../player/AudioSyncPolicy.h"
 #include "../player/PlayerController.h"
 #include "SettingsSchema.h"
 
@@ -142,10 +143,27 @@ QVariant SettingsController::value(const QString& key) const
     return {};
 }
 
+QString SettingsController::audioDelayTargetLabel() const
+{
+#ifdef JELLYFIN_NATIVE_WEBOS
+    return AudioSyncPolicy::outputDisplayName(m_currentAudioOutput);
+#else
+    return QStringLiteral("Global");
+#endif
+}
+
 QCoro::Task<void> SettingsController::loadLocalAsync()
 {
     for (const SettingSpec& spec : settingSpecs()) {
         const QString key = keyString(spec);
+#ifdef JELLYFIN_NATIVE_WEBOS
+        if (spec.target == SettingTarget::AudioDelay) {
+            const QVariant normalized = normalizedSettingValue(spec, spec.defaultValue);
+            m_values.insert(key, normalized);
+            applySchemaValue(spec, normalized, false);
+            continue;
+        }
+#endif
         const QString stored = co_await m_database->loadSettingAsync(key, spec.defaultValue);
         const QVariant normalized = normalizedSettingValue(spec, stored);
         m_values.insert(key, normalized);
@@ -169,10 +187,15 @@ QCoro::Task<void> SettingsController::loadLocalAsync()
         m_database->saveSetting(QString::fromLatin1(kUiScaleSetupVersionKey), QString::number(kUiScaleSetupVersion));
     }
 
+    m_localSettingsLoaded = true;
+#ifdef JELLYFIN_NATIVE_WEBOS
+    loadCurrentWebOSAudioDelay();
+#endif
+
     if (m_player) {
         m_player->setNightModeEnabled(m_nightModeEnabled);
         m_player->setToneMappingVisualizationEnabled(m_toneMappingVisualizationEnabled);
-        m_player->setAudioDelayMs(m_audioDelayMs);
+        applyAudioDelayToPlayer();
         m_player->setAudioOutputMode(m_audioOutputMode);
     }
     applyPlaybackPreferences();
@@ -260,6 +283,10 @@ void SettingsController::setValue(const QString& key, const QVariant& value)
         qWarning() << "settings: unknown key" << key;
         return;
     }
+    if (spec->target == SettingTarget::AudioDelay) {
+        setAudioDelayMs(value.toInt());
+        return;
+    }
     setSchemaValue(*spec, value, true, true, true);
 }
 
@@ -281,7 +308,28 @@ void SettingsController::setPreferRemux(bool enabled)
 }
 void SettingsController::setAudioDelayMs(int delayMs)
 {
-    setValue(QStringLiteral("settings/audioDelayMs"), delayMs);
+    const SettingSpec& spec = specForKey("settings/audioDelayMs");
+#ifdef JELLYFIN_NATIVE_WEBOS
+    const int normalized = normalizedSettingValue(spec, delayMs).toInt();
+    if (m_audioDelayMs == normalized)
+        return;
+
+    const int previous = m_audioDelayMs;
+    m_audioOutputLoadGeneration.invalidate();
+    m_audioDelayMs = normalized;
+    m_values.insert(keyString(spec), normalized);
+    m_database->saveSetting(
+        AudioSyncPolicy::delayStorageKey(m_currentAudioOutput), serializedSettingValue(spec, normalized));
+    applyAudioDelayToPlayer();
+    qInfo() << "app: audio delay trim for" << AudioSyncPolicy::normalizedOutputKey(m_currentAudioOutput) << previous
+            << "->" << m_audioDelayMs << "ms; automatic" << m_automaticAudioDelayMs << "ms; effective"
+            << qBound(-2000, m_automaticAudioDelayMs + m_audioDelayMs, 2000) << "ms";
+    emit settingChanged(keyString(spec));
+    emit settingsValuesChanged();
+    emit audioDelayChanged();
+#else
+    setSchemaValue(spec, delayMs, true, true, true);
+#endif
 }
 void SettingsController::setAudioOutputMode(const QString& mode)
 {
@@ -422,8 +470,8 @@ void SettingsController::applySchemaValue(const SettingSpec& spec, const QVarian
         break;
     case SettingTarget::AudioDelay:
         m_audioDelayMs = value.toInt();
-        if (apply && m_player)
-            m_player->setAudioDelayMs(m_audioDelayMs);
+        if (apply)
+            applyAudioDelayToPlayer();
         break;
     case SettingTarget::AudioOutput:
         m_audioOutputMode = value.toString();
@@ -584,6 +632,95 @@ void SettingsController::applyPlaybackPreferences()
     if (!m_api)
         return;
     m_api->setPlaybackPreferences(static_cast<qint64>(m_maxStreamingBitrateMbps) * 1'000'000, m_preferRemux);
+}
+
+void SettingsController::applyAudioDelayToPlayer()
+{
+    if (!m_player)
+        return;
+#ifdef JELLYFIN_NATIVE_WEBOS
+    m_player->setAudioDelayMs(qBound(-2000, m_automaticAudioDelayMs + m_audioDelayMs, 2000));
+#else
+    m_player->setAudioDelayMs(m_audioDelayMs);
+#endif
+}
+
+void SettingsController::updateWebOSAudioOutput(const QString& output, int displayLatencyMs, int outputLatencyMs)
+{
+#ifdef JELLYFIN_NATIVE_WEBOS
+    const QString normalizedOutput = AudioSyncPolicy::normalizedOutputKey(output);
+    const int automaticDelay
+        = AudioSyncPolicy::automaticBaseDelayMs(normalizedOutput, displayLatencyMs, outputLatencyMs);
+    const bool outputChanged = normalizedOutput != m_currentAudioOutput;
+    const bool automaticDelayChanged = automaticDelay != m_automaticAudioDelayMs;
+    if (!outputChanged && !automaticDelayChanged)
+        return;
+
+    qInfo() << "app: webOS audio output" << normalizedOutput << "display latency" << displayLatencyMs
+            << "ms; output latency" << outputLatencyMs << "ms; automatic delay" << automaticDelay << "ms";
+
+    m_audioOutputLoadGeneration.invalidate();
+    m_currentAudioOutput = normalizedOutput;
+    m_automaticAudioDelayMs = automaticDelay;
+    if (outputChanged) {
+        m_audioDelayMs = 0;
+        m_values.insert(QStringLiteral("settings/audioDelayMs"), m_audioDelayMs);
+    }
+    applyAudioDelayToPlayer();
+
+    emit audioOutputDeviceChanged();
+    if (outputChanged) {
+        emit settingChanged(QStringLiteral("settings/audioDelayMs"));
+        emit settingsValuesChanged();
+        emit audioDelayChanged();
+        if (m_localSettingsLoaded)
+            loadCurrentWebOSAudioDelay();
+    }
+#else
+    Q_UNUSED(output)
+    Q_UNUSED(displayLatencyMs)
+    Q_UNUSED(outputLatencyMs)
+#endif
+}
+
+void SettingsController::loadCurrentWebOSAudioDelay()
+{
+#ifdef JELLYFIN_NATIVE_WEBOS
+    const QString output = AudioSyncPolicy::normalizedOutputKey(m_currentAudioOutput);
+    const auto token = m_audioOutputLoadGeneration.next();
+    Async::runLatest(
+        this, m_database->loadSettingAsync(AudioSyncPolicy::delayStorageKey(output), QStringLiteral("0")),
+        m_audioOutputLoadGeneration, token,
+        [this, output](const QString& stored) {
+            const SettingSpec& spec = specForKey("settings/audioDelayMs");
+            applyLoadedWebOSAudioDelay(output, normalizedSettingValue(spec, stored).toInt());
+        },
+        [](const std::exception_ptr& error) {
+            qWarning() << "app: failed to load webOS audio delay trim:" << exceptionMessage(error);
+        },
+        "load webOS audio delay trim");
+#endif
+}
+
+void SettingsController::applyLoadedWebOSAudioDelay(const QString& output, int delayMs)
+{
+#ifdef JELLYFIN_NATIVE_WEBOS
+    if (AudioSyncPolicy::normalizedOutputKey(output) != m_currentAudioOutput)
+        return;
+
+    m_audioDelayMs = delayMs;
+    m_values.insert(QStringLiteral("settings/audioDelayMs"), delayMs);
+    applyAudioDelayToPlayer();
+    qInfo() << "app: loaded audio delay trim for" << m_currentAudioOutput << delayMs << "ms; automatic"
+            << m_automaticAudioDelayMs << "ms; effective"
+            << qBound(-2000, m_automaticAudioDelayMs + m_audioDelayMs, 2000) << "ms";
+    emit settingChanged(QStringLiteral("settings/audioDelayMs"));
+    emit settingsValuesChanged();
+    emit audioDelayChanged();
+#else
+    Q_UNUSED(output)
+    Q_UNUSED(delayMs)
+#endif
 }
 
 void SettingsController::saveSubtitleUserConfiguration()

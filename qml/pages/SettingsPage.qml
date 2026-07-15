@@ -240,7 +240,11 @@ FocusScope {
     }
 
     function rowDescription(row) {
-        return row.key === "session/server" ? Session.serverUrl : row.description || ""
+        if (row.key === "session/server")
+            return Session.serverUrl
+        if (row.key === "settings/audioDelayMs" && Platform.isWebOS)
+            return "User trim for " + Settings.audioDelayTargetLabel + "; automatic compensation is applied separately"
+        return row.description || ""
     }
 
     function rowValueText(row) {
