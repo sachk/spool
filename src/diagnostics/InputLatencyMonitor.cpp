@@ -799,7 +799,10 @@ void InputLatencyMonitor::handleCompletedSample(const InputLatencySample& sample
     emit statisticsChanged();
     if (m_window)
         m_window->update();
-    if (!sample.late)
+    // A response just over one refresh period is common phase jitter, not an
+    // actionable stall. Keep it in the statistics, but only warn after two
+    // full frame periods so the guard reports work that blocked the GUI.
+    if (!sample.late || sample.totalNs <= sample.budgetNs * 2)
         return;
 
     qWarning().noquote() << Detail::formatInputLatencyMiss(sample);

@@ -6,6 +6,7 @@
 #include <QJsonObject>
 #include <QObject>
 #include <QStringList>
+#include <QTimer>
 #include <QVariantList>
 #include <QVariantMap>
 
@@ -152,6 +153,7 @@ private:
     int m_uiScalePercent = 115;
     int m_uiScaleSetupVersion = 0;
     SubtitlePreferences m_subtitlePreferences;
+    QTimer m_subtitleApplyTimer;
     QStringList m_subtitleLanguageCodes { QString() };
     QStringList m_subtitleLanguageLabels { QStringLiteral("Any language") };
     QJsonObject m_userConfiguration;

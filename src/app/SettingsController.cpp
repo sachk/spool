@@ -40,6 +40,12 @@ SettingsController::SettingsController(
     , m_api(api)
     , m_player(player)
 {
+    m_subtitleApplyTimer.setSingleShot(true);
+    m_subtitleApplyTimer.setInterval(100);
+    connect(&m_subtitleApplyTimer, &QTimer::timeout, this, [this]() {
+        if (m_player)
+            m_player->setSubtitlePreferences(m_subtitlePreferences);
+    });
 }
 
 QStringList SettingsController::subtitleLanguageOptions() const
@@ -170,7 +176,8 @@ QCoro::Task<void> SettingsController::loadLocalAsync()
         m_player->setAudioOutputMode(m_audioOutputMode);
     }
     applyPlaybackPreferences();
-    applySubtitlePreferencesToPlayer();
+    if (m_player)
+        m_player->setSubtitlePreferences(m_subtitlePreferences);
 
     emit settingsValuesChanged();
     emit nightModeChanged();
@@ -597,7 +604,7 @@ void SettingsController::saveSubtitleUserConfiguration()
 void SettingsController::applySubtitlePreferencesToPlayer()
 {
     if (m_player)
-        m_player->setSubtitlePreferences(m_subtitlePreferences);
+        m_subtitleApplyTimer.start();
 }
 
 } // namespace JellyfinNative
