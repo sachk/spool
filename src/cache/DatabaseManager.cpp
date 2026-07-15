@@ -100,6 +100,14 @@ public:
         return query.value(0);
     }
 
+    QVariantMap values(const QStringList& keys)
+    {
+        QVariantMap result;
+        for (const QString& key : keys)
+            result.insert(key, value(key));
+        return result;
+    }
+
     void setValue(const QString& key, const QVariant& value)
     {
         QSqlQuery query(m_database);
@@ -504,6 +512,14 @@ QCoro::Task<QString> DatabaseManager::loadSettingAsync(const QString& key, const
     DatabaseWorker *worker = m_worker;
     co_return co_await workerTask(worker,
         [worker, key, defaultValue]() { return worker ? settingFromWorker(worker, key, defaultValue) : defaultValue; });
+}
+
+QCoro::Task<QVariantMap> DatabaseManager::loadValuesAsync(const QStringList& keys)
+{
+    if (!co_await awaitInitialization())
+        co_return QVariantMap();
+    DatabaseWorker *worker = m_worker;
+    co_return co_await workerTask(worker, [worker, keys]() { return worker ? worker->values(keys) : QVariantMap(); });
 }
 
 void DatabaseManager::saveSetting(const QString& key, const QString& value)

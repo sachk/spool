@@ -32,6 +32,17 @@ int main(int argc, char **argv)
     require(database.initialize(directory.filePath(QStringLiteral("cache.sqlite"))), "database should initialize");
     require(QCoro::waitFor(database.schemaVersionAsync()) == 4, "schema should migrate to version 4");
 
+    database.saveSetting(QStringLiteral("batch/first"), QStringLiteral("one"));
+    database.saveSetting(QStringLiteral("batch/second"), QStringLiteral("two"));
+    const QVariantMap batch = QCoro::waitFor(database.loadValuesAsync(
+        { QStringLiteral("batch/first"), QStringLiteral("batch/second"), QStringLiteral("batch/missing") }));
+    require(batch.value(QStringLiteral("batch/first")).toString() == QStringLiteral("one"),
+        "batch read should return the first stored value");
+    require(batch.value(QStringLiteral("batch/second")).toString() == QStringLiteral("two"),
+        "batch read should return the second stored value");
+    require(!batch.value(QStringLiteral("batch/missing")).isValid(),
+        "batch read should preserve a missing value as invalid");
+
     const QJsonObject homePayload {
         { QStringLiteral("title"), QStringLiteral("Continue Watching") },
         { QStringLiteral("count"), 2 },

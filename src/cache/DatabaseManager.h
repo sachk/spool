@@ -8,6 +8,7 @@
 #include <QMetaObject>
 #include <QObject>
 #include <QString>
+#include <QStringList>
 #include <QThread>
 #include <QVariant>
 
@@ -47,6 +48,7 @@ public:
     void invalidateHomePayloads();
 
     QCoro::Task<QString> loadSettingAsync(const QString& key, const QString& defaultValue = {});
+    QCoro::Task<QVariantMap> loadValuesAsync(const QStringList& keys);
     void saveSetting(const QString& key, const QString& value);
 
     QCoro::Task<int> schemaVersionAsync();

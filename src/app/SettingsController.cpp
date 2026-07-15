@@ -154,6 +154,18 @@ QString SettingsController::audioDelayTargetLabel() const
 
 QCoro::Task<void> SettingsController::loadLocalAsync()
 {
+    QStringList keys;
+    keys.reserve(static_cast<qsizetype>(settingSpecs().size()) + 1);
+    for (const SettingSpec& spec : settingSpecs()) {
+#ifdef JELLYFIN_NATIVE_WEBOS
+        if (spec.target == SettingTarget::AudioDelay)
+            continue;
+#endif
+        keys.append(keyString(spec));
+    }
+    keys.append(QString::fromLatin1(kUiScaleSetupVersionKey));
+    const QVariantMap storedValues = co_await m_database->loadValuesAsync(keys);
+
     for (const SettingSpec& spec : settingSpecs()) {
         const QString key = keyString(spec);
 #ifdef JELLYFIN_NATIVE_WEBOS
@@ -164,7 +176,10 @@ QCoro::Task<void> SettingsController::loadLocalAsync()
             continue;
         }
 #endif
-        const QString stored = co_await m_database->loadSettingAsync(key, spec.defaultValue);
+        const QVariant rawValue = storedValues.value(key);
+        const QString stored = !rawValue.isValid() || rawValue.toString().isEmpty()
+            ? QString::fromLatin1(spec.defaultValue)
+            : rawValue.toString();
         const QVariant normalized = normalizedSettingValue(spec, stored);
         m_values.insert(key, normalized);
         applySchemaValue(spec, normalized, false);
@@ -174,7 +189,7 @@ QCoro::Task<void> SettingsController::loadLocalAsync()
             m_database->saveSetting(key, serialized);
     }
     const QString setupVersion
-        = co_await m_database->loadSettingAsync(QString::fromLatin1(kUiScaleSetupVersionKey), QStringLiteral("0"));
+        = storedValues.value(QString::fromLatin1(kUiScaleSetupVersionKey), QStringLiteral("0")).toString();
     const int storedSetupVersion = setupVersion.toInt();
     m_uiScaleSetupVersion = storedSetupVersion > 0 ? qMin(storedSetupVersion, kUiScaleSetupVersion) : 0;
     if (storedSetupVersion == 1) {

@@ -139,12 +139,13 @@ QCoro::Task<void> AppController::initializeAsync()
     co_await m_settings->loadLocalAsync();
     m_prefetch->configureImagePrefetch(m_settings->value(QStringLiteral("network/imagePrefetchAhead")).toInt(),
         m_settings->value(QStringLiteral("network/imagePrefetchConcurrency")).toInt());
-    const bool hasDefaultProfile = !(co_await m_database->loadAuthSessionAsync()).accessToken.isEmpty();
+    const bool authenticated = co_await m_session->initializeAsync();
+    const bool hasDefaultProfile = authenticated;
     if (m_hasDefaultProfile != hasDefaultProfile) {
         m_hasDefaultProfile = hasDefaultProfile;
         emit defaultProfileChanged();
     }
-    if (!(co_await m_session->initializeAsync())) {
+    if (!authenticated) {
         co_await applyDiscoveredServersCacheAsync();
         m_discovery->start();
     }

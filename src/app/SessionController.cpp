@@ -37,10 +37,15 @@ bool SessionController::authenticated() const
 
 QCoro::Task<bool> SessionController::initializeAsync()
 {
-    m_serverUrl = co_await m_database->loadLastServerUrlAsync();
-    m_username = co_await m_database->loadLastUsernameAsync();
-
-    const AuthSession session = co_await m_database->loadAuthSessionAsync();
+    const QVariantMap values = co_await m_database->loadValuesAsync(
+        { QStringLiteral("login/serverUrl"), QStringLiteral("login/username"), QStringLiteral("login/accessToken"),
+            QStringLiteral("login/userId"), QStringLiteral("login/userName"), QStringLiteral("login/serverId") });
+    m_serverUrl = values.value(QStringLiteral("login/serverUrl")).toString();
+    m_username = values.value(QStringLiteral("login/username")).toString();
+    const AuthSession session { values.value(QStringLiteral("login/userId")).toString(),
+        values.value(QStringLiteral("login/userName")).toString(),
+        values.value(QStringLiteral("login/accessToken")).toString(),
+        values.value(QStringLiteral("login/serverId")).toString() };
     if (m_username.isEmpty() && !session.userName.isEmpty())
         m_username = session.userName;
 
