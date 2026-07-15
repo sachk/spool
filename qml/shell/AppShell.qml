@@ -95,6 +95,10 @@ KeyRouter {
 
     Connections {
         target: App
+        function onInitializedChanged() {
+            if (App.initialized)
+                Router.reset(root.defaultRoute())
+        }
         function onAggressiveMemoryPressure() {
             if (!root.itemMenuOpen)
                 root.itemMenuLoaded = false
@@ -118,7 +122,8 @@ KeyRouter {
         }
     }
 
-    Component.onCompleted: Router.reset(root.defaultRoute())
+    Component.onCompleted: if (App.initialized)
+                               Router.reset(root.defaultRoute())
 
     Connections {
         target: root.player
@@ -363,7 +368,7 @@ KeyRouter {
     Rectangle {
         anchors.fill: parent
         color: Theme.bg
-        visible: !(root.hasPlayer && root.player.visible)
+        visible: App.initialized && !(root.hasPlayer && root.player.visible)
     }
 
     ColumnLayout {
@@ -401,6 +406,7 @@ KeyRouter {
             Layout.fillHeight: true
             route: root.route
             shell: root
+            startupReady: App.initialized
             focus: !(root.hasPlayer && root.player.visible)
             onActiveFocusChanged: if (activeFocus)
                                       root.navigationTarget = routeStack

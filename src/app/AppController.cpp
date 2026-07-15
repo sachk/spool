@@ -148,6 +148,8 @@ QCoro::Task<void> AppController::initializeAsync()
         co_await applyDiscoveredServersCacheAsync();
         m_discovery->start();
     }
+    m_initialized = true;
+    emit initializedChanged();
 }
 
 void AppController::chooseDiscoveredServer(int index)

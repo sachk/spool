@@ -85,6 +85,7 @@ Q_IMPORT_PLUGIN(QSQLiteDriverPlugin)
 #include <cstdlib>
 #include <cstring>
 #include <memory>
+#include <mutex>
 
 #ifdef Q_OS_WIN
 #include <windows.h>
@@ -120,6 +121,10 @@ __attribute__((constructor)) void recordStaticInitializationStart()
 JellyfinNative::NativeAppWindow *g_lifecycleWindow = nullptr;
 JellyfinNative::AppController *g_appController = nullptr;
 std::atomic_uint64_t g_soundOutputEventGeneration { 0 };
+std::mutex g_pendingSoundOutputMutex;
+QString g_pendingSoundOutput;
+int g_pendingDisplayLatencyMs = -1;
+int g_pendingOutputLatencyMs = -1;
 #endif
 
 FILE *openRotatedLogFile(const QByteArray& path)
@@ -541,7 +546,7 @@ WebOSAudioLatencySnapshot readWebOSAudioLatency()
     return snapshot;
 }
 
-bool lunaSoundOutputCallback(LSHandle *, LSMessage *message, void *userdata)
+bool lunaSoundOutputCallback(LSHandle *, LSMessage *message, void *)
 {
     const char *payload = message ? LSMessageGetPayload(message) : nullptr;
     if (!payload)
@@ -560,25 +565,13 @@ bool lunaSoundOutputCallback(LSHandle *, LSMessage *message, void *userdata)
     logLine("[ls2-audio] soundOutput=%s adecLipsyncMs=%d outputLatencyMs=%d payload=%s", qPrintable(output),
         latency.displayLatencyMs, latency.outputLatencyMs, payload);
 
-    auto *settings = static_cast<JellyfinNative::SettingsController *>(userdata);
-    if (settings) {
-        const std::uint64_t eventGeneration = ++g_soundOutputEventGeneration;
-        QMetaObject::invokeMethod(
-            settings,
-            [settings, output, latency, eventGeneration]() {
-                settings->updateWebOSAudioOutput(output, latency.displayLatencyMs, latency.outputLatencyMs);
-                QTimer::singleShot(250, settings, [settings, output, eventGeneration]() {
-                    if (g_soundOutputEventGeneration.load() != eventGeneration)
-                        return;
-                    const WebOSAudioLatencySnapshot settledLatency = readWebOSAudioLatency();
-                    logLine("[ls2-audio] settled soundOutput=%s adecLipsyncMs=%d outputLatencyMs=%d",
-                        qPrintable(output), settledLatency.displayLatencyMs, settledLatency.outputLatencyMs);
-                    settings->updateWebOSAudioOutput(
-                        output, settledLatency.displayLatencyMs, settledLatency.outputLatencyMs);
-                });
-            },
-            Qt::QueuedConnection);
+    {
+        const std::lock_guard lock(g_pendingSoundOutputMutex);
+        g_pendingSoundOutput = output;
+        g_pendingDisplayLatencyMs = latency.displayLatencyMs;
+        g_pendingOutputLatencyMs = latency.outputLatencyMs;
     }
+    ++g_soundOutputEventGeneration;
     return true;
 }
 #endif
@@ -1088,7 +1081,7 @@ int main(int argc, char **argv)
     soundOutputContext->pub = true;
     soundOutputContext->multiple = true;
     soundOutputContext->callback = &lunaSoundOutputCallback;
-    soundOutputContext->userdata = controller->settings();
+    soundOutputContext->userdata = nullptr;
     if (HLunaServiceCall(
             "luna://com.webos.service.audio/getSoundOutput", "{\"subscribe\":true}", soundOutputContext.get())) {
         logLine("HLunaServiceCall getSoundOutput failed (non-fatal)");
@@ -1096,6 +1089,40 @@ int main(int argc, char **argv)
     } else {
         logLine("HLunaServiceCall getSoundOutput OK");
     }
+
+    QTimer soundOutputPollTimer;
+    soundOutputPollTimer.setInterval(100);
+    QObject::connect(&soundOutputPollTimer, &QTimer::timeout, controller->settings(),
+        [settings = controller->settings(), appliedGeneration = std::uint64_t { 0 }]() mutable {
+            const std::uint64_t eventGeneration = g_soundOutputEventGeneration.load();
+            if (eventGeneration == appliedGeneration)
+                return;
+
+            QString output;
+            int displayLatencyMs = -1;
+            int outputLatencyMs = -1;
+            {
+                const std::lock_guard lock(g_pendingSoundOutputMutex);
+                output = g_pendingSoundOutput;
+                displayLatencyMs = g_pendingDisplayLatencyMs;
+                outputLatencyMs = g_pendingOutputLatencyMs;
+            }
+            appliedGeneration = eventGeneration;
+            if (output.isEmpty())
+                return;
+
+            settings->updateWebOSAudioOutput(output, displayLatencyMs, outputLatencyMs);
+            QTimer::singleShot(250, settings, [settings, output, eventGeneration]() {
+                if (g_soundOutputEventGeneration.load() != eventGeneration)
+                    return;
+                const WebOSAudioLatencySnapshot settledLatency = readWebOSAudioLatency();
+                logLine("[ls2-audio] settled soundOutput=%s adecLipsyncMs=%d outputLatencyMs=%d", qPrintable(output),
+                    settledLatency.displayLatencyMs, settledLatency.outputLatencyMs);
+                settings->updateWebOSAudioOutput(
+                    output, settledLatency.displayLatencyMs, settledLatency.outputLatencyMs);
+            });
+        });
+    soundOutputPollTimer.start();
 #endif
 
     QTimer::singleShot(0, controller.get(), &JellyfinNative::AppController::initialize);

@@ -37,6 +37,7 @@ class AppController final : public QObject {
     Q_PROPERTY(QString busyText MEMBER m_busyText NOTIFY busyChanged)
     Q_PROPERTY(QString errorText MEMBER m_errorText NOTIFY errorTextChanged)
     Q_PROPERTY(bool hasDefaultProfile MEMBER m_hasDefaultProfile NOTIFY defaultProfileChanged)
+    Q_PROPERTY(bool initialized READ initialized NOTIFY initializedChanged)
 
 public:
     AppController(DatabaseManager *database, DiscoveryController *discovery, JellyfinApiFacade *api,
@@ -86,6 +87,10 @@ public:
     {
         return m_settings;
     }
+    bool initialized() const
+    {
+        return m_initialized;
+    }
     SessionController *session()
     {
         return m_session;
@@ -125,6 +130,7 @@ signals:
     void busyChanged();
     void errorTextChanged();
     void defaultProfileChanged();
+    void initializedChanged();
     void aggressiveMemoryPressure();
     void toastMessage(const QString& message);
 
@@ -183,6 +189,7 @@ private:
     MovieItem m_activePlaybackItem;
     bool m_busy = false;
     bool m_hasDefaultProfile = false;
+    bool m_initialized = false;
     QString m_busyText;
     QString m_errorText;
     RequestGeneration m_libraryLoadGeneration;

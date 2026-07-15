@@ -6,6 +6,7 @@ FocusScope {
 
     property string route: "login"
     property var shell
+    property bool startupReady: true
     focus: true
     property bool ready: false
     property var uiTransitionToken: 0
@@ -165,12 +166,19 @@ FocusScope {
         uiTransitionToken = 0
     }
 
-    onRouteChanged: if (ready)
-                        showRoute()
-    Component.onCompleted: {
+    function beginStartup() {
+        if (!startupReady || ready)
+            return
         ready = true
         showRoute()
     }
+
+    onRouteChanged: if (ready)
+                        showRoute()
+    onStartupReadyChanged: if (startupReady)
+                               Qt.callLater(beginStartup)
+    Component.onCompleted: if (startupReady)
+                               Qt.callLater(beginStartup)
 
     Connections {
         target: root.activeItem
