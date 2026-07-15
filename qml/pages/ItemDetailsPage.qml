@@ -1212,7 +1212,6 @@ FocusScope {
                         height: Math.round(width * 9 / 16)
                         imageUrl: root.stillArt
                         fallbackText: root.typeText
-                        focused: false
                     }
 
                     Rectangle {

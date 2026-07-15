@@ -118,7 +118,6 @@ FocusScope {
                     Layout.alignment: Qt.AlignTop
                     imageUrl: Art.url(person, "poster", Math.ceil(root.portraitWidth))
                     fallbackText: person.type || "Person"
-                    focused: false
                 }
 
                 ColumnLayout {
