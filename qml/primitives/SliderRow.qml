@@ -23,6 +23,7 @@ T.Control {
     property int metricsWidth: 1920
 
     signal valueEdited(real value)
+    signal interactionStarted
 
     focus: true
     focusPolicy: Qt.StrongFocus
@@ -62,6 +63,11 @@ T.Control {
         setSliderValue(controlValue + step * dir)
     }
 
+    function focusSlider() {
+        InputKeys.focus(valueSlider)
+        interactionStarted()
+    }
+
     onValueChanged: {
         const formatted = formatValue(value)
         controlValue = value
@@ -73,7 +79,10 @@ T.Control {
         id: hover
     }
     TapHandler {
-        onTapped: InputKeys.focus(root)
+        onTapped: {
+            root.interactionStarted()
+            InputKeys.focus(root)
+        }
     }
 
     contentItem: RowLayout {
@@ -128,6 +137,8 @@ T.Control {
                 border.width: valueField.activeFocus ? Theme.focusBorderWidth : Theme.hoverBorderWidth
                 border.color: valueField.activeFocus ? Theme.accent : Theme.border
             }
+            onActiveFocusChanged: if (activeFocus)
+                                      root.interactionStarted()
             onAccepted: root.setSliderValue(text)
             onEditingFinished: root.setSliderValue(text)
         }
@@ -152,6 +163,10 @@ T.Control {
             stepSize: root.step
             value: root.controlValue
             focusPolicy: Qt.StrongFocus
+            onActiveFocusChanged: if (activeFocus)
+                                      root.interactionStarted()
+            onPressedChanged: if (pressed)
+                                  root.interactionStarted()
 
             background: Rectangle {
                 x: valueSlider.leftPadding

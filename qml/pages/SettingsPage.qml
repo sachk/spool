@@ -84,7 +84,8 @@ FocusScope {
 
     function rowVisible(row) {
         return row && row.visible !== false && (row.key !== "settings/toneMappingVisualization"
-                                                || gpuNextDiagnosticsAvailable)
+                                                || gpuNextDiagnosticsAvailable) && (row.group !== "Button Remap"
+                                                                                    || NativeWindow.smartTvPlatform)
     }
 
     function expandedSchemaRow(row) {
@@ -110,7 +111,7 @@ FocusScope {
         if (value.indexOf("system:") === 0)
             return value.slice(7)
         if (value === "serif")
-            return previewSerif.name
+            return String(previewSerif.name || Typography.regularFamily || "Inter")
         if (value === "typewriter")
             return "Courier New"
         if (value === "print")
@@ -123,7 +124,7 @@ FocusScope {
             return "Segoe Print"
         if (value === "smallcaps")
             return "Copperplate Gothic"
-        return Typography.regularFamily
+        return String(Typography.regularFamily || "Inter")
     }
 
     function previewTextSize() {
@@ -188,13 +189,23 @@ FocusScope {
         return row && (!previous || previous.group !== row.group)
     }
 
-    function focusRow(index) {
+    function selectRow(index, takeFocus) {
         if (settingsRows.length <= 0)
             return
         currentIndex = Math.max(0, Math.min(settingsRows.length - 1, index))
         settingsList.currentIndex = currentIndex
-        InputKeys.focus(settingsList)
         settingsList.positionViewAtIndex(currentIndex, ListView.Contain)
+        if (takeFocus !== false)
+            InputKeys.focus(settingsList)
+    }
+
+    function focusRow(index) {
+        selectRow(index, true)
+    }
+
+    function rowControlAt(index) {
+        const delegate = settingsList.itemAtIndex(index)
+        return delegate ? delegate.controlItem : null
     }
 
     function settingsValue(row) {
@@ -348,11 +359,16 @@ FocusScope {
         } else if (row.type === "toggle") {
             setRowValue(row, !Boolean(settingsValue(row)), -1)
         } else if (row.type === "select") {
-            choiceDialogRow = row
-            choiceDialogVisible = true
+            settingsList.positionViewAtIndex(index, ListView.Contain)
             Qt.callLater(function () {
-                choiceDialog.focusCurrent()
+                choiceDialogRow = row
+                choiceDialog.anchorItem = rowControlAt(index)
+                choiceDialogVisible = true
             })
+        } else if (row.type === "slider") {
+            const control = rowControlAt(index)
+            if (control && control.focusSlider)
+                control.focusSlider()
         }
     }
 
@@ -377,10 +393,17 @@ FocusScope {
 
     function closeChoiceDialog() {
         choiceDialogVisible = false
+        choiceDialog.anchorItem = null
         choiceDialogRow = null
         Qt.callLater(function () {
             focusRow(currentIndex)
         })
+    }
+
+    function makeChoiceSpace(pixels) {
+        const maximum = Math.max(0, settingsList.contentHeight + settingsList.bottomMargin - settingsList.height)
+        settingsList.contentY = Math.min(maximum, Math.max(0, settingsList.contentY + pixels))
+        Qt.callLater(choiceDialog.positionPopup)
     }
 
     function back() {
@@ -398,9 +421,13 @@ FocusScope {
     function routeKey(key, phase, repeat) {
         if (choiceDialogVisible)
             return choiceDialog.routeKey(key, phase, repeat)
+        if (phase === "release" && InputKeys.isDirection(key))
+            return true
         const row = rowAt(settingsList.currentIndex)
         if (InputKeys.isHorizontal(key) && adjustRow(row, key === Qt.Key_Right ? 1 : -1))
             return true
+        if (InputKeys.isVertical(key) && !settingsList.activeFocus)
+            InputKeys.focus(settingsList)
         if (key === Qt.Key_Up && settingsList.currentIndex <= 0) {
             if (shell)
                 shell.focusNavBar()
@@ -482,11 +509,18 @@ FocusScope {
 
     MenuListView {
         id: settingsList
-        width: root.subtitleEditor ? Math.min(parent.width - Metrics.scaled(48), Metrics.scaled(760)) : parent.width
+        readonly property real pageInset: Metrics.pageMargin(root.width)
+        width: root.subtitleEditor ? Math.min(parent.width - pageInset * 2, Metrics.scaled(760)) : Math.max(0,
+                                                                                                            parent.width
+                                                                                                            - pageInset
+                                                                                                            * 2)
         anchors.top: parent.top
         anchors.bottom: parent.bottom
         anchors.right: parent.right
-        anchors.margins: Metrics.pageMargin(root.width)
+        anchors.topMargin: pageInset
+        anchors.rightMargin: pageInset
+        anchors.bottomMargin: pageInset
+        bottomMargin: root.choiceDialogVisible ? choiceDialog.panelHeight + Metrics.scaled(16) : 0
         model: root.settingsRows
         dismissOnBack: false
         dismissOnHorizontal: false
@@ -503,6 +537,7 @@ FocusScope {
             required property int index
             required property var modelData
             width: settingsList.width
+            readonly property Item controlItem: rowLoader.item
             spacing: Metrics.scaled(10)
 
             SectionHeader {
@@ -511,6 +546,7 @@ FocusScope {
                 title: modelData.group
             }
             Loader {
+                id: rowLoader
                 width: parent.width
                 property var row: modelData
                 property int rowIndex: index
@@ -584,8 +620,6 @@ FocusScope {
             property int rowIndex: -1
             width: settingsList.width
             metricsWidth: root.width
-            focus: false
-            focusPolicy: Qt.NoFocus
             selected: settingsList.activeFocus && settingsList.currentIndex === rowIndex
             title: row ? row.title : ""
             description: row ? root.rowDescription(row) : ""
@@ -598,6 +632,7 @@ FocusScope {
             sliderPreferredWidth: row && row.sliderPreferredWidth > 0 ? row.sliderPreferredWidth : 300
             value: row ? Number(root.settingsValue(row)) : 0
             onValueEdited: value => root.setRowValue(row, value, -1)
+            onInteractionStarted: root.selectRow(rowIndex, false)
         }
     }
     OptionPickerDialog {
@@ -612,5 +647,6 @@ FocusScope {
             root.closeChoiceDialog()
         }
         onDismissed: root.closeChoiceDialog()
+        onSpaceBelowRequired: pixels => root.makeChoiceSpace(pixels)
     }
 }
