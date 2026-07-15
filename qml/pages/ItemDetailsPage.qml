@@ -10,6 +10,9 @@ FocusScope {
     id: root
 
     property var shell
+    readonly property var contextRow: detailRowsLoader.item ? detailRowsLoader.item.contextRow : null
+    readonly property var peopleRow: detailRowsLoader.item ? detailRowsLoader.item.peopleRow : null
+    readonly property var similarRow: detailRowsLoader.item ? detailRowsLoader.item.similarRow : null
     readonly property var routeContext: RoutePolicy.detailsContext(shell ? shell.routeArgs : ({}), Browse.items)
     readonly property var itemModel: routeContext.model
     readonly property int selectedIndex: routeContext.index
@@ -448,10 +451,12 @@ FocusScope {
     }
 
     function updateDetailCounts() {
-        contextRow.currentIndex = contextCount > 0 ? Math.max(0, Math.min(contextRow.currentIndex, contextCount - 1)) :
-                                                     0
-        similarRow.currentIndex = similarCount > 0 ? Math.max(0, Math.min(similarRow.currentIndex, similarCount - 1)) :
-                                                     0
+        if (contextRow)
+            contextRow.currentIndex = contextCount > 0 ? Math.max(0, Math.min(contextRow.currentIndex, contextCount - 1)) :
+                                                         0
+        if (similarRow)
+            similarRow.currentIndex = similarCount > 0 ? Math.max(0, Math.min(similarRow.currentIndex, similarCount - 1)) :
+                                                         0
     }
 
     function refreshDetailRows() {
@@ -460,8 +465,10 @@ FocusScope {
         if (key === loadedDetailKey)
             return
         loadedDetailKey = key
-        contextRow.currentIndex = 0
-        similarRow.currentIndex = 0
+        if (contextRow)
+            contextRow.currentIndex = 0
+        if (similarRow)
+            similarRow.currentIndex = 0
         Content.loadDetailRows(itemId, typeText, seriesIdText, seasonIdText)
     }
 
@@ -510,6 +517,8 @@ FocusScope {
             return actionRow
         if (zone === "metadata")
             return metadataPanel
+        if (zone === "context" || zone === "people" || zone === "similar")
+            detailRowsLoader.forced = true
         if (zone === "context")
             return contextRow
         if (zone === "people")
@@ -1245,79 +1254,94 @@ FocusScope {
                 }
             }
 
-            Item {
-                id: detailRowsArea
+            Loader {
+                id: detailRowsLoader
                 Layout.fillWidth: true
-                readonly property int rowSpacing: Metrics.sectionGapPx
-                readonly property int visibleRowCount: (contextRow.visible ? 1 : 0) + (peopleRow.visible ? 1 : 0) + (
-                                                           similarRow.visible ? 1 : 0)
-                readonly property int rowsHeight: contextRow.height + peopleRow.height + similarRow.height + Math.max(0,
-                                                                                                                      visibleRowCount
-                                                                                                                      - 1) * rowSpacing
-                readonly property int contextY: 0
-                readonly property int peopleY: contextY + (contextRow.visible ? contextRow.height + rowSpacing : 0)
-                readonly property int similarY: peopleY + (peopleRow.visible ? peopleRow.height + rowSpacing : 0)
-                Layout.preferredHeight: rowsHeight + root.contentMargin
-                implicitHeight: rowsHeight + root.contentMargin
+                property bool forced: false
+                readonly property int estimatedRowHeight: Math.round(root.rowPosterWidth * 1.5) + Metrics.scaled(94)
+                readonly property int estimatedRows: Number(root.showContextRow || root.reserveContextRow) + Number(
+                                                         root.showPeopleRow) + Number(root.showSimilarRow)
+                active: forced || detailsFlick.contentY + detailsFlick.height * 1.5 >= y
+                Layout.preferredHeight: item ? item.implicitHeight : estimatedRows * estimatedRowHeight
 
-                MediaRow {
-                    id: contextRow
-                    anchors.left: parent.left
-                    anchors.right: parent.right
-                    anchors.leftMargin: root.contentMargin
-                    anchors.rightMargin: root.contentMargin
-                    y: detailRowsArea.contextY
-                    title: root.contextRowTitle()
-                    model: Content.detailSeasons
-                    shell: root.shell
-                    cardWidth: root.contextPosterCards ? root.rowPosterWidth : root.rowLandscapeWidth
-                    cardKind: root.contextPosterCards ? "poster" : "landscape"
-                    cardGap: root.rowGap
-                    enabledRow: root.showContextRow
-                    reserveWhenEmpty: root.reserveContextRow
-                    loading: root.reserveContextRow
-                    emptyText: root.typeText === "Series" ? "Loading seasons..." : (root.typeText === "BoxSet"
-                                                                                    ? "Loading collection..." :
-                                                                                      "Loading episodes...")
-                    useSeriesPoster: root.typeText === "Series"
-                    preferEpisodeTitle: !root.contextPosterCards
-                    onActivated: index => root.openContextItem(index)
-                }
+                sourceComponent: Item {
+                    id: detailRowsArea
+                    property alias contextRow: contextRowItem
+                    property alias peopleRow: peopleRowItem
+                    property alias similarRow: similarRowItem
+                    readonly property int rowSpacing: Metrics.sectionGapPx
+                    readonly property int visibleRowCount: (contextRowItem.visible ? 1 : 0) + (peopleRowItem.visible
+                                                                                               ? 1 : 0) + (
+                                                               similarRowItem.visible ? 1 : 0)
+                    readonly property int rowsHeight: contextRowItem.height + peopleRowItem.height
+                                                      + similarRowItem.height + Math.max(0, visibleRowCount - 1)
+                                                      * rowSpacing
+                    readonly property int contextY: 0
+                    readonly property int peopleY: contextY + (contextRowItem.visible ? contextRowItem.height + rowSpacing :
+                                                                                        0)
+                    readonly property int similarY: peopleY + (peopleRowItem.visible ? peopleRowItem.height + rowSpacing :
+                                                                                       0)
+                    implicitHeight: rowsHeight + root.contentMargin
 
-                MediaRow {
-                    id: peopleRow
-                    anchors.left: parent.left
-                    anchors.right: parent.right
-                    anchors.leftMargin: root.contentMargin
-                    anchors.rightMargin: root.contentMargin
-                    y: detailRowsArea.peopleY
-                    title: "Cast & Crew"
-                    model: root.people
-                    shell: root.shell
-                    cardKind: "person"
-                    cardWidth: root.rowPosterWidth
-                    cardGap: root.rowGap
-                    enabledRow: root.showPeopleRow
-                    onActivated: (index, person) => root.openPerson(person)
-                }
+                    MediaRow {
+                        id: contextRowItem
+                        anchors.left: parent.left
+                        anchors.right: parent.right
+                        anchors.leftMargin: root.contentMargin
+                        anchors.rightMargin: root.contentMargin
+                        y: detailRowsArea.contextY
+                        title: root.contextRowTitle()
+                        model: Content.detailSeasons
+                        shell: root.shell
+                        cardWidth: root.contextPosterCards ? root.rowPosterWidth : root.rowLandscapeWidth
+                        cardKind: root.contextPosterCards ? "poster" : "landscape"
+                        cardGap: root.rowGap
+                        enabledRow: root.showContextRow
+                        reserveWhenEmpty: root.reserveContextRow
+                        loading: root.reserveContextRow
+                        emptyText: root.typeText === "Series" ? "Loading seasons..." : (root.typeText === "BoxSet"
+                                                                                        ? "Loading collection..." :
+                                                                                          "Loading episodes...")
+                        useSeriesPoster: root.typeText === "Series"
+                        preferEpisodeTitle: !root.contextPosterCards
+                        onActivated: index => root.openContextItem(index)
+                    }
 
-                MediaRow {
-                    id: similarRow
-                    anchors.left: parent.left
-                    anchors.right: parent.right
-                    anchors.leftMargin: root.contentMargin
-                    anchors.rightMargin: root.contentMargin
-                    y: detailRowsArea.similarY
-                    title: "More Like This"
-                    model: Content.detailSimilarItems
-                    shell: root.shell
-                    cardWidth: root.typeText === "Episode" ? root.rowLandscapeWidth : root.rowPosterWidth
-                    cardKind: root.typeText === "Episode" ? "landscape" : "poster"
-                    cardGap: root.rowGap
-                    enabledRow: root.showSimilarRow
-                    useSeriesPoster: root.typeText !== "Episode"
-                    preferEpisodeTitle: root.typeText === "Episode"
-                    onActivated: index => root.openSimilarItem(index)
+                    MediaRow {
+                        id: peopleRowItem
+                        anchors.left: parent.left
+                        anchors.right: parent.right
+                        anchors.leftMargin: root.contentMargin
+                        anchors.rightMargin: root.contentMargin
+                        y: detailRowsArea.peopleY
+                        title: "Cast & Crew"
+                        model: root.people
+                        shell: root.shell
+                        cardKind: "person"
+                        cardWidth: root.rowPosterWidth
+                        cardGap: root.rowGap
+                        enabledRow: root.showPeopleRow
+                        onActivated: (index, person) => root.openPerson(person)
+                    }
+
+                    MediaRow {
+                        id: similarRowItem
+                        anchors.left: parent.left
+                        anchors.right: parent.right
+                        anchors.leftMargin: root.contentMargin
+                        anchors.rightMargin: root.contentMargin
+                        y: detailRowsArea.similarY
+                        title: "More Like This"
+                        model: Content.detailSimilarItems
+                        shell: root.shell
+                        cardWidth: root.typeText === "Episode" ? root.rowLandscapeWidth : root.rowPosterWidth
+                        cardKind: root.typeText === "Episode" ? "landscape" : "poster"
+                        cardGap: root.rowGap
+                        enabledRow: root.showSimilarRow
+                        useSeriesPoster: root.typeText !== "Episode"
+                        preferEpisodeTitle: root.typeText === "Episode"
+                        onActivated: index => root.openSimilarItem(index)
+                    }
                 }
             }
         }

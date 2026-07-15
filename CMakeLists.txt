@@ -396,6 +396,7 @@ qt_add_qml_module(jellyfin-native
         qml/primitives/FastWheelHandler.qml
         qml/primitives/IconButton.qml
         qml/primitives/ImageCard.qml
+        qml/primitives/LazyMenuPanel.qml
         qml/primitives/OptionPickerDialog.qml
         qml/primitives/InputKeys.qml
         qml/primitives/MediaItemCard.qml

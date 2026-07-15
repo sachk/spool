@@ -22,6 +22,10 @@ FocusScope {
     property int libraryIndex: 0
     property var sortEntries: []
     property var filterEntries: []
+    property var libraryEntries: []
+    readonly property var libraryList: libraryPanel.menuList
+    readonly property var sortList: sortPanel.menuList
+    readonly property var filterList: filterPanel.menuList
     readonly property string collectionType: Browse.libraryCollectionType
     readonly property var libraryQuery: Browse.query
     readonly property var filterOptions: Browse.filterOptions
@@ -116,6 +120,19 @@ FocusScope {
                 return i
         }
         return count > 0 ? 0 : -1
+    }
+
+    function buildLibraryEntries() {
+        const entries = []
+        for (let index = 0; index < libraryCount(); ++index) {
+            const library = Libraries.get(index)
+            entries.push({
+                             "label": String(library && library.name || ""),
+                             "libraryId": String(library && library.libraryId || ""),
+                             "index": index
+                         })
+        }
+        return entries
     }
 
     function headerDetail() {
@@ -409,6 +426,7 @@ FocusScope {
         sortOpen = false
         filtersOpen = false
         libraryIndex = Math.max(0, currentLibraryModelIndex())
+        libraryEntries = buildLibraryEntries()
         libraryOpen = true
         Qt.callLater(function () {
             InputKeys.focus(libraryList)
@@ -526,11 +544,11 @@ FocusScope {
     }
 
     function routeKey(key, phase, repeat) {
-        if (libraryList.activeFocus)
+        if (libraryList && libraryList.activeFocus)
             return libraryList.routeKey(key, phase, repeat)
-        if (sortList.activeFocus)
+        if (sortList && sortList.activeFocus)
             return sortList.routeKey(key, phase, repeat)
-        if (filterList.activeFocus)
+        if (filterList && filterList.activeFocus)
             return filterList.routeKey(key, phase, repeat)
 
         if (libraryButton.activeFocus || sortButton.activeFocus || filterButton.activeFocus
@@ -568,11 +586,11 @@ FocusScope {
     }
 
     function activate() {
-        if (libraryList.activeFocus)
+        if (libraryList && libraryList.activeFocus)
             libraryList.activate()
-        else if (sortList.activeFocus)
+        else if (sortList && sortList.activeFocus)
             sortList.activate()
-        else if (filterList.activeFocus)
+        else if (filterList && filterList.activeFocus)
             filterList.activate()
         else if (libraryButton.activeFocus)
             openLibraryMenu()
@@ -855,7 +873,7 @@ FocusScope {
         }
     }
 
-    PopupMenuPanel {
+    LazyMenuPanel {
         id: libraryPanel
         anchors.top: parent.top
         anchors.left: parent.left
@@ -863,40 +881,20 @@ FocusScope {
         anchors.leftMargin: Metrics.pageMarginPx
         width: 360
         open: root.libraryOpen
-        openHeight: Math.min(420, libraryList.contentHeight + 20)
+        maximumHeight: 420
         z: 22
-
-        MenuListView {
-            id: libraryList
-            anchors.fill: parent
-            anchors.margins: 10
-            visible: libraryPanel.visible
-            model: Libraries
-            currentIndex: root.libraryIndex
-            edgeEscapeItem: libraryButton
-            onCurrentIndexChanged: root.libraryIndex = currentIndex
-            onDismissed: root.closeMenus()
-            onAccepted: index => root.activateLibraryIndex(index)
-
-            delegate: MenuRow {
-                required property int index
-                required property string name
-                required property string collectionType
-                required property string libraryId
-                width: libraryList.width
-                label: name
-                checked: String(libraryId || "") === String(Browse.libraryId || "")
-                iconName: checked ? "radio_button_checked" : "radio_button_unchecked"
-                highlighted: ListView.isCurrentItem && libraryList.activeFocus
-                metricsWidth: root.width
-                checkIconName: ""
-                onHovered: libraryList.currentIndex = index
-                onActivated: root.activateLibraryIndex(index)
-            }
+        model: root.libraryEntries
+        currentIndex: root.libraryIndex
+        edgeEscapeItem: libraryButton
+        checkedFor: function (entry) {
+            return entry && String(entry.libraryId) === String(Browse.libraryId || "")
         }
+        onCurrentIndexChanged: root.libraryIndex = currentIndex
+        onDismissed: root.closeMenus()
+        onAccepted: entry => root.activateLibraryIndex(entry.index)
     }
 
-    PopupMenuPanel {
+    LazyMenuPanel {
         id: sortPanel
         anchors.top: parent.top
         anchors.right: parent.right
@@ -904,41 +902,22 @@ FocusScope {
         anchors.rightMargin: Metrics.pageMarginPx
         width: 320
         open: root.sortOpen
-        openHeight: Math.min(430, sortList.contentHeight + 20)
+        maximumHeight: 430
         z: 20
-
-        MenuListView {
-            id: sortList
-            anchors.fill: parent
-            anchors.margins: 10
-            visible: sortPanel.visible
-            model: root.sortEntries
-            currentIndex: root.sortIndex
-            edgeEscapeItem: sortButton
-            onCurrentIndexChanged: root.sortIndex = currentIndex
-            onDismissed: root.closeMenus()
-            onAccepted: index => root.activateSortEntry(root.sortEntries[index])
-
-            delegate: MenuRow {
-                required property int index
-                required property var modelData
-                width: sortList.width
-                label: modelData.label || ""
-                checked: String(modelData.value || "").indexOf("order:") === 0 ? String(modelData.value).split(":")[1]
-                                                                                 === root.currentSortOrder() :
-                                                                                 modelData.value === root.currentSortBy(
-                                                                                     )
-                iconName: checked ? "radio_button_checked" : "radio_button_unchecked"
-                highlighted: ListView.isCurrentItem && sortList.activeFocus
-                metricsWidth: root.width
-                checkIconName: ""
-                onHovered: sortList.currentIndex = index
-                onActivated: root.activateSortEntry(modelData)
-            }
+        model: root.sortEntries
+        currentIndex: root.sortIndex
+        edgeEscapeItem: sortButton
+        checkedFor: function (entry) {
+            return String(entry && entry.value || "").indexOf("order:") === 0 ? String(entry.value).split(":")[1] === root.currentSortOrder() :
+                                                                                entry && entry.value
+                                                                                === root.currentSortBy()
         }
+        onCurrentIndexChanged: root.sortIndex = currentIndex
+        onDismissed: root.closeMenus()
+        onAccepted: entry => root.activateSortEntry(entry)
     }
 
-    PopupMenuPanel {
+    LazyMenuPanel {
         id: filterPanel
         anchors.top: parent.top
         anchors.right: parent.right
@@ -946,64 +925,21 @@ FocusScope {
         anchors.rightMargin: Metrics.pageMarginPx
         width: 380
         open: root.filtersOpen
-        openHeight: Math.min(root.height - Metrics.pageMarginPx * 2 - 70, 620)
+        maximumHeight: Math.min(root.height - Metrics.pageMarginPx * 2 - 70, 620)
         z: 21
-
-        ColumnLayout {
-            anchors.fill: parent
-            anchors.margins: 10
-            visible: filterPanel.visible
-            spacing: 8
-
-            RowLayout {
-                Layout.fillWidth: true
-                AppText {
-                    Layout.fillWidth: true
-                    text: "Filters"
-                    font.pixelSize: Metrics.bodySizePx
-                    font.weight: Font.DemiBold
-                }
-                ActionButton {
-                    text: "Reset"
-                    enabled: root.activeFilterCount > 0
-                    onClicked: {
-                        root.savedIndex = 0
-                        Browse.clearFilters()
-                    }
-                }
-            }
-
-            MenuListView {
-                id: filterList
-                Layout.fillWidth: true
-                Layout.fillHeight: true
-                model: root.filterEntries
-                currentIndex: root.filterIndex
-                edgeEscapeItem: filterButton
-                rowEnabled: function (entry, index) {
-                    const row = root.filterEntries[index] || ({})
-                    return row.section !== true
-                }
-                onCurrentIndexChanged: root.filterIndex = currentIndex
-                onDismissed: root.closeMenus()
-                onAccepted: index => root.activateFilterEntry(root.filterEntries[index])
-
-                delegate: MenuRow {
-                    required property int index
-                    required property var modelData
-                    width: filterList.width
-                    section: modelData.section === true
-                    label: modelData.label || ""
-                    checked: modelData.checked === true
-                    iconName: checked ? "check_box" : "check_box_outline_blank"
-                    highlighted: ListView.isCurrentItem && filterList.activeFocus
-                    metricsWidth: root.width
-                    rowHeight: 48
-                    checkIconName: ""
-                    onHovered: filterList.currentIndex = index
-                    onActivated: root.activateFilterEntry(modelData)
-                }
-            }
+        model: root.filterEntries
+        currentIndex: root.filterIndex
+        edgeEscapeItem: filterButton
+        title: "Filters"
+        selectionStyle: "check"
+        resetVisible: true
+        resetEnabled: root.activeFilterCount > 0
+        onCurrentIndexChanged: root.filterIndex = currentIndex
+        onDismissed: root.closeMenus()
+        onAccepted: entry => root.activateFilterEntry(entry)
+        onReset: {
+            root.savedIndex = 0
+            Browse.clearFilters()
         }
     }
 }
