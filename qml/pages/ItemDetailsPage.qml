@@ -380,6 +380,10 @@ FocusScope {
 
     onActiveFocusChanged: if (activeFocus)
     focusDefaultAction()
+    function currentMediaItem() {
+        return item
+    }
+
     onItemChanged: {
         overflowOpen = false
         syncUserState()

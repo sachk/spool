@@ -201,6 +201,15 @@ QString formatInputLatencyMiss(const InputLatencySample& sample)
     return fields.join(QLatin1Char(' '));
 }
 
+QString formatUiLatency(const UiLatencySample& sample)
+{
+    return QStringLiteral(
+        "ui latency: name=%1 budget_ms=%2 total_ms=%3 load_ms=%4 present_ms=%5 frames=%6 stage=content_presented")
+        .arg(sample.name, millisecondsText(sample.budgetNs), millisecondsText(sample.totalNs),
+            millisecondsText(sample.loadNs), millisecondsText(sample.presentNs))
+        .arg(sample.frames);
+}
+
 bool InputLatencyTimeline::enabled() const
 {
     return m_enabled;
@@ -601,6 +610,16 @@ void InputLatencyMonitor::attachWindow(QQuickWindow *window)
     connect(
         window, &QQuickWindow::frameSwapped, this, [this] { m_timeline.frameSwapped(now()); }, Qt::DirectConnection);
     connect(
+        window, &QQuickWindow::frameSwapped, this,
+        [this] {
+            if (!m_uiTransitionActive.load(std::memory_order_acquire))
+                return;
+            const qint64 frameNs = now().count();
+            QMetaObject::invokeMethod(
+                this, [this, frameNs] { handleUiTransitionFrame(frameNs); }, Qt::QueuedConnection);
+        },
+        Qt::DirectConnection);
+    connect(
         window, &QQuickWindow::afterFrameEnd, this,
         [this] {
             const auto sample = m_timeline.afterFrameEnd(now(), true);
@@ -652,6 +671,66 @@ void InputLatencyMonitor::endInput(quint64 token)
     if (m_window)
         m_window->update();
     scheduleDeadline();
+}
+
+quint64 InputLatencyMonitor::beginUiTransition(const QString& name)
+{
+    if (!canCaptureInput() || name.isEmpty())
+        return 0;
+
+    m_uiTransitionToken = ++m_uiTransitionSequence;
+    m_uiTransitionName = name;
+    m_uiTransitionBeginNs = now().count();
+    m_uiTransitionReadyNs = -1;
+    m_uiTransitionActive.store(true, std::memory_order_release);
+    return m_uiTransitionToken;
+}
+
+void InputLatencyMonitor::markUiTransitionReady(quint64 token)
+{
+    if (token == 0 || token != m_uiTransitionToken || m_uiTransitionReadyNs >= 0)
+        return;
+    m_uiTransitionReadyNs = now().count();
+    if (m_window)
+        m_window->update();
+}
+
+void InputLatencyMonitor::handleUiTransitionFrame(qint64 frameNs)
+{
+    if (m_uiTransitionToken == 0 || m_uiTransitionReadyNs < 0 || frameNs < m_uiTransitionReadyNs)
+        return;
+
+    const Detail::UiLatencySample sample {
+        m_uiTransitionName,
+        m_frameBudgetNs,
+        std::max<qint64>(0, frameNs - m_uiTransitionBeginNs),
+        std::max<qint64>(0, m_uiTransitionReadyNs - m_uiTransitionBeginNs),
+        std::max<qint64>(0, frameNs - m_uiTransitionReadyNs),
+        static_cast<quint64>(
+            std::max<qint64>(1, (frameNs - m_uiTransitionBeginNs + m_frameBudgetNs - 1) / m_frameBudgetNs)),
+    };
+    m_uiTransitionToken = 0;
+    m_uiTransitionName.clear();
+    m_uiTransitionBeginNs = -1;
+    m_uiTransitionReadyNs = -1;
+    m_uiTransitionActive.store(false, std::memory_order_release);
+
+    const QString line = Detail::formatUiLatency(sample);
+    if (sample.totalNs <= sample.budgetNs * 2) {
+        qInfo().noquote() << line;
+        return;
+    }
+
+    qWarning().noquote() << line;
+    const bool replaceWarning = !m_warningVisible || sample.totalNs > m_warningLatencyNs;
+    if (replaceWarning) {
+        m_warningVisible = true;
+        m_warningLatencyNs = sample.totalNs;
+        m_warningStage = QStringLiteral("content_presented");
+        m_warningText = QStringLiteral("UI content took %1 frames: %2").arg(sample.frames).arg(sample.name);
+        emit warningChanged();
+    }
+    m_warningTimer.start();
 }
 
 bool InputLatencyMonitor::enabled() const
@@ -822,6 +901,11 @@ void InputLatencyMonitor::handleCompletedSample(const InputLatencySample& sample
 void InputLatencyMonitor::cancelMeasurements()
 {
     m_timeline.cancel();
+    m_uiTransitionToken = 0;
+    m_uiTransitionName.clear();
+    m_uiTransitionBeginNs = -1;
+    m_uiTransitionReadyNs = -1;
+    m_uiTransitionActive.store(false, std::memory_order_release);
     finishCancellationOnGuiThread();
 }
 

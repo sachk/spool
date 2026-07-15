@@ -84,11 +84,20 @@ namespace Detail {
         std::array<InputLatencySample, 2> samples;
         std::size_t count = 0;
     };
+    struct UiLatencySample {
+        QString name;
+        qint64 budgetNs = 0;
+        qint64 totalNs = 0;
+        qint64 loadNs = 0;
+        qint64 presentNs = 0;
+        quint64 frames = 0;
+    };
 
     std::optional<InputLatencyEventMetadata> classifyInputEvent(const QEvent *event, bool spontaneous);
     QString inputLatencyEventName(InputLatencyEventKind kind);
     QString inputLatencyStageName(InputLatencyStage stage);
     QString formatInputLatencyMiss(const InputLatencySample& sample);
+    QString formatUiLatency(const UiLatencySample& sample);
 
     class InputLatencyTimeline final {
     public:
@@ -218,6 +227,8 @@ public:
     double frameBudgetMs() const;
 
     Q_INVOKABLE void clearStatistics();
+    Q_INVOKABLE quint64 beginUiTransition(const QString& name);
+    Q_INVOKABLE void markUiTransitionReady(quint64 token);
 
 signals:
     void enabledChanged();
@@ -235,6 +246,7 @@ private:
     void scheduleDeadline();
     void handleDeadline();
     void handleCompletedSample(const Detail::InputLatencySample& sample);
+    void handleUiTransitionFrame(qint64 frameNs);
     void cancelMeasurements();
     void finishCancellationOnGuiThread();
     void hideWarning();
@@ -252,6 +264,14 @@ private:
     QString m_warningStage;
     qint64 m_warningLatencyNs = 0;
     bool m_warningVisible = false;
+    quint64 m_uiTransitionSequence = 0;
+    quint64 m_uiTransitionToken = 0;
+    QString m_uiTransitionName;
+    qint64 m_uiTransitionBeginNs = -1;
+    qint64 m_uiTransitionReadyNs = -1;
+    // Read on the render thread each frame swap; queue work to the GUI
+    // thread only while a transition is actually being measured.
+    std::atomic_bool m_uiTransitionActive { false };
 };
 
 } // namespace JellyfinNative

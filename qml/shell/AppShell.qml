@@ -12,10 +12,6 @@ KeyRouter {
 
     readonly property string route: Router.route
     readonly property var routeArgs: Router.args || ({})
-    property int lastLibraryIndex: 0
-    property int lastGridIndex: 0
-    property int lastSearchIndex: 0
-    property string lastSearchKind: "movies"
     property bool diagnosticsVisible: false
     property bool mediaInfoVisible: false
     property bool itemMenuLoaded: false
@@ -101,6 +97,7 @@ KeyRouter {
         function onAggressiveMemoryPressure() {
             if (!root.itemMenuOpen)
                 root.itemMenuLoaded = false
+            routeStack.trim()
         }
         function onToastMessage(message) {
             toast.show(message)
@@ -150,14 +147,6 @@ KeyRouter {
             const focusIndex = Math.max(0, Number(request && request.focusIndex !== undefined ? request.focusIndex : 0))
             console.warn("details route ignored: missing item id", request ? request.source : "", focusIndex)
             return false
-        }
-
-        if (normalized.source === "movies")
-            lastGridIndex = normalized.focusIndex
-        else if (normalized.source === "search" || normalized.source === "suggestion") {
-            lastSearchIndex = normalized.focusIndex
-            if (normalized.source === "suggestion")
-                lastSearchKind = "suggestions"
         }
 
         if (route === "itemDetails") {
@@ -300,35 +289,10 @@ KeyRouter {
         pushRoute("personDetails")
     }
 
-    function searchModel() {
-        if (lastSearchKind === "series")
-            return Search.seriesResults
-        if (lastSearchKind === "episodes")
-            return Search.episodeResults
-        if (lastSearchKind === "suggestions")
-            return Search.suggestions
-        return Search.movieResults
-    }
-
     function currentMediaItem() {
-        if (route === "itemDetails") {
-            const details = RoutePolicy.detailsContext(routeArgs, Browse.items)
-            if (details.index >= 0)
-                return details.item
-        }
-        if (route === "search") {
-            const model = searchModel()
-            const searchCount = model ? model.rowCount() : 0
-            if (searchCount > 0) {
-                const searchIdx = Math.max(0, Math.min(lastSearchIndex, searchCount - 1))
-                return model.get(searchIdx) || ({})
-            }
-        }
-        const count = Browse.items.rowCount()
-        if (count <= 0)
-            return ({})
-        const idx = Math.max(0, Math.min(lastGridIndex, count - 1))
-        return Browse.items.get(idx) || ({})
+        const page = routeStack.activeItem
+        const item = page && page.currentMediaItem ? page.currentMediaItem() : null
+        return item || ({})
     }
 
     function focusNavBar() {
@@ -387,7 +351,7 @@ KeyRouter {
             return true
         }
         if (key === Qt.Key_H || key === Qt.Key_L)
-            return route(activeTarget, key === Qt.Key_H ? Qt.Key_Left : Qt.Key_Right, "press", false)
+            return deliver(activeTarget, key === Qt.Key_H ? Qt.Key_Left : Qt.Key_Right, "press", false)
         if (key === Qt.Key_Q && root.playerSessionActive) {
             root.player.stopWithReason("shortcut-q")
             return true

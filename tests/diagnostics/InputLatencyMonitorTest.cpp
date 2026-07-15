@@ -14,6 +14,7 @@
 
 using JellyfinNative::Detail::classifyInputEvent;
 using JellyfinNative::Detail::formatInputLatencyMiss;
+using JellyfinNative::Detail::formatUiLatency;
 using JellyfinNative::Detail::InputLatencyEventKind;
 using JellyfinNative::Detail::InputLatencyEventMetadata;
 using JellyfinNative::Detail::InputLatencyExpiredSamples;
@@ -21,6 +22,7 @@ using JellyfinNative::Detail::InputLatencyRefreshSource;
 using JellyfinNative::Detail::InputLatencySample;
 using JellyfinNative::Detail::InputLatencyStage;
 using JellyfinNative::Detail::InputLatencyTimeline;
+using JellyfinNative::Detail::UiLatencySample;
 
 namespace {
 
@@ -441,6 +443,27 @@ void testMissStatsFormatterAndClear()
     require(!timeline.nextDeadline(), "clear should cancel pending and current measurements");
 }
 
+void testUiLatencyFormatter()
+{
+    const UiLatencySample sample {
+        QStringLiteral("route:settings"),
+        ms(16).count(),
+        ms(300).count(),
+        ms(280).count(),
+        ms(20).count(),
+        19,
+    };
+    const QString line = formatUiLatency(sample);
+    require(line.startsWith(QStringLiteral("ui latency: name=route:settings")),
+        "UI latency line should identify the measured transition");
+    require(line.contains(QStringLiteral("total_ms=300.00")), "UI latency line should contain total latency");
+    require(line.contains(QStringLiteral("load_ms=280.00")), "UI latency line should isolate content preparation");
+    require(line.contains(QStringLiteral("present_ms=20.00")), "UI latency line should isolate presentation");
+    require(line.contains(QStringLiteral("frames=19")), "UI latency line should report frame count");
+    require(line.endsWith(QStringLiteral("stage=content_presented")),
+        "UI latency line should identify the content presentation stage");
+}
+
 } // namespace
 
 int main()
@@ -456,5 +479,6 @@ int main()
     testEpochCancellationAndSemantics();
     testDeadlineCompletionRaces();
     testMissStatsFormatterAndClear();
+    testUiLatencyFormatter();
     return 0;
 }

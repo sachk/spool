@@ -31,6 +31,10 @@ FocusScope {
     readonly property bool isFixedBrowseView: ["genre", "studio", "playlist", "boxset", "folder"].indexOf(
         Browse.viewKind) >= 0
     focus: true
+    readonly property bool contentReady: grid.count > 0 && gridReveal.delegatesReady
+    // Grid position to restore across model resets (sort/filter/library
+    // changes); the page itself is resident, so this survives navigation.
+    property int savedIndex: 0
     Component.onCompleted: InputKeys.focus(grid)
     onActiveFocusChanged: if (activeFocus)
     InputKeys.focus(grid)
@@ -421,18 +425,10 @@ FocusScope {
         return shell !== null && shell !== undefined
     }
 
-    function savedGridIndex() {
-        return hasShell() ? shell.lastGridIndex : 0
-    }
-
-    function setSavedGridIndex(index) {
-        if (hasShell())
-            shell.lastGridIndex = index
-    }
-
-    function setSavedLibraryIndex(index) {
-        if (hasShell())
-            shell.lastLibraryIndex = index
+    function currentMediaItem() {
+        if (grid.currentIndex < 0 || !Browse.items)
+            return ({})
+        return Browse.items.get(grid.currentIndex) || ({})
     }
 
     function activateLibraryIndex(index) {
@@ -441,8 +437,7 @@ FocusScope {
         libraryOpen = false
         sortOpen = false
         filtersOpen = false
-        setSavedLibraryIndex(index)
-        setSavedGridIndex(0)
+        savedIndex = 0
         gridReveal.reset()
         App.openLibrary(index)
         if (hasShell())
@@ -453,7 +448,7 @@ FocusScope {
     function activateSortEntry(entry) {
         if (!entry)
             return
-        setSavedGridIndex(0)
+        savedIndex = 0
         gridReveal.reset()
         if (String(entry.value).indexOf("order:") === 0)
             Browse.setSort(currentSortBy(), String(entry.value).split(":")[1])
@@ -465,7 +460,7 @@ FocusScope {
     function activateFilterEntry(entry) {
         if (!entry || entry.section)
             return
-        setSavedGridIndex(0)
+        savedIndex = 0
         gridReveal.reset()
         if (entry.kind === "list")
             Browse.setQueryListValue(entry.key, entry.value, !entry.checked)
@@ -504,14 +499,14 @@ FocusScope {
     function activateCurrent() {
         if (grid.currentIndex < 0)
             return
-        setSavedGridIndex(grid.currentIndex)
+        savedIndex = grid.currentIndex
         openCurrentDetails()
     }
 
     function openCurrentDetails() {
         if (grid.currentIndex < 0)
             return
-        setSavedGridIndex(grid.currentIndex)
+        savedIndex = grid.currentIndex
         const item = Browse.items ? (Browse.items.get(grid.currentIndex) || ({})) : ({})
         const type = String(item.itemType || "")
         if (type === "Playlist" || type === "Folder") {
@@ -709,7 +704,7 @@ FocusScope {
                 label: "Clear"
                 visible: !root.isFixedBrowseView && root.activeFilterCount > 0
                 onActivated: {
-                    root.setSavedGridIndex(0)
+                    root.savedIndex = 0
                     gridReveal.reset()
                     Browse.clearFilters()
                 }
@@ -746,7 +741,8 @@ FocusScope {
             }
             onContentYChanged: loadMoreDebounce.restart()
             onCurrentIndexChanged: {
-                root.setSavedGridIndex(currentIndex)
+                if (currentIndex >= 0)
+                root.savedIndex = currentIndex
                 loadMoreDebounce.restart()
             }
 
@@ -758,7 +754,7 @@ FocusScope {
             onAccepted: root.activateCurrent()
 
             function restoreIndex() {
-                currentIndex = count > 0 ? Math.max(0, Math.min(root.savedGridIndex(), count - 1)) : -1
+                currentIndex = count > 0 ? Math.max(0, Math.min(root.savedIndex, count - 1)) : -1
                 ensureCurrentVisible()
             }
 
@@ -814,7 +810,7 @@ FocusScope {
                 onArtworkReadyChanged: gridReveal.schedule()
                 onActivated: {
                     grid.currentIndex = index
-                    root.setSavedGridIndex(index)
+                    root.savedIndex = index
                     root.activateCurrent()
                 }
             }
@@ -933,7 +929,7 @@ FocusScope {
                     text: "Reset"
                     enabled: root.activeFilterCount > 0
                     onClicked: {
-                        root.setSavedGridIndex(0)
+                        root.savedIndex = 0
                         Browse.clearFilters()
                     }
                 }

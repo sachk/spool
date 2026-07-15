@@ -14,6 +14,7 @@ FocusScope {
     property bool playbackPreview: false
     property bool choiceDialogVisible: false
     property var choiceDialogRow: null
+    property bool contentReady: false
 
     signal dismissed
 
@@ -450,10 +451,16 @@ FocusScope {
     Qt.callLater(function () {
         focusRow(currentIndex)
     })
+    // Only take focus if the page is actually active: the route host
+    // prewarms an invisible instance, which must not steal focus.
     Component.onCompleted: Qt.callLater(function () {
         rebuildSettingsRows()
-        focusRow(0)
+        selectRow(0, activeFocus)
     })
+    onSubtitleEditorChanged: {
+        rebuildSettingsRows()
+        selectRow(0, activeFocus)
+    }
 
     Connections {
         target: Settings
@@ -542,6 +549,8 @@ FocusScope {
             required property int index
             required property var modelData
             width: settingsList.width
+            Component.onCompleted: if (index === 0)
+            root.contentReady = true
             readonly property Item controlItem: rowLoader.item
             spacing: Metrics.scaled(10)
 

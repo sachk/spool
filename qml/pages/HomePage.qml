@@ -14,6 +14,7 @@ FocusScope {
     property var latestRows: Home.latestLibraryRows
     readonly property bool librariesOnly: Router.route === "libraries"
     property int currentSection: 0
+    readonly property bool contentReady: librariesRow.count > 0 && librariesRow.delegatesPresented
 
     function modelFor(source, row) {
         if (source === "libraries")
@@ -61,7 +62,6 @@ FocusScope {
             return
         }
         if (source === "libraries") {
-            shell.lastLibraryIndex = index
             App.openLibrary(index)
             if (shell)
                 shell.replaceRoute("libraryGrid")
@@ -152,6 +152,13 @@ FocusScope {
     function longPress() {
         const section = activeSection()
         return Boolean(section && section.longPress && section.longPress())
+    }
+
+    function currentMediaItem() {
+        const section = activeSection()
+        if (!section || section.currentIndex < 0)
+            return ({})
+        return section.itemAt(section.currentIndex)
     }
 
     Component.onCompleted: {

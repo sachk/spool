@@ -35,6 +35,9 @@ FocusScope {
         }
     ]
     property int currentSection: 0
+    // Result kind the user last interacted with; picks the row to focus
+    // when results rebuild. Page-local — the page is resident.
+    property string preferredKind: "movies"
 
     focus: true
 
@@ -89,9 +92,8 @@ FocusScope {
         const rows = resultRows()
         if (rows.length <= 0)
             return false
-        const preferredKind = shell ? shell.lastSearchKind : ""
         for (let index = 0; index < rows.length; ++index) {
-            if (rows[index].resultKind === preferredKind)
+            if (rows[index].resultKind === root.preferredKind)
                 return focusResultRow(rows[index])
         }
         return focusResultRow(rows[0])
@@ -122,14 +124,11 @@ FocusScope {
     function activateResult(row) {
         if (!row || !shell || row.currentIndex < 0)
             return
-        shell.lastSearchKind = row.resultKind
-        shell.lastSearchIndex = row.currentIndex
+        preferredKind = row.resultKind
         shell.openDetailsAt(row.model, row.currentIndex, "search", "search")
     }
 
     function setQuery(text) {
-        if (shell)
-            shell.lastSearchIndex = 0
         if (search)
             search.setQuery(text)
     }
@@ -166,14 +165,20 @@ FocusScope {
 
     function activate() {
         if (suggestionsRow.activeFocus) {
-            if (shell && suggestionsRow.currentIndex >= 0) {
-                shell.lastSearchKind = "suggestions"
-                shell.lastSearchIndex = suggestionsRow.currentIndex
+            if (shell && suggestionsRow.currentIndex >= 0)
                 shell.openDetailsAt(search.suggestions, suggestionsRow.currentIndex, "suggestion", "search")
-            }
             return
         }
         activateResult(activeResultRow())
+    }
+
+    function currentMediaItem() {
+        if (suggestionsRow.activeFocus && suggestionsRow.currentIndex >= 0)
+            return suggestionsRow.itemAt(suggestionsRow.currentIndex)
+        const row = activeResultRow()
+        if (row && row.activeFocus && row.currentIndex >= 0)
+            return row.itemAt(row.currentIndex)
+        return ({})
     }
 
     function longPress() {
@@ -278,11 +283,8 @@ FocusScope {
                     emptyText: "Loading suggestions..."
                     visible: root.query.length < 2
                     onActivated: index => {
-                        if (root.shell) {
-                            root.shell.lastSearchKind = "suggestions"
-                            root.shell.lastSearchIndex = index
-                            root.shell.openDetailsAt(model, index, "suggestion", "search")
-                        }
+                        if (root.shell)
+                        root.shell.openDetailsAt(model, index, "suggestion", "search")
                     }
                 }
 
@@ -333,10 +335,8 @@ FocusScope {
                             preferEpisodeTitle: resultKind === "episodes"
                             cardWidth: Metrics.homePosterWidth(root.width)
                             cardGap: Metrics.gap(root.width)
-                            onCurrentIndexChanged: if (activeFocus && root.shell) {
-                                root.shell.lastSearchKind = resultKind
-                                root.shell.lastSearchIndex = currentIndex
-                            }
+                            onCurrentIndexChanged: if (activeFocus)
+                            root.preferredKind = resultKind
                             onActivated: root.activateResult(this)
                         }
                     }
