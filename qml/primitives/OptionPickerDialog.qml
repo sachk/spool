@@ -12,6 +12,7 @@ FocusScope {
     property int currentIndex: 0
     property Item anchorItem: null
     property bool spaceRequested: false
+    property var inputKeys: InputKeys
     readonly property real edgeMargin: Metrics.scaled(12)
     readonly property real rowHeight: Math.max(Metrics.scaled(44), Metrics.controlHeight(width))
     readonly property real panelWidth: Math.min(width - edgeMargin * 2, Math.max(Metrics.scaled(280), Math.min(Metrics.scaled(
@@ -36,7 +37,7 @@ FocusScope {
         optionList.currentIndex = count > 0 ? Math.max(0, Math.min(root.currentIndex, count - 1)) : -1
         if (optionList.currentIndex >= 0)
             optionList.positionViewAtIndex(optionList.currentIndex, ListView.Contain)
-        InputKeys.focus(optionList)
+        inputKeys.focus(optionList)
     }
 
     function positionPopup() {
@@ -65,19 +66,19 @@ FocusScope {
     }
 
     function routeKey(key, phase, repeat) {
-        if (phase !== "release")
-            return InputKeys.isDirection(key) || InputKeys.isAccept(key)
-        if (InputKeys.isBack(key, false, false)) {
-            dismissed()
+        if (inputKeys.isBack(key, false, false)) {
+            if (phase === "release")
+                dismissed()
             return true
         }
-        if (InputKeys.isDirection(key))
-            return optionList.routeKey(key, phase, repeat)
-        if (InputKeys.isAccept(key)) {
-            optionList.activate()
+        if (inputKeys.isDirection(key)) {
+            if (phase === "press" && key === Qt.Key_Up)
+                optionList.moveSelection(-1)
+            else if (phase === "press" && key === Qt.Key_Down)
+                optionList.moveSelection(1)
             return true
         }
-        return false
+        return inputKeys.isAccept(key)
     }
 
     function activate() {

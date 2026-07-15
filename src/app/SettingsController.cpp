@@ -340,7 +340,7 @@ void SettingsController::setSubtitleDropShadow(const QString& shadow)
 }
 void SettingsController::setSubtitleVerticalPosition(int position)
 {
-    setValue(QStringLiteral("subtitles/verticalPosition"), position);
+    setValue(QStringLiteral("subtitles/verticalPositionPercent"), position);
 }
 void SettingsController::setRedButtonAction(const QString& action)
 {

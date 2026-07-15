@@ -203,7 +203,7 @@ private:
     void resetPlaybackUiState();
     void rebuildTrickplaySheetUrls();
     bool applyMpvRuntimeOption(MpvRuntimeOption option, MpvOptionApplyMode mode, mpv_handle *handle);
-    bool applyMpvSubtitleOptions(MpvOptionApplyMode mode, mpv_handle *handle);
+    bool applyMpvSubtitleOptions(MpvOptionApplyMode mode, mpv_handle *handle, bool preserveTrackSelection = false);
     bool applyMpvRuntimeOptions(MpvOptionApplyMode mode, mpv_handle *handle);
     void discardPreparedMpvForOptionChange(const char *reason);
     void handleVideoRenderError(const QString& message);

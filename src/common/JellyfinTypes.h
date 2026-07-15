@@ -310,7 +310,7 @@ struct SubtitlePreferences {
     QString textColor = QStringLiteral("#ffffff");
     QString dropShadow;
     QString textBackground = QStringLiteral("transparent");
-    int verticalPosition = -3;
+    int verticalPosition = 100;
     int scalePercent = 100;
     QString bitmapSmoothing = QStringLiteral("soft");
     bool dimInHdr = true;

@@ -97,7 +97,7 @@ int main(int argc, char **argv)
     subtitles.font = QStringLiteral("typewriter");
     subtitles.textColor = QStringLiteral("#00ffcc");
     subtitles.dropShadow = QStringLiteral("uniform");
-    subtitles.verticalPosition = 4;
+    subtitles.verticalPosition = 40;
     subtitles.scalePercent = 125;
     subtitles.bitmapSmoothing = QStringLiteral("softer");
     const SubtitlePreferences identicalSubtitles = subtitles;
@@ -117,8 +117,7 @@ int main(int argc, char **argv)
     require(valueFor(subtitleOptions, "sub-font") == "Courier New", "subtitle font preference was not mapped");
     require(valueFor(subtitleOptions, "sub-font-size") == "66", "subtitle size preference was not mapped");
     require(valueFor(subtitleOptions, "sub-bold") == "yes", "subtitle bold preference was not mapped");
-    require(valueFor(subtitleOptions, "sub-pos") == "0", "positive subtitle position should anchor at top");
-    require(valueFor(subtitleOptions, "sub-margin-y") == "80", "subtitle vertical margin was not mapped");
+    require(valueFor(subtitleOptions, "sub-pos") == "40", "subtitle vertical percentage was not mapped");
     require(valueFor(subtitleOptions, "sub-color") == "#FF00FFCC", "subtitle color was not converted to ARGB");
     require(valueFor(subtitleOptions, "sub-border-size") == "4.5", "uniform shadow should increase border size");
     require(valueFor(subtitleOptions, "sub-shadow-offset") == "0", "uniform shadow should disable shadow offset");

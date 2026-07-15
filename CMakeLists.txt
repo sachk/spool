@@ -621,6 +621,10 @@ if(BUILD_TESTING AND NOT CMAKE_CROSSCOMPILING)
             COMMAND "${QMLTESTRUNNER_EXECUTABLE}"
                 -input "${CMAKE_CURRENT_SOURCE_DIR}/tests/qml/tst_PlayerOverlayInput.qml"
         )
+        add_test(NAME option-picker-input
+            COMMAND "${QMLTESTRUNNER_EXECUTABLE}"
+                -input "${CMAKE_CURRENT_SOURCE_DIR}/tests/qml/tst_OptionPickerInput.qml"
+        )
         add_test(NAME atomic-view-reveal
             COMMAND "${QMLTESTRUNNER_EXECUTABLE}"
                 -input "${CMAKE_CURRENT_SOURCE_DIR}/tests/qml/tst_AtomicViewReveal.qml"
@@ -638,8 +642,8 @@ if(BUILD_TESTING AND NOT CMAKE_CROSSCOMPILING)
             "QT_QUICK_BACKEND=software"
             ${JELLYFIN_TEST_ENV}
         )
-        set_tests_properties(route-policy key-router player-overlay-input atomic-view-reveal input-latency-warning
-            player-seek-bar-hover PROPERTIES
+        set_tests_properties(route-policy key-router player-overlay-input option-picker-input atomic-view-reveal
+            input-latency-warning player-seek-bar-hover PROPERTIES
             ENVIRONMENT "${JELLYFIN_QML_TEST_ENV}"
         )
     endif()

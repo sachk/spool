@@ -233,8 +233,7 @@ std::vector<MpvOption> MpvOptionProfile::subtitleOptions(
     const bool alwaysPlay = subtitleMode == QStringLiteral("Always");
     const bool smart = subtitleMode == QStringLiteral("Smart");
     const bool nativeStyling = prefs.styling == QStringLiteral("Native");
-    const int vertical = qBound(-16, prefs.verticalPosition, 16);
-    const int margin = vertical < 0 ? std::abs(vertical + 1) * 20 : vertical * 20;
+    const int vertical = qBound(0, prefs.verticalPosition, 100);
     const SubtitleShadowOptions shadow = subtitleShadowOptions(prefs.dropShadow);
     const QByteArray subtitleColor = hdrPlayback && prefs.dimInHdr
         ? scaledSubtitleColor(prefs.textColor, prefs.hdrBrightnessPercent)
@@ -260,8 +259,7 @@ std::vector<MpvOption> MpvOptionProfile::subtitleOptions(
         { "sub-scale", QByteArray::number(qBound(50, prefs.scalePercent, 200) / 100.0, 'f', 2) },
         { "sub-gauss", bitmapSmoothing },
         { "sub-bold", mpvBool(prefs.textWeight == QStringLiteral("bold")) },
-        { "sub-pos", vertical < 0 ? QByteArrayLiteral("100") : QByteArrayLiteral("0") },
-        { "sub-margin-y", QByteArray::number(margin) },
+        { "sub-pos", QByteArray::number(vertical) },
         { "sub-color", subtitleColor },
         { "sub-border-size", shadow.borderSize },
         { "sub-border-color", "#FF000000" },

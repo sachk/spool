@@ -105,7 +105,7 @@ void requiredPersistedKeysArePresentExactlyOnce()
         QStringLiteral("subtitles/textColor"),
         QStringLiteral("subtitles/dropShadow"),
         QStringLiteral("subtitles/textBackground"),
-        QStringLiteral("subtitles/verticalPosition"),
+        QStringLiteral("subtitles/verticalPositionPercent"),
         QStringLiteral("subtitles/dimInHdr"),
         QStringLiteral("subtitles/hdrBrightnessPercent"),
         QStringLiteral("settings/toneMappingVisualization"),

@@ -692,7 +692,7 @@ void PlayerController::discardPreparedMpvForOptionChange(const char *reason)
     scheduleIdleMpvPreparation();
 }
 
-bool PlayerController::applyMpvSubtitleOptions(MpvOptionApplyMode mode, mpv_handle *handle)
+bool PlayerController::applyMpvSubtitleOptions(MpvOptionApplyMode mode, mpv_handle *handle, bool preserveTrackSelection)
 {
     if (!handle)
         return false;
@@ -705,15 +705,24 @@ bool PlayerController::applyMpvSubtitleOptions(MpvOptionApplyMode mode, mpv_hand
     bool ok = true;
     const auto options
         = MpvOptionProfile::subtitleOptions(m_subtitlePreferences, m_tracks.subtitlesEnabled(), m_hdrPlayback);
-    for (const MpvOption& option : options)
-        ok &= applyString(option.name.constData(), option.value);
+    for (const MpvOption& option : options) {
+        const bool selectsTrack = option.name == QByteArrayLiteral("sid") || option.name == QByteArrayLiteral("slang")
+            || option.name == QByteArrayLiteral("sub-auto") || option.name == QByteArrayLiteral("sub-visibility")
+            || option.name == QByteArrayLiteral("sub-forced-events-only")
+            || option.name == QByteArrayLiteral("subs-with-matching-audio")
+            || option.name == QByteArrayLiteral("subs-fallback")
+            || option.name == QByteArrayLiteral("subs-fallback-forced");
+        if (!preserveTrackSelection || !selectsTrack)
+            ok &= applyString(option.name.constData(), option.value);
+    }
 
     if (!ok) {
         qWarning() << "player: failed to apply subtitle preferences"
                    << "mode=" << (mode == MpvOptionApplyMode::Initial ? "initial" : "runtime");
     } else {
         qInfo() << "player: subtitle appearance applied"
-                << "mode=" << (mode == MpvOptionApplyMode::Initial ? "initial" : "runtime") << "hdr=" << m_hdrPlayback
+                << "mode=" << (mode == MpvOptionApplyMode::Initial ? "initial" : "runtime")
+                << "preserveTrack=" << preserveTrackSelection << "hdr=" << m_hdrPlayback
                 << "dimInHdr=" << m_subtitlePreferences.dimInHdr
                 << "brightnessPercent=" << m_subtitlePreferences.hdrBrightnessPercent;
     }
@@ -1328,11 +1337,13 @@ void PlayerController::setSubtitlePreferences(const SubtitlePreferences& prefere
     if (m_subtitlePreferences == preferences)
         return;
 
+    const bool preserveTrackSelection
+        = m_subtitlePreferences.language == preferences.language && m_subtitlePreferences.mode == preferences.mode;
     m_subtitlePreferences = preferences;
     qInfo() << "player: subtitle preferences changed"
             << "mode=" << preferences.mode << "language=" << preferences.language << "styling=" << preferences.styling;
     if (auto *handle = m_mpvLifecycle.handle()) {
-        applyMpvSubtitleOptions(MpvOptionApplyMode::Runtime, handle);
+        applyMpvSubtitleOptions(MpvOptionApplyMode::Runtime, handle, preserveTrackSelection);
     } else {
         discardPreparedMpvForOptionChange("subtitle preferences change");
     }
@@ -1663,7 +1674,7 @@ void PlayerController::handleMpvEvent(mpv_event *event)
                 if (hdrPlayback && !m_hdrPlayback) {
                     m_hdrPlayback = true;
                     if (auto *handle = m_mpvLifecycle.handle())
-                        applyMpvSubtitleOptions(MpvOptionApplyMode::Runtime, handle);
+                        applyMpvSubtitleOptions(MpvOptionApplyMode::Runtime, handle, true);
                 }
                 qInfo() << "player: video transfer" << transfer << "HDR subtitle mode"
                         << (m_hdrPlayback ? "enabled" : "disabled");

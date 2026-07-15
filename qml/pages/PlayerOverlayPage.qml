@@ -304,6 +304,7 @@ FocusScope {
         controlsVisible = false
         autohide.stop()
         Qt.callLater(function () {
+            subtitleSettings.forceActiveFocus()
             subtitleSettings.focusRow(0)
         })
     }

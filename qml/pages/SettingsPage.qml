@@ -446,6 +446,10 @@ FocusScope {
     focus: true
     onActiveFocusChanged: if (activeFocus)
     focusRow(currentIndex)
+    onVisibleChanged: if (visible)
+    Qt.callLater(function () {
+        focusRow(currentIndex)
+    })
     Component.onCompleted: Qt.callLater(function () {
         rebuildSettingsRows()
         focusRow(0)
@@ -483,11 +487,11 @@ FocusScope {
 
     Rectangle {
         id: subtitlePreviewBackground
-        visible: root.subtitleEditor && !root.playbackPreview && Settings.values["subtitles/textBackground"]
-        !== "transparent"
+        visible: root.subtitleEditor && !root.playbackPreview && Settings.values["subtitles/verticalPositionPercent"]
+        !== undefined
         anchors.horizontalCenter: parent.horizontalCenter
-        anchors.bottom: parent.bottom
-        anchors.bottomMargin: Metrics.scaled(46 + Number(Settings.values["subtitles/verticalPosition"] || 0))
+        y: Math.round((parent.height - height) * Number(Settings.values["subtitles/verticalPositionPercent"] || 0)
+                      / 100)
         width: subtitlePreviewText.implicitWidth + Metrics.scaled(24)
         height: subtitlePreviewText.implicitHeight + Metrics.scaled(12)
         radius: Theme.radiusSmall
@@ -497,6 +501,7 @@ FocusScope {
     AppText {
         id: subtitlePreviewText
         visible: root.subtitleEditor && !root.playbackPreview
+        anchors.centerIn: subtitlePreviewBackground
         text: "This is how your subtitles will look."
         font.family: root.previewFontFamily()
         font.pixelSize: root.previewTextSize()
