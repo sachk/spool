@@ -122,7 +122,7 @@ webos_pgo_flags() {
       printf '%s\n' "-fprofile-generate=$profile_dir"
       ;;
     use)
-      printf '%s\n' "-fprofile-use=$profile_dir -fprofile-correction -Wno-error=missing-profile"
+      printf '%s\n' "-fprofile-use=$profile_dir -fprofile-correction -fprofile-partial-training -freorder-functions -Wno-error=missing-profile"
       ;;
     *)
       echo "error: ${mode_var} must be one of: generate, use, off (got '$mode')" >&2
