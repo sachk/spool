@@ -1,6 +1,5 @@
 #include "MpvVideoItem.h"
 
-#include <QElapsedTimer>
 #include <QEventLoop>
 #include <QMutexLocker>
 #include <QOpenGLContext>
@@ -85,7 +84,7 @@ namespace {
             if (!fbo)
                 return;
 
-            mpv_opengl_fbo mpfbo { };
+            mpv_opengl_fbo mpfbo {};
             mpfbo.fbo = static_cast<int>(fbo->handle());
             mpfbo.w = fbo->width();
             mpfbo.h = fbo->height();
@@ -96,33 +95,17 @@ namespace {
                 { MPV_RENDER_PARAM_INVALID, nullptr },
             };
 
-            const bool measureRender = m_item->m_diagnosticsEnabled.load(std::memory_order_relaxed);
-            QElapsedTimer renderTimer;
-            if (measureRender)
-                renderTimer.start();
-
             if (m_window)
                 m_window->beginExternalCommands();
             mpv_render_context_render(ctx, params);
             if (m_window)
                 m_window->endExternalCommands();
-
-            if (measureRender) {
-                const auto elapsed = static_cast<quint64>(renderTimer.nsecsElapsed());
-                m_item->m_renderFrames.fetch_add(1, std::memory_order_relaxed);
-                m_item->m_renderNanoseconds.fetch_add(elapsed, std::memory_order_relaxed);
-                quint64 previousMax = m_item->m_maxRenderNanoseconds.load(std::memory_order_relaxed);
-                while (elapsed > previousMax
-                    && !m_item->m_maxRenderNanoseconds.compare_exchange_weak(
-                        previousMax, elapsed, std::memory_order_relaxed)) {
-                }
-            }
         }
 
     private:
         void createRenderContext(mpv_handle *next)
         {
-            mpv_opengl_init_params glInit { };
+            mpv_opengl_init_params glInit {};
             glInit.get_proc_address = &getProcAddressGl;
             // Deliberately do NOT set MPV_RENDER_PARAM_ADVANCED_CONTROL.
             //
@@ -191,8 +174,6 @@ namespace {
         static void onMpvUpdate(void *ctx)
         {
             auto *item = static_cast<MpvVideoItem *>(ctx);
-            if (item->m_diagnosticsEnabled.load(std::memory_order_relaxed))
-                item->m_renderRequests.fetch_add(1, std::memory_order_relaxed);
             QMetaObject::invokeMethod(item, "update", Qt::QueuedConnection);
         }
 
@@ -225,23 +206,6 @@ MpvVideoItem::~MpvVideoItem()
 MpvVideoItem *MpvVideoItem::instance()
 {
     return s_instance;
-}
-
-void MpvVideoItem::setDiagnosticsEnabled(bool enabled)
-{
-    m_diagnosticsEnabled.store(enabled, std::memory_order_relaxed);
-    if (!enabled)
-        takeRenderDiagnostics();
-}
-
-MpvVideoItem::RenderDiagnostics MpvVideoItem::takeRenderDiagnostics()
-{
-    return {
-        m_renderRequests.exchange(0, std::memory_order_relaxed),
-        m_renderFrames.exchange(0, std::memory_order_relaxed),
-        m_renderNanoseconds.exchange(0, std::memory_order_relaxed),
-        m_maxRenderNanoseconds.exchange(0, std::memory_order_relaxed),
-    };
 }
 
 void MpvVideoItem::setMpvHandle(mpv_handle *handle)

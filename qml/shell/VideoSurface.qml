@@ -38,13 +38,6 @@ FocusScope {
         z: 0
     }
 
-    PlaybackDiagnosticsOverlay {
-        anchors.fill: parent
-        visible: root.active && Player.debugOsdVisible
-        stats: Player.debugStats
-        z: 1
-    }
-
     PlayerOverlayPage {
         id: playerOverlay
         anchors.fill: parent

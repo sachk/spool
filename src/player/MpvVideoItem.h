@@ -23,13 +23,6 @@ class MpvVideoItem : public QQuickFramebufferObject {
     QML_NAMED_ELEMENT(MpvVideoItem)
 
 public:
-    struct RenderDiagnostics {
-        quint64 requests = 0;
-        quint64 frames = 0;
-        quint64 totalNanoseconds = 0;
-        quint64 maxNanoseconds = 0;
-    };
-
     explicit MpvVideoItem(QQuickItem *parent = nullptr);
     ~MpvVideoItem() override;
 
@@ -42,8 +35,6 @@ public:
     bool releaseMpvHandle(int timeoutMs = 5000);
 
     static MpvVideoItem *instance();
-    void setDiagnosticsEnabled(bool enabled);
-    RenderDiagnostics takeRenderDiagnostics();
 
     Renderer *createRenderer() const override;
 
@@ -60,11 +51,6 @@ public:
     // Published for lifecycle diagnostics. Creation and destruction happen
     // exclusively in Renderer::render(), with the original GL context current.
     std::atomic<mpv_render_context *> m_renderCtxAtomic { nullptr };
-    std::atomic_bool m_diagnosticsEnabled { false };
-    std::atomic<quint64> m_renderRequests { 0 };
-    std::atomic<quint64> m_renderFrames { 0 };
-    std::atomic<quint64> m_renderNanoseconds { 0 };
-    std::atomic<quint64> m_maxRenderNanoseconds { 0 };
 
 signals:
     void renderError(const QString& message);
