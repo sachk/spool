@@ -710,6 +710,13 @@ void ArtworkService::startDecode(ArtworkImageResponse *response, QByteArray byte
 
 void ArtworkService::finishTiming(Timing timing)
 {
+    if (QThread::currentThread() != thread()) {
+        QMetaObject::invokeMethod(
+            this, [this, timing = std::move(timing)]() mutable { finishTiming(std::move(timing)); },
+            Qt::QueuedConnection);
+        return;
+    }
+
     m_timingBatch.push_back(std::move(timing));
     m_timingBatchTimer.start();
 }
