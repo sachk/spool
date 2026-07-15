@@ -745,6 +745,11 @@ int main(int argc, char **argv)
     networkAccessManager->setCache(diskCache);
 
     JellyfinNative::DatabaseManager database;
+    QObject::connect(
+        &database, &JellyfinNative::DatabaseManager::initializationFailed, &app, [&app](const QString& message) {
+            logLine("database initialization failed: %s", qPrintable(message));
+            app.exit(1);
+        });
     JellyfinNative::InputLatencyMonitor inputLatencyMonitor;
     JellyfinNative::NativeAppWindow window(QString::fromLatin1(kAppId));
     inputLatencyMonitor.attachWindow(&window);

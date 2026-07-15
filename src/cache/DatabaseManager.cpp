@@ -8,6 +8,7 @@
 #include <QFileInfo>
 #include <QJsonDocument>
 #include <QMetaObject>
+#include <QPointer>
 #include <QPromise>
 #include <QSqlDatabase>
 #include <QSqlError>
@@ -95,7 +96,7 @@ public:
         query.prepare(QStringLiteral("SELECT value FROM kv WHERE key = ?"));
         query.addBindValue(key);
         if (!query.exec() || !query.next())
-            return { };
+            return {};
         return query.value(0);
     }
 
@@ -117,7 +118,7 @@ public:
         query.addBindValue(key);
         query.addBindValue(schemaVersion);
         if (!query.exec() || !query.next())
-            return { };
+            return {};
         return QJsonDocument::fromJson(query.value(0).toByteArray()).object();
     }
 
@@ -163,7 +164,7 @@ public:
         query.addBindValue(nameSpace);
         query.addBindValue(key);
         if (!query.exec() || !query.next())
-            return { };
+            return {};
 
         const qint64 updatedAt = query.value(1).toLongLong();
         const qint64 expiresAt = query.value(2).toLongLong();
@@ -171,7 +172,7 @@ public:
         const bool stale = maxAgeMs >= 0 && updatedAt < now - maxAgeMs;
         if (expired || stale) {
             removeCacheValue(nameSpace, key);
-            return { };
+            return {};
         }
 
         const QByteArray result = query.value(0).toByteArray();
@@ -261,7 +262,7 @@ public:
         if (m_database.isValid()) {
             const QString connectionName = m_database.connectionName();
             m_database.close();
-            m_database = { };
+            m_database = {};
             QSqlDatabase::removeDatabase(connectionName);
         }
     }
@@ -335,10 +336,32 @@ bool DatabaseManager::initialize(const QString& databasePath)
     m_thread.setObjectName(QStringLiteral("database-worker"));
     m_thread.start();
 
-    bool success = false;
-    QMetaObject::invokeMethod(
-        m_worker, [&]() { success = m_worker->initialize(databasePath); }, Qt::BlockingQueuedConnection);
-    return success;
+    auto promise = std::make_shared<QPromise<bool>>();
+    promise->start();
+    m_initializationFuture = promise->future();
+    QPointer<DatabaseManager> manager(this);
+    QMetaObject::invokeMethod(m_worker, [manager, worker = m_worker, databasePath, promise]() {
+        const bool success = worker->initialize(databasePath);
+        promise->addResult(success);
+        promise->finish();
+        if (success)
+            return;
+        QMetaObject::invokeMethod(
+            manager,
+            [manager]() {
+                if (manager)
+                    emit manager->initializationFailed(QStringLiteral("Could not open the application database"));
+            },
+            Qt::QueuedConnection);
+    });
+    return true;
+}
+
+QCoro::Task<bool> DatabaseManager::awaitInitialization()
+{
+    if (!m_initializationFuture.isValid())
+        co_return false;
+    co_return co_await m_initializationFuture;
 }
 
 void DatabaseManager::shutdown()
@@ -356,6 +379,8 @@ void DatabaseManager::shutdown()
 
 QCoro::Task<QString> DatabaseManager::loadLastServerUrlAsync()
 {
+    if (!co_await awaitInitialization())
+        co_return QString();
     DatabaseWorker *worker = m_worker;
     co_return co_await workerTask(worker,
         [worker]() { return worker ? worker->value(QStringLiteral("login/serverUrl")).toString() : QString(); });
@@ -363,6 +388,8 @@ QCoro::Task<QString> DatabaseManager::loadLastServerUrlAsync()
 
 QCoro::Task<QString> DatabaseManager::loadLastUsernameAsync()
 {
+    if (!co_await awaitInitialization())
+        co_return QString();
     DatabaseWorker *worker = m_worker;
     co_return co_await workerTask(
         worker, [worker]() { return worker ? worker->value(QStringLiteral("login/username")).toString() : QString(); });
@@ -378,6 +405,8 @@ void DatabaseManager::saveLoginHints(const QString& serverUrl, const QString& us
 
 QCoro::Task<AuthSession> DatabaseManager::loadAuthSessionAsync()
 {
+    if (!co_await awaitInitialization())
+        co_return AuthSession {};
     DatabaseWorker *worker = m_worker;
     co_return co_await workerTask(
         worker, [worker]() { return worker ? authSessionFromWorker(worker) : AuthSession(); });
@@ -405,6 +434,8 @@ void DatabaseManager::clearAuthSession()
 
 QCoro::Task<QString> DatabaseManager::loadDeviceIdAsync()
 {
+    if (!co_await awaitInitialization())
+        co_return QString();
     DatabaseWorker *worker = m_worker;
     co_return co_await workerTask(worker,
         [worker]() { return worker ? worker->value(QStringLiteral("client/deviceId")).toString() : QString(); });
@@ -417,6 +448,8 @@ void DatabaseManager::saveDeviceId(const QString& deviceId)
 
 QCoro::Task<QJsonArray> DatabaseManager::loadDiscoveredServersAsync()
 {
+    if (!co_await awaitInitialization())
+        co_return QJsonArray();
     DatabaseWorker *worker = m_worker;
     co_return co_await workerTask(worker, [worker]() {
         if (!worker)
@@ -442,6 +475,8 @@ void DatabaseManager::saveDiscoveredServers(const QJsonArray& servers)
 
 QCoro::Task<QJsonObject> DatabaseManager::loadHomePayloadAsync(const QString& key, int schemaVersion)
 {
+    if (!co_await awaitInitialization())
+        co_return QJsonObject();
     if (key.isEmpty())
         co_return QJsonObject();
     DatabaseWorker *worker = m_worker;
@@ -464,6 +499,8 @@ void DatabaseManager::invalidateHomePayloads()
 
 QCoro::Task<QString> DatabaseManager::loadSettingAsync(const QString& key, const QString& defaultValue)
 {
+    if (!co_await awaitInitialization())
+        co_return defaultValue;
     DatabaseWorker *worker = m_worker;
     co_return co_await workerTask(worker,
         [worker, key, defaultValue]() { return worker ? settingFromWorker(worker, key, defaultValue) : defaultValue; });
@@ -476,6 +513,8 @@ void DatabaseManager::saveSetting(const QString& key, const QString& value)
 
 QCoro::Task<int> DatabaseManager::schemaVersionAsync()
 {
+    if (!co_await awaitInitialization())
+        co_return 0;
     DatabaseWorker *worker = m_worker;
     co_return co_await workerTask(worker, [worker]() { return worker ? worker->schemaVersion() : 0; });
 }
@@ -483,6 +522,8 @@ QCoro::Task<int> DatabaseManager::schemaVersionAsync()
 QCoro::Task<QByteArray> DatabaseManager::loadCacheEntryAsync(
     const QString& nameSpace, const QString& key, qint64 maxAgeMs)
 {
+    if (!co_await awaitInitialization())
+        co_return QByteArray();
     DatabaseWorker *worker = m_worker;
     co_return co_await workerTask(worker, [worker, nameSpace, key, maxAgeMs]() {
         return worker ? worker->cacheValue(nameSpace, key, maxAgeMs) : QByteArray();

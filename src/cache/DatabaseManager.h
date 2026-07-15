@@ -2,6 +2,7 @@
 
 #include <QByteArray>
 #include <QCoroTask>
+#include <QFuture>
 #include <QJsonArray>
 #include <QJsonObject>
 #include <QMetaObject>
@@ -54,7 +55,11 @@ public:
     void invalidateCacheNamespace(const QString& nameSpace);
     void evictCacheEntries(int maximumEntries);
 
+signals:
+    void initializationFailed(QString message);
+
 private:
+    QCoro::Task<bool> awaitInitialization();
     template <typename Callback> void invokeOnWorkerAsync(Callback&& callback)
     {
         QMetaObject::invokeMethod(m_worker, std::forward<Callback>(callback), Qt::QueuedConnection);
@@ -62,6 +67,7 @@ private:
 
     QThread m_thread;
     DatabaseWorker *m_worker = nullptr;
+    QFuture<bool> m_initializationFuture;
 };
 
 } // namespace JellyfinNative

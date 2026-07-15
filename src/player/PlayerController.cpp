@@ -237,6 +237,10 @@ PlayerController::PlayerController(NativeAppWindow *window, JellyfinApiFacade *a
     , m_api(api)
     , m_reporter(api, this)
 {
+#ifdef JELLYFIN_NATIVE_WEBOS
+    m_idleMpvPreparationEnabled = qEnvironmentVariable("JELLYFIN_DISABLE_IDLE_MPV") != QLatin1String("1");
+    qInfo() << "player: idle mpv preparation" << (m_idleMpvPreparationEnabled ? "enabled" : "disabled");
+#endif
     m_progressTimer.setInterval(5000);
     m_uiPositionTimer.setInterval(250);
     m_backGuardTimer.setSingleShot(true);
