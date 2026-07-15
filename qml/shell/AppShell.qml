@@ -8,6 +8,7 @@ KeyRouter {
     id: root
     focus: true
     backspaceNavigatesInTextInput: NativeWindow.smartTvPlatform
+    webOsColorScanCodes: NativeWindow.smartTvPlatform
 
     readonly property string route: Router.route
     readonly property var routeArgs: Router.args || ({})

@@ -49,6 +49,7 @@ TestCase {
         keyRouter.backClaimed = false
         keyRouter.textInputActive = false
         keyRouter.backspaceNavigatesInTextInput = false
+        keyRouter.webOsColorScanCodes = false
     }
 
     function test_directionUsesRouterHelper() {
@@ -82,6 +83,18 @@ TestCase {
         keyRouter.textInputActive = true
 
         verify(!keyRouter.backspaceNavigates())
+    }
+
+    function test_webOSColorScansNormalizeAsQtColorKeys() {
+        keyRouter.webOsColorScanCodes = true
+        const scans = [406, 407, 408, 409]
+        const keys = [Qt.Key_Red, Qt.Key_Green, Qt.Key_Yellow, Qt.Key_Blue]
+        for (let index = 0; index < scans.length; ++index)
+            compare(keyRouter.normalizedKey({
+                                                "key": 0,
+                                                "nativeScanCode": scans[index],
+                                                "nativeVirtualKey": 0
+                                            }), keys[index])
     }
 
     function test_acceptActivatesOnRelease() {

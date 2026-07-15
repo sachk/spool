@@ -7,6 +7,7 @@ FocusScope {
     property var activeTarget: null
     property bool textInputActive: false
     property bool backspaceNavigatesInTextInput: false
+    property bool webOsColorScanCodes: false
     property var backHandler: null
     property var globalHandler: null
     property int longPressInterval: 520
@@ -24,6 +25,17 @@ FocusScope {
     }
 
     function normalizedKey(event) {
+        if (webOsColorScanCodes && event.key === 0) {
+            const scanCode = Number(event.nativeScanCode || 0)
+            if (scanCode === 406)
+                return Qt.Key_Red
+            if (scanCode === 407)
+                return Qt.Key_Green
+            if (scanCode === 408)
+                return Qt.Key_Yellow
+            if (scanCode === 409)
+                return Qt.Key_Blue
+        }
         if (InputKeys.isIgnoredPlayerNoise(event))
             return 0
         return InputKeys.isBackEvent(event, backspaceNavigates()) ? Qt.Key_Back : event.key
@@ -82,15 +94,7 @@ FocusScope {
         return claimed
     }
 
-    function logKeyEvent(event, phase) {
-        console.info("key-diagnostic:", "phase=" + phase, "key=" + Number(event.key || 0), "scan=" + Number(
-                         event.nativeScanCode || 0), "virtual=" + Number(event.nativeVirtualKey || 0), "modifiers="
-                     + Number(event.modifiers || 0), "repeat=" + Boolean(event.isAutoRepeat), "text=" + String(
-                         event.text || ""))
-    }
-
     function dispatch(event, phase) {
-        logKeyEvent(event, phase)
         const key = normalizedKey(event)
         const repeat = Boolean(event.isAutoRepeat)
         if (key === 0)
