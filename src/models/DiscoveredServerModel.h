@@ -3,6 +3,7 @@
 #include "../common/JellyfinTypes.h"
 
 #include <QAbstractListModel>
+#include <QSet>
 
 #include <vector>
 
@@ -16,6 +17,7 @@ public:
         IdRole = Qt::UserRole + 1,
         NameRole,
         AddressRole,
+        OnlineRole,
     };
 
     explicit DiscoveredServerModel(QObject *parent = nullptr);
@@ -24,14 +26,15 @@ public:
     QVariant data(const QModelIndex& index, int role) const override;
     QHash<int, QByteArray> roleNames() const override;
 
-    void setServers(const std::vector<DiscoveredServer>& servers);
-    void upsertServer(const DiscoveredServer& server);
+    void setServers(const std::vector<DiscoveredServer>& servers, bool online = true);
+    void upsertServer(const DiscoveredServer& server, bool online = true);
     void clear();
     DiscoveredServer serverAt(int index) const;
     std::vector<DiscoveredServer> servers() const;
 
 private:
     std::vector<DiscoveredServer> m_servers;
+    QSet<QString> m_onlineServers;
 };
 
 } // namespace JellyfinNative

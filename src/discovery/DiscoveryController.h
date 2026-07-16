@@ -9,25 +9,39 @@
 #include <QSet>
 #include <QTimer>
 #include <QUdpSocket>
+#include <QUrl>
 
 namespace JellyfinNative {
 
 class DiscoveryController final : public QObject {
     Q_OBJECT
     Q_PROPERTY(bool active READ active NOTIFY activeChanged)
+    Q_PROPERTY(bool serverProbeActive READ serverProbeActive NOTIFY serverProbeActiveChanged)
 
 public:
     explicit DiscoveryController(QObject *parent = nullptr);
     ~DiscoveryController() override;
 
     bool active() const;
+    bool serverProbeActive() const;
+
+    static QList<QUrl> serverProbeCandidates(const QString& input);
+    static QList<QHostAddress> httpFallbackTargets(
+        const QHostAddress& address, const QHostAddress& netmask, int maxTargets = 1022);
+    static DiscoveredServer serverFromPublicInfo(const QByteArray& payload, const QUrl& serverUrl, QString *version);
 
     Q_INVOKABLE void start();
     Q_INVOKABLE void stop();
+    Q_INVOKABLE void probeServer(const QString& input);
+    Q_INVOKABLE void cancelServerProbe();
 
 signals:
     void activeChanged();
+    void serverProbeActiveChanged();
     void serverDiscovered(const JellyfinNative::DiscoveredServer& server);
+    void serverProbeSucceeded(
+        const QString& input, const JellyfinNative::DiscoveredServer& server, const QString& version, bool plainHttp);
+    void serverProbeFailed(const QString& input, const QString& message);
 
 private slots:
     void sendProbe();
@@ -39,6 +53,8 @@ private:
     void enqueueHttpProbeTarget(const QHostAddress& address);
     void pumpHttpProbeQueue();
     void handleHttpProbeResult(const QString& serverUrl, const QByteArray& payload);
+    void startNextServerProbe();
+    void finishServerProbe(bool notifyFailure);
 
     QUdpSocket m_socket;
     QTimer m_rescanTimer;
@@ -47,6 +63,9 @@ private:
     QQueue<QHostAddress> m_httpProbeQueue;
     QSet<QString> m_enqueuedHttpProbeTargets;
     QSet<QNetworkReply *> m_httpProbeReplies;
+    QQueue<QUrl> m_serverProbeCandidates;
+    QNetworkReply *m_serverProbeReply = nullptr;
+    QString m_serverProbeInput;
     int m_inFlightHttpProbes = 0;
     bool m_active = false;
 };

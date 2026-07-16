@@ -16,6 +16,8 @@ FocusScope {
     property string manualServerDraft: ""
     property string manualServerAddress: ""
     property string manualServerStatus: ""
+    property string manualServerVersion: ""
+    property string manualProbeInput: ""
 
     readonly property bool hasSavedPair: App.hasDefaultProfile && Session.serverUrl.length > 0
     readonly property bool textInputActive: shell ? shell.textInputActive : Qt.inputMethod.visible
@@ -28,13 +30,6 @@ FocusScope {
                                                                                      ? Session.serverUrl : ""
 
     focus: true
-
-    function normalizeServerUrl(value) {
-        const trimmed = String(value || "").trim()
-        if (trimmed.length === 0)
-            return ""
-        return /^https?:\/\//i.test(trimmed) ? trimmed : "https://" + trimmed
-    }
 
     function enterProfile() {
         if (App.useDefaultProfile() && shell)
@@ -57,22 +52,23 @@ FocusScope {
     }
 
     function submitManualServer() {
-        const address = normalizeServerUrl(manualServerDraft)
+        const address = String(manualServerDraft || "").trim()
         if (address.length === 0)
             return
+        manualProbeInput = address
         manualServerAddress = address
         manualServerStatus = "Checking"
-        selectedServerName = savedServerName
-        selectedServerAddress = address
-        Session.serverUrl = address
-        manualProbe.restart()
+        manualServerVersion = ""
+        selectedServerName = ""
+        selectedServerAddress = ""
+        Discovery.probeServer(address)
         Qt.callLater(function () {
             InputKeys.focus(manualServerCard)
         })
     }
 
     function chooseManualServer() {
-        if (!manualServerVisible || manualServerStatus !== "Online")
+        if (!manualServerVisible || manualServerStatus.indexOf("Online") !== 0)
             return
         selectedServerName = savedServerName
         selectedServerAddress = manualServerAddress
@@ -83,9 +79,14 @@ FocusScope {
         })
     }
 
-    function chooseDiscoveredServer(index, name, address) {
+    function chooseDiscoveredServer(index, name, address, online) {
         if (index < 0)
             return
+        if (!online) {
+            manualServerDraft = address
+            submitManualServer()
+            return
+        }
         App.chooseDiscoveredServer(index)
         selectedServerName = name && name.length > 0 ? name : savedServerName
         selectedServerAddress = address
@@ -212,11 +213,27 @@ FocusScope {
         }
     }
 
-    Timer {
-        id: manualProbe
-        interval: 650
-        repeat: false
-        onTriggered: manualServerStatus = "Online"
+    Connections {
+        target: Discovery
+
+        function onServerProbeSucceeded(input, server, version, plainHttp) {
+            if (input !== root.manualProbeInput)
+                return
+            root.manualServerAddress = server.address
+            root.manualServerStatus = plainHttp ? "Online · HTTP" : "Online"
+            root.manualServerVersion = version
+            root.selectedServerName = server.name
+            root.selectedServerAddress = server.address
+            Session.serverUrl = server.address
+        }
+
+        function onServerProbeFailed(input, message) {
+            if (input !== root.manualProbeInput)
+                return
+            root.manualServerAddress = root.manualProbeInput
+            root.manualServerStatus = "Not found"
+            root.manualServerVersion = message
+        }
     }
 
     Component.onCompleted: Qt.callLater(function () {
@@ -347,7 +364,7 @@ FocusScope {
                 id: urlRow
                 Layout.fillWidth: true
                 label: "URL"
-                placeholderText: "https://jellyfin.example.com"
+                placeholderText: "192.168.1.10:8096 or https://jellyfin.example.com"
                 text: root.manualServerDraft
                 inputMethodHints: Qt.ImhUrlCharactersOnly | Qt.ImhNoPredictiveText | Qt.ImhNoAutoUppercase
                 onTextEdited: root.manualServerDraft = text
@@ -359,10 +376,11 @@ FocusScope {
                 Layout.fillWidth: true
                 visible: root.manualServerVisible
                 focus: false
-                title: root.savedServerName
+                title: root.selectedServerName.length > 0 ? root.selectedServerName : root.savedServerName
                 address: root.manualServerAddress
                 status: root.manualServerStatus
-                selectable: root.manualServerStatus === "Online"
+                detail: root.manualServerVersion
+                selectable: root.manualServerStatus.indexOf("Online") === 0
                 onAccepted: root.chooseManualServer()
             }
 
@@ -393,19 +411,20 @@ FocusScope {
                     required property int index
                     required property string name
                     required property string address
+                    required property bool online
 
                     width: discoveredList.width
                     title: name.length > 0 ? name : root.savedServerName
                     address: address
-                    status: "Online"
+                    status: online ? "Online" : "Saved"
                     focused: ListView.isCurrentItem && discoveredList.activeFocus
-                    onAccepted: root.chooseDiscoveredServer(index, title, address)
+                    onAccepted: root.chooseDiscoveredServer(index, title, address, online)
 
                     MouseArea {
                         anchors.fill: parent
                         onClicked: {
                             discoveredList.currentIndex = index
-                            root.chooseDiscoveredServer(index, title, address)
+                            root.chooseDiscoveredServer(index, title, address, online)
                         }
                     }
                 }
@@ -542,13 +561,14 @@ FocusScope {
         property string title: ""
         property string address: ""
         property string status: ""
+        property string detail: ""
         property bool selectable: true
         property bool focused: activeFocus
         property bool pointerHovered: hover.hovered
 
         signal accepted
 
-        implicitHeight: Metrics.scaled(94)
+        implicitHeight: Metrics.scaled(choice.detail.length > 0 ? 112 : 94)
         focusPolicy: Qt.StrongFocus
 
         Rectangle {
@@ -593,11 +613,22 @@ FocusScope {
                     maximumLineCount: 1
                     elide: Text.ElideRight
                 }
+
+                MonoText {
+                    Layout.fillWidth: true
+                    visible: choice.detail.length > 0
+                    text: choice.detail
+                    color: Theme.textMuted
+                    font.pixelSize: Metrics.metaSizePx
+                    maximumLineCount: 1
+                    elide: Text.ElideRight
+                }
             }
 
             AppText {
                 text: choice.status
-                color: choice.status === "Online" ? Theme.success : Theme.textSecondary
+                color: choice.status.indexOf("Online") === 0 ? Theme.success : choice.status === "Not found"
+                                                               ? Theme.errorText : Theme.textSecondary
                 font.pixelSize: Metrics.metaSizePx + Metrics.scaled(3)
                 font.weight: Font.Medium
                 maximumLineCount: 1

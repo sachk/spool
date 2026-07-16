@@ -979,6 +979,7 @@ int main(int argc, char **argv)
     qmlRegisterSingletonInstance("JellyfinWebOS", 1, 0, "Search", controller->search());
     qmlRegisterSingletonInstance("JellyfinWebOS", 1, 0, "Libraries", controller->libraries());
     qmlRegisterSingletonInstance("JellyfinWebOS", 1, 0, "DiscoveredServers", controller->discoveredServers());
+    qmlRegisterSingletonInstance("JellyfinWebOS", 1, 0, "Discovery", discovery.get());
     qmlRegisterSingletonInstance("JellyfinWebOS", 1, 0, "Session", controller->session());
     qmlRegisterSingletonInstance("JellyfinWebOS", 1, 0, "QuickConnect", controller->quickConnect());
     qmlRegisterSingletonInstance("JellyfinWebOS", 1, 0, "Settings", controller->settings());

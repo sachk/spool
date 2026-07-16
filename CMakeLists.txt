@@ -565,6 +565,7 @@ if(BUILD_TESTING AND NOT CMAKE_CROSSCOMPILING)
         router-controller tests/app/RouterControllerTest.cpp
         library-query tests/app/LibraryQueryTest.cpp
         content-model-controller tests/app/ContentModelControllerTest.cpp
+        discovery-controller tests/discovery/DiscoveryControllerTest.cpp
         sync-play-clock tests/app/SyncPlayClockTest.cpp
         request-generation tests/common/RequestGenerationTest.cpp
         browse-descriptor tests/common/BrowseDescriptorTest.cpp

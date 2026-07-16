@@ -584,7 +584,7 @@ QCoro::Task<void> AppController::applyDiscoveredServersCacheAsync()
     parsed.reserve(servers.size());
     for (const auto& value : servers)
         parsed.push_back(metaFromJson<DiscoveredServer>(value.toObject()));
-    m_discoveredServers.setServers(parsed);
+    m_discoveredServers.setServers(parsed, false);
 }
 
 void AppController::loadLibraries()
