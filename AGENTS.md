@@ -17,6 +17,6 @@
 ## webOS
 
 - Do not build, install, launch, deploy, or test on a TV unless the user explicitly requests it. "Deploy" means install-only; never launch unless separately asked.
-- For a requested deployment: fresh package via `build-ipk.sh app`/`stage`/`package`, then install with `tools/webos/verify-device.sh --no-launch <ipk>`.
+- For a requested deployment: run one complete fresh `build-ipk.sh all`; never invoke the `app`, `stage`, and `package` phases separately. Then install with `tools/webos/verify-device.sh --no-launch <ipk>`.
 - If webOS diagnosis is requested, read current logs first and make one targeted change — no speculative deploy loops.
 - Never write to TV partitions, patch package metadata, restart system services, or wipe app/user data.
