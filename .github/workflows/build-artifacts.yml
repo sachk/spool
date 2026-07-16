@@ -149,12 +149,14 @@ jobs:
       # Older Nix releases reject the relative path input recorded by newer
       # lock files when the root flake comes from a shallow Git checkout.
       # Override only the evaluator input with the exact checked-out submodule
-      # revision; the build scripts still compile the local mpv/ checkout.
+      # revision; explicitly retain its shallow status rather than asking Nix
+      # to treat the CI checkout as a complete repository. The build scripts
+      # still compile the local mpv/ checkout.
       - name: Resolve checked-out mpv input
         run: |
           revision="$(git -C mpv rev-parse HEAD)"
           mv flake.lock flake.lock.repository
-          nix flake lock --override-input mpv-src "git+file:$PWD/mpv?rev=$revision"
+          nix flake lock --override-input mpv-src "git+file:$PWD/mpv?rev=$revision&shallow=1"
 
       - name: Build macOS app
         run: nix develop .#native --no-write-lock-file -c bash tools/build-macos.sh
