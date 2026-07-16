@@ -543,7 +543,6 @@ QCoro::Task<PagedMovieItems> JellyfinApiFacade::fetchBrowsePage(
         builder.recursive()
             .add(QStringLiteral("personIds"), descriptor.id)
             .includeItemTypes(QStringLiteral("Movie,Series,Episode"))
-            .mediaTypes(QStringLiteral("Video"))
             .sort(QStringLiteral("SortName"));
         allowedTypes = itemTypesList(QStringLiteral("Movie,Series,Episode"));
         break;
@@ -845,10 +844,54 @@ QCoro::Task<std::vector<MovieItem>> JellyfinApiFacade::fetchSimilarItems(QString
     co_return result;
 }
 
-QCoro::Task<std::vector<MovieItem>> JellyfinApiFacade::fetchItemsByPerson(QString personId, int limit)
+QCoro::Task<PersonCredits> JellyfinApiFacade::fetchItemsByPerson(QString personId, int maximumItems)
 {
-    const PagedMovieItems page = co_await fetchBrowsePage(BrowseDescriptor::person(personId), 0, limit);
-    co_return page.items;
+    PersonCredits credits;
+    if (personId.isEmpty())
+        co_return credits;
+
+    const int boundedMaximum = std::clamp(maximumItems, 1, 10000);
+    int startIndex = 0;
+    while (startIndex < boundedMaximum) {
+        const int pageLimit = std::min(200, boundedMaximum - startIndex);
+        PagedMovieItems page = co_await fetchBrowsePage(BrowseDescriptor::person(personId), startIndex, pageLimit);
+        if (page.items.empty())
+            break;
+        startIndex += static_cast<int>(page.items.size());
+        credits.items.insert(credits.items.end(), std::make_move_iterator(page.items.begin()),
+            std::make_move_iterator(page.items.end()));
+        if ((page.totalRecordCount > 0 && startIndex >= page.totalRecordCount)
+            || static_cast<int>(page.items.size()) < pageLimit)
+            break;
+    }
+
+    QSet<QString> seriesIds;
+    for (const MovieItem& item : credits.items) {
+        if (item.itemType == QStringLiteral("Episode") && !item.seriesId.isEmpty())
+            seriesIds.insert(item.seriesId);
+    }
+
+    const QStringList ids = seriesIds.values();
+    for (qsizetype offset = 0; offset < ids.size(); offset += 200) {
+        const QStringList batch = ids.sliced(offset, std::min<qsizetype>(200, ids.size() - offset));
+        QUrlQuery query = ItemsQuery()
+                              .userId(m_session.userId)
+                              .includeItemTypes(QStringLiteral("Series"))
+                              .fields(libraryItemFields() + QStringLiteral(",RecursiveItemCount"))
+                              .images()
+                              .limit(batch.size(), 200)
+                              .add(QStringLiteral("ids"), batch.join(QLatin1Char(',')))
+                              .toUrlQuery();
+        const QJsonArray items = (co_await requestJson(HttpMethod::Get, QStringLiteral("/Items"), query))
+                                     .object()
+                                     .value(QStringLiteral("Items"))
+                                     .toArray();
+        std::vector<MovieItem> series = mediaItemsFromJson(items, { QStringLiteral("Series") });
+        credits.relatedSeries.insert(credits.relatedSeries.end(), std::make_move_iterator(series.begin()),
+            std::make_move_iterator(series.end()));
+    }
+
+    co_return credits;
 }
 
 QCoro::Task<std::vector<MovieItem>> JellyfinApiFacade::fetchManagementTargets(QString itemType)

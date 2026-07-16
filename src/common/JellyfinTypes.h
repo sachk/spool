@@ -214,6 +214,7 @@ struct MovieItem {
     Q_PROPERTY(QString officialRating MEMBER officialRating)
     Q_PROPERTY(double communityRating MEMBER communityRating)
     Q_PROPERTY(double criticRating MEMBER criticRating)
+    Q_PROPERTY(int recursiveItemCount MEMBER recursiveItemCount)
     Q_PROPERTY(QString premiereDate MEMBER premiereDate)
     Q_PROPERTY(QString endDate MEMBER endDate)
     Q_PROPERTY(QList<JellyfinNative::PersonItem> people MEMBER people)
@@ -249,6 +250,7 @@ public:
     QString officialRating;
     double communityRating = 0.0;
     double criticRating = 0.0;
+    int recursiveItemCount = 0;
     QString premiereDate;
     QString endDate;
     QList<PersonItem> people;
@@ -258,6 +260,11 @@ public:
     QString subtitle() const;
 
     friend bool operator==(const MovieItem&, const MovieItem&) = default;
+};
+
+struct PersonCredits {
+    std::vector<MovieItem> items;
+    std::vector<MovieItem> relatedSeries;
 };
 
 bool isPlayableItem(const MovieItem& item);

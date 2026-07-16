@@ -15,6 +15,7 @@
 #include <QNetworkAccessManager>
 #include <QNetworkReply>
 #include <QNetworkRequest>
+#include <QSet>
 #include <QTimer>
 #include <QUrlQuery>
 
@@ -83,6 +84,31 @@ QJsonObject seriesObject()
         { QStringLiteral("Id"), QStringLiteral("series-1") },
         { QStringLiteral("Name"), QStringLiteral("Series One") },
         { QStringLiteral("Type"), QStringLiteral("Series") },
+    };
+}
+
+QJsonObject personEpisodeObject(
+    const QString& id, const QString& seriesId, const QString& seriesName, int seasonNumber, int episodeNumber)
+{
+    return {
+        { QStringLiteral("Id"), id },
+        { QStringLiteral("Name"), QStringLiteral("Episode %1").arg(episodeNumber) },
+        { QStringLiteral("Type"), QStringLiteral("Episode") },
+        { QStringLiteral("SeriesId"), seriesId },
+        { QStringLiteral("SeasonId"), QStringLiteral("%1-season-%2").arg(seriesId).arg(seasonNumber) },
+        { QStringLiteral("SeriesName"), seriesName },
+        { QStringLiteral("ParentIndexNumber"), seasonNumber },
+        { QStringLiteral("IndexNumber"), episodeNumber },
+    };
+}
+
+QJsonObject personSeriesObject(const QString& id, const QString& name, int episodeCount)
+{
+    return {
+        { QStringLiteral("Id"), id },
+        { QStringLiteral("Name"), name },
+        { QStringLiteral("Type"), QStringLiteral("Series") },
+        { QStringLiteral("RecursiveItemCount"), episodeCount },
     };
 }
 
@@ -203,6 +229,52 @@ protected:
 
         const QUrl url = request.url();
         const QUrlQuery query(url);
+        if (operation == GetOperation && url.path() == QStringLiteral("/Items")
+            && query.queryItemValue(QStringLiteral("personIds")) == QStringLiteral("person-1")) {
+            const int startIndex = query.queryItemValue(QStringLiteral("startIndex")).toInt();
+            QJsonArray items;
+            if (startIndex == 0) {
+                for (int index = 0; index < 200; ++index) {
+                    items.push_back(QJsonObject {
+                        { QStringLiteral("Id"), QStringLiteral("person-movie-%1").arg(index) },
+                        { QStringLiteral("Name"), QStringLiteral("Movie %1").arg(index, 3, 10, QLatin1Char('0')) },
+                        { QStringLiteral("Type"), QStringLiteral("Movie") },
+                    });
+                }
+            } else if (startIndex == 200) {
+                items = QJsonArray {
+                    personSeriesObject(QStringLiteral("series-direct"), QStringLiteral("Direct Show"), 100),
+                    personEpisodeObject(QStringLiteral("direct-episode"), QStringLiteral("series-direct"),
+                        QStringLiteral("Direct Show"), 1, 1),
+                    personEpisodeObject(
+                        QStringLiteral("guest-1"), QStringLiteral("series-guest"), QStringLiteral("Guest Show"), 2, 1),
+                    personEpisodeObject(
+                        QStringLiteral("guest-2"), QStringLiteral("series-guest"), QStringLiteral("Guest Show"), 2, 2),
+                    personEpisodeObject(QStringLiteral("majority-1"), QStringLiteral("series-majority"),
+                        QStringLiteral("Majority Show"), 1, 1),
+                    personEpisodeObject(QStringLiteral("majority-2"), QStringLiteral("series-majority"),
+                        QStringLiteral("Majority Show"), 1, 2),
+                    personEpisodeObject(QStringLiteral("majority-3"), QStringLiteral("series-majority"),
+                        QStringLiteral("Majority Show"), 1, 3),
+                };
+            }
+            return new MemoryReply(request, operation,
+                jsonBytes({ { QStringLiteral("Items"), items }, { QStringLiteral("TotalRecordCount"), 207 } }), 200,
+                this);
+        }
+
+        if (operation == GetOperation && url.path() == QStringLiteral("/Items")
+            && query.hasQueryItem(QStringLiteral("ids"))) {
+            return new MemoryReply(request, operation,
+                jsonBytes({ { QStringLiteral("Items"),
+                    QJsonArray {
+                        personSeriesObject(QStringLiteral("series-direct"), QStringLiteral("Direct Show"), 100),
+                        personSeriesObject(QStringLiteral("series-guest"), QStringLiteral("Guest Show"), 10),
+                        personSeriesObject(QStringLiteral("series-majority"), QStringLiteral("Majority Show"), 4),
+                    } } }),
+                200, this);
+        }
+
         if (operation == GetOperation && url.path() == QStringLiteral("/Items")
             && query.queryItemValue(QStringLiteral("searchTerm")) == QStringLiteral("mixed")) {
             return new MemoryReply(request, operation,
@@ -359,6 +431,38 @@ bool waitForHomeRows(HomeModelController& home, int timeoutMs)
     return changed;
 }
 
+bool waitForPersonRows(ContentModelController& controller, int timeoutMs)
+{
+    QEventLoop loop;
+    QTimer timeout;
+    timeout.setSingleShot(true);
+    QObject::connect(&timeout, &QTimer::timeout, &loop, &QEventLoop::quit);
+    QObject::connect(&controller, &ContentModelController::personItemsChanged, &loop, [&]() {
+        if (!controller.personItemsBusy())
+            loop.quit();
+    });
+    controller.loadPersonItems(QStringLiteral("person-1"));
+    timeout.start(timeoutMs);
+    if (controller.personItemsBusy())
+        loop.exec();
+    return !controller.personItemsBusy();
+}
+
+bool personCreditsWerePaged(const QVector<QUrl>& urls)
+{
+    QSet<int> starts;
+    for (const QUrl& url : urls) {
+        const QUrlQuery query(url);
+        if (url.path() != QStringLiteral("/Items")
+            || query.queryItemValue(QStringLiteral("personIds")) != QStringLiteral("person-1"))
+            continue;
+        require(!query.hasQueryItem(QStringLiteral("mediaTypes")),
+            "person credits constrained media types in a way that excludes series");
+        starts.insert(query.queryItemValue(QStringLiteral("startIndex")).toInt());
+    }
+    return starts.contains(0) && starts.contains(200);
+}
+
 int searchRequestCount(const QVector<QUrl>& urls)
 {
     return static_cast<int>(std::count_if(urls.cbegin(), urls.cend(), [](const QUrl& url) {
@@ -463,6 +567,26 @@ int main(int argc, char **argv)
         "episode search result did not retain its series primary artwork tag");
     require(searchEpisode.subtitle() == QStringLiteral("S02:E07"),
         "episode search result did not expose its season and episode label");
+
+    require(waitForPersonRows(controller, 1000), "person credits did not finish loading");
+    require(personCreditsWerePaged(network.requestedUrls), "person credits stopped after the first API page");
+    const QVariantList personRows = controller.personItemRows();
+    require(personRows.size() == 3, "person credits did not produce movies, shows, and guest-season rows");
+    require(personRows.at(0).toMap().value(QStringLiteral("title")).toString() == QStringLiteral("Movies"),
+        "person credits did not prioritize movies");
+    auto *personMovies
+        = qobject_cast<MovieGridModel *>(personRows.at(0).toMap().value(QStringLiteral("model")).value<QObject *>());
+    auto *personShows
+        = qobject_cast<MovieGridModel *>(personRows.at(1).toMap().value(QStringLiteral("model")).value<QObject *>());
+    auto *guestSeason
+        = qobject_cast<MovieGridModel *>(personRows.at(2).toMap().value(QStringLiteral("model")).value<QObject *>());
+    require(personMovies && personMovies->rowCount() == 200, "person movie credits were not retained");
+    require(
+        personShows && personShows->rowCount() == 2, "direct and majority episode credits were not collapsed to shows");
+    require(
+        personRows.at(2).toMap().value(QStringLiteral("title")).toString() == QStringLiteral("Guest Show · Season 2"),
+        "guest episode credits were not grouped by show and season");
+    require(guestSeason && guestSeason->rowCount() == 2, "guest season did not retain its matching episodes");
 
     PagedMovieItems playlistPage;
     QString browseError;

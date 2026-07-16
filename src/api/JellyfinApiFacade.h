@@ -70,7 +70,7 @@ public:
     QCoro::Task<std::vector<MovieItem>> searchItems(QString searchTerm, int limit = 80);
     QCoro::Task<std::vector<MovieItem>> fetchSearchSuggestions(int limit = 20);
     QCoro::Task<std::vector<MovieItem>> fetchSimilarItems(QString itemId, int limit = 24);
-    QCoro::Task<std::vector<MovieItem>> fetchItemsByPerson(QString personId, int limit = 80);
+    QCoro::Task<PersonCredits> fetchItemsByPerson(QString personId, int maximumItems = 4000);
     QCoro::Task<std::vector<MovieItem>> fetchManagementTargets(QString itemType);
     QCoro::Task<QString> createPlaylist(QString name, QStringList itemIds = {});
     QCoro::Task<void> addPlaylistItems(QString playlistId, QStringList itemIds, int position = -1);

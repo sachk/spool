@@ -1,3 +1,5 @@
+pragma ComponentBehavior: Bound
+
 import QtQuick
 import QtQuick.Layouts
 import "../theme"
@@ -8,90 +10,97 @@ FocusScope {
 
     property var shell
     readonly property var person: shell ? shell.personItem : ({})
-    property int itemCount: Content.personItems ? Content.personItems.rowCount() : 0
-    property int currentIndex: itemCount > 0 ? 0 : -1
+    readonly property var sections: Content.personItemRows || []
     readonly property int contentMargin: Metrics.pageMarginPx
     readonly property int portraitWidth: Math.min(176, Math.max(128, width * 0.1))
-    readonly property int knownForCardWidth: width >= 1600 ? 170 : 145
     readonly property bool contentReady: !Content.personItemsBusy
     focus: true
 
-    Component.onCompleted: {
-        loadPerson()
-        Qt.callLater(focusKnownFor)
-    }
-    onPersonChanged: Qt.callLater(loadPerson)
+    Component.onCompleted: rebuildSections()
+    onSectionsChanged: rebuildSections()
     onActiveFocusChanged: if (activeFocus)
-                              focusKnownFor()
+    Qt.callLater(focusCurrentSection)
 
-    Connections {
-        target: Content.personItems
-        function onModelReset() {
-            root.refreshCount()
-        }
-        function onRowsInserted() {
-            root.refreshCount()
-        }
-        function onRowsRemoved() {
-            root.refreshCount()
-        }
+    function modelCount(model) {
+        if (!model)
+            return 0
+        if (model.count !== undefined)
+            return Number(model.count)
+        return model.rowCount ? Number(model.rowCount()) : 0
     }
 
-    Connections {
-        target: Content
-        function onPersonItemsChanged() {
-            root.refreshCount()
+    function itemAt(model, index) {
+        if (!model || index < 0 || index >= modelCount(model))
+            return ({})
+        return model.get ? (model.get(index) || ({})) : ({})
+    }
+
+    function firstPopulatedSection(start, direction) {
+        for (let index = start; index >= 0 && index < sections.length; index += direction) {
+            if (modelCount(sections[index].model) > 0)
+                return index
         }
+        return -1
     }
 
-    function loadPerson() {
-        currentIndex = 0
-        if (Content && person && person.id)
-            Content.loadPersonItems(person.id)
+    function rebuildSections() {
+        sectionList.currentIndex = firstPopulatedSection(0, 1)
+        Qt.callLater(focusCurrentSection)
     }
 
-    function focusKnownFor() {
-        if (itemCount > 0) {
-            InputKeys.focus(knownFor)
-            InputKeys.positionChild(personFlick, knownFor)
-        }
+    function currentRow() {
+        return sectionList.currentIndex >= 0 ? sectionList.itemAtIndex(sectionList.currentIndex) : null
     }
 
-    function refreshCount() {
-        itemCount = Content.personItems ? Content.personItems.rowCount() : 0
-        currentIndex = itemCount > 0 ? Math.max(0, Math.min(currentIndex, itemCount - 1)) : -1
-        knownFor.currentIndex = currentIndex
-        if (activeFocus)
-            Qt.callLater(focusKnownFor)
+    function focusCurrentSection() {
+        const row = currentRow()
+        if (!row || !row.focusList())
+            return false
+        sectionList.positionViewAtIndex(sectionList.currentIndex, ListView.Contain)
+        return true
     }
 
-    function routeKey(key, phase, repeat) {
-        if (key === Qt.Key_Up && phase === "press") {
-            if (shell)
+    function moveSection(direction) {
+        const next = firstPopulatedSection(sectionList.currentIndex + direction, direction)
+        if (next < 0) {
+            if (direction < 0 && shell)
                 shell.focusNavBar()
             return true
         }
-        if (key === Qt.Key_Down)
-            return true
-        return knownFor.routeKey(key, phase, repeat)
+        sectionList.currentIndex = next
+        sectionList.positionViewAtIndex(next, ListView.Contain)
+        Qt.callLater(focusCurrentSection)
+        return true
+    }
+
+    function routeKey(key, phase, repeat) {
+        const row = currentRow()
+        if (!row)
+            return false
+        if (key === Qt.Key_Up || key === Qt.Key_Down)
+            return moveSection(key === Qt.Key_Down ? 1 : -1)
+        return row.routeKey(key, phase, repeat)
+    }
+
+    function openAt(descriptor, index) {
+        if (shell && descriptor && descriptor.model)
+            shell.openDetailsAt(descriptor.model, index, "person", "personDetails")
     }
 
     function activate() {
-        if (itemCount > 0)
-            knownFor.activate()
+        const row = currentRow()
+        if (row)
+            openAt(sections[sectionList.currentIndex], row.currentIndex)
     }
 
     function longPress() {
-        return itemCount > 0 && knownFor.longPress()
-    }
-
-    function openCurrent() {
-        if (currentIndex >= 0 && shell)
-            shell.openDetailsAt(Content.personItems, currentIndex, "person", "personDetails")
+        const row = currentRow()
+        return Boolean(row && row.longPress && row.longPress())
     }
 
     function currentMediaItem() {
-        return currentIndex >= 0 && Content.personItems ? Content.personItems.get(currentIndex) : ({})
+        const row = currentRow()
+        return row ? itemAt(sections[sectionList.currentIndex].model, row.currentIndex) : ({})
     }
 
     Rectangle {
@@ -99,84 +108,86 @@ FocusScope {
         color: Theme.bg
     }
 
-    Flickable {
-        id: personFlick
+    ListView {
+        id: sectionList
+
         anchors.fill: parent
-        contentWidth: width
-        contentHeight: Math.max(height, contentColumn.implicitHeight + root.contentMargin * 2)
+        anchors.margins: root.contentMargin
+        model: root.sections
+        spacing: Metrics.sectionGapPx
         clip: true
+        reuseItems: true
+        cacheBuffer: 0
         boundsBehavior: Flickable.StopAtBounds
+        keyNavigationEnabled: false
+        focus: true
+
         FastWheelHandler {
-            flickable: personFlick
+            flickable: sectionList
         }
 
-        ColumnLayout {
-            id: contentColumn
-            x: root.contentMargin
-            y: root.contentMargin
-            width: personFlick.width - root.contentMargin * 2
-            height: implicitHeight
-            spacing: 22
+        header: RowLayout {
+            width: sectionList.width
+            height: Math.max(172, root.portraitWidth * 1.22) + Metrics.scaled(22)
+            spacing: Metrics.scaled(22)
 
-            RowLayout {
+            ImageCard {
+                Layout.preferredWidth: root.portraitWidth
+                Layout.preferredHeight: Math.round(root.portraitWidth * 1.22)
+                Layout.alignment: Qt.AlignTop
+                imageUrl: Art.url(root.person, "poster", Math.ceil(root.portraitWidth))
+                fallbackText: root.person.type || "Person"
+            }
+
+            ColumnLayout {
                 Layout.fillWidth: true
-                Layout.preferredHeight: Math.max(172, root.portraitWidth * 1.22)
-                spacing: 22
+                Layout.alignment: Qt.AlignVCenter
+                spacing: Metrics.scaled(9)
 
-                ImageCard {
-                    Layout.preferredWidth: root.portraitWidth
-                    Layout.preferredHeight: Math.round(root.portraitWidth * 1.22)
-                    Layout.alignment: Qt.AlignTop
-                    imageUrl: Art.url(person, "poster", Math.ceil(root.portraitWidth))
-                    fallbackText: person.type || "Person"
-                }
-
-                ColumnLayout {
+                AppText {
                     Layout.fillWidth: true
-                    Layout.alignment: Qt.AlignVCenter
-                    spacing: 9
+                    text: root.person.name || "Person"
+                    font.pixelSize: Math.min(46, Metrics.titleSizePx + 8)
+                    font.weight: Font.DemiBold
+                    maximumLineCount: 2
+                    wrapMode: Text.Wrap
+                }
 
-                    AppText {
-                        Layout.fillWidth: true
-                        text: person.name || "Person"
-                        font.pixelSize: Math.min(46, Metrics.titleSizePx + 8)
-                        font.weight: Font.DemiBold
-                        maximumLineCount: 2
-                        wrapMode: Text.Wrap
-                    }
-
-                    TechMetadataLine {
-                        Layout.fillWidth: true
-                        metadata: [person.type || "", person.role || ""].filter(function (v) {
-                            return v.length > 0
-                        }).join(" / ")
-                    }
+                TechMetadataLine {
+                    Layout.fillWidth: true
+                    metadata: [root.person.type || "", root.person.role || ""].filter(function (value) {
+                        return value.length > 0
+                    }).join(" / ")
                 }
             }
+        }
 
-            MediaRow {
-                id: knownFor
-                Layout.fillWidth: true
-                title: "Known For"
-                model: Content.personItems
-                shell: root.shell
-                cardWidth: root.knownForCardWidth
-                cardGap: Metrics.gapPx
-                enabledRow: root.itemCount > 0
-                currentIndex: root.currentIndex
-                onCurrentIndexChanged: root.currentIndex = knownFor.currentIndex
-                onActivated: index => {
-                                 root.currentIndex = index
-                                 root.openCurrent()
-                             }
-            }
+        delegate: MediaRow {
+            id: mediaRow
 
-            EmptyPlaceholder {
-                Layout.fillWidth: true
-                visible: root.itemCount === 0 && !Content.personItemsBusy
-                title: "No items"
-                detail: "This person has no matching movies or episodes in your libraries."
-            }
+            required property int index
+            required property var modelData
+            readonly property bool episodeRow: String(modelData.kind || "") === "landscape"
+
+            width: sectionList.width
+            title: String(modelData.title || "")
+            model: modelData.model
+            shell: root.shell
+            cardKind: episodeRow ? "landscape" : "poster"
+            preferEpisodeTitle: episodeRow
+            cardWidth: episodeRow ? Metrics.homeLandscapeWidth(root.width) : Metrics.homePosterWidth(root.width)
+            cardGap: Metrics.gapPx
+            itemContextSource: "person"
+            itemContextReturnRoute: "personDetails"
+            onActivated: itemIndex => root.openAt(modelData, itemIndex)
+        }
+
+        footer: EmptyPlaceholder {
+            width: sectionList.width
+            height: sectionList.height
+            visible: root.sections.length === 0 && !Content.personItemsBusy
+            title: "No items"
+            detail: "No matching credits in your libraries."
         }
     }
 }

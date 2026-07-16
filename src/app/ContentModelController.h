@@ -5,6 +5,10 @@
 
 #include <QObject>
 #include <QString>
+#include <QVariantList>
+
+#include <memory>
+#include <vector>
 
 namespace JellyfinNative {
 
@@ -18,7 +22,7 @@ class ContentModelController final : public QObject {
     Q_PROPERTY(JellyfinNative::MovieGridModel *detailSeasonOptions READ detailSeasonOptions CONSTANT)
     Q_PROPERTY(JellyfinNative::MovieGridModel *detailSimilarItems READ detailSimilarItems CONSTANT)
     Q_PROPERTY(JellyfinNative::MovieGridModel *linkedItems READ linkedItems CONSTANT)
-    Q_PROPERTY(JellyfinNative::MovieGridModel *personItems READ personItems CONSTANT)
+    Q_PROPERTY(QVariantList personItemRows READ personItemRows NOTIFY personItemsChanged)
     Q_PROPERTY(bool detailRowsBusy READ detailRowsBusy NOTIFY detailRowsChanged)
     Q_PROPERTY(bool personItemsBusy READ personItemsBusy NOTIFY personItemsChanged)
 
@@ -37,10 +41,7 @@ public:
     {
         return &m_detailSimilarItems;
     }
-    MovieGridModel *personItems()
-    {
-        return &m_personItems;
-    }
+    QVariantList personItemRows() const;
     MovieGridModel *linkedItems()
     {
         return &m_linkedItems;
@@ -80,14 +81,22 @@ signals:
     void errorOccurred(const QString& message);
 
 private:
+    struct PersonItemSection {
+        QString title;
+        QString kind;
+        std::unique_ptr<MovieGridModel> model;
+    };
+
     void finishDetailRowLoad(RequestGeneration::Token generation);
+    void setPersonCredits(PersonCredits credits);
+    void clearPersonItems();
 
     JellyfinApiFacade *m_api = nullptr;
     LibraryPrefetchController *m_prefetch = nullptr;
     MovieGridModel m_detailSeasons;
     MovieGridModel m_detailSeasonOptions;
     MovieGridModel m_detailSimilarItems;
-    MovieGridModel m_personItems;
+    std::vector<PersonItemSection> m_personItemSections;
     MovieGridModel m_linkedItems;
     MovieItem m_detailItem;
     bool m_detailRowsBusy = false;
