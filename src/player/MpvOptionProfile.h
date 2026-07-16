@@ -29,6 +29,7 @@ public:
 
     static NetworkProfile networkProfile(Platform platform);
     static bool isHdrPlayback(const QList<MediaStreamInfo>& streams);
+    static QByteArray preloadedSubtitleStreams(const PlaybackSession& session, const QString& preferredLanguage);
     static QByteArray loadFileOptions(const PlaybackSession& session);
 
     static std::vector<MpvOption> startupOptions(Platform platform, const QString& audioOutputMode,

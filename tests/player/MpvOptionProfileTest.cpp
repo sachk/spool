@@ -59,6 +59,33 @@ int main(int argc, char **argv)
     require(MpvOptionProfile::loadFileOptions(directHls).isEmpty(),
         "direct-play URLs should retain mpv's normal demuxer detection");
 
+    MediaStreamInfo englishSubtitle;
+    englishSubtitle.index = 2;
+    englishSubtitle.type = QStringLiteral("Subtitle");
+    englishSubtitle.language = QStringLiteral("eng");
+    MediaStreamInfo regionalEnglishSubtitle = englishSubtitle;
+    regionalEnglishSubtitle.index = 4;
+    regionalEnglishSubtitle.language = QStringLiteral("en-US");
+    MediaStreamInfo frenchSubtitle = englishSubtitle;
+    frenchSubtitle.index = 5;
+    frenchSubtitle.language = QStringLiteral("fra");
+    MediaStreamInfo externalEnglishSubtitle = englishSubtitle;
+    externalEnglishSubtitle.index = 7;
+    externalEnglishSubtitle.isExternal = true;
+    PlaybackSession subtitleSession;
+    subtitleSession.playMethod = QStringLiteral("DirectPlay");
+    subtitleSession.mediaStreams
+        = { englishSubtitle, regionalEnglishSubtitle, frenchSubtitle, externalEnglishSubtitle };
+    require(MpvOptionProfile::preloadedSubtitleStreams(subtitleSession, QStringLiteral("en")) == "2,4",
+        "direct play should preload internal subtitle streams matching the preferred language");
+    require(MpvOptionProfile::preloadedSubtitleStreams(subtitleSession, QStringLiteral("fre")) == "5",
+        "ISO-639 aliases should select the matching subtitle stream");
+    require(MpvOptionProfile::preloadedSubtitleStreams(subtitleSession, QString()).isEmpty(),
+        "an unspecified language should not retain every subtitle stream");
+    subtitleSession.playMethod = QStringLiteral("Transcode");
+    require(MpvOptionProfile::preloadedSubtitleStreams(subtitleSession, QStringLiteral("eng")).isEmpty(),
+        "transcodes should not reuse source-file stream indexes");
+
     const auto customDemuxerBudget
         = MpvOptionProfile::startupOptions(MpvOptionProfile::Platform::Desktop, QStringLiteral("alsa"),
             QByteArrayLiteral("/tmp/mpv.log"), QByteArrayLiteral("123456789"), QByteArrayLiteral("9876543"));

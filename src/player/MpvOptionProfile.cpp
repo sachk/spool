@@ -1,5 +1,6 @@
 #include "MpvOptionProfile.h"
 
+#include <QLocale>
 #include <QUrl>
 #include <QtGlobal>
 
@@ -9,6 +10,34 @@
 namespace JellyfinNative {
 
 namespace {
+
+    QLocale::Language languageFromCode(QString code)
+    {
+        code = code.trimmed();
+        QLocale::Language language = QLocale::codeToLanguage(QStringView(code));
+        if (language != QLocale::AnyLanguage)
+            return language;
+
+        const qsizetype hyphen = code.indexOf(QLatin1Char('-'));
+        const qsizetype underscore = code.indexOf(QLatin1Char('_'));
+        const qsizetype separator = hyphen < 0 ? underscore : (underscore < 0 ? hyphen : qMin(hyphen, underscore));
+        if (separator > 0)
+            language = QLocale::codeToLanguage(QStringView(code).left(separator));
+        return language;
+    }
+
+    bool languagesMatch(const QString& requested, const QString& available)
+    {
+        const QString requestedCode = requested.trimmed();
+        const QString availableCode = available.trimmed();
+        if (requestedCode.isEmpty() || availableCode.isEmpty())
+            return false;
+        if (requestedCode.compare(availableCode, Qt::CaseInsensitive) == 0)
+            return true;
+
+        const QLocale::Language requestedLanguage = languageFromCode(requestedCode);
+        return requestedLanguage != QLocale::AnyLanguage && requestedLanguage == languageFromCode(availableCode);
+    }
 
     QByteArray mpvBool(bool value)
     {
@@ -138,6 +167,29 @@ bool MpvOptionProfile::isHdrPlayback(const QList<MediaStreamInfo>& streams)
             return true;
     }
     return false;
+}
+
+QByteArray MpvOptionProfile::preloadedSubtitleStreams(const PlaybackSession& session, const QString& preferredLanguage)
+{
+    if (session.playMethod.compare(QStringLiteral("DirectPlay"), Qt::CaseInsensitive) != 0
+        || preferredLanguage.trimmed().isEmpty())
+        return {};
+
+    QList<int> indexes;
+    for (const MediaStreamInfo& stream : session.mediaStreams) {
+        if (stream.index < 0 || stream.isExternal
+            || stream.type.compare(QStringLiteral("Subtitle"), Qt::CaseInsensitive) != 0
+            || !languagesMatch(preferredLanguage, stream.language))
+            continue;
+        if (!indexes.contains(stream.index))
+            indexes.push_back(stream.index);
+    }
+
+    QByteArrayList values;
+    values.reserve(indexes.size());
+    for (int index : indexes)
+        values.push_back(QByteArray::number(index));
+    return values.join(',');
 }
 
 MpvOptionProfile::NetworkProfile MpvOptionProfile::networkProfile(Platform platform)

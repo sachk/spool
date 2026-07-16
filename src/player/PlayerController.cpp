@@ -879,6 +879,20 @@ void PlayerController::play(const PlaybackSession& session)
     auto *handle = m_mpvLifecycle.handle();
     m_mpvLifecycle.beginFileLoad();
 
+#ifdef JELLYFIN_NATIVE_WEBOS
+    const QByteArray preloadedSubtitleStreams
+        = MpvOptionProfile::preloadedSubtitleStreams(session, m_subtitlePreferences.language);
+    if (!setMpvProperty(handle, "demuxer-preload-subtitle-streams", preloadedSubtitleStreams.constData())) {
+        m_mpvLifecycle.cancelFileLoad();
+        m_errorText = QStringLiteral("libmpv rejected the subtitle preload request.");
+        stopProgressReporting(true);
+        return;
+    }
+    qInfo() << "player: requested subtitle packet preload streams="
+            << (preloadedSubtitleStreams.isEmpty() ? QByteArrayLiteral("none") : preloadedSubtitleStreams)
+            << "language=" << m_subtitlePreferences.language;
+#endif
+
     const QByteArray urlBytes = session.url.toUtf8();
     if (startSeconds > 0.0) {
         const QByteArray startValue = QByteArray::number(startSeconds, 'f', 3);
