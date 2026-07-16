@@ -17,6 +17,7 @@ enum class SettingTarget {
     ToneMappingVisualization,
     MaxStreamingBitrate,
     PreferRemux,
+    PlayerVolumeSlider,
     AudioDelay,
     AudioOutput,
     UiScale,

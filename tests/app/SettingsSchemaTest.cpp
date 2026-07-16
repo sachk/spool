@@ -89,6 +89,7 @@ void requiredPersistedKeysArePresentExactlyOnce()
         QStringLiteral("settings/nightMode"),
         QStringLiteral("playback/maxStreamingBitrateMbps"),
         QStringLiteral("playback/preferRemux"),
+        QStringLiteral("playback/showVolumeSlider"),
         QStringLiteral("settings/audioDelayMs"),
         QStringLiteral("settings/audioOutputMode"),
         QStringLiteral("subtitles/language"),

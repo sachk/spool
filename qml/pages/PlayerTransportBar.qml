@@ -63,22 +63,42 @@ RowLayout {
     }
 
     RowLayout {
+        id: volumeControls
+
+        readonly property bool showSlider: Settings.values["playback/showVolumeSlider"] !== false
+        property real lastAudibleVolume: 100
+
         visible: root.overlay.desktopControlsAvailable
-        Layout.minimumWidth: visible ? root.overlay.dp(230) : 0
-        Layout.preferredWidth: visible ? root.overlay.dp(230) : 0
-        Layout.maximumWidth: visible ? root.overlay.dp(230) : 0
+        Layout.minimumWidth: visible ? root.overlay.dp(showSlider ? 254 : 28) : 0
+        Layout.preferredWidth: visible ? root.overlay.dp(showSlider ? 254 : 28) : 0
+        Layout.maximumWidth: visible ? root.overlay.dp(showSlider ? 254 : 28) : 0
         spacing: root.overlay.dp(10)
 
         MaterialIcon {
             name: root.overlay.hasPlayer && root.overlay.player.volume === 0 ? "volume_off" : "volume_up"
             iconColor: Theme.textSecondary
             iconSize: root.overlay.dp(28)
+
+            TapHandler {
+                onTapped: {
+                    if (!root.overlay.hasPlayer)
+                    return
+                    const volume = Number(root.overlay.player.volume)
+                    if (volume > 0) {
+                        volumeControls.lastAudibleVolume = volume
+                        root.overlay.player.setVolume(0)
+                    } else {
+                        root.overlay.player.setVolume(Math.max(1, volumeControls.lastAudibleVolume))
+                    }
+                }
+            }
         }
 
         Slider {
-            Layout.minimumWidth: root.overlay.dp(120)
-            Layout.preferredWidth: root.overlay.dp(120)
-            Layout.maximumWidth: root.overlay.dp(120)
+            visible: parent.showSlider
+            Layout.minimumWidth: visible ? root.overlay.dp(144) : 0
+            Layout.preferredWidth: visible ? root.overlay.dp(144) : 0
+            Layout.maximumWidth: visible ? root.overlay.dp(144) : 0
             from: 0
             to: 100
             stepSize: 1
@@ -86,9 +106,37 @@ RowLayout {
             focusPolicy: Qt.NoFocus
             onMoved: if (root.overlay.hasPlayer)
             root.overlay.player.setVolume(Math.round(value))
+
+            background: Rectangle {
+                x: parent.leftPadding
+                y: parent.topPadding + parent.availableHeight / 2 - height / 2
+                width: parent.availableWidth
+                height: root.overlay.dp(4)
+                radius: height / 2
+                color: Theme.borderStrong
+
+                Rectangle {
+                    width: parent.parent.visualPosition * parent.width
+                    height: parent.height
+                    radius: parent.radius
+                    color: Theme.textSecondary
+                }
+            }
+
+            handle: Rectangle {
+                x: parent.leftPadding + parent.visualPosition * (parent.availableWidth - width)
+                y: parent.topPadding + parent.availableHeight / 2 - height / 2
+                width: root.overlay.dp(12)
+                height: width
+                radius: width / 2
+                color: Theme.textPrimary
+                border.width: root.overlay.dp(1)
+                border.color: Theme.bg
+            }
         }
 
         AppText {
+            visible: parent.showSlider
             text: root.overlay.hasPlayer ? Math.round(root.overlay.player.volume) + "%" : "100%"
             color: Theme.textSecondary
             font.pixelSize: root.overlay.dp(18)

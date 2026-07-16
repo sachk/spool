@@ -483,6 +483,8 @@ void SettingsController::applySchemaValue(const SettingSpec& spec, const QVarian
         if (apply)
             applyPlaybackPreferences();
         break;
+    case SettingTarget::PlayerVolumeSlider:
+        break;
     case SettingTarget::AudioDelay:
         m_audioDelayMs = value.toInt();
         if (apply)
@@ -604,6 +606,8 @@ void SettingsController::emitSchemaSignals(const SettingSpec& spec)
     case SettingTarget::MaxStreamingBitrate:
     case SettingTarget::PreferRemux:
         emit playbackPreferencesChanged();
+        break;
+    case SettingTarget::PlayerVolumeSlider:
         break;
     case SettingTarget::AudioDelay:
         emit audioDelayChanged();
