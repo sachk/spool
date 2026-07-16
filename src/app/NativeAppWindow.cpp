@@ -34,14 +34,15 @@ NativeAppWindow::NativeAppWindow(const QString& appId, QWindow *parent)
     // cursor" — that hides the LG remote pointer too. Forcing the cursor
     // theme load to fail makes Qt early-return from updateCursor and
     // never touch the cursor, leaving the LSM pointer untouched.
-    starfish_overlay_set_present_cb(&NativeAppWindow::overlayPresentCallback, this);
+    starfish_overlay_set_callbacks(
+        &NativeAppWindow::overlayAcquireCallback, &NativeAppWindow::overlayPresentCallback, this);
     starfish_exported_set_crop_cb(&NativeAppWindow::exportedCropCallback, this);
 }
 
 NativeAppWindow::~NativeAppWindow()
 {
     starfish_exported_set_crop_cb(nullptr, nullptr);
-    starfish_overlay_set_present_cb(nullptr, nullptr);
+    starfish_overlay_set_callbacks(nullptr, nullptr, nullptr);
     if (m_exported)
         wl_webos_exported_destroy(m_exported);
     if (m_webosShellSurface)
@@ -382,67 +383,44 @@ void NativeAppWindow::exportedWindowIdAssigned(void *data, wl_webos_exported *, 
     self->m_windowId = window_id ? window_id : "";
 }
 
-void NativeAppWindow::overlayPresentCallback(void *data, const uint8_t *pixels, int width, int height, int stride)
+uint8_t *NativeAppWindow::overlayAcquireCallback(void *data, int width, int height, int *stride, void **buffer)
 {
     auto *self = static_cast<NativeAppWindow *>(data);
-    if (!self)
-        return;
-
-    // Reject obviously-invalid buffers and clear the overlay. Callers send a
-    // zeroed (or NULL) buffer when there is no OSD content; we treat both the
-    // same.
-    if (!pixels || width <= 0 || height <= 0 || stride < width * 4) {
-        self->scheduleOverlayImage(QImage());
-        return;
-    }
-
-    // vo_starfish memsets the buffer to zero before rasterising OSD, so an
-    // all-zero buffer means "no overlay content". Scan in 64-bit chunks so a
-    // 1920x1080 empty frame finishes in a few hundred microseconds instead of
-    // ~8M byte comparisons.
-    const size_t byteCount = static_cast<size_t>(height) * stride;
-    bool hasContent = false;
-    {
-        const auto *words = reinterpret_cast<const uint64_t *>(pixels);
-        const size_t wordCount = byteCount / sizeof(uint64_t);
-        for (size_t i = 0; i < wordCount; ++i) {
-            if (words[i]) {
-                hasContent = true;
-                break;
-            }
-        }
-        if (!hasContent) {
-            for (size_t i = wordCount * sizeof(uint64_t); i < byteCount; ++i) {
-                if (pixels[i]) {
-                    hasContent = true;
-                    break;
-                }
-            }
-        }
-    }
-    if (!hasContent) {
-        self->scheduleOverlayImage(QImage());
-        return;
-    }
+    if (!self || !stride || !buffer || width <= 0 || height <= 0)
+        return nullptr;
 
     // QImage::Format_ARGB32_Premultiplied stores pixels in memory as B,G,R,A
     // on little-endian — the same byte layout vo_starfish writes (IMGFMT_BGRA,
-    // premultiplied). A single per-scanline memcpy is correct; the old
-    // per-pixel unpack-and-repack via qRgba(r,g,b,a) was a no-op that ran
-    // ~2M times per frame on the GUI thread.
-    static_assert(Q_BYTE_ORDER == Q_LITTLE_ENDIAN, "OSD copy fast-path assumes little-endian QImage layout");
-    QImage image(width, height, QImage::Format_ARGB32_Premultiplied);
-    const int dstStride = image.bytesPerLine();
-    if (dstStride == stride) {
-        memcpy(image.bits(), pixels, byteCount);
-    } else {
-        const int rowBytes = qMin(dstStride, stride);
-        for (int y = 0; y < height; ++y) {
-            memcpy(image.scanLine(y), pixels + static_cast<size_t>(y) * stride, rowBytes);
-        }
+    // premultiplied). mpv writes directly into this Qt-owned storage, so the
+    // callback path has no full-frame CPU copy.
+    static_assert(Q_BYTE_ORDER == Q_LITTLE_ENDIAN, "OSD direct path assumes little-endian QImage layout");
+    auto *image = new QImage(width, height, QImage::Format_ARGB32_Premultiplied);
+    if (image->isNull()) {
+        delete image;
+        return nullptr;
+    }
+    *stride = image->bytesPerLine();
+    *buffer = image;
+    return image->bits();
+}
+
+void NativeAppWindow::overlayPresentCallback(void *data, void *buffer, bool visible)
+{
+    auto *self = static_cast<NativeAppWindow *>(data);
+    auto *image = static_cast<QImage *>(buffer);
+    if (!self) {
+        delete image;
+        return;
     }
 
-    self->scheduleOverlayImage(std::move(image));
+    if (!visible || !image || image->isNull()) {
+        delete image;
+        self->scheduleOverlayImage(QImage());
+        return;
+    }
+
+    self->scheduleOverlayImage(std::move(*image));
+    delete image;
 }
 
 void NativeAppWindow::exportedCropCallback(

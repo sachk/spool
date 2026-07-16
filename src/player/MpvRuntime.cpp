@@ -47,7 +47,7 @@ extern "C" {
     X(mpv_render_context_free)                                                                                         \
     X(mpv_render_context_render)                                                                                       \
     X(mpv_render_context_set_update_callback)                                                                          \
-    X(starfish_overlay_set_present_cb)                                                                                 \
+    X(starfish_overlay_set_callbacks)                                                                                  \
     X(starfish_exported_set_crop_cb)
 
 namespace {
@@ -84,7 +84,8 @@ void runLoadCallbacks()
 // racing the load can never be lost.
 std::mutex g_starfishLock;
 bool g_starfishReady = false;
-starfish_overlay_present_cb g_overlayCb = nullptr;
+starfish_overlay_acquire_cb g_overlayAcquireCb = nullptr;
+starfish_overlay_present_cb g_overlayPresentCb = nullptr;
 void *g_overlayOpaque = nullptr;
 starfish_exported_crop_cb g_cropCb = nullptr;
 void *g_cropOpaque = nullptr;
@@ -143,7 +144,7 @@ bool loadNow()
     {
         std::lock_guard<std::mutex> lock(g_starfishLock);
         g_starfishReady = true;
-        g_api.starfish_overlay_set_present_cb(g_overlayCb, g_overlayOpaque);
+        g_api.starfish_overlay_set_callbacks(g_overlayAcquireCb, g_overlayPresentCb, g_overlayOpaque);
         g_api.starfish_exported_set_crop_cb(g_cropCb, g_cropOpaque);
     }
 
@@ -353,13 +354,15 @@ void mpv_render_context_set_update_callback(mpv_render_context *ctx, mpv_render_
 // constructor before libmpv exists. Store-and-replay instead of forcing a
 // synchronous load on the startup path.
 
-void starfish_overlay_set_present_cb(starfish_overlay_present_cb cb, void *opaque)
+void starfish_overlay_set_callbacks(
+    starfish_overlay_acquire_cb acquireCb, starfish_overlay_present_cb presentCb, void *opaque)
 {
     std::lock_guard<std::mutex> lock(g_starfishLock);
-    g_overlayCb = cb;
+    g_overlayAcquireCb = acquireCb;
+    g_overlayPresentCb = presentCb;
     g_overlayOpaque = opaque;
     if (g_starfishReady)
-        g_api.starfish_overlay_set_present_cb(cb, opaque);
+        g_api.starfish_overlay_set_callbacks(acquireCb, presentCb, opaque);
 }
 
 void starfish_exported_set_crop_cb(starfish_exported_crop_cb cb, void *opaque)

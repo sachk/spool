@@ -89,7 +89,8 @@ private:
         void *data, wl_registry *registry, uint32_t name, const char *interface, uint32_t version);
     static void registryRemove(void *, wl_registry *, uint32_t);
     static void exportedWindowIdAssigned(void *data, wl_webos_exported *, const char *window_id, uint32_t);
-    static void overlayPresentCallback(void *data, const uint8_t *pixels, int width, int height, int stride);
+    static uint8_t *overlayAcquireCallback(void *data, int width, int height, int *stride, void **buffer);
+    static void overlayPresentCallback(void *data, void *buffer, bool visible);
     static void exportedCropCallback(void *data, int origW, int origH, int srcX, int srcY, int srcW, int srcH, int dstX,
         int dstY, int dstW, int dstH);
 #endif
