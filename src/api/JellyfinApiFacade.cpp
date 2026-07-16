@@ -94,18 +94,23 @@ namespace {
             return QStringLiteral("Playlist");
         if (collectionType == QStringLiteral("boxsets"))
             return QStringLiteral("BoxSet");
-        return QStringLiteral("Movie,Series,Episode,MusicVideo,Video");
+        if (collectionType == QStringLiteral("music"))
+            return QStringLiteral("MusicArtist,MusicAlbum,Audio");
+        if (collectionType == QStringLiteral("books"))
+            return QStringLiteral("Book,AudioBook");
+        if (collectionType == QStringLiteral("photos"))
+            return QStringLiteral("PhotoAlbum,Photo");
+        if (collectionType == QStringLiteral("musicvideos"))
+            return QStringLiteral("MusicVideo");
+        if (collectionType == QStringLiteral("homevideos"))
+            return QStringLiteral("Folder,Video,PhotoAlbum,Photo");
+        return QStringLiteral("Folder,Movie,Series,Season,Episode,MusicVideo,Video,Audio,MusicAlbum,"
+                              "MusicArtist,Book,AudioBook,Photo,PhotoAlbum,Playlist,BoxSet");
     }
 
     QStringList itemTypesList(const QString& types)
     {
         return types.split(QLatin1Char(','), Qt::SkipEmptyParts);
-    }
-
-    bool libraryBrowseNeedsVideoMediaType(const QString& collectionType)
-    {
-        return collectionType != QStringLiteral("movies") && collectionType != QStringLiteral("tvshows")
-            && collectionType != QStringLiteral("playlists") && collectionType != QStringLiteral("boxsets");
     }
 
     bool libraryBrowseUsesDirectChildren(const QString& collectionType)
@@ -526,8 +531,6 @@ QCoro::Task<PagedMovieItems> JellyfinApiFacade::fetchBrowsePage(
         builder.parentId(descriptor.id)
             .recursive(!collectionFilter && !libraryBrowseUsesDirectChildren(descriptor.collectionType))
             .includeItemTypes(includeItemTypes);
-        if (!collectionFilter && libraryBrowseNeedsVideoMediaType(descriptor.collectionType))
-            builder.mediaTypes(QStringLiteral("Video"));
         allowedTypes = itemTypesList(includeItemTypes);
         break;
     }
@@ -535,9 +538,11 @@ QCoro::Task<PagedMovieItems> JellyfinApiFacade::fetchBrowsePage(
         builder.parentId(descriptor.id)
             .recursive(false)
             .includeItemTypes(
-                QStringLiteral("Folder,Movie,Series,Season,Episode,MusicVideo,Video,Playlist,BoxSet,MusicAlbum"));
+                QStringLiteral("Folder,Movie,Series,Season,Episode,MusicVideo,Video,Audio,AudioBook,Book,Photo,"
+                               "PhotoAlbum,Playlist,BoxSet,MusicAlbum,MusicArtist"));
         allowedTypes = itemTypesList(
-            QStringLiteral("Folder,Movie,Series,Season,Episode,MusicVideo,Video,Playlist,BoxSet,MusicAlbum"));
+            QStringLiteral("Folder,Movie,Series,Season,Episode,MusicVideo,Video,Audio,AudioBook,Book,Photo,"
+                           "PhotoAlbum,Playlist,BoxSet,MusicAlbum,MusicArtist"));
         break;
     case BrowseKind::Person:
         builder.recursive()
@@ -782,24 +787,62 @@ QCoro::Task<std::vector<MovieItem>> JellyfinApiFacade::searchItems(QString searc
     if (searchTerm.isEmpty())
         co_return std::vector<MovieItem> {};
 
-    QUrlQuery query = ItemsQuery()
-                          .userId(m_session.userId)
-                          .recursive()
-                          .add(QStringLiteral("searchTerm"), searchTerm)
-                          .includeItemTypes(QStringLiteral("Movie,Series,Episode"))
-                          .fields(libraryItemFields())
-                          .sort(QStringLiteral("SortName"))
-                          .images()
-                          .limit(limit, 200)
-                          .toUrlQuery();
+    const QStringList searchableTypes {
+        QStringLiteral("Movie"),
+        QStringLiteral("Series"),
+        QStringLiteral("Season"),
+        QStringLiteral("Episode"),
+        QStringLiteral("MusicVideo"),
+        QStringLiteral("Video"),
+        QStringLiteral("Audio"),
+        QStringLiteral("MusicAlbum"),
+        QStringLiteral("MusicArtist"),
+        QStringLiteral("Book"),
+        QStringLiteral("AudioBook"),
+        QStringLiteral("Photo"),
+        QStringLiteral("PhotoAlbum"),
+        QStringLiteral("Playlist"),
+        QStringLiteral("BoxSet"),
+        QStringLiteral("Folder"),
+        QStringLiteral("Person"),
+        QStringLiteral("Trailer"),
+    };
+    const auto fetchTypes = [this, &searchTerm](const QString& types, int requestLimit,
+                                const QStringList& allowedTypes) -> QCoro::Task<std::vector<MovieItem>> {
+        const QUrlQuery query = ItemsQuery()
+                                    .userId(m_session.userId)
+                                    .recursive()
+                                    .add(QStringLiteral("searchTerm"), searchTerm)
+                                    .includeItemTypes(types)
+                                    .fields(libraryItemFields())
+                                    .sort(QStringLiteral("SortName"))
+                                    .images()
+                                    .limit(requestLimit, 200)
+                                    .toUrlQuery();
+        const QJsonArray items = (co_await requestJson(HttpMethod::Get, QStringLiteral("/Items"), query))
+                                     .object()
+                                     .value(QStringLiteral("Items"))
+                                     .toArray();
+        co_return mediaItemsFromJson(items, allowedTypes);
+    };
 
-    const QJsonArray items = (co_await requestJson(HttpMethod::Get, QStringLiteral("/Items"), query))
-                                 .object()
-                                 .value(QStringLiteral("Items"))
-                                 .toArray();
+    std::vector<MovieItem> result = co_await fetchTypes(searchableTypes.join(QLatin1Char(',')), limit, searchableTypes);
 
-    const std::vector<MovieItem> result
-        = mediaItemsFromJson(items, { QStringLiteral("Movie"), QStringLiteral("Series"), QStringLiteral("Episode") });
+    // Large episode libraries can consume a mixed result limit before any
+    // matching series containers arrive. A small dedicated series query keeps
+    // show search reliable without knowing anything about the server's library
+    // names or layout.
+    const std::vector<MovieItem> series
+        = co_await fetchTypes(QStringLiteral("Series"), std::min(limit, 40), { QStringLiteral("Series") });
+    QSet<QString> seen;
+    for (const MovieItem& item : result)
+        seen.insert(item.id);
+    for (const MovieItem& item : series) {
+        if (!seen.contains(item.id)) {
+            seen.insert(item.id);
+            result.push_back(item);
+        }
+    }
 
     co_return result;
 }

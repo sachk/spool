@@ -278,8 +278,8 @@ protected:
         if (operation == GetOperation && url.path() == QStringLiteral("/Items")
             && query.queryItemValue(QStringLiteral("searchTerm")) == QStringLiteral("mixed")) {
             return new MemoryReply(request, operation,
-                jsonBytes(
-                    { { QStringLiteral("Items"), QJsonArray { movieObject(), seriesObject(), episodeObject() } } }),
+                jsonBytes({ { QStringLiteral("Items"),
+                    QJsonArray { movieObject(), seriesObject(), episodeObject(), photoObject() } } }),
                 200, this);
         }
 
@@ -412,7 +412,7 @@ bool waitForSearch(SearchController& search, int timeoutMs)
     timeout.start(timeoutMs);
     if (search.busy())
         loop.exec();
-    return !search.busy() && search.resultCount() == 3;
+    return !search.busy() && search.resultCount() == 4;
 }
 
 bool waitForHomeRows(HomeModelController& home, int timeoutMs)
@@ -479,6 +479,17 @@ bool searchRequestAllowsSeries(const QVector<QUrl>& urls)
             && query.queryItemValue(QStringLiteral("searchTerm")) == QStringLiteral("mixed")
             && query.queryItemValue(QStringLiteral("includeItemTypes")).contains(QStringLiteral("Series"))
             && !query.hasQueryItem(QStringLiteral("mediaTypes"));
+    });
+}
+
+bool searchRequestAllowsMixedLibraries(const QVector<QUrl>& urls)
+{
+    return std::any_of(urls.cbegin(), urls.cend(), [](const QUrl& url) {
+        const QUrlQuery query(url);
+        const QString types = query.queryItemValue(QStringLiteral("includeItemTypes"));
+        return query.queryItemValue(QStringLiteral("searchTerm")) == QStringLiteral("mixed")
+            && types.contains(QStringLiteral("Audio")) && types.contains(QStringLiteral("Photo"))
+            && types.contains(QStringLiteral("Person")) && !query.hasQueryItem(QStringLiteral("parentId"));
     });
 }
 
@@ -556,12 +567,16 @@ int main(int argc, char **argv)
     ContentModelController controller(&api, &prefetch);
     SearchController search(&api, &prefetch);
     require(waitForSearch(search, 1000), "mixed search did not finish with all result types");
-    require(searchRequestCount(network.requestedUrls) == 1, "mixed search issued more than one API request");
+    require(searchRequestCount(network.requestedUrls) == 2,
+        "mixed search should issue a broad query and one series-safe query");
     require(searchRequestAllowsSeries(network.requestedUrls),
         "mixed search constrained media types in a way that excludes series containers");
+    require(searchRequestAllowsMixedLibraries(network.requestedUrls),
+        "mixed search omitted media types used by music, photo, or people libraries");
     require(search.movieResults()->rowCount() == 1, "mixed search did not partition its movie result");
     require(search.seriesResults()->rowCount() == 1, "mixed search did not partition its series result");
     require(search.episodeResults()->rowCount() == 1, "mixed search did not partition its episode result");
+    require(search.otherResults()->rowCount() == 1, "mixed search discarded its non-video result");
     const MovieItem searchEpisode = search.episodeResults()->get(0);
     require(searchEpisode.seriesPrimaryImageTag == QStringLiteral("series-primary-tag"),
         "episode search result did not retain its series primary artwork tag");

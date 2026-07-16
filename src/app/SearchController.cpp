@@ -127,6 +127,7 @@ void SearchController::updateResumeTicks(const QString& itemId, qint64 positionT
     m_movieResults.updateResumeTicks(itemId, positionTicks);
     m_seriesResults.updateResumeTicks(itemId, positionTicks);
     m_episodeResults.updateResumeTicks(itemId, positionTicks);
+    m_otherResults.updateResumeTicks(itemId, positionTicks);
     m_suggestions.updateResumeTicks(itemId, positionTicks);
 }
 
@@ -135,6 +136,7 @@ void SearchController::updateFavorite(const QString& itemId, bool favorite)
     m_movieResults.updateFavorite(itemId, favorite);
     m_seriesResults.updateFavorite(itemId, favorite);
     m_episodeResults.updateFavorite(itemId, favorite);
+    m_otherResults.updateFavorite(itemId, favorite);
     m_suggestions.updateFavorite(itemId, favorite);
 }
 
@@ -143,6 +145,7 @@ void SearchController::updatePlayed(const QString& itemId, bool played)
     m_movieResults.updatePlayed(itemId, played);
     m_seriesResults.updatePlayed(itemId, played);
     m_episodeResults.updatePlayed(itemId, played);
+    m_otherResults.updatePlayed(itemId, played);
     m_suggestions.updatePlayed(itemId, played);
 }
 
@@ -169,6 +172,7 @@ void SearchController::clearResults()
     m_movieResults.clear();
     m_seriesResults.clear();
     m_episodeResults.clear();
+    m_otherResults.clear();
 }
 
 void SearchController::setResults(std::vector<MovieItem> items)
@@ -176,6 +180,7 @@ void SearchController::setResults(std::vector<MovieItem> items)
     std::vector<MovieItem> movies;
     std::vector<MovieItem> series;
     std::vector<MovieItem> episodes;
+    std::vector<MovieItem> other;
     for (MovieItem& item : items) {
         if (item.itemType == QStringLiteral("Movie"))
             movies.push_back(std::move(item));
@@ -183,10 +188,13 @@ void SearchController::setResults(std::vector<MovieItem> items)
             series.push_back(std::move(item));
         else if (item.itemType == QStringLiteral("Episode"))
             episodes.push_back(std::move(item));
+        else
+            other.push_back(std::move(item));
     }
     m_movieResults.setMovies(movies);
     m_seriesResults.setMovies(series);
     m_episodeResults.setMovies(episodes);
+    m_otherResults.setMovies(other);
 }
 
 bool SearchController::authenticated() const

@@ -23,6 +23,12 @@ Item {
     readonly property real titleAvailableHeight: Math.max(0, height - art.height - Metrics.scaled(10) - metadataHeight)
     readonly property real effectiveProgress: playbackProgress()
     readonly property bool artworkReady: art.artworkReady
+    readonly property real focusOutlineHeight: Math.min(height - Metrics.scaled(6), (metadataLabel.visible
+                                                                                     ? metadataLabel.y
+                                                                                       + metadataLabel.implicitHeight :
+                                                                                       titleLabel.y
+                                                                                       + titleLabel.implicitHeight)
+                                                        + Metrics.scaled(7))
 
     Component.onCompleted: InputLatency.noteDelegate("media_card", 1)
     Component.onDestruction: InputLatency.noteDelegate("media_card", -1)

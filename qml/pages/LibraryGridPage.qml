@@ -31,7 +31,7 @@ FocusScope {
     readonly property bool browseLoading: Browse.loadingMore
     // Fixed descriptor-backed pages reuse this grid but have no library
     // switcher, sort, or filter controls.
-    readonly property bool isFixedBrowseView: ["genre", "studio", "playlist", "boxset", "folder"].indexOf(
+    readonly property bool isFixedBrowseView: ["genre", "studio", "playlist", "boxset", "folder", "artist"].indexOf(
         Browse.viewKind) >= 0
     focus: true
     readonly property bool contentReady: grid.count > 0 && gridReveal.delegatesReady
@@ -582,7 +582,7 @@ FocusScope {
         savedIndex = grid.currentIndex
         const item = Browse.items ? (Browse.items.get(grid.currentIndex) || ({})) : ({})
         const type = String(item.itemType || "")
-        if (type === "Playlist" || type === "Folder") {
+        if (["Playlist", "Folder", "PhotoAlbum", "MusicAlbum", "MusicArtist"].indexOf(type) >= 0) {
             App.playFromModel(Browse.items, grid.currentIndex)
             return
         }
@@ -890,6 +890,8 @@ FocusScope {
             }
             highlightFollowsCurrentItem: true
             highlight: Rectangle {
+                width: grid.currentItem ? grid.currentItem.width : grid.cellWidth - Metrics.gapPx
+                height: grid.currentItem ? grid.currentItem.focusOutlineHeight : grid.cellHeight - Metrics.scaled(6)
                 color: "transparent"
                 radius: Theme.radiusMedium
                 border.width: Theme.focusBorderWidth

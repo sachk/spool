@@ -443,7 +443,10 @@ FocusScope {
             visible: root.addStep === 2
             anchors.horizontalCenter: parent.horizontalCenter
             anchors.top: parent.top
-            anchors.topMargin: Math.max(110, Math.round(parent.height * 0.19))
+            // Keep both fields above webOS's tall virtual keyboard. Moving the
+            // whole form is more stable than chasing the keyboard animation,
+            // which can otherwise repeatedly dismiss and reopen the IME.
+            anchors.topMargin: Math.max(Metrics.scaled(64), Math.round(parent.height * 0.09))
             width: Math.min(root.contentWidth, Metrics.scaled(760))
             spacing: Metrics.scaled(16)
 

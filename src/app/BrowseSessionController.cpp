@@ -165,10 +165,15 @@ bool BrowseSessionController::enterItem(const MovieItem& item)
         descriptor = BrowseDescriptor::boxSet(item.id, item.title);
         viewKind = QStringLiteral("boxset");
         contentLabel = QStringLiteral("Titles");
-    } else if (item.itemType == QStringLiteral("Folder")) {
+    } else if (item.itemType == QStringLiteral("Folder") || item.itemType == QStringLiteral("PhotoAlbum")
+        || item.itemType == QStringLiteral("MusicAlbum")) {
         descriptor = BrowseDescriptor::folderChildren(item.id, item.title);
         viewKind = QStringLiteral("folder");
         contentLabel = QStringLiteral("Items");
+    } else if (item.itemType == QStringLiteral("MusicArtist")) {
+        descriptor = BrowseDescriptor::artistAlbums(item.id, item.title);
+        viewKind = QStringLiteral("artist");
+        contentLabel = QStringLiteral("Albums");
     } else {
         return false;
     }

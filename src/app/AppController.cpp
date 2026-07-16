@@ -42,7 +42,8 @@ namespace {
     bool isBrowseContainer(const MovieItem& item)
     {
         return item.itemType == QStringLiteral("Playlist") || item.itemType == QStringLiteral("BoxSet")
-            || item.itemType == QStringLiteral("Folder");
+            || item.itemType == QStringLiteral("Folder") || item.itemType == QStringLiteral("PhotoAlbum")
+            || item.itemType == QStringLiteral("MusicAlbum") || item.itemType == QStringLiteral("MusicArtist");
     }
 
 }

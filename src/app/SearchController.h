@@ -20,6 +20,7 @@ class SearchController final : public QObject {
     Q_PROPERTY(JellyfinNative::MovieGridModel *movieResults READ movieResults CONSTANT)
     Q_PROPERTY(JellyfinNative::MovieGridModel *seriesResults READ seriesResults CONSTANT)
     Q_PROPERTY(JellyfinNative::MovieGridModel *episodeResults READ episodeResults CONSTANT)
+    Q_PROPERTY(JellyfinNative::MovieGridModel *otherResults READ otherResults CONSTANT)
     Q_PROPERTY(int resultCount READ resultCount NOTIFY resultsChanged)
     Q_PROPERTY(JellyfinNative::MovieGridModel *suggestions READ suggestions CONSTANT)
     Q_PROPERTY(bool suggestionsBusy READ suggestionsBusy NOTIFY suggestionsChanged)
@@ -51,9 +52,13 @@ public:
     {
         return &m_episodeResults;
     }
+    MovieGridModel *otherResults()
+    {
+        return &m_otherResults;
+    }
     int resultCount() const
     {
-        return m_movieResults.count() + m_seriesResults.count() + m_episodeResults.count();
+        return m_movieResults.count() + m_seriesResults.count() + m_episodeResults.count() + m_otherResults.count();
     }
     MovieGridModel *suggestions()
     {
@@ -90,6 +95,7 @@ private:
     MovieGridModel m_movieResults;
     MovieGridModel m_seriesResults;
     MovieGridModel m_episodeResults;
+    MovieGridModel m_otherResults;
     MovieGridModel m_suggestions;
     QString m_query;
     bool m_busy = false;

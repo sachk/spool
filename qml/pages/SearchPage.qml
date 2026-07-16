@@ -32,6 +32,11 @@ FocusScope {
             "key": "episodes",
             "title": "Episodes",
             "model": search ? search.episodeResults : null
+        },
+        {
+            "key": "other",
+            "title": "More",
+            "model": search ? search.otherResults : null
         }
     ]
     property int currentSection: 0
@@ -125,6 +130,21 @@ FocusScope {
         if (!row || !shell || row.currentIndex < 0)
             return
         preferredKind = row.resultKind
+        const item = row.itemAt(row.currentIndex) || ({})
+        if (String(item.itemType || "") === "Person") {
+            shell.openPerson({
+                                 "id": String(item.movieId || ""),
+                                 "name": String(item.title || ""),
+                                 "type": "Person"
+                             })
+            return
+        }
+        if (["Playlist", "Folder", "PhotoAlbum", "MusicAlbum", "MusicArtist"].indexOf(String(item.itemType || ""))
+                >= 0) {
+            App.playFromModel(row.model, row.currentIndex)
+            shell.pushRoute("libraryGrid")
+            return
+        }
         shell.openDetailsAt(row.model, row.currentIndex, "search", "search")
     }
 
@@ -218,126 +238,103 @@ FocusScope {
             }
         }
 
-        RowLayout {
+        Item {
             Layout.fillWidth: true
-            spacing: Metrics.gapPx
+            Layout.preferredHeight: Metrics.scaled(68)
 
-            SectionHeader {
-                Layout.fillWidth: true
-                title: "Search"
+            TextFieldRow {
+                id: field
+
+                anchors.fill: parent
+                placeholderText: "Search everything"
+                inputMethodHints: Qt.ImhNoPredictiveText | Qt.ImhNoAutoUppercase
+                enterKeyType: Qt.EnterKeySearch
+                onTextEdited: text => root.setQuery(text)
+                onAccepted: if (root.search)
+                root.search.submit()
             }
 
             BusyIndicator {
-                Layout.preferredWidth: Metrics.scaled(28)
-                Layout.preferredHeight: width
+                anchors.right: parent.right
+                anchors.verticalCenter: parent.verticalCenter
+                anchors.rightMargin: Metrics.scaled(18)
+                width: Metrics.scaled(28)
+                height: width
                 running: root.searchBusy
                 visible: running
             }
+        }
 
-            MonoText {
-                visible: root.query.length >= 2 && !root.searchBusy
-                text: root.resultCount + " result" + (root.resultCount === 1 ? "" : "s")
-                color: Theme.textMuted
+        MediaRow {
+            id: suggestionsRow
+
+            Layout.fillWidth: true
+            Layout.preferredHeight: implicitHeight
+            title: "Suggestions"
+            model: root.search ? root.search.suggestions : null
+            shell: root.shell
+            cardWidth: Metrics.homePosterWidth(root.width)
+            cardGap: Metrics.gapPx
+            enabledRow: root.query.length < 2
+            reserveWhenEmpty: root.query.length < 2 && root.suggestionsBusy
+            loading: root.suggestionsBusy
+            emptyText: "Loading suggestions..."
+            visible: root.query.length < 2
+            onActivated: index => {
+                if (root.shell)
+                root.shell.openDetailsAt(model, index, "suggestion", "search")
             }
         }
 
-        RowLayout {
+        EmptyPlaceholder {
             Layout.fillWidth: true
             Layout.fillHeight: true
-            spacing: Metrics.gapPx
+            visible: root.query.length < 2 && !root.showSuggestions && !root.suggestionsBusy
+            title: "Start typing"
+            detail: "Enter at least two characters."
+        }
 
-            ColumnLayout {
-                Layout.fillWidth: false
-                Layout.preferredWidth: Math.min(Metrics.scaled(520), Math.max(Metrics.scaled(320), root.width * 0.3))
-                Layout.fillHeight: true
-                Layout.alignment: Qt.AlignTop
-                spacing: Metrics.gapPx
+        ListView {
+            id: resultsScroller
 
-                TextFieldRow {
-                    id: field
+            Layout.fillWidth: true
+            Layout.fillHeight: true
+            visible: root.query.length >= 2
+            clip: true
+            boundsBehavior: Flickable.StopAtBounds
+            spacing: Metrics.sectionGapPx
+            reuseItems: true
+            cacheBuffer: 0
+            model: root.resultSections
 
-                    Layout.fillWidth: true
-                    Layout.preferredHeight: Metrics.scaled(64)
-                    label: "Search Jellyfin"
-                    placeholderText: "Movies, series, and episodes"
-                    inputMethodHints: Qt.ImhNoPredictiveText | Qt.ImhNoAutoUppercase
-                    enterKeyType: Qt.EnterKeySearch
-                    onTextEdited: text => root.setQuery(text)
-                    onAccepted: if (root.search)
-                    root.search.submit()
-                }
-
-                MediaRow {
-                    id: suggestionsRow
-
-                    Layout.fillWidth: true
-                    Layout.preferredHeight: implicitHeight
-                    title: "Suggestions"
-                    model: root.search ? root.search.suggestions : null
-                    shell: root.shell
-                    cardWidth: Metrics.homePosterWidth(root.width)
-                    cardGap: Metrics.gapPx
-                    enabledRow: root.query.length < 2
-                    reserveWhenEmpty: root.query.length < 2 && root.suggestionsBusy
-                    loading: root.suggestionsBusy
-                    emptyText: "Loading suggestions..."
-                    visible: root.query.length < 2
-                    onActivated: index => {
-                        if (root.shell)
-                        root.shell.openDetailsAt(model, index, "suggestion", "search")
-                    }
-                }
-
-                EmptyPlaceholder {
-                    Layout.fillWidth: true
-                    Layout.fillHeight: true
-                    visible: root.query.length < 2 && !root.showSuggestions && !root.suggestionsBusy
-                    title: "Start typing"
-                    detail: "Enter at least two characters."
-                }
+            FastWheelHandler {
+                flickable: resultsScroller
             }
 
-            ListView {
-                id: resultsScroller
+            delegate: MediaRow {
+                required property var modelData
+                readonly property string resultKind: modelData.key
 
-                Layout.fillWidth: true
-                Layout.fillHeight: true
-                clip: true
-                boundsBehavior: Flickable.StopAtBounds
-                spacing: Metrics.sectionGapPx
-                reuseItems: true
-                cacheBuffer: 0
-                model: root.resultSections
+                width: resultsScroller.width
+                title: modelData.title
+                model: modelData.model
+                shell: root.shell
+                cardKind: "poster"
+                useSeriesPoster: resultKind === "episodes"
+                preferEpisodeTitle: resultKind === "episodes"
+                cardWidth: Metrics.homePosterWidth(root.width)
+                cardGap: Metrics.gapPx
+                onCurrentIndexChanged: if (activeFocus)
+                root.preferredKind = resultKind
+                onActivated: root.activateResult(this)
+            }
 
-                FastWheelHandler {
-                    flickable: resultsScroller
-                }
-
-                delegate: MediaRow {
-                    required property var modelData
-                    readonly property string resultKind: modelData.key
-
-                    width: resultsScroller.width
-                    title: modelData.title
-                    model: modelData.model
-                    shell: root.shell
-                    cardKind: "poster"
-                    useSeriesPoster: resultKind === "episodes"
-                    preferEpisodeTitle: resultKind === "episodes"
-                    cardWidth: Metrics.homePosterWidth(root.width)
-                    cardGap: Metrics.gapPx
-                    onCurrentIndexChanged: if (activeFocus)
-                    root.preferredKind = resultKind
-                    onActivated: root.activateResult(this)
-                }
-
-                footer: EmptyPlaceholder {
-                    width: resultsScroller.width
-                    height: resultsScroller.height
-                    visible: root.query.length >= 2 && root.resultCount === 0 && !root.searchBusy
-                    title: "No results"
-                    detail: "Try another movie, series, or episode title."
-                }
+            footer: EmptyPlaceholder {
+                width: resultsScroller.width
+                height: resultsScroller.height
+                visible: root.resultCount === 0 && !root.searchBusy
+                title: "No results"
+                detail: "Try another title or name."
             }
         }
     }

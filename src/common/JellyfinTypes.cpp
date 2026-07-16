@@ -307,7 +307,9 @@ QString MovieItem::subtitle() const
 bool isPlayableItem(const MovieItem& item)
 {
     return item.itemType == QStringLiteral("Movie") || item.itemType == QStringLiteral("Episode")
-        || item.itemType == QStringLiteral("MusicVideo") || item.itemType == QStringLiteral("Video");
+        || item.itemType == QStringLiteral("MusicVideo") || item.itemType == QStringLiteral("Video")
+        || item.itemType == QStringLiteral("Audio") || item.itemType == QStringLiteral("AudioBook")
+        || item.itemType == QStringLiteral("Trailer");
 }
 
 QString itemSubtitle(const MovieItem& item)
