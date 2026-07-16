@@ -762,7 +762,7 @@ QCoro::Task<std::vector<MovieItem>> JellyfinApiFacade::fetchNextUpEpisodes(int l
 QCoro::Task<std::vector<MovieItem>> JellyfinApiFacade::fetchLatestItems(QString parentId, int limit)
 {
     QUrlQuery query = ItemsQuery()
-                          .limit(limit, 60)
+                          .limit(limit, 200)
                           .fields(libraryItemFields())
                           .images()
                           .add(QStringLiteral("groupItems"), QStringLiteral("false"))

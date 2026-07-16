@@ -208,6 +208,7 @@ namespace Detail {
 class InputLatencyMonitor final : public QObject {
     Q_OBJECT
     Q_PROPERTY(bool enabled READ enabled WRITE setEnabled NOTIFY enabledChanged)
+    Q_PROPERTY(bool overlayEnabled READ overlayEnabled WRITE setOverlayEnabled NOTIFY overlayEnabledChanged)
     Q_PROPERTY(bool warningVisible READ warningVisible NOTIFY warningChanged)
     Q_PROPERTY(QString warningText READ warningText NOTIFY warningChanged)
     Q_PROPERTY(QString warningStage READ warningStage NOTIFY warningChanged)
@@ -229,6 +230,8 @@ public:
 
     bool enabled() const;
     void setEnabled(bool enabled);
+    bool overlayEnabled() const;
+    void setOverlayEnabled(bool enabled);
     bool warningVisible() const;
     QString warningText() const;
     QString warningStage() const;
@@ -249,6 +252,7 @@ public:
 
 signals:
     void enabledChanged();
+    void overlayEnabledChanged();
     void warningChanged();
     void statisticsChanged();
     void frameBudgetChanged();
@@ -284,6 +288,7 @@ private:
     QString m_warningStage;
     qint64 m_warningLatencyNs = 0;
     bool m_warningVisible = false;
+    bool m_overlayEnabled = true;
     struct UiTransition {
         enum class Stage : quint8 { Instance, Shell, ModelReady, FirstDelegate, Viewport, ContentReady, Count };
         struct Mark {

@@ -56,14 +56,14 @@ FocusScope {
         makeRow("action/subtitleSettings", "Subtitles", "action", "Subtitle settings",
                 "Preview and adjust subtitle language and appearance"), makeRow("shell/diagnostics", "Diagnostics",
                                                                                 "toggle", "Diagnostics Overlay"),
-        makeRow("shell/latencyGuard", "Diagnostics", "toggle", "Latency Guard"), makeRow("action/clearLatencyStatistics",
-                                                                                         "Diagnostics", "action",
-                                                                                         "Clear Latency Statistics"),
-        makeRow("about/version", "About", "readonly", "Jellyfin Native for webOS",
-                "Qt 6.11 client, native mpv playback"), makeRow("action/openSourceNotices", "About", "action",
-                                                                "Open-source notices",
-                                                                "Acknowledgements, licenses, and corresponding source"),
-        makeRow("about/locale", "About", "readonly", "UI Locale")]
+        makeRow("shell/latencyGuard", "Diagnostics", "toggle", "Latency Logging"), makeRow("shell/latencyOverlay",
+                                                                                           "Diagnostics", "toggle",
+                                                                                           "Latency Warnings"), makeRow(
+            "action/clearLatencyStatistics", "Diagnostics", "action", "Clear Latency Statistics"), makeRow(
+            "about/version", "About", "readonly", "Jellyfin Native for webOS", "Qt 6.11 client, native mpv playback"),
+        makeRow("action/openSourceNotices", "About", "action", "Open-source notices",
+                "Acknowledgements, licenses, and corresponding source"), makeRow("about/locale", "About", "readonly",
+                                                                                 "UI Locale")]
 
     function makeRow(key, group, type, title, description, labels, values) {
         return {
@@ -234,6 +234,8 @@ FocusScope {
             return shell ? shell.diagnosticsVisible : false
         case "shell/latencyGuard":
             return InputLatency.enabled
+        case "shell/latencyOverlay":
+            return InputLatency.overlayEnabled
         case "subtitles/language":
             return Settings.subtitleLanguageIndex
         default:
@@ -336,6 +338,9 @@ FocusScope {
             break
         case "shell/latencyGuard":
             InputLatency.enabled = value
+            break
+        case "shell/latencyOverlay":
+            InputLatency.overlayEnabled = value
             break
         case "subtitles/language":
             Settings.setSubtitleLanguageIndex(index)

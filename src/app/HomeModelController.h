@@ -64,6 +64,7 @@ private:
         std::vector<MovieItem> items;
     };
     QCoro::Task<void> refreshAsync(std::vector<LibraryItem> libraries, RequestGeneration::Token generation);
+    QCoro::Task<std::vector<MovieItem>> fetchLatestLibraryItems(LibraryItem library);
     bool updateLatestLibraryRows(std::vector<PendingLatestLibrarySection> sections);
     QJsonObject payloadFromSections(const std::vector<MovieItem>& resumeItems,
         const std::vector<MovieItem>& nextUpItems, const std::vector<PendingLatestLibrarySection>& sections) const;

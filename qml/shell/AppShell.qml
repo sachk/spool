@@ -368,6 +368,9 @@ KeyRouter {
     function focusNavBar() {
         if (route === "login")
             return
+        const page = routeStack.activeItem
+        if (page && page.revealHeader)
+            page.revealHeader()
         navigationTarget = navBar
         InputKeys.focus(navBar)
         navBar.focusCurrent()

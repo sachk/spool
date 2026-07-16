@@ -9,6 +9,7 @@ T.Control {
     property bool selected: false
     property bool checked: false
     property bool railStyle: false
+    property bool chromeless: false
     property bool pointerHovered: hover.hovered
     property string accessibleName: ""
     signal clicked
@@ -19,10 +20,14 @@ T.Control {
 
     background: Rectangle {
         radius: Theme.radiusSmall
-        color: tap.pressed ? Theme.bgHover : root.railStyle && root.selected ? Theme.accentPanel : root.selected
-                                                                               ? Theme.bgPanel : "transparent"
-        border.width: root.activeFocus ? Theme.focusBorderWidth : root.selected || root.pointerHovered
-                                         ? Theme.hoverBorderWidth : 0
+        color: root.chromeless ? (tap.pressed ? Theme.bgHover : "transparent") : tap.pressed ? Theme.bgHover : root.railStyle
+                                                                                               && root.selected
+                                                                                               ? Theme.accentPanel :
+                                                                                                 root.selected
+                                                                                                 ? Theme.bgPanel :
+                                                                                                   "transparent"
+        border.width: root.chromeless ? 0 : root.activeFocus ? Theme.focusBorderWidth : root.selected
+                                                               || root.pointerHovered ? Theme.hoverBorderWidth : 0
         border.color: root.activeFocus ? Theme.textPrimary : root.selected ? Theme.accent : Theme.borderStrong
         antialiasing: true
 
@@ -31,7 +36,7 @@ T.Control {
             anchors.margins: -Metrics.scaled(4)
             radius: parent.radius + Metrics.scaled(4)
             color: "transparent"
-            border.width: root.railStyle && root.activeFocus ? Theme.focusBorderWidth : 0
+            border.width: !root.chromeless && root.railStyle && root.activeFocus ? Theme.focusBorderWidth : 0
             border.color: Theme.accent
             opacity: 0.55
         }
@@ -43,7 +48,7 @@ T.Control {
             visible: root.iconName.length > 0
             name: root.iconName
             iconSize: Metrics.scaled(root.railStyle ? 24 : 22)
-            iconColor: root.activeFocus ? Theme.textPrimary : root.selected ? Theme.accent : Theme.textSecondary
+            iconColor: root.activeFocus || root.selected ? Theme.accent : Theme.textSecondary
         }
 
         AppText {

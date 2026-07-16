@@ -123,7 +123,7 @@ FocusScope {
             else {
                 options.push({
                                  action: "played",
-                                 icon: playedState ? "visibility_off" : "visibility",
+                                 icon: playedState ? "visibility" : "visibility_off",
                                  label: playedState ? "Mark unwatched" : "Mark watched",
                                  checked: playedState
                              })

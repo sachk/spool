@@ -65,13 +65,6 @@ namespace {
         model.setMovies(items);
     }
 
-    int latestLibraryLimit(const LibraryItem& library)
-    {
-        if (library.collectionType == QStringLiteral("tvshows"))
-            return 12;
-        return 16;
-    }
-
     std::vector<MovieItem> groupLatestEpisodes(const LibraryItem& library, std::vector<MovieItem> items)
     {
         if (library.collectionType != QStringLiteral("tvshows"))
@@ -271,7 +264,7 @@ QCoro::Task<void> HomeModelController::refreshAsync(
     std::vector<QCoro::Task<std::vector<MovieItem>>> latestTasks;
     latestTasks.reserve(latestLibraries.size());
     for (const LibraryItem& library : latestLibraries)
-        latestTasks.push_back(m_api->fetchLatestItems(library.id, latestLibraryLimit(library)));
+        latestTasks.push_back(fetchLatestLibraryItems(library));
 
     std::vector<MovieItem> resumeItems;
     try {
@@ -302,7 +295,6 @@ QCoro::Task<void> HomeModelController::refreshAsync(
         const LibraryItem& library = latestLibraries[static_cast<size_t>(order)];
         try {
             std::vector<MovieItem> items = co_await latestTasks[static_cast<size_t>(order)];
-            items = groupLatestEpisodes(library, std::move(items));
             qInfo() << "home: latest items" << library.name << items.size() << homeItemSample(items);
             if (!items.empty())
                 latestSections.push_back({ order, library, std::move(items) });
@@ -331,6 +323,27 @@ QCoro::Task<void> HomeModelController::refreshAsync(
     m_prefetch->schedule(libraries, m_recentLibraryIds);
     if (latestRowsChanged)
         emit latestLibraryRowsChanged();
+}
+
+QCoro::Task<std::vector<MovieItem>> HomeModelController::fetchLatestLibraryItems(LibraryItem library)
+{
+    constexpr int kTargetItems = 20;
+    constexpr int kMaximumRawItems = 200;
+
+    for (int limit = kTargetItems; limit <= kMaximumRawItems; limit += kTargetItems) {
+        std::vector<MovieItem> rawItems = co_await m_api->fetchLatestItems(library.id, limit);
+        const int rawCount = static_cast<int>(rawItems.size());
+        std::vector<MovieItem> groupedItems = groupLatestEpisodes(library, std::move(rawItems));
+        qInfo() << "home: latest fill" << library.name << "raw=" << rawCount << "grouped=" << groupedItems.size()
+                << "limit=" << limit;
+        if (groupedItems.size() >= kTargetItems) {
+            groupedItems.resize(kTargetItems);
+            co_return groupedItems;
+        }
+        if (rawCount < limit || limit == kMaximumRawItems)
+            co_return groupedItems;
+    }
+    co_return std::vector<MovieItem> {};
 }
 
 void HomeModelController::recordLibraryUse(const LibraryItem& library)

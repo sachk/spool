@@ -293,10 +293,14 @@ protected:
 
         if (operation == GetOperation && url.path() == QStringLiteral("/Users/user-1/Items/Latest")) {
             const QString parentId = query.queryItemValue(QStringLiteral("parentId"));
-            const QJsonArray items = parentId == QStringLiteral("shows-id")
-                ? QJsonArray { episodeObject(7), episodeObject(6), episodeObject(5) }
-                : parentId == QStringLiteral("photos-id") ? QJsonArray { photoObject() }
-                                                          : QJsonArray {};
+            QJsonArray items;
+            if (parentId == QStringLiteral("shows-id")) {
+                const int count = std::min(query.queryItemValue(QStringLiteral("limit")).toInt(), 45);
+                for (int episode = 1; episode <= count; ++episode)
+                    items.push_back(episodeObject(episode));
+            } else if (parentId == QStringLiteral("photos-id")) {
+                items.push_back(photoObject());
+            }
             return new MemoryReply(request, operation, jsonBytes({ { QStringLiteral("Items"), items } }), 200, this);
         }
 
@@ -682,6 +686,8 @@ int main(int argc, char **argv)
     require(latestRequestsAreUnfiltered(network.requestedUrls),
         "home latest requests retained a movie/series/episode-only filter");
     require(waitForHomeRows(home, 1000), "home latest rows did not finish loading");
+    require(latestRequestCount(network.requestedUrls) == 4,
+        "home did not expand the latest request until grouping exhausted the server results");
 
     const QVariantList latestRows = home.latestLibraryRows();
     require(latestRows.size() == 2, "home did not expose one latest row for each supported library");
@@ -696,7 +702,7 @@ int main(int argc, char **argv)
         "home episode row did not retain series primary artwork");
     require(showItems->get(0).title == QStringLiteral("Series One"),
         "grouped latest episodes did not use the series title");
-    require(showItems->get(0).episodeLabel == QStringLiteral("S02 · E05-E07"),
+    require(showItems->get(0).episodeLabel == QStringLiteral("S02 · E01-E45"),
         "grouped latest episodes did not expose the contiguous episode range");
 
     int latestStructureChanges = 0;

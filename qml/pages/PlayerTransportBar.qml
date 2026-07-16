@@ -30,7 +30,7 @@ RowLayout {
             anchors.centerIn: parent
             name: parent.action.length > 0 ? root.overlay.actionIcon(parent.action) : ""
             iconColor: parent.focused ? Theme.textPrimary : Theme.textSecondary
-            iconSize: root.overlay.dp(parent.action === "debug" ? 30 : 36)
+            iconSize: root.overlay.dp(parent.action === "debug" ? 32 : 38)
         }
 
         HoverHandler {
@@ -42,7 +42,7 @@ RowLayout {
             anchors.bottom: parent.top
             anchors.bottomMargin: root.overlay.dp(8)
             width: tooltipText.implicitWidth + root.overlay.dp(20)
-            height: root.overlay.dp(32)
+            height: root.overlay.dp(34)
             radius: root.overlay.dp(6)
             color: "#E6222222"
             border.width: 1
@@ -55,7 +55,7 @@ RowLayout {
                 anchors.centerIn: parent
                 text: parent.parent.tooltip
                 color: Theme.textPrimary
-                font.pixelSize: root.overlay.dp(14)
+                font.pixelSize: root.overlay.dp(15)
                 font.weight: Font.Medium
             }
         }

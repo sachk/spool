@@ -109,6 +109,7 @@ FocusScope {
 
         width: Metrics.controlHeightPx
         height: width
+        chromeless: true
         selected: checked
         enabled: enabledButton
         accessibleName: label
@@ -1213,7 +1214,7 @@ FocusScope {
 
                         IconAction {
                             id: playedAction
-                            iconName: root.playedState ? "visibility_off" : "visibility"
+                            iconName: root.playedState ? "visibility" : "visibility_off"
                             label: root.playedState ? "Mark unwatched" : "Mark watched"
                             checked: root.playedState
                             enabledButton: root.selectedIndex >= 0
@@ -1246,50 +1247,6 @@ FocusScope {
                         text: root.progressText() + " / " + root.remainingText()
                         color: Theme.textMuted
                         font.pixelSize: Metrics.metaSizePx
-                    }
-
-                    Rectangle {
-                        id: overflowMenu
-                        Layout.preferredWidth: 292
-                        Layout.preferredHeight: root.overflowOpen ? menuColumn.implicitHeight + 14 : 0
-                        visible: root.overflowOpen
-                        radius: Theme.radiusMedium
-                        color: Theme.floatingPanel
-                        border.width: 1
-                        border.color: Theme.borderStrong
-                        clip: true
-
-                        Column {
-                            id: menuColumn
-                            anchors.left: parent.left
-                            anchors.right: parent.right
-                            anchors.top: parent.top
-                            anchors.margins: 7
-
-                            MenuOption {
-                                id: playAllOption
-                                visible: root.showContextPlaybackActions
-                                iconName: "play_arrow"
-                                label: "Play all"
-                                onActivated: root.playDetailContext(false)
-                            }
-
-                            MenuOption {
-                                id: shuffleOption
-                                visible: root.showContextPlaybackActions
-                                iconName: "shuffle"
-                                label: "Shuffle play"
-                                onActivated: root.playDetailContext(true)
-                            }
-
-                            MenuOption {
-                                id: mediaInfoOption
-                                visible: root.mediaInfoAvailable
-                                iconName: "info"
-                                label: "Media info"
-                                onActivated: root.openMediaInfo()
-                            }
-                        }
                     }
 
                     MetadataPanel {
@@ -1450,6 +1407,66 @@ FocusScope {
                         onActivated: index => root.openSimilarItem(index)
                     }
                 }
+            }
+        }
+    }
+
+    MouseArea {
+        anchors.fill: parent
+        visible: root.overflowOpen
+        z: 39
+        onClicked: {
+            root.overflowOpen = false
+            root.focusActionIndex(root.orderedActions().indexOf(menuAction))
+        }
+    }
+
+    PopupMenuPanel {
+        id: overflowMenu
+        readonly property point anchorPoint: menuAction.mapToItem(root, 0, 0)
+        width: Math.min(Metrics.scaled(292), root.width - root.contentMargin * 2)
+        x: Math.max(root.contentMargin, Math.min(root.width - width - root.contentMargin, anchorPoint.x
+                                                 + menuAction.width - width))
+        y: {
+            const below = anchorPoint.y + menuAction.height + Metrics.scaled(8)
+            return below + openHeight <= root.height - root.contentMargin ? below : Math.max(root.contentMargin,
+                                                                                             anchorPoint.y - openHeight
+                                                                                             - Metrics.scaled(8))
+        }
+        open: root.overflowOpen
+        openHeight: menuColumn.implicitHeight + Metrics.scaled(14)
+        baseColor: Theme.floatingPanel
+        z: 40
+
+        Column {
+            id: menuColumn
+            anchors.left: parent.left
+            anchors.right: parent.right
+            anchors.top: parent.top
+            anchors.margins: Metrics.scaled(7)
+
+            MenuOption {
+                id: playAllOption
+                visible: root.showContextPlaybackActions
+                iconName: "play_arrow"
+                label: "Play all"
+                onActivated: root.playDetailContext(false)
+            }
+
+            MenuOption {
+                id: shuffleOption
+                visible: root.showContextPlaybackActions
+                iconName: "shuffle"
+                label: "Shuffle play"
+                onActivated: root.playDetailContext(true)
+            }
+
+            MenuOption {
+                id: mediaInfoOption
+                visible: root.mediaInfoAvailable
+                iconName: "info"
+                label: "Media info"
+                onActivated: root.openMediaInfo()
             }
         }
     }

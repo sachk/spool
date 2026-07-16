@@ -572,6 +572,7 @@ namespace JellyfinNative {
 
 namespace {
     constexpr auto kEnabledSetting = "diagnostics/inputLatencyGuard";
+    constexpr auto kOverlayEnabledSetting = "diagnostics/inputLatencyOverlay";
 
     qint64 threadCpuNowNs()
     {
@@ -607,6 +608,7 @@ InputLatencyMonitor::InputLatencyMonitor(QObject *parent)
     connect(&m_uiGapTimer, &QChronoTimer::timeout, this, &InputLatencyMonitor::handleUiGapTimer);
 
     const bool persistedEnabled = QSettings().value(QLatin1String(kEnabledSetting), false).toBool();
+    m_overlayEnabled = QSettings().value(QLatin1String(kOverlayEnabledSetting), true).toBool();
     const bool environmentEnabled = qEnvironmentVariable("JELLYFIN_INPUT_LATENCY_DIAGNOSTICS") == QLatin1String("1");
     m_timeline.setEnabled(persistedEnabled || environmentEnabled);
 }
@@ -889,6 +891,20 @@ void InputLatencyMonitor::setEnabled(bool enabled)
     QSettings().setValue(QLatin1String(kEnabledSetting), enabled);
     finishCancellationOnGuiThread();
     emit enabledChanged();
+}
+
+bool InputLatencyMonitor::overlayEnabled() const
+{
+    return m_overlayEnabled;
+}
+
+void InputLatencyMonitor::setOverlayEnabled(bool enabled)
+{
+    if (m_overlayEnabled == enabled)
+        return;
+    m_overlayEnabled = enabled;
+    QSettings().setValue(QLatin1String(kOverlayEnabledSetting), enabled);
+    emit overlayEnabledChanged();
 }
 
 bool InputLatencyMonitor::warningVisible() const

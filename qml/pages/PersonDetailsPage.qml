@@ -63,6 +63,9 @@ FocusScope {
     function moveSection(direction) {
         const next = firstPopulatedSection(sectionList.currentIndex + direction, direction)
         if (next < 0) {
+            if (direction < 0) {
+                revealHeader()
+            }
             if (direction < 0 && shell)
                 shell.focusNavBar()
             return true
@@ -71,6 +74,10 @@ FocusScope {
         sectionList.positionViewAtIndex(next, ListView.Contain)
         Qt.callLater(focusCurrentSection)
         return true
+    }
+
+    function revealHeader() {
+        sectionList.positionViewAtBeginning()
     }
 
     function routeKey(key, phase, repeat) {

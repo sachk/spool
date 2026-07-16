@@ -7,7 +7,7 @@ Item {
 
     required property var monitor
 
-    visible: monitor.warningVisible
+    visible: monitor.warningVisible && monitor.overlayEnabled
 
     Surface {
         anchors.top: parent.top

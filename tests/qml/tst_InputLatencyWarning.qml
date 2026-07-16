@@ -13,6 +13,7 @@ TestCase {
         id: monitorDouble
 
         property bool warningVisible: false
+        property bool overlayEnabled: true
         property string warningText: ""
         property string warningStage: ""
     }
@@ -35,6 +36,7 @@ TestCase {
 
     function init() {
         monitorDouble.warningVisible = false
+        monitorDouble.overlayEnabled = true
         monitorDouble.warningText = ""
         monitorDouble.warningStage = ""
     }
@@ -63,6 +65,12 @@ TestCase {
         verify(!texts.includes(previousWarningStage))
 
         monitorDouble.warningVisible = false
+        compare(warning.visible, false)
+    }
+
+    function test_overlayCanBeHiddenWhileMonitorStillWarns() {
+        monitorDouble.warningVisible = true
+        monitorDouble.overlayEnabled = false
         compare(warning.visible, false)
     }
 }
