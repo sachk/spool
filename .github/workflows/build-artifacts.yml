@@ -156,13 +156,13 @@ jobs:
           printf 'MPV_FLAKE_URL=git+file:%s/mpv?rev=%s\n' "$PWD" "$revision" >> "$GITHUB_ENV"
 
       - name: Build macOS app
-        run: nix develop .#native --no-write-lock-file --override-input mpv-src "$MPV_FLAKE_URL" -c bash tools/build-macos.sh
+        run: nix develop .#native --recreate-lock-file --no-write-lock-file --override-input mpv-src "$MPV_FLAKE_URL" -c bash tools/build-macos.sh
 
       - name: Smoke-test macOS app startup
-        run: nix develop .#native --no-write-lock-file --override-input mpv-src "$MPV_FLAKE_URL" -c bash tools/smoke-native-app.sh build/macos/install/jellyfin-native.app
+        run: nix develop .#native --recreate-lock-file --no-write-lock-file --override-input mpv-src "$MPV_FLAKE_URL" -c bash tools/smoke-native-app.sh build/macos/install/jellyfin-native.app
 
       - name: Package DMG
-        run: nix develop .#native --no-write-lock-file --override-input mpv-src "$MPV_FLAKE_URL" -c bash tools/package-macos-dmg.sh
+        run: nix develop .#native --recreate-lock-file --no-write-lock-file --override-input mpv-src "$MPV_FLAKE_URL" -c bash tools/package-macos-dmg.sh
 
       - uses: actions/upload-artifact@v7
         with:
