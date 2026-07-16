@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstdint>
 #include <functional>
 
 // webOS-only lazy loader for libmpv.
@@ -27,5 +28,10 @@ void runAfterLoaded(std::function<void()> callback);
 // the preload has not run yet). Returns false if loading failed; the failure
 // is sticky and logged once.
 bool ensureLoaded();
+
+// Return cumulative libavcodec audio-decoder thread CPU time, or -1 while
+// libmpv is not loaded. Unlike the forwarding entry points, this never forces
+// a load from the startup diagnostics timer.
+int64_t audioDecodeCpuTimeNs();
 
 } // namespace JellyfinNative::MpvRuntime

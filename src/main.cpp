@@ -79,6 +79,8 @@ Q_IMPORT_PLUGIN(QSQLiteDriverPlugin)
 #include <QTimer>
 #include <qqml.h>
 
+#include <mpv/client.h>
+
 #include <atomic>
 #include <clocale>
 #include <cstdarg>
@@ -834,6 +836,13 @@ int main(int argc, char **argv)
         });
     JellyfinNative::InputLatencyMonitor inputLatencyMonitor;
     JellyfinNative::SystemPerformanceMonitor systemPerformanceMonitor;
+#ifdef JELLYFIN_NATIVE_WEBOS
+    systemPerformanceMonitor.setAudioDecodeCpuTimeProvider(
+        [] { return JellyfinNative::MpvRuntime::audioDecodeCpuTimeNs(); });
+#else
+    systemPerformanceMonitor.setAudioDecodeCpuTimeProvider(
+        [] { return static_cast<qint64>(mpv_get_audio_decode_cpu_time_ns()); });
+#endif
     JellyfinNative::NativeAppWindow window(QString::fromLatin1(kAppId));
     inputLatencyMonitor.attachWindow(&window);
     window.setInputLatencyMonitor(&inputLatencyMonitor);

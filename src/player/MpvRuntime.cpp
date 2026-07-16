@@ -42,6 +42,7 @@ extern "C" {
     X(mpv_command_async)                                                                                               \
     X(mpv_command_string)                                                                                              \
     X(mpv_error_string)                                                                                                \
+    X(mpv_get_audio_decode_cpu_time_ns)                                                                                \
     X(mpv_render_context_create)                                                                                       \
     X(mpv_render_context_free)                                                                                         \
     X(mpv_render_context_render)                                                                                       \
@@ -176,6 +177,13 @@ bool ensureLoaded()
     if (loadedNow)
         runLoadCallbacks();
     return true;
+}
+
+int64_t audioDecodeCpuTimeNs()
+{
+    if (!g_loaded.load(std::memory_order_acquire))
+        return -1;
+    return static_cast<int64_t>(g_api.mpv_get_audio_decode_cpu_time_ns());
 }
 
 void runAfterLoaded(std::function<void()> callback)

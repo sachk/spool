@@ -50,7 +50,8 @@ namespace {
         return name == QStringLiteral("core") || name == QStringLiteral("demux") || name == QStringLiteral("input")
             || name == QStringLiteral("opener") || name == QStringLiteral("vo") || name == QStringLiteral("ao")
             || name == QStringLiteral("worker") || name == QStringLiteral("curl") || name == QStringLiteral("log")
-            || name.startsWith(QStringLiteral("dec/")) || name.startsWith(QStringLiteral("ao/"));
+            || name.startsWith(QStringLiteral("dec/")) || name.startsWith(QStringLiteral("ao/"))
+            || name.startsWith(QStringLiteral("video-")) || name.startsWith(QStringLiteral("lxvideodec"));
     }
 
     bool parseSchedstat(const QByteArray& contents, quint64 *runtimeNs)
@@ -88,6 +89,12 @@ SystemPerformanceMonitor::SystemPerformanceMonitor(QObject *parent)
     m_timer.start();
 }
 
+void SystemPerformanceMonitor::setAudioDecodeCpuTimeProvider(std::function<qint64()> provider)
+{
+    m_audioDecodeCpuTimeProvider = std::move(provider);
+    m_previousAudioDecodeCpuTimeNs = m_audioDecodeCpuTimeProvider ? m_audioDecodeCpuTimeProvider() : -1;
+}
+
 void SystemPerformanceMonitor::sample()
 {
 #ifndef Q_OS_LINUX
@@ -96,6 +103,7 @@ void SystemPerformanceMonitor::sample()
     const qint64 nowNs = m_elapsed.nsecsElapsed();
     const double elapsedSeconds
         = m_previousSampleNs > 0 ? static_cast<double>(nowNs - m_previousSampleNs) / 1'000'000'000.0 : 0.0;
+    const qint64 audioDecodeCpuTimeNs = m_audioDecodeCpuTimeProvider ? m_audioDecodeCpuTimeProvider() : -1;
 
     quint64 processTicks = 0;
     const bool processOk = parseStat(readFile(QStringLiteral("/proc/self/stat")), nullptr, &processTicks);
@@ -152,7 +160,7 @@ void SystemPerformanceMonitor::sample()
         quint64& audioOutputTotal = precise ? audioOutputRuntimeNs : audioOutputTicks;
         if (isMpvThread(current.name))
             mpvTotal += delta;
-        if (current.name == QStringLiteral("dec/video"))
+        if (current.name == QStringLiteral("dec/video") || current.name.startsWith(QStringLiteral("lxvideodec")))
             videoDecodeTotal += delta;
         else if (current.name == QStringLiteral("dec/audio"))
             audioDecodeTotal += delta;
@@ -209,8 +217,14 @@ void SystemPerformanceMonitor::sample()
             = precisePercent(mpvRuntimeNs) + percentForTicks(mpvTicks, elapsedSeconds, m_clockTicksPerSecond);
         m_videoDecodeCpuPercent = precisePercent(videoDecodeRuntimeNs)
             + percentForTicks(videoDecodeTicks, elapsedSeconds, m_clockTicksPerSecond);
-        m_audioDecodeCpuPercent = precisePercent(audioDecodeRuntimeNs)
-            + percentForTicks(audioDecodeTicks, elapsedSeconds, m_clockTicksPerSecond);
+        if (audioDecodeCpuTimeNs >= 0 && m_previousAudioDecodeCpuTimeNs >= 0
+            && audioDecodeCpuTimeNs >= m_previousAudioDecodeCpuTimeNs) {
+            m_audioDecodeCpuPercent
+                = precisePercent(static_cast<quint64>(audioDecodeCpuTimeNs - m_previousAudioDecodeCpuTimeNs));
+        } else {
+            m_audioDecodeCpuPercent = precisePercent(audioDecodeRuntimeNs)
+                + percentForTicks(audioDecodeTicks, elapsedSeconds, m_clockTicksPerSecond);
+        }
         m_audioOutputCpuPercent = precisePercent(audioOutputRuntimeNs)
             + percentForTicks(audioOutputTicks, elapsedSeconds, m_clockTicksPerSecond);
     }
@@ -223,6 +237,7 @@ void SystemPerformanceMonitor::sample()
     m_previousSystemIdle = systemIdle;
     m_previousThreads = std::move(threads);
     m_previousSampleNs = nowNs;
+    m_previousAudioDecodeCpuTimeNs = audioDecodeCpuTimeNs;
     emit metricsChanged();
 #endif
 }

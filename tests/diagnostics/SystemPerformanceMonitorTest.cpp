@@ -5,6 +5,7 @@
 #include <QFileInfo>
 #include <QTimer>
 
+#include <atomic>
 #include <cstdlib>
 #include <iostream>
 
@@ -24,6 +25,9 @@ int main(int argc, char **argv)
 {
     QCoreApplication app(argc, argv);
     JellyfinNative::SystemPerformanceMonitor monitor;
+    std::atomic<qint64> fakeAudioDecodeTimeNs { 0 };
+    monitor.setAudioDecodeCpuTimeProvider(
+        [&fakeAudioDecodeTimeNs] { return fakeAudioDecodeTimeNs.fetch_add(1'000'000) + 1'000'000; });
 
     QEventLoop waitForSecondSample;
     QTimer::singleShot(1100, &waitForSecondSample, &QEventLoop::quit);
@@ -35,6 +39,7 @@ int main(int argc, char **argv)
     if (QFileInfo::exists(QStringLiteral("/proc/self/task/%1/schedstat").arg(QCoreApplication::applicationPid())))
         require(monitor.preciseThreadCpuAvailable(), "schedstat should enable precise thread CPU counters");
     require(monitor.processCpuPercent() >= 0.0, "process CPU should be non-negative");
+    require(monitor.audioDecodeCpuPercent() > 0.0, "audio decode provider should populate CPU usage");
     require(
         monitor.systemCpuPercent() >= 0.0 && monitor.systemCpuPercent() <= 100.0, "system CPU should be a percentage");
     require(monitor.processRssBytes() > 0, "process RSS should be populated");

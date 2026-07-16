@@ -5,6 +5,8 @@
 #include <QObject>
 #include <QTimer>
 
+#include <functional>
+
 namespace JellyfinNative {
 
 class SystemPerformanceMonitor final : public QObject {
@@ -29,6 +31,7 @@ class SystemPerformanceMonitor final : public QObject {
 
 public:
     explicit SystemPerformanceMonitor(QObject *parent = nullptr);
+    void setAudioDecodeCpuTimeProvider(std::function<qint64()> provider);
 
     bool available() const
     {
@@ -115,10 +118,12 @@ private:
     QTimer m_timer;
     QElapsedTimer m_elapsed;
     QHash<qint64, ThreadSample> m_previousThreads;
+    std::function<qint64()> m_audioDecodeCpuTimeProvider;
     quint64 m_previousProcessTicks = 0;
     quint64 m_previousSystemTotal = 0;
     quint64 m_previousSystemIdle = 0;
     qint64 m_previousSampleNs = 0;
+    qint64 m_previousAudioDecodeCpuTimeNs = -1;
     long m_clockTicksPerSecond = 100;
     bool m_available = false;
     bool m_threadBreakdownAvailable = false;
