@@ -55,6 +55,11 @@ if [[ "$DEPLOY_APP" == "1" ]]; then
     "$BUILD_ROOT/qt-tools-shadow" \
     "$(command -v macdeployqt)")"
   "$macdeployqt_shadow" "$APP_INSTALL/jellyfin-native.app" -qmldir="$APP_ROOT/qml" -no-strip
+  mkdir -p "$APP_INSTALL/jellyfin-native.app/Contents/Resources/notices"
+  cp -f "$APP_ROOT/app/notices/OPEN_SOURCE_NOTICES.txt" "$APP_ROOT/LICENSE" \
+    "$APP_ROOT/qml/fonts/Inter-LICENSE.txt" "$APP_ROOT/qml/fonts/MaterialIcons-LICENSE.txt" \
+    "$APP_ROOT/qml/fonts/SourceSerif4-LICENSE.md" \
+    "$APP_INSTALL/jellyfin-native.app/Contents/Resources/notices/"
 fi
 
 printf '%s\n' "$APP_INSTALL/jellyfin-native.app"

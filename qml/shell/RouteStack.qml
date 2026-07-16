@@ -34,6 +34,8 @@ FocusScope {
             return "personDetails"
         case "search":
             return "search"
+        case "openSourceNotices":
+            return "openSourceNotices"
         case "settings":
         case "subtitleSettings":
             return "settings"
@@ -58,6 +60,8 @@ FocusScope {
             return Qt.resolvedUrl("../pages/PersonDetailsPage.qml")
         case "search":
             return Qt.resolvedUrl("../pages/SearchPage.qml")
+        case "openSourceNotices":
+            return Qt.resolvedUrl("../pages/OpenSourceNoticesPage.qml")
         case "settings":
             return Qt.resolvedUrl("../pages/SettingsPage.qml")
         default:
@@ -145,7 +149,7 @@ FocusScope {
     // Memory-pressure eviction: keep the active page plus the cheap,
     // frequently visited residents (home/settings/libraryGrid).
     function trim() {
-        for (const key of ["itemDetails", "personDetails", "search"]) {
+        for (const key of ["itemDetails", "personDetails", "search", "openSourceNotices"]) {
             const loader = pages[key]
             if (loader && loader !== activeLoader) {
                 delete pages[key]

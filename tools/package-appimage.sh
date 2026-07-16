@@ -267,12 +267,15 @@ if [[ -d "$APPDIR" ]]; then
 fi
 rm -rf "$APPDIR"
 mkdir -p "$APPDIR/usr/bin" "$APPDIR/usr/lib" "$APPDIR/usr/share/applications" \
-  "$APPDIR/usr/share/icons/hicolor/256x256/apps"
+  "$APPDIR/usr/share/icons/hicolor/256x256/apps" "$APPDIR/usr/share/jellyfin-native/notices"
 
 cp -f "$BUILD_ROOT/jellyfin-native" "$APPDIR/usr/bin/jellyfin-native"
 find "$MPV_PREFIX/lib" -name 'libmpv.so*' -exec cp -a {} "$APPDIR/usr/lib/" \;
 cp -f "$APP_ROOT/app/icon.png" "$APPDIR/usr/share/icons/hicolor/256x256/apps/jellyfin-native.png"
 cp -f "$APP_ROOT/app/icon.png" "$APPDIR/jellyfin-native.png"
+cp -f "$APP_ROOT/app/notices/OPEN_SOURCE_NOTICES.txt" "$APP_ROOT/LICENSE" \
+  "$APP_ROOT/qml/fonts/Inter-LICENSE.txt" "$APP_ROOT/qml/fonts/MaterialIcons-LICENSE.txt" \
+  "$APP_ROOT/qml/fonts/SourceSerif4-LICENSE.md" "$APPDIR/usr/share/jellyfin-native/notices/"
 cat > "$APPDIR/AppRun" <<'APPRUN'
 #!/usr/bin/env bash
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

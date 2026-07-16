@@ -60,7 +60,10 @@ FocusScope {
                                                                                          "Diagnostics", "action",
                                                                                          "Clear Latency Statistics"),
         makeRow("about/version", "About", "readonly", "Jellyfin Native for webOS",
-                "Qt 6.11 client, native mpv playback"), makeRow("about/locale", "About", "readonly", "UI Locale")]
+                "Qt 6.11 client, native mpv playback"), makeRow("action/openSourceNotices", "About", "action",
+                                                                "Open-source notices",
+                                                                "Acknowledgements, licenses, and corresponding source"),
+        makeRow("about/locale", "About", "readonly", "UI Locale")]
 
     function makeRow(key, group, type, title, description, labels, values) {
         return {
@@ -256,6 +259,8 @@ FocusScope {
             return "Open"
         if (row.key === "action/clearLatencyStatistics")
             return "Clear"
+        if (row.key === "action/openSourceNotices")
+            return "Open"
         if (row.key === "session/server")
             return Session.serverUrl.length > 0 ? "Connected" : "Offline"
         if (row.key === "theme/name")
@@ -363,6 +368,8 @@ FocusScope {
                                 })
             else if (row.key === "action/subtitleSettings" && shell)
                 shell.pushRoute("subtitleSettings")
+            else if (row.key === "action/openSourceNotices" && shell)
+                shell.pushRoute("openSourceNotices")
         } else if (row.type === "toggle") {
             setRowValue(row, !Boolean(settingsValue(row)), -1)
         } else if (row.type === "select") {

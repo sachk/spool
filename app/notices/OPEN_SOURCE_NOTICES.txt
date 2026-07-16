@@ -1,0 +1,46 @@
+OPEN-SOURCE NOTICES AND ACKNOWLEDGEMENTS
+
+Acknowledgements
+
+Special thanks to the Kodi developers: their Starfish implementation both
+showed me this was possible and made it much easier.
+
+Thank you to the mpv developers for the playback engine and the foundation on
+which the webOS playback work is built.
+
+Thank you to the Jellyfin developers for the server, APIs, documentation, and
+the wider free-software media ecosystem.
+
+Thank you to the Qt developers for the application and user-interface toolkit.
+
+Application and corresponding source
+
+This application is free software licensed under GPL-2.0-or-later. Its
+corresponding source is available at:
+
+  https://github.com/sachk/tern
+
+The modified mpv source used by the application is available at:
+
+  https://github.com/sachk/mpv
+
+Major bundled components
+
+  mpv                         GPL-2.0-or-later / LGPL-2.1-or-later
+  FFmpeg                      LGPL-2.1-or-later / GPL-2.0-or-later
+  Qt 6                        LGPL-3.0 / GPL-2.0-or-later / GPL-3.0
+  QCoro                       MIT
+  libass                      ISC
+  libplacebo                  LGPL-2.1-or-later
+  Lua                         MIT
+  libdovi                     MIT
+  curl                        curl license
+  FriBidi                     LGPL-2.1-or-later
+  HarfBuzz                    MIT
+  Inter                       SIL Open Font License 1.1
+  Source Serif 4              SIL Open Font License 1.1
+  Google Material Icons       Apache License 2.0
+
+The exact runtime set varies by platform and build configuration. Copyright
+remains with each project's authors and contributors. Project names are used
+only for attribution and do not imply endorsement.

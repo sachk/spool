@@ -380,6 +380,7 @@ qt_add_qml_module(jellyfin-native
         qml/pages/ItemDetailsPage.qml
         qml/pages/LibraryGridPage.qml
         qml/pages/LoginPage.qml
+        qml/pages/OpenSourceNoticesPage.qml
         qml/pages/ScaleSetupPage.qml
         qml/pages/PersonDetailsPage.qml
         qml/pages/PlayerAudioSyncPanel.qml
