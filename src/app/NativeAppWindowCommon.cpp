@@ -1,6 +1,7 @@
 #include "NativeAppWindow.h"
 #include "diagnostics/InputLatencyMonitor.h"
 
+#include <QCloseEvent>
 #include <QMutexLocker>
 #include <QQuickImageProvider>
 
@@ -48,6 +49,12 @@ bool NativeAppWindow::event(QEvent *event)
     if (m_inputLatencyMonitor)
         m_inputLatencyMonitor->endInput(token);
     return handled;
+}
+
+void NativeAppWindow::closeEvent(QCloseEvent *event)
+{
+    emit closeRequested();
+    QQuickView::closeEvent(event);
 }
 
 int NativeAppWindow::overlayRevision() const

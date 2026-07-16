@@ -607,7 +607,9 @@ FocusScope {
     function longPress() {
         if (!grid.activeFocus || grid.currentIndex < 0 || !hasShell())
             return false
-        return shell.openItemMenu(Browse.items.get(grid.currentIndex) || ({}), currentCard())
+        return shell.openItemMenu(Browse.items.get(grid.currentIndex) || ({}), currentCard(), {
+                                      "deferBackdropDismissal": true
+                                  })
     }
 
     function back() {
@@ -853,6 +855,10 @@ FocusScope {
                     if (pressedIndex >= 0)
                     grid.currentIndex = pressedIndex
                 }
+                onReleased: if (longPressed && root.shell)
+                root.shell.finishItemMenuOpeningGesture()
+                onCanceled: if (longPressed && root.shell)
+                root.shell.finishItemMenuOpeningGesture()
                 onClicked: mouse => {
                     if (pressedIndex < 0)
                     return
@@ -867,7 +873,9 @@ FocusScope {
                 }
                 onPressAndHold: if (pressedIndex >= 0 && root.shell) {
                     longPressed = true
-                    root.shell.openItemMenu(Browse.items.get(pressedIndex), grid.itemAtIndex(pressedIndex))
+                    root.shell.openItemMenu(Browse.items.get(pressedIndex), grid.itemAtIndex(pressedIndex), {
+                                                "deferBackdropDismissal": true
+                                            })
                 }
             }
         }

@@ -64,7 +64,9 @@ RowLayout {
 
     RowLayout {
         visible: root.overlay.desktopControlsAvailable
-        Layout.preferredWidth: visible ? Math.min(root.width * 0.15, root.overlay.dp(300)) : 0
+        Layout.minimumWidth: visible ? root.overlay.dp(230) : 0
+        Layout.preferredWidth: visible ? root.overlay.dp(230) : 0
+        Layout.maximumWidth: visible ? root.overlay.dp(230) : 0
         spacing: root.overlay.dp(10)
 
         MaterialIcon {
@@ -74,7 +76,9 @@ RowLayout {
         }
 
         Slider {
-            Layout.fillWidth: true
+            Layout.minimumWidth: root.overlay.dp(120)
+            Layout.preferredWidth: root.overlay.dp(120)
+            Layout.maximumWidth: root.overlay.dp(120)
             from: 0
             to: 100
             stepSize: 1

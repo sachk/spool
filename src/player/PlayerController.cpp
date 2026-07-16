@@ -279,6 +279,23 @@ PlayerController::~PlayerController()
     teardownMpv();
 }
 
+void PlayerController::prepareForShutdown()
+{
+    m_idleMpvPreparationEnabled = false;
+    m_idleMpvPreparationScheduled = false;
+    if (!m_mpvLifecycle.handle())
+        return;
+
+    // Silence first: reporting shutdown may cancel network work, but it must
+    // never keep audible playback alive while the application is closing.
+    mpvCommand(
+        { QByteArrayLiteral("no-osd"), QByteArrayLiteral("set"), QByteArrayLiteral("mute"), QByteArrayLiteral("yes") });
+    if (m_sessionActive)
+        stopWithReason(QStringLiteral("app-shutdown"));
+    else
+        mpvCommand({ QByteArrayLiteral("stop") });
+}
+
 void PlayerController::teardownMpv()
 {
     Diagnostics::Phase phase(QStringLiteral("shutdown"), QStringLiteral("player_teardown_mpv"));

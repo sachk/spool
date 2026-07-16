@@ -61,11 +61,13 @@ public:
     QImage copyOverlayImage() const;
 
 signals:
+    void closeRequested();
     void overlayRevisionChanged();
     void fullScreenChanged();
 
 protected:
     bool event(QEvent *event) override;
+    void closeEvent(QCloseEvent *event) override;
     void exposeEvent(QExposeEvent *event) override;
     void resizeEvent(QResizeEvent *event) override;
 

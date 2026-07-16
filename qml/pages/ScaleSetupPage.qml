@@ -101,7 +101,7 @@ FocusScope {
 
         AppText {
             Layout.fillWidth: true
-            text: "Choose a size"
+            text: "A comfortable zoom"
             font.pixelSize: Math.round(root.height * 0.055)
             font.weight: Font.DemiBold
             horizontalAlignment: Text.AlignHCenter

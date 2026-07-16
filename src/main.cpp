@@ -877,6 +877,16 @@ int main(int argc, char **argv)
     player->setDemuxerBudget(memoryBudget.mpvDemuxerMaxBytes, memoryBudget.mpvDemuxerMaxBackBytes);
     auto controller = std::make_unique<JellyfinNative::AppController>(
         &database, discovery.get(), api.get(), artworkService.get(), player.get());
+    // A desktop close event arrives while the scene graph is still rendering.
+    // Tear down here so the mpv render-context handoff completes immediately;
+    // aboutToQuit is too late because the window no longer produces frames.
+    QObject::connect(
+        &window, &JellyfinNative::NativeAppWindow::closeRequested, controller.get(),
+        [controller = controller.get()]() {
+            logLine("window close requested: stopping controllers");
+            controller->shutdown();
+        },
+        Qt::DirectConnection);
 #ifdef JELLYFIN_NATIVE_WEBOS
     g_appController = controller.get();
     QObject::connect(

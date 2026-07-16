@@ -16,6 +16,7 @@ FocusScope {
     property bool favoriteState: Boolean(item && item.favorite)
     property bool playedState: Boolean(item && item.played)
     property bool opened: false
+    property bool backdropDismissArmed: false
     readonly property int windowWidth: root.Window.window ? root.Window.window.width : 1920
     readonly property int menuEdgeMargin: Math.max(12, Metrics.gapPx)
     readonly property int menuRowHeight: Math.max(46, Metrics.controlHeightPx)
@@ -229,13 +230,28 @@ FocusScope {
         if (!rebuildMenu())
             return false
         menuIndex = 0
+        backdropArmTimer.stop()
+        backdropDismissArmed = !Boolean(context.deferBackdropDismissal)
+        if (!backdropDismissArmed) {
+            backdropArmTimer.interval = 450
+            backdropArmTimer.restart()
+        }
         opened = true
         InputKeys.focus(menuList)
         Qt.callLater(positionMenu)
         return true
     }
 
+    function finishOpeningGesture() {
+        if (opened && !backdropDismissArmed) {
+            backdropArmTimer.interval = 150
+            backdropArmTimer.restart()
+        }
+    }
+
     function closeMenu() {
+        backdropArmTimer.stop()
+        backdropDismissArmed = false
         opened = false
         item = ({})
         anchorItem = null
@@ -312,7 +328,15 @@ FocusScope {
 
     MouseArea {
         anchors.fill: parent
-        onClicked: root.closeMenu()
+        onClicked: if (root.backdropDismissArmed)
+        root.closeMenu()
+    }
+
+    Timer {
+        id: backdropArmTimer
+        repeat: false
+        onTriggered: if (root.opened)
+        root.backdropDismissArmed = true
     }
 
     PopupMenuPanel {

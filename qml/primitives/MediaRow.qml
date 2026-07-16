@@ -103,17 +103,18 @@ FocusScope {
     function longPress() {
         if (cardKind === "library" || cardKind === "person" || currentIndex < 0 || !shell)
             return false
-        return openItemContext(currentIndex, currentCard())
+        return openItemContext(currentIndex, currentCard(), true)
     }
 
-    function openItemContext(index, anchor) {
+    function openItemContext(index, anchor, deferBackdropDismissal) {
         if (!shell || index < 0 || index >= count)
             return false
         return Boolean(shell.openItemMenu(itemAt(index), anchor, {
                                               "model": model,
                                               "index": index,
                                               "source": itemContextSource,
-                                              "returnRoute": itemContextReturnRoute
+                                              "returnRoute": itemContextReturnRoute,
+                                              "deferBackdropDismissal": Boolean(deferBackdropDismissal)
                                           }))
     }
 
@@ -234,6 +235,10 @@ FocusScope {
                 if (pressedIndex >= 0)
                 root.currentIndex = pressedIndex
             }
+            onReleased: if (longPressed && root.shell)
+            root.shell.finishItemMenuOpeningGesture()
+            onCanceled: if (longPressed && root.shell)
+            root.shell.finishItemMenuOpeningGesture()
             onClicked: mouse => {
                 if (pressedIndex < 0)
                 return
@@ -248,7 +253,7 @@ FocusScope {
             }
             onPressAndHold: if (pressedIndex >= 0 && root.shell) {
                 longPressed = true
-                root.openItemContext(pressedIndex, listView.itemAtIndex(pressedIndex))
+                root.openItemContext(pressedIndex, listView.itemAtIndex(pressedIndex), true)
             }
         }
     }

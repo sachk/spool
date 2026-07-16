@@ -9,6 +9,7 @@ TestCase {
     property int routeCalls: 0
     property int backCalls: 0
     property int activateCalls: 0
+    property int finishOpeningCalls: 0
     property bool routeResult: true
 
     Item {
@@ -37,6 +38,10 @@ TestCase {
             function activate() {
                 ++testCase.activateCalls
             }
+
+            function finishOpeningGesture() {
+                ++testCase.finishOpeningCalls
+            }
         }
     }
 
@@ -44,6 +49,7 @@ TestCase {
         routeCalls = 0
         backCalls = 0
         activateCalls = 0
+        finishOpeningCalls = 0
         routeResult = true
         keyRouter.clearAccept()
         keyRouter.backClaimed = false
@@ -102,5 +108,13 @@ TestCase {
         compare(activateCalls, 0)
         verify(keyRouter.releaseAccept(Qt.Key_Return, false))
         compare(activateCalls, 1)
+    }
+
+    function test_longPressReleaseFinishesOpeningGesture() {
+        verify(keyRouter.pressAccept(Qt.Key_Return, false))
+        keyRouter.longPressHandled = true
+        verify(keyRouter.releaseAccept(Qt.Key_Return, false))
+        compare(activateCalls, 0)
+        compare(finishOpeningCalls, 1)
     }
 }

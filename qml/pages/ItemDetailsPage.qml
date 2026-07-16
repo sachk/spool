@@ -781,7 +781,9 @@ FocusScope {
             return contextRow.longPress()
         if (focusZone === "similar")
             return similarRow.longPress()
-        return focusZone === "actions" && shell ? shell.openItemMenu(item, orderedActions()[actionIndex]) : false
+        return focusZone === "actions" && shell ? shell.openItemMenu(item, orderedActions()[actionIndex], {
+                                                                         "deferBackdropDismissal": true
+                                                                     }) : false
     }
 
     function primaryLabel() {

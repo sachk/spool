@@ -256,6 +256,11 @@ KeyRouter {
                                                                                    context || ({})) : false
     }
 
+    function finishItemMenuOpeningGesture() {
+        if (itemContextMenuLoader.item)
+            itemContextMenuLoader.item.finishOpeningGesture()
+    }
+
     function openMediaInfo(item) {
         mediaInfoItem = item || ({})
         if (mediaInfoItem.movieId)

@@ -75,7 +75,9 @@ FocusScope {
         longPressTimer.stop()
         const swallowed = longPressHandled
         clearAccept()
-        if (!swallowed && target.activate)
+        if (swallowed && activeTarget && activeTarget.finishOpeningGesture)
+            activeTarget.finishOpeningGesture()
+        else if (!swallowed && target.activate)
             target.activate()
         return true
     }

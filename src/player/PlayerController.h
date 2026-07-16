@@ -155,6 +155,10 @@ signals:
     void volumeChanged();
 
 public:
+    // Silence active playback before application services and the render
+    // surface begin shutting down. Safe to call repeatedly.
+    void prepareForShutdown();
+
     // Called from main on aboutToQuit so we tear down before the scene graph
     // stops accepting render jobs. Safe to call repeatedly.
     void teardownMpv();

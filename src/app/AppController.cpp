@@ -541,6 +541,7 @@ void AppController::shutdown()
         return;
     m_shuttingDown = true;
     qInfo() << "app: shutdown requested";
+    m_player->prepareForShutdown();
     m_quickConnect->cancel();
     m_prefetch->stop();
     m_api->cancelRequests();
