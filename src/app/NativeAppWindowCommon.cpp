@@ -24,7 +24,7 @@ namespace {
                 image = QImage(1, 1, QImage::Format_ARGB32_Premultiplied);
                 image.fill(Qt::transparent);
             }
-            if (requestedSize.isValid())
+            if (requestedSize.isValid() && requestedSize != image.size())
                 image = image.scaled(requestedSize, Qt::IgnoreAspectRatio, Qt::FastTransformation);
             if (size)
                 *size = image.size();
@@ -68,9 +68,13 @@ void NativeAppWindow::clearOverlay()
     {
         QMutexLocker locker(&m_overlayMutex);
         m_pendingOverlayImage = QImage();
+        m_pendingOverlayX = 0;
+        m_pendingOverlayY = 0;
         if (m_overlayImage.isNull())
             return;
         m_overlayImage = QImage();
+        m_overlayX = 0;
+        m_overlayY = 0;
         ++m_overlayRevision;
         changed = true;
     }

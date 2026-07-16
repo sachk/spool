@@ -19,6 +19,16 @@ extern "C" {
 
 namespace JellyfinNative {
 
+namespace {
+
+    struct OverlayImageBuffer {
+        QImage image;
+        int x = 0;
+        int y = 0;
+    };
+
+} // namespace
+
 NativeAppWindow::NativeAppWindow(const QString& appId, QWindow *parent)
     : QQuickView(parent)
     , m_appId(appId)
@@ -318,12 +328,14 @@ void NativeAppWindow::publishPendingVideoCrop()
         crop.origW, crop.origH, crop.srcX, crop.srcY, crop.srcW, crop.srcH, crop.dstX, crop.dstY, crop.dstW, crop.dstH);
 }
 
-void NativeAppWindow::scheduleOverlayImage(QImage image)
+void NativeAppWindow::scheduleOverlayImage(QImage image, int x, int y)
 {
     bool shouldQueue = false;
     {
         QMutexLocker locker(&m_overlayMutex);
         m_pendingOverlayImage = std::move(image);
+        m_pendingOverlayX = x;
+        m_pendingOverlayY = y;
         if (!m_overlayPublishQueued) {
             m_overlayPublishQueued = true;
             shouldQueue = true;
@@ -341,11 +353,15 @@ void NativeAppWindow::publishPendingOverlayImage()
     {
         QMutexLocker locker(&m_overlayMutex);
         QImage image = std::move(m_pendingOverlayImage);
+        const int x = m_pendingOverlayX;
+        const int y = m_pendingOverlayY;
         m_pendingOverlayImage = QImage();
         m_overlayPublishQueued = false;
         if (image.isNull() && m_overlayImage.isNull())
             return;
         m_overlayImage = std::move(image);
+        m_overlayX = x;
+        m_overlayY = y;
         m_overlayRevision += 1;
         changed = true;
     }
@@ -383,7 +399,8 @@ void NativeAppWindow::exportedWindowIdAssigned(void *data, wl_webos_exported *, 
     self->m_windowId = window_id ? window_id : "";
 }
 
-uint8_t *NativeAppWindow::overlayAcquireCallback(void *data, int width, int height, int *stride, void **buffer)
+uint8_t *NativeAppWindow::overlayAcquireCallback(
+    void *data, int x, int y, int width, int height, int *stride, void **buffer)
 {
     auto *self = static_cast<NativeAppWindow *>(data);
     if (!self || !stride || !buffer || width <= 0 || height <= 0)
@@ -394,33 +411,33 @@ uint8_t *NativeAppWindow::overlayAcquireCallback(void *data, int width, int heig
     // premultiplied). mpv writes directly into this Qt-owned storage, so the
     // callback path has no full-frame CPU copy.
     static_assert(Q_BYTE_ORDER == Q_LITTLE_ENDIAN, "OSD direct path assumes little-endian QImage layout");
-    auto *image = new QImage(width, height, QImage::Format_ARGB32_Premultiplied);
-    if (image->isNull()) {
-        delete image;
+    auto *frame = new OverlayImageBuffer { QImage(width, height, QImage::Format_ARGB32_Premultiplied), x, y };
+    if (frame->image.isNull()) {
+        delete frame;
         return nullptr;
     }
-    *stride = image->bytesPerLine();
-    *buffer = image;
-    return image->bits();
+    *stride = frame->image.bytesPerLine();
+    *buffer = frame;
+    return frame->image.bits();
 }
 
 void NativeAppWindow::overlayPresentCallback(void *data, void *buffer, bool visible)
 {
     auto *self = static_cast<NativeAppWindow *>(data);
-    auto *image = static_cast<QImage *>(buffer);
+    auto *frame = static_cast<OverlayImageBuffer *>(buffer);
     if (!self) {
-        delete image;
+        delete frame;
         return;
     }
 
-    if (!visible || !image || image->isNull()) {
-        delete image;
+    if (!visible || !frame || frame->image.isNull()) {
+        delete frame;
         self->scheduleOverlayImage(QImage());
         return;
     }
 
-    self->scheduleOverlayImage(std::move(*image));
-    delete image;
+    self->scheduleOverlayImage(std::move(frame->image), frame->x, frame->y);
+    delete frame;
 }
 
 void NativeAppWindow::exportedCropCallback(

@@ -21,6 +21,10 @@ class InputLatencyMonitor;
 class NativeAppWindow final : public QQuickView {
     Q_OBJECT
     Q_PROPERTY(int overlayRevision READ overlayRevision NOTIFY overlayRevisionChanged)
+    Q_PROPERTY(int overlayX READ overlayX NOTIFY overlayRevisionChanged)
+    Q_PROPERTY(int overlayY READ overlayY NOTIFY overlayRevisionChanged)
+    Q_PROPERTY(int overlayWidth READ overlayWidth NOTIFY overlayRevisionChanged)
+    Q_PROPERTY(int overlayHeight READ overlayHeight NOTIFY overlayRevisionChanged)
     Q_PROPERTY(bool tvPlatform READ tvPlatform CONSTANT)
     Q_PROPERTY(bool smartTvPlatform READ smartTvPlatform CONSTANT)
     Q_PROPERTY(bool fullScreen READ fullScreen NOTIFY fullScreenChanged)
@@ -39,6 +43,22 @@ public:
     void bringToFront();
     QString windowId() const;
     int overlayRevision() const;
+    int overlayX() const
+    {
+        return m_overlayX;
+    }
+    int overlayY() const
+    {
+        return m_overlayY;
+    }
+    int overlayWidth() const
+    {
+        return m_overlayImage.width();
+    }
+    int overlayHeight() const
+    {
+        return m_overlayImage.height();
+    }
     bool fullScreen() const
     {
         return visibility() == QWindow::FullScreen || windowStates().testFlag(Qt::WindowFullScreen);
@@ -82,14 +102,14 @@ private:
     void scheduleVideoCrop(
         int origW, int origH, int srcX, int srcY, int srcW, int srcH, int dstX, int dstY, int dstW, int dstH);
     void publishPendingVideoCrop();
-    void scheduleOverlayImage(QImage image);
+    void scheduleOverlayImage(QImage image, int x = 0, int y = 0);
     void publishPendingOverlayImage();
 
     static void registryGlobal(
         void *data, wl_registry *registry, uint32_t name, const char *interface, uint32_t version);
     static void registryRemove(void *, wl_registry *, uint32_t);
     static void exportedWindowIdAssigned(void *data, wl_webos_exported *, const char *window_id, uint32_t);
-    static uint8_t *overlayAcquireCallback(void *data, int width, int height, int *stride, void **buffer);
+    static uint8_t *overlayAcquireCallback(void *data, int x, int y, int width, int height, int *stride, void **buffer);
     static void overlayPresentCallback(void *data, void *buffer, bool visible);
     static void exportedCropCallback(void *data, int origW, int origH, int srcX, int srcY, int srcW, int srcH, int dstX,
         int dstY, int dstW, int dstH);
@@ -100,6 +120,10 @@ private:
     mutable QMutex m_overlayMutex;
     QImage m_overlayImage;
     QImage m_pendingOverlayImage;
+    int m_overlayX = 0;
+    int m_overlayY = 0;
+    int m_pendingOverlayX = 0;
+    int m_pendingOverlayY = 0;
     bool m_overlayPublishQueued = false;
     int m_overlayRevision = 0;
 #ifdef JELLYFIN_NATIVE_WEBOS

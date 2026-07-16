@@ -33,8 +33,11 @@ FocusScope {
     }
 
     Image {
-        anchors.fill: parent
-        visible: root.active
+        x: NativeWindow.overlayX
+        y: NativeWindow.overlayY
+        width: NativeWindow.overlayWidth
+        height: NativeWindow.overlayHeight
+        visible: root.active && width > 0 && height > 0
         source: visible ? "image://mpv-overlay/live?rev=" + NativeWindow.overlayRevision : ""
         cache: false
         fillMode: Image.Stretch
