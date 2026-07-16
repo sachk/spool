@@ -250,11 +250,10 @@ KeyRouter {
         openItemMenu(currentMediaItem(), null)
     }
 
-    function openItemMenu(item, anchorItem) {
+    function openItemMenu(item, anchorItem, context) {
         itemMenuLoaded = true
-        return itemContextMenuLoader.item ? itemContextMenuLoader.item.openForItem(item || ({}), anchorItem || null) :
-                                            false
-
+        return itemContextMenuLoader.item ? itemContextMenuLoader.item.openForItem(item || ({}), anchorItem || null,
+                                                                                   context || ({})) : false
     }
 
     function openMediaInfo(item) {

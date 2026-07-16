@@ -20,6 +20,8 @@ FocusScope {
     property bool loading: false
     property string emptyText: "Loading..."
     property bool atomicPopulate: false
+    property string itemContextSource: ""
+    property string itemContextReturnRoute: ""
     readonly property bool delegatesPresented: presentation.delegatesReady
     readonly property bool artworkPresented: presentation.artworkReady
 
@@ -101,7 +103,18 @@ FocusScope {
     function longPress() {
         if (cardKind === "library" || cardKind === "person" || currentIndex < 0 || !shell)
             return false
-        return Boolean(shell.openItemMenu(itemAt(currentIndex), currentCard()))
+        return openItemContext(currentIndex, currentCard())
+    }
+
+    function openItemContext(index, anchor) {
+        if (!shell || index < 0 || index >= count)
+            return false
+        return Boolean(shell.openItemMenu(itemAt(index), anchor, {
+                                              "model": model,
+                                              "index": index,
+                                              "source": itemContextSource,
+                                              "returnRoute": itemContextReturnRoute
+                                          }))
     }
 
     function resetPresentation() {
@@ -229,13 +242,13 @@ FocusScope {
                     return
                 }
                 if (mouse.button === Qt.RightButton && root.shell)
-                root.shell.openItemMenu(root.itemAt(pressedIndex), listView.itemAtIndex(pressedIndex))
+                root.openItemContext(pressedIndex, listView.itemAtIndex(pressedIndex))
                 else
                 root.activateIndex(pressedIndex)
             }
             onPressAndHold: if (pressedIndex >= 0 && root.shell) {
                 longPressed = true
-                root.shell.openItemMenu(root.itemAt(pressedIndex), listView.itemAtIndex(pressedIndex))
+                root.openItemContext(pressedIndex, listView.itemAtIndex(pressedIndex))
             }
         }
     }

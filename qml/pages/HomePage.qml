@@ -205,6 +205,8 @@ FocusScope {
                                                    root.width)
             cardGap: Metrics.gapPx
             atomicPopulate: index === 0
+            itemContextSource: String(modelData.source || "")
+            itemContextReturnRoute: "home"
             onDelegatesPresentedChanged: if (index === 0 && delegatesPresented) {
                 root.firstRowReady = true
                 InputLatency.mark(root.uiTransitionToken, "first_delegate")

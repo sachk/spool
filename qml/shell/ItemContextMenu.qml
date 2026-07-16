@@ -9,6 +9,7 @@ FocusScope {
 
     property var item: ({})
     property var anchorItem: null
+    property var context: ({})
     property var shell
     property int menuIndex: 0
     property var menuOptions: []
@@ -28,6 +29,8 @@ FocusScope {
     readonly property string itemType: item && item.itemType ? String(item.itemType) : ""
     readonly property bool episodeOrSeason: itemType === "Episode" || itemType === "Season"
     readonly property bool hasProgress: Number(item && item.resumeTicks ? item.resumeTicks : 0) > 0
+    readonly property bool continueWatchingContext: String(context && context.source ? context.source : "")
+                                                    === "resumeItems"
     readonly property bool partialEpisode: itemType === "Episode" && hasProgress && !playedState
     readonly property bool actionable: itemId.length > 0
     readonly property bool queueable: actionable && item && item.playable !== false
@@ -72,6 +75,13 @@ FocusScope {
 
     function rebuildMenu() {
         const options = []
+        if (continueWatchingContext && actionable)
+            options.push({
+                             action: "details",
+                             icon: "description",
+                             label: "Go to details",
+                             checked: false
+                         })
         if (episodeOrSeason && item.seriesId)
             options.push({
                              action: "series",
@@ -102,19 +112,28 @@ FocusScope {
                                  checked: false
                              })
             }
-            options.push({
-                             action: "played",
-                             icon: playedState ? "visibility_off" : "visibility",
-                             label: playedState ? "Mark unwatched" : "Mark watched",
-                             checked: playedState
-                         })
-            if (partialEpisode)
+            if (continueWatchingContext)
                 options.push({
-                                 action: "clear",
-                                 icon: "replay",
-                                 label: "Clear progress",
+                                 action: "unwatched",
+                                 icon: "visibility_off",
+                                 label: "Mark unwatched",
                                  checked: false
                              })
+            else {
+                options.push({
+                                 action: "played",
+                                 icon: playedState ? "visibility_off" : "visibility",
+                                 label: playedState ? "Mark unwatched" : "Mark watched",
+                                 checked: playedState
+                             })
+                if (partialEpisode)
+                    options.push({
+                                     action: "clear",
+                                     icon: "replay",
+                                     label: "Clear progress",
+                                     checked: false
+                                 })
+            }
             options.push({
                              action: "favorite",
                              icon: favoriteState ? "favorite" : "favorite_border",
@@ -202,9 +221,10 @@ FocusScope {
         menuPanel.y = clamp(desiredY, edge, Math.max(edge, height - menuPanel.height - edge))
     }
 
-    function openForItem(nextItem, anchor) {
+    function openForItem(nextItem, anchor, nextContext) {
         item = nextItem || ({})
         anchorItem = anchor || null
+        context = nextContext || ({})
         syncItemState()
         if (!rebuildMenu())
             return false
@@ -219,6 +239,7 @@ FocusScope {
         opened = false
         item = ({})
         anchorItem = null
+        context = ({})
         menuOptions = []
     }
 
@@ -226,7 +247,10 @@ FocusScope {
         if (index < 0 || index >= menuOptions.length)
             return
         const action = menuOptions[index].action
-        if (action === "series") {
+        if (action === "details") {
+            shell.openDetailsAt(context.model, Number(context.index || 0), "resume", String(context.returnRoute
+                                                                                            || "home"))
+        } else if (action === "series") {
             const seriesId = String(item.seriesId || "")
             if (seriesId.length > 0) {
                 shell.replaceRoute("libraryGrid")
@@ -247,6 +271,9 @@ FocusScope {
         } else if (action === "played") {
             playedState = !playedState
             ItemState.setPlayed(itemId, playedState)
+        } else if (action === "unwatched") {
+            playedState = false
+            ItemState.clearProgress(itemId)
         } else if (action === "clear") {
             playedState = false
             ItemState.clearProgress(itemId)
