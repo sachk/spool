@@ -1,5 +1,6 @@
 #include "MpvOptionProfile.h"
 
+#include <QUrl>
 #include <QtGlobal>
 
 #include <cmath>
@@ -143,6 +144,21 @@ MpvOptionProfile::NetworkProfile MpvOptionProfile::networkProfile(Platform platf
 {
     return platform == Platform::WebOS ? NetworkProfile { 2 * 1024 * 1024, 512 * 1024, 4 }
                                        : NetworkProfile { 4 * 1024 * 1024, 1024 * 1024, 4 };
+}
+
+QByteArray MpvOptionProfile::loadFileOptions(const PlaybackSession& session)
+{
+    if (session.playMethod.compare(QStringLiteral("Transcode"), Qt::CaseInsensitive) != 0)
+        return {};
+
+    const QUrl url(session.url);
+    if (!url.path().endsWith(QStringLiteral(".m3u8"), Qt::CaseInsensitive))
+        return {};
+
+    // Jellyfin's HLS master manifest is a non-seekable HTTP response. Tell
+    // lavf what it is up front so mpv does not repeatedly probe and seek the
+    // small manifest back to byte zero before HLS can open its media playlist.
+    return QByteArrayLiteral("demuxer=lavf,demuxer-lavf-format=hls");
 }
 
 std::vector<MpvOption> MpvOptionProfile::startupOptions(Platform platform, const QString& audioOutputMode,

@@ -304,15 +304,30 @@ void AppController::playOrOpen(const MovieItem& item, bool fromStart)
     }
 }
 
-void AppController::playFromModel(MovieGridModel *model, int index, bool fromStart)
+void AppController::playFromModel(QObject *model, int index, bool fromStart)
 {
     if (!model)
         return;
-    const MovieItem item = model->movieAt(index);
+
+    if (auto *queue = qobject_cast<PlayQueueController *>(model)) {
+        if (queue != m_playQueue || !queue->playAt(index)) {
+            showToast(QStringLiteral("This item is no longer in the play queue."));
+            return;
+        }
+        startQueuedPlayback(fromStart);
+        return;
+    }
+
+    auto *movieModel = qobject_cast<MovieGridModel *>(model);
+    if (!movieModel) {
+        showToast(QStringLiteral("This item cannot be played from the current list."));
+        return;
+    }
+    const MovieItem item = movieModel->movieAt(index);
     if (isBrowseContainer(item))
         playOrOpen(item, fromStart);
     else
-        playQueuedItems(model->movies(), index, fromStart);
+        playQueuedItems(movieModel->movies(), index, fromStart);
 }
 
 void AppController::playQueueNext()

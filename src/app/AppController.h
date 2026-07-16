@@ -113,7 +113,7 @@ public:
     Q_INVOKABLE void logout();
     Q_INVOKABLE void goHome();
     Q_INVOKABLE void openLibrary(int index);
-    Q_INVOKABLE void playFromModel(MovieGridModel *model, int index, bool fromStart = false);
+    Q_INVOKABLE void playFromModel(QObject *model, int index, bool fromStart = false);
     Q_INVOKABLE void playQueueNext();
     Q_INVOKABLE void playQueuePrevious();
     Q_INVOKABLE void playQueueItem(int index);

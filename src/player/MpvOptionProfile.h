@@ -29,6 +29,7 @@ public:
 
     static NetworkProfile networkProfile(Platform platform);
     static bool isHdrPlayback(const QList<MediaStreamInfo>& streams);
+    static QByteArray loadFileOptions(const PlaybackSession& session);
 
     static std::vector<MpvOption> startupOptions(Platform platform, const QString& audioOutputMode,
         const QByteArray& logPath, const QByteArray& demuxerMaxBytes = QByteArrayLiteral("64M"),

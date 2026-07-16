@@ -890,7 +890,9 @@ void PlayerController::play(const PlaybackSession& session)
         }
         qInfo() << "player: instructing mpv to start at resume position seconds=" << startSeconds;
     }
-    const char *loadCommand[] = { "loadfile", urlBytes.constData(), "replace", nullptr };
+    const QByteArray loadFileOptions = MpvOptionProfile::loadFileOptions(session);
+    const char *loadCommand[] = { "loadfile", urlBytes.constData(), "replace", "-1",
+        loadFileOptions.isEmpty() ? nullptr : loadFileOptions.constData(), nullptr };
     if (mpv_command(handle, loadCommand) < 0) {
         m_mpvLifecycle.cancelFileLoad();
         m_errorText = QStringLiteral("libmpv rejected the playback URL.");
@@ -1537,20 +1539,21 @@ void PlayerController::handleMpvEvent(mpv_event *event)
         const bool failed = endFile && endFile->error < 0;
         const int endFileReason = endFile ? endFile->reason : -1;
         const int endFileError = endFile ? endFile->error : 0;
-        // If a new loadfile is already in flight, this END_FILE belongs to
-        // the file being replaced — don't tear the UI down.
-        if (m_mpvLifecycle.hasPendingFileLoads()) {
-            qInfo() << "player: end file for replaced session, ignoring";
-            break;
-        }
+        // A fresh mpv core is created for every play request, so an END_FILE
+        // while loading belongs to this request. Clear the pending marker on
+        // both success and failure; otherwise a failed manifest stays stuck in
+        // the preparing state forever.
+        m_mpvLifecycle.cancelFileLoad();
         const bool completed = !failed && endFileReason == MPV_END_FILE_REASON_EOF;
         QMetaObject::invokeMethod(this, [this, failed, completed, endFileReason, endFileError]() {
             qInfo() << "player: end file (main thread) failed=" << failed << "completed=" << completed
                     << "sessionActive=" << m_sessionActive << "reason=" << endFileReason
                     << endFileReasonName(endFileReason) << "error=" << endFileError
                     << (endFileError < 0 ? mpv_error_string(endFileError) : "");
-            if (failed)
-                m_errorText = QStringLiteral("Playback ended with an mpv error.");
+            if (failed) {
+                m_errorText
+                    = QStringLiteral("Playback failed: %1").arg(QString::fromUtf8(mpv_error_string(endFileError)));
+            }
             stopProgressReporting(failed, completed);
             scheduleMpvTeardown();
         });

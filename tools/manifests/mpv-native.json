@@ -101,6 +101,7 @@
   "platforms": {
     "linux": [
       "b_lto=false",
+      "lua=enabled",
       "wayland=enabled",
       "egl=enabled",
       "egl-wayland=enabled",
@@ -115,6 +116,7 @@
       "subrandr=disabled"
     ],
     "macos": [
+      "lua=enabled",
       "coreaudio=enabled",
       "cocoa=disabled",
       "gl=enabled",

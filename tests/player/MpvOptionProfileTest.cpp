@@ -49,6 +49,16 @@ int main(int argc, char **argv)
     require(
         valueFor(desktop, "initial-audio-sync").isEmpty(), "desktop should retain mpv's initial audio sync default");
 
+    PlaybackSession hlsTranscode;
+    hlsTranscode.playMethod = QStringLiteral("Transcode");
+    hlsTranscode.url = QStringLiteral("https://media.example/Videos/1/master.m3u8?api_key=secret");
+    require(MpvOptionProfile::loadFileOptions(hlsTranscode) == "demuxer=lavf,demuxer-lavf-format=hls",
+        "HLS transcodes should bypass probing of the non-seekable master manifest");
+    PlaybackSession directHls = hlsTranscode;
+    directHls.playMethod = QStringLiteral("DirectPlay");
+    require(MpvOptionProfile::loadFileOptions(directHls).isEmpty(),
+        "direct-play URLs should retain mpv's normal demuxer detection");
+
     const auto customDemuxerBudget
         = MpvOptionProfile::startupOptions(MpvOptionProfile::Platform::Desktop, QStringLiteral("alsa"),
             QByteArrayLiteral("/tmp/mpv.log"), QByteArrayLiteral("123456789"), QByteArrayLiteral("9876543"));
