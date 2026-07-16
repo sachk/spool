@@ -11,6 +11,11 @@
 
 #include <qpa/qplatformnativeinterface.h>
 
+#include <fcntl.h>
+#include <sys/mman.h>
+#include <sys/syscall.h>
+#include <unistd.h>
+
 #include <cstring>
 
 extern "C" {
@@ -21,11 +26,59 @@ namespace JellyfinNative {
 
 namespace {
 
-    struct OverlayImageBuffer {
+    enum class OverlayBufferKind { Image, Wayland };
+
+    struct OverlayBuffer {
+        OverlayBufferKind kind = OverlayBufferKind::Image;
         QImage image;
         int x = 0;
         int y = 0;
+        wl_shm_pool *pool = nullptr;
+        wl_buffer *waylandBuffer = nullptr;
+        uint8_t *pixels = nullptr;
+        size_t size = 0;
     };
+
+    void destroyOverlayBuffer(OverlayBuffer *buffer)
+    {
+        if (!buffer)
+            return;
+        if (buffer->waylandBuffer)
+            wl_buffer_destroy(buffer->waylandBuffer);
+        if (buffer->pool)
+            wl_shm_pool_destroy(buffer->pool);
+        if (buffer->pixels)
+            munmap(buffer->pixels, buffer->size);
+        delete buffer;
+    }
+
+    void overlayBufferReleased(void *data, wl_buffer *)
+    {
+        destroyOverlayBuffer(static_cast<OverlayBuffer *>(data));
+    }
+
+    constexpr wl_buffer_listener kOverlayBufferListener = { overlayBufferReleased };
+
+    int createOverlayFd(size_t size)
+    {
+        int fd = -1;
+#ifdef SYS_memfd_create
+        fd = static_cast<int>(syscall(SYS_memfd_create, "tern-mpv-osd", 0x0001U));
+#endif
+        if (fd < 0) {
+            char path[] = "/tmp/tern-mpv-osd-XXXXXX";
+            fd = mkstemp(path);
+            if (fd >= 0) {
+                unlink(path);
+                fcntl(fd, F_SETFD, FD_CLOEXEC);
+            }
+        }
+        if (fd >= 0 && ftruncate(fd, static_cast<off_t>(size)) < 0) {
+            ::close(fd);
+            fd = -1;
+        }
+        return fd;
+    }
 
 } // namespace
 
@@ -53,6 +106,10 @@ NativeAppWindow::~NativeAppWindow()
 {
     starfish_exported_set_crop_cb(nullptr, nullptr);
     starfish_overlay_set_callbacks(nullptr, nullptr, nullptr);
+    if (m_overlaySubsurface)
+        wl_subsurface_destroy(m_overlaySubsurface);
+    if (m_overlaySurface)
+        wl_surface_destroy(m_overlaySurface);
     if (m_exported)
         wl_webos_exported_destroy(m_exported);
     if (m_webosShellSurface)
@@ -61,6 +118,8 @@ NativeAppWindow::~NativeAppWindow()
         wl_webos_shell_destroy(m_webosShell);
     if (m_webosForeign)
         wl_webos_foreign_destroy(m_webosForeign);
+    if (m_shm)
+        wl_shm_destroy(m_shm);
     if (m_registry)
         wl_registry_destroy(m_registry);
 }
@@ -170,8 +229,10 @@ bool NativeAppWindow::ensureVideoSurface()
 
 bool NativeAppWindow::ensureShellSurface()
 {
-    if (m_webosShellSurface && m_surface)
+    if (m_webosShellSurface && m_surface) {
+        ensureOverlaySurface();
         return true;
+    }
 
     if (!handle())
         return false;
@@ -210,12 +271,44 @@ bool NativeAppWindow::ensureShellSurface()
     wl_webos_shell_surface_set_state(m_webosShellSurface, WL_WEBOS_SHELL_SURFACE_STATE_FULLSCREEN);
     wl_surface_commit(m_surface);
     wl_display_roundtrip(m_display);
+    ensureOverlaySurface();
+    return true;
+}
+
+bool NativeAppWindow::ensureOverlaySurface()
+{
+    if (m_overlaySurface && m_overlaySubsurface)
+        return true;
+    if (!m_compositor || !m_subcompositor || !m_surface)
+        return false;
+
+    m_overlaySurface = wl_compositor_create_surface(m_compositor);
+    if (!m_overlaySurface)
+        return false;
+    m_overlaySubsurface = wl_subcompositor_get_subsurface(m_subcompositor, m_overlaySurface, m_surface);
+    if (!m_overlaySubsurface) {
+        wl_surface_destroy(m_overlaySurface);
+        m_overlaySurface = nullptr;
+        return false;
+    }
+
+    // OSD is visual only. An empty input region keeps remote and pointer input
+    // routed to Qt even though this child surface sits above the UI surface.
+    wl_region *emptyInput = wl_compositor_create_region(m_compositor);
+    if (emptyInput) {
+        wl_surface_set_input_region(m_overlaySurface, emptyInput);
+        wl_region_destroy(emptyInput);
+    }
+    wl_subsurface_set_desync(m_overlaySubsurface);
+    wl_subsurface_set_position(m_overlaySubsurface, 0, 0);
+    wl_surface_commit(m_overlaySurface);
+    wl_display_flush(m_display);
     return true;
 }
 
 bool NativeAppWindow::bindGlobals()
 {
-    if (m_webosForeign && m_compositor)
+    if (m_webosForeign && m_compositor && m_subcompositor && m_shm && m_webosShell)
         return true;
 
     m_registry = wl_display_get_registry(m_display);
@@ -226,7 +319,7 @@ bool NativeAppWindow::bindGlobals()
     wl_display_roundtrip(m_display);
     wl_display_roundtrip(m_display);
 
-    return m_compositor && m_subcompositor && m_webosForeign && m_webosShell;
+    return m_compositor && m_subcompositor && m_shm && m_webosForeign && m_webosShell;
 }
 
 void NativeAppWindow::updateCropRegion()
@@ -380,6 +473,8 @@ void NativeAppWindow::registryGlobal(
     } else if (strcmp(interface, wl_subcompositor_interface.name) == 0) {
         self->m_subcompositor
             = static_cast<wl_subcompositor *>(wl_registry_bind(registry, name, &wl_subcompositor_interface, 1));
+    } else if (strcmp(interface, wl_shm_interface.name) == 0) {
+        self->m_shm = static_cast<wl_shm *>(wl_registry_bind(registry, name, &wl_shm_interface, 1));
     } else if (strcmp(interface, wl_webos_shell_interface.name) == 0) {
         const uint32_t bindVersion = version < 2 ? version : 2;
         self->m_webosShell
@@ -406,12 +501,45 @@ uint8_t *NativeAppWindow::overlayAcquireCallback(
     if (!self || !stride || !buffer || width <= 0 || height <= 0)
         return nullptr;
 
-    // QImage::Format_ARGB32_Premultiplied stores pixels in memory as B,G,R,A
-    // on little-endian — the same byte layout vo_starfish writes (IMGFMT_BGRA,
-    // premultiplied). mpv writes directly into this Qt-owned storage, so the
-    // callback path has no full-frame CPU copy.
+    if (self->m_shm && self->m_overlaySurface) {
+        const int waylandStride = width * 4;
+        const size_t size = static_cast<size_t>(waylandStride) * static_cast<size_t>(height);
+        const int fd = createOverlayFd(size);
+        if (fd >= 0) {
+            auto *frame = new OverlayBuffer;
+            frame->kind = OverlayBufferKind::Wayland;
+            frame->x = x;
+            frame->y = y;
+            frame->size = size;
+            frame->pixels = static_cast<uint8_t *>(mmap(nullptr, size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0));
+            if (frame->pixels != MAP_FAILED) {
+                frame->pool = wl_shm_create_pool(self->m_shm, fd, static_cast<int>(size));
+                if (frame->pool) {
+                    frame->waylandBuffer = wl_shm_pool_create_buffer(
+                        frame->pool, 0, width, height, waylandStride, WL_SHM_FORMAT_ARGB8888);
+                }
+            } else {
+                frame->pixels = nullptr;
+            }
+            ::close(fd);
+            if (frame->waylandBuffer) {
+                wl_buffer_add_listener(frame->waylandBuffer, &kOverlayBufferListener, frame);
+                *stride = waylandStride;
+                *buffer = frame;
+                return frame->pixels;
+            }
+            destroyOverlayBuffer(frame);
+        }
+    }
+
+    // Fallback for compositors where a child Wayland surface is unavailable.
+    // QImage::Format_ARGB32_Premultiplied has the BGRA layout mpv expects.
     static_assert(Q_BYTE_ORDER == Q_LITTLE_ENDIAN, "OSD direct path assumes little-endian QImage layout");
-    auto *frame = new OverlayImageBuffer { QImage(width, height, QImage::Format_ARGB32_Premultiplied), x, y };
+    auto *frame = new OverlayBuffer;
+    frame->kind = OverlayBufferKind::Image;
+    frame->image = QImage(width, height, QImage::Format_ARGB32_Premultiplied);
+    frame->x = x;
+    frame->y = y;
     if (frame->image.isNull()) {
         delete frame;
         return nullptr;
@@ -424,20 +552,56 @@ uint8_t *NativeAppWindow::overlayAcquireCallback(
 void NativeAppWindow::overlayPresentCallback(void *data, void *buffer, bool visible)
 {
     auto *self = static_cast<NativeAppWindow *>(data);
-    auto *frame = static_cast<OverlayImageBuffer *>(buffer);
+    auto *frame = static_cast<OverlayBuffer *>(buffer);
     if (!self) {
-        delete frame;
+        destroyOverlayBuffer(frame);
         return;
     }
 
+    if (frame && frame->kind == OverlayBufferKind::Wayland) {
+        QMetaObject::invokeMethod(
+            self, [self, frame, visible]() { self->presentOverlaySurface(frame, visible); }, Qt::QueuedConnection);
+        return;
+    }
+
+    if (self->m_overlaySurface) {
+        QMetaObject::invokeMethod(
+            self, [self]() { self->presentOverlaySurface(nullptr, false); }, Qt::QueuedConnection);
+    }
+
     if (!visible || !frame || frame->image.isNull()) {
-        delete frame;
+        destroyOverlayBuffer(frame);
         self->scheduleOverlayImage(QImage());
         return;
     }
 
     self->scheduleOverlayImage(std::move(frame->image), frame->x, frame->y);
-    delete frame;
+    destroyOverlayBuffer(frame);
+}
+
+void NativeAppWindow::presentOverlaySurface(void *opaqueBuffer, bool visible)
+{
+    auto *frame = static_cast<OverlayBuffer *>(opaqueBuffer);
+    if (!m_overlaySurface || !m_overlaySubsurface || !visible || !frame || !frame->waylandBuffer) {
+        if (m_overlaySurface) {
+            wl_surface_attach(m_overlaySurface, nullptr, 0, 0);
+            wl_surface_commit(m_overlaySurface);
+            if (m_display)
+                wl_display_flush(m_display);
+        }
+        destroyOverlayBuffer(frame);
+        return;
+    }
+
+    // mpv has already drawn into this exact shared-memory buffer. Attaching it
+    // lets the webOS compositor consume those pixels directly, bypassing the
+    // Qt image provider and its CPU-to-texture upload.
+    wl_subsurface_set_position(m_overlaySubsurface, frame->x, frame->y);
+    wl_surface_attach(m_overlaySurface, frame->waylandBuffer, 0, 0);
+    wl_surface_damage(m_overlaySurface, 0, 0, INT32_MAX, INT32_MAX);
+    wl_surface_commit(m_overlaySurface);
+    wl_display_flush(m_display);
+    scheduleOverlayImage(QImage());
 }
 
 void NativeAppWindow::exportedCropCallback(

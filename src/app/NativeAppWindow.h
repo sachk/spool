@@ -95,6 +95,7 @@ private:
 #ifdef JELLYFIN_NATIVE_WEBOS
     bool ensureShellSurface();
     bool ensureVideoSurface();
+    bool ensureOverlaySurface();
     bool bindGlobals();
     void updateCropRegion();
     void setVideoCrop(
@@ -104,6 +105,7 @@ private:
     void publishPendingVideoCrop();
     void scheduleOverlayImage(QImage image, int x = 0, int y = 0);
     void publishPendingOverlayImage();
+    void presentOverlaySurface(void *buffer, bool visible);
 
     static void registryGlobal(
         void *data, wl_registry *registry, uint32_t name, const char *interface, uint32_t version);
@@ -131,7 +133,10 @@ private:
     wl_registry *m_registry = nullptr;
     wl_compositor *m_compositor = nullptr;
     wl_subcompositor *m_subcompositor = nullptr;
+    wl_shm *m_shm = nullptr;
     wl_surface *m_surface = nullptr;
+    wl_surface *m_overlaySurface = nullptr;
+    wl_subsurface *m_overlaySubsurface = nullptr;
     wl_webos_shell *m_webosShell = nullptr;
     wl_webos_shell_surface *m_webosShellSurface = nullptr;
     wl_webos_foreign *m_webosForeign = nullptr;
