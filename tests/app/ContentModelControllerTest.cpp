@@ -298,6 +298,8 @@ protected:
                 const int count = std::min(query.queryItemValue(QStringLiteral("limit")).toInt(), 45);
                 for (int episode = 1; episode <= count; ++episode)
                     items.push_back(episodeObject(episode));
+            } else if (parentId == QStringLiteral("single-show-id")) {
+                items.push_back(episodeObject(3));
             } else if (parentId == QStringLiteral("photos-id")) {
                 items.push_back(photoObject());
             }
@@ -678,24 +680,30 @@ int main(int argc, char **argv)
     HomeModelController home(nullptr, &api, &prefetch);
     const std::vector<LibraryItem> homeLibraries {
         library(QStringLiteral("shows-id"), QStringLiteral("Shows"), QStringLiteral("tvshows")),
+        library(QStringLiteral("single-show-id"), QStringLiteral("Single Show"), QStringLiteral("tvshows")),
         library(QStringLiteral("photos-id"), QStringLiteral("Photos"), QStringLiteral("photos")),
     };
     home.refresh(homeLibraries);
-    require(latestRequestCount(network.requestedUrls) == 2,
+    require(latestRequestCount(network.requestedUrls) == 3,
         "home latest requests were not all dispatched before the event loop resumed");
     require(latestRequestsAreUnfiltered(network.requestedUrls),
         "home latest requests retained a movie/series/episode-only filter");
     require(waitForHomeRows(home, 1000), "home latest rows did not finish loading");
-    require(latestRequestCount(network.requestedUrls) == 4,
+    require(latestRequestCount(network.requestedUrls) == 5,
         "home did not expand the latest request until grouping exhausted the server results");
 
     const QVariantList latestRows = home.latestLibraryRows();
-    require(latestRows.size() == 2, "home did not expose one latest row for each supported library");
+    require(latestRows.size() == 3, "home did not expose one latest row for each supported library");
     auto *showItems
         = qobject_cast<MovieGridModel *>(latestRows.at(0).toMap().value(QStringLiteral("model")).value<QObject *>());
-    auto *photoItems
+    auto *singleShowItems
         = qobject_cast<MovieGridModel *>(latestRows.at(1).toMap().value(QStringLiteral("model")).value<QObject *>());
+    auto *photoItems
+        = qobject_cast<MovieGridModel *>(latestRows.at(2).toMap().value(QStringLiteral("model")).value<QObject *>());
     require(showItems && showItems->rowCount() == 1, "home did not group latest episodes from one season");
+    require(singleShowItems && singleShowItems->rowCount() == 1
+            && singleShowItems->get(0).title == QStringLiteral("Series One"),
+        "a single latest episode did not use its series title");
     require(photoItems && photoItems->rowCount() == 1 && photoItems->get(0).itemType == QStringLiteral("Photo"),
         "home did not expose an arbitrary-library latest item");
     require(showItems->get(0).seriesPrimaryImageTag == QStringLiteral("series-primary-tag"),
@@ -721,6 +729,11 @@ int main(int argc, char **argv)
                 QJsonObject {
                     { QStringLiteral("order"), 1 },
                     { QStringLiteral("library"), JellyfinNative::metaToJson(homeLibraries[1]) },
+                    { QStringLiteral("items"), QJsonArray { JellyfinNative::metaToJson(singleShowItems->get(0)) } },
+                },
+                QJsonObject {
+                    { QStringLiteral("order"), 2 },
+                    { QStringLiteral("library"), JellyfinNative::metaToJson(homeLibraries[2]) },
                     { QStringLiteral("items"), QJsonArray { JellyfinNative::metaToJson(photoItems->get(0)) } },
                 },
             } },

@@ -139,7 +139,7 @@ RowLayout {
                 x: parent.leftPadding
                 y: parent.topPadding + parent.availableHeight / 2 - height / 2
                 width: parent.availableWidth
-                height: root.overlay.dp(4)
+                height: root.overlay.dp(6)
                 radius: height / 2
                 color: Theme.borderStrong
 
@@ -154,7 +154,7 @@ RowLayout {
             handle: Rectangle {
                 x: parent.leftPadding + parent.visualPosition * (parent.availableWidth - width)
                 y: parent.topPadding + parent.availableHeight / 2 - height / 2
-                width: root.overlay.dp(12)
+                width: root.overlay.dp(16)
                 height: width
                 radius: width / 2
                 color: Theme.textPrimary

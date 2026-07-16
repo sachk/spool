@@ -1123,11 +1123,9 @@ FocusScope {
             Item {
                 id: hero
                 Layout.fillWidth: true
-                Layout.preferredHeight: root.compactEpisodicDetail ? heroCopy.implicitHeight + root.contentMargin
-                                                                     * 0.65 : Math.max(Metrics.detailHeroHeight(
-                                                                                           root.height),
-                                                                                       heroCopy.implicitHeight
-                                                                                       + root.contentMargin * 1.4)
+                Layout.preferredHeight: Math.max(heroCopy.y + heroCopy.implicitHeight + root.contentMargin * 0.5,
+                                                 stillPanel.visible ? stillPanel.y + stillPanel.height
+                                                                      + root.contentMargin * 0.5 : 0)
 
                 ColumnLayout {
                     id: heroCopy

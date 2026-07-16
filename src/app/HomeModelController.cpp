@@ -97,8 +97,8 @@ namespace {
             numbers.removeAll(0);
             std::sort(numbers.begin(), numbers.end());
             numbers.erase(std::unique(numbers.begin(), numbers.end()), numbers.end());
+            item.title = item.seriesName.isEmpty() ? item.title : item.seriesName;
             if (numbers.size() > 1 && numbers.back() - numbers.front() + 1 == numbers.size()) {
-                item.title = item.seriesName.isEmpty() ? item.title : item.seriesName;
                 item.episodeLabel = QStringLiteral("S%1 · E%2-E%3")
                                         .arg(item.seasonNumber, 2, 10, QLatin1Char('0'))
                                         .arg(numbers.front(), 2, 10, QLatin1Char('0'))
