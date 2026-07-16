@@ -197,7 +197,8 @@ FocusScope {
                                  checked: false
                              })
         }
-        if (item && (item.movieId || item.id || item.title || item.displayTitle || item.seriesName))
+        if (itemType !== "Series" && itemType !== "Season" && item && (item.movieId || item.id || item.title || item.displayTitle
+                                                                       || item.seriesName))
             options.push({
                              action: "info",
                              icon: "info",

@@ -25,10 +25,16 @@ WheelHandler {
         if (root.scrollAnimation.running && root.scrollAnimation.target === flickable && root.scrollAnimation.property
                 === propertyName)
             return root.scrollAnimation.to
-        return flickable[propertyName]
+        const current = Number(flickable ? flickable[propertyName] : 0)
+        return Number.isFinite(current) ? current : 0
     }
 
     function moveFlickable(propertyName, value, animate) {
+        if (!flickable || flickable[propertyName] === undefined || !Number.isFinite(Number(value)))
+            return
+        const current = Number(flickable[propertyName])
+        if (!Number.isFinite(current))
+            return
         if (!animate || Theme.reducedMotion || animationDuration <= 0) {
             root.scrollAnimation.stop()
             flickable[propertyName] = value
@@ -38,7 +44,7 @@ WheelHandler {
         root.scrollAnimation.stop()
         root.scrollAnimation.target = flickable
         root.scrollAnimation.property = propertyName
-        root.scrollAnimation.from = flickable[propertyName]
+        root.scrollAnimation.from = current
         root.scrollAnimation.to = value
         root.scrollAnimation.start()
     }

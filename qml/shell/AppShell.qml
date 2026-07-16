@@ -279,11 +279,19 @@ KeyRouter {
             itemContextMenuLoader.item.finishOpeningGesture()
     }
 
+    function mediaInfoAvailable(item) {
+        const type = String(item && item.itemType || "")
+        return Boolean(item && item.movieId && type !== "Series" && type !== "Season")
+    }
+
     function openMediaInfo(item) {
+        if (!mediaInfoAvailable(item))
+            return false
         mediaInfoItem = item || ({})
         if (mediaInfoItem.movieId)
             Content.loadItemDetail(mediaInfoItem.movieId)
         mediaInfoVisible = true
+        return true
     }
 
     function closeMediaInfo() {
@@ -375,7 +383,7 @@ KeyRouter {
             if (mediaInfoVisible)
                 closeMediaInfo()
             else
-                openMediaInfo(currentMediaItem())
+                return openMediaInfo(currentMediaItem())
             return true
         }
         if (key === Qt.Key_M || key === Qt.Key_Menu) {

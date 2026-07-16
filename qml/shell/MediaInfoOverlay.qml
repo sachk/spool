@@ -19,16 +19,8 @@ OverlayDialog {
     readonly property var detail: Content.detailItem && String(Content.detailItem.movieId || "") === itemId
                                   ? Content.detailItem : ({})
     readonly property var sources: detail.mediaSources || []
-    readonly property bool showLinkVisible: Boolean(item && item.seriesId && item.seriesName && (item.itemType
-                                                                                                 === "Episode"
-                                                                                                 || item.itemType
-                                                                                                 === "Season"))
-    readonly property bool seasonLinkVisible: Boolean(item && item.itemType === "Episode" && item.seriesId
-                                                      && item.seasonId)
-    readonly property int showActionIndex: showLinkVisible ? 0 : -1
-    readonly property int seasonActionIndex: seasonLinkVisible ? (showLinkVisible ? 1 : 0) : -1
-    readonly property int closeActionIndex: (showLinkVisible ? 1 : 0) + (seasonLinkVisible ? 1 : 0)
-    readonly property int actionCount: closeActionIndex + 1
+    readonly property int closeActionIndex: 0
+    readonly property int actionCount: 1
 
     signal closed
     onDismissed: closeOverlay()
@@ -59,7 +51,7 @@ OverlayDialog {
             Layout.fillWidth: true
             text: value
             color: Theme.textPrimary
-            font.pixelSize: Metrics.metaSizePx + 1
+            font.pixelSize: Metrics.bodySizePx
             font.weight: Font.Medium
             wrapMode: Text.Wrap
             maximumLineCount: 2
@@ -77,11 +69,23 @@ OverlayDialog {
     function titleText() {
         return item && (item.displayTitle || item.title) ? (item.displayTitle || item.title) : "Media info"
     }
-    function seasonTitle() {
-        if (item && item.seasonNumber > 0)
-            return "Season " + item.seasonNumber
-        const match = item && item.displaySubtitle ? String(item.displaySubtitle).match(/Season\s+\d+/i) : null
-        return match ? match[0] : "Season"
+    function episodeCode() {
+        if (!item || item.itemType !== "Episode")
+            return ""
+        const season = Number(item.seasonNumber || 0)
+        const episode = Number(item.episodeNumber || 0)
+        if (season > 0 && episode > 0)
+            return "S" + String(season).padStart(2, "0") + "E" + String(episode).padStart(2, "0")
+        const match = String(item.displaySubtitle || item.subtitle || "").match(/S(\d+)\s*:?\s*E(\d+)/i)
+        return match ? "S" + match[1].padStart(2, "0") + "E" + match[2].padStart(2, "0") : ""
+    }
+    function titleMetadata() {
+        if (item && item.itemType === "Episode")
+            return episodeCode()
+        return [item && item.itemType ? item.itemType : "", item && item.year > 0 ? String(item.year) : ""].filter(
+                    function (value) {
+                        return value.length > 0
+                    }).join(" · ")
     }
     function bitrate(bits) {
         const v = Number(bits || 0)
@@ -112,18 +116,6 @@ OverlayDialog {
         const hours = Math.floor(minutes / 60)
         const mins = minutes % 60
         return hours > 0 ? hours + "h " + mins + "m" : mins + "m"
-    }
-    function ratingText() {
-        const parts = []
-        if (item && item.officialRating)
-            parts.push(item.officialRating)
-        const community = Number(item && item.communityRating ? item.communityRating : 0)
-        const critic = Number(item && item.criticRating ? item.criticRating : 0)
-        if (community > 0)
-            parts.push(community.toFixed(1) + "/10")
-        if (critic > 0)
-            parts.push(Math.round(critic) + "%")
-        return parts.join(" · ")
     }
     function codec(stream) {
         const parts = []
@@ -176,25 +168,6 @@ OverlayDialog {
             flags.push("Interlaced")
         return flags.join(" · ")
     }
-    function sourceSummary(source) {
-        const parts = []
-        if (source.container)
-            parts.push(upper(source.container))
-        if (source.protocol)
-            parts.push(source.protocol)
-        if (source.videoType)
-            parts.push(source.videoType)
-        const run = runtime(source.runtimeTicks || (item ? item.runtimeTicks : 0))
-        const size = fileSize(source.size)
-        const br = bitrate(source.bitRate)
-        if (run.length > 0)
-            parts.push(run)
-        if (size.length > 0)
-            parts.push(size)
-        if (br.length > 0)
-            parts.push(br)
-        return parts.join(" · ")
-    }
     function sourcePairs(source) {
         return [
                     {
@@ -230,10 +203,6 @@ OverlayDialog {
                 })
     }
     function actionAt(index) {
-        if (index === showActionIndex)
-            return showBtn
-        if (index === seasonActionIndex)
-            return seasonBtn
         return closeBtn
     }
     function focusAction(index) {
@@ -253,28 +222,8 @@ OverlayDialog {
     function closeOverlay() {
         root.closed()
     }
-    function openSeries() {
-        if (!item || !item.seriesId)
-            return
-        root.closed()
-        if (shell)
-            shell.openSeriesDetails(String(item.seriesId), String(item.seriesName || ""), "home")
-    }
-    function openSeason() {
-        if (!item || !item.seriesId || !item.seasonId)
-            return
-        root.closed()
-        if (shell)
-            shell.openSeasonDetails(String(item.seriesId), String(item.seasonId), seasonTitle(), String(item.seriesName
-                                                                                                        || ""), "home")
-    }
     function activateCurrent() {
-        if (currentActionIndex === showActionIndex)
-            openSeries()
-        else if (currentActionIndex === seasonActionIndex)
-            openSeason()
-        else
-            closeOverlay()
+        closeOverlay()
     }
     function routeKey(key, phase, repeat) {
         if (phase === "release" && key === Qt.Key_I) {
@@ -318,31 +267,8 @@ OverlayDialog {
             }
             TechMetadataLine {
                 Layout.fillWidth: true
-                metadata: [item.itemType || "", item.year > 0 ? String(item.year) : "", item.displaySubtitle || "", root.ratingText(
-                        )].filter(function (v) {
-                            return v.length > 0
-                        }).join(" · ")
+                metadata: root.titleMetadata()
             }
-        }
-        ActionButton {
-            id: showBtn
-            visible: root.showLinkVisible
-            text: "Show"
-            iconName: "live_tv"
-            focus: root.currentActionIndex === root.showActionIndex
-            onClicked: root.openSeries()
-            onActiveFocusChanged: if (activeFocus)
-            root.currentActionIndex = root.showActionIndex
-        }
-        ActionButton {
-            id: seasonBtn
-            visible: root.seasonLinkVisible
-            text: root.seasonTitle()
-            iconName: "video_library"
-            focus: root.currentActionIndex === root.seasonActionIndex
-            onClicked: root.openSeason()
-            onActiveFocusChanged: if (activeFocus)
-            root.currentActionIndex = root.seasonActionIndex
         }
         ActionButton {
             id: closeBtn
@@ -356,6 +282,8 @@ OverlayDialog {
     }
 
     Flickable {
+        id: infoFlick
+
         Layout.fillWidth: true
         Layout.fillHeight: true
         contentWidth: width
@@ -363,7 +291,7 @@ OverlayDialog {
         boundsBehavior: Flickable.StopAtBounds
         clip: true
         FastWheelHandler {
-            flickable: parent
+            flickable: infoFlick
         }
 
         ColumnLayout {
@@ -397,7 +325,6 @@ OverlayDialog {
                         SectionHeader {
                             Layout.fillWidth: true
                             title: source.name && source.name.length > 0 ? source.name : "Media source"
-                            detail: root.sourceSummary(source)
                         }
                         GridLayout {
                             Layout.fillWidth: true
@@ -436,19 +363,25 @@ OverlayDialog {
                                         }
                                         AppText {
                                             Layout.fillWidth: true
-                                            text: stream.displayTitle || root.streamSummary(stream) || root.text(
-                                                      stream.type || "Stream")
+                                            text: stream.displayTitle || root.text(stream.type || "Stream") + " stream"
                                             font.pixelSize: Metrics.bodySizePx
                                             font.weight: Font.DemiBold
                                             elide: Text.ElideRight
                                         }
                                     }
-                                    TechMetadataLine {
+                                    AppText {
                                         Layout.fillWidth: true
-                                        metadata: [root.streamSummary(stream), root.streamFlags(stream)].filter(
-                                            function (v) {
-                                                return v.length > 0
-                                            }).join(" · ")
+                                        text: root.streamSummary(stream)
+                                        color: Theme.textSecondary
+                                        font.pixelSize: Metrics.bodySizePx - 1
+                                        wrapMode: Text.Wrap
+                                        maximumLineCount: 3
+                                    }
+                                    MonoText {
+                                        Layout.fillWidth: true
+                                        visible: text.length > 0
+                                        text: root.streamFlags(stream)
+                                        color: Theme.textMuted
                                     }
                                 }
                             }

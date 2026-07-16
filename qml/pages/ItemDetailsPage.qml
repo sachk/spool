@@ -55,6 +55,7 @@ FocusScope {
                                                                          === "Season") && seriesIdText.length > 0)
     readonly property bool reserveContextRow: contextItemsPossible && contextCount === 0 && loadingDetailRows
     readonly property bool showContextPlaybackActions: contextCount > 0 && typeText !== "Series"
+    readonly property bool mediaInfoAvailable: typeText !== "Series" && typeText !== "Season"
     readonly property bool showContextRow: contextCount > 0 || reserveContextRow
     readonly property bool showSimilarRow: similarCount > 0
     readonly property var metadataPeople: fullDetailItem.people && fullDetailItem.people.length > 0
@@ -669,7 +670,8 @@ FocusScope {
             actions.push(restartAction)
         actions.push(playedAction)
         actions.push(favoriteAction)
-        actions.push(menuAction)
+        if (showContextPlaybackActions || mediaInfoAvailable)
+            actions.push(menuAction)
         return actions
     }
 
@@ -715,7 +717,12 @@ FocusScope {
     }
 
     function overflowOptions() {
-        return showContextPlaybackActions ? [playAllOption, shuffleOption, mediaInfoOption] : [mediaInfoOption]
+        const options = []
+        if (showContextPlaybackActions)
+            options.push(playAllOption, shuffleOption)
+        if (mediaInfoAvailable)
+            options.push(mediaInfoOption)
+        return options
     }
 
     function focusOverflow(index) {
@@ -1227,6 +1234,7 @@ FocusScope {
                             iconName: "menu"
                             label: "More"
                             checked: root.overflowOpen
+                            visible: root.showContextPlaybackActions || root.mediaInfoAvailable
                             enabledButton: root.selectedIndex >= 0
                             onActivated: root.toggleOverflow()
                         }
@@ -1276,6 +1284,7 @@ FocusScope {
 
                             MenuOption {
                                 id: mediaInfoOption
+                                visible: root.mediaInfoAvailable
                                 iconName: "info"
                                 label: "Media info"
                                 onActivated: root.openMediaInfo()
