@@ -22,6 +22,7 @@ FocusScope {
                                               routeItem.movieId || "") ? Content.detailItem : ({})
     readonly property var item: fullDetailItem.movieId ? fullDetailItem : routeItem
     readonly property string detailsReturnRoute: routeContext.returnRoute
+    readonly property bool routeActive: Boolean(shell && shell.route === "itemDetails")
     readonly property string typeText: item.itemType || "Media"
     readonly property string titleText: typeText === "Episode" && item.title ? item.title : (item.displayTitle
                                                                                              || item.title
@@ -86,6 +87,7 @@ FocusScope {
     property bool seasonPickerOpen: false
     property int seasonPickerIndex: 0
     property var seasonEntries: []
+    property bool routeRefreshScheduled: false
 
     focus: true
 
@@ -390,9 +392,13 @@ FocusScope {
         syncUserState()
         updateDetailCounts()
         rebuildSeasonEntries()
-        Qt.callLater(refreshDetailRows)
-        Qt.callLater(refreshItemDetail)
+        scheduleActiveRouteRefresh()
         Qt.callLater(focusDefaultAction)
+    }
+
+    onRouteActiveChanged: if (routeActive) {
+        syncUserState()
+        scheduleActiveRouteRefresh()
     }
 
     onActiveFocusChanged: if (activeFocus)
@@ -404,9 +410,23 @@ FocusScope {
     onRouteItemChanged: {
         seasonPickerOpen = false
         overflowOpen = false
-        syncUserState()
-        Qt.callLater(refreshDetailRows)
-        Qt.callLater(refreshItemDetail)
+        if (routeActive) {
+            syncUserState()
+            scheduleActiveRouteRefresh()
+        }
+    }
+
+    function scheduleActiveRouteRefresh() {
+        if (!routeActive || routeRefreshScheduled)
+            return
+        routeRefreshScheduled = true
+        Qt.callLater(function () {
+            root.routeRefreshScheduled = false
+            if (!root.routeActive)
+                return
+            root.refreshDetailRows()
+            root.refreshItemDetail()
+        })
     }
 
     Connections {

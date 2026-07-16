@@ -793,6 +793,7 @@ FocusScope {
 
         NavGrid {
             id: grid
+            readonly property int focusPadding: Math.max(2, Metrics.scaled(2))
             Layout.fillWidth: true
             Layout.fillHeight: true
             focus: true
@@ -803,7 +804,9 @@ FocusScope {
             opacity: gridReveal.delegatesReady ? 1 : 0
             boundsBehavior: Flickable.StopAtBounds
             model: Browse.items
-            cellWidth: Math.floor((width - Metrics.gapPx * (columns - 1)) / columns)
+            leftMargin: focusPadding
+            rightMargin: focusPadding
+            cellWidth: Math.floor((width - leftMargin - rightMargin - Metrics.gapPx * (columns - 1)) / columns)
             cellHeight: cellWidth * 1.5 + Metrics.scaled(64)
             cacheBuffer: gridReveal.delegatesReady ? cellHeight : 0
             Component.onCompleted: {
@@ -889,14 +892,20 @@ FocusScope {
                 onArtworkReadyChanged: gridReveal.schedule()
             }
             highlightFollowsCurrentItem: true
-            highlight: Rectangle {
+            highlight: Item {
                 width: grid.currentItem ? grid.currentItem.width : grid.cellWidth - Metrics.gapPx
                 height: grid.currentItem ? grid.currentItem.focusOutlineHeight : grid.cellHeight - Metrics.scaled(6)
-                color: "transparent"
-                radius: Theme.radiusMedium
-                border.width: Theme.focusBorderWidth
-                border.color: grid.activeFocus ? Theme.accent : "transparent"
-                z: 2
+
+                Rectangle {
+                    anchors.fill: parent
+                    anchors.leftMargin: -grid.focusPadding
+                    anchors.rightMargin: -grid.focusPadding
+                    color: "transparent"
+                    radius: Theme.radiusMedium
+                    border.width: Theme.focusBorderWidth
+                    border.color: grid.activeFocus ? Theme.accent : "transparent"
+                    z: 2
+                }
             }
 
             MouseArea {

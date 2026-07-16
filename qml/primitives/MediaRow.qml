@@ -30,6 +30,7 @@ FocusScope {
     readonly property bool posterCard: cardKind === "poster" || cardKind === "person"
     readonly property int headerHeight: Metrics.scaled(34)
     readonly property int cardHeight: Math.round(cardWidth * (posterCard ? 1.5 : 9 / 16) + Metrics.scaled(60))
+    readonly property int focusPadding: Math.max(2, Metrics.scaled(2))
 
     signal activated(int index, var item)
 
@@ -199,18 +200,25 @@ FocusScope {
         orientation: ListView.Horizontal
         boundsBehavior: Flickable.StopAtBounds
         spacing: root.cardGap
-        cacheBuffer: Math.round(2 * (root.cardWidth + root.cardGap))
+        cacheBuffer: root.atomicPopulate ? 0 : Math.round(root.cardWidth + root.cardGap)
+        leftMargin: root.focusPadding
+        rightMargin: root.focusPadding
         reuseItems: true
         model: root.model
         delegate: cardDelegate
         highlightFollowsCurrentItem: true
         highlightMoveDuration: 16
-        highlight: Rectangle {
-            color: "transparent"
-            radius: Theme.radiusMedium
-            border.width: Theme.focusBorderWidth
-            border.color: listView.activeFocus ? Theme.accent : "transparent"
-            z: 2
+        highlight: Item {
+            Rectangle {
+                anchors.fill: parent
+                anchors.leftMargin: -root.focusPadding
+                anchors.rightMargin: -root.focusPadding
+                color: "transparent"
+                radius: Theme.radiusMedium
+                border.width: Theme.focusBorderWidth
+                border.color: listView.activeFocus ? Theme.accent : "transparent"
+                z: 2
+            }
         }
 
         currentIndex: root.count > 0 ? Math.max(0, Math.min(root.currentIndex, root.count - 1)) : -1

@@ -75,12 +75,21 @@ FocusScope {
             return pages[key]
         }
         const loader = pageLoaderComponent.createObject(root)
+        loader.pageCacheKey = key
         loader.setSource(pageSource(key), {
                              "shell": root.shell
                          })
         pages[key] = loader
         console.info("route host: construct", key)
         return loader
+    }
+
+    function preloadRoute(nextRoute) {
+        const key = pageKey(nextRoute)
+        if (pages[key])
+            return
+        loaderFor(key)
+        console.info("route host: preloading", key)
     }
 
     function showRoute() {
@@ -100,8 +109,8 @@ FocusScope {
     }
 
     function handleLoaded(loader) {
-        console.info("route host: ready", pageKey(route), "objects=" + (loader.item ? loader.item.children.length + 1 :
-                                                                                      0))
+        console.info("route host: ready", loader.pageCacheKey, "objects=" + (loader.item ? loader.item.children.length + 1 :
+                                                                                           0))
         if (pendingLoader === loader)
             InputLatency.mark(uiTransitionToken, "instance")
         if (pendingLoader === loader)
@@ -226,6 +235,7 @@ FocusScope {
 
         Loader {
             id: pageLoader
+            property string pageCacheKey: ""
             anchors.fill: parent
             asynchronous: true
             visible: false

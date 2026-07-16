@@ -130,6 +130,8 @@ KeyRouter {
         target: root.player
         function onVisibleChanged() {
             if (root.hasPlayer && root.player.visible) {
+                root.preparePlaybackBackNavigation(PlayQueue.currentIndex >= 0 ? PlayQueue.get(PlayQueue.currentIndex) :
+                                                                                 ({}))
                 root.focusPlayerInput()
             } else {
                 root.finishPlaybackBackNavigation()
@@ -144,11 +146,12 @@ KeyRouter {
     }
 
     function preparePlaybackBackNavigation(item) {
-        if (String(item && item.itemType || "") !== "Episode") {
+        if (RoutePolicy.itemIdFor(item).length <= 0) {
             pendingPlaybackBackItem = ({})
             return
         }
         pendingPlaybackBackItem = item
+        routeStack.preloadRoute("itemDetails")
     }
 
     function finishPlaybackBackNavigation() {
@@ -161,7 +164,7 @@ KeyRouter {
         return openDetailsRoute({
                                     "model": PlayQueue,
                                     "itemId": itemId,
-                                    "itemType": "Episode",
+                                    "itemType": RoutePolicy.itemTypeFor(item),
                                     "source": "playback",
                                     "returnRoute": returnRoute,
                                     "focusIndex": Math.max(0, PlayQueue.currentIndex)
