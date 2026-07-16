@@ -232,11 +232,11 @@ ssh -F /dev/null -o BatchMode=yes "$host" "ps | grep '$app_id\|jellyfin-native' 
   >"$outdir/ps.txt"
 for remote in \
   "/tmp/${app_id}/${app_id}.log" \
-  "/tmp/${app_id}/com.codex.jellyfinnative-mpv.log" \
+  "/tmp/${app_id}/com.sachk.tern-mpv.log" \
   "/media/cryptofs/apps/usr/palm/applications/${app_id}/.cache/logs/${app_id}.log" \
-  "/media/cryptofs/apps/usr/palm/applications/${app_id}/.cache/logs/com.codex.jellyfinnative-mpv.log" \
+  "/media/cryptofs/apps/usr/palm/applications/${app_id}/.cache/logs/com.sachk.tern-mpv.log" \
   "/tmp/${app_id}.log" \
-  "/tmp/com.codex.jellyfinnative-mpv.log" \
+  "/tmp/com.sachk.tern-mpv.log" \
   "/tmp/${app_id}-diagnostics/current-instance.json" \
   "/var/palm/data/${app_id}/diagnostics/current-instance.json"; do
   local_name="${remote#/}"

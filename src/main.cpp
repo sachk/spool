@@ -765,7 +765,7 @@ int main(int argc, char **argv)
     logLine("startup: QGuiApplication constructed");
     app.setApplicationName(QStringLiteral("Jellyfin Native"));
     app.setApplicationVersion(QString::fromLatin1(kAppVersion));
-    app.setOrganizationName(QStringLiteral("Codex"));
+    app.setOrganizationName(QStringLiteral("sachk"));
     app.setApplicationDisplayName(QStringLiteral("Jellyfin Native"));
 
     const QString diagnosticsRoot = qEnvironmentVariableIsSet("JELLYFIN_DIAGNOSTICS_DIR")
