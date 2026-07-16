@@ -11,6 +11,7 @@ class SystemPerformanceMonitor final : public QObject {
     Q_OBJECT
     Q_PROPERTY(bool available READ available NOTIFY metricsChanged)
     Q_PROPERTY(bool threadBreakdownAvailable READ threadBreakdownAvailable NOTIFY metricsChanged)
+    Q_PROPERTY(bool preciseThreadCpuAvailable READ preciseThreadCpuAvailable NOTIFY metricsChanged)
     Q_PROPERTY(double processCpuPercent READ processCpuPercent NOTIFY metricsChanged)
     Q_PROPERTY(double systemCpuPercent READ systemCpuPercent NOTIFY metricsChanged)
     Q_PROPERTY(double mpvCpuPercent READ mpvCpuPercent NOTIFY metricsChanged)
@@ -36,6 +37,10 @@ public:
     bool threadBreakdownAvailable() const
     {
         return m_threadBreakdownAvailable;
+    }
+    bool preciseThreadCpuAvailable() const
+    {
+        return m_preciseThreadCpuAvailable;
     }
     double processCpuPercent() const
     {
@@ -101,6 +106,8 @@ private:
     struct ThreadSample {
         QString name;
         quint64 ticks = 0;
+        quint64 runtimeNs = 0;
+        bool precise = false;
     };
 
     void sample();
@@ -115,6 +122,7 @@ private:
     long m_clockTicksPerSecond = 100;
     bool m_available = false;
     bool m_threadBreakdownAvailable = false;
+    bool m_preciseThreadCpuAvailable = false;
     double m_processCpuPercent = 0.0;
     double m_systemCpuPercent = 0.0;
     double m_mpvCpuPercent = 0.0;

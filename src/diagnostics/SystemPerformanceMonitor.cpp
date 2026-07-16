@@ -53,6 +53,16 @@ namespace {
             || name.startsWith(QStringLiteral("dec/")) || name.startsWith(QStringLiteral("ao/"));
     }
 
+    bool parseSchedstat(const QByteArray& contents, quint64 *runtimeNs)
+    {
+        const QByteArray firstField = contents.simplified().split(' ').value(0);
+        bool ok = false;
+        const quint64 value = firstField.toULongLong(&ok);
+        if (ok)
+            *runtimeNs = value;
+        return ok;
+    }
+
     double percentForTicks(quint64 ticks, double seconds, long ticksPerSecond)
     {
         if (seconds <= 0.0 || ticksPerSecond <= 0)
@@ -113,6 +123,11 @@ void SystemPerformanceMonitor::sample()
     quint64 videoDecodeTicks = 0;
     quint64 audioDecodeTicks = 0;
     quint64 audioOutputTicks = 0;
+    quint64 mpvRuntimeNs = 0;
+    quint64 videoDecodeRuntimeNs = 0;
+    quint64 audioDecodeRuntimeNs = 0;
+    quint64 audioOutputRuntimeNs = 0;
+    bool preciseThreadCpuAvailable = false;
     for (const QString& tidText : tids) {
         bool tidOk = false;
         const qint64 tid = tidText.toLongLong(&tidOk);
@@ -122,19 +137,27 @@ void SystemPerformanceMonitor::sample()
                 readFile(QStringLiteral("/proc/self/task/%1/stat").arg(tidText)), &current.name, &current.ticks)) {
             continue;
         }
+        current.precise
+            = parseSchedstat(readFile(QStringLiteral("/proc/self/task/%1/schedstat").arg(tidText)), &current.runtimeNs);
+        preciseThreadCpuAvailable = preciseThreadCpuAvailable || current.precise;
         threads.insert(tid, current);
         const auto previous = m_previousThreads.constFind(tid);
         if (previous == m_previousThreads.cend() || previous->name != current.name || current.ticks < previous->ticks)
             continue;
-        const quint64 delta = current.ticks - previous->ticks;
+        const bool precise = current.precise && previous->precise && current.runtimeNs >= previous->runtimeNs;
+        const quint64 delta = precise ? current.runtimeNs - previous->runtimeNs : current.ticks - previous->ticks;
+        quint64& mpvTotal = precise ? mpvRuntimeNs : mpvTicks;
+        quint64& videoDecodeTotal = precise ? videoDecodeRuntimeNs : videoDecodeTicks;
+        quint64& audioDecodeTotal = precise ? audioDecodeRuntimeNs : audioDecodeTicks;
+        quint64& audioOutputTotal = precise ? audioOutputRuntimeNs : audioOutputTicks;
         if (isMpvThread(current.name))
-            mpvTicks += delta;
+            mpvTotal += delta;
         if (current.name == QStringLiteral("dec/video"))
-            videoDecodeTicks += delta;
+            videoDecodeTotal += delta;
         else if (current.name == QStringLiteral("dec/audio"))
-            audioDecodeTicks += delta;
+            audioDecodeTotal += delta;
         else if (current.name == QStringLiteral("ao") || current.name.startsWith(QStringLiteral("ao/")))
-            audioOutputTicks += delta;
+            audioOutputTotal += delta;
     }
 
     const QList<QByteArray> loadFields = readFile(QStringLiteral("/proc/loadavg")).simplified().split(' ');
@@ -178,14 +201,23 @@ void SystemPerformanceMonitor::sample()
                 m_systemCpuPercent = 100.0 * static_cast<double>(totalDelta - std::min(totalDelta, idleDelta))
                     / static_cast<double>(totalDelta);
         }
-        m_mpvCpuPercent = percentForTicks(mpvTicks, elapsedSeconds, m_clockTicksPerSecond);
-        m_videoDecodeCpuPercent = percentForTicks(videoDecodeTicks, elapsedSeconds, m_clockTicksPerSecond);
-        m_audioDecodeCpuPercent = percentForTicks(audioDecodeTicks, elapsedSeconds, m_clockTicksPerSecond);
-        m_audioOutputCpuPercent = percentForTicks(audioOutputTicks, elapsedSeconds, m_clockTicksPerSecond);
+        const double elapsedNs = elapsedSeconds * 1'000'000'000.0;
+        const auto precisePercent = [elapsedNs](quint64 runtimeNs) {
+            return elapsedNs > 0.0 ? static_cast<double>(runtimeNs) * 100.0 / elapsedNs : 0.0;
+        };
+        m_mpvCpuPercent
+            = precisePercent(mpvRuntimeNs) + percentForTicks(mpvTicks, elapsedSeconds, m_clockTicksPerSecond);
+        m_videoDecodeCpuPercent = precisePercent(videoDecodeRuntimeNs)
+            + percentForTicks(videoDecodeTicks, elapsedSeconds, m_clockTicksPerSecond);
+        m_audioDecodeCpuPercent = precisePercent(audioDecodeRuntimeNs)
+            + percentForTicks(audioDecodeTicks, elapsedSeconds, m_clockTicksPerSecond);
+        m_audioOutputCpuPercent = precisePercent(audioOutputRuntimeNs)
+            + percentForTicks(audioOutputTicks, elapsedSeconds, m_clockTicksPerSecond);
     }
 
     m_available = processOk && systemOk && m_systemTotalBytes > 0;
     m_threadBreakdownAvailable = !threads.isEmpty();
+    m_preciseThreadCpuAvailable = preciseThreadCpuAvailable;
     m_previousProcessTicks = processTicks;
     m_previousSystemTotal = systemTotal;
     m_previousSystemIdle = systemIdle;

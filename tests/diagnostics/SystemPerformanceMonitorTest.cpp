@@ -2,6 +2,7 @@
 
 #include <QCoreApplication>
 #include <QEventLoop>
+#include <QFileInfo>
 #include <QTimer>
 
 #include <cstdlib>
@@ -31,6 +32,8 @@ int main(int argc, char **argv)
 #ifdef Q_OS_LINUX
     require(monitor.available(), "Linux performance counters should be available");
     require(monitor.threadBreakdownAvailable(), "Linux thread counters should be available");
+    if (QFileInfo::exists(QStringLiteral("/proc/self/task/%1/schedstat").arg(QCoreApplication::applicationPid())))
+        require(monitor.preciseThreadCpuAvailable(), "schedstat should enable precise thread CPU counters");
     require(monitor.processCpuPercent() >= 0.0, "process CPU should be non-negative");
     require(
         monitor.systemCpuPercent() >= 0.0 && monitor.systemCpuPercent() <= 100.0, "system CPU should be a percentage");
