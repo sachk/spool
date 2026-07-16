@@ -22,6 +22,7 @@ KeyRouter {
     property string managementMode: ""
     property var managementItem: ({})
     property var personItem: ({})
+    property var pendingPlaybackBackItem: ({})
     textInputActive: Qt.inputMethod.visible || InputKeys.isTextInputItem(root.Window.window
                                                                          ? root.Window.window.activeFocusItem : null)
     property var navigationTarget: routeStack
@@ -131,6 +132,7 @@ KeyRouter {
             if (root.hasPlayer && root.player.visible) {
                 root.focusPlayerInput()
             } else {
+                root.finishPlaybackBackNavigation()
                 root.navigationTarget = routeStack
                 InputKeys.focus(routeStack)
             }
@@ -139,6 +141,31 @@ KeyRouter {
 
     function focusPlayerInput() {
         videoSurface.focusInput()
+    }
+
+    function preparePlaybackBackNavigation(item) {
+        if (String(item && item.itemType || "") !== "Episode") {
+            pendingPlaybackBackItem = ({})
+            return
+        }
+        pendingPlaybackBackItem = item
+    }
+
+    function finishPlaybackBackNavigation() {
+        const item = pendingPlaybackBackItem
+        pendingPlaybackBackItem = ({})
+        const itemId = RoutePolicy.itemIdFor(item)
+        if (itemId.length <= 0)
+            return false
+        const returnRoute = route === "itemDetails" ? String(routeArgs.returnRoute || "home") : route
+        return openDetailsRoute({
+                                    "model": PlayQueue,
+                                    "itemId": itemId,
+                                    "itemType": "Episode",
+                                    "source": "playback",
+                                    "returnRoute": returnRoute,
+                                    "focusIndex": Math.max(0, PlayQueue.currentIndex)
+                                })
     }
 
     function pushRoute(nextRoute, args) {
@@ -239,8 +266,11 @@ KeyRouter {
             return true
         }
         if (root.hasPlayer && root.player.visible) {
-            if (root.player.backAllowed)
+            if (root.player.backAllowed) {
+                root.preparePlaybackBackNavigation(PlayQueue.currentIndex >= 0 ? PlayQueue.get(PlayQueue.currentIndex) :
+                                                                                 ({}))
                 root.player.stopWithReason("shell-back-fallback")
+            }
             return true
         }
         if (routeStack.back())
@@ -453,6 +483,8 @@ KeyRouter {
         active: root.hasPlayer && root.player.visible
         mediaInfoVisible: root.mediaInfoVisible
         diagnosticsVisible: root.diagnosticsVisible
+        onDiagnosticsVisibilityRequested: visible => root.diagnosticsVisible = visible
+        onPlaybackBackRequested: item => root.preparePlaybackBackNavigation(item)
         z: 19
     }
 

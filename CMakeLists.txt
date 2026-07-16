@@ -246,6 +246,8 @@ set(JELLYFIN_CORE_SOURCES
     src/diagnostics/Diagnostics.h
     src/diagnostics/InputLatencyMonitor.cpp
     src/diagnostics/InputLatencyMonitor.h
+    src/diagnostics/SystemPerformanceMonitor.cpp
+    src/diagnostics/SystemPerformanceMonitor.h
     src/models/DiscoveredServerModel.cpp
     src/models/DiscoveredServerModel.h
     src/models/LibraryListModel.cpp
@@ -576,6 +578,7 @@ if(BUILD_TESTING AND NOT CMAKE_CROSSCOMPILING)
         jellyfin-api-facade-url tests/api/JellyfinApiFacadeUrlTest.cpp
         database-manager tests/cache/DatabaseManagerTest.cpp
         input-latency-monitor tests/diagnostics/InputLatencyMonitorTest.cpp
+        system-performance-monitor tests/diagnostics/SystemPerformanceMonitorTest.cpp
     )
 
 

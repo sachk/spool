@@ -16,6 +16,10 @@ FocusScope {
                                                                              === "subtitle" ? player.subtitleDelayMs :
                                                                                               player.fileAudioDelayMs
     readonly property bool nightModeEnabled: Settings.nightModeEnabled
+    property bool diagnosticsVisible: false
+
+    signal diagnosticsVisibilityRequested(bool visible)
+    signal playbackBackRequested(var item)
 
     property bool controlsVisible: false
     property string focusZone: "timeline"
@@ -37,8 +41,11 @@ FocusScope {
     readonly property int actionTargetSize: dp(64)
     readonly property var audioSyncSteps: [1, 5, 10, 100]
     readonly property bool audioSelectable: hasPlayer && player.audioTracks.length > 1
-    readonly property bool playlistNavigationAvailable: {
-        if (!playQueue || playQueue.count <= 1)
+    readonly property var currentQueueItem: playQueue && playQueue.currentIndex >= 0 ? playQueue.get(
+                                                                                           playQueue.currentIndex) : (
+                                                                                           {})
+    readonly property bool playlistQueue: {
+        if (!playQueue)
             return false
         for (let index = 0; index < playQueue.count; ++index) {
             const item = playQueue.get(index)
@@ -47,11 +54,18 @@ FocusScope {
         }
         return false
     }
+    readonly property bool episodeQueue: String(currentQueueItem.itemType || "") === "Episode"
+    readonly property bool queueNavigationAvailable: {
+        if (!playQueue || playQueue.count <= 1)
+            return false
+        return playlistQueue || episodeQueue
+    }
     readonly property var transportActions: {
-        const values = ["back", "pause", "forward"]
-        if (playlistNavigationAvailable && playQueue.canGoPrevious)
+        const values = []
+        if (queueNavigationAvailable && playQueue.canGoPrevious)
             values.push("prevQueue")
-        if (playlistNavigationAvailable && playQueue.canGoNext)
+        values.push("back", "pause", "forward")
+        if (queueNavigationAvailable && playQueue.canGoNext)
             values.push("nextQueue")
         if (hasPlayer && player.hasChapters)
             values.push("prevChapter", "nextChapter")
@@ -120,6 +134,32 @@ FocusScope {
         if (action === "fullscreen")
             return NativeWindow.fullScreen ? "fullscreen_exit" : "fullscreen"
         return "settings"
+    }
+
+    function actionTooltip(action) {
+        if (action === "prevQueue")
+            return playlistQueue ? "Play previous item" : "Play previous episode"
+        if (action === "nextQueue")
+            return playlistQueue ? "Play next item" : "Play next episode"
+        if (action === "back")
+            return "Back 10 seconds"
+        if (action === "forward")
+            return "Forward 10 seconds"
+        if (action === "pause")
+            return hasPlayer && player.paused ? "Resume" : "Pause"
+        if (action === "prevChapter")
+            return "Previous chapter"
+        if (action === "nextChapter")
+            return "Next chapter"
+        if (action === "subtitles")
+            return "Subtitles"
+        if (action === "audio")
+            return "Audio track"
+        if (action === "queue")
+            return "Play queue"
+        if (action === "fullscreen")
+            return NativeWindow.fullScreen ? "Exit fullscreen" : "Fullscreen"
+        return "Playback settings"
     }
 
     function clampSeconds(seconds) {
@@ -459,6 +499,7 @@ FocusScope {
             return
         const showing = !player.debugOsdVisible
         player.toggleDebugOsd()
+        diagnosticsVisibilityRequested(showing)
         if (showing) {
             autohide.stop()
             controlsVisible = false
@@ -469,8 +510,11 @@ FocusScope {
     }
 
     function stopPlayback(reason) {
-        if (hasPlayer && player.backAllowed)
+        if (hasPlayer && player.backAllowed) {
+            if (reason === "overlay-back")
+                playbackBackRequested(currentQueueItem)
             player.stopWithReason(reason)
+        }
         return true
     }
 

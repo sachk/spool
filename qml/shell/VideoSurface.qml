@@ -9,6 +9,9 @@ FocusScope {
     property bool diagnosticsVisible: false
     readonly property bool directionRelease: true
 
+    signal diagnosticsVisibilityRequested(bool visible)
+    signal playbackBackRequested(var item)
+
     visible: active
     enabled: active
     focus: active
@@ -42,6 +45,9 @@ FocusScope {
         id: playerOverlay
         anchors.fill: parent
         visible: root.active
+        diagnosticsVisible: root.diagnosticsVisible
+        onDiagnosticsVisibilityRequested: visible => root.diagnosticsVisibilityRequested(visible)
+        onPlaybackBackRequested: item => root.playbackBackRequested(item)
         z: 2
     }
 
@@ -59,5 +65,14 @@ FocusScope {
                               InputKeys.focus(inputShield)
         onActiveFocusChanged: if (enabled && !activeFocus)
                                   Qt.callLater(() => InputKeys.focus(inputShield))
+    }
+
+    Loader {
+        anchors.fill: parent
+        active: root.active && root.diagnosticsVisible
+        z: 4
+        sourceComponent: DiagnosticsOverlay {
+            route: "player"
+        }
     }
 }

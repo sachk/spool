@@ -11,6 +11,7 @@
 #include "common/LogRotation.h"
 #include "diagnostics/Diagnostics.h"
 #include "diagnostics/InputLatencyMonitor.h"
+#include "diagnostics/SystemPerformanceMonitor.h"
 #include "discovery/DiscoveryController.h"
 #include "player/MpvVideoItem.h"
 #include "player/PlayerController.h"
@@ -832,6 +833,7 @@ int main(int argc, char **argv)
             app.exit(1);
         });
     JellyfinNative::InputLatencyMonitor inputLatencyMonitor;
+    JellyfinNative::SystemPerformanceMonitor systemPerformanceMonitor;
     JellyfinNative::NativeAppWindow window(QString::fromLatin1(kAppId));
     inputLatencyMonitor.attachWindow(&window);
     window.setInputLatencyMonitor(&inputLatencyMonitor);
@@ -999,6 +1001,7 @@ int main(int argc, char **argv)
     qmlRegisterSingletonInstance("JellyfinWebOS", 1, 0, "Router", router.get());
     qmlRegisterSingletonInstance("JellyfinWebOS", 1, 0, "NativeWindow", &window);
     qmlRegisterSingletonInstance("JellyfinWebOS", 1, 0, "InputLatency", &inputLatencyMonitor);
+    qmlRegisterSingletonInstance("JellyfinWebOS", 1, 0, "SystemPerformance", &systemPerformanceMonitor);
     qmlRegisterSingletonInstance("JellyfinWebOS", 1, 0, "I18n", localization.get());
     qmlRegisterSingletonInstance("JellyfinWebOS", 1, 0, "Platform", platformInfo);
     qmlRegisterType<JellyfinNative::MpvVideoItem>("JellyfinWebOS", 1, 0, "MpvVideoItem");

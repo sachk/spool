@@ -18,6 +18,7 @@ RowLayout {
         readonly property int globalIndex: root.overlay.actions.indexOf(action)
         readonly property bool focused: root.overlay.isControlsActive() && root.overlay.focusZone === "actions"
                                         && root.overlay.actionIndex === globalIndex
+        readonly property string tooltip: root.overlay.actionTooltip(action)
         Layout.preferredWidth: root.overlay.actionTargetSize
         Layout.preferredHeight: root.overlay.actionTargetSize
         radius: width / 2
@@ -30,6 +31,33 @@ RowLayout {
             name: parent.action.length > 0 ? root.overlay.actionIcon(parent.action) : ""
             iconColor: parent.focused ? Theme.textPrimary : Theme.textSecondary
             iconSize: root.overlay.dp(parent.action === "debug" ? 30 : 36)
+        }
+
+        HoverHandler {
+            id: hover
+        }
+
+        Rectangle {
+            anchors.horizontalCenter: parent.horizontalCenter
+            anchors.bottom: parent.top
+            anchors.bottomMargin: root.overlay.dp(8)
+            width: tooltipText.implicitWidth + root.overlay.dp(20)
+            height: root.overlay.dp(32)
+            radius: root.overlay.dp(6)
+            color: "#E6222222"
+            border.width: 1
+            border.color: Theme.borderStrong
+            visible: parent.tooltip.length > 0 && (parent.focused || hover.hovered)
+            z: 10
+
+            AppText {
+                id: tooltipText
+                anchors.centerIn: parent
+                text: parent.parent.tooltip
+                color: Theme.textPrimary
+                font.pixelSize: root.overlay.dp(14)
+                font.weight: Font.Medium
+            }
         }
 
         TapHandler {
