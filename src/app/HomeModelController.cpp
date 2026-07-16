@@ -329,8 +329,10 @@ QCoro::Task<std::vector<MovieItem>> HomeModelController::fetchLatestLibraryItems
 {
     constexpr int kTargetItems = 20;
     constexpr int kMaximumRawItems = 200;
+    constexpr int kInitialTvRawItems = 120;
 
-    for (int limit = kTargetItems; limit <= kMaximumRawItems; limit += kTargetItems) {
+    int limit = library.collectionType == QStringLiteral("tvshows") ? kInitialTvRawItems : kTargetItems;
+    while (limit <= kMaximumRawItems) {
         std::vector<MovieItem> rawItems = co_await m_api->fetchLatestItems(library.id, limit);
         const int rawCount = static_cast<int>(rawItems.size());
         std::vector<MovieItem> groupedItems = groupLatestEpisodes(library, std::move(rawItems));
@@ -342,6 +344,7 @@ QCoro::Task<std::vector<MovieItem>> HomeModelController::fetchLatestLibraryItems
         }
         if (rawCount < limit || limit == kMaximumRawItems)
             co_return groupedItems;
+        limit = kMaximumRawItems;
     }
     co_return std::vector<MovieItem> {};
 }
