@@ -134,6 +134,11 @@ namespace {
         return error >= 0 || error == MPV_ERROR_OPTION_NOT_FOUND;
     }
 
+    bool setRequiredMpvProperty(mpv_handle *handle, const char *name, const char *value)
+    {
+        return mpv_set_property_string(handle, name, value) >= 0;
+    }
+
     bool setMpvDoubleProperty(mpv_handle *handle, const char *name, double value, double *appliedValue = nullptr)
     {
         const int error = mpv_set_property(handle, name, MPV_FORMAT_DOUBLE, &value);
@@ -155,24 +160,6 @@ namespace {
     {
         return value ? QByteArrayLiteral("yes") : QByteArrayLiteral("no");
     }
-
-#ifdef JELLYFIN_NATIVE_WEBOS
-    void configureWebOsAudioEnvironment(const QString& audioOutputMode)
-    {
-        const bool useStarfishPcm
-            = audioOutputMode == QStringLiteral("starfish") || audioOutputMode == QStringLiteral("starfish-pcm");
-        const bool useStarfishAudio = useStarfishPcm;
-        qputenv("STARFISH_AUDIO_HINT", useStarfishAudio ? QByteArrayLiteral("1") : QByteArrayLiteral("0"));
-        qputenv("WEBOS_ALSA_NO_HW_PAUSE", useStarfishAudio ? QByteArrayLiteral("0") : QByteArrayLiteral("1"));
-        // Selects the Starfish audio ES the fork builds: raw PCM vs the legacy AAC
-        // encode path. Read by both ao_starfish and the starfish VO context.
-        qputenv("STARFISH_AUDIO_CODEC", useStarfishPcm ? QByteArrayLiteral("pcm") : QByteArrayLiteral("aac"));
-        qInfo() << "player: configuring webOS audio output" << audioOutputMode
-                << "starfishAudioHint=" << qgetenv("STARFISH_AUDIO_HINT")
-                << "starfishAudioCodec=" << qgetenv("STARFISH_AUDIO_CODEC")
-                << "webosAlsaNoHwPause=" << qgetenv("WEBOS_ALSA_NO_HW_PAUSE");
-    }
-#endif
 
     qint64 secondsToTicks(double seconds)
     {
@@ -385,7 +372,6 @@ bool PlayerController::configureAndInitializeMpv(mpv_handle *handle)
         return false;
 
 #ifdef JELLYFIN_NATIVE_WEBOS
-    configureWebOsAudioEnvironment(m_audioOutputMode);
     constexpr auto platform = MpvOptionProfile::Platform::WebOS;
 #else
     constexpr auto platform = MpvOptionProfile::Platform::Desktop;
@@ -726,6 +712,22 @@ bool PlayerController::ensureMpv(bool needsVideoSurface)
             return false;
         }
     }
+
+#ifdef JELLYFIN_NATIVE_WEBOS
+    if (needsVideoSurface) {
+        const QByteArray windowId = m_window->windowId().toUtf8();
+        const QByteArray windowWidth = QByteArray::number(m_window->width());
+        const QByteArray windowHeight = QByteArray::number(m_window->height());
+        if (!setRequiredMpvProperty(handle, "vo-starfish-window-id", windowId.constData())
+            || !setRequiredMpvProperty(handle, "vo-starfish-window-width", windowWidth.constData())
+            || !setRequiredMpvProperty(handle, "vo-starfish-window-height", windowHeight.constData())) {
+            mpv_terminate_destroy(handle);
+            m_errorText = QStringLiteral("Failed to configure the native video surface.");
+            emit playbackStateChanged();
+            return false;
+        }
+    }
+#endif
 
     observeMpvProperties(handle);
 

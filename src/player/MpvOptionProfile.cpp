@@ -178,6 +178,7 @@ std::vector<MpvOption> MpvOptionProfile::startupOptions(Platform platform, const
         options.push_back({ "vo", "starfish" });
         options.push_back({ "vd", "starfish" });
         options.push_back({ "ao", starfishAudio ? "starfish,null" : "alsa,null" });
+        options.push_back({ "vo-starfish-audio-hint", starfishAudio ? "yes" : "no" });
         if (!starfishAudio) {
             options.push_back({ "audio-device", "alsa/hw:0,7" });
             options.push_back({ "video-sync", "display-resample" });
@@ -189,6 +190,10 @@ std::vector<MpvOption> MpvOptionProfile::startupOptions(Platform platform, const
             options.push_back({ "audio-buffer", "0.050" });
             options.push_back({ "alsa-buffer-time", "40000" });
             options.push_back({ "alsa-periods", "8" });
+            options.push_back({ "alsa-no-hw-pause", "yes" });
+            options.push_back({ "alsa-bounded-io", "yes" });
+        } else {
+            options.push_back({ "ao-starfish-feed-ahead", "0.4" });
         }
     } else {
         options.push_back({ "vo", "libmpv" });

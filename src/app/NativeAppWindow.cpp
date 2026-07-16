@@ -111,9 +111,6 @@ bool NativeAppWindow::prepareForPlaybackSurface()
     if (m_windowId.empty())
         return false;
 
-    setenv("STARFISH_WINDOW_ID", m_windowId.c_str(), 1);
-    setenv("STARFISH_WINDOW_WIDTH", QByteArray::number(width()).constData(), 1);
-    setenv("STARFISH_WINDOW_HEIGHT", QByteArray::number(height()).constData(), 1);
     return true;
 }
 
@@ -133,8 +130,6 @@ void NativeAppWindow::resizeEvent(QResizeEvent *event)
 {
     QQuickView::resizeEvent(event);
     if (!m_windowId.empty()) {
-        setenv("STARFISH_WINDOW_WIDTH", QByteArray::number(width()).constData(), 1);
-        setenv("STARFISH_WINDOW_HEIGHT", QByteArray::number(height()).constData(), 1);
         updateCropRegion();
     }
 }

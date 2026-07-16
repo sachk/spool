@@ -67,6 +67,8 @@ int main(int argc, char **argv)
     require(valueFor(webOSPcm, "vo") == "starfish", "webOS should use the Starfish video output");
     require(valueFor(webOSPcm, "ao") == "starfish,null", "PCM mode should use Starfish audio");
     require(valueFor(webOSPcm, "audio-format") == "s16", "Starfish PCM should use signed 16-bit samples");
+    require(valueFor(webOSPcm, "vo-starfish-audio-hint") == "yes", "Starfish PCM should advertise pipeline audio");
+    require(valueFor(webOSPcm, "ao-starfish-feed-ahead") == "0.4", "Starfish PCM should use the measured feed window");
     require(valueFor(webOSPcm, "curl-enabled") == "yes", "webOS should use the libcurl stream backend");
     require(valueFor(webOSPcm, "curl-buffer-size") == "2097152", "webOS should use a 2 MiB network ring");
     require(valueFor(webOSPcm, "curl-max-request-size") == "524288", "webOS should issue 512 KiB ranges");
@@ -77,6 +79,10 @@ int main(int argc, char **argv)
     require(valueFor(webOSAlsa, "ao") == "alsa,null", "ALSA mode should use the ALSA output");
     require(valueFor(webOSAlsa, "video-sync") == "display-resample", "ALSA mode should follow the display clock");
     require(valueFor(webOSAlsa, "initial-audio-sync") == "no", "webOS should retain its Starfish sync workaround");
+    require(valueFor(webOSAlsa, "vo-starfish-audio-hint") == "no",
+        "split-clock playback should not advertise pipeline audio");
+    require(valueFor(webOSAlsa, "alsa-no-hw-pause") == "yes", "webOS ALSA should avoid the broken hardware pause path");
+    require(valueFor(webOSAlsa, "alsa-bounded-io") == "yes", "webOS ALSA should use bounded direct-device I/O");
 
     MediaStreamInfo sdrStream;
     sdrStream.type = QStringLiteral("Video");

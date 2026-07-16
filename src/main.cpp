@@ -653,7 +653,6 @@ int main(int argc, char **argv)
     setenv("APPID", kAppId, 1);
     setenv("MALLOC_ARENA_MAX", "2", 0);
     setenv("DISPLAY_ID", "0", 1);
-    setenv("STARFISH_AUDIO_HINT", "0", 1);
     setenv("QT_QPA_PLATFORM", "wayland-egl", 1);
     setenv("QSG_RHI_BACKEND", "opengl", 1);
     // Some webOS shells export legacy Qt 5 scenegraph/input-module knobs.
