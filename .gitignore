@@ -10,3 +10,22 @@
 __pycache__/
 /dist/
 /squashfs-root/
+
+# Local audits, plans, transcripts, and one-off investigation artifacts.
+# Keep public project documentation in README.md and docs/ instead.
+/.human-todo.md
+/DESIGN.md
+/DYNSTREAM.txt
+/FINDINGS.md
+/INITIAL_PERFORMANCE.md
+/NEXT_PLAN.md
+/PERFORMANCE_IDEAS.md
+/PERFORMANCE_PLAN.md
+/PLAN.md
+/REFACTOR_PLAN.md
+/SEARCH_PLAN.md
+/TODO.md
+/qt-openapi.md
+/redesign.md
+/search-bug.png
+/webos-mpv-demo-cycle.sh
