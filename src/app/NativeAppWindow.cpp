@@ -186,6 +186,13 @@ bool NativeAppWindow::ensureShellSurface()
 
     wl_webos_shell_surface_set_property(m_webosShellSurface, "_WEBOS_ACCESS_POLICY_KEYS_GUIDE", "true");
     wl_webos_shell_surface_set_property(m_webosShellSurface, "_WEBOS_ACCESS_POLICY_KEYS_BACK", "true");
+    // The string access-policy properties predate set_key_mask(). Some LSM
+    // versions only apply them opportunistically during the launch handoff,
+    // leaving Back owned by the compositor even though navigation keys reach
+    // the client. Keep the properties for old firmware, and use the protocol
+    // request as the authoritative declaration where it is supported.
+    wl_webos_shell_surface_set_key_mask(
+        m_webosShellSurface, WL_WEBOS_SHELL_SURFACE_WEBOS_KEY_DEFAULT | WL_WEBOS_SHELL_SURFACE_WEBOS_KEY_BACK);
     wl_webos_shell_surface_set_property(m_webosShellSurface, "appId", m_appId.toUtf8().constData());
     wl_webos_shell_surface_set_property(
         m_webosShellSurface, "displayAffinity", getenv("DISPLAY_ID") ? getenv("DISPLAY_ID") : "0");
