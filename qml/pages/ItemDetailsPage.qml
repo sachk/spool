@@ -1146,6 +1146,7 @@ FocusScope {
 
                     AppText {
                         Layout.fillWidth: true
+                        visible: root.typeText !== "Season"
                         text: root.typeText === "Episode" && root.twoDigit(root.item.episodeNumber).length > 0 ? "E"
                                                                                                                  + root.twoDigit(
                                                                                                                      root.item.episodeNumber)
