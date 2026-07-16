@@ -170,6 +170,24 @@ KeyRouter {
         return request ? openDetailsRoute(request) : false
     }
 
+    function openSeriesDetails(seriesId, seriesName, returnRoute) {
+        const id = String(seriesId || "")
+        if (id.length <= 0)
+            return false
+        const title = String(seriesName || "Series")
+        Content.prepareLinkedItem(id, title, "Series", "", title, "")
+        return openDetailsAt(Content.linkedItems, 0, "series-link", returnRoute || route)
+    }
+
+    function openSeasonDetails(seriesId, seasonId, seasonName, seriesName, returnRoute) {
+        const showId = String(seriesId || "")
+        const id = String(seasonId || "")
+        if (showId.length <= 0 || id.length <= 0)
+            return false
+        Content.prepareLinkedItem(id, String(seasonName || "Season"), "Season", showId, String(seriesName || ""), id)
+        return openDetailsAt(Content.linkedItems, 0, "season-link", returnRoute || route)
+    }
+
     function replaceRoute(nextRoute, args) {
         Router.replace(nextRoute, args || ({}))
         navigationTarget = routeStack

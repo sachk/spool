@@ -15,7 +15,9 @@ class ContentModelController final : public QObject {
     Q_OBJECT
     Q_PROPERTY(JellyfinNative::MovieItem detailItem READ detailItem NOTIFY detailItemChanged)
     Q_PROPERTY(JellyfinNative::MovieGridModel *detailSeasons READ detailSeasons CONSTANT)
+    Q_PROPERTY(JellyfinNative::MovieGridModel *detailSeasonOptions READ detailSeasonOptions CONSTANT)
     Q_PROPERTY(JellyfinNative::MovieGridModel *detailSimilarItems READ detailSimilarItems CONSTANT)
+    Q_PROPERTY(JellyfinNative::MovieGridModel *linkedItems READ linkedItems CONSTANT)
     Q_PROPERTY(JellyfinNative::MovieGridModel *personItems READ personItems CONSTANT)
     Q_PROPERTY(bool detailRowsBusy READ detailRowsBusy NOTIFY detailRowsChanged)
     Q_PROPERTY(bool personItemsBusy READ personItemsBusy NOTIFY personItemsChanged)
@@ -27,6 +29,10 @@ public:
     {
         return &m_detailSeasons;
     }
+    MovieGridModel *detailSeasonOptions()
+    {
+        return &m_detailSeasonOptions;
+    }
     MovieGridModel *detailSimilarItems()
     {
         return &m_detailSimilarItems;
@@ -34,6 +40,10 @@ public:
     MovieGridModel *personItems()
     {
         return &m_personItems;
+    }
+    MovieGridModel *linkedItems()
+    {
+        return &m_linkedItems;
     }
     bool detailRowsBusy() const
     {
@@ -56,6 +66,8 @@ public:
         const QString& itemId, const QString& itemType, const QString& seriesId = {}, const QString& seasonId = {});
     Q_INVOKABLE void loadItemDetail(const QString& itemId);
     Q_INVOKABLE void loadPersonItems(const QString& personId);
+    Q_INVOKABLE void prepareLinkedItem(const QString& itemId, const QString& title, const QString& itemType,
+        const QString& seriesId = {}, const QString& seriesName = {}, const QString& seasonId = {});
     void updateResumeTicks(const QString& itemId, qint64 positionTicks);
     void updateFavorite(const QString& itemId, bool favorite);
     void updatePlayed(const QString& itemId, bool played);
@@ -73,8 +85,10 @@ private:
     JellyfinApiFacade *m_api = nullptr;
     LibraryPrefetchController *m_prefetch = nullptr;
     MovieGridModel m_detailSeasons;
+    MovieGridModel m_detailSeasonOptions;
     MovieGridModel m_detailSimilarItems;
     MovieGridModel m_personItems;
+    MovieGridModel m_linkedItems;
     MovieItem m_detailItem;
     bool m_detailRowsBusy = false;
     RequestGeneration m_detailRowsGeneration;

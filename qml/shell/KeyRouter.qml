@@ -16,6 +16,7 @@ FocusScope {
     property int armedKey: 0
     property bool longPressHandled: false
     property bool backClaimed: false
+    property int typeAheadKey: 0
 
     focus: true
     Keys.priority: Keys.BeforeItem
@@ -96,6 +97,22 @@ FocusScope {
         return claimed
     }
 
+    function routeTypeAhead(event, key, phase) {
+        if (textInputActive)
+            return false
+        if (phase === "release" && typeAheadKey === key) {
+            typeAheadKey = 0
+            return true
+        }
+        if (phase !== "press" || !event.text || event.text.length <= 0 || event.modifiers & (Qt.ControlModifier | Qt.AltModifier
+                                                                                             | Qt.MetaModifier))
+            return false
+        if (!activeTarget || !activeTarget.typeAhead || !activeTarget.typeAhead(event.text))
+            return false
+        typeAheadKey = key
+        return true
+    }
+
     function dispatch(event, phase) {
         const key = normalizedKey(event)
         const repeat = Boolean(event.isAutoRepeat)
@@ -107,6 +124,8 @@ FocusScope {
                 backClaimed = false
             return handled
         }
+        if (routeTypeAhead(event, key, phase))
+            return true
         if (textInputActive)
             return false
         if (phase === "release" && InputKeys.isDirection(key)) {

@@ -10,7 +10,10 @@ TestCase {
     property int backCalls: 0
     property int activateCalls: 0
     property int finishOpeningCalls: 0
+    property int typeAheadCalls: 0
+    property string typeAheadText: ""
     property bool routeResult: true
+    property bool typeAheadResult: true
 
     Item {
         // Reproduces AppShell's route property, which previously shadowed the
@@ -42,6 +45,12 @@ TestCase {
             function finishOpeningGesture() {
                 ++testCase.finishOpeningCalls
             }
+
+            function typeAhead(text) {
+                ++testCase.typeAheadCalls
+                testCase.typeAheadText = text
+                return testCase.typeAheadResult
+            }
         }
     }
 
@@ -50,9 +59,13 @@ TestCase {
         backCalls = 0
         activateCalls = 0
         finishOpeningCalls = 0
+        typeAheadCalls = 0
+        typeAheadText = ""
         routeResult = true
+        typeAheadResult = true
         keyRouter.clearAccept()
         keyRouter.backClaimed = false
+        keyRouter.typeAheadKey = 0
         keyRouter.textInputActive = false
         keyRouter.backspaceNavigatesInTextInput = false
         keyRouter.webOsColorScanCodes = false
@@ -116,5 +129,41 @@ TestCase {
         verify(keyRouter.releaseAccept(Qt.Key_Return, false))
         compare(activateCalls, 0)
         compare(finishOpeningCalls, 1)
+    }
+
+    function test_printableKeyRoutesToTypeAheadWithoutTextInput() {
+        const event = {
+            "key": Qt.Key_A,
+            "text": "a",
+            "modifiers": Qt.NoModifier,
+            "isAutoRepeat": false,
+            "nativeScanCode": 0,
+            "nativeVirtualKey": 0
+        }
+        verify(keyRouter.routeTypeAhead(event, Qt.Key_A, "press"))
+        compare(typeAheadCalls, 1)
+        compare(typeAheadText, "a")
+        compare(keyRouter.typeAheadKey, Qt.Key_A)
+        verify(keyRouter.routeTypeAhead(event, Qt.Key_A, "release"))
+        compare(keyRouter.typeAheadKey, 0)
+        compare(routeCalls, 0)
+    }
+
+    function test_typeAheadDoesNotStealModifiedOrTextInputKeys() {
+        const event = {
+            "key": Qt.Key_A,
+            "text": "a",
+            "modifiers": Qt.ControlModifier,
+            "isAutoRepeat": false,
+            "nativeScanCode": 0,
+            "nativeVirtualKey": 0
+        }
+        verify(!keyRouter.routeTypeAhead(event, Qt.Key_A, "press"))
+        compare(typeAheadCalls, 0)
+
+        keyRouter.textInputActive = true
+        event.modifiers = Qt.NoModifier
+        verify(!keyRouter.routeTypeAhead(event, Qt.Key_A, "press"))
+        compare(typeAheadCalls, 0)
     }
 }

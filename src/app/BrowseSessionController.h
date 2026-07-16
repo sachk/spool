@@ -119,7 +119,6 @@ public:
 
     void enterLibrary(const LibraryItem& library, const QString& contentLabel, const QVariantMap& defaultQuery);
     bool enterItem(const MovieItem& item);
-    void enterSeason(const QString& seriesId, const MovieItem& season);
     void enterNamedCollection(const QString& viewKind, const QString& name);
     Q_INVOKABLE void setSort(const QString& sortBy, const QString& sortOrder);
     Q_INVOKABLE void setQueryListValue(const QString& key, const QString& value, bool enabled);

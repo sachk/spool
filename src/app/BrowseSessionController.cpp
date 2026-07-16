@@ -157,11 +157,7 @@ bool BrowseSessionController::enterItem(const MovieItem& item)
     BrowseDescriptor descriptor;
     QString viewKind;
     QString contentLabel;
-    if (item.itemType == QStringLiteral("Series")) {
-        descriptor = BrowseDescriptor::seriesSeasons(item.id, item.title);
-        viewKind = QStringLiteral("seasons");
-        contentLabel = QStringLiteral("Seasons");
-    } else if (item.itemType == QStringLiteral("Playlist")) {
+    if (item.itemType == QStringLiteral("Playlist")) {
         descriptor = BrowseDescriptor::playlist(item.id, item.title);
         viewKind = QStringLiteral("playlist");
         contentLabel = QStringLiteral("Items");
@@ -177,8 +173,6 @@ bool BrowseSessionController::enterItem(const MovieItem& item)
         return false;
     }
     clearBrowseIdentity();
-    if (item.itemType == QStringLiteral("Series"))
-        m_seriesId = item.id;
     m_descriptor = std::move(descriptor);
     m_viewKind = std::move(viewKind);
     m_title = item.title;
@@ -187,21 +181,6 @@ bool BrowseSessionController::enterItem(const MovieItem& item)
     m_filterOptions.clear();
     emit changed();
     return true;
-}
-
-void BrowseSessionController::enterSeason(const QString& seriesId, const MovieItem& season)
-{
-    m_libraryId.clear();
-    m_libraryCollectionType.clear();
-    m_seriesId = seriesId;
-    m_seasonId = season.itemType == QStringLiteral("Season") ? season.id : QString();
-    m_descriptor = BrowseDescriptor::seasonEpisodes(m_seriesId, m_seasonId, season.title);
-    m_viewKind = QStringLiteral("episodes");
-    m_title = season.title;
-    m_contentLabel = QStringLiteral("Episodes");
-    m_query.clear();
-    m_filterOptions.clear();
-    emit changed();
 }
 
 void BrowseSessionController::enterNamedCollection(const QString& viewKind, const QString& name)

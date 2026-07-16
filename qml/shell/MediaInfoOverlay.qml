@@ -256,18 +256,17 @@ OverlayDialog {
     function openSeries() {
         if (!item || !item.seriesId)
             return
-        if (shell && shell.replaceRoute)
-            shell.replaceRoute("libraryGrid")
         root.closed()
-        App.openSeriesById(String(item.seriesId), String(item.seriesName || ""))
+        if (shell)
+            shell.openSeriesDetails(String(item.seriesId), String(item.seriesName || ""), "home")
     }
     function openSeason() {
         if (!item || !item.seriesId || !item.seasonId)
             return
-        if (shell && shell.replaceRoute)
-            shell.replaceRoute("libraryGrid")
         root.closed()
-        App.openSeasonById(String(item.seriesId), String(item.seasonId), seasonTitle())
+        if (shell)
+            shell.openSeasonDetails(String(item.seriesId), String(item.seasonId), seasonTitle(), String(item.seriesName
+                                                                                                        || ""), "home")
     }
     function activateCurrent() {
         if (currentActionIndex === showActionIndex)

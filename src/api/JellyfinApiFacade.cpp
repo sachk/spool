@@ -788,7 +788,6 @@ QCoro::Task<std::vector<MovieItem>> JellyfinApiFacade::searchItems(QString searc
                           .recursive()
                           .add(QStringLiteral("searchTerm"), searchTerm)
                           .includeItemTypes(QStringLiteral("Movie,Series,Episode"))
-                          .mediaTypes(QStringLiteral("Video"))
                           .fields(libraryItemFields())
                           .sort(QStringLiteral("SortName"))
                           .images()

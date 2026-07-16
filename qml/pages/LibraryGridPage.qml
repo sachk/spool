@@ -10,10 +10,7 @@ FocusScope {
     id: root
     property var shell
     property var uiTransitionToken: 0
-    readonly property bool episodeGrid: Browse.viewKind === "episodes"
-    property int columns: episodeGrid ? Math.max(2, Math.floor(width / Math.max(Metrics.scaled(260),
-                                                                                Metrics.homeLandscapeWidth(width)))) :
-                                        Metrics.columns(width)
+    property int columns: Metrics.columns(width)
     property bool sortOpen: false
     property bool filtersOpen: false
     property bool libraryOpen: false
@@ -23,6 +20,7 @@ FocusScope {
     property var sortEntries: []
     property var filterEntries: []
     property var libraryEntries: []
+    property string typeAheadBuffer: ""
     readonly property var libraryList: libraryPanel.menuList
     readonly property var sortList: sortPanel.menuList
     readonly property var filterList: filterPanel.menuList
@@ -450,6 +448,59 @@ FocusScope {
         return Browse.items.get(grid.currentIndex) || ({})
     }
 
+    function typeAheadTitle(index) {
+        if (!Browse.items || index < 0 || index >= Browse.items.count)
+            return ""
+        const item = Browse.items.get(index) || ({})
+        return String(item.title || item.displayTitle || item.seriesName || "").toLocaleLowerCase()
+    }
+
+    function selectTypeAheadMatch(query, includeCurrent) {
+        const count = Browse.items ? Browse.items.count : 0
+        if (count <= 0 || query.length <= 0)
+            return false
+        const start = Math.max(0, grid.currentIndex)
+        const firstOffset = includeCurrent ? 0 : 1
+        for (let offset = firstOffset; offset < firstOffset + count; ++offset) {
+            const index = (start + offset) % count
+            if (typeAheadTitle(index).indexOf(query) === 0) {
+                grid.currentIndex = index
+                grid.ensureCurrentVisible()
+                grid.requestMoreIfNeeded()
+                return true
+            }
+        }
+        for (let offset = firstOffset; offset < firstOffset + count; ++offset) {
+            const index = (start + offset) % count
+            if (typeAheadTitle(index).indexOf(query) >= 0) {
+                grid.currentIndex = index
+                grid.ensureCurrentVisible()
+                grid.requestMoreIfNeeded()
+                return true
+            }
+        }
+        return false
+    }
+
+    function typeAhead(text) {
+        if (libraryOpen || sortOpen || filtersOpen || !grid.activeFocus || !text || text.length <= 0)
+            return false
+        const character = String(text).toLocaleLowerCase()
+        const code = character.charCodeAt(0)
+        if (code < 32 || code === 127 || character === "/" || (character === " " && typeAheadBuffer.length <= 0))
+            return false
+        const previous = typeAheadBuffer
+        const repeatedSingle = previous.length === 1 && previous === character
+        const candidate = repeatedSingle ? character : previous + character
+        typeAheadBuffer = candidate
+        if (!selectTypeAheadMatch(candidate, previous.length > 0 && !repeatedSingle) && candidate.length > 1) {
+            typeAheadBuffer = character
+            selectTypeAheadMatch(character, false)
+        }
+        typeAheadReset.restart()
+        return true
+    }
+
     function activateLibraryIndex(index) {
         if (index < 0 || index >= libraryCount())
             return
@@ -613,6 +664,11 @@ FocusScope {
     }
 
     function back() {
+        if (typeAheadBuffer.length > 0) {
+            typeAheadBuffer = ""
+            typeAheadReset.stop()
+            return true
+        }
         if (libraryOpen || sortOpen || filtersOpen) {
             closeMenus()
             return true
@@ -748,8 +804,7 @@ FocusScope {
             boundsBehavior: Flickable.StopAtBounds
             model: Browse.items
             cellWidth: Math.floor((width - Metrics.gapPx * (columns - 1)) / columns)
-            cellHeight: root.episodeGrid ? Math.round(cellWidth * 9 / 16 + Metrics.scaled(62)) : cellWidth * 1.5
-                                           + Metrics.scaled(64)
+            cellHeight: cellWidth * 1.5 + Metrics.scaled(64)
             cacheBuffer: gridReveal.delegatesReady ? cellHeight : 0
             Component.onCompleted: {
                 restoreIndex()
@@ -824,9 +879,9 @@ FocusScope {
                 width: grid.cellWidth - Metrics.gapPx
                 height: grid.cellHeight
                 shell: root.shell
-                kind: root.episodeGrid ? "landscape" : "poster"
-                preferEpisodeTitle: root.episodeGrid
-                useSeriesPoster: !root.episodeGrid
+                kind: "poster"
+                preferEpisodeTitle: false
+                useSeriesPoster: true
                 focused: gridDelegate.GridView.isCurrentItem
                 artworkVisible: true
 
@@ -879,6 +934,36 @@ FocusScope {
                 }
             }
         }
+    }
+
+    Rectangle {
+        anchors.right: parent.right
+        anchors.top: parent.top
+        anchors.rightMargin: Metrics.pageMarginPx
+        anchors.topMargin: Metrics.pageMarginPx + 54
+        width: typeAheadText.implicitWidth + 30
+        height: 40
+        radius: height / 2
+        visible: root.typeAheadBuffer.length > 0
+        color: Theme.floatingPanel
+        border.width: 1
+        border.color: Theme.accent
+        z: 30
+
+        AppText {
+            id: typeAheadText
+            anchors.centerIn: parent
+            text: root.typeAheadBuffer
+            font.pixelSize: Metrics.bodySizePx
+            font.weight: Font.DemiBold
+        }
+    }
+
+    Timer {
+        id: typeAheadReset
+        interval: 1250
+        repeat: false
+        onTriggered: root.typeAheadBuffer = ""
     }
 
     LazyMenuPanel {

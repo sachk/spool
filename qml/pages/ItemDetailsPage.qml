@@ -13,10 +13,14 @@ FocusScope {
     readonly property var contextRow: detailRowsLoader.item ? detailRowsLoader.item.contextRow : null
     readonly property var peopleRow: detailRowsLoader.item ? detailRowsLoader.item.peopleRow : null
     readonly property var similarRow: detailRowsLoader.item ? detailRowsLoader.item.similarRow : null
+    readonly property var seasonPickerList: seasonPickerPanel.menuList
     readonly property var routeContext: RoutePolicy.detailsContext(shell ? shell.routeArgs : ({}), Browse.items)
     readonly property var itemModel: routeContext.model
     readonly property int selectedIndex: routeContext.index
-    readonly property var item: routeContext.item
+    readonly property var routeItem: routeContext.item
+    readonly property var fullDetailItem: Content.detailItem && String(Content.detailItem.movieId || "") === String(
+                                              routeItem.movieId || "") ? Content.detailItem : ({})
+    readonly property var item: fullDetailItem.movieId ? fullDetailItem : routeItem
     readonly property string detailsReturnRoute: routeContext.returnRoute
     readonly property string typeText: item.itemType || "Media"
     readonly property string titleText: typeText === "Episode" && item.title ? item.title : (item.displayTitle
@@ -26,8 +30,10 @@ FocusScope {
     readonly property string seriesTitle: item.seriesName || (typeText === "Series" ? titleText : "")
     readonly property string seasonTitleText: seasonTitle()
     readonly property string seriesIdText: item.seriesId || ""
-    readonly property string seasonIdText: item.seasonId || ""
-    readonly property bool canPlay: item.playable
+    readonly property string seasonIdText: typeText === "Season" ? String(item.movieId || "") : String(item.seasonId
+                                                                                                       || "")
+
+    readonly property bool canPlay: Boolean(item && item.playable)
     readonly property bool showPrimaryAction: selectedIndex >= 0 && canPlay
     readonly property bool hasProgress: Number(item.resumeTicks || 0) > 0 && Number(item.runtimeTicks || 0) > 0
     readonly property int detailTitlePx: Math.min(68, Metrics.titleSizePx + 24)
@@ -35,12 +41,14 @@ FocusScope {
     readonly property int rowPosterWidth: Metrics.detailRowPosterWidth(width)
     readonly property int rowLandscapeWidth: Math.round(rowPosterWidth * 1.75)
     readonly property int rowGap: Math.max(14, Metrics.gapPx)
+    readonly property bool compactEpisodicDetail: typeText === "Season" || typeText === "Episode"
     readonly property string backgroundArt: Art.url(item, "backdrop", Math.ceil(width))
     readonly property string stillArt: Art.url(item, "landscape", Math.ceil(rowLandscapeWidth))
-    readonly property bool showSideArt: width >= 1120 && stillArt.length > 0
+    readonly property bool showSideArt: width >= 1120 && Metrics.uiScale < 1.45 && stillArt.length > 0
     readonly property real copyWidth: showSideArt ? Math.min(width * 0.56, 940) : width - contentMargin * 2
     readonly property bool loadingDetailRows: Content.detailRowsBusy
     readonly property int contextCount: Content.detailSeasons ? Content.detailSeasons.count : 0
+    readonly property int seasonOptionCount: Content.detailSeasonOptions ? Content.detailSeasonOptions.count : 0
     readonly property int similarCount: Content.detailSimilarItems ? Content.detailSimilarItems.count : 0
     readonly property bool contextPosterCards: typeText === "Series" || typeText === "BoxSet"
     readonly property bool contextItemsPossible: contextPosterCards || ((typeText === "Episode" || typeText
@@ -49,8 +57,6 @@ FocusScope {
     readonly property bool showContextPlaybackActions: contextCount > 0 && typeText !== "Series"
     readonly property bool showContextRow: contextCount > 0 || reserveContextRow
     readonly property bool showSimilarRow: similarCount > 0
-    readonly property var fullDetailItem: Content.detailItem && String(Content.detailItem.movieId || "") === String(
-                                              item.movieId || "") ? Content.detailItem : ({})
     readonly property var metadataPeople: fullDetailItem.people && fullDetailItem.people.length > 0
                                           ? fullDetailItem.people : (item.people || [])
     readonly property var people: metadataPeople
@@ -63,10 +69,11 @@ FocusScope {
     readonly property bool showMetadataPanel: metadataRows.length > 0
     readonly property bool showSeriesLink: (typeText === "Episode" || typeText === "Season") && seriesIdText.length > 0
                                            && seriesTitle.length > 0
-    readonly property bool showSeasonLink: typeText === "Episode" && seriesIdText.length > 0 && (seasonIdText.length
-                                                                                                 > 0 || Number(
-                                                                                                     item.seasonNumber
-                                                                                                     || 0) > 0)
+    readonly property bool showSeasonLink: compactEpisodicDetail && seriesIdText.length > 0 && (currentSeasonId.length
+                                                                                                > 0 || Number(
+                                                                                                    item.seasonNumber
+                                                                                                    || 0) > 0)
+    readonly property string currentSeasonId: typeText === "Season" ? String(item.movieId || "") : seasonIdText
 
     property bool favoriteState: false
     property bool playedState: false
@@ -75,6 +82,9 @@ FocusScope {
     property int actionIndex: 0
     property int overflowIndex: 0
     property string loadedDetailKey: ""
+    property bool seasonPickerOpen: false
+    property int seasonPickerIndex: 0
+    property var seasonEntries: []
 
     focus: true
 
@@ -117,6 +127,7 @@ FocusScope {
     component DetailLink: FocusScope {
         id: link
         property string label: ""
+        property bool dropdown: false
         signal activated
 
         visible: label.length > 0
@@ -147,7 +158,7 @@ FocusScope {
 
                 MaterialIcon {
                     anchors.verticalCenter: linkText.verticalCenter
-                    name: "chevron_right"
+                    name: link.dropdown ? "expand_more" : "chevron_right"
                     iconSize: Math.max(20, Math.round(root.detailTitlePx * 0.45))
                     iconColor: link.activeFocus || hover.hovered ? Theme.accent : Theme.textMuted
                 }
@@ -376,6 +387,7 @@ FocusScope {
     Component.onCompleted: {
         syncUserState()
         updateDetailCounts()
+        rebuildSeasonEntries()
         Qt.callLater(refreshDetailRows)
         Qt.callLater(refreshItemDetail)
         Qt.callLater(focusDefaultAction)
@@ -387,7 +399,8 @@ FocusScope {
         return item
     }
 
-    onItemChanged: {
+    onRouteItemChanged: {
+        seasonPickerOpen = false
         overflowOpen = false
         syncUserState()
         Qt.callLater(refreshDetailRows)
@@ -398,6 +411,11 @@ FocusScope {
         target: Content
         function onDetailRowsChanged() {
             root.updateDetailCounts()
+            root.rebuildSeasonEntries()
+        }
+        function onDetailItemChanged() {
+            if (root.fullDetailItem.movieId)
+                root.syncUserState()
         }
     }
 
@@ -439,7 +457,24 @@ FocusScope {
         }
     }
 
+    Connections {
+        target: Content.detailSeasonOptions
+        function onModelReset() {
+            root.rebuildSeasonEntries()
+        }
+        function onRowsInserted() {
+            root.rebuildSeasonEntries()
+        }
+        function onRowsRemoved() {
+            root.rebuildSeasonEntries()
+        }
+    }
+
     function back() {
+        if (seasonPickerOpen) {
+            closeSeasonPicker()
+            return true
+        }
         if (focusZone === "metadata" && metadataPanel.back())
             return true
         if (overflowOpen) {
@@ -473,9 +508,64 @@ FocusScope {
     }
 
     function refreshItemDetail() {
-        const itemId = item.movieId || ""
+        const itemId = routeItem.movieId || ""
         if (itemId.length > 0)
             Content.loadItemDetail(itemId)
+    }
+
+    function rebuildSeasonEntries() {
+        const entries = []
+        let selected = 0
+        for (let index = 0; index < seasonOptionCount; ++index) {
+            const season = Content.detailSeasonOptions.get(index) || ({})
+            const id = String(season.movieId || "")
+            entries.push({
+                             "label": String(season.title || "Season"),
+                             "seasonId": id,
+                             "modelIndex": index
+                         })
+            if (id === currentSeasonId)
+                selected = index
+        }
+        seasonEntries = entries
+        seasonPickerIndex = selected
+    }
+
+    function openSeasonPicker() {
+        if (!showSeasonLink)
+            return
+        if (seasonEntries.length <= 1) {
+            if (showContextRow && contextCount > 0)
+                focusNamedZone("context")
+            else
+                focusFirstMediaRow()
+            return
+        }
+        seasonPickerOpen = true
+        Qt.callLater(function () {
+            if (seasonPickerList)
+                InputKeys.focus(seasonPickerList)
+        })
+    }
+
+    function closeSeasonPicker() {
+        seasonPickerOpen = false
+        InputKeys.focus(seasonLink)
+    }
+
+    function selectSeason(entry) {
+        if (!entry)
+            return
+        seasonPickerOpen = false
+        const index = Number(entry.modelIndex)
+        if (index < 0 || index >= seasonOptionCount)
+            return
+        if (String(entry.seasonId || "") === currentSeasonId) {
+            InputKeys.focus(seasonLink)
+            return
+        }
+        if (shell)
+            shell.openDetailsAt(Content.detailSeasonOptions, index, "season-selector", detailsReturnRoute)
     }
 
     function syncUserState() {
@@ -654,25 +744,19 @@ FocusScope {
         if (seriesIdText.length <= 0)
             return
         if (shell)
-            shell.replaceRoute("libraryGrid")
-        App.openSeriesById(seriesIdText, seriesTitle)
+            shell.openSeriesDetails(seriesIdText, seriesTitle, detailsReturnRoute)
     }
 
     function openSeasonLink() {
-        if (seriesIdText.length <= 0)
-            return
-        if (shell)
-            shell.replaceRoute("libraryGrid")
-        App.openSeasonById(seriesIdText, seasonIdText, seasonTitleText)
+        openSeasonPicker()
     }
 
     function openContextItem(index) {
         if (index < 0)
             return
         if (typeText === "Series") {
-            App.playFromModel(Content.detailSeasons, index)
             if (shell)
-                shell.replaceRoute("libraryGrid")
+                shell.openDetailsAt(Content.detailSeasons, index, "season", detailsReturnRoute)
             return
         }
         if (shell)
@@ -699,6 +783,8 @@ FocusScope {
     }
 
     function routeKey(key, phase, repeat) {
+        if (seasonPickerOpen)
+            return seasonPickerList ? seasonPickerList.routeKey(key, phase, repeat) : true
         if (focusZone === "overflow") {
             const options = overflowOptions()
             if (key === Qt.Key_Up && overflowIndex > 0) {
@@ -741,7 +827,10 @@ FocusScope {
     }
 
     function activate() {
-        if (focusZone === "series") {
+        if (seasonPickerOpen) {
+            if (seasonPickerList)
+                seasonPickerList.activate()
+        } else if (focusZone === "series") {
             openSeriesLink()
         } else if (focusZone === "season") {
             openSeasonLink()
@@ -1025,17 +1114,22 @@ FocusScope {
             Item {
                 id: hero
                 Layout.fillWidth: true
-                Layout.preferredHeight: Math.max(Metrics.detailHeroHeight(root.height), heroCopy.implicitHeight
-                                                 + root.contentMargin * 1.4)
+                Layout.preferredHeight: root.compactEpisodicDetail ? heroCopy.implicitHeight + root.contentMargin
+                                                                     * 0.65 : Math.max(Metrics.detailHeroHeight(
+                                                                                           root.height),
+                                                                                       heroCopy.implicitHeight
+                                                                                       + root.contentMargin * 1.4)
 
                 ColumnLayout {
                     id: heroCopy
                     anchors.left: parent.left
                     anchors.top: parent.top
                     anchors.leftMargin: root.contentMargin
-                    anchors.topMargin: Math.max(30, root.height * 0.05)
+                    anchors.topMargin: root.compactEpisodicDetail ? Math.max(16, root.height * 0.022) : Math.max(30,
+                                                                                                                 root.height
+                                                                                                                 * 0.05)
                     width: root.copyWidth
-                    spacing: 14
+                    spacing: root.compactEpisodicDetail ? 8 : 14
 
                     DetailLink {
                         id: seriesLink
@@ -1046,6 +1140,7 @@ FocusScope {
                     DetailLink {
                         id: seasonLink
                         label: root.showSeasonLink ? root.seasonTitleText : ""
+                        dropdown: root.seasonEntries.length > 1
                         onActivated: root.openSeasonLink()
                     }
 
@@ -1072,20 +1167,20 @@ FocusScope {
 
                     AppText {
                         Layout.fillWidth: true
-                        Layout.topMargin: 8
-                        visible: root.item.overview && root.item.overview.length > 0
+                        Layout.topMargin: root.compactEpisodicDetail ? 2 : 8
+                        visible: Boolean(root.item.overview && root.item.overview.length > 0)
                         text: root.item.overview || ""
                         color: Theme.textSecondary
                         wrapMode: Text.Wrap
                         font.pixelSize: Metrics.bodySizePx + 1
                         lineHeight: 1.18
-                        maximumLineCount: 5
+                        maximumLineCount: root.compactEpisodicDetail ? (root.typeText === "Season" ? 3 : 4) : 5
                         elide: Text.ElideRight
                     }
 
                     Row {
                         id: actionRow
-                        Layout.topMargin: 18
+                        Layout.topMargin: root.compactEpisodicDetail ? 8 : 18
                         spacing: 10
 
                         DetailAction {
@@ -1189,8 +1284,8 @@ FocusScope {
                     MetadataPanel {
                         id: metadataPanel
                         Layout.fillWidth: true
-                        Layout.topMargin: 28
-                        rows: root.metadataRows
+                        Layout.topMargin: root.compactEpisodicDetail ? 12 : 28
+                        rows: root.compactEpisodicDetail ? root.metadataRows.slice(0, 2) : root.metadataRows
                         onActivated: (kind, value) => root.activateMetadata(kind, value)
                         onLeaveUp: root.focusActionRow()
                         onLeaveDown: root.focusFirstMediaRow()
@@ -1346,5 +1441,28 @@ FocusScope {
                 }
             }
         }
+    }
+
+    LazyMenuPanel {
+        id: seasonPickerPanel
+        anchors.left: parent.left
+        anchors.top: parent.top
+        anchors.leftMargin: root.contentMargin
+        anchors.topMargin: Math.min(root.height - maximumHeight - root.contentMargin, root.contentMargin
+                                    + root.detailTitlePx * 2.25)
+        width: Math.min(380, root.width - root.contentMargin * 2)
+        maximumHeight: Math.min(430, root.height - root.contentMargin * 2)
+        z: 40
+        open: root.seasonPickerOpen
+        model: root.seasonEntries
+        currentIndex: root.seasonPickerIndex
+        edgeEscapeItem: seasonLink
+        title: root.seriesTitle
+        checkedFor: function (entry) {
+            return entry && String(entry.seasonId || "") === root.currentSeasonId
+        }
+        onCurrentIndexChanged: root.seasonPickerIndex = currentIndex
+        onDismissed: root.closeSeasonPicker()
+        onAccepted: entry => root.selectSeason(entry)
     }
 }

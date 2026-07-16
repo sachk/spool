@@ -196,6 +196,10 @@ FocusScope {
         return Boolean(activeItem && activeItem.routeKey && activeItem.routeKey(key, phase, repeat))
     }
 
+    function typeAhead(text) {
+        return Boolean(activeItem && activeItem.typeAhead && activeItem.typeAhead(text))
+    }
+
     function activate() {
         if (activeItem && activeItem.activate)
             activeItem.activate()

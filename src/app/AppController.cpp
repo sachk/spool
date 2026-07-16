@@ -41,8 +41,7 @@ namespace {
 
     bool isBrowseContainer(const MovieItem& item)
     {
-        return item.itemType == QStringLiteral("Series") || item.itemType == QStringLiteral("Season")
-            || item.itemType == QStringLiteral("Playlist") || item.itemType == QStringLiteral("BoxSet")
+        return item.itemType == QStringLiteral("Playlist") || item.itemType == QStringLiteral("BoxSet")
             || item.itemType == QStringLiteral("Folder");
     }
 
@@ -298,10 +297,8 @@ void AppController::playOrOpen(const MovieItem& item, bool fromStart)
 {
     if (item.id.isEmpty())
         return;
-    if (item.itemType == QStringLiteral("Season")) {
-        openSeason(item);
-    } else if (m_browse->enterItem(item)) {
-        beginBrowse(false, item.itemType == QStringLiteral("Series"));
+    if (m_browse->enterItem(item)) {
+        beginBrowse();
     } else {
         playQueuedItem(item, fromStart);
     }
@@ -353,27 +350,6 @@ void AppController::addToQueueFromItem(const MovieItem& item)
         return;
     if (!m_playQueue->addToQueue(item))
         setErrorText(QStringLiteral("This item cannot be queued."));
-}
-
-void AppController::openSeriesById(const QString& seriesId, const QString& seriesName)
-{
-    MovieItem series;
-    series.id = seriesId;
-    series.title = seriesName.isEmpty() ? QStringLiteral("Series") : seriesName;
-    series.itemType = QStringLiteral("Series");
-    playOrOpen(series);
-}
-
-void AppController::openSeasonById(const QString& seriesId, const QString& seasonId, const QString& seasonName)
-{
-    if (seriesId.isEmpty())
-        return;
-    MovieItem season;
-    season.id = seasonId;
-    season.seriesId = seriesId;
-    season.title = seasonName.isEmpty() ? QStringLiteral("Season") : seasonName;
-    season.itemType = seasonId.isEmpty() ? QStringLiteral("Series") : QStringLiteral("Season");
-    openSeason(season);
 }
 
 void AppController::loadMoreCurrentItems()
@@ -626,7 +602,7 @@ void AppController::loadLibraryFilterOptions(RequestGeneration::Token generation
         });
 }
 
-RequestGeneration::Token AppController::beginBrowse(bool useWarmCache, bool descendIntoEmptySeries)
+RequestGeneration::Token AppController::beginBrowse(bool useWarmCache)
 {
     const BrowseDescriptor descriptor = m_browse->descriptor();
     if (!descriptor.isValid() || !m_api || m_api->session().accessToken.isEmpty())
@@ -658,34 +634,12 @@ RequestGeneration::Token AppController::beginBrowse(bool useWarmCache, bool desc
 
     Async::runLatest(
         this, m_api->fetchBrowsePage(descriptor, 0, kLibraryPageSize, query), m_libraryLoadGeneration, generation,
-        [this, cacheKey, descendIntoEmptySeries, descriptor](const PagedMovieItems& page) {
-            if (descendIntoEmptySeries && page.items.empty()) {
-                MovieItem fallback;
-                fallback.id = descriptor.id;
-                fallback.seriesId = descriptor.id;
-                fallback.title = descriptor.name;
-                fallback.itemType = QStringLiteral("Series");
-                openSeason(fallback);
-            } else {
-                showCurrentItemsPage(page, cacheKey, false);
-            }
-        },
+        [this, cacheKey](const PagedMovieItems& page) { showCurrentItemsPage(page, cacheKey, false); },
         [this](const std::exception_ptr& error) {
             m_browse->setLoadingMore(false);
             showToast(exceptionMessage(error));
         });
     return generation;
-}
-
-void AppController::openSeason(const MovieItem& season)
-{
-    const QString seriesId = !season.seriesId.isEmpty() ? season.seriesId : m_browse->seriesId();
-    if (seriesId.isEmpty()) {
-        qWarning() << "season open: missing series id" << season.id << season.title << season.itemType;
-        return;
-    }
-    m_browse->enterSeason(seriesId, season);
-    beginBrowse();
 }
 
 void AppController::openNamedCollection(const QString& kind, const QString& value)

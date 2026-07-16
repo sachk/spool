@@ -81,16 +81,7 @@ int main()
     require(reloads == 5, "each query mutation requests one reload");
 
     const MovieItem series = item(QStringLiteral("series"), QStringLiteral("Show"), QStringLiteral("Series"));
-    require(session.enterItem(series), "series accepted as browse item");
-    requireBrowse(
-        session, BrowseKind::SeriesSeasons, QStringLiteral("series"), QStringLiteral("Show"), "series descriptor set");
-    require(session.viewKind() == QStringLiteral("seasons"), "series view kind set");
-
-    MovieItem season = item(QStringLiteral("season"), QStringLiteral("Season 1"), QStringLiteral("Season"));
-    session.enterSeason(series.id, season);
-    require(session.descriptor().kind == BrowseKind::SeasonEpisodes, "season descriptor set");
-    require(session.descriptor().seriesId == QStringLiteral("series"), "season series id set");
-    require(session.descriptor().seasonId == QStringLiteral("season"), "season id set");
+    require(!session.enterItem(series), "series detail is not represented as a generic browse page");
 
     session.enterNamedCollection(QStringLiteral("genre"), QStringLiteral("Drama"));
     require(session.descriptor().kind == BrowseKind::Genre, "genre descriptor set");

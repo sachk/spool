@@ -268,18 +268,16 @@ FocusScope {
                                                                                             || "home"))
         } else if (action === "series") {
             const seriesId = String(item.seriesId || "")
-            if (seriesId.length > 0) {
-                shell.replaceRoute("libraryGrid")
-                App.openSeriesById(seriesId, String(item.seriesName || ""))
-            }
+            if (seriesId.length > 0)
+                shell.openSeriesDetails(seriesId, String(item.seriesName || ""), String(context.returnRoute || "home"))
         } else if (action === "season") {
             const seasonId = itemType === "Season" ? itemId : String(item.seasonId || "")
-            if (item.seriesId && seasonId) {
-                shell.replaceRoute("libraryGrid")
-                App.openSeasonById(String(item.seriesId), seasonId, itemType === "Season" ? String(item.title || seasonTitle(
-                                                                                                       )) : seasonTitle(
-                                                                                                ))
-            }
+            if (item.seriesId && seasonId)
+                shell.openSeasonDetails(String(item.seriesId), seasonId, itemType === "Season" ? String(item.title
+                                                                                                        || seasonTitle(
+                                                                                                            )) : seasonTitle(
+                                                                                                     ), String(
+                                            item.seriesName || ""), String(context.returnRoute || "home"))
         } else if (action === "playNext") {
             App.playNextFromItem(item)
         } else if (action === "addQueue") {

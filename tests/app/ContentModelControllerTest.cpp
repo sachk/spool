@@ -86,6 +86,18 @@ QJsonObject seriesObject()
     };
 }
 
+QJsonObject seasonObject()
+{
+    return {
+        { QStringLiteral("Id"), QStringLiteral("season-1") },
+        { QStringLiteral("Name"), QStringLiteral("Season 2") },
+        { QStringLiteral("Type"), QStringLiteral("Season") },
+        { QStringLiteral("SeriesId"), QStringLiteral("series-1") },
+        { QStringLiteral("SeriesName"), QStringLiteral("Series One") },
+        { QStringLiteral("IndexNumber"), 2 },
+    };
+}
+
 QJsonObject photoObject()
 {
     return {
@@ -227,6 +239,11 @@ protected:
                 request, operation, jsonBytes({ { QStringLiteral("Items"), QJsonArray {} } }), 200, this);
         }
 
+        if (operation == GetOperation && url.path() == QStringLiteral("/Shows/series-1/Seasons")) {
+            return new MemoryReply(request, operation,
+                jsonBytes({ { QStringLiteral("Items"), QJsonArray { seasonObject() } } }), 200, this);
+        }
+
         if (operation == GetOperation && url.path() == QStringLiteral("/Playlists/playlist-1/Items")) {
             return new MemoryReply(request, operation,
                 jsonBytes({ { QStringLiteral("Items"), QJsonArray { playlistMovieObject() } },
@@ -350,6 +367,17 @@ int searchRequestCount(const QVector<QUrl>& urls)
     }));
 }
 
+bool searchRequestAllowsSeries(const QVector<QUrl>& urls)
+{
+    return std::any_of(urls.cbegin(), urls.cend(), [](const QUrl& url) {
+        const QUrlQuery query(url);
+        return url.path() == QStringLiteral("/Items")
+            && query.queryItemValue(QStringLiteral("searchTerm")) == QStringLiteral("mixed")
+            && query.queryItemValue(QStringLiteral("includeItemTypes")).contains(QStringLiteral("Series"))
+            && !query.hasQueryItem(QStringLiteral("mediaTypes"));
+    });
+}
+
 int latestRequestCount(const QVector<QUrl>& urls)
 {
     return static_cast<int>(std::count_if(urls.cbegin(), urls.cend(),
@@ -425,6 +453,8 @@ int main(int argc, char **argv)
     SearchController search(&api, &prefetch);
     require(waitForSearch(search, 1000), "mixed search did not finish with all result types");
     require(searchRequestCount(network.requestedUrls) == 1, "mixed search issued more than one API request");
+    require(searchRequestAllowsSeries(network.requestedUrls),
+        "mixed search constrained media types in a way that excludes series containers");
     require(search.movieResults()->rowCount() == 1, "mixed search did not partition its movie result");
     require(search.seriesResults()->rowCount() == 1, "mixed search did not partition its series result");
     require(search.episodeResults()->rowCount() == 1, "mixed search did not partition its episode result");
@@ -483,6 +513,10 @@ int main(int argc, char **argv)
     require(episodes->data(episodes->index(0, 0), MovieGridModel::DisplaySubtitleRole).toString()
             == QStringLiteral("S02:E07 · The Loaded Episode"),
         "episode detail row did not use the episode display metadata");
+    require(controller.detailSeasonOptions()->rowCount() == 1,
+        "episode detail rows did not expose season selector options");
+    require(controller.detailSeasonOptions()->get(0).id == QStringLiteral("season-1"),
+        "season selector option did not preserve its season id");
 
     controller.loadDetailRows(QStringLiteral("boxset-1"), QStringLiteral("BoxSet"), QString(), QString());
 

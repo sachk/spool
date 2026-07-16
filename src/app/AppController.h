@@ -119,8 +119,6 @@ public:
     Q_INVOKABLE void playQueueItem(int index);
     Q_INVOKABLE void playNextFromItem(const MovieItem& item);
     Q_INVOKABLE void addToQueueFromItem(const MovieItem& item);
-    Q_INVOKABLE void openSeriesById(const QString& seriesId, const QString& seriesName);
-    Q_INVOKABLE void openSeasonById(const QString& seriesId, const QString& seasonId, const QString& seasonName);
     Q_INVOKABLE void playModel(MovieGridModel *model, bool shuffled = false);
     Q_INVOKABLE void openNamedCollection(const QString& kind, const QString& name);
     Q_INVOKABLE void onMemoryPressure(const QString& level);
@@ -154,8 +152,7 @@ private:
         setBusy(false);
     }
     void loadLibraryFilterOptions(RequestGeneration::Token generation, const LibraryItem& library);
-    RequestGeneration::Token beginBrowse(bool useWarmCache = false, bool descendIntoEmptySeries = false);
-    void openSeason(const MovieItem& season);
+    RequestGeneration::Token beginBrowse(bool useWarmCache = false);
     QCoro::Task<bool> useDefaultProfileAsync();
     QCoro::Task<void> startPlayback(MovieItem playItem);
     void playQueuedItems(const std::vector<MovieItem>& items, int startIndex, bool fromStart = false);
@@ -163,7 +160,7 @@ private:
     void playQueueCurrent(bool fromStart = false);
     void startQueuedPlayback(bool fromStart = false);
     bool queueMutationAllowed();
-    // Series/Season open their child listing; everything else plays directly.
+    // Folder-like containers open their child listing; everything else plays directly.
     void playOrOpen(const MovieItem& item, bool fromStart = false);
     void handlePlaybackStopped(const QString& itemId, qint64 positionTicks, bool completed);
 
