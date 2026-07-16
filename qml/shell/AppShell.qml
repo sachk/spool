@@ -308,13 +308,17 @@ KeyRouter {
 
     function openPerson(person) {
         personItem = person || ({})
-        if (Content && personItem.personId)
-            Content.loadPersonItems(personItem.personId)
+        const personId = String(personItem.id || "")
+        if (personId.length <= 0)
+            return false
+        if (Content)
+            Content.loadPersonItems(personId)
         if (route === "personDetails") {
             InputKeys.focus(routeStack)
-            return
+            return true
         }
         pushRoute("personDetails")
+        return true
     }
 
     function currentMediaItem() {

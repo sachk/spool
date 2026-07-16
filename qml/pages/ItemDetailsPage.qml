@@ -569,8 +569,9 @@ FocusScope {
     }
 
     function syncUserState() {
-        favoriteState = Boolean(item.favorite)
-        playedState = Boolean(item.played)
+        const current = item || ({})
+        favoriteState = Boolean(current.favorite)
+        playedState = Boolean(current.played)
     }
 
     function focusDefaultAction() {
@@ -769,7 +770,7 @@ FocusScope {
     }
 
     function openPerson(person) {
-        if (person && person.personId && shell)
+        if (person && person.id && shell)
             shell.openPerson(person)
     }
 

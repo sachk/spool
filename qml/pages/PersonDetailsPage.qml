@@ -13,6 +13,7 @@ FocusScope {
     readonly property int contentMargin: Metrics.pageMarginPx
     readonly property int portraitWidth: Math.min(176, Math.max(128, width * 0.1))
     readonly property int knownForCardWidth: width >= 1600 ? 170 : 145
+    readonly property bool contentReady: !Content.personItemsBusy
     focus: true
 
     Component.onCompleted: {
@@ -45,8 +46,8 @@ FocusScope {
 
     function loadPerson() {
         currentIndex = 0
-        if (Content && person && person.personId)
-            Content.loadPersonItems(person.personId)
+        if (Content && person && person.id)
+            Content.loadPersonItems(person.id)
     }
 
     function focusKnownFor() {
@@ -76,11 +77,21 @@ FocusScope {
     }
 
     function activate() {
-        knownFor.activate()
+        if (itemCount > 0)
+            knownFor.activate()
     }
 
     function longPress() {
-        return knownFor.longPress()
+        return itemCount > 0 && knownFor.longPress()
+    }
+
+    function openCurrent() {
+        if (currentIndex >= 0 && shell)
+            shell.openDetailsAt(Content.personItems, currentIndex, "person", "personDetails")
+    }
+
+    function currentMediaItem() {
+        return currentIndex >= 0 && Content.personItems ? Content.personItems.get(currentIndex) : ({})
     }
 
     Rectangle {
