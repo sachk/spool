@@ -163,7 +163,9 @@ private:
     QVariantMap m_values;
     bool m_nightModeEnabled = false;
     bool m_toneMappingVisualizationEnabled = false;
+    bool m_manualStreamingBitrate = false;
     int m_maxStreamingBitrateMbps = 120;
+    bool m_unlimitedLocalBitrate = false;
     bool m_preferRemux = true;
     int m_audioDelayMs = 0;
     int m_automaticAudioDelayMs = 0;

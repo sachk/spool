@@ -114,5 +114,34 @@ int main(int argc, char **argv)
         "fragmented MP4 transcodes should retain HLS delivery");
     require(!transcodeProfile.value(QStringLiteral("BreakOnNonKeyFrames")).toBool(),
         "fragmented MP4 segments should only break on keyframes");
+
+    const QJsonObject desktopProfile = PlaybackNegotiation::buildDeviceProfile(25'000'000);
+    const QJsonObject desktopDirectVideo
+        = desktopProfile.value(QStringLiteral("DirectPlayProfiles")).toArray().first().toObject();
+    require(!desktopDirectVideo.contains(QStringLiteral("VideoCodec")),
+        "desktop playback should remain unrestricted for software decoding");
+    require(desktopProfile.value(QStringLiteral("TranscodingProfiles"))
+                .toArray()
+                .first()
+                .toObject()
+                .value(QStringLiteral("VideoCodec"))
+                .toString()
+            == QStringLiteral("hevc,h264,av1,vp9"),
+        "desktop transcodes should advertise every fMP4 HLS video codec in preference order");
+
+    const QJsonObject webOsProfile = PlaybackNegotiation::buildDeviceProfile(
+        25'000'000, { QStringLiteral("VP9"), QStringLiteral("h264"), QStringLiteral("hevc") }, true);
+    const QJsonObject webOsDirectVideo
+        = webOsProfile.value(QStringLiteral("DirectPlayProfiles")).toArray().first().toObject();
+    require(webOsDirectVideo.value(QStringLiteral("VideoCodec")).toString() == QStringLiteral("vp9,h264,hevc"),
+        "webOS direct play should be restricted to the probed Starfish codecs");
+    require(webOsProfile.value(QStringLiteral("TranscodingProfiles"))
+                .toArray()
+                .first()
+                .toObject()
+                .value(QStringLiteral("VideoCodec"))
+                .toString()
+            == QStringLiteral("hevc,h264,vp9"),
+        "webOS transcode outputs should intersect the Starfish codecs with the HLS preference order");
     return 0;
 }

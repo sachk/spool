@@ -87,7 +87,9 @@ void requiredPersistedKeysArePresentExactlyOnce()
     const QStringList expectedKeys {
         QStringLiteral("appearance/uiScalePercent"),
         QStringLiteral("settings/nightMode"),
+        QStringLiteral("playback/manualStreamingBitrate"),
         QStringLiteral("playback/maxStreamingBitrateMbps"),
+        QStringLiteral("playback/unlimitedLocalBitrate"),
         QStringLiteral("playback/preferRemux"),
         QStringLiteral("playback/showVolumeSlider"),
         QStringLiteral("settings/audioDelayMs"),

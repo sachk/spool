@@ -43,7 +43,9 @@ public:
 
     void setSession(const AuthSession& session);
     AuthSession session() const;
-    void setPlaybackPreferences(qint64 maxStreamingBitrate, bool preferRemux);
+    void setPlaybackPreferences(qint64 manualMaxStreamingBitrate, bool unlimitedLocalNetwork, bool preferRemux);
+    void setVideoCodecCapabilities(QStringList videoCodecs, bool restrictVideoCodecs);
+    QCoro::Task<void> refreshPlaybackNetworkState();
     QString authorizationHeader(const QString& tokenOverride = {}) const;
     void cancelRequests();
 
@@ -107,6 +109,7 @@ public:
 
 signals:
     void authenticationExpired(const QString& message);
+    void deviceProfileChanged();
 
 private:
     enum class HttpMethod {
@@ -116,6 +119,7 @@ private:
     };
 
     QNetworkRequest createRequest(const QString& path, const QUrlQuery& query = {}) const;
+    QCoro::Task<qint64> measurePlaybackBitrate(int sampleBytes);
     QCoro::Task<QJsonDocument> requestJson(
         HttpMethod method, QString path, QUrlQuery query = {}, QJsonDocument body = {});
     QCoro::Task<void> requestNoContent(HttpMethod method, QString path, QJsonDocument body);
@@ -128,6 +132,7 @@ private:
     bool shouldExpireSession(const QString& path) const;
     void preconnectToServer();
     void applyCommonHeaders();
+    void updateEffectiveStreamingBitrate();
 
     QNetworkAccessManager *m_networkAccessManager = nullptr;
     QRestAccessManager m_rest;
@@ -140,7 +145,15 @@ private:
     QSet<QNetworkReply *> m_activeReplies;
     QString m_preconnectedAuthority;
     QString m_acceptLanguage;
-    qint64 m_maxStreamingBitrate = 120'000'000;
+    qint64 m_maxStreamingBitrate = 20'000'000;
+    qint64 m_manualMaxStreamingBitrate = 0;
+    qint64 m_measuredStreamingBitrate = 0;
+    quint64 m_playbackNetworkGeneration = 0;
+    bool m_playbackEndpointKnown = false;
+    bool m_inLocalNetwork = false;
+    bool m_unlimitedLocalNetwork = false;
+    QStringList m_videoCodecs;
+    bool m_restrictVideoCodecs = false;
     bool m_preferRemux = true;
     bool m_authExpirationReported = false;
     bool m_shuttingDown = false;

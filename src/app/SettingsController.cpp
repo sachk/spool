@@ -473,8 +473,18 @@ void SettingsController::applySchemaValue(const SettingSpec& spec, const QVarian
         if (apply && m_player)
             m_player->setToneMappingVisualizationEnabled(m_toneMappingVisualizationEnabled);
         break;
+    case SettingTarget::ManualStreamingBitrate:
+        m_manualStreamingBitrate = value.toBool();
+        if (apply)
+            applyPlaybackPreferences();
+        break;
     case SettingTarget::MaxStreamingBitrate:
         m_maxStreamingBitrateMbps = value.toInt();
+        if (apply)
+            applyPlaybackPreferences();
+        break;
+    case SettingTarget::UnlimitedLocalBitrate:
+        m_unlimitedLocalBitrate = value.toBool();
         if (apply)
             applyPlaybackPreferences();
         break;
@@ -603,7 +613,9 @@ void SettingsController::emitSchemaSignals(const SettingSpec& spec)
     case SettingTarget::ToneMappingVisualization:
         emit toneMappingVisualizationChanged();
         break;
+    case SettingTarget::ManualStreamingBitrate:
     case SettingTarget::MaxStreamingBitrate:
+    case SettingTarget::UnlimitedLocalBitrate:
     case SettingTarget::PreferRemux:
         emit playbackPreferencesChanged();
         break;
@@ -650,7 +662,9 @@ void SettingsController::applyPlaybackPreferences()
 {
     if (!m_api)
         return;
-    m_api->setPlaybackPreferences(static_cast<qint64>(m_maxStreamingBitrateMbps) * 1'000'000, m_preferRemux);
+    const qint64 manualBitrate
+        = m_manualStreamingBitrate ? static_cast<qint64>(m_maxStreamingBitrateMbps) * 1'000'000 : 0;
+    m_api->setPlaybackPreferences(manualBitrate, m_unlimitedLocalBitrate, m_preferRemux);
 }
 
 void SettingsController::applyAudioDelayToPlayer()

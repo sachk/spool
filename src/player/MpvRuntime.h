@@ -1,5 +1,7 @@
 #pragma once
 
+#include <QStringList>
+
 #include <cstdint>
 #include <functional>
 
@@ -18,6 +20,12 @@ namespace JellyfinNative::MpvRuntime {
 // Start loading libmpv on a detached background thread. Idempotent; call
 // after the first frame has been presented.
 void preloadAsync();
+
+// After the lazy libmpv load completes, initialize a disposable mpv core on a
+// worker and return the codecs registered by the custom Starfish decoder. The
+// callback runs on that worker; callers must marshal QObject access back to
+// its owning thread.
+void probeStarfishVideoCodecsAsync(std::function<void(QStringList)> callback);
 
 // Register work to run once libmpv has loaded successfully. If libmpv is
 // already loaded, the callback runs immediately on the calling thread; otherwise

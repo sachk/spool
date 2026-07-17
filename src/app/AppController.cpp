@@ -98,6 +98,11 @@ AppController::AppController(DatabaseManager *database, DiscoveryController *dis
     connect(m_session, &SessionController::authenticatedChanged, this, [this](const AuthSession&) {
         if (m_artwork)
             m_artwork->setAuthorizationHeader(m_api->authorizationHeader());
+        Async::runScoped(
+            this, m_api->refreshPlaybackNetworkState(), []() {},
+            [](const std::exception_ptr& error) {
+                qWarning() << "playback bandwidth: route measurement failed" << exceptionMessage(error);
+            });
         if (!m_hasDefaultProfile) {
             m_hasDefaultProfile = true;
             emit defaultProfileChanged();

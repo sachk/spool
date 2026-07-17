@@ -2,6 +2,8 @@
 
 #include <QDebug>
 #include <QElapsedTimer>
+#include <QSet>
+#include <QStringList>
 
 #include <atomic>
 #include <functional>
@@ -38,6 +40,7 @@ extern "C" {
     X(mpv_set_property_string)                                                                                         \
     X(mpv_get_property)                                                                                                \
     X(mpv_get_property_async)                                                                                          \
+    X(mpv_free_node_contents)                                                                                          \
     X(mpv_command)                                                                                                     \
     X(mpv_command_async)                                                                                               \
     X(mpv_command_string)                                                                                              \
@@ -76,6 +79,74 @@ void runLoadCallbacks()
         if (callback)
             callback();
     }
+}
+
+const char *mapString(const mpv_node& node, const char *key)
+{
+    if (node.format != MPV_FORMAT_NODE_MAP || !node.u.list)
+        return nullptr;
+    const mpv_node_list *map = node.u.list;
+    if (!map->values)
+        return nullptr;
+    for (int index = 0; index < map->num; ++index) {
+        if (!map->keys || !map->keys[index] || strcmp(map->keys[index], key) != 0)
+            continue;
+        const mpv_node& value = map->values[index];
+        return value.format == MPV_FORMAT_STRING ? value.u.string : nullptr;
+    }
+    return nullptr;
+}
+
+QStringList probeStarfishVideoCodecs()
+{
+    QStringList codecs;
+    mpv_handle *handle = mpv_create();
+    if (!handle) {
+        qWarning() << "playback capabilities: failed to create mpv probe core";
+        return codecs;
+    }
+
+    mpv_set_option_string(handle, "config", "no");
+    mpv_set_option_string(handle, "terminal", "no");
+    mpv_set_option_string(handle, "vo", "null");
+    mpv_set_option_string(handle, "ao", "null");
+    const int initializeResult = mpv_initialize(handle);
+    if (initializeResult < 0) {
+        qWarning() << "playback capabilities: failed to initialize mpv probe core"
+                   << mpv_error_string(initializeResult);
+        mpv_destroy(handle);
+        return codecs;
+    }
+
+    mpv_node decoderList {};
+    const int propertyResult = mpv_get_property(handle, "decoder-list", MPV_FORMAT_NODE, &decoderList);
+    if (propertyResult >= 0 && decoderList.format == MPV_FORMAT_NODE_ARRAY && decoderList.u.list) {
+        QSet<QString> seen;
+        const mpv_node_list *entries = decoderList.u.list;
+        if (!entries->values) {
+            mpv_free_node_contents(&decoderList);
+            mpv_terminate_destroy(handle);
+            return codecs;
+        }
+        for (int index = 0; index < entries->num; ++index) {
+            const mpv_node& entry = entries->values[index];
+            const char *driver = mapString(entry, "driver");
+            const char *codec = mapString(entry, "codec");
+            if (!driver || !codec || strcmp(driver, "starfish") != 0)
+                continue;
+            const QString normalized = QString::fromUtf8(codec).trimmed().toLower();
+            if (!normalized.isEmpty() && !seen.contains(normalized)) {
+                seen.insert(normalized);
+                codecs.push_back(normalized);
+            }
+        }
+    } else {
+        qWarning() << "playback capabilities: mpv decoder-list query failed" << mpv_error_string(propertyResult);
+    }
+    if (propertyResult >= 0)
+        mpv_free_node_contents(&decoderList);
+    mpv_terminate_destroy(handle);
+    return codecs;
 }
 
 // The NativeAppWindow constructor registers the starfish OSD/crop callbacks
@@ -209,6 +280,17 @@ void preloadAsync()
     std::thread([] { ensureLoaded(); }).detach();
 }
 
+void probeStarfishVideoCodecsAsync(std::function<void(QStringList)> callback)
+{
+    if (!callback)
+        return;
+    // Preserve the first-frame lazy-load boundary: registering this work does
+    // not load libmpv. preloadAsync() releases it after the UI is visible.
+    runAfterLoaded([callback = std::move(callback)]() mutable {
+        std::thread([callback = std::move(callback)]() mutable { callback(probeStarfishVideoCodecs()); }).detach();
+    });
+}
+
 } // namespace JellyfinNative::MpvRuntime
 
 // ---------------------------------------------------------------------------
@@ -290,6 +372,12 @@ int mpv_get_property_async(mpv_handle *ctx, uint64_t reply_userdata, const char 
     if (!JellyfinNative::MpvRuntime::ensureLoaded())
         return MPV_ERROR_GENERIC;
     return g_api.mpv_get_property_async(ctx, reply_userdata, name, format);
+}
+
+void mpv_free_node_contents(mpv_node *node)
+{
+    if (node && JellyfinNative::MpvRuntime::ensureLoaded())
+        g_api.mpv_free_node_contents(node);
 }
 
 int mpv_command(mpv_handle *ctx, const char **args)

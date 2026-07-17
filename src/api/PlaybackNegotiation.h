@@ -4,6 +4,7 @@
 #include <QJsonArray>
 #include <QJsonObject>
 #include <QString>
+#include <QStringList>
 
 namespace JellyfinNative {
 
@@ -19,7 +20,8 @@ public:
         const PlaybackSelection& selection);
     static TrickplayInfo selectTrickplay(
         const QJsonObject& trickplay, const QString& mediaSourceId, int preferredWidth);
-    static QJsonObject buildDeviceProfile(qint64 maxStreamingBitrate);
+    static QJsonObject buildDeviceProfile(
+        qint64 maxStreamingBitrate, const QStringList& videoCodecs = {}, bool restrictVideoCodecs = false);
 };
 
 } // namespace JellyfinNative

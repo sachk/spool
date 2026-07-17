@@ -15,7 +15,9 @@ enum class SettingType {
 enum class SettingTarget {
     NightMode,
     ToneMappingVisualization,
+    ManualStreamingBitrate,
     MaxStreamingBitrate,
+    UnlimitedLocalBitrate,
     PreferRemux,
     PlayerVolumeSlider,
     AudioDelay,

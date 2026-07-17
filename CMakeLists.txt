@@ -181,6 +181,8 @@ endif()
 set(JELLYFIN_CORE_SOURCES
     src/api/JellyfinApiFacade.cpp
     src/api/JellyfinApiFacade.h
+    src/api/PlaybackBandwidthPolicy.cpp
+    src/api/PlaybackBandwidthPolicy.h
     src/api/ItemsQuery.cpp
     src/api/ItemsQuery.h
     src/api/PlaybackNegotiation.cpp
@@ -573,6 +575,7 @@ if(BUILD_TESTING AND NOT CMAKE_CROSSCOMPILING)
         browse-descriptor tests/common/BrowseDescriptorTest.cpp
         meta-json tests/common/MetaJsonTest.cpp
         http-request-policy tests/api/HttpRequestPolicyTest.cpp
+        playback-bandwidth-policy tests/api/PlaybackBandwidthPolicyTest.cpp
         items-query tests/api/ItemsQueryTest.cpp
         playback-negotiation tests/api/PlaybackNegotiationTest.cpp
         jellyfin-api-facade-url tests/api/JellyfinApiFacadeUrlTest.cpp

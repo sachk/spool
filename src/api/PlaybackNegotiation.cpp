@@ -14,6 +14,8 @@ namespace {
     constexpr auto kDirectPlay = "DirectPlay";
     constexpr auto kDirectStream = "DirectStream";
     constexpr auto kTranscode = "Transcode";
+    const QStringList kHlsVideoCodecPreference { QStringLiteral("hevc"), QStringLiteral("h264"), QStringLiteral("av1"),
+        QStringLiteral("vp9") };
 
     qint64 sourceBitrate(const QJsonObject& source)
     {
@@ -91,6 +93,32 @@ namespace {
             query.addQueryItem(QStringLiteral("api_key"), accessToken);
             url->setQuery(query);
         }
+    }
+
+    QStringList normalizedCodecs(const QStringList& codecs)
+    {
+        QStringList result;
+        result.reserve(codecs.size());
+        for (const QString& codec : codecs) {
+            const QString normalized = codec.trimmed().toLower();
+            if (!normalized.isEmpty() && !result.contains(normalized))
+                result.push_back(normalized);
+        }
+        return result;
+    }
+
+    QStringList transcodeVideoCodecs(const QStringList& directVideoCodecs, bool restrictVideoCodecs)
+    {
+        if (!restrictVideoCodecs)
+            return kHlsVideoCodecPreference;
+
+        const QStringList supported = normalizedCodecs(directVideoCodecs);
+        QStringList result;
+        for (const QString& preferred : kHlsVideoCodecPreference) {
+            if (supported.contains(preferred))
+                result.push_back(preferred);
+        }
+        return result;
     }
 
 } // namespace
@@ -181,27 +209,43 @@ QString PlaybackNegotiation::buildUrl(
     return url.toString(QUrl::FullyEncoded);
 }
 
-QJsonObject PlaybackNegotiation::buildDeviceProfile(qint64 maxStreamingBitrate)
+QJsonObject PlaybackNegotiation::buildDeviceProfile(
+    qint64 maxStreamingBitrate, const QStringList& videoCodecs, bool restrictVideoCodecs)
 {
     const qint64 bitrate = std::clamp<qint64>(maxStreamingBitrate, 1'000'000, 1'000'000'000);
+    QJsonArray directPlayProfiles;
+    const QStringList normalizedVideoCodecs = normalizedCodecs(videoCodecs);
+    if (!restrictVideoCodecs) {
+        directPlayProfiles.push_back(QJsonObject { { QStringLiteral("Type"), QStringLiteral("Video") } });
+    } else if (!normalizedVideoCodecs.isEmpty()) {
+        directPlayProfiles.push_back(QJsonObject {
+            { QStringLiteral("Type"), QStringLiteral("Video") },
+            { QStringLiteral("VideoCodec"), normalizedVideoCodecs.join(QLatin1Char(',')) },
+        });
+    }
+    // Audio is always decoded to PCM by mpv. Keep this unrestricted even on
+    // webOS so an unsupported compressed-output format never forces a video
+    // transcode merely because Jellyfin could not copy the audio stream.
+    directPlayProfiles.push_back(QJsonObject { { QStringLiteral("Type"), QStringLiteral("Audio") } });
+
+    QStringList outputVideoCodecs = transcodeVideoCodecs(normalizedVideoCodecs, restrictVideoCodecs);
+    if (outputVideoCodecs.isEmpty())
+        outputVideoCodecs.push_back(QStringLiteral("h264"));
+
     return {
         { QStringLiteral("Name"), QStringLiteral("JellyfinNative") },
         { QStringLiteral("MaxStreamingBitrate"), bitrate },
         { QStringLiteral("MaxStaticBitrate"), bitrate },
         { QStringLiteral("MusicStreamingTranscodingBitrate"), 1'280'000 },
-        { QStringLiteral("DirectPlayProfiles"),
-            QJsonArray {
-                QJsonObject { { QStringLiteral("Type"), QStringLiteral("Video") } },
-                QJsonObject { { QStringLiteral("Type"), QStringLiteral("Audio") } },
-            } },
+        { QStringLiteral("DirectPlayProfiles"), directPlayProfiles },
         { QStringLiteral("TranscodingProfiles"),
             QJsonArray {
                 QJsonObject {
                     { QStringLiteral("Type"), QStringLiteral("Video") },
                     { QStringLiteral("Container"), QStringLiteral("mp4") },
                     { QStringLiteral("Protocol"), QStringLiteral("hls") },
-                    { QStringLiteral("AudioCodec"), QStringLiteral("aac,mp3,ac3,eac3") },
-                    { QStringLiteral("VideoCodec"), QStringLiteral("h264") },
+                    { QStringLiteral("AudioCodec"), QStringLiteral("aac,ac3,eac3,mp3,alac,flac,opus,dts,truehd") },
+                    { QStringLiteral("VideoCodec"), outputVideoCodecs.join(QLatin1Char(',')) },
                     { QStringLiteral("Context"), QStringLiteral("Streaming") },
                     { QStringLiteral("MaxAudioChannels"), QStringLiteral("6") },
                     { QStringLiteral("MinSegments"), 2 },

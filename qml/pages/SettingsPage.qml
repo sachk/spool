@@ -90,8 +90,12 @@ FocusScope {
 
     function rowVisible(row) {
         return row && row.visible !== false && (row.key !== "settings/toneMappingVisualization"
-                                                || gpuNextDiagnosticsAvailable) && (row.group !== "Button Remap"
-                                                                                    || NativeWindow.smartTvPlatform)
+                                                || gpuNextDiagnosticsAvailable) && (row.key
+                                                                                    !== "playback/maxStreamingBitrateMbps"
+                                                                                    || Settings.values["playback/manualStreamingBitrate"]
+                                                                                    === true) && (row.group
+                                                                                                  !== "Button Remap"
+                                                                                                  || NativeWindow.smartTvPlatform)
     }
 
     function expandedSchemaRow(row) {
@@ -487,6 +491,11 @@ FocusScope {
 
     Connections {
         target: Settings
+
+        function onSettingChanged(key) {
+            if (key === "playback/manualStreamingBitrate")
+                root.rebuildSettingsRows()
+        }
     }
     Loader {
         id: previewSerif

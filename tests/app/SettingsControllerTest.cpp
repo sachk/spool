@@ -37,6 +37,10 @@ int main(int argc, char **argv)
     QCoro::waitFor(settings.loadLocalAsync());
     require(settings.uiScalePercent() == 115, "UI scale default was not 115 percent");
     require(!settings.uiScaleSetupComplete(), "fresh profile unexpectedly skipped scale setup");
+    require(!settings.value(QStringLiteral("playback/manualStreamingBitrate")).toBool(),
+        "fresh profile unexpectedly enabled the manual streaming limit");
+    require(!settings.value(QStringLiteral("playback/unlimitedLocalBitrate")).toBool(),
+        "fresh profile unexpectedly enabled unlimited local-network playback");
 
     settings.setAudioDelayMs(120);
     require(settings.audioDelayMs() == 120, "audio delay setter did not update the global desktop value");

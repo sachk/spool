@@ -4,6 +4,7 @@
 #include "../common/VariantUtils.h"
 #include "../diagnostics/Diagnostics.h"
 #include "ItemsQuery.h"
+#include "PlaybackBandwidthPolicy.h"
 #include "PlaybackNegotiation.h"
 
 #include <QCoroNetwork>
@@ -26,6 +27,7 @@
 #include <cmath>
 #include <limits>
 #include <stdexcept>
+#include <utility>
 
 namespace JellyfinNative {
 
@@ -274,10 +276,19 @@ JellyfinApiFacade::~JellyfinApiFacade()
 
 void JellyfinApiFacade::setServerUrl(const QString& serverUrl)
 {
-    m_serverUrl = serverUrl;
-    while (m_serverUrl.endsWith(QLatin1Char('/')))
-        m_serverUrl.chop(1);
+    QString normalized = serverUrl;
+    while (normalized.endsWith(QLatin1Char('/')))
+        normalized.chop(1);
+    const bool serverChanged = normalized != m_serverUrl;
+    m_serverUrl = normalized;
     m_requestFactory.setBaseUrl(QUrl(m_serverUrl));
+    if (serverChanged) {
+        ++m_playbackNetworkGeneration;
+        m_playbackEndpointKnown = false;
+        m_inLocalNetwork = false;
+        m_measuredStreamingBitrate = 0;
+        updateEffectiveStreamingBitrate();
+    }
     preconnectToServer();
 }
 
@@ -314,6 +325,8 @@ QString JellyfinApiFacade::deviceId() const
 
 void JellyfinApiFacade::setSession(const AuthSession& session)
 {
+    if (m_session.accessToken != session.accessToken)
+        ++m_playbackNetworkGeneration;
     m_session = session;
     m_authExpirationReported = false;
     if (m_session.accessToken.isEmpty())
@@ -346,10 +359,88 @@ void JellyfinApiFacade::preconnectToServer()
 #endif
 }
 
-void JellyfinApiFacade::setPlaybackPreferences(qint64 maxStreamingBitrate, bool preferRemux)
+void JellyfinApiFacade::setPlaybackPreferences(
+    qint64 manualMaxStreamingBitrate, bool unlimitedLocalNetwork, bool preferRemux)
 {
-    m_maxStreamingBitrate = std::clamp<qint64>(maxStreamingBitrate, 1'000'000, 1'000'000'000);
+    m_manualMaxStreamingBitrate = manualMaxStreamingBitrate > 0
+        ? std::clamp<qint64>(manualMaxStreamingBitrate, 1'000'000, PlaybackBandwidthPolicy::MaximumBitrate)
+        : 0;
+    m_unlimitedLocalNetwork = unlimitedLocalNetwork;
     m_preferRemux = preferRemux;
+    updateEffectiveStreamingBitrate();
+}
+
+void JellyfinApiFacade::setVideoCodecCapabilities(QStringList videoCodecs, bool restrictVideoCodecs)
+{
+    for (QString& codec : videoCodecs)
+        codec = codec.trimmed().toLower();
+    videoCodecs.removeAll(QString());
+    videoCodecs.removeDuplicates();
+    if (m_videoCodecs == videoCodecs && m_restrictVideoCodecs == restrictVideoCodecs)
+        return;
+
+    m_videoCodecs = std::move(videoCodecs);
+    m_restrictVideoCodecs = restrictVideoCodecs;
+    qInfo() << "playback capabilities: video codecs=" << m_videoCodecs << "restricted=" << m_restrictVideoCodecs;
+    emit deviceProfileChanged();
+}
+
+void JellyfinApiFacade::updateEffectiveStreamingBitrate()
+{
+    const qint64 effective = PlaybackBandwidthPolicy::effectiveBitrate(m_manualMaxStreamingBitrate,
+        m_unlimitedLocalNetwork, m_playbackEndpointKnown, m_inLocalNetwork, m_measuredStreamingBitrate);
+    if (effective == m_maxStreamingBitrate)
+        return;
+    m_maxStreamingBitrate = effective;
+    qInfo() << "playback bandwidth: effective=" << m_maxStreamingBitrate << "manual=" << m_manualMaxStreamingBitrate
+            << "measured=" << m_measuredStreamingBitrate << "endpointKnown=" << m_playbackEndpointKnown
+            << "local=" << m_inLocalNetwork << "unlimitedLocal=" << m_unlimitedLocalNetwork;
+    emit deviceProfileChanged();
+}
+
+QCoro::Task<qint64> JellyfinApiFacade::measurePlaybackBitrate(int sampleBytes)
+{
+    QUrlQuery query;
+    query.addQueryItem(QStringLiteral("size"), QString::number(sampleBytes));
+    query.addQueryItem(QStringLiteral("_"), QString::number(QDateTime::currentMSecsSinceEpoch()));
+    QElapsedTimer timer;
+    timer.start();
+    const QByteArray payload = co_await requestBytes(HttpMethod::Get, QStringLiteral("/Playback/BitrateTest"), query);
+    co_return PlaybackBandwidthPolicy::conservativeEstimate(payload.size(), std::max<qint64>(1, timer.elapsed()));
+}
+
+QCoro::Task<void> JellyfinApiFacade::refreshPlaybackNetworkState()
+{
+    if (m_serverUrl.isEmpty() || m_session.accessToken.isEmpty())
+        co_return;
+
+    const quint64 generation = ++m_playbackNetworkGeneration;
+    const QJsonObject endpoint = (co_await requestJson(HttpMethod::Get, QStringLiteral("/System/Endpoint"))).object();
+    if (generation != m_playbackNetworkGeneration)
+        co_return;
+
+    m_playbackEndpointKnown = true;
+    m_inLocalNetwork
+        = endpoint.value(QStringLiteral("IsLocal")).toBool() || endpoint.value(QStringLiteral("IsInNetwork")).toBool();
+    updateEffectiveStreamingBitrate();
+
+    // Warm the authenticated server route and exclude DNS/TLS/request setup
+    // from the samples used to select a streaming ceiling.
+    co_await measurePlaybackBitrate(512 * 1024);
+    if (generation != m_playbackNetworkGeneration)
+        co_return;
+    const qint64 first = co_await measurePlaybackBitrate(2 * 1024 * 1024);
+    if (generation != m_playbackNetworkGeneration)
+        co_return;
+    const int secondSampleBytes = first >= 100'000'000 ? 8 * 1024 * 1024 : 2 * 1024 * 1024;
+    const qint64 second = co_await measurePlaybackBitrate(secondSampleBytes);
+    if (generation != m_playbackNetworkGeneration)
+        co_return;
+
+    m_measuredStreamingBitrate = first > 0 && second > 0 ? std::min(first, second) : std::max(first, second);
+    qInfo() << "playback bandwidth: route measured first=" << first << "second=" << second
+            << "selected=" << m_measuredStreamingBitrate << "local=" << m_inLocalNetwork;
+    updateEffectiveStreamingBitrate();
 }
 
 AuthSession JellyfinApiFacade::session() const
@@ -1363,6 +1454,11 @@ QNetworkRequest JellyfinApiFacade::createRequest(const QString& path, const QUrl
     QNetworkRequest request
         = query.isEmpty() ? m_requestFactory.createRequest(path) : m_requestFactory.createRequest(path, query);
     request.setRawHeader("Authorization", authorizationHeader().toUtf8());
+    if (path == QStringLiteral("/Playback/BitrateTest")) {
+        request.setAttribute(QNetworkRequest::CacheLoadControlAttribute, QNetworkRequest::AlwaysNetwork);
+        request.setAttribute(QNetworkRequest::CacheSaveControlAttribute, false);
+        request.setRawHeader("Accept", "application/octet-stream");
+    }
     return request;
 }
 
@@ -1496,7 +1592,7 @@ bool JellyfinApiFacade::shouldExpireSession(const QString& path) const
 
 QJsonObject JellyfinApiFacade::buildDeviceProfile() const
 {
-    return PlaybackNegotiation::buildDeviceProfile(m_maxStreamingBitrate);
+    return PlaybackNegotiation::buildDeviceProfile(m_maxStreamingBitrate, m_videoCodecs, m_restrictVideoCodecs);
 }
 
 PlaybackSession JellyfinApiFacade::buildPlaybackSession(

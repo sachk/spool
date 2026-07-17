@@ -13,6 +13,15 @@ SessionController::SessionController(DatabaseManager *database, JellyfinApiFacad
     , m_database(database)
     , m_api(api)
 {
+    connect(m_api, &JellyfinApiFacade::deviceProfileChanged, this, [this]() {
+        if (!authenticated())
+            return;
+        Async::runScoped(
+            this, m_api->postCapabilities(), []() {},
+            [](const std::exception_ptr& error) {
+                qWarning() << "session: updated capability report failed" << exceptionMessage(error);
+            });
+    });
 }
 
 QString SessionController::serverUrl() const

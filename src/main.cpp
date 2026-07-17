@@ -64,6 +64,7 @@ Q_IMPORT_PLUGIN(QSQLiteDriverPlugin)
 #include <QMetaObject>
 #include <QNetworkAccessManager>
 #include <QNetworkDiskCache>
+#include <QPointer>
 #include <QQmlContext>
 #include <QQmlEngine>
 #include <QQmlError>
@@ -874,6 +875,25 @@ int main(int argc, char **argv)
         QStringLiteral("Linux Wayland"),
 #endif
         QString::fromLatin1(kAppVersion));
+#ifdef JELLYFIN_NATIVE_WEBOS
+    // Until the asynchronous mpv probe completes, advertise only the safest
+    // baseline codec. The probe is registered now but respects MpvRuntime's
+    // existing first-frame lazy-load boundary.
+    api->setVideoCodecCapabilities({ QStringLiteral("h264") }, true);
+    QPointer<JellyfinNative::JellyfinApiFacade> capabilityApi(api.get());
+    JellyfinNative::MpvRuntime::probeStarfishVideoCodecsAsync([&app, capabilityApi](const QStringList& codecs) {
+        QMetaObject::invokeMethod(
+            &app,
+            [capabilityApi, codecs]() {
+                if (!capabilityApi || codecs.isEmpty()) {
+                    qWarning() << "playback capabilities: Starfish probe returned no codecs; retaining h264";
+                    return;
+                }
+                capabilityApi->setVideoCodecCapabilities(codecs, true);
+            },
+            Qt::QueuedConnection);
+    });
+#endif
 
     const JellyfinNative::CpuTopology cpuTopology = JellyfinNative::detectCpuTopology();
     logLine("artwork: cpu logical=%d physical=%d smt=%s source=%s decodeThreads=%d", cpuTopology.logicalCpus,
