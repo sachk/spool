@@ -314,8 +314,11 @@ bool isPlayableItem(const MovieItem& item)
 
 QString itemSubtitle(const MovieItem& item)
 {
-    if (item.itemType == QStringLiteral("Series"))
+    if (item.itemType == QStringLiteral("Series")) {
+        if (!item.episodeLabel.isEmpty())
+            return item.episodeLabel;
         return item.year > 0 ? QString::number(item.year) : QStringLiteral("Series");
+    }
     if (item.itemType == QStringLiteral("Season"))
         return QStringLiteral("Season");
     if (item.itemType == QStringLiteral("Episode")) {

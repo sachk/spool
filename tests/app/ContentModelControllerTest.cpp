@@ -706,12 +706,22 @@ int main(int argc, char **argv)
         "a single latest episode did not use its series title");
     require(photoItems && photoItems->rowCount() == 1 && photoItems->get(0).itemType == QStringLiteral("Photo"),
         "home did not expose an arbitrary-library latest item");
-    require(showItems->get(0).seriesPrimaryImageTag == QStringLiteral("series-primary-tag"),
-        "home episode row did not retain series primary artwork");
+    require(
+        showItems->get(0).id == QStringLiteral("series-1") && showItems->get(0).itemType == QStringLiteral("Series"),
+        "grouped latest episodes did not navigate as their series");
+    require(showItems->get(0).posterTag == QStringLiteral("series-primary-tag"),
+        "grouped latest episodes did not use series primary artwork");
+    require(!showItems->get(0).isPlayable(),
+        "grouped latest episodes still exposed the representative episode as playable");
     require(showItems->get(0).title == QStringLiteral("Series One"),
         "grouped latest episodes did not use the series title");
     require(showItems->get(0).episodeLabel == QStringLiteral("S02 · E01-E145"),
         "grouped latest episodes did not expose the contiguous episode range");
+    require(showItems->get(0).subtitle() == QStringLiteral("S02 · E01-E145"),
+        "grouped latest show did not display its episode range");
+    require(singleShowItems->get(0).id == QStringLiteral("series-1")
+            && singleShowItems->get(0).itemType == QStringLiteral("Series") && !singleShowItems->get(0).isPlayable(),
+        "a single latest episode did not navigate as its non-playable series");
 
     int latestStructureChanges = 0;
     QObject::connect(&home, &HomeModelController::latestLibraryRowsChanged,

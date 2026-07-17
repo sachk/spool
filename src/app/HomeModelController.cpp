@@ -21,7 +21,7 @@
 namespace JellyfinNative {
 
 namespace {
-    constexpr int kHomePayloadSchemaVersion = 4;
+    constexpr int kHomePayloadSchemaVersion = 5;
 
     QString homeItemSample(const std::vector<MovieItem>& items)
     {
@@ -97,14 +97,18 @@ namespace {
             numbers.removeAll(0);
             std::sort(numbers.begin(), numbers.end());
             numbers.erase(std::unique(numbers.begin(), numbers.end()), numbers.end());
-            item.title = item.seriesName.isEmpty() ? item.title : item.seriesName;
+            MovieItem series;
+            series.id = item.seriesId;
+            series.title = item.seriesName.isEmpty() ? item.title : item.seriesName;
+            series.posterTag = item.seriesPrimaryImageTag;
+            series.itemType = QStringLiteral("Series");
             if (numbers.size() > 1 && numbers.back() - numbers.front() + 1 == numbers.size()) {
-                item.episodeLabel = QStringLiteral("S%1 · E%2-E%3")
-                                        .arg(item.seasonNumber, 2, 10, QLatin1Char('0'))
-                                        .arg(numbers.front(), 2, 10, QLatin1Char('0'))
-                                        .arg(numbers.back(), 2, 10, QLatin1Char('0'));
+                series.episodeLabel = QStringLiteral("S%1 · E%2-E%3")
+                                          .arg(item.seasonNumber, 2, 10, QLatin1Char('0'))
+                                          .arg(numbers.front(), 2, 10, QLatin1Char('0'))
+                                          .arg(numbers.back(), 2, 10, QLatin1Char('0'));
             }
-            grouped.push_back(std::move(item));
+            grouped.push_back(std::move(series));
         }
         return grouped;
     }
