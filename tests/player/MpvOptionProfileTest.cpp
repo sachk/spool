@@ -52,8 +52,9 @@ int main(int argc, char **argv)
     PlaybackSession hlsTranscode;
     hlsTranscode.playMethod = QStringLiteral("Transcode");
     hlsTranscode.url = QStringLiteral("https://media.example/Videos/1/master.m3u8?api_key=secret");
-    require(MpvOptionProfile::loadFileOptions(hlsTranscode) == "demuxer=lavf,demuxer-lavf-format=hls",
-        "HLS transcodes should bypass probing of the non-seekable master manifest");
+    require(
+        MpvOptionProfile::loadFileOptions(hlsTranscode) == "demuxer=lavf,demuxer-lavf-format=hls,initial-audio-sync=no",
+        "HLS transcodes should bypass manifest probing and blocking initial audio sync");
     PlaybackSession directHls = hlsTranscode;
     directHls.playMethod = QStringLiteral("DirectPlay");
     require(MpvOptionProfile::loadFileOptions(directHls).isEmpty(),

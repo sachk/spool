@@ -210,7 +210,7 @@ QByteArray MpvOptionProfile::loadFileOptions(const PlaybackSession& session)
     // Jellyfin's HLS master manifest is a non-seekable HTTP response. Tell
     // lavf what it is up front so mpv does not repeatedly probe and seek the
     // small manifest back to byte zero before HLS can open its media playlist.
-    return QByteArrayLiteral("demuxer=lavf,demuxer-lavf-format=hls");
+    return QByteArrayLiteral("demuxer=lavf,demuxer-lavf-format=hls,initial-audio-sync=no");
 }
 
 std::vector<MpvOption> MpvOptionProfile::startupOptions(Platform platform, const QString& audioOutputMode,
