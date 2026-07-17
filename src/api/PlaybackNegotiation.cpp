@@ -198,14 +198,14 @@ QJsonObject PlaybackNegotiation::buildDeviceProfile(qint64 maxStreamingBitrate)
             QJsonArray {
                 QJsonObject {
                     { QStringLiteral("Type"), QStringLiteral("Video") },
-                    { QStringLiteral("Container"), QStringLiteral("ts") },
+                    { QStringLiteral("Container"), QStringLiteral("mp4") },
                     { QStringLiteral("Protocol"), QStringLiteral("hls") },
                     { QStringLiteral("AudioCodec"), QStringLiteral("aac,mp3,ac3,eac3") },
                     { QStringLiteral("VideoCodec"), QStringLiteral("h264") },
                     { QStringLiteral("Context"), QStringLiteral("Streaming") },
                     { QStringLiteral("MaxAudioChannels"), QStringLiteral("6") },
                     { QStringLiteral("MinSegments"), 2 },
-                    { QStringLiteral("BreakOnNonKeyFrames"), true },
+                    { QStringLiteral("BreakOnNonKeyFrames"), false },
                 },
             } },
         { QStringLiteral("ContainerProfiles"), QJsonArray {} },

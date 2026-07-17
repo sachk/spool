@@ -106,5 +106,13 @@ int main(int argc, char **argv)
         "device profile should carry the configured bitrate");
     require(!profile.value(QStringLiteral("TranscodingProfiles")).toArray().isEmpty(),
         "device profile should advertise a transcode fallback");
+    const QJsonObject transcodeProfile
+        = profile.value(QStringLiteral("TranscodingProfiles")).toArray().first().toObject();
+    require(transcodeProfile.value(QStringLiteral("Container")).toString() == QStringLiteral("mp4"),
+        "video transcodes should use fragmented MP4 HLS segments");
+    require(transcodeProfile.value(QStringLiteral("Protocol")).toString() == QStringLiteral("hls"),
+        "fragmented MP4 transcodes should retain HLS delivery");
+    require(!transcodeProfile.value(QStringLiteral("BreakOnNonKeyFrames")).toBool(),
+        "fragmented MP4 segments should only break on keyframes");
     return 0;
 }
