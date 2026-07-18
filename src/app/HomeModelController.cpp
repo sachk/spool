@@ -21,7 +21,7 @@
 namespace JellyfinNative {
 
 namespace {
-    constexpr int kHomePayloadSchemaVersion = 6;
+    constexpr int kHomePayloadSchemaVersion = 7;
 
     QString homeItemSample(const std::vector<MovieItem>& items)
     {

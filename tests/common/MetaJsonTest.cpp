@@ -144,6 +144,10 @@ void requireMovieItem(const MovieItem& actual, const MovieItem& expected, const 
     require(actual.episodeNumber == expected.episodeNumber, message);
     require(actual.resumeTicks == expected.resumeTicks, message);
     require(actual.runtimeTicks == expected.runtimeTicks, message);
+    require(actual.dateCreated == expected.dateCreated, message);
+    require(actual.datePlayed == expected.datePlayed, message);
+    require(actual.dateLastContentAdded == expected.dateLastContentAdded, message);
+    require(actual.playCount == expected.playCount, message);
     require(isPlayableItem(actual) == isPlayableItem(expected), message);
     require(actual.favorite == expected.favorite, message);
     require(actual.played == expected.played, message);
@@ -304,6 +308,10 @@ void testMovieRoundTripAndCamelCaseKey()
     movie.episodeNumber = 7;
     movie.resumeTicks = 4567890123LL;
     movie.runtimeTicks = 9876543210LL;
+    movie.dateCreated = QStringLiteral("2026-01-01T01:02:03.0000000Z");
+    movie.datePlayed = QStringLiteral("2026-02-01T01:02:03.0000000Z");
+    movie.dateLastContentAdded = QStringLiteral("2026-03-01T01:02:03.0000000Z");
+    movie.playCount = 4;
     movie.favorite = true;
     movie.played = true;
     movie.backdropTag = QStringLiteral("backdrop-tag");

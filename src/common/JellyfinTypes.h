@@ -203,6 +203,10 @@ struct MovieItem {
     Q_PROPERTY(QString episodeLabel MEMBER episodeLabel)
     Q_PROPERTY(qint64 resumeTicks MEMBER resumeTicks)
     Q_PROPERTY(qint64 runtimeTicks MEMBER runtimeTicks)
+    Q_PROPERTY(QString dateCreated MEMBER dateCreated)
+    Q_PROPERTY(QString datePlayed MEMBER datePlayed)
+    Q_PROPERTY(QString dateLastContentAdded MEMBER dateLastContentAdded)
+    Q_PROPERTY(int playCount MEMBER playCount)
     Q_PROPERTY(bool playable READ isPlayable)
     Q_PROPERTY(QString subtitle READ subtitle)
     Q_PROPERTY(bool favorite MEMBER favorite)
@@ -244,6 +248,10 @@ public:
     QString episodeLabel;
     qint64 resumeTicks = 0;
     qint64 runtimeTicks = 0;
+    QString dateCreated;
+    QString datePlayed;
+    QString dateLastContentAdded;
+    int playCount = 0;
     bool favorite = false;
     bool played = false;
     QString backdropTag;

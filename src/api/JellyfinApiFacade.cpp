@@ -67,16 +67,17 @@ namespace {
     QString detailItemFields()
     {
         return QStringLiteral(
-            "Overview,ProductionYear,PremiereDate,EndDate,ImageTags,BackdropImageTags,"
+            "Overview,ProductionYear,PremiereDate,EndDate,DateCreated,DateLastContentAdded,ImageTags,BackdropImageTags,"
             "UserData,Path,RunTimeTicks,SeriesInfo,LocationType,IsVirtualItem,Genres,Tags,Studios,"
             "OfficialRating,CommunityRating,CriticRating,People,PrimaryImageAspectRatio,MediaSources");
     }
 
     QString libraryItemFields()
     {
-        return QStringLiteral("SortName,Overview,ProductionYear,PremiereDate,EndDate,ImageTags,BackdropImageTags,"
-                              "UserData,RunTimeTicks,SeriesInfo,LocationType,IsVirtualItem,Genres,Tags,Studios,"
-                              "OfficialRating,CommunityRating,CriticRating,PrimaryImageAspectRatio");
+        return QStringLiteral(
+            "SortName,Overview,ProductionYear,PremiereDate,EndDate,DateCreated,DateLastContentAdded,ImageTags,"
+            "BackdropImageTags,UserData,RunTimeTicks,SeriesInfo,LocationType,IsVirtualItem,Genres,Tags,Studios,"
+            "OfficialRating,CommunityRating,CriticRating,PrimaryImageAspectRatio");
     }
 
     QString firstString(const QJsonArray& array)
@@ -234,6 +235,8 @@ namespace {
             userData.value(QStringLiteral("PlaybackPositionTicks")).toVariant().toLongLong(), item.runtimeTicks);
         item.favorite = userData.value(QStringLiteral("IsFavorite")).toBool(false);
         item.played = userData.value(QStringLiteral("Played")).toBool(false);
+        item.datePlayed = userData.value(QStringLiteral("LastPlayedDate")).toString();
+        item.playCount = userData.value(QStringLiteral("PlayCount")).toInt();
         item.studios = metaStringListFromJson(object, { QStringLiteral("Studios"), QStringLiteral("Name") });
         item.mediaSources.clear();
         const QJsonArray sourceArray = object.value(QStringLiteral("MediaSources")).toArray();

@@ -9,17 +9,27 @@ GridView {
     signal accepted(int index)
     readonly property bool directionRelease: true
     property int heldKey: 0
-    property int holdStartedAt: 0
-    property int lastHoldTickAt: 0
+    property double holdStartedAt: 0
+    property double lastHoldTickAt: 0
     property real holdAccumulator: 0
     property int holdReleaseTimeout: 150
-    property int holdDelay: 320
-    property int holdRampDuration: 5000
-    property real holdInitialRate: 2.5
-    property real holdMaximumRate: 8
+    property int holdDelay: 100
+    property int holdRampDuration: 2900
+    property real holdInitialRate: 10
+    readonly property real holdMaximumRate: Math.max(30, count / 7)
+    property int holdTickInterval: 16
+    property bool reducedMotion: false
+    property var nowProvider: function () {
+        return Date.now()
+    }
 
     focus: true
     keyNavigationEnabled: false
+    highlightMoveDuration: reducedMotion ? 0 : 16
+
+    onActiveFocusChanged: if (!activeFocus)
+                              stopAccelerating()
+    onModelChanged: stopAccelerating()
 
     function columnCount() {
         return Math.max(1, Math.floor(width / Math.max(1, cellWidth || fallbackColumns)))
@@ -39,9 +49,13 @@ GridView {
         holdAccumulator = 0
     }
 
+    function nowMs() {
+        return Number(nowProvider())
+    }
+
     function beginAccelerating(key) {
         heldKey = key
-        holdStartedAt = Date.now()
+        holdStartedAt = nowMs()
         lastHoldTickAt = holdStartedAt
         holdAccumulator = 0
         holdTimer.start()
@@ -70,21 +84,21 @@ GridView {
     function accelerate() {
         if (!heldKey || count <= 0)
             return
-        const now = Date.now()
-        const heldMs = now - holdStartedAt
+        const now = nowMs()
+        const heldMs = Math.max(0, now - holdStartedAt)
         const frameMs = Math.min(50, Math.max(0, now - lastHoldTickAt))
         lastHoldTickAt = now
         const rate = accelerationRate(heldMs)
         if (rate <= 0)
             return
         holdAccumulator += rate * frameMs / 1000
-        let moves = Math.min(2, Math.floor(holdAccumulator))
+        let moves = Math.floor(holdAccumulator)
         holdAccumulator -= moves
         while (moves-- > 0) {
             const before = currentIndex
             moveBy(heldDelta())
             if (currentIndex === before) {
-                stopAccelerating()
+                holdAccumulator = 0
                 break
             }
         }
@@ -137,9 +151,18 @@ GridView {
             accepted(currentIndex)
     }
 
+    Connections {
+        target: root.model && typeof root.model === "object" ? root.model : null
+        ignoreUnknownSignals: true
+
+        function onModelReset() {
+            root.stopAccelerating()
+        }
+    }
+
     Timer {
         id: holdTimer
-        interval: 16
+        interval: root.holdTickInterval
         repeat: true
         onTriggered: root.accelerate()
     }

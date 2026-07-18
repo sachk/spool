@@ -9,12 +9,19 @@ TestCase {
     height: 300
     when: windowShown
 
+    property int modelSize: 100
+    property double fakeNow: 1000
+
     Primitives.NavGrid {
         id: grid
         anchors.fill: parent
         cellWidth: 100
         cellHeight: 100
-        model: 100
+        model: testCase.modelSize
+        holdTickInterval: 10000
+        nowProvider: function () {
+            return testCase.fakeNow
+        }
         delegate: Rectangle {
             required property int index
             width: grid.cellWidth
@@ -22,9 +29,49 @@ TestCase {
         }
     }
 
+    ListModel {
+        id: pagedModel
+    }
+
+    Primitives.NavGrid {
+        id: pagedGrid
+        width: 100
+        height: 100
+        visible: false
+        cellWidth: 100
+        cellHeight: 100
+        model: pagedModel
+        holdTickInterval: 10000
+        nowProvider: function () {
+            return testCase.fakeNow
+        }
+        delegate: Item {
+            required property int index
+            width: pagedGrid.cellWidth
+            height: pagedGrid.cellHeight
+        }
+    }
+
+    Item {
+        id: alternateFocus
+        focus: true
+    }
+
+    function arm(target, key, heldMs, frameMs, accumulator) {
+        target.heldKey = key
+        target.holdStartedAt = fakeNow - heldMs
+        target.lastHoldTickAt = fakeNow - frameMs
+        target.holdAccumulator = accumulator || 0
+    }
+
     function init() {
         grid.stopAccelerating()
+        pagedGrid.stopAccelerating()
+        modelSize = 100
         grid.currentIndex = 0
+        grid.reducedMotion = false
+        fakeNow = 1000
+        pagedModel.clear()
     }
 
     function test_singlePressMovesOneRowOnly() {
@@ -36,44 +83,137 @@ TestCase {
         verify(grid.routeKey(Qt.Key_Down, "release", false))
     }
 
-    function test_autoRepeatArmsKodiStyleAcceleration() {
-        verify(grid.routeKey(Qt.Key_Down, "press", false))
-        compare(grid.currentIndex, 4)
-        verify(grid.routeKey(Qt.Key_Down, "press", true))
-        compare(grid.heldKey, Qt.Key_Down)
-
-        grid.holdStartedAt = Date.now() - 500
-        grid.lastHoldTickAt = Date.now()
-        grid.holdAccumulator = 1
-        grid.accelerate()
-        verify(grid.currentIndex > 4)
-
-        verify(grid.routeKey(Qt.Key_Down, "release", false))
-        compare(grid.heldKey, 0)
+    function test_modelSizesKeepFirstPressPrecise_data() {
+        return [
+                    {
+                        "tag": "one",
+                        "size": 1,
+                        "expected": 0
+                    },
+                    {
+                        "tag": "ten",
+                        "size": 10,
+                        "expected": 4
+                    },
+                    {
+                        "tag": "two-hundred-fifty",
+                        "size": 250,
+                        "expected": 4
+                    },
+                    {
+                        "tag": "five-thousand",
+                        "size": 5000,
+                        "expected": 4
+                    }
+                ]
     }
 
-    function test_accelerationRampsGraduallyAndRemainsBounded() {
+    function test_modelSizesKeepFirstPressPrecise(data) {
+        modelSize = data.size
+        grid.currentIndex = 0
+        verify(grid.routeKey(Qt.Key_Down, "press", false))
+        compare(grid.currentIndex, data.expected)
+    }
+
+    function test_kodiAccelerationCurveScalesWithLibrary() {
+        modelSize = 1
+        compare(grid.holdMaximumRate, 30)
+        modelSize = 10
+        compare(grid.holdMaximumRate, 30)
+        modelSize = 250
+        compare(grid.holdMaximumRate, 250 / 7)
+        modelSize = 5000
+        compare(grid.holdMaximumRate, 5000 / 7)
         compare(grid.accelerationRate(grid.holdDelay - 1), 0)
-        compare(grid.accelerationRate(grid.holdDelay), grid.holdInitialRate)
-        const halfway = grid.accelerationRate(grid.holdDelay + grid.holdRampDuration / 2)
-        verify(halfway > grid.holdInitialRate)
-        verify(halfway < grid.holdMaximumRate)
-        compare(grid.accelerationRate(grid.holdDelay + grid.holdRampDuration), grid.holdMaximumRate)
+        compare(grid.accelerationRate(grid.holdDelay), 10)
+        compare(grid.accelerationRate(3000), grid.holdMaximumRate)
+    }
+
+    function test_fractionalMovementUsesElapsedTime() {
+        modelSize = 250
+        grid.currentIndex = 0
+        arm(grid, Qt.Key_Down, 3000, 10, 0)
+        grid.accelerate()
+        compare(grid.currentIndex, 0)
+        verify(grid.holdAccumulator > 0)
+        fakeNow += 20
+        grid.accelerate()
+        compare(grid.currentIndex, 4)
+    }
+
+    function test_frameStallsClampToFiftyMilliseconds() {
+        modelSize = 5000
+        grid.currentIndex = 0
+        fakeNow = 5000
+        arm(grid, Qt.Key_Down, 3000, 1000, 0)
+        grid.accelerate()
+        compare(grid.currentIndex, 140)
+        verify(grid.holdAccumulator > 0.7 && grid.holdAccumulator < 0.8)
+    }
+
+    function test_directionReversalAndReleaseResetAccumulator() {
+        arm(grid, Qt.Key_Down, 800, 20, 0.75)
+        verify(grid.routeKey(Qt.Key_Left, "press", true))
+        compare(grid.heldKey, Qt.Key_Left)
+        compare(grid.holdAccumulator, 0)
+        verify(grid.routeKey(Qt.Key_Left, "release", false))
+        compare(grid.heldKey, 0)
+        compare(grid.holdAccumulator, 0)
+    }
+
+    function test_focusZoneChangeStopsAcceleration() {
+        grid.forceActiveFocus()
+        arm(grid, Qt.Key_Down, 800, 20, 0.75)
+        alternateFocus.forceActiveFocus()
+        tryCompare(grid, "heldKey", 0)
+        compare(grid.holdAccumulator, 0)
+    }
+
+    function test_modelReplacementStopsAcceleration() {
+        arm(grid, Qt.Key_Down, 800, 20, 0.75)
+        modelSize = 10
+        tryCompare(grid, "heldKey", 0)
+        compare(grid.holdAccumulator, 0)
+    }
+
+    function test_paginationAppendContinuesHeldTraversal() {
+        for (let index = 0; index < 10; ++index)
+            pagedModel.append({
+                                  "value": index
+                              })
+        pagedGrid.currentIndex = 9
+        arm(pagedGrid, Qt.Key_Down, 3000, 50, 1)
+        pagedGrid.accelerate()
+        compare(pagedGrid.currentIndex, 9)
+        compare(pagedGrid.heldKey, Qt.Key_Down)
+        pagedModel.append({
+                              "value": 10
+                          })
+        fakeNow += 50
+        pagedGrid.lastHoldTickAt = fakeNow - 50
+        pagedGrid.holdAccumulator = 1
+        pagedGrid.accelerate()
+        compare(pagedGrid.currentIndex, 10)
+    }
+
+    function test_reducedMotionChangesAnimationNotTraversal() {
+        modelSize = 100
+        grid.currentIndex = 0
+        grid.reducedMotion = true
+        compare(grid.highlightMoveDuration, 0)
+        verify(grid.routeKey(Qt.Key_Down, "press", false))
+        compare(grid.currentIndex, 4)
+        arm(grid, Qt.Key_Down, 3000, 50, 1)
+        grid.accelerate()
+        verify(grid.currentIndex > 4)
     }
 
     function test_accelerationStopsWhenTvOmitsReleaseEvent() {
+        grid.forceActiveFocus()
         verify(grid.routeKey(Qt.Key_Down, "press", false))
         verify(grid.routeKey(Qt.Key_Down, "press", true))
         compare(grid.heldKey, Qt.Key_Down)
-
-        grid.holdStartedAt = Date.now() - 500
-        grid.lastHoldTickAt = Date.now()
-        grid.holdAccumulator = 1
-        grid.accelerate()
         wait(grid.holdReleaseTimeout + 50)
         compare(grid.heldKey, 0)
-        const stoppedAt = grid.currentIndex
-        wait(100)
-        compare(grid.currentIndex, stoppedAt)
     }
 }

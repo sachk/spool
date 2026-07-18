@@ -5,6 +5,7 @@ import QtQuick.Controls.Basic
 import QtQuick.Layouts
 import "../theme"
 import "../primitives"
+import "LibraryNavigation.js" as LibraryNavigation
 
 FocusScope {
     id: root
@@ -23,6 +24,8 @@ FocusScope {
     property string typeAheadBuffer: ""
     readonly property bool directionRelease: true
     readonly property int alphabetFeedbackIndex: {
+        if (grid.heldKey && grid.currentIndex >= 0)
+        return grid.currentIndex
         grid.contentY
         if (grid.count <= 0)
         return -1
@@ -32,11 +35,9 @@ FocusScope {
         return grid.firstLikelyVisibleIndex()
     }
     readonly property string currentAlphabetLabel: {
-        const title = sectionTitle(alphabetFeedbackIndex).trim()
-        if (title.length <= 0)
+        if (!Browse.items || alphabetFeedbackIndex < 0 || alphabetFeedbackIndex >= Browse.items.count)
         return "#"
-        const initial = title.charAt(0).toLocaleUpperCase()
-        return initial >= "A" && initial <= "Z" ? initial : "#"
+        return LibraryNavigation.sectionLabel(currentSortBy(), Browse.items.get(alphabetFeedbackIndex))
     }
     readonly property var libraryList: libraryPanel.menuList
     readonly property var sortList: sortPanel.menuList
@@ -472,13 +473,6 @@ FocusScope {
         return String(item.title || item.displayTitle || item.seriesName || "").toLocaleLowerCase()
     }
 
-    function sectionTitle(index) {
-        if (!Browse.items || index < 0 || index >= Browse.items.count)
-            return ""
-        const item = Browse.items.get(index) || ({})
-        return String(item.sortName || item.title || item.displayTitle || item.seriesName || "").toLocaleLowerCase()
-    }
-
     function selectTypeAheadMatch(query, includeCurrent) {
         const count = Browse.items ? Browse.items.count : 0
         if (count <= 0 || query.length <= 0)
@@ -838,12 +832,12 @@ FocusScope {
             clip: true
             keyNavigationEnabled: false
             reuseItems: true
-            highlightMoveDuration: 16
+            reducedMotion: Theme.reducedMotion
             opacity: gridReveal.delegatesReady ? 1 : 0
             boundsBehavior: Flickable.StopAtBounds
             model: Browse.items
             leftMargin: focusPadding
-            rightMargin: focusPadding + libraryScrollBar.width + Metrics.scaled(6)
+            rightMargin: focusPadding + Math.max(Metrics.scaled(18), 18) + Metrics.scaled(6)
             cellWidth: Math.floor((width - leftMargin - rightMargin - Metrics.gapPx * (columns - 1)) / columns)
             cellHeight: cellWidth * 1.5 + Metrics.scaled(64)
             cacheBuffer: gridReveal.delegatesReady ? cellHeight * artworkMarginRows : 0
@@ -862,6 +856,7 @@ FocusScope {
             onContentYChanged: {
                 loadMoreDebounce.restart()
                 artworkWindowDebounce.restart()
+                alphabetFeedback.restart()
             }
             onCurrentIndexChanged: {
                 if (currentIndex >= 0)
@@ -873,24 +868,23 @@ FocusScope {
 
             FastWheelHandler {
                 flickable: grid
-                animationDuration: 16
+                animationDuration: Theme.reducedMotion ? 0 : 16
             }
             ScrollBar.vertical: ScrollBar {
                 id: libraryScrollBar
-                width: Math.max(Metrics.scaled(14), 14)
+                readonly property bool activeState: pressed || hovered || grid.moving
+                width: activeState ? Math.max(Metrics.scaled(18), 18) : Math.max(Metrics.scaled(10), 10)
                 z: 20
-                interactive: true
+                interactive: !Platform.isTV
                 policy: ScrollBar.AlwaysOn
-                minimumSize: 0.1
+                minimumSize: 0.04
                 contentItem: Rectangle {
                     implicitWidth: Math.max(Metrics.scaled(8), 8)
                     radius: Math.min(Theme.radiusSmall, width / 4)
-                    color: libraryScrollBar.pressed || libraryScrollBar.hovered || grid.moving ? Theme.accent :
-                                                                                                 Theme.accentDim
+                    color: libraryScrollBar.activeState ? Theme.accent : Theme.accentDim
                     opacity: 1
                     border.width: Theme.hoverBorderWidth
-                    border.color: libraryScrollBar.pressed || libraryScrollBar.hovered ? Theme.textPrimary :
-                                                                                         Theme.accent
+                    border.color: libraryScrollBar.activeState ? Theme.textPrimary : Theme.accent
                 }
                 background: Rectangle {
                     radius: Math.min(Theme.radiusSmall, width / 4)
@@ -898,6 +892,11 @@ FocusScope {
                     opacity: 1
                     border.width: Theme.hoverBorderWidth
                     border.color: Theme.borderStrong
+                }
+                Behavior on width {
+                    NumberAnimation {
+                        duration: Theme.reducedMotion ? 0 : 90
+                    }
                 }
             }
             onEdgeUp: root.focusToolbar()
@@ -987,8 +986,7 @@ FocusScope {
                 color: Theme.accentPanel
                 border.width: Theme.hoverBorderWidth
                 border.color: Theme.accent
-                opacity: (alphabetFeedback.running || libraryScrollBar.pressed) && root.currentSortBy() === "SortName"
-                         ? 1 : 0
+                opacity: alphabetFeedback.running || libraryScrollBar.pressed ? 1 : 0
                 visible: opacity > 0
                 z: 6
 

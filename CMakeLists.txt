@@ -261,6 +261,7 @@ qt_add_qml_module(jellyfin-native
         qml/pages/HomePage.qml
         qml/pages/ItemDetailsPage.qml
         qml/pages/LibraryGridPage.qml
+        qml/pages/LibraryNavigation.js
         qml/pages/LoginPage.qml
         qml/pages/ProfileNavigation.js
         qml/pages/OpenSourceNoticesPage.qml
@@ -498,6 +499,10 @@ if(BUILD_TESTING AND NOT CMAKE_CROSSCOMPILING)
             COMMAND "${QMLTESTRUNNER_EXECUTABLE}"
                 -input "${CMAKE_CURRENT_SOURCE_DIR}/tests/qml/tst_NavGrid.qml"
         )
+        add_test(NAME library-navigation
+            COMMAND "${QMLTESTRUNNER_EXECUTABLE}"
+                -input "${CMAKE_CURRENT_SOURCE_DIR}/tests/qml/tst_LibraryNavigation.qml"
+        )
         add_test(NAME profile-navigation
             COMMAND "${QMLTESTRUNNER_EXECUTABLE}"
                 -input "${CMAKE_CURRENT_SOURCE_DIR}/tests/qml/tst_ProfileNavigation.qml"
@@ -524,6 +529,7 @@ if(BUILD_TESTING AND NOT CMAKE_CROSSCOMPILING)
             ${JELLYFIN_TEST_ENV}
         )
         set_tests_properties(route-policy key-router player-overlay-input option-picker-input nav-grid
+            library-navigation
             profile-navigation settings-navigation atomic-view-reveal input-latency-warning player-seek-bar-hover
             PROPERTIES ENVIRONMENT "${JELLYFIN_QML_TEST_ENV}"
         )
