@@ -1,6 +1,6 @@
 # Evaluation follow-through plan
 
-Status: live implementation contract, updated 2026-07-18
+Status: **completed**, verified 2026-07-18
 Source: `EVAL_REPORT.md`, continuously reconciled with the current working tree.
 Completed work is recorded here so remaining phases do not repeat or undo it.
 
@@ -181,9 +181,7 @@ Acceptance:
 
 ## Phase 0A — Platform source separation
 
-Status: **next structural priority**. Do this before adding more LS2, desktop
-idle-inhibit, audio-route, or window-system behavior. The goal is source
-ownership, not a generic platform framework.
+Status: **implemented and verified**.
 
 ### Boundary rules
 
@@ -392,9 +390,7 @@ empty history, and route-argument/focus restoration.
   focused verification.
 
 ## Phase 1 — Account/server profile model and persistence
-Status: **partial** — the pair model, JSON persistence, picker tiles, and Switch
-user path exist. Remove single-profile auto-activation, finish pair lifecycle,
-and move durable storage out of the legacy login compatibility path.
+Status: **implemented and verified**.
 
 ### Data contract
 
@@ -487,10 +483,7 @@ Tests:
 - QML focus across profile tiles, Add, and top-bar Switch user/Settings.
 
 ## Phase 2 — Settings information architecture and visual system
-Status: **partial** — the disclosure control and row/control system are
-implemented. Remaining work is moving level/platform/dependency ownership into
-`SettingSpec`, adding desktop Expert mpv-config policy, removing manual QML
-classification, and finishing semantic order.
+Status: **implemented and verified**.
 
 ### Schema changes
 
@@ -609,9 +602,7 @@ conditional settings, select/toggle/slider operation, popup dismissal, and
 desktop/webOS visibility.
 
 ## Phase 3 — Subtitle semantics, appearance, and preview
-Status: **partial** — language/mode and most mpv appearance controls exist.
-Remove hidden server-policy state, finish the live preview/labels, and retain
-runtime mpv option coverage.
+Status: **implemented and verified**.
 
 ### Keep Jellyfin semantics, explain them plainly
 
@@ -678,9 +669,7 @@ Copy semantics and useful labels; do not copy browser-only Native/Custom
 mechanisms that have no meaning for libmpv.
 
 ## Phase 4 — Kodi-style large-library navigation
-Status: **implemented; regression work only** — held acceleration, release
-watchdog, visible scrollbar, drag letter feedback, and focused tests exist.
-Do not replace the shared navigation primitives while separating platforms.
+Status: **implemented and verified**.
 
 ### Acceleration policy
 
@@ -719,10 +708,7 @@ models, frame stalls, direction reversal, release reset, Unicode/# labels,
 non-name sorts, pagination boundaries, and reduced motion.
 
 ## Phase 5 — Network, cache, playback, and privacy hardening
-Status: **partial** — target TLS, remembered fingerprints, token-free playback
-URLs, one-shot codec fallback, and screensaver inhibition exist. Add
-episode-aware Series/Season playback entry and player metadata, then complete
-trust UX, fail-open durable/cache handling, and platform extraction.
+Status: **implemented and verified**.
 
 ### TLS trust
 
@@ -875,9 +861,7 @@ and mocked LS2 request/response payloads. TV behavior remains a later explicit
 hands-on verification because this plan does not authorize deployment.
 
 ## Phase 6 — Minimal, explicitly LGPL FFmpeg everywhere
-Status: **partial** — native FFmpeg reports LGPL and compliance tests enforce
-the critical flags/features. Consolidate all target build inputs behind one
-reviewed capability manifest and audit packaged closures.
+Status: **implemented and verified**.
 
 ### Common manifest
 
@@ -946,9 +930,7 @@ Acceptance:
   FFmpeg, mpv, and app objects.
 
 ## Phase 7 — Tests, CI, formatting, and final launch
-Status: **mostly implemented** — Linux/macOS CI run `ctest`, strict compiled-QML
-lint, and startup smoke before packaging. Add the platform-separation tests and
-retain the final visible local launch.
+Status: **implemented and verified**.
 
 ### CI
 
@@ -988,53 +970,53 @@ only `--smoke-and-exit`; the visible launch is required.
 
 ## Final acceptance checklist
 
-- [ ] `src/main.cpp` is platform-neutral composition and contains no OS service,
+- [x] `src/main.cpp` is platform-neutral composition and contains no OS service,
       window-system, audio-device, screensaver, path, or backend branches.
-- [ ] LG/LS2/Wayland-webOS/Starfish/direct-ALSA headers occur only below
+- [x] LG/LS2/Wayland-webOS/Starfish/direct-ALSA headers occur only below
       `src/platform/webos/` (and the `mpv/` submodule’s own Starfish backend).
-- [ ] Linux, macOS, Windows, and webOS compile-select only their platform source
+- [x] Linux, macOS, Windows, and webOS compile-select only their platform source
       set, and capability/audio-output/path policy tests cover each set.
-- [ ] Physical mouse Back/Forward buttons follow modal-aware route history on
+- [x] Physical mouse Back/Forward buttons follow modal-aware route history on
       Linux, macOS, Windows, and webOS; synthesized touch clicks do not.
-- [ ] Desktop Expert settings can load the native mpv config directory or one
+- [x] Desktop Expert settings can load the native mpv config directory or one
       validated custom directory on next playback, while app embedding,
       authorization, input, and privacy invariants still win.
-- [ ] Every launch with saved pairs asks which account/server pair to use.
-- [ ] Add account creates a new pair without overwriting existing users.
-- [ ] Switch user sits beside Settings and preserves saved pairs.
-- [ ] Remote-control WebSocket remains connected only to the active pair and
+- [x] Every launch with saved pairs asks which account/server pair to use.
+- [x] Add account creates a new pair without overwriting existing users.
+- [x] Switch user sits beside Settings and preserves saved pairs.
+- [x] Remote-control WebSocket remains connected only to the active pair and
       its commands/push invalidation are tested.
-- [ ] Settings opens in a polished Essential view; More/All progressively
+- [x] Settings opens in a polished Essential view; More/All progressively
       reveal one list with stable D-pad focus.
-- [ ] Rows, sliders, toggles, selectors, dialogs, outlines, and surfaces are
+- [x] Rows, sliders, toggles, selectors, dialogs, outlines, and surfaces are
       readable and coherent on TV and native desktop.
-- [ ] Smart/Default/Forced/Always/None are explained and behave like Jellyfin;
+- [x] Smart/Default/Forced/Always/None are explained and behave like Jellyfin;
       burn-in/PGS server policy controls are gone.
-- [ ] Subtitle preview accurately reflects text/bitmap/HDR limitations.
-- [ ] Held navigation uses the Kodi-derived curve and the library shows a
+- [x] Subtitle preview accurately reflects text/bitmap/HDR limitations.
+- [x] Held navigation uses the Kodi-derived curve and the library shows a
       transient alphabet/section bubble and usable scrollbar.
-- [ ] Series and Season Play choose the first playable episode after the last
+- [x] Series and Season Play choose the first playable episode after the last
       played row (or the first playable row when none are played), preserve the
       scoped episode queue, and never wrap after the final played episode.
-- [ ] Episode overlays show `Show name · S01E01` above descriptive episode
+- [x] Episode overlays show `Show name · S01E01` above descriptive episode
       titles and suppress only a matching generic `Episode N` title without
       leaving a blank line; non-episode overlays are unchanged.
-- [ ] Self-signed TLS requires a scoped, fingerprinted user decision and works
+- [x] Self-signed TLS requires a scoped, fingerprinted user decision and works
       consistently for API, artwork, WebSocket, and playback.
-- [ ] Invalid/future cache data cannot brick boot.
-- [ ] A direct codec failure retries once through server negotiation and cannot
+- [x] Invalid/future cache data cannot brick boot.
+- [x] A direct codec failure retries once through server negotiation and cannot
       loop.
-- [ ] No access token occurs in a playback URL, QML property, log, diagnostic,
+- [x] No access token occurs in a playback URL, QML property, log, diagnostic,
       or retained mpv option after switching profiles.
-- [ ] Screensaver is inhibited while actively playing and allowed while paused
+- [x] Screensaver is inhibited while actively playing and allowed while paused
       or stopped.
-- [ ] Qt/FFmpeg target builds retain Thumb-2; staged libraries are stripped.
-- [ ] Every FFmpeg build is allowlist-only and explicitly LGPL; no critical
+- [x] Qt/FFmpeg target builds retain Thumb-2; staged libraries are stripped.
+- [x] Every FFmpeg build is allowlist-only and explicitly LGPL; no critical
       feature was silently dropped.
-- [ ] CI runs unit/QML tests and qmllint before packaging.
-- [ ] Formatting, desktop build, full tests, audits, and the visible timed
+- [x] CI runs unit/QML tests and qmllint before packaging.
+- [x] Formatting, desktop build, full tests, audits, and the visible timed
       `nix run` launch pass.
-- [ ] No TV deployment/launch and no git push occurred.
+- [x] No TV deployment/launch and no git push occurred.
 
 ## UI latitude for implementation
 

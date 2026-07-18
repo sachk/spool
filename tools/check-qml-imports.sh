@@ -54,13 +54,25 @@ import sys
 with open(sys.argv[1], encoding="utf-8") as handle:
     imports = json.load(handle)
 
-missing = sorted({
-    entry["name"]
-    for entry in imports
-    if entry.get("type") == "module"
-    and entry.get("name", "").startswith("Qt")
-    and not entry.get("path")
-})
+# Qt Quick Controls advertises native style modules for every desktop target.
+# A Linux Qt installation intentionally omits the Windows, macOS, and iOS style
+# plugins; qmlimportscanner still reports those transitive optional imports.
+platform_style_modules = {
+    "QtQuick.Controls.Windows",
+    "QtQuick.Controls.macOS",
+    "QtQuick.Controls.iOS",
+}
+
+missing = sorted(
+    {
+        entry["name"]
+        for entry in imports
+        if entry.get("type") == "module"
+        and entry.get("name", "").startswith("Qt")
+        and not entry.get("path")
+    }
+    - platform_style_modules
+)
 if missing:
     print("error: unresolved QML modules:", file=sys.stderr)
     for name in missing:

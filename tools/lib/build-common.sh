@@ -401,8 +401,20 @@ mpv_meson_build() {
     fi
   fi
 
+  local dependency_fingerprint dependency_marker cached_fingerprint=""
+  dependency_marker="$build/.jellyfin-dependency-env"
+  dependency_fingerprint="$(printf '%s\n%s\n' "${PKG_CONFIG_PATH:-}" "${CMAKE_PREFIX_PATH:-}" | sha256sum)"
+  dependency_fingerprint="${dependency_fingerprint%% *}"
+  [[ -f "$dependency_marker" ]] && read -r cached_fingerprint <"$dependency_marker"
+
   if [[ -f "$build/build.ninja" ]]; then
-    if ! meson setup --reconfigure "$build" "$src" "${setup_args[@]}"; then
+    local clear_cache_args=()
+    if [[ "$cached_fingerprint" != "$dependency_fingerprint" ]]; then
+      # Unchanged dependency versions can move to new Nix store paths and
+      # require libmpv to relink, but clearing every cache slows local launches.
+      clear_cache_args+=(--clearcache)
+    fi
+    if ! meson setup --reconfigure "${clear_cache_args[@]}" "$build" "$src" "${setup_args[@]}"; then
       echo "mpv reconfigure failed; retrying with a clean build directory" >&2
       rm -rf "$build"
       meson setup "$build" "$src" "${setup_args[@]}"
@@ -410,6 +422,7 @@ mpv_meson_build() {
   else
     meson setup "$build" "$src" "${setup_args[@]}"
   fi
+  printf '%s\n' "$dependency_fingerprint" >"$dependency_marker"
   local jobs
   jobs="$(recommended_parallel_jobs)"
   meson compile -C "$build" -j "$jobs"

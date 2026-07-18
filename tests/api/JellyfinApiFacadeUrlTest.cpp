@@ -1,5 +1,6 @@
 #include "api/JellyfinApiFacade.h"
 #include "app/ArtworkService.h"
+#include "common/TlsTrust.h"
 
 #include <QCoreApplication>
 #include <QNetworkAccessManager>
@@ -51,12 +52,13 @@ int main(int argc, char **argv)
 {
     QCoreApplication app(argc, argv);
     QNetworkAccessManager network;
-    JellyfinApiFacade api(&network);
+    TlsTrustController tlsTrust;
+    JellyfinApiFacade api(&network, &tlsTrust);
     api.setServerUrl(QStringLiteral("https://media.example.test/jellyfin/root/"));
 
     QTemporaryDir cacheDirectory;
     require(cacheDirectory.isValid(), "artwork test cache should be available");
-    ArtworkService artwork(cacheDirectory.path(), 1024 * 1024, 1024 * 1024, 1);
+    ArtworkService artwork(cacheDirectory.path(), 1024 * 1024, 1024 * 1024, 1, &tlsTrust);
     artwork.setServerUrl(QStringLiteral("https://media.example.test/jellyfin/root/"));
     MovieItem imageItem;
     imageItem.id = QStringLiteral("folder/item 1");

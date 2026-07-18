@@ -193,7 +193,7 @@ jobs:
     name: webOS IPK
     runs-on: [self-hosted, linux, X64]
     needs: lint
-    if: ${{ github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.build_webos) }}
+    if: ${{ github.event_name != 'workflow_dispatch' || inputs.build_webos }}
     steps:
       - uses: actions/checkout@v6
         with:

@@ -938,8 +938,7 @@ FocusScope {
             width: settingsList.width
             implicitHeight: textContent.implicitHeight + Metrics.scaled(28)
             elevated: true
-            borderColor: settingsList.activeFocus && settingsList.currentIndex === rowIndex ? Theme.accent :
-                                                                                              Theme.border
+            focused: settingsList.activeFocus && settingsList.currentIndex === rowIndex
 
             function activate() {
                 if (browseButton.activeFocus)

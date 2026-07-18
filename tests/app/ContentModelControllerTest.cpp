@@ -5,6 +5,7 @@
 #include "app/SearchController.h"
 #include "common/AsyncTask.h"
 #include "common/MetaJson.h"
+#include "common/TlsTrust.h"
 
 #include <QCoreApplication>
 #include <QDebug>
@@ -36,6 +37,7 @@ using JellyfinNative::MovieGridModel;
 using JellyfinNative::MovieItem;
 using JellyfinNative::PagedMovieItems;
 using JellyfinNative::SearchController;
+using JellyfinNative::TlsTrustController;
 
 namespace {
 
@@ -565,7 +567,8 @@ int main(int argc, char **argv)
     QCoreApplication app(argc, argv);
 
     FakeNetworkAccessManager network;
-    JellyfinApiFacade api(&network);
+    TlsTrustController tlsTrust;
+    JellyfinApiFacade api(&network, &tlsTrust);
     api.setServerUrl(QStringLiteral("http://jellyfin.test"));
     api.setSession(AuthSession {
         QStringLiteral("user-1"), QStringLiteral("Tester"), QStringLiteral("token-1"), QStringLiteral("server-1") });

@@ -17,6 +17,7 @@ SystemPerformanceMonitor::SystemPerformanceMonitor(QObject *parent)
 void SystemPerformanceMonitor::setAudioDecodeCpuTimeProvider(std::function<qint64()> provider)
 {
     m_audioDecodeCpuTimeProvider = std::move(provider);
+    sample();
 }
 
 void SystemPerformanceMonitor::sample()
