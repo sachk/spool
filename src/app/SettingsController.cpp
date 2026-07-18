@@ -223,8 +223,9 @@ QCoro::Task<void> SettingsController::loadLocalAsync()
 
 void SettingsController::loadRemote()
 {
-    if (!m_api || m_api->session().accessToken.isEmpty())
+    if (m_remoteLoadStarted || !m_api || m_api->session().accessToken.isEmpty())
         return;
+    m_remoteLoadStarted = true;
 
     Async::runScoped(
         this, m_api->fetchCultures(),
@@ -282,6 +283,7 @@ void SettingsController::loadRemote()
 void SettingsController::clearRemote()
 {
     m_userConfiguration = {};
+    m_remoteLoadStarted = false;
 }
 
 void SettingsController::setValue(const QString& key, const QVariant& value)

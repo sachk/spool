@@ -571,6 +571,7 @@ FocusScope {
     // Only take focus if the page is actually active: the route host
     // prewarms an invisible instance, which must not steal focus.
     Component.onCompleted: Qt.callLater(function () {
+        Settings.loadRemote()
         buildSettingsRowsSource()
         if (activeFocus)
             focusEntry()

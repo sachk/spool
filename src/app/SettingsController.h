@@ -102,7 +102,7 @@ public:
     Q_INVOKABLE QVariant value(const QString& key) const;
 
     QCoro::Task<void> loadLocalAsync();
-    void loadRemote();
+    Q_INVOKABLE void loadRemote();
     void clearRemote();
     Q_INVOKABLE void setValue(const QString& key, const QVariant& value);
     Q_INVOKABLE void setNightModeEnabled(bool enabled);
@@ -167,6 +167,7 @@ private:
     JellyfinApiFacade *m_api = nullptr;
     PlayerController *m_player = nullptr;
     QVariantMap m_values;
+    bool m_remoteLoadStarted = false;
     bool m_nightModeEnabled = false;
     bool m_toneMappingVisualizationEnabled = false;
     bool m_manualStreamingBitrate = false;

@@ -499,7 +499,6 @@ int main(int argc, char **argv)
     qmlRegisterType<JellyfinNative::MpvVideoItem>("JellyfinWebOS", 1, 0, "MpvVideoItem");
     // Start asynchronous device, settings, account, and discovery reads before
     // QML construction. A sole saved account is resolved before routing begins.
-    router->beginSession(false);
     controller->initialize();
 
     QObject::connect(
@@ -525,10 +524,17 @@ int main(int argc, char **argv)
         return 0;
     }
 
-    QTimer::singleShot(0, &window, [&startupTimer]() {
+    // Match the pre-splash lifecycle: publish the transparent Qt surface only
+    // after its QML tree is complete, then let webOS perform the fullscreen
+    // handoff from the first event-loop turn.
+    JellyfinNative::showPlatformWindow(window);
+    QTimer::singleShot(1000, router.get(), [router = router.get()] { router->beginSession(false); });
+
+    QTimer::singleShot(0, &window, [&window, &startupTimer]() {
         logLine(
             "startup: event loop entered, first-frame path at %lld ms", static_cast<long long>(startupTimer.elapsed()));
         JellyfinNative::Diagnostics::setInstanceState(QStringLiteral("running"));
+        JellyfinNative::enterPlatformRunningState(window);
     });
 
     const int exitCode = app.exec();

@@ -145,9 +145,12 @@ FocusScope {
         dropTransientPages()
         if (Platform.isTV)
             Qt.callLater(evictInactiveMediaPages)
-        if (Session.authenticated && !prewarmScheduled) {
+        // Desktop can amortize cold route construction during idle. On TV,
+        // even an invisible page build blocks the single GUI thread and made
+        // launch look as if Settings or another stale route had opened.
+        if (Session.authenticated && !Platform.isTV && !prewarmScheduled) {
             prewarmScheduled = true
-            prewarmQueue = Platform.isTV ? ["settings"] : ["settings", "libraryGrid", "itemDetails", "personDetails"]
+            prewarmQueue = ["settings", "libraryGrid", "itemDetails", "personDetails"]
             prewarmTimer.start()
         }
         completeUiTransitionIfReady()

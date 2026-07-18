@@ -59,6 +59,7 @@ private:
     BrowseSessionController *m_browse = nullptr;
     QVariantList m_playlistTargets;
     QVariantList m_collectionTargets;
+    bool m_policyLoadStarted = false;
     bool m_currentUserCanManagePlaylists = false;
     bool m_currentUserCanManageCollections = false;
     bool m_currentUserCanRenameItems = false;

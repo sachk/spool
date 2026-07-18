@@ -29,4 +29,15 @@ QSurfaceFormat platformSurfaceFormat()
 
 void configurePlatformWindow(NativeAppWindow&) { }
 
+void showPlatformWindow(NativeAppWindow& window)
+{
+    window.show();
+    window.requestActivate();
+}
+
+void enterPlatformRunningState(NativeAppWindow& window)
+{
+    showPlatformWindow(window);
+}
+
 } // namespace JellyfinNative

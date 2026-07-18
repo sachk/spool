@@ -7,7 +7,7 @@
   "title": "Jellyfin Native",
   "icon": "icon.png",
   "largeIcon": "icon.png",
-  "splashBackground": "splash.png",
+  "noSplashOnLaunch": true,
   "appDescription": "Native Qt Quick Jellyfin client for LG webOS using libmpv and Starfish.",
   "tileSize": "normal",
   "supportTouchMode": "full",

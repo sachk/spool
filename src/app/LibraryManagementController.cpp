@@ -25,6 +25,7 @@ void LibraryManagementController::clear()
 {
     m_playlistTargets.clear();
     m_collectionTargets.clear();
+    m_policyLoadStarted = false;
     m_currentUserCanManagePlaylists = false;
     m_currentUserCanManageCollections = false;
     m_currentUserCanRenameItems = false;
@@ -35,10 +36,13 @@ void LibraryManagementController::clear()
 
 void LibraryManagementController::loadCurrentUserPolicy()
 {
+    if (m_policyLoadStarted)
+        return;
     if (!m_api || m_api->session().accessToken.isEmpty()) {
         clear();
         return;
     }
+    m_policyLoadStarted = true;
 
     m_currentUserCanManagePlaylists = true;
     emit policyChanged();

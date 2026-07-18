@@ -93,8 +93,8 @@ void LibraryPrefetchController::schedule(const std::vector<LibraryItem>& librari
     if (m_queue.empty())
         return;
 
-    qInfo() << "library prefetch: scheduled" << m_queue.size() << "libraries after home load";
-    m_timer.start(1500);
+    qInfo() << "library prefetch: scheduled" << m_queue.size() << "libraries for post-launch idle";
+    m_timer.start(10000);
 }
 
 std::optional<PagedMovieItems> LibraryPrefetchController::cachedPage(const QString& cacheKey) const
@@ -170,12 +170,12 @@ void LibraryPrefetchController::startNext()
             qInfo() << "library prefetch: cached" << request.title << page.items.size();
             storePage(request.cacheKey, page);
             m_active = false;
-            startNext();
+            m_timer.start(2000);
         },
         [this, request](const std::exception_ptr& error) {
             qWarning() << "library prefetch: failed" << request.title << request.cacheKey << exceptionMessage(error);
             m_active = false;
-            startNext();
+            m_timer.start(2000);
         });
 }
 

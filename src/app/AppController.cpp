@@ -136,20 +136,29 @@ AppController::AppController(DatabaseManager *database, DiscoveryController *dis
         m_discovery->stop();
         if (m_artwork)
             m_artwork->setAuthorizationHeader(m_api->authorizationHeader());
-        Async::runScoped(
-            this, m_api->refreshPlaybackNetworkState(), []() {},
-            [](const std::exception_ptr& error) {
-                qWarning() << "playback bandwidth: route measurement failed" << exceptionMessage(error);
-            });
         if (!m_hasDefaultProfile) {
             m_hasDefaultProfile = true;
             emit defaultProfileChanged();
         }
         m_home->loadCachedPayload();
-        m_settings->loadRemote();
-        m_syncPlay->connectSocket();
         loadLibraries();
-        m_management->loadCurrentUserPolicy();
+
+        // The home route is the only launch-critical server work. Subtitle
+        // metadata and bandwidth probing are useful, but starting them beside
+        // the initial home requests competes for the TV's limited network and
+        // JSON-processing budget. Load them after the first interaction window;
+        // opening Settings sooner triggers the same idempotent load directly.
+        const QString sessionToken = m_api->session().accessToken;
+        QTimer::singleShot(5000, this, [this, sessionToken]() {
+            if (!m_session->authenticated() || m_api->session().accessToken != sessionToken)
+                return;
+            m_settings->loadRemote();
+            Async::runScoped(
+                this, m_api->refreshPlaybackNetworkState(), []() {},
+                [](const std::exception_ptr& error) {
+                    qWarning() << "playback bandwidth: route measurement failed" << exceptionMessage(error);
+                });
+        });
     });
     connect(m_session, &SessionController::loggedOut, this, &AppController::resetApplicationState);
     connect(m_quickConnect, &QuickConnectController::authenticated, this,

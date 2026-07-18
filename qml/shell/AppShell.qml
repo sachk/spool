@@ -441,6 +441,7 @@ KeyRouter {
     }
 
     function openItemMenu(item, anchorItem, context) {
+        Management.loadCurrentUserPolicy()
         itemMenuLoaded = true
         return itemContextMenuLoader.item ? itemContextMenuLoader.item.openForItem(item || ({}), anchorItem || null,
                                                                                    context || ({})) : false
