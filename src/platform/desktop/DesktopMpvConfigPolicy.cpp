@@ -2,6 +2,7 @@
 
 #include <QDir>
 #include <QFileInfo>
+#include <QUrl>
 
 namespace JellyfinNative {
 
@@ -12,10 +13,17 @@ MpvConfigPolicy validatedPlatformMpvConfigPolicy(const QString& mode, const QStr
     if (mode.compare(QStringLiteral("custom"), Qt::CaseInsensitive) != 0)
         return {};
 
-    const QFileInfo info { QDir::cleanPath(directory) };
-    if (!info.exists() || !info.isDir()) {
+    const QUrl selectedUrl(directory.trimmed());
+    const QString selectedPath = selectedUrl.isLocalFile() ? selectedUrl.toLocalFile() : directory.trimmed();
+    const QString cleaned = QDir::cleanPath(selectedPath);
+    if (cleaned.isEmpty() || !QDir::isAbsolutePath(cleaned)) {
         return { MpvConfigPolicy::Mode::Disabled, {}, false,
-            QStringLiteral("The custom mpv configuration directory does not exist.") };
+            QStringLiteral("Choose an absolute custom mpv configuration directory.") };
+    }
+    const QFileInfo info { cleaned };
+    if (!info.exists() || !info.isDir() || !info.isReadable()) {
+        return { MpvConfigPolicy::Mode::Disabled, {}, false,
+            QStringLiteral("The custom mpv configuration directory must exist and be readable.") };
     }
     const QString canonical = info.canonicalFilePath();
     if (canonical.isEmpty()) {

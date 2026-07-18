@@ -1,6 +1,9 @@
 #include "player/MpvOptionProfile.h"
 
 #include <QCoreApplication>
+#include <QFileInfo>
+#include <QTemporaryDir>
+#include <QUrl>
 
 #include <cstdlib>
 #include <iostream>
@@ -16,6 +19,25 @@ QByteArray valueFor(const std::vector<MpvOption>& options, const QByteArray& nam
             return option.value;
     }
     return {};
+}
+qsizetype indexOf(const std::vector<MpvOption>& options, const QByteArray& name)
+{
+    for (qsizetype index = 0; index < static_cast<qsizetype>(options.size()); ++index) {
+        if (options.at(static_cast<size_t>(index)).name == name)
+            return index;
+    }
+    return -1;
+}
+std::vector<MpvOption> profileOptions(const MpvConfigPolicy& policy, MpvOptionProfile::Platform platform,
+    const QString& audioOutputMode, const QByteArray& logPath,
+    const QByteArray& demuxerMaxBytes = QByteArrayLiteral("64M"),
+    const QByteArray& demuxerMaxBackBytes = QByteArrayLiteral("32M"), int parallelRequests = 1)
+{
+    std::vector<MpvOption> options = MpvOptionProfile::preInitializeOptions(policy);
+    std::vector<MpvOption> applicationOptions = MpvOptionProfile::applicationOptions(
+        platform, audioOutputMode, logPath, demuxerMaxBytes, demuxerMaxBackBytes, parallelRequests);
+    options.insert(options.end(), applicationOptions.cbegin(), applicationOptions.cend());
+    return options;
 }
 
 void require(bool condition, const char *message)
@@ -37,8 +59,8 @@ int main(int argc, char **argv)
     require(desktopNetwork.rangeBytes == 1024 * 1024, "desktop curl range profile changed");
     require(desktopNetwork.parallelRequests == 1, "desktop curl should default to one request");
 
-    const auto desktop = MpvOptionProfile::startupOptions(
-        MpvOptionProfile::Platform::Desktop, QStringLiteral("alsa"), QByteArrayLiteral("/tmp/mpv.log"));
+    const auto desktop = profileOptions(MpvConfigPolicy {}, MpvOptionProfile::Platform::Desktop, QStringLiteral("alsa"),
+        QByteArrayLiteral("/tmp/mpv.log"));
     require(valueFor(desktop, "vo") == "libmpv", "desktop should render through libmpv");
     require(valueFor(desktop, "hwdec") == "auto-safe", "desktop should enable safe hardware decoding");
     require(valueFor(desktop, "log-file") == "/tmp/mpv.log", "profile should carry the configured log path");
@@ -48,6 +70,48 @@ int main(int argc, char **argv)
     require(valueFor(desktop, "curl-parallel-requests") == "1", "desktop should default to one range request");
     require(
         valueFor(desktop, "initial-audio-sync").isEmpty(), "desktop should retain mpv's initial audio sync default");
+    require(valueFor(desktop, "config") == "no", "disabled user configuration should bypass mpv.conf");
+    require(indexOf(desktop, "config") < indexOf(desktop, "input-default-bindings"),
+        "application input invariants must be applied after user configuration policy");
+
+    MpvConfigPolicy standardConfig;
+    standardConfig.mode = MpvConfigPolicy::Mode::Standard;
+    const auto desktopStandard = profileOptions(
+        standardConfig, MpvOptionProfile::Platform::Desktop, QStringLiteral("auto"), QByteArrayLiteral("/tmp/mpv.log"));
+    require(valueFor(desktopStandard, "config") == "yes", "standard user configuration should enable mpv.conf");
+    require(valueFor(desktopStandard, "config-dir").isEmpty(),
+        "standard user configuration should retain mpv's platform directory");
+
+    MpvConfigPolicy customConfig;
+    customConfig.mode = MpvConfigPolicy::Mode::Custom;
+    customConfig.directory = QStringLiteral("/tmp/custom-mpv");
+    const auto desktopCustom = profileOptions(
+        customConfig, MpvOptionProfile::Platform::Desktop, QStringLiteral("auto"), QByteArrayLiteral("/tmp/mpv.log"));
+    require(valueFor(desktopCustom, "config") == "yes", "custom user configuration should enable mpv.conf");
+    require(valueFor(desktopCustom, "config-dir") == "/tmp/custom-mpv",
+        "custom user configuration directory was not propagated");
+    require(valueFor(desktopCustom, "input-default-bindings") == "no",
+        "user configuration must not take ownership of application input");
+    QTemporaryDir customConfigDirectory;
+    require(customConfigDirectory.isValid(), "temporary custom mpv directory was not created");
+    const MpvConfigPolicy validatedCustom
+        = validatedPlatformMpvConfigPolicy(QStringLiteral("custom"), customConfigDirectory.path());
+    require(validatedCustom.valid && validatedCustom.mode == MpvConfigPolicy::Mode::Custom,
+        "existing custom mpv directory should validate");
+    require(validatedCustom.directory == QFileInfo(customConfigDirectory.path()).canonicalFilePath(),
+        "custom mpv directory should be canonicalized");
+    const MpvConfigPolicy validatedFileUrl = validatedPlatformMpvConfigPolicy(
+        QStringLiteral("custom"), QUrl::fromLocalFile(customConfigDirectory.path()).toString());
+    require(validatedFileUrl.valid && validatedFileUrl.directory == validatedCustom.directory,
+        "folder-dialog file URL should validate as a local directory");
+    const MpvConfigPolicy missingCustom
+        = validatedPlatformMpvConfigPolicy(QStringLiteral("custom"), QStringLiteral("/path/that/does/not/exist"));
+    require(!missingCustom.valid && missingCustom.mode == MpvConfigPolicy::Mode::Disabled,
+        "missing custom mpv directory should fail closed");
+    const MpvConfigPolicy relativeCustom
+        = validatedPlatformMpvConfigPolicy(QStringLiteral("custom"), QStringLiteral("relative/mpv"));
+    require(!relativeCustom.valid && relativeCustom.mode == MpvConfigPolicy::Mode::Disabled,
+        "relative custom mpv directory should fail closed");
 
     PlaybackSession hlsTranscode;
     hlsTranscode.playMethod = QStringLiteral("Transcode");
@@ -88,7 +152,7 @@ int main(int argc, char **argv)
         "transcodes should not reuse source-file stream indexes");
 
     const auto customDemuxerBudget
-        = MpvOptionProfile::startupOptions(MpvOptionProfile::Platform::Desktop, QStringLiteral("alsa"),
+        = profileOptions(MpvConfigPolicy {}, MpvOptionProfile::Platform::Desktop, QStringLiteral("alsa"),
             QByteArrayLiteral("/tmp/mpv.log"), QByteArrayLiteral("123456789"), QByteArrayLiteral("9876543"), 2);
     require(valueFor(customDemuxerBudget, "demuxer-max-bytes") == "123456789",
         "custom demuxer max byte budget was not propagated");
@@ -97,26 +161,26 @@ int main(int argc, char **argv)
     require(valueFor(customDemuxerBudget, "curl-parallel-requests") == "2",
         "measured request parallelism was not propagated");
 
-    const auto desktopAuto = MpvOptionProfile::startupOptions(
-        MpvOptionProfile::Platform::Desktop, QStringLiteral("auto"), QByteArrayLiteral("/tmp/mpv.log"));
+    const auto desktopAuto = profileOptions(MpvConfigPolicy {}, MpvOptionProfile::Platform::Desktop,
+        QStringLiteral("auto"), QByteArrayLiteral("/tmp/mpv.log"));
     require(valueFor(desktopAuto, "ao").isEmpty(), "automatic desktop audio should leave output probing to mpv");
 #if defined(Q_OS_LINUX)
-    const auto desktopPipeWire = MpvOptionProfile::startupOptions(
-        MpvOptionProfile::Platform::Desktop, QStringLiteral("pipewire"), QByteArrayLiteral("/tmp/mpv.log"));
+    const auto desktopPipeWire = profileOptions(MpvConfigPolicy {}, MpvOptionProfile::Platform::Desktop,
+        QStringLiteral("pipewire"), QByteArrayLiteral("/tmp/mpv.log"));
     require(valueFor(desktopPipeWire, "ao") == "pipewire", "Linux PipeWire selection was not applied");
-    const auto desktopPulse = MpvOptionProfile::startupOptions(
-        MpvOptionProfile::Platform::Desktop, QStringLiteral("pulse"), QByteArrayLiteral("/tmp/mpv.log"));
+    const auto desktopPulse = profileOptions(MpvConfigPolicy {}, MpvOptionProfile::Platform::Desktop,
+        QStringLiteral("pulse"), QByteArrayLiteral("/tmp/mpv.log"));
     require(valueFor(desktopPulse, "ao") == "pulse", "Linux PulseAudio selection was not applied");
-    const auto desktopAlsa = MpvOptionProfile::startupOptions(
-        MpvOptionProfile::Platform::Desktop, QStringLiteral("alsa"), QByteArrayLiteral("/tmp/mpv.log"));
+    const auto desktopAlsa = profileOptions(MpvConfigPolicy {}, MpvOptionProfile::Platform::Desktop,
+        QStringLiteral("alsa"), QByteArrayLiteral("/tmp/mpv.log"));
     require(valueFor(desktopAlsa, "ao") == "alsa", "Linux ALSA selection was not applied");
 #elif defined(Q_OS_WIN)
-    const auto desktopWasapi = MpvOptionProfile::startupOptions(
-        MpvOptionProfile::Platform::Desktop, QStringLiteral("wasapi"), QByteArrayLiteral("/tmp/mpv.log"));
+    const auto desktopWasapi = profileOptions(MpvConfigPolicy {}, MpvOptionProfile::Platform::Desktop,
+        QStringLiteral("wasapi"), QByteArrayLiteral("/tmp/mpv.log"));
     require(valueFor(desktopWasapi, "ao") == "wasapi", "Windows WASAPI selection was not applied");
 #elif defined(Q_OS_MACOS)
-    const auto desktopCoreAudio = MpvOptionProfile::startupOptions(
-        MpvOptionProfile::Platform::Desktop, QStringLiteral("coreaudio"), QByteArrayLiteral("/tmp/mpv.log"));
+    const auto desktopCoreAudio = profileOptions(MpvConfigPolicy {}, MpvOptionProfile::Platform::Desktop,
+        QStringLiteral("coreaudio"), QByteArrayLiteral("/tmp/mpv.log"));
     require(valueFor(desktopCoreAudio, "ao") == "coreaudio", "macOS CoreAudio selection was not applied");
 #endif
 
@@ -125,8 +189,8 @@ int main(int argc, char **argv)
     require(webOSNetwork.rangeBytes == 512 * 1024, "webOS curl range profile changed");
     require(webOSNetwork.parallelRequests == 1, "webOS curl should default to one request");
 
-    const auto webOSPcm = MpvOptionProfile::startupOptions(
-        MpvOptionProfile::Platform::WebOS, QStringLiteral("starfish-pcm"), QByteArrayLiteral("/tmp/mpv.log"));
+    const auto webOSPcm = profileOptions(MpvConfigPolicy {}, MpvOptionProfile::Platform::WebOS,
+        QStringLiteral("starfish-pcm"), QByteArrayLiteral("/tmp/mpv.log"));
     require(valueFor(webOSPcm, "vo") == "starfish", "webOS should use the Starfish video output");
     require(valueFor(webOSPcm, "ao") == "starfish,null", "PCM mode should use Starfish audio");
     require(valueFor(webOSPcm, "audio-format") == "s16", "Starfish PCM should use signed 16-bit samples");
@@ -137,8 +201,8 @@ int main(int argc, char **argv)
     require(valueFor(webOSPcm, "curl-max-request-size") == "524288", "webOS should issue 512 KiB ranges");
     require(valueFor(webOSPcm, "curl-parallel-requests") == "1", "webOS should default to one range request");
 
-    const auto webOSAlsa = MpvOptionProfile::startupOptions(
-        MpvOptionProfile::Platform::WebOS, QStringLiteral("alsa"), QByteArrayLiteral("/tmp/mpv.log"));
+    const auto webOSAlsa = profileOptions(MpvConfigPolicy {}, MpvOptionProfile::Platform::WebOS, QStringLiteral("alsa"),
+        QByteArrayLiteral("/tmp/mpv.log"));
     require(valueFor(webOSAlsa, "ao") == "alsa,null", "ALSA mode should use the ALSA output");
     require(valueFor(webOSAlsa, "video-sync") == "display-resample", "ALSA mode should follow the display clock");
     require(valueFor(webOSAlsa, "initial-audio-sync") == "no", "webOS should retain its Starfish sync workaround");

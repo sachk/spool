@@ -276,6 +276,7 @@ qt_add_qml_module(jellyfin-native
         qml/pages/PlayerTrickplayPreview.qml
         qml/pages/SearchPage.qml
         qml/pages/SettingsPage.qml
+        qml/pages/SettingsNavigation.js
         qml/primitives/ActionButton.qml
         qml/primitives/AppText.qml
         qml/primitives/AtomicViewReveal.qml
@@ -501,6 +502,10 @@ if(BUILD_TESTING AND NOT CMAKE_CROSSCOMPILING)
             COMMAND "${QMLTESTRUNNER_EXECUTABLE}"
                 -input "${CMAKE_CURRENT_SOURCE_DIR}/tests/qml/tst_ProfileNavigation.qml"
         )
+        add_test(NAME settings-navigation
+            COMMAND "${QMLTESTRUNNER_EXECUTABLE}"
+                -input "${CMAKE_CURRENT_SOURCE_DIR}/tests/qml/tst_SettingsNavigation.qml"
+        )
         add_test(NAME atomic-view-reveal
             COMMAND "${QMLTESTRUNNER_EXECUTABLE}"
                 -input "${CMAKE_CURRENT_SOURCE_DIR}/tests/qml/tst_AtomicViewReveal.qml"
@@ -519,8 +524,8 @@ if(BUILD_TESTING AND NOT CMAKE_CROSSCOMPILING)
             ${JELLYFIN_TEST_ENV}
         )
         set_tests_properties(route-policy key-router player-overlay-input option-picker-input nav-grid
-            profile-navigation atomic-view-reveal input-latency-warning player-seek-bar-hover PROPERTIES
-            ENVIRONMENT "${JELLYFIN_QML_TEST_ENV}"
+            profile-navigation settings-navigation atomic-view-reveal input-latency-warning player-seek-bar-hover
+            PROPERTIES ENVIRONMENT "${JELLYFIN_QML_TEST_ENV}"
         )
     endif()
 endif()

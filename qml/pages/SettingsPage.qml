@@ -2,8 +2,10 @@ pragma ComponentBehavior: Bound
 
 import QtQuick
 import QtQml.Models
+import QtQuick.Dialogs
 import "../theme"
 import "../primitives"
+import "SettingsNavigation.js" as SettingsNavigation
 
 FocusScope {
     id: root
@@ -20,86 +22,20 @@ FocusScope {
     property Item choiceDialogAnchor: null
     readonly property var choiceDialog: choiceDialogLoader.item
     property bool contentReady: false
+    property bool pendingCustomMpvMode: false
 
     signal dismissed
 
-    readonly property bool gpuNextDiagnosticsAvailable: !Platform.isTV
-    readonly property var groupOrder: ["General", "Appearance", "Playback", "Subtitles", "Diagnostics", "Button Remap",
-        "About"]
-    readonly property var pageRows: [makeRow("action/switchUser", "General", "action", "Switch User",
-                                             "Return to profile selection"), makeRow("action/logout", "General",
-                                                                                     "action", "Sign out of this account",
-                                                                                     "Keep this profile on the device and require authentication next time"),
-        makeRow("session/server", "General", "readonly", "Connected Server"), makeRow("theme/name", "General",
-                                                                                      "readonly", "Theme",
-                                                                                      "Fixed dark TV interface"),
-        makeRow("i18n/locale", "General", "select", "Language", "Restart the app to update cached server text"), makeRow(
-            "theme/accent", "Appearance", "select", "Accent", "", ["Jellyfin Blue", "Jellyfin Purple", "Blue-Purple"],
-            [0, 1, 2]), makeRow("action/uiScaleSetup", "Appearance", "action", "Scale Setup",
-                                "Compare Compact, Balanced, and Relaxed layouts"), makeRow("theme/railLabels",
-                                                                                           "Appearance", "select",
-                                                                                           "Side Rail Labels", "",
-                                                                                           ["Never", "On focus",
-                                                                                            "Always"], ["Never",
-                                                                                                        "On focus",
-                                                                                                        "Always"]),
-        makeRow("theme/reducedMotion", "Appearance", "toggle", "Reduced Motion"), makeRow("theme/renderMode",
-                                                                                          "Appearance", "select",
-                                                                                          "Text Render Mode", "", ["Qt",
-                                                                                                                   "Curve"], [Text.QtRendering,
-                                                                                                                              Text.CurveRendering]),
-        makeRow("theme/antialiasedText", "Appearance", "toggle", "Antialiased Text"), makeRow("theme/technicalMetadata",
-                                                                                              "Appearance", "select",
-                                                                                              "Show Technical Metadata",
-                                                                                              "", ["Always",
-                                                                                                   "On details only",
-                                                                                                   "Hidden"], ["Always",
-                                                                                                               "On details only",
-                                                                                                               "Hidden"]),
-        makeRow("action/subtitleSettings", "Subtitles", "action", "Subtitle settings",
-                "Preview and adjust subtitle language and appearance"), makeRow("shell/diagnostics", "Diagnostics",
-                                                                                "toggle", "Diagnostics Overlay"),
-        makeRow("shell/latencyGuard", "Diagnostics", "toggle", "Latency Logging"), makeRow("shell/latencyOverlay",
-                                                                                           "Diagnostics", "toggle",
-                                                                                           "Latency Warnings"), makeRow(
-            "action/clearLatencyStatistics", "Diagnostics", "action", "Clear Latency Statistics"), makeRow(
-            "about/version", "About", "readonly", "Jellyfin Native for " + Platform.deviceName,
-            "Qt 6.11 client, native mpv playback"), makeRow("action/openSourceNotices", "About", "action",
-                                                            "Open-source notices",
-                                                            "Acknowledgements, licenses, and corresponding source"),
-        makeRow("about/locale", "About", "readonly", "UI Locale")]
-
-    function makeRow(key, group, type, title, description, labels, values) {
-        return {
-            key: key,
-            source: "page",
-            group: group,
-            type: type,
-            title: title,
-            description: description || "",
-            choiceLabels: labels || [],
-            choiceValues: values || []
-        }
-    }
-
-    function sliderRow(key, group, title, description, from, to, step, decimals, unit) {
-        const row = makeRow(key, group, "slider", title, description)
-        row.from = from
-        row.to = to
-        row.step = step
-        row.decimals = decimals
-        row.unitText = unit
-        return row
-    }
+    readonly property var groupOrder: ["Account", "Appearance", "Subtitles", "Playback", "About", "Diagnostics",
+        "Button Remap"]
 
     function rowAvailable(row) {
-        return row && row.visible !== false && (row.key !== "settings/toneMappingVisualization"
-                                                || gpuNextDiagnosticsAvailable) && (row.key
-                                                                                    !== "playback/maxStreamingBitrateMbps"
-                                                                                    || Settings.values["playback/manualStreamingBitrate"]
-                                                                                    === true) && (row.group
-                                                                                                  !== "Button Remap"
-                                                                                                  || Platform.isTV)
+        return SettingsNavigation.rowAvailable(row, Platform.isTV, function (key) {
+            return settingsValue({
+                                     "key": key,
+                                     "defaultValue": ""
+                                 })
+        })
     }
 
     function currentDetailLevel() {
@@ -108,16 +44,7 @@ FocusScope {
     }
 
     function rowDetailLevel(row) {
-        if (!row)
-            return 2
-        if (row.group === "Diagnostics" || row.group === "Button Remap")
-            return 2
-        if (row.key === "theme/renderMode" || row.key === "theme/antialiasedText" || row.key
-                === "theme/technicalMetadata" || row.key === "settings/audioOutputMode" || row.key
-                === "playback/forwardCacheSizeMiB" || row.key === "playback/showVolumeSlider" || row.key
-                === "settings/audioDelayMs")
-            return 1
-        return 0
+        return SettingsNavigation.detailLevel(row)
     }
 
     function expandedSchemaRow(row) {
@@ -207,27 +134,15 @@ FocusScope {
     function buildSettingsRowsSource() {
         const schema = Settings.settingsSchema
         const detailKey = "settings/detailLevel"
-        const scaleKey = "appearance/uiScalePercent"
         const mainRows = []
         const subtitleRows = []
         const rowMap = {}
 
-        for (let index = 0; index < schema.length; ++index) {
-            if (schema[index].key !== scaleKey)
-                continue
-            const scaleRow = Object.assign({}, expandedSchemaRow(schema[index]))
-            scaleRow.group = "General"
-            mainRows.push(scaleRow)
-        }
         for (let groupIndex = 0; groupIndex < groupOrder.length; ++groupIndex) {
             const group = groupOrder[groupIndex]
-            for (let index = 0; index < pageRows.length; ++index)
-                if (pageRows[index].group === group)
-                    mainRows.push(pageRows[index])
             for (let index = 0; index < schema.length; ++index) {
                 const row = schema[index]
-                if (row.group === group && row.key !== detailKey && row.key !== scaleKey && row.group !== "Subtitles"
-                        && row.group !== "Subtitle Appearance")
+                if (row.group === group && row.key !== detailKey && row.group !== "Subtitle Appearance")
                     mainRows.push(expandedSchemaRow(row))
             }
         }
@@ -267,7 +182,7 @@ FocusScope {
     function selectRow(index, takeFocus) {
         if (settingsList.count <= 0)
             return
-        currentIndex = Math.max(0, Math.min(settingsList.count - 1, index))
+        currentIndex = SettingsNavigation.clampIndex(index, settingsList.count)
         settingsList.currentIndex = currentIndex
         settingsList.positionViewAtIndex(currentIndex, ListView.Contain)
         if (takeFocus !== false)
@@ -318,7 +233,7 @@ FocusScope {
     }
 
     function rowDescription(row) {
-        if (row.key === "session/server")
+        if (row.key === "session/account")
             return Session.serverUrl
         if (row.key === "settings/audioDelayMs" && Platform.usesPerOutputAudioDelay)
             return "User trim for " + Settings.audioDelayTargetLabel + "; automatic compensation is applied separately"
@@ -330,23 +245,18 @@ FocusScope {
             return "Choose"
         if (row.key === "action/logout")
             return "Sign out"
-        if (row.key === "action/uiScaleSetup")
+        if (row.key === "action/uiScaleSetup" || row.key === "action/openSourceNotices" || row.key
+                === "action/subtitleSettings")
             return "Open"
         if (row.key === "action/clearLatencyStatistics")
             return "Clear"
-        if (row.key === "action/openSourceNotices")
-            return "Open"
-        if (row.key === "session/server")
-            return Session.serverUrl.length > 0 ? "Connected" : "Offline"
-        if (row.key === "theme/name")
-            return "Jellyfin Dark"
+        if (row.key === "session/account")
+            return Session.activeProfileLabel.length > 0 ? Session.activeProfileLabel : "Offline"
         if (row.key === "about/version")
             return "v" + Qt.application.version
         if (row.key === "about/locale")
             return I18n.currentLocale
-        if (row.key === "action/subtitleSettings")
-            return "Open"
-        return ""
+        return row.valueSummary || ""
     }
 
     function rowOptions(row) {
@@ -371,7 +281,7 @@ FocusScope {
 
     function valueIndex(values, value) {
         for (let index = 0; index < values.length; ++index)
-            if (values[index] === value)
+            if (String(values[index]) === String(value))
                 return index
         return 0
     }
@@ -388,7 +298,7 @@ FocusScope {
             I18n.setLocale(value)
             break
         case "theme/accent":
-            Theme.accentIndex = value
+            Theme.accentIndex = Number(value)
             break
         case "theme/railLabels":
             Theme.sideRailLabels = value
@@ -397,7 +307,7 @@ FocusScope {
             Theme.reducedMotion = value
             break
         case "theme/renderMode":
-            Theme.normalTextRenderType = value
+            Theme.normalTextRenderType = Number(value)
             break
         case "theme/antialiasedText":
             Theme.antialiasedText = value
@@ -425,8 +335,15 @@ FocusScope {
 
     function setRowChoice(row, index) {
         const values = rowChoiceValues(row)
-        if (index >= 0 && index < values.length)
-            setRowValue(row, values[index], index)
+        if (index < 0 || index >= values.length)
+            return
+        if (row.key === "playback/mpvConfigMode" && values[index] === "custom" && !String(
+                    Settings.values["playback/mpvConfigDirectory"] || "").length) {
+            pendingCustomMpvMode = true
+            mpvFolderDialog.open()
+            return
+        }
+        setRowValue(row, values[index], index)
     }
 
     function activateRow(row, index) {
@@ -464,6 +381,10 @@ FocusScope {
             const control = rowControlAt(index)
             if (control && control.focusSlider)
                 control.focusSlider()
+        } else if (row.type === "text") {
+            const control = rowControlAt(index)
+            if (control && control.activate)
+                control.activate()
         }
     }
 
@@ -482,6 +403,10 @@ FocusScope {
             const next = Math.max(from, Math.min(to, Number(settingsValue(row)) + Number(row.step || 1) * direction))
             setRowValue(row, next, -1)
             return true
+        }
+        if (row.type === "text") {
+            const control = rowControlAt(settingsList.currentIndex)
+            return control && control.move ? control.move(direction) : true
         }
         return false
     }
@@ -577,8 +502,7 @@ FocusScope {
         function onSettingChanged(key) {
             if (key === "settings/detailLevel")
                 ++root.detailLevelRevision
-            if (key === "playback/manualStreamingBitrate" || key === "settings/detailLevel")
-                root.refreshSettingsFilter(key === "settings/detailLevel")
+            root.refreshSettingsFilter(key === "settings/detailLevel")
         }
     }
     Loader {
@@ -734,7 +658,8 @@ FocusScope {
                 property int rowIndex: index
                 sourceComponent: rowData.type === "toggle" ? toggleComponent : rowData.type === "select"
                                                              ? selectComponent : rowData.type === "slider"
-                                                               ? sliderComponent : settingComponent
+                                                               ? sliderComponent : rowData.type === "text"
+                                                                 ? textComponent : settingComponent
                 onLoaded: {
                     item.row = row
                     item.rowIndex = rowIndex
@@ -826,6 +751,101 @@ FocusScope {
             onInteractionStarted: root.selectRow(rowIndex, false)
         }
     }
+    Component {
+        id: textComponent
+
+        Surface {
+            property var row
+            property int rowIndex: -1
+            width: settingsList.width
+            implicitHeight: textContent.implicitHeight + Metrics.scaled(28)
+            elevated: true
+            borderColor: settingsList.activeFocus && settingsList.currentIndex === rowIndex ? Theme.accent :
+                                                                                              Theme.border
+
+            function activate() {
+                if (browseButton.activeFocus)
+                    mpvFolderDialog.open()
+                else
+                    pathField.focusField()
+            }
+
+            function move(direction) {
+                if (direction > 0)
+                    InputKeys.focus(browseButton)
+                else
+                    pathField.focusField()
+                return true
+            }
+
+            Column {
+                id: textContent
+                anchors.left: parent.left
+                anchors.right: parent.right
+                anchors.verticalCenter: parent.verticalCenter
+                anchors.margins: Metrics.scaled(18)
+                spacing: Metrics.scaled(8)
+
+                AppText {
+                    width: parent.width
+                    text: row ? row.title : ""
+                    color: Theme.textPrimary
+                    font.pixelSize: Metrics.bodySizePx
+                    font.weight: Font.DemiBold
+                }
+
+                AppText {
+                    width: parent.width
+                    text: row ? root.rowDescription(row) : ""
+                    color: Theme.textSecondary
+                    font.pixelSize: Metrics.metaSizePx
+                    wrapMode: Text.Wrap
+                }
+
+                Row {
+                    width: parent.width
+                    spacing: Metrics.scaled(10)
+
+                    TextFieldRow {
+                        id: pathField
+                        width: Math.max(0, parent.width - browseButton.width - parent.spacing)
+                        label: "Directory"
+                        text: row ? String(root.settingsValue(row) || "") : ""
+                        placeholderText: "/absolute/path/to/mpv"
+                        inputMethodHints: Qt.ImhNoPredictiveText
+                        onAccepted: {
+                            root.setRowValue(row, text, -1)
+                            Qt.callLater(function () {
+                                root.selectRow(rowIndex, true)
+                            })
+                        }
+                    }
+
+                    ActionButton {
+                        id: browseButton
+                        width: Metrics.scaled(132)
+                        height: pathField.height
+                        text: "Browse"
+                        iconName: "folder"
+                        onClicked: mpvFolderDialog.open()
+                    }
+                }
+            }
+        }
+    }
+
+    FolderDialog {
+        id: mpvFolderDialog
+        title: "Choose custom mpv directory"
+        onAccepted: {
+            Settings.setValue("playback/mpvConfigDirectory", selectedFolder)
+            if (root.pendingCustomMpvMode)
+            Settings.setValue("playback/mpvConfigMode", "custom")
+            root.pendingCustomMpvMode = false
+        }
+        onRejected: root.pendingCustomMpvMode = false
+    }
+
     Loader {
         id: choiceDialogLoader
         anchors.fill: parent

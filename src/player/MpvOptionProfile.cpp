@@ -215,7 +215,17 @@ QByteArray MpvOptionProfile::loadFileOptions(const PlaybackSession& session)
     return QByteArrayLiteral("demuxer=lavf,demuxer-lavf-format=hls,initial-audio-sync=no");
 }
 
-std::vector<MpvOption> MpvOptionProfile::startupOptions(Platform platform, const QString& audioOutputMode,
+std::vector<MpvOption> MpvOptionProfile::preInitializeOptions(const MpvConfigPolicy& policy)
+{
+    std::vector<MpvOption> options {
+        { "config", policy.mode == MpvConfigPolicy::Mode::Disabled ? "no" : "yes" },
+    };
+    if (policy.mode == MpvConfigPolicy::Mode::Custom)
+        options.push_back({ "config-dir", policy.directory.toUtf8() });
+    return options;
+}
+
+std::vector<MpvOption> MpvOptionProfile::applicationOptions(Platform platform, const QString& audioOutputMode,
     const QByteArray& logPath, const QByteArray& demuxerMaxBytes, const QByteArray& demuxerMaxBackBytes,
     int parallelRequests)
 {
@@ -278,12 +288,10 @@ std::vector<MpvOption> MpvOptionProfile::startupOptions(Platform platform, const
         { "audio-file-auto", "no" },
         { "osc", "no" },
         { "load-console", "no" },
-        { "load-auto-profiles", "no" },
         { "load-select", "no" },
         { "load-positioning", "no" },
         { "load-commands", "no" },
         { "load-context-menu", "no" },
-        { "load-scripts", "no" },
         { "input-default-bindings", "no" },
         { "input-vo-keyboard", "no" },
         { "keep-open", "no" },

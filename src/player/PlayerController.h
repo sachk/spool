@@ -1,6 +1,7 @@
 #pragma once
 
 #include "../common/JellyfinTypes.h"
+#include "../platform/MpvConfigPolicy.h"
 #include "MpvLifecycle.h"
 #include "PlaybackPositionTracker.h"
 #include "PlaybackReporter.h"
@@ -147,6 +148,7 @@ public:
     void setSubtitlePreferences(const JellyfinNative::SubtitlePreferences& preferences);
     void setDemuxerBudget(const QByteArray& maxBytes, const QByteArray& maxBackBytes);
     void setForwardCacheSizeMiB(int sizeMiB);
+    void setMpvConfigPolicy(const MpvConfigPolicy& policy);
 
 signals:
     void visibleChanged();
@@ -272,6 +274,7 @@ private:
     QByteArray m_automaticDemuxerMaxBytes = QByteArrayLiteral("64M");
     QByteArray m_demuxerMaxBytes = QByteArrayLiteral("64M");
     QByteArray m_demuxerMaxBackBytes = QByteArrayLiteral("32M");
+    MpvConfigPolicy m_mpvConfigPolicy;
     int m_forwardCacheSizeMiB = 0;
     SubtitlePreferences m_subtitlePreferences;
     bool m_hdrPlayback = false;

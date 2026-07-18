@@ -7,12 +7,28 @@
 namespace JellyfinNative {
 
 enum class SettingType {
+    Action,
+    ReadOnly,
+    Text,
     Toggle,
     Select,
     Slider,
 };
 
+enum class SettingLevel {
+    Essential,
+    Advanced,
+    Expert,
+};
+
+enum class SettingPlatform {
+    All,
+    Desktop,
+    WebOS,
+};
+
 enum class SettingTarget {
+    External,
     UiDetailLevel,
     NightMode,
     ToneMappingVisualization,
@@ -46,6 +62,8 @@ enum class SettingTarget {
     GreenButton,
     YellowButton,
     BlueButton,
+    MpvConfigMode,
+    MpvConfigDirectory,
 };
 
 enum class SettingNormalizer {
@@ -89,6 +107,13 @@ struct SettingSpec {
     SettingNormalizer normalizer;
     bool visible;
     bool normalizeChoices;
+    SettingLevel level = SettingLevel::Essential;
+    SettingPlatform platform = SettingPlatform::All;
+    const char *icon = "settings";
+    const char *valueSummary = "";
+    const char *dependsOnKey = "";
+    const char *dependsOnValue = "";
+    bool persisted = true;
 };
 
 const QVector<SettingSpec>& settingSpecs();

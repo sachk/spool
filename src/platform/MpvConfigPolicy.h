@@ -15,6 +15,7 @@ struct MpvConfigPolicy {
     QString directory;
     bool valid = true;
     QString error;
+    bool operator==(const MpvConfigPolicy&) const = default;
 };
 
 MpvConfigPolicy validatedPlatformMpvConfigPolicy(const QString& mode, const QString& directory);

@@ -124,6 +124,19 @@ namespace {
             ok &= setOption(handle, option.name.constData(), option.value.constData());
         return ok;
     }
+    bool applyProperties(mpv_handle *handle, const std::vector<MpvOption>& options)
+    {
+        bool ok = true;
+        for (const MpvOption& option : options) {
+            const int error = mpv_set_property_string(handle, option.name.constData(), option.value.constData());
+            if (error >= 0 || error == MPV_ERROR_OPTION_NOT_FOUND)
+                continue;
+            qWarning() << "player: failed to set mpv property" << option.name << "=" << option.value
+                       << mpv_error_string(error);
+            ok = false;
+        }
+        return ok;
+    }
 
     bool setMpvProperty(mpv_handle *handle, const char *name, const char *value)
     {
@@ -356,20 +369,18 @@ bool PlayerController::configureAndInitializeMpv(mpv_handle *handle)
     qInfo().nospace() << "player: curl profile source=MpvOptionProfile platform=" << platformPlaybackBackendName()
                       << " requestsPerStream=" << network.parallelRequests << " rangeBytes=" << network.rangeBytes
                       << " ringBytes=" << network.ringBytes;
-    auto startupOptions = MpvOptionProfile::startupOptions(
+    if (!applyOptions(handle, MpvOptionProfile::preInitializeOptions(m_mpvConfigPolicy)))
+        return false;
+    if (mpv_initialize(handle) < 0)
+        return false;
+
+    auto applicationOptions = MpvOptionProfile::applicationOptions(
         platform, m_audioOutputMode, mpvLogPath(), m_demuxerMaxBytes, m_demuxerMaxBackBytes, parallelRequests);
-    const MpvConfigPolicy configPolicy = validatedPlatformMpvConfigPolicy(QStringLiteral("disabled"), QString());
-    startupOptions.insert(
-        startupOptions.begin(), { "config", configPolicy.mode == MpvConfigPolicy::Mode::Disabled ? "no" : "yes" });
-    if (configPolicy.mode == MpvConfigPolicy::Mode::Custom)
-        startupOptions.insert(startupOptions.begin() + 1, { "config-dir", configPolicy.directory.toUtf8() });
     const QByteArray subtitleFontsPath = bundledSubtitleFontsPath();
     if (!subtitleFontsPath.isEmpty())
-        startupOptions.push_back({ "sub-fonts-dir", subtitleFontsPath });
-    const bool configured
-        = applyOptions(handle, startupOptions) && applyMpvRuntimeOptions(MpvOptionApplyMode::Initial, handle);
+        applicationOptions.push_back({ "sub-fonts-dir", subtitleFontsPath });
 
-    return configured && mpv_initialize(handle) >= 0;
+    return applyProperties(handle, applicationOptions) && applyMpvRuntimeOptions(MpvOptionApplyMode::Runtime, handle);
 }
 
 void PlayerController::observeMpvProperties(mpv_handle *handle)
@@ -1410,6 +1421,14 @@ void PlayerController::setForwardCacheSizeMiB(int sizeMiB)
     m_demuxerMaxBytes = effectiveMaxBytes;
     qInfo() << "player: forward cache size" << QString::number(sizeMiB) + QStringLiteral(" MiB");
     discardPreparedMpvForOptionChange("forward cache size change");
+}
+void PlayerController::setMpvConfigPolicy(const MpvConfigPolicy& policy)
+{
+    if (!policy.valid || policy == m_mpvConfigPolicy)
+        return;
+    m_mpvConfigPolicy = policy;
+    qInfo() << "player: mpv configuration policy changed; applies on next playback";
+    discardPreparedMpvForOptionChange("mpv config policy change");
 }
 
 void PlayerController::startProgressReporting()

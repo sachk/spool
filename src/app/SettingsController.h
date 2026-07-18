@@ -2,6 +2,7 @@
 
 #include "../common/JellyfinTypes.h"
 #include "../common/RequestGeneration.h"
+#include "../platform/MpvConfigPolicy.h"
 
 #include <QCoroTask>
 #include <QJsonObject>
@@ -135,6 +136,14 @@ public:
     Q_INVOKABLE void setGreenButtonAction(const QString& action);
     Q_INVOKABLE void setYellowButtonAction(const QString& action);
     Q_INVOKABLE void setBlueButtonAction(const QString& action);
+    QString mpvConfigMode() const
+    {
+        return m_mpvConfigMode;
+    }
+    QString mpvConfigDirectory() const
+    {
+        return m_mpvConfigDirectory;
+    }
     void updateAudioOutputRoute(const QString& output, int displayLatencyMs, int outputLatencyMs);
 
 signals:
@@ -161,6 +170,7 @@ private:
     void applyLoadedAudioDelay(const QString& output, int delayMs);
     void saveSubtitleUserConfiguration();
     void applySubtitlePreferencesToPlayer();
+    void applyMpvConfigPolicy();
 
     DatabaseManager *m_database = nullptr;
     JellyfinApiFacade *m_api = nullptr;
@@ -180,6 +190,8 @@ private:
     bool m_localSettingsLoaded = false;
     RequestGeneration m_audioOutputLoadGeneration;
     QString m_audioOutputMode = QStringLiteral("auto");
+    QString m_mpvConfigMode = QStringLiteral("disabled");
+    QString m_mpvConfigDirectory;
     int m_uiScalePercent = 115;
     int m_uiScaleSetupVersion = 0;
     SubtitlePreferences m_subtitlePreferences;

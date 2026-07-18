@@ -100,6 +100,8 @@ void requiredPersistedKeysArePresentExactlyOnce()
         QStringLiteral("settings/audioDelayMs"),
         QStringLiteral("settings/audioOutputMode"),
         QStringLiteral("subtitles/language"),
+        QStringLiteral("playback/mpvConfigMode"),
+        QStringLiteral("playback/mpvConfigDirectory"),
         QStringLiteral("subtitles/mode"),
         QStringLiteral("subtitles/burnIn"),
         QStringLiteral("subtitles/renderPgs"),
@@ -125,14 +127,18 @@ void requiredPersistedKeysArePresentExactlyOnce()
     const QSet<QString> expected = stringSet(expectedKeys);
 
     QHash<QString, int> counts;
-    counts.reserve(settingSpecs().size());
+    counts.reserve(expectedKeys.size());
+    qsizetype persistedCount = 0;
     for (const SettingSpec& spec : settingSpecs()) {
+        if (!spec.persisted)
+            continue;
+        ++persistedCount;
         const QString key = keyString(spec);
         counts[key] += 1;
         require(expected.contains(key), QStringLiteral("unexpected persisted setting key %1").arg(key));
     }
 
-    require(settingSpecs().size() == expectedKeys.size(), QStringLiteral("persisted setting key count changed"));
+    require(persistedCount == expectedKeys.size(), QStringLiteral("persisted setting key count changed"));
     for (const QString& key : expectedKeys) {
         require(counts.value(key) == 1,
             QStringLiteral("persisted setting key %1 appeared %2 times").arg(key).arg(counts.value(key)));
@@ -254,6 +260,9 @@ void schemaModelRowsMatchVisibilityContract()
         const SettingSpec& spec = requiredSpec(key);
         require(row.value(QStringLiteral("visible")).toBool() == spec.visible,
             QStringLiteral("schema row visibility diverged for %1").arg(key));
+        require(row.value(QStringLiteral("source")).toString()
+                == (spec.persisted ? QStringLiteral("settings") : QStringLiteral("page")),
+            QStringLiteral("schema row source diverged for %1").arg(key));
         if (!row.value(QStringLiteral("visible")).toBool())
             hiddenKeys.push_back(key);
     }
@@ -272,6 +281,27 @@ void schemaModelRowsMatchVisibilityContract()
     };
     require(stringSet(hiddenKeys) == expectedHidden,
         QStringLiteral("schema model did not hide exactly the server-side subtitle burn-in controls"));
+}
+void pageRowsShareTheSchemaContract()
+{
+    const QStringList pageKeys { QStringLiteral("session/account"), QStringLiteral("action/switchUser"),
+        QStringLiteral("action/logout"), QStringLiteral("i18n/locale"), QStringLiteral("theme/accent"),
+        QStringLiteral("action/uiScaleSetup"), QStringLiteral("theme/reducedMotion"),
+        QStringLiteral("theme/railLabels"), QStringLiteral("theme/renderMode"), QStringLiteral("theme/antialiasedText"),
+        QStringLiteral("theme/technicalMetadata"), QStringLiteral("action/subtitleSettings"),
+        QStringLiteral("about/version"), QStringLiteral("action/openSourceNotices"), QStringLiteral("about/locale"),
+        QStringLiteral("shell/diagnostics"), QStringLiteral("shell/latencyGuard"),
+        QStringLiteral("shell/latencyOverlay"), QStringLiteral("action/clearLatencyStatistics") };
+    for (const QString& key : pageKeys) {
+        const SettingSpec& spec = requiredSpec(key);
+        require(!spec.persisted, QStringLiteral("page-owned row %1 must not be persisted").arg(key));
+        require(schemaRow(key).value(QStringLiteral("source")).toString() == QStringLiteral("page"),
+            QStringLiteral("page-owned row %1 was missing from the schema model").arg(key));
+    }
+    require(requiredSpec(QStringLiteral("theme/railLabels")).level == SettingLevel::Advanced,
+        QStringLiteral("rail label tuning should be hidden at Essential detail"));
+    require(requiredSpec(QStringLiteral("shell/diagnostics")).level == SettingLevel::Expert,
+        QStringLiteral("diagnostics controls should be hidden below Expert detail"));
 }
 
 void subtitleChoicesExplainTheirBehavior()
@@ -371,6 +401,7 @@ int main(int argc, char **argv)
     audioOutputChoicesMatchPlatform();
     normalizersPreservePersistedValueSemantics();
     schemaModelRowsMatchVisibilityContract();
+    pageRowsShareTheSchemaContract();
     subtitleChoicesExplainTheirBehavior();
     systemLanguageLabelNamesResolvedLanguage();
     buttonChoicesAndLabelsExposePlayerActions();

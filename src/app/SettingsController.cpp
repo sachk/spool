@@ -145,6 +145,8 @@ QCoro::Task<void> SettingsController::loadLocalAsync()
     QStringList keys;
     keys.reserve(static_cast<qsizetype>(settingSpecs().size()) + 1);
     for (const SettingSpec& spec : settingSpecs()) {
+        if (!spec.persisted)
+            continue;
         if (platformUsesPerOutputAudioDelay() && spec.target == SettingTarget::AudioDelay)
             continue;
         keys.append(keyString(spec));
@@ -153,6 +155,8 @@ QCoro::Task<void> SettingsController::loadLocalAsync()
     const QVariantMap storedValues = co_await m_database->loadValuesAsync(keys);
 
     for (const SettingSpec& spec : settingSpecs()) {
+        if (!spec.persisted)
+            continue;
         const QString key = keyString(spec);
         if (platformUsesPerOutputAudioDelay() && spec.target == SettingTarget::AudioDelay) {
             const QVariant normalized = normalizedSettingValue(spec, spec.defaultValue);
@@ -186,6 +190,22 @@ QCoro::Task<void> SettingsController::loadLocalAsync()
         m_database->saveSetting(QString::fromLatin1(kUiScaleSetupVersionKey), QString::number(kUiScaleSetupVersion));
     }
 
+    MpvConfigPolicy configPolicy = validatedPlatformMpvConfigPolicy(m_mpvConfigMode, m_mpvConfigDirectory);
+    if (!configPolicy.valid) {
+        qWarning() << "settings: invalid persisted mpv configuration policy; disabling custom config";
+        m_mpvConfigMode = QStringLiteral("disabled");
+        m_mpvConfigDirectory.clear();
+        m_values.insert(QStringLiteral("playback/mpvConfigMode"), m_mpvConfigMode);
+        m_values.insert(QStringLiteral("playback/mpvConfigDirectory"), m_mpvConfigDirectory);
+        m_database->saveSetting(QStringLiteral("playback/mpvConfigMode"), m_mpvConfigMode);
+        m_database->saveSetting(QStringLiteral("playback/mpvConfigDirectory"), m_mpvConfigDirectory);
+        configPolicy = validatedPlatformMpvConfigPolicy(m_mpvConfigMode, m_mpvConfigDirectory);
+    } else if (configPolicy.mode == MpvConfigPolicy::Mode::Custom && configPolicy.directory != m_mpvConfigDirectory) {
+        m_mpvConfigDirectory = configPolicy.directory;
+        m_values.insert(QStringLiteral("playback/mpvConfigDirectory"), m_mpvConfigDirectory);
+        m_database->saveSetting(QStringLiteral("playback/mpvConfigDirectory"), m_mpvConfigDirectory);
+    }
+
     m_localSettingsLoaded = true;
     if (platformUsesPerOutputAudioDelay())
         loadCurrentAudioDelay();
@@ -196,6 +216,7 @@ QCoro::Task<void> SettingsController::loadLocalAsync()
         applyAudioDelayToPlayer();
         m_player->setAudioOutputMode(m_audioOutputMode);
         m_player->setForwardCacheSizeMiB(m_forwardCacheSizeMiB);
+        m_player->setMpvConfigPolicy(configPolicy);
     }
     applyPlaybackPreferences();
     if (m_player)
@@ -282,8 +303,31 @@ void SettingsController::setValue(const QString& key, const QVariant& value)
         qWarning() << "settings: unknown key" << key;
         return;
     }
+    if (!spec->persisted) {
+        qWarning() << "settings: external row cannot be persisted through SettingsController" << key;
+        return;
+    }
     if (spec->target == SettingTarget::AudioDelay) {
         setAudioDelayMs(value.toInt());
+        return;
+    }
+    if (spec->target == SettingTarget::MpvConfigMode) {
+        const QString mode = normalizedSettingValue(*spec, value).toString();
+        const MpvConfigPolicy policy = validatedPlatformMpvConfigPolicy(mode, m_mpvConfigDirectory);
+        if (!policy.valid) {
+            emit errorOccurred(policy.error);
+            return;
+        }
+        setSchemaValue(*spec, mode, true, true, true);
+        return;
+    }
+    if (spec->target == SettingTarget::MpvConfigDirectory) {
+        const MpvConfigPolicy policy = validatedPlatformMpvConfigPolicy(QStringLiteral("custom"), value.toString());
+        if (!policy.valid) {
+            emit errorOccurred(policy.error);
+            return;
+        }
+        setSchemaValue(*spec, policy.directory, true, true, true);
         return;
     }
     setSchemaValue(*spec, value, true, true, true);
@@ -448,6 +492,8 @@ bool SettingsController::setSchemaValue(
 void SettingsController::applySchemaValue(const SettingSpec& spec, const QVariant& value, bool apply)
 {
     switch (spec.target) {
+    case SettingTarget::External:
+        break;
     case SettingTarget::UiDetailLevel:
         break;
     case SettingTarget::NightMode:
@@ -593,12 +639,24 @@ void SettingsController::applySchemaValue(const SettingSpec& spec, const QVarian
     case SettingTarget::BlueButton:
         m_blueButtonAction = value.toString();
         break;
+    case SettingTarget::MpvConfigMode:
+        m_mpvConfigMode = value.toString();
+        if (apply)
+            applyMpvConfigPolicy();
+        break;
+    case SettingTarget::MpvConfigDirectory:
+        m_mpvConfigDirectory = value.toString();
+        if (apply)
+            applyMpvConfigPolicy();
+        break;
     }
 }
 
 void SettingsController::emitSchemaSignals(const SettingSpec& spec)
 {
     switch (spec.target) {
+    case SettingTarget::External:
+        break;
     case SettingTarget::UiDetailLevel:
         break;
     case SettingTarget::NightMode:
@@ -649,6 +707,9 @@ void SettingsController::emitSchemaSignals(const SettingSpec& spec)
     case SettingTarget::YellowButton:
     case SettingTarget::BlueButton:
         emit buttonRemapChanged();
+        break;
+    case SettingTarget::MpvConfigMode:
+    case SettingTarget::MpvConfigDirectory:
         break;
     }
 }
@@ -750,6 +811,13 @@ void SettingsController::saveSubtitleUserConfiguration()
     Async::runScoped(
         this, m_api->updateUserConfiguration(configuration), []() {},
         [this](const std::exception_ptr& error) { emit errorOccurred(exceptionMessage(error)); });
+}
+
+void SettingsController::applyMpvConfigPolicy()
+{
+    const MpvConfigPolicy policy = validatedPlatformMpvConfigPolicy(m_mpvConfigMode, m_mpvConfigDirectory);
+    if (policy.valid && m_player)
+        m_player->setMpvConfigPolicy(policy);
 }
 
 void SettingsController::applySubtitlePreferencesToPlayer()
