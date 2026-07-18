@@ -16,7 +16,8 @@
   "noSplashOnLaunch": true,
   "inspectable": true,
   "transparent": false,
+  "disableBackHistoryAPI": true,
   "handlesRelaunch": true,
-  "requiredMemory": 150,
+  "requiredMemory": 350,
   "nativeLifeCycleInterfaceVersion": 2
 }

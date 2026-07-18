@@ -30,8 +30,42 @@
       ffmpegSlimConfig = builtins.fromJSON (builtins.readFile ./tools/manifests/ffmpeg-slim.json);
       ffmpegSlimOverlay = final: prev: {
         ffmpeg-full = (prev.ffmpeg-full.override
-          (nixpkgs.lib.genAttrs ffmpegSlimConfig.disabledNixFeatures (_: false))).overrideAttrs (_: {
+          (nixpkgs.lib.genAttrs ffmpegSlimConfig.disabledNixFeatures (_: false))).overrideAttrs (old: {
             doCheck = false;
+            configureFlags = builtins.filter
+              (flag: flag != "--enable-gpl" && flag != "--enable-version3")
+              old.configureFlags ++ [
+              "--disable-everything"
+              "--disable-gpl"
+              "--disable-version3"
+              "--disable-nonfree"
+              "--disable-programs"
+              "--disable-doc"
+              "--disable-avdevice"
+              "--disable-libplacebo"
+              "--disable-libshaderc"
+              "--disable-opencl"
+              "--disable-opengl"
+              "--disable-vulkan"
+              "--enable-avcodec"
+              "--enable-avfilter"
+              "--enable-avformat"
+              "--enable-avutil"
+              "--enable-swresample"
+              "--enable-swscale"
+              "--enable-network"
+              "--enable-protocol=file,pipe"
+              "--enable-demuxer=aac,ac3,ass,avi,dts,eac3,flac,h264,hevc,hls,matroska,mov,mp3,mpegps,mpegts,mpegvideo,ogg,pcm_s16le,pcm_s24le,pcm_s32le,srt,truehd,wav,webvtt"
+              "--enable-parser=aac,ac3,av1,dca,flac,h264,hevc,mlp,mpeg4video,mpegaudio,mpegvideo,opus,vorbis,vp8,vp9"
+              "--enable-decoder=aac,ac3,alac,ass,av1,dca,dvbsub,dvdsub,eac3,flac,ffv1,h264,hevc,huffyuv,mjpeg,mlp,movtext,mp2,mp3,mpeg1video,mpeg2video,mpeg4,opus,pcm_bluray,pcm_f32le,pcm_s16be,pcm_s16le,pcm_s24be,pcm_s24le,pcm_s32le,pgssub,png,prores,ssa,subrip,theora,truehd,vc1,vorbis,vp8,vp9,webp,webvtt,wmav2,wmapro,wmv3,xsub"
+              "--enable-hwaccels"
+              "--enable-filter=abuffer,abuffersink,alimiter,buffer,buffersink,compand,dialoguenhance,equalizer,highpass,pan,speechnorm,treble"
+              "--enable-bsf=aac_adtstoasc,h264_mp4toannexb,hevc_mp4toannexb"
+              "--enable-muxer=spdif"
+            ];
+            postInstall = (old.postInstall or "") + ''
+              mkdir -p "$bin/bin" "$data/share/ffmpeg" "$doc/share/doc/ffmpeg" "$man/share/man"
+            '';
           });
       };
 

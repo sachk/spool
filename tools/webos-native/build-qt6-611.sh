@@ -73,6 +73,7 @@ else
   TARGET_STAGING="$ROOT/build/qt6-$QT_BUILD_TAG-target-install"
   TARGET_PREFIX="${QT_TARGET_PREFIX:-/opt/qt6-webos-$QT_SERIES}"
 fi
+TARGET_QTBASE_REBUILT=0
 
 TOOLCHAIN_FILE="$ROOT/tools/webos-native/qt6-webos-toolchain.cmake"
 PKG_CONFIG_WEBOS="$ROOT/tools/webos-native/pkg-config-webos.sh"
@@ -554,11 +555,20 @@ configure_target_qtbase() {
   local target_wayland_scanner="${TARGET_WAYLAND_SCANNER:-$TARGET_WAYLAND_SCANNER_DEFAULT}"
   [[ -x "$target_wayland_scanner" ]] || \
     die "target wayland-scanner not found at $target_wayland_scanner; set TARGET_WAYLAND_SCANNER"
-  local sdk_glesv2_lib sdk_egl_lib sdk_xkb_lib
+  local sdk_glesv2_lib sdk_egl_lib sdk_xkb_lib sdk_ssl_lib sdk_crypto_lib
   local sdk_wayland_client_lib sdk_wayland_server_lib sdk_wayland_cursor_lib sdk_wayland_egl_lib
   sdk_glesv2_lib="$(sdk_sysroot_library GLESv2)"
   sdk_egl_lib="$(sdk_sysroot_library EGL)"
   sdk_xkb_lib="$(sdk_sysroot_library xkbcommon)"
+  if [[ "$QT_STATIC" == "1" ]]; then
+    sdk_ssl_lib="$SYSROOT/usr/lib/libssl.a"
+    sdk_crypto_lib="$SYSROOT/usr/lib/libcrypto.a"
+    [[ -f "$sdk_ssl_lib" ]] || die "webOS sysroot static library not found: libssl.a"
+    [[ -f "$sdk_crypto_lib" ]] || die "webOS sysroot static library not found: libcrypto.a"
+  else
+    sdk_ssl_lib="$(sdk_sysroot_library ssl)"
+    sdk_crypto_lib="$(sdk_sysroot_library crypto)"
+  fi
   sdk_wayland_client_lib="$(sdk_sysroot_library wayland-client)"
   sdk_wayland_server_lib="$(sdk_sysroot_library wayland-server)"
   sdk_wayland_cursor_lib="$(sdk_sysroot_library wayland-cursor)"
@@ -640,7 +650,13 @@ configure_target_qtbase() {
     -DWayland_Cursor_LIBRARY="$sdk_wayland_cursor_lib" \
     -DWayland_Egl_INCLUDE_DIR="$SYSROOT/usr/include" \
     -DWayland_Egl_LIBRARY="$sdk_wayland_egl_lib" \
-    -DINPUT_openssl=no \
+    -DINPUT_openssl=linked \
+    -DFEATURE_ssl=ON \
+    -DOPENSSL_USE_STATIC_LIBS="$QT_STATIC" \
+    -DOPENSSL_ROOT_DIR="$SYSROOT/usr" \
+    -DOPENSSL_INCLUDE_DIR="$SYSROOT/usr/include" \
+    -DOPENSSL_SSL_LIBRARY="$sdk_ssl_lib" \
+    -DOPENSSL_CRYPTO_LIBRARY="$sdk_crypto_lib" \
     -DWaylandScanner_EXECUTABLE="$target_wayland_scanner"
 }
 
@@ -650,6 +666,11 @@ target_qtbase_up_to_date() {
   [[ -f "$TARGET_STAGING/lib/cmake/Qt6/Qt6Config.cmake" ]] || return 1
   [[ -e "$TARGET_STAGING/$(target_lib_marker Qt6Core)" ]] || return 1
   [[ -e "$TARGET_STAGING/$(target_lib_marker Qt6Gui)" ]] || return 1
+  local tls_backend_marker="plugins/tls/libqopensslbackend.so"
+  [[ "$QT_STATIC" != "1" ]] || tls_backend_marker="plugins/tls/libqopensslbackend.a"
+  [[ -e "$TARGET_STAGING/$tls_backend_marker" ]] || return 1
+  grep -Fqx '#define QT_FEATURE_ssl 1' "$TARGET_STAGING/include/QtNetwork/qtnetwork-config.h" || return 1
+  grep -Fqx '#define QT_FEATURE_openssl_linked 1' "$TARGET_STAGING/include/QtCore/qconfig.h" || return 1
   [[ -d "$TARGET_STAGING/lib/cmake/Qt6WaylandClient" ]] || return 1
   return 0
 }
@@ -659,6 +680,7 @@ build_target_qtbase() {
     log "target qtbase: up to date, skipping"
     return 0
   fi
+  TARGET_QTBASE_REBUILT=1
   configure_target_qtbase
   cmake_build "$TARGET_BUILD_ROOT/qtbase" --parallel "$JOBS"
   cmake_install "$TARGET_BUILD_ROOT/qtbase"
@@ -740,6 +762,7 @@ build_target_module() {
 target_module_up_to_date() {
   local name="$1"
   local marker="$2"
+  [[ "$TARGET_QTBASE_REBUILT" != "1" ]] || return 1
   [[ "${QT_BUILD_FORCE:-0}" != "1" ]] || return 1
   [[ ",${QT_BUILD_FORCE_MODULES:-}," != *",$name,"* ]] || return 1
   [[ -e "$TARGET_STAGING/$marker" ]] || return 1

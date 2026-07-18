@@ -57,6 +57,10 @@ describe_parallel_jobs "$WEBOS_BUILD_JOBS" "FFmpeg" "$WEBOS_BUILD_MEMORY_PER_JOB
   --enable-shared \
   --enable-pic \
   --enable-lto \
+  --disable-everything \
+  --disable-gpl \
+  --disable-version3 \
+  --disable-nonfree \
   --disable-programs \
   --disable-doc \
   --disable-debug \
@@ -71,6 +75,7 @@ describe_parallel_jobs "$WEBOS_BUILD_JOBS" "FFmpeg" "$WEBOS_BUILD_MEMORY_PER_JOB
   --enable-swresample \
   --enable-swscale \
   --enable-network \
+  --enable-openssl \
   --enable-protocol=file \
   --enable-protocol=http \
   --enable-protocol=https \
@@ -86,6 +91,7 @@ describe_parallel_jobs "$WEBOS_BUILD_JOBS" "FFmpeg" "$WEBOS_BUILD_MEMORY_PER_JOB
   --enable-demuxer=mpegts \
   --enable-demuxer=avi \
   --enable-demuxer=aac \
+  --enable-demuxer=hls \
   --enable-parser=aac \
   --enable-parser=ac3 \
   --enable-parser=dca \
@@ -118,13 +124,50 @@ describe_parallel_jobs "$WEBOS_BUILD_JOBS" "FFmpeg" "$WEBOS_BUILD_MEMORY_PER_JOB
   --enable-decoder=vorbis \
   --enable-decoder=wmav2 \
   --enable-decoder=wmapro \
+  --enable-decoder=h264 \
+  --enable-decoder=hevc \
+  --enable-decoder=av1 \
+  --enable-decoder=vp8 \
+  --enable-decoder=vp9 \
+  --enable-decoder=mpeg1video \
+  --enable-decoder=mpeg2video \
+  --enable-decoder=mpeg4 \
+  --enable-decoder=vc1 \
+  --enable-decoder=wmv3 \
+  --enable-decoder=prores \
+  --enable-decoder=mjpeg \
+  --enable-decoder=png \
+  --enable-decoder=ass \
+  --enable-decoder=dvbsub \
+  --enable-decoder=dvdsub \
+  --enable-decoder=pgssub \
+  --enable-decoder=subrip \
+  --enable-decoder=webvtt \
+  --enable-hwaccels \
   --enable-encoder=aac \
   --enable-muxer=spdif \
+  --enable-filter=abuffer \
+  --enable-filter=abuffersink \
+  --enable-filter=alimiter \
+  --enable-filter=buffer \
+  --enable-filter=buffersink \
+  --enable-filter=compand \
+  --enable-filter=dialoguenhance \
+  --enable-filter=equalizer \
+  --enable-filter=highpass \
+  --enable-filter=pan \
+  --enable-filter=speechnorm \
+  --enable-filter=treble \
   --enable-bsf=aac_adtstoasc \
   --enable-bsf=h264_mp4toannexb \
   --enable-bsf=hevc_mp4toannexb \
   --extra-cflags="--sysroot=$SYSROOT -I$PREFIX/include $(webos_tune_cflags) $FFMPEG_DIAG_CFLAGS $FFMPEG_PGO_FLAGS" \
   --extra-ldflags="--sysroot=$SYSROOT -L$PREFIX/lib -Wl,-rpath-link,$PREFIX/lib $FFMPEG_PGO_FLAGS"
+
+grep -q "^license='LGPL version 2.1 or later'$" ffbuild/config.log || {
+  echo "error: FFmpeg did not configure as LGPL 2.1-or-later" >&2
+  exit 1
+}
 
 make -j"$WEBOS_BUILD_JOBS"
 make DESTDIR="$SYSROOT" install

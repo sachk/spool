@@ -84,6 +84,15 @@ if (( DO_BUILD || DO_STAGE )); then
     fi
   done
 
+  QT_NETWORK_CONFIG="$QT6_PREFIX/include/QtNetwork/qtnetwork-config.h"
+  QT_CORE_CONFIG="$QT6_PREFIX/include/QtCore/qconfig.h"
+  if ! grep -Fqx '#define QT_FEATURE_ssl 1' "$QT_NETWORK_CONFIG" 2>/dev/null \
+      || ! grep -Fqx '#define QT_FEATURE_openssl_linked 1' "$QT_CORE_CONFIG" 2>/dev/null; then
+    echo "error: Qt at $QT6_PREFIX was built without linked TLS support." >&2
+    echo "       Rerun: QT_STATIC=1 bash $WEBOS_TOOLS_ROOT/build-qt6-611.sh target" >&2
+    exit 1
+  fi
+
   #QT_GUI_CONFIG="$QT6_PREFIX/include/QtGui/qtgui-config.h"
   #if ! grep -q '^#define QT_FEATURE_accessibility 1$' "$QT_GUI_CONFIG" 2>/dev/null; then
   #  echo "error: Qt at $QT6_PREFIX was built without accessibility support." >&2

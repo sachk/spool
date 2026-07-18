@@ -27,6 +27,7 @@
     "withCodec2",
     "withCelt",
     "withGsm",
+    "withGmp",
     "withIlbc",
     "withLc3",
     "withSpeex",
@@ -79,7 +80,10 @@
     "withOpenal",
     "withJack",
     "withLadspa",
-    "withBs2b"
+    "withBs2b",
+    "withAvisynth",
+    "withVidStab",
+    "withRubberband"
   ],
   "bloatLibraryPatterns": [
     "libsmbclient*",

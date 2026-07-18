@@ -100,6 +100,12 @@ jobs:
       - name: Build host app
         run: nix develop .#native -c bash tools/build-linux-release.sh
 
+      - name: Run native tests
+        run: nix develop .#native -c ctest --test-dir build/linux-release/app --output-on-failure
+
+      - name: Lint compiled QML
+        run: nix develop .#native -c cmake --build build/linux-release/app --target jellyfin-native_qmllint_strict
+
       - name: Smoke-test host app startup
         run: nix develop .#native -c bash tools/smoke-native-app.sh build/linux-release/install/bin/jellyfin-native
 
@@ -160,6 +166,12 @@ jobs:
 
       - name: Build macOS app
         run: nix develop .#native --no-write-lock-file -c bash tools/build-macos.sh
+
+      - name: Run native tests
+        run: nix develop .#native --no-write-lock-file -c ctest --test-dir build/macos/app --output-on-failure
+
+      - name: Lint compiled QML
+        run: nix develop .#native --no-write-lock-file -c cmake --build build/macos/app --target jellyfin-native_qmllint_strict
 
       - name: Smoke-test macOS app startup
         run: nix develop .#native --no-write-lock-file -c bash tools/smoke-native-app.sh build/macos/install/jellyfin-native.app
