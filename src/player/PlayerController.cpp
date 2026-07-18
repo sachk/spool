@@ -289,7 +289,7 @@ void PlayerController::teardownMpv(bool async)
     m_idleMpvPreparationScheduled = false;
     destroyIdleMpv("teardown");
     // Platform render resources must detach before the mpv core is destroyed.
-    if (!releasePlatformMpvSurface()) {
+    if (!releasePlatformMpvSurface(m_embeddedVideoOutput)) {
         qCritical() << "player: timed out releasing the mpv render context; preserving the mpv core";
         return;
     }
@@ -300,6 +300,7 @@ void PlayerController::teardownMpv(bool async)
         m_mpvLifecycle.destroyAsync();
     else
         m_mpvLifecycle.destroy();
+    m_embeddedVideoOutput = false;
 }
 
 void PlayerController::scheduleIdleMpvPreparation()
@@ -337,7 +338,7 @@ void PlayerController::prepareIdleMpv()
         return;
     }
 
-    if (!configureAndInitializeMpv(handle)) {
+    if (!configureAndInitializeMpv(handle, false)) {
         mpv_terminate_destroy(handle);
         qWarning() << "player: idle mpv initialization failed";
         return;
@@ -367,7 +368,7 @@ mpv_handle *PlayerController::takeIdleMpvHandle()
     return handle;
 }
 
-bool PlayerController::configureAndInitializeMpv(mpv_handle *handle)
+bool PlayerController::configureAndInitializeMpv(mpv_handle *handle, bool embeddedVideo)
 {
     if (!handle)
         return false;
@@ -375,16 +376,16 @@ bool PlayerController::configureAndInitializeMpv(mpv_handle *handle)
     const auto platform = platformMpvOptionProfile();
     const int parallelRequests = m_api ? m_api->playbackParallelRequests() : 1;
     const MpvOptionProfile::NetworkProfile network = MpvOptionProfile::networkProfile(platform, parallelRequests);
-    qInfo().nospace() << "player: curl profile source=MpvOptionProfile platform=" << platformPlaybackBackendName()
-                      << " requestsPerStream=" << network.parallelRequests << " rangeBytes=" << network.rangeBytes
-                      << " ringBytes=" << network.ringBytes;
+    qInfo().nospace() << "player: curl profile source=MpvOptionProfile platform="
+                      << platformPlaybackBackendName(embeddedVideo) << " requestsPerStream=" << network.parallelRequests
+                      << " rangeBytes=" << network.rangeBytes << " ringBytes=" << network.ringBytes;
     if (!applyOptions(handle, MpvOptionProfile::preInitializeOptions(m_mpvConfigPolicy)))
         return false;
     if (mpv_initialize(handle) < 0)
         return false;
 
-    auto applicationOptions = MpvOptionProfile::applicationOptions(
-        platform, m_audioOutputMode, mpvLogPath(), m_demuxerMaxBytes, m_demuxerMaxBackBytes, parallelRequests);
+    auto applicationOptions = MpvOptionProfile::applicationOptions(platform, m_audioOutputMode, mpvLogPath(),
+        m_demuxerMaxBytes, m_demuxerMaxBackBytes, parallelRequests, embeddedVideo);
     const QByteArray subtitleFontsPath = bundledSubtitleFontsPath();
     if (!subtitleFontsPath.isEmpty())
         applicationOptions.push_back({ "sub-fonts-dir", subtitleFontsPath });
@@ -711,7 +712,7 @@ bool PlayerController::applyMpvSubtitleOptions(MpvOptionApplyMode mode, mpv_hand
     return ok;
 }
 
-bool PlayerController::ensureMpv(bool needsVideoSurface)
+bool PlayerController::ensureMpv(bool needsVideoSurface, bool embeddedVideo)
 {
     if (m_mpvLifecycle.handle())
         return true;
@@ -719,6 +720,8 @@ bool PlayerController::ensureMpv(bool needsVideoSurface)
     QElapsedTimer startupTimer;
     startupTimer.start();
 
+    if (embeddedVideo)
+        destroyIdleMpv("embedded software video output");
     mpv_handle *handle = takeIdleMpvHandle();
     const bool idlePrepared = handle != nullptr;
     if (!handle) {
@@ -731,7 +734,7 @@ bool PlayerController::ensureMpv(bool needsVideoSurface)
             return false;
         }
 
-        if (!configureAndInitializeMpv(handle)) {
+        if (!configureAndInitializeMpv(handle, embeddedVideo)) {
             mpv_terminate_destroy(handle);
             m_errorText = QStringLiteral("Failed to initialize libmpv.");
             emit playbackStateChanged();
@@ -740,7 +743,7 @@ bool PlayerController::ensureMpv(bool needsVideoSurface)
     }
 
     QString surfaceError;
-    if (!configurePlatformMpvSurface(handle, *m_window, needsVideoSurface, surfaceError)) {
+    if (!configurePlatformMpvSurface(handle, *m_window, needsVideoSurface, embeddedVideo, surfaceError)) {
         mpv_terminate_destroy(handle);
         m_errorText = surfaceError;
         emit playbackStateChanged();
@@ -754,8 +757,8 @@ bool PlayerController::ensureMpv(bool needsVideoSurface)
 
     QString attachmentError;
     if (!attachPlatformMpvSurface(
-            handle, needsVideoSurface, *this, [this](const QString& message) { handleVideoRenderError(message); },
-            attachmentError)) {
+            handle, needsVideoSurface, embeddedVideo, *this,
+            [this](const QString& message) { handleVideoRenderError(message); }, attachmentError)) {
         mpv_terminate_destroy(handle);
         m_errorText = attachmentError;
         m_statusText = QStringLiteral("Playback unavailable");
@@ -763,9 +766,11 @@ bool PlayerController::ensureMpv(bool needsVideoSurface)
         return false;
     }
 
+    m_embeddedVideoOutput = needsVideoSurface && embeddedVideo;
     if (!m_mpvLifecycle.adopt(handle, [this](mpv_event *event) { handleMpvEvent(event); })) {
         if (needsVideoSurface)
-            releasePlatformMpvSurface();
+            releasePlatformMpvSurface(m_embeddedVideoOutput);
+        m_embeddedVideoOutput = false;
         mpv_terminate_destroy(handle);
         m_errorText = QStringLiteral("Failed to start the libmpv event loop.");
         emit playbackStateChanged();
@@ -785,6 +790,7 @@ void PlayerController::play(const PlaybackSession& session, bool startPaused)
 {
     const QString nextMediaKind = mediaKindForSession(session);
     const bool needsVideoSurface = nextMediaKind == QStringLiteral("video");
+    const bool embeddedVideo = needsVideoSurface && platformUsesEmbeddedVideo(session);
     Diagnostics::Task task(QStringLiteral("player_play"),
         { { QStringLiteral("itemId"), session.itemId }, { QStringLiteral("title"), session.title },
             { QStringLiteral("mediaKind"), nextMediaKind } });
@@ -813,7 +819,7 @@ void PlayerController::play(const PlaybackSession& session, bool startPaused)
     }
     qInfo() << "player: HDR subtitle mode" << (m_hdrPlayback ? "enabled" : "disabled") << "source=media-metadata";
     m_window->clearOverlay();
-    if (needsVideoSurface) {
+    if (needsVideoSurface && !embeddedVideo) {
         QElapsedTimer playbackSurfaceTimer;
         playbackSurfaceTimer.start();
         if (!m_window->prepareForPlaybackSurface()) {
@@ -823,11 +829,13 @@ void PlayerController::play(const PlaybackSession& session, bool startPaused)
             return;
         }
         qInfo() << "player: prepareForPlaybackSurface completed in" << playbackSurfaceTimer.elapsed() << "ms";
+    } else if (embeddedVideo) {
+        qInfo() << "player: using embedded OpenGL software video surface";
     } else {
         qInfo() << "player: audio-only playback does not request a video surface";
     }
 
-    if (!ensureMpv(needsVideoSurface))
+    if (!ensureMpv(needsVideoSurface, embeddedVideo))
         return;
 
     m_session = session;
@@ -835,7 +843,7 @@ void PlayerController::play(const PlaybackSession& session, bool startPaused)
     rebuildTrickplaySheetUrls();
     m_title = session.title;
     m_mediaKind = nextMediaKind;
-    m_statusText = platformPreparingStatus(needsVideoSurface);
+    m_statusText = platformPreparingStatus(needsVideoSurface, embeddedVideo);
     m_errorText.clear();
     const double startSeconds
         = session.startTimeTicks > 0 ? static_cast<double>(session.startTimeTicks) / 10000000.0 : 0.0;

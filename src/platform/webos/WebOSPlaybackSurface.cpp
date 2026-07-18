@@ -2,13 +2,18 @@
 
 #include "platform/NativeAppWindow.h"
 #include "platform/webos/WebOSMpvRuntime.h"
+#include "player/MpvVideoItem.h"
 
 #include <QDebug>
+#include <QMetaObject>
+#include <QObject>
 
 #include <mpv/client.h>
 
 namespace JellyfinNative {
 namespace {
+    QMetaObject::Connection g_renderErrorConnection;
+
     bool setRequiredProperty(mpv_handle *handle, const char *name, const QByteArray& value)
     {
         const int result = mpv_set_property_string(handle, name, value.constData());
@@ -35,15 +40,20 @@ MpvOptionProfile::Platform platformMpvOptionProfile()
 {
     return MpvOptionProfile::Platform::WebOS;
 }
-QString platformPlaybackBackendName()
+bool platformUsesEmbeddedVideo(const PlaybackSession& session)
 {
-    return QStringLiteral("webOS");
+    return MpvOptionProfile::useWebOSSoftwareVideo(session);
+}
+
+QString platformPlaybackBackendName(bool embeddedVideo)
+{
+    return embeddedVideo ? QStringLiteral("webOS OpenGL software") : QStringLiteral("webOS Starfish");
 }
 
 bool configurePlatformMpvSurface(
-    mpv_handle *handle, NativeAppWindow& window, bool needsVideoSurface, QString& errorMessage)
+    mpv_handle *handle, NativeAppWindow& window, bool needsVideoSurface, bool embeddedVideo, QString& errorMessage)
 {
-    if (!needsVideoSurface)
+    if (!needsVideoSurface || embeddedVideo)
         return true;
     if (setRequiredProperty(handle, "vo-starfish-window-id", window.windowId().toUtf8())
         && setRequiredProperty(handle, "vo-starfish-window-width", QByteArray::number(window.width()))
@@ -54,19 +64,39 @@ bool configurePlatformMpvSurface(
     return false;
 }
 
-bool attachPlatformMpvSurface(mpv_handle *, bool, QObject&, std::function<void(const QString&)>, QString&)
+bool attachPlatformMpvSurface(mpv_handle *handle, bool needsVideoSurface, bool embeddedVideo, QObject& context,
+    std::function<void(const QString&)> errorHandler, QString& errorMessage)
 {
+    if (!needsVideoSurface || !embeddedVideo)
+        return true;
+    auto *videoItem = MpvVideoItem::instance();
+    if (!videoItem) {
+        qCritical() << "playback surface: MpvVideoItem instance is missing";
+        errorMessage
+            = QStringLiteral("The software video surface is unavailable. Return to the library and try again.");
+        return false;
+    }
+    QObject::disconnect(g_renderErrorConnection);
+    g_renderErrorConnection = QObject::connect(videoItem, &MpvVideoItem::renderError, &context,
+        [errorHandler = std::move(errorHandler)](const QString& message) { errorHandler(message); });
+    videoItem->setMpvHandle(handle);
     return true;
 }
 
-bool releasePlatformMpvSurface()
+bool releasePlatformMpvSurface(bool embeddedVideo)
 {
-    return true;
+    if (!embeddedVideo)
+        return true;
+    auto *videoItem = MpvVideoItem::instance();
+    return !videoItem || videoItem->releaseMpvHandle();
 }
 
-QString platformPreparingStatus(bool needsVideoSurface)
+QString platformPreparingStatus(bool needsVideoSurface, bool embeddedVideo)
 {
-    return needsVideoSurface ? QStringLiteral("Preparing libmpv + Starfish...") : QStringLiteral("Preparing audio...");
+    if (!needsVideoSurface)
+        return QStringLiteral("Preparing audio...");
+    return embeddedVideo ? QStringLiteral("Preparing software video...")
+                         : QStringLiteral("Preparing libmpv + Starfish...");
 }
 
 bool applyPlatformSubtitlePreload(

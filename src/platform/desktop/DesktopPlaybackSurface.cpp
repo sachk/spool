@@ -23,17 +23,21 @@ MpvOptionProfile::Platform platformMpvOptionProfile()
 {
     return MpvOptionProfile::Platform::Desktop;
 }
-QString platformPlaybackBackendName()
+bool platformUsesEmbeddedVideo(const PlaybackSession&)
+{
+    return true;
+}
+QString platformPlaybackBackendName(bool)
 {
     return QStringLiteral("desktop");
 }
 
-bool configurePlatformMpvSurface(mpv_handle *, NativeAppWindow&, bool, QString&)
+bool configurePlatformMpvSurface(mpv_handle *, NativeAppWindow&, bool, bool, QString&)
 {
     return true;
 }
 
-bool attachPlatformMpvSurface(mpv_handle *handle, bool needsVideoSurface, QObject& context,
+bool attachPlatformMpvSurface(mpv_handle *handle, bool needsVideoSurface, bool, QObject& context,
     std::function<void(const QString&)> errorHandler, QString& errorMessage)
 {
     if (!needsVideoSurface)
@@ -51,7 +55,7 @@ bool attachPlatformMpvSurface(mpv_handle *handle, bool needsVideoSurface, QObjec
     return true;
 }
 
-bool releasePlatformMpvSurface()
+bool releasePlatformMpvSurface(bool)
 {
     auto *videoItem = MpvVideoItem::instance();
     if (!videoItem)
@@ -59,7 +63,7 @@ bool releasePlatformMpvSurface()
     return videoItem->releaseMpvHandle();
 }
 
-QString platformPreparingStatus(bool needsVideoSurface)
+QString platformPreparingStatus(bool needsVideoSurface, bool)
 {
     return needsVideoSurface ? QStringLiteral("Preparing libmpv...") : QStringLiteral("Preparing audio...");
 }

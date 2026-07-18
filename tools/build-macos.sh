@@ -60,6 +60,9 @@ if [[ "$DEPLOY_APP" == "1" ]]; then
     "$APP_ROOT/qml/fonts/Inter-LICENSE.txt" "$APP_ROOT/qml/fonts/MaterialIcons-LICENSE.txt" \
     "$APP_ROOT/qml/fonts/SourceSerif4-LICENSE.md" \
     "$APP_INSTALL/jellyfin-native.app/Contents/Resources/notices/"
+  python3 "$APP_ROOT/tools/ffmpeg-capabilities.py" \
+    --manifest "$APP_ROOT/tools/manifests/ffmpeg-capabilities.json" \
+    audit-closure "$APP_INSTALL/jellyfin-native.app"
 fi
 
 printf '%s\n' "$APP_INSTALL/jellyfin-native.app"

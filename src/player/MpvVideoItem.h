@@ -16,8 +16,8 @@ namespace JellyfinNative {
 // QQuickFramebufferObject that hosts libmpv's render API. PlayerController
 // hands us an mpv_handle via setMpvHandle(); the scene-graph render thread
 // then creates an mpv_render_context bound to Qt's OpenGL context and renders
-// each frame into our FBO. Used on non-Starfish (desktop) builds where mpv
-// would otherwise pop its own toplevel window via vo=gpu.
+// each frame into our FBO. Used by desktop playback and the webOS software
+// decoder path, where a standalone mpv Wayland window cannot be embedded.
 class MpvVideoItem : public QQuickFramebufferObject {
     Q_OBJECT
     QML_NAMED_ELEMENT(MpvVideoItem)

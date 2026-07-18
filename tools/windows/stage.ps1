@@ -58,6 +58,22 @@ Copy-Item -LiteralPath (Join-Path $root 'qml\fonts\MaterialIcons-LICENSE.txt') `
 Copy-Item -LiteralPath (Join-Path $root 'qml\fonts\SourceSerif4-LICENSE.md') `
     -Destination (Join-Path $licenseDir 'SourceSerif4-OFL.md')
 
+$ffmpegAuditArguments = @(
+    (Join-Path $root 'tools\ffmpeg-capabilities.py'),
+    '--manifest',
+    (Join-Path $root 'tools\manifests\ffmpeg-capabilities.json'),
+    'audit-closure',
+    $stageDir
+)
+if (Get-Command py.exe -ErrorAction SilentlyContinue) {
+    & py.exe -3 @ffmpegAuditArguments
+} elseif (Get-Command python.exe -ErrorAction SilentlyContinue) {
+    & python.exe @ffmpegAuditArguments
+} else {
+    throw 'A system Python interpreter is required for the FFmpeg dependency closure audit.'
+}
+if ($LASTEXITCODE -ne 0) { throw 'FFmpeg dependency closure audit failed.' }
+
 & (Join-Path $PSScriptRoot 'test-runtime-closure.ps1') -StageDirectory $stageDir
 
 Write-Host "Staged Windows release: $stageDir"

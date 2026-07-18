@@ -476,12 +476,48 @@ if(BUILD_TESTING AND NOT CMAKE_CROSSCOMPILING)
         endif()
     endforeach()
 
-    pkg_check_modules(FFMPEG_AUDIT REQUIRED IMPORTED_TARGET libavutil libavformat libavfilter)
+    find_package(Python3 REQUIRED COMPONENTS Interpreter)
+    if(JELLYFIN_NATIVE_WEBOS)
+        set(JELLYFIN_FFMPEG_AUDIT_PLATFORM webos)
+    elseif(APPLE)
+        set(JELLYFIN_FFMPEG_AUDIT_PLATFORM macos)
+    elseif(WIN32)
+        set(JELLYFIN_FFMPEG_AUDIT_PLATFORM windows)
+    else()
+        set(JELLYFIN_FFMPEG_AUDIT_PLATFORM linux)
+    endif()
+    set(JELLYFIN_FFMPEG_CAPABILITY_HEADER
+        "${CMAKE_CURRENT_BINARY_DIR}/generated/FfmpegCapabilities.h")
+    set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
+        "${CMAKE_CURRENT_SOURCE_DIR}/tools/ffmpeg-capabilities.py"
+        "${CMAKE_CURRENT_SOURCE_DIR}/tools/manifests/ffmpeg-capabilities.json")
+    execute_process(
+        COMMAND "${Python3_EXECUTABLE}"
+            "${CMAKE_CURRENT_SOURCE_DIR}/tools/ffmpeg-capabilities.py"
+            cpp-header
+            --platform "${JELLYFIN_FFMPEG_AUDIT_PLATFORM}"
+            --output "${JELLYFIN_FFMPEG_CAPABILITY_HEADER}"
+        RESULT_VARIABLE JELLYFIN_FFMPEG_HEADER_RESULT
+        ERROR_VARIABLE JELLYFIN_FFMPEG_HEADER_ERROR
+    )
+    if(NOT JELLYFIN_FFMPEG_HEADER_RESULT EQUAL 0)
+        message(FATAL_ERROR "FFmpeg capability header generation failed: ${JELLYFIN_FFMPEG_HEADER_ERROR}")
+    endif()
+
+    pkg_check_modules(FFMPEG_AUDIT REQUIRED IMPORTED_TARGET libavutil libavcodec libavformat libavfilter)
     add_executable(ffmpeg-compliance-tests tests/media/FfmpegComplianceTest.cpp)
+    target_include_directories(ffmpeg-compliance-tests PRIVATE "${CMAKE_CURRENT_BINARY_DIR}/generated")
+    target_compile_definitions(ffmpeg-compliance-tests PRIVATE
+        TEST_MEDIA_DIR="${CMAKE_CURRENT_SOURCE_DIR}/tests/media/fixtures")
     target_link_libraries(ffmpeg-compliance-tests PRIVATE PkgConfig::FFMPEG_AUDIT)
     add_test(NAME ffmpeg-compliance COMMAND ffmpeg-compliance-tests)
+    add_test(NAME ffmpeg-capability-generator
+        COMMAND "${Python3_EXECUTABLE}"
+            "${CMAKE_CURRENT_SOURCE_DIR}/tests/tools/FfmpegCapabilitiesTest.py"
+            "${CMAKE_CURRENT_SOURCE_DIR}/tools/ffmpeg-capabilities.py"
+            "${CMAKE_CURRENT_SOURCE_DIR}/tools/manifests/ffmpeg-capabilities.json"
+    )
 
-    find_package(Python3 REQUIRED COMPONENTS Interpreter)
     add_test(NAME network-shaper
         COMMAND "${Python3_EXECUTABLE}"
             "${CMAKE_CURRENT_SOURCE_DIR}/tests/tools/NetworkShaperTest.py"

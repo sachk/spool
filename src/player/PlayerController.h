@@ -206,12 +206,12 @@ private:
         PlaybackSpeed,
     };
 
-    bool ensureMpv(bool needsVideoSurface);
+    bool ensureMpv(bool needsVideoSurface, bool embeddedVideo);
     void scheduleIdleMpvPreparation();
     void prepareIdleMpv();
     void destroyIdleMpv(const char *reason);
     mpv_handle *takeIdleMpvHandle();
-    bool configureAndInitializeMpv(mpv_handle *handle);
+    bool configureAndInitializeMpv(mpv_handle *handle, bool embeddedVideo);
     void observeMpvProperties(mpv_handle *handle);
     void scheduleMpvTeardown();
     static QString mediaKindForSession(const PlaybackSession& session);
@@ -261,6 +261,7 @@ private:
     int m_bufferingPercent = 0;
     bool m_seeking = false;
     bool m_debugOsdVisible = false;
+    bool m_embeddedVideoOutput = false;
     PlaybackTrackState m_tracks;
     bool m_restoreFallbackStreamSelection = false;
     bool m_backAllowed = true;

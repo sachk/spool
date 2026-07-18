@@ -31,11 +31,12 @@ qsizetype indexOf(const std::vector<MpvOption>& options, const QByteArray& name)
 std::vector<MpvOption> profileOptions(const MpvConfigPolicy& policy, MpvOptionProfile::Platform platform,
     const QString& audioOutputMode, const QByteArray& logPath,
     const QByteArray& demuxerMaxBytes = QByteArrayLiteral("64M"),
-    const QByteArray& demuxerMaxBackBytes = QByteArrayLiteral("32M"), int parallelRequests = 1)
+    const QByteArray& demuxerMaxBackBytes = QByteArrayLiteral("32M"), int parallelRequests = 1,
+    bool softwareVideo = false)
 {
     std::vector<MpvOption> options = MpvOptionProfile::preInitializeOptions(policy);
     std::vector<MpvOption> applicationOptions = MpvOptionProfile::applicationOptions(
-        platform, audioOutputMode, logPath, demuxerMaxBytes, demuxerMaxBackBytes, parallelRequests);
+        platform, audioOutputMode, logPath, demuxerMaxBytes, demuxerMaxBackBytes, parallelRequests, softwareVideo);
     options.insert(options.end(), applicationOptions.cbegin(), applicationOptions.cend());
     return options;
 }
@@ -210,6 +211,39 @@ int main(int argc, char **argv)
         "split-clock playback should not advertise pipeline audio");
     require(valueFor(webOSAlsa, "alsa-no-hw-pause") == "yes", "webOS ALSA should avoid the broken hardware pause path");
     require(valueFor(webOSAlsa, "alsa-bounded-io") == "yes", "webOS ALSA should use bounded direct-device I/O");
+
+    PlaybackSession softwareSession;
+    softwareSession.playMethod = QStringLiteral("DirectPlay");
+    MediaStreamInfo softwareVideoStream;
+    softwareVideoStream.type = QStringLiteral("Video");
+    softwareVideoStream.codec = QStringLiteral("VC1");
+    softwareSession.mediaStreams = { softwareVideoStream };
+    require(MpvOptionProfile::useWebOSSoftwareVideo(softwareSession),
+        "direct-play VC-1 should select the webOS software renderer");
+    softwareSession.playMethod = QStringLiteral("Transcode");
+    require(!MpvOptionProfile::useWebOSSoftwareVideo(softwareSession),
+        "server-transcoded video should remain on the Starfish renderer");
+    softwareSession.playMethod = QStringLiteral("DirectPlay");
+    softwareVideoStream.codec = QStringLiteral("h264");
+    softwareSession.mediaStreams = { softwareVideoStream };
+    require(!MpvOptionProfile::useWebOSSoftwareVideo(softwareSession),
+        "hardware-supported H.264 should remain on the Starfish renderer");
+
+    const auto webOSSoftware
+        = profileOptions(MpvConfigPolicy {}, MpvOptionProfile::Platform::WebOS, QStringLiteral("starfish-pcm"),
+            QByteArrayLiteral("/tmp/mpv.log"), QByteArrayLiteral("64M"), QByteArrayLiteral("32M"), 1, true);
+    require(valueFor(webOSSoftware, "vo") == "libmpv",
+        "webOS software decoding should render through the embedded libmpv output");
+    require(valueFor(webOSSoftware, "vd") == "lavc", "webOS software decoding should use libavcodec");
+    require(valueFor(webOSSoftware, "ao") == "alsa,null",
+        "software rendering must not use audio tied to the absent Starfish video context");
+    require(valueFor(webOSSoftware, "hwdec") == "no", "software rendering should not negotiate a hardware decoder");
+    require(valueFor(webOSSoftware, "scale") == "bilinear" && valueFor(webOSSoftware, "cscale") == "bilinear",
+        "software rendering should use low-cost bilinear shaders");
+    require(valueFor(webOSSoftware, "deband") == "no" && valueFor(webOSSoftware, "interpolation") == "no",
+        "software rendering should disable expensive optional shader passes");
+    require(valueFor(webOSSoftware, "deinterlace") == "auto",
+        "software-rendered interlaced DVD video should select deinterlacing from frame metadata");
 
     MediaStreamInfo sdrStream;
     sdrStream.type = QStringLiteral("Video");

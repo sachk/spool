@@ -225,15 +225,30 @@ std::vector<MpvOption> MpvOptionProfile::preInitializeOptions(const MpvConfigPol
     return options;
 }
 
+bool MpvOptionProfile::useWebOSSoftwareVideo(const PlaybackSession& session)
+{
+    if (session.playMethod.compare(QStringLiteral("Transcode"), Qt::CaseInsensitive) == 0)
+        return false;
+
+    static const QStringList softwareCodecs { QStringLiteral("h263"), QStringLiteral("mpeg1video"),
+        QStringLiteral("mpeg2video"), QStringLiteral("mpeg4"), QStringLiteral("vc1") };
+    for (const MediaStreamInfo& stream : session.mediaStreams) {
+        if (stream.type.compare(QStringLiteral("Video"), Qt::CaseInsensitive) == 0)
+            return softwareCodecs.contains(stream.codec.trimmed(), Qt::CaseInsensitive);
+    }
+    return false;
+}
+
 std::vector<MpvOption> MpvOptionProfile::applicationOptions(Platform platform, const QString& audioOutputMode,
     const QByteArray& logPath, const QByteArray& demuxerMaxBytes, const QByteArray& demuxerMaxBackBytes,
-    int parallelRequests)
+    int parallelRequests, bool softwareVideo)
 {
     const bool webOS = platform == Platform::WebOS;
+    softwareVideo = webOS && softwareVideo;
     const NetworkProfile network = networkProfile(platform, parallelRequests);
     const QString normalizedAudioOutput = webOS ? audioOutputMode : normalizedAudioOutputMode(audioOutputMode);
-    const bool starfishAudio
-        = webOS && (audioOutputMode == QStringLiteral("starfish") || audioOutputMode == QStringLiteral("starfish-pcm"));
+    const bool starfishAudio = webOS && !softwareVideo
+        && (audioOutputMode == QStringLiteral("starfish") || audioOutputMode == QStringLiteral("starfish-pcm"));
 
     std::vector<MpvOption> options {
         { "terminal", "no" },
@@ -255,10 +270,25 @@ std::vector<MpvOption> MpvOptionProfile::applicationOptions(Platform platform, c
 
     if (webOS) {
         options.push_back({ "initial-audio-sync", "no" });
-        options.push_back({ "vo", "starfish" });
-        options.push_back({ "vd", "starfish" });
+        options.push_back({ "vo", softwareVideo ? "libmpv" : "starfish" });
+        options.push_back({ "vd", softwareVideo ? "lavc" : "starfish" });
         options.push_back({ "ao", starfishAudio ? "starfish,null" : "alsa,null" });
-        options.push_back({ "vo-starfish-audio-hint", starfishAudio ? "yes" : "no" });
+        if (!softwareVideo)
+            options.push_back({ "vo-starfish-audio-hint", starfishAudio ? "yes" : "no" });
+        else {
+            options.push_back({ "hwdec", "no" });
+            options.push_back({ "profile", "fast" });
+            options.push_back({ "scale", "bilinear" });
+            options.push_back({ "cscale", "bilinear" });
+            options.push_back({ "dscale", "bilinear" });
+            options.push_back({ "correct-downscaling", "no" });
+            options.push_back({ "linear-downscaling", "no" });
+            options.push_back({ "sigmoid-upscaling", "no" });
+            options.push_back({ "deband", "no" });
+            options.push_back({ "interpolation", "no" });
+            options.push_back({ "dither-depth", "no" });
+            options.push_back({ "deinterlace", "auto" });
+        }
         if (!starfishAudio) {
             options.push_back({ "audio-device", "alsa/hw:0,7" });
             options.push_back({ "video-sync", "display-resample" });

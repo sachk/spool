@@ -21,6 +21,7 @@ WEBOS_BUILD_MEMORY_PER_JOB_MIB="${WEBOS_BUILD_MEMORY_PER_JOB_MIB:-1536}"
 WEBOS_BUILD_MEMORY_RESERVE_MIB="${WEBOS_BUILD_MEMORY_RESERVE_MIB:-2048}"
 WEBOS_BUILD_JOBS="$(recommended_parallel_jobs "$WEBOS_BUILD_MEMORY_PER_JOB_MIB" "$WEBOS_BUILD_MEMORY_RESERVE_MIB")"
 FFMPEG_PGO_FLAGS="$(webos_pgo_flags FFMPEG "$ROOT/build/pgo/ffmpeg")"
+FFMPEG_CAPABILITY_MANIFEST="${FFMPEG_CAPABILITY_MANIFEST:-$ROOT/tools/manifests/ffmpeg-capabilities.json}"
 # Keep unwind tables and debug information out of release libraries unless an
 # instrumented build explicitly supplies FFMPEG_DIAG_CFLAGS.
 FFMPEG_DIAG_CFLAGS="${FFMPEG_DIAG_CFLAGS:-}"
@@ -38,8 +39,15 @@ export PKG_CONFIG_SYSROOT_DIR="$SYSROOT"
 
 cd "$SRC_DIR"
 describe_parallel_jobs "$WEBOS_BUILD_JOBS" "FFmpeg" "$WEBOS_BUILD_MEMORY_PER_JOB_MIB" "$WEBOS_BUILD_MEMORY_RESERVE_MIB"
+python3 "$ROOT/tools/ffmpeg-capabilities.py" --manifest "$FFMPEG_CAPABILITY_MANIFEST" validate
+mapfile -t FFMPEG_FEATURE_FLAGS < <(
+  python3 "$ROOT/tools/ffmpeg-capabilities.py" --manifest "$FFMPEG_CAPABILITY_MANIFEST" \
+    configure --platform webos
+)
+
 
 ./configure \
+  "${FFMPEG_FEATURE_FLAGS[@]}" \
   --prefix="$TARGET_PREFIX" \
   --arch=arm \
   --cpu=cortex-a53 \
@@ -57,112 +65,12 @@ describe_parallel_jobs "$WEBOS_BUILD_JOBS" "FFmpeg" "$WEBOS_BUILD_MEMORY_PER_JOB
   --enable-shared \
   --enable-pic \
   --enable-lto \
-  --disable-everything \
-  --disable-gpl \
-  --disable-version3 \
-  --disable-nonfree \
-  --disable-programs \
-  --disable-doc \
-  --disable-debug \
-  --disable-autodetect \
-  --disable-avdevice \
-  --disable-iconv \
-  --enable-optimizations \
-  --enable-avcodec \
-  --enable-avfilter \
-  --enable-avformat \
-  --enable-avutil \
-  --enable-swresample \
-  --enable-swscale \
-  --enable-network \
-  --enable-openssl \
-  --enable-protocol=file \
-  --enable-protocol=http \
-  --enable-protocol=https \
-  --enable-protocol=tcp \
-  --enable-protocol=tls \
-  --enable-protocol=pipe \
-  --enable-demuxer=matroska \
-  --enable-demuxer=mov \
-  --enable-demuxer=mp3 \
-  --enable-demuxer=flac \
-  --enable-demuxer=wav \
-  --enable-demuxer=ogg \
-  --enable-demuxer=mpegts \
-  --enable-demuxer=avi \
-  --enable-demuxer=aac \
-  --enable-demuxer=hls \
-  --enable-parser=aac \
-  --enable-parser=ac3 \
-  --enable-parser=dca \
-  --enable-parser=eac3 \
-  --enable-parser=flac \
-  --enable-parser=h264 \
-  --enable-parser=hevc \
-  --enable-parser=mlp \
-  --enable-parser=mpegaudio \
-  --enable-parser=opus \
-  --enable-parser=vorbis \
-  --enable-decoder=aac \
-  --enable-decoder=ac3 \
-  --enable-decoder=alac \
-  --enable-decoder=dca \
-  --enable-decoder=eac3 \
-  --enable-decoder=flac \
-  --enable-decoder=mlp \
-  --enable-decoder=mp2 \
-  --enable-decoder=mp3 \
-  --enable-decoder=opus \
-  --enable-decoder=pcm_bluray \
-  --enable-decoder=pcm_f32le \
-  --enable-decoder=pcm_s16be \
-  --enable-decoder=pcm_s16le \
-  --enable-decoder=pcm_s24be \
-  --enable-decoder=pcm_s24le \
-  --enable-decoder=pcm_s32le \
-  --enable-decoder=truehd \
-  --enable-decoder=vorbis \
-  --enable-decoder=wmav2 \
-  --enable-decoder=wmapro \
-  --enable-decoder=h264 \
-  --enable-decoder=hevc \
-  --enable-decoder=av1 \
-  --enable-decoder=vp8 \
-  --enable-decoder=vp9 \
-  --enable-decoder=mpeg1video \
-  --enable-decoder=mpeg2video \
-  --enable-decoder=mpeg4 \
-  --enable-decoder=vc1 \
-  --enable-decoder=wmv3 \
-  --enable-decoder=prores \
-  --enable-decoder=mjpeg \
-  --enable-decoder=png \
-  --enable-decoder=ass \
-  --enable-decoder=dvbsub \
-  --enable-decoder=dvdsub \
-  --enable-decoder=pgssub \
-  --enable-decoder=subrip \
-  --enable-decoder=webvtt \
-  --enable-hwaccels \
-  --enable-encoder=aac \
-  --enable-muxer=spdif \
-  --enable-filter=abuffer \
-  --enable-filter=abuffersink \
-  --enable-filter=alimiter \
-  --enable-filter=buffer \
-  --enable-filter=buffersink \
-  --enable-filter=compand \
-  --enable-filter=dialoguenhance \
-  --enable-filter=equalizer \
-  --enable-filter=highpass \
-  --enable-filter=pan \
-  --enable-filter=speechnorm \
-  --enable-filter=treble \
-  --enable-bsf=aac_adtstoasc \
-  --enable-bsf=h264_mp4toannexb \
-  --enable-bsf=hevc_mp4toannexb \
   --extra-cflags="--sysroot=$SYSROOT -I$PREFIX/include $(webos_tune_cflags) $FFMPEG_DIAG_CFLAGS $FFMPEG_PGO_FLAGS" \
   --extra-ldflags="--sysroot=$SYSROOT -L$PREFIX/lib -Wl,-rpath-link,$PREFIX/lib $FFMPEG_PGO_FLAGS"
+
+python3 "$ROOT/tools/ffmpeg-capabilities.py" --manifest "$FFMPEG_CAPABILITY_MANIFEST" \
+  audit-config --platform webos ffbuild/config.log config_components.h
+cp -f ffbuild/config.log "$BUILD_DIR/config.log"
 
 grep -q "^license='LGPL version 2.1 or later'$" ffbuild/config.log || {
   echo "error: FFmpeg did not configure as LGPL 2.1-or-later" >&2

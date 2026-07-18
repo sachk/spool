@@ -123,7 +123,9 @@ namespace {
             // screenshots are disabled, neither of which we use.
             mpv_render_param params[] = {
                 { MPV_RENDER_PARAM_API_TYPE, const_cast<char *>(MPV_RENDER_API_TYPE_OPENGL) },
-#ifndef JELLYFIN_NATIVE_WEBOS
+#ifdef JELLYFIN_NATIVE_WEBOS
+                { MPV_RENDER_PARAM_BACKEND, const_cast<char *>("gpu") },
+#else
                 { MPV_RENDER_PARAM_BACKEND, const_cast<char *>("gpu-next") },
 #endif
                 { MPV_RENDER_PARAM_OPENGL_INIT_PARAMS, &glInit },

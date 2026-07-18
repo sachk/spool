@@ -56,6 +56,11 @@ jobs:
           printf 'checking %d scripts\n' "${#scripts[@]}"
           nix develop -c python3 -m py_compile "${scripts[@]}"
 
+      - name: Validate FFmpeg capability manifest
+        run: |
+          nix develop .#native -c python3 tests/tools/FfmpegCapabilitiesTest.py \
+            tools/ffmpeg-capabilities.py tools/manifests/ffmpeg-capabilities.json
+
       - name: Evaluate Nix flake
         run: nix flake check --no-build --no-write-lock-file
 
@@ -91,7 +96,7 @@ jobs:
             .ccache
             build/linux-release
             build/appimage
-          key: linux3-${{ runner.os }}-${{ hashFiles('mpv/meson.build', 'mpv/meson.options', 'tools/manifests/mpv-native.json', 'tools/build-linux-release.sh', 'tools/lib/build-common.sh', 'CMakeLists.txt') }}
+          key: linux3-${{ runner.os }}-${{ hashFiles('mpv/meson.build', 'mpv/meson.options', 'tools/manifests/mpv-native.json', 'tools/manifests/ffmpeg-capabilities.json', 'tools/ffmpeg-capabilities.py', 'tools/build-linux-release.sh', 'tools/lib/build-common.sh', 'CMakeLists.txt') }}
           restore-keys: |
             linux3-${{ runner.os }}-
 
@@ -148,7 +153,7 @@ jobs:
           path: |
             build/macos
             ~/Library/Caches/ccache
-          key: macos-${{ runner.os }}-${{ hashFiles('mpv/meson.build', 'tools/build-macos.sh', 'tools/lib/build-common.sh', 'CMakeLists.txt') }}
+          key: macos-${{ runner.os }}-${{ hashFiles('mpv/meson.build', 'tools/manifests/mpv-native.json', 'tools/manifests/ffmpeg-capabilities.json', 'tools/ffmpeg-capabilities.py', 'tools/build-macos.sh', 'tools/lib/build-common.sh', 'CMakeLists.txt') }}
           restore-keys: |
             macos-${{ runner.os }}-
 
@@ -209,7 +214,7 @@ jobs:
             build/third_party
             .ccache
             mpv/build/webos-libmpv
-          key: webos2-${{ runner.os }}-${{ hashFiles('flake.nix', 'flake.lock', 'mpv/meson.build', 'build-ipk.sh', 'tools/lib/*.sh', 'tools/manifests/qt-webos-6.11.json', 'tools/manifests/webos-third-party.json', 'tools/webos-native/**') }}
+          key: webos2-${{ runner.os }}-${{ hashFiles('flake.nix', 'flake.lock', 'mpv/meson.build', 'build-ipk.sh', 'tools/lib/*.sh', 'tools/manifests/ffmpeg-capabilities.json', 'tools/manifests/qt-webos-6.11.json', 'tools/manifests/webos-third-party.json', 'tools/webos-native/**') }}
           restore-keys: |
             webos2-${{ runner.os }}-
             webos-${{ runner.os }}-

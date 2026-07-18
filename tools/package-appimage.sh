@@ -10,7 +10,7 @@ source "$APP_ROOT/tools/lib/qt-deploy.sh"
 # shellcheck source=tools/lib/manifest-sources.sh
 source "$APP_ROOT/tools/lib/manifest-sources.sh"
 TOOL_MANIFEST="${LINUXDEPLOY_MANIFEST:-$APP_ROOT/tools/manifests/linuxdeploy.json}"
-FFMPEG_SLIM_MANIFEST="${FFMPEG_SLIM_MANIFEST:-$APP_ROOT/tools/manifests/ffmpeg-slim.json}"
+FFMPEG_CAPABILITY_MANIFEST="${FFMPEG_CAPABILITY_MANIFEST:-$APP_ROOT/tools/manifests/ffmpeg-capabilities.json}"
 APP_VERSION="$(read_project_version "$APP_ROOT")"
 BUILD_ROOT="${BUILD_ROOT:-$APP_ROOT/build/linux-release/install/bin}"
 MPV_PREFIX="${MPV_PREFIX:-$APP_ROOT/build/linux-release/mpv-prefix}"
@@ -206,23 +206,11 @@ prune_appdir() {
   fi
 }
 
-# Non-destructive audit: warn if any of the libs the slim ffmpeg overlay was
-# meant to drop have leaked into the bundle anyway. Cheaper than deleting them
-# blind (which could break a transitive non-ffmpeg consumer); fixes belong in
-# the overlay instead.
-audit_unexpected_bloat() {
-  local pattern hits=0
-  while IFS= read -r pattern; do
-    [[ -n "$pattern" ]] || continue
-    while IFS= read -r leaked; do
-      [[ -e "$leaked" ]] || continue
-      hits=$((hits + 1))
-      echo "warn: unexpected bloat lib in AppDir: ${leaked##*/}" >&2
-    done < <(compgen -G "$APPDIR/usr/lib/$pattern" || true)
-  done < <(manifest_json_array "$FFMPEG_SLIM_MANIFEST" bloatLibraryPatterns)
-  if (( hits > 0 )); then
-    echo "warn: $hits libs leaked past the ffmpeg-slim overlay; tighten $FFMPEG_SLIM_MANIFEST" >&2
-  fi
+# Fail packaging if a GPL/external codec library or another manifest-forbidden
+# dependency leaked into the AppImage closure.
+audit_ffmpeg_closure() {
+  python3 "$APP_ROOT/tools/ffmpeg-capabilities.py" --manifest "$FFMPEG_CAPABILITY_MANIFEST" \
+    audit-closure "$APPDIR/usr/lib" "$APPDIR/usr/bin"
 }
 
 patchelf_set_rpath() {
@@ -385,7 +373,7 @@ bundle_wayland_plugins
 prune_appdir
 copy_elf_deps
 set_appdir_rpaths
-audit_unexpected_bloat
+audit_ffmpeg_closure
 
 APPIMAGETOOL="${APPIMAGETOOL:-}"
 if [[ -z "$APPIMAGETOOL" ]]; then

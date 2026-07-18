@@ -143,12 +143,15 @@ int main(int argc, char **argv)
             == QStringLiteral("hevc,h264,av1,vp9"),
         "desktop transcodes should advertise every fMP4 HLS video codec in preference order");
 
-    const QJsonObject webOsProfile = PlaybackNegotiation::buildDeviceProfile(
-        25'000'000, { QStringLiteral("VP9"), QStringLiteral("h264"), QStringLiteral("hevc") }, true);
+    const QJsonObject webOsProfile = PlaybackNegotiation::buildDeviceProfile(25'000'000,
+        { QStringLiteral("VP9"), QStringLiteral("h264"), QStringLiteral("hevc"), QStringLiteral("mpeg1video"),
+            QStringLiteral("mpeg2video"), QStringLiteral("mpeg4"), QStringLiteral("h263"), QStringLiteral("vc1") },
+        true);
     const QJsonObject webOsDirectVideo
         = webOsProfile.value(QStringLiteral("DirectPlayProfiles")).toArray().first().toObject();
-    require(webOsDirectVideo.value(QStringLiteral("VideoCodec")).toString() == QStringLiteral("vp9,h264,hevc"),
-        "webOS direct play should be restricted to the probed Starfish codecs");
+    require(webOsDirectVideo.value(QStringLiteral("VideoCodec")).toString()
+            == QStringLiteral("vp9,h264,hevc,mpeg1video,mpeg2video,mpeg4,h263,vc1"),
+        "webOS direct play should combine probed Starfish codecs with the explicit software-decoder set");
     require(webOsProfile.value(QStringLiteral("TranscodingProfiles"))
                 .toArray()
                 .first()

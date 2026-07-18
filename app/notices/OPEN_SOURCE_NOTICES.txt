@@ -27,7 +27,7 @@ The modified mpv source used by the application is available at:
 Major bundled components
 
   mpv                         GPL-2.0-or-later / LGPL-2.1-or-later
-  FFmpeg                      LGPL-2.1-or-later / GPL-2.0-or-later
+  FFmpeg                      LGPL-2.1-or-later
   Qt 6                        LGPL-3.0 / GPL-2.0-or-later / GPL-3.0
   QCoro                       MIT
   libass                      ISC

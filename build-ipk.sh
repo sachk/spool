@@ -56,6 +56,7 @@ STAGE_LIB="$APP_DIR/lib"
 STAGE_BIN="$APP_DIR/bin"
 STRIP_BIN="$SDK_ROOT/bin/arm-webos-linux-gnueabi-strip"
 READELF_BIN="${WEBOS_READELF_BIN:-$SDK_ROOT/bin/arm-webos-linux-gnueabi-readelf}"
+OBJDUMP_BIN="${WEBOS_OBJDUMP_BIN:-$SDK_ROOT/bin/arm-webos-linux-gnueabi-objdump}"
 GCC_AR_BIN="$SDK_ROOT/bin/arm-webos-linux-gnueabi-gcc-ar"
 GCC_RANLIB_BIN="$SDK_ROOT/bin/arm-webos-linux-gnueabi-gcc-ranlib"
 MPV_LTO_CROSS_FILE="$BUILD_DIR/webos-lto.cross.ini"
@@ -306,8 +307,10 @@ for network_library in libcurl libssl libcrypto; do
   fi
 done
 
+FFMPEG_STAGED_LIBRARY="$(stage_elf_shared_library \
+  "$PREFIX/lib/libavcodec.so.*" "$STAGE_LIB" "$READELF_BIN")"
+
 for pattern in \
-  "$PREFIX/lib/libavcodec.so.*" \
   "$PREFIX/lib/libavfilter.so.*" \
   "$PREFIX/lib/libavformat.so.*" \
   "$PREFIX/lib/libavutil.so.*" \
@@ -327,6 +330,13 @@ done
 # patchelf on mpv (always needed)
 "$PATCHELF_BIN" --force-rpath --set-rpath '$ORIGIN' "$MPV_STAGED_LIBRARY"
 "$PATCHELF_BIN" --force-rpath --set-rpath '$ORIGIN/../lib' "$STAGE_BIN/jellyfin-native"
+
+"$ROOT/tools/webos-native/audit-arm-binaries.sh" \
+  "$READELF_BIN" "$OBJDUMP_BIN" --thumb-archive \
+  "$QT6_PREFIX/lib/libQt6Core.a"
+"$ROOT/tools/webos-native/audit-arm-binaries.sh" \
+  "$READELF_BIN" "$OBJDUMP_BIN" --thumb \
+  "$STAGE_BIN/jellyfin-native" "$MPV_STAGED_LIBRARY" "$FFMPEG_STAGED_LIBRARY"
 
 # strip binary to reduce size
 "$STRIP_BIN" --strip-unneeded "$STAGE_BIN/jellyfin-native"
@@ -362,6 +372,15 @@ echo "Stripping staged shared libraries"
 while IFS= read -r -d '' library; do
   "$STRIP_BIN" --strip-unneeded "$library"
 done < <(find "$STAGE_LIB" -type f -name '*.so*' -print0)
+APP_AUDIT_BINARY="$STAGE_BIN/jellyfin-native"
+if [[ -f "$STAGE_BIN/jellyfin-native.real" ]]; then
+  APP_AUDIT_BINARY="$STAGE_BIN/jellyfin-native.real"
+fi
+"$ROOT/tools/webos-native/audit-arm-binaries.sh" \
+  "$READELF_BIN" "$OBJDUMP_BIN" --stripped \
+  "$APP_AUDIT_BINARY" "$MPV_STAGED_LIBRARY" "$FFMPEG_STAGED_LIBRARY"
+python3 "$ROOT/tools/ffmpeg-capabilities.py" \
+  --manifest "$FFMPEG_CAPABILITY_MANIFEST" audit-closure "$STAGE_LIB"
 fi
 
 if (( DO_PACKAGE )); then

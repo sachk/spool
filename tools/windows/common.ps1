@@ -119,6 +119,14 @@ function Get-MpvFeatureArguments {
     $arguments = @($manifest.common) + @($platformArguments)
     if ($IncludeSubprojects -and $manifest.subprojects.$Platform) {
         $arguments += @($manifest.subprojects.$Platform)
+        if ($Platform -eq 'windows') {
+            $generator = Join-Path (Get-RepositoryRoot) 'tools\ffmpeg-capabilities.py'
+            $generated = @(& python $generator meson --platform windows)
+            if ($LASTEXITCODE -ne 0) {
+                throw 'Generating the manifest-controlled Windows FFmpeg feature set failed.'
+            }
+            $arguments += $generated
+        }
     }
     return @($arguments | ForEach-Object { "-D$_" })
 }
