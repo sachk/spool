@@ -166,8 +166,21 @@ int main(int argc, char **argv)
     database.upsertAccountProfile(aliceHome);
     JellyfinApiFacade singleApi(&network, &tlsTrust);
     SessionController singleSession(&database, &singleApi);
-    require(QCoro::waitFor(singleSession.initializeAsync()), "one profile should route to profile selection");
-    require(!singleSession.authenticated(), "one saved profile must not auto-activate");
+    require(QCoro::waitFor(singleSession.initializeAsync()), "one profile should be detected");
+    require(singleSession.authenticated(), "one valid saved profile should auto-activate");
+    require(
+        singleSession.activeProfileId() == aliceHome.profileId, "automatic activation should select the sole profile");
+    singleSession.deactivate();
+
+    database.clearAccountProfiles();
+    const AccountProfile expiredSingle = profile(QStringLiteral("away"), QStringLiteral("https://away.example"),
+        QStringLiteral("alice"), QStringLiteral("Alice"), {}, 500, 40);
+    database.upsertAccountProfile(expiredSingle);
+    JellyfinApiFacade expiredApi(&network, &tlsTrust);
+    SessionController expiredSession(&database, &expiredApi);
+    require(QCoro::waitFor(expiredSession.initializeAsync()), "one expired profile should be detected");
+    require(!expiredSession.authenticated() && expiredSession.profileSignInRequired(),
+        "one expired profile should skip account selection and open sign in");
 
     database.shutdown();
     return EXIT_SUCCESS;

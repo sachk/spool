@@ -111,7 +111,7 @@ NativeAppWindow::NativeAppWindow(const QString& appId, QWindow *parent)
     , m_appId(appId)
     , m_platform(std::make_unique<PlatformData>(this))
 {
-    setColor(QColor(11, 15, 20));
+    setColor(Qt::transparent);
     setResizeMode(QQuickView::SizeRootObjectToView);
     setFlags(Qt::FramelessWindowHint | Qt::Window);
     setTitle(QStringLiteral("Jellyfin Native"));
@@ -152,11 +152,6 @@ bool NativeAppWindow::prepareForUiSurface()
         return true;
 
     return handle() != nullptr;
-}
-
-void NativeAppWindow::completeUiSurface()
-{
-    setColor(Qt::transparent);
 }
 
 void NativeAppWindow::bringToFront()

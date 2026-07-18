@@ -133,6 +133,7 @@ AppController::AppController(DatabaseManager *database, DiscoveryController *dis
         emit defaultProfileChanged();
     });
     connect(m_session, &SessionController::authenticatedChanged, this, [this](const AuthSession&) {
+        m_discovery->stop();
         if (m_artwork)
             m_artwork->setAuthorizationHeader(m_api->authorizationHeader());
         Async::runScoped(
@@ -215,10 +216,23 @@ QCoro::Task<void> AppController::initializeAsync()
         m_hasDefaultProfile = hasDefaultProfile;
         emit defaultProfileChanged();
     }
-    co_await applyDiscoveredServersCacheAsync();
-    m_discovery->start();
+
     m_initialized = true;
     emit initializedChanged();
+    if (!m_session->authenticated()) {
+        Async::runScoped(
+            this, applyDiscoveredServersCacheAsync(),
+            [this]() {
+                if (!m_session->authenticated())
+                    m_discovery->start();
+            },
+            [this](const std::exception_ptr& error) {
+                qWarning() << "discovery: cached server load failed" << exceptionMessage(error);
+                if (!m_session->authenticated())
+                    m_discovery->start();
+            },
+            "startup discovery cache");
+    }
 }
 
 void AppController::chooseDiscoveredServer(int index)

@@ -27,8 +27,6 @@ bool NativeAppWindow::prepareForUiSurface()
     return true;
 }
 
-void NativeAppWindow::completeUiSurface() { }
-
 bool NativeAppWindow::prepareForPlaybackSurface()
 {
     return prepareForUiSurface();

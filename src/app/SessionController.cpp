@@ -103,6 +103,8 @@ QCoro::Task<bool> SessionController::initializeAsync()
     emit serverUrlChanged();
     emit usernameChanged();
     emit accountProfilesChanged();
+    if (m_profiles.size() == 1)
+        applyStoredProfile(m_profiles.front(), true);
     co_return !m_profiles.empty();
 }
 
@@ -186,27 +188,50 @@ QCoro::Task<void> SessionController::activateProfileAsync(const QString& profile
         emit errorOccurred(QStringLiteral("That saved account is no longer available."));
         co_return;
     }
+    if (!applyStoredProfile(*stored, false))
+        emit errorOccurred(QStringLiteral("Authentication required for this account."));
+}
+
+bool SessionController::applyStoredProfile(AccountProfile profile, bool persistUsage)
+{
+    const bool authenticationRequired = profile.needsAuthentication || profile.accessToken.isEmpty();
+    if (persistUsage && !authenticationRequired) {
+        profile.lastUsedAt = QDateTime::currentMSecsSinceEpoch();
+        m_database->upsertAccountProfile(profile);
+    }
 
     const auto local = std::find_if(m_profiles.begin(), m_profiles.end(),
-        [&profileId](const AccountProfile& profile) { return profile.profileId == profileId; });
+        [&profile](const AccountProfile& candidate) { return candidate.profileId == profile.profileId; });
     if (local != m_profiles.end())
-        *local = *stored;
+        *local = profile;
     else
-        m_profiles.push_back(*stored);
+        m_profiles.push_back(profile);
     sortProfiles();
     emit accountProfilesChanged();
 
-    setProfileSignInFields(*stored);
-    if (stored->needsAuthentication || stored->accessToken.isEmpty()) {
-        emit errorOccurred(QStringLiteral("Authentication required for this account."));
-        co_return;
+    setServerName(profile.serverName);
+    setServerUrl(profile.serverUrl);
+    setUsername(profile.userName);
+    if (!m_password.isEmpty()) {
+        m_password.clear();
+        emit passwordChanged();
+    }
+    if (authenticationRequired) {
+        if (!m_profileSignInRequired) {
+            m_profileSignInRequired = true;
+            emit profileSignInRequiredChanged();
+        }
+        return false;
     }
 
-    m_profileSignInRequired = false;
-    emit profileSignInRequiredChanged();
-    m_activeProfileId = stored->profileId;
+    if (m_profileSignInRequired) {
+        m_profileSignInRequired = false;
+        emit profileSignInRequiredChanged();
+    }
+    m_activeProfileId = profile.profileId;
     emit activeProfileChanged();
-    activateSession({ stored->userId, stored->userName, stored->accessToken, stored->serverId }, false);
+    activateSession({ profile.userId, profile.userName, profile.accessToken, profile.serverId }, false);
+    return true;
 }
 
 void SessionController::prepareProfileSignIn(const QString& profileId)

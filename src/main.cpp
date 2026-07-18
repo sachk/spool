@@ -497,8 +497,8 @@ int main(int argc, char **argv)
     qmlRegisterSingletonInstance("JellyfinWebOS", 1, 0, "I18n", localization.get());
     qmlRegisterSingletonInstance("JellyfinWebOS", 1, 0, "Platform", platformInfo);
     qmlRegisterType<JellyfinNative::MpvVideoItem>("JellyfinWebOS", 1, 0, "MpvVideoItem");
-    // Start device, settings, profile-summary, and discovery reads before the
-    // QML load. Saved credentials are never activated until a profile is chosen.
+    // Start asynchronous device, settings, account, and discovery reads before
+    // QML construction. A sole saved account is resolved before routing begins.
     router->beginSession(false);
     controller->initialize();
 
@@ -516,7 +516,6 @@ int main(int argc, char **argv)
         return 1;
     }
     logLine("startup: QML source loaded in %lld ms", static_cast<long long>(startupTimer.elapsed()));
-    window.completeUiSurface();
 
     if (smokeAndExit) {
         logLine("startup smoke completed without showing window");

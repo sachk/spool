@@ -73,6 +73,7 @@ signals:
 
 private:
     QCoro::Task<void> activateProfileAsync(const QString& profileId);
+    bool applyStoredProfile(AccountProfile profile, bool persistUsage);
     void activateSession(const AuthSession& session, bool persist);
     void upsertActiveProfile(const AuthSession& session);
     void setProfileSignInFields(const AccountProfile& profile);
