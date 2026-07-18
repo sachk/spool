@@ -283,7 +283,7 @@ KeyRouter {
             InputKeys.focus(routeStack)
             return true
         }
-        if (route === "libraries" || route === "libraryGrid") {
+        if (route === "libraryGrid") {
             goHome()
             return true
         }

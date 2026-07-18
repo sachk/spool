@@ -21,7 +21,7 @@ FocusScope {
     readonly property bool syncActive: syncPlay ? syncPlay.enabled : false
     readonly property var syncGroups: syncPlay ? syncPlay.groups : []
     readonly property bool syncAvailable: syncGroups && syncGroups.length > 0
-    readonly property string selectedRoute: currentRoute === "libraryGrid" ? "libraries" : currentRoute
+    readonly property string selectedRoute: currentRoute === "libraryGrid" ? "home" : currentRoute
 
     // Index space: [0 .. railRepeater.count-1] are nav buttons, the trailing
     // index is the SyncPlay button.
@@ -164,11 +164,6 @@ FocusScope {
                     label: "My Media",
                     route: "home",
                     icon: "home"
-                },
-                {
-                    label: "Libraries",
-                    route: "libraries",
-                    icon: "video_library"
                 },
                 {
                     label: "Search",

@@ -40,8 +40,6 @@ FocusScope {
         case "subtitleSettings":
             return "settings"
         default:
-            // home and libraries share one HomePage instance; it reads
-            // Router.route directly for its libraries-only mode.
             return "home"
         }
     }

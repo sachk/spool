@@ -9,7 +9,6 @@ FocusScope {
 
     property var shell
     property var uiTransitionToken: 0
-    readonly property bool librariesOnly: Router.route === "libraries"
     property var sections: []
     property bool firstRowReady: false
     readonly property bool contentReady: firstRowReady
@@ -25,8 +24,6 @@ FocusScope {
                       "kind": "library"
                   }
               ]
-        if (librariesOnly)
-            return rows
         rows.push({
                       "source": "resumeItems",
                       "title": "Continue Watching",
@@ -153,7 +150,6 @@ FocusScope {
     }
 
     Component.onCompleted: rebuildSections()
-    onLibrariesOnlyChanged: rebuildSections()
     onActiveFocusChanged: if (activeFocus)
     Qt.callLater(focusCurrentSection)
 
@@ -181,7 +177,7 @@ FocusScope {
         header: SectionHeader {
             width: sectionList.width
             height: implicitHeight + Metrics.scaled(18)
-            title: root.librariesOnly ? "Libraries" : "My Media"
+            title: "My Media"
         }
 
         FastWheelHandler {
