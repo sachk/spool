@@ -259,6 +259,9 @@ int main(int argc, char **argv)
     subtitles.textBackground = QStringLiteral("translucent");
     require(valueFor(MpvOptionProfile::subtitleOptions(subtitles, true), "sub-back-color") == "#A0000000",
         "subtitle background preference was not mapped");
+    subtitles.styling = QStringLiteral("Custom");
+    require(valueFor(MpvOptionProfile::subtitleOptions(subtitles, true), "sub-ass-override") == "force",
+        "custom styling should override embedded ASS/SSA styles");
 
     SubtitlePreferences hdrSubtitles = subtitles;
     hdrSubtitles.textColor = QStringLiteral("#ffffff");
@@ -266,6 +269,9 @@ int main(int argc, char **argv)
     const auto hdrSubtitleOptions = MpvOptionProfile::subtitleOptions(hdrSubtitles, true, true);
     require(valueFor(hdrSubtitleOptions, "sub-color") == "#FFBFBFBF",
         "HDR subtitle colour was not reduced to the configured paper-white level");
+    hdrSubtitles.dimInHdr = false;
+    require(valueFor(MpvOptionProfile::subtitleOptions(hdrSubtitles, true, true), "sub-color") == "#FFFFFFFF",
+        "disabled HDR dimming should preserve the configured subtitle colour");
     hdrSubtitles.font = QStringLiteral("serif");
     require(valueFor(MpvOptionProfile::subtitleOptions(hdrSubtitles, true), "sub-font") == "Source Serif 4",
         "bundled Source Serif preference was not mapped");

@@ -30,6 +30,7 @@ class PlayerController final : public QObject {
     Q_PROPERTY(bool visible READ visible NOTIFY visibleChanged)
     Q_PROPERTY(bool sessionActive READ sessionActive NOTIFY sessionActiveChanged)
     Q_PROPERTY(bool fileLoaded READ fileLoaded NOTIFY playbackStateChanged)
+    Q_PROPERTY(bool hdrPlayback READ hdrPlayback NOTIFY hdrPlaybackChanged)
     Q_PROPERTY(QString mediaKind READ mediaKind NOTIFY playbackStateChanged)
     Q_PROPERTY(bool paused READ paused NOTIFY playbackStateChanged)
     Q_PROPERTY(QString title READ title NOTIFY playbackStateChanged)
@@ -73,6 +74,7 @@ public:
     bool visible() const;
     bool sessionActive() const;
     bool fileLoaded() const;
+    bool hdrPlayback() const;
     QString mediaKind() const;
     bool paused() const;
     QString title() const;
@@ -154,6 +156,7 @@ signals:
     void visibleChanged();
     void sessionActiveChanged();
     void positionChanged();
+    void hdrPlaybackChanged();
     void playbackStateChanged();
     void tracksChanged();
     void segmentsChanged();

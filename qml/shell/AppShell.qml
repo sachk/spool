@@ -123,6 +123,10 @@ KeyRouter {
             root.handleRemoteUiAction(action)
         }
     }
+    function showToastAction(message, actionText, callback) {
+        toast.showAction(message, actionText, callback)
+    }
+
     function defaultRoute() {
         return !Settings.uiScaleSetupComplete ? "scaleSetup" : Session.authenticated ? "home" : "login"
     }

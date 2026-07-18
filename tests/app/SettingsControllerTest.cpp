@@ -3,10 +3,10 @@
 
 #include <QCoreApplication>
 #include <QCoroTask>
-#include <QDebug>
 #include <QTemporaryDir>
 
 #include <cstdlib>
+#include <iostream>
 
 using JellyfinNative::DatabaseManager;
 using JellyfinNative::SettingsController;
@@ -17,7 +17,7 @@ void require(bool condition, const char *message)
 {
     if (condition)
         return;
-    qCritical() << message;
+    std::cerr << message << '\n';
     std::exit(EXIT_FAILURE);
 }
 
@@ -68,6 +68,20 @@ int main(int argc, char **argv)
     require(QCoro::waitFor(database.loadSettingAsync(QStringLiteral("appearance/uiScaleSetupVersion")))
             == QStringLiteral("2"),
         "scale setup completion was not persisted");
+
+    settings.setValue(QStringLiteral("subtitles/styling"), QStringLiteral("Custom"));
+    settings.setValue(QStringLiteral("subtitles/textSize"), QStringLiteral("xlarge"));
+    settings.setValue(QStringLiteral("subtitles/textColor"), QStringLiteral("#00ff00"));
+    settings.setValue(QStringLiteral("subtitles/dimInHdr"), false);
+    settings.resetSubtitleAppearance();
+    require(settings.value(QStringLiteral("subtitles/styling")).toString() == QStringLiteral("Auto"),
+        "subtitle appearance reset did not restore automatic styling");
+    require(settings.value(QStringLiteral("subtitles/textSize")).toString().isEmpty(),
+        "subtitle appearance reset did not restore normal text size");
+    require(settings.value(QStringLiteral("subtitles/textColor")).toString() == QStringLiteral("#ffffff"),
+        "subtitle appearance reset did not restore white text");
+    require(settings.value(QStringLiteral("subtitles/dimInHdr")).toBool(),
+        "subtitle appearance reset did not restore HDR dimming");
 
     SettingsController restored(&database, nullptr, nullptr);
     QCoro::waitFor(restored.loadLocalAsync());

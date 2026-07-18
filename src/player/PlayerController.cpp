@@ -426,6 +426,10 @@ bool PlayerController::fileLoaded() const
 {
     return m_fileLoaded;
 }
+bool PlayerController::hdrPlayback() const
+{
+    return m_hdrPlayback;
+}
 
 QString PlayerController::mediaKind() const
 {
@@ -793,7 +797,11 @@ void PlayerController::play(const PlaybackSession& session, bool startPaused)
     if (hadSubtitleDelay)
         emit subtitleDelayMsChanged();
 
-    m_hdrPlayback = MpvOptionProfile::isHdrPlayback(session.mediaStreams);
+    const bool hdrPlayback = MpvOptionProfile::isHdrPlayback(session.mediaStreams);
+    if (m_hdrPlayback != hdrPlayback) {
+        m_hdrPlayback = hdrPlayback;
+        emit hdrPlaybackChanged();
+    }
     qInfo() << "player: HDR subtitle mode" << (m_hdrPlayback ? "enabled" : "disabled") << "source=media-metadata";
     m_window->clearOverlay();
     if (needsVideoSurface) {
@@ -1484,6 +1492,10 @@ void PlayerController::resetPlaybackUiState()
     m_visible = false;
     m_sessionActive = false;
     m_fileLoaded = false;
+    if (m_hdrPlayback) {
+        m_hdrPlayback = false;
+        emit hdrPlaybackChanged();
+    }
     m_paused = false;
     m_buffering = false;
     m_bufferingPercent = 0;
@@ -1702,8 +1714,9 @@ void PlayerController::handleMpvEvent(mpv_event *event)
                 || normalizedTransfer == QByteArrayLiteral("hlg") || normalizedTransfer.contains("2084")
                 || normalizedTransfer.contains("b67");
             QMetaObject::invokeMethod(this, [this, hdrPlayback, transfer]() {
-                if (hdrPlayback && !m_hdrPlayback) {
-                    m_hdrPlayback = true;
+                if (m_hdrPlayback != hdrPlayback) {
+                    m_hdrPlayback = hdrPlayback;
+                    emit hdrPlaybackChanged();
                     if (auto *handle = m_mpvLifecycle.handle())
                         applyMpvSubtitleOptions(MpvOptionApplyMode::Runtime, handle, true);
                 }

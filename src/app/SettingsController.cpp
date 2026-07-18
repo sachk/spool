@@ -61,18 +61,6 @@ QString SettingsController::subtitleMode() const
 {
     return m_subtitlePreferences.mode;
 }
-QString SettingsController::subtitleBurnIn() const
-{
-    return m_subtitlePreferences.burnInMode;
-}
-bool SettingsController::subtitleRenderPgs() const
-{
-    return m_subtitlePreferences.renderPgs;
-}
-bool SettingsController::subtitleAlwaysBurnIn() const
-{
-    return m_subtitlePreferences.alwaysBurnInWhenTranscoding;
-}
 QString SettingsController::subtitleStyling() const
 {
     return m_subtitlePreferences.styling;
@@ -401,18 +389,6 @@ void SettingsController::setSubtitleMode(const QString& mode)
 {
     setValue(QStringLiteral("subtitles/mode"), mode);
 }
-void SettingsController::setSubtitleBurnIn(const QString& mode)
-{
-    setValue(QStringLiteral("subtitles/burnIn"), mode);
-}
-void SettingsController::setSubtitleRenderPgs(bool enabled)
-{
-    setValue(QStringLiteral("subtitles/renderPgs"), enabled);
-}
-void SettingsController::setSubtitleAlwaysBurnIn(bool enabled)
-{
-    setValue(QStringLiteral("subtitles/alwaysBurnInWhenTranscoding"), enabled);
-}
 void SettingsController::setSubtitleStyling(const QString& styling)
 {
     setValue(QStringLiteral("subtitles/styling"), styling);
@@ -440,6 +416,13 @@ void SettingsController::setSubtitleDropShadow(const QString& shadow)
 void SettingsController::setSubtitleVerticalPosition(int position)
 {
     setValue(QStringLiteral("subtitles/verticalPositionPercent"), position);
+}
+void SettingsController::resetSubtitleAppearance()
+{
+    for (const SettingSpec& spec : settingSpecs()) {
+        if (spec.persisted && QLatin1String(spec.group) == QLatin1String("Subtitle Appearance"))
+            setValue(keyString(spec), settingDefaultValue(spec));
+    }
 }
 void SettingsController::setRedButtonAction(const QString& action)
 {
@@ -560,15 +543,6 @@ void SettingsController::applySchemaValue(const SettingSpec& spec, const QVarian
             applySubtitlePreferencesToPlayer();
         }
         break;
-    case SettingTarget::SubtitleBurnIn:
-        m_subtitlePreferences.burnInMode = value.toString();
-        break;
-    case SettingTarget::SubtitleRenderPgs:
-        m_subtitlePreferences.renderPgs = value.toBool();
-        break;
-    case SettingTarget::SubtitleAlwaysBurnIn:
-        m_subtitlePreferences.alwaysBurnInWhenTranscoding = value.toBool();
-        break;
     case SettingTarget::SubtitleStyling:
         m_subtitlePreferences.styling = value.toString();
         if (apply)
@@ -685,9 +659,6 @@ void SettingsController::emitSchemaSignals(const SettingSpec& spec)
         break;
     case SettingTarget::SubtitleLanguage:
     case SettingTarget::SubtitleMode:
-    case SettingTarget::SubtitleBurnIn:
-    case SettingTarget::SubtitleRenderPgs:
-    case SettingTarget::SubtitleAlwaysBurnIn:
     case SettingTarget::SubtitleStyling:
     case SettingTarget::SubtitleTextSize:
     case SettingTarget::SubtitleTextWeight:

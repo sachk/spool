@@ -22,6 +22,12 @@ FocusScope {
     property Item choiceDialogAnchor: null
     readonly property var choiceDialog: choiceDialogLoader.item
     property bool contentReady: false
+    property bool resetSubtitleConfirmationVisible: false
+    property var pendingSubtitleAppearance: ({})
+    readonly property var subtitleAppearanceKeys: ["subtitles/styling", "subtitles/textSize", "subtitles/scalePercent",
+        "subtitles/bitmapSmoothing", "subtitles/textWeight", "subtitles/font", "subtitles/textColor",
+        "subtitles/dropShadow", "subtitles/textBackground", "subtitles/verticalPositionPercent", "subtitles/dimInHdr",
+        "subtitles/hdrBrightnessPercent"]
     property bool pendingCustomMpvMode: false
 
     signal dismissed
@@ -30,7 +36,7 @@ FocusScope {
         "Button Remap"]
 
     function rowAvailable(row) {
-        return SettingsNavigation.rowAvailable(row, Platform.isTV, function (key) {
+        return SettingsNavigation.rowAvailable(row, Platform.isTV, Player.hdrPlayback, function (key) {
             return settingsValue({
                                      "key": key,
                                      "defaultValue": ""
@@ -237,6 +243,11 @@ FocusScope {
             return Session.serverUrl
         if (row.key === "settings/audioDelayMs" && Platform.usesPerOutputAudioDelay)
             return "User trim for " + Settings.audioDelayTargetLabel + "; automatic compensation is applied separately"
+        if (row.key === "subtitles/mode") {
+            const index = rowCurrentIndex(row)
+            const labels = rowOptions(row)
+            return index >= 0 && index < labels.length ? labels[index] : row.description
+        }
         return row.description || ""
     }
 
@@ -250,6 +261,8 @@ FocusScope {
             return "Open"
         if (row.key === "action/clearLatencyStatistics")
             return "Clear"
+        if (row.key === "action/resetSubtitleAppearance")
+            return "Reset"
         if (row.key === "session/account")
             return Session.activeProfileLabel.length > 0 ? Session.activeProfileLabel : "Offline"
         if (row.key === "about/version")
@@ -365,6 +378,15 @@ FocusScope {
                 shell.pushRoute("subtitleSettings")
             else if (row.key === "action/openSourceNotices" && shell)
                 shell.pushRoute("openSourceNotices")
+            else if (row.key === "action/resetSubtitleAppearance") {
+                const snapshot = {}
+                for (let keyIndex = 0; keyIndex < subtitleAppearanceKeys.length; ++keyIndex) {
+                    const key = subtitleAppearanceKeys[keyIndex]
+                    snapshot[key] = Settings.values[key]
+                }
+                pendingSubtitleAppearance = snapshot
+                resetSubtitleConfirmationVisible = true
+            }
         } else if (row.type === "toggle") {
             setRowValue(row, !Boolean(settingsValue(row)), -1)
         } else if (row.type === "select") {
@@ -427,7 +449,31 @@ FocusScope {
             Qt.callLater(choiceDialog.completePresentation)
     }
 
+    function closeResetSubtitleConfirmation() {
+        resetSubtitleConfirmationVisible = false
+        Qt.callLater(function () {
+            selectRow(currentIndex, true)
+        })
+    }
+
+    function confirmResetSubtitleAppearance() {
+        const snapshot = pendingSubtitleAppearance
+        Settings.resetSubtitleAppearance()
+        closeResetSubtitleConfirmation()
+        if (shell && shell.showToastAction)
+            shell.showToastAction("Subtitle appearance reset", "Undo", function () {
+                for (let keyIndex = 0; keyIndex < subtitleAppearanceKeys.length; ++keyIndex) {
+                    const key = subtitleAppearanceKeys[keyIndex]
+                    Settings.setValue(key, snapshot[key])
+                }
+            })
+    }
+
     function back() {
+        if (resetSubtitleConfirmationVisible) {
+            closeResetSubtitleConfirmation()
+            return true
+        }
         if (choiceDialogVisible) {
             closeChoiceDialog()
             return true
@@ -440,6 +486,8 @@ FocusScope {
     }
 
     function routeKey(key, phase, repeat) {
+        if (resetSubtitleConfirmationVisible)
+            return resetSubtitleConfirmationLoader.item.routeKey(key, phase, repeat)
         if (choiceDialogVisible)
             return choiceDialog.routeKey(key, phase, repeat)
         if (phase === "release" && InputKeys.isDirection(key))
@@ -476,7 +524,9 @@ FocusScope {
     }
 
     function activate() {
-        if (choiceDialogVisible)
+        if (resetSubtitleConfirmationVisible)
+            resetSubtitleConfirmationLoader.item.activate()
+        else if (choiceDialogVisible)
             choiceDialog.activate()
         else if (!detailSelector.activeFocus)
             activateRow(currentRow(), settingsList.currentIndex)
@@ -505,18 +555,18 @@ FocusScope {
             root.refreshSettingsFilter(key === "settings/detailLevel")
         }
     }
+    Connections {
+        target: Player
+        function onHdrPlaybackChanged() {
+            root.refreshSettingsFilter(true)
+        }
+    }
     Loader {
         id: previewSerif
         active: root.subtitleEditor
         sourceComponent: FontLoader {
             source: Qt.resolvedUrl("../fonts/SourceSerif4-Regular.ttf")
         }
-    }
-
-    Rectangle {
-        anchors.fill: parent
-        visible: root.subtitleEditor && !root.playbackPreview
-        color: "black"
     }
 
     Rectangle {
@@ -529,31 +579,143 @@ FocusScope {
         border.color: Theme.border
     }
 
-    Rectangle {
-        id: subtitlePreviewBackground
-        visible: root.subtitleEditor && !root.playbackPreview && Settings.values["subtitles/verticalPositionPercent"]
-        !== undefined
-        anchors.horizontalCenter: parent.horizontalCenter
-        y: Math.round((parent.height - height) * Number(Settings.values["subtitles/verticalPositionPercent"] || 0)
-                      / 100)
-        width: subtitlePreviewText.implicitWidth + Metrics.scaled(24)
-        height: subtitlePreviewText.implicitHeight + Metrics.scaled(12)
-        radius: Theme.radiusSmall
-        color: root.previewBackgroundColor()
-    }
+    Component {
+        id: subtitlePreviewComponent
 
-    AppText {
-        id: subtitlePreviewText
-        visible: root.subtitleEditor && !root.playbackPreview
-        anchors.centerIn: subtitlePreviewBackground
-        text: "This is how your subtitles will look."
-        font.family: root.previewFontFamily()
-        font.pixelSize: root.previewTextSize()
-        font.weight: Settings.values["subtitles/textWeight"] === "bold" ? Font.Bold : Font.Normal
-        style: Settings.values["subtitles/dropShadow"] === "none" ? Text.Normal : Text.Outline
-        styleColor: "#cc000000"
-        color: Settings.values["subtitles/textColor"] || "white"
-        horizontalAlignment: Text.AlignHCenter
+        Item {
+            width: settingsList.width
+            height: root.playbackPreview ? 0 : previewCard.height + Metrics.scaled(20)
+            visible: !root.playbackPreview
+
+            Surface {
+                id: previewCard
+                width: parent.width
+                height: Math.round(width * 9 / 16)
+                clip: true
+                elevated: true
+                baseColor: "#10131a"
+
+                Rectangle {
+                    width: parent.width / 2
+                    height: parent.height
+                    gradient: Gradient {
+                        GradientStop {
+                            position: 0
+                            color: "#7dc8f0"
+                        }
+                        GradientStop {
+                            position: 0.58
+                            color: "#e6d7aa"
+                        }
+                        GradientStop {
+                            position: 1
+                            color: "#493f35"
+                        }
+                    }
+                }
+
+                Rectangle {
+                    anchors.right: parent.right
+                    width: parent.width / 2
+                    height: parent.height
+                    gradient: Gradient {
+                        GradientStop {
+                            position: 0
+                            color: "#27304b"
+                        }
+                        GradientStop {
+                            position: 0.55
+                            color: "#11131d"
+                        }
+                        GradientStop {
+                            position: 1
+                            color: "#050609"
+                        }
+                    }
+                }
+
+                Rectangle {
+                    anchors.left: parent.left
+                    anchors.right: parent.right
+                    anchors.bottom: parent.bottom
+                    height: parent.height * 0.3
+                    color: "#46151b22"
+                }
+
+                Rectangle {
+                    id: safeArea
+                    anchors.fill: parent
+                    anchors.leftMargin: parent.width * 0.05
+                    anchors.rightMargin: parent.width * 0.05
+                    anchors.topMargin: parent.height * 0.05
+                    anchors.bottomMargin: parent.height * 0.05
+                    color: "transparent"
+                    border.width: 1
+                    border.color: "#66ffffff"
+                    radius: Theme.radiusSmall
+                }
+
+                AppText {
+                    anchors.left: safeArea.left
+                    anchors.top: safeArea.top
+                    anchors.margins: Metrics.scaled(10)
+                    text: "LIVE SUBTITLE PREVIEW"
+                    color: "#d9ffffff"
+                    font.pixelSize: Metrics.metaSizePx
+                    font.weight: Font.DemiBold
+                }
+
+                Surface {
+                    visible: Player.hdrPlayback && Boolean(Settings.values["subtitles/dimInHdr"])
+                    anchors.right: safeArea.right
+                    anchors.top: safeArea.top
+                    anchors.margins: Metrics.scaled(10)
+                    width: hdrBadge.implicitWidth + Metrics.scaled(18)
+                    height: hdrBadge.implicitHeight + Metrics.scaled(10)
+                    baseColor: "#cc2f3442"
+
+                    AppText {
+                        id: hdrBadge
+                        anchors.centerIn: parent
+                        text: "HDR PAPER WHITE " + String(Settings.values["subtitles/hdrBrightnessPercent"] || 75) + "%"
+                        color: "#fff4c46b"
+                        font.pixelSize: Metrics.metaSizePx
+                        font.weight: Font.DemiBold
+                    }
+                }
+
+                Rectangle {
+                    id: subtitlePreviewBackground
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    y: safeArea.y + Math.round((safeArea.height - height) * Number(
+                                                   Settings.values["subtitles/verticalPositionPercent"] || 0) / 100)
+                    width: Math.min(safeArea.width - Metrics.scaled(16), subtitlePreviewText.implicitWidth + Metrics.scaled(
+                                        28))
+                    height: subtitlePreviewText.implicitHeight + Metrics.scaled(14)
+                    radius: Theme.radiusSmall
+                    color: root.previewBackgroundColor()
+
+                    AppText {
+                        id: subtitlePreviewText
+                        anchors.centerIn: parent
+                        width: parent.width - Metrics.scaled(20)
+                        text: "We can read this across bright skies.\nAnd across the darkest scene."
+                        font.family: root.previewFontFamily()
+                        font.pixelSize: root.previewTextSize()
+                        font.weight: Settings.values["subtitles/textWeight"] === "bold" ? Font.Bold : Font.Normal
+                        style: Settings.values["subtitles/dropShadow"] === "none" ? Text.Normal : Text.Outline
+                        styleColor: "#e6000000"
+                        color: Settings.values["subtitles/textColor"] || "white"
+                        opacity: Player.hdrPlayback && Boolean(Settings.values["subtitles/dimInHdr"]) ? Number(
+                                                                                                            Settings.values["subtitles/hdrBrightnessPercent"]
+                                                                                                            || 75) / 100 :
+                                                                                                        1
+                        horizontalAlignment: Text.AlignHCenter
+                        wrapMode: Text.Wrap
+                    }
+                }
+            }
+        }
     }
 
     ListModel {
@@ -614,6 +776,8 @@ FocusScope {
         bottomMargin: root.choiceDialogVisible && root.choiceDialog ? root.choiceDialog.panelHeight + Metrics.scaled(16) :
                                                                       0
         model: settingsRowsModel
+        header: root.subtitleEditor ? subtitlePreviewComponent : null
+        headerPositioning: ListView.InlineHeader
         dismissOnBack: false
         dismissOnHorizontal: false
         spacing: Metrics.scaled(10)
@@ -844,6 +1008,21 @@ FocusScope {
             root.pendingCustomMpvMode = false
         }
         onRejected: root.pendingCustomMpvMode = false
+    }
+
+    Loader {
+        id: resetSubtitleConfirmationLoader
+        anchors.fill: parent
+        active: root.resetSubtitleConfirmationVisible
+        z: 200
+        sourceComponent: ConfirmationDialog {
+            title: "Reset subtitle appearance?"
+            message: "This restores local font, colour, position, bitmap smoothing, and HDR subtitle defaults."
+            confirmText: "Reset"
+            destructive: true
+            onAccepted: root.confirmResetSubtitleAppearance()
+            onDismissed: root.closeResetSubtitleConfirmation()
+        }
     }
 
     Loader {

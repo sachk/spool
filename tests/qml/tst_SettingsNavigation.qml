@@ -28,27 +28,33 @@ TestCase {
         const lookup = valueLookup(values)
         verify(SettingsNavigation.rowAvailable({
                                                    "platform": "desktop"
-                                               }, false, lookup))
+                                               }, false, false, lookup))
         verify(!SettingsNavigation.rowAvailable({
                                                     "platform": "desktop"
-                                                }, true, lookup))
+                                                }, true, false, lookup))
         verify(SettingsNavigation.rowAvailable({
                                                    "platform": "webos"
-                                               }, true, lookup))
+                                               }, true, false, lookup))
         verify(!SettingsNavigation.rowAvailable({
                                                     "platform": "webos"
-                                                }, false, lookup))
+                                                }, false, false, lookup))
         verify(SettingsNavigation.rowAvailable({
                                                    "dependsOnKey": "playback/mpvConfigMode",
                                                    "dependsOnValue": "custom"
-                                               }, false, lookup))
+                                               }, false, false, lookup))
         verify(!SettingsNavigation.rowAvailable({
                                                     "dependsOnKey": "playback/mpvConfigMode",
                                                     "dependsOnValue": "standard"
-                                                }, false, lookup))
+                                                }, false, false, lookup))
         verify(!SettingsNavigation.rowAvailable({
                                                     "visible": false
-                                                }, false, lookup))
+                                                }, false, false, lookup))
+        verify(!SettingsNavigation.rowAvailable({
+                                                    "requiresHdrPlayback": true
+                                                }, false, false, lookup))
+        verify(SettingsNavigation.rowAvailable({
+                                                   "requiresHdrPlayback": true
+                                               }, false, true, lookup))
     }
 
     function test_focusClampsAfterFiltering() {

@@ -316,9 +316,6 @@ struct TrickplayInfo {
 struct SubtitlePreferences {
     QString language;
     QString mode = QStringLiteral("Default");
-    QString burnInMode;
-    bool renderPgs = false;
-    bool alwaysBurnInWhenTranscoding = false;
     QString styling = QStringLiteral("Auto");
     QString textSize;
     QString textWeight = QStringLiteral("normal");

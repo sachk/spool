@@ -6,6 +6,13 @@ Item {
     id: root
     property string message: ""
     property var pending: []
+    property string actionText: ""
+    property var actionCallback: null
+
+    function clearAction() {
+        actionText = ""
+        actionCallback = null
+    }
 
     function show(text) {
         const normalized = String(text || "")
@@ -13,6 +20,7 @@ Item {
             return
         if (message.length === 0) {
             message = normalized
+            clearAction()
             timer.restart()
             return
         }
@@ -23,7 +31,29 @@ Item {
         pending = next
     }
 
+    function showAction(text, label, callback) {
+        const normalized = String(text || "")
+        if (normalized.length === 0)
+            return
+        message = normalized
+        actionText = String(label || "")
+        actionCallback = callback
+        pending = []
+        timer.restart()
+    }
+
+    function triggerAction() {
+        const callback = actionCallback
+        message = ""
+        clearAction()
+        timer.stop()
+        if (callback)
+            callback()
+        showNext()
+    }
+
     function showNext() {
+        clearAction()
         if (pending.length === 0) {
             message = ""
             return
@@ -44,15 +74,29 @@ Item {
         anchors.horizontalCenter: parent.horizontalCenter
         anchors.bottom: parent.bottom
         anchors.bottomMargin: 34
-        width: Math.min(parent.width - 96, toastText.implicitWidth + 42)
+        width: Math.min(parent.width - 96, toastContent.implicitWidth + 42)
         height: 48
         visible: root.message.length > 0
         elevated: true
-        AppText {
-            id: toastText
+
+        Row {
+            id: toastContent
             anchors.centerIn: parent
-            text: root.message
-            color: Theme.textPrimary
+            spacing: Metrics.scaled(16)
+
+            AppText {
+                anchors.verticalCenter: parent.verticalCenter
+                text: root.message
+                color: Theme.textPrimary
+            }
+
+            ActionButton {
+                visible: root.actionText.length > 0
+                anchors.verticalCenter: parent.verticalCenter
+                text: root.actionText
+                kind: "flat"
+                onClicked: root.triggerAction()
+            }
         }
     }
 }

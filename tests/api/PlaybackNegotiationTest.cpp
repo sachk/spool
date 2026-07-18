@@ -114,6 +114,20 @@ int main(int argc, char **argv)
         "fragmented MP4 transcodes should retain HLS delivery");
     require(!transcodeProfile.value(QStringLiteral("BreakOnNonKeyFrames")).toBool(),
         "fragmented MP4 segments should only break on keyframes");
+    bool foundSrtExternal = false;
+    bool foundPgsExternal = false;
+    bool foundSsaExternal = false;
+    const QJsonArray subtitleProfiles = profile.value(QStringLiteral("SubtitleProfiles")).toArray();
+    for (const QJsonValue& value : subtitleProfiles) {
+        const QJsonObject subtitleProfile = value.toObject();
+        const QString format = subtitleProfile.value(QStringLiteral("Format")).toString();
+        const QString method = subtitleProfile.value(QStringLiteral("Method")).toString();
+        foundSrtExternal |= format == QStringLiteral("srt") && method == QStringLiteral("External");
+        foundPgsExternal |= format == QStringLiteral("pgssub") && method == QStringLiteral("External");
+        foundSsaExternal |= format == QStringLiteral("ssa") && method == QStringLiteral("External");
+    }
+    require(foundSrtExternal && foundPgsExternal && foundSsaExternal,
+        "device profile should advertise all locally rendered subtitle formats");
 
     const QJsonObject desktopProfile = PlaybackNegotiation::buildDeviceProfile(25'000'000);
     const QJsonObject desktopDirectVideo

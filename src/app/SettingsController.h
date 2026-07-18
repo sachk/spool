@@ -38,10 +38,6 @@ class SettingsController final : public QObject {
     Q_PROPERTY(int subtitleLanguageIndex READ subtitleLanguageIndex WRITE setSubtitleLanguageIndex NOTIFY
             subtitleSettingsChanged)
     Q_PROPERTY(QString subtitleMode READ subtitleMode WRITE setSubtitleMode NOTIFY subtitleSettingsChanged)
-    Q_PROPERTY(QString subtitleBurnIn READ subtitleBurnIn WRITE setSubtitleBurnIn NOTIFY subtitleSettingsChanged)
-    Q_PROPERTY(bool subtitleRenderPgs READ subtitleRenderPgs WRITE setSubtitleRenderPgs NOTIFY subtitleSettingsChanged)
-    Q_PROPERTY(bool subtitleAlwaysBurnIn READ subtitleAlwaysBurnIn WRITE setSubtitleAlwaysBurnIn NOTIFY
-            subtitleSettingsChanged)
     Q_PROPERTY(QString subtitleStyling READ subtitleStyling WRITE setSubtitleStyling NOTIFY subtitleSettingsChanged)
     Q_PROPERTY(QString subtitleTextSize READ subtitleTextSize WRITE setSubtitleTextSize NOTIFY subtitleSettingsChanged)
     Q_PROPERTY(
@@ -89,12 +85,9 @@ public:
         return m_displayLatencyMs;
     }
     QString audioDelayTargetLabel() const;
-    bool subtitleRenderPgs() const;
-    bool subtitleAlwaysBurnIn() const;
     int subtitleLanguageIndex() const;
     int subtitleVerticalPosition() const;
     QString subtitleMode() const;
-    QString subtitleBurnIn() const;
     QString subtitleStyling() const;
     QString subtitleTextSize() const;
     QString subtitleTextWeight() const;
@@ -122,9 +115,6 @@ public:
     Q_INVOKABLE void completeUiScaleSetup(int percent);
     Q_INVOKABLE void setSubtitleLanguageIndex(int index);
     Q_INVOKABLE void setSubtitleMode(const QString& mode);
-    Q_INVOKABLE void setSubtitleBurnIn(const QString& mode);
-    Q_INVOKABLE void setSubtitleRenderPgs(bool enabled);
-    Q_INVOKABLE void setSubtitleAlwaysBurnIn(bool enabled);
     Q_INVOKABLE void setSubtitleStyling(const QString& styling);
     Q_INVOKABLE void setSubtitleTextSize(const QString& size);
     Q_INVOKABLE void setSubtitleTextWeight(const QString& weight);
@@ -132,6 +122,7 @@ public:
     Q_INVOKABLE void setSubtitleTextColor(const QString& color);
     Q_INVOKABLE void setSubtitleDropShadow(const QString& shadow);
     Q_INVOKABLE void setSubtitleVerticalPosition(int position);
+    Q_INVOKABLE void resetSubtitleAppearance();
     Q_INVOKABLE void setRedButtonAction(const QString& action);
     Q_INVOKABLE void setGreenButtonAction(const QString& action);
     Q_INVOKABLE void setYellowButtonAction(const QString& action);

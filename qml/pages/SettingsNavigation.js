@@ -1,11 +1,13 @@
 .pragma library
 
-function rowAvailable(row, isTV, valueForKey) {
+function rowAvailable(row, isTV, hdrPlayback, valueForKey) {
     if (!row || row.visible === false)
         return false
     if (row.platform === "desktop" && isTV)
         return false
     if (row.platform === "webos" && !isTV)
+        return false
+    if (row.requiresHdrPlayback && !hdrPlayback)
         return false
     if (row.dependsOnKey && String(valueForKey(row.dependsOnKey)) !== String(row.dependsOnValue))
         return false

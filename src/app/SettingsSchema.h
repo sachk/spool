@@ -43,9 +43,6 @@ enum class SettingTarget {
     UiScale,
     SubtitleLanguage,
     SubtitleMode,
-    SubtitleBurnIn,
-    SubtitleRenderPgs,
-    SubtitleAlwaysBurnIn,
     SubtitleStyling,
     SubtitleTextSize,
     SubtitleTextWeight,
@@ -73,7 +70,6 @@ enum class SettingNormalizer {
     Choice,
     AudioOutput,
     SubtitleMode,
-    SubtitleBurnIn,
     SubtitleStyling,
     SubtitleTextSize,
     SubtitleTextWeight,
@@ -114,6 +110,7 @@ struct SettingSpec {
     const char *dependsOnKey = "";
     const char *dependsOnValue = "";
     bool persisted = true;
+    bool requiresHdrPlayback = false;
 };
 
 const QVector<SettingSpec>& settingSpecs();

@@ -112,6 +112,24 @@ namespace {
         return result;
     }
 
+    QJsonArray localSubtitleProfiles()
+    {
+        const QStringList formats { QStringLiteral("srt"), QStringLiteral("ass"), QStringLiteral("ssa"),
+            QStringLiteral("vtt"), QStringLiteral("pgssub"), QStringLiteral("dvdsub") };
+        QJsonArray profiles;
+        for (const QString& format : formats) {
+            profiles.push_back(QJsonObject {
+                { QStringLiteral("Format"), format },
+                { QStringLiteral("Method"), QStringLiteral("Embed") },
+            });
+            profiles.push_back(QJsonObject {
+                { QStringLiteral("Format"), format },
+                { QStringLiteral("Method"), QStringLiteral("External") },
+            });
+        }
+        return profiles;
+    }
+
 } // namespace
 
 PlaybackSelection PlaybackNegotiation::selectSource(const QJsonArray& mediaSources, bool preferRemux)
@@ -245,33 +263,7 @@ QJsonObject PlaybackNegotiation::buildDeviceProfile(
             } },
         { QStringLiteral("ContainerProfiles"), QJsonArray {} },
         { QStringLiteral("CodecProfiles"), QJsonArray {} },
-        { QStringLiteral("SubtitleProfiles"),
-            QJsonArray {
-                QJsonObject {
-                    { QStringLiteral("Format"), QStringLiteral("srt") },
-                    { QStringLiteral("Method"), QStringLiteral("External") },
-                },
-                QJsonObject {
-                    { QStringLiteral("Format"), QStringLiteral("ass") },
-                    { QStringLiteral("Method"), QStringLiteral("External") },
-                },
-                QJsonObject {
-                    { QStringLiteral("Format"), QStringLiteral("ssa") },
-                    { QStringLiteral("Method"), QStringLiteral("External") },
-                },
-                QJsonObject {
-                    { QStringLiteral("Format"), QStringLiteral("vtt") },
-                    { QStringLiteral("Method"), QStringLiteral("External") },
-                },
-                QJsonObject {
-                    { QStringLiteral("Format"), QStringLiteral("pgssub") },
-                    { QStringLiteral("Method"), QStringLiteral("Encode") },
-                },
-                QJsonObject {
-                    { QStringLiteral("Format"), QStringLiteral("dvdsub") },
-                    { QStringLiteral("Method"), QStringLiteral("Encode") },
-                },
-            } },
+        { QStringLiteral("SubtitleProfiles"), localSubtitleProfiles() },
         { QStringLiteral("ResponseProfiles"), QJsonArray {} },
     };
 }

@@ -2,7 +2,6 @@
 #include "app/LocalizationManager.h"
 
 #include <QCoreApplication>
-#include <QDebug>
 #include <QHash>
 #include <QLocale>
 #include <QSet>
@@ -10,6 +9,7 @@
 #include <QVariantMap>
 
 #include <cstdlib>
+#include <iostream>
 
 using namespace JellyfinNative;
 
@@ -24,7 +24,7 @@ void require(bool condition, const QString& message)
 {
     if (condition)
         return;
-    qCritical().noquote() << message;
+    std::cerr << message.toStdString() << '\n';
     std::exit(EXIT_FAILURE);
 }
 
@@ -103,9 +103,6 @@ void requiredPersistedKeysArePresentExactlyOnce()
         QStringLiteral("playback/mpvConfigMode"),
         QStringLiteral("playback/mpvConfigDirectory"),
         QStringLiteral("subtitles/mode"),
-        QStringLiteral("subtitles/burnIn"),
-        QStringLiteral("subtitles/renderPgs"),
-        QStringLiteral("subtitles/alwaysBurnInWhenTranscoding"),
         QStringLiteral("subtitles/styling"),
         QStringLiteral("subtitles/textSize"),
         QStringLiteral("subtitles/scalePercent"),
@@ -274,13 +271,12 @@ void schemaModelRowsMatchVisibilityContract()
         require(modelKeys.contains(key), QStringLiteral("schema model missed setting row %1").arg(key));
     }
 
-    const QSet<QString> expectedHidden {
-        QStringLiteral("subtitles/burnIn"),
-        QStringLiteral("subtitles/renderPgs"),
-        QStringLiteral("subtitles/alwaysBurnInWhenTranscoding"),
-    };
-    require(stringSet(hiddenKeys) == expectedHidden,
-        QStringLiteral("schema model did not hide exactly the server-side subtitle burn-in controls"));
+    require(hiddenKeys.isEmpty(), QStringLiteral("schema model still exposed hidden settings rows"));
+    for (const QString& obsoleteKey : { QStringLiteral("subtitles/burnIn"), QStringLiteral("subtitles/renderPgs"),
+             QStringLiteral("subtitles/alwaysBurnInWhenTranscoding") }) {
+        require(findSettingSpec(obsoleteKey) == nullptr,
+            QStringLiteral("obsolete server-policy setting remained in the schema: %1").arg(obsoleteKey));
+    }
 }
 void pageRowsShareTheSchemaContract()
 {
@@ -289,9 +285,10 @@ void pageRowsShareTheSchemaContract()
         QStringLiteral("action/uiScaleSetup"), QStringLiteral("theme/reducedMotion"),
         QStringLiteral("theme/railLabels"), QStringLiteral("theme/renderMode"), QStringLiteral("theme/antialiasedText"),
         QStringLiteral("theme/technicalMetadata"), QStringLiteral("action/subtitleSettings"),
-        QStringLiteral("about/version"), QStringLiteral("action/openSourceNotices"), QStringLiteral("about/locale"),
-        QStringLiteral("shell/diagnostics"), QStringLiteral("shell/latencyGuard"),
-        QStringLiteral("shell/latencyOverlay"), QStringLiteral("action/clearLatencyStatistics") };
+        QStringLiteral("action/resetSubtitleAppearance"), QStringLiteral("about/version"),
+        QStringLiteral("action/openSourceNotices"), QStringLiteral("about/locale"), QStringLiteral("shell/diagnostics"),
+        QStringLiteral("shell/latencyGuard"), QStringLiteral("shell/latencyOverlay"),
+        QStringLiteral("action/clearLatencyStatistics") };
     for (const QString& key : pageKeys) {
         const SettingSpec& spec = requiredSpec(key);
         require(!spec.persisted, QStringLiteral("page-owned row %1 must not be persisted").arg(key));
@@ -308,13 +305,21 @@ void subtitleChoicesExplainTheirBehavior()
 {
     const SettingSpec& subtitleMode = requiredSpec(QStringLiteral("subtitles/mode"));
     const QString smartLabel = choiceLabel(subtitleMode, QStringLiteral("Smart"));
-    require(smartLabel.contains(QStringLiteral("audio is another language")),
-        QStringLiteral("Smart subtitle mode should explain when subtitles are selected"));
+    require(smartLabel.contains(QStringLiteral("another language")),
+        QStringLiteral("Smart subtitle mode should explain the audio-language condition"));
 
     for (const QString& value : choiceValues(subtitleMode)) {
         require(choiceLabel(subtitleMode, value).contains(QStringLiteral(" - ")),
             QStringLiteral("subtitle mode %1 should include a behavior explanation").arg(value));
     }
+    const QVariantMap dimInHdr = schemaRow(QStringLiteral("subtitles/dimInHdr"));
+    require(dimInHdr.value(QStringLiteral("requiresHdrPlayback")).toBool(),
+        QStringLiteral("HDR dimming should only appear during HDR playback"));
+    const QVariantMap hdrBrightness = schemaRow(QStringLiteral("subtitles/hdrBrightnessPercent"));
+    require(hdrBrightness.value(QStringLiteral("requiresHdrPlayback")).toBool()
+            && hdrBrightness.value(QStringLiteral("dependsOnKey")).toString() == QStringLiteral("subtitles/dimInHdr")
+            && hdrBrightness.value(QStringLiteral("dependsOnValue")).toString() == QStringLiteral("true"),
+        QStringLiteral("HDR brightness should require active HDR subtitle dimming"));
 }
 
 void systemLanguageLabelNamesResolvedLanguage()

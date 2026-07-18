@@ -310,7 +310,7 @@ std::vector<MpvOption> MpvOptionProfile::subtitleOptions(
     const bool onlyForced = subtitleMode == QStringLiteral("OnlyForced");
     const bool alwaysPlay = subtitleMode == QStringLiteral("Always");
     const bool smart = subtitleMode == QStringLiteral("Smart");
-    const bool nativeStyling = prefs.styling == QStringLiteral("Native");
+    const bool overrideEmbeddedStyling = prefs.styling.compare(QStringLiteral("custom"), Qt::CaseInsensitive) == 0;
     const int vertical = qBound(0, prefs.verticalPosition, 100);
     const SubtitleShadowOptions shadow = subtitleShadowOptions(prefs.dropShadow);
     const QByteArray subtitleColor = hdrPlayback && prefs.dimInHdr
@@ -330,7 +330,7 @@ std::vector<MpvOption> MpvOptionProfile::subtitleOptions(
         { "subs-fallback", mpvBool(!noSubtitles && !onlyForced && !smart) },
         { "subs-fallback-forced", "yes" },
         { "sub-ass", "yes" },
-        { "sub-ass-override", nativeStyling ? QByteArrayLiteral("no") : QByteArrayLiteral("force") },
+        { "sub-ass-override", overrideEmbeddedStyling ? QByteArrayLiteral("force") : QByteArrayLiteral("no") },
         { "sub-use-margins", "yes" },
         { "sub-font", subtitleFontFamily(prefs.font) },
         { "sub-font-size", subtitleFontSize(prefs.textSize) },
