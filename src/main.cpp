@@ -525,13 +525,11 @@ int main(int argc, char **argv)
         JellyfinNative::Diagnostics::shutdown();
         return 0;
     }
-    JellyfinNative::showPlatformWindow(window);
 
-    QTimer::singleShot(0, &window, [&window, &startupTimer]() {
+    QTimer::singleShot(0, &window, [&startupTimer]() {
         logLine(
             "startup: event loop entered, first-frame path at %lld ms", static_cast<long long>(startupTimer.elapsed()));
         JellyfinNative::Diagnostics::setInstanceState(QStringLiteral("running"));
-        JellyfinNative::enterPlatformRunningState(window);
     });
 
     const int exitCode = app.exec();

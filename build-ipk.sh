@@ -279,7 +279,7 @@ python3 "$ROOT/tools/render-appinfo.py" \
   "$APP_SOURCE_DIR/appinfo.json.in" \
   "$ROOT/VERSION" \
   "$APP_DIR/appinfo.json"
-cp -f "$APP_SOURCE_DIR/icon.png" "$APP_DIR/icon.png"
+cp -f "$APP_SOURCE_DIR/icon.png" "$APP_SOURCE_DIR/splash.png" "$APP_DIR/"
 mkdir -p "$APP_DIR/notices"
 cp -f "$ROOT/app/notices/OPEN_SOURCE_NOTICES.txt" "$ROOT/LICENSE" \
   "$ROOT/qml/fonts/Inter-LICENSE.txt" "$ROOT/qml/fonts/MaterialIcons-LICENSE.txt" \

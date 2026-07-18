@@ -1,7 +1,6 @@
 pragma ComponentBehavior: Bound
 
 import QtQuick
-import QtQml.Models
 import QtQuick.Dialogs
 import "../theme"
 import "../primitives"
@@ -14,6 +13,8 @@ FocusScope {
     property var uiTransitionToken: 0
     property int currentIndex: 0
     property var rowsByKey: ({})
+    property var allSettingsRows: []
+    property var settingsRows: []
     property int detailLevelRevision: 0
     property bool subtitleEditor: false
     property bool playbackPreview: false
@@ -114,7 +115,7 @@ FocusScope {
         return "transparent"
     }
 
-    function appendSourceRows(rows, context, rowMap) {
+    function appendSourceRows(rows, context, rowMap, targetRows) {
         const lastGroups = ["", "", ""]
         for (let index = 0; index < rows.length; ++index) {
             const row = rows[index]
@@ -127,15 +128,30 @@ FocusScope {
                 headers[detail] = lastGroups[detail] !== row.group
                 lastGroups[detail] = row.group
             }
-            settingsRowsSourceModel.append({
-                                               "rowKey": row.key,
-                                               "rowContext": context,
-                                               "detailLevel": level,
-                                               "headerEssential": headers[0],
-                                               "headerAdvanced": headers[1],
-                                               "headerExpert": headers[2]
-                                           })
+            targetRows.push({
+                                "rowKey": row.key,
+                                "rowContext": context,
+                                "detailLevel": level,
+                                "headerEssential": headers[0],
+                                "headerAdvanced": headers[1],
+                                "headerExpert": headers[2]
+                            })
         }
+    }
+
+    function rebuildVisibleRows() {
+        const visibleRows = []
+        for (let index = 0; index < allSettingsRows.length; ++index) {
+            const entry = allSettingsRows[index]
+            const row = rowsByKey[entry.rowKey]
+            if (!rowAvailable(row))
+                continue
+            if (subtitleEditor ? entry.rowContext === "subtitle" : entry.rowContext === "main" && entry.detailLevel
+                                 <= currentDetailLevel())
+                visibleRows.push(entry)
+        }
+        settingsRows = visibleRows
+        contentReady = visibleRows.length === 0
     }
 
     function buildSettingsRowsSource() {
@@ -144,6 +160,7 @@ FocusScope {
         const mainRows = []
         const subtitleRows = []
         const rowMap = {}
+        const sourceRows = []
 
         for (let groupIndex = 0; groupIndex < groupOrder.length; ++groupIndex) {
             const group = groupOrder[groupIndex]
@@ -159,15 +176,15 @@ FocusScope {
                 subtitleRows.push(expandedSchemaRow(row))
         }
 
-        settingsRowsSourceModel.clear()
-        appendSourceRows(mainRows, "main", rowMap)
-        appendSourceRows(subtitleRows, "subtitle", rowMap)
+        appendSourceRows(mainRows, "main", rowMap, sourceRows)
+        appendSourceRows(subtitleRows, "subtitle", rowMap, sourceRows)
         rowsByKey = rowMap
-        settingsRowsModel.invalidate()
+        allSettingsRows = sourceRows
+        rebuildVisibleRows()
     }
 
     function refreshSettingsFilter(resetSelection) {
-        settingsRowsModel.invalidate()
+        rebuildVisibleRows()
         if (resetSelection)
             currentIndex = 0
         Qt.callLater(function () {
@@ -732,30 +749,6 @@ FocusScope {
         }
     }
 
-    ListModel {
-        id: settingsRowsSourceModel
-    }
-
-    SortFilterProxyModel {
-        id: settingsRowsModel
-        model: settingsRowsSourceModel
-        filters: FunctionFilter {
-            function filter(data: RowData): bool {
-                const row = root.rowsByKey[data.rowKey]
-                if (!root.rowAvailable(row))
-                    return false
-                if (root.subtitleEditor)
-                    return data.rowContext === "subtitle"
-                return data.rowContext === "main" && data.detailLevel <= root.currentDetailLevel()
-            }
-        }
-    }
-    component RowData: QtObject {
-        property string rowKey
-        property string rowContext
-        property int detailLevel
-    }
-
     ChoiceStrip {
         id: detailSelector
         visible: !root.subtitleEditor
@@ -789,7 +782,7 @@ FocusScope {
         anchors.bottomMargin: pageInset
         bottomMargin: root.choiceDialogVisible && root.choiceDialog ? root.choiceDialog.panelHeight + Metrics.scaled(16) :
                                                                       0
-        model: settingsRowsModel
+        model: root.settingsRows
         header: root.subtitleEditor ? subtitlePreviewComponent : null
         headerPositioning: ListView.InlineHeader
         dismissOnBack: false
@@ -805,10 +798,11 @@ FocusScope {
         root.shell.focusNavBar()
         delegate: Column {
             required property int index
-            required property string rowKey
-            required property bool headerEssential
-            required property bool headerAdvanced
-            required property bool headerExpert
+            required property var modelData
+            readonly property string rowKey: modelData.rowKey
+            readonly property bool headerEssential: modelData.headerEssential
+            readonly property bool headerAdvanced: modelData.headerAdvanced
+            readonly property bool headerExpert: modelData.headerExpert
             readonly property var rowData: root.rowsByKey[rowKey]
             readonly property bool showHeader: root.subtitleEditor ? (index === 0 || headerExpert) : root.currentDetailLevel(
                                                                          ) === 0 ? headerEssential :

@@ -83,15 +83,4 @@ void configurePlatformWindow(NativeAppWindow& window)
     window.setPersistentSceneGraph(false);
 }
 
-void showPlatformWindow(NativeAppWindow& window)
-{
-    window.showFullScreen();
-    window.requestActivate();
-}
-
-void enterPlatformRunningState(NativeAppWindow& window)
-{
-    window.bringToFront();
-}
-
 } // namespace JellyfinNative
