@@ -18,5 +18,9 @@
 
 - Do not build, install, launch, deploy, or test on a TV unless the user explicitly requests it. "Deploy" means install-only; never launch unless separately asked.
 - For a requested deployment: run one complete fresh `build-ipk.sh all`; never invoke the `app`, `stage`, and `package` phases separately. Then install with `tools/webos/verify-device.sh --no-launch <ipk>`.
+- Known-good Tern commands from the repository root:
+  - Build: `nix develop -c env PKG_CONFIG_PATH= PKG_CONFIG_PATH_FOR_TARGET= PKG_CONFIG_PATH_x86_64_unknown_linux_gnu= ./build-ipk.sh all`
+  - Install: `nix develop -c bash tools/webos/verify-device.sh --no-launch --host root@192.168.0.200 build/com.sachk.tern_0.2.1_arm.ipk`
+  Do not replace these with hand-written CMake, staging, packaging, or install steps.
 - If webOS diagnosis is requested, read current logs first and make one targeted change — no speculative deploy loops.
 - Never write to TV partitions, patch package metadata, restart system services, or wipe app/user data.
