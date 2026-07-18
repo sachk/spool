@@ -212,6 +212,7 @@ QCoro::Task<void> SettingsController::loadLocalAsync()
         m_player->setToneMappingVisualizationEnabled(m_toneMappingVisualizationEnabled);
         applyAudioDelayToPlayer();
         m_player->setAudioOutputMode(m_audioOutputMode);
+        m_player->setForwardCacheSizeMiB(m_forwardCacheSizeMiB);
     }
     applyPlaybackPreferences();
     if (m_player)
@@ -463,6 +464,8 @@ bool SettingsController::setSchemaValue(
 void SettingsController::applySchemaValue(const SettingSpec& spec, const QVariant& value, bool apply)
 {
     switch (spec.target) {
+    case SettingTarget::UiDetailLevel:
+        break;
     case SettingTarget::NightMode:
         m_nightModeEnabled = value.toBool();
         if (apply && m_player)
@@ -492,6 +495,11 @@ void SettingsController::applySchemaValue(const SettingSpec& spec, const QVarian
         m_preferRemux = value.toBool();
         if (apply)
             applyPlaybackPreferences();
+        break;
+    case SettingTarget::ForwardCacheSize:
+        m_forwardCacheSizeMiB = value.toInt();
+        if (apply && m_player)
+            m_player->setForwardCacheSizeMiB(m_forwardCacheSizeMiB);
         break;
     case SettingTarget::PlayerVolumeSlider:
         break;
@@ -607,6 +615,8 @@ void SettingsController::applySchemaValue(const SettingSpec& spec, const QVarian
 void SettingsController::emitSchemaSignals(const SettingSpec& spec)
 {
     switch (spec.target) {
+    case SettingTarget::UiDetailLevel:
+        break;
     case SettingTarget::NightMode:
         emit nightModeChanged();
         break;
@@ -619,6 +629,7 @@ void SettingsController::emitSchemaSignals(const SettingSpec& spec)
     case SettingTarget::PreferRemux:
         emit playbackPreferencesChanged();
         break;
+    case SettingTarget::ForwardCacheSize:
     case SettingTarget::PlayerVolumeSlider:
         break;
     case SettingTarget::AudioDelay:
@@ -686,7 +697,8 @@ void SettingsController::updateWebOSAudioOutput(const QString& output, int displ
         = AudioSyncPolicy::automaticBaseDelayMs(normalizedOutput, displayLatencyMs, outputLatencyMs);
     const bool outputChanged = normalizedOutput != m_currentAudioOutput;
     const bool automaticDelayChanged = automaticDelay != m_automaticAudioDelayMs;
-    if (!outputChanged && !automaticDelayChanged)
+    const bool displayLatencyChanged = displayLatencyMs != m_displayLatencyMs;
+    if (!outputChanged && !automaticDelayChanged && !displayLatencyChanged)
         return;
 
     qInfo() << "app: webOS audio output" << normalizedOutput << "display latency" << displayLatencyMs
@@ -695,6 +707,7 @@ void SettingsController::updateWebOSAudioOutput(const QString& output, int displ
     m_audioOutputLoadGeneration.invalidate();
     m_currentAudioOutput = normalizedOutput;
     m_automaticAudioDelayMs = automaticDelay;
+    m_displayLatencyMs = displayLatencyMs;
     if (outputChanged) {
         m_audioDelayMs = 0;
         m_values.insert(QStringLiteral("settings/audioDelayMs"), m_audioDelayMs);

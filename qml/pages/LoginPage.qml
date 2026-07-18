@@ -9,7 +9,7 @@ FocusScope {
     id: root
 
     property var shell
-    property bool addMode: !(App.hasDefaultProfile && Session.serverUrl.length > 0)
+    property bool addMode: Session.accountProfiles.length === 0
     property int addStep: 1
     property string selectedServerName: ""
     property string selectedServerAddress: Session.serverUrl
@@ -19,20 +19,34 @@ FocusScope {
     property string manualServerVersion: ""
     property string manualProbeInput: ""
 
-    readonly property bool hasSavedPair: App.hasDefaultProfile && Session.serverUrl.length > 0
+    readonly property bool hasSavedPair: Session.accountProfiles.length > 0
     readonly property bool textInputActive: shell ? shell.textInputActive : Qt.inputMethod.visible
     readonly property bool manualServerVisible: manualServerAddress.length > 0
     readonly property int contentWidth: Math.min(width - Metrics.pageMarginPx * 2, 1040)
+    readonly property int tileSize: width >= 1920 ? Metrics.scaled(190) : width >= 1280 ? Metrics.scaled(164) :
+                                                                                          Metrics.scaled(152)
     readonly property string savedServerName: "Jellyfin Server"
-    readonly property string savedUsername: Session.username.length > 0 ? Session.username : "Saved user"
     readonly property string chosenServerName: selectedServerName.length > 0 ? selectedServerName : savedServerName
     readonly property string chosenServerAddress: selectedServerAddress.length > 0 ? selectedServerAddress : Session
                                                                                      ? Session.serverUrl : ""
 
     focus: true
+    function firstInitial(value) {
+        const text = String(value || "").trim()
+        return text.length > 0 ? text.charAt(0).toUpperCase() : "?"
+    }
 
-    function enterProfile() {
-        if (App.useDefaultProfile() && shell)
+    function profileTint(value) {
+        const palette = ["#1F4631", "#314026", "#243F46", "#3E3147", "#49352B", "#2D3D55"]
+        let hash = 0
+        const text = String(value || "")
+        for (let i = 0; i < text.length; ++i)
+            hash = ((hash << 5) - hash + text.charCodeAt(i)) | 0
+        return palette[Math.abs(hash) % palette.length]
+    }
+
+    function enterProfile(profileId) {
+        if (App.useProfile(profileId) && shell)
             shell.replaceRoute("home")
     }
 
@@ -47,7 +61,7 @@ FocusScope {
             return
         addMode = false
         Qt.callLater(function () {
-            InputKeys.focus(profileTile)
+            InputKeys.focus(profileList)
         })
     }
 
@@ -130,12 +144,14 @@ FocusScope {
 
     function controls() {
         if (!addMode)
-            return [profileTile, addAccountTile]
+            return [profileList, addAccountTile]
         if (addStep === 2)
             return [chosenServerCard, usernameRow, passwordRow, signInButton, quickConnectButton]
         const items = [urlRow]
         if (manualServerVisible)
             items.push(manualServerCard)
+        if (Discovery.tlsTrustPending)
+            items.push(trustCertificateButton)
         if (discoveredList.count > 0)
             items.push(discoveredList)
         return items
@@ -159,6 +175,14 @@ FocusScope {
     function moveControl(delta) {
         const items = controls()
         const current = focusedControl()
+        if (current === profileList) {
+            const nextProfile = profileList.currentIndex + delta
+            if (nextProfile >= 0 && nextProfile < profileList.count) {
+                profileList.currentIndex = nextProfile
+                profileList.positionViewAtIndex(nextProfile, ListView.Contain)
+                return
+            }
+        }
         if (current === discoveredList) {
             const next = discoveredList.currentIndex + delta
             if (next >= 0 && next < discoveredList.count) {
@@ -193,12 +217,14 @@ FocusScope {
 
     function activate() {
         const control = focusedControl()
-        if (control === profileTile)
-            enterProfile()
+        if (control === profileList && profileList.currentItem)
+            enterProfile(profileList.currentItem.profileId)
         else if (control === addAccountTile)
             openAddAccount()
         else if (control === manualServerCard)
             chooseManualServer()
+        else if (control === trustCertificateButton)
+            Discovery.trustPendingCertificate()
         else if (control === discoveredList && discoveredList.currentItem)
             discoveredList.currentItem.accepted()
         else if (control === urlRow || control === usernameRow || control === passwordRow)
@@ -231,14 +257,24 @@ FocusScope {
             if (input !== root.manualProbeInput)
                 return
             root.manualServerAddress = root.manualProbeInput
-            root.manualServerStatus = "Not found"
-            root.manualServerVersion = message
+            root.manualServerStatus = Discovery.tlsTrustPending ? "Certificate not trusted" : "Not found"
+            root.manualServerVersion = Discovery.tlsTrustPending ? Discovery.pendingTlsFingerprint : message
+        }
+
+        function onTlsTrustPendingChanged() {
+            if (!Discovery.tlsTrustPending)
+                return
+            root.manualServerStatus = "Certificate not trusted"
+            root.manualServerVersion = Discovery.pendingTlsFingerprint
+            Qt.callLater(function () {
+                InputKeys.focus(trustCertificateButton)
+            })
         }
     }
 
     Component.onCompleted: Qt.callLater(function () {
         if (hasSavedPair)
-            InputKeys.focus(profileTile)
+            InputKeys.focus(profileList)
         else
             focusServerStep()
     })
@@ -287,25 +323,44 @@ FocusScope {
 
         Row {
             anchors.centerIn: parent
-            spacing: 16
+            spacing: Metrics.scaled(28)
 
-            ActionButton {
-                id: profileTile
-                width: Metrics.scaled(340)
-                height: Metrics.scaled(68)
-                text: root.savedUsername + " — " + root.savedServerName
-                iconName: "person"
-                kind: "primary"
-                onClicked: root.enterProfile()
+            ListView {
+                id: profileList
+                width: Math.min(count * root.tileSize + Math.max(0, count - 1) * spacing, root.tileSize * 4 + spacing
+                                * 3)
+                height: root.tileSize + Metrics.scaled(76)
+                orientation: ListView.Horizontal
+                spacing: Metrics.scaled(28)
+                clip: contentWidth > width
+                focus: false
+                keyNavigationEnabled: false
+                boundsBehavior: Flickable.StopAtBounds
+                model: Session.accountProfiles
+                currentIndex: count > 0 ? 0 : -1
+
+                delegate: ProfileTile {
+                    required property int index
+                    required property var modelData
+                    readonly property string profileId: String(modelData.id || "")
+
+                    tileSize: root.tileSize
+                    username: String(modelData.userName || "Saved account")
+                    serverName: String(modelData.serverName || root.savedServerName)
+                    serverAddress: modelData.needsSignIn ? "Sign in again" : String(modelData.serverUrl || "")
+                    avatarColor: root.profileTint(username + serverAddress)
+                    initial: root.firstInitial(username)
+                    focused: ListView.isCurrentItem && profileList.activeFocus
+                    onAccepted: root.enterProfile(profileId)
+                }
             }
 
-            ActionButton {
+            ProfileTile {
                 id: addAccountTile
-                width: Metrics.scaled(250)
-                height: Metrics.scaled(68)
-                text: "Add account"
-                iconName: "person_add"
-                onClicked: root.openAddAccount()
+                tileSize: root.tileSize
+                addTile: true
+                username: "Add account"
+                onAccepted: root.openAddAccount()
             }
         }
     }
@@ -382,6 +437,17 @@ FocusScope {
                 detail: root.manualServerVersion
                 selectable: root.manualServerStatus.indexOf("Online") === 0
                 onAccepted: root.chooseManualServer()
+            }
+
+            ActionButton {
+                id: trustCertificateButton
+                Layout.fillWidth: true
+                Layout.preferredHeight: Metrics.scaled(62)
+                visible: Discovery.tlsTrustPending
+                text: "Trust this certificate and retry"
+                iconName: "verified_user"
+                kind: "primary"
+                onClicked: Discovery.trustPendingCertificate()
             }
 
             ListView {
@@ -555,6 +621,126 @@ FocusScope {
                     }
                 }
             }
+        }
+    }
+
+    component ProfileTile: FocusScope {
+        id: tile
+
+        property int tileSize: Metrics.scaled(152)
+        property string username: ""
+        property string serverName: ""
+        property string serverAddress: ""
+        property string initial: ""
+        property color avatarColor: "#1F4631"
+        property bool addTile: false
+        property bool focused: activeFocus
+        property bool pointerHovered: hover.hovered
+
+        signal accepted
+
+        width: tileSize
+        height: tileSize + Metrics.scaled(76)
+        focus: true
+        focusPolicy: Qt.StrongFocus
+        scale: focused && !Theme.reducedMotion ? 1.055 : 1.0
+
+        Behavior on scale {
+            enabled: !Theme.reducedMotion
+            NumberAnimation {
+                duration: 120
+                easing.type: Easing.OutCubic
+            }
+        }
+
+        Rectangle {
+            id: avatar
+            anchors.top: parent.top
+            anchors.horizontalCenter: parent.horizontalCenter
+            width: tile.tileSize
+            height: tile.tileSize
+            radius: Theme.radiusMedium
+            color: tile.addTile ? Theme.bgRaised : tile.avatarColor
+            border.width: tile.focused ? 3 : tile.pointerHovered ? 1 : 0
+            border.color: tile.focused ? Theme.accent : Theme.borderStrong
+            antialiasing: true
+
+            AppText {
+                anchors.centerIn: parent
+                text: tile.addTile ? "+" : tile.initial
+                color: tile.addTile ? Theme.accent : Theme.textPrimary
+                font.pixelSize: tile.addTile ? Math.round(tile.tileSize * 0.34) : Math.round(tile.tileSize * 0.42)
+                font.weight: Font.DemiBold
+            }
+        }
+
+        Rectangle {
+            anchors.top: avatar.bottom
+            anchors.topMargin: Metrics.scaled(8)
+            anchors.horizontalCenter: parent.horizontalCenter
+            width: tile.focused ? Math.round(tile.tileSize * 0.74) : 0
+            height: Metrics.scaled(3)
+            radius: Metrics.scaled(2)
+            color: Theme.accentPurple
+            opacity: tile.focused ? 1 : 0
+
+            Behavior on width {
+                enabled: !Theme.reducedMotion
+                NumberAnimation {
+                    duration: 120
+                    easing.type: Easing.OutCubic
+                }
+            }
+        }
+
+        Column {
+            anchors.top: avatar.bottom
+            anchors.topMargin: Metrics.scaled(14)
+            anchors.left: parent.left
+            anchors.right: parent.right
+            spacing: Metrics.scaled(3)
+
+            AppText {
+                width: parent.width
+                text: tile.username
+                color: Theme.textPrimary
+                font.pixelSize: Metrics.scaled(18)
+                font.weight: Font.DemiBold
+                horizontalAlignment: Text.AlignHCenter
+                maximumLineCount: 1
+                elide: Text.ElideRight
+            }
+
+            AppText {
+                width: parent.width
+                visible: !tile.addTile
+                text: tile.serverName
+                color: Theme.textSecondary
+                font.pixelSize: Metrics.scaled(13)
+                horizontalAlignment: Text.AlignHCenter
+                maximumLineCount: 1
+                elide: Text.ElideRight
+            }
+
+            MonoText {
+                width: parent.width
+                visible: !tile.addTile
+                text: tile.serverAddress
+                color: Theme.textMuted
+                font.pixelSize: Metrics.scaled(11)
+                horizontalAlignment: Text.AlignHCenter
+                maximumLineCount: 1
+                elide: Text.ElideRight
+            }
+        }
+
+        MouseArea {
+            anchors.fill: parent
+            onClicked: tile.accepted()
+        }
+
+        HoverHandler {
+            id: hover
         }
     }
 

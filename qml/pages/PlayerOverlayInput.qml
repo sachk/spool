@@ -100,7 +100,7 @@ Item {
             return false
         switch (action) {
         case "togglePause":
-            overlay.player.togglePause()
+            overlay.togglePlayback()
             overlay.showControls("actions")
             break
         case "toggleSubs":
@@ -191,7 +191,7 @@ Item {
             return true
         }
         if (InputKeys.isMedia(key) && overlay.hasPlayer) {
-            overlay.player.togglePause()
+            overlay.togglePlayback()
             overlay.showControls("actions")
             return true
         }

@@ -6,7 +6,8 @@ Item {
     property string imageUrl: ""
     property string fallbackText: ""
     property bool artworkVisible: true
-    readonly property bool artworkReady: imageUrl.length === 0 || artwork.status === Image.Ready || artwork.status
+    property bool artworkEnabled: true
+    readonly property bool artworkReady: !artworkEnabled || imageUrl.length === 0 || artwork.status === Image.Ready || artwork.status
                                          === Image.Error
 
     function artworkSource(url) {
@@ -26,7 +27,7 @@ Item {
 
         Loader {
             anchors.fill: parent
-            active: root.imageUrl.length === 0 || artwork.status === Image.Error
+            active: !root.artworkEnabled || root.imageUrl.length === 0 || artwork.status === Image.Error
             sourceComponent: MonoText {
                 anchors.centerIn: parent
                 width: parent.width - Metrics.scaled(20)
@@ -42,11 +43,13 @@ Item {
             id: artwork
             anchors.fill: parent
             anchors.margins: frame.border.width
-            source: root.imageUrl.length > 0 ? root.artworkSource(root.imageUrl) : ""
+            source: root.artworkEnabled && root.imageUrl.length > 0 ? root.artworkSource(root.imageUrl) : ""
             fillMode: Image.PreserveAspectCrop
             asynchronous: true
-            retainWhileLoading: true
-            cache: true
+            // Never display the previous delegate's artwork after its source
+            // changes. The fallback remains visible while the new image loads.
+            retainWhileLoading: false
+            cache: !NativeWindow.smartTvPlatform
             smooth: true
             mipmap: false
             sourceSize.width: Math.max(1, Math.round(root.width * Screen.devicePixelRatio))

@@ -5,6 +5,7 @@
 
 #include <QDateTime>
 #include <QDir>
+#include <QFile>
 #include <QFileInfo>
 #include <QJsonDocument>
 #include <QMetaObject>
@@ -31,63 +32,15 @@ public:
             qWarning() << "database: failed to create cache directory for" << databasePath;
             return false;
         }
-        const QString connectionName = QStringLiteral("jellyfin_native_cache");
-        if (QSqlDatabase::contains(connectionName))
-            m_database = QSqlDatabase::database(connectionName);
-        else
-            m_database = QSqlDatabase::addDatabase(QStringLiteral("QSQLITE"), connectionName);
+        if (openAndPrepare(databasePath))
+            return true;
 
-        m_database.setDatabaseName(databasePath);
-        if (!m_database.open()) {
-            qWarning() << "database: failed to open" << databasePath << m_database.lastError().text();
-            return false;
-        }
-
-        QSqlQuery query(m_database);
-        if (!query.exec(QStringLiteral("PRAGMA user_version")) || !query.next())
-            return false;
-        const int existingVersion = query.value(0).toInt();
-        if (existingVersion > 4) {
-            qWarning() << "database: unsupported schema version" << existingVersion;
-            return false;
-        }
-        if (!query.exec(QStringLiteral("PRAGMA journal_mode = WAL"))
-            || !query.exec(QStringLiteral("PRAGMA busy_timeout = 5000"))
-            || !query.exec(QStringLiteral("CREATE TABLE IF NOT EXISTS kv ("
-                                          "key TEXT PRIMARY KEY,"
-                                          "value TEXT NOT NULL"
-                                          ")"))
-            || !query.exec(QStringLiteral("CREATE TABLE IF NOT EXISTS cache_entries ("
-                                          "namespace TEXT NOT NULL,"
-                                          "key TEXT NOT NULL,"
-                                          "value BLOB NOT NULL,"
-                                          "updated_at INTEGER NOT NULL,"
-                                          "accessed_at INTEGER NOT NULL,"
-                                          "expires_at INTEGER,"
-                                          "PRIMARY KEY(namespace, key)"
-                                          ")"))
-            || !query.exec(QStringLiteral("CREATE INDEX IF NOT EXISTS cache_entries_expiry "
-                                          "ON cache_entries(expires_at)"))
-            || !query.exec(QStringLiteral("CREATE INDEX IF NOT EXISTS cache_entries_access "
-                                          "ON cache_entries(accessed_at)"))
-            || !query.exec(QStringLiteral("CREATE TABLE IF NOT EXISTS home_payload ("
-                                          "key TEXT PRIMARY KEY,"
-                                          "schema_version INTEGER NOT NULL,"
-                                          "payload BLOB NOT NULL,"
-                                          "saved_at INTEGER NOT NULL"
-                                          ")"))
-            || !query.exec(QStringLiteral("PRAGMA user_version = 4"))) {
-            qWarning() << "database: schema migration failed" << query.lastError().text();
-            return false;
-        }
-        if (existingVersion < 4) {
-            if (!query.exec(
-                    QStringLiteral("DELETE FROM cache_entries WHERE namespace = 'discovery' AND key = 'servers'"))
-                || !query.exec(QStringLiteral("DELETE FROM home_payload"))) {
-                qWarning() << "database: cache invalidation migration failed" << query.lastError().text();
-            }
-        }
-        return true;
+        qWarning() << "database: invalid cache; removing and rebuilding" << databasePath;
+        m_database.close();
+        QFile::remove(databasePath);
+        QFile::remove(databasePath + QStringLiteral("-wal"));
+        QFile::remove(databasePath + QStringLiteral("-shm"));
+        return openAndPrepare(databasePath);
     }
 
     QVariant value(const QString& key)
@@ -118,6 +71,69 @@ public:
         query.exec();
     }
 
+private:
+    bool openAndPrepare(const QString& databasePath)
+    {
+        const QString connectionName = QStringLiteral("jellyfin_native_cache");
+        if (QSqlDatabase::contains(connectionName))
+            m_database = QSqlDatabase::database(connectionName);
+        else
+            m_database = QSqlDatabase::addDatabase(QStringLiteral("QSQLITE"), connectionName);
+
+        m_database.setDatabaseName(databasePath);
+        if (!m_database.open()) {
+            qWarning() << "database: failed to open" << databasePath << m_database.lastError().text();
+            return false;
+        }
+
+        QSqlQuery query(m_database);
+        if (!query.exec(QStringLiteral("PRAGMA user_version")) || !query.next())
+            return false;
+        const int existingVersion = query.value(0).toInt();
+        if (existingVersion > 5) {
+            qWarning() << "database: unsupported schema version" << existingVersion;
+            return false;
+        }
+        if (!query.exec(QStringLiteral("PRAGMA journal_mode = WAL"))
+            || !query.exec(QStringLiteral("PRAGMA busy_timeout = 5000"))
+            || !query.exec(QStringLiteral("CREATE TABLE IF NOT EXISTS kv ("
+                                          "key TEXT PRIMARY KEY,"
+                                          "value TEXT NOT NULL"
+                                          ")"))
+            || !query.exec(QStringLiteral("CREATE TABLE IF NOT EXISTS cache_entries ("
+                                          "namespace TEXT NOT NULL,"
+                                          "key TEXT NOT NULL,"
+                                          "value BLOB NOT NULL,"
+                                          "updated_at INTEGER NOT NULL,"
+                                          "accessed_at INTEGER NOT NULL,"
+                                          "expires_at INTEGER,"
+                                          "PRIMARY KEY(namespace, key)"
+                                          ")"))
+            || !query.exec(QStringLiteral("CREATE INDEX IF NOT EXISTS cache_entries_expiry "
+                                          "ON cache_entries(expires_at)"))
+            || !query.exec(QStringLiteral("CREATE INDEX IF NOT EXISTS cache_entries_access "
+                                          "ON cache_entries(accessed_at)"))
+            || !query.exec(QStringLiteral("CREATE TABLE IF NOT EXISTS home_payload ("
+                                          "key TEXT PRIMARY KEY,"
+                                          "schema_version INTEGER NOT NULL,"
+                                          "payload BLOB NOT NULL,"
+                                          "saved_at INTEGER NOT NULL"
+                                          ")"))
+            || !query.exec(QStringLiteral("PRAGMA user_version = 5"))) {
+            qWarning() << "database: schema migration failed" << query.lastError().text();
+            return false;
+        }
+        if (existingVersion < 5) {
+            if (!query.exec(
+                    QStringLiteral("DELETE FROM cache_entries WHERE namespace = 'discovery' AND key = 'servers'"))
+                || !query.exec(QStringLiteral("DELETE FROM home_payload"))) {
+                qWarning() << "database: cache invalidation migration failed" << query.lastError().text();
+            }
+        }
+        return true;
+    }
+
+public:
     QJsonObject homePayload(const QString& key, int schemaVersion)
     {
         QSqlQuery query(m_database);

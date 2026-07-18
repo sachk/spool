@@ -15,6 +15,7 @@ FocusScope {
     property var armedTarget: null
     property int armedKey: 0
     property bool longPressHandled: false
+    property bool pressActivated: false
     property bool backClaimed: false
     property int typeAheadKey: 0
 
@@ -51,6 +52,7 @@ FocusScope {
         armedTarget = null
         armedKey = 0
         longPressHandled = false
+        pressActivated = false
     }
 
     function pressAccept(key, repeat) {
@@ -62,8 +64,15 @@ FocusScope {
         armedTarget = target
         armedKey = key
         longPressHandled = false
-        if (target.longPress)
+        pressActivated = false
+        if (target.longPress) {
             longPressTimer.restart()
+        } else {
+            // Nothing to disambiguate without a long-press gesture: fire on
+            // press so activation doesn't wait out the physical key release.
+            pressActivated = true
+            target.activate()
+        }
         return true
     }
 
@@ -75,10 +84,11 @@ FocusScope {
             return router.deliver(activeTarget, key, "release", false)
         longPressTimer.stop()
         const swallowed = longPressHandled
+        const activatedOnPress = pressActivated
         clearAccept()
         if (swallowed && activeTarget && activeTarget.finishOpeningGesture)
             activeTarget.finishOpeningGesture()
-        else if (!swallowed && target.activate)
+        else if (!swallowed && !activatedOnPress && target.activate)
             target.activate()
         return true
     }

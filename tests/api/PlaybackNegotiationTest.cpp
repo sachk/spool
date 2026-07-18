@@ -68,8 +68,8 @@ int main(int argc, char **argv)
     require(parsed.path() == QStringLiteral("/jellyfin/Videos/item/master.m3u8"),
         "relative playback URLs should retain the server base path");
     const QUrlQuery playbackQuery(parsed);
-    require(playbackQuery.queryItemValue(QStringLiteral("api_key")) == QStringLiteral("playback-token/with space"),
-        "playback URLs should carry the access token as api_key for mpv URL auth");
+    require(!playbackQuery.hasQueryItem(QStringLiteral("api_key")),
+        "playback URLs must not expose the access token in diagnostics or mpv logs");
 
     const QJsonObject smallTrickplay {
         { QStringLiteral("Width"), 160 },

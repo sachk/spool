@@ -4,6 +4,7 @@
 #include <QUrl>
 #include <QtGlobal>
 
+#include <algorithm>
 #include <cmath>
 #include <iterator>
 
@@ -192,10 +193,11 @@ QByteArray MpvOptionProfile::preloadedSubtitleStreams(const PlaybackSession& ses
     return values.join(',');
 }
 
-MpvOptionProfile::NetworkProfile MpvOptionProfile::networkProfile(Platform platform)
+MpvOptionProfile::NetworkProfile MpvOptionProfile::networkProfile(Platform platform, int parallelRequests)
 {
-    return platform == Platform::WebOS ? NetworkProfile { 2 * 1024 * 1024, 512 * 1024, 4 }
-                                       : NetworkProfile { 4 * 1024 * 1024, 1024 * 1024, 4 };
+    const int requests = std::clamp(parallelRequests, 1, 4);
+    return platform == Platform::WebOS ? NetworkProfile { 2 * 1024 * 1024, 512 * 1024, requests }
+                                       : NetworkProfile { 4 * 1024 * 1024, 1024 * 1024, requests };
 }
 
 QByteArray MpvOptionProfile::loadFileOptions(const PlaybackSession& session)
@@ -214,13 +216,14 @@ QByteArray MpvOptionProfile::loadFileOptions(const PlaybackSession& session)
 }
 
 std::vector<MpvOption> MpvOptionProfile::startupOptions(Platform platform, const QString& audioOutputMode,
-    const QByteArray& logPath, const QByteArray& demuxerMaxBytes, const QByteArray& demuxerMaxBackBytes)
+    const QByteArray& logPath, const QByteArray& demuxerMaxBytes, const QByteArray& demuxerMaxBackBytes,
+    int parallelRequests)
 {
     const bool webOS = platform == Platform::WebOS;
-    const NetworkProfile network = networkProfile(platform);
-    const bool starfishPcm
-        = audioOutputMode == QStringLiteral("starfish") || audioOutputMode == QStringLiteral("starfish-pcm");
-    const bool starfishAudio = webOS && starfishPcm;
+    const NetworkProfile network = networkProfile(platform, parallelRequests);
+    const QString normalizedAudioOutput = webOS ? audioOutputMode : normalizedAudioOutputMode(audioOutputMode);
+    const bool starfishAudio
+        = webOS && (audioOutputMode == QStringLiteral("starfish") || audioOutputMode == QStringLiteral("starfish-pcm"));
 
     std::vector<MpvOption> options {
         { "config", "no" },
@@ -252,8 +255,8 @@ std::vector<MpvOption> MpvOptionProfile::startupOptions(Platform platform, const
             options.push_back({ "video-sync", "display-resample" });
         }
         options.push_back({ "audio-channels", "stereo" });
-        options.push_back({ "audio-format", starfishPcm ? "s16" : "s32" });
-        options.push_back({ "audio-samplerate", starfishPcm ? "48000" : (starfishAudio ? "192000" : "48000") });
+        options.push_back({ "audio-format", starfishAudio ? "s16" : "s32" });
+        options.push_back({ "audio-samplerate", starfishAudio ? "192000" : "48000" });
         if (!starfishAudio) {
             options.push_back({ "audio-buffer", "0.050" });
             options.push_back({ "alsa-buffer-time", "40000" });
@@ -266,13 +269,8 @@ std::vector<MpvOption> MpvOptionProfile::startupOptions(Platform platform, const
     } else {
         options.push_back({ "vo", "libmpv" });
         options.push_back({ "hwdec", "auto-safe" });
-#ifdef Q_OS_WIN
-        options.push_back({ "ao", "wasapi" });
-#elif defined(Q_OS_MACOS)
-        options.push_back({ "ao", "coreaudio" });
-#else
-        options.push_back({ "ao", "pipewire,pulse,alsa" });
-#endif
+        if (normalizedAudioOutput != QStringLiteral("auto"))
+            options.push_back({ "ao", normalizedAudioOutput.toUtf8() });
     }
 
     const MpvOption applicationOptions[] = {

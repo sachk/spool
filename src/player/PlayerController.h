@@ -28,6 +28,7 @@ class PlayerController final : public QObject {
     Q_OBJECT
     Q_PROPERTY(bool visible READ visible NOTIFY visibleChanged)
     Q_PROPERTY(bool sessionActive READ sessionActive NOTIFY sessionActiveChanged)
+    Q_PROPERTY(bool fileLoaded READ fileLoaded NOTIFY playbackStateChanged)
     Q_PROPERTY(QString mediaKind READ mediaKind NOTIFY playbackStateChanged)
     Q_PROPERTY(bool paused READ paused NOTIFY playbackStateChanged)
     Q_PROPERTY(QString title READ title NOTIFY playbackStateChanged)
@@ -57,6 +58,8 @@ class PlayerController final : public QObject {
     Q_PROPERTY(int subtitleDelayMs READ subtitleDelayMs WRITE setSubtitleDelayMs NOTIFY subtitleDelayMsChanged)
     Q_PROPERTY(QString audioOutputMode READ audioOutputMode WRITE setAudioOutputMode NOTIFY audioOutputModeChanged)
     Q_PROPERTY(int volume READ volume WRITE setVolume NOTIFY volumeChanged)
+    Q_PROPERTY(double playbackSpeed READ playbackSpeed WRITE setPlaybackSpeed NOTIFY playbackSpeedChanged)
+    Q_PROPERTY(double effectivePlaybackSpeed READ effectivePlaybackSpeed NOTIFY effectivePlaybackSpeedChanged)
     Q_PROPERTY(QString activeSegmentType READ activeSegmentType NOTIFY segmentsChanged)
     Q_PROPERTY(double activeSegmentEndSeconds READ activeSegmentEndSeconds NOTIFY segmentsChanged)
     Q_PROPERTY(bool trickplayAvailable READ trickplayAvailable NOTIFY trickplayChanged)
@@ -68,6 +71,7 @@ public:
 
     bool visible() const;
     bool sessionActive() const;
+    bool fileLoaded() const;
     QString mediaKind() const;
     bool paused() const;
     QString title() const;
@@ -96,6 +100,8 @@ public:
     int subtitleDelayMs() const;
     QString audioOutputMode() const;
     int volume() const;
+    double playbackSpeed() const;
+    double effectivePlaybackSpeed() const;
     QString activeSegmentType() const;
     double activeSegmentEndSeconds() const;
     bool trickplayAvailable() const;
@@ -103,7 +109,7 @@ public:
     Q_INVOKABLE void skipActiveSegment();
     Q_INVOKABLE QVariantMap trickplayForSeconds(double seconds) const;
 
-    Q_INVOKABLE void play(const JellyfinNative::PlaybackSession& session);
+    Q_INVOKABLE void play(const JellyfinNative::PlaybackSession& session, bool startPaused = false);
     void setMediaSegments(const QString& itemId, const std::vector<MediaSegment>& segments);
     Q_INVOKABLE void togglePause();
     Q_INVOKABLE void seekBack();
@@ -113,13 +119,16 @@ public:
     void prepareForBackground();
     void pauseForBackground();
     void resyncForForeground();
+    void setKeepPlayingInBackground(bool keepPlaying);
     Q_INVOKABLE void toggleDebugOsd();
     Q_INVOKABLE void toggleSubtitles();
     Q_INVOKABLE void cycleSubtitles();
     Q_INVOKABLE void enableSubtitles();
     Q_INVOKABLE void selectSubtitle(int index);
+    Q_INVOKABLE void selectSubtitleStreamIndex(int streamIndex);
     Q_INVOKABLE void cycleAudio();
     Q_INVOKABLE void selectAudio(int index);
+    Q_INVOKABLE void selectAudioStreamIndex(int streamIndex);
     Q_INVOKABLE void nextChapter();
     Q_INVOKABLE void previousChapter();
     Q_INVOKABLE void stop();
@@ -132,8 +141,12 @@ public:
     Q_INVOKABLE void setAudioOutputMode(const QString& mode);
     Q_INVOKABLE void setVolume(int volume);
     Q_INVOKABLE void adjustVolume(int delta);
+    Q_INVOKABLE void setPlaybackSpeed(double speed);
+    void setSyncPlaybackSpeed(double speed);
+    void clearSyncPlaybackSpeed();
     void setSubtitlePreferences(const JellyfinNative::SubtitlePreferences& preferences);
     void setDemuxerBudget(const QByteArray& maxBytes, const QByteArray& maxBackBytes);
+    void setForwardCacheSizeMiB(int sizeMiB);
 
 signals:
     void visibleChanged();
@@ -145,6 +158,7 @@ signals:
     void trickplayChanged();
     void chaptersChanged();
     void playbackStopped(const QString& itemId, qint64 positionTicks, bool completed);
+    void playbackLoadFailed(const QString& itemId, qint64 positionTicks, const QString& message);
     void nightModeEnabledChanged();
     void toneMappingVisualizationEnabledChanged();
     void audioDelayMsChanged();
@@ -153,6 +167,8 @@ signals:
     void subtitleDelayMsChanged();
     void audioOutputModeChanged();
     void volumeChanged();
+    void playbackSpeedChanged();
+    void effectivePlaybackSpeedChanged();
 
 public:
     // Silence active playback before application services and the render
@@ -160,10 +176,15 @@ public:
     void prepareForShutdown();
 
     // Called from main on aboutToQuit so we tear down before the scene graph
-    // stops accepting render jobs. Safe to call repeatedly.
-    void teardownMpv();
+    // stops accepting render jobs. Safe to call repeatedly. Pass async only
+    // from the deferred post-stop path where blocking the GUI thread matters
+    // more than deterministic completion.
+    void teardownMpv(bool async = false);
 
 private:
+    int uiTrackIndexForStream(const QString& type, int streamIndex, int firstUiIndex) const;
+    int streamIndexForUiTrack(const QString& type, int uiIndex, int firstUiIndex) const;
+    void updateReportedStreamSelection(bool sendProgress);
     enum class MpvOptionApplyMode {
         Initial,
         Runtime,
@@ -174,6 +195,7 @@ private:
         ToneMappingVisualization,
         AudioDelay,
         SubtitleDelay,
+        PlaybackSpeed,
     };
 
     bool ensureMpv(bool needsVideoSurface);
@@ -207,6 +229,7 @@ private:
     bool applyMpvRuntimeOptions(MpvOptionApplyMode mode, mpv_handle *handle);
     void discardPreparedMpvForOptionChange(const char *reason);
     void handleVideoRenderError(const QString& message);
+    void changePlaybackSpeed(double speed, bool syncOverride, bool clearSyncOverride = false);
 
     NativeAppWindow *m_window = nullptr;
     JellyfinApiFacade *m_api = nullptr;
@@ -220,8 +243,11 @@ private:
     QTimer m_backGuardTimer;
     QTimer m_uiPositionTimer;
     QTimer m_seekWatchdogTimer;
+    QTimer m_backgroundPauseTimer;
     bool m_visible = false;
     bool m_sessionActive = false;
+    bool m_fileLoaded = false;
+    bool m_keepPlayingInBackground = false;
     bool m_paused = false;
     bool m_buffering = false;
     int m_bufferingPercent = 0;
@@ -239,9 +265,14 @@ private:
     std::atomic<int> m_fileAudioDelayMs = 0;
     std::atomic<int> m_subtitleDelayMs = 0;
     std::atomic<int> m_volume = 100;
-    QString m_audioOutputMode = QStringLiteral("alsa");
+    double m_playbackSpeed = 1.0;
+    double m_syncPlaybackSpeed = 1.0;
+    bool m_syncPlaybackSpeedActive = false;
+    QString m_audioOutputMode = QStringLiteral("auto");
+    QByteArray m_automaticDemuxerMaxBytes = QByteArrayLiteral("64M");
     QByteArray m_demuxerMaxBytes = QByteArrayLiteral("64M");
     QByteArray m_demuxerMaxBackBytes = QByteArrayLiteral("32M");
+    int m_forwardCacheSizeMiB = 0;
     SubtitlePreferences m_subtitlePreferences;
     bool m_hdrPlayback = false;
     PlaybackPositionTracker m_positionTracker;

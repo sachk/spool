@@ -2,14 +2,15 @@ pragma ComponentBehavior: Bound
 
 import QtQuick
 import QtQuick.Layouts
-import JellyfinWebOS
 import "../theme"
 import "../primitives"
+import "../shell" as Shell
 
 Item {
     id: root
 
     required property var overlay
+    readonly property bool syncPlayMenuOpen: syncPlayMenu.menuOpen
 
     function dp(value) {
         return overlay ? overlay.dp(value) : Math.round(value)
@@ -31,7 +32,28 @@ Item {
         })
     }
 
+    function openSyncPlayMenu() {
+        SyncPlay.refreshGroups()
+        syncPlayMenu.openMenu()
+    }
+
+    function closeSyncPlayMenu() {
+        syncPlayMenu.closeMenu()
+    }
+
+    function routeSyncPlayMenuKey(key) {
+        return syncPlayMenu.routeKey(key, "release", false)
+    }
+
+    function activateSyncPlayMenu() {
+        syncPlayMenu.activate()
+    }
+
     function routeMenuKey(key) {
+        if (overlay.menuKind === "debug" && menuList.currentIndex === 0 && InputKeys.isHorizontal(key)) {
+            overlay.adjustPlaybackSpeed(key === Qt.Key_Left ? -1 : 1)
+            return true
+        }
         return menuList.routeKey(key, "release", false)
     }
 
@@ -52,16 +74,22 @@ Item {
         }
     }
 
-    // Registered dynamically by main.cpp, so no static .qmltypes entry exists.
-    // qmllint disable import unresolved-type
-    MpvVideoItem {
-        anchors.fill: parent
-        z: -1
-    }
-    // qmllint enable import unresolved-type
-
     TapHandler {
-        onTapped: root.overlay.showControls("timeline")
+        onTapped: eventPoint => {
+            if (root.syncPlayMenuOpen) {
+                const local = syncPlayMenu.mapFromItem(root, eventPoint.position.x, eventPoint.position.y)
+                const syncTarget = transportBar.actionTarget("syncplay")
+                if (syncTarget) {
+                    const syncLocal = syncTarget.mapFromItem(root, eventPoint.position.x, eventPoint.position.y)
+                    if (syncTarget.contains(syncLocal))
+                    return
+                }
+                if (!syncPlayMenu.contains(local))
+                root.overlay.closeMenu()
+                return
+            }
+            root.overlay.showControls("timeline")
+        }
     }
     HoverHandler {
         onHoveredChanged: if (hovered && root.overlay.controlsVisible)
@@ -145,12 +173,61 @@ Item {
     }
 
     Item {
+        id: syncPlayWaitingIcon
+
+        anchors.centerIn: parent
+        width: root.dp(116)
+        height: width
+        visible: SyncPlay.enabled && SyncPlay.waitingForPlayback
+        z: 20
+
+        Rectangle {
+            anchors.fill: parent
+            radius: width / 2
+            color: "#C9161616"
+            border.width: 1
+            border.color: Theme.borderStrong
+        }
+
+        MaterialIcon {
+            anchors.centerIn: parent
+            name: "schedule"
+            iconColor: Theme.textPrimary
+            iconSize: root.dp(82)
+        }
+
+        MaterialIcon {
+            anchors.centerIn: parent
+            anchors.horizontalCenterOffset: root.dp(20)
+            anchors.verticalCenterOffset: root.dp(15)
+            name: "play_arrow"
+            iconColor: Theme.accent
+            iconSize: root.dp(38)
+        }
+
+        SequentialAnimation on opacity {
+            running: syncPlayWaitingIcon.visible && !Theme.reducedMotion
+            loops: Animation.Infinite
+            NumberAnimation {
+                from: 1
+                to: 0.58
+                duration: 650
+            }
+            NumberAnimation {
+                from: 0.58
+                to: 1
+                duration: 650
+            }
+        }
+    }
+
+    Item {
         id: hud
         anchors.left: parent.left
         anchors.right: parent.right
         anchors.bottom: parent.bottom
         anchors.margins: root.dp(52)
-        height: root.dp(236)
+        height: root.dp(276)
         visible: root.overlay.controlsVisible
 
         ColumnLayout {
@@ -166,7 +243,21 @@ Item {
                     spacing: root.dp(6)
                     AppText {
                         Layout.fillWidth: true
-                        text: root.overlay.hasPlayer ? root.overlay.player.title : ""
+                        Layout.preferredHeight: visible ? implicitHeight : 0
+                        visible: root.overlay.episodeContextText.length > 0
+                        text: root.overlay.episodeContextText
+                        color: Theme.textSecondary
+                        font.pixelSize: root.dp(22)
+                        font.weight: Font.DemiBold
+                        maximumLineCount: 1
+                        elide: Text.ElideRight
+                    }
+
+                    AppText {
+                        Layout.fillWidth: true
+                        Layout.preferredHeight: visible ? implicitHeight : 0
+                        visible: !root.overlay.episodeQueue || root.overlay.showEpisodeTitle
+                        text: root.overlay.overlayTitle
                         color: Theme.textPrimary
                         font.pixelSize: root.dp(40)
                         font.weight: Font.Bold
@@ -215,13 +306,24 @@ Item {
         }
     }
 
+    Shell.SyncPlayMenu {
+        id: syncPlayMenu
+        anchors.right: parent.right
+        anchors.bottom: hud.top
+        anchors.rightMargin: root.dp(52)
+        anchors.bottomMargin: root.dp(18)
+        width: root.dp(420)
+        z: 55
+        onRequestClose: root.overlay.closeMenu()
+    }
+
     PlayerAudioSyncPanel {
         overlay: root.overlay
     }
 
     OverlayDialog {
         id: menuDialog
-        visible: root.overlay.isMenuOpen()
+        visible: root.overlay.menuKind.length > 0
         preferredWidth: 620
         z: 50
         onDismissed: root.overlay.closeMenu()
@@ -256,9 +358,22 @@ Item {
                 required property int index
                 required property var modelData
                 label: root.overlay.menuLabel(modelData)
+                detail: root.overlay.menuKind === "debug" && index === 0 && SyncPlay.enabled ? "Managed by SyncPlay while grouped" :
+                                                                                               ""
                 checked: root.overlay.menuItemSelected(index)
                 highlighted: menuList.currentIndex === index
                 metricsWidth: root.width
+                stepperVisible: root.overlay.menuKind === "debug" && index === 0
+                stepperEnabled: !SyncPlay.enabled
+                stepperText: root.overlay.formatPlaybackSpeed(root.overlay.player.effectivePlaybackSpeed)
+                onDecreaseRequested: {
+                    menuList.currentIndex = index
+                    root.overlay.adjustPlaybackSpeed(-1)
+                }
+                onIncreaseRequested: {
+                    menuList.currentIndex = index
+                    root.overlay.adjustPlaybackSpeed(1)
+                }
                 onHovered: menuList.currentIndex = index
                 onActivated: {
                     menuList.currentIndex = index

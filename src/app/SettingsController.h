@@ -28,6 +28,7 @@ class SettingsController final : public QObject {
     Q_PROPERTY(bool preferRemux MEMBER m_preferRemux WRITE setPreferRemux NOTIFY playbackPreferencesChanged)
     Q_PROPERTY(int audioDelayMs READ audioDelayMs WRITE setAudioDelayMs NOTIFY audioDelayChanged)
     Q_PROPERTY(int automaticAudioDelayMs READ automaticAudioDelayMs NOTIFY audioOutputDeviceChanged)
+    Q_PROPERTY(int displayLatencyMs READ displayLatencyMs NOTIFY audioOutputDeviceChanged)
     Q_PROPERTY(QString audioDelayTargetLabel READ audioDelayTargetLabel NOTIFY audioOutputDeviceChanged)
     Q_PROPERTY(QString audioOutputMode MEMBER m_audioOutputMode WRITE setAudioOutputMode NOTIFY audioOutputModeChanged)
     Q_PROPERTY(int uiScalePercent READ uiScalePercent WRITE setUiScalePercent NOTIFY appearanceChanged)
@@ -81,6 +82,10 @@ public:
     int automaticAudioDelayMs() const
     {
         return m_automaticAudioDelayMs;
+    }
+    int displayLatencyMs() const
+    {
+        return m_displayLatencyMs;
     }
     QString audioDelayTargetLabel() const;
     bool subtitleRenderPgs() const;
@@ -167,12 +172,14 @@ private:
     int m_maxStreamingBitrateMbps = 120;
     bool m_unlimitedLocalBitrate = false;
     bool m_preferRemux = true;
+    int m_forwardCacheSizeMiB = 32;
     int m_audioDelayMs = 0;
     int m_automaticAudioDelayMs = 0;
+    int m_displayLatencyMs = 0;
     QString m_currentAudioOutput;
     bool m_localSettingsLoaded = false;
     RequestGeneration m_audioOutputLoadGeneration;
-    QString m_audioOutputMode = QStringLiteral("alsa");
+    QString m_audioOutputMode = QStringLiteral("auto");
     int m_uiScalePercent = 115;
     int m_uiScaleSetupVersion = 0;
     SubtitlePreferences m_subtitlePreferences;

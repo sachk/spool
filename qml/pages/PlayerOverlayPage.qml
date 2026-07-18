@@ -44,6 +44,20 @@ FocusScope {
     readonly property var currentQueueItem: playQueue && playQueue.currentIndex >= 0 ? playQueue.get(
                                                                                            playQueue.currentIndex) : (
                                                                                            {})
+    readonly property bool syncPlayMenuOpen: chrome.syncPlayMenuOpen
+    readonly property string episodeContextText: {
+        if (!episodeQueue)
+            return ""
+        const showName = String(currentQueueItem.seriesName || "").trim()
+        const code = String(currentQueueItem.episodeCode || "").trim()
+        if (showName.length > 0 && code.length > 0)
+            return showName + " · " + code
+        return showName.length > 0 ? showName : code
+    }
+    readonly property bool showEpisodeTitle: episodeQueue && !Boolean(currentQueueItem.genericEpisodeTitle) && String(
+                                                 currentQueueItem.title || "").trim().length > 0
+    readonly property string overlayTitle: episodeQueue ? String(currentQueueItem.title || "") : hasPlayer
+                                                          ? player.title : ""
     readonly property bool playlistQueue: {
         if (!playQueue)
             return false
@@ -55,6 +69,8 @@ FocusScope {
         return false
     }
     readonly property bool episodeQueue: String(currentQueueItem.itemType || "") === "Episode"
+    readonly property bool episodeContextMissing: episodeQueue && playQueue.count <= 1 && String(
+                                                      currentQueueItem.seriesId || "").length > 0
     readonly property bool queueNavigationAvailable: {
         if (!playQueue || playQueue.count <= 1)
             return false
@@ -62,10 +78,10 @@ FocusScope {
     }
     readonly property var transportActions: {
         const values = []
-        if (queueNavigationAvailable && playQueue.canGoPrevious)
+        if ((queueNavigationAvailable && playQueue.canGoPrevious) || episodeContextMissing)
             values.push("prevQueue")
         values.push("back", "pause", "forward")
-        if (queueNavigationAvailable && playQueue.canGoNext)
+        if ((queueNavigationAvailable && playQueue.canGoNext) || episodeContextMissing)
             values.push("nextQueue")
         if (hasPlayer && player.hasChapters)
             values.push("prevChapter", "nextChapter")
@@ -78,15 +94,16 @@ FocusScope {
             values.push("audio")
         if (playQueue && playQueue.count > 0)
             values.push("queue")
+        values.push("syncplay")
         if (desktopControlsAvailable)
             values.push("fullscreen")
         values.push("debug")
         return values
     }
     readonly property var actions: transportActions.concat(utilityActions)
-    readonly property var debugOptions: ["Audio sync", "Subtitle sync", "Subtitle settings", hasPlayer
-        && player.debugOsdVisible ? "Hide performance stats" : "Show performance stats", nightModeEnabled
-        ? "Disable night mode" : "Enable night mode", "Stop playback"]
+    readonly property var debugOptions: ["Playback speed", "Subtitle settings", "Subtitle sync", "Audio sync",
+        nightModeEnabled ? "Disable night mode" : "Enable night mode", hasPlayer && player.debugOsdVisible
+        ? "Hide performance stats" : "Show performance stats"]
     readonly property var menuOptions: {
         if (menuKind === "subtitles")
             return hasPlayer ? player.subtitleTracks : []
@@ -117,6 +134,8 @@ FocusScope {
     function actionIcon(action) {
         if (action === "back")
             return "fast_rewind"
+        if (action === "pause" && SyncPlay.enabled && SyncPlay.waitingForPlayback)
+            return "schedule"
         if (action === "pause")
             return hasPlayer && player.paused ? "play_arrow" : "pause"
         if (action === "forward")
@@ -131,6 +150,8 @@ FocusScope {
             return "audiotrack"
         if (action === "queue")
             return "playlist_play"
+        if (action === "syncplay")
+            return "groups"
         if (action === "fullscreen")
             return NativeWindow.fullScreen ? "fullscreen_exit" : "fullscreen"
         return "settings"
@@ -145,6 +166,8 @@ FocusScope {
             return "Back 10 seconds"
         if (action === "forward")
             return "Forward 10 seconds"
+        if (action === "pause" && SyncPlay.enabled && SyncPlay.waitingForPlayback)
+            return "Waiting for group playback"
         if (action === "pause")
             return hasPlayer && player.paused ? "Resume" : "Pause"
         if (action === "prevChapter")
@@ -157,6 +180,8 @@ FocusScope {
             return "Audio track"
         if (action === "queue")
             return "Play queue"
+        if (action === "syncplay")
+            return SyncPlay.enabled ? "SyncPlay group" : "Join or create a SyncPlay group"
         if (action === "fullscreen")
             return NativeWindow.fullScreen ? "Exit fullscreen" : "Fullscreen"
         return "Playback settings"
@@ -178,7 +203,7 @@ FocusScope {
     }
 
     function isMenuOpen() {
-        return menuKind.length > 0
+        return menuKind.length > 0 || syncPlayMenuOpen
     }
 
     function isPinned() {
@@ -234,7 +259,7 @@ FocusScope {
         if (!scrubbing)
             return false
         if (hasPlayer)
-            player.seek(clampSeconds(scrubSeconds))
+            seekTo(scrubSeconds)
         scrubbing = false
         maybeRestartAutohide()
         return true
@@ -270,6 +295,8 @@ FocusScope {
     }
 
     function openMenu(kind) {
+        if (syncPlayMenuOpen)
+            chrome.closeSyncPlayMenu()
         menuKind = kind
         audioSyncVisible = false
         subtitleSettingsVisible = false
@@ -280,9 +307,26 @@ FocusScope {
         autohide.stop()
     }
 
-    function closeMenu() {
-        if (!isMenuOpen())
+    function openSyncPlayMenu() {
+        if (syncPlayMenuOpen) {
+            closeMenu()
             return
+        }
+        menuKind = ""
+        audioSyncVisible = false
+        subtitleSettingsVisible = false
+        controlsVisible = true
+        chrome.openSyncPlayMenu()
+        autohide.stop()
+    }
+
+    function closeMenu() {
+        if (syncPlayMenuOpen)
+            chrome.closeSyncPlayMenu()
+        if (menuKind.length <= 0) {
+            showControls(focusZone)
+            return
+        }
         menuKind = ""
         showControls(focusZone)
     }
@@ -296,25 +340,25 @@ FocusScope {
         else if (kind === "queue" && playQueue && playQueue.count > 0)
             App.playQueueItem(index)
         else if (kind === "debug") {
+            if (index === 0)
+                return
             menuKind = ""
-            if (index === 0) {
-                openAudioSync()
-                return
-            }
             if (index === 1) {
-                openSubtitleSync()
-                return
-            }
-            if (index === 2) {
                 openSubtitleSettings()
                 return
             }
-            if (index === 3)
-                toggleDebugStats()
-            else if (index === 4)
+            if (index === 2) {
+                openSubtitleSync()
+                return
+            }
+            if (index === 3) {
+                openAudioSync()
+                return
+            }
+            if (index === 4)
                 Settings.setNightModeEnabled(!nightModeEnabled)
-            else if (index === 5 && hasPlayer)
-                player.stopWithReason("debug-menu-stop")
+            else if (index === 5)
+                toggleDebugStats()
             if (controlsVisible)
                 maybeRestartAutohide()
             return
@@ -375,6 +419,16 @@ FocusScope {
     function formatAudioDelay(value) {
         const milliseconds = clampAudioDelayMs(value)
         return milliseconds > 0 ? "+" + milliseconds + " ms" : milliseconds + " ms"
+    }
+
+    function formatPlaybackSpeed(value) {
+        return Number(value || 1).toFixed(2) + "×"
+    }
+
+    function adjustPlaybackSpeed(direction) {
+        if (!hasPlayer || SyncPlay.enabled || direction === 0)
+            return
+        player.setPlaybackSpeed(Math.max(0.25, Math.min(4, Number(player.playbackSpeed) + direction * 0.25)))
     }
 
     function adjustAudioDelay(direction) {
@@ -470,16 +524,39 @@ FocusScope {
         event.accepted = true
     }
 
+    function togglePlayback() {
+        if (SyncPlay.enabled)
+            SyncPlay.requestTogglePause()
+        else
+            player.togglePause()
+    }
+
+    function seekTo(seconds) {
+        if (SyncPlay.enabled)
+            SyncPlay.requestSeek(clampSeconds(seconds))
+        else
+            player.seek(clampSeconds(seconds))
+    }
+
+    function seekRelative(seconds) {
+        if (SyncPlay.enabled)
+            SyncPlay.requestRelativeSeek(seconds)
+        else if (seconds < 0)
+            player.seekBack()
+        else
+            player.seekForward()
+    }
+
     function activateAction() {
         if (!hasPlayer || actions.length === 0)
             return
         const action = actions[Math.max(0, Math.min(actions.length - 1, actionIndex))]
         if (action === "back")
-            player.seekBack()
+            seekRelative(-10)
         else if (action === "pause")
-            player.togglePause()
+            togglePlayback()
         else if (action === "forward")
-            player.seekForward()
+            seekRelative(10)
         else if (action === "prevQueue")
             App.playQueuePrevious()
         else if (action === "nextQueue")
@@ -490,6 +567,8 @@ FocusScope {
             player.nextChapter()
         else if (action === "subtitles" || action === "audio" || action === "queue" || action === "debug")
             openMenu(action)
+        else if (action === "syncplay")
+            openSyncPlayMenu()
         else if (action === "fullscreen")
             NativeWindow.toggleFullScreen()
     }
@@ -548,7 +627,9 @@ FocusScope {
             return subtitleSettings.routeKey(key, phase, repeat)
         if (phase === "press" && (isMenuOpen() || audioSyncVisible) && InputKeys.isDirection(key))
             return true
-        if (phase === "release" && isMenuOpen() && chrome.routeMenuKey(key))
+        if (phase === "release" && syncPlayMenuOpen && chrome.routeSyncPlayMenuKey(key))
+            return true
+        if (phase === "release" && menuKind.length > 0 && chrome.routeMenuKey(key))
             return true
         if (phase === "release" && audioSyncVisible && handleAudioSyncKey(key))
             return true
@@ -560,18 +641,22 @@ FocusScope {
             subtitleSettings.activate()
             return
         }
+        if (syncPlayMenuOpen) {
+            chrome.activateSyncPlayMenu()
+            return
+        }
         if (isMenuOpen()) {
             chrome.activateMenu()
             return
         }
         if (audioSyncVisible) {
             if (audioSyncRow === "delay" && hasPlayer)
-                player.togglePause()
+                togglePlayback()
             return
         }
         if (!controlsVisible) {
             if (hasPlayer)
-                player.togglePause()
+                togglePlayback()
             showControls("actions")
             return
         }
@@ -581,7 +666,7 @@ FocusScope {
         }
         if (focusZone === "timeline") {
             if (!commitScrub() && hasPlayer)
-                player.togglePause()
+                togglePlayback()
         } else {
             activateAction()
         }
@@ -594,6 +679,7 @@ FocusScope {
         autohide.stop()
         scrubbing = false
         menuKind = ""
+        chrome.closeSyncPlayMenu()
         audioSyncVisible = false
         subtitleSettingsVisible = false
         focusZone = "timeline"

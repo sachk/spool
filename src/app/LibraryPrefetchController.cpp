@@ -5,6 +5,7 @@
 #include "ArtworkPrefetcher.h"
 #include "LibraryQuery.h"
 
+#include <QDateTime>
 #include <QDebug>
 
 #include <algorithm>
@@ -80,10 +81,12 @@ void LibraryPrefetchController::schedule(const std::vector<LibraryItem>& librari
     }
 
     for (auto it = m_pages.begin(); it != m_pages.end();) {
-        if (retainedKeys.contains(it.key()))
+        if (retainedKeys.contains(it.key())) {
             ++it;
-        else
+        } else {
+            m_pageStoredAtMs.remove(it.key());
             it = m_pages.erase(it);
+        }
     }
     m_cachedKeys.intersect(retainedKeys);
 
@@ -100,6 +103,23 @@ std::optional<PagedMovieItems> LibraryPrefetchController::cachedPage(const QStri
     if (it == m_pages.constEnd())
         return std::nullopt;
     return it.value();
+}
+
+void LibraryPrefetchController::storePage(const QString& cacheKey, const PagedMovieItems& page)
+{
+    if (cacheKey.isEmpty())
+        return;
+    m_pages.insert(cacheKey, page);
+    m_pageStoredAtMs.insert(cacheKey, QDateTime::currentMSecsSinceEpoch());
+    m_cachedKeys.insert(cacheKey);
+}
+
+qint64 LibraryPrefetchController::pageAgeMs(const QString& cacheKey) const
+{
+    const auto it = m_pageStoredAtMs.constFind(cacheKey);
+    if (it == m_pageStoredAtMs.constEnd())
+        return -1;
+    return std::max<qint64>(0, QDateTime::currentMSecsSinceEpoch() - it.value());
 }
 
 void LibraryPrefetchController::prefetchPosters(
@@ -148,8 +168,7 @@ void LibraryPrefetchController::startNext()
         this, m_api->fetchBrowsePage(request.descriptor, 0, kLibraryPageSize), m_generation, generation,
         [this, request](const PagedMovieItems& page) {
             qInfo() << "library prefetch: cached" << request.title << page.items.size();
-            m_pages.insert(request.cacheKey, page);
-            m_cachedKeys.insert(request.cacheKey);
+            storePage(request.cacheKey, page);
             m_active = false;
             startNext();
         },

@@ -27,6 +27,10 @@ namespace JellyfinNative {
 namespace {
 
     constexpr int kRenderConcurrency = 6;
+    // Each completed response becomes a texture upload in the next sync pass;
+    // batches of 50+ posters land together, so cap completions per 16 ms tick
+    // to keep individual frames short while a batch trickles in.
+    constexpr int kMaxDeliveriesPerTick = 6;
 
     qint64 monotonicNs()
     {
@@ -425,6 +429,15 @@ ArtworkService::ArtworkService(
     m_timingBatchTimer.setInterval(120);
     connect(&m_timingBatchTimer, &QTimer::timeout, this, &ArtworkService::flushTimingBatch);
 
+    m_deliveryTimer.setInterval(16);
+    m_deliveryTimer.setTimerType(Qt::PreciseTimer);
+    connect(&m_deliveryTimer, &QTimer::timeout, this, [this] {
+        m_deliveredThisTick = 0;
+        drainDeliveries();
+        if (m_pendingDeliveries.empty())
+            m_deliveryTimer.stop();
+    });
+
     m_worker = new ArtworkFetchWorker(m_cacheDirectory, m_networkCacheBytes, this);
     m_worker->moveToThread(&m_workerThread);
     connect(&m_workerThread, &QThread::finished, m_worker, &QObject::deleteLater);
@@ -697,15 +710,37 @@ void ArtworkService::startDecode(ArtworkImageResponse *response, QByteArray byte
         QMetaObject::invokeMethod(
             this,
             [this, self, image = std::move(image), error = std::move(error), timing]() mutable {
-                if (self) {
+                enqueueDelivery([this, self, image = std::move(image), error = std::move(error), timing]() mutable {
+                    if (!self)
+                        return;
                     self->finish(std::move(image), std::move(error));
                     Timing completed = timing;
                     completed.totalNs = monotonicNs() - completed.totalNs;
                     finishTiming(completed);
-                }
+                });
             },
             Qt::QueuedConnection);
     }));
+}
+
+void ArtworkService::enqueueDelivery(std::function<void()> deliver)
+{
+    m_pendingDeliveries.push_back(std::move(deliver));
+    if (!m_deliveryTimer.isActive()) {
+        m_deliveredThisTick = 0;
+        m_deliveryTimer.start();
+    }
+    drainDeliveries();
+}
+
+void ArtworkService::drainDeliveries()
+{
+    while (!m_pendingDeliveries.empty() && m_deliveredThisTick < kMaxDeliveriesPerTick) {
+        auto deliver = std::move(m_pendingDeliveries.front());
+        m_pendingDeliveries.pop_front();
+        ++m_deliveredThisTick;
+        deliver();
+    }
 }
 
 void ArtworkService::finishTiming(Timing timing)

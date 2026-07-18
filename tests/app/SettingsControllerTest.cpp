@@ -41,6 +41,15 @@ int main(int argc, char **argv)
         "fresh profile unexpectedly enabled the manual streaming limit");
     require(!settings.value(QStringLiteral("playback/unlimitedLocalBitrate")).toBool(),
         "fresh profile unexpectedly enabled unlimited local-network playback");
+    require(settings.value(QStringLiteral("playback/forwardCacheSizeMiB")).toInt() == 32,
+        "fresh profile did not use the 32 MB forward cache default");
+
+    settings.setValue(QStringLiteral("playback/forwardCacheSizeMiB"), QStringLiteral("256"));
+    require(settings.value(QStringLiteral("playback/forwardCacheSizeMiB")).toString() == QStringLiteral("256"),
+        "forward cache size was not updated");
+    require(QCoro::waitFor(database.loadSettingAsync(QStringLiteral("playback/forwardCacheSizeMiB")))
+            == QStringLiteral("256"),
+        "forward cache size was not persisted");
 
     settings.setAudioDelayMs(120);
     require(settings.audioDelayMs() == 120, "audio delay setter did not update the global desktop value");
@@ -65,6 +74,8 @@ int main(int argc, char **argv)
     require(restored.uiScalePercent() == 135, "persisted UI scale was not restored");
     require(restored.uiScaleSetupComplete(), "persisted setup completion was not restored");
     require(restored.audioDelayMs() == 120, "persisted global desktop audio delay was not restored");
+    require(restored.value(QStringLiteral("playback/forwardCacheSizeMiB")).toString() == QStringLiteral("256"),
+        "persisted forward cache size was not restored");
 
     database.saveSetting(QStringLiteral("appearance/uiScalePercent"), QStringLiteral("100"));
     database.saveSetting(QStringLiteral("appearance/uiScaleSetupVersion"), QStringLiteral("1"));

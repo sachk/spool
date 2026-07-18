@@ -14,6 +14,7 @@ namespace JellyfinNative {
 
 class JellyfinApiFacade;
 class PlayerController;
+class PlayQueueController;
 
 class SyncPlayController final : public QObject {
     Q_OBJECT
@@ -24,12 +25,19 @@ class SyncPlayController final : public QObject {
     Q_PROPERTY(QStringList participants READ participants NOTIFY groupChanged)
     Q_PROPERTY(int participantCount READ participantCount NOTIFY groupChanged)
     Q_PROPERTY(QString groupState READ groupState NOTIFY groupChanged)
+    Q_PROPERTY(QString groupStateReason READ groupStateReason NOTIFY groupChanged)
     Q_PROPERTY(bool socketConnected READ socketConnected NOTIFY connectionChanged)
     Q_PROPERTY(double clockOffsetMs READ clockOffsetMs NOTIFY connectionChanged)
     Q_PROPERTY(double pingMs READ pingMs NOTIFY connectionChanged)
+    Q_PROPERTY(QString timeSyncDevice READ timeSyncDevice CONSTANT)
+    Q_PROPERTY(bool waitingForPlayback READ waitingForPlayback NOTIFY syncStatusChanged)
+    Q_PROPERTY(double playbackDiffMs READ playbackDiffMs NOTIFY syncStatusChanged)
+    Q_PROPERTY(bool playbackDiffValid READ playbackDiffValid NOTIFY syncStatusChanged)
+    Q_PROPERTY(QString syncMethod READ syncMethod NOTIFY syncStatusChanged)
 
 public:
-    SyncPlayController(JellyfinApiFacade *api, PlayerController *player, QObject *parent = nullptr);
+    SyncPlayController(
+        JellyfinApiFacade *api, PlayerController *player, PlayQueueController *playQueue, QObject *parent = nullptr);
 
     QString currentGroupId() const
     {
@@ -59,6 +67,10 @@ public:
     {
         return m_groupState;
     }
+    QString groupStateReason() const
+    {
+        return m_groupStateReason;
+    }
     bool socketConnected() const;
     double clockOffsetMs() const
     {
@@ -68,6 +80,26 @@ public:
     {
         return m_clock.pingMs();
     }
+    QString timeSyncDevice() const
+    {
+        return QStringLiteral("Jellyfin server");
+    }
+    bool waitingForPlayback() const
+    {
+        return m_waitingForGroupPlayback;
+    }
+    double playbackDiffMs() const
+    {
+        return m_playbackDiffMs;
+    }
+    bool playbackDiffValid() const
+    {
+        return m_playbackDiffValid;
+    }
+    QString syncMethod() const
+    {
+        return m_syncMethod;
+    }
 
     Q_INVOKABLE void refreshGroups();
     Q_INVOKABLE void connectSocket();
@@ -75,21 +107,39 @@ public:
     Q_INVOKABLE void createGroup(const QString& name);
     Q_INVOKABLE void joinGroup(const QString& groupId);
     Q_INVOKABLE void leaveGroup();
+    Q_INVOKABLE void requestTogglePause();
+    Q_INVOKABLE void requestSeek(double positionSeconds);
+    Q_INVOKABLE void requestRelativeSeek(double deltaSeconds);
+    Q_INVOKABLE void requestNextItem();
+    Q_INVOKABLE void requestPreviousItem();
+    void requestUnpauseWhenReady();
 
 signals:
     void groupsChanged();
     void groupChanged();
     void connectionChanged();
+    void syncStatusChanged();
     void errorText(const QString& text);
+    void remotePlayCommand(const QJsonObject& data);
+    void remotePlaystateCommand(const QJsonObject& data);
+    void remoteGeneralCommand(const QJsonObject& data);
+    void queuePlaybackRequested(qint64 positionTicks);
 
 private:
     void handleSocketTextMessage(const QString& message);
     void handleSyncPlayCommand(const QJsonObject& data);
     void handleSyncPlayGroupUpdate(const QJsonObject& data);
+    void applyPlayQueueUpdate(const QJsonObject& queue);
+    void prepareQueuePlayback(qint64 positionTicks);
+    void sendPendingUnpause();
+    void setWaitingForGroupPlayback(bool waiting);
+    void setPlaybackDiff(qint64 diffTicks, bool valid);
+    void setSyncMethod(const QString& method);
     void applyGroupInfo(const QString& groupId, const QJsonObject& info);
     void clearGroup();
     void executeScheduledCommand();
     void correctPlaybackDrift();
+    void finishSpeedCorrection();
     void handlePlayerStateChanged();
     void sendPlayerBufferingState(bool force = false);
     void beginTimeSync();
@@ -101,30 +151,51 @@ private:
 
     JellyfinApiFacade *m_api = nullptr;
     PlayerController *m_player = nullptr;
+    PlayQueueController *m_playQueue = nullptr;
     QWebSocket m_socket;
     QString m_groupId;
     QString m_groupName;
     QStringList m_participants;
     QString m_groupState;
+    QString m_groupStateReason;
     QJsonArray m_groups;
     SyncPlayClock m_clock;
     QTimer m_timeSyncTimer;
     QTimer m_commandTimer;
     QTimer m_correctionTimer;
+    QTimer m_speedCorrectionTimer;
     QTimer m_reconnectTimer;
+    QTimer m_bufferingDebounceTimer;
     QString m_playlistItemId;
+    QString m_scheduledPlaylistItemId;
     QString m_lastCommandKey;
     QString m_scheduledCommand;
     qint64 m_scheduledPositionTicks = 0;
     qint64 m_scheduledServerTimeMs = 0;
     qint64 m_lastCorrectionAtMs = 0;
+    qint64 m_suppressSeekBufferingUntilMs = 0;
     qint64 m_joinedAtServerMs = 0;
+    qint64 m_lastPlayQueueUpdateMs = 0;
+    double m_playbackDiffMs = 0.0;
+    quint64 m_playQueueGeneration = 0;
     int m_greedyTimeSyncRemaining = 0;
+    int m_syncCorrectionAttempts = 0;
     bool m_socketDesired = false;
     bool m_timeSyncInFlight = false;
     bool m_timeSyncErrorReported = false;
     bool m_playerStateKnown = false;
     bool m_lastPlayerBuffering = false;
+    bool m_playQueueLoading = false;
+    bool m_waitingForPlaybackStart = false;
+    bool m_waitingForPauseAck = false;
+    bool m_pausePreparationScheduled = false;
+    bool m_commandDue = false;
+    bool m_unpauseWhenReady = false;
+    bool m_waitingForGroupPlayback = false;
+    bool m_playbackDiffValid = false;
+    bool m_unpauseRequestPending = false;
+    bool m_speedCorrectionActive = false;
+    QString m_syncMethod = QStringLiteral("None");
 };
 
 } // namespace JellyfinNative

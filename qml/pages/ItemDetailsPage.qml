@@ -35,7 +35,10 @@ FocusScope {
                                                                                                        || "")
 
     readonly property bool canPlay: Boolean(item && item.playable)
-    readonly property bool showPrimaryAction: selectedIndex >= 0 && canPlay
+    readonly property bool canPlayEpisodicContainer: typeText === "Series" ? String(item.movieId || "").length > 0 : typeText === "Season"
+                                                                             && seriesIdText.length > 0
+                                                                             && seasonIdText.length > 0
+    readonly property bool showPrimaryAction: canPlayEpisodicContainer || (selectedIndex >= 0 && canPlay)
     readonly property bool hasProgress: Number(item.resumeTicks || 0) > 0 && Number(item.runtimeTicks || 0) > 0
     readonly property int detailTitlePx: Math.min(68, Metrics.titleSizePx + 24)
     readonly property int contentMargin: Metrics.pageMarginPx
@@ -711,6 +714,11 @@ FocusScope {
     }
 
     function activatePrimary(fromStart) {
+        if (canPlayEpisodicContainer) {
+            const seriesId = typeText === "Series" ? String(item.movieId || "") : seriesIdText
+            App.playEpisodicContainer(seriesId, typeText === "Season" ? seasonIdText : "")
+            return
+        }
         if (selectedIndex < 0 || !canPlay)
             return
         App.playFromModel(itemModel, selectedIndex, fromStart === true)
@@ -1344,6 +1352,10 @@ FocusScope {
                 readonly property int estimatedRows: Number(root.showContextRow || root.reserveContextRow) + Number(
                                                          root.showPeopleRow) + Number(root.showSimilarRow)
                 active: forced || detailsFlick.contentY + detailsFlick.height * 1.5 >= y
+                // zoneTarget() needs the rows to exist synchronously when it
+                // forces them for focus; flipping asynchronous off completes
+                // a pending incubation in place.
+                asynchronous: !forced
                 Layout.preferredHeight: item ? item.implicitHeight : estimatedRows * estimatedRowHeight
 
                 sourceComponent: Item {

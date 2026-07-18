@@ -17,6 +17,7 @@ FocusScope {
     property bool playedState: Boolean(item && item.played)
     property bool opened: false
     property bool backdropDismissArmed: false
+    signal closed
     readonly property int windowWidth: root.Window.window ? root.Window.window.width : 1920
     readonly property int menuEdgeMargin: Math.max(12, Metrics.gapPx)
     readonly property int menuRowHeight: Math.max(46, Metrics.controlHeightPx)
@@ -251,6 +252,8 @@ FocusScope {
     }
 
     function closeMenu() {
+        if (!opened)
+            return
         backdropArmTimer.stop()
         backdropDismissArmed = false
         opened = false
@@ -258,6 +261,7 @@ FocusScope {
         anchorItem = null
         context = ({})
         menuOptions = []
+        closed()
     }
 
     function activateMenuIndex(index) {

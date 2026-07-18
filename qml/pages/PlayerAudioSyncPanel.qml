@@ -84,12 +84,9 @@ OverlayDialog {
             AppText {
                 Layout.fillWidth: true
                 visible: root.overlay.syncTarget !== "subtitle"
-                text: "Effective audio delay: " + root.overlay.formatAudioDelay(
-                          root.overlay.player.effectiveAudioDelayMs) + (Platform.isWebOS && root.overlay.syncTarget
-                                                                        === "audioOutput" ? " (automatic "
-                                                                                            + root.overlay.formatAudioDelay(
-                                                                                                Settings.automaticAudioDelayMs)
-                                                                                            + ")" : "")
+                text: "Effective A/V correction: " + root.overlay.formatAudioDelay(
+                          root.overlay.player.effectiveAudioDelayMs - (Platform.isWebOS ? Settings.displayLatencyMs :
+                                                                                          0))
                 color: Theme.textMuted
                 font.pixelSize: Metrics.metaSizePx
                 horizontalAlignment: Text.AlignHCenter

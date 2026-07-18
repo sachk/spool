@@ -9,9 +9,30 @@
 namespace JellyfinNative {
 namespace {
 
+#ifdef JELLYFIN_NATIVE_WEBOS
     constexpr SettingChoice kAudioOutputChoices[] = { { "alsa", "ALSA" }, { "starfish-pcm", "Starfish" } };
-    constexpr SettingChoice kSubtitleModeChoices[] = { { "Default", "Default" }, { "Smart", "Smart" },
-        { "OnlyForced", "Only forced" }, { "Always", "Always play" }, { "None", "None" } };
+    constexpr char kDefaultAudioOutput[] = "alsa";
+#elif defined(Q_OS_LINUX)
+    constexpr SettingChoice kAudioOutputChoices[]
+        = { { "auto", "Automatic" }, { "pipewire", "PipeWire" }, { "pulse", "PulseAudio" }, { "alsa", "ALSA" } };
+    constexpr char kDefaultAudioOutput[] = "auto";
+#elif defined(Q_OS_WIN)
+    constexpr SettingChoice kAudioOutputChoices[] = { { "auto", "Automatic" }, { "wasapi", "WASAPI" } };
+    constexpr char kDefaultAudioOutput[] = "auto";
+#elif defined(Q_OS_MACOS)
+    constexpr SettingChoice kAudioOutputChoices[] = { { "auto", "Automatic" }, { "coreaudio", "CoreAudio" } };
+    constexpr char kDefaultAudioOutput[] = "auto";
+#else
+    constexpr SettingChoice kAudioOutputChoices[] = { { "auto", "Automatic" } };
+    constexpr char kDefaultAudioOutput[] = "auto";
+#endif
+    constexpr SettingChoice kUiDetailLevelChoices[]
+        = { { "Essential", "Essential" }, { "More", "Advanced" }, { "All", "Expert" } };
+    constexpr SettingChoice kSubtitleModeChoices[] = { { "Default", "Default - follow the server's subtitle flags" },
+        { "Smart", "Smart - show preferred subtitles when audio is another language" },
+        { "OnlyForced", "Forced only - show dialogue intended to be translated" },
+        { "Always", "Always - show the preferred subtitle track" },
+        { "None", "None - do not select subtitles automatically" } };
     constexpr SettingChoice kSubtitleBurnInChoices[] = { { "", "Auto" }, { "onlyimageformats", "Only image formats" },
         { "allcomplexformats", "All complex formats" }, { "all", "All" } };
     constexpr SettingChoice kSubtitleStylingChoices[]
@@ -98,6 +119,11 @@ namespace {
 const QVector<SettingSpec>& settingSpecs()
 {
     static const QVector<SettingSpec> specs {
+        { "settings/detailLevel", "General", "Settings shown",
+            "Essential keeps everyday choices short; Advanced adds tuning; Expert reveals diagnostics and platform "
+            "controls",
+            SettingType::Select, "Essential", kUiDetailLevelChoices, countOf(kUiDetailLevelChoices), 0, 0, 1, 0, "", 0,
+            0, SettingTarget::UiDetailLevel, SettingNormalizer::Choice, true, true },
         { "appearance/uiScalePercent", "Appearance", "UI Scale",
             "Scale text, controls, spacing, cards, rows, and grids", SettingType::Slider, "115", nullptr, 0, 80, 180, 5,
             0, "%", 86, 300, SettingTarget::UiScale, SettingNormalizer::IntRange, true, false },
@@ -117,34 +143,42 @@ const QVector<SettingSpec>& settingSpecs()
         { "playback/preferRemux", "Playback", "Prefer Remux", "Copy compatible streams before transcoding",
             SettingType::Toggle, "true", nullptr, 0, 0, 0, 1, 0, "", 0, 0, SettingTarget::PreferRemux,
             SettingNormalizer::Bool, true, false },
+        { "playback/forwardCacheSizeMiB", "Playback", "Forward Cache",
+            "Memory reserved for upcoming media; takes effect on the next playback", SettingType::Slider, "32", nullptr,
+            0, 16, 4096, 1, 0, "MB", 100, 340, SettingTarget::ForwardCacheSize, SettingNormalizer::IntRange, true,
+            false },
         { "playback/showVolumeSlider", "Playback", "Player Volume Slider", "Show in desktop player controls",
             SettingType::Toggle, "true", nullptr, 0, 0, 0, 1, 0, "", 0, 0, SettingTarget::PlayerVolumeSlider,
             SettingNormalizer::Bool, true, false },
         { "settings/audioDelayMs", "Playback", "A/V Sync", "Audio delay in milliseconds", SettingType::Slider, "0",
             nullptr, 0, -2000, 2000, 10, 0, "ms", 92, 340, SettingTarget::AudioDelay, SettingNormalizer::IntRange, true,
             false },
-        { "settings/audioOutputMode", "Playback", "Audio Output", "Takes effect on the next playback start",
-            SettingType::Select, "alsa", kAudioOutputChoices, countOf(kAudioOutputChoices), 0, 0, 1, 0, "", 0, 0,
-            SettingTarget::AudioOutput, SettingNormalizer::AudioOutput, true, true },
-        { "subtitles/language", "Subtitles", "Preferred Language", "", SettingType::Select, "", nullptr, 0, 0, 0, 1, 0,
-            "", 0, 0, SettingTarget::SubtitleLanguage, SettingNormalizer::String, true, false },
-        { "subtitles/mode", "Subtitles", "Playback Mode", "", SettingType::Select, "Default", kSubtitleModeChoices,
-            countOf(kSubtitleModeChoices), 0, 0, 1, 0, "", 0, 0, SettingTarget::SubtitleMode,
-            SettingNormalizer::SubtitleMode, true, true },
-        { "subtitles/burnIn", "Subtitles", "Burn Subtitles", "Used when transcoding is enabled", SettingType::Select,
-            "", kSubtitleBurnInChoices, countOf(kSubtitleBurnInChoices), 0, 0, 1, 0, "", 0, 0,
-            SettingTarget::SubtitleBurnIn, SettingNormalizer::SubtitleBurnIn, true, true },
+        { "settings/audioOutputMode", "Playback", "Audio Output",
+            "Automatic lets mpv choose the first available platform output; takes effect on the next playback",
+            SettingType::Select, kDefaultAudioOutput, kAudioOutputChoices, countOf(kAudioOutputChoices), 0, 0, 1, 0, "",
+            0, 0, SettingTarget::AudioOutput, SettingNormalizer::AudioOutput, true, true },
+        { "subtitles/language", "Subtitles", "Preferred Language", "Used when choosing a subtitle track automatically",
+            SettingType::Select, "", nullptr, 0, 0, 0, 1, 0, "", 0, 0, SettingTarget::SubtitleLanguage,
+            SettingNormalizer::String, true, false },
+        { "subtitles/mode", "Subtitles", "Playback Mode",
+            "Smart shows preferred subtitles when the audio is in another language; Default follows server flags",
+            SettingType::Select, "Default", kSubtitleModeChoices, countOf(kSubtitleModeChoices), 0, 0, 1, 0, "", 0, 0,
+            SettingTarget::SubtitleMode, SettingNormalizer::SubtitleMode, true, true },
+        { "subtitles/burnIn", "Subtitles", "Burn Subtitles", "Managed automatically because mpv renders locally",
+            SettingType::Select, "", kSubtitleBurnInChoices, countOf(kSubtitleBurnInChoices), 0, 0, 1, 0, "", 0, 0,
+            SettingTarget::SubtitleBurnIn, SettingNormalizer::SubtitleBurnIn, false, true },
         { "subtitles/renderPgs", "Subtitles", "Render PGS Subtitles", "Prefer local rendering for image subtitles",
-            SettingType::Toggle, "false", nullptr, 0, 0, 0, 1, 0, "", 0, 0, SettingTarget::SubtitleRenderPgs,
-            SettingNormalizer::Bool, true, false },
+            SettingType::Toggle, "true", nullptr, 0, 0, 0, 1, 0, "", 0, 0, SettingTarget::SubtitleRenderPgs,
+            SettingNormalizer::Bool, false, false },
         { "subtitles/alwaysBurnInWhenTranscoding", "Subtitles", "Always Burn In",
             "When playback falls back to transcoding", SettingType::Toggle, "false", nullptr, 0, 0, 0, 1, 0, "", 0, 0,
-            SettingTarget::SubtitleAlwaysBurnIn, SettingNormalizer::Bool, true, false },
-        { "subtitles/styling", "Subtitle Appearance", "Styling", "", SettingType::Select, "Auto",
+            SettingTarget::SubtitleAlwaysBurnIn, SettingNormalizer::Bool, false, false },
+        { "subtitles/styling", "Subtitle Appearance", "Styling",
+            "Auto respects useful embedded styles; Custom applies the choices below", SettingType::Select, "Auto",
             kSubtitleStylingChoices, countOf(kSubtitleStylingChoices), 0, 0, 1, 0, "", 0, 0,
             SettingTarget::SubtitleStyling, SettingNormalizer::SubtitleStyling, true, true },
-        { "subtitles/textSize", "Subtitle Appearance", "Text Size", "", SettingType::Select, "",
-            kSubtitleTextSizeChoices, countOf(kSubtitleTextSizeChoices), 0, 0, 1, 0, "", 0, 0,
+        { "subtitles/textSize", "Subtitle Appearance", "Text Size", "Base size for text subtitles", SettingType::Select,
+            "", kSubtitleTextSizeChoices, countOf(kSubtitleTextSizeChoices), 0, 0, 1, 0, "", 0, 0,
             SettingTarget::SubtitleTextSize, SettingNormalizer::SubtitleTextSize, true, true },
         { "subtitles/scalePercent", "Subtitle Appearance", "Overall Scale",
             "Scales text, styled, and bitmap subtitles together", SettingType::Slider, "100", nullptr, 0, 50, 200, 5, 0,
@@ -153,18 +187,18 @@ const QVector<SettingSpec>& settingSpecs()
             "Controls scaling of PGS, VobSub, and other image subtitles", SettingType::Select, "soft",
             kSubtitleBitmapSmoothingChoices, countOf(kSubtitleBitmapSmoothingChoices), 0, 0, 1, 0, "", 0, 0,
             SettingTarget::SubtitleBitmapSmoothing, SettingNormalizer::String, true, true },
-        { "subtitles/textWeight", "Subtitle Appearance", "Text Weight", "", SettingType::Select, "normal",
-            kSubtitleTextWeightChoices, countOf(kSubtitleTextWeightChoices), 0, 0, 1, 0, "", 0, 0,
-            SettingTarget::SubtitleTextWeight, SettingNormalizer::SubtitleTextWeight, true, true },
-        { "subtitles/font", "Subtitle Appearance", "Font", "", SettingType::Select, "", kSubtitleFontChoices,
-            countOf(kSubtitleFontChoices), 0, 0, 1, 0, "", 0, 0, SettingTarget::SubtitleFont,
-            SettingNormalizer::SubtitleFont, true, true },
-        { "subtitles/textColor", "Subtitle Appearance", "Text Color", "", SettingType::Select, "#ffffff",
-            kSubtitleTextColorChoices, countOf(kSubtitleTextColorChoices), 0, 0, 1, 0, "", 0, 0,
+        { "subtitles/textWeight", "Subtitle Appearance", "Text Weight", "Improve readability on busy scenes",
+            SettingType::Select, "normal", kSubtitleTextWeightChoices, countOf(kSubtitleTextWeightChoices), 0, 0, 1, 0,
+            "", 0, 0, SettingTarget::SubtitleTextWeight, SettingNormalizer::SubtitleTextWeight, true, true },
+        { "subtitles/font", "Subtitle Appearance", "Font", "Desktop builds can also use installed system fonts",
+            SettingType::Select, "", kSubtitleFontChoices, countOf(kSubtitleFontChoices), 0, 0, 1, 0, "", 0, 0,
+            SettingTarget::SubtitleFont, SettingNormalizer::SubtitleFont, true, true },
+        { "subtitles/textColor", "Subtitle Appearance", "Text Color", "Previewed immediately", SettingType::Select,
+            "#ffffff", kSubtitleTextColorChoices, countOf(kSubtitleTextColorChoices), 0, 0, 1, 0, "", 0, 0,
             SettingTarget::SubtitleTextColor, SettingNormalizer::SubtitleTextColor, true, true },
-        { "subtitles/dropShadow", "Subtitle Appearance", "Drop Shadow", "", SettingType::Select, "",
-            kSubtitleDropShadowChoices, countOf(kSubtitleDropShadowChoices), 0, 0, 1, 0, "", 0, 0,
-            SettingTarget::SubtitleDropShadow, SettingNormalizer::SubtitleDropShadow, true, true },
+        { "subtitles/dropShadow", "Subtitle Appearance", "Edge Style", "Separates text from the picture",
+            SettingType::Select, "", kSubtitleDropShadowChoices, countOf(kSubtitleDropShadowChoices), 0, 0, 1, 0, "", 0,
+            0, SettingTarget::SubtitleDropShadow, SettingNormalizer::SubtitleDropShadow, true, true },
         { "subtitles/textBackground", "Subtitle Appearance", "Text Background", "", SettingType::Select, "transparent",
             kSubtitleBackgroundChoices, countOf(kSubtitleBackgroundChoices), 0, 0, 1, 0, "", 0, 0,
             SettingTarget::SubtitleTextBackground, SettingNormalizer::String, true, false },
@@ -228,6 +262,7 @@ QVariant normalizedSettingValue(const SettingSpec& spec, const QVariant& value)
     case SettingNormalizer::AudioOutput:
         return normalizedAudioOutputMode(value.toString());
     case SettingNormalizer::Choice:
+        return choiceOrDefault(spec, value.toString());
     case SettingNormalizer::SubtitleMode:
     case SettingNormalizer::SubtitleBurnIn:
     case SettingNormalizer::SubtitleStyling:

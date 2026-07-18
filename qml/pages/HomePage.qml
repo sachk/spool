@@ -125,7 +125,10 @@ FocusScope {
         } else if (descriptor.source === "libraries") {
             App.openLibrary(index)
             if (shell)
-                shell.replaceRoute("libraryGrid")
+                shell.replaceRoute("libraryGrid", {
+                                       libraryId: String(model.get(index).libraryId || ""),
+                                       focusIndex: 0
+                                   })
         } else if (shell) {
             const source = descriptor.source === "latestLibrary" ? "latestLibrary:" + descriptor.sourceRowIndex :
                                                                    "nextup"

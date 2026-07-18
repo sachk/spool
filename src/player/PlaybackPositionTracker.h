@@ -22,8 +22,8 @@ public:
     double clamp(double seconds) const;
 
     bool update(double seconds, Source source);
-    double projected(bool paused, bool buffering) const;
-    double seekAnchor(bool paused, bool buffering);
+    double projected(bool paused, bool buffering, double playbackRate = 1.0) const;
+    double seekAnchor(bool paused, bool buffering, double playbackRate = 1.0);
     bool restoreTrusted(const char *reason);
 
     void beginSeek(double targetSeconds);

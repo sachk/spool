@@ -1,6 +1,8 @@
 #include "app/RouterController.h"
 
 #include <QCoreApplication>
+#include <QSettings>
+#include <QTemporaryDir>
 #include <QVariantMap>
 
 #include <cstdlib>
@@ -21,6 +23,13 @@ void require(bool condition, const char *message)
 int main(int argc, char **argv)
 {
     QCoreApplication app(argc, argv);
+    QCoreApplication::setOrganizationName(QStringLiteral("jellyfin-native-tests"));
+    QCoreApplication::setApplicationName(QStringLiteral("router-controller"));
+    QTemporaryDir settingsDir;
+    require(settingsDir.isValid(), "temporary settings directory");
+    QSettings::setDefaultFormat(QSettings::IniFormat);
+    QSettings::setPath(QSettings::IniFormat, QSettings::UserScope, settingsDir.path());
+    QSettings().clear();
     JellyfinNative::RouterController router;
 
     require(router.route() == QStringLiteral("login"), "initial route is login");
@@ -34,14 +43,14 @@ int main(int argc, char **argv)
     require(router.canPop(), "push creates stack frame");
     require(router.args().value(QStringLiteral("libraryId")).toString() == QStringLiteral("abc"), "push args");
 
-    router.replace(QStringLiteral("libraries"));
-    require(router.route() == QStringLiteral("libraries"), "replace route");
+    router.replace(QStringLiteral("search"));
+    require(router.route() == QStringLiteral("search"), "replace route");
     require(router.previousRoute() == QStringLiteral("libraryGrid"), "replace previous route");
     require(router.canPop(), "replace keeps stack");
 
     router.push(QStringLiteral("itemDetails"), { { QStringLiteral("itemId"), QStringLiteral("m1") } });
     require(router.args().value(QStringLiteral("itemId")).toString() == QStringLiteral("m1"), "detail args");
-    require(router.previousRoute() == QStringLiteral("libraries"), "detail previous route");
+    require(router.previousRoute() == QStringLiteral("search"), "detail previous route");
     router.replace(QStringLiteral("itemDetails"),
         { { QStringLiteral("itemId"), QStringLiteral("m2") },
             { QStringLiteral("returnRoute"), QStringLiteral("search") } });
@@ -53,7 +62,7 @@ int main(int argc, char **argv)
     require(router.previousRoute() == QStringLiteral("itemDetails"), "detail replace previous route");
 
     require(router.pop(QStringLiteral("home")), "pop returns stacked frame");
-    require(router.route() == QStringLiteral("libraries"), "pop restores previous frame");
+    require(router.route() == QStringLiteral("search"), "pop restores previous frame");
     require(router.canPop(), "first pop leaves original frame");
     require(router.pop(QStringLiteral("home")), "second pop returns stacked frame");
     require(router.route() == QStringLiteral("home"), "second pop restores home");
@@ -61,6 +70,31 @@ int main(int argc, char **argv)
 
     require(!router.pop(QStringLiteral("settings")), "empty pop uses fallback");
     require(router.route() == QStringLiteral("settings"), "empty pop fallback route");
+
+    {
+        JellyfinNative::RouterController activeSession;
+        activeSession.beginSession(false);
+        activeSession.reset(QStringLiteral("home"));
+        activeSession.push(
+            QStringLiteral("libraryGrid"), { { QStringLiteral("libraryId"), QStringLiteral("library-1") } });
+        activeSession.checkpoint(
+            { { QStringLiteral("focusIndex"), 742 }, { QStringLiteral("model"), QStringLiteral("must-not-persist") } });
+        activeSession.requestRecoveryOnNextLaunch(QStringLiteral("memoryReclaim"));
+        activeSession.markCleanShutdown();
+    }
+
+    JellyfinNative::RouterController recoveredSession;
+    recoveredSession.beginSession(true);
+    require(recoveredSession.recoveryPending(), "requested session recovery is pending");
+    require(recoveredSession.route() == QStringLiteral("libraryGrid"), "recovered route");
+    require(recoveredSession.args().value(QStringLiteral("libraryId")).toString() == QStringLiteral("library-1"),
+        "recovered library id");
+    require(recoveredSession.args().value(QStringLiteral("focusIndex")).toInt() == 742, "recovered grid index");
+    require(!recoveredSession.args().contains(QStringLiteral("model")), "runtime model is not persisted");
+    require(recoveredSession.canPop(), "recovered navigation stack");
+    recoveredSession.finishRecovery();
+    require(!recoveredSession.recoveryPending(), "recovery acknowledgement clears pending state");
+    recoveredSession.markCleanShutdown();
 
     return 0;
 }

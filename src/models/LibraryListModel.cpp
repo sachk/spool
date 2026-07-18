@@ -63,6 +63,7 @@ QVariantMap LibraryListModel::get(int index) const
         { QStringLiteral("name"), library.name },
         { QStringLiteral("collectionType"), library.collectionType },
         { QStringLiteral("imageTag"), library.imageTag },
+        { QStringLiteral("item"), QVariant::fromValue(library) },
     };
 }
 

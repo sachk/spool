@@ -18,6 +18,7 @@
 #include <QUrl>
 #include <QVariant>
 
+#include <deque>
 #include <functional>
 #include <memory>
 
@@ -80,6 +81,8 @@ private:
         QSize resultSize;
     };
     void startDecode(ArtworkImageResponse *response, QByteArray bytes, Timing timing);
+    void enqueueDelivery(std::function<void()> deliver);
+    void drainDeliveries();
     void finishTiming(Timing timing);
     void flushTimingBatch();
     void invokeWorker(std::function<void(ArtworkFetchWorker *)> call);
@@ -99,6 +102,11 @@ private:
     QHash<int, qint64> m_requestStarts;
     QList<Timing> m_timingBatch;
     QTimer m_timingBatchTimer;
+    // Decoded images ready for the scene graph; completed a few per frame so
+    // texture uploads from large batches don't clump into one long frame.
+    std::deque<std::function<void()>> m_pendingDeliveries;
+    QTimer m_deliveryTimer;
+    int m_deliveredThisTick = 0;
     int m_nextRequestId = 1;
 };
 

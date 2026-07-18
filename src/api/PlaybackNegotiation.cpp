@@ -86,15 +86,6 @@ namespace {
         return url;
     }
 
-    void addAccessToken(QUrl *url, const QString& accessToken)
-    {
-        QUrlQuery query(*url);
-        if (!accessToken.isEmpty() && !query.hasQueryItem(QStringLiteral("api_key"))) {
-            query.addQueryItem(QStringLiteral("api_key"), accessToken);
-            url->setQuery(query);
-        }
-    }
-
     QStringList normalizedCodecs(const QStringList& codecs)
     {
         QStringList result;
@@ -187,6 +178,7 @@ TrickplayInfo PlaybackNegotiation::selectTrickplay(
 QString PlaybackNegotiation::buildUrl(
     const QString& serverUrl, const QString& itemId, const QString& accessToken, const PlaybackSelection& selection)
 {
+    Q_UNUSED(accessToken);
     const QString mediaSourceId = selection.source.value(QStringLiteral("Id")).toString();
     if (mediaSourceId.isEmpty())
         throw std::runtime_error("Selected media source has no id");
@@ -205,7 +197,6 @@ QString PlaybackNegotiation::buildUrl(
         }
     }
 
-    addAccessToken(&url, accessToken);
     return url.toString(QUrl::FullyEncoded);
 }
 

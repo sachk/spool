@@ -45,6 +45,7 @@ public:
     AuthSession session() const;
     void setPlaybackPreferences(qint64 manualMaxStreamingBitrate, bool unlimitedLocalNetwork, bool preferRemux);
     void setVideoCodecCapabilities(QStringList videoCodecs, bool restrictVideoCodecs);
+    int playbackParallelRequests() const;
     QCoro::Task<void> refreshPlaybackNetworkState();
     QString authorizationHeader(const QString& tokenOverride = {}) const;
     void cancelRequests();
@@ -64,6 +65,7 @@ public:
         BrowseDescriptor descriptor, int startIndex = 0, int limit = 72, QVariantMap queryOptions = {});
     QCoro::Task<QVariantMap> fetchLibraryFilterOptions(QString libraryId, QString collectionType = {});
     QCoro::Task<MovieItem> fetchItemDetails(QString itemId);
+    QCoro::Task<std::vector<MovieItem>> fetchItemsByIds(QStringList itemIds);
     QCoro::Task<std::vector<MovieItem>> fetchSeasons(QString seriesId);
     QCoro::Task<std::vector<MovieItem>> fetchEpisodes(QString seriesId, QString seasonId = {});
     QCoro::Task<std::vector<MovieItem>> fetchResumeItems(int limit = 24);
@@ -89,7 +91,7 @@ public:
     QCoro::Task<void> setItemPlaybackPosition(QString itemId, qint64 positionTicks);
     QCoro::Task<std::vector<MediaSegment>> fetchMediaSegments(QString itemId);
     QString trickplayTileUrl(const QString& itemId, int width, int tileIndex) const;
-    QCoro::Task<PlaybackSession> negotiatePlayback(MovieItem movie);
+    QCoro::Task<PlaybackSession> negotiatePlayback(MovieItem movie, bool forceTranscode = false);
 
     // SyncPlay REST endpoints used alongside SyncPlayController's WebSocket.
     QCoro::Task<QJsonArray> fetchSyncPlayGroups();
@@ -101,15 +103,23 @@ public:
     QCoro::Task<void> syncPlayReportBuffering(
         bool buffering, qint64 positionTicks, bool playing, QString playlistItemId, QDateTime serverTime);
     QCoro::Task<void> syncPlaySetNewQueue(QStringList itemIds, int playingItemPosition, qint64 startPositionTicks);
+    QCoro::Task<void> syncPlayPause();
+    QCoro::Task<void> syncPlayUnpause();
+    QCoro::Task<void> syncPlaySeek(qint64 positionTicks);
+    QCoro::Task<void> syncPlayNextItem(QString playlistItemId);
+    QCoro::Task<void> syncPlayPreviousItem(QString playlistItemId);
 
     QCoro::Task<void> postCapabilities();
-    QCoro::Task<void> reportPlaybackStart(PlaybackSession session);
-    QCoro::Task<void> reportPlaybackProgress(PlaybackSession session, qint64 positionTicks, bool paused);
-    QCoro::Task<void> reportPlaybackStopped(PlaybackSession session, qint64 positionTicks, bool failed);
+    QCoro::Task<void> reportPlaybackStart(PlaybackSession session, double playbackRate = 1.0);
+    QCoro::Task<void> reportPlaybackProgress(
+        PlaybackSession session, qint64 positionTicks, bool paused, double playbackRate = 1.0);
+    QCoro::Task<void> reportPlaybackStopped(
+        PlaybackSession session, qint64 positionTicks, bool failed, double playbackRate = 1.0);
 
 signals:
     void authenticationExpired(const QString& message);
     void deviceProfileChanged();
+    void playbackNetworkProfileChanged();
 
 private:
     enum class HttpMethod {
@@ -119,7 +129,8 @@ private:
     };
 
     QNetworkRequest createRequest(const QString& path, const QUrlQuery& query = {}) const;
-    QCoro::Task<qint64> measurePlaybackBitrate(int sampleBytes);
+    QCoro::Task<qint64> measurePlaybackBitrate(int totalSampleBytes, int parallelRequests);
+    QCoro::Task<qint64> measurePlaybackRoundTripTime();
     QCoro::Task<QJsonDocument> requestJson(
         HttpMethod method, QString path, QUrlQuery query = {}, QJsonDocument body = {});
     QCoro::Task<void> requestNoContent(HttpMethod method, QString path, QJsonDocument body);
@@ -133,6 +144,7 @@ private:
     void preconnectToServer();
     void applyCommonHeaders();
     void updateEffectiveStreamingBitrate();
+    void setPlaybackParallelRequests(int parallelRequests);
 
     QNetworkAccessManager *m_networkAccessManager = nullptr;
     QRestAccessManager m_rest;
@@ -148,6 +160,7 @@ private:
     qint64 m_maxStreamingBitrate = 20'000'000;
     qint64 m_manualMaxStreamingBitrate = 0;
     qint64 m_measuredStreamingBitrate = 0;
+    int m_playbackParallelRequests = 1;
     quint64 m_playbackNetworkGeneration = 0;
     bool m_playbackEndpointKnown = false;
     bool m_inLocalNetwork = false;

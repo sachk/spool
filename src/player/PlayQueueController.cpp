@@ -27,6 +27,13 @@ namespace {
             { QStringLiteral("displayTitle"), displayTitle(item) },
             { QStringLiteral("displaySubtitle"), itemDisplaySubtitle(item) },
             { QStringLiteral("itemType"), item.itemType },
+            { QStringLiteral("seriesId"), item.seriesId },
+            { QStringLiteral("seasonId"), item.seasonId },
+            { QStringLiteral("seriesName"), item.seriesName },
+            { QStringLiteral("seasonNumber"), item.seasonNumber },
+            { QStringLiteral("episodeNumber"), item.episodeNumber },
+            { QStringLiteral("episodeCode"), itemEpisodeCode(item) },
+            { QStringLiteral("genericEpisodeTitle"), isGenericEpisodeTitle(item) },
             { QStringLiteral("playable"), isPlayableItem(item) },
         };
     }
@@ -65,6 +72,20 @@ QVariant PlayQueueController::data(const QModelIndex& index, int role) const
         return itemDisplaySubtitle(item);
     case ItemTypeRole:
         return item.itemType;
+    case SeriesIdRole:
+        return item.seriesId;
+    case SeasonIdRole:
+        return item.seasonId;
+    case SeriesNameRole:
+        return item.seriesName;
+    case SeasonNumberRole:
+        return item.seasonNumber;
+    case EpisodeNumberRole:
+        return item.episodeNumber;
+    case EpisodeCodeRole:
+        return itemEpisodeCode(item);
+    case GenericEpisodeTitleRole:
+        return isGenericEpisodeTitle(item);
     case PlayableRole:
         return isPlayableItem(item);
     default:
@@ -81,6 +102,13 @@ QHash<int, QByteArray> PlayQueueController::roleNames() const
         { DisplayTitleRole, "displayTitle" },
         { DisplaySubtitleRole, "displaySubtitle" },
         { ItemTypeRole, "itemType" },
+        { SeriesIdRole, "seriesId" },
+        { SeasonIdRole, "seasonId" },
+        { SeriesNameRole, "seriesName" },
+        { SeasonNumberRole, "seasonNumber" },
+        { EpisodeNumberRole, "episodeNumber" },
+        { EpisodeCodeRole, "episodeCode" },
+        { GenericEpisodeTitleRole, "genericEpisodeTitle" },
         { PlayableRole, "playable" },
     };
 }

@@ -1,7 +1,10 @@
 #include "app/SettingsSchema.h"
+#include "app/LocalizationManager.h"
 
+#include <QCoreApplication>
 #include <QDebug>
 #include <QHash>
+#include <QLocale>
 #include <QSet>
 #include <QVariantList>
 #include <QVariantMap>
@@ -85,12 +88,14 @@ QHash<QString, QString> choicesByLabelFromRow(const QVariantMap& row)
 void requiredPersistedKeysArePresentExactlyOnce()
 {
     const QStringList expectedKeys {
+        QStringLiteral("settings/detailLevel"),
         QStringLiteral("appearance/uiScalePercent"),
         QStringLiteral("settings/nightMode"),
         QStringLiteral("playback/manualStreamingBitrate"),
         QStringLiteral("playback/maxStreamingBitrateMbps"),
         QStringLiteral("playback/unlimitedLocalBitrate"),
         QStringLiteral("playback/preferRemux"),
+        QStringLiteral("playback/forwardCacheSizeMiB"),
         QStringLiteral("playback/showVolumeSlider"),
         QStringLiteral("settings/audioDelayMs"),
         QStringLiteral("settings/audioOutputMode"),
@@ -134,18 +139,53 @@ void requiredPersistedKeysArePresentExactlyOnce()
     }
 }
 
-void normalizersPreservePersistedValueSemantics()
+void audioOutputChoicesMatchPlatform()
 {
     const SettingSpec& audioOutput = requiredSpec(QStringLiteral("settings/audioOutputMode"));
+#ifdef JELLYFIN_NATIVE_WEBOS
+    const QStringList expectedChoices { QStringLiteral("alsa"), QStringLiteral("starfish-pcm") };
+    const QString expectedDefault = QStringLiteral("alsa");
+    const QString unknownFallback = QStringLiteral("alsa");
     require(
         normalizedSettingValue(audioOutput, QStringLiteral("starfish")).toString() == QStringLiteral("starfish-pcm"),
-        QStringLiteral("legacy starfish audio output did not normalize to starfish-pcm"));
-    require(normalizedSettingValue(audioOutput, QStringLiteral("starfish-pcm")).toString()
-            == QStringLiteral("starfish-pcm"),
-        QStringLiteral("starfish-pcm audio output was not preserved"));
-    require(normalizedSettingValue(audioOutput, QStringLiteral("unexpected")).toString() == QStringLiteral("alsa"),
-        QStringLiteral("unknown audio output did not fall back to ALSA"));
+        QStringLiteral("legacy Starfish output did not normalize to starfish-pcm"));
+#elif defined(Q_OS_LINUX)
+    const QStringList expectedChoices { QStringLiteral("auto"), QStringLiteral("pipewire"), QStringLiteral("pulse"),
+        QStringLiteral("alsa") };
+    const QString expectedDefault = QStringLiteral("auto");
+    const QString unknownFallback = QStringLiteral("auto");
+#elif defined(Q_OS_WIN)
+    const QStringList expectedChoices { QStringLiteral("auto"), QStringLiteral("wasapi") };
+    const QString expectedDefault = QStringLiteral("auto");
+    const QString unknownFallback = QStringLiteral("auto");
+#elif defined(Q_OS_MACOS)
+    const QStringList expectedChoices { QStringLiteral("auto"), QStringLiteral("coreaudio") };
+    const QString expectedDefault = QStringLiteral("auto");
+    const QString unknownFallback = QStringLiteral("auto");
+#else
+    const QStringList expectedChoices { QStringLiteral("auto") };
+    const QString expectedDefault = QStringLiteral("auto");
+    const QString unknownFallback = QStringLiteral("auto");
+#endif
 
+    require(choiceValues(audioOutput) == expectedChoices,
+        QStringLiteral("audio output choices do not match this platform"));
+    require(settingDefaultValue(audioOutput).toString() == expectedDefault,
+        QStringLiteral("audio output default does not match this platform"));
+    for (const QString& choice : expectedChoices) {
+        require(normalizedSettingValue(audioOutput, choice).toString() == choice,
+            QStringLiteral("audio output choice %1 was not preserved").arg(choice));
+    }
+    require(normalizedSettingValue(audioOutput, QStringLiteral("unexpected")).toString() == unknownFallback,
+        QStringLiteral("unknown audio output did not use the platform default"));
+#ifndef JELLYFIN_NATIVE_WEBOS
+    require(!expectedChoices.contains(QStringLiteral("starfish-pcm")),
+        QStringLiteral("desktop audio choices must not expose Starfish"));
+#endif
+}
+
+void normalizersPreservePersistedValueSemantics()
+{
     const SettingSpec& bitrate = requiredSpec(QStringLiteral("playback/maxStreamingBitrateMbps"));
     require(normalizedSettingValue(bitrate, QStringLiteral("4")).toInt() == 5,
         QStringLiteral("streaming bitrate below the floor was not clamped"));
@@ -153,6 +193,16 @@ void normalizersPreservePersistedValueSemantics()
         QStringLiteral("streaming bitrate above the ceiling was not clamped"));
     require(serializedSettingValue(bitrate, QStringLiteral("42")) == QStringLiteral("42"),
         QStringLiteral("in-range streaming bitrate was not serialized unchanged"));
+    const SettingSpec& forwardCache = requiredSpec(QStringLiteral("playback/forwardCacheSizeMiB"));
+    require(forwardCache.type == SettingType::Slider && forwardCache.minimum == 16 && forwardCache.maximum == 4096,
+        QStringLiteral("forward cache should be a typeable 16-4096 MB numeric control"));
+    require(settingDefaultValue(forwardCache).toInt() == 32, QStringLiteral("forward cache should default to 32 MB"));
+    require(normalizedSettingValue(forwardCache, QStringLiteral("256")).toInt() == 256,
+        QStringLiteral("valid forward cache size was not preserved"));
+    require(normalizedSettingValue(forwardCache, QStringLiteral("1")).toInt() == 16,
+        QStringLiteral("forward cache below 16 MB was not clamped"));
+    require(normalizedSettingValue(forwardCache, QStringLiteral("5000")).toInt() == 4096,
+        QStringLiteral("forward cache above 4096 MB was not clamped"));
     const SettingSpec& uiScale = requiredSpec(QStringLiteral("appearance/uiScalePercent"));
     require(normalizedSettingValue(uiScale, QStringLiteral("65")).toInt() == 80,
         QStringLiteral("UI scale below the floor was not clamped"));
@@ -215,7 +265,35 @@ void schemaModelRowsMatchVisibilityContract()
         require(modelKeys.contains(key), QStringLiteral("schema model missed setting row %1").arg(key));
     }
 
-    require(hiddenKeys.isEmpty(), QStringLiteral("schema model unexpectedly hid a user-facing setting"));
+    const QSet<QString> expectedHidden {
+        QStringLiteral("subtitles/burnIn"),
+        QStringLiteral("subtitles/renderPgs"),
+        QStringLiteral("subtitles/alwaysBurnInWhenTranscoding"),
+    };
+    require(stringSet(hiddenKeys) == expectedHidden,
+        QStringLiteral("schema model did not hide exactly the server-side subtitle burn-in controls"));
+}
+
+void subtitleChoicesExplainTheirBehavior()
+{
+    const SettingSpec& subtitleMode = requiredSpec(QStringLiteral("subtitles/mode"));
+    const QString smartLabel = choiceLabel(subtitleMode, QStringLiteral("Smart"));
+    require(smartLabel.contains(QStringLiteral("audio is another language")),
+        QStringLiteral("Smart subtitle mode should explain when subtitles are selected"));
+
+    for (const QString& value : choiceValues(subtitleMode)) {
+        require(choiceLabel(subtitleMode, value).contains(QStringLiteral(" - ")),
+            QStringLiteral("subtitle mode %1 should include a behavior explanation").arg(value));
+    }
+}
+
+void systemLanguageLabelNamesResolvedLanguage()
+{
+    LocalizationManager localization;
+    const QString expectedLanguage = QLocale::languageToString(QLocale::system().language());
+    require(
+        localization.displayNameFor(QStringLiteral("system")) == QStringLiteral("System (%1)").arg(expectedLanguage),
+        QStringLiteral("system language choice should name the resolved language"));
 }
 
 void buttonChoicesAndLabelsExposePlayerActions()
@@ -286,11 +364,15 @@ void buttonChoicesAndLabelsExposePlayerActions()
 
 } // namespace
 
-int main()
+int main(int argc, char **argv)
 {
+    QCoreApplication app(argc, argv);
     requiredPersistedKeysArePresentExactlyOnce();
+    audioOutputChoicesMatchPlatform();
     normalizersPreservePersistedValueSemantics();
     schemaModelRowsMatchVisibilityContract();
+    subtitleChoicesExplainTheirBehavior();
+    systemLanguageLabelNamesResolvedLanguage();
     buttonChoicesAndLabelsExposePlayerActions();
     return EXIT_SUCCESS;
 }

@@ -26,6 +26,13 @@ public:
         DisplayTitleRole,
         DisplaySubtitleRole,
         ItemTypeRole,
+        SeriesIdRole,
+        SeasonIdRole,
+        SeriesNameRole,
+        SeasonNumberRole,
+        EpisodeNumberRole,
+        EpisodeCodeRole,
+        GenericEpisodeTitleRole,
         PlayableRole,
     };
 

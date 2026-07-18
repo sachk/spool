@@ -22,6 +22,7 @@ FocusScope {
     property bool atomicPopulate: false
     property string itemContextSource: ""
     property string itemContextReturnRoute: ""
+    property int modelRevision: 0
     readonly property bool delegatesPresented: presentation.delegatesReady
     readonly property bool artworkPresented: presentation.artworkReady
 
@@ -42,10 +43,50 @@ FocusScope {
 
     Component.onCompleted: resetPresentation()
     onAtomicPopulateChanged: Qt.callLater(resetPresentation)
-    onModelChanged: Qt.callLater(resetPresentation)
-    onCountChanged: {
-        currentIndex = count > 0 ? Math.max(0, Math.min(currentIndex, count - 1)) : -1
+    onModelChanged: {
+        ++modelRevision
         Qt.callLater(resetPresentation)
+    }
+    onCountChanged: {
+        ++modelRevision
+        currentIndex = count > 0 ? Math.max(0, Math.min(currentIndex, count - 1)) : -1
+        // The view rewrites its currentIndex internally on model changes;
+        // re-assert ours once it has processed them.
+        Qt.callLater(syncViewCurrentIndex)
+        Qt.callLater(resetPresentation)
+    }
+    onCurrentIndexChanged: syncViewCurrentIndex()
+
+    // listView.currentIndex must never be a declarative binding: the view
+    // writes the property itself (model resets, item removal), after which a
+    // binding can sit stale — logical index and highlight then disagree until
+    // the next property change. One-way imperative sync, re-asserted at every
+    // interaction point, keeps the highlight truthful.
+    function syncViewCurrentIndex() {
+        const target = count > 0 ? Math.max(0, Math.min(currentIndex, count - 1)) : -1
+        if (listView.currentIndex !== target)
+            listView.currentIndex = target
+    }
+
+    Connections {
+        target: root.model && root.model.rowCount !== undefined ? root.model : null
+        ignoreUnknownSignals: true
+
+        function onDataChanged() {
+            ++root.modelRevision
+        }
+        function onModelReset() {
+            ++root.modelRevision
+        }
+        function onRowsInserted() {
+            ++root.modelRevision
+        }
+        function onRowsMoved() {
+            ++root.modelRevision
+        }
+        function onRowsRemoved() {
+            ++root.modelRevision
+        }
     }
 
     function modelCount() {
@@ -58,7 +99,7 @@ FocusScope {
         return model.rowCount ? Number(model.rowCount()) : 0
     }
 
-    function itemAt(index) {
+    function itemAt(index, revision) {
         if (!model || index < 0 || index >= count)
             return ({})
         if (model.get)
@@ -70,6 +111,7 @@ FocusScope {
         if (count <= 0)
             return false
         currentIndex = Math.max(0, Math.min(currentIndex, count - 1))
+        syncViewCurrentIndex()
         InputKeys.focus(listView)
         return true
     }
@@ -87,6 +129,9 @@ FocusScope {
             currentIndex = Math.min(count - 1, currentIndex + 1)
         else
             return false
+        // Covers the clamped no-op case too (already at an edge): the view
+        // may still be showing a stale highlight that needs re-asserting.
+        syncViewCurrentIndex()
         return true
     }
 
@@ -145,27 +190,23 @@ FocusScope {
             id: card
 
             required property int index
-            required property var model
-            readonly property var cardItem: model.item !== undefined ? model.item : model.modelData
+            readonly property var cardData: root.itemAt(index, root.modelRevision)
+            readonly property var cardItem: root.cardKind === "library" ? (cardData.item || ({})) : cardData
             readonly property bool libraryCard: root.cardKind === "library"
             readonly property bool personCard: root.cardKind === "person"
 
             width: root.cardWidth
             height: listView.height
-            shell: card.libraryCard || card.personCard ? null : root.shell
-            kind: card.libraryCard ? "landscape" : card.personCard ? "poster" : root.cardKind
-            item: card.cardItem || ({})
-            titleOverride: card.libraryCard ? String(card.model.name || "") : card.personCard ? String(
-                                                                                                    card.cardItem.name
-                                                                                                    || "") : ""
-            subtitleOverride: card.libraryCard ? String(card.model.collectionType || "") : card.personCard ? String(
-                                                                                                                 card.cardItem.role
-                                                                                                                 || card.cardItem.type
-                                                                                                                 || "") : ""
-            imageOverride: card.libraryCard ? Art.url(card.cardItem, "landscape", Math.ceil(root.cardWidth)) :
-                                              card.personCard ? Art.url(card.cardItem, "poster", Math.ceil(
-                                                                            root.cardWidth)) : ""
-            fallbackOverride: card.personCard ? String(card.cardItem.type || "Person") : ""
+            shell: libraryCard || personCard ? null : root.shell
+            kind: libraryCard ? "landscape" : personCard ? "poster" : root.cardKind
+            item: cardItem || ({})
+            titleOverride: libraryCard ? String(cardData.name || "") : personCard ? String(cardData.name || "") : ""
+            subtitleOverride: libraryCard ? String(cardData.collectionType || "") : personCard ? String(cardData.role
+                                                                                                        || cardData.type
+                                                                                                        || "") : ""
+            imageOverride: libraryCard ? Art.url(cardItem, "landscape", Math.ceil(root.cardWidth)) : personCard
+                                         ? Art.url(cardItem, "poster", Math.ceil(root.cardWidth)) : ""
+            fallbackOverride: personCard ? String(cardData.type || "Person") : ""
             useSeriesPoster: root.useSeriesPoster
             preferEpisodeTitle: root.preferEpisodeTitle
             focused: card.index === listView.currentIndex && listView.activeFocus
@@ -206,6 +247,7 @@ FocusScope {
         reuseItems: true
         model: root.model
         delegate: cardDelegate
+
         highlightFollowsCurrentItem: true
         highlightMoveDuration: 16
         highlight: Item {
@@ -221,7 +263,7 @@ FocusScope {
             }
         }
 
-        currentIndex: root.count > 0 ? Math.max(0, Math.min(root.currentIndex, root.count - 1)) : -1
+        Component.onCompleted: root.syncViewCurrentIndex()
         onCurrentIndexChanged: if (currentIndex >= 0)
         positionViewAtIndex(currentIndex, ListView.Contain)
 

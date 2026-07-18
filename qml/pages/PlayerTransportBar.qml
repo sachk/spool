@@ -12,25 +12,42 @@ RowLayout {
     required property var overlay
     Layout.fillWidth: true
     spacing: overlay.dp(8)
+    function actionTarget(action) {
+        const index = overlay.utilityActions.indexOf(action)
+        return index >= 0 ? utilityRepeater.itemAt(index) : null
+    }
 
     component ActionTarget: Rectangle {
         required property string action
         readonly property int globalIndex: root.overlay.actions.indexOf(action)
         readonly property bool focused: root.overlay.isControlsActive() && root.overlay.focusZone === "actions"
                                         && root.overlay.actionIndex === globalIndex
+        readonly property bool selected: action === "syncplay" && root.overlay.syncPlayMenuOpen
+        readonly property bool emphasized: focused || selected
         readonly property string tooltip: root.overlay.actionTooltip(action)
+        readonly property bool waitingForSyncPlay: action === "pause" && SyncPlay.enabled && SyncPlay.waitingForPlayback
         Layout.preferredWidth: root.overlay.actionTargetSize
         Layout.preferredHeight: root.overlay.actionTargetSize
         radius: width / 2
-        color: focused ? Qt.alpha(Theme.accent, 0.2) : "transparent"
-        border.width: focused ? Theme.focusBorderWidth : 0
+        color: emphasized ? Qt.alpha(Theme.accent, 0.2) : "transparent"
+        border.width: emphasized ? Theme.focusBorderWidth : 0
         border.color: Theme.accent
 
         MaterialIcon {
             anchors.centerIn: parent
             name: parent.action.length > 0 ? root.overlay.actionIcon(parent.action) : ""
-            iconColor: parent.focused ? Theme.textPrimary : Theme.textSecondary
+            iconColor: parent.emphasized ? Theme.textPrimary : Theme.textSecondary
             iconSize: root.overlay.dp(parent.action === "debug" ? 32 : 38)
+        }
+
+        MaterialIcon {
+            anchors.centerIn: parent
+            anchors.horizontalCenterOffset: root.overlay.dp(9)
+            anchors.verticalCenterOffset: root.overlay.dp(7)
+            visible: parent.waitingForSyncPlay
+            name: "play_arrow"
+            iconColor: parent.focused ? Theme.textPrimary : Theme.textSecondary
+            iconSize: root.overlay.dp(20)
         }
 
         HoverHandler {
@@ -83,6 +100,7 @@ RowLayout {
     }
 
     Repeater {
+        id: utilityRepeater
         model: root.overlay.utilityActions
         delegate: ActionTarget {
             required property string modelData

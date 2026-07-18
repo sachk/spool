@@ -27,6 +27,7 @@ class NativeAppWindow final : public QQuickView {
     Q_PROPERTY(int overlayHeight READ overlayHeight NOTIFY overlayRevisionChanged)
     Q_PROPERTY(bool tvPlatform READ tvPlatform CONSTANT)
     Q_PROPERTY(bool smartTvPlatform READ smartTvPlatform CONSTANT)
+    Q_PROPERTY(qint64 systemMemoryBytes READ systemMemoryBytes CONSTANT)
     Q_PROPERTY(bool fullScreen READ fullScreen NOTIFY fullScreenChanged)
 
 public:
@@ -75,6 +76,14 @@ public:
     {
         return smartTvPlatform();
     }
+    qint64 systemMemoryBytes() const
+    {
+        return m_systemMemoryBytes;
+    }
+    void setSystemMemoryBytes(qint64 bytes)
+    {
+        m_systemMemoryBytes = qMax<qint64>(0, bytes);
+    }
     Q_INVOKABLE void toggleFullScreen();
     void clearOverlay();
     QQuickImageProvider *createOverlayImageProvider();
@@ -84,6 +93,11 @@ signals:
     void closeRequested();
     void overlayRevisionChanged();
     void fullScreenChanged();
+#ifdef JELLYFIN_NATIVE_WEBOS
+    void webOsShellStateChanged(int state);
+    void webOsShellExposed(bool exposed);
+    void webOsShellCloseRequested();
+#endif
 
 protected:
     bool event(QEvent *event) override;
@@ -96,6 +110,9 @@ private:
     bool ensureShellSurface();
     bool ensureVideoSurface();
     bool bindGlobals();
+    void releasePlatformSurface();
+    void requestWebOsFullscreen();
+    void applyWebOsKeyMask();
     void updateCropRegion();
     void setVideoCrop(
         int origW, int origH, int srcX, int srcY, int srcW, int srcH, int dstX, int dstY, int dstW, int dstH);
@@ -109,6 +126,12 @@ private:
         void *data, wl_registry *registry, uint32_t name, const char *interface, uint32_t version);
     static void registryRemove(void *, wl_registry *, uint32_t);
     static void exportedWindowIdAssigned(void *data, wl_webos_exported *, const char *window_id, uint32_t);
+    static void shellStateChanged(void *data, wl_webos_shell_surface *, uint32_t state);
+    static void shellPositionChanged(void *, wl_webos_shell_surface *, int32_t, int32_t);
+    static void shellClose(void *data, wl_webos_shell_surface *);
+    static void shellExposed(void *data, wl_webos_shell_surface *, wl_array *rectangles);
+    static void shellStateAboutToChange(void *, wl_webos_shell_surface *, uint32_t);
+    static void shellAddonStatusChanged(void *, wl_webos_shell_surface *, uint32_t);
     static uint8_t *overlayAcquireCallback(void *data, int x, int y, int width, int height, int *stride, void **buffer);
     static void overlayPresentCallback(void *data, void *buffer, bool visible);
     static void exportedCropCallback(void *data, int origW, int origH, int srcX, int srcY, int srcW, int srcH, int dstX,
@@ -126,6 +149,7 @@ private:
     int m_pendingOverlayY = 0;
     bool m_overlayPublishQueued = false;
     int m_overlayRevision = 0;
+    qint64 m_systemMemoryBytes = 0;
 #ifdef JELLYFIN_NATIVE_WEBOS
     wl_display *m_display = nullptr;
     wl_registry *m_registry = nullptr;
@@ -137,6 +161,8 @@ private:
     wl_webos_foreign *m_webosForeign = nullptr;
     wl_webos_exported *m_exported = nullptr;
     std::string m_windowId;
+    int m_fullscreenRequestGeneration = 0;
+    bool m_fullscreenConfirmationPending = false;
     struct CropRegion {
         int origW = 0;
         int origH = 0;
@@ -166,6 +192,7 @@ private:
 
     static const wl_registry_listener s_registryListener;
     static const wl_webos_exported_listener s_exportedListener;
+    static const wl_webos_shell_surface_listener s_shellSurfaceListener;
 #endif
 };
 

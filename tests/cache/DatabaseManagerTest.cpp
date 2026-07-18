@@ -2,6 +2,8 @@
 #include <QCoroTask>
 
 #include <QCoreApplication>
+#include <QSqlDatabase>
+#include <QSqlQuery>
 #include <QTemporaryDir>
 #include <QThread>
 
@@ -27,10 +29,21 @@ int main(int argc, char **argv)
     QCoreApplication app(argc, argv);
     QTemporaryDir directory;
     require(directory.isValid(), "temporary directory should be available");
+    const QString databasePath = directory.filePath(QStringLiteral("cache.sqlite"));
+
+    {
+        QSqlDatabase invalid = QSqlDatabase::addDatabase(QStringLiteral("QSQLITE"), QStringLiteral("invalid-seed"));
+        invalid.setDatabaseName(databasePath);
+        require(invalid.open(), "invalid cache seed should open");
+        QSqlQuery query(invalid);
+        require(query.exec(QStringLiteral("PRAGMA user_version = 999")), "invalid schema should be seeded");
+        invalid.close();
+    }
+    QSqlDatabase::removeDatabase(QStringLiteral("invalid-seed"));
 
     DatabaseManager database;
-    require(database.initialize(directory.filePath(QStringLiteral("cache.sqlite"))), "database should initialize");
-    require(QCoro::waitFor(database.schemaVersionAsync()) == 4, "schema should migrate to version 4");
+    require(database.initialize(databasePath), "database should rebuild an unsupported cache");
+    require(QCoro::waitFor(database.schemaVersionAsync()) == 5, "schema should migrate to version 5");
 
     database.saveSetting(QStringLiteral("batch/first"), QStringLiteral("one"));
     database.saveSetting(QStringLiteral("batch/second"), QStringLiteral("two"));

@@ -108,28 +108,28 @@ bool PlaybackPositionTracker::update(double seconds, Source source)
     return true;
 }
 
-double PlaybackPositionTracker::projected(bool paused, bool buffering) const
+double PlaybackPositionTracker::projected(bool paused, bool buffering, double playbackRate) const
 {
     double position = m_positionSeconds;
     if (!paused && !buffering && m_positionClock.isValid()) {
         const double elapsed = m_positionClock.elapsed() / 1000.0;
         if (elapsed > 0.0)
-            position += elapsed;
+            position += elapsed * qMax(0.01, playbackRate);
     }
     return clamp(position);
 }
 
-double PlaybackPositionTracker::seekAnchor(bool paused, bool buffering)
+double PlaybackPositionTracker::seekAnchor(bool paused, bool buffering, double playbackRate)
 {
     if (m_requestedSeekTargetSeconds >= 0.0 && seekIsFresh(kSeekTargetFreshnessMs)) {
         double position = m_requestedSeekTargetSeconds;
         if (!paused && !buffering)
-            position += m_seekCommandClock.elapsed() / 1000.0;
+            position += m_seekCommandClock.elapsed() / 1000.0 * qMax(0.01, playbackRate);
         return clamp(position);
     }
 
     restoreTrusted("seek-anchor");
-    return projected(paused, buffering);
+    return projected(paused, buffering, playbackRate);
 }
 
 bool PlaybackPositionTracker::restoreTrusted(const char *reason)

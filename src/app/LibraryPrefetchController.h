@@ -28,6 +28,9 @@ public:
     void stop();
     void schedule(const std::vector<LibraryItem>& libraries, const QStringList& recentLibraryIds);
     std::optional<PagedMovieItems> cachedPage(const QString& cacheKey) const;
+    void storePage(const QString& cacheKey, const PagedMovieItems& page);
+    // Milliseconds since the cached page was stored, or -1 when absent.
+    qint64 pageAgeMs(const QString& cacheKey) const;
     void configureImagePrefetch(int aheadItems, int maxConcurrent);
     void prefetchPosters(const std::vector<MovieItem>& items, int firstIndex = 0, int visibleCount = 12,
         ImageKind imageKind = ImageKind::Poster);
@@ -49,6 +52,7 @@ private:
     bool m_active = false;
     std::vector<PrefetchRequest> m_queue;
     QHash<QString, PagedMovieItems> m_pages;
+    QHash<QString, qint64> m_pageStoredAtMs;
     QSet<QString> m_cachedKeys;
     int m_imagePrefetchAheadItems = 16;
 };

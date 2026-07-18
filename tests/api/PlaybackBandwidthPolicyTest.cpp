@@ -34,5 +34,19 @@ int main()
         "measurement should reserve twenty-five percent of observed throughput");
     require(PlaybackBandwidthPolicy::conservativeEstimate(0, 1'000) == 0,
         "empty transfers should not produce a measurement");
+    require(!PlaybackBandwidthPolicy::shouldBenchmarkFourRequests(4, 800'000'000, 850'000'000),
+        "low latency without a material dual-request gain should stop after two samples");
+    require(PlaybackBandwidthPolicy::shouldBenchmarkFourRequests(25, 40'000'000, 42'000'000),
+        "high latency should exercise the four-request path");
+    require(PlaybackBandwidthPolicy::shouldBenchmarkFourRequests(4, 40'000'000, 50'000'000),
+        "a material dual-request gain should exercise the four-request path");
+    require(PlaybackBandwidthPolicy::selectParallelRequests(900'000'000, 1'000'000'000) == 1,
+        "one request should win when it is already close to the best result");
+    require(PlaybackBandwidthPolicy::selectParallelRequests(400'000'000, 800'000'000, 820'000'000) == 2,
+        "two requests should win when four requests add no useful throughput");
+    require(PlaybackBandwidthPolicy::selectParallelRequests(200'000'000, 350'000'000, 800'000'000) == 4,
+        "four requests should win when they materially improve throughput");
+    require(PlaybackBandwidthPolicy::selectParallelRequests(0, 0, 0) == 1,
+        "failed measurements should fall back to one request");
     return EXIT_SUCCESS;
 }

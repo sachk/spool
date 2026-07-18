@@ -68,8 +68,10 @@ void LocalizationManager::useSystemDefault()
 
 QString LocalizationManager::displayNameFor(const QString& localeTag) const
 {
-    if (localeTag == QLatin1String("system"))
-        return QStringLiteral("System default");
+    if (localeTag == QLatin1String("system")) {
+        const QLocale systemLocale = QLocale::system();
+        return QStringLiteral("System (%1)").arg(QLocale::languageToString(systemLocale.language()));
+    }
     return QLocale(localeTag).nativeLanguageName();
 }
 

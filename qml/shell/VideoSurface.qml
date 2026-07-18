@@ -1,4 +1,5 @@
 import QtQuick
+import JellyfinWebOS
 import "../primitives"
 
 FocusScope {
@@ -32,6 +33,28 @@ FocusScope {
         playerOverlay.activate()
     }
 
+    function openPlaybackSettings() {
+        playerOverlay.openMenu("debug")
+        focusInput()
+    }
+
+    function toggleOsd() {
+        if (playerOverlay.controlsVisible)
+            playerOverlay.hideControls()
+        else
+            playerOverlay.showControls("timeline")
+        focusInput()
+    }
+
+    // Registered dynamically by main.cpp, so no static .qmltypes entry exists.
+    // qmllint disable import unresolved-type
+    MpvVideoItem {
+        anchors.fill: parent
+        visible: root.active
+        z: 0
+    }
+    // qmllint enable import unresolved-type
+
     Image {
         x: NativeWindow.overlayX
         y: NativeWindow.overlayY
@@ -41,7 +64,7 @@ FocusScope {
         source: visible ? "image://mpv-overlay/live?rev=" + NativeWindow.overlayRevision : ""
         cache: false
         fillMode: Image.Stretch
-        z: 0
+        z: 1
     }
 
     PlayerOverlayPage {

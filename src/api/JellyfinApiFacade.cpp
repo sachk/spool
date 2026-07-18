@@ -1,6 +1,7 @@
 #include "JellyfinApiFacade.h"
 
 #include "../common/MetaJson.h"
+#include "../common/TlsTrust.h"
 #include "../common/VariantUtils.h"
 #include "../diagnostics/Diagnostics.h"
 #include "ItemsQuery.h"
@@ -25,6 +26,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <iterator>
 #include <limits>
 #include <stdexcept>
 #include <utility>
@@ -64,16 +66,17 @@ namespace {
 
     QString detailItemFields()
     {
-        return QStringLiteral("Overview,ProductionYear,PremiereDate,EndDate,ImageTags,BackdropImageTags,"
-                              "UserData,Path,RunTimeTicks,SeriesInfo,Genres,Tags,Studios,OfficialRating,"
-                              "CommunityRating,CriticRating,People,PrimaryImageAspectRatio,MediaSources");
+        return QStringLiteral(
+            "Overview,ProductionYear,PremiereDate,EndDate,ImageTags,BackdropImageTags,"
+            "UserData,Path,RunTimeTicks,SeriesInfo,LocationType,IsVirtualItem,Genres,Tags,Studios,"
+            "OfficialRating,CommunityRating,CriticRating,People,PrimaryImageAspectRatio,MediaSources");
     }
 
     QString libraryItemFields()
     {
-        return QStringLiteral("Overview,ProductionYear,PremiereDate,EndDate,ImageTags,BackdropImageTags,"
-                              "UserData,RunTimeTicks,SeriesInfo,Genres,Tags,Studios,OfficialRating,"
-                              "CommunityRating,CriticRating,PrimaryImageAspectRatio");
+        return QStringLiteral("SortName,Overview,ProductionYear,PremiereDate,EndDate,ImageTags,BackdropImageTags,"
+                              "UserData,RunTimeTicks,SeriesInfo,LocationType,IsVirtualItem,Genres,Tags,Studios,"
+                              "OfficialRating,CommunityRating,CriticRating,PrimaryImageAspectRatio");
     }
 
     QString firstString(const QJsonArray& array)
@@ -262,6 +265,12 @@ JellyfinApiFacade::JellyfinApiFacade(QNetworkAccessManager *networkAccessManager
     , m_networkAccessManager(networkAccessManager)
     , m_rest(networkAccessManager, this)
 {
+    connect(m_networkAccessManager, &QNetworkAccessManager::sslErrors, this,
+        [](QNetworkReply *reply, const QList<QSslError>& errors) {
+            const QSslCertificate certificate = TlsTrust::peerCertificate(reply, errors);
+            if (!certificate.isNull() && TlsTrust::isTrusted(reply->url(), certificate))
+                reply->ignoreSslErrors();
+        });
     m_requestFactory.setTransferTimeout(std::chrono::milliseconds(HttpRequestPolicy::transferTimeoutMs()));
     m_requestFactory.setAttribute(
         QNetworkRequest::ConnectionCacheExpiryTimeoutSecondsAttribute, kConnectionCacheExpirySeconds);
@@ -287,6 +296,7 @@ void JellyfinApiFacade::setServerUrl(const QString& serverUrl)
         m_playbackEndpointKnown = false;
         m_inLocalNetwork = false;
         m_measuredStreamingBitrate = 0;
+        setPlaybackParallelRequests(1);
         updateEffectiveStreamingBitrate();
     }
     preconnectToServer();
@@ -325,8 +335,10 @@ QString JellyfinApiFacade::deviceId() const
 
 void JellyfinApiFacade::setSession(const AuthSession& session)
 {
-    if (m_session.accessToken != session.accessToken)
+    if (m_session.accessToken != session.accessToken) {
         ++m_playbackNetworkGeneration;
+        setPlaybackParallelRequests(1);
+    }
     m_session = session;
     m_authExpirationReported = false;
     if (m_session.accessToken.isEmpty())
@@ -385,6 +397,20 @@ void JellyfinApiFacade::setVideoCodecCapabilities(QStringList videoCodecs, bool 
     emit deviceProfileChanged();
 }
 
+int JellyfinApiFacade::playbackParallelRequests() const
+{
+    return m_playbackParallelRequests;
+}
+
+void JellyfinApiFacade::setPlaybackParallelRequests(int parallelRequests)
+{
+    const int normalized = std::clamp(parallelRequests, 1, 4);
+    if (normalized == m_playbackParallelRequests)
+        return;
+    m_playbackParallelRequests = normalized;
+    emit playbackNetworkProfileChanged();
+}
+
 void JellyfinApiFacade::updateEffectiveStreamingBitrate()
 {
     const qint64 effective = PlaybackBandwidthPolicy::effectiveBitrate(m_manualMaxStreamingBitrate,
@@ -398,15 +424,40 @@ void JellyfinApiFacade::updateEffectiveStreamingBitrate()
     emit deviceProfileChanged();
 }
 
-QCoro::Task<qint64> JellyfinApiFacade::measurePlaybackBitrate(int sampleBytes)
+QCoro::Task<qint64> JellyfinApiFacade::measurePlaybackBitrate(int totalSampleBytes, int parallelRequests)
+{
+    parallelRequests = std::clamp(parallelRequests, 1, 4);
+    const int bytesPerRequest = std::max(1, totalSampleBytes / parallelRequests);
+    const qint64 cacheBuster = QDateTime::currentMSecsSinceEpoch();
+    QElapsedTimer timer;
+    timer.start();
+
+    // QCoro::Task starts eagerly. Construct all requests before awaiting any
+    // result so this measures aggregate throughput at the requested level of
+    // concurrency, while keeping the total transferred bytes constant.
+    std::vector<QCoro::Task<QByteArray>> tasks;
+    tasks.reserve(static_cast<size_t>(parallelRequests));
+    for (int lane = 0; lane < parallelRequests; ++lane) {
+        QUrlQuery query;
+        query.addQueryItem(QStringLiteral("size"), QString::number(bytesPerRequest));
+        query.addQueryItem(QStringLiteral("_"), QStringLiteral("%1-%2").arg(cacheBuster).arg(lane));
+        tasks.push_back(requestBytes(HttpMethod::Get, QStringLiteral("/Playback/BitrateTest"), query));
+    }
+
+    qint64 transferredBytes = 0;
+    for (auto& task : tasks)
+        transferredBytes += (co_await task).size();
+    co_return PlaybackBandwidthPolicy::conservativeEstimate(transferredBytes, std::max<qint64>(1, timer.elapsed()));
+}
+
+QCoro::Task<qint64> JellyfinApiFacade::measurePlaybackRoundTripTime()
 {
     QUrlQuery query;
-    query.addQueryItem(QStringLiteral("size"), QString::number(sampleBytes));
     query.addQueryItem(QStringLiteral("_"), QString::number(QDateTime::currentMSecsSinceEpoch()));
     QElapsedTimer timer;
     timer.start();
-    const QByteArray payload = co_await requestBytes(HttpMethod::Get, QStringLiteral("/Playback/BitrateTest"), query);
-    co_return PlaybackBandwidthPolicy::conservativeEstimate(payload.size(), std::max<qint64>(1, timer.elapsed()));
+    co_await requestBytes(HttpMethod::Get, QStringLiteral("/System/Endpoint"), query);
+    co_return std::max<qint64>(1, timer.elapsed());
 }
 
 QCoro::Task<void> JellyfinApiFacade::refreshPlaybackNetworkState()
@@ -426,20 +477,33 @@ QCoro::Task<void> JellyfinApiFacade::refreshPlaybackNetworkState()
 
     // Warm the authenticated server route and exclude DNS/TLS/request setup
     // from the samples used to select a streaming ceiling.
-    co_await measurePlaybackBitrate(512 * 1024);
+    co_await measurePlaybackBitrate(512 * 1024, 1);
     if (generation != m_playbackNetworkGeneration)
         co_return;
-    const qint64 first = co_await measurePlaybackBitrate(2 * 1024 * 1024);
+    const qint64 roundTripMilliseconds = co_await measurePlaybackRoundTripTime();
     if (generation != m_playbackNetworkGeneration)
         co_return;
-    const int secondSampleBytes = first >= 100'000'000 ? 8 * 1024 * 1024 : 2 * 1024 * 1024;
-    const qint64 second = co_await measurePlaybackBitrate(secondSampleBytes);
+    constexpr int benchmarkBytes = 4 * 1024 * 1024;
+    const qint64 singleRequest = co_await measurePlaybackBitrate(benchmarkBytes, 1);
+    if (generation != m_playbackNetworkGeneration)
+        co_return;
+    const qint64 dualRequest = co_await measurePlaybackBitrate(benchmarkBytes, 2);
     if (generation != m_playbackNetworkGeneration)
         co_return;
 
-    m_measuredStreamingBitrate = first > 0 && second > 0 ? std::min(first, second) : std::max(first, second);
-    qInfo() << "playback bandwidth: route measured first=" << first << "second=" << second
-            << "selected=" << m_measuredStreamingBitrate << "local=" << m_inLocalNetwork;
+    qint64 fourRequest = 0;
+    if (PlaybackBandwidthPolicy::shouldBenchmarkFourRequests(roundTripMilliseconds, singleRequest, dualRequest)) {
+        fourRequest = co_await measurePlaybackBitrate(benchmarkBytes, 4);
+        if (generation != m_playbackNetworkGeneration)
+            co_return;
+    }
+
+    m_measuredStreamingBitrate = std::max({ singleRequest, dualRequest, fourRequest });
+    setPlaybackParallelRequests(
+        PlaybackBandwidthPolicy::selectParallelRequests(singleRequest, dualRequest, fourRequest));
+    qInfo() << "playback bandwidth: benchmark rtt_ms=" << roundTripMilliseconds << "one=" << singleRequest
+            << "two=" << dualRequest << "four=" << fourRequest << "selectedRequests=" << m_playbackParallelRequests
+            << "selectedBitrate=" << m_measuredStreamingBitrate;
     updateEffectiveStreamingBitrate();
 }
 
@@ -790,6 +854,36 @@ QCoro::Task<MovieItem> JellyfinApiFacade::fetchItemDetails(QString itemId)
     co_return mediaItemFromJson(object);
 }
 
+QCoro::Task<std::vector<MovieItem>> JellyfinApiFacade::fetchItemsByIds(QStringList itemIds)
+{
+    itemIds.removeAll(QString());
+    itemIds.removeDuplicates();
+    if (itemIds.isEmpty() || m_session.userId.isEmpty())
+        co_return std::vector<MovieItem> {};
+
+    std::vector<MovieItem> result;
+    result.reserve(static_cast<size_t>(itemIds.size()));
+
+    // SyncPlay queues commonly contain an entire library. Putting every UUID
+    // into one query string exceeds Jellyfin/reverse-proxy request-line limits
+    // (the TV observed HTTP 414 with a 262-item queue).
+    constexpr qsizetype kItemsPerRequest = 50;
+    for (qsizetype offset = 0; offset < itemIds.size(); offset += kItemsPerRequest) {
+        const QStringList batch = itemIds.sliced(offset, std::min(kItemsPerRequest, itemIds.size() - offset));
+        QUrlQuery query = ItemsQuery()
+                              .userId(m_session.userId)
+                              .fields(detailItemFields())
+                              .images()
+                              .add(QStringLiteral("ids"), batch.join(QLatin1Char(',')))
+                              .toUrlQuery();
+        const QJsonArray items = itemsArrayFromDocument(
+            co_await requestJson(HttpMethod::Get, QStringLiteral("/Users/%1/Items").arg(m_session.userId), query));
+        for (const QJsonValue& value : items)
+            result.push_back(mediaItemFromJson(value.toObject()));
+    }
+    co_return result;
+}
+
 QCoro::Task<std::vector<MovieItem>> JellyfinApiFacade::fetchSeasons(QString seriesId)
 {
     const PagedMovieItems page = co_await fetchBrowsePage(BrowseDescriptor::seriesSeasons(seriesId), 0, 200);
@@ -798,8 +892,21 @@ QCoro::Task<std::vector<MovieItem>> JellyfinApiFacade::fetchSeasons(QString seri
 
 QCoro::Task<std::vector<MovieItem>> JellyfinApiFacade::fetchEpisodes(QString seriesId, QString seasonId)
 {
-    const PagedMovieItems page = co_await fetchBrowsePage(BrowseDescriptor::seasonEpisodes(seriesId, seasonId), 0, 200);
-    co_return page.items;
+    constexpr int pageSize = 200;
+    const BrowseDescriptor descriptor = BrowseDescriptor::seasonEpisodes(seriesId, seasonId);
+    std::vector<MovieItem> episodes;
+    int startIndex = 0;
+    while (true) {
+        PagedMovieItems page = co_await fetchBrowsePage(descriptor, startIndex, pageSize);
+        if (page.items.empty())
+            break;
+        startIndex += static_cast<int>(page.items.size());
+        episodes.insert(
+            episodes.end(), std::make_move_iterator(page.items.begin()), std::make_move_iterator(page.items.end()));
+        if (startIndex >= page.totalRecordCount || static_cast<int>(page.items.size()) < pageSize)
+            break;
+    }
+    co_return episodes;
 }
 
 QCoro::Task<std::vector<MovieItem>> JellyfinApiFacade::fetchResumeItems(int limit)
@@ -1329,7 +1436,37 @@ QCoro::Task<void> JellyfinApiFacade::syncPlaySetNewQueue(
     co_await requestNoContent(HttpMethod::Post, QStringLiteral("/SyncPlay/SetNewQueue"), QJsonDocument(body));
 }
 
-QCoro::Task<PlaybackSession> JellyfinApiFacade::negotiatePlayback(MovieItem movie)
+QCoro::Task<void> JellyfinApiFacade::syncPlayUnpause()
+{
+    co_await requestNoContent(HttpMethod::Post, QStringLiteral("/SyncPlay/Unpause"), QJsonDocument());
+}
+
+QCoro::Task<void> JellyfinApiFacade::syncPlayPause()
+{
+    co_await requestNoContent(HttpMethod::Post, QStringLiteral("/SyncPlay/Pause"), QJsonDocument());
+}
+
+QCoro::Task<void> JellyfinApiFacade::syncPlaySeek(qint64 positionTicks)
+{
+    const QJsonObject body = {
+        { QStringLiteral("PositionTicks"), std::max<qint64>(0, positionTicks) },
+    };
+    co_await requestNoContent(HttpMethod::Post, QStringLiteral("/SyncPlay/Seek"), QJsonDocument(body));
+}
+
+QCoro::Task<void> JellyfinApiFacade::syncPlayNextItem(QString playlistItemId)
+{
+    const QJsonObject body = { { QStringLiteral("PlaylistItemId"), playlistItemId } };
+    co_await requestNoContent(HttpMethod::Post, QStringLiteral("/SyncPlay/NextItem"), QJsonDocument(body));
+}
+
+QCoro::Task<void> JellyfinApiFacade::syncPlayPreviousItem(QString playlistItemId)
+{
+    const QJsonObject body = { { QStringLiteral("PlaylistItemId"), playlistItemId } };
+    co_await requestNoContent(HttpMethod::Post, QStringLiteral("/SyncPlay/PreviousItem"), QJsonDocument(body));
+}
+
+QCoro::Task<PlaybackSession> JellyfinApiFacade::negotiatePlayback(MovieItem movie, bool forceTranscode)
 {
     Diagnostics::Task task(QStringLiteral("api_negotiate_playback"),
         { { QStringLiteral("itemId"), movie.id }, { QStringLiteral("title"), movie.title } });
@@ -1342,10 +1479,10 @@ QCoro::Task<PlaybackSession> JellyfinApiFacade::negotiatePlayback(MovieItem movi
         { QStringLiteral("MaxStreamingBitrate"), m_maxStreamingBitrate },
         { QStringLiteral("StartTimeTicks"), movie.resumeTicks },
         { QStringLiteral("AutoOpenLiveStream"), true },
-        { QStringLiteral("EnableDirectPlay"), true },
-        { QStringLiteral("EnableDirectStream"), true },
+        { QStringLiteral("EnableDirectPlay"), !forceTranscode },
+        { QStringLiteral("EnableDirectStream"), !forceTranscode },
         { QStringLiteral("EnableTranscoding"), true },
-        { QStringLiteral("AllowVideoStreamCopy"), true },
+        { QStringLiteral("AllowVideoStreamCopy"), !forceTranscode },
         { QStringLiteral("AllowAudioStreamCopy"), true },
         { QStringLiteral("DeviceProfile"), buildDeviceProfile() },
     };
@@ -1379,9 +1516,18 @@ QCoro::Task<void> JellyfinApiFacade::postCapabilities()
                 QStringLiteral("MoveRight"),
                 QStringLiteral("Select"),
                 QStringLiteral("Back"),
+                QStringLiteral("VolumeUp"),
+                QStringLiteral("VolumeDown"),
+                QStringLiteral("SetVolume"),
                 QStringLiteral("SetAudioStreamIndex"),
                 QStringLiteral("SetSubtitleStreamIndex"),
                 QStringLiteral("ToggleOsd"),
+                QStringLiteral("ToggleContextMenu"),
+                QStringLiteral("ToggleStats"),
+                QStringLiteral("GoHome"),
+                QStringLiteral("GoToSettings"),
+                QStringLiteral("GoToSearch"),
+                QStringLiteral("DisplayMessage"),
             } },
         { QStringLiteral("SupportsMediaControl"), true },
         { QStringLiteral("SupportsPersistentIdentifier"), true },
@@ -1403,7 +1549,7 @@ QJsonArray nowPlayingQueueJson(const std::vector<PlaybackQueueItem>& queue)
     return array;
 }
 
-QCoro::Task<void> JellyfinApiFacade::reportPlaybackStart(PlaybackSession session)
+QCoro::Task<void> JellyfinApiFacade::reportPlaybackStart(PlaybackSession session, double playbackRate)
 {
     QJsonObject body = {
         { QStringLiteral("CanSeek"), true },
@@ -1412,6 +1558,9 @@ QCoro::Task<void> JellyfinApiFacade::reportPlaybackStart(PlaybackSession session
         { QStringLiteral("PlayMethod"), session.playMethod },
         { QStringLiteral("PlaySessionId"), session.playSessionId },
         { QStringLiteral("PositionTicks"), session.startTimeTicks },
+        { QStringLiteral("AudioStreamIndex"), session.audioStreamIndex },
+        { QStringLiteral("SubtitleStreamIndex"), session.subtitleStreamIndex },
+        { QStringLiteral("PlaybackRate"), playbackRate },
     };
     if (!session.nowPlayingQueue.empty())
         body.insert(QStringLiteral("NowPlayingQueue"), nowPlayingQueueJson(session.nowPlayingQueue));
@@ -1419,7 +1568,8 @@ QCoro::Task<void> JellyfinApiFacade::reportPlaybackStart(PlaybackSession session
     co_await requestNoContent(HttpMethod::Post, QStringLiteral("/Sessions/Playing"), QJsonDocument(body));
 }
 
-QCoro::Task<void> JellyfinApiFacade::reportPlaybackProgress(PlaybackSession session, qint64 positionTicks, bool paused)
+QCoro::Task<void> JellyfinApiFacade::reportPlaybackProgress(
+    PlaybackSession session, qint64 positionTicks, bool paused, double playbackRate)
 {
     QJsonObject body = {
         { QStringLiteral("CanSeek"), true },
@@ -1429,6 +1579,9 @@ QCoro::Task<void> JellyfinApiFacade::reportPlaybackProgress(PlaybackSession sess
         { QStringLiteral("PlaySessionId"), session.playSessionId },
         { QStringLiteral("PositionTicks"), positionTicks },
         { QStringLiteral("IsPaused"), paused },
+        { QStringLiteral("AudioStreamIndex"), session.audioStreamIndex },
+        { QStringLiteral("SubtitleStreamIndex"), session.subtitleStreamIndex },
+        { QStringLiteral("PlaybackRate"), playbackRate },
     };
     if (!session.nowPlayingQueue.empty())
         body.insert(QStringLiteral("NowPlayingQueue"), nowPlayingQueueJson(session.nowPlayingQueue));
@@ -1436,7 +1589,8 @@ QCoro::Task<void> JellyfinApiFacade::reportPlaybackProgress(PlaybackSession sess
     co_await requestNoContent(HttpMethod::Post, QStringLiteral("/Sessions/Playing/Progress"), QJsonDocument(body));
 }
 
-QCoro::Task<void> JellyfinApiFacade::reportPlaybackStopped(PlaybackSession session, qint64 positionTicks, bool failed)
+QCoro::Task<void> JellyfinApiFacade::reportPlaybackStopped(
+    PlaybackSession session, qint64 positionTicks, bool failed, double playbackRate)
 {
     const QJsonObject body = {
         { QStringLiteral("ItemId"), session.itemId },
@@ -1444,6 +1598,7 @@ QCoro::Task<void> JellyfinApiFacade::reportPlaybackStopped(PlaybackSession sessi
         { QStringLiteral("PlaySessionId"), session.playSessionId },
         { QStringLiteral("PositionTicks"), positionTicks },
         { QStringLiteral("Failed"), failed },
+        { QStringLiteral("PlaybackRate"), playbackRate },
     };
 
     co_await requestNoContent(HttpMethod::Post, QStringLiteral("/Sessions/Playing/Stopped"), QJsonDocument(body));
@@ -1454,10 +1609,11 @@ QNetworkRequest JellyfinApiFacade::createRequest(const QString& path, const QUrl
     QNetworkRequest request
         = query.isEmpty() ? m_requestFactory.createRequest(path) : m_requestFactory.createRequest(path, query);
     request.setRawHeader("Authorization", authorizationHeader().toUtf8());
-    if (path == QStringLiteral("/Playback/BitrateTest")) {
+    if (path == QStringLiteral("/Playback/BitrateTest") || path == QStringLiteral("/System/Endpoint")) {
         request.setAttribute(QNetworkRequest::CacheLoadControlAttribute, QNetworkRequest::AlwaysNetwork);
         request.setAttribute(QNetworkRequest::CacheSaveControlAttribute, false);
-        request.setRawHeader("Accept", "application/octet-stream");
+        if (path == QStringLiteral("/Playback/BitrateTest"))
+            request.setRawHeader("Accept", "application/octet-stream");
     }
     return request;
 }

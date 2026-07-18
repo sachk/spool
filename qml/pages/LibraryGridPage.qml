@@ -21,6 +21,23 @@ FocusScope {
     property var filterEntries: []
     property var libraryEntries: []
     property string typeAheadBuffer: ""
+    readonly property bool directionRelease: true
+    readonly property int alphabetFeedbackIndex: {
+        grid.contentY
+        if (grid.count <= 0)
+        return -1
+        const visibleIndex = grid.indexAt(grid.leftMargin + 1, Math.max(0, grid.contentY) + grid.topMargin + 1)
+        if (visibleIndex >= 0)
+        return Math.floor(visibleIndex / Math.max(1, root.columns)) * Math.max(1, root.columns)
+        return grid.firstLikelyVisibleIndex()
+    }
+    readonly property string currentAlphabetLabel: {
+        const title = sectionTitle(alphabetFeedbackIndex).trim()
+        if (title.length <= 0)
+        return "#"
+        const initial = title.charAt(0).toLocaleUpperCase()
+        return initial >= "A" && initial <= "Z" ? initial : "#"
+    }
     readonly property var libraryList: libraryPanel.menuList
     readonly property var sortList: sortPanel.menuList
     readonly property var filterList: filterPanel.menuList
@@ -37,7 +54,7 @@ FocusScope {
     readonly property bool contentReady: grid.count > 0 && gridReveal.delegatesReady
     // Grid position to restore across model resets (sort/filter/library
     // changes); the page itself is resident, so this survives navigation.
-    property int savedIndex: 0
+    property int savedIndex: shell ? Number(shell.routeArgs.focusIndex || 0) : 0
     Component.onCompleted: InputKeys.focus(grid)
     onActiveFocusChanged: if (activeFocus)
     InputKeys.focus(grid)
@@ -455,6 +472,13 @@ FocusScope {
         return String(item.title || item.displayTitle || item.seriesName || "").toLocaleLowerCase()
     }
 
+    function sectionTitle(index) {
+        if (!Browse.items || index < 0 || index >= Browse.items.count)
+            return ""
+        const item = Browse.items.get(index) || ({})
+        return String(item.sortName || item.title || item.displayTitle || item.seriesName || "").toLocaleLowerCase()
+    }
+
     function selectTypeAheadMatch(query, includeCurrent) {
         const count = Browse.items ? Browse.items.count : 0
         if (count <= 0 || query.length <= 0)
@@ -511,7 +535,10 @@ FocusScope {
         gridReveal.reset()
         App.openLibrary(index)
         if (hasShell())
-            shell.replaceRoute("libraryGrid")
+            shell.replaceRoute("libraryGrid", {
+                                   libraryId: String(Libraries.get(index).libraryId || ""),
+                                   focusIndex: 0
+                               })
         InputKeys.focus(grid)
     }
 
@@ -595,6 +622,8 @@ FocusScope {
     }
 
     function routeKey(key, phase, repeat) {
+        if (phase === "release" && InputKeys.isDirection(key))
+            return grid.routeKey(key, phase, repeat)
         if (libraryList && libraryList.activeFocus)
             return libraryList.routeKey(key, phase, repeat)
         if (sortList && sortList.activeFocus)
@@ -677,7 +706,10 @@ FocusScope {
     }
     ColumnLayout {
         anchors.fill: parent
-        anchors.margins: Metrics.pageMarginPx
+        anchors.leftMargin: Metrics.pageMarginPx
+        anchors.rightMargin: Metrics.pageMarginPx
+        anchors.topMargin: Metrics.pageMarginPx
+        anchors.bottomMargin: 0
         spacing: 12
         RowLayout {
             Layout.fillWidth: true
@@ -793,6 +825,13 @@ FocusScope {
 
         NavGrid {
             id: grid
+            property int artworkWindowRevision: 0
+            readonly property int memoryMiB: NativeWindow.systemMemoryBytes > 0 ? Math.round(
+                                                                                      NativeWindow.systemMemoryBytes
+                                                                                      / 1048576) : 2048
+            readonly property int artworkMarginRows: NativeWindow.smartTvPlatform ? (memoryMiB >= 3000 ? 8 : memoryMiB
+                                                                                                         >= 1800 ? 5 :
+                                                                                                                   3) : 12
             readonly property int focusPadding: Math.max(2, Metrics.scaled(2))
             Layout.fillWidth: true
             Layout.fillHeight: true
@@ -805,10 +844,10 @@ FocusScope {
             boundsBehavior: Flickable.StopAtBounds
             model: Browse.items
             leftMargin: focusPadding
-            rightMargin: focusPadding
+            rightMargin: focusPadding + libraryScrollBar.width + Metrics.scaled(6)
             cellWidth: Math.floor((width - leftMargin - rightMargin - Metrics.gapPx * (columns - 1)) / columns)
             cellHeight: cellWidth * 1.5 + Metrics.scaled(64)
-            cacheBuffer: gridReveal.delegatesReady ? cellHeight : 0
+            cacheBuffer: gridReveal.delegatesReady ? cellHeight * artworkMarginRows : 0
             Component.onCompleted: {
                 restoreIndex()
                 requestMoreIfNeeded()
@@ -821,16 +860,46 @@ FocusScope {
                 restoreIndex()
                 requestMoreIfNeeded()
             }
-            onContentYChanged: loadMoreDebounce.restart()
+            onContentYChanged: {
+                loadMoreDebounce.restart()
+                artworkWindowDebounce.restart()
+            }
             onCurrentIndexChanged: {
                 if (currentIndex >= 0)
                 root.savedIndex = currentIndex
+                alphabetFeedback.restart()
                 loadMoreDebounce.restart()
+                routeCheckpoint.restart()
             }
 
             FastWheelHandler {
                 flickable: grid
                 animationDuration: 16
+            }
+            ScrollBar.vertical: ScrollBar {
+                id: libraryScrollBar
+                width: Math.max(Metrics.scaled(14), 14)
+                z: 20
+                interactive: true
+                policy: ScrollBar.AlwaysOn
+                minimumSize: 0.1
+                contentItem: Rectangle {
+                    implicitWidth: Math.max(Metrics.scaled(8), 8)
+                    radius: Math.min(Theme.radiusSmall, width / 4)
+                    color: libraryScrollBar.pressed || libraryScrollBar.hovered || grid.moving ? Theme.accent :
+                                                                                                 Theme.accentDim
+                    opacity: 1
+                    border.width: Theme.hoverBorderWidth
+                    border.color: libraryScrollBar.pressed || libraryScrollBar.hovered ? Theme.textPrimary :
+                                                                                         Theme.accent
+                }
+                background: Rectangle {
+                    radius: Math.min(Theme.radiusSmall, width / 4)
+                    color: Theme.bgPanel
+                    opacity: 1
+                    border.width: Theme.hoverBorderWidth
+                    border.color: Theme.borderStrong
+                }
             }
             onEdgeUp: root.focusToolbar()
             onAccepted: root.activateCurrent()
@@ -867,11 +936,76 @@ FocusScope {
                 Browse.prefetchVisibleRange(visibleHead, visibleTail)
             }
 
+            function artworkIndexResident(index) {
+                const revision = artworkWindowRevision
+                if (revision < 0 || index < 0 || count <= 0)
+                    return false
+                const margin = artworkMarginRows * Math.max(1, columns)
+                const first = Math.max(0, firstLikelyVisibleIndex() - margin)
+                const last = Math.min(count - 1, lastLikelyVisibleIndex() + margin)
+                return index >= first && index <= last
+            }
+
             Timer {
                 id: loadMoreDebounce
                 interval: 80
                 repeat: false
                 onTriggered: grid.requestMoreIfNeeded()
+            }
+
+            Timer {
+                id: artworkWindowDebounce
+                interval: 60
+                repeat: false
+                onTriggered: grid.artworkWindowRevision++
+            }
+
+            Timer {
+                id: routeCheckpoint
+                interval: 250
+                repeat: false
+                onTriggered: if (root.shell)
+                Router.checkpoint({
+                                      libraryId: Browse.libraryId,
+                                      focusIndex: Math.max(0, grid.currentIndex)
+                                  })
+            }
+
+            Timer {
+                id: alphabetFeedback
+                interval: 700
+                repeat: false
+            }
+
+            Rectangle {
+                anchors.right: parent.right
+                anchors.rightMargin: Metrics.scaled(24)
+                y: Math.max(0, Math.min(parent.height - height, grid.visibleArea.yPosition * Math.max(0, parent.height
+                                                                                                      - height)))
+                width: Metrics.scaled(52)
+                height: width
+                radius: Theme.radiusMedium
+                color: Theme.accentPanel
+                border.width: Theme.hoverBorderWidth
+                border.color: Theme.accent
+                opacity: (alphabetFeedback.running || libraryScrollBar.pressed) && root.currentSortBy() === "SortName"
+                         ? 1 : 0
+                visible: opacity > 0
+                z: 6
+
+                AppText {
+                    anchors.centerIn: parent
+                    text: root.currentAlphabetLabel
+                    font.pixelSize: Metrics.scaled(26)
+                    font.weight: Font.Bold
+                    color: Theme.textPrimary
+                }
+
+                Behavior on opacity {
+                    NumberAnimation {
+                        duration: Theme.reducedMotion ? 0 : 100
+                    }
+                }
             }
 
             delegate: MediaItemCard {
@@ -887,6 +1021,7 @@ FocusScope {
                 useSeriesPoster: true
                 focused: gridDelegate.GridView.isCurrentItem
                 artworkVisible: true
+                artworkEnabled: grid.artworkIndexResident(index)
 
                 Component.onCompleted: gridReveal.schedule()
                 onArtworkReadyChanged: gridReveal.schedule()

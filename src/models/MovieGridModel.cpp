@@ -87,10 +87,39 @@ MovieItem MovieGridModel::get(int index) const
 void MovieGridModel::setMovies(std::vector<MovieItem> movies)
 {
     const int oldCount = rowCount();
-    if (oldCount == static_cast<int>(movies.size())) {
+    const int newCount = static_cast<int>(movies.size());
+
+    // Refreshes usually deliver data identical to what is already shown.
+    // Emitting only the rows that actually changed keeps live delegates
+    // untouched instead of rebinding the whole grid mid-navigation.
+    if (oldCount == newCount) {
+        std::vector<std::pair<int, int>> changedRanges;
+        int row = 0;
+        while (row < newCount) {
+            if (m_movies[static_cast<size_t>(row)] == movies[static_cast<size_t>(row)]) {
+                ++row;
+                continue;
+            }
+            const int first = row;
+            while (row < newCount && !(m_movies[static_cast<size_t>(row)] == movies[static_cast<size_t>(row)]))
+                ++row;
+            changedRanges.emplace_back(first, row - 1);
+        }
+        if (changedRanges.empty())
+            return;
         m_movies = std::move(movies);
-        if (oldCount > 0)
-            emit dataChanged(index(0, 0), index(oldCount - 1, 0));
+        for (const auto& range : changedRanges)
+            emit dataChanged(index(range.first, 0), index(range.second, 0));
+        return;
+    }
+
+    // A grown list with an unchanged prefix is an append, not a reset;
+    // resetting would destroy every delegate the user is looking at.
+    if (newCount > oldCount && std::equal(m_movies.begin(), m_movies.end(), movies.begin())) {
+        beginInsertRows({}, oldCount, newCount - 1);
+        m_movies = std::move(movies);
+        endInsertRows();
+        emit countChanged();
         return;
     }
 

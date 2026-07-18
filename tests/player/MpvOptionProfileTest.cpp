@@ -35,7 +35,7 @@ int main(int argc, char **argv)
     const auto desktopNetwork = MpvOptionProfile::networkProfile(MpvOptionProfile::Platform::Desktop);
     require(desktopNetwork.ringBytes == 4 * 1024 * 1024, "desktop curl ring profile changed");
     require(desktopNetwork.rangeBytes == 1024 * 1024, "desktop curl range profile changed");
-    require(desktopNetwork.parallelRequests == 4, "desktop curl parallelism profile changed");
+    require(desktopNetwork.parallelRequests == 1, "desktop curl should default to one request");
 
     const auto desktop = MpvOptionProfile::startupOptions(
         MpvOptionProfile::Platform::Desktop, QStringLiteral("alsa"), QByteArrayLiteral("/tmp/mpv.log"));
@@ -45,13 +45,13 @@ int main(int argc, char **argv)
     require(valueFor(desktop, "curl-enabled") == "yes", "desktop should use the libcurl stream backend");
     require(valueFor(desktop, "curl-buffer-size") == "4194304", "desktop should use a 4 MiB network ring");
     require(valueFor(desktop, "curl-max-request-size") == "1048576", "desktop should issue 1 MiB ranges");
-    require(valueFor(desktop, "curl-parallel-requests") == "4", "desktop should fetch four ranges concurrently");
+    require(valueFor(desktop, "curl-parallel-requests") == "1", "desktop should default to one range request");
     require(
         valueFor(desktop, "initial-audio-sync").isEmpty(), "desktop should retain mpv's initial audio sync default");
 
     PlaybackSession hlsTranscode;
     hlsTranscode.playMethod = QStringLiteral("Transcode");
-    hlsTranscode.url = QStringLiteral("https://media.example/Videos/1/master.m3u8?api_key=secret");
+    hlsTranscode.url = QStringLiteral("https://media.example/Videos/1/master.m3u8");
     require(
         MpvOptionProfile::loadFileOptions(hlsTranscode) == "demuxer=lavf,demuxer-lavf-format=hls,initial-audio-sync=no",
         "HLS transcodes should bypass manifest probing and blocking initial audio sync");
@@ -89,16 +89,41 @@ int main(int argc, char **argv)
 
     const auto customDemuxerBudget
         = MpvOptionProfile::startupOptions(MpvOptionProfile::Platform::Desktop, QStringLiteral("alsa"),
-            QByteArrayLiteral("/tmp/mpv.log"), QByteArrayLiteral("123456789"), QByteArrayLiteral("9876543"));
+            QByteArrayLiteral("/tmp/mpv.log"), QByteArrayLiteral("123456789"), QByteArrayLiteral("9876543"), 2);
     require(valueFor(customDemuxerBudget, "demuxer-max-bytes") == "123456789",
         "custom demuxer max byte budget was not propagated");
     require(valueFor(customDemuxerBudget, "demuxer-max-back-bytes") == "9876543",
         "custom demuxer back byte budget was not propagated");
+    require(valueFor(customDemuxerBudget, "curl-parallel-requests") == "2",
+        "measured request parallelism was not propagated");
+
+    const auto desktopAuto = MpvOptionProfile::startupOptions(
+        MpvOptionProfile::Platform::Desktop, QStringLiteral("auto"), QByteArrayLiteral("/tmp/mpv.log"));
+    require(valueFor(desktopAuto, "ao").isEmpty(), "automatic desktop audio should leave output probing to mpv");
+#if defined(Q_OS_LINUX)
+    const auto desktopPipeWire = MpvOptionProfile::startupOptions(
+        MpvOptionProfile::Platform::Desktop, QStringLiteral("pipewire"), QByteArrayLiteral("/tmp/mpv.log"));
+    require(valueFor(desktopPipeWire, "ao") == "pipewire", "Linux PipeWire selection was not applied");
+    const auto desktopPulse = MpvOptionProfile::startupOptions(
+        MpvOptionProfile::Platform::Desktop, QStringLiteral("pulse"), QByteArrayLiteral("/tmp/mpv.log"));
+    require(valueFor(desktopPulse, "ao") == "pulse", "Linux PulseAudio selection was not applied");
+    const auto desktopAlsa = MpvOptionProfile::startupOptions(
+        MpvOptionProfile::Platform::Desktop, QStringLiteral("alsa"), QByteArrayLiteral("/tmp/mpv.log"));
+    require(valueFor(desktopAlsa, "ao") == "alsa", "Linux ALSA selection was not applied");
+#elif defined(Q_OS_WIN)
+    const auto desktopWasapi = MpvOptionProfile::startupOptions(
+        MpvOptionProfile::Platform::Desktop, QStringLiteral("wasapi"), QByteArrayLiteral("/tmp/mpv.log"));
+    require(valueFor(desktopWasapi, "ao") == "wasapi", "Windows WASAPI selection was not applied");
+#elif defined(Q_OS_MACOS)
+    const auto desktopCoreAudio = MpvOptionProfile::startupOptions(
+        MpvOptionProfile::Platform::Desktop, QStringLiteral("coreaudio"), QByteArrayLiteral("/tmp/mpv.log"));
+    require(valueFor(desktopCoreAudio, "ao") == "coreaudio", "macOS CoreAudio selection was not applied");
+#endif
 
     const auto webOSNetwork = MpvOptionProfile::networkProfile(MpvOptionProfile::Platform::WebOS);
     require(webOSNetwork.ringBytes == 2 * 1024 * 1024, "webOS curl ring profile changed");
     require(webOSNetwork.rangeBytes == 512 * 1024, "webOS curl range profile changed");
-    require(webOSNetwork.parallelRequests == 4, "webOS curl parallelism profile changed");
+    require(webOSNetwork.parallelRequests == 1, "webOS curl should default to one request");
 
     const auto webOSPcm = MpvOptionProfile::startupOptions(
         MpvOptionProfile::Platform::WebOS, QStringLiteral("starfish-pcm"), QByteArrayLiteral("/tmp/mpv.log"));
@@ -110,7 +135,7 @@ int main(int argc, char **argv)
     require(valueFor(webOSPcm, "curl-enabled") == "yes", "webOS should use the libcurl stream backend");
     require(valueFor(webOSPcm, "curl-buffer-size") == "2097152", "webOS should use a 2 MiB network ring");
     require(valueFor(webOSPcm, "curl-max-request-size") == "524288", "webOS should issue 512 KiB ranges");
-    require(valueFor(webOSPcm, "curl-parallel-requests") == "4", "webOS should fetch four ranges concurrently");
+    require(valueFor(webOSPcm, "curl-parallel-requests") == "1", "webOS should default to one range request");
 
     const auto webOSAlsa = MpvOptionProfile::startupOptions(
         MpvOptionProfile::Platform::WebOS, QStringLiteral("alsa"), QByteArrayLiteral("/tmp/mpv.log"));

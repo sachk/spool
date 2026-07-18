@@ -6,6 +6,7 @@
 #include "app/MemoryBudget.h"
 #include "app/NativeAppWindow.h"
 #include "app/RouterController.h"
+#include "app/SessionController.h"
 #include "app/UserItemStateController.h"
 #include "cache/DatabaseManager.h"
 #include "common/LogRotation.h"
@@ -47,6 +48,7 @@ Q_IMPORT_PLUGIN(QWaylandWlShellIntegrationPlugin)
 Q_IMPORT_PLUGIN(QJpegPlugin)
 Q_IMPORT_PLUGIN(QWebpPlugin)
 Q_IMPORT_PLUGIN(QSQLiteDriverPlugin)
+Q_IMPORT_PLUGIN(QTlsBackendOpenSSL)
 #endif
 
 #include <QCoreApplication>
@@ -68,6 +70,7 @@ Q_IMPORT_PLUGIN(QSQLiteDriverPlugin)
 #include <QQmlContext>
 #include <QQmlEngine>
 #include <QQmlError>
+#include <QQmlIncubationController>
 #include <QQmlPropertyMap>
 #include <QQuickGraphicsConfiguration>
 #include <QQuickStyle>
@@ -79,6 +82,12 @@ Q_IMPORT_PLUGIN(QSQLiteDriverPlugin)
 #include <QThread>
 #include <QTimer>
 #include <qqml.h>
+
+#if defined(Q_OS_UNIX) && !defined(Q_OS_MACOS) && !defined(JELLYFIN_NATIVE_WEBOS)
+#include <QDBusConnection>
+#include <QDBusInterface>
+#include <QDBusReply>
+#endif
 
 #include <mpv/client.h>
 
@@ -97,12 +106,116 @@ Q_IMPORT_PLUGIN(QSQLiteDriverPlugin)
 
 namespace {
 
+// The window's stock incubation controller advances async QML construction
+// ~5 ms per frame, so a page whose creation costs ~200 ms of CPU takes
+// 500-700 ms of wall time to instantiate. A timer-driven controller with a
+// larger slice cuts cold page construction and idle prewarming to roughly the
+// CPU cost, at worst lengthening frames by the slice while incubating.
+class BoostedIncubationController final : public QObject, public QQmlIncubationController {
+public:
+    explicit BoostedIncubationController(QObject *parent)
+        : QObject(parent)
+    {
+        m_timer.setInterval(16);
+        m_timer.setTimerType(Qt::PreciseTimer);
+        QObject::connect(&m_timer, &QTimer::timeout, this, [this] { incubateFor(kSliceMs); });
+    }
+
+protected:
+    void incubatingObjectCountChanged(int count) override
+    {
+        if (count > 0)
+            m_timer.start();
+        else
+            m_timer.stop();
+    }
+
+private:
+    static constexpr int kSliceMs = 12;
+    QTimer m_timer;
+};
+
 constexpr auto kAppId = "com.sachk.tern";
 constexpr auto kAppVersion = JELLYFIN_VERSION;
 #ifdef JELLYFIN_NATIVE_WEBOS
 constexpr auto kDefaultLogDir = "/tmp";
 constexpr auto kAppLogFileName = "com.sachk.tern.log";
 #endif
+
+class ScreenSaverInhibitor final {
+public:
+    ~ScreenSaverInhibitor()
+    {
+        setInhibited(false);
+    }
+
+    void setInhibited(bool inhibited)
+    {
+        if (m_inhibited == inhibited)
+            return;
+#ifdef JELLYFIN_NATIVE_WEBOS
+        if (inhibited) {
+            m_webOsContext = std::make_unique<HContext>();
+            m_webOsContext->pub = true;
+            m_webOsContext->multiple = true;
+            m_webOsContext->callback = &screenSaverRequest;
+            if (HLunaServiceCall("luna://com.webos.service.tvpower/power/registerScreenSaverRequest",
+                    "{\"subscribe\":true,\"clientName\":\"com.sachk.tern\"}", m_webOsContext.get())) {
+                qWarning() << "screensaver: webOS inhibit registration failed";
+                m_webOsContext.reset();
+                return;
+            }
+        } else if (m_webOsContext) {
+            HUnregisterServiceCallback(m_webOsContext.get());
+            m_webOsContext.reset();
+        }
+#elif defined(Q_OS_WIN)
+        SetThreadExecutionState(inhibited ? ES_CONTINUOUS | ES_DISPLAY_REQUIRED | ES_SYSTEM_REQUIRED : ES_CONTINUOUS);
+#elif defined(Q_OS_UNIX) && !defined(Q_OS_MACOS)
+        QDBusInterface screenSaver(QStringLiteral("org.freedesktop.ScreenSaver"), QStringLiteral("/ScreenSaver"),
+            QStringLiteral("org.freedesktop.ScreenSaver"), QDBusConnection::sessionBus());
+        if (inhibited) {
+            const QDBusReply<quint32> reply = screenSaver.call(QStringLiteral("Inhibit"),
+                QStringLiteral("Jellyfin Native"), QStringLiteral("Video playback is active"));
+            if (!reply.isValid()) {
+                qWarning() << "screensaver: freedesktop inhibit failed" << reply.error().message();
+                return;
+            }
+            m_cookie = reply.value();
+        } else if (m_cookie != 0) {
+            screenSaver.call(QStringLiteral("UnInhibit"), m_cookie);
+            m_cookie = 0;
+        }
+#endif
+        m_inhibited = inhibited;
+        qInfo() << "screensaver:" << (inhibited ? "inhibited for active playback" : "available while paused or idle");
+    }
+
+private:
+#ifdef JELLYFIN_NATIVE_WEBOS
+    static bool screenSaverRequest(LSHandle *, LSMessage *message, void *)
+    {
+        const QJsonObject request
+            = QJsonDocument::fromJson(QByteArray(message ? LSMessageGetPayload(message) : "")).object();
+        if (request.value(QStringLiteral("state")).toString() != QStringLiteral("Active"))
+            return true;
+        const QJsonObject response { { QStringLiteral("clientName"), QStringLiteral("com.sachk.tern") },
+            { QStringLiteral("ack"), false },
+            { QStringLiteral("timestamp"), request.value(QStringLiteral("timestamp")) } };
+        const QByteArray payload = QJsonDocument(response).toJson(QJsonDocument::Compact);
+        HContext responseContext {};
+        responseContext.pub = true;
+        responseContext.multiple = false;
+        return HLunaServiceCall("luna://com.webos.service.tvpower/power/responseScreenSaverRequest",
+                   payload.constData(), &responseContext)
+            == 0;
+    }
+    std::unique_ptr<HContext> m_webOsContext;
+#elif defined(Q_OS_UNIX) && !defined(Q_OS_MACOS)
+    quint32 m_cookie = 0;
+#endif
+    bool m_inhibited = false;
+};
 
 FILE *g_logFile = nullptr;
 QByteArray g_logPath;
@@ -124,6 +237,7 @@ __attribute__((constructor)) void recordStaticInitializationStart()
 // QMetaObject::invokeMethod against this object.
 JellyfinNative::NativeAppWindow *g_lifecycleWindow = nullptr;
 JellyfinNative::AppController *g_appController = nullptr;
+JellyfinNative::RouterController *g_routerController = nullptr;
 std::atomic_uint64_t g_soundOutputEventGeneration { 0 };
 std::mutex g_pendingSoundOutputMutex;
 QString g_pendingSoundOutput;
@@ -455,14 +569,15 @@ bool lunaLifecycleCallback(LSHandle *, LSMessage *message, void *)
         }
     } else if (event == QStringLiteral("close")) {
         const QString reason = doc.object().value(QStringLiteral("reason")).toString();
-        if (reason == QStringLiteral("memoryReclaim")) {
-            logLine("[ls2-lifecycle] memoryReclaim close ignored");
-            return true;
-        }
         QMetaObject::invokeMethod(
             qApp,
-            []() {
-                logLine("[ls2-lifecycle] close -> QCoreApplication::quit");
+            [reason]() {
+                if (reason == QStringLiteral("memoryReclaim") && g_routerController) {
+                    logLine("[ls2-lifecycle] memoryReclaim -> checkpoint and quit");
+                    g_routerController->requestRecoveryOnNextLaunch(reason);
+                } else {
+                    logLine("[ls2-lifecycle] close reason=%s -> quit", qPrintable(reason));
+                }
                 QCoreApplication::quit();
             },
             Qt::QueuedConnection);
@@ -708,6 +823,16 @@ int main(int argc, char **argv)
     }
 #endif
 
+#ifdef JELLYFIN_NATIVE_WEBOS
+    // Render-loop experiment: the threaded loop costs an extra vsync between
+    // update() and sync on wayland-egl (input latency logs showed a steady
+    // ~2-frame sync_begin). The basic loop syncs on the GUI thread
+    // immediately. Overridable via the environment for A/B comparisons.
+    if (!qEnvironmentVariableIsSet("QSG_RENDER_LOOP"))
+        qputenv("QSG_RENDER_LOOP", QByteArrayLiteral("basic"));
+    logLine("QSG_RENDER_LOOP=%s", qgetenv("QSG_RENDER_LOOP").constData());
+#endif
+
     const QString cachePath = startupCacheRoot(appRootPath);
     configurePersistentStartupCaches(cachePath);
 
@@ -845,6 +970,11 @@ int main(int argc, char **argv)
         [] { return static_cast<qint64>(mpv_get_audio_decode_cpu_time_ns()); });
 #endif
     JellyfinNative::NativeAppWindow window(QString::fromLatin1(kAppId));
+    window.setSystemMemoryBytes(memoryBudget.memTotalBytes);
+#ifdef JELLYFIN_NATIVE_WEBOS
+    window.setPersistentGraphics(false);
+    window.setPersistentSceneGraph(false);
+#endif
     inputLatencyMonitor.attachWindow(&window);
     window.setInputLatencyMonitor(&inputLatencyMonitor);
     configurePersistentRhiPipelineCache(window, cachePath);
@@ -906,6 +1036,14 @@ int main(int argc, char **argv)
 
     auto player = std::make_unique<JellyfinNative::PlayerController>(&window, api.get());
     player->setDemuxerBudget(memoryBudget.mpvDemuxerMaxBytes, memoryBudget.mpvDemuxerMaxBackBytes);
+    ScreenSaverInhibitor screenSaverInhibitor;
+    const auto updateScreenSaver = [&screenSaverInhibitor, player = player.get()] {
+        // Paused playback deliberately releases the OS inhibitor so normal
+        // idle/screen-saver policy resumes after the user's configured delay.
+        screenSaverInhibitor.setInhibited(player && player->sessionActive() && !player->paused());
+    };
+    QObject::connect(player.get(), &JellyfinNative::PlayerController::playbackStateChanged, &app, updateScreenSaver);
+    QObject::connect(player.get(), &JellyfinNative::PlayerController::sessionActiveChanged, &app, updateScreenSaver);
     auto controller = std::make_unique<JellyfinNative::AppController>(
         &database, discovery.get(), api.get(), artworkService.get(), player.get());
     // A desktop close event arrives while the scene graph is still rendering.
@@ -941,6 +1079,13 @@ int main(int argc, char **argv)
     // active — the decode/audio pipeline keeps running otherwise and the
     // user comes back to find playback drifted. pauseForBackground() is
     // a no-op if the player isn't visible or is already paused.
+    QTimer backgroundTrimTimer;
+    backgroundTrimTimer.setSingleShot(true);
+    backgroundTrimTimer.setInterval(1000);
+    QObject::connect(&backgroundTrimTimer, &QTimer::timeout, controller.get(), [controller = controller.get()]() {
+        logLine("background residency: releasing artwork and inactive scene resources");
+        controller->onMemoryPressure(QStringLiteral("critical"));
+    });
     QObject::connect(
         &app, &QGuiApplication::applicationStateChanged, &app, [player = player.get()](Qt::ApplicationState state) {
             logLine("application state changed: %d", static_cast<int>(state));
@@ -953,6 +1098,25 @@ int main(int argc, char **argv)
             } else if (state == Qt::ApplicationActive) {
                 if (player)
                     player->resyncForForeground();
+            }
+        });
+    QObject::connect(&app, &QGuiApplication::applicationStateChanged, &backgroundTrimTimer,
+        [&backgroundTrimTimer](Qt::ApplicationState state) {
+            if (state == Qt::ApplicationActive)
+                backgroundTrimTimer.stop();
+            else
+                backgroundTrimTimer.start();
+        });
+    QObject::connect(&window, &JellyfinNative::NativeAppWindow::webOsShellExposed, &backgroundTrimTimer,
+        [&backgroundTrimTimer, player = player.get()](bool exposed) {
+            if (exposed) {
+                backgroundTrimTimer.stop();
+                if (player)
+                    player->resyncForForeground();
+            } else {
+                if (player)
+                    player->prepareForBackground();
+                backgroundTrimTimer.start();
             }
         });
 #endif
@@ -989,6 +1153,8 @@ int main(int argc, char **argv)
         logLine("aboutToQuit: QML source cleared");
     });
 
+    // Parented to the engine so it outlives every incubator and dies with it.
+    window.engine()->setIncubationController(new BoostedIncubationController(window.engine()));
     window.engine()->addImageProvider(
         QStringLiteral("artwork"), new JellyfinNative::ArtworkImageProvider(artworkService.get()));
     window.engine()->addImageProvider(QStringLiteral("mpv-overlay"), window.createOverlayImageProvider());
@@ -1004,6 +1170,15 @@ int main(int argc, char **argv)
             [api = api.get(), loc = localization.get()]() { api->setAcceptLanguage(loc->bcp47Locale()); });
     }
     auto router = std::make_unique<JellyfinNative::RouterController>();
+#ifdef JELLYFIN_NATIVE_WEBOS
+    g_routerController = router.get();
+    QObject::connect(
+        &window, &JellyfinNative::NativeAppWindow::webOsShellCloseRequested, &app, [router = router.get()]() {
+            logLine("webOS shell close -> checkpoint and quit");
+            router->requestRecoveryOnNextLaunch(QStringLiteral("shellClose"));
+            QCoreApplication::quit();
+        });
+#endif
     QQmlPropertyMap *platformInfo = QQmlPropertyMap::create(&app);
 #ifdef JELLYFIN_NATIVE_WEBOS
     platformInfo->insert(QStringLiteral("isWebOS"), true);
@@ -1034,6 +1209,26 @@ int main(int argc, char **argv)
     qmlRegisterSingletonInstance("JellyfinWebOS", 1, 0, "I18n", localization.get());
     qmlRegisterSingletonInstance("JellyfinWebOS", 1, 0, "Platform", platformInfo);
     qmlRegisterType<JellyfinNative::MpvVideoItem>("JellyfinWebOS", 1, 0, "MpvVideoItem");
+    // Start app initialization (device id, settings, session restore — all
+    // DB-worker reads, then the home-row network fetches) before the QML load
+    // so that work overlaps the ~600 ms of QML instantiation instead of
+    // starting from zero once the event loop finally spins at ~1 s.
+    router->beginSession(controller->session()->likelyAuthenticated());
+    controller->initialize();
+
+    // Optimistic launch route: when the previous run ended signed in, start
+    // at home instead of waiting ~1 s for the async session restore to say
+    // so. AppShell's route reset on App.initialized corrects a wrong guess.
+    if (!router->recoveryPending() && controller->session()->likelyAuthenticated())
+        router->reset(QStringLiteral("home"));
+
+    QObject::connect(&app, &QCoreApplication::aboutToQuit, router.get(), [router = router.get()]() {
+        router->markCleanShutdown();
+#ifdef JELLYFIN_NATIVE_WEBOS
+        g_routerController = nullptr;
+#endif
+    });
+
     {
         JellyfinNative::Diagnostics::Phase phase(QStringLiteral("startup"), QStringLiteral("load_qml"));
         // Load through the module registry (not a raw qrc: URL) so the engine uses
@@ -1167,7 +1362,6 @@ int main(int argc, char **argv)
     soundOutputPollTimer.start();
 #endif
 
-    QTimer::singleShot(0, controller.get(), &JellyfinNative::AppController::initialize);
     QTimer::singleShot(0, &window, [&window, &startupTimer]() {
         logLine(
             "startup: event loop entered, first-frame path at %lld ms", static_cast<long long>(startupTimer.elapsed()));

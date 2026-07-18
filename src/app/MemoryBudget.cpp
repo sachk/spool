@@ -49,7 +49,7 @@ namespace {
 #ifdef __linux__
         return readLinuxMemTotal();
 #elif defined(Q_OS_WIN)
-        MEMORYSTATUSEX status { };
+        MEMORYSTATUSEX status {};
         status.dwLength = sizeof(status);
         if (GlobalMemoryStatusEx(&status))
             return static_cast<qint64>(status.ullTotalPhys);
@@ -87,7 +87,11 @@ MemoryBudget MemoryBudget::detect()
 
     budget.networkDiskCacheBytes = lowMemory ? baseNetworkDiskCacheBytes / 2 : baseNetworkDiskCacheBytes;
     budget.qmlImageDiskCacheBytes = lowMemory ? baseQmlImageDiskCacheBytes / 2 : baseQmlImageDiskCacheBytes;
+#ifdef JELLYFIN_NATIVE_WEBOS
+    budget.artworkByteCacheBytes = static_cast<int>(std::clamp(effectiveMem / 64, 8LL * kMiB, 24LL * kMiB));
+#else
     budget.artworkByteCacheBytes = static_cast<int>(std::clamp(effectiveMem / 32, 24LL * kMiB, 96LL * kMiB));
+#endif
     budget.mpvDemuxerMaxBytes = lowMemory ? QByteArrayLiteral("32M") : QByteArrayLiteral("64M");
     budget.mpvDemuxerMaxBackBytes = lowMemory ? QByteArrayLiteral("16M") : QByteArrayLiteral("32M");
     return budget;

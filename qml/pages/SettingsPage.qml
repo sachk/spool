@@ -1,6 +1,7 @@
 pragma ComponentBehavior: Bound
 
 import QtQuick
+import QtQml.Models
 import "../theme"
 import "../primitives"
 
@@ -10,11 +11,13 @@ FocusScope {
     property var shell
     property var uiTransitionToken: 0
     property int currentIndex: 0
-    property var settingsRows: []
+    property var rowsByKey: ({})
+    property int detailLevelRevision: 0
     property bool subtitleEditor: false
     property bool playbackPreview: false
     property bool choiceDialogVisible: false
     property var choiceDialogRow: null
+    property Item choiceDialogAnchor: null
     readonly property var choiceDialog: choiceDialogLoader.item
     property bool contentReady: false
 
@@ -88,7 +91,7 @@ FocusScope {
         return row
     }
 
-    function rowVisible(row) {
+    function rowAvailable(row) {
         return row && row.visible !== false && (row.key !== "settings/toneMappingVisualization"
                                                 || gpuNextDiagnosticsAvailable) && (row.key
                                                                                     !== "playback/maxStreamingBitrateMbps"
@@ -96,6 +99,24 @@ FocusScope {
                                                                                     === true) && (row.group
                                                                                                   !== "Button Remap"
                                                                                                   || NativeWindow.smartTvPlatform)
+    }
+
+    function currentDetailLevel() {
+        const value = String(Settings.values["settings/detailLevel"] || "Essential")
+        return value === "All" ? 2 : value === "More" ? 1 : 0
+    }
+
+    function rowDetailLevel(row) {
+        if (!row)
+            return 2
+        if (row.group === "Diagnostics" || row.group === "Button Remap")
+            return 2
+        if (row.key === "theme/renderMode" || row.key === "theme/antialiasedText" || row.key
+                === "theme/technicalMetadata" || row.key === "settings/audioOutputMode" || row.key
+                === "playback/forwardCacheSizeMiB" || row.key === "playback/showVolumeSlider" || row.key
+                === "settings/audioDelayMs")
+            return 1
+        return 0
     }
 
     function expandedSchemaRow(row) {
@@ -158,59 +179,106 @@ FocusScope {
         return "transparent"
     }
 
-    function rebuildSettingsRows() {
+    function appendSourceRows(rows, context, rowMap) {
+        const lastGroups = ["", "", ""]
+        for (let index = 0; index < rows.length; ++index) {
+            const row = rows[index]
+            const level = rowDetailLevel(row)
+            rowMap[row.key] = row
+            const headers = [false, false, false]
+            for (let detail = 0; detail < 3; ++detail) {
+                if (level > detail || !rowAvailable(row))
+                    continue
+                headers[detail] = lastGroups[detail] !== row.group
+                lastGroups[detail] = row.group
+            }
+            settingsRowsSourceModel.append({
+                                               "rowKey": row.key,
+                                               "rowContext": context,
+                                               "detailLevel": level,
+                                               "headerEssential": headers[0],
+                                               "headerAdvanced": headers[1],
+                                               "headerExpert": headers[2]
+                                           })
+        }
+    }
+
+    function buildSettingsRowsSource() {
         const schema = Settings.settingsSchema
-        const rows = []
-        const zoomKey = "appearance/uiScalePercent"
-        if (subtitleEditor) {
+        const detailKey = "settings/detailLevel"
+        const scaleKey = "appearance/uiScalePercent"
+        const mainRows = []
+        const subtitleRows = []
+        const rowMap = {}
+
+        for (let index = 0; index < schema.length; ++index) {
+            if (schema[index].key !== scaleKey)
+                continue
+            const scaleRow = Object.assign({}, expandedSchemaRow(schema[index]))
+            scaleRow.group = "General"
+            mainRows.push(scaleRow)
+        }
+        for (let groupIndex = 0; groupIndex < groupOrder.length; ++groupIndex) {
+            const group = groupOrder[groupIndex]
+            for (let index = 0; index < pageRows.length; ++index)
+                if (pageRows[index].group === group)
+                    mainRows.push(pageRows[index])
             for (let index = 0; index < schema.length; ++index) {
                 const row = schema[index]
-                if ((row.group === "Subtitles" || row.group === "Subtitle Appearance") && rowVisible(row))
-                    rows.push(expandedSchemaRow(row))
-            }
-        } else {
-            for (let index = 0; index < schema.length; ++index)
-                if (schema[index].key === zoomKey && rowVisible(schema[index]))
-                    rows.push(expandedSchemaRow(schema[index]))
-            for (let groupIndex = 0; groupIndex < groupOrder.length; ++groupIndex) {
-                const group = groupOrder[groupIndex]
-                for (let index = 0; index < pageRows.length; ++index)
-                    if (pageRows[index].group === group && rowVisible(pageRows[index]))
-                        rows.push(pageRows[index])
-                for (let index = 0; index < schema.length; ++index) {
-                    const row = schema[index]
-                    if (row.group === group && row.key !== zoomKey && rowVisible(row) && row.group !== "Subtitles"
-                            && row.group !== "Subtitle Appearance")
-                        rows.push(expandedSchemaRow(row))
-                }
+                if (row.group === group && row.key !== detailKey && row.key !== scaleKey && row.group !== "Subtitles"
+                        && row.group !== "Subtitle Appearance")
+                    mainRows.push(expandedSchemaRow(row))
             }
         }
-        settingsRows = rows
-        focusRow(Math.min(currentIndex, rows.length - 1))
+        for (let index = 0; index < schema.length; ++index) {
+            const row = schema[index]
+            if (row.group === "Subtitles" || row.group === "Subtitle Appearance")
+                subtitleRows.push(expandedSchemaRow(row))
+        }
+
+        settingsRowsSourceModel.clear()
+        appendSourceRows(mainRows, "main", rowMap)
+        appendSourceRows(subtitleRows, "subtitle", rowMap)
+        rowsByKey = rowMap
+        settingsRowsModel.invalidate()
     }
 
-    function rowAt(index) {
-        return index >= 0 && index < settingsRows.length ? settingsRows[index] : null
+    function refreshSettingsFilter(resetSelection) {
+        settingsRowsModel.invalidate()
+        if (resetSelection)
+            currentIndex = 0
+        Qt.callLater(function () {
+            if (settingsList.count > 0)
+                selectRow(Math.min(currentIndex, settingsList.count - 1), false)
+        })
     }
 
-    function showGroupHeader(index) {
-        const row = rowAt(index)
-        const previous = rowAt(index - 1)
-        return row && (!previous || previous.group !== row.group)
+    function currentRow() {
+        const delegate = settingsList.currentItem
+        return delegate ? delegate.rowData : null
+    }
+
+    function rowAtVisibleIndex(index) {
+        const delegate = settingsList.itemAtIndex(index)
+        return delegate ? delegate.rowData : null
     }
 
     function selectRow(index, takeFocus) {
-        if (settingsRows.length <= 0)
+        if (settingsList.count <= 0)
             return
-        currentIndex = Math.max(0, Math.min(settingsRows.length - 1, index))
+        currentIndex = Math.max(0, Math.min(settingsList.count - 1, index))
         settingsList.currentIndex = currentIndex
         settingsList.positionViewAtIndex(currentIndex, ListView.Contain)
         if (takeFocus !== false)
             InputKeys.focus(settingsList)
     }
 
-    function focusRow(index) {
-        selectRow(index, true)
+    function focusEntry() {
+        if (!subtitleEditor) {
+            InputKeys.focus(detailSelector)
+            return
+        }
+        selectRow(currentIndex, true)
     }
 
     function rowControlAt(index) {
@@ -384,12 +452,12 @@ FocusScope {
         } else if (row.type === "select") {
             settingsList.positionViewAtIndex(index, ListView.Contain)
             Qt.callLater(function () {
-                choiceDialogVisible = true
+                const anchor = rowControlAt(index)
+                if (!anchor)
+                    return
                 choiceDialogRow = row
-                Qt.callLater(function () {
-                    if (choiceDialog)
-                        choiceDialog.anchorItem = rowControlAt(index)
-                })
+                choiceDialogAnchor = anchor
+                choiceDialogVisible = true
             })
         } else if (row.type === "slider") {
             const control = rowControlAt(index)
@@ -402,9 +470,9 @@ FocusScope {
         if (!row)
             return false
         if (row.type === "select") {
-            const options = rowOptions(row)
-            if (options.length > 0)
-                setRowChoice(row, (rowCurrentIndex(row) + direction + options.length) % options.length)
+            const control = rowControlAt(settingsList.currentIndex)
+            if (control && control.move)
+                return control.move(direction)
             return true
         }
         if (row.type === "slider") {
@@ -419,11 +487,10 @@ FocusScope {
 
     function closeChoiceDialog() {
         choiceDialogVisible = false
-        if (choiceDialog)
-            choiceDialog.anchorItem = null
+        choiceDialogAnchor = null
         choiceDialogRow = null
         Qt.callLater(function () {
-            focusRow(currentIndex)
+            selectRow(currentIndex, true)
         })
     }
 
@@ -431,7 +498,7 @@ FocusScope {
         const maximum = Math.max(0, settingsList.contentHeight + settingsList.bottomMargin - settingsList.height)
         settingsList.contentY = Math.min(maximum, Math.max(0, settingsList.contentY + pixels))
         if (choiceDialog)
-            Qt.callLater(choiceDialog.positionPopup)
+            Qt.callLater(choiceDialog.completePresentation)
     }
 
     function back() {
@@ -451,14 +518,32 @@ FocusScope {
             return choiceDialog.routeKey(key, phase, repeat)
         if (phase === "release" && InputKeys.isDirection(key))
             return true
-        const row = rowAt(settingsList.currentIndex)
+        if (detailSelector.activeFocus) {
+            if (InputKeys.isHorizontal(key))
+                return detailSelector.move(key === Qt.Key_Right ? 1 : -1)
+            if (key === Qt.Key_Down) {
+                selectRow(0, true)
+                return true
+            }
+            if (key === Qt.Key_Up) {
+                if (shell)
+                    shell.focusNavBar()
+                return true
+            }
+            return InputKeys.isAccept(key)
+        }
+        const row = currentRow()
         if (InputKeys.isHorizontal(key) && adjustRow(row, key === Qt.Key_Right ? 1 : -1))
             return true
         if (InputKeys.isVertical(key) && !settingsList.activeFocus)
             InputKeys.focus(settingsList)
         if (key === Qt.Key_Up && settingsList.currentIndex <= 0) {
-            if (shell)
-                shell.focusNavBar()
+            if (subtitleEditor) {
+                if (shell)
+                    shell.focusNavBar()
+            } else {
+                InputKeys.focus(detailSelector)
+            }
             return true
         }
         return settingsList.routeKey(key, phase, repeat)
@@ -467,34 +552,32 @@ FocusScope {
     function activate() {
         if (choiceDialogVisible)
             choiceDialog.activate()
-        else
-            activateRow(rowAt(settingsList.currentIndex), settingsList.currentIndex)
+        else if (!detailSelector.activeFocus)
+            activateRow(currentRow(), settingsList.currentIndex)
     }
 
     focus: true
     onActiveFocusChanged: if (activeFocus)
-    focusRow(currentIndex)
-    onVisibleChanged: if (visible)
-    Qt.callLater(function () {
-        focusRow(currentIndex)
-    })
+    focusEntry()
+    onVisibleChanged: if (visible && activeFocus)
+    Qt.callLater(focusEntry)
     // Only take focus if the page is actually active: the route host
     // prewarms an invisible instance, which must not steal focus.
     Component.onCompleted: Qt.callLater(function () {
-        rebuildSettingsRows()
-        selectRow(0, activeFocus)
+        buildSettingsRowsSource()
+        if (activeFocus)
+            focusEntry()
     })
-    onSubtitleEditorChanged: {
-        rebuildSettingsRows()
-        selectRow(0, activeFocus)
-    }
+    onSubtitleEditorChanged: refreshSettingsFilter(true)
 
     Connections {
         target: Settings
 
         function onSettingChanged(key) {
-            if (key === "playback/manualStreamingBitrate")
-                root.rebuildSettingsRows()
+            if (key === "settings/detailLevel")
+                ++root.detailLevelRevision
+            if (key === "playback/manualStreamingBitrate" || key === "settings/detailLevel")
+                root.refreshSettingsFilter(key === "settings/detailLevel")
         }
     }
     Loader {
@@ -548,6 +631,48 @@ FocusScope {
         horizontalAlignment: Text.AlignHCenter
     }
 
+    ListModel {
+        id: settingsRowsSourceModel
+    }
+
+    SortFilterProxyModel {
+        id: settingsRowsModel
+        model: settingsRowsSourceModel
+        filters: FunctionFilter {
+            function filter(data: RowData): bool {
+                const row = root.rowsByKey[data.rowKey]
+                if (!root.rowAvailable(row))
+                    return false
+                if (root.subtitleEditor)
+                    return data.rowContext === "subtitle"
+                return data.rowContext === "main" && data.detailLevel <= root.currentDetailLevel()
+            }
+        }
+    }
+    component RowData: QtObject {
+        property string rowKey
+        property string rowContext
+        property int detailLevel
+    }
+
+    ChoiceStrip {
+        id: detailSelector
+        visible: !root.subtitleEditor
+        width: settingsList.width
+        anchors.top: parent.top
+        anchors.right: parent.right
+        anchors.topMargin: Metrics.pageMarginPx
+        anchors.rightMargin: Metrics.pageMarginPx
+        title: "Settings Shown"
+        description: "Choose how much control and diagnostic detail is visible"
+        options: ["Essential", "Advanced", "Expert"]
+        currentIndex: {
+            root.detailLevelRevision
+            return root.currentDetailLevel()
+        }
+        onSelected: index => Settings.setValue("settings/detailLevel", ["Essential", "More", "All"][index])
+    }
+
     MenuListView {
         id: settingsList
         readonly property real pageInset: Metrics.pageMarginPx
@@ -555,15 +680,15 @@ FocusScope {
                                                                                                             parent.width
                                                                                                             - pageInset
                                                                                                             * 2)
-        anchors.top: parent.top
+        anchors.top: root.subtitleEditor ? parent.top : detailSelector.bottom
         anchors.bottom: parent.bottom
         anchors.right: parent.right
-        anchors.topMargin: pageInset
+        anchors.topMargin: root.subtitleEditor ? pageInset : Metrics.scaled(10)
         anchors.rightMargin: pageInset
         anchors.bottomMargin: pageInset
         bottomMargin: root.choiceDialogVisible && root.choiceDialog ? root.choiceDialog.panelHeight + Metrics.scaled(16) :
                                                                       0
-        model: root.settingsRows
+        model: settingsRowsModel
         dismissOnBack: false
         dismissOnHorizontal: false
         spacing: Metrics.scaled(10)
@@ -572,12 +697,20 @@ FocusScope {
             root.currentIndex = currentIndex
             positionViewAtIndex(currentIndex, ListView.Contain)
         }
-        onAccepted: index => root.activateRow(root.rowAt(index), index)
+        onAccepted: index => root.activateRow(root.rowAtVisibleIndex(index), index)
         onEdgeUp: if (root.shell && !root.subtitleEditor)
         root.shell.focusNavBar()
         delegate: Column {
             required property int index
-            required property var modelData
+            required property string rowKey
+            required property bool headerEssential
+            required property bool headerAdvanced
+            required property bool headerExpert
+            readonly property var rowData: root.rowsByKey[rowKey]
+            readonly property bool showHeader: root.subtitleEditor ? (index === 0 || headerExpert) : root.currentDetailLevel(
+                                                                         ) === 0 ? headerEssential :
+                                                                                   root.currentDetailLevel() === 1
+                                                                                   ? headerAdvanced : headerExpert
             width: settingsList.width
             Component.onCompleted: {
                 InputLatency.noteDelegate("settings_row", 1)
@@ -585,22 +718,22 @@ FocusScope {
                 root.contentReady = true
             }
             Component.onDestruction: InputLatency.noteDelegate("settings_row", -1)
-            readonly property Item controlItem: rowLoader.item
+            readonly property var controlItem: rowLoader.item
             spacing: Metrics.scaled(10)
 
             SectionHeader {
                 width: parent.width
-                visible: root.showGroupHeader(index)
-                title: modelData.group
+                visible: parent.showHeader
+                title: rowData.group
             }
             Loader {
                 id: rowLoader
                 width: parent.width
-                property var row: modelData
+                property var row: rowData
                 property int rowIndex: index
-                sourceComponent: modelData.type === "toggle" ? toggleComponent : modelData.type === "select"
-                                                               ? selectComponent : modelData.type === "slider"
-                                                                 ? sliderComponent : settingComponent
+                sourceComponent: rowData.type === "toggle" ? toggleComponent : rowData.type === "select"
+                                                             ? selectComponent : rowData.type === "slider"
+                                                               ? sliderComponent : settingComponent
                 onLoaded: {
                     item.row = row
                     item.rowIndex = rowIndex
@@ -622,7 +755,10 @@ FocusScope {
             description: row ? root.rowDescription(row) : ""
             valueText: row ? root.rowValueText(row) : ""
             pointerActivationEnabled: row && row.type === "action"
-            onClicked: root.activateRow(row, rowIndex)
+            onClicked: {
+                root.selectRow(rowIndex, true)
+                root.activateRow(row, rowIndex)
+            }
         }
     }
 
@@ -638,7 +774,10 @@ FocusScope {
             title: row ? row.title : ""
             description: row ? root.rowDescription(row) : ""
             checked: row ? Boolean(root.settingsValue(row)) : false
-            onToggled: checked => root.setRowValue(row, checked, -1)
+            onToggled: checked => {
+                root.selectRow(rowIndex, true)
+                root.setRowValue(row, checked, -1)
+            }
         }
     }
 
@@ -654,7 +793,10 @@ FocusScope {
             rowFocus: settingsList.activeFocus && settingsList.currentIndex === rowIndex
             title: row ? row.title : ""
             description: row ? root.rowDescription(row) : ""
-            onOpened: root.activateRow(row, rowIndex)
+            onOpened: {
+                root.selectRow(rowIndex, true)
+                root.activateRow(row, rowIndex)
+            }
             options: row ? root.rowOptions(row) : []
             currentIndex: row ? root.rowCurrentIndex(row) : 0
             onSelected: (index, value) => root.setRowChoice(row, index)
@@ -685,9 +827,11 @@ FocusScope {
     }
     Loader {
         id: choiceDialogLoader
+        anchors.fill: parent
         active: root.choiceDialogVisible
         sourceComponent: OptionPickerDialog {
             visible: true
+            anchorItem: root.choiceDialogAnchor
             title: root.choiceDialogRow ? root.choiceDialogRow.title : "Choose an option"
             options: root.choiceDialogRow ? root.rowOptions(root.choiceDialogRow) : []
             currentIndex: root.choiceDialogRow ? root.rowCurrentIndex(root.choiceDialogRow) : 0

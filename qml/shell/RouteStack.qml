@@ -96,6 +96,11 @@ FocusScope {
         const promoted = existing && existing.status === Loader.Loading
         const loader = loaderFor(key)
         pendingLoader = loader
+        // Finish in-flight incubation synchronously when someone is actively
+        // waiting on this exact page: a promoted prewarm the user beat to the
+        // punch, or the startup route while nothing else is on screen yet.
+        if (promoted || activeRoute === "")
+            loader.asynchronous = false
         const warm = loader.status === Loader.Ready && Boolean(loader.item)
         const cacheHit = warm ? "hit" : promoted ? "promoted" : "miss"
         uiTransitionToken = InputLatency.beginUiTransition("route:" + route + (warm ? ":warm" : ":cold"), activeRoute, route,
@@ -138,8 +143,14 @@ FocusScope {
         activeRoute = route
         InputLatency.mark(uiTransitionToken, "shell")
         dropTransientPages()
-        if (Session.authenticated && !pages["settings"])
+        if (NativeWindow.smartTvPlatform)
+            Qt.callLater(evictInactiveMediaPages)
+        if (Session.authenticated && !prewarmScheduled) {
+            prewarmScheduled = true
+            prewarmQueue = NativeWindow.smartTvPlatform ? ["settings"] : ["settings", "libraryGrid", "itemDetails",
+                                                                          "personDetails"]
             prewarmTimer.start()
+        }
         completeUiTransitionIfReady()
     }
 
@@ -153,10 +164,27 @@ FocusScope {
         }
     }
 
+    function evictInactiveMediaPages() {
+        if (!NativeWindow.smartTvPlatform)
+            return
+        for (const key of ["home", "libraryGrid", "itemDetails", "personDetails", "search", "openSourceNotices"]) {
+            const loader = pages[key]
+            if (loader && loader !== activeLoader) {
+                delete pages[key]
+                loader.destroy()
+                console.info("route host: released inactive", key)
+            }
+        }
+    }
+
     // Memory-pressure eviction: keep the active page plus the cheap,
     // frequently visited residents (home/settings/libraryGrid).
     function trim() {
-        for (const key of ["itemDetails", "personDetails", "search", "openSourceNotices"]) {
+        const candidates = NativeWindow.smartTvPlatform ? ["home", "settings", "libraryGrid", "itemDetails",
+                                                           "personDetails", "search", "openSourceNotices"] :
+                                                          ["itemDetails", "personDetails", "search",
+                                                           "openSourceNotices"]
+        for (const key of candidates) {
             const loader = pages[key]
             if (loader && loader !== activeLoader) {
                 delete pages[key]
@@ -220,12 +248,28 @@ FocusScope {
         return Boolean(activeItem && activeItem.back && activeItem.back())
     }
 
+    // Cold page construction costs 300-700 ms on TV hardware while warm hits
+    // land in tens of ms, so build every resident page during post-launch
+    // idle, one at a time to keep the GUI thread responsive between them.
+    property var prewarmQueue: []
+    property bool prewarmScheduled: false
+
     Timer {
         id: prewarmTimer
         interval: 1500
-        repeat: false
-        onTriggered: if (!root.pages["settings"])
-                         root.loaderFor("settings")
+        repeat: true
+        onTriggered: {
+            if (root.prewarmQueue.length === 0) {
+                stop()
+                return
+            }
+            const key = root.prewarmQueue.shift()
+            if (!root.pages[key]) {
+                root.loaderFor(key)
+                console.info("route host: prewarming", key)
+            }
+            interval = 600
+        }
     }
 
     Component {

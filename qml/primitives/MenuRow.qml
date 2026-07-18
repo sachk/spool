@@ -18,9 +18,14 @@ Item {
     property int metricsWidth: root.Window.window ? root.Window.window.width : 1920
     property int rowHeight: Metrics.scaled(detail.length > 0 ? 54 : 46)
     property string checkIconName: "done"
+    property bool stepperVisible: false
+    property bool stepperEnabled: true
+    property string stepperText: ""
 
     signal activated
     signal hovered
+    signal decreaseRequested
+    signal increaseRequested
 
     width: parent ? parent.width : Metrics.scaled(320)
     height: section ? Metrics.scaled(34) : rowHeight
@@ -89,6 +94,70 @@ Item {
                 font.pixelSize: Metrics.metaSizePx - 1
                 maximumLineCount: 1
                 elide: Text.ElideRight
+            }
+        }
+
+        RowLayout {
+            visible: root.stepperVisible
+            spacing: Metrics.scaled(6)
+
+            Rectangle {
+                Layout.preferredWidth: Metrics.scaled(38)
+                Layout.preferredHeight: Metrics.scaled(34)
+                radius: Theme.radiusSmall
+                color: minusHover.hovered && root.stepperEnabled ? Theme.bgHover : Theme.bgPanel
+                border.width: Theme.hoverBorderWidth
+                border.color: root.stepperEnabled ? Theme.borderStrong : Theme.border
+
+                AppText {
+                    anchors.centerIn: parent
+                    text: "−"
+                    color: root.stepperEnabled ? Theme.textPrimary : Theme.textDisabled
+                    font.pixelSize: Metrics.titleSizePx
+                    font.weight: Font.DemiBold
+                }
+                TapHandler {
+                    enabled: root.stepperEnabled
+                    onTapped: root.decreaseRequested()
+                }
+                HoverHandler {
+                    id: minusHover
+                    enabled: root.stepperEnabled
+                }
+            }
+
+            MonoText {
+                Layout.preferredWidth: Metrics.scaled(68)
+                text: root.stepperText
+                color: root.stepperEnabled ? Theme.textPrimary : Theme.textSecondary
+                font.pixelSize: Metrics.bodySizePx
+                font.weight: Font.DemiBold
+                horizontalAlignment: Text.AlignHCenter
+            }
+
+            Rectangle {
+                Layout.preferredWidth: Metrics.scaled(38)
+                Layout.preferredHeight: Metrics.scaled(34)
+                radius: Theme.radiusSmall
+                color: plusHover.hovered && root.stepperEnabled ? Theme.bgHover : Theme.bgPanel
+                border.width: Theme.hoverBorderWidth
+                border.color: root.stepperEnabled ? Theme.borderStrong : Theme.border
+
+                AppText {
+                    anchors.centerIn: parent
+                    text: "+"
+                    color: root.stepperEnabled ? Theme.textPrimary : Theme.textDisabled
+                    font.pixelSize: Metrics.titleSizePx
+                    font.weight: Font.DemiBold
+                }
+                TapHandler {
+                    enabled: root.stepperEnabled
+                    onTapped: root.increaseRequested()
+                }
+                HoverHandler {
+                    id: plusHover
+                    enabled: root.stepperEnabled
+                }
             }
         }
 

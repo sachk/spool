@@ -122,6 +122,15 @@ FocusScope {
         return key === Qt.Key_Up
     }
 
+    TapHandler {
+        acceptedButtons: Qt.LeftButton
+        onTapped: eventPoint => {
+            const local = syncButton.mapFromItem(root, eventPoint.position.x, eventPoint.position.y)
+            if (!syncButton.contains(local))
+            root.closeSyncPlayMenu()
+        }
+    }
+
     Rectangle {
         anchors.fill: parent
         color: Theme.bgRaised
@@ -174,6 +183,11 @@ FocusScope {
                     label: "Settings",
                     route: "settings",
                     icon: "settings"
+                },
+                {
+                    label: "Switch user",
+                    route: "switchUser",
+                    icon: "person"
                 }
             ]
 

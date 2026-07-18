@@ -20,12 +20,15 @@
 #include "UserItemStateController.h"
 
 #include <QDebug>
+#include <QGuiApplication>
 #include <QJsonArray>
+#include <QKeyEvent>
 #include <QPixmapCache>
 #include <QStringList>
 #include <QTimer>
 #include <QUuid>
 #include <QVariantMap>
+#include <QWindow>
 
 #include <algorithm>
 #include <memory>
@@ -38,6 +41,9 @@ namespace JellyfinNative {
 namespace {
 
     constexpr int kLibraryPageSize = 100;
+    // Reopening a library within this window shows the cached page as-is;
+    // a server refresh so soon after the last one only causes delegate churn.
+    constexpr qint64 kFreshLibraryCacheMs = 30000;
 
     bool isBrowseContainer(const MovieItem& item)
     {
@@ -57,8 +63,8 @@ AppController::AppController(DatabaseManager *database, DiscoveryController *dis
     , m_artwork(artwork)
     , m_player(player)
 {
-    m_syncPlay = new SyncPlayController(api, player, this);
     m_playQueue = new PlayQueueController(api, this);
+    m_syncPlay = new SyncPlayController(api, player, m_playQueue, this);
     m_quickConnect = new QuickConnectController(api, this);
     m_settings = new SettingsController(database, api, player, this);
     m_session = new SessionController(database, api, this);
@@ -79,6 +85,28 @@ AppController::AppController(DatabaseManager *database, DiscoveryController *dis
     connect(m_browse, &BrowseSessionController::moreItemsRequested, this, &AppController::loadMoreCurrentItems);
     connect(m_api, &JellyfinApiFacade::authenticationExpired, m_session, &SessionController::expireSession);
     connect(m_syncPlay, &SyncPlayController::errorText, this, &AppController::showToast);
+    connect(m_syncPlay, &SyncPlayController::groupChanged, this,
+        [this]() { m_player->setKeepPlayingInBackground(m_syncPlay->enabled()); });
+    connect(m_syncPlay, &SyncPlayController::remotePlayCommand, this, &AppController::handleRemotePlay);
+    connect(m_syncPlay, &SyncPlayController::remotePlaystateCommand, this, &AppController::handleRemotePlaystate);
+    connect(m_syncPlay, &SyncPlayController::remoteGeneralCommand, this, &AppController::handleRemoteGeneralCommand);
+    connect(m_syncPlay, &SyncPlayController::queuePlaybackRequested, this, [this](qint64 positionTicks) {
+        MovieItem item = m_playQueue->currentItem();
+        if (item.id.isEmpty())
+            return;
+        item.resumeTicks = std::max<qint64>(0, positionTicks);
+        if (m_player->sessionActive() && m_activePlaybackItem.id != item.id)
+            m_player->stopWithReason(QStringLiteral("syncplay-group-switch"));
+        m_activePlaybackItem = item;
+        setBusy(true, QStringLiteral("Joining SyncPlay playback…"));
+        Async::runScoped(
+            this, startPlayback(item, true), []() {},
+            [this](const std::exception_ptr& error) {
+                setBusy(false);
+                showToast(exceptionMessage(error));
+            },
+            "SyncPlay playback startup");
+    });
     connect(m_content, &ContentModelController::errorOccurred, this, &AppController::showToast);
     connect(m_search, &SearchController::errorOccurred, this, &AppController::showToast);
     connect(m_itemState, &UserItemStateController::errorOccurred, this, &AppController::setErrorText);
@@ -95,6 +123,13 @@ AppController::AppController(DatabaseManager *database, DiscoveryController *dis
     connect(m_settings, &SettingsController::errorOccurred, this, &AppController::showToast);
     connect(m_session, &SessionController::busyChanged, this, &AppController::setBusy);
     connect(m_session, &SessionController::errorOccurred, this, &AppController::setErrorText);
+    connect(m_session, &SessionController::accountProfilesChanged, this, [this]() {
+        const bool hasProfiles = !m_session->accountProfiles().isEmpty();
+        if (m_hasDefaultProfile == hasProfiles)
+            return;
+        m_hasDefaultProfile = hasProfiles;
+        emit defaultProfileChanged();
+    });
     connect(m_session, &SessionController::authenticatedChanged, this, [this](const AuthSession&) {
         if (m_artwork)
             m_artwork->setAuthorizationHeader(m_api->authorizationHeader());
@@ -122,6 +157,24 @@ AppController::AppController(DatabaseManager *database, DiscoveryController *dis
     });
 
     connect(m_player, &PlayerController::playbackStopped, this, &AppController::handlePlaybackStopped);
+    connect(m_player, &PlayerController::playbackLoadFailed, this,
+        [this](const QString& itemId, qint64 positionTicks, const QString&) {
+            if (m_codecFallbackAttempted || itemId.isEmpty() || itemId != m_activePlaybackItem.id)
+                return;
+            m_codecFallbackAttempted = true;
+            MovieItem retryItem = m_activePlaybackItem;
+            retryItem.resumeTicks = std::max<qint64>(0, positionTicks);
+            m_player->teardownMpv();
+            setBusy(true, QStringLiteral("Trying a compatible server stream…"));
+            showToast(QStringLiteral("Direct playback was not supported; retrying once with server transcoding."));
+            Async::runScoped(
+                this, startPlayback(retryItem, false, true), []() {},
+                [this](const std::exception_ptr& error) {
+                    setBusy(false);
+                    showToast(exceptionMessage(error));
+                },
+                "playback codec fallback");
+        });
 }
 
 void AppController::initialize()
@@ -144,16 +197,13 @@ QCoro::Task<void> AppController::initializeAsync()
     co_await m_settings->loadLocalAsync();
     m_prefetch->configureImagePrefetch(m_settings->value(QStringLiteral("network/imagePrefetchAhead")).toInt(),
         m_settings->value(QStringLiteral("network/imagePrefetchConcurrency")).toInt());
-    const bool authenticated = co_await m_session->initializeAsync();
-    const bool hasDefaultProfile = authenticated;
+    const bool hasDefaultProfile = co_await m_session->initializeAsync();
     if (m_hasDefaultProfile != hasDefaultProfile) {
         m_hasDefaultProfile = hasDefaultProfile;
         emit defaultProfileChanged();
     }
-    if (!authenticated) {
-        co_await applyDiscoveredServersCacheAsync();
-        m_discovery->start();
-    }
+    co_await applyDiscoveredServersCacheAsync();
+    m_discovery->start();
     m_initialized = true;
     emit initializedChanged();
 }
@@ -163,6 +213,7 @@ void AppController::chooseDiscoveredServer(int index)
     const auto server = m_discoveredServers.serverAt(index);
     if (server.address.isEmpty())
         return;
+    m_session->setServerName(server.name);
     m_session->setServerUrl(server.address);
 }
 
@@ -175,6 +226,7 @@ void AppController::rememberServer(const QString& name, const QString& address)
     m_discoveredServers.upsertServer({ normalizedAddress,
         name.trimmed().isEmpty() ? QStringLiteral("Jellyfin Server") : name.trimmed(), normalizedAddress });
     cacheDiscoveredServers();
+    m_session->setServerName(name.trimmed().isEmpty() ? QStringLiteral("Jellyfin Server") : name.trimmed());
     m_session->setServerUrl(normalizedAddress);
 }
 
@@ -186,17 +238,12 @@ void AppController::cacheDiscoveredServers()
     m_database->saveDiscoveredServers(cache);
 }
 
-bool AppController::useDefaultProfile()
+bool AppController::useProfile(const QString& profileId)
 {
     setErrorText({});
     m_quickConnect->cancel();
-
-    if (!m_session->authenticated()) {
-        Async::runScoped(
-            this, useDefaultProfileAsync(), [](bool) {},
-            [this](const std::exception_ptr& error) { setErrorText(exceptionMessage(error)); }, "default profile");
+    if (!m_session->activateProfile(profileId))
         return false;
-    }
 
     if (m_libraries.rowCount() <= 0) {
         loadLibraries();
@@ -209,17 +256,6 @@ bool AppController::useDefaultProfile()
     return true;
 }
 
-QCoro::Task<bool> AppController::useDefaultProfileAsync()
-{
-    const AuthSession session = co_await m_database->loadAuthSessionAsync();
-    if (session.accessToken.isEmpty() || m_session->serverUrl().isEmpty()) {
-        setErrorText(QStringLiteral("This saved profile needs to sign in again."));
-        co_return false;
-    }
-    m_session->acceptSession(session);
-    co_return true;
-}
-
 void AppController::switchUser()
 {
     qInfo() << "app: switch user requested";
@@ -230,6 +266,7 @@ void AppController::switchUser()
         m_database->invalidateHomePayloads();
     setBusy(false);
     setErrorText({});
+    m_session->deactivate();
     m_discovery->start();
 }
 
@@ -264,10 +301,6 @@ void AppController::resetApplicationState()
     m_browse->reset();
     setBusy(false);
     setErrorText({});
-    if (m_hasDefaultProfile) {
-        m_hasDefaultProfile = false;
-        emit defaultProfileChanged();
-    }
     Async::runScoped(
         this, applyDiscoveredServersCacheAsync(), []() {},
         [](const std::exception_ptr& error) {
@@ -297,6 +330,19 @@ void AppController::openLibrary(int index)
     m_browse->enterLibrary(library, libraryContentLabel(library), defaultLibraryQuery(library));
     m_home->recordLibraryUse(library);
     loadLibraryFilterOptions(beginBrowse(true), library);
+}
+
+bool AppController::openLibraryById(const QString& libraryId)
+{
+    if (libraryId.isEmpty())
+        return false;
+    for (int index = 0; index < m_libraries.count(); ++index) {
+        if (m_libraries.libraryAt(index).id == libraryId) {
+            openLibrary(index);
+            return true;
+        }
+    }
+    return false;
 }
 
 void AppController::playOrOpen(const MovieItem& item, bool fromStart)
@@ -332,20 +378,38 @@ void AppController::playFromModel(QObject *model, int index, bool fromStart)
     const MovieItem item = movieModel->movieAt(index);
     if (isBrowseContainer(item))
         playOrOpen(item, fromStart);
+    else if (item.itemType == QStringLiteral("Episode") && !item.seriesId.isEmpty())
+        playQueuedItem(item, fromStart);
     else
         playQueuedItems(movieModel->movies(), index, fromStart);
 }
 
 void AppController::playQueueNext()
 {
-    if (!queueMutationAllowed() || !m_playQueue->next())
+    if (!m_playQueue->canGoNext()) {
+        playEpisodeWithContext(m_playQueue->currentItem(), 1, true);
+        return;
+    }
+    if (m_syncPlay && m_syncPlay->enabled()) {
+        m_syncPlay->requestNextItem();
+        return;
+    }
+    if (!m_playQueue->next())
         return;
     playQueueCurrent(false);
 }
 
 void AppController::playQueuePrevious()
 {
-    if (!queueMutationAllowed() || !m_playQueue->previous())
+    if (!m_playQueue->canGoPrevious()) {
+        playEpisodeWithContext(m_playQueue->currentItem(), -1, true);
+        return;
+    }
+    if (m_syncPlay && m_syncPlay->enabled()) {
+        m_syncPlay->requestPreviousItem();
+        return;
+    }
+    if (!m_playQueue->previous())
         return;
     playQueueCurrent(true);
 }
@@ -426,13 +490,111 @@ void AppController::playModel(MovieGridModel *model, bool shuffled)
         m_playQueue->setShuffled(true);
 }
 
+void AppController::playEpisodicContainer(const QString& seriesId, const QString& seasonId)
+{
+    if (!m_api || seriesId.isEmpty())
+        return;
+
+    const quint64 generation = ++m_episodeQueueGeneration;
+    setBusy(true,
+        seasonId.isEmpty() ? QStringLiteral("Finding the next episode…")
+                           : QStringLiteral("Finding the next episode in this season…"));
+    Async::runScoped(
+        this, m_api->fetchEpisodes(seriesId, seasonId),
+        [this, generation](const std::vector<MovieItem>& episodes) {
+            if (generation != m_episodeQueueGeneration)
+                return;
+            const int startIndex = episodicPlaybackStartIndex(episodes);
+            if (startIndex < 0) {
+                setBusy(false);
+                showToast(QStringLiteral("There is no unplayed episode available after the last watched episode."));
+                return;
+            }
+            playQueuedItems(episodes, startIndex, false);
+        },
+        [this, generation](const std::exception_ptr& error) {
+            if (generation != m_episodeQueueGeneration)
+                return;
+            setBusy(false);
+            showToast(exceptionMessage(error));
+        },
+        "episodic container playback");
+}
+
 void AppController::playQueuedItem(const MovieItem& item, bool fromStart)
 {
+    if (item.itemType == QStringLiteral("Episode") && !item.seriesId.isEmpty()) {
+        playEpisodeWithContext(item, 0, fromStart);
+        return;
+    }
     if (!m_playQueue->playNow(item)) {
         showToast(QStringLiteral("This item cannot be queued."));
         return;
     }
     startQueuedPlayback(fromStart);
+}
+
+void AppController::playEpisodeWithContext(const MovieItem& episode, int direction, bool fromStart)
+{
+    if (!m_api || episode.itemType != QStringLiteral("Episode") || episode.seriesId.isEmpty()) {
+        if (direction == 0 && m_playQueue->playNow(episode))
+            startQueuedPlayback(fromStart);
+        return;
+    }
+
+    const quint64 generation = ++m_episodeQueueGeneration;
+    setBusy(true, direction == 0 ? QStringLiteral("Loading episode queue…") : QStringLiteral("Finding episode…"));
+    Async::runScoped(
+        this, m_api->fetchEpisodes(episode.seriesId),
+        [this, generation, episode, direction, fromStart](const std::vector<MovieItem>& episodes) {
+            if (generation != m_episodeQueueGeneration)
+                return;
+            const auto current = std::find_if(episodes.begin(), episodes.end(),
+                [&episode](const MovieItem& candidate) { return candidate.id == episode.id; });
+            if (current == episodes.end()) {
+                setBusy(false);
+                if (direction == 0 && m_playQueue->playNow(episode))
+                    startQueuedPlayback(fromStart);
+                else
+                    showToast(QStringLiteral("This episode was not found in its series."));
+                return;
+            }
+
+            int targetIndex = static_cast<int>(std::distance(episodes.begin(), current));
+            if (direction != 0) {
+                int candidate = targetIndex + direction;
+                while (candidate >= 0 && candidate < static_cast<int>(episodes.size())
+                    && !isPlayableItem(episodes[static_cast<size_t>(candidate)])) {
+                    candidate += direction;
+                }
+                if (candidate < 0 || candidate >= static_cast<int>(episodes.size())) {
+                    setBusy(false);
+                    showToast(direction < 0 ? QStringLiteral("There is no previous episode.")
+                                            : QStringLiteral("There is no next episode."));
+                    return;
+                }
+                targetIndex = candidate;
+            }
+
+            if (!m_playQueue->playNow(episodes, targetIndex)) {
+                setBusy(false);
+                showToast(QStringLiteral("The adjacent episode could not be queued."));
+                return;
+            }
+            qInfo() << "play queue: loaded episode context" << episodes.size() << "items, target" << targetIndex;
+            startQueuedPlayback(direction == 0 ? fromStart : true);
+        },
+        [this, generation, episode, direction, fromStart](const std::exception_ptr& error) {
+            if (generation != m_episodeQueueGeneration)
+                return;
+            setBusy(false);
+            if (direction == 0 && m_playQueue->playNow(episode)) {
+                startQueuedPlayback(fromStart);
+                return;
+            }
+            showToast(exceptionMessage(error));
+        },
+        "episode queue context");
 }
 
 void AppController::startQueuedPlayback(bool fromStart)
@@ -454,7 +616,7 @@ void AppController::startQueuedPlayback(bool fromStart)
     setBusy(true, QStringLiteral("Updating SyncPlay queue…"));
     Async::runScoped(
         this, m_api->syncPlaySetNewQueue(itemIds, m_playQueue->currentIndex(), startPositionTicks),
-        [this, fromStart]() { playQueueCurrent(fromStart); },
+        [this]() { m_syncPlay->requestUnpauseWhenReady(); },
         [this](const std::exception_ptr& error) {
             setBusy(false);
             showToast(exceptionMessage(error));
@@ -480,6 +642,143 @@ void AppController::playQueueCurrent(bool fromStart)
         "playback startup");
 }
 
+void AppController::handleRemotePlay(const QJsonObject& data)
+{
+    QStringList itemIds;
+    for (const QJsonValue& value : data.value(QStringLiteral("ItemIds")).toArray()) {
+        const QString id = value.toString();
+        if (!id.isEmpty())
+            itemIds.push_back(id);
+    }
+    if (itemIds.isEmpty())
+        return;
+
+    const QString command = data.value(QStringLiteral("PlayCommand")).toString(QStringLiteral("PlayNow"));
+    const int requestedIndex = data.value(QStringLiteral("StartIndex")).toInt(0);
+    const qint64 startTicks = data.value(QStringLiteral("StartPositionTicks")).toVariant().toLongLong();
+    qInfo() << "remote: play" << command << itemIds.size() << "items, index" << requestedIndex;
+    Async::runScoped(
+        this, m_api->fetchItemsByIds(itemIds),
+        [this, itemIds, command, requestedIndex, startTicks](const std::vector<MovieItem>& fetched) {
+            std::vector<MovieItem> ordered;
+            ordered.reserve(static_cast<size_t>(itemIds.size()));
+            for (const QString& id : itemIds) {
+                const auto found = std::find_if(
+                    fetched.begin(), fetched.end(), [&id](const MovieItem& item) { return item.id == id; });
+                if (found != fetched.end())
+                    ordered.push_back(*found);
+            }
+            if (ordered.empty()) {
+                showToast(QStringLiteral("The remote playback item is unavailable."));
+                return;
+            }
+
+            if (command == QStringLiteral("PlayNext")) {
+                for (auto item = ordered.rbegin(); item != ordered.rend(); ++item)
+                    m_playQueue->playNext(*item);
+                return;
+            }
+            if (command == QStringLiteral("PlayLast")) {
+                for (const MovieItem& item : ordered)
+                    m_playQueue->addToQueue(item);
+                return;
+            }
+
+            const int index = std::clamp(requestedIndex, 0, static_cast<int>(ordered.size()) - 1);
+            ordered[static_cast<size_t>(index)].resumeTicks = std::max<qint64>(0, startTicks);
+            if (command == QStringLiteral("PlayShuffle")) {
+                m_playQueue->playNow(ordered, index);
+                m_playQueue->setShuffled(true);
+            } else {
+                m_playQueue->playNow(ordered, index);
+            }
+            startQueuedPlayback(startTicks <= 0);
+        },
+        [this](const std::exception_ptr& error) { showToast(exceptionMessage(error)); }, "remote playback request");
+}
+
+void AppController::handleRemotePlaystate(const QJsonObject& data)
+{
+    const QString command = data.value(QStringLiteral("Command")).toString();
+    qInfo() << "remote: playstate" << command;
+    if (command == QStringLiteral("Stop")) {
+        m_player->stopWithReason(QStringLiteral("remote-stop"));
+    } else if (command == QStringLiteral("Pause")) {
+        if (!m_player->paused())
+            m_syncPlay->enabled() ? m_syncPlay->requestTogglePause() : m_player->togglePause();
+    } else if (command == QStringLiteral("Unpause")) {
+        if (m_player->paused())
+            m_syncPlay->enabled() ? m_syncPlay->requestTogglePause() : m_player->togglePause();
+    } else if (command == QStringLiteral("PlayPause")) {
+        m_syncPlay->enabled() ? m_syncPlay->requestTogglePause() : m_player->togglePause();
+    } else if (command == QStringLiteral("Seek")) {
+        const double seconds
+            = static_cast<double>(data.value(QStringLiteral("SeekPositionTicks")).toVariant().toLongLong())
+            / 10'000'000.0;
+        m_syncPlay->enabled() ? m_syncPlay->requestSeek(seconds) : m_player->seek(seconds);
+    } else if (command == QStringLiteral("Rewind")) {
+        m_syncPlay->enabled() ? m_syncPlay->requestRelativeSeek(-10.0) : m_player->seekBack();
+    } else if (command == QStringLiteral("FastForward")) {
+        m_syncPlay->enabled() ? m_syncPlay->requestRelativeSeek(10.0) : m_player->seekForward();
+    } else if (command == QStringLiteral("NextTrack")) {
+        playQueueNext();
+    } else if (command == QStringLiteral("PreviousTrack")) {
+        playQueuePrevious();
+    }
+}
+
+void AppController::handleRemoteGeneralCommand(const QJsonObject& data)
+{
+    const QString command = data.value(QStringLiteral("Name")).toString();
+    const QJsonObject arguments = data.value(QStringLiteral("Arguments")).toObject();
+    qInfo() << "remote: general command" << command;
+
+    if (command == QStringLiteral("SetVolume")) {
+        m_player->setVolume(arguments.value(QStringLiteral("Volume")).toString().toInt());
+    } else if (command == QStringLiteral("VolumeUp")) {
+        m_player->adjustVolume(5);
+    } else if (command == QStringLiteral("VolumeDown")) {
+        m_player->adjustVolume(-5);
+    } else if (command == QStringLiteral("SetAudioStreamIndex")) {
+        m_player->selectAudioStreamIndex(arguments.value(QStringLiteral("Index")).toString().toInt());
+    } else if (command == QStringLiteral("SetSubtitleStreamIndex")) {
+        m_player->selectSubtitleStreamIndex(arguments.value(QStringLiteral("Index")).toString().toInt());
+    } else if (command == QStringLiteral("ToggleStats")) {
+        m_player->toggleDebugOsd();
+    } else if (command == QStringLiteral("ToggleOsd")) {
+        emit remoteUiActionRequested(QStringLiteral("toggle-osd"));
+    } else if (command == QStringLiteral("ToggleContextMenu")) {
+        emit remoteUiActionRequested(QStringLiteral("context-menu"));
+    } else if (command == QStringLiteral("GoHome")) {
+        emit remoteUiActionRequested(QStringLiteral("home"));
+    } else if (command == QStringLiteral("GoToSettings")) {
+        emit remoteUiActionRequested(QStringLiteral("settings"));
+    } else if (command == QStringLiteral("GoToSearch")) {
+        emit remoteUiActionRequested(QStringLiteral("search"));
+    } else if (command == QStringLiteral("Play")) {
+        if (m_player->paused())
+            m_syncPlay->enabled() ? m_syncPlay->requestTogglePause() : m_player->togglePause();
+    } else if (command == QStringLiteral("DisplayMessage")) {
+        showToast(arguments.value(QStringLiteral("Text")).toString());
+    } else {
+        const QHash<QString, int> keys = {
+            { QStringLiteral("MoveUp"), Qt::Key_Up },
+            { QStringLiteral("MoveDown"), Qt::Key_Down },
+            { QStringLiteral("MoveLeft"), Qt::Key_Left },
+            { QStringLiteral("MoveRight"), Qt::Key_Right },
+            { QStringLiteral("Select"), Qt::Key_Return },
+            { QStringLiteral("Back"), Qt::Key_Back },
+        };
+        const auto found = keys.constFind(command);
+        if (found != keys.cend() && QGuiApplication::focusWindow()) {
+            QKeyEvent press(QEvent::KeyPress, *found, Qt::NoModifier);
+            QKeyEvent release(QEvent::KeyRelease, *found, Qt::NoModifier);
+            QCoreApplication::sendEvent(QGuiApplication::focusWindow(), &press);
+            QCoreApplication::sendEvent(QGuiApplication::focusWindow(), &release);
+        }
+    }
+}
+
 bool AppController::queueMutationAllowed()
 {
     if (m_syncPlay && m_syncPlay->enabled()) {
@@ -489,16 +788,18 @@ bool AppController::queueMutationAllowed()
     return true;
 }
 
-QCoro::Task<void> AppController::startPlayback(MovieItem playItem)
+QCoro::Task<void> AppController::startPlayback(MovieItem playItem, bool startPaused, bool forceTranscode)
 {
     Diagnostics::Task task(QStringLiteral("playback_negotiate"),
         { { QStringLiteral("itemId"), playItem.id }, { QStringLiteral("title"), playItem.title },
             { QStringLiteral("type"), playItem.itemType } });
 
-    PlaybackSession session = co_await m_api->negotiatePlayback(playItem);
+    if (!forceTranscode)
+        m_codecFallbackAttempted = false;
+    PlaybackSession session = co_await m_api->negotiatePlayback(playItem, forceTranscode);
     session.nowPlayingQueue = m_playQueue->nowPlayingQueue();
     setBusy(false);
-    m_player->play(session);
+    m_player->play(session, startPaused);
 
     const QString itemId = playItem.id;
     Async::runScoped(
@@ -623,6 +924,16 @@ void AppController::loadLibraryFilterOptions(RequestGeneration::Token generation
         });
 }
 
+void AppController::showCurrentItemsPage(const PagedMovieItems& page, const QString& cacheKey, bool append)
+{
+    m_browse->setPage(page, cacheKey, append);
+    // Keep the warm cache in sync with what the user just saw so the next
+    // open of this library can skip the refresh while the data is fresh.
+    if (!append && page.startIndex == 0 && m_prefetch)
+        m_prefetch->storePage(cacheKey, page);
+    setBusy(false);
+}
+
 RequestGeneration::Token AppController::beginBrowse(bool useWarmCache)
 {
     const BrowseDescriptor descriptor = m_browse->descriptor();
@@ -646,8 +957,16 @@ RequestGeneration::Token AppController::beginBrowse(bool useWarmCache)
     if (useWarmCache) {
         const int cachedCount = m_browse->applyCachedPage(cacheKey);
         m_browse->setWarmCachePaging(cachedCount, kLibraryPageSize);
-        if (cachedCount > 0)
+        if (cachedCount > 0) {
+            const qint64 ageMs = m_prefetch ? m_prefetch->pageAgeMs(cacheKey) : -1;
+            if (ageMs >= 0 && ageMs < kFreshLibraryCacheMs) {
+                qInfo() << "library open: cache fresh, skipping refresh" << descriptor.name << cachedCount
+                        << "age_ms=" << ageMs;
+                m_browse->setLoadingMore(false);
+                return generation;
+            }
             qInfo() << "library open: showing cached page while refreshing" << descriptor.name << cachedCount;
+        }
     } else {
         m_browse->clear();
         m_browse->setLoadingMore(true);

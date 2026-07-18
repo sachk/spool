@@ -56,6 +56,11 @@ QtObject {
             if (latencyMonitor)
                 latencyMonitor.mark(transitionToken, "viewport")
         }
+        // Delegate creation and asynchronous image status changes are not
+        // guaranteed to produce another signal after an early forceLayout(),
+        // so keep checking until the state has genuinely settled.
+        if (!delegatesReady)
+            updateTimer.restart()
     }
 
     onEnabledChanged: reset()
@@ -64,7 +69,7 @@ QtObject {
     Component.onCompleted: reset()
 
     property Timer updateTimer: Timer {
-        interval: 0
+        interval: 16
         repeat: false
         onTriggered: root.update()
     }

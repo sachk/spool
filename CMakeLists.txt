@@ -62,6 +62,7 @@ set(JELLYFIN_QT_COMPONENTS
     WebSockets
 )
 if(JELLYFIN_NATIVE_WEBOS)
+    set(OPENSSL_USE_STATIC_LIBS TRUE)
     set(JELLYFIN_QT_MIN_VERSION 6.11)
     list(APPEND JELLYFIN_QT_COMPONENTS
         GuiPrivate
@@ -71,6 +72,9 @@ if(JELLYFIN_NATIVE_WEBOS)
     )
 else()
     set(JELLYFIN_QT_MIN_VERSION 6.11)
+    if(UNIX AND NOT APPLE)
+        list(APPEND JELLYFIN_QT_COMPONENTS DBus)
+    endif()
 endif()
 find_package(Qt6 ${JELLYFIN_QT_MIN_VERSION} REQUIRED COMPONENTS ${JELLYFIN_QT_COMPONENTS})
 find_package(QCoro6 0.12 REQUIRED COMPONENTS Core Network)
@@ -237,6 +241,7 @@ set(JELLYFIN_CORE_SOURCES
     src/common/JellyfinTypes.cpp
     src/common/JellyfinTypes.h
     src/common/MetaJson.h
+    src/common/TlsTrust.h
     src/common/LogRotation.h
     src/common/AsyncTask.h
     src/common/RequestGeneration.h
@@ -400,6 +405,7 @@ qt_add_qml_module(jellyfin-native
         qml/primitives/ActionButton.qml
         qml/primitives/AppText.qml
         qml/primitives/AtomicViewReveal.qml
+        qml/primitives/ChoiceStrip.qml
         qml/primitives/EmptyPlaceholder.qml
         qml/primitives/FastWheelHandler.qml
         qml/primitives/IconButton.qml
@@ -515,6 +521,10 @@ target_link_libraries(jellyfin-core PUBLIC
 
 target_link_libraries(jellyfin-native PRIVATE jellyfin-core)
 
+if(UNIX AND NOT APPLE AND NOT JELLYFIN_NATIVE_WEBOS)
+    target_link_libraries(jellyfin-native PRIVATE Qt6::DBus)
+endif()
+
 if(JELLYFIN_NATIVE_WEBOS)
     target_link_libraries(jellyfin-native PRIVATE
         PkgConfig::GLIB
@@ -566,12 +576,15 @@ if(BUILD_TESTING AND NOT CMAKE_CROSSCOMPILING)
         browse-session-controller tests/app/BrowseSessionControllerTest.cpp
         settings-schema tests/app/SettingsSchemaTest.cpp
         settings-controller tests/app/SettingsControllerTest.cpp
+        session-controller tests/app/SessionControllerTest.cpp
         router-controller tests/app/RouterControllerTest.cpp
         library-query tests/app/LibraryQueryTest.cpp
         content-model-controller tests/app/ContentModelControllerTest.cpp
         discovery-controller tests/discovery/DiscoveryControllerTest.cpp
         sync-play-clock tests/app/SyncPlayClockTest.cpp
         request-generation tests/common/RequestGenerationTest.cpp
+        diagnostic-redaction tests/common/DiagnosticRedactionTest.cpp
+        tls-trust tests/common/TlsTrustTest.cpp
         browse-descriptor tests/common/BrowseDescriptorTest.cpp
         meta-json tests/common/MetaJsonTest.cpp
         http-request-policy tests/api/HttpRequestPolicyTest.cpp
@@ -613,6 +626,11 @@ if(BUILD_TESTING AND NOT CMAKE_CROSSCOMPILING)
         endif()
     endforeach()
 
+    pkg_check_modules(FFMPEG_AUDIT REQUIRED IMPORTED_TARGET libavutil libavformat libavfilter)
+    add_executable(ffmpeg-compliance-tests tests/media/FfmpegComplianceTest.cpp)
+    target_link_libraries(ffmpeg-compliance-tests PRIVATE PkgConfig::FFMPEG_AUDIT)
+    add_test(NAME ffmpeg-compliance COMMAND ffmpeg-compliance-tests)
+
     find_package(Python3 REQUIRED COMPONENTS Interpreter)
     add_test(NAME network-shaper
         COMMAND "${Python3_EXECUTABLE}"
@@ -638,6 +656,10 @@ if(BUILD_TESTING AND NOT CMAKE_CROSSCOMPILING)
             COMMAND "${QMLTESTRUNNER_EXECUTABLE}"
                 -input "${CMAKE_CURRENT_SOURCE_DIR}/tests/qml/tst_OptionPickerInput.qml"
         )
+        add_test(NAME nav-grid
+            COMMAND "${QMLTESTRUNNER_EXECUTABLE}"
+                -input "${CMAKE_CURRENT_SOURCE_DIR}/tests/qml/tst_NavGrid.qml"
+        )
         add_test(NAME atomic-view-reveal
             COMMAND "${QMLTESTRUNNER_EXECUTABLE}"
                 -input "${CMAKE_CURRENT_SOURCE_DIR}/tests/qml/tst_AtomicViewReveal.qml"
@@ -655,7 +677,7 @@ if(BUILD_TESTING AND NOT CMAKE_CROSSCOMPILING)
             "QT_QUICK_BACKEND=software"
             ${JELLYFIN_TEST_ENV}
         )
-        set_tests_properties(route-policy key-router player-overlay-input option-picker-input atomic-view-reveal
+        set_tests_properties(route-policy key-router player-overlay-input option-picker-input nav-grid atomic-view-reveal
             input-latency-warning player-seek-bar-hover PROPERTIES
             ENVIRONMENT "${JELLYFIN_QML_TEST_ENV}"
         )
@@ -678,6 +700,7 @@ if(JELLYFIN_QT_CORE_TARGET_TYPE STREQUAL "STATIC_LIBRARY")
             NO_DEFAULT
             INCLUDE
                 Qt6::QWaylandIntegrationPlugin
+                Qt6::QTlsBackendOpenSSLPlugin
                 Qt6::QWaylandEglClientBufferPlugin
                 Qt6::QWaylandWlShellIntegrationPlugin
                 Qt6::QSQLiteDriverPlugin

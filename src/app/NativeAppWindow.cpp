@@ -1,6 +1,7 @@
 #include "NativeAppWindow.h"
 
 #include <QCoreApplication>
+#include <QDebug>
 #include <QEventLoop>
 #include <QExposeEvent>
 #include <QGuiApplication>
@@ -8,6 +9,7 @@
 #include <QMutexLocker>
 #include <QResizeEvent>
 #include <QThread>
+#include <QTimer>
 
 #include <qpa/qplatformnativeinterface.h>
 
@@ -53,10 +55,7 @@ NativeAppWindow::~NativeAppWindow()
 {
     starfish_exported_set_crop_cb(nullptr, nullptr);
     starfish_overlay_set_callbacks(nullptr, nullptr, nullptr);
-    if (m_exported)
-        wl_webos_exported_destroy(m_exported);
-    if (m_webosShellSurface)
-        wl_webos_shell_surface_destroy(m_webosShellSurface);
+    releasePlatformSurface();
     if (m_webosShell)
         wl_webos_shell_destroy(m_webosShell);
     if (m_webosForeign)
@@ -87,15 +86,50 @@ void NativeAppWindow::bringToFront()
     // the surface to the foreground on webOS — the LSM only honours
     // wl_webos_shell_surface_set_state(FULLSCREEN). xbmc does the same
     // thing on lifecycle relaunch (see CShellSurfaceWebOSShell::SetFullScreen).
-    if (!isVisible())
-        showFullScreen();
+    showFullScreen();
     if (!ensureShellSurface())
         return;
+    m_fullscreenConfirmationPending = true;
+    const int generation = ++m_fullscreenRequestGeneration;
+    requestWebOsFullscreen();
+    QTimer::singleShot(250, this, [this, generation]() {
+        if (!m_fullscreenConfirmationPending || generation != m_fullscreenRequestGeneration)
+            return;
+        qInfo() << "webOS shell: fullscreen not yet confirmed; retrying";
+        requestWebOsFullscreen();
+        QTimer::singleShot(500, this, [this, generation]() {
+            if (m_fullscreenConfirmationPending && generation == m_fullscreenRequestGeneration)
+                qWarning() << "webOS shell: fullscreen request remained unconfirmed";
+        });
+    });
+}
+
+void NativeAppWindow::requestWebOsFullscreen()
+{
+    if (!m_webosShellSurface)
+        return;
     wl_webos_shell_surface_set_state(m_webosShellSurface, WL_WEBOS_SHELL_SURFACE_STATE_FULLSCREEN);
+    applyWebOsKeyMask();
     if (m_surface)
         wl_surface_commit(m_surface);
     if (m_display)
         wl_display_flush(m_display);
+}
+
+void NativeAppWindow::releasePlatformSurface()
+{
+    ++m_fullscreenRequestGeneration;
+    m_fullscreenConfirmationPending = false;
+    if (m_exported) {
+        wl_webos_exported_destroy(m_exported);
+        m_exported = nullptr;
+    }
+    if (m_webosShellSurface) {
+        wl_webos_shell_surface_destroy(m_webosShellSurface);
+        m_webosShellSurface = nullptr;
+    }
+    m_surface = nullptr;
+    m_windowId.clear();
 }
 
 void NativeAppWindow::toggleFullScreen()
@@ -195,22 +229,31 @@ bool NativeAppWindow::ensureShellSurface()
     if (!m_webosShellSurface)
         return false;
 
+    wl_webos_shell_surface_add_listener(m_webosShellSurface, &s_shellSurfaceListener, this);
+
     wl_webos_shell_surface_set_property(m_webosShellSurface, "_WEBOS_ACCESS_POLICY_KEYS_GUIDE", "true");
     wl_webos_shell_surface_set_property(m_webosShellSurface, "_WEBOS_ACCESS_POLICY_KEYS_BACK", "true");
-    // The string access-policy properties predate set_key_mask(). Some LSM
-    // versions only apply them opportunistically during the launch handoff,
-    // leaving Back owned by the compositor even though navigation keys reach
-    // the client. Keep the properties for old firmware, and use the protocol
-    // request as the authoritative declaration where it is supported.
-    wl_webos_shell_surface_set_key_mask(
-        m_webosShellSurface, WL_WEBOS_SHELL_SURFACE_WEBOS_KEY_DEFAULT | WL_WEBOS_SHELL_SURFACE_WEBOS_KEY_BACK);
     wl_webos_shell_surface_set_property(m_webosShellSurface, "appId", m_appId.toUtf8().constData());
     wl_webos_shell_surface_set_property(
         m_webosShellSurface, "displayAffinity", getenv("DISPLAY_ID") ? getenv("DISPLAY_ID") : "0");
     wl_webos_shell_surface_set_state(m_webosShellSurface, WL_WEBOS_SHELL_SURFACE_STATE_FULLSCREEN);
+    applyWebOsKeyMask();
     wl_surface_commit(m_surface);
     wl_display_roundtrip(m_display);
     return true;
+}
+
+void NativeAppWindow::applyWebOsKeyMask()
+{
+    if (!m_webosShellSurface)
+        return;
+
+    // Apply this after the fullscreen state request so any state-transition
+    // defaults are established before we claim Back. Reapply on relaunch
+    // because the same shell surface remains alive across backgrounding.
+    constexpr uint32_t keyMask = WL_WEBOS_SHELL_SURFACE_WEBOS_KEY_DEFAULT | WL_WEBOS_SHELL_SURFACE_WEBOS_KEY_BACK;
+    wl_webos_shell_surface_set_key_mask(m_webosShellSurface, keyMask);
+    qInfo().nospace() << "webOS shell key mask applied mask=0x" << QString::number(keyMask, 16);
 }
 
 bool NativeAppWindow::bindGlobals()
@@ -399,6 +442,56 @@ void NativeAppWindow::exportedWindowIdAssigned(void *data, wl_webos_exported *, 
     self->m_windowId = window_id ? window_id : "";
 }
 
+void NativeAppWindow::shellStateChanged(void *data, wl_webos_shell_surface *, uint32_t state)
+{
+    auto *self = static_cast<NativeAppWindow *>(data);
+    if (!self)
+        return;
+    QMetaObject::invokeMethod(
+        self,
+        [self, state]() {
+            qInfo() << "webOS shell state changed:" << state;
+            if (state == WL_WEBOS_SHELL_SURFACE_STATE_FULLSCREEN)
+                self->m_fullscreenConfirmationPending = false;
+            emit self->webOsShellStateChanged(static_cast<int>(state));
+        },
+        Qt::QueuedConnection);
+}
+
+void NativeAppWindow::shellPositionChanged(void *, wl_webos_shell_surface *, int32_t, int32_t) { }
+
+void NativeAppWindow::shellClose(void *data, wl_webos_shell_surface *)
+{
+    auto *self = static_cast<NativeAppWindow *>(data);
+    if (self)
+        QMetaObject::invokeMethod(self, [self]() { emit self->webOsShellCloseRequested(); }, Qt::QueuedConnection);
+}
+
+void NativeAppWindow::shellExposed(void *data, wl_webos_shell_surface *, wl_array *rectangles)
+{
+    auto *self = static_cast<NativeAppWindow *>(data);
+    if (!self)
+        return;
+    bool exposed = false;
+    if (rectangles && rectangles->data && rectangles->size >= sizeof(int32_t)) {
+        const auto *values = static_cast<const int32_t *>(rectangles->data);
+        exposed = values[0] >= 0;
+    }
+    QMetaObject::invokeMethod(
+        self,
+        [self, exposed]() {
+            if (exposed)
+                self->m_fullscreenConfirmationPending = false;
+            qInfo() << "webOS shell exposed:" << exposed;
+            emit self->webOsShellExposed(exposed);
+        },
+        Qt::QueuedConnection);
+}
+
+void NativeAppWindow::shellStateAboutToChange(void *, wl_webos_shell_surface *, uint32_t) { }
+
+void NativeAppWindow::shellAddonStatusChanged(void *, wl_webos_shell_surface *, uint32_t) { }
+
 uint8_t *NativeAppWindow::overlayAcquireCallback(
     void *data, int x, int y, int width, int height, int *stride, void **buffer)
 {
@@ -457,6 +550,15 @@ const wl_registry_listener NativeAppWindow::s_registryListener = {
 
 const wl_webos_exported_listener NativeAppWindow::s_exportedListener = {
     &NativeAppWindow::exportedWindowIdAssigned,
+};
+
+const wl_webos_shell_surface_listener NativeAppWindow::s_shellSurfaceListener = {
+    &NativeAppWindow::shellStateChanged,
+    &NativeAppWindow::shellPositionChanged,
+    &NativeAppWindow::shellClose,
+    &NativeAppWindow::shellExposed,
+    &NativeAppWindow::shellStateAboutToChange,
+    &NativeAppWindow::shellAddonStatusChanged,
 };
 
 } // namespace JellyfinNative

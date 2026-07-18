@@ -32,10 +32,23 @@ function detailsContext(args, fallbackModel) {
     const routeArgs = args || ({})
     const model = routeArgs.model || fallbackModel
     const index = modelIndexForItemId(model, routeArgs.itemId, routeArgs.focusIndex)
+    let item = modelItem(model, index)
+    let effectiveIndex = index
+    if (itemIdFor(item).length <= 0 && String(routeArgs.itemId || "").length > 0) {
+        item = {
+            movieId: String(routeArgs.itemId),
+            itemType: String(routeArgs.itemType || "Video"),
+            title: String(routeArgs.title || "Selected item"),
+            seriesId: String(routeArgs.seriesId || ""),
+            seasonId: String(routeArgs.seasonId || ""),
+            playable: true
+        }
+        effectiveIndex = 0
+    }
     return {
         model: model,
-        index: index,
-        item: modelItem(model, index),
+        index: effectiveIndex,
+        item: item,
         source: String(routeArgs.source || "movies"),
         returnRoute: String(routeArgs.returnRoute || "libraryGrid")
     }
@@ -56,7 +69,11 @@ function normalizeDetailsRoute(request, fallbackModel, currentRoute) {
         itemType: request && request.itemType ? String(request.itemType) : itemTypeFor(fallbackItem),
         source: request && request.source ? String(request.source) : "movies",
         returnRoute: request && request.returnRoute ? String(request.returnRoute) : (currentRoute || "libraryGrid"),
-        focusIndex: focusIndex
+        focusIndex: focusIndex,
+        title: request && request.title ? String(request.title) : String(fallbackItem.title || fallbackItem.seriesName
+                                                                         || ""),
+        seriesId: request && request.seriesId ? String(request.seriesId) : String(fallbackItem.seriesId || ""),
+        seasonId: request && request.seasonId ? String(request.seasonId) : String(fallbackItem.seasonId || "")
     }
 }
 
@@ -67,6 +84,9 @@ function detailsRouteAt(model, index, source, returnRoute, currentRoute) {
                                      model: model,
                                      itemId: itemIdFor(item),
                                      itemType: itemTypeFor(item),
+                                     title: String(item.title || item.seriesName || ""),
+                                     seriesId: String(item.seriesId || ""),
+                                     seasonId: String(item.seasonId || ""),
                                      source: source || "movies",
                                      returnRoute: returnRoute || currentRoute || "libraryGrid",
                                      focusIndex: focusIndex

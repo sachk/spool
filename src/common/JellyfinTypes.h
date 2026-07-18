@@ -185,10 +185,13 @@ struct MovieItem {
     Q_GADGET
     Q_PROPERTY(QString movieId MEMBER id)
     Q_PROPERTY(QString title MEMBER title)
+    Q_PROPERTY(QString sortName MEMBER sortName)
     Q_PROPERTY(QString overview MEMBER overview)
     Q_PROPERTY(QString posterTag MEMBER posterTag)
     Q_PROPERTY(QString itemType MEMBER itemType)
     Q_PROPERTY(QString playlistItemId MEMBER playlistItemId)
+    Q_PROPERTY(QString locationType MEMBER locationType)
+    Q_PROPERTY(bool isVirtualItem MEMBER isVirtualItem)
     Q_PROPERTY(QString seriesId MEMBER seriesId)
     Q_PROPERTY(QString seasonId MEMBER seasonId)
     Q_PROPERTY(QString seriesName MEMBER seriesName)
@@ -223,10 +226,13 @@ struct MovieItem {
 public:
     QString id;
     QString title;
+    QString sortName;
     QString overview;
     QString posterTag;
     QString itemType;
     QString playlistItemId;
+    QString locationType;
+    bool isVirtualItem = false;
     QString seriesId;
     QString seasonId;
     QString seriesName;
@@ -270,6 +276,9 @@ struct PersonCredits {
 bool isPlayableItem(const MovieItem& item);
 QString itemSubtitle(const MovieItem& item);
 QString itemDisplaySubtitle(const MovieItem& item);
+QString itemEpisodeCode(const MovieItem& item);
+bool isGenericEpisodeTitle(const MovieItem& item);
+int episodicPlaybackStartIndex(const std::vector<MovieItem>& episodes);
 
 struct AuthSession {
     QString userId;
@@ -353,6 +362,8 @@ struct PlaybackSession {
     std::vector<MediaSegment> segments;
     TrickplayInfo trickplay;
     std::vector<PlaybackQueueItem> nowPlayingQueue;
+    int audioStreamIndex = -1;
+    int subtitleStreamIndex = -1;
 };
 
 QString exceptionMessage(const std::exception_ptr& exception);

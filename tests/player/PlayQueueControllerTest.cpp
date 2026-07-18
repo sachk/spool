@@ -45,11 +45,21 @@ int main(int argc, char **argv)
         item(QStringLiteral("b"), QStringLiteral("Episode B"), QStringLiteral("pl-b")),
         item(QStringLiteral("c"), QStringLiteral("Episode C"), QStringLiteral("pl-c")),
     };
+    entries[1].seriesName = QStringLiteral("Queue Show");
+    entries[1].seasonNumber = 3;
+    entries[1].episodeNumber = 7;
+    entries[1].title = QStringLiteral("Episode 7");
 
     require(queue.playNow(entries, 1), "playNow should accept a playable item vector");
     require(queue.count() == 3, "playNow should keep all playable items");
     require(queue.currentIndex() == 1, "playNow should start at requested natural index");
     require(queue.currentItem().id == QStringLiteral("b"), "current item should be requested item");
+    const QVariantMap episodeSnapshot = queue.get(1);
+    require(episodeSnapshot.value(QStringLiteral("seriesName")).toString() == QStringLiteral("Queue Show")
+            && episodeSnapshot.value(QStringLiteral("episodeCode")).toString() == QStringLiteral("S03E07"),
+        "queue snapshots should expose series context and episode code");
+    require(episodeSnapshot.value(QStringLiteral("genericEpisodeTitle")).toBool(),
+        "queue snapshots should identify generic episode titles");
     require(queue.canGoPrevious() && queue.canGoNext(), "middle current item should allow both directions");
 
     const std::vector<PlaybackQueueItem> reported = queue.nowPlayingQueue();

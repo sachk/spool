@@ -16,6 +16,7 @@ Item {
     property bool preferEpisodeTitle: false
     property real progress: -1
     property bool artworkVisible: true
+    property bool artworkEnabled: true
 
     readonly property bool posterKind: kind === "poster"
     readonly property real metadataHeight: metadataLabel.text.length > 0 ? metadataLabel.implicitHeight : 0
@@ -98,6 +99,7 @@ Item {
         anchors.right: parent.right
         height: root.artHeight
         imageUrl: root.imageSource()
+        artworkEnabled: root.artworkEnabled
         fallbackText: root.fallbackText()
         artworkVisible: root.artworkVisible
     }

@@ -2,7 +2,10 @@
 #include "diagnostics/InputLatencyMonitor.h"
 
 #include <QCloseEvent>
+#include <QDebug>
+#include <QKeyEvent>
 #include <QMutexLocker>
+#include <QPlatformSurfaceEvent>
 #include <QQuickImageProvider>
 
 namespace JellyfinNative {
@@ -44,8 +47,31 @@ void NativeAppWindow::setInputLatencyMonitor(InputLatencyMonitor *monitor)
 
 bool NativeAppWindow::event(QEvent *event)
 {
+#ifdef JELLYFIN_NATIVE_WEBOS
+    if (event->type() == QEvent::PlatformSurface) {
+        const auto *surfaceEvent = static_cast<const QPlatformSurfaceEvent *>(event);
+        if (surfaceEvent->surfaceEventType() == QPlatformSurfaceEvent::SurfaceAboutToBeDestroyed)
+            releasePlatformSurface();
+    }
+    if (event->type() == QEvent::KeyPress || event->type() == QEvent::KeyRelease) {
+        const auto *keyEvent = static_cast<const QKeyEvent *>(event);
+        const quint32 scanCode = keyEvent->nativeScanCode();
+        const quint32 virtualKey = keyEvent->nativeVirtualKey();
+        if (keyEvent->key() == Qt::Key_Back || scanCode == 461 || virtualKey == 461) {
+            qInfo() << "webOS Back event" << (event->type() == QEvent::KeyPress ? "press" : "release")
+                    << "key=" << keyEvent->key() << "scan=" << scanCode << "virtual=" << virtualKey;
+        }
+    }
+#endif
     const quint64 token = m_inputLatencyMonitor ? m_inputLatencyMonitor->beginInput(event) : 0;
     const bool handled = QQuickView::event(event);
+#ifdef JELLYFIN_NATIVE_WEBOS
+    if (event->type() == QEvent::PlatformSurface) {
+        const auto *surfaceEvent = static_cast<const QPlatformSurfaceEvent *>(event);
+        if (surfaceEvent->surfaceEventType() == QPlatformSurfaceEvent::SurfaceCreated)
+            ensureShellSurface();
+    }
+#endif
     if (m_inputLatencyMonitor)
         m_inputLatencyMonitor->endInput(token);
     return handled;

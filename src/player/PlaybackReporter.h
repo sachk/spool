@@ -16,9 +16,10 @@ class PlaybackReporter final : public QObject {
 public:
     explicit PlaybackReporter(JellyfinApiFacade *api, QObject *parent = nullptr);
 
-    void start(const PlaybackSession& session);
-    void reportProgress(qint64 positionTicks, bool paused);
-    void stop(qint64 positionTicks, bool failed);
+    void start(const PlaybackSession& session, double playbackRate = 1.0);
+    bool setStreamIndexes(int audioStreamIndex, int subtitleStreamIndex);
+    void reportProgress(qint64 positionTicks, bool paused, double playbackRate = 1.0);
+    void stop(qint64 positionTicks, bool failed, double playbackRate = 1.0);
 
 signals:
     void reportFailed(const QString& operation, const QString& message);
@@ -26,7 +27,7 @@ signals:
 private:
     void sendStart();
     void sendProgress();
-    void sendStop(const PlaybackSession& session, qint64 positionTicks, bool failed, int attempt);
+    void sendStop(const PlaybackSession& session, qint64 positionTicks, bool failed, double playbackRate, int attempt);
 
     JellyfinApiFacade *m_api = nullptr;
     PlaybackSession m_session;
@@ -34,6 +35,8 @@ private:
     QTimer m_progressRetryTimer;
     qint64 m_pendingPositionTicks = 0;
     bool m_pendingPaused = false;
+    double m_pendingPlaybackRate = 1.0;
+    double m_startPlaybackRate = 1.0;
     bool m_active = false;
     bool m_startInFlight = false;
     bool m_startReported = false;

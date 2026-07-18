@@ -25,10 +25,11 @@ PlaybackReporter::PlaybackReporter(JellyfinApiFacade *api, QObject *parent)
     connect(&m_progressRetryTimer, &QTimer::timeout, this, &PlaybackReporter::sendProgress);
 }
 
-void PlaybackReporter::start(const PlaybackSession& session)
+void PlaybackReporter::start(const PlaybackSession& session, double playbackRate)
 {
     ++m_generation;
     m_session = session;
+    m_startPlaybackRate = playbackRate;
     m_active = true;
     m_startInFlight = false;
     m_startReported = false;
@@ -39,19 +40,29 @@ void PlaybackReporter::start(const PlaybackSession& session)
     sendStart();
 }
 
-void PlaybackReporter::reportProgress(qint64 positionTicks, bool paused)
+bool PlaybackReporter::setStreamIndexes(int audioStreamIndex, int subtitleStreamIndex)
+{
+    if (m_session.audioStreamIndex == audioStreamIndex && m_session.subtitleStreamIndex == subtitleStreamIndex)
+        return false;
+    m_session.audioStreamIndex = audioStreamIndex;
+    m_session.subtitleStreamIndex = subtitleStreamIndex;
+    return true;
+}
+
+void PlaybackReporter::reportProgress(qint64 positionTicks, bool paused, double playbackRate)
 {
     if (!m_active || !m_api)
         return;
 
     m_pendingPositionTicks = positionTicks;
     m_pendingPaused = paused;
+    m_pendingPlaybackRate = playbackRate;
     m_progressPending = true;
     if (!m_progressInFlight && !m_progressRetryTimer.isActive())
         sendProgress();
 }
 
-void PlaybackReporter::stop(qint64 positionTicks, bool failed)
+void PlaybackReporter::stop(qint64 positionTicks, bool failed, double playbackRate)
 {
     if (!m_active || !m_api)
         return;
@@ -61,21 +72,23 @@ void PlaybackReporter::stop(qint64 positionTicks, bool failed)
     m_progressRetryTimer.stop();
     m_progressPending = false;
 
-    sendStop(m_session, positionTicks, failed, 1);
+    sendStop(m_session, positionTicks, failed, playbackRate, 1);
 }
 
-void PlaybackReporter::sendStop(const PlaybackSession& session, qint64 positionTicks, bool failed, int attempt)
+void PlaybackReporter::sendStop(
+    const PlaybackSession& session, qint64 positionTicks, bool failed, double playbackRate, int attempt)
 {
     Async::runScoped(
-        this, m_api->reportPlaybackStopped(session, positionTicks, failed), []() {},
-        [this, session, positionTicks, failed, attempt](const std::exception_ptr& error) {
+        this, m_api->reportPlaybackStopped(session, positionTicks, failed, playbackRate), []() {},
+        [this, session, positionTicks, failed, playbackRate, attempt](const std::exception_ptr& error) {
             qWarning() << "player: playback stop report attempt" << attempt << "failed:" << exceptionMessage(error);
             emit reportFailed(QStringLiteral("playback stop"), exceptionMessage(error));
             if (attempt >= kMaxStopReportAttempts)
                 return;
-            QTimer::singleShot(kReportRetryDelayMs, this, [this, session, positionTicks, failed, attempt]() {
-                sendStop(session, positionTicks, failed, attempt + 1);
-            });
+            QTimer::singleShot(
+                kReportRetryDelayMs, this, [this, session, positionTicks, failed, playbackRate, attempt]() {
+                    sendStop(session, positionTicks, failed, playbackRate, attempt + 1);
+                });
         },
         "playback stop report");
 }
@@ -89,7 +102,7 @@ void PlaybackReporter::sendStart()
     const PlaybackSession session = m_session;
     const quint64 generation = m_generation;
     Async::runScoped(
-        this, m_api->reportPlaybackStart(session),
+        this, m_api->reportPlaybackStart(session, m_startPlaybackRate),
         [this, generation]() {
             if (generation != m_generation)
                 return;
@@ -118,9 +131,10 @@ void PlaybackReporter::sendProgress()
     const PlaybackSession session = m_session;
     const qint64 positionTicks = m_pendingPositionTicks;
     const bool paused = m_pendingPaused;
+    const double playbackRate = m_pendingPlaybackRate;
     const quint64 generation = m_generation;
     Async::runScoped(
-        this, m_api->reportPlaybackProgress(session, positionTicks, paused),
+        this, m_api->reportPlaybackProgress(session, positionTicks, paused, playbackRate),
         [this, generation]() {
             if (generation != m_generation)
                 return;

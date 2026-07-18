@@ -747,8 +747,10 @@ void InputLatencyMonitor::endInput(quint64 token)
     if (token == 0)
         return;
     m_timeline.endInput(token, now());
-    if (m_window)
-        m_window->update();
+    // No forced window update here: forcing a render per input event cost a
+    // full frame of GPU work per key (and queued behind in-flight frames,
+    // inflating every sample by ~2 vsyncs). Events that change the scene
+    // produce frames on their own; no-op events expire via the deadline.
     scheduleDeadline();
 }
 

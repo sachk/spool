@@ -10,7 +10,10 @@
 #include <utility>
 
 using JellyfinNative::DiscoveredServer;
+using JellyfinNative::episodicPlaybackStartIndex;
+using JellyfinNative::isGenericEpisodeTitle;
 using JellyfinNative::isPlayableItem;
+using JellyfinNative::itemEpisodeCode;
 using JellyfinNative::itemSubtitle;
 using JellyfinNative::LibraryItem;
 using JellyfinNative::MediaSegment;
@@ -123,10 +126,13 @@ void requireMovieItem(const MovieItem& actual, const MovieItem& expected, const 
 {
     require(actual.id == expected.id, message);
     require(actual.title == expected.title, message);
+    require(actual.sortName == expected.sortName, message);
     require(actual.overview == expected.overview, message);
     require(actual.posterTag == expected.posterTag, message);
     require(actual.itemType == expected.itemType, message);
     require(actual.playlistItemId == expected.playlistItemId, message);
+    require(actual.locationType == expected.locationType, message);
+    require(actual.isVirtualItem == expected.isVirtualItem, message);
     require(actual.seriesId == expected.seriesId, message);
     require(actual.seasonId == expected.seasonId, message);
     require(actual.seriesName == expected.seriesName, message);
@@ -282,7 +288,9 @@ void testMovieRoundTripAndCamelCaseKey()
     MovieItem movie;
     movie.id = QStringLiteral("movie-1");
     movie.title = QStringLiteral("A Generic Mapper");
+    movie.sortName = QStringLiteral("Generic Mapper");
     movie.overview = QStringLiteral("Round-trips DTOs through QMetaProperty.");
+    movie.locationType = QStringLiteral("FileSystem");
     movie.posterTag = QStringLiteral("poster-tag");
     movie.itemType = QStringLiteral("Episode");
     movie.playlistItemId = QStringLiteral("playlist-item-1");
@@ -452,6 +460,63 @@ void testPascalCaseApiParsing()
         "MetaJson did not flatten nested string paths");
 }
 
+void testEpisodePlaybackMetadata()
+{
+    MovieItem episode;
+    episode.id = QStringLiteral("episode-2");
+    episode.itemType = QStringLiteral("Episode");
+    episode.locationType = QStringLiteral("FileSystem");
+    episode.seriesName = QStringLiteral("Example Show");
+    episode.seasonNumber = 1;
+    episode.episodeNumber = 2;
+    episode.title = QStringLiteral("Episode 2");
+
+    require(itemEpisodeCode(episode) == QStringLiteral("S01E02"),
+        "Episode code should use zero-padded season and episode numbers");
+    require(isGenericEpisodeTitle(episode), "Matching generic Episode N titles should be suppressed");
+    episode.title = QStringLiteral("Episode 2: The Pilot");
+    require(!isGenericEpisodeTitle(episode), "Descriptive episode titles should remain visible");
+    episode.title = QStringLiteral("Episode 3");
+    require(!isGenericEpisodeTitle(episode), "A generic-looking title for a different episode should remain visible");
+
+    MovieItem virtualEpisode = episode;
+    virtualEpisode.id = QStringLiteral("episode-1-missing");
+    virtualEpisode.episodeNumber = 1;
+    virtualEpisode.isVirtualItem = true;
+    const MovieItem parsedVirtualEpisode = metaFromJson<MovieItem>(
+        QJsonObject { { QStringLiteral("Type"), QStringLiteral("Episode") },
+            { QStringLiteral("LocationType"), QStringLiteral("Virtual") }, { QStringLiteral("IsVirtualItem"), true } },
+        MetaJsonKeyPolicy::PascalCase);
+    require(parsedVirtualEpisode.locationType == QStringLiteral("Virtual") && parsedVirtualEpisode.isVirtualItem,
+        "Virtual episode availability fields should map from Jellyfin API data");
+    require(!isPlayableItem(parsedVirtualEpisode), "Parsed virtual episodes must not be treated as playable");
+    virtualEpisode.played = false;
+    require(!isPlayableItem(virtualEpisode), "Virtual episodes must not be treated as playable");
+
+    episode.title = QStringLiteral("Downloaded episode");
+    episode.played = false;
+    std::vector<MovieItem> episodes { virtualEpisode, episode };
+    require(episodicPlaybackStartIndex(episodes) == 1,
+        "Episodic playback should start at the first playable row when none are watched");
+
+    episode.played = true;
+    episodes[1] = episode;
+    MovieItem missingSuccessor = virtualEpisode;
+    missingSuccessor.episodeNumber = 3;
+    MovieItem playableSuccessor = episode;
+    playableSuccessor.id = QStringLiteral("episode-4");
+    playableSuccessor.episodeNumber = 4;
+    playableSuccessor.played = false;
+    episodes.push_back(missingSuccessor);
+    episodes.push_back(playableSuccessor);
+    require(episodicPlaybackStartIndex(episodes) == 3,
+        "Episodic playback should skip virtual rows after the last watched episode");
+
+    episodes[3].played = true;
+    require(
+        episodicPlaybackStartIndex(episodes) == -1, "Episodic playback must not wrap after the final watched episode");
+}
+
 } // namespace
 
 int main()
@@ -461,5 +526,6 @@ int main()
     testMetaListRoundTrip();
     testLegacyStringTicksAndUnknownKeys();
     testPascalCaseApiParsing();
+    testEpisodePlaybackMetadata();
     return EXIT_SUCCESS;
 }

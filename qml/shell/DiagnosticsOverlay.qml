@@ -19,6 +19,11 @@ Item {
         return Number(value || 0).toFixed(1) + "%"
     }
 
+    function signedMs(value) {
+        const number = Number(value || 0)
+        return (number > 0 ? "+" : "") + number.toFixed(2) + " ms"
+    }
+
     NumberAnimation on opacity {
         running: root.visible
         from: 0
@@ -78,6 +83,30 @@ Item {
             MonoText {
                 text: "Frames  late " + InputLatency.lateCount + "  missed " + InputLatency.missedFrameCount
                       + "  samples " + InputLatency.sampleCount
+            }
+            MonoText {
+                visible: SyncPlay.enabled
+                Layout.maximumWidth: Metrics.scaled(396)
+                text: "SyncPlay  " + (SyncPlay.groupState || "Unknown") + (SyncPlay.groupStateReason ? " / "
+                                                                                                       + SyncPlay.groupStateReason :
+                                                                                                       "") + (SyncPlay.waitingForPlayback
+                                                                                                              ? "  ·  waiting to play" :
+                                                                                                                "")
+                elide: Text.ElideRight
+            }
+            MonoText {
+                visible: SyncPlay.enabled
+                Layout.maximumWidth: Metrics.scaled(396)
+                text: "Time sync  " + SyncPlay.timeSyncDevice + "  offset " + root.signedMs(SyncPlay.clockOffsetMs)
+                      + "  ping " + Number(SyncPlay.pingMs || 0).toFixed(2) + " ms"
+                elide: Text.ElideRight
+            }
+            MonoText {
+                visible: SyncPlay.enabled
+                Layout.maximumWidth: Metrics.scaled(396)
+                text: "Playback drift  " + (SyncPlay.playbackDiffValid ? root.signedMs(SyncPlay.playbackDiffMs) : "—") + "  method "
+                      + SyncPlay.syncMethod + "  (Speed ≥60 ms; skip ≥750 ms)"
+                elide: Text.ElideRight
             }
             MonoText {
                 Layout.maximumWidth: Metrics.scaled(396)

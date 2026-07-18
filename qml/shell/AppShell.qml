@@ -98,7 +98,7 @@ KeyRouter {
         target: App
         function onInitializedChanged() {
             if (App.initialized)
-                Router.reset(root.defaultRoute())
+                root.applyInitializedRoute()
         }
         function onAggressiveMemoryPressure() {
             if (!root.itemMenuOpen)
@@ -108,14 +108,74 @@ KeyRouter {
         function onToastMessage(message) {
             toast.show(message)
         }
+        function onRemoteUiActionRequested(action) {
+            root.handleRemoteUiAction(action)
+        }
     }
     function defaultRoute() {
         return !Settings.uiScaleSetupComplete ? "scaleSetup" : Session.authenticated ? "home" : "login"
     }
 
+    function restoreRecoveredRoute() {
+        if (!Router.recoveryPending || !Session.authenticated)
+            return false
+        const args = root.routeArgs
+        if (root.route === "libraryGrid") {
+            const libraryId = String(args.libraryId || "")
+            if (libraryId.length <= 0) {
+                Router.reset("home")
+            } else if (!App.openLibraryById(libraryId)) {
+                if (Libraries.count > 0)
+                    Router.reset("home")
+                else
+                    return false
+            }
+        } else if (root.route === "itemDetails") {
+            const itemId = String(args.itemId || "")
+            if (itemId.length <= 0) {
+                Router.reset("home")
+            } else {
+                Content.prepareLinkedItem(itemId, String(args.title || "Selected item"), String(args.itemType || "Video"),
+                                          String(args.seriesId || ""), String(args.title || ""), String(args.seasonId
+                                                                                                        || ""))
+
+                const restored = Object.assign({}, args)
+                restored.model = Content.linkedItems
+                Router.replace("itemDetails", restored)
+            }
+        } else if (root.route === "personDetails") {
+            const personId = String(args.personId || "")
+            if (personId.length <= 0) {
+                Router.reset("home")
+            } else {
+                personItem = {
+                    id: personId,
+                    name: String(args.personName || "Person"),
+                    role: String(args.personRole || ""),
+                    type: String(args.personType || "Person")
+                }
+                Content.loadPersonItems(personItem.id)
+            }
+        }
+        Router.finishRecovery()
+        return true
+    }
+
+    function applyInitializedRoute() {
+        if (Router.recoveryPending) {
+            if (root.restoreRecoveredRoute())
+                return
+            if (Session.authenticated)
+                return
+        }
+        Router.reset(root.defaultRoute())
+    }
+
     Connections {
         target: Session
         function onAuthenticatedStateChanged() {
+            if (Session.authenticated && root.restoreRecoveredRoute())
+                return
             if (Session.authenticated)
                 Router.replace(root.defaultRoute())
             else
@@ -124,7 +184,15 @@ KeyRouter {
     }
 
     Component.onCompleted: if (App.initialized)
-                               Router.reset(root.defaultRoute())
+                               root.applyInitializedRoute()
+
+    Connections {
+        target: Libraries
+        function onCountChanged() {
+            if (Router.recoveryPending && root.route === "libraryGrid")
+                root.restoreRecoveredRoute()
+        }
+    }
 
     Connections {
         target: root.player
@@ -231,6 +299,44 @@ KeyRouter {
         InputKeys.focus(routeStack)
     }
 
+    function exitPlaybackForRemoteNavigation(reason) {
+        if (!playerSessionActive)
+            return
+        pendingPlaybackBackItem = ({})
+        player.stopWithReason(reason)
+    }
+
+    function handleRemoteUiAction(action) {
+        if (action === "toggle-osd") {
+            if (player.visible)
+                videoSurface.toggleOsd()
+            return
+        }
+        if (action === "context-menu") {
+            if (player.visible)
+                videoSurface.openPlaybackSettings()
+            else
+                openContextMenu()
+            return
+        }
+        if (action === "settings") {
+            if (player.visible)
+                videoSurface.openPlaybackSettings()
+            else
+                pushRoute("settings")
+            return
+        }
+        if (action === "search") {
+            exitPlaybackForRemoteNavigation("remote-search")
+            pushRoute("search")
+            return
+        }
+        if (action === "home") {
+            exitPlaybackForRemoteNavigation("remote-home")
+            goHome()
+        }
+    }
+
     function switchUser() {
         Router.reset("login")
         App.switchUser()
@@ -298,7 +404,9 @@ KeyRouter {
     }
 
     function openContextMenu() {
-        openItemMenu(currentMediaItem(), null)
+        if (navigationTarget !== routeStack)
+            return false
+        return routeStack.longPress()
     }
 
     function openItemMenu(item, anchorItem, context) {
@@ -310,6 +418,13 @@ KeyRouter {
     function finishItemMenuOpeningGesture() {
         if (itemContextMenuLoader.item)
             itemContextMenuLoader.item.finishOpeningGesture()
+    }
+
+    function restoreFocusAfterItemMenu() {
+        if (managementOverlayVisible || mediaInfoVisible || diagnosticsVisible || player.visible)
+            return
+        navigationTarget = routeStack
+        InputKeys.focus(routeStack)
     }
 
     function mediaInfoAvailable(item) {
@@ -358,7 +473,12 @@ KeyRouter {
             InputKeys.focus(routeStack)
             return true
         }
-        pushRoute("personDetails")
+        pushRoute("personDetails", {
+                      personId: personId,
+                      personName: String(personItem.name || "Person"),
+                      personRole: String(personItem.role || ""),
+                      personType: String(personItem.type || "Person")
+                  })
         return true
     }
 
@@ -391,7 +511,14 @@ KeyRouter {
     }
 
     function globalShortcut(key, phase, repeat, modifiers) {
-        if (phase !== "release" || repeat || textInputActive)
+        if (repeat || textInputActive)
+            return false
+        // Claim the physical Menu press as well as its release. Letting the
+        // press escape causes webOS/Qt to clear the current item's focus
+        // before our release-triggered context menu has a chance to open.
+        if (phase === "press" && (key === Qt.Key_M || key === Qt.Key_Menu))
+            return true
+        if (phase !== "release")
             return false
         if (modifiers & Qt.ControlModifier) {
             if (key === Qt.Key_Plus || key === Qt.Key_Equal) {
@@ -462,6 +589,8 @@ KeyRouter {
             onNavigate: r => {
                             if (r === "home")
                             root.goHome()
+                            else if (r === "switchUser")
+                            root.switchUser()
                             else if (r === "settings")
                             root.pushRoute("settings")
                             else
@@ -476,10 +605,16 @@ KeyRouter {
             Layout.fillHeight: true
             route: root.route
             shell: root
-            startupReady: App.initialized
+            startupReady: App.initialized || Session.likelyAuthenticated
             focus: !(root.hasPlayer && root.player.visible)
             onActiveFocusChanged: if (activeFocus)
                                       root.navigationTarget = routeStack
+
+            TapHandler {
+                acceptedButtons: Qt.LeftButton
+                onTapped: if (navBar.syncPlayMenuOpen)
+                              navBar.closeSyncPlayMenu()
+            }
         }
     }
 
@@ -531,6 +666,7 @@ KeyRouter {
         active: root.itemMenuLoaded
         sourceComponent: ItemContextMenu {
             shell: root
+            onClosed: Qt.callLater(root.restoreFocusAfterItemMenu)
         }
     }
 

@@ -116,9 +116,9 @@ TestCase {
                                             }), keys[index])
     }
 
-    function test_acceptActivatesOnRelease() {
+    function test_acceptWithoutLongPressActivatesOnPress() {
         verify(keyRouter.pressAccept(Qt.Key_Return, false))
-        compare(activateCalls, 0)
+        compare(activateCalls, 1)
         verify(keyRouter.releaseAccept(Qt.Key_Return, false))
         compare(activateCalls, 1)
     }
@@ -127,7 +127,7 @@ TestCase {
         verify(keyRouter.pressAccept(Qt.Key_Return, false))
         keyRouter.longPressHandled = true
         verify(keyRouter.releaseAccept(Qt.Key_Return, false))
-        compare(activateCalls, 0)
+        compare(activateCalls, 1)
         compare(finishOpeningCalls, 1)
     }
 

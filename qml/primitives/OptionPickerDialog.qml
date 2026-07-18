@@ -1,7 +1,6 @@
 pragma ComponentBehavior: Bound
 
 import QtQuick
-import QtQuick.Layouts
 import "../theme"
 
 FocusScope {
@@ -12,6 +11,7 @@ FocusScope {
     property int currentIndex: 0
     property Item anchorItem: null
     property bool spaceRequested: false
+    property bool placementReady: false
     property var inputKeys: InputKeys
     readonly property real edgeMargin: Metrics.scaled(12)
     readonly property real rowHeight: Math.max(Metrics.scaled(44), Metrics.controlHeightPx)
@@ -40,29 +40,43 @@ FocusScope {
         inputKeys.focus(optionList)
     }
 
+    function schedulePresentation() {
+        placementReady = false
+        if (!visible || !anchorItem)
+            return
+        spaceRequested = false
+        Qt.callLater(completePresentation)
+    }
+
+    function completePresentation() {
+        if (!visible || !anchorItem)
+            return false
+        if (!positionPopup())
+            return false
+        placementReady = true
+        focusCurrent()
+        return true
+    }
+
     function positionPopup() {
-        if (!visible)
-            return
-        if (!anchorItem) {
-            menuPanel.x = Math.round((width - menuPanel.width) / 2)
-            menuPanel.y = Math.round((height - menuPanel.height) / 2)
-            return
-        }
+        if (!anchorItem || width <= 0 || height <= 0)
+            return false
 
         const anchor = anchorItem.mapToItem(root, 0, 0)
         const below = anchor.y + anchorItem.height + Metrics.scaled(6)
-        const deficit = below + menuPanel.height + edgeMargin - height
+        const deficit = below + panelHeight + edgeMargin - height
         if (deficit > 1 && !spaceRequested) {
             spaceRequested = true
             spaceBelowRequired(deficit)
-            return
+            return false
         }
 
-        const above = anchor.y - menuPanel.height - Metrics.scaled(6)
-        const desiredY = below + menuPanel.height <= height - edgeMargin || above < edgeMargin ? below : above
-        menuPanel.x = Math.max(edgeMargin, Math.min(width - menuPanel.width - edgeMargin, anchor.x + anchorItem.width
-                                                    - menuPanel.width))
-        menuPanel.y = Math.max(edgeMargin, Math.min(height - menuPanel.height - edgeMargin, desiredY))
+        const above = anchor.y - panelHeight - Metrics.scaled(6)
+        const desiredY = below + panelHeight <= height - edgeMargin || above < edgeMargin ? below : above
+        menuPanel.x = Math.max(edgeMargin, Math.min(width - panelWidth - edgeMargin, anchor.x + anchorItem.width
+                                                    - panelWidth))
+        menuPanel.y = Math.max(edgeMargin, Math.min(height - panelHeight - edgeMargin, desiredY))
+        return true
     }
 
     function routeKey(key, phase, repeat) {
@@ -90,25 +104,20 @@ FocusScope {
         return true
     }
 
-    onVisibleChanged: {
-        if (!visible)
-        return
-        spaceRequested = false
-        Qt.callLater(function () {
-            positionPopup()
-            focusCurrent()
-        })
-    }
+    Component.onCompleted: schedulePresentation()
+    onVisibleChanged: schedulePresentation()
+    onAnchorItemChanged: schedulePresentation()
 
     MouseArea {
         anchors.fill: parent
+        enabled: root.placementReady
         onClicked: root.dismissed()
     }
 
     PopupMenuPanel {
         id: menuPanel
         width: root.panelWidth
-        open: root.visible
+        open: root.visible && root.placementReady
         openHeight: root.panelHeight
         baseColor: Theme.floatingPanel
 

@@ -274,16 +274,34 @@ QString exceptionMessage(const std::exception_ptr& exception)
 
 QString normalizedAudioOutputMode(const QString& mode)
 {
+#ifdef JELLYFIN_NATIVE_WEBOS
     return (mode == QStringLiteral("starfish") || mode == QStringLiteral("starfish-pcm"))
         ? QStringLiteral("starfish-pcm")
         : QStringLiteral("alsa");
+#elif defined(Q_OS_LINUX)
+    if (mode == QStringLiteral("pipewire") || mode == QStringLiteral("pulse") || mode == QStringLiteral("alsa"))
+        return mode;
+    return QStringLiteral("auto");
+#elif defined(Q_OS_WIN)
+    return mode == QStringLiteral("wasapi") ? mode : QStringLiteral("auto");
+#elif defined(Q_OS_MACOS)
+    return mode == QStringLiteral("coreaudio") ? mode : QStringLiteral("auto");
+#else
+    return QStringLiteral("auto");
+#endif
 }
 
 QString sanitizedDiagnosticUrl(QString url, qsizetype maxLength)
 {
     static const QRegularExpression secretQuery(
         QStringLiteral("([?&](?:api_key|access_token|token)=)[^&]+"), QRegularExpression::CaseInsensitiveOption);
+    static const QRegularExpression tokenHeader(
+        QStringLiteral("(X-Emby-Token\\s*[:=]\\s*)[^,\\r\\n]+"), QRegularExpression::CaseInsensitiveOption);
+    static const QRegularExpression authorizationHeader(
+        QStringLiteral("(Authorization\\s*[:=]\\s*)[^\\r\\n]+"), QRegularExpression::CaseInsensitiveOption);
     url.replace(secretQuery, QStringLiteral("\\1<redacted>"));
+    url.replace(tokenHeader, QStringLiteral("\\1<redacted>"));
+    url.replace(authorizationHeader, QStringLiteral("\\1<redacted>"));
     return maxLength >= 0 ? url.left(maxLength) : url;
 }
 
@@ -306,6 +324,8 @@ QString MovieItem::subtitle() const
 
 bool isPlayableItem(const MovieItem& item)
 {
+    if (item.isVirtualItem || item.locationType.compare(QStringLiteral("Virtual"), Qt::CaseInsensitive) == 0)
+        return false;
     return item.itemType == QStringLiteral("Movie") || item.itemType == QStringLiteral("Episode")
         || item.itemType == QStringLiteral("MusicVideo") || item.itemType == QStringLiteral("Video")
         || item.itemType == QStringLiteral("Audio") || item.itemType == QStringLiteral("AudioBook")
@@ -341,6 +361,42 @@ QString itemDisplaySubtitle(const MovieItem& item)
     if (item.itemType == QStringLiteral("Episode") && !item.title.isEmpty())
         return subtitle.isEmpty() ? item.title : QStringLiteral("%1 · %2").arg(subtitle, item.title);
     return subtitle;
+}
+
+QString itemEpisodeCode(const MovieItem& item)
+{
+    if (item.itemType != QStringLiteral("Episode") || item.seasonNumber <= 0 || item.episodeNumber <= 0)
+        return {};
+    return QStringLiteral("S%1E%2")
+        .arg(item.seasonNumber, 2, 10, QLatin1Char('0'))
+        .arg(item.episodeNumber, 2, 10, QLatin1Char('0'));
+}
+
+bool isGenericEpisodeTitle(const MovieItem& item)
+{
+    if (item.itemType != QStringLiteral("Episode") || item.episodeNumber <= 0)
+        return false;
+    const QString title = item.title.simplified();
+    constexpr QLatin1StringView prefix("Episode ");
+    if (!title.startsWith(prefix, Qt::CaseInsensitive))
+        return false;
+    bool validNumber = false;
+    const int titleNumber = title.sliced(prefix.size()).toInt(&validNumber);
+    return validNumber && titleNumber == item.episodeNumber;
+}
+
+int episodicPlaybackStartIndex(const std::vector<MovieItem>& episodes)
+{
+    int lastPlayed = -1;
+    for (int index = 0; index < static_cast<int>(episodes.size()); ++index) {
+        if (episodes[static_cast<size_t>(index)].played)
+            lastPlayed = index;
+    }
+    for (int index = lastPlayed + 1; index < static_cast<int>(episodes.size()); ++index) {
+        if (isPlayableItem(episodes[static_cast<size_t>(index)]))
+            return index;
+    }
+    return -1;
 }
 
 bool isMeaningfulResumePosition(qint64 resumeTicks, qint64 runtimeTicks)
