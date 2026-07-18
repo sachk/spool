@@ -90,7 +90,7 @@ private:
         if (!query.exec(QStringLiteral("PRAGMA user_version")) || !query.next())
             return false;
         const int existingVersion = query.value(0).toInt();
-        if (existingVersion > 5) {
+        if (existingVersion > 6) {
             qWarning() << "database: unsupported schema version" << existingVersion;
             return false;
         }
@@ -119,7 +119,22 @@ private:
                                           "payload BLOB NOT NULL,"
                                           "saved_at INTEGER NOT NULL"
                                           ")"))
-            || !query.exec(QStringLiteral("PRAGMA user_version = 5"))) {
+            || !query.exec(QStringLiteral("CREATE TABLE IF NOT EXISTS profiles ("
+                                          "profile_id TEXT PRIMARY KEY,"
+                                          "server_id TEXT NOT NULL,"
+                                          "server_name TEXT NOT NULL,"
+                                          "server_url TEXT NOT NULL,"
+                                          "user_id TEXT NOT NULL,"
+                                          "user_name TEXT NOT NULL,"
+                                          "access_token TEXT NOT NULL,"
+                                          "avatar_tag TEXT NOT NULL,"
+                                          "last_used_at INTEGER NOT NULL,"
+                                          "created_at INTEGER NOT NULL,"
+                                          "needs_authentication INTEGER NOT NULL"
+                                          ")"))
+            || !query.exec(QStringLiteral("CREATE INDEX IF NOT EXISTS profiles_usage "
+                                          "ON profiles(last_used_at DESC, created_at ASC)"))
+            || !query.exec(QStringLiteral("PRAGMA user_version = 6"))) {
             qWarning() << "database: schema migration failed" << query.lastError().text();
             return false;
         }
@@ -129,6 +144,9 @@ private:
                 || !query.exec(QStringLiteral("DELETE FROM home_payload"))) {
                 qWarning() << "database: cache invalidation migration failed" << query.lastError().text();
             }
+        }
+        if (existingVersion < 6) {
+            query.exec(QStringLiteral("DELETE FROM kv WHERE key = 'profiles/accounts-v1'"));
         }
         return true;
     }
@@ -281,6 +299,102 @@ public:
             removeCacheValue(nameSpace, key);
     }
 
+    std::vector<AccountProfile> accountProfiles()
+    {
+        std::vector<AccountProfile> profiles;
+        QSqlQuery query(m_database);
+        if (!query.exec(QStringLiteral("SELECT profile_id, server_id, server_name, server_url, user_id, user_name, "
+                                       "access_token, avatar_tag, last_used_at, created_at, needs_authentication "
+                                       "FROM profiles ORDER BY last_used_at DESC, created_at ASC"))) {
+            qWarning() << "database: profile load failed" << query.lastError().text();
+            return profiles;
+        }
+        while (query.next())
+            profiles.push_back(accountProfileFromQuery(query));
+        return profiles;
+    }
+
+    std::optional<AccountProfile> activateAccountProfile(const QString& profileId)
+    {
+        if (profileId.isEmpty() || !m_database.transaction())
+            return std::nullopt;
+
+        QSqlQuery query(m_database);
+        query.prepare(QStringLiteral("SELECT profile_id, server_id, server_name, server_url, user_id, user_name, "
+                                     "access_token, avatar_tag, last_used_at, created_at, needs_authentication "
+                                     "FROM profiles WHERE profile_id = ?"));
+        query.addBindValue(profileId);
+        if (!query.exec() || !query.next()) {
+            m_database.rollback();
+            return std::nullopt;
+        }
+
+        AccountProfile profile = accountProfileFromQuery(query);
+        profile.lastUsedAt = QDateTime::currentMSecsSinceEpoch();
+        QSqlQuery touch(m_database);
+        touch.prepare(QStringLiteral("UPDATE profiles SET last_used_at = ? WHERE profile_id = ?"));
+        touch.addBindValue(profile.lastUsedAt);
+        touch.addBindValue(profileId);
+        if (!touch.exec() || !m_database.commit()) {
+            m_database.rollback();
+            return std::nullopt;
+        }
+        return profile;
+    }
+
+    void upsertAccountProfile(const AccountProfile& profile)
+    {
+        QSqlQuery query(m_database);
+        query.prepare(QStringLiteral(
+            "INSERT INTO profiles(profile_id, server_id, server_name, server_url, user_id, user_name, "
+            "access_token, avatar_tag, last_used_at, created_at, needs_authentication) "
+            "VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) "
+            "ON CONFLICT(profile_id) DO UPDATE SET "
+            "server_id = excluded.server_id, server_name = excluded.server_name, "
+            "server_url = excluded.server_url, user_id = excluded.user_id, user_name = excluded.user_name, "
+            "access_token = excluded.access_token, avatar_tag = excluded.avatar_tag, "
+            "last_used_at = excluded.last_used_at, needs_authentication = excluded.needs_authentication"));
+        query.addBindValue(profile.profileId);
+        query.addBindValue(profile.serverId);
+        query.addBindValue(profile.serverName);
+        query.addBindValue(profile.serverUrl);
+        query.addBindValue(profile.userId);
+        query.addBindValue(profile.userName);
+        query.addBindValue(profile.accessToken);
+        query.addBindValue(profile.avatarTag);
+        query.addBindValue(profile.lastUsedAt);
+        query.addBindValue(profile.createdAt);
+        query.addBindValue(profile.needsAuthentication);
+        if (!query.exec())
+            qWarning() << "database: profile upsert failed" << query.lastError().text();
+    }
+
+    void expireAccountProfile(const QString& profileId)
+    {
+        QSqlQuery query(m_database);
+        query.prepare(
+            QStringLiteral("UPDATE profiles SET access_token = '', needs_authentication = 1 WHERE profile_id = ?"));
+        query.addBindValue(profileId);
+        if (!query.exec())
+            qWarning() << "database: profile expiration failed" << query.lastError().text();
+    }
+
+    void removeAccountProfile(const QString& profileId)
+    {
+        QSqlQuery query(m_database);
+        query.prepare(QStringLiteral("DELETE FROM profiles WHERE profile_id = ?"));
+        query.addBindValue(profileId);
+        if (!query.exec())
+            qWarning() << "database: profile removal failed" << query.lastError().text();
+    }
+
+    void clearAccountProfiles()
+    {
+        QSqlQuery query(m_database);
+        if (!query.exec(QStringLiteral("DELETE FROM profiles")))
+            qWarning() << "database: profile clear failed" << query.lastError().text();
+    }
+
     void close()
     {
         if (m_database.isValid()) {
@@ -292,6 +406,13 @@ public:
     }
 
 private:
+    static AccountProfile accountProfileFromQuery(const QSqlQuery& query)
+    {
+        return { query.value(0).toString(), query.value(1).toString(), query.value(2).toString(),
+            query.value(3).toString(), query.value(4).toString(), query.value(5).toString(), query.value(6).toString(),
+            query.value(7).toString(), query.value(8).toLongLong(), query.value(9).toLongLong(),
+            query.value(10).toBool() };
+    }
     QSqlDatabase m_database;
 };
 
@@ -454,6 +575,43 @@ void DatabaseManager::clearAuthSession()
         m_worker->setValue(QStringLiteral("login/userName"), QString());
         m_worker->setValue(QStringLiteral("login/serverId"), QString());
     });
+}
+QCoro::Task<std::vector<AccountProfile>> DatabaseManager::loadAccountProfilesAsync()
+{
+    if (!co_await awaitInitialization())
+        co_return std::vector<AccountProfile> {};
+    DatabaseWorker *worker = m_worker;
+    co_return co_await workerTask(
+        worker, [worker]() { return worker ? worker->accountProfiles() : std::vector<AccountProfile> {}; });
+}
+
+QCoro::Task<std::optional<AccountProfile>> DatabaseManager::activateAccountProfileAsync(const QString& profileId)
+{
+    if (!co_await awaitInitialization())
+        co_return std::nullopt;
+    DatabaseWorker *worker = m_worker;
+    co_return co_await workerTask(
+        worker, [worker, profileId]() { return worker ? worker->activateAccountProfile(profileId) : std::nullopt; });
+}
+
+void DatabaseManager::upsertAccountProfile(const AccountProfile& profile)
+{
+    invokeOnWorkerAsync([this, profile]() { m_worker->upsertAccountProfile(profile); });
+}
+
+void DatabaseManager::expireAccountProfile(const QString& profileId)
+{
+    invokeOnWorkerAsync([this, profileId]() { m_worker->expireAccountProfile(profileId); });
+}
+
+void DatabaseManager::removeAccountProfile(const QString& profileId)
+{
+    invokeOnWorkerAsync([this, profileId]() { m_worker->removeAccountProfile(profileId); });
+}
+
+void DatabaseManager::clearAccountProfiles()
+{
+    invokeOnWorkerAsync([this]() { m_worker->clearAccountProfiles(); });
 }
 
 QCoro::Task<QString> DatabaseManager::loadDeviceIdAsync()

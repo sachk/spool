@@ -12,9 +12,12 @@
 #include <QThread>
 #include <QVariant>
 
+#include "../app/AccountProfile.h"
 #include "../common/JellyfinTypes.h"
 
+#include <optional>
 #include <utility>
+#include <vector>
 
 namespace JellyfinNative {
 
@@ -38,6 +41,12 @@ public:
     void saveAuthSession(const AuthSession& session);
     void clearAuthSession();
 
+    QCoro::Task<std::vector<AccountProfile>> loadAccountProfilesAsync();
+    QCoro::Task<std::optional<AccountProfile>> activateAccountProfileAsync(const QString& profileId);
+    void upsertAccountProfile(const AccountProfile& profile);
+    void expireAccountProfile(const QString& profileId);
+    void removeAccountProfile(const QString& profileId);
+    void clearAccountProfiles();
     QCoro::Task<QString> loadDeviceIdAsync();
     void saveDeviceId(const QString& deviceId);
 

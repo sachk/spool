@@ -495,18 +495,10 @@ int main(int argc, char **argv)
     qmlRegisterSingletonInstance("JellyfinWebOS", 1, 0, "I18n", localization.get());
     qmlRegisterSingletonInstance("JellyfinWebOS", 1, 0, "Platform", platformInfo);
     qmlRegisterType<JellyfinNative::MpvVideoItem>("JellyfinWebOS", 1, 0, "MpvVideoItem");
-    // Start app initialization (device id, settings, session restore — all
-    // DB-worker reads, then the home-row network fetches) before the QML load
-    // so that work overlaps the ~600 ms of QML instantiation instead of
-    // starting from zero once the event loop finally spins at ~1 s.
-    router->beginSession(controller->session()->likelyAuthenticated());
+    // Start device, settings, profile-summary, and discovery reads before the
+    // QML load. Saved credentials are never activated until a profile is chosen.
+    router->beginSession(false);
     controller->initialize();
-
-    // Optimistic launch route: when the previous run ended signed in, start
-    // at home instead of waiting ~1 s for the async session restore to say
-    // so. AppShell's route reset on App.initialized corrects a wrong guess.
-    if (!router->recoveryPending() && controller->session()->likelyAuthenticated())
-        router->reset(QStringLiteral("home"));
 
     QObject::connect(
         &app, &QCoreApplication::aboutToQuit, router.get(), [router = router.get()] { router->markCleanShutdown(); });

@@ -238,22 +238,12 @@ void AppController::cacheDiscoveredServers()
     m_database->saveDiscoveredServers(cache);
 }
 
-bool AppController::useProfile(const QString& profileId)
+void AppController::useProfile(const QString& profileId)
 {
     setErrorText({});
     m_quickConnect->cancel();
-    if (!m_session->activateProfile(profileId))
-        return false;
-
-    if (m_libraries.rowCount() <= 0) {
-        loadLibraries();
-        return true;
-    }
-
-    setBusy(false);
-    m_discovery->stop();
-    refreshHomeRows();
-    return true;
+    m_syncPlay->disconnectSocket();
+    m_session->activateProfile(profileId);
 }
 
 void AppController::switchUser()
@@ -262,6 +252,7 @@ void AppController::switchUser()
     m_quickConnect->cancel();
     if (m_player->visible())
         m_player->stopWithReason(QStringLiteral("switch-user"));
+    m_syncPlay->disconnectSocket();
     if (m_database)
         m_database->invalidateHomePayloads();
     setBusy(false);
@@ -276,6 +267,7 @@ void AppController::logout()
     m_quickConnect->cancel();
     if (m_player->visible())
         m_player->stopWithReason(QStringLiteral("logout"));
+    m_syncPlay->disconnectSocket();
     m_session->logout();
 }
 

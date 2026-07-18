@@ -108,7 +108,7 @@ public:
     void shutdown();
     Q_INVOKABLE void chooseDiscoveredServer(int index);
     Q_INVOKABLE void rememberServer(const QString& name, const QString& address);
-    Q_INVOKABLE bool useProfile(const QString& profileId);
+    Q_INVOKABLE void useProfile(const QString& profileId);
     Q_INVOKABLE void switchUser();
     Q_INVOKABLE void logout();
     Q_INVOKABLE void goHome();

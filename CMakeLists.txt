@@ -97,6 +97,8 @@ set(JELLYFIN_CORE_SOURCES
     src/api/PlaybackNegotiation.cpp
     src/api/PlaybackNegotiation.h
     src/api/HttpRequestPolicy.h
+    src/app/AccountProfile.cpp
+    src/app/AccountProfile.h
     src/app/AppController.cpp
     src/app/AppController.h
     src/app/ArtworkImageProvider.cpp
@@ -260,6 +262,7 @@ qt_add_qml_module(jellyfin-native
         qml/pages/ItemDetailsPage.qml
         qml/pages/LibraryGridPage.qml
         qml/pages/LoginPage.qml
+        qml/pages/ProfileNavigation.js
         qml/pages/OpenSourceNoticesPage.qml
         qml/pages/ScaleSetupPage.qml
         qml/pages/PersonDetailsPage.qml
@@ -277,6 +280,7 @@ qt_add_qml_module(jellyfin-native
         qml/primitives/AppText.qml
         qml/primitives/AtomicViewReveal.qml
         qml/primitives/ChoiceStrip.qml
+        qml/primitives/ConfirmationDialog.qml
         qml/primitives/EmptyPlaceholder.qml
         qml/primitives/FastWheelHandler.qml
         qml/primitives/IconButton.qml
@@ -493,6 +497,10 @@ if(BUILD_TESTING AND NOT CMAKE_CROSSCOMPILING)
             COMMAND "${QMLTESTRUNNER_EXECUTABLE}"
                 -input "${CMAKE_CURRENT_SOURCE_DIR}/tests/qml/tst_NavGrid.qml"
         )
+        add_test(NAME profile-navigation
+            COMMAND "${QMLTESTRUNNER_EXECUTABLE}"
+                -input "${CMAKE_CURRENT_SOURCE_DIR}/tests/qml/tst_ProfileNavigation.qml"
+        )
         add_test(NAME atomic-view-reveal
             COMMAND "${QMLTESTRUNNER_EXECUTABLE}"
                 -input "${CMAKE_CURRENT_SOURCE_DIR}/tests/qml/tst_AtomicViewReveal.qml"
@@ -510,8 +518,8 @@ if(BUILD_TESTING AND NOT CMAKE_CROSSCOMPILING)
             "QT_QUICK_BACKEND=software"
             ${JELLYFIN_TEST_ENV}
         )
-        set_tests_properties(route-policy key-router player-overlay-input option-picker-input nav-grid atomic-view-reveal
-            input-latency-warning player-seek-bar-hover PROPERTIES
+        set_tests_properties(route-policy key-router player-overlay-input option-picker-input nav-grid
+            profile-navigation atomic-view-reveal input-latency-warning player-seek-bar-hover PROPERTIES
             ENVIRONMENT "${JELLYFIN_QML_TEST_ENV}"
         )
     endif()

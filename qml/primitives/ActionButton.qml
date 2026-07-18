@@ -17,15 +17,19 @@ T.Control {
     background: Rectangle {
         radius: Theme.radiusMedium
         color: root.kind === "primary" ? (tap.pressed ? Theme.accentDim : (root.pointerHovered || root.activeFocus
-                                                                           ? Theme.accent : Theme.accentDim)) : (
-                                             tap.pressed ? Theme.bgRaised : root.kind === "flat" ? "transparent" :
-                                                                                                   Theme.bgPanel)
+                                                                           ? Theme.accent : Theme.accentDim)) :
+                                         root.kind === "danger" ? (tap.pressed ? Theme.bgRaised : Theme.errorPanel) :
+                                                                  tap.pressed ? Theme.bgRaised : root.kind === "flat"
+                                                                                ? "transparent" : Theme.bgPanel
         border.width: root.activeFocus ? Theme.focusBorderWidth : root.pointerHovered ? Theme.hoverBorderWidth :
                                                                                         root.kind === "flat" ? 0 :
                                                                                                                Theme.hoverBorderWidth
         border.color: root.activeFocus ? Theme.textPrimary : root.pointerHovered ? Theme.borderStrong : root.kind
                                                                                    === "primary" ? Theme.accentDim :
-                                                                                                   Theme.border
+                                                                                                   root.kind
+                                                                                                   === "danger"
+                                                                                                   ? Theme.errorText :
+                                                                                                     Theme.border
         antialiasing: true
     }
 
@@ -47,9 +51,11 @@ T.Control {
             AppText {
                 anchors.verticalCenter: parent.verticalCenter
                 text: root.text
-                color: root.enabled ? Theme.textPrimary : Theme.textDisabled
+                color: root.enabled ? (root.kind === "danger" ? Theme.errorText : Theme.textPrimary) :
+                                      Theme.textDisabled
+
                 font.pixelSize: Metrics.bodySizePx
-                font.weight: root.kind === "primary" ? Font.DemiBold : Font.Medium
+                font.weight: root.kind === "primary" || root.kind === "danger" ? Font.DemiBold : Font.Medium
                 elide: Text.ElideRight
                 maximumLineCount: 1
             }

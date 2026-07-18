@@ -1,14 +1,14 @@
 #pragma once
 
 #include "../common/JellyfinTypes.h"
+#include "AccountProfile.h"
 
 #include <QCoroTask>
 #include <QObject>
 #include <QVariantList>
 
-#include <vector>
-
 #include <exception>
+#include <vector>
 
 namespace JellyfinNative {
 
@@ -22,12 +22,10 @@ class SessionController final : public QObject {
     Q_PROPERTY(QString username READ username WRITE setUsername NOTIFY usernameChanged)
     Q_PROPERTY(QString password READ password WRITE setPassword NOTIFY passwordChanged)
     Q_PROPERTY(bool authenticated READ authenticated NOTIFY authenticatedStateChanged)
-    // Synchronous launch hint: did the previous run end signed in? Lets
-    // startup construct home optimistically before the async session restore
-    // confirms; a wrong guess is corrected by the route reset that runs when
-    // initialization completes.
-    Q_PROPERTY(bool likelyAuthenticated READ likelyAuthenticated CONSTANT)
+    Q_PROPERTY(QString activeProfileId READ activeProfileId NOTIFY activeProfileChanged)
+    Q_PROPERTY(QString activeProfileLabel READ activeProfileLabel NOTIFY activeProfileChanged)
     Q_PROPERTY(QVariantList accountProfiles READ accountProfiles NOTIFY accountProfilesChanged)
+    Q_PROPERTY(bool profileSignInRequired READ profileSignInRequired NOTIFY profileSignInRequiredChanged)
 
 public:
     SessionController(DatabaseManager *database, JellyfinApiFacade *api, QObject *parent = nullptr);
@@ -37,8 +35,10 @@ public:
     QString username() const;
     QString password() const;
     bool authenticated() const;
-    bool likelyAuthenticated() const;
+    QString activeProfileId() const;
+    QString activeProfileLabel() const;
     QVariantList accountProfiles() const;
+    bool profileSignInRequired() const;
 
     QCoro::Task<bool> initializeAsync();
     Q_INVOKABLE void setServerUrl(const QString& serverUrl);
@@ -46,7 +46,11 @@ public:
     Q_INVOKABLE void setUsername(const QString& username);
     Q_INVOKABLE void setPassword(const QString& password);
     Q_INVOKABLE void login();
-    Q_INVOKABLE bool activateProfile(const QString& profileId);
+    Q_INVOKABLE void activateProfile(const QString& profileId);
+    Q_INVOKABLE void prepareProfileSignIn(const QString& profileId);
+    Q_INVOKABLE void updateProfileServer(const QString& profileId, const QString& name, const QString& url);
+    Q_INVOKABLE void removeProfile(const QString& profileId);
+    Q_INVOKABLE void clearProfiles();
     Q_INVOKABLE void deactivate();
     void acceptSession(const AuthSession& session);
     Q_INVOKABLE void logout();
@@ -62,25 +66,18 @@ signals:
     void errorOccurred(const QString& message);
     void authenticatedChanged(const JellyfinNative::AuthSession& session);
     void authenticatedStateChanged();
+    void activeProfileChanged();
     void accountProfilesChanged();
+    void profileSignInRequiredChanged();
     void loggedOut();
 
 private:
-    struct AccountProfile {
-        QString id;
-        QString serverId;
-        QString serverName;
-        QString serverUrl;
-        QString userId;
-        QString userName;
-        QString accessToken;
-        qint64 lastUsedAt = 0;
-    };
-
+    QCoro::Task<void> activateProfileAsync(const QString& profileId);
     void activateSession(const AuthSession& session, bool persist);
     void upsertActiveProfile(const AuthSession& session);
-    void saveProfiles();
-    void stampLikelyAuthenticated(bool value);
+    void setProfileSignInFields(const AccountProfile& profile);
+    void clearActiveSession();
+    void sortProfiles();
 
     DatabaseManager *m_database = nullptr;
     JellyfinApiFacade *m_api = nullptr;
@@ -90,7 +87,7 @@ private:
     QString m_password;
     QString m_activeProfileId;
     std::vector<AccountProfile> m_profiles;
-    bool m_likelyAuthenticated = false;
+    bool m_profileSignInRequired = false;
 };
 
 } // namespace JellyfinNative

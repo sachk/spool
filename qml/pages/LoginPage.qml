@@ -4,20 +4,26 @@ import QtQuick
 import QtQuick.Layouts
 import "../theme"
 import "../primitives"
+import "ProfileNavigation.js" as ProfileNavigation
 
 FocusScope {
     id: root
 
     property var shell
-    property bool addMode: Session.accountProfiles.length === 0
-    property int addStep: 1
-    property string selectedServerName: ""
+    property bool addMode: Session.accountProfiles.length === 0 || Session.profileSignInRequired
+    property int addStep: Session.profileSignInRequired ? 2 : 1
+    property string selectedServerName: Session.serverName
     property string selectedServerAddress: Session.serverUrl
     property string manualServerDraft: ""
     property string manualServerAddress: ""
     property string manualServerStatus: ""
     property string manualServerVersion: ""
     property string manualProbeInput: ""
+    property string profileActionMode: ""
+    property string profileActionId: ""
+    property Item profileActionAnchor: null
+    property string profileActionName: ""
+    property string profileActionUrl: ""
 
     readonly property bool hasSavedPair: Session.accountProfiles.length > 0
     readonly property bool textInputActive: shell ? shell.textInputActive : Qt.inputMethod.visible
@@ -46,8 +52,34 @@ FocusScope {
     }
 
     function enterProfile(profileId) {
-        if (App.useProfile(profileId) && shell)
-            shell.replaceRoute("home")
+        App.useProfile(profileId)
+    }
+    function openProfileActions(profileId, anchor, serverName, serverUrl) {
+        profileActionId = profileId
+        profileActionAnchor = anchor
+        profileActionName = serverName
+        profileActionUrl = serverUrl
+        profileActionMode = "menu"
+    }
+
+    function closeProfileActions() {
+        profileActionMode = ""
+        profileActionId = ""
+        profileActionAnchor = null
+        Qt.callLater(function () {
+            InputKeys.focus(profileList)
+        })
+    }
+
+    function chooseProfileAction(index) {
+        if (index === 0) {
+            Session.prepareProfileSignIn(profileActionId)
+            closeProfileActions()
+            addMode = true
+            addStep = 2
+            return
+        }
+        profileActionMode = index === 1 ? "edit" : "remove"
     }
 
     function openAddAccount() {
@@ -130,6 +162,8 @@ FocusScope {
     }
 
     function back() {
+        if (profileDialogLoader.item)
+            return profileDialogLoader.item.back()
         if (addMode && addStep === 2) {
             addStep = 1
             Qt.callLater(focusServerStep)
@@ -175,6 +209,18 @@ FocusScope {
     function moveControl(delta) {
         const items = controls()
         const current = focusedControl()
+        if (!addMode && (current === profileList || current === addAccountTile)) {
+            const next = ProfileNavigation.move(profileList.currentIndex, profileList.count, current === addAccountTile,
+                                                delta)
+            if (next.addFocused) {
+                InputKeys.focus(addAccountTile)
+            } else {
+                profileList.currentIndex = next.profileIndex
+                profileList.positionViewAtIndex(next.profileIndex, ListView.Contain)
+                InputKeys.focus(profileList)
+            }
+            return
+        }
         if (current === profileList) {
             const nextProfile = profileList.currentIndex + delta
             if (nextProfile >= 0 && nextProfile < profileList.count) {
@@ -194,6 +240,8 @@ FocusScope {
     }
 
     function routeKey(key, phase, repeat) {
+        if (profileDialogLoader.item)
+            return profileDialogLoader.item.routeKey(key, phase, repeat)
         if (InputKeys.isMedia(key) && phase === "press") {
             signIn()
             return true
@@ -216,6 +264,10 @@ FocusScope {
     }
 
     function activate() {
+        if (profileDialogLoader.item) {
+            profileDialogLoader.item.activate()
+            return
+        }
         const control = focusedControl()
         if (control === profileList && profileList.currentItem)
             enterProfile(profileList.currentItem.profileId)
@@ -236,6 +288,22 @@ FocusScope {
             quickConnectButton.clicked()
         } else {
             signIn()
+        }
+    }
+
+    Connections {
+        target: Session
+
+        function onProfileSignInRequiredChanged() {
+            if (!Session.profileSignInRequired)
+                return
+            root.selectedServerName = Session.serverName
+            root.selectedServerAddress = Session.serverUrl
+            root.addMode = true
+            root.addStep = 2
+            Qt.callLater(function () {
+                usernameRow.focusField()
+            })
         }
     }
 
@@ -321,7 +389,31 @@ FocusScope {
         anchors.fill: parent
         visible: !root.addMode
 
+        Column {
+            anchors.bottom: profileRow.top
+            anchors.bottomMargin: Metrics.scaled(30)
+            anchors.horizontalCenter: parent.horizontalCenter
+            spacing: Metrics.scaled(8)
+
+            AppText {
+                width: Math.min(root.contentWidth, Metrics.scaled(720))
+                text: "Who’s watching?"
+                font.pixelSize: Metrics.titleSizePx + Metrics.scaled(10)
+                font.weight: Font.DemiBold
+                horizontalAlignment: Text.AlignHCenter
+            }
+
+            MonoText {
+                width: Math.min(root.contentWidth, Metrics.scaled(720))
+                text: "Choose a Jellyfin account and its paired server"
+                color: Theme.textSecondary
+                font.pixelSize: Metrics.bodySizePx
+                horizontalAlignment: Text.AlignHCenter
+            }
+        }
+
         Row {
+            id: profileRow
             anchors.centerIn: parent
             spacing: Metrics.scaled(28)
 
@@ -342,16 +434,18 @@ FocusScope {
                 delegate: ProfileTile {
                     required property int index
                     required property var modelData
-                    readonly property string profileId: String(modelData.id || "")
+                    readonly property string profileId: String(modelData.profileId || "")
 
                     tileSize: root.tileSize
                     username: String(modelData.userName || "Saved account")
                     serverName: String(modelData.serverName || root.savedServerName)
-                    serverAddress: modelData.needsSignIn ? "Sign in again" : String(modelData.serverUrl || "")
-                    avatarColor: root.profileTint(username + serverAddress)
+                    serverAddress: String(modelData.serverHost || modelData.serverUrl || "")
+                    status: String(modelData.status || "")
                     initial: root.firstInitial(username)
                     focused: ListView.isCurrentItem && profileList.activeFocus
                     onAccepted: root.enterProfile(profileId)
+                    onContextRequested: root.openProfileActions(profileId, this, serverName, String(modelData.serverUrl
+                                                                                                    || ""))
                 }
             }
 
@@ -362,6 +456,15 @@ FocusScope {
                 username: "Add account"
                 onAccepted: root.openAddAccount()
             }
+        }
+        MonoText {
+            anchors.top: profileRow.bottom
+            anchors.topMargin: Metrics.scaled(18)
+            anchors.horizontalCenter: parent.horizontalCenter
+            visible: profileList.count > 4
+            text: (profileList.currentIndex + 1) + " / " + profileList.count
+            color: Theme.textMuted
+            font.pixelSize: Metrics.metaSizePx
         }
     }
 
@@ -623,6 +726,167 @@ FocusScope {
         }
     }
 
+    Loader {
+        id: profileDialogLoader
+        anchors.fill: parent
+        active: root.profileActionMode.length > 0
+        z: 200
+        sourceComponent: root.profileActionMode === "menu" ? profileActionMenu : root.profileActionMode === "remove"
+                                                             ? removeProfileDialog : editProfileDialog
+    }
+
+    Component {
+        id: profileActionMenu
+
+        OptionPickerDialog {
+            title: "Account actions"
+            options: ["Sign in again", "Edit server", "Remove from this device"]
+            currentIndex: 0
+            anchorItem: root.profileActionAnchor
+            onSelected: index => root.chooseProfileAction(index)
+            onDismissed: root.closeProfileActions()
+        }
+    }
+
+    Component {
+        id: removeProfileDialog
+
+        ConfirmationDialog {
+            title: "Remove " + root.profileActionName + "?"
+            message: "This removes the saved account and token for " + root.profileActionName
+                     + " on this device. Other accounts are unchanged."
+            confirmText: "Remove"
+            destructive: true
+            onAccepted: {
+                Session.removeProfile(root.profileActionId)
+                root.closeProfileActions()
+                if (Session.accountProfiles.length === 0)
+                root.openAddAccount()
+            }
+            onDismissed: root.closeProfileActions()
+        }
+    }
+
+    Component {
+        id: editProfileDialog
+
+        FocusScope {
+            id: editDialog
+            anchors.fill: parent
+            focus: true
+
+            function routeKey(key, phase, repeat) {
+                if (InputKeys.isBack(key, false, false)) {
+                    if (phase === "release")
+                        root.closeProfileActions()
+                    return true
+                }
+                if (!InputKeys.isDirection(key))
+                    return InputKeys.isAccept(key)
+                if (phase !== "press")
+                    return true
+                const controls = [nameField, addressField, cancelEditButton, saveEditButton]
+                let index = nameField.activeFocus ? 0 : addressField.activeFocus ? 1 : cancelEditButton.activeFocus ? 2 :
+                                                                                                                      3
+                if (key === Qt.Key_Down || key === Qt.Key_Right)
+                    index = Math.min(controls.length - 1, index + 1)
+                else if (key === Qt.Key_Up || key === Qt.Key_Left)
+                    index = Math.max(0, index - 1)
+                if (controls[index] === nameField || controls[index] === addressField)
+                    controls[index].focusRow()
+                else
+                    InputKeys.focus(controls[index])
+                return true
+            }
+
+            function activate() {
+                if (saveEditButton.activeFocus)
+                    saveEditButton.clicked()
+                else if (cancelEditButton.activeFocus)
+                    root.closeProfileActions()
+            }
+
+            function back() {
+                root.closeProfileActions()
+                return true
+            }
+
+            Component.onCompleted: Qt.callLater(function () {
+                nameField.focusRow()
+            })
+
+            Rectangle {
+                anchors.fill: parent
+                color: "#99000000"
+            }
+
+            Surface {
+                anchors.centerIn: parent
+                width: Math.min(parent.width - Metrics.scaled(96), Metrics.scaled(620))
+                height: editContent.implicitHeight + Metrics.scaled(48)
+                elevated: true
+                baseColor: Theme.floatingPanel
+
+                ColumnLayout {
+                    id: editContent
+                    anchors.fill: parent
+                    anchors.margins: Metrics.scaled(24)
+                    spacing: Metrics.scaled(14)
+
+                    AppText {
+                        Layout.fillWidth: true
+                        text: "Edit server"
+                        font.pixelSize: Metrics.titleSizePx
+                        font.weight: Font.DemiBold
+                    }
+
+                    TextFieldRow {
+                        id: nameField
+                        Layout.fillWidth: true
+                        label: "Server label"
+                        text: root.profileActionName
+                        onTextEdited: root.profileActionName = text
+                    }
+
+                    TextFieldRow {
+                        id: addressField
+                        Layout.fillWidth: true
+                        label: "Server address"
+                        text: root.profileActionUrl
+                        inputMethodHints: Qt.ImhUrlCharactersOnly | Qt.ImhNoPredictiveText | Qt.ImhNoAutoUppercase
+                        onTextEdited: root.profileActionUrl = text
+                    }
+
+                    RowLayout {
+                        Layout.fillWidth: true
+                        spacing: Metrics.scaled(12)
+
+                        Item {
+                            Layout.fillWidth: true
+                        }
+
+                        ActionButton {
+                            id: cancelEditButton
+                            text: "Cancel"
+                            onClicked: root.closeProfileActions()
+                        }
+
+                        ActionButton {
+                            id: saveEditButton
+                            text: "Save"
+                            kind: "primary"
+                            onClicked: {
+                                Session.updateProfileServer(root.profileActionId, root.profileActionName,
+                                                            root.profileActionUrl)
+                                root.closeProfileActions()
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     component ProfileTile: FocusScope {
         id: tile
 
@@ -630,6 +894,7 @@ FocusScope {
         property string username: ""
         property string serverName: ""
         property string serverAddress: ""
+        property string status: ""
         property string initial: ""
         property color avatarColor: "#1F4631"
         property bool addTile: false
@@ -637,6 +902,7 @@ FocusScope {
         property bool pointerHovered: hover.hovered
 
         signal accepted
+        signal contextRequested
 
         width: tileSize
         height: tileSize + Metrics.scaled(76)
@@ -670,6 +936,26 @@ FocusScope {
                 color: tile.addTile ? Theme.accent : Theme.textPrimary
                 font.pixelSize: tile.addTile ? Math.round(tile.tileSize * 0.34) : Math.round(tile.tileSize * 0.42)
                 font.weight: Font.DemiBold
+            }
+
+            Rectangle {
+                anchors.right: parent.right
+                anchors.top: parent.top
+                anchors.margins: Metrics.scaled(8)
+                width: Metrics.scaled(30)
+                height: width
+                radius: width / 2
+                visible: tile.status.length > 0
+                color: Theme.errorPanel
+                border.width: Theme.hoverBorderWidth
+                border.color: Theme.errorText
+
+                MaterialIcon {
+                    anchors.centerIn: parent
+                    name: "lock"
+                    iconSize: Metrics.scaled(17)
+                    iconColor: Theme.errorText
+                }
             }
         }
 
@@ -735,7 +1021,14 @@ FocusScope {
 
         MouseArea {
             anchors.fill: parent
-            onClicked: tile.accepted()
+            acceptedButtons: Qt.LeftButton | Qt.RightButton
+            onClicked: mouse => {
+                if (mouse.button === Qt.RightButton)
+                tile.contextRequested()
+                else
+                tile.accepted()
+            }
+            onPressAndHold: tile.contextRequested()
         }
 
         HoverHandler {

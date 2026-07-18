@@ -180,14 +180,14 @@ FocusScope {
                     icon: "search"
                 },
                 {
-                    label: "Settings",
-                    route: "settings",
-                    icon: "settings"
-                },
-                {
                     label: "Switch user",
                     route: "switchUser",
                     icon: "person"
+                },
+                {
+                    label: "Settings",
+                    route: "settings",
+                    icon: "settings"
                 }
             ]
 
@@ -208,7 +208,8 @@ FocusScope {
                     id: button
                     anchors.centerIn: parent
                     iconName: modelData.icon
-                    accessibleName: modelData.label
+                    accessibleName: modelData.route === "switchUser" && Session.activeProfileLabel.length > 0
+                                    ? "Switch user — " + Session.activeProfileLabel : modelData.label
                     railStyle: true
                     selected: root.selectedRoute === modelData.route
                     onClicked: root.navigate(modelData.route)
@@ -234,6 +235,29 @@ FocusScope {
                             duration: 90
                             easing.type: Easing.OutCubic
                         }
+                    }
+                }
+
+                Rectangle {
+                    anchors.top: button.bottom
+                    anchors.topMargin: Metrics.scaled(5)
+                    anchors.horizontalCenter: button.horizontalCenter
+                    width: switchTooltip.implicitWidth + Metrics.scaled(16)
+                    height: switchTooltip.implicitHeight + Metrics.scaled(10)
+                    radius: Theme.radiusSmall
+                    color: Theme.floatingPanel
+                    border.width: Theme.hoverBorderWidth
+                    border.color: Theme.borderStrong
+                    visible: Platform.hasDesktopPointer && modelData.route === "switchUser" && button.pointerHovered
+                    z: 100
+
+                    AppText {
+                        id: switchTooltip
+                        anchors.centerIn: parent
+                        text: "Switch user — " + Session.activeProfileLabel
+                        color: Theme.textPrimary
+                        font.pixelSize: Metrics.metaSizePx
+                        maximumLineCount: 1
                     }
                 }
             }

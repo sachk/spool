@@ -28,8 +28,8 @@ FocusScope {
         "About"]
     readonly property var pageRows: [makeRow("action/switchUser", "General", "action", "Switch User",
                                              "Return to profile selection"), makeRow("action/logout", "General",
-                                                                                     "action", "Logout",
-                                                                                     "Clear the saved session and return to sign in"),
+                                                                                     "action", "Sign out of this account",
+                                                                                     "Keep this profile on the device and require authentication next time"),
         makeRow("session/server", "General", "readonly", "Connected Server"), makeRow("theme/name", "General",
                                                                                       "readonly", "Theme",
                                                                                       "Fixed dark TV interface"),

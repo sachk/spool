@@ -628,7 +628,7 @@ KeyRouter {
             Layout.fillHeight: true
             route: root.route
             shell: root
-            startupReady: App.initialized || Session.likelyAuthenticated
+            startupReady: App.initialized
             focus: !(root.hasPlayer && root.player.visible)
             onActiveFocusChanged: if (activeFocus)
                                       root.navigationTarget = routeStack

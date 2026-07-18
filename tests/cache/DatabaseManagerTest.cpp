@@ -43,7 +43,7 @@ int main(int argc, char **argv)
 
     DatabaseManager database;
     require(database.initialize(databasePath), "database should rebuild an unsupported cache");
-    require(QCoro::waitFor(database.schemaVersionAsync()) == 5, "schema should migrate to version 5");
+    require(QCoro::waitFor(database.schemaVersionAsync()) == 6, "schema should migrate to version 6");
 
     database.saveSetting(QStringLiteral("batch/first"), QStringLiteral("one"));
     database.saveSetting(QStringLiteral("batch/second"), QStringLiteral("two"));
