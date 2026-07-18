@@ -850,9 +850,12 @@ void PlayerController::play(const PlaybackSession& session, bool startPaused)
     m_positionTracker.reset(startSeconds);
     m_paused = startPaused;
     m_fileLoaded = false;
+    m_seekDispatchReady = false;
     m_buffering = false;
     m_bufferingPercent = 0;
     m_seeking = false;
+    m_pendingSeek = false;
+    m_pendingSeekFlags.clear();
     m_debugOsdVisible = false;
     m_tracks.resetForPlayback();
     m_restoreFallbackStreamSelection = session.codecFallback;
@@ -1510,6 +1513,7 @@ void PlayerController::resetPlaybackUiState()
     m_visible = false;
     m_sessionActive = false;
     m_fileLoaded = false;
+    m_seekDispatchReady = false;
     if (m_hdrPlayback) {
         m_hdrPlayback = false;
         emit hdrPlaybackChanged();
@@ -1518,6 +1522,8 @@ void PlayerController::resetPlaybackUiState()
     m_buffering = false;
     m_bufferingPercent = 0;
     m_seeking = false;
+    m_pendingSeek = false;
+    m_pendingSeekFlags.clear();
     m_positionTracker.clear();
     m_debugOsdVisible = false;
     m_timeline.clear();
@@ -1556,29 +1562,36 @@ QByteArrayList PlayerController::buildSeekCommand(double targetSeconds, const QB
     return { QByteArrayLiteral("no-osd"), QByteArrayLiteral("seek"), QByteArray::number(targetSeconds, 'f', 3), flags };
 }
 
-bool PlayerController::beginSeekCommand(double targetSeconds, const QByteArray& flags, bool markSeeking)
+bool PlayerController::beginSeekCommand(double targetSeconds, const QByteArray& flags)
 {
+    if (!m_sessionActive)
+        return false;
+
     const double clampedTarget = clampedPosition(targetSeconds);
-
-    if (markSeeking) {
-        m_seeking = true;
-        m_seekWatchdogTimer.start();
-        notifyPlaybackStateChanged();
-    }
-
+    m_seeking = true;
     m_positionTracker.beginSeek(clampedTarget);
     setPositionSeconds(clampedTarget, PlaybackPositionTracker::Source::Seek);
+    notifyPlaybackStateChanged();
 
-    const QByteArrayList command = buildSeekCommand(clampedTarget, flags);
-    if (mpvCommand(command))
+    if (!m_seekDispatchReady) {
+        m_pendingSeek = true;
+        m_pendingSeekTargetSeconds = clampedTarget;
+        m_pendingSeekFlags = flags;
+        qInfo() << "player: deferring seek until initial playback restart target=" << clampedTarget
+                << "flags=" << flags;
+        return true;
+    }
+
+    m_pendingSeek = false;
+    m_pendingSeekFlags.clear();
+    m_seekWatchdogTimer.start();
+    if (mpvCommand(buildSeekCommand(clampedTarget, flags)))
         return true;
 
-    if (markSeeking) {
-        m_seeking = false;
-        m_seekWatchdogTimer.stop();
-        m_positionTracker.cancelSeek();
-        notifyPlaybackStateChanged();
-    }
+    m_seeking = false;
+    m_seekWatchdogTimer.stop();
+    m_positionTracker.cancelSeek();
+    notifyPlaybackStateChanged();
     return false;
 }
 
@@ -1589,21 +1602,27 @@ bool PlayerController::beginRelativeSeekCommand(double deltaSeconds)
 
     const double optimisticTarget = clampedPosition(seekAnchorPosition() + deltaSeconds);
     qInfo() << "player: relative keyframe seek" << deltaSeconds << "absoluteTarget=" << optimisticTarget;
+    return beginSeekCommand(optimisticTarget, QByteArrayLiteral("absolute+keyframes"));
+}
 
-    m_seeking = true;
+void PlayerController::flushPendingSeek()
+{
+    if (!m_pendingSeek || !m_sessionActive || !m_seekDispatchReady)
+        return;
+
+    const double target = m_pendingSeekTargetSeconds;
+    const QByteArray flags = m_pendingSeekFlags;
+    m_pendingSeek = false;
+    m_pendingSeekFlags.clear();
     m_seekWatchdogTimer.start();
-    m_positionTracker.beginSeek(optimisticTarget);
-    setPositionSeconds(optimisticTarget, PlaybackPositionTracker::Source::Seek);
-    notifyPlaybackStateChanged();
-
-    if (mpvCommand(buildSeekCommand(optimisticTarget, QByteArrayLiteral("absolute+keyframes"))))
-        return true;
+    qInfo() << "player: dispatching deferred seek target=" << target << "flags=" << flags;
+    if (mpvCommand(buildSeekCommand(target, flags)))
+        return;
 
     m_seeking = false;
     m_seekWatchdogTimer.stop();
     m_positionTracker.cancelSeek();
     notifyPlaybackStateChanged();
-    return false;
 }
 
 void PlayerController::handleMpvEvent(mpv_event *event)
@@ -1624,7 +1643,11 @@ void PlayerController::handleMpvEvent(mpv_event *event)
     case MPV_EVENT_PLAYBACK_RESTART:
         QMetaObject::invokeMethod(this, [this]() {
             qInfo() << "player: playback restart";
-            if (m_seeking) {
+            const bool hadPendingSeek = m_pendingSeek;
+            m_seekDispatchReady = true;
+            if (hadPendingSeek) {
+                flushPendingSeek();
+            } else if (m_seeking) {
                 m_seeking = false;
                 m_positionTracker.settleSeek();
                 m_seekWatchdogTimer.stop();

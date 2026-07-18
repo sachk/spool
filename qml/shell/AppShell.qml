@@ -595,7 +595,28 @@ KeyRouter {
     Rectangle {
         anchors.fill: parent
         color: Theme.bg
-        visible: App.initialized && !(root.hasPlayer && root.player.visible)
+        visible: !(root.hasPlayer && root.player.visible)
+    }
+
+    Column {
+        anchors.centerIn: parent
+        spacing: Metrics.scaled(12)
+        visible: !App.initialized && !(root.hasPlayer && root.player.visible)
+
+        AppText {
+            anchors.horizontalCenter: parent.horizontalCenter
+            text: "Jellyfin Native"
+            color: Theme.textPrimary
+            font.pixelSize: Metrics.scaled(34)
+            font.weight: Font.DemiBold
+        }
+
+        AppText {
+            anchors.horizontalCenter: parent.horizontalCenter
+            text: qsTr("Starting…")
+            color: Theme.textSecondary
+            font.pixelSize: Metrics.bodySizePx
+        }
     }
 
     ColumnLayout {
@@ -604,8 +625,8 @@ KeyRouter {
         anchors.topMargin: -root.keyboardAvoidance
         anchors.bottomMargin: root.keyboardAvoidance
         spacing: 0
-        visible: !(root.hasPlayer && root.player.visible)
-        enabled: !(root.hasPlayer && root.player.visible)
+        visible: App.initialized && !(root.hasPlayer && root.player.visible)
+        enabled: visible
 
         TopBar {
             id: navBar

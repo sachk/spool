@@ -1,5 +1,6 @@
 #include "platform/NativeAppWindow.h"
 
+#include <QColor>
 #include <QCoreApplication>
 #include <QDebug>
 #include <QEventLoop>
@@ -110,7 +111,7 @@ NativeAppWindow::NativeAppWindow(const QString& appId, QWindow *parent)
     , m_appId(appId)
     , m_platform(std::make_unique<PlatformData>(this))
 {
-    setColor(Qt::transparent);
+    setColor(QColor(11, 15, 20));
     setResizeMode(QQuickView::SizeRootObjectToView);
     setFlags(Qt::FramelessWindowHint | Qt::Window);
     setTitle(QStringLiteral("Jellyfin Native"));
@@ -153,14 +154,35 @@ bool NativeAppWindow::prepareForUiSurface()
     return handle() != nullptr;
 }
 
+void NativeAppWindow::completeUiSurface()
+{
+    setColor(Qt::transparent);
+}
+
 void NativeAppWindow::bringToFront()
 {
     showFullScreen();
+    requestActivate();
+    requestUpdate();
     if (!ensureShellSurface())
         return;
-    m_platform->fullscreenConfirmationPending = true;
-    const int generation = ++m_platform->fullscreenRequestGeneration;
     requestPlatformFullscreen();
+}
+
+void NativeAppWindow::requestPlatformFullscreen()
+{
+    if (!m_platform->webosShellSurface)
+        return;
+
+    const quint64 generation = ++m_platform->fullscreenRequestGeneration;
+    m_platform->fullscreenConfirmationPending = true;
+    wl_webos_shell_surface_set_state(m_platform->webosShellSurface, WL_WEBOS_SHELL_SURFACE_STATE_FULLSCREEN);
+    applyPlatformKeyMask();
+    if (m_platform->surface)
+        wl_surface_commit(m_platform->surface);
+    if (m_platform->display)
+        wl_display_flush(m_platform->display);
+
     QTimer::singleShot(250, this, [this, generation]() {
         if (!m_platform->fullscreenConfirmationPending || generation != m_platform->fullscreenRequestGeneration)
             return;
@@ -171,18 +193,6 @@ void NativeAppWindow::bringToFront()
                 qWarning() << "webOS shell: fullscreen request remained unconfirmed";
         });
     });
-}
-
-void NativeAppWindow::requestPlatformFullscreen()
-{
-    if (!m_platform->webosShellSurface)
-        return;
-    wl_webos_shell_surface_set_state(m_platform->webosShellSurface, WL_WEBOS_SHELL_SURFACE_STATE_FULLSCREEN);
-    applyPlatformKeyMask();
-    if (m_platform->surface)
-        wl_surface_commit(m_platform->surface);
-    if (m_platform->display)
-        wl_display_flush(m_platform->display);
 }
 
 void NativeAppWindow::releasePlatformSurface()

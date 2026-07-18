@@ -219,9 +219,10 @@ private:
     void startProgressReporting();
     void stopProgressReporting(bool failed = false, bool completed = false);
     bool mpvCommand(QByteArrayList command);
-    bool beginSeekCommand(double targetSeconds, const QByteArray& flags, bool markSeeking = true);
+    bool beginSeekCommand(double targetSeconds, const QByteArray& flags);
     QByteArrayList buildSeekCommand(double targetSeconds, const QByteArray& flags) const;
     bool beginRelativeSeekCommand(double deltaSeconds);
+    void flushPendingSeek();
     void updatePlaybackStatusText();
     void notifyPlaybackStateChanged();
     void setPositionSeconds(double seconds, PlaybackPositionTracker::Source source, bool notifySegments = true);
@@ -255,11 +256,15 @@ private:
     bool m_visible = false;
     bool m_sessionActive = false;
     bool m_fileLoaded = false;
+    bool m_seekDispatchReady = false;
     bool m_keepPlayingInBackground = false;
     bool m_paused = false;
     bool m_buffering = false;
     int m_bufferingPercent = 0;
     bool m_seeking = false;
+    bool m_pendingSeek = false;
+    double m_pendingSeekTargetSeconds = 0.0;
+    QByteArray m_pendingSeekFlags;
     bool m_debugOsdVisible = false;
     bool m_embeddedVideoOutput = false;
     PlaybackTrackState m_tracks;

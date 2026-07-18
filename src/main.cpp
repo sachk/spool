@@ -516,6 +516,7 @@ int main(int argc, char **argv)
         return 1;
     }
     logLine("startup: QML source loaded in %lld ms", static_cast<long long>(startupTimer.elapsed()));
+    window.completeUiSurface();
 
     if (smokeAndExit) {
         logLine("startup smoke completed without showing window");

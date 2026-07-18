@@ -26,6 +26,7 @@ public:
 
     bool prepareForUiSurface();
     void setInputLatencyMonitor(InputLatencyMonitor *monitor);
+    void completeUiSurface();
     bool prepareForPlaybackSurface();
     // Bring the surface to the foreground. On webOS this re-issues
     // wl_webos_shell_surface_set_state(FULLSCREEN); on host Qt it
