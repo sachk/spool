@@ -184,8 +184,6 @@ FocusScope {
         const items = [urlRow]
         if (manualServerVisible)
             items.push(manualServerCard)
-        if (Discovery.tlsTrustPending)
-            items.push(trustCertificateButton)
         if (discoveredList.count > 0)
             items.push(discoveredList)
         return items
@@ -275,8 +273,6 @@ FocusScope {
             openAddAccount()
         else if (control === manualServerCard)
             chooseManualServer()
-        else if (control === trustCertificateButton)
-            Discovery.trustPendingCertificate()
         else if (control === discoveredList && discoveredList.currentItem)
             discoveredList.currentItem.accepted()
         else if (control === urlRow || control === usernameRow || control === passwordRow)
@@ -325,18 +321,8 @@ FocusScope {
             if (input !== root.manualProbeInput)
                 return
             root.manualServerAddress = root.manualProbeInput
-            root.manualServerStatus = Discovery.tlsTrustPending ? "Certificate not trusted" : "Not found"
-            root.manualServerVersion = Discovery.tlsTrustPending ? Discovery.pendingTlsFingerprint : message
-        }
-
-        function onTlsTrustPendingChanged() {
-            if (!Discovery.tlsTrustPending)
-                return
-            root.manualServerStatus = "Certificate not trusted"
-            root.manualServerVersion = Discovery.pendingTlsFingerprint
-            Qt.callLater(function () {
-                InputKeys.focus(trustCertificateButton)
-            })
+            root.manualServerStatus = TlsTrust.pending ? "Certificate not trusted" : "Not found"
+            root.manualServerVersion = TlsTrust.pending ? TlsTrust.pendingFingerprint : message
         }
     }
 

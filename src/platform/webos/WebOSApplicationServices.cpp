@@ -68,9 +68,17 @@ struct PlatformApplicationServices::PlatformData {
         return true;
     }
 
+    static PlatformData *fromCallbackContext(void *data)
+    {
+        // libhelpers passes the HContext itself as LSFilterFunc's ctx argument,
+        // not HContext::userdata.
+        auto *context = static_cast<HContext *>(data);
+        return context ? static_cast<PlatformData *>(context->userdata) : nullptr;
+    }
+
     static bool lifecycle(LSHandle *, LSMessage *message, void *data)
     {
-        auto *platform = static_cast<PlatformData *>(data);
+        auto *platform = fromCallbackContext(data);
         const QByteArray payload(message && LSMessageGetPayload(message) ? LSMessageGetPayload(message) : "");
         const QJsonDocument document = QJsonDocument::fromJson(payload);
         if (!platform || !document.isObject())
@@ -96,7 +104,7 @@ struct PlatformApplicationServices::PlatformData {
 
     static bool memoryStatus(LSHandle *, LSMessage *message, void *data)
     {
-        auto *platform = static_cast<PlatformData *>(data);
+        auto *platform = fromCallbackContext(data);
         const QByteArray payload(message && LSMessageGetPayload(message) ? LSMessageGetPayload(message) : "");
         const QJsonDocument document = QJsonDocument::fromJson(payload);
         if (!platform || !platform->controller || !document.isObject())
@@ -119,7 +127,7 @@ struct PlatformApplicationServices::PlatformData {
 
     static bool soundOutput(LSHandle *, LSMessage *message, void *data)
     {
-        auto *platform = static_cast<PlatformData *>(data);
+        auto *platform = fromCallbackContext(data);
         if (platform && message && LSMessageGetPayload(message))
             platform->audioRoute.acceptServicePayload(QByteArray(LSMessageGetPayload(message)));
         return true;
