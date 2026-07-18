@@ -1,8 +1,6 @@
 #include "platform/ScreenSaverInhibitor.h"
 
 #include <QDebug>
-#include <QJsonDocument>
-#include <QJsonObject>
 
 extern "C" {
 #include <luna-service2/lunaservice.h>
@@ -10,66 +8,58 @@ extern "C" {
 }
 
 namespace JellyfinNative {
+namespace {
 
-struct ScreenSaverInhibitor::PlatformData {
-    std::unique_ptr<HContext> subscription;
-
-    static bool request(LSHandle *, LSMessage *message, void *)
-    {
-        const QJsonObject object
-            = QJsonDocument::fromJson(QByteArray(message ? LSMessageGetPayload(message) : "")).object();
-        if (object.value(QStringLiteral("state")).toString() != QStringLiteral("Active"))
+    class WebOSScreenSaverBackend final : public ScreenSaverBackend {
+    public:
+        bool acquire() override
+        {
+            auto context = std::make_unique<HContext>();
+            context->pub = true;
+            context->multiple = true;
+            context->callback = &WebOSScreenSaverBackend::request;
+            context->userdata = this;
+            if (HLunaServiceCall("luna://com.webos.service.tvpower/power/registerScreenSaverRequest",
+                    "{\"subscribe\":true,\"clientName\":\"com.sachk.tern\"}", context.get())) {
+                qWarning() << "screensaver: webOS inhibit registration failed";
+                return false;
+            }
+            m_subscription = std::move(context);
             return true;
-        const QJsonObject response { { QStringLiteral("clientName"), QStringLiteral("com.sachk.tern") },
-            { QStringLiteral("ack"), false },
-            { QStringLiteral("timestamp"), object.value(QStringLiteral("timestamp")) } };
-        const QByteArray payload = QJsonDocument(response).toJson(QJsonDocument::Compact);
-        HContext context {};
-        context.pub = true;
-        context.multiple = false;
-        return HLunaServiceCall(
-                   "luna://com.webos.service.tvpower/power/responseScreenSaverRequest", payload.constData(), &context)
-            == 0;
-    }
-};
-
-ScreenSaverInhibitor::ScreenSaverInhibitor()
-    : m_platform(std::make_unique<PlatformData>())
-{
-}
-
-ScreenSaverInhibitor::~ScreenSaverInhibitor()
-{
-    setInhibited(false);
-}
-
-void ScreenSaverInhibitor::setInhibited(bool inhibited)
-{
-    if (m_inhibited == inhibited)
-        return;
-    if (inhibited) {
-        auto context = std::make_unique<HContext>();
-        context->pub = true;
-        context->multiple = true;
-        context->callback = &PlatformData::request;
-        context->userdata = m_platform.get();
-        if (HLunaServiceCall("luna://com.webos.service.tvpower/power/registerScreenSaverRequest",
-                "{\"subscribe\":true,\"clientName\":\"com.sachk.tern\"}", context.get())) {
-            qWarning() << "screensaver: webOS inhibit registration failed";
-            return;
         }
-        m_platform->subscription = std::move(context);
-    } else if (m_platform->subscription) {
-        HUnregisterServiceCallback(m_platform->subscription.get());
-        m_platform->subscription.reset();
-    }
-    m_inhibited = inhibited;
-    qInfo() << "screensaver:" << (inhibited ? "inhibited for active playback" : "available while paused or idle");
-}
 
-bool ScreenSaverInhibitor::inhibited() const
+        bool release() override
+        {
+            if (m_subscription) {
+                HUnregisterServiceCallback(m_subscription.get());
+                m_subscription.reset();
+            }
+            return true;
+        }
+
+    private:
+        static bool request(LSHandle *, LSMessage *message, void *)
+        {
+            const QByteArray payload
+                = webOsScreenSaverResponsePayload(QByteArray(message ? LSMessageGetPayload(message) : ""));
+            if (payload.isEmpty())
+                return true;
+            HContext context {};
+            context.pub = true;
+            context.multiple = false;
+            return HLunaServiceCall("luna://com.webos.service.tvpower/power/responseScreenSaverRequest",
+                       payload.constData(), &context)
+                == 0;
+        }
+
+        std::unique_ptr<HContext> m_subscription;
+    };
+
+} // namespace
+
+std::unique_ptr<ScreenSaverBackend> createPlatformScreenSaverBackend()
 {
-    return m_inhibited;
+    return std::make_unique<WebOSScreenSaverBackend>();
 }
 
 } // namespace JellyfinNative

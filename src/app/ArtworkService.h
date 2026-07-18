@@ -39,6 +39,7 @@ private:
     QCache<QString, QByteArray> m_cache;
 };
 
+class TlsTrustController;
 class ArtworkFetchWorker;
 class ArtworkImageResponse;
 
@@ -46,7 +47,7 @@ class ArtworkService final : public QObject, public ArtworkPrefetcher {
     Q_OBJECT
 public:
     ArtworkService(QString cacheDirectory, qint64 networkCacheBytes, int byteCacheBytes, int decodeThreads,
-        QObject *parent = nullptr);
+        TlsTrustController *tlsTrust, QObject *parent = nullptr);
     ~ArtworkService() override;
 
     Q_INVOKABLE QString url(const QVariant& item, const QString& kind, int width = 0) const;

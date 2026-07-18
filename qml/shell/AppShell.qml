@@ -17,6 +17,7 @@ KeyRouter {
     property bool mediaInfoVisible: false
     property bool itemMenuLoaded: false
     readonly property bool itemMenuOpen: itemContextMenuLoader.item ? itemContextMenuLoader.item.opened : false
+    readonly property bool tlsTrustPending: TlsTrust.pending
     property var mediaInfoItem: ({})
     property bool managementOverlayVisible: false
     property string managementMode: ""
@@ -26,13 +27,13 @@ KeyRouter {
     textInputActive: Qt.inputMethod.visible || InputKeys.isTextInputItem(root.Window.window
                                                                          ? root.Window.window.activeFocusItem : null)
     property var navigationTarget: routeStack
-    activeTarget: managementOverlayVisible ? managementOverlayLoader.item : itemMenuOpen ? itemContextMenuLoader.item :
-                                                                                           mediaInfoVisible
-                                                                                           ? mediaInfoOverlayLoader.item :
-                                                                                             hasPlayer
-                                                                                             && player.visible
-                                                                                             ? videoSurface :
-                                                                                               navigationTarget
+    activeTarget: tlsTrustPending ? tlsTrustDialog : managementOverlayVisible ? managementOverlayLoader.item :
+                                                                                itemMenuOpen
+                                                                                ? itemContextMenuLoader.item :
+                                                                                  mediaInfoVisible
+                                                                                  ? mediaInfoOverlayLoader.item :
+                                                                                    hasPlayer && player.visible
+                                                                                    ? videoSurface : navigationTarget
     backHandler: function () {
         return root.back()
     }
@@ -365,6 +366,8 @@ KeyRouter {
     }
 
     function back() {
+        if (tlsTrustPending)
+            return tlsTrustDialog.back()
         if (textInputActive) {
             releaseTextInput()
             return true
@@ -419,8 +422,8 @@ KeyRouter {
     }
 
     function forward() {
-        if (textInputActive || (navBar.visible && navBar.syncPlayMenuOpen) || diagnosticsVisible || itemMenuOpen
-                || managementOverlayVisible || mediaInfoVisible || playerSessionActive)
+        if (tlsTrustPending || textInputActive || (navBar.visible && navBar.syncPlayMenuOpen) || diagnosticsVisible
+                || itemMenuOpen || managementOverlayVisible || mediaInfoVisible || playerSessionActive)
             return true
         if (!Router.canForward)
             return false
@@ -750,6 +753,13 @@ KeyRouter {
             anchors.fill: parent
             onClicked: App.clearError()
         }
+    }
+    TlsTrustDialog {
+        id: tlsTrustDialog
+        visible: root.tlsTrustPending
+        trustController: TlsTrust
+        inputKeys: InputKeys
+        z: 250
     }
     InputLatencyWarning {
         anchors.fill: parent

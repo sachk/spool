@@ -1,4 +1,5 @@
 #include "ArtworkService.h"
+#include "../common/TlsTrust.h"
 #include "ArtworkImageProvider.h"
 
 #include <QBuffer>
@@ -103,10 +104,12 @@ namespace {
 
 class ArtworkFetchWorker final : public QObject {
 public:
-    ArtworkFetchWorker(QString cacheDirectory, qint64 networkCacheBytes, ArtworkService *service)
+    ArtworkFetchWorker(
+        QString cacheDirectory, qint64 networkCacheBytes, ArtworkService *service, TlsTrustController *tlsTrust)
         : m_cacheDirectory(std::move(cacheDirectory))
         , m_networkCacheBytes(networkCacheBytes)
         , m_service(service)
+        , m_tlsTrust(tlsTrust)
     {
     }
 
@@ -196,6 +199,8 @@ private:
         if (m_network)
             return;
         m_network = new QNetworkAccessManager(this);
+        if (m_tlsTrust)
+            m_tlsTrust->attachNetworkAccessManager(m_network, QStringLiteral("Artwork"));
         if (!m_cacheDirectory.isEmpty() && m_networkCacheBytes > 0) {
             QDir().mkpath(m_cacheDirectory);
             auto *diskCache = new QNetworkDiskCache(m_network);
@@ -310,6 +315,7 @@ private:
     QString m_cacheDirectory;
     qint64 m_networkCacheBytes = 0;
     QPointer<ArtworkService> m_service;
+    TlsTrustController *m_tlsTrust = nullptr;
     QByteArray m_authorizationHeader;
     QNetworkAccessManager *m_network = nullptr;
     QQueue<RenderRequest> m_renderQueue;
@@ -416,8 +422,8 @@ void ArtworkByteCache::clear()
     m_cache.clear();
 }
 
-ArtworkService::ArtworkService(
-    QString cacheDirectory, qint64 networkCacheBytes, int byteCacheBytes, int decodeThreads, QObject *parent)
+ArtworkService::ArtworkService(QString cacheDirectory, qint64 networkCacheBytes, int byteCacheBytes, int decodeThreads,
+    TlsTrustController *tlsTrust, QObject *parent)
     : QObject(parent)
     , m_cacheDirectory(std::move(cacheDirectory))
     , m_networkCacheBytes(networkCacheBytes)
@@ -438,7 +444,7 @@ ArtworkService::ArtworkService(
             m_deliveryTimer.stop();
     });
 
-    m_worker = new ArtworkFetchWorker(m_cacheDirectory, m_networkCacheBytes, this);
+    m_worker = new ArtworkFetchWorker(m_cacheDirectory, m_networkCacheBytes, this, tlsTrust);
     m_worker->moveToThread(&m_workerThread);
     connect(&m_workerThread, &QThread::finished, m_worker, &QObject::deleteLater);
     m_workerThread.start();

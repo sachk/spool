@@ -15,6 +15,7 @@ namespace JellyfinNative {
 class JellyfinApiFacade;
 class PlayerController;
 class PlayQueueController;
+class TlsTrustController;
 
 class SyncPlayController final : public QObject {
     Q_OBJECT
@@ -36,8 +37,8 @@ class SyncPlayController final : public QObject {
     Q_PROPERTY(QString syncMethod READ syncMethod NOTIFY syncStatusChanged)
 
 public:
-    SyncPlayController(
-        JellyfinApiFacade *api, PlayerController *player, PlayQueueController *playQueue, QObject *parent = nullptr);
+    SyncPlayController(JellyfinApiFacade *api, PlayerController *player, PlayQueueController *playQueue,
+        TlsTrustController *tlsTrust, QObject *parent = nullptr);
 
     QString currentGroupId() const
     {

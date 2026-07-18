@@ -10,6 +10,7 @@
 #include "../platform/PlatformPlaybackSurface.h"
 #include "../platform/PlatformSystemProbes.h"
 #include "MpvOptionProfile.h"
+#include "PlaybackFailurePolicy.h"
 #include "PlaybackTrackParser.h"
 
 extern "C" {
@@ -185,12 +186,20 @@ namespace {
 
 } // namespace
 
-PlayerController::PlayerController(NativeAppWindow *window, JellyfinApiFacade *api, QObject *parent)
+PlayerController::PlayerController(
+    NativeAppWindow *window, JellyfinApiFacade *api, TlsTrustController *tlsTrust, QObject *parent)
     : QObject(parent)
     , m_window(window)
     , m_api(api)
     , m_reporter(api, this)
+    , m_tlsTrust(tlsTrust)
 {
+    if (m_api) {
+        connect(m_api, &JellyfinApiFacade::sessionTokenChanged, this, [this]() {
+            if (auto *handle = m_mpvLifecycle.handle())
+                setMpvProperty(handle, "http-header-fields", "");
+        });
+    }
     m_idleMpvPreparationEnabled = platformIdleMpvPreparationEnabled();
     m_progressTimer.setInterval(5000);
     m_uiPositionTimer.setInterval(250);
@@ -838,6 +847,7 @@ void PlayerController::play(const PlaybackSession& session, bool startPaused)
     m_seeking = false;
     m_debugOsdVisible = false;
     m_tracks.resetForPlayback();
+    m_restoreFallbackStreamSelection = session.codecFallback;
     m_backAllowed = false;
     m_backGuardTimer.start();
     m_uiPositionTimer.start();
@@ -892,13 +902,13 @@ void PlayerController::play(const PlaybackSession& session, bool startPaused)
         stopProgressReporting(true);
         return;
     }
-    if (m_api) {
-        const QSslCertificate certificate = TlsTrust::trustedCertificate(QUrl(m_api->serverUrl()));
+    if (m_api && m_tlsTrust) {
+        const QSslCertificate certificate = m_tlsTrust->trustedCertificate(QUrl(m_api->serverUrl()));
         if (!certificate.isNull()) {
             const QString trustDirectory
                 = QStandardPaths::writableLocation(QStandardPaths::CacheLocation) + QStringLiteral("/tls");
             const QString trustPath = trustDirectory + QLatin1Char('/')
-                + QString::fromLatin1(TlsTrust::fingerprint(certificate)) + QStringLiteral(".pem");
+                + QString::fromLatin1(TlsTrustController::fingerprint(certificate)) + QStringLiteral(".pem");
             const QByteArray certificatePem = certificate.toPem();
             QDir().mkpath(trustDirectory);
             QFile trustFile(trustPath);
@@ -1728,7 +1738,14 @@ void PlayerController::handleMpvEvent(mpv_event *event)
             const ParsedPlaybackTracks tracks = PlaybackTrackParser::parseTracks(node);
             QMetaObject::invokeMethod(this, [this, tracks]() {
                 m_tracks.applyParsedTracks(tracks);
-                updateReportedStreamSelection(true);
+                if (m_restoreFallbackStreamSelection) {
+                    m_restoreFallbackStreamSelection = false;
+                    if (m_session.audioStreamIndex >= 0)
+                        selectAudioStreamIndex(m_session.audioStreamIndex);
+                    selectSubtitleStreamIndex(m_session.subtitleStreamIndex);
+                } else {
+                    updateReportedStreamSelection(true);
+                }
                 qInfo() << "player: subtitle tracks" << tracks.subtitleLabels << "selected"
                         << tracks.selectedSubtitleIndex << "audio tracks" << tracks.audioLabels << "selected"
                         << tracks.selectedAudioIndex;
@@ -1775,9 +1792,15 @@ void PlayerController::handleMpvEvent(mpv_event *event)
             const QString failedItemId = m_session.itemId;
             const qint64 failedPositionTicks = secondsToTicks(m_positionTracker.position());
             const QString failureMessage = m_errorText;
+            const int audioStreamIndex = m_session.audioStreamIndex;
+            const int subtitleStreamIndex = m_session.subtitleStreamIndex;
+            const bool retryableCodecFailure
+                = PlaybackFailurePolicy::isRetryableCodecFailure(m_session.playMethod, failedBeforeLoad, endFileError);
             stopProgressReporting(failed, completed);
-            if (failedBeforeLoad)
-                emit playbackLoadFailed(failedItemId, failedPositionTicks, failureMessage);
+            if (failedBeforeLoad) {
+                emit playbackLoadFailed(failedItemId, failedPositionTicks, failureMessage, retryableCodecFailure,
+                    audioStreamIndex, subtitleStreamIndex);
+            }
             scheduleMpvTeardown();
         });
         break;

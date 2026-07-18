@@ -2,6 +2,8 @@
 #include <QCoroTask>
 
 #include <QCoreApplication>
+#include <QDir>
+#include <QFile>
 #include <QSqlDatabase>
 #include <QSqlQuery>
 #include <QTemporaryDir>
@@ -30,6 +32,7 @@ int main(int argc, char **argv)
     QTemporaryDir directory;
     require(directory.isValid(), "temporary directory should be available");
     const QString databasePath = directory.filePath(QStringLiteral("cache.sqlite"));
+    const QString statePath = directory.filePath(QStringLiteral("state.sqlite"));
 
     {
         QSqlDatabase invalid = QSqlDatabase::addDatabase(QStringLiteral("QSQLITE"), QStringLiteral("invalid-seed"));
@@ -42,8 +45,15 @@ int main(int argc, char **argv)
     QSqlDatabase::removeDatabase(QStringLiteral("invalid-seed"));
 
     DatabaseManager database;
+    bool recoveryNotified = false;
+    QObject::connect(
+        &database, &DatabaseManager::recoveryNotice, [&recoveryNotified](const QString&) { recoveryNotified = true; });
     require(database.initialize(databasePath), "database should rebuild an unsupported cache");
-    require(QCoro::waitFor(database.schemaVersionAsync()) == 6, "schema should migrate to version 6");
+    require(QCoro::waitFor(database.schemaVersionAsync()) == 1, "cache should use the current schema");
+    QCoreApplication::processEvents();
+    require(recoveryNotified, "cache recovery should produce a user-visible notice");
+    require(QDir(directory.path()).entryList({ QStringLiteral("cache.sqlite.corrupt-*") }, QDir::Files).size() == 1,
+        "future cache should be preserved as a diagnostic backup");
 
     database.saveSetting(QStringLiteral("batch/first"), QStringLiteral("one"));
     database.saveSetting(QStringLiteral("batch/second"), QStringLiteral("two"));
@@ -56,6 +66,21 @@ int main(int argc, char **argv)
     require(!batch.value(QStringLiteral("batch/missing")).isValid(),
         "batch read should preserve a missing value as invalid");
 
+    AccountProfile profile;
+    profile.profileId = QStringLiteral("profile");
+    profile.serverId = QStringLiteral("server");
+    profile.serverName = QStringLiteral("Server");
+    profile.serverUrl = QStringLiteral("https://example.test");
+    profile.userId = QStringLiteral("user");
+    profile.userName = QStringLiteral("User");
+    profile.accessToken = QStringLiteral("secret");
+    profile.lastUsedAt = 2;
+    profile.createdAt = 1;
+    database.upsertAccountProfile(profile);
+    const std::vector<AccountProfile> storedProfiles = QCoro::waitFor(database.loadAccountProfilesAsync());
+    require(storedProfiles.size() == 1 && storedProfiles.front().profileId == profile.profileId,
+        "account profile should be persisted before cache recovery");
+
     const QJsonObject homePayload {
         { QStringLiteral("title"), QStringLiteral("Continue Watching") },
         { QStringLiteral("count"), 2 },
@@ -65,9 +90,26 @@ int main(int argc, char **argv)
         "home payload should load for matching schema");
     require(QCoro::waitFor(database.loadHomePayloadAsync(QStringLiteral("server/user"), 2)).isEmpty(),
         "home payload should not load for a different schema");
-    database.invalidateHomePayloads();
+
+    {
+        QSqlDatabase tamper = QSqlDatabase::addDatabase(QStringLiteral("QSQLITE"), QStringLiteral("payload-tamper"));
+        tamper.setDatabaseName(databasePath);
+        require(tamper.open(), "cache tamper connection should open");
+        QSqlQuery query(tamper);
+        require(query.exec(QStringLiteral("UPDATE home_payload SET payload = 'not-json'")),
+            "malformed home payload should be seeded");
+        tamper.close();
+    }
+    QSqlDatabase::removeDatabase(QStringLiteral("payload-tamper"));
     require(QCoro::waitFor(database.loadHomePayloadAsync(QStringLiteral("server/user"), 1)).isEmpty(),
-        "home payload invalidation should remove cached payloads");
+        "malformed home payload should be treated as a cache miss");
+
+    database.saveCacheEntry(QStringLiteral("discovery"), QStringLiteral("servers"), QByteArrayLiteral("not-json"));
+    require(QCoro::waitFor(database.loadDiscoveredServersAsync()).isEmpty(),
+        "malformed discovery payload should be treated as a cache miss");
+    require(
+        QCoro::waitFor(database.loadCacheEntryAsync(QStringLiteral("discovery"), QStringLiteral("servers"))).isEmpty(),
+        "malformed discovery payload should be deleted");
 
     database.saveCacheEntry(QStringLiteral("test"), QStringLiteral("fresh"), QByteArrayLiteral("value"), 5000);
     require(QCoro::waitFor(database.loadCacheEntryAsync(QStringLiteral("test"), QStringLiteral("fresh")))
@@ -92,7 +134,64 @@ int main(int argc, char **argv)
     require(QCoro::waitFor(database.loadCacheEntryAsync(QStringLiteral("test"), QStringLiteral("new")))
             == QByteArrayLiteral("new"),
         "newest cache entry should remain");
-
     database.shutdown();
+
+    QFile corruptCache(databasePath);
+    require(corruptCache.open(QIODevice::WriteOnly | QIODevice::Truncate), "cache should be writable for corruption");
+    corruptCache.write("not a sqlite database");
+    corruptCache.close();
+
+    DatabaseManager recovered;
+    require(recovered.initialize(databasePath), "corrupt disposable cache should not block startup");
+    require(QCoro::waitFor(recovered.schemaVersionAsync()) == 1, "corrupt cache should be rebuilt");
+    require(QCoro::waitFor(recovered.loadSettingAsync(QStringLiteral("batch/first"))) == QStringLiteral("one"),
+        "cache recovery must preserve durable settings");
+    const std::vector<AccountProfile> recoveredProfiles = QCoro::waitFor(recovered.loadAccountProfilesAsync());
+    require(recoveredProfiles.size() == 1 && recoveredProfiles.front().profileId == profile.profileId,
+        "cache recovery must preserve account profiles");
+    recovered.shutdown();
+
+    for (int attempt = 0; attempt < 4; ++attempt) {
+        QThread::msleep(2);
+        QFile repeatedCorruption(databasePath);
+        require(repeatedCorruption.open(QIODevice::WriteOnly | QIODevice::Truncate),
+            "cache should remain writable for repeated corruption");
+        repeatedCorruption.write("broken");
+        repeatedCorruption.close();
+        DatabaseManager retry;
+        require(retry.initialize(databasePath), "repeated cache corruption should remain recoverable");
+        require(QCoro::waitFor(retry.schemaVersionAsync()) == 1, "repeated recovery should recreate cache schema");
+        retry.shutdown();
+    }
+    require(QDir(directory.path()).entryList({ QStringLiteral("cache.sqlite.corrupt-*") }, QDir::Files).size() == 3,
+        "cache diagnostic backups should be capped");
+
+    {
+        QSqlDatabase futureState = QSqlDatabase::addDatabase(QStringLiteral("QSQLITE"), QStringLiteral("future-state"));
+        futureState.setDatabaseName(statePath);
+        require(futureState.open(), "durable state should open for future-version seed");
+        QSqlQuery query(futureState);
+        require(query.exec(QStringLiteral("PRAGMA user_version = 999")), "future durable schema should be seeded");
+        futureState.close();
+    }
+    QSqlDatabase::removeDatabase(QStringLiteral("future-state"));
+
+    DatabaseManager resetState;
+    require(resetState.initialize(databasePath), "future durable state should not block startup");
+    require(QCoro::waitFor(resetState.loadAccountProfilesAsync()).empty(),
+        "unreadable durable state should restart at account setup");
+    resetState.shutdown();
+    require(QDir(directory.path()).entryList({ QStringLiteral("state.sqlite.corrupt-*") }, QDir::Files).size() == 1,
+        "future durable state should be preserved as a diagnostic backup");
+
+    QFile::setPermissions(databasePath, QFileDevice::ReadOwner);
+    QFile::setPermissions(statePath, QFileDevice::ReadOwner);
+    DatabaseManager readOnly;
+    require(readOnly.initialize(databasePath), "read-only storage should fall back without blocking startup");
+    require(QCoro::waitFor(readOnly.schemaVersionAsync()) == 1, "read-only fallback should provide a live cache");
+    readOnly.shutdown();
+    QFile::setPermissions(databasePath, QFileDevice::ReadOwner | QFileDevice::WriteOwner);
+    QFile::setPermissions(statePath, QFileDevice::ReadOwner | QFileDevice::WriteOwner);
+
     return 0;
 }

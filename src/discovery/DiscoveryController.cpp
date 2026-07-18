@@ -12,6 +12,8 @@
 #include <QNetworkRequest>
 #include <QRegularExpression>
 
+#include <utility>
+
 namespace JellyfinNative {
 
 namespace {
@@ -124,26 +126,25 @@ namespace {
 
 }
 
-DiscoveryController::DiscoveryController(QObject *parent)
+DiscoveryController::DiscoveryController(TlsTrustController *tlsTrust, QObject *parent)
     : QObject(parent)
 {
-    connect(
-        &m_http, &QNetworkAccessManager::sslErrors, this, [this](QNetworkReply *reply, const QList<QSslError>& errors) {
-            const QSslCertificate certificate = TlsTrust::peerCertificate(reply, errors);
-            if (certificate.isNull())
-                return;
-            if (TlsTrust::isTrusted(reply->url(), certificate)) {
-                reply->ignoreSslErrors();
-                return;
-            }
-            if (reply != m_serverProbeReply)
-                return;
-            m_pendingTlsInput = m_serverProbeInput;
-            m_pendingTlsUrl = reply->url();
-            m_pendingTlsCertificate = certificate;
-            m_pendingTlsFingerprint = TlsTrust::displayFingerprint(certificate);
-            emit tlsTrustPendingChanged();
-        });
+    if (tlsTrust) {
+        tlsTrust->attachNetworkAccessManager(&m_http, QStringLiteral("Server discovery"));
+        connect(
+            &m_http, &QNetworkAccessManager::sslErrors, this, [this](QNetworkReply *reply, const QList<QSslError>&) {
+                if (reply == m_serverProbeReply)
+                    m_tlsRetryInput = m_serverProbeInput;
+            });
+        connect(
+            tlsTrust, &TlsTrustController::decisionResolved, this, [this](const QString& source, bool trusted, bool) {
+                if (source != QStringLiteral("Server discovery") || m_tlsRetryInput.isEmpty())
+                    return;
+                const QString input = std::exchange(m_tlsRetryInput, {});
+                if (trusted)
+                    probeServer(input);
+            });
+    }
     connect(&m_socket, &QUdpSocket::readyRead, this, &DiscoveryController::handlePendingDatagrams);
     connect(&m_rescanTimer, &QTimer::timeout, this, &DiscoveryController::sendProbe);
     m_rescanTimer.setInterval(15000);
@@ -455,13 +456,6 @@ void DiscoveryController::handleHttpProbeResult(const QString& serverUrl, const 
 void DiscoveryController::probeServer(const QString& input)
 {
     cancelServerProbe();
-    if (!m_pendingTlsFingerprint.isEmpty()) {
-        m_pendingTlsInput.clear();
-        m_pendingTlsUrl = QUrl();
-        m_pendingTlsCertificate = QSslCertificate();
-        m_pendingTlsFingerprint.clear();
-        emit tlsTrustPendingChanged();
-    }
     m_serverProbeInput = input.trimmed();
     const QList<QUrl> candidates = serverProbeCandidates(m_serverProbeInput);
     for (const QUrl& candidate : candidates)
@@ -472,20 +466,6 @@ void DiscoveryController::probeServer(const QString& input)
     }
     emit serverProbeActiveChanged();
     startNextServerProbe();
-}
-
-void DiscoveryController::trustPendingCertificate()
-{
-    if (m_pendingTlsCertificate.isNull() || m_pendingTlsUrl.isEmpty() || m_pendingTlsInput.isEmpty())
-        return;
-    const QString input = m_pendingTlsInput;
-    TlsTrust::remember(m_pendingTlsUrl, m_pendingTlsCertificate);
-    m_pendingTlsInput.clear();
-    m_pendingTlsUrl = QUrl();
-    m_pendingTlsCertificate = QSslCertificate();
-    m_pendingTlsFingerprint.clear();
-    emit tlsTrustPendingChanged();
-    probeServer(input);
 }
 
 void DiscoveryController::cancelServerProbe()

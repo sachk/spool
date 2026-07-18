@@ -60,8 +60,8 @@ int main(int argc, char **argv)
     const PlaybackSelection transcode = PlaybackNegotiation::selectSource(fallbackSources, false);
     require(transcode.playMethod == QStringLiteral("Transcode"), "disabling remux preference should select transcode");
 
-    const QString url = PlaybackNegotiation::buildUrl(QStringLiteral("https://example.test/jellyfin"),
-        QStringLiteral("item"), QStringLiteral("playback-token/with space"), transcode);
+    const QString url = PlaybackNegotiation::buildUrl(
+        QStringLiteral("https://example.test/jellyfin"), QStringLiteral("item"), transcode);
     const QUrl parsed(url);
     if (parsed.path() != QStringLiteral("/jellyfin/Videos/item/master.m3u8"))
         std::cerr << "resolved playback URL: " << url.toStdString() << '\n';

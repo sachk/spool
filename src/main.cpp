@@ -9,6 +9,7 @@
 #include "app/UserItemStateController.h"
 #include "cache/DatabaseManager.h"
 #include "common/LogRotation.h"
+#include "common/TlsTrust.h"
 #include "diagnostics/Diagnostics.h"
 #include "diagnostics/InputLatencyMonitor.h"
 #include "diagnostics/SystemPerformanceMonitor.h"
@@ -374,8 +375,9 @@ int main(int argc, char **argv)
             return 1;
     }
 
-    auto discovery = std::make_unique<JellyfinNative::DiscoveryController>();
-    auto api = std::make_unique<JellyfinNative::JellyfinApiFacade>(networkAccessManager);
+    JellyfinNative::TlsTrustController tlsTrust;
+    auto discovery = std::make_unique<JellyfinNative::DiscoveryController>(&tlsTrust);
+    auto api = std::make_unique<JellyfinNative::JellyfinApiFacade>(networkAccessManager, &tlsTrust);
     api->setDeviceIdentity({}, capabilities.deviceName, QString::fromLatin1(kAppVersion));
     JellyfinNative::configurePlatformPlaybackCapabilities(*api, app);
 
@@ -383,23 +385,22 @@ int main(int argc, char **argv)
     logLine("artwork: cpu logical=%d physical=%d smt=%s source=%s decodeThreads=%d", cpuTopology.logicalCpus,
         cpuTopology.physicalCores, cpuTopology.smtDetected ? "true" : "false", qPrintable(cpuTopology.source),
         cpuTopology.artworkDecodeThreads);
-    auto artworkService
-        = std::make_unique<JellyfinNative::ArtworkService>(qmlImageCachePath + QStringLiteral("/artwork"),
-            memoryBudget.qmlImageDiskCacheBytes, memoryBudget.artworkByteCacheBytes, cpuTopology.artworkDecodeThreads);
+    auto artworkService = std::make_unique<JellyfinNative::ArtworkService>(
+        qmlImageCachePath + QStringLiteral("/artwork"), memoryBudget.qmlImageDiskCacheBytes,
+        memoryBudget.artworkByteCacheBytes, cpuTopology.artworkDecodeThreads, &tlsTrust);
     artworkService->setUiWidth(window.width());
 
-    auto player = std::make_unique<JellyfinNative::PlayerController>(&window, api.get());
+    auto player = std::make_unique<JellyfinNative::PlayerController>(&window, api.get(), &tlsTrust);
     player->setDemuxerBudget(memoryBudget.mpvDemuxerMaxBytes, memoryBudget.mpvDemuxerMaxBackBytes);
     JellyfinNative::ScreenSaverInhibitor screenSaverInhibitor;
     const auto updateScreenSaver = [&screenSaverInhibitor, player = player.get()] {
-        // Paused playback deliberately releases the OS inhibitor so normal
-        // idle/screen-saver policy resumes after the user's configured delay.
-        screenSaverInhibitor.setInhibited(player && player->sessionActive() && !player->paused());
+        screenSaverInhibitor.setInhibited(JellyfinNative::screenSaverShouldBeInhibited(
+            player && player->sessionActive(), player && player->paused()));
     };
     QObject::connect(player.get(), &JellyfinNative::PlayerController::playbackStateChanged, &app, updateScreenSaver);
     QObject::connect(player.get(), &JellyfinNative::PlayerController::sessionActiveChanged, &app, updateScreenSaver);
     auto controller = std::make_unique<JellyfinNative::AppController>(
-        &database, discovery.get(), api.get(), artworkService.get(), player.get());
+        &database, discovery.get(), api.get(), artworkService.get(), player.get(), &tlsTrust);
     // A desktop close event arrives while the scene graph is still rendering.
     // Tear down here so the mpv render-context handoff completes immediately;
     // aboutToQuit is too late because the window no longer produces frames.
@@ -481,6 +482,7 @@ int main(int argc, char **argv)
     qmlRegisterSingletonInstance("JellyfinWebOS", 1, 0, "Libraries", controller->libraries());
     qmlRegisterSingletonInstance("JellyfinWebOS", 1, 0, "DiscoveredServers", controller->discoveredServers());
     qmlRegisterSingletonInstance("JellyfinWebOS", 1, 0, "Discovery", discovery.get());
+    qmlRegisterSingletonInstance("JellyfinWebOS", 1, 0, "TlsTrust", &tlsTrust);
     qmlRegisterSingletonInstance("JellyfinWebOS", 1, 0, "Session", controller->session());
     qmlRegisterSingletonInstance("JellyfinWebOS", 1, 0, "QuickConnect", controller->quickConnect());
     qmlRegisterSingletonInstance("JellyfinWebOS", 1, 0, "Settings", controller->settings());

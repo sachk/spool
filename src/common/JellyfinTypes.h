@@ -369,6 +369,7 @@ struct PlaybackSession {
     std::vector<PlaybackQueueItem> nowPlayingQueue;
     int audioStreamIndex = -1;
     int subtitleStreamIndex = -1;
+    bool codecFallback = false;
 };
 
 QString exceptionMessage(const std::exception_ptr& exception);

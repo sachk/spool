@@ -68,6 +68,7 @@ public:
 
 signals:
     void initializationFailed(QString message);
+    void recoveryNotice(QString message);
 
 private:
     QCoro::Task<bool> awaitInitialization();

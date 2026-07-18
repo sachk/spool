@@ -63,8 +63,8 @@ namespace {
 
 } // namespace
 
-SyncPlayController::SyncPlayController(
-    JellyfinApiFacade *api, PlayerController *player, PlayQueueController *playQueue, QObject *parent)
+SyncPlayController::SyncPlayController(JellyfinApiFacade *api, PlayerController *player, PlayQueueController *playQueue,
+    TlsTrustController *tlsTrust, QObject *parent)
     : QObject(parent)
     , m_api(api)
     , m_player(player)
@@ -97,24 +97,8 @@ SyncPlayController::SyncPlayController(
             m_reconnectTimer.start();
     });
     connect(&m_socket, &QWebSocket::textMessageReceived, this, &SyncPlayController::handleSocketTextMessage);
-#if QT_CONFIG(ssl)
-    connect(&m_socket, &QWebSocket::sslErrors, this, [this](const QList<QSslError>& errors) {
-        QSslCertificate certificate = m_socket.sslConfiguration().peerCertificate();
-        if (certificate.isNull()) {
-            for (const QSslError& error : errors) {
-                if (!error.certificate().isNull()) {
-                    certificate = error.certificate();
-                    break;
-                }
-            }
-        }
-        if (!certificate.isNull() && TlsTrust::isTrusted(socketUrl(), certificate)) {
-            m_socket.ignoreSslErrors();
-            return;
-        }
-        emit errorText(QStringLiteral("The SyncPlay certificate is not trusted. Reconnect from the account screen."));
-    });
-#endif
+    if (tlsTrust)
+        tlsTrust->attachWebSocket(&m_socket, [this]() { return socketUrl(); }, QStringLiteral("SyncPlay"));
     connect(&m_socket, &QWebSocket::errorOccurred, this, [this](QAbstractSocket::SocketError) {
         emit errorText(QStringLiteral("SyncPlay socket error: %1").arg(m_socket.errorString()));
     });

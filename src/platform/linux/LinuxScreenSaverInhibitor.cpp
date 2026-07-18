@@ -6,46 +6,44 @@
 #include <QDebug>
 
 namespace JellyfinNative {
+namespace {
 
-struct ScreenSaverInhibitor::PlatformData {
-    quint32 cookie = 0;
-};
-
-ScreenSaverInhibitor::ScreenSaverInhibitor()
-    : m_platform(std::make_unique<PlatformData>())
-{
-}
-
-ScreenSaverInhibitor::~ScreenSaverInhibitor()
-{
-    setInhibited(false);
-}
-
-void ScreenSaverInhibitor::setInhibited(bool inhibited)
-{
-    if (m_inhibited == inhibited)
-        return;
-    QDBusInterface screenSaver(QStringLiteral("org.freedesktop.ScreenSaver"), QStringLiteral("/ScreenSaver"),
-        QStringLiteral("org.freedesktop.ScreenSaver"), QDBusConnection::sessionBus());
-    if (inhibited) {
-        const QDBusReply<quint32> reply = screenSaver.call(
-            QStringLiteral("Inhibit"), QStringLiteral("Jellyfin Native"), QStringLiteral("Media playback is active"));
-        if (!reply.isValid()) {
-            qWarning() << "screensaver: freedesktop inhibit failed" << reply.error().message();
-            return;
+    class LinuxScreenSaverBackend final : public ScreenSaverBackend {
+    public:
+        bool acquire() override
+        {
+            QDBusInterface screenSaver(QStringLiteral("org.freedesktop.ScreenSaver"), QStringLiteral("/ScreenSaver"),
+                QStringLiteral("org.freedesktop.ScreenSaver"), QDBusConnection::sessionBus());
+            const QDBusReply<quint32> reply = screenSaver.call(QStringLiteral("Inhibit"),
+                QStringLiteral("Jellyfin Native"), QStringLiteral("Media playback is active"));
+            if (!reply.isValid()) {
+                qWarning() << "screensaver: freedesktop inhibit failed" << reply.error().message();
+                return false;
+            }
+            m_cookie = reply.value();
+            return true;
         }
-        m_platform->cookie = reply.value();
-    } else if (m_platform->cookie != 0) {
-        screenSaver.call(QStringLiteral("UnInhibit"), m_platform->cookie);
-        m_platform->cookie = 0;
-    }
-    m_inhibited = inhibited;
-    qInfo() << "screensaver:" << (inhibited ? "inhibited for active playback" : "available while paused or idle");
-}
 
-bool ScreenSaverInhibitor::inhibited() const
+        bool release() override
+        {
+            if (m_cookie == 0)
+                return true;
+            QDBusInterface screenSaver(QStringLiteral("org.freedesktop.ScreenSaver"), QStringLiteral("/ScreenSaver"),
+                QStringLiteral("org.freedesktop.ScreenSaver"), QDBusConnection::sessionBus());
+            screenSaver.call(QStringLiteral("UnInhibit"), m_cookie);
+            m_cookie = 0;
+            return true;
+        }
+
+    private:
+        quint32 m_cookie = 0;
+    };
+
+} // namespace
+
+std::unique_ptr<ScreenSaverBackend> createPlatformScreenSaverBackend()
 {
-    return m_inhibited;
+    return std::make_unique<LinuxScreenSaverBackend>();
 }
 
 } // namespace JellyfinNative

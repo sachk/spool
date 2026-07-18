@@ -542,17 +542,6 @@ FocusScope {
                 onAccepted: root.chooseManualServer()
             }
 
-            ActionButton {
-                id: trustCertificateButton
-                Layout.fillWidth: true
-                Layout.preferredHeight: Metrics.scaled(62)
-                visible: Discovery.tlsTrustPending
-                text: "Trust this certificate and retry"
-                iconName: "verified_user"
-                kind: "primary"
-                onClicked: Discovery.trustPendingCertificate()
-            }
-
             ListView {
                 id: discoveredList
                 Layout.fillWidth: true

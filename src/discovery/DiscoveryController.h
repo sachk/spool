@@ -14,27 +14,18 @@
 
 namespace JellyfinNative {
 
+class TlsTrustController;
 class DiscoveryController final : public QObject {
     Q_OBJECT
     Q_PROPERTY(bool active READ active NOTIFY activeChanged)
     Q_PROPERTY(bool serverProbeActive READ serverProbeActive NOTIFY serverProbeActiveChanged)
-    Q_PROPERTY(bool tlsTrustPending READ tlsTrustPending NOTIFY tlsTrustPendingChanged)
-    Q_PROPERTY(QString pendingTlsFingerprint READ pendingTlsFingerprint NOTIFY tlsTrustPendingChanged)
 
 public:
-    explicit DiscoveryController(QObject *parent = nullptr);
+    explicit DiscoveryController(TlsTrustController *tlsTrust, QObject *parent = nullptr);
     ~DiscoveryController() override;
 
     bool active() const;
     bool serverProbeActive() const;
-    bool tlsTrustPending() const
-    {
-        return !m_pendingTlsFingerprint.isEmpty();
-    }
-    QString pendingTlsFingerprint() const
-    {
-        return m_pendingTlsFingerprint;
-    }
 
     static QList<QUrl> serverProbeCandidates(const QString& input);
     static QList<QHostAddress> httpFallbackTargets(
@@ -45,7 +36,6 @@ public:
     Q_INVOKABLE void stop();
     Q_INVOKABLE void probeServer(const QString& input);
     Q_INVOKABLE void cancelServerProbe();
-    Q_INVOKABLE void trustPendingCertificate();
 
 signals:
     void activeChanged();
@@ -54,7 +44,6 @@ signals:
     void serverProbeSucceeded(
         const QString& input, const JellyfinNative::DiscoveredServer& server, const QString& version, bool plainHttp);
     void serverProbeFailed(const QString& input, const QString& message);
-    void tlsTrustPendingChanged();
 
 private slots:
     void sendProbe();
@@ -79,10 +68,7 @@ private:
     QQueue<QUrl> m_serverProbeCandidates;
     QNetworkReply *m_serverProbeReply = nullptr;
     QString m_serverProbeInput;
-    QString m_pendingTlsInput;
-    QString m_pendingTlsFingerprint;
-    QUrl m_pendingTlsUrl;
-    QSslCertificate m_pendingTlsCertificate;
+    QString m_tlsRetryInput;
     int m_inFlightHttpProbes = 0;
     bool m_active = false;
 };

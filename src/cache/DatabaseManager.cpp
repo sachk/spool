@@ -26,21 +26,35 @@ class DatabaseWorker final : public QObject {
     Q_OBJECT
 
 public:
-    bool initialize(const QString& databasePath)
+    bool initialize(const QString& cachePath)
     {
-        if (!QDir().mkpath(QFileInfo(databasePath).absolutePath())) {
-            qWarning() << "database: failed to create cache directory for" << databasePath;
-            return false;
+        const QFileInfo cacheInfo(cachePath);
+        if (!QDir().mkpath(cacheInfo.absolutePath())) {
+            qWarning() << "database: failed to create data directory for" << cachePath;
+            return initializeTransient();
         }
-        if (openAndPrepare(databasePath))
-            return true;
 
-        qWarning() << "database: invalid cache; removing and rebuilding" << databasePath;
-        m_database.close();
-        QFile::remove(databasePath);
-        QFile::remove(databasePath + QStringLiteral("-wal"));
-        QFile::remove(databasePath + QStringLiteral("-shm"));
-        return openAndPrepare(databasePath);
+        const QString statePath = cacheInfo.dir().filePath(QStringLiteral("state.sqlite"));
+        if (!openState(statePath)) {
+            qWarning() << "database: invalid durable state; preserving and rebuilding" << statePath;
+            if (!recoverState(statePath))
+                return false;
+            m_recoveryNotice = QStringLiteral(
+                "Local account data could not be read and was reset. A diagnostic backup was preserved.");
+        }
+        if (!openCache(cachePath)) {
+            qWarning() << "database: invalid cache; preserving and rebuilding" << cachePath;
+            if (!recoverCache(cachePath))
+                return false;
+            if (m_recoveryNotice.isEmpty())
+                m_recoveryNotice = QStringLiteral("The local cache was damaged and has been rebuilt.");
+        }
+        return true;
+    }
+
+    QString recoveryNotice() const
+    {
+        return m_recoveryNotice;
     }
 
     QVariant value(const QString& key)
@@ -72,53 +86,51 @@ public:
     }
 
 private:
-    bool openAndPrepare(const QString& databasePath)
+    static bool quickCheck(QSqlDatabase& database)
     {
-        const QString connectionName = QStringLiteral("jellyfin_native_cache");
-        if (QSqlDatabase::contains(connectionName))
-            m_database = QSqlDatabase::database(connectionName);
-        else
-            m_database = QSqlDatabase::addDatabase(QStringLiteral("QSQLITE"), connectionName);
+        QSqlQuery query(database);
+        return query.exec(QStringLiteral("PRAGMA quick_check")) && query.next()
+            && query.value(0).toString() == QStringLiteral("ok");
+    }
 
-        m_database.setDatabaseName(databasePath);
-        if (!m_database.open()) {
-            qWarning() << "database: failed to open" << databasePath << m_database.lastError().text();
+    static bool prepareConnection(QSqlDatabase& database)
+    {
+        QSqlQuery query(database);
+        return quickCheck(database) && query.exec(QStringLiteral("PRAGMA journal_mode = WAL"))
+            && query.exec(QStringLiteral("PRAGMA busy_timeout = 5000"));
+    }
+
+    static bool ensureConnection(QSqlDatabase& database, const QString& connectionName, const QString& path)
+    {
+        if (!database.isValid()) {
+            if (QSqlDatabase::contains(connectionName))
+                database = QSqlDatabase::database(connectionName);
+            else
+                database = QSqlDatabase::addDatabase(QStringLiteral("QSQLITE"), connectionName);
+        }
+        database.setDatabaseName(path);
+        if (!database.open()) {
+            qWarning() << "database: failed to open" << path << database.lastError().text();
             return false;
         }
+        return true;
+    }
 
+    bool openState(const QString& path)
+    {
+        if (!ensureConnection(m_database, QStringLiteral("jellyfin_native_state"), path)
+            || !prepareConnection(m_database))
+            return false;
         QSqlQuery query(m_database);
         if (!query.exec(QStringLiteral("PRAGMA user_version")) || !query.next())
             return false;
         const int existingVersion = query.value(0).toInt();
-        if (existingVersion > 6) {
-            qWarning() << "database: unsupported schema version" << existingVersion;
+        if (existingVersion > 1)
             return false;
-        }
-        if (!query.exec(QStringLiteral("PRAGMA journal_mode = WAL"))
-            || !query.exec(QStringLiteral("PRAGMA busy_timeout = 5000"))
-            || !query.exec(QStringLiteral("CREATE TABLE IF NOT EXISTS kv ("
-                                          "key TEXT PRIMARY KEY,"
-                                          "value TEXT NOT NULL"
-                                          ")"))
-            || !query.exec(QStringLiteral("CREATE TABLE IF NOT EXISTS cache_entries ("
-                                          "namespace TEXT NOT NULL,"
-                                          "key TEXT NOT NULL,"
-                                          "value BLOB NOT NULL,"
-                                          "updated_at INTEGER NOT NULL,"
-                                          "accessed_at INTEGER NOT NULL,"
-                                          "expires_at INTEGER,"
-                                          "PRIMARY KEY(namespace, key)"
-                                          ")"))
-            || !query.exec(QStringLiteral("CREATE INDEX IF NOT EXISTS cache_entries_expiry "
-                                          "ON cache_entries(expires_at)"))
-            || !query.exec(QStringLiteral("CREATE INDEX IF NOT EXISTS cache_entries_access "
-                                          "ON cache_entries(accessed_at)"))
-            || !query.exec(QStringLiteral("CREATE TABLE IF NOT EXISTS home_payload ("
-                                          "key TEXT PRIMARY KEY,"
-                                          "schema_version INTEGER NOT NULL,"
-                                          "payload BLOB NOT NULL,"
-                                          "saved_at INTEGER NOT NULL"
-                                          ")"))
+        if (!query.exec(QStringLiteral("CREATE TABLE IF NOT EXISTS kv ("
+                                       "key TEXT PRIMARY KEY,"
+                                       "value TEXT NOT NULL"
+                                       ")"))
             || !query.exec(QStringLiteral("CREATE TABLE IF NOT EXISTS profiles ("
                                           "profile_id TEXT PRIMARY KEY,"
                                           "server_id TEXT NOT NULL,"
@@ -134,34 +146,121 @@ private:
                                           ")"))
             || !query.exec(QStringLiteral("CREATE INDEX IF NOT EXISTS profiles_usage "
                                           "ON profiles(last_used_at DESC, created_at ASC)"))
-            || !query.exec(QStringLiteral("PRAGMA user_version = 6"))) {
-            qWarning() << "database: schema migration failed" << query.lastError().text();
+            || !query.exec(QStringLiteral("PRAGMA user_version = 1"))) {
+            qWarning() << "database: durable schema creation failed" << query.lastError().text();
             return false;
         }
-        if (existingVersion < 5) {
-            if (!query.exec(
-                    QStringLiteral("DELETE FROM cache_entries WHERE namespace = 'discovery' AND key = 'servers'"))
-                || !query.exec(QStringLiteral("DELETE FROM home_payload"))) {
-                qWarning() << "database: cache invalidation migration failed" << query.lastError().text();
-            }
-        }
-        if (existingVersion < 6) {
-            query.exec(QStringLiteral("DELETE FROM kv WHERE key = 'profiles/accounts-v1'"));
+        return true;
+    }
+
+    bool openCache(const QString& path)
+    {
+        if (!ensureConnection(m_cacheDatabase, QStringLiteral("jellyfin_native_cache"), path)
+            || !prepareConnection(m_cacheDatabase))
+            return false;
+        QSqlQuery query(m_cacheDatabase);
+        if (!query.exec(QStringLiteral("PRAGMA user_version")) || !query.next())
+            return false;
+        const int existingVersion = query.value(0).toInt();
+        if (existingVersion > 1)
+            return false;
+        if (!query.exec(QStringLiteral("CREATE TABLE IF NOT EXISTS cache_entries ("
+                                       "namespace TEXT NOT NULL,"
+                                       "key TEXT NOT NULL,"
+                                       "value BLOB NOT NULL,"
+                                       "updated_at INTEGER NOT NULL,"
+                                       "accessed_at INTEGER NOT NULL,"
+                                       "expires_at INTEGER,"
+                                       "PRIMARY KEY(namespace, key)"
+                                       ")"))
+            || !query.exec(QStringLiteral("CREATE INDEX IF NOT EXISTS cache_entries_expiry "
+                                          "ON cache_entries(expires_at)"))
+            || !query.exec(QStringLiteral("CREATE INDEX IF NOT EXISTS cache_entries_access "
+                                          "ON cache_entries(accessed_at)"))
+            || !query.exec(QStringLiteral("CREATE TABLE IF NOT EXISTS home_payload ("
+                                          "key TEXT PRIMARY KEY,"
+                                          "schema_version INTEGER NOT NULL,"
+                                          "payload BLOB NOT NULL,"
+                                          "saved_at INTEGER NOT NULL"
+                                          ")"))
+            || !query.exec(QStringLiteral("PRAGMA user_version = 1"))) {
+            qWarning() << "database: cache schema creation failed" << query.lastError().text();
+            return false;
         }
         return true;
+    }
+
+    static void closeForRecovery(QSqlDatabase& database)
+    {
+        if (database.isValid())
+            database.close();
+    }
+
+    static bool preserveBrokenDatabase(const QString& path)
+    {
+        QFile::remove(path + QStringLiteral("-wal"));
+        QFile::remove(path + QStringLiteral("-shm"));
+        if (!QFileInfo::exists(path))
+            return true;
+        const QString backup = path + QStringLiteral(".corrupt-")
+            + QDateTime::currentDateTimeUtc().toString(QStringLiteral("yyyyMMdd'T'HHmmsszzz'Z'"));
+        if (!QFile::rename(path, backup))
+            return false;
+
+        const QFileInfo fileInfo(path);
+        QDir directory = fileInfo.dir();
+        const QFileInfoList backups
+            = directory.entryInfoList({ fileInfo.fileName() + QStringLiteral(".corrupt-*") }, QDir::Files, QDir::Time);
+        constexpr qsizetype maximumBackups = 3;
+        for (qsizetype index = maximumBackups; index < backups.size(); ++index)
+            QFile::remove(backups.at(index).absoluteFilePath());
+        return true;
+    }
+
+    bool recoverState(const QString& path)
+    {
+        closeForRecovery(m_database);
+        if (preserveBrokenDatabase(path) && openState(path))
+            return true;
+        closeForRecovery(m_database);
+        return openState(QStringLiteral(":memory:"));
+    }
+
+    bool recoverCache(const QString& path)
+    {
+        closeForRecovery(m_cacheDatabase);
+        if (preserveBrokenDatabase(path) && openCache(path))
+            return true;
+        closeForRecovery(m_cacheDatabase);
+        return openCache(QStringLiteral(":memory:"));
+    }
+
+    bool initializeTransient()
+    {
+        m_recoveryNotice = QStringLiteral(
+            "Local storage is unavailable. Account data and cache changes will last only until the app closes.");
+        return openState(QStringLiteral(":memory:")) && openCache(QStringLiteral(":memory:"));
     }
 
 public:
     QJsonObject homePayload(const QString& key, int schemaVersion)
     {
-        QSqlQuery query(m_database);
+        QSqlQuery query(m_cacheDatabase);
         query.prepare(QStringLiteral("SELECT payload FROM home_payload "
                                      "WHERE key = ? AND schema_version = ?"));
         query.addBindValue(key);
         query.addBindValue(schemaVersion);
         if (!query.exec() || !query.next())
             return {};
-        return QJsonDocument::fromJson(query.value(0).toByteArray()).object();
+        QJsonParseError error;
+        const QJsonDocument document = QJsonDocument::fromJson(query.value(0).toByteArray(), &error);
+        if (error.error == QJsonParseError::NoError && document.isObject())
+            return document.object();
+        QSqlQuery remove(m_cacheDatabase);
+        remove.prepare(QStringLiteral("DELETE FROM home_payload WHERE key = ?"));
+        remove.addBindValue(key);
+        remove.exec();
+        return {};
     }
 
     void setHomePayload(const QString& key, int schemaVersion, const QJsonObject& payload)
@@ -169,7 +268,7 @@ public:
         const QByteArray encoded = QJsonDocument(payload).toJson(QJsonDocument::Compact);
         if (encoded.isEmpty() || key.isEmpty())
             return;
-        QSqlQuery query(m_database);
+        QSqlQuery query(m_cacheDatabase);
         query.prepare(QStringLiteral("INSERT INTO home_payload(key, schema_version, payload, saved_at) "
                                      "VALUES(?, ?, ?, ?) "
                                      "ON CONFLICT(key) DO UPDATE SET "
@@ -185,13 +284,13 @@ public:
 
     void clearHomePayloads()
     {
-        QSqlQuery query(m_database);
+        QSqlQuery query(m_cacheDatabase);
         query.exec(QStringLiteral("DELETE FROM home_payload"));
     }
 
     int schemaVersion()
     {
-        QSqlQuery query(m_database);
+        QSqlQuery query(m_cacheDatabase);
         if (!query.exec(QStringLiteral("PRAGMA user_version")) || !query.next())
             return 0;
         return query.value(0).toInt();
@@ -200,7 +299,7 @@ public:
     QByteArray cacheValue(const QString& nameSpace, const QString& key, qint64 maxAgeMs)
     {
         const qint64 now = QDateTime::currentMSecsSinceEpoch();
-        QSqlQuery query(m_database);
+        QSqlQuery query(m_cacheDatabase);
         query.prepare(QStringLiteral("SELECT value, updated_at, expires_at FROM cache_entries "
                                      "WHERE namespace = ? AND key = ?"));
         query.addBindValue(nameSpace);
@@ -218,7 +317,7 @@ public:
         }
 
         const QByteArray result = query.value(0).toByteArray();
-        QSqlQuery touch(m_database);
+        QSqlQuery touch(m_cacheDatabase);
         touch.prepare(QStringLiteral("UPDATE cache_entries SET accessed_at = ? "
                                      "WHERE namespace = ? AND key = ?"));
         touch.addBindValue(now);
@@ -234,7 +333,7 @@ public:
         QVariant expiresAt;
         if (ttlMs > 0)
             expiresAt = now + ttlMs;
-        QSqlQuery query(m_database);
+        QSqlQuery query(m_cacheDatabase);
         query.prepare(QStringLiteral("INSERT INTO cache_entries(namespace, key, value, updated_at, "
                                      "accessed_at, expires_at) VALUES(?, ?, ?, ?, ?, ?) "
                                      "ON CONFLICT(namespace, key) DO UPDATE SET "
@@ -252,7 +351,7 @@ public:
 
     void removeCacheValue(const QString& nameSpace, const QString& key)
     {
-        QSqlQuery query(m_database);
+        QSqlQuery query(m_cacheDatabase);
         query.prepare(QStringLiteral("DELETE FROM cache_entries WHERE namespace = ? AND key = ?"));
         query.addBindValue(nameSpace);
         query.addBindValue(key);
@@ -261,7 +360,7 @@ public:
 
     void invalidateCacheNamespace(const QString& nameSpace)
     {
-        QSqlQuery query(m_database);
+        QSqlQuery query(m_cacheDatabase);
         query.prepare(QStringLiteral("DELETE FROM cache_entries WHERE namespace = ?"));
         query.addBindValue(nameSpace);
         query.exec();
@@ -270,14 +369,14 @@ public:
     void evictCacheEntries(int maximumEntries)
     {
         const qint64 now = QDateTime::currentMSecsSinceEpoch();
-        QSqlQuery expired(m_database);
+        QSqlQuery expired(m_cacheDatabase);
         expired.prepare(QStringLiteral("DELETE FROM cache_entries WHERE expires_at IS NOT NULL "
                                        "AND expires_at <= ?"));
         expired.addBindValue(now);
         expired.exec();
 
         const int limit = std::max(0, maximumEntries);
-        QSqlQuery countQuery(m_database);
+        QSqlQuery countQuery(m_cacheDatabase);
         if (!countQuery.exec(QStringLiteral("SELECT COUNT(*) FROM cache_entries")) || !countQuery.next()) {
             return;
         }
@@ -285,7 +384,7 @@ public:
         if (removeCount <= 0)
             return;
 
-        QSqlQuery victims(m_database);
+        QSqlQuery victims(m_cacheDatabase);
         victims.prepare(QStringLiteral("SELECT namespace, key FROM cache_entries "
                                        "ORDER BY accessed_at ASC LIMIT ?"));
         victims.addBindValue(removeCount);
@@ -354,14 +453,16 @@ public:
             "server_url = excluded.server_url, user_id = excluded.user_id, user_name = excluded.user_name, "
             "access_token = excluded.access_token, avatar_tag = excluded.avatar_tag, "
             "last_used_at = excluded.last_used_at, needs_authentication = excluded.needs_authentication"));
-        query.addBindValue(profile.profileId);
-        query.addBindValue(profile.serverId);
-        query.addBindValue(profile.serverName);
-        query.addBindValue(profile.serverUrl);
-        query.addBindValue(profile.userId);
-        query.addBindValue(profile.userName);
-        query.addBindValue(profile.accessToken);
-        query.addBindValue(profile.avatarTag);
+        const auto bindText
+            = [&query](const QString& value) { query.addBindValue(value.isNull() ? QStringLiteral("") : value); };
+        bindText(profile.profileId);
+        bindText(profile.serverId);
+        bindText(profile.serverName);
+        bindText(profile.serverUrl);
+        bindText(profile.userId);
+        bindText(profile.userName);
+        bindText(profile.accessToken);
+        bindText(profile.avatarTag);
         query.addBindValue(profile.lastUsedAt);
         query.addBindValue(profile.createdAt);
         query.addBindValue(profile.needsAuthentication);
@@ -397,15 +498,20 @@ public:
 
     void close()
     {
-        if (m_database.isValid()) {
-            const QString connectionName = m_database.connectionName();
-            m_database.close();
-            m_database = {};
-            QSqlDatabase::removeDatabase(connectionName);
-        }
+        closeDatabase(m_cacheDatabase);
+        closeDatabase(m_database);
     }
 
 private:
+    static void closeDatabase(QSqlDatabase& database)
+    {
+        if (!database.isValid())
+            return;
+        const QString connectionName = database.connectionName();
+        database.close();
+        database = {};
+        QSqlDatabase::removeDatabase(connectionName);
+    }
     static AccountProfile accountProfileFromQuery(const QSqlQuery& query)
     {
         return { query.value(0).toString(), query.value(1).toString(), query.value(2).toString(),
@@ -414,6 +520,8 @@ private:
             query.value(10).toBool() };
     }
     QSqlDatabase m_database;
+    QSqlDatabase m_cacheDatabase;
+    QString m_recoveryNotice;
 };
 
 namespace {
@@ -487,14 +595,19 @@ bool DatabaseManager::initialize(const QString& databasePath)
     QPointer<DatabaseManager> manager(this);
     QMetaObject::invokeMethod(m_worker, [manager, worker = m_worker, databasePath, promise]() {
         const bool success = worker->initialize(databasePath);
+        const QString recoveryNotice = worker->recoveryNotice();
         promise->addResult(success);
         promise->finish();
-        if (success)
+        if (success && recoveryNotice.isEmpty())
             return;
         QMetaObject::invokeMethod(
             manager,
-            [manager]() {
-                if (manager)
+            [manager, success, recoveryNotice]() {
+                if (!manager)
+                    return;
+                if (success)
+                    emit manager->recoveryNotice(recoveryNotice);
+                else
                     emit manager->initializationFailed(QStringLiteral("Could not open the application database"));
             },
             Qt::QueuedConnection);
@@ -637,13 +750,14 @@ QCoro::Task<QJsonArray> DatabaseManager::loadDiscoveredServersAsync()
         if (!worker)
             return QJsonArray();
         constexpr qint64 maxAgeMs = 7LL * 24 * 60 * 60 * 1000;
-        QByteArray encoded = worker->cacheValue(QStringLiteral("discovery"), QStringLiteral("servers"), maxAgeMs);
-        if (encoded.isEmpty()) {
-            encoded = worker->value(QStringLiteral("cache/discoveredServers")).toByteArray();
-            if (!encoded.isEmpty())
-                worker->setCacheValue(QStringLiteral("discovery"), QStringLiteral("servers"), encoded, maxAgeMs);
-        }
-        return QJsonDocument::fromJson(encoded).array();
+        const QByteArray encoded = worker->cacheValue(QStringLiteral("discovery"), QStringLiteral("servers"), maxAgeMs);
+        QJsonParseError error;
+        const QJsonDocument document = QJsonDocument::fromJson(encoded, &error);
+        if (error.error == QJsonParseError::NoError && document.isArray())
+            return document.array();
+        if (!encoded.isEmpty())
+            worker->removeCacheValue(QStringLiteral("discovery"), QStringLiteral("servers"));
+        return QJsonArray();
     });
 }
 

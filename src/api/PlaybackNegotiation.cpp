@@ -194,9 +194,8 @@ TrickplayInfo PlaybackNegotiation::selectTrickplay(
 }
 
 QString PlaybackNegotiation::buildUrl(
-    const QString& serverUrl, const QString& itemId, const QString& accessToken, const PlaybackSelection& selection)
+    const QString& serverUrl, const QString& itemId, const PlaybackSelection& selection)
 {
-    Q_UNUSED(accessToken);
     const QString mediaSourceId = selection.source.value(QStringLiteral("Id")).toString();
     if (mediaSourceId.isEmpty())
         throw std::runtime_error("Selected media source has no id");

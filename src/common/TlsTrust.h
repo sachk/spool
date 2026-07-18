@@ -1,82 +1,102 @@
 #pragma once
 
-#include <QCryptographicHash>
+#include <QByteArray>
+#include <QHash>
+#include <QList>
+#include <QMutex>
 #include <QNetworkReply>
-#include <QSettings>
+#include <QObject>
+#include <QPointer>
+#include <QQueue>
 #include <QSslCertificate>
-#include <QSslConfiguration>
 #include <QSslError>
+#include <QString>
 #include <QUrl>
+#include <QVariantList>
+
+#include <functional>
+#include <optional>
 
 #if !QT_CONFIG(ssl)
 #error "Jellyfin Native requires a Qt Network build with TLS support"
 #endif
 
-namespace JellyfinNative::TlsTrust {
+class QNetworkAccessManager;
+class QWebSocket;
 
-inline QSslCertificate peerCertificate(QNetworkReply *reply, const QList<QSslError>& errors)
-{
-    if (reply) {
-        const QSslCertificate certificate = reply->sslConfiguration().peerCertificate();
-        if (!certificate.isNull())
-            return certificate;
-    }
-    for (const QSslError& error : errors) {
-        if (!error.certificate().isNull())
-            return error.certificate();
-    }
-    return QSslCertificate();
-}
+namespace JellyfinNative {
 
-inline QByteArray fingerprint(const QSslCertificate& certificate)
-{
-    return certificate.digest(QCryptographicHash::Sha256).toHex();
-}
+class TlsTrustController final : public QObject {
+    Q_OBJECT
+    Q_PROPERTY(bool pending READ pending NOTIFY pendingChanged)
+    Q_PROPERTY(QString pendingAuthority READ pendingAuthority NOTIFY pendingChanged)
+    Q_PROPERTY(QString pendingFingerprint READ pendingFingerprint NOTIFY pendingChanged)
+    Q_PROPERTY(QString pendingIssuer READ pendingIssuer NOTIFY pendingChanged)
+    Q_PROPERTY(QString pendingErrors READ pendingErrors NOTIFY pendingChanged)
+    Q_PROPERTY(QString pendingSource READ pendingSource NOTIFY pendingChanged)
+    Q_PROPERTY(QVariantList rememberedCertificates READ rememberedCertificates NOTIFY rememberedCertificatesChanged)
 
-inline QString displayFingerprint(const QSslCertificate& certificate)
-{
-    const QByteArray compact = fingerprint(certificate).toUpper();
-    QStringList groups;
-    for (qsizetype i = 0; i < compact.size(); i += 2)
-        groups.push_back(QString::fromLatin1(compact.mid(i, 2)));
-    return groups.join(QLatin1Char(':'));
-}
+public:
+    explicit TlsTrustController(QObject *parent = nullptr);
 
-inline QString endpointKey(const QUrl& url)
-{
-    QString scheme = url.scheme().toLower();
-    if (scheme == QStringLiteral("wss"))
-        scheme = QStringLiteral("https");
-    else if (scheme == QStringLiteral("ws"))
-        scheme = QStringLiteral("http");
-    const int port = url.port(scheme == QStringLiteral("https") ? 443 : -1);
-    const QByteArray endpoint
-        = (scheme + QStringLiteral("://") + url.host().toLower() + QLatin1Char(':') + QString::number(port)).toUtf8();
-    return QStringLiteral("tls/trusted/")
-        + QString::fromLatin1(QCryptographicHash::hash(endpoint, QCryptographicHash::Sha256).toHex());
-}
+    bool pending() const;
+    QString pendingAuthority() const;
+    QString pendingFingerprint() const;
+    QString pendingIssuer() const;
+    QString pendingErrors() const;
+    QString pendingSource() const;
+    QVariantList rememberedCertificates() const;
 
-inline bool isTrusted(const QUrl& url, const QSslCertificate& certificate)
-{
-    const QByteArray expected
-        = QSettings().value(endpointKey(url) + QStringLiteral("/fingerprint")).toByteArray().toLower();
-    return !expected.isEmpty() && expected == fingerprint(certificate);
-}
+    void attachNetworkAccessManager(QNetworkAccessManager *manager, QString source);
+    void attachWebSocket(QWebSocket *socket, std::function<QUrl()> urlProvider, QString source);
 
-inline void remember(const QUrl& url, const QSslCertificate& certificate)
-{
-    QSettings settings;
-    const QString key = endpointKey(url);
-    settings.setValue(key + QStringLiteral("/fingerprint"), fingerprint(certificate));
-    settings.setValue(key + QStringLiteral("/certificatePem"), certificate.toPem());
-}
+    bool isTrusted(const QUrl& url, const QSslCertificate& certificate) const;
+    QSslCertificate trustedCertificate(const QUrl& url) const;
+    void rememberCertificate(const QUrl& url, const QSslCertificate& certificate);
 
-inline QSslCertificate trustedCertificate(const QUrl& url)
-{
-    QSettings settings;
-    const QString key = endpointKey(url);
-    const QSslCertificate certificate(settings.value(key + QStringLiteral("/certificatePem")).toByteArray(), QSsl::Pem);
-    return !certificate.isNull() && isTrusted(url, certificate) ? certificate : QSslCertificate();
-}
+    static QSslCertificate peerCertificate(QNetworkReply *reply, const QList<QSslError>& errors);
+    static QByteArray fingerprint(const QSslCertificate& certificate);
+    static QString displayFingerprint(const QSslCertificate& certificate);
+    static QString authority(const QUrl& url);
+    static QString endpointKey(const QUrl& url);
 
-} // namespace JellyfinNative::TlsTrust
+    Q_INVOKABLE void trustOnce();
+    Q_INVOKABLE void remember();
+    Q_INVOKABLE void cancel();
+    Q_INVOKABLE void removeRemembered(const QString& key);
+
+signals:
+    void pendingChanged();
+    void rememberedCertificatesChanged();
+    void decisionResolved(const QString& source, bool trusted, bool remembered);
+
+private:
+    struct Decision {
+        QUrl url;
+        QSslCertificate certificate;
+        QList<QSslError> errors;
+        QPointer<QNetworkReply> reply;
+        QPointer<QWebSocket> socket;
+        QString source;
+    };
+
+    void handleNetworkErrors(QNetworkReply *reply, const QList<QSslError>& errors, const QString& source);
+    void handleSocketErrors(QWebSocket *socket, const QUrl& url, const QSslCertificate& certificate,
+        const QList<QSslError>& errors, const QString& source);
+    void enqueueDecision(Decision decision);
+    void resolveCurrent(bool trusted, bool remembered);
+    void allowDecision(const Decision& decision);
+    void rejectDecision(const Decision& decision);
+    void advance();
+    void reloadRemembered();
+
+    mutable QMutex m_mutex;
+    QHash<QString, QByteArray> m_fingerprints;
+    QHash<QString, QByteArray> m_certificates;
+    QHash<QString, QByteArray> m_onceFingerprints;
+    QVariantList m_rememberedCertificates;
+    std::optional<Decision> m_current;
+    QQueue<Decision> m_queue;
+};
+
+} // namespace JellyfinNative

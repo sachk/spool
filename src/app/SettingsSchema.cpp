@@ -160,6 +160,8 @@ const QVector<SettingSpec>& settingSpecs()
         externalSpec("action/switchUser", "Account", "Switch User", "Return to profile selection", SettingType::Action),
         externalSpec("action/logout", "Account", "Sign out of this account",
             "Keep this profile on the device and require authentication next time", SettingType::Action),
+        externalSpec("action/manageCertificates", "Account", "Remembered Certificates",
+            "Review or forget certificate fingerprints trusted for exact server endpoints", SettingType::Action),
         externalSpec("i18n/locale", "Appearance", "Language", "Restart the app to update cached server text",
             SettingType::Select),
         externalSpec("theme/accent", "Appearance", "Accent", "Interface highlight colour", SettingType::Select,

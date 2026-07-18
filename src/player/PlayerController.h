@@ -24,6 +24,7 @@ namespace JellyfinNative {
 
 class JellyfinApiFacade;
 class NativeAppWindow;
+class TlsTrustController;
 
 class PlayerController final : public QObject {
     Q_OBJECT
@@ -68,7 +69,8 @@ class PlayerController final : public QObject {
     Q_PROPERTY(QStringList trickplaySheetUrls READ trickplaySheetUrls NOTIFY trickplayChanged)
 
 public:
-    PlayerController(NativeAppWindow *window, JellyfinApiFacade *api, QObject *parent = nullptr);
+    PlayerController(
+        NativeAppWindow *window, JellyfinApiFacade *api, TlsTrustController *tlsTrust, QObject *parent = nullptr);
     ~PlayerController() override;
 
     bool visible() const;
@@ -163,7 +165,8 @@ signals:
     void trickplayChanged();
     void chaptersChanged();
     void playbackStopped(const QString& itemId, qint64 positionTicks, bool completed);
-    void playbackLoadFailed(const QString& itemId, qint64 positionTicks, const QString& message);
+    void playbackLoadFailed(const QString& itemId, qint64 positionTicks, const QString& message,
+        bool retryableCodecFailure, int audioStreamIndex, int subtitleStreamIndex);
     void nightModeEnabledChanged();
     void toneMappingVisualizationEnabledChanged();
     void audioDelayMsChanged();
@@ -259,6 +262,7 @@ private:
     bool m_seeking = false;
     bool m_debugOsdVisible = false;
     PlaybackTrackState m_tracks;
+    bool m_restoreFallbackStreamSelection = false;
     bool m_backAllowed = true;
     QString m_title;
     QString m_statusText = QStringLiteral("Ready");
@@ -278,6 +282,7 @@ private:
     QByteArray m_demuxerMaxBytes = QByteArrayLiteral("64M");
     QByteArray m_demuxerMaxBackBytes = QByteArrayLiteral("32M");
     MpvConfigPolicy m_mpvConfigPolicy;
+    TlsTrustController *m_tlsTrust = nullptr;
     int m_forwardCacheSizeMiB = 0;
     SubtitlePreferences m_subtitlePreferences;
     bool m_hdrPlayback = false;

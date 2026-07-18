@@ -399,9 +399,13 @@ FocusScope {
         Qt.callLater(focusDefaultAction)
     }
 
-    onRouteActiveChanged: if (routeActive) {
-        syncUserState()
-        scheduleActiveRouteRefresh()
+    onRouteActiveChanged: {
+        if (routeActive) {
+            syncUserState()
+            scheduleActiveRouteRefresh()
+        } else {
+            App.cancelEpisodicPlaybackSelection()
+        }
     }
 
     onActiveFocusChanged: if (activeFocus)
@@ -714,6 +718,8 @@ FocusScope {
     }
 
     function activatePrimary(fromStart) {
+        if (App.busy)
+            return
         if (canPlayEpisodicContainer) {
             const seriesId = typeText === "Series" ? String(item.movieId || "") : seriesIdText
             App.playEpisodicContainer(seriesId, typeText === "Season" ? seasonIdText : "")
@@ -1225,7 +1231,7 @@ FocusScope {
                             label: root.primaryLabel()
                             primary: true
                             visible: root.showPrimaryAction
-                            enabledButton: root.showPrimaryAction
+                            enabledButton: root.showPrimaryAction && !App.busy
                             onActivated: root.activatePrimary(false)
                         }
 
@@ -1233,8 +1239,8 @@ FocusScope {
                             id: restartAction
                             iconName: "replay"
                             label: "Restart"
-                            visible: root.showPrimaryAction && root.hasProgress
-                            enabledButton: root.showPrimaryAction && root.hasProgress
+                            visible: !root.canPlayEpisodicContainer && root.showPrimaryAction && root.hasProgress
+                            enabledButton: visible && !App.busy
                             onActivated: root.activatePrimary(true)
                         }
 

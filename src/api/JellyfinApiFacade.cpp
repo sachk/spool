@@ -263,17 +263,14 @@ namespace {
 
 }
 
-JellyfinApiFacade::JellyfinApiFacade(QNetworkAccessManager *networkAccessManager, QObject *parent)
+JellyfinApiFacade::JellyfinApiFacade(
+    QNetworkAccessManager *networkAccessManager, TlsTrustController *tlsTrust, QObject *parent)
     : QObject(parent)
     , m_networkAccessManager(networkAccessManager)
     , m_rest(networkAccessManager, this)
 {
-    connect(m_networkAccessManager, &QNetworkAccessManager::sslErrors, this,
-        [](QNetworkReply *reply, const QList<QSslError>& errors) {
-            const QSslCertificate certificate = TlsTrust::peerCertificate(reply, errors);
-            if (!certificate.isNull() && TlsTrust::isTrusted(reply->url(), certificate))
-                reply->ignoreSslErrors();
-        });
+    if (tlsTrust)
+        tlsTrust->attachNetworkAccessManager(m_networkAccessManager, QStringLiteral("Jellyfin API"));
     m_requestFactory.setTransferTimeout(std::chrono::milliseconds(HttpRequestPolicy::transferTimeoutMs()));
     m_requestFactory.setAttribute(
         QNetworkRequest::ConnectionCacheExpiryTimeoutSecondsAttribute, kConnectionCacheExpirySeconds);
@@ -338,7 +335,8 @@ QString JellyfinApiFacade::deviceId() const
 
 void JellyfinApiFacade::setSession(const AuthSession& session)
 {
-    if (m_session.accessToken != session.accessToken) {
+    const bool tokenChanged = m_session.accessToken != session.accessToken;
+    if (tokenChanged) {
         ++m_playbackNetworkGeneration;
         setPlaybackParallelRequests(1);
     }
@@ -346,6 +344,8 @@ void JellyfinApiFacade::setSession(const AuthSession& session)
     m_authExpirationReported = false;
     if (m_session.accessToken.isEmpty())
         m_preconnectedAuthority.clear();
+    if (tokenChanged)
+        emit sessionTokenChanged();
     preconnectToServer();
 }
 
@@ -1778,7 +1778,7 @@ PlaybackSession JellyfinApiFacade::buildPlaybackSession(
         movie.id,
         movie.title,
         movie.itemType,
-        PlaybackNegotiation::buildUrl(m_serverUrl, movie.id, m_session.accessToken, selection),
+        PlaybackNegotiation::buildUrl(m_serverUrl, movie.id, selection),
         mediaSourceId,
         playbackResponse.value(QStringLiteral("PlaySessionId")).toString(),
         selection.playMethod,

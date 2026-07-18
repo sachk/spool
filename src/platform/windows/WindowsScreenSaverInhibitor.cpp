@@ -5,35 +5,35 @@
 #include <windows.h>
 
 namespace JellyfinNative {
+namespace {
 
-struct ScreenSaverInhibitor::PlatformData { };
+    class WindowsScreenSaverBackend final : public ScreenSaverBackend {
+    public:
+        bool acquire() override
+        {
+            return apply(ES_CONTINUOUS | ES_DISPLAY_REQUIRED | ES_SYSTEM_REQUIRED);
+        }
 
-ScreenSaverInhibitor::ScreenSaverInhibitor()
-    : m_platform(std::make_unique<PlatformData>())
+        bool release() override
+        {
+            return apply(ES_CONTINUOUS);
+        }
+
+    private:
+        static bool apply(EXECUTION_STATE state)
+        {
+            if (SetThreadExecutionState(state) != 0)
+                return true;
+            qWarning() << "screensaver: SetThreadExecutionState failed";
+            return false;
+        }
+    };
+
+} // namespace
+
+std::unique_ptr<ScreenSaverBackend> createPlatformScreenSaverBackend()
 {
-}
-
-ScreenSaverInhibitor::~ScreenSaverInhibitor()
-{
-    setInhibited(false);
-}
-
-void ScreenSaverInhibitor::setInhibited(bool inhibited)
-{
-    if (m_inhibited == inhibited)
-        return;
-    const EXECUTION_STATE state = inhibited ? ES_CONTINUOUS | ES_DISPLAY_REQUIRED | ES_SYSTEM_REQUIRED : ES_CONTINUOUS;
-    if (SetThreadExecutionState(state) == 0) {
-        qWarning() << "screensaver: SetThreadExecutionState failed";
-        return;
-    }
-    m_inhibited = inhibited;
-    qInfo() << "screensaver:" << (inhibited ? "inhibited for active playback" : "available while paused or idle");
-}
-
-bool ScreenSaverInhibitor::inhibited() const
-{
-    return m_inhibited;
+    return std::make_unique<WindowsScreenSaverBackend>();
 }
 
 } // namespace JellyfinNative

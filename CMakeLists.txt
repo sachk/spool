@@ -137,6 +137,7 @@ set(JELLYFIN_CORE_SOURCES
     src/platform/PlatformStartup.h
     src/platform/PlatformSystemProbes.h
     src/platform/ScreenSaverInhibitor.h
+    src/platform/common/ScreenSaverInhibitor.cpp
     src/platform/common/NativeAppWindowCommon.cpp
     src/app/QuickConnectController.cpp
     src/app/QuickConnectController.h
@@ -161,6 +162,7 @@ set(JELLYFIN_CORE_SOURCES
     src/common/JellyfinTypes.cpp
     src/common/JellyfinTypes.h
     src/common/MetaJson.h
+    src/common/TlsTrust.cpp
     src/common/TlsTrust.h
     src/common/LogRotation.h
     src/common/AsyncTask.h
@@ -187,6 +189,8 @@ set(JELLYFIN_CORE_SOURCES
     src/player/PlayerController.h
     src/player/PlayQueueController.cpp
     src/player/PlayQueueController.h
+    src/player/PlaybackFailurePolicy.cpp
+    src/player/PlaybackFailurePolicy.h
     src/player/PlaybackReporter.cpp
     src/player/PlaybackReporter.h
     src/player/PlaybackPositionTracker.cpp
@@ -314,11 +318,13 @@ qt_add_qml_module(jellyfin-native
         qml/shell/InputLatencyWarning.qml
         qml/shell/ItemContextMenu.qml
         qml/shell/ManagementDialog.qml
+        qml/shell/RememberedCertificatesDialog.qml
         qml/shell/MediaInfoOverlay.qml
         qml/shell/OverlayDialog.qml
         qml/shell/RoutePolicy.js
         qml/shell/RouteStack.qml
         qml/shell/SyncPlayMenu.qml
+        qml/shell/TlsTrustDialog.qml
         qml/shell/ToastLayer.qml
         qml/shell/TopBar.qml
         qml/shell/VideoSurface.qml
@@ -407,11 +413,13 @@ if(BUILD_TESTING AND NOT CMAKE_CROSSCOMPILING)
         playback-position-tracker tests/player/PlaybackPositionTrackerTest.cpp
         audio-sync-policy tests/player/AudioSyncPolicyTest.cpp
         mpv-option-profile tests/player/MpvOptionProfileTest.cpp
+        playback-failure-policy tests/player/PlaybackFailurePolicyTest.cpp
         play-queue-controller tests/player/PlayQueueControllerTest.cpp
         browse-session-controller tests/app/BrowseSessionControllerTest.cpp
         settings-schema tests/app/SettingsSchemaTest.cpp
         settings-controller tests/app/SettingsControllerTest.cpp
         session-controller tests/app/SessionControllerTest.cpp
+        screensaver-inhibitor tests/platform/ScreenSaverInhibitorTest.cpp
         router-controller tests/app/RouterControllerTest.cpp
         native-window-input tests/platform/NativeAppWindowInputTest.cpp
         library-query tests/app/LibraryQueryTest.cpp
@@ -458,6 +466,9 @@ if(BUILD_TESTING AND NOT CMAKE_CROSSCOMPILING)
         if(test_name STREQUAL "audio-sync-policy")
             target_sources(${test_target} PRIVATE src/platform/webos/WebOSAudioSyncPolicy.cpp)
         endif()
+        if(test_name STREQUAL "tls-trust")
+            target_compile_definitions(${test_target} PRIVATE TEST_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
+        endif()
         target_link_libraries(${test_target} PRIVATE jellyfin-core)
         add_test(NAME ${test_name} COMMAND ${test_target})
         if(JELLYFIN_TEST_ENV)
@@ -495,6 +506,10 @@ if(BUILD_TESTING AND NOT CMAKE_CROSSCOMPILING)
             COMMAND "${QMLTESTRUNNER_EXECUTABLE}"
                 -input "${CMAKE_CURRENT_SOURCE_DIR}/tests/qml/tst_OptionPickerInput.qml"
         )
+        add_test(NAME tls-trust-dialogs
+            COMMAND "${QMLTESTRUNNER_EXECUTABLE}"
+                -input "${CMAKE_CURRENT_SOURCE_DIR}/tests/qml/tst_TlsTrustDialogs.qml"
+        )
         add_test(NAME nav-grid
             COMMAND "${QMLTESTRUNNER_EXECUTABLE}"
                 -input "${CMAKE_CURRENT_SOURCE_DIR}/tests/qml/tst_NavGrid.qml"
@@ -523,14 +538,18 @@ if(BUILD_TESTING AND NOT CMAKE_CROSSCOMPILING)
             COMMAND "${QMLTESTRUNNER_EXECUTABLE}"
                 -input "${CMAKE_CURRENT_SOURCE_DIR}/tests/qml/tst_PlayerSeekBarHover.qml"
         )
+        get_filename_component(JELLYFIN_QML_PREFIX "${Qt6Qml_DIR}/../../.." ABSOLUTE)
+        set(JELLYFIN_QML_IMPORT_DIR "${JELLYFIN_QML_PREFIX}/lib/qt-6/qml")
         set(JELLYFIN_QML_TEST_ENV
             "QT_QPA_PLATFORM=offscreen"
             "QT_QUICK_BACKEND=software"
+            "QML2_IMPORT_PATH=${JELLYFIN_QML_IMPORT_DIR}"
+            "QML_IMPORT_PATH=${JELLYFIN_QML_IMPORT_DIR}"
             ${JELLYFIN_TEST_ENV}
         )
-        set_tests_properties(route-policy key-router player-overlay-input option-picker-input nav-grid
-            library-navigation
-            profile-navigation settings-navigation atomic-view-reveal input-latency-warning player-seek-bar-hover
+        set_tests_properties(route-policy key-router player-overlay-input option-picker-input tls-trust-dialogs
+            nav-grid library-navigation profile-navigation settings-navigation atomic-view-reveal
+            input-latency-warning player-seek-bar-hover
             PROPERTIES ENVIRONMENT "${JELLYFIN_QML_TEST_ENV}"
         )
     endif()

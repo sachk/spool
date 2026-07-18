@@ -23,6 +23,7 @@ FocusScope {
     readonly property var choiceDialog: choiceDialogLoader.item
     property bool contentReady: false
     property bool resetSubtitleConfirmationVisible: false
+    property bool certificateManagerVisible: false
     property var pendingSubtitleAppearance: ({})
     readonly property var subtitleAppearanceKeys: ["subtitles/styling", "subtitles/textSize", "subtitles/scalePercent",
         "subtitles/bitmapSmoothing", "subtitles/textWeight", "subtitles/font", "subtitles/textColor",
@@ -257,7 +258,7 @@ FocusScope {
         if (row.key === "action/logout")
             return "Sign out"
         if (row.key === "action/uiScaleSetup" || row.key === "action/openSourceNotices" || row.key
-                === "action/subtitleSettings")
+                === "action/subtitleSettings" || row.key === "action/manageCertificates")
             return "Open"
         if (row.key === "action/clearLatencyStatistics")
             return "Clear"
@@ -368,6 +369,8 @@ FocusScope {
                 shell.switchUser()
             else if (row.key === "action/logout")
                 App.logout()
+            else if (row.key === "action/manageCertificates")
+                certificateManagerVisible = true
             else if (row.key === "action/clearLatencyStatistics")
                 InputLatency.clearStatistics()
             else if (row.key === "action/uiScaleSetup" && shell)
@@ -470,6 +473,11 @@ FocusScope {
     }
 
     function back() {
+        if (certificateManagerVisible) {
+            certificateManagerVisible = false
+            InputKeys.focus(settingsList)
+            return true
+        }
         if (resetSubtitleConfirmationVisible) {
             closeResetSubtitleConfirmation()
             return true
@@ -486,6 +494,8 @@ FocusScope {
     }
 
     function routeKey(key, phase, repeat) {
+        if (certificateManagerVisible)
+            return certificateManagerLoader.item.routeKey(key, phase, repeat)
         if (resetSubtitleConfirmationVisible)
             return resetSubtitleConfirmationLoader.item.routeKey(key, phase, repeat)
         if (choiceDialogVisible)
@@ -524,6 +534,10 @@ FocusScope {
     }
 
     function activate() {
+        if (certificateManagerVisible) {
+            certificateManagerLoader.item.activate()
+            return
+        }
         if (resetSubtitleConfirmationVisible)
             resetSubtitleConfirmationLoader.item.activate()
         else if (choiceDialogVisible)
@@ -1022,6 +1036,21 @@ FocusScope {
             destructive: true
             onAccepted: root.confirmResetSubtitleAppearance()
             onDismissed: root.closeResetSubtitleConfirmation()
+        }
+    }
+
+    Loader {
+        id: certificateManagerLoader
+        anchors.fill: parent
+        active: root.certificateManagerVisible
+        z: 200
+        sourceComponent: RememberedCertificatesDialog {
+            trustController: TlsTrust
+            inputKeys: InputKeys
+            onDismissed: {
+                root.certificateManagerVisible = false
+                InputKeys.focus(settingsList)
+            }
         }
     }
 

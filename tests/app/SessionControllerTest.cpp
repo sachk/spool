@@ -2,6 +2,7 @@
 #include "api/JellyfinApiFacade.h"
 #include "app/AccountProfile.h"
 #include "cache/DatabaseManager.h"
+#include "common/TlsTrust.h"
 
 #include <QCoroTask>
 
@@ -98,7 +99,10 @@ int main(int argc, char **argv)
     require(stored.front().createdAt == aliceHome.createdAt, "upsert should preserve insertion order");
 
     QNetworkAccessManager network;
-    JellyfinApiFacade api(&network);
+    TlsTrustController tlsTrust;
+    JellyfinApiFacade api(&network, &tlsTrust);
+    int tokenChanges = 0;
+    QObject::connect(&api, &JellyfinApiFacade::sessionTokenChanged, [&tokenChanges]() { ++tokenChanges; });
     SessionController session(&database, &api);
     require(QCoro::waitFor(session.initializeAsync()), "saved profiles should be detected");
     require(!session.authenticated(), "startup should never activate a saved token");
@@ -114,19 +118,27 @@ int main(int argc, char **argv)
     require(session.serverUrl() == QStringLiteral("https://home.example")
             && api.session().accessToken == QStringLiteral("bob-secret"),
         "activation should swap the server URL and token together");
+    require(tokenChanges == 1, "profile activation should replace the playback authentication once");
 
     session.deactivate();
     require(!session.authenticated(), "switch user should clear the active session");
     require(session.accountProfiles().size() == 3, "switch user should preserve saved pairs");
+    require(tokenChanges == 2 && api.authorizationHeader().contains(QStringLiteral("bob-secret")) == false,
+        "switch user should clear the old playback token");
 
     session.activateProfile(aliceAway.profileId);
     require(waitUntil(app, [&session]() { return session.authenticated(); }), "second server profile should activate");
+    require(tokenChanges == 3 && api.authorizationHeader().contains(QStringLiteral("away-secret"))
+            && !api.authorizationHeader().contains(QStringLiteral("bob-secret")),
+        "profile switching should expose only the newly selected token");
     session.logout();
     require(!session.authenticated(), "sign out should clear the active token");
     require(session.accountProfiles().size() == 3, "sign out should keep the account tile");
     stored = QCoro::waitFor(database.loadAccountProfilesAsync());
     const auto expired = std::find_if(stored.cbegin(), stored.cend(),
         [&aliceAway](const AccountProfile& candidate) { return candidate.profileId == aliceAway.profileId; });
+    require(tokenChanges == 4 && !api.authorizationHeader().contains(QStringLiteral("away-secret")),
+        "sign out should clear retained playback authentication");
     require(expired != stored.cend() && expired->needsAuthentication && expired->accessToken.isEmpty(),
         "sign out should expire only the active profile");
     require(std::any_of(stored.cbegin(), stored.cend(),
@@ -146,13 +158,13 @@ int main(int argc, char **argv)
     require(stored.size() == 2, "remove from device should delete only the selected pair");
 
     database.clearAccountProfiles();
-    JellyfinApiFacade emptyApi(&network);
+    JellyfinApiFacade emptyApi(&network, &tlsTrust);
     SessionController emptySession(&database, &emptyApi);
     require(!QCoro::waitFor(emptySession.initializeAsync()), "zero profiles should route to add account");
     require(!emptySession.authenticated(), "zero-profile startup should remain signed out");
 
     database.upsertAccountProfile(aliceHome);
-    JellyfinApiFacade singleApi(&network);
+    JellyfinApiFacade singleApi(&network, &tlsTrust);
     SessionController singleSession(&database, &singleApi);
     require(QCoro::waitFor(singleSession.initializeAsync()), "one profile should route to profile selection");
     require(!singleSession.authenticated(), "one saved profile must not auto-activate");

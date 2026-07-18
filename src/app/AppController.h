@@ -31,6 +31,7 @@ class ArtworkService;
 class JellyfinApiFacade;
 class LibraryPrefetchController;
 class UserItemStateController;
+class TlsTrustController;
 class AppController final : public QObject {
     Q_OBJECT
     Q_PROPERTY(bool busy MEMBER m_busy NOTIFY busyChanged)
@@ -41,7 +42,7 @@ class AppController final : public QObject {
 
 public:
     AppController(DatabaseManager *database, DiscoveryController *discovery, JellyfinApiFacade *api,
-        ArtworkService *artwork, PlayerController *player, QObject *parent = nullptr);
+        ArtworkService *artwork, PlayerController *player, TlsTrustController *tlsTrust, QObject *parent = nullptr);
 
     DiscoveredServerModel *discoveredServers()
     {
@@ -122,6 +123,7 @@ public:
     Q_INVOKABLE void addToQueueFromItem(const MovieItem& item);
     Q_INVOKABLE void playModel(MovieGridModel *model, bool shuffled = false);
     Q_INVOKABLE void playEpisodicContainer(const QString& seriesId, const QString& seasonId = {});
+    Q_INVOKABLE void cancelEpisodicPlaybackSelection();
     Q_INVOKABLE void openNamedCollection(const QString& kind, const QString& name);
     Q_INVOKABLE void onMemoryPressure(const QString& level);
     Q_INVOKABLE void clearError();
@@ -152,7 +154,8 @@ private:
     void showCurrentItemsPage(const PagedMovieItems& page, const QString& cacheKey, bool append);
     void loadLibraryFilterOptions(RequestGeneration::Token generation, const LibraryItem& library);
     RequestGeneration::Token beginBrowse(bool useWarmCache = false);
-    QCoro::Task<void> startPlayback(MovieItem playItem, bool startPaused = false, bool forceTranscode = false);
+    QCoro::Task<void> startPlayback(MovieItem playItem, bool startPaused = false, bool forceTranscode = false,
+        int audioStreamIndex = -2, int subtitleStreamIndex = -2);
     void playQueuedItems(const std::vector<MovieItem>& items, int startIndex, bool fromStart = false);
     void playQueuedItem(const MovieItem& item, bool fromStart = false);
     void playEpisodeWithContext(const MovieItem& episode, int direction, bool fromStart);
@@ -183,6 +186,7 @@ private:
     UserItemStateController *m_itemState = nullptr;
     SearchController *m_search = nullptr;
     quint64 m_episodeQueueGeneration = 0;
+    bool m_episodeQueuePending = false;
     LibraryManagementController *m_management = nullptr;
     DiscoveredServerModel m_discoveredServers;
     LibraryListModel m_libraries;

@@ -22,11 +22,13 @@
 
 namespace JellyfinNative {
 
+class TlsTrustController;
 class JellyfinApiFacade final : public QObject {
     Q_OBJECT
 
 public:
-    explicit JellyfinApiFacade(QNetworkAccessManager *networkAccessManager, QObject *parent = nullptr);
+    explicit JellyfinApiFacade(
+        QNetworkAccessManager *networkAccessManager, TlsTrustController *tlsTrust, QObject *parent = nullptr);
     ~JellyfinApiFacade() override;
 
     void setServerUrl(const QString& serverUrl);
@@ -120,6 +122,7 @@ signals:
     void authenticationExpired(const QString& message);
     void deviceProfileChanged();
     void playbackNetworkProfileChanged();
+    void sessionTokenChanged();
 
 private:
     enum class HttpMethod {

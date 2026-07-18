@@ -1,0 +1,17 @@
+#pragma once
+#include "../common/JellyfinTypes.h"
+
+#include <QString>
+
+namespace JellyfinNative {
+
+class PlaybackFailurePolicy final {
+public:
+    static bool isRetryableCodecFailure(const QString& playMethod, bool failedBeforeLoad, int mpvError);
+    static bool shouldStartCodecFallback(bool retryableCodecFailure, bool alreadyAttempted, bool syncPlayActive);
+    static MovieItem retryItem(const MovieItem& item, qint64 positionTicks);
+    static void prepareFallbackSession(PlaybackSession& session, const std::vector<PlaybackQueueItem>& queue,
+        int audioStreamIndex, int subtitleStreamIndex);
+};
+
+} // namespace JellyfinNative

@@ -5,43 +5,42 @@
 #include <IOKit/pwr_mgt/IOPMLib.h>
 
 namespace JellyfinNative {
+namespace {
 
-struct ScreenSaverInhibitor::PlatformData {
-    IOPMAssertionID assertion = kIOPMNullAssertionID;
-};
-
-ScreenSaverInhibitor::ScreenSaverInhibitor()
-    : m_platform(std::make_unique<PlatformData>())
-{
-}
-
-ScreenSaverInhibitor::~ScreenSaverInhibitor()
-{
-    setInhibited(false);
-}
-
-void ScreenSaverInhibitor::setInhibited(bool inhibited)
-{
-    if (m_inhibited == inhibited)
-        return;
-    if (inhibited) {
-        const IOReturn result = IOPMAssertionCreateWithName(kIOPMAssertionTypePreventUserIdleDisplaySleep,
-            kIOPMAssertionLevelOn, CFSTR("Jellyfin Native media playback"), &m_platform->assertion);
-        if (result != kIOReturnSuccess) {
+    class MacOSScreenSaverBackend final : public ScreenSaverBackend {
+    public:
+        bool acquire() override
+        {
+            const IOReturn result = IOPMAssertionCreateWithName(kIOPMAssertionTypePreventUserIdleDisplaySleep,
+                kIOPMAssertionLevelOn, CFSTR("Jellyfin Native media playback"), &m_assertion);
+            if (result == kIOReturnSuccess)
+                return true;
             qWarning() << "screensaver: macOS idle assertion failed" << result;
-            return;
+            return false;
         }
-    } else if (m_platform->assertion != kIOPMNullAssertionID) {
-        IOPMAssertionRelease(m_platform->assertion);
-        m_platform->assertion = kIOPMNullAssertionID;
-    }
-    m_inhibited = inhibited;
-    qInfo() << "screensaver:" << (inhibited ? "inhibited for active playback" : "available while paused or idle");
-}
 
-bool ScreenSaverInhibitor::inhibited() const
+        bool release() override
+        {
+            if (m_assertion == kIOPMNullAssertionID)
+                return true;
+            const IOReturn result = IOPMAssertionRelease(m_assertion);
+            if (result != kIOReturnSuccess) {
+                qWarning() << "screensaver: macOS idle assertion release failed" << result;
+                return false;
+            }
+            m_assertion = kIOPMNullAssertionID;
+            return true;
+        }
+
+    private:
+        IOPMAssertionID m_assertion = kIOPMNullAssertionID;
+    };
+
+} // namespace
+
+std::unique_ptr<ScreenSaverBackend> createPlatformScreenSaverBackend()
 {
-    return m_inhibited;
+    return std::make_unique<MacOSScreenSaverBackend>();
 }
 
 } // namespace JellyfinNative

@@ -7,6 +7,7 @@
 #include "../common/MetaJson.h"
 #include "../diagnostics/Diagnostics.h"
 #include "../player/PlayQueueController.h"
+#include "../player/PlaybackFailurePolicy.h"
 #include "../player/PlayerController.h"
 #include "BrowseSessionController.h"
 #include "ContentModelController.h"
@@ -55,7 +56,7 @@ namespace {
 }
 
 AppController::AppController(DatabaseManager *database, DiscoveryController *discovery, JellyfinApiFacade *api,
-    ArtworkService *artwork, PlayerController *player, QObject *parent)
+    ArtworkService *artwork, PlayerController *player, TlsTrustController *tlsTrust, QObject *parent)
     : QObject(parent)
     , m_database(database)
     , m_discovery(discovery)
@@ -64,7 +65,7 @@ AppController::AppController(DatabaseManager *database, DiscoveryController *dis
     , m_player(player)
 {
     m_playQueue = new PlayQueueController(api, this);
-    m_syncPlay = new SyncPlayController(api, player, m_playQueue, this);
+    m_syncPlay = new SyncPlayController(api, player, m_playQueue, tlsTrust, this);
     m_quickConnect = new QuickConnectController(api, this);
     m_settings = new SettingsController(database, api, player, this);
     m_session = new SessionController(database, api, this);
@@ -85,6 +86,7 @@ AppController::AppController(DatabaseManager *database, DiscoveryController *dis
     connect(m_browse, &BrowseSessionController::moreItemsRequested, this, &AppController::loadMoreCurrentItems);
     connect(m_api, &JellyfinApiFacade::authenticationExpired, m_session, &SessionController::expireSession);
     connect(m_syncPlay, &SyncPlayController::errorText, this, &AppController::showToast);
+    connect(m_database, &DatabaseManager::recoveryNotice, this, &AppController::showToast);
     connect(m_syncPlay, &SyncPlayController::groupChanged, this,
         [this]() { m_player->setKeepPlayingInBackground(m_syncPlay->enabled()); });
     connect(m_syncPlay, &SyncPlayController::remotePlayCommand, this, &AppController::handleRemotePlay);
@@ -158,17 +160,28 @@ AppController::AppController(DatabaseManager *database, DiscoveryController *dis
 
     connect(m_player, &PlayerController::playbackStopped, this, &AppController::handlePlaybackStopped);
     connect(m_player, &PlayerController::playbackLoadFailed, this,
-        [this](const QString& itemId, qint64 positionTicks, const QString&) {
-            if (m_codecFallbackAttempted || itemId.isEmpty() || itemId != m_activePlaybackItem.id)
+        [this](const QString& itemId, qint64 positionTicks, const QString&, bool retryableCodecFailure,
+            int audioStreamIndex, int subtitleStreamIndex) {
+            const bool syncPlayActive = m_syncPlay && m_syncPlay->enabled();
+            if (itemId.isEmpty() || itemId != m_activePlaybackItem.id)
                 return;
+            if (retryableCodecFailure && syncPlayActive) {
+                m_syncPlay->leaveGroup();
+                showToast(QStringLiteral("This stream is not directly compatible. Leaving SyncPlay; start it again to "
+                                         "use server transcoding."));
+                return;
+            }
+            if (!PlaybackFailurePolicy::shouldStartCodecFallback(
+                    retryableCodecFailure, m_codecFallbackAttempted, syncPlayActive)) {
+                return;
+            }
             m_codecFallbackAttempted = true;
-            MovieItem retryItem = m_activePlaybackItem;
-            retryItem.resumeTicks = std::max<qint64>(0, positionTicks);
+            const MovieItem retryItem = PlaybackFailurePolicy::retryItem(m_activePlaybackItem, positionTicks);
             m_player->teardownMpv();
             setBusy(true, QStringLiteral("Trying a compatible server stream…"));
             showToast(QStringLiteral("Direct playback was not supported; retrying once with server transcoding."));
             Async::runScoped(
-                this, startPlayback(retryItem, false, true), []() {},
+                this, startPlayback(retryItem, false, true, audioStreamIndex, subtitleStreamIndex), []() {},
                 [this](const std::exception_ptr& error) {
                     setBusy(false);
                     showToast(exceptionMessage(error));
@@ -486,6 +499,9 @@ void AppController::playEpisodicContainer(const QString& seriesId, const QString
 {
     if (!m_api || seriesId.isEmpty())
         return;
+    if (m_episodeQueuePending)
+        return;
+    m_episodeQueuePending = true;
 
     const quint64 generation = ++m_episodeQueueGeneration;
     setBusy(true,
@@ -496,10 +512,15 @@ void AppController::playEpisodicContainer(const QString& seriesId, const QString
         [this, generation](const std::vector<MovieItem>& episodes) {
             if (generation != m_episodeQueueGeneration)
                 return;
+            m_episodeQueuePending = false;
             const int startIndex = episodicPlaybackStartIndex(episodes);
             if (startIndex < 0) {
                 setBusy(false);
-                showToast(QStringLiteral("There is no unplayed episode available after the last watched episode."));
+                const bool watchedEpisode = std::any_of(
+                    episodes.cbegin(), episodes.cend(), [](const MovieItem& episode) { return episode.played; });
+                showToast(watchedEpisode
+                        ? QStringLiteral("There is no unplayed episode after the last watched episode.")
+                        : QStringLiteral("No playable episodes are available."));
                 return;
             }
             playQueuedItems(episodes, startIndex, false);
@@ -507,10 +528,20 @@ void AppController::playEpisodicContainer(const QString& seriesId, const QString
         [this, generation](const std::exception_ptr& error) {
             if (generation != m_episodeQueueGeneration)
                 return;
+            m_episodeQueuePending = false;
             setBusy(false);
             showToast(exceptionMessage(error));
         },
         "episodic container playback");
+}
+
+void AppController::cancelEpisodicPlaybackSelection()
+{
+    if (!m_episodeQueuePending)
+        return;
+    ++m_episodeQueueGeneration;
+    m_episodeQueuePending = false;
+    setBusy(false);
 }
 
 void AppController::playQueuedItem(const MovieItem& item, bool fromStart)
@@ -535,12 +566,14 @@ void AppController::playEpisodeWithContext(const MovieItem& episode, int directi
     }
 
     const quint64 generation = ++m_episodeQueueGeneration;
+    m_episodeQueuePending = true;
     setBusy(true, direction == 0 ? QStringLiteral("Loading episode queue…") : QStringLiteral("Finding episode…"));
     Async::runScoped(
         this, m_api->fetchEpisodes(episode.seriesId),
         [this, generation, episode, direction, fromStart](const std::vector<MovieItem>& episodes) {
             if (generation != m_episodeQueueGeneration)
                 return;
+            m_episodeQueuePending = false;
             const auto current = std::find_if(episodes.begin(), episodes.end(),
                 [&episode](const MovieItem& candidate) { return candidate.id == episode.id; });
             if (current == episodes.end()) {
@@ -579,6 +612,7 @@ void AppController::playEpisodeWithContext(const MovieItem& episode, int directi
         [this, generation, episode, direction, fromStart](const std::exception_ptr& error) {
             if (generation != m_episodeQueueGeneration)
                 return;
+            m_episodeQueuePending = false;
             setBusy(false);
             if (direction == 0 && m_playQueue->playNow(episode)) {
                 startQueuedPlayback(fromStart);
@@ -780,7 +814,8 @@ bool AppController::queueMutationAllowed()
     return true;
 }
 
-QCoro::Task<void> AppController::startPlayback(MovieItem playItem, bool startPaused, bool forceTranscode)
+QCoro::Task<void> AppController::startPlayback(
+    MovieItem playItem, bool startPaused, bool forceTranscode, int audioStreamIndex, int subtitleStreamIndex)
 {
     Diagnostics::Task task(QStringLiteral("playback_negotiate"),
         { { QStringLiteral("itemId"), playItem.id }, { QStringLiteral("title"), playItem.title },
@@ -789,7 +824,11 @@ QCoro::Task<void> AppController::startPlayback(MovieItem playItem, bool startPau
     if (!forceTranscode)
         m_codecFallbackAttempted = false;
     PlaybackSession session = co_await m_api->negotiatePlayback(playItem, forceTranscode);
-    session.nowPlayingQueue = m_playQueue->nowPlayingQueue();
+    const std::vector<PlaybackQueueItem> queue = m_playQueue->nowPlayingQueue();
+    if (forceTranscode)
+        PlaybackFailurePolicy::prepareFallbackSession(session, queue, audioStreamIndex, subtitleStreamIndex);
+    else
+        session.nowPlayingQueue = queue;
     setBusy(false);
     m_player->play(session, startPaused);
 
