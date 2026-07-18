@@ -11,11 +11,11 @@
 // build time: as DT_NEEDED entries they would be mapped, relocated and
 // symbol-resolved by the dynamic linker before main() runs, which costs a
 // large share of cold-launch time for ~40 MB of player code the home screen
-// never touches (PERFORMANCE_PLAN.md §4A). Instead, MpvRuntime.cpp defines
+// never touches. Instead, WebOSMpvRuntime.cpp defines
 // every mpv_*/starfish_* entry point the app uses and forwards through
 // dlsym'd pointers; the library is dlopen'd on a background thread after the
 // first frame, or on demand at the first mpv call, whichever comes first.
-namespace JellyfinNative::MpvRuntime {
+namespace JellyfinNative::WebOSMpvRuntime {
 
 // Start loading libmpv on a detached background thread. Idempotent; call
 // after the first frame has been presented.
@@ -42,4 +42,4 @@ bool ensureLoaded();
 // a load from the startup diagnostics timer.
 int64_t audioDecodeCpuTimeNs();
 
-} // namespace JellyfinNative::MpvRuntime
+} // namespace JellyfinNative::WebOSMpvRuntime

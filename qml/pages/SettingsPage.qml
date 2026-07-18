@@ -23,7 +23,7 @@ FocusScope {
 
     signal dismissed
 
-    readonly property bool gpuNextDiagnosticsAvailable: !NativeWindow.smartTvPlatform
+    readonly property bool gpuNextDiagnosticsAvailable: !Platform.isTV
     readonly property var groupOrder: ["General", "Appearance", "Playback", "Subtitles", "Diagnostics", "Button Remap",
         "About"]
     readonly property var pageRows: [makeRow("action/switchUser", "General", "action", "Switch User",
@@ -63,10 +63,11 @@ FocusScope {
                                                                                            "Diagnostics", "toggle",
                                                                                            "Latency Warnings"), makeRow(
             "action/clearLatencyStatistics", "Diagnostics", "action", "Clear Latency Statistics"), makeRow(
-            "about/version", "About", "readonly", "Jellyfin Native for webOS", "Qt 6.11 client, native mpv playback"),
-        makeRow("action/openSourceNotices", "About", "action", "Open-source notices",
-                "Acknowledgements, licenses, and corresponding source"), makeRow("about/locale", "About", "readonly",
-                                                                                 "UI Locale")]
+            "about/version", "About", "readonly", "Jellyfin Native for " + Platform.deviceName,
+            "Qt 6.11 client, native mpv playback"), makeRow("action/openSourceNotices", "About", "action",
+                                                            "Open-source notices",
+                                                            "Acknowledgements, licenses, and corresponding source"),
+        makeRow("about/locale", "About", "readonly", "UI Locale")]
 
     function makeRow(key, group, type, title, description, labels, values) {
         return {
@@ -98,7 +99,7 @@ FocusScope {
                                                                                     || Settings.values["playback/manualStreamingBitrate"]
                                                                                     === true) && (row.group
                                                                                                   !== "Button Remap"
-                                                                                                  || NativeWindow.smartTvPlatform)
+                                                                                                  || Platform.isTV)
     }
 
     function currentDetailLevel() {
@@ -120,7 +121,7 @@ FocusScope {
     }
 
     function expandedSchemaRow(row) {
-        if (!row || row.key !== "subtitles/font" || Platform.isWebOS)
+        if (!row || row.key !== "subtitles/font" || !Platform.hasSystemFonts)
             return row
         const expanded = Object.assign({}, row)
         expanded.choiceLabels = []
@@ -319,7 +320,7 @@ FocusScope {
     function rowDescription(row) {
         if (row.key === "session/server")
             return Session.serverUrl
-        if (row.key === "settings/audioDelayMs" && Platform.isWebOS)
+        if (row.key === "settings/audioDelayMs" && Platform.usesPerOutputAudioDelay)
             return "User trim for " + Settings.audioDelayTargetLabel + "; automatic compensation is applied separately"
         return row.description || ""
     }

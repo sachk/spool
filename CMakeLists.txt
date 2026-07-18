@@ -6,7 +6,7 @@ if(NOT JELLYFIN_VERSION MATCHES "^[0-9]+\\.[0-9]+\\.[0-9]+$")
     message(FATAL_ERROR "VERSION must contain a semantic version such as 0.2.1")
 endif()
 
-project(JellyfinNativeWebOS VERSION "${JELLYFIN_VERSION}" LANGUAGES CXX)
+project(JellyfinNativeWebOS VERSION "${JELLYFIN_VERSION}" LANGUAGES C CXX)
 
 if(WIN32)
     add_compile_definitions(NOMINMAX WIN32_LEAN_AND_MEAN)
@@ -83,104 +83,9 @@ qt_standard_project_setup(
     REQUIRES ${JELLYFIN_QT_MIN_VERSION}
     I18N_TRANSLATED_LANGUAGES en_US en_GB en_AU
 )
+include(cmake/platform/Common.cmake)
 
-if(JELLYFIN_NATIVE_WEBOS)
-    pkg_check_modules(GLIB REQUIRED IMPORTED_TARGET glib-2.0)
-    set(WEBOS_NATIVE_LIB_DIR "${CMAKE_SYSROOT}/usr/local/webos-native/lib")
-    set(WEBOS_SYSROOT_LIB_DIR "${CMAKE_SYSROOT}/usr/lib")
-    set(WEBOS_SYSROOT_BASE_LIB_DIR "${CMAKE_SYSROOT}/lib")
-
-    function(find_webos_sysroot_library out_var library_name)
-        foreach(candidate
-                "${WEBOS_SYSROOT_LIB_DIR}/lib${library_name}.so"
-                "${WEBOS_SYSROOT_BASE_LIB_DIR}/lib${library_name}.so")
-            if(EXISTS "${candidate}" OR IS_SYMLINK "${candidate}")
-                set(${out_var} "${candidate}" PARENT_SCOPE)
-                return()
-            endif()
-        endforeach()
-
-        find_library(${out_var}
-            NAMES ${library_name}
-            PATHS
-                "${WEBOS_SYSROOT_LIB_DIR}"
-                "${WEBOS_SYSROOT_BASE_LIB_DIR}"
-            NO_DEFAULT_PATH
-            NO_CMAKE_FIND_ROOT_PATH
-        )
-        if(NOT ${out_var})
-            file(GLOB matches
-                "${WEBOS_SYSROOT_LIB_DIR}/lib${library_name}.so.*"
-                "${WEBOS_SYSROOT_BASE_LIB_DIR}/lib${library_name}.so.*"
-            )
-            if(matches)
-                list(SORT matches)
-                list(GET matches 0 resolved_library)
-                set(${out_var} "${resolved_library}" PARENT_SCOPE)
-                return()
-            endif()
-        endif()
-        if(NOT ${out_var})
-            message(FATAL_ERROR "Could not find webOS sysroot library: ${library_name}")
-        endif()
-        set(${out_var} "${${out_var}}" PARENT_SCOPE)
-    endfunction()
-
-    find_webos_sysroot_library(EGL_LIB EGL)
-    find_webos_sysroot_library(GLES2_LIB GLESv2)
-    find_webos_sysroot_library(WAYLAND_EGL_LIB wayland-egl)
-    find_webos_sysroot_library(WAYLAND_CLIENT_LIB wayland-client)
-    find_webos_sysroot_library(WAYLAND_WEBOS_CLIENT_LIB wayland-webos-client)
-    find_webos_sysroot_library(WEBOS_HELPERS_LIB helpers)
-    find_webos_sysroot_library(LUNA_SERVICE_LIB luna-service2)
-    find_webos_sysroot_library(ALSA_LIB asound)
-    set(AVCODEC_LIB "${WEBOS_NATIVE_LIB_DIR}/libavcodec.so")
-    set(AVFILTER_LIB "${WEBOS_NATIVE_LIB_DIR}/libavfilter.so")
-    set(AVFORMAT_LIB "${WEBOS_NATIVE_LIB_DIR}/libavformat.so")
-    set(AVUTIL_LIB "${WEBOS_NATIVE_LIB_DIR}/libavutil.so")
-    set(LUA_LIB "${WEBOS_NATIVE_LIB_DIR}/liblua5.2.so")
-    set(SWRESAMPLE_LIB "${WEBOS_NATIVE_LIB_DIR}/libswresample.so")
-    set(SWSCALE_LIB "${WEBOS_NATIVE_LIB_DIR}/libswscale.so")
-    set(MPV_LIB "${MPV_WEBOS_BUILD_DIR}/libmpv.so")
-    if(NOT EXISTS "${MPV_LIB}")
-        message(FATAL_ERROR "Expected libmpv at ${MPV_LIB}")
-    endif()
-    foreach(required_lib
-            AVCODEC_LIB
-            AVFILTER_LIB
-            AVFORMAT_LIB
-            AVUTIL_LIB
-            LUA_LIB
-            SWRESAMPLE_LIB
-            SWSCALE_LIB)
-        if(NOT EXISTS "${${required_lib}}")
-            message(FATAL_ERROR "Expected dependency at ${${required_lib}}")
-        endif()
-    endforeach()
-else()
-    if(WIN32)
-        set(MPV_ROOT "" CACHE PATH "Windows libmpv SDK prefix")
-        find_path(MPV_INCLUDE_DIR mpv/client.h
-            HINTS "${MPV_ROOT}/include"
-            REQUIRED
-        )
-        find_library(MPV_LIBRARY
-            NAMES mpv libmpv
-            HINTS "${MPV_ROOT}/lib"
-            REQUIRED
-        )
-        add_library(MPV::MPV UNKNOWN IMPORTED)
-        set_target_properties(MPV::MPV PROPERTIES
-            IMPORTED_LOCATION "${MPV_LIBRARY}"
-            INTERFACE_INCLUDE_DIRECTORIES "${MPV_INCLUDE_DIR}"
-        )
-    else()
-        pkg_check_modules(MPV REQUIRED IMPORTED_TARGET mpv)
-    endif()
-    if(UNIX AND NOT APPLE)
-        find_package(OpenGL REQUIRED)
-    endif()
-endif()
+jellyfin_resolve_platform_dependencies()
 
 set(JELLYFIN_CORE_SOURCES
     src/api/JellyfinApiFacade.cpp
@@ -217,7 +122,20 @@ set(JELLYFIN_CORE_SOURCES
     src/app/MemoryBudget.h
     src/app/RouterController.cpp
     src/app/RouterController.h
-    src/app/NativeAppWindowCommon.cpp
+    src/platform/NativeAppWindow.h
+    src/platform/PlatformApplicationServices.h
+    src/platform/PlatformCapabilities.h
+    src/platform/MpvConfigPolicy.h
+    src/platform/PlatformPaths.h
+    src/platform/PlatformPlaybackRuntime.h
+    src/platform/PlatformPerformanceSampler.h
+    src/platform/PlatformPlaybackSurface.h
+    src/platform/PlatformProcess.h
+    src/platform/PlatformSettingsPolicy.h
+    src/platform/PlatformStartup.h
+    src/platform/PlatformSystemProbes.h
+    src/platform/ScreenSaverInhibitor.h
+    src/platform/common/NativeAppWindowCommon.cpp
     src/app/QuickConnectController.cpp
     src/app/QuickConnectController.h
     src/app/SettingsController.cpp
@@ -263,8 +181,6 @@ set(JELLYFIN_CORE_SOURCES
     src/models/MovieGridModel.h
     src/player/MpvLifecycle.cpp
     src/player/MpvLifecycle.h
-    src/player/AudioSyncPolicy.cpp
-    src/player/AudioSyncPolicy.h
     src/player/PlayerController.cpp
     src/player/PlayerController.h
     src/player/PlayQueueController.cpp
@@ -292,52 +208,7 @@ qt_add_executable(jellyfin-native
 )
 
 set(JELLYFIN_NATIVE_TARGETS jellyfin-core jellyfin-native)
-
-if(JELLYFIN_NATIVE_WEBOS)
-    target_sources(jellyfin-native PRIVATE
-        src/app/NativeAppWindow.cpp
-        src/app/NativeAppWindow.h
-        src/player/MpvRuntime.cpp
-        src/player/MpvRuntime.h
-    )
-    foreach(target IN LISTS JELLYFIN_NATIVE_TARGETS)
-        target_compile_definitions(${target} PRIVATE JELLYFIN_NATIVE_WEBOS=1)
-    endforeach()
-
-    # Static input context plugin that drives the stock webOS on-screen
-    # keyboard (MaliitServer) via the compositor's text_model protocol.
-    # Selected at runtime through QT_IM_MODULE=webosim in main.cpp.
-    #
-    # The protocol stubs are generated from src/platform/webos/protocol/
-    # text.xml, whose request order matches the TV firmware tables — NOT the
-    # SDK sysroot's libwayland-webos-client, whose text_model opcodes differ
-    # (see the comment in that text.xml). Do not link the sysroot lib here.
-    enable_language(C)
-    qt_add_plugin(webos-im-plugin STATIC
-        CLASS_NAME WebOSPlatformInputContextPlugin
-        PLUGIN_TYPE platforminputcontexts
-    )
-    target_sources(webos-im-plugin PRIVATE
-        src/platform/webos/WebOSInputContext.cpp
-        src/platform/webos/WebOSInputContext.h
-        src/platform/webos/WebOSInputContextPlugin.cpp
-        src/platform/webos/WebOSKeysymMap.h
-        src/platform/webos/protocol/wayland-text-client-protocol.c
-        src/platform/webos/protocol/wayland-text-client-protocol.h
-    )
-    target_link_libraries(webos-im-plugin PRIVATE
-        Qt6::Core
-        Qt6::Gui
-        Qt6::GuiPrivate
-        ${WAYLAND_CLIENT_LIB}
-    )
-    target_link_libraries(jellyfin-native PRIVATE webos-im-plugin)
-else()
-    target_sources(jellyfin-core PRIVATE
-        src/app/HostNativeAppWindow.cpp
-        src/app/NativeAppWindow.h
-    )
-endif()
+jellyfin_configure_platform_targets(jellyfin-native jellyfin-core)
 if(JELLYFIN_DIAGNOSTICS)
     foreach(target IN LISTS JELLYFIN_NATIVE_TARGETS)
         target_compile_definitions(${target} PRIVATE JELLYFIN_DIAGNOSTICS=1)
@@ -521,48 +392,6 @@ target_link_libraries(jellyfin-core PUBLIC
 
 target_link_libraries(jellyfin-native PRIVATE jellyfin-core)
 
-if(UNIX AND NOT APPLE AND NOT JELLYFIN_NATIVE_WEBOS)
-    target_link_libraries(jellyfin-native PRIVATE Qt6::DBus)
-endif()
-
-if(JELLYFIN_NATIVE_WEBOS)
-    target_link_libraries(jellyfin-native PRIVATE
-        PkgConfig::GLIB
-        Qt6::GuiPrivate
-        Qt6::WaylandClient
-        Qt6::Svg
-        ${EGL_LIB}
-        ${GLES2_LIB}
-        ${WAYLAND_EGL_LIB}
-        ${WAYLAND_CLIENT_LIB}
-        ${WAYLAND_WEBOS_CLIENT_LIB}
-        ${WEBOS_HELPERS_LIB}
-        ${LUNA_SERVICE_LIB}
-        ${ALSA_LIB}
-        # libmpv (and its ffmpeg/lua dependencies) is deliberately NOT linked:
-        # src/player/MpvRuntime.cpp dlopen()s it after first frame so the
-        # dynamic linker does not map + relocate the ~40 MB player stack
-        # before main(). The staged libs above are still runtime requirements
-        # (existence-checked earlier); they just load lazily now.
-        ${CMAKE_DL_LIBS}
-    )
-
-    target_link_options(jellyfin-native PRIVATE
-        "-Wl,-rpath-link,${WEBOS_SYSROOT_LIB_DIR}"
-        "-Wl,-rpath-link,${WEBOS_SYSROOT_BASE_LIB_DIR}"
-    )
-else()
-    if(WIN32)
-        target_link_libraries(jellyfin-core PUBLIC MPV::MPV)
-    else()
-        target_link_libraries(jellyfin-core PUBLIC PkgConfig::MPV)
-    endif()
-    if(UNIX AND NOT APPLE)
-        target_link_libraries(jellyfin-core PUBLIC OpenGL::GL)
-        target_include_directories(jellyfin-core PUBLIC "${OPENGL_INCLUDE_DIR}")
-        target_compile_options(jellyfin-core PUBLIC "-I${OPENGL_INCLUDE_DIR}")
-    endif()
-endif()
 
 if(BUILD_TESTING AND NOT CMAKE_CROSSCOMPILING)
     set(JELLYFIN_TEST_SOURCES
@@ -578,6 +407,7 @@ if(BUILD_TESTING AND NOT CMAKE_CROSSCOMPILING)
         settings-controller tests/app/SettingsControllerTest.cpp
         session-controller tests/app/SessionControllerTest.cpp
         router-controller tests/app/RouterControllerTest.cpp
+        native-window-input tests/platform/NativeAppWindowInputTest.cpp
         library-query tests/app/LibraryQueryTest.cpp
         content-model-controller tests/app/ContentModelControllerTest.cpp
         discovery-controller tests/discovery/DiscoveryControllerTest.cpp
@@ -619,6 +449,9 @@ if(BUILD_TESTING AND NOT CMAKE_CROSSCOMPILING)
         list(GET JELLYFIN_TEST_SOURCES ${source_index} test_source)
         set(test_target "${test_name}-tests")
         add_executable(${test_target} "${test_source}")
+        if(test_name STREQUAL "audio-sync-policy")
+            target_sources(${test_target} PRIVATE src/platform/webos/WebOSAudioSyncPolicy.cpp)
+        endif()
         target_link_libraries(${test_target} PRIVATE jellyfin-core)
         add_test(NAME ${test_name} COMMAND ${test_target})
         if(JELLYFIN_TEST_ENV)
@@ -688,28 +521,7 @@ endif()
 # controls this project's libraries, not whether the imported Qt build is static.
 get_target_property(JELLYFIN_QT_CORE_TARGET_TYPE Qt6::Core TYPE)
 if(JELLYFIN_QT_CORE_TARGET_TYPE STREQUAL "STATIC_LIBRARY")
-    if(JELLYFIN_NATIVE_WEBOS)
-        find_webos_sysroot_library(XKBCOMMON_LIB xkbcommon)
-    else()
-        find_library(XKBCOMMON_LIB xkbcommon REQUIRED)
-    endif()
-    target_link_libraries(jellyfin-native PRIVATE ${XKBCOMMON_LIB})
-
-    if(JELLYFIN_NATIVE_WEBOS)
-        qt_import_plugins(jellyfin-native
-            NO_DEFAULT
-            INCLUDE
-                Qt6::QWaylandIntegrationPlugin
-                Qt6::QTlsBackendOpenSSLPlugin
-                Qt6::QWaylandEglClientBufferPlugin
-                Qt6::QWaylandWlShellIntegrationPlugin
-                Qt6::QSQLiteDriverPlugin
-                Qt6::QJpegPlugin
-                Qt6::QWebpPlugin
-                Qt6::QSvgPlugin
-        )
-
-    endif()
+    jellyfin_import_static_platform_plugins(jellyfin-native)
 
     # Let qmlimportscanner derive the static QML plugin link set from the
     # application's imports. New imports now fail when their plugin is absent.
@@ -737,16 +549,6 @@ target_compile_definitions(jellyfin-native PRIVATE
     JELLYFIN_VERSION="${PROJECT_VERSION}"
 )
 
-if(APPLE)
-    set_target_properties(jellyfin-native PROPERTIES
-        MACOSX_BUNDLE TRUE
-        MACOSX_BUNDLE_BUNDLE_NAME "Jellyfin Native"
-        MACOSX_BUNDLE_GUI_IDENTIFIER "com.sachk.tern"
-        MACOSX_BUNDLE_BUNDLE_VERSION "${PROJECT_VERSION}"
-        MACOSX_BUNDLE_SHORT_VERSION_STRING "${PROJECT_VERSION}"
-        INSTALL_RPATH "@executable_path/../Frameworks"
-    )
-endif()
 
 install(TARGETS jellyfin-native
     BUNDLE DESTINATION .

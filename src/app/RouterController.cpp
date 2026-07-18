@@ -83,6 +83,10 @@ bool RouterController::canPop() const
 {
     return !m_stack.isEmpty();
 }
+bool RouterController::canForward() const
+{
+    return !m_forwardStack.isEmpty();
+}
 
 bool RouterController::recoveryPending() const
 {
@@ -151,10 +155,11 @@ void RouterController::setFrame(const QString& route, const QVariantMap& args, c
 
 void RouterController::reset(const QString& route, const QVariantMap& args)
 {
-    const bool hadStack = !m_stack.isEmpty();
+    const bool historyChanged = !m_stack.isEmpty() || !m_forwardStack.isEmpty();
     m_stack.clear();
+    m_forwardStack.clear();
     setFrame(route, args, QStringLiteral("home"));
-    if (hadStack)
+    if (historyChanged)
         emit stackChanged();
     persistSnapshot();
 }
@@ -165,6 +170,7 @@ void RouterController::push(const QString& route, const QVariantMap& args)
         return;
     const QString previous = m_route;
     m_stack.push_back(frame(m_route, m_args));
+    m_forwardStack.clear();
     emit stackChanged();
     setFrame(route, args, previous);
 }
@@ -173,7 +179,11 @@ void RouterController::replace(const QString& route, const QVariantMap& args)
 {
     if (route.isEmpty())
         return;
+    const bool hadForwardHistory = !m_forwardStack.isEmpty();
+    m_forwardStack.clear();
     setFrame(route, args, m_route);
+    if (hadForwardHistory)
+        emit stackChanged();
 }
 
 bool RouterController::pop(const QString& fallbackRoute)
@@ -183,8 +193,20 @@ bool RouterController::pop(const QString& fallbackRoute)
         return false;
     }
     const QVariantMap top = m_stack.takeLast().toMap();
+    m_forwardStack.push_back(frame(m_route, m_args));
     emit stackChanged();
     setFrame(top.value(QStringLiteral("route")).toString(), top.value(QStringLiteral("args")).toMap(), m_route);
+    return true;
+}
+
+bool RouterController::forward()
+{
+    if (m_forwardStack.isEmpty())
+        return false;
+    const QVariantMap next = m_forwardStack.takeLast().toMap();
+    m_stack.push_back(frame(m_route, m_args));
+    emit stackChanged();
+    setFrame(next.value(QStringLiteral("route")).toString(), next.value(QStringLiteral("args")).toMap(), m_route);
     return true;
 }
 
@@ -253,6 +275,7 @@ bool RouterController::restoreSnapshot()
         m_previousRoute = QStringLiteral("home");
     m_args = recoverableArgs(snapshot.value(QStringLiteral("args")).toMap());
     m_stack = std::move(safeStack);
+    m_forwardStack.clear();
     return true;
 }
 

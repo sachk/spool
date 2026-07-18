@@ -1,4 +1,4 @@
-#include "player/AudioSyncPolicy.h"
+#include "platform/webos/WebOSAudioSyncPolicy.h"
 
 #include <QCoreApplication>
 #include <QDebug>

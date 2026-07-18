@@ -49,7 +49,7 @@ Item {
             // Never display the previous delegate's artwork after its source
             // changes. The fallback remains visible while the new image loads.
             retainWhileLoading: false
-            cache: !NativeWindow.smartTvPlatform
+            cache: !Platform.isTV
             smooth: true
             mipmap: false
             sourceSize.width: Math.max(1, Math.round(root.width * Screen.devicePixelRatio))

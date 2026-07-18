@@ -10,7 +10,7 @@ FocusScope {
     readonly property var player: Player
     readonly property var playQueue: PlayQueue
     readonly property bool hasPlayer: player.sessionActive
-    readonly property bool smartTvPlatform: NativeWindow.smartTvPlatform
+    readonly property bool smartTvPlatform: Platform.isTV
     readonly property bool desktopControlsAvailable: !smartTvPlatform
     readonly property int currentSyncDelayMs: syncTarget === "audioOutput" ? Settings.audioDelayMs : syncTarget
                                                                              === "subtitle" ? player.subtitleDelayMs :

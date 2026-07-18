@@ -1,16 +1,15 @@
 #include "PlayerController.h"
 
 #include "../api/JellyfinApiFacade.h"
-#include "../app/NativeAppWindow.h"
 #include "../common/JellyfinTypes.h"
 #include "../common/LogRotation.h"
 #include "../common/TlsTrust.h"
 #include "../diagnostics/Diagnostics.h"
+#include "../platform/MpvConfigPolicy.h"
+#include "../platform/NativeAppWindow.h"
+#include "../platform/PlatformPlaybackSurface.h"
+#include "../platform/PlatformSystemProbes.h"
 #include "MpvOptionProfile.h"
-#include "MpvVideoItem.h"
-#ifdef JELLYFIN_NATIVE_WEBOS
-#include "MpvRuntime.h"
-#endif
 #include "PlaybackTrackParser.h"
 
 extern "C" {
@@ -34,10 +33,6 @@ extern "C" {
 #include <cstdio>
 #include <cstring>
 #include <utility>
-
-#if defined(__GLIBC__)
-#include <malloc.h>
-#endif
 
 namespace JellyfinNative {
 
@@ -168,54 +163,11 @@ namespace {
         return static_cast<qint64>(seconds * 10000000.0);
     }
 
-    // Targeted playback memory accounting. heaptrack can't produce deep call stacks
-    // on this target (every unwinder crashes), so instead of attributing by stack we
-    // quantify the known big buffers directly: process RSS (and the anon/heap part),
-    // glibc's live-vs-free heap totals when available, and mpv's own demuxer cache size.
-    // The gap between malloc_inuse and demux_cache localises non-cache heap growth.
-    void logMemoryStats(mpv_handle *handle)
+    void logMemoryStats()
     {
-        (void)handle;
-        long vmrss = 0, rssAnon = 0, vmdata = 0, vmswap = 0;
-        if (FILE *f = fopen("/proc/self/status", "r")) {
-            char line[256];
-            while (fgets(line, sizeof(line), f)) {
-                long v;
-                if (sscanf(line, "VmRSS: %ld kB", &v) == 1)
-                    vmrss = v;
-                else if (sscanf(line, "RssAnon: %ld kB", &v) == 1)
-                    rssAnon = v;
-                else if (sscanf(line, "VmData: %ld kB", &v) == 1)
-                    vmdata = v;
-                else if (sscanf(line, "VmSwap: %ld kB", &v) == 1)
-                    vmswap = v;
-            }
-            fclose(f);
-        }
-
-        long long mallInUse = 0;
-        long long mallFree = 0;
-        long long mallArena = 0;
-        long long mallMmap = 0;
-#if defined(__GLIBC__) && (__GLIBC__ > 2 || (__GLIBC__ == 2 && __GLIBC_MINOR__ >= 33))
-        struct mallinfo2 mi = mallinfo2();
-        mallInUse = (long long)mi.uordblks; // live (non-mmap) heap
-        mallFree = (long long)mi.fordblks; // freed, retained in arena
-        mallArena = (long long)mi.arena; // total main-arena size
-        mallMmap = (long long)mi.hblkhd; // large allocs via mmap
-#elif defined(__GLIBC__)
-        struct mallinfo mi = mallinfo();
-        mallInUse = (long long)mi.uordblks;
-        mallFree = (long long)mi.fordblks;
-        mallArena = (long long)mi.arena;
-        mallMmap = (long long)mi.hblkhd;
-#endif
-
-        const long long MB = 1024 * 1024;
-        qInfo().nospace() << "player: memstats rss=" << vmrss / 1024 << "M anon=" << rssAnon / 1024
-                          << "M vmdata=" << vmdata / 1024 << "M swap=" << vmswap / 1024
-                          << "M | malloc_inuse=" << mallInUse / MB << "M arena_free=" << mallFree / MB
-                          << "M arena=" << mallArena / MB << "M mmap=" << mallMmap / MB;
+        const QString diagnostics = platformProcessMemoryDiagnostics();
+        if (!diagnostics.isEmpty())
+            qInfo().noquote() << "player: memstats" << diagnostics;
     }
 
 } // namespace
@@ -226,10 +178,7 @@ PlayerController::PlayerController(NativeAppWindow *window, JellyfinApiFacade *a
     , m_api(api)
     , m_reporter(api, this)
 {
-#ifdef JELLYFIN_NATIVE_WEBOS
-    m_idleMpvPreparationEnabled = qEnvironmentVariable("JELLYFIN_DISABLE_IDLE_MPV") != QLatin1String("1");
-    qInfo() << "player: idle mpv preparation" << (m_idleMpvPreparationEnabled ? "enabled" : "disabled");
-#endif
+    m_idleMpvPreparationEnabled = platformIdleMpvPreparationEnabled();
     m_progressTimer.setInterval(5000);
     m_uiPositionTimer.setInterval(250);
     m_backGuardTimer.setSingleShot(true);
@@ -239,13 +188,11 @@ PlayerController::PlayerController(NativeAppWindow *window, JellyfinApiFacade *a
     m_backgroundPauseTimer.setSingleShot(true);
     m_backgroundPauseTimer.setInterval(750);
     connect(&m_backgroundPauseTimer, &QTimer::timeout, this, [this]() {
-#ifdef JELLYFIN_NATIVE_WEBOS
-        if (!m_sessionActive || m_paused || m_keepPlayingInBackground)
+        if (!platformUsesBackgroundPlaybackPolicy() || !m_sessionActive || m_paused || m_keepPlayingInBackground)
             return;
         qInfo() << "player: pausing after sustained background/hidden app state";
         mpvCommand({ QByteArrayLiteral("no-osd"), QByteArrayLiteral("set"), QByteArrayLiteral("pause"),
             QByteArrayLiteral("yes") });
-#endif
     });
     connect(&m_backGuardTimer, &QTimer::timeout, this, [this]() {
         if (!m_sessionActive || m_backAllowed)
@@ -276,7 +223,7 @@ PlayerController::PlayerController(NativeAppWindow *window, JellyfinApiFacade *a
         if (!m_sessionActive)
             return;
 
-        logMemoryStats(m_mpvLifecycle.handle());
+        logMemoryStats();
 
         m_reporter.reportProgress(secondsToTicks(m_positionTracker.position()), m_paused, effectivePlaybackSpeed());
     });
@@ -319,14 +266,11 @@ void PlayerController::teardownMpv(bool async)
     m_idleMpvPreparationEnabled = false;
     m_idleMpvPreparationScheduled = false;
     destroyIdleMpv("teardown");
-#ifndef JELLYFIN_NATIVE_WEBOS
-    // All OpenGL render API calls must run with Qt's original context current.
-    // Hand destruction to the render thread before destroying the mpv core.
-    if (auto *videoItem = MpvVideoItem::instance(); videoItem && !videoItem->releaseMpvHandle()) {
+    // Platform render resources must detach before the mpv core is destroyed.
+    if (!releasePlatformMpvSurface()) {
         qCritical() << "player: timed out releasing the mpv render context; preserving the mpv core";
         return;
     }
-#endif
     // The deferred post-stop teardown must not stall the GUI thread; shutdown
     // and the stale-core path before a new play() stay synchronous so the new
     // pipeline never races the old core for media resources.
@@ -338,31 +282,26 @@ void PlayerController::teardownMpv(bool async)
 
 void PlayerController::scheduleIdleMpvPreparation()
 {
-#ifdef JELLYFIN_NATIVE_WEBOS
     if (!m_idleMpvPreparationEnabled || m_idleMpvPreparationScheduled || m_idleMpvHandle || m_mpvLifecycle.handle())
         return;
 
     m_idleMpvPreparationScheduled = true;
     QPointer<PlayerController> controller(this);
-    MpvRuntime::runAfterLoaded([controller]() {
+    runAfterPlatformMpvLoaded([controller]() {
         if (auto *app = QCoreApplication::instance()) {
-            // Delay past the launch window: this used to queue option
-            // building and mpv_initialize onto the GUI thread ahead of the
-            // first home construction. Idle preparation only saves ~10 ms at
-            // play-start, so it can comfortably wait out startup.
+            // Delay past the launch window: idle preparation saves little at
+            // play-start and must not compete with first-page construction.
             QTimer::singleShot(3000, app, [controller]() {
                 if (controller)
                     controller->prepareIdleMpv();
             });
         }
     });
-#endif
 }
 
 void PlayerController::prepareIdleMpv()
 {
     m_idleMpvPreparationScheduled = false;
-#ifdef JELLYFIN_NATIVE_WEBOS
     if (!m_idleMpvPreparationEnabled || m_idleMpvHandle || m_mpvLifecycle.handle() || m_sessionActive)
         return;
 
@@ -384,7 +323,6 @@ void PlayerController::prepareIdleMpv()
 
     m_idleMpvHandle = handle;
     qInfo() << "player: idle-prepared mpv initialized in" << startupTimer.elapsed() << "ms";
-#endif
 }
 
 void PlayerController::destroyIdleMpv(const char *reason)
@@ -412,19 +350,19 @@ bool PlayerController::configureAndInitializeMpv(mpv_handle *handle)
     if (!handle)
         return false;
 
-#ifdef JELLYFIN_NATIVE_WEBOS
-    constexpr auto platform = MpvOptionProfile::Platform::WebOS;
-#else
-    constexpr auto platform = MpvOptionProfile::Platform::Desktop;
-#endif
+    const auto platform = platformMpvOptionProfile();
     const int parallelRequests = m_api ? m_api->playbackParallelRequests() : 1;
     const MpvOptionProfile::NetworkProfile network = MpvOptionProfile::networkProfile(platform, parallelRequests);
-    qInfo().nospace() << "player: curl profile source=MpvOptionProfile platform="
-                      << (platform == MpvOptionProfile::Platform::WebOS ? "webOS" : "desktop")
+    qInfo().nospace() << "player: curl profile source=MpvOptionProfile platform=" << platformPlaybackBackendName()
                       << " requestsPerStream=" << network.parallelRequests << " rangeBytes=" << network.rangeBytes
                       << " ringBytes=" << network.ringBytes;
     auto startupOptions = MpvOptionProfile::startupOptions(
         platform, m_audioOutputMode, mpvLogPath(), m_demuxerMaxBytes, m_demuxerMaxBackBytes, parallelRequests);
+    const MpvConfigPolicy configPolicy = validatedPlatformMpvConfigPolicy(QStringLiteral("disabled"), QString());
+    startupOptions.insert(
+        startupOptions.begin(), { "config", configPolicy.mode == MpvConfigPolicy::Mode::Disabled ? "no" : "yes" });
+    if (configPolicy.mode == MpvConfigPolicy::Mode::Custom)
+        startupOptions.insert(startupOptions.begin() + 1, { "config-dir", configPolicy.directory.toUtf8() });
     const QByteArray subtitleFontsPath = bundledSubtitleFontsPath();
     if (!subtitleFontsPath.isEmpty())
         startupOptions.push_back({ "sub-fonts-dir", subtitleFontsPath });
@@ -777,55 +715,33 @@ bool PlayerController::ensureMpv(bool needsVideoSurface)
         }
     }
 
-#ifdef JELLYFIN_NATIVE_WEBOS
-    if (needsVideoSurface) {
-        const QByteArray windowId = m_window->windowId().toUtf8();
-        const QByteArray windowWidth = QByteArray::number(m_window->width());
-        const QByteArray windowHeight = QByteArray::number(m_window->height());
-        if (!setRequiredMpvProperty(handle, "vo-starfish-window-id", windowId.constData())
-            || !setRequiredMpvProperty(handle, "vo-starfish-window-width", windowWidth.constData())
-            || !setRequiredMpvProperty(handle, "vo-starfish-window-height", windowHeight.constData())) {
-            mpv_terminate_destroy(handle);
-            m_errorText = QStringLiteral("Failed to configure the native video surface.");
-            emit playbackStateChanged();
-            return false;
-        }
+    QString surfaceError;
+    if (!configurePlatformMpvSurface(handle, *m_window, needsVideoSurface, surfaceError)) {
+        mpv_terminate_destroy(handle);
+        m_errorText = surfaceError;
+        emit playbackStateChanged();
+        return false;
     }
-#endif
 
     observeMpvProperties(handle);
 
     qInfo() << "player: mpv initialized in" << startupTimer.elapsed() << "ms"
             << "idlePrepared=" << idlePrepared;
 
-#ifndef JELLYFIN_NATIVE_WEBOS
-    if (needsVideoSurface) {
-        // vo=libmpv requires the embedded MpvVideoItem to host the render context.
-        // Fail loudly for video playback if QML hasn't constructed one yet.
-        auto *videoItem = MpvVideoItem::instance();
-        if (!videoItem) {
-            qCritical() << "PlayerController: MpvVideoItem instance is missing";
-            mpv_terminate_destroy(handle);
-            m_errorText = QStringLiteral("The video surface is unavailable. Return to the library and try again.");
-            m_statusText = QStringLiteral("Playback unavailable");
-            emit playbackStateChanged();
-            return false;
-        }
-        connect(videoItem, &MpvVideoItem::renderError, this, &PlayerController::handleVideoRenderError,
-            Qt::UniqueConnection);
-        videoItem->setMpvHandle(handle);
+    QString attachmentError;
+    if (!attachPlatformMpvSurface(
+            handle, needsVideoSurface, *this, [this](const QString& message) { handleVideoRenderError(message); },
+            attachmentError)) {
+        mpv_terminate_destroy(handle);
+        m_errorText = attachmentError;
+        m_statusText = QStringLiteral("Playback unavailable");
+        emit playbackStateChanged();
+        return false;
     }
-#else
-    (void)needsVideoSurface;
-#endif
 
     if (!m_mpvLifecycle.adopt(handle, [this](mpv_event *event) { handleMpvEvent(event); })) {
-#ifndef JELLYFIN_NATIVE_WEBOS
-        if (needsVideoSurface) {
-            if (auto *videoItem = MpvVideoItem::instance())
-                videoItem->releaseMpvHandle();
-        }
-#endif
+        if (needsVideoSurface)
+            releasePlatformMpvSurface();
         mpv_terminate_destroy(handle);
         m_errorText = QStringLiteral("Failed to start the libmpv event loop.");
         emit playbackStateChanged();
@@ -891,12 +807,7 @@ void PlayerController::play(const PlaybackSession& session, bool startPaused)
     rebuildTrickplaySheetUrls();
     m_title = session.title;
     m_mediaKind = nextMediaKind;
-#ifdef JELLYFIN_NATIVE_WEBOS
-    m_statusText
-        = needsVideoSurface ? QStringLiteral("Preparing libmpv + Starfish...") : QStringLiteral("Preparing audio...");
-#else
-    m_statusText = needsVideoSurface ? QStringLiteral("Preparing libmpv...") : QStringLiteral("Preparing audio...");
-#endif
+    m_statusText = platformPreparingStatus(needsVideoSurface);
     m_errorText.clear();
     const double startSeconds
         = session.startTimeTicks > 0 ? static_cast<double>(session.startTimeTicks) / 10000000.0 : 0.0;
@@ -939,19 +850,13 @@ void PlayerController::play(const PlaybackSession& session, bool startPaused)
         return;
     }
 
-#ifdef JELLYFIN_NATIVE_WEBOS
-    const QByteArray preloadedSubtitleStreams
-        = MpvOptionProfile::preloadedSubtitleStreams(session, m_subtitlePreferences.language);
-    if (!setMpvProperty(handle, "demuxer-preload-subtitle-streams", preloadedSubtitleStreams.constData())) {
+    QString subtitlePreloadError;
+    if (!applyPlatformSubtitlePreload(handle, session, m_subtitlePreferences.language, subtitlePreloadError)) {
         m_mpvLifecycle.cancelFileLoad();
-        m_errorText = QStringLiteral("libmpv rejected the subtitle preload request.");
+        m_errorText = subtitlePreloadError;
         stopProgressReporting(true);
         return;
     }
-    qInfo() << "player: requested subtitle packet preload streams="
-            << (preloadedSubtitleStreams.isEmpty() ? QByteArrayLiteral("none") : preloadedSubtitleStreams)
-            << "language=" << m_subtitlePreferences.language;
-#endif
 
     const QByteArray urlBytes = session.url.toUtf8();
     const QByteArray token = m_api ? m_api->session().accessToken.toUtf8() : QByteArray {};
@@ -1037,7 +942,8 @@ void PlayerController::togglePause()
 
 void PlayerController::prepareForBackground()
 {
-#ifdef JELLYFIN_NATIVE_WEBOS
+    if (!platformUsesBackgroundPlaybackPolicy())
+        return;
     if (!m_sessionActive) {
         m_idleMpvPreparationEnabled = false;
         m_idleMpvPreparationScheduled = false;
@@ -1048,22 +954,19 @@ void PlayerController::prepareForBackground()
     qInfo() << "player: playback position snapshot background"
             << "position=" << position;
     setPositionSeconds(position, PlaybackPositionTracker::Source::Lifecycle);
-#endif
 }
 
 void PlayerController::pauseForBackground()
 {
-#ifdef JELLYFIN_NATIVE_WEBOS
+    if (!platformUsesBackgroundPlaybackPolicy())
+        return;
     prepareForBackground();
     if (!m_sessionActive || m_paused || m_keepPlayingInBackground)
         return;
-    // webOS briefly reports Hidden/Suspended while handing a newly-created
-    // playback surface to LSM. Pausing synchronously here makes an ordinary
-    // Continue Watching launch start paused. A real background transition
-    // persists long enough for this timer; Active cancels transient handoffs.
+    // A transient hidden state during surface handoff must not synchronously
+    // pause ordinary playback. A real background transition outlasts this timer.
     qInfo() << "player: scheduling pause for background/hidden app state";
     m_backgroundPauseTimer.start();
-#endif
 }
 
 void PlayerController::setKeepPlayingInBackground(bool keepPlaying)
@@ -1079,7 +982,8 @@ void PlayerController::setKeepPlayingInBackground(bool keepPlaying)
 
 void PlayerController::resyncForForeground()
 {
-#ifdef JELLYFIN_NATIVE_WEBOS
+    if (!platformUsesBackgroundPlaybackPolicy())
+        return;
     if (m_backgroundPauseTimer.isActive()) {
         m_backgroundPauseTimer.stop();
         qInfo() << "player: cancelled transient background pause";
@@ -1099,7 +1003,6 @@ void PlayerController::resyncForForeground()
             requestMpvPositionRefresh("foreground-delayed");
         });
     }
-#endif
 }
 
 void PlayerController::seekBack()
@@ -1197,9 +1100,7 @@ void PlayerController::selectAudio(int index)
         return;
     m_tracks.applyAudioSelection(index);
     updateReportedStreamSelection(true);
-#ifdef JELLYFIN_NATIVE_WEBOS
-    qInfo() << "player: webOS audio track changed" << index;
-#endif
+    platformAudioTrackChanged(index);
     emit tracksChanged();
 }
 
@@ -1282,8 +1183,7 @@ void PlayerController::stopWithReason(const QString& reason)
     if (!m_sessionActive)
         return;
 
-    // Drop the UI synchronously so the back button always navigates away
-    // immediately, regardless of how long Starfish takes to unload.
+    // Drop the UI synchronously so navigation never waits for backend unload.
     stopProgressReporting(false);
 
     if (auto *handle = m_mpvLifecycle.handle())

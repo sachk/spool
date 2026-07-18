@@ -226,7 +226,6 @@ std::vector<MpvOption> MpvOptionProfile::startupOptions(Platform platform, const
         = webOS && (audioOutputMode == QStringLiteral("starfish") || audioOutputMode == QStringLiteral("starfish-pcm"));
 
     std::vector<MpvOption> options {
-        { "config", "no" },
         { "terminal", "no" },
         { "msg-level", webOS ? "all=warn,starfish=info,sub=v" : "all=warn,sub=v" },
         { "log-file", logPath },

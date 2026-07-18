@@ -135,7 +135,7 @@ public:
     Q_INVOKABLE void setGreenButtonAction(const QString& action);
     Q_INVOKABLE void setYellowButtonAction(const QString& action);
     Q_INVOKABLE void setBlueButtonAction(const QString& action);
-    void updateWebOSAudioOutput(const QString& output, int displayLatencyMs, int outputLatencyMs);
+    void updateAudioOutputRoute(const QString& output, int displayLatencyMs, int outputLatencyMs);
 
 signals:
     void nightModeChanged();
@@ -157,8 +157,8 @@ private:
     void emitSchemaSignals(const SettingSpec& spec);
     void applyPlaybackPreferences();
     void applyAudioDelayToPlayer();
-    void loadCurrentWebOSAudioDelay();
-    void applyLoadedWebOSAudioDelay(const QString& output, int delayMs);
+    void loadCurrentAudioDelay();
+    void applyLoadedAudioDelay(const QString& output, int delayMs);
     void saveSubtitleUserConfiguration();
     void applySubtitlePreferencesToPlayer();
 

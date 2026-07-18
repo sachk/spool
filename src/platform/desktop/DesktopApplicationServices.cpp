@@ -1,0 +1,17 @@
+#include "platform/PlatformApplicationServices.h"
+
+namespace JellyfinNative {
+
+struct PlatformApplicationServices::PlatformData { };
+
+PlatformApplicationServices::PlatformApplicationServices(
+    QGuiApplication&, NativeAppWindow&, AppController&, RouterController&)
+    : m_platform(std::make_unique<PlatformData>())
+{
+}
+
+PlatformApplicationServices::~PlatformApplicationServices() = default;
+
+void PlatformApplicationServices::start() { }
+
+} // namespace JellyfinNative

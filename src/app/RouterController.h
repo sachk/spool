@@ -13,6 +13,7 @@ class RouterController final : public QObject {
     Q_PROPERTY(QVariantMap args READ args NOTIFY routeChanged)
     Q_PROPERTY(QVariantList stack READ stack NOTIFY stackChanged)
     Q_PROPERTY(bool canPop READ canPop NOTIFY stackChanged)
+    Q_PROPERTY(bool canForward READ canForward NOTIFY stackChanged)
     Q_PROPERTY(bool recoveryPending READ recoveryPending NOTIFY recoveryPendingChanged)
 
 public:
@@ -23,6 +24,7 @@ public:
     QVariantMap args() const;
     QVariantList stack() const;
     bool canPop() const;
+    bool canForward() const;
     bool recoveryPending() const;
 
     void beginSession(bool allowRecovery);
@@ -33,6 +35,7 @@ public:
     Q_INVOKABLE void push(const QString& route, const QVariantMap& args = {});
     Q_INVOKABLE void replace(const QString& route, const QVariantMap& args = {});
     Q_INVOKABLE bool pop(const QString& fallbackRoute = QStringLiteral("home"));
+    Q_INVOKABLE bool forward();
     Q_INVOKABLE void checkpoint(const QVariantMap& args);
     Q_INVOKABLE void finishRecovery();
 
@@ -51,6 +54,7 @@ private:
     QString m_previousRoute = QStringLiteral("home");
     QVariantMap m_args;
     QVariantList m_stack;
+    QVariantList m_forwardStack;
     bool m_sessionStarted = false;
     bool m_recoveryPending = false;
     bool m_recoveryRequested = false;

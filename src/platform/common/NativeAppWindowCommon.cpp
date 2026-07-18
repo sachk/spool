@@ -1,9 +1,11 @@
-#include "NativeAppWindow.h"
 #include "diagnostics/InputLatencyMonitor.h"
+#include "platform/NativeAppWindow.h"
 
 #include <QCloseEvent>
 #include <QDebug>
 #include <QKeyEvent>
+#include <QMetaObject>
+#include <QMouseEvent>
 #include <QMutexLocker>
 #include <QPlatformSurfaceEvent>
 #include <QQuickImageProvider>
@@ -47,33 +49,47 @@ void NativeAppWindow::setInputLatencyMonitor(InputLatencyMonitor *monitor)
 
 bool NativeAppWindow::event(QEvent *event)
 {
-#ifdef JELLYFIN_NATIVE_WEBOS
     if (event->type() == QEvent::PlatformSurface) {
         const auto *surfaceEvent = static_cast<const QPlatformSurfaceEvent *>(event);
         if (surfaceEvent->surfaceEventType() == QPlatformSurfaceEvent::SurfaceAboutToBeDestroyed)
-            releasePlatformSurface();
+            handlePlatformSurfaceAboutToBeDestroyed();
     }
-    if (event->type() == QEvent::KeyPress || event->type() == QEvent::KeyRelease) {
-        const auto *keyEvent = static_cast<const QKeyEvent *>(event);
-        const quint32 scanCode = keyEvent->nativeScanCode();
-        const quint32 virtualKey = keyEvent->nativeVirtualKey();
-        if (keyEvent->key() == Qt::Key_Back || scanCode == 461 || virtualKey == 461) {
-            qInfo() << "webOS Back event" << (event->type() == QEvent::KeyPress ? "press" : "release")
-                    << "key=" << keyEvent->key() << "scan=" << scanCode << "virtual=" << virtualKey;
+
+    const quint64 token = m_inputLatencyMonitor ? m_inputLatencyMonitor->beginInput(event) : 0;
+    const auto finishInput = [this, token] {
+        if (m_inputLatencyMonitor)
+            m_inputLatencyMonitor->endInput(token);
+    };
+
+    if (event->type() == QEvent::MouseButtonPress || event->type() == QEvent::MouseButtonRelease) {
+        auto *mouseEvent = static_cast<QMouseEvent *>(event);
+        const Qt::MouseButton button = mouseEvent->button();
+        const bool navigationButton = button == Qt::BackButton || button == Qt::ForwardButton;
+        if (navigationButton) {
+            if (event->type() == QEvent::MouseButtonPress) {
+                m_pointerNavigationButton = button;
+                if (mouseEvent->source() == Qt::MouseEventNotSynthesized) {
+                    if (button == Qt::BackButton)
+                        emit pointerBackRequested();
+                    else
+                        emit pointerForwardRequested();
+                }
+            } else if (m_pointerNavigationButton == button) {
+                m_pointerNavigationButton = Qt::NoButton;
+            }
+            mouseEvent->accept();
+            finishInput();
+            return true;
         }
     }
-#endif
-    const quint64 token = m_inputLatencyMonitor ? m_inputLatencyMonitor->beginInput(event) : 0;
+
     const bool handled = QQuickView::event(event);
-#ifdef JELLYFIN_NATIVE_WEBOS
     if (event->type() == QEvent::PlatformSurface) {
         const auto *surfaceEvent = static_cast<const QPlatformSurfaceEvent *>(event);
         if (surfaceEvent->surfaceEventType() == QPlatformSurfaceEvent::SurfaceCreated)
-            ensureShellSurface();
+            handlePlatformSurfaceCreated();
     }
-#endif
-    if (m_inputLatencyMonitor)
-        m_inputLatencyMonitor->endInput(token);
+    finishInput();
     return handled;
 }
 
@@ -101,6 +117,45 @@ void NativeAppWindow::clearOverlay()
         m_overlayImage = QImage();
         m_overlayX = 0;
         m_overlayY = 0;
+        ++m_overlayRevision;
+        changed = true;
+    }
+    if (changed)
+        emit overlayRevisionChanged();
+}
+
+void NativeAppWindow::scheduleOverlayImage(QImage image, int x, int y)
+{
+    bool shouldQueue = false;
+    {
+        QMutexLocker locker(&m_overlayMutex);
+        m_pendingOverlayImage = std::move(image);
+        m_pendingOverlayX = x;
+        m_pendingOverlayY = y;
+        if (!m_overlayPublishQueued) {
+            m_overlayPublishQueued = true;
+            shouldQueue = true;
+        }
+    }
+    if (shouldQueue)
+        QMetaObject::invokeMethod(this, [this]() { publishPendingOverlayImage(); }, Qt::QueuedConnection);
+}
+
+void NativeAppWindow::publishPendingOverlayImage()
+{
+    bool changed = false;
+    {
+        QMutexLocker locker(&m_overlayMutex);
+        QImage image = std::move(m_pendingOverlayImage);
+        const int x = m_pendingOverlayX;
+        const int y = m_pendingOverlayY;
+        m_pendingOverlayImage = QImage();
+        m_overlayPublishQueued = false;
+        if (image.isNull() && m_overlayImage.isNull())
+            return;
+        m_overlayImage = std::move(image);
+        m_overlayX = x;
+        m_overlayY = y;
         ++m_overlayRevision;
         changed = true;
     }

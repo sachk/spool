@@ -1,0 +1,94 @@
+#include "platform/PlatformPlaybackSurface.h"
+
+#include "platform/NativeAppWindow.h"
+#include "platform/webos/WebOSMpvRuntime.h"
+
+#include <QDebug>
+
+#include <mpv/client.h>
+
+namespace JellyfinNative {
+namespace {
+    bool setRequiredProperty(mpv_handle *handle, const char *name, const QByteArray& value)
+    {
+        const int result = mpv_set_property_string(handle, name, value.constData());
+        if (result >= 0)
+            return true;
+        qCritical() << "playback surface: failed to set required property" << name << mpv_error_string(result);
+        return false;
+    }
+}
+
+bool platformIdleMpvPreparationEnabled()
+{
+    const bool enabled = qEnvironmentVariable("JELLYFIN_DISABLE_IDLE_MPV") != QLatin1String("1");
+    qInfo() << "player: idle mpv preparation" << (enabled ? "enabled" : "disabled");
+    return enabled;
+}
+
+void runAfterPlatformMpvLoaded(std::function<void()> callback)
+{
+    WebOSMpvRuntime::runAfterLoaded(std::move(callback));
+}
+
+MpvOptionProfile::Platform platformMpvOptionProfile()
+{
+    return MpvOptionProfile::Platform::WebOS;
+}
+QString platformPlaybackBackendName()
+{
+    return QStringLiteral("webOS");
+}
+
+bool configurePlatformMpvSurface(
+    mpv_handle *handle, NativeAppWindow& window, bool needsVideoSurface, QString& errorMessage)
+{
+    if (!needsVideoSurface)
+        return true;
+    if (setRequiredProperty(handle, "vo-starfish-window-id", window.windowId().toUtf8())
+        && setRequiredProperty(handle, "vo-starfish-window-width", QByteArray::number(window.width()))
+        && setRequiredProperty(handle, "vo-starfish-window-height", QByteArray::number(window.height()))) {
+        return true;
+    }
+    errorMessage = QStringLiteral("Failed to configure the native video surface.");
+    return false;
+}
+
+bool attachPlatformMpvSurface(mpv_handle *, bool, QObject&, std::function<void(const QString&)>, QString&)
+{
+    return true;
+}
+
+bool releasePlatformMpvSurface()
+{
+    return true;
+}
+
+QString platformPreparingStatus(bool needsVideoSurface)
+{
+    return needsVideoSurface ? QStringLiteral("Preparing libmpv + Starfish...") : QStringLiteral("Preparing audio...");
+}
+
+bool applyPlatformSubtitlePreload(
+    mpv_handle *handle, const PlaybackSession& session, const QString& preferredLanguage, QString& errorMessage)
+{
+    const QByteArray streams = MpvOptionProfile::preloadedSubtitleStreams(session, preferredLanguage);
+    if (mpv_set_property_string(handle, "demuxer-preload-subtitle-streams", streams.constData()) < 0) {
+        errorMessage = QStringLiteral("libmpv rejected the subtitle preload request.");
+        return false;
+    }
+    qInfo() << "player: requested subtitle packet preload streams="
+            << (streams.isEmpty() ? QByteArrayLiteral("none") : streams) << "language=" << preferredLanguage;
+    return true;
+}
+
+bool platformUsesBackgroundPlaybackPolicy()
+{
+    return true;
+}
+void platformAudioTrackChanged(int index)
+{
+    qInfo() << "player: webOS audio track changed" << index;
+}
+
+} // namespace JellyfinNative

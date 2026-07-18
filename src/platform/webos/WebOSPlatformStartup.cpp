@@ -1,0 +1,97 @@
+#include "platform/PlatformStartup.h"
+
+#include "platform/NativeAppWindow.h"
+
+#include <QFile>
+#include <QtPlugin>
+
+#include <cstdlib>
+#include <unistd.h>
+
+Q_IMPORT_PLUGIN(QWaylandIntegrationPlugin)
+Q_IMPORT_PLUGIN(QWaylandEglClientBufferPlugin)
+Q_IMPORT_PLUGIN(QWaylandWlShellIntegrationPlugin)
+Q_IMPORT_PLUGIN(QJpegPlugin)
+Q_IMPORT_PLUGIN(QWebpPlugin)
+Q_IMPORT_PLUGIN(QSQLiteDriverPlugin)
+Q_IMPORT_PLUGIN(QTlsBackendOpenSSL)
+
+namespace JellyfinNative {
+
+namespace {
+    bool ensureWaylandEnvironment()
+    {
+        const char *runtimeDir = std::getenv("XDG_RUNTIME_DIR");
+        const char *display = std::getenv("WAYLAND_DISPLAY");
+        if ((!runtimeDir || !runtimeDir[0]) && access("/tmp/xdg", X_OK) == 0) {
+            setenv("XDG_RUNTIME_DIR", "/tmp/xdg", 1);
+            runtimeDir = "/tmp/xdg";
+        }
+        if ((!display || !display[0]) && runtimeDir && runtimeDir[0]) {
+            const QByteArray socket = QByteArray(runtimeDir) + "/wayland-0";
+            if (access(socket.constData(), F_OK) == 0) {
+                setenv("WAYLAND_DISPLAY", "wayland-0", 1);
+                display = "wayland-0";
+            }
+        }
+        return runtimeDir && runtimeDir[0] && display && display[0];
+    }
+} // namespace
+
+bool configurePlatformEnvironment(const QString& appRootPath)
+{
+    setenv("APPID", "com.sachk.tern", 1);
+    setenv("MALLOC_ARENA_MAX", "2", 0);
+    setenv("DISPLAY_ID", "0", 1);
+    setenv("QT_QPA_PLATFORM", "wayland-egl", 1);
+    setenv("QSG_RHI_BACKEND", "opengl", 1);
+    unsetenv("QT_QUICK_BACKEND");
+    unsetenv("QMLSCENE_DEVICE");
+    unsetenv("QT_IM_MODULES");
+    setenv("QT_IM_MODULE", "webosim", 1);
+    setenv("QT_WAYLAND_SHELL_INTEGRATION", "wl-shell", 1);
+    setenv("QT_QPA_FONTDIR", "/usr/share/fonts", 1);
+    setenv("QT_NO_GLIB", "1", 1);
+    setenv("JELLYFIN_QT_NO_CURSOR_SURFACE", "1", 1);
+    if (qEnvironmentVariableIsSet("JELLYFIN_NATIVE_VERBOSE_QT")) {
+        setenv("QT_DEBUG_PLUGINS", "1", 1);
+        setenv("QT_LOGGING_RULES", "qt.qml*=true;qt.qpa*=true;qt.scenegraph*=true;qt.quick*=true;qt.plugin*=true", 1);
+    } else {
+        unsetenv("QT_DEBUG_PLUGINS");
+        unsetenv("QT_LOGGING_RULES");
+    }
+    qputenv("QT_PLUGIN_PATH", QFile::encodeName(appRootPath + QStringLiteral("/qt-plugins")));
+    qputenv("QT_QPA_PLATFORM_PLUGIN_PATH", QFile::encodeName(appRootPath + QStringLiteral("/qt-plugins/platforms")));
+    qputenv("QML2_IMPORT_PATH", QFile::encodeName(appRootPath + QStringLiteral("/qt-qml")));
+    if (!qEnvironmentVariableIsSet("QSG_RENDER_LOOP"))
+        qputenv("QSG_RENDER_LOOP", QByteArrayLiteral("basic"));
+    return ensureWaylandEnvironment();
+}
+
+QSurfaceFormat platformSurfaceFormat()
+{
+    QSurfaceFormat format;
+    format.setRenderableType(QSurfaceFormat::OpenGLES);
+    format.setVersion(2, 0);
+    format.setAlphaBufferSize(8);
+    return format;
+}
+
+void configurePlatformWindow(NativeAppWindow& window)
+{
+    window.setPersistentGraphics(false);
+    window.setPersistentSceneGraph(false);
+}
+
+void showPlatformWindow(NativeAppWindow& window)
+{
+    window.showFullScreen();
+    window.requestActivate();
+}
+
+void enterPlatformRunningState(NativeAppWindow& window)
+{
+    window.bringToFront();
+}
+
+} // namespace JellyfinNative

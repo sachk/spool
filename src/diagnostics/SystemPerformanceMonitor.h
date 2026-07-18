@@ -1,7 +1,7 @@
 #pragma once
 
-#include <QElapsedTimer>
-#include <QHash>
+#include "platform/PlatformPerformanceSampler.h"
+
 #include <QObject>
 #include <QTimer>
 
@@ -106,25 +106,11 @@ signals:
     void metricsChanged();
 
 private:
-    struct ThreadSample {
-        QString name;
-        quint64 ticks = 0;
-        quint64 runtimeNs = 0;
-        bool precise = false;
-    };
-
     void sample();
 
+    PlatformPerformanceSampler m_sampler;
     QTimer m_timer;
-    QElapsedTimer m_elapsed;
-    QHash<qint64, ThreadSample> m_previousThreads;
     std::function<qint64()> m_audioDecodeCpuTimeProvider;
-    quint64 m_previousProcessTicks = 0;
-    quint64 m_previousSystemTotal = 0;
-    quint64 m_previousSystemIdle = 0;
-    qint64 m_previousSampleNs = 0;
-    qint64 m_previousAudioDecodeCpuTimeNs = -1;
-    long m_clockTicksPerSecond = 100;
     bool m_available = false;
     bool m_threadBreakdownAvailable = false;
     bool m_preciseThreadCpuAvailable = false;

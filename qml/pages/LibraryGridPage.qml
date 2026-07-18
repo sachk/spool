@@ -829,9 +829,8 @@ FocusScope {
             readonly property int memoryMiB: NativeWindow.systemMemoryBytes > 0 ? Math.round(
                                                                                       NativeWindow.systemMemoryBytes
                                                                                       / 1048576) : 2048
-            readonly property int artworkMarginRows: NativeWindow.smartTvPlatform ? (memoryMiB >= 3000 ? 8 : memoryMiB
-                                                                                                         >= 1800 ? 5 :
-                                                                                                                   3) : 12
+            readonly property int artworkMarginRows: Platform.isTV ? (memoryMiB >= 3000 ? 8 : memoryMiB >= 1800 ? 5 : 3) :
+                                                                     12
             readonly property int focusPadding: Math.max(2, Metrics.scaled(2))
             Layout.fillWidth: true
             Layout.fillHeight: true

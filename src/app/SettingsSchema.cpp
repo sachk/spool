@@ -1,6 +1,7 @@
 #include "SettingsSchema.h"
 
 #include "../common/JellyfinTypes.h"
+#include "../platform/PlatformSettingsPolicy.h"
 
 #include <QVariantMap>
 
@@ -9,23 +10,6 @@
 namespace JellyfinNative {
 namespace {
 
-#ifdef JELLYFIN_NATIVE_WEBOS
-    constexpr SettingChoice kAudioOutputChoices[] = { { "alsa", "ALSA" }, { "starfish-pcm", "Starfish" } };
-    constexpr char kDefaultAudioOutput[] = "alsa";
-#elif defined(Q_OS_LINUX)
-    constexpr SettingChoice kAudioOutputChoices[]
-        = { { "auto", "Automatic" }, { "pipewire", "PipeWire" }, { "pulse", "PulseAudio" }, { "alsa", "ALSA" } };
-    constexpr char kDefaultAudioOutput[] = "auto";
-#elif defined(Q_OS_WIN)
-    constexpr SettingChoice kAudioOutputChoices[] = { { "auto", "Automatic" }, { "wasapi", "WASAPI" } };
-    constexpr char kDefaultAudioOutput[] = "auto";
-#elif defined(Q_OS_MACOS)
-    constexpr SettingChoice kAudioOutputChoices[] = { { "auto", "Automatic" }, { "coreaudio", "CoreAudio" } };
-    constexpr char kDefaultAudioOutput[] = "auto";
-#else
-    constexpr SettingChoice kAudioOutputChoices[] = { { "auto", "Automatic" } };
-    constexpr char kDefaultAudioOutput[] = "auto";
-#endif
     constexpr SettingChoice kUiDetailLevelChoices[]
         = { { "Essential", "Essential" }, { "More", "Advanced" }, { "All", "Expert" } };
     constexpr SettingChoice kSubtitleModeChoices[] = { { "Default", "Default - follow the server's subtitle flags" },
@@ -118,6 +102,7 @@ namespace {
 
 const QVector<SettingSpec>& settingSpecs()
 {
+    const PlatformAudioOutputPolicy& audioOutput = platformAudioOutputPolicy();
     static const QVector<SettingSpec> specs {
         { "settings/detailLevel", "General", "Settings shown",
             "Essential keeps everyday choices short; Advanced adds tuning; Expert reveals diagnostics and platform "
@@ -155,7 +140,7 @@ const QVector<SettingSpec>& settingSpecs()
             false },
         { "settings/audioOutputMode", "Playback", "Audio Output",
             "Automatic lets mpv choose the first available platform output; takes effect on the next playback",
-            SettingType::Select, kDefaultAudioOutput, kAudioOutputChoices, countOf(kAudioOutputChoices), 0, 0, 1, 0, "",
+            SettingType::Select, audioOutput.defaultValue, audioOutput.choices, audioOutput.choiceCount, 0, 0, 1, 0, "",
             0, 0, SettingTarget::AudioOutput, SettingNormalizer::AudioOutput, true, true },
         { "subtitles/language", "Subtitles", "Preferred Language", "Used when choosing a subtitle track automatically",
             SettingType::Select, "", nullptr, 0, 0, 0, 1, 0, "", 0, 0, SettingTarget::SubtitleLanguage,

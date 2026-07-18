@@ -1,4 +1,5 @@
 #include "JellyfinTypes.h"
+#include "../platform/PlatformSettingsPolicy.h"
 #include "MetaJson.h"
 
 #include <QJsonValue>
@@ -274,21 +275,7 @@ QString exceptionMessage(const std::exception_ptr& exception)
 
 QString normalizedAudioOutputMode(const QString& mode)
 {
-#ifdef JELLYFIN_NATIVE_WEBOS
-    return (mode == QStringLiteral("starfish") || mode == QStringLiteral("starfish-pcm"))
-        ? QStringLiteral("starfish-pcm")
-        : QStringLiteral("alsa");
-#elif defined(Q_OS_LINUX)
-    if (mode == QStringLiteral("pipewire") || mode == QStringLiteral("pulse") || mode == QStringLiteral("alsa"))
-        return mode;
-    return QStringLiteral("auto");
-#elif defined(Q_OS_WIN)
-    return mode == QStringLiteral("wasapi") ? mode : QStringLiteral("auto");
-#elif defined(Q_OS_MACOS)
-    return mode == QStringLiteral("coreaudio") ? mode : QStringLiteral("auto");
-#else
-    return QStringLiteral("auto");
-#endif
+    return normalizedPlatformAudioOutputMode(mode);
 }
 
 QString sanitizedDiagnosticUrl(QString url, qsizetype maxLength)

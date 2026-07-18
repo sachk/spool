@@ -143,12 +143,11 @@ FocusScope {
         activeRoute = route
         InputLatency.mark(uiTransitionToken, "shell")
         dropTransientPages()
-        if (NativeWindow.smartTvPlatform)
+        if (Platform.isTV)
             Qt.callLater(evictInactiveMediaPages)
         if (Session.authenticated && !prewarmScheduled) {
             prewarmScheduled = true
-            prewarmQueue = NativeWindow.smartTvPlatform ? ["settings"] : ["settings", "libraryGrid", "itemDetails",
-                                                                          "personDetails"]
+            prewarmQueue = Platform.isTV ? ["settings"] : ["settings", "libraryGrid", "itemDetails", "personDetails"]
             prewarmTimer.start()
         }
         completeUiTransitionIfReady()
@@ -165,7 +164,7 @@ FocusScope {
     }
 
     function evictInactiveMediaPages() {
-        if (!NativeWindow.smartTvPlatform)
+        if (!Platform.isTV)
             return
         for (const key of ["home", "libraryGrid", "itemDetails", "personDetails", "search", "openSourceNotices"]) {
             const loader = pages[key]
@@ -180,10 +179,9 @@ FocusScope {
     // Memory-pressure eviction: keep the active page plus the cheap,
     // frequently visited residents (home/settings/libraryGrid).
     function trim() {
-        const candidates = NativeWindow.smartTvPlatform ? ["home", "settings", "libraryGrid", "itemDetails",
-                                                           "personDetails", "search", "openSourceNotices"] :
-                                                          ["itemDetails", "personDetails", "search",
-                                                           "openSourceNotices"]
+        const candidates = Platform.isTV ? ["home", "settings", "libraryGrid", "itemDetails", "personDetails", "search",
+                                            "openSourceNotices"] : ["itemDetails", "personDetails", "search",
+                                                                    "openSourceNotices"]
         for (const key of candidates) {
             const loader = pages[key]
             if (loader && loader !== activeLoader) {

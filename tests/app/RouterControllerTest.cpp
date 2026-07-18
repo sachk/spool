@@ -71,6 +71,32 @@ int main(int argc, char **argv)
     require(!router.pop(QStringLiteral("settings")), "empty pop uses fallback");
     require(router.route() == QStringLiteral("settings"), "empty pop fallback route");
 
+    router.reset(QStringLiteral("home"));
+    router.push(QStringLiteral("libraryGrid"),
+        { { QStringLiteral("libraryId"), QStringLiteral("round-trip") }, { QStringLiteral("focusIndex"), 42 } });
+    require(router.pop(), "back creates forward history");
+    require(router.canForward(), "back enables forward navigation");
+    require(router.forward(), "forward restores popped frame");
+    require(router.route() == QStringLiteral("libraryGrid"), "forward restores route");
+    require(router.args().value(QStringLiteral("libraryId")).toString() == QStringLiteral("round-trip"),
+        "forward restores route arguments");
+    require(router.args().value(QStringLiteral("focusIndex")).toInt() == 42, "forward restores focus argument");
+    require(!router.canForward(), "forward consumes history");
+
+    require(router.pop(), "second back creates invalidation candidate");
+    router.push(QStringLiteral("search"));
+    require(!router.canForward(), "new push invalidates forward history");
+    require(!router.forward(), "empty forward history is inert");
+
+    require(router.pop(), "back before replace invalidation");
+    router.replace(QStringLiteral("settings"));
+    require(!router.canForward(), "replace invalidates forward history");
+
+    router.push(QStringLiteral("search"));
+    require(router.pop(), "back before reset invalidation");
+    router.reset(QStringLiteral("home"));
+    require(!router.canForward(), "reset invalidates forward history");
+
     {
         JellyfinNative::RouterController activeSession;
         activeSession.beginSession(false);

@@ -11,8 +11,8 @@
 
 #include <wayland-client.h>
 
+#include "../protocol/wayland-text-client-protocol.h"
 #include "WebOSKeysymMap.h"
-#include "protocol/wayland-text-client-protocol.h"
 
 namespace JellyfinNative {
 

@@ -1,13 +1,15 @@
-#include "NativeAppWindow.h"
+#include "platform/NativeAppWindow.h"
 
 #include <QExposeEvent>
 #include <QResizeEvent>
 
 namespace JellyfinNative {
+struct NativeAppWindow::PlatformData { };
 
 NativeAppWindow::NativeAppWindow(const QString& appId, QWindow *parent)
     : QQuickView(parent)
     , m_appId(appId)
+    , m_platform(std::make_unique<PlatformData>())
 {
     setColor(Qt::black);
     setResizeMode(QQuickView::SizeRootObjectToView);
@@ -62,5 +64,9 @@ void NativeAppWindow::resizeEvent(QResizeEvent *event)
 {
     QQuickView::resizeEvent(event);
 }
+
+void NativeAppWindow::handlePlatformSurfaceCreated() { }
+
+void NativeAppWindow::handlePlatformSurfaceAboutToBeDestroyed() { }
 
 } // namespace JellyfinNative

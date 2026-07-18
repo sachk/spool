@@ -85,8 +85,7 @@ OverlayDialog {
                 Layout.fillWidth: true
                 visible: root.overlay.syncTarget !== "subtitle"
                 text: "Effective A/V correction: " + root.overlay.formatAudioDelay(
-                          root.overlay.player.effectiveAudioDelayMs - (Platform.isWebOS ? Settings.displayLatencyMs :
-                                                                                          0))
+                          root.overlay.player.effectiveAudioDelayMs - Settings.displayLatencyMs)
                 color: Theme.textMuted
                 font.pixelSize: Metrics.metaSizePx
                 horizontalAlignment: Text.AlignHCenter

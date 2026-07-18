@@ -8,8 +8,8 @@ KeyRouter {
     id: root
     onWidthChanged: Metrics.refWidth = width
     focus: true
-    backspaceNavigatesInTextInput: NativeWindow.smartTvPlatform
-    webOsColorScanCodes: NativeWindow.smartTvPlatform
+    backspaceNavigatesInTextInput: Platform.isTV
+    webOsColorScanCodes: Platform.isTV
 
     readonly property string route: Router.route
     readonly property var routeArgs: Router.args || ({})
@@ -79,11 +79,22 @@ KeyRouter {
         function onVisibleChanged() {
             root.refreshKeyboardAvoidance()
         }
+
         function onKeyboardRectangleChanged() {
             root.refreshKeyboardAvoidance()
         }
         function onAnchorRectangleChanged() {
             root.refreshKeyboardAvoidance()
+        }
+    }
+
+    Connections {
+        target: NativeWindow
+        function onPointerBackRequested() {
+            root.back()
+        }
+        function onPointerForwardRequested() {
+            root.forward()
         }
     }
 
@@ -403,6 +414,19 @@ KeyRouter {
         return false
     }
 
+    function forward() {
+        if (textInputActive || (navBar.visible && navBar.syncPlayMenuOpen) || diagnosticsVisible || itemMenuOpen
+                || managementOverlayVisible || mediaInfoVisible || playerSessionActive)
+            return true
+        if (!Router.canForward)
+            return false
+        if (!Router.forward())
+            return false
+        navigationTarget = routeStack
+        InputKeys.focus(routeStack)
+        return true
+    }
+
     function openContextMenu() {
         if (navigationTarget !== routeStack)
             return false
@@ -513,9 +537,8 @@ KeyRouter {
     function globalShortcut(key, phase, repeat, modifiers) {
         if (repeat || textInputActive)
             return false
-        // Claim the physical Menu press as well as its release. Letting the
-        // press escape causes webOS/Qt to clear the current item's focus
-        // before our release-triggered context menu has a chance to open.
+        // Claim the physical Menu press as well as its release so focus remains
+        // stable until the release-triggered context menu opens.
         if (phase === "press" && (key === Qt.Key_M || key === Qt.Key_Menu))
             return true
         if (phase !== "release")
