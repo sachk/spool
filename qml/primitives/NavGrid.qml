@@ -16,6 +16,7 @@ GridView {
     property int holdReleaseTimeout: 220
     property int holdInitialReleaseTimeout: 800
     property bool holdRepeatSeen: false
+    property bool acceptUnmarkedHoldRepeats: false
     property int holdDelay: 500
     property int holdCruiseDuration: 700
     property int holdRampDuration: 1700
@@ -141,10 +142,11 @@ GridView {
         if (!directional)
             return false
         if (key === heldKey) {
-            // Some webOS compositors send repeated presses without setting
-            // QKeyEvent::isAutoRepeat. A second press for the armed direction
-            // is sufficient to confirm the hold on every platform.
-            confirmHold(true)
+            // webOS can repeat a held remote key without marking the event as
+            // auto-repeat. Desktop keyboard holds must use Qt's repeat flag:
+            // an unmarked duplicate may be a stale event after key release.
+            if (repeat || acceptUnmarkedHoldRepeats)
+                confirmHold(true)
             return true
         }
         if (heldKey)

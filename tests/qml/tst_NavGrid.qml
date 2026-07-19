@@ -77,6 +77,7 @@ TestCase {
         modelSize = 100
         grid.currentIndex = 0
         grid.reducedMotion = false
+        grid.acceptUnmarkedHoldRepeats = false
         fakeNow = 1000
         grid.holdTraversalSeconds = 5
         holdStartedSpy.clear()
@@ -100,6 +101,19 @@ TestCase {
         grid.accelerate()
         compare(grid.currentIndex, 4)
         compare(grid.holdRepeatSeen, false)
+        verify(grid.routeKey(Qt.Key_Down, "release", false))
+    }
+
+    function test_desktopUnmarkedDuplicateCannotConfirmHold() {
+        verify(grid.routeKey(Qt.Key_Down, "press", false))
+        compare(grid.currentIndex, 4)
+        fakeNow += grid.holdDelay
+        verify(grid.routeKey(Qt.Key_Down, "press", false))
+        compare(grid.currentIndex, 4)
+        compare(grid.holdRepeatSeen, false)
+        fakeNow += 100
+        grid.accelerate()
+        compare(grid.currentIndex, 4)
         verify(grid.routeKey(Qt.Key_Down, "release", false))
     }
 
@@ -174,6 +188,7 @@ TestCase {
     function test_webOsStyleUnmarkedRepeatConfirmsHold() {
         modelSize = 250
         grid.currentIndex = 0
+        grid.acceptUnmarkedHoldRepeats = true
         verify(grid.routeKey(Qt.Key_Down, "press", false))
         compare(grid.currentIndex, 4)
         fakeNow += 500
