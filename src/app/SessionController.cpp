@@ -89,13 +89,22 @@ QVariantList SessionController::accountProfiles() const
     return result;
 }
 
+QStringList SessionController::localStorageKeys()
+{
+    return { QStringLiteral("login/serverUrl"), QStringLiteral("login/username") };
+}
+
 QCoro::Task<bool> SessionController::initializeAsync()
 {
-    const QVariantMap hints
-        = co_await m_database->loadValuesAsync({ QStringLiteral("login/serverUrl"), QStringLiteral("login/username") });
-    m_serverUrl = canonicalServerUrl(hints.value(QStringLiteral("login/serverUrl")).toString());
-    m_username = hints.value(QStringLiteral("login/username")).toString();
-    m_profiles = co_await m_database->loadAccountProfilesAsync();
+    StartupState state = co_await m_database->loadStartupStateAsync(localStorageKeys());
+    co_return initializeFromStorage(std::move(state.values), std::move(state.profiles));
+}
+
+bool SessionController::initializeFromStorage(QVariantMap values, std::vector<AccountProfile> profiles)
+{
+    m_serverUrl = canonicalServerUrl(values.value(QStringLiteral("login/serverUrl")).toString());
+    m_username = values.value(QStringLiteral("login/username")).toString();
+    m_profiles = std::move(profiles);
     sortProfiles();
 
     m_database->clearAuthSession();
@@ -105,7 +114,7 @@ QCoro::Task<bool> SessionController::initializeAsync()
     emit accountProfilesChanged();
     if (m_profiles.size() == 1)
         applyStoredProfile(m_profiles.front(), true);
-    co_return !m_profiles.empty();
+    return !m_profiles.empty();
 }
 
 void SessionController::setServerUrl(const QString& serverUrl)

@@ -5,7 +5,9 @@
 
 #include <QCoroTask>
 #include <QObject>
+#include <QStringList>
 #include <QVariantList>
+#include <QVariantMap>
 
 #include <exception>
 #include <vector>
@@ -41,6 +43,8 @@ public:
     bool profileSignInRequired() const;
 
     QCoro::Task<bool> initializeAsync();
+    static QStringList localStorageKeys();
+    bool initializeFromStorage(QVariantMap values, std::vector<AccountProfile> profiles);
     Q_INVOKABLE void setServerUrl(const QString& serverUrl);
     Q_INVOKABLE void setServerName(const QString& serverName);
     Q_INVOKABLE void setUsername(const QString& username);

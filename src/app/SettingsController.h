@@ -101,6 +101,9 @@ public:
     QVariantMap values() const;
     Q_INVOKABLE QVariant value(const QString& key) const;
 
+    static QStringList localSettingKeys();
+    void applyLocalValues(const QVariantMap& storedValues);
+
     QCoro::Task<void> loadLocalAsync();
     Q_INVOKABLE void loadRemote();
     void clearRemote();

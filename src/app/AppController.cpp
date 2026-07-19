@@ -210,17 +210,22 @@ void AppController::initialize()
 QCoro::Task<void> AppController::initializeAsync()
 {
     Diagnostics::Task task(QStringLiteral("app_initialize"));
-    QString deviceId = co_await m_database->loadDeviceIdAsync();
+    QStringList startupKeys = SettingsController::localSettingKeys();
+    startupKeys.append(SessionController::localStorageKeys());
+    StartupState startupState = co_await m_database->loadStartupStateAsync(startupKeys);
+
+    QString deviceId = std::move(startupState.deviceId);
     if (deviceId.isEmpty()) {
         deviceId = QUuid::createUuid().toString(QUuid::WithoutBraces);
         m_database->saveDeviceId(deviceId);
     }
     m_api->setDeviceId(deviceId);
 
-    co_await m_settings->loadLocalAsync();
+    m_settings->applyLocalValues(startupState.values);
     m_prefetch->configureImagePrefetch(m_settings->value(QStringLiteral("network/imagePrefetchAhead")).toInt(),
         m_settings->value(QStringLiteral("network/imagePrefetchConcurrency")).toInt());
-    const bool hasDefaultProfile = co_await m_session->initializeAsync();
+    const bool hasDefaultProfile
+        = m_session->initializeFromStorage(std::move(startupState.values), std::move(startupState.profiles));
     if (m_hasDefaultProfile != hasDefaultProfile) {
         m_hasDefaultProfile = hasDefaultProfile;
         emit defaultProfileChanged();

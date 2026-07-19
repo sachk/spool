@@ -128,7 +128,7 @@ QString SettingsController::audioDelayTargetLabel() const
     return platformAudioRouteDisplayName(m_currentAudioOutput);
 }
 
-QCoro::Task<void> SettingsController::loadLocalAsync()
+QStringList SettingsController::localSettingKeys()
 {
     QStringList keys;
     keys.reserve(static_cast<qsizetype>(settingSpecs().size()) + 1);
@@ -140,7 +140,16 @@ QCoro::Task<void> SettingsController::loadLocalAsync()
         keys.append(keyString(spec));
     }
     keys.append(QString::fromLatin1(kUiScaleSetupVersionKey));
-    const QVariantMap storedValues = co_await m_database->loadValuesAsync(keys);
+    return keys;
+}
+
+QCoro::Task<void> SettingsController::loadLocalAsync()
+{
+    applyLocalValues(co_await m_database->loadValuesAsync(localSettingKeys()));
+}
+
+void SettingsController::applyLocalValues(const QVariantMap& storedValues)
+{
 
     for (const SettingSpec& spec : settingSpecs()) {
         if (!spec.persisted)

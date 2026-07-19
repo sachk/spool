@@ -80,6 +80,16 @@ int main(int argc, char **argv)
     const std::vector<AccountProfile> storedProfiles = QCoro::waitFor(database.loadAccountProfilesAsync());
     require(storedProfiles.size() == 1 && storedProfiles.front().profileId == profile.profileId,
         "account profile should be persisted before cache recovery");
+    database.saveDeviceId(QStringLiteral("device"));
+    const StartupState startup = QCoro::waitFor(
+        database.loadStartupStateAsync({ QStringLiteral("batch/first"), QStringLiteral("batch/missing") }));
+    require(startup.deviceId == QStringLiteral("device"), "startup state should include the device identifier");
+    require(startup.values.value(QStringLiteral("batch/first")).toString() == QStringLiteral("one"),
+        "startup state should include requested values");
+    require(!startup.values.value(QStringLiteral("batch/missing")).isValid(),
+        "startup state should preserve missing values as invalid");
+    require(startup.profiles.size() == 1 && startup.profiles.front().profileId == profile.profileId,
+        "startup state should include account profiles");
 
     const QJsonObject homePayload {
         { QStringLiteral("title"), QStringLiteral("Continue Watching") },

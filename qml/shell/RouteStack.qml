@@ -215,10 +215,8 @@ FocusScope {
 
     onRouteChanged: if (ready)
                         showRoute()
-    onStartupReadyChanged: if (startupReady)
-                               Qt.callLater(beginStartup)
-    Component.onCompleted: if (startupReady)
-                               Qt.callLater(beginStartup)
+    onStartupReadyChanged: beginStartup()
+    Component.onCompleted: beginStartup()
 
     Connections {
         target: root.activeItem

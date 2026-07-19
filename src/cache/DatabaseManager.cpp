@@ -5,6 +5,7 @@
 
 #include <QDateTime>
 #include <QDir>
+#include <QElapsedTimer>
 #include <QFile>
 #include <QFileInfo>
 #include <QJsonDocument>
@@ -28,6 +29,8 @@ class DatabaseWorker final : public QObject {
 public:
     bool initialize(const QString& cachePath)
     {
+        QElapsedTimer timer;
+        timer.start();
         const QFileInfo cacheInfo(cachePath);
         if (!QDir().mkpath(cacheInfo.absolutePath())) {
             qWarning() << "database: failed to create data directory for" << cachePath;
@@ -42,6 +45,7 @@ public:
             m_recoveryNotice = QStringLiteral(
                 "Local account data could not be read and was reset. A diagnostic backup was preserved.");
         }
+        qInfo() << "startup: durable database ready in" << timer.elapsed() << "ms";
         if (!openCache(cachePath)) {
             qWarning() << "database: invalid cache; preserving and rebuilding" << cachePath;
             if (!recoverCache(cachePath))
@@ -49,6 +53,7 @@ public:
             if (m_recoveryNotice.isEmpty())
                 m_recoveryNotice = QStringLiteral("The local cache was damaged and has been rebuilt.");
         }
+        qInfo() << "startup: database worker ready in" << timer.elapsed() << "ms";
         return true;
     }
 
@@ -70,8 +75,26 @@ public:
     QVariantMap values(const QStringList& keys)
     {
         QVariantMap result;
+        if (keys.isEmpty())
+            return result;
+
+        QStringList placeholders;
+        placeholders.reserve(keys.size());
+        for (const QString& key : keys) {
+            result.insert(key, {});
+            placeholders.append(QStringLiteral("?"));
+        }
+
+        QSqlQuery query(m_database);
+        query.prepare(QStringLiteral("SELECT key, value FROM kv WHERE key IN (%1)").arg(placeholders.join(',')));
         for (const QString& key : keys)
-            result.insert(key, value(key));
+            query.addBindValue(key);
+        if (!query.exec()) {
+            qWarning() << "database: batch value load failed" << query.lastError().text();
+            return result;
+        }
+        while (query.next())
+            result.insert(query.value(0).toString(), query.value(1));
         return result;
     }
 
@@ -808,6 +831,23 @@ QCoro::Task<QVariantMap> DatabaseManager::loadValuesAsync(const QStringList& key
         co_return QVariantMap();
     DatabaseWorker *worker = m_worker;
     co_return co_await workerTask(worker, [worker, keys]() { return worker ? worker->values(keys) : QVariantMap(); });
+}
+QCoro::Task<StartupState> DatabaseManager::loadStartupStateAsync(const QStringList& keys)
+{
+    if (!m_initializationFuture.isValid())
+        co_return StartupState {};
+
+    // Queue directly behind database initialization instead of resuming on
+    // the GUI thread first. The snapshot is then read while QML is compiling,
+    // and its completed future can resume routing on the first event-loop turn.
+    DatabaseWorker *worker = m_worker;
+    const QFuture<bool> initialization = m_initializationFuture;
+    co_return co_await workerTask(worker, [worker, keys, initialization]() {
+        if (!worker || !initialization.result())
+            return StartupState {};
+        return StartupState { worker->value(QStringLiteral("client/deviceId")).toString(), worker->values(keys),
+            worker->accountProfiles() };
+    });
 }
 
 void DatabaseManager::saveSetting(const QString& key, const QString& value)

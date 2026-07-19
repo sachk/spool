@@ -23,6 +23,12 @@ namespace JellyfinNative {
 
 class DatabaseWorker;
 
+struct StartupState {
+    QString deviceId;
+    QVariantMap values;
+    std::vector<AccountProfile> profiles;
+};
+
 class DatabaseManager final : public QObject {
     Q_OBJECT
 
@@ -58,6 +64,7 @@ public:
 
     QCoro::Task<QString> loadSettingAsync(const QString& key, const QString& defaultValue = {});
     QCoro::Task<QVariantMap> loadValuesAsync(const QStringList& keys);
+    QCoro::Task<StartupState> loadStartupStateAsync(const QStringList& keys);
     void saveSetting(const QString& key, const QString& value);
 
     QCoro::Task<int> schemaVersionAsync();
