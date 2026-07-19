@@ -321,10 +321,17 @@
             pkgs.lib.makeSearchPath pkgs.qt6.qtbase.qtQmlPrefix
               (nativeQtPackages pkgs);
           nativeRuntimeLibPath = pkgs.lib.makeLibraryPath (nativeRuntimePackages pkgs);
-          # Builds the native binary (unless JELLYFIN_NO_REBUILD is set) and
-          # runs it inside the #native dev shell. `launchPrefix` lets callers
-          # wrap the executable, e.g. with GammaRay's launcher.
-          makeRunner = { name, launchPrefix ? "", cmakeExtraArgs ? "", buildRoot ? "" }:
+          # Resolves the checkout, optionally builds the selected native
+          # variant, then either exits or launches it inside the #native shell.
+          # Launch apps never rebuild; build apps are explicit flake targets.
+          makeRunner = {
+            name,
+            launchPrefix ? "",
+            cmakeExtraArgs ? "",
+            buildRoot ? "",
+            buildBeforeRun ? false,
+            buildOnly ? false,
+          }:
             let
               runnerBinaryPath =
                 if buildRoot == "" then binaryPath
@@ -389,10 +396,16 @@
             # old SDK wayland-scanner/cross toolchain.
             scrub='PATH=$(printf %s "$PATH" | tr ":" "\n" | grep -v webos-sdk | paste -sd:); export PATH; unset WEBOS_SDK_ROOT QT_PLUGIN_PATH QML2_IMPORT_PATH QML_IMPORT_PATH'
 
-            if [ -n "''${JELLYFIN_NO_REBUILD:-}" ] && [ -x "$BIN" ]; then
-              :
-            else
+            if ${if buildBeforeRun then "true" else "false"}; then
               nix develop "$REPO_ROOT#native" -c bash -c "$scrub; ${buildRootExport}export JELLYFIN_CMAKE_EXTRA_ARGS='${cmakeExtraArgs}'; ${runnerBuildCommand}"
+            elif [ ! -x "$BIN" ]; then
+              echo "error: native app is not built: $BIN" >&2
+              echo "build it first with: nix run .#${if buildRoot == "" then "build" else "image-debug-build"}" >&2
+              exit 1
+            fi
+
+            if ${if buildOnly then "true" else "false"}; then
+              exit 0
             fi
 
             export MPV_LIB="$REPO_ROOT/${runnerMpvLibraryPath}"
@@ -401,6 +414,12 @@
             exec nix develop "$REPO_ROOT#native" -c bash -c "$scrub; $runtime_env"'; exec ${launchPrefix}"$@"' _ "$BIN" "$@"
           '';
 
+          builder = makeRunner {
+            name = "jellyfin-native-build";
+            buildBeforeRun = true;
+            buildOnly = true;
+          };
+
           runner = makeRunner { name = "jellyfin-native-run"; };
           imageDebugRunner = makeRunner {
             name = "jellyfin-native-image-debug";
@@ -408,6 +427,15 @@
             buildRoot = if pkgs.stdenv.isDarwin
               then "build/macos-image-debug"
               else "build/linux-release-image-debug";
+          };
+          imageDebugBuilder = makeRunner {
+            name = "jellyfin-native-image-debug-build";
+            cmakeExtraArgs = "-DJELLYFIN_ARTWORK_ASPECT_DIAGNOSTICS=ON";
+            buildRoot = if pkgs.stdenv.isDarwin
+              then "build/macos-image-debug"
+              else "build/linux-release-image-debug";
+            buildBeforeRun = true;
+            buildOnly = true;
           };
 
 
@@ -427,6 +455,11 @@
             launchPrefix = "gammaray ";
           };
         in {
+          build = {
+            type = "app";
+            program = "${builder}/bin/jellyfin-native-build";
+          };
+
           default = {
             type = "app";
             program = "${runner}/bin/jellyfin-native-run";
@@ -435,6 +468,11 @@
           image-debug = {
             type = "app";
             program = "${imageDebugRunner}/bin/jellyfin-native-image-debug";
+          };
+
+          image-debug-build = {
+            type = "app";
+            program = "${imageDebugBuilder}/bin/jellyfin-native-image-debug-build";
           };
         } // pkgs.lib.optionalAttrs pkgs.stdenv.isLinux {
           gammaray = {
