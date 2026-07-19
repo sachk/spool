@@ -17,7 +17,7 @@ GridView {
     property int holdInitialReleaseTimeout: 800
     property bool holdRepeatSeen: false
     property double unmarkedRepeatCandidateAt: -1
-    readonly property int unmarkedRepeatConfirmationTimeout: 650
+    readonly property int unmarkedRepeatConfirmationTimeout: 300
     property int holdDelay: 500
     property int holdCruiseDuration: 700
     property int holdRampDuration: 1700
@@ -78,14 +78,11 @@ GridView {
         holdReleaseWatchdog.restart()
     }
 
-    function confirmHold(immediateMoves) {
+    function confirmHold() {
         if (!holdRepeatSeen) {
             holdRepeatSeen = true
             unmarkedRepeatCandidateAt = -1
             lastHoldTickAt = nowMs()
-            let moves = Math.max(0, Math.floor(Number(immediateMoves) || 0))
-            while (moves-- > 0)
-                moveBy(heldDelta())
             holdStarted(heldKey)
         }
         holdReleaseWatchdog.restart()
@@ -147,16 +144,20 @@ GridView {
         if (!directional)
             return false
         if (key === heldKey) {
-            // A marked repeat confirms immediately. For unmarked repeat
-            // streams, require two presses at repeat cadence: one delayed
-            // duplicate after a click must never start acceleration.
-            if (repeat || holdRepeatSeen) {
-                confirmHold(2)
+            // Every slow unmarked press remains a discrete one-step click.
+            // Only marked auto-repeat or two unmarked presses at actual repeat
+            // cadence turn the armed key into a continuously moving hold.
+            if (holdRepeatSeen) {
+                confirmHold()
+            } else if (repeat) {
+                moveBy(heldDelta())
+                confirmHold()
             } else {
                 const now = nowMs()
+                moveBy(heldDelta())
                 if (unmarkedRepeatCandidateAt >= 0 && now - unmarkedRepeatCandidateAt
                         <= unmarkedRepeatConfirmationTimeout) {
-                    confirmHold(2)
+                    confirmHold()
                 } else {
                     unmarkedRepeatCandidateAt = now
                     holdReleaseWatchdog.restart()
@@ -170,7 +171,8 @@ GridView {
             // Preserve acceleration if the first event observed by this view
             // is already marked as an auto-repeat.
             beginAccelerating(key)
-            confirmHold(2)
+            moveBy(heldDelta())
+            confirmHold()
             return true
         }
         const columns = columnCount()
