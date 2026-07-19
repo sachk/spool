@@ -50,6 +50,7 @@ extern "C" {
     X(mpv_render_context_free)                                                                                         \
     X(mpv_render_context_render)                                                                                       \
     X(mpv_render_context_set_update_callback)                                                                          \
+    X(mpv_render_context_update)                                                                                       \
     X(starfish_overlay_set_callbacks)                                                                                  \
     X(starfish_exported_set_crop_cb)
 
@@ -436,6 +437,13 @@ void mpv_render_context_set_update_callback(mpv_render_context *ctx, mpv_render_
 {
     if (ctx && JellyfinNative::WebOSMpvRuntime::ensureLoaded())
         g_api.mpv_render_context_set_update_callback(ctx, callback, callback_ctx);
+}
+
+uint64_t mpv_render_context_update(mpv_render_context *ctx)
+{
+    if (!ctx || !JellyfinNative::WebOSMpvRuntime::ensureLoaded())
+        return 0;
+    return g_api.mpv_render_context_update(ctx);
 }
 
 // Starfish OSD/crop callback setters: called from the NativeAppWindow
