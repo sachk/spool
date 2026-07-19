@@ -147,6 +147,7 @@ private:
     bool m_hasMore = false;
     int m_totalCount = 0;
     int m_nextStartIndex = 0;
+    int m_pageSize = 0;
 
     QString m_libraryId;
     QString m_libraryCollectionType;

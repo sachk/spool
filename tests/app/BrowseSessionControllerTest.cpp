@@ -114,15 +114,13 @@ int main()
     require(session.nextStartIndex() == 1, "next start index updated");
     int moreRequests = 0;
     QObject::connect(&session, &BrowseSessionController::moreItemsRequested, [&moreRequests]() { ++moreRequests; });
-    session.prefetchNextPage();
-    require(moreRequests == 1, "hold prefetch requests the next page");
+    session.prefetchVisibleRange(0, 0);
+    require(moreRequests == 1, "showing the first page prefetches the second page");
     session.setLoadingMore(true);
     session.prefetchNextPage();
-    require(moreRequests == 1, "hold prefetch does not duplicate an active page request");
-    session.setLoadingMore(false);
     session.prefetchVisibleRange(0, 0);
-    session.prefetchVisibleRange(-1, 0);
-    require(moreRequests == 2, "visible tail requests the next page once");
+    require(moreRequests == 1, "active page request is not duplicated");
+    session.setLoadingMore(false);
 
     PagedMovieItems secondPage;
     secondPage.items = { item(QStringLiteral("movie-2"), QStringLiteral("Movie 2"), QStringLiteral("Movie")) };
@@ -133,6 +131,14 @@ int main()
     require(session.items()->count() == 2, "second page appended its item");
     require(session.nextStartIndex() == 2, "second page advanced the next start index");
     require(session.hasMore(), "second page retained the remaining-page state");
+    session.prefetchVisibleRange(0, 0);
+    require(moreRequests == 1, "remaining on the first page does not prefetch past the second page");
+    session.prefetchVisibleRange(1, 1);
+    require(moreRequests == 2, "entering the second page prefetches the third page");
+    session.setLoadingMore(true);
+    session.prefetchVisibleRange(1, 1);
+    require(moreRequests == 2, "rolling prefetch does not duplicate an active third-page request");
+    session.setLoadingMore(false);
 
     PagedMovieItems finalPage;
     finalPage.items = { item(QStringLiteral("movie-3"), QStringLiteral("Movie 3"), QStringLiteral("Movie")) };

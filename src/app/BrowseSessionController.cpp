@@ -65,6 +65,7 @@ void BrowseSessionController::resetPaging(const QString& cacheKey)
     m_hasMore = false;
     m_totalCount = 0;
     m_nextStartIndex = 0;
+    m_pageSize = 0;
     emit pagingChanged();
 }
 
@@ -86,6 +87,8 @@ void BrowseSessionController::setPage(const PagedMovieItems& page, const QString
     m_cacheKey = cacheKey;
     m_nextStartIndex = std::max(loadedCount, pageEnd);
     m_totalCount = hasServerTotal ? std::max(page.totalRecordCount, m_nextStartIndex) : m_nextStartIndex;
+    if (page.limit > 0)
+        m_pageSize = page.limit;
     m_hasMore = hasServerTotal ? m_nextStartIndex < m_totalCount
                                : page.items.size() >= static_cast<size_t>(std::max(1, page.limit));
     if (page.items.empty())
@@ -108,6 +111,7 @@ void BrowseSessionController::setLoadingMore(bool loading)
 void BrowseSessionController::setWarmCachePaging(int cachedCount, int pageSize)
 {
     m_nextStartIndex = cachedCount;
+    m_pageSize = std::max(1, pageSize);
     m_totalCount = cachedCount;
     m_hasMore = cachedCount >= pageSize;
     m_loadingMore = true;
@@ -120,10 +124,11 @@ void BrowseSessionController::prefetchVisibleRange(int firstIndex, int lastIndex
         return;
     if (m_prefetch)
         m_prefetch->prefetchPosters(m_items.movies(), firstIndex, lastIndex - firstIndex + 1);
-    const int visibleCount = lastIndex - firstIndex + 1;
-    const int prefetchThreshold = std::max(8, visibleCount * 2);
-    if (lastIndex + prefetchThreshold >= m_items.rowCount())
-        emit moreItemsRequested();
+    if (m_pageSize <= 0)
+        return;
+    const int newestLoadedPageStart = std::max(0, m_nextStartIndex - m_pageSize);
+    if (lastIndex >= newestLoadedPageStart)
+        prefetchNextPage();
 }
 
 void BrowseSessionController::prefetchNextPage()
