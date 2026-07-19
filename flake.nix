@@ -323,7 +323,8 @@
           nativeRuntimeLibPath = pkgs.lib.makeLibraryPath (nativeRuntimePackages pkgs);
           # Resolves the checkout, optionally builds the selected native
           # variant, then either exits or launches it inside the #native shell.
-          # Launch apps never rebuild; build apps are explicit flake targets.
+          # The default app builds before launching; named run apps launch the
+          # existing binary without rebuilding.
           makeRunner = {
             name,
             launchPrefix ? "",
@@ -420,7 +421,11 @@
             buildOnly = true;
           };
 
-          runner = makeRunner { name = "jellyfin-native-run"; };
+          runner = makeRunner {
+            name = "jellyfin-native-run";
+            buildBeforeRun = true;
+          };
+          noBuildRunner = makeRunner { name = "jellyfin-native-run-no-build"; };
           imageDebugRunner = makeRunner {
             name = "jellyfin-native-image-debug";
             cmakeExtraArgs = "-DJELLYFIN_ARTWORK_ASPECT_DIAGNOSTICS=ON";
@@ -463,6 +468,11 @@
           default = {
             type = "app";
             program = "${runner}/bin/jellyfin-native-run";
+          };
+
+          run = {
+            type = "app";
+            program = "${noBuildRunner}/bin/jellyfin-native-run-no-build";
           };
 
           image-debug = {

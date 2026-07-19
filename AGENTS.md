@@ -10,11 +10,12 @@
 
 ## Local Development
 
-- Build the native release app explicitly with `nix run .#build`.
-- Launch the already-built app with `nix run`; the launch target never rebuilds and fails with a build-command hint when the binary is missing.
-- For a visible smoke test, build first, then run `timeout 10s nix run`. Never wrap `nix run .#build` in the launch timeout—the timeout is only for the already-built app.
+- Build and launch the native release app with `nix run`; the default app always builds first.
+- Launch the already-built native release app without rebuilding with `nix run .#run`. It fails with a build-command hint when the binary is missing.
+- Build without launching with `nix run .#build`.
+- For a visible smoke test after a successful build, use `timeout 10s nix run .#run`. Never wrap the default `nix run` in the launch timeout because it builds before launching.
 - Use `nix develop .#native -c ...` for targeted development commands (e.g. `cmake --preset linux-dev`, then `cmake --build build/linux-dev/app --target jellyfin-native`).
-- The image-diagnostics equivalents are `nix run .#image-debug-build` followed by `nix run .#image-debug`.
+- The image-diagnostics equivalents remain `nix run .#image-debug-build` followed by `nix run .#image-debug`.
 - Batch coherent edits, then run one build and one `qmlformat`/`clang-format` invocation over all touched files; don't build or format file-by-file.
 
 ## webOS
