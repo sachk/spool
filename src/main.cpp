@@ -356,6 +356,25 @@ int main(int argc, char **argv)
     JellyfinNative::configurePlatformWindow(window);
     inputLatencyMonitor.attachWindow(&window);
     window.setInputLatencyMonitor(&inputLatencyMonitor);
+    const auto directSingleShot = static_cast<Qt::ConnectionType>(Qt::DirectConnection | Qt::SingleShotConnection);
+    const auto traceFirstFrameSignal = [&window, &startupTimer, directSingleShot](auto signal, const char *name) {
+        QObject::connect(
+            &window, signal, &window,
+            [&window, &startupTimer, name] {
+                const qint64 elapsedMs = startupTimer.elapsed();
+                QMetaObject::invokeMethod(
+                    &window, [elapsedMs, name] { logLine("startup: first frame %s at %lld ms", name, elapsedMs); },
+                    Qt::QueuedConnection);
+            },
+            directSingleShot);
+    };
+    traceFirstFrameSignal(&QQuickWindow::beforeFrameBegin, "begin");
+    traceFirstFrameSignal(&QQuickWindow::beforeSynchronizing, "sync_begin");
+    traceFirstFrameSignal(&QQuickWindow::afterSynchronizing, "sync_end");
+    traceFirstFrameSignal(&QQuickWindow::beforeRendering, "render_begin");
+    traceFirstFrameSignal(&QQuickWindow::afterRendering, "render_end");
+    traceFirstFrameSignal(&QQuickWindow::frameSwapped, "swapped");
+    traceFirstFrameSignal(&QQuickWindow::afterFrameEnd, "end");
     configurePersistentRhiPipelineCache(window, cachePath);
     {
         JellyfinNative::Diagnostics::Phase phase(QStringLiteral("startup"), QStringLiteral("prepare_ui_surface"));

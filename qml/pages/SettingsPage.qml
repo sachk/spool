@@ -566,13 +566,31 @@ FocusScope {
     focus: true
     onActiveFocusChanged: if (activeFocus)
     focusEntry()
-    onVisibleChanged: if (visible && activeFocus)
-    Qt.callLater(focusEntry)
+    onVisibleChanged: {
+        if (visible)
+        ensureRowsBuilt()
+        if (visible && activeFocus)
+        Qt.callLater(focusEntry)
+    }
+
+    property bool rowsBuilt: false
+
+    function ensureRowsBuilt() {
+        if (rowsBuilt)
+            return
+        rowsBuilt = true
+        buildSettingsRowsSource()
+    }
+
     // Only take focus if the page is actually active: the route host
     // prewarms an invisible instance, which must not steal focus.
+    // The player overlay embeds an always-present subtitle editor; building
+    // its rows while hidden would put the schema walk on the startup path,
+    // so that instance defers to first show.
     Component.onCompleted: Qt.callLater(function () {
         Settings.loadRemote()
-        buildSettingsRowsSource()
+        if (!playbackPreview || visible)
+            ensureRowsBuilt()
         if (activeFocus)
             focusEntry()
     })

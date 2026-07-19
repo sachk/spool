@@ -101,12 +101,17 @@ QStringList SettingsController::availableButtonActions() const
 
 QStringList SettingsController::systemSubtitleFonts() const
 {
-    return platformSystemSubtitleFonts();
+    // Both CONSTANT list properties below must be cached: QML re-invokes the
+    // READ accessor for every element access on value-type sequences, so an
+    // uncached build turns a JS iteration into a full rebuild per element.
+    static const QStringList families = platformSystemSubtitleFonts();
+    return families;
 }
 
 QVariantList SettingsController::settingsSchema() const
 {
-    return settingSchemaModel();
+    static const QVariantList schema = settingSchemaModel();
+    return schema;
 }
 
 QVariantMap SettingsController::values() const
