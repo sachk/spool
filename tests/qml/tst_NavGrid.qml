@@ -175,19 +175,28 @@ TestCase {
         compare(modelSize / grid.holdMaximumRate, 3.5)
     }
 
-    function test_firstRepeatMovesImmediatelyThenCruises() {
+    function test_autoRepeatReleasePreservesAccelerationRamp() {
         modelSize = 250
         grid.currentIndex = 0
         verify(grid.routeKey(Qt.Key_Down, "press", false))
         compare(grid.currentIndex, 4)
         fakeNow += 500
+        verify(grid.routeKey(Qt.Key_Down, "release", true))
+        compare(grid.heldKey, Qt.Key_Down)
         verify(grid.routeKey(Qt.Key_Down, "press", true))
         compare(grid.currentIndex, 8)
+        const startedAt = grid.holdStartedAt
         compare(grid.accelerationRate(grid.holdCruiseDuration - 1), grid.holdInitialRate)
-        fakeNow += 50
+        fakeNow += grid.holdCruiseDuration + 100
+        verify(grid.routeKey(Qt.Key_Down, "release", true))
+        compare(grid.heldKey, Qt.Key_Down)
+        verify(grid.routeKey(Qt.Key_Down, "press", true))
+        compare(grid.holdStartedAt, startedAt)
+        verify(grid.accelerationRate(fakeNow - startedAt) > grid.holdInitialRate)
         grid.accelerate()
-        compare(grid.currentIndex, 16)
+        verify(grid.currentIndex > 8)
         verify(grid.routeKey(Qt.Key_Down, "release", false))
+        compare(grid.heldKey, 0)
     }
 
     function test_fractionalMovementUsesElapsedTime() {

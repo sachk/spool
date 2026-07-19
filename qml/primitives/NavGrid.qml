@@ -131,6 +131,10 @@ GridView {
 
     function routeKey(key, phase, repeat) {
         if (phase === "release") {
+            // Qt Wayland represents auto-repeat as a synthetic release/press
+            // pair. Only the final physical release ends the hold.
+            if (repeat)
+                return true
             if (key === heldKey)
                 stopAccelerating()
             return true

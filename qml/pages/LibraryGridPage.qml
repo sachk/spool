@@ -621,7 +621,7 @@ FocusScope {
 
     Timer {
         id: paneDebounce
-        interval: 140
+        interval: Platform.isTV ? 320 : 140
         repeat: false
         onTriggered: root.updatePane()
     }
