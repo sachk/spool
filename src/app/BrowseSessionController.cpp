@@ -124,10 +124,18 @@ void BrowseSessionController::prefetchVisibleRange(int firstIndex, int lastIndex
         return;
     if (m_prefetch)
         m_prefetch->prefetchPosters(m_items.movies(), firstIndex, lastIndex - firstIndex + 1);
-    if (m_pageSize <= 0)
+    prefetchPageForIndex(lastIndex);
+}
+
+void BrowseSessionController::prefetchPageForIndex(int lastIndex)
+{
+    if (m_pageSize <= 0 || lastIndex < 0)
         return;
-    const int newestLoadedPageStart = std::max(0, m_nextStartIndex - m_pageSize);
-    if (lastIndex >= newestLoadedPageStart)
+    // Maintain one and a half pages ahead of the visible tail. Waiting until
+    // the highlight enters the newest page leaves too little network headroom
+    // for accelerated navigation and visibly stalls at the loaded boundary.
+    const int prefetchLead = m_pageSize + std::max(1, m_pageSize / 2);
+    if (lastIndex >= std::max(0, m_nextStartIndex - prefetchLead))
         prefetchNextPage();
 }
 

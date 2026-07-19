@@ -1018,7 +1018,7 @@ FocusScope {
                     root.updatePane()
                 }
                 onContentYChanged: {
-                    loadMoreDebounce.restart()
+                    requestPageIfNeeded()
                     artworkWindowDebounce.restart()
                     alphabetFeedback.restart()
                 }
@@ -1026,7 +1026,7 @@ FocusScope {
                     if (currentIndex >= 0)
                     root.savedIndex = currentIndex
                     alphabetFeedback.restart()
-                    loadMoreDebounce.restart()
+                    requestPageIfNeeded()
                     routeCheckpoint.restart()
                     root.schedulePaneUpdate()
                 }
@@ -1108,18 +1108,20 @@ FocusScope {
                     return index >= first && index <= last
                 }
 
-                Timer {
-                    id: loadMoreDebounce
-                    interval: 80
-                    repeat: false
-                    onTriggered: grid.requestMoreIfNeeded()
+                function requestPageIfNeeded() {
+                    if (count <= 0)
+                        return
+                    Browse.prefetchPageForIndex(Math.max(currentIndex, lastLikelyVisibleIndex()))
                 }
 
                 Timer {
                     id: artworkWindowDebounce
                     interval: 60
                     repeat: false
-                    onTriggered: grid.artworkWindowRevision++
+                    onTriggered: {
+                        grid.artworkWindowRevision++
+                        grid.requestMoreIfNeeded()
+                    }
                 }
 
                 Timer {

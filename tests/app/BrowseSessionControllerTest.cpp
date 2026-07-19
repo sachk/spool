@@ -132,9 +132,7 @@ int main()
     require(session.nextStartIndex() == 2, "second page advanced the next start index");
     require(session.hasMore(), "second page retained the remaining-page state");
     session.prefetchVisibleRange(0, 0);
-    require(moreRequests == 1, "remaining on the first page does not prefetch past the second page");
-    session.prefetchVisibleRange(1, 1);
-    require(moreRequests == 2, "entering the second page prefetches the third page");
+    require(moreRequests == 2, "third page is requested before entering the second page");
     session.setLoadingMore(true);
     session.prefetchVisibleRange(1, 1);
     require(moreRequests == 2, "rolling prefetch does not duplicate an active third-page request");
@@ -151,6 +149,30 @@ int main()
     require(!session.hasMore(), "final page stopped pagination");
     session.prefetchNextPage();
     require(moreRequests == 2, "hold prefetch stops after the final page");
+
+    PagedMovieItems largeFirstPage;
+    largeFirstPage.totalRecordCount = 300;
+    largeFirstPage.startIndex = 0;
+    largeFirstPage.limit = 100;
+    PagedMovieItems largeSecondPage = largeFirstPage;
+    largeSecondPage.startIndex = 100;
+    for (int index = 0; index < 100; ++index) {
+        largeFirstPage.items.push_back(
+            item(QStringLiteral("large-%1").arg(index), QStringLiteral("Movie"), QStringLiteral("Movie")));
+        largeSecondPage.items.push_back(
+            item(QStringLiteral("large-%1").arg(index + 100), QStringLiteral("Movie"), QStringLiteral("Movie")));
+    }
+    session.setPage(largeFirstPage, QStringLiteral("large-cache"), false);
+    session.setPage(largeSecondPage, QStringLiteral("large-cache"), true);
+    require(session.items()->count() == 200, "large second page appended without replacing loaded rows");
+    session.prefetchPageForIndex(49);
+    require(moreRequests == 2, "pagination waits until the configured headroom boundary");
+    session.prefetchPageForIndex(50);
+    require(moreRequests == 3, "pagination starts with one and a half pages of headroom");
+    session.setLoadingMore(true);
+    session.prefetchPageForIndex(150);
+    require(moreRequests == 3, "continuous page checks do not duplicate the active request");
+    session.setLoadingMore(false);
     MovieItem metadataItem = item(QStringLiteral("metadata"), QStringLiteral("Metadata"), QStringLiteral("Movie"));
     MediaStreamInfo undefinedAudio;
     undefinedAudio.type = QStringLiteral("Audio");
