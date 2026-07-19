@@ -128,6 +128,11 @@
       "videotoolbox-pl=enabled",
       "vulkan=disabled"
     ],
+    "webos": [
+      "alsa=enabled",
+      "wayland=enabled",
+      "starfish=enabled"
+    ],
     "windows": [
       "wasapi=enabled",
       "gl=enabled",

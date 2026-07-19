@@ -21,7 +21,11 @@ WEBOS_TOOLS_ROOT="${WEBOS_TOOLS_ROOT:-$ROOT/tools/webos-native}"
 source "$ROOT/tools/lib/build-common.sh"
 # shellcheck source=tools/webos-native/nixos-sdk-compat.sh
 source "$ROOT/tools/webos-native/nixos-sdk-compat.sh"
-PHASE="${1:-all}"
+
+if (( $# == 0 )); then
+  exec "$ROOT/tools/webos-native/build-webos.sh" all
+fi
+PHASE="$1"
 DO_BUILD=0
 DO_STAGE=0
 DO_PACKAGE=0
@@ -119,8 +123,8 @@ if [[ ! -f "$DOVI_TOOL_ROOT/dolby_vision/Cargo.toml" ]]; then
   exit 1
 fi
 
-if [[ ! -f "$PREFIX/lib/libcurl.a" ]]; then
-  echo "error: private static curl is missing from $PREFIX." >&2
+if [[ ! -e "$PREFIX/lib/libcurl.so" ]]; then
+  echo "error: private shared curl is missing from $PREFIX." >&2
   echo "       Run: bash $WEBOS_TOOLS_ROOT/build-curl.sh build" >&2
   exit 1
 fi
@@ -188,52 +192,11 @@ ar = '$GCC_AR_BIN'
 ranlib = '$GCC_RANLIB_BIN'
 EOF
 
+native_mpv_args /usr/local release webos
 MPV_SETUP_ARGS=(
   --cross-file "$WEBOS_CROSS_FILE"
   --cross-file "$MPV_LTO_CROSS_FILE"
-  --prefix /usr/local
-  --libdir lib
-  --buildtype release
-  -Db_lto=true
-  -Dcplayer=false
-  -Dlibmpv=true
-  -Dlibcurl=enabled
-  -Dtests=false
-  -Dfuzzers=false
-  -Dmanpage-build=disabled
-  -Dhtml-build=disabled
-  -Dpdf-build=disabled
-  -Djavascript=disabled
-  -Dlua=enabled
-  -Dcplugins=disabled
-  -Dlibarchive=disabled
-  -Dlibavdevice=disabled
-  -Ddvdnav=disabled
-  -Dlibbluray=disabled
-  -Dcdda=disabled
-  -Ddvbin=disabled
-  -Drubberband=disabled
-  -Duchardet=disabled
-  -Dvapoursynth=disabled
-  -Dzimg=disabled
-  -Djack=disabled
-  -Dalsa=enabled
-  -Doss-audio=disabled
-  -Dpipewire=disabled
-  -Dpulse=disabled
-  -Dsdl2-gamepad=disabled
-  -Dsdl2-video=disabled
-  -Dx11=disabled
-  -Dwayland=enabled
-  -Dgl=enabled
-  -Dplain-gl=enabled
-  -Dvulkan=disabled
-  -Dshaderc=disabled
-  -Dspirv-cross=disabled
-  -Djpeg=disabled
-  -Dlcms2=disabled
-  -Dzlib=enabled
-  -Dstarfish=enabled
+  "${MPV_NATIVE_ARGS[@]}"
   "-Dc_link_args=-L$(dirname "$DOVI_LIB") -ldovi $MPV_PGO_FLAGS"
   "-Dcpp_link_args=-L$(dirname "$DOVI_LIB") -ldovi $MPV_PGO_FLAGS"
   # Explicit c_args/cpp_args: meson --reconfigure does not re-read CFLAGS env,
@@ -241,6 +204,11 @@ MPV_SETUP_ARGS=(
   "-Dc_args=$WEBOS_TUNE_CFLAGS_EXPANDED $HEAPTRACK_UNWIND_FLAGS $MPV_PGO_FLAGS"
   "-Dcpp_args=$WEBOS_TUNE_CFLAGS_EXPANDED $HEAPTRACK_UNWIND_FLAGS $MPV_PGO_FLAGS"
 )
+
+if [[ -f "$MPV_BUILD/build.ninja" ]] && grep -Fq "$PREFIX/lib/libcurl.a" "$MPV_BUILD/build.ninja"; then
+  echo "Removing mpv build cache tied to obsolete static curl"
+  rm -rf "$MPV_BUILD"
+fi
 
 if [[ -f "$MPV_BUILD/build.ninja" ]]; then
   meson setup --reconfigure "$MPV_BUILD" "$MPV_SRC" "${MPV_SETUP_ARGS[@]}"
@@ -257,7 +225,7 @@ fi
 
 cmake -S "$ROOT" -B "$CMAKE_BUILD_DIR" -GNinja \
   --fresh \
-  -DCMAKE_BUILD_TYPE=Release \
+  -DCMAKE_BUILD_TYPE=MinSizeRel \
   -DBUILD_SHARED_LIBS=OFF \
   -DCMAKE_INTERPROCEDURAL_OPTIMIZATION=ON \
   -DCMAKE_TOOLCHAIN_FILE="$WEBOS_TOOLS_ROOT/qt6-webos-toolchain.cmake" \
@@ -283,8 +251,8 @@ cp -f "$APP_SOURCE_DIR/icon.png" "$APP_DIR/icon.png"
 cp -f "$APP_SOURCE_DIR/splash.png" "$APP_DIR/splash.png"
 mkdir -p "$APP_DIR/notices"
 cp -f "$ROOT/app/notices/OPEN_SOURCE_NOTICES.txt" "$ROOT/LICENSE" \
-  "$ROOT/qml/fonts/Inter-LICENSE.txt" "$ROOT/qml/fonts/MaterialIcons-LICENSE.txt" \
-  "$ROOT/qml/fonts/SourceSerif4-LICENSE.md" "$APP_DIR/notices/"
+  "$ROOT/qml/fonts/IBMPlexSans-LICENSE.txt" "$ROOT/qml/fonts/MaterialIcons-LICENSE.txt" \
+  "$APP_DIR/notices/"
 PATCHELF_BIN="$(command -v patchelf)"
 
 [[ -x "$INSTALL_DIR/bin/jellyfin-native" ]] || {
@@ -293,30 +261,27 @@ PATCHELF_BIN="$(command -v patchelf)"
 }
 cp -f "$INSTALL_DIR/bin/jellyfin-native" "$STAGE_BIN/jellyfin-native"
 
-# mpv + ffmpeg shared libs are always needed (not statically linked). Stage
+# mpv, curl, FFmpeg, and OpenSSL shared libraries are always needed. Stage
 # their real files and derive compatibility symlinks from each ELF SONAME so
 # patch-level dependency upgrades do not require edits here.
 MPV_STAGED_LIBRARY="$(stage_elf_shared_library \
   "$MPV_BUILD/libmpv.so.*" "$STAGE_LIB" "$READELF_BIN")"
+CURL_STAGED_LIBRARY="$(stage_elf_shared_library \
+  "$PREFIX/lib/libcurl.so.*" "$STAGE_LIB" "$READELF_BIN")"
 
-# The Starfish build owns its HTTP/TLS stack. A dynamic dependency here would
-# silently bind to arbitrary firmware ABIs and recreate playback-start crashes.
-MPV_DYNAMIC_SECTION="$("$READELF_BIN" -d "$MPV_STAGED_LIBRARY")"
-for network_library in libcurl libssl libcrypto; do
-  if [[ "$MPV_DYNAMIC_SECTION" == *"[$network_library.so"* ]]; then
-    echo "error: libmpv unexpectedly depends on firmware $network_library" >&2
-    exit 1
-  fi
-done
 
 FFMPEG_STAGED_LIBRARY="$(stage_elf_shared_library \
   "$PREFIX/lib/libavcodec.so.*" "$STAGE_LIB" "$READELF_BIN")"
+AVFORMAT_STAGED_LIBRARY="$(stage_elf_shared_library \
+  "$PREFIX/lib/libavformat.so.*" "$STAGE_LIB" "$READELF_BIN")"
+OPENSSL_STAGED_LIBRARY="$(stage_elf_shared_library \
+  "$SYSROOT/usr/lib/libssl.so.*" "$STAGE_LIB" "$READELF_BIN")"
+OPENSSL_CRYPTO_STAGED_LIBRARY="$(stage_elf_shared_library \
+  "$SYSROOT/usr/lib/libcrypto.so.*" "$STAGE_LIB" "$READELF_BIN")"
 
 for pattern in \
   "$PREFIX/lib/libavfilter.so.*" \
-  "$PREFIX/lib/libavformat.so.*" \
   "$PREFIX/lib/libavutil.so.*" \
-  "$PREFIX/lib/liblua5.2.so.*" \
   "$PREFIX/lib/libswresample.so.*" \
   "$PREFIX/lib/libswscale.so.*" \
   "$SYSROOT/usr/lib/libAcbAPI.so.*" \
@@ -329,8 +294,29 @@ do
   stage_elf_shared_library "$pattern" "$STAGE_LIB" "$READELF_BIN" >/dev/null
 done
 
-# patchelf on mpv (always needed)
+for tls_consumer in "$STAGE_BIN/jellyfin-native" "$CURL_STAGED_LIBRARY"; do
+  TLS_DYNAMIC_SECTION="$("$READELF_BIN" -d "$tls_consumer")"
+  if [[ "$TLS_DYNAMIC_SECTION" != *"[libssl.so"* && "$TLS_DYNAMIC_SECTION" != *"[libcrypto.so"* ]]; then
+    echo "error: $(basename "$tls_consumer") does not use the packaged shared OpenSSL build" >&2
+    exit 1
+  fi
+done
+MPV_DYNAMIC_SECTION="$("$READELF_BIN" -d "$MPV_STAGED_LIBRARY")"
+if [[ "$MPV_DYNAMIC_SECTION" != *"[libcurl.so"* ]]; then
+  echo "error: $(basename "$MPV_STAGED_LIBRARY") does not use packaged shared curl" >&2
+  exit 1
+fi
+AVFORMAT_DYNAMIC_SECTION="$("$READELF_BIN" -d "$AVFORMAT_STAGED_LIBRARY")"
+if [[ "$AVFORMAT_DYNAMIC_SECTION" == *"[libssl.so"* || "$AVFORMAT_DYNAMIC_SECTION" == *"[libcrypto.so"* ]]; then
+  echo "error: $(basename "$AVFORMAT_STAGED_LIBRARY") unexpectedly retains a TLS dependency" >&2
+  exit 1
+fi
+
+# Keep every private dependency rooted in the package instead of binding to
+# firmware libraries with the same SONAME.
 "$PATCHELF_BIN" --force-rpath --set-rpath '$ORIGIN' "$MPV_STAGED_LIBRARY"
+"$PATCHELF_BIN" --force-rpath --set-rpath '$ORIGIN' "$CURL_STAGED_LIBRARY"
+"$PATCHELF_BIN" --force-rpath --set-rpath '$ORIGIN' "$AVFORMAT_STAGED_LIBRARY"
 "$PATCHELF_BIN" --force-rpath --set-rpath '$ORIGIN/../lib' "$STAGE_BIN/jellyfin-native"
 
 "$ROOT/tools/webos-native/audit-arm-binaries.sh" \
@@ -338,7 +324,8 @@ done
   "$QT6_PREFIX/lib/libQt6Core.a"
 "$ROOT/tools/webos-native/audit-arm-binaries.sh" \
   "$READELF_BIN" "$OBJDUMP_BIN" --thumb \
-  "$STAGE_BIN/jellyfin-native" "$MPV_STAGED_LIBRARY" "$FFMPEG_STAGED_LIBRARY"
+  "$STAGE_BIN/jellyfin-native" "$MPV_STAGED_LIBRARY" "$CURL_STAGED_LIBRARY" \
+  "$FFMPEG_STAGED_LIBRARY" "$AVFORMAT_STAGED_LIBRARY"
 
 # strip binary to reduce size
 "$STRIP_BIN" --strip-unneeded "$STAGE_BIN/jellyfin-native"
@@ -380,7 +367,9 @@ if [[ -f "$STAGE_BIN/jellyfin-native.real" ]]; then
 fi
 "$ROOT/tools/webos-native/audit-arm-binaries.sh" \
   "$READELF_BIN" "$OBJDUMP_BIN" --stripped \
-  "$APP_AUDIT_BINARY" "$MPV_STAGED_LIBRARY" "$FFMPEG_STAGED_LIBRARY"
+  "$APP_AUDIT_BINARY" "$MPV_STAGED_LIBRARY" "$CURL_STAGED_LIBRARY" \
+  "$FFMPEG_STAGED_LIBRARY" "$AVFORMAT_STAGED_LIBRARY" "$OPENSSL_STAGED_LIBRARY" \
+  "$OPENSSL_CRYPTO_STAGED_LIBRARY"
 python3 "$ROOT/tools/ffmpeg-capabilities.py" \
   --manifest "$FFMPEG_CAPABILITY_MANIFEST" audit-closure "$STAGE_LIB"
 fi

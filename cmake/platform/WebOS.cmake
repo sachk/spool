@@ -52,7 +52,6 @@ function(jellyfin_resolve_webos_dependencies)
     set(AVFILTER_LIB "${WEBOS_NATIVE_LIB_DIR}/libavfilter.so")
     set(AVFORMAT_LIB "${WEBOS_NATIVE_LIB_DIR}/libavformat.so")
     set(AVUTIL_LIB "${WEBOS_NATIVE_LIB_DIR}/libavutil.so")
-    set(LUA_LIB "${WEBOS_NATIVE_LIB_DIR}/liblua5.2.so")
     set(SWRESAMPLE_LIB "${WEBOS_NATIVE_LIB_DIR}/libswresample.so")
     set(SWSCALE_LIB "${WEBOS_NATIVE_LIB_DIR}/libswscale.so")
     set(MPV_LIB "${MPV_WEBOS_BUILD_DIR}/libmpv.so")
@@ -64,7 +63,6 @@ function(jellyfin_resolve_webos_dependencies)
             AVFILTER_LIB
             AVFORMAT_LIB
             AVUTIL_LIB
-            LUA_LIB
             SWRESAMPLE_LIB
             SWSCALE_LIB)
         if(NOT EXISTS "${${required_lib}}")
@@ -141,7 +139,6 @@ function(jellyfin_configure_webos_targets native_target core_target)
         PkgConfig::GLIB
         Qt6::GuiPrivate
         Qt6::WaylandClient
-        Qt6::Svg
         ${EGL_LIB}
         ${GLES2_LIB}
         ${WAYLAND_EGL_LIB}
@@ -171,6 +168,5 @@ function(jellyfin_import_static_webos_plugins native_target)
             Qt6::QSQLiteDriverPlugin
             Qt6::QJpegPlugin
             Qt6::QWebpPlugin
-            Qt6::QSvgPlugin
     )
 endfunction()

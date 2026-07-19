@@ -221,16 +221,10 @@
     },
     "webos": {
       "configureFlags": [
-        "--enable-network",
-        "--enable-openssl"
+        "--disable-network"
       ],
       "hardwareAccelerators": [],
-      "protocols": [
-        "http",
-        "https",
-        "tcp",
-        "tls"
-      ]
+      "protocols": []
     },
     "windows": {
       "configureFlags": [

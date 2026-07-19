@@ -32,19 +32,21 @@ fi
 
 ensure_webos_sdk_host_tools "$SDK_ROOT"
 rm -rf "$BUILD_DIR"
+rm -f "$PREFIX/lib/libcurl.a" "$PREFIX/lib/libcurl.so"*
 
 cmake -S "$SRC_DIR" -B "$BUILD_DIR" -GNinja \
   -DCMAKE_TOOLCHAIN_FILE="$TOOLCHAIN_FILE" \
   -DCMAKE_BUILD_TYPE=MinSizeRel \
   -DCMAKE_INSTALL_PREFIX="$TARGET_PREFIX" \
   -DCMAKE_POSITION_INDEPENDENT_CODE=ON \
+  -DOPENSSL_USE_STATIC_LIBS=OFF \
   -DCMAKE_C_FLAGS="$(webos_tune_cflags)" \
   -DBUILD_CURL_EXE=OFF \
   -DBUILD_LIBCURL_DOCS=OFF \
   -DBUILD_MISC_DOCS=OFF \
   -DBUILD_EXAMPLES=OFF \
-  -DBUILD_SHARED_LIBS=OFF \
-  -DBUILD_STATIC_LIBS=ON \
+  -DBUILD_SHARED_LIBS=ON \
+  -DBUILD_STATIC_LIBS=OFF \
   -DBUILD_TESTING=OFF \
   -DCURL_BROTLI=OFF \
   -DCURL_DISABLE_ALTSVC=ON \
@@ -84,13 +86,13 @@ cmake -S "$SRC_DIR" -B "$BUILD_DIR" -GNinja \
 cmake --build "$BUILD_DIR" --parallel "$(recommended_parallel_jobs 512 1024)"
 DESTDIR="$SYSROOT" cmake --install "$BUILD_DIR"
 
-[[ -f "$PREFIX/lib/libcurl.a" ]] || {
-  echo "error: static curl install missing at $PREFIX/lib/libcurl.a" >&2
+[[ -e "$PREFIX/lib/libcurl.so" ]] || {
+  echo "error: shared curl install missing at $PREFIX/lib/libcurl.so" >&2
   exit 1
 }
-[[ ! -e "$PREFIX/lib/libcurl.so" ]] || {
-  echo "error: private curl build unexpectedly installed a shared library" >&2
+[[ ! -e "$PREFIX/lib/libcurl.a" ]] || {
+  echo "error: private curl build unexpectedly installed a static library" >&2
   exit 1
 }
 
-printf '\nInstalled private static curl into %s\n' "$PREFIX"
+printf '\nInstalled private shared curl into %s\n' "$PREFIX"

@@ -25,7 +25,6 @@ run_phase() {
       "$ROOT/tools/webos-native/build-curl.sh" fetch
       "$ROOT/tools/webos-native/build-qcoro.sh" fetch
       fetch_archive ffmpeg ffmpeg-8.1.tar.xz
-      fetch_archive lua lua-5.2.4.tar.gz
       ;;
     qt-host)
       "$ROOT/tools/webos-native/build-qt6-611.sh" host
@@ -37,7 +36,6 @@ run_phase() {
       "$ROOT/tools/webos-native/build-third-party.sh" build
       "$ROOT/tools/webos-native/build-curl.sh" build
       QT_STATIC="${QT_STATIC:-1}" "$ROOT/tools/webos-native/build-qcoro.sh" build
-      "$ROOT/tools/webos-native/build-lua.sh"
       "$ROOT/tools/webos-native/build-ffmpeg.sh"
       ;;
     app|stage|package)
