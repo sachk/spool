@@ -103,20 +103,18 @@ TestCase {
         verify(grid.routeKey(Qt.Key_Down, "release", false))
     }
 
-    function test_slowUnmarkedPressesRemainSingleSteps() {
-        verify(grid.routeKey(Qt.Key_Down, "press", false))
-        compare(grid.currentIndex, 4)
-        fakeNow += 500
-        verify(grid.routeKey(Qt.Key_Down, "press", false))
-        compare(grid.currentIndex, 8)
-        compare(grid.holdRepeatSeen, false)
-        fakeNow += 500
-        verify(grid.routeKey(Qt.Key_Down, "press", false))
-        compare(grid.currentIndex, 12)
-        compare(grid.holdRepeatSeen, false)
-        fakeNow += 100
+    function test_tenUnmarkedPressesPerSecondRemainSingleSteps() {
+        modelSize = 250
+        for (let press = 1; press <= 10; ++press) {
+            verify(grid.routeKey(Qt.Key_Down, "press", false))
+            compare(grid.currentIndex, press * 4)
+            compare(grid.holdRepeatSeen, false)
+            fakeNow += 100
+        }
+        fakeNow += grid.holdDelay
         grid.accelerate()
-        compare(grid.currentIndex, 12)
+        compare(grid.currentIndex, 40)
+        compare(holdStartedSpy.count, 0)
         verify(grid.routeKey(Qt.Key_Down, "release", false))
     }
 
@@ -189,28 +187,6 @@ TestCase {
         fakeNow += 50
         grid.accelerate()
         compare(grid.currentIndex, 16)
-        verify(grid.routeKey(Qt.Key_Down, "release", false))
-    }
-
-    function test_unmarkedRepeatCadenceConfirmsHold() {
-        modelSize = 250
-        grid.currentIndex = 0
-        verify(grid.routeKey(Qt.Key_Down, "press", false))
-        compare(grid.currentIndex, 4)
-        fakeNow += 500
-        verify(grid.routeKey(Qt.Key_Down, "press", false))
-        compare(grid.currentIndex, 8)
-        compare(grid.holdRepeatSeen, false)
-        fakeNow += 100
-        verify(grid.routeKey(Qt.Key_Down, "press", false))
-        compare(grid.currentIndex, 12)
-        compare(grid.heldKey, Qt.Key_Down)
-        compare(grid.holdRepeatSeen, true)
-        compare(holdStartedSpy.count, 1)
-        fakeNow += 100
-        verify(grid.routeKey(Qt.Key_Down, "press", false))
-        compare(grid.currentIndex, 12)
-        compare(holdStartedSpy.count, 1)
         verify(grid.routeKey(Qt.Key_Down, "release", false))
     }
 

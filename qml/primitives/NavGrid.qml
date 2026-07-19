@@ -16,8 +16,6 @@ GridView {
     property int holdReleaseTimeout: 220
     property int holdInitialReleaseTimeout: 800
     property bool holdRepeatSeen: false
-    property double unmarkedRepeatCandidateAt: -1
-    readonly property int unmarkedRepeatConfirmationTimeout: 300
     property int holdDelay: 500
     property int holdCruiseDuration: 700
     property int holdRampDuration: 1700
@@ -58,7 +56,6 @@ GridView {
         holdReleaseWatchdog.stop()
         heldKey = 0
         holdRepeatSeen = false
-        unmarkedRepeatCandidateAt = -1
         holdAccumulator = 0
         stepDurationMs = singleStepDurationMs
     }
@@ -72,7 +69,6 @@ GridView {
         holdStartedAt = nowMs()
         lastHoldTickAt = holdStartedAt
         holdRepeatSeen = false
-        unmarkedRepeatCandidateAt = -1
         holdAccumulator = 0
         holdTimer.start()
         holdReleaseWatchdog.restart()
@@ -81,7 +77,6 @@ GridView {
     function confirmHold() {
         if (!holdRepeatSeen) {
             holdRepeatSeen = true
-            unmarkedRepeatCandidateAt = -1
             lastHoldTickAt = nowMs()
             holdStarted(heldKey)
         }
@@ -144,24 +139,16 @@ GridView {
         if (!directional)
             return false
         if (key === heldKey) {
-            // Every slow unmarked press remains a discrete one-step click.
-            // Only marked auto-repeat or two unmarked presses at actual repeat
-            // cadence turn the armed key into a continuously moving hold.
-            if (holdRepeatSeen) {
-                confirmHold()
-            } else if (repeat) {
-                moveBy(heldDelta())
+            // Only the platform's explicit auto-repeat flag can confirm a
+            // hold. Unmarked presses are always independent one-step clicks,
+            // regardless of their cadence.
+            if (repeat) {
+                if (!holdRepeatSeen)
+                    moveBy(heldDelta())
                 confirmHold()
             } else {
-                const now = nowMs()
+                beginAccelerating(key)
                 moveBy(heldDelta())
-                if (unmarkedRepeatCandidateAt >= 0 && now - unmarkedRepeatCandidateAt
-                        <= unmarkedRepeatConfirmationTimeout) {
-                    confirmHold()
-                } else {
-                    unmarkedRepeatCandidateAt = now
-                    holdReleaseWatchdog.restart()
-                }
             }
             return true
         }
