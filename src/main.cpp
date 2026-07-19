@@ -524,19 +524,14 @@ int main(int argc, char **argv)
         return 0;
     }
 
-    // Match the pre-splash lifecycle: publish the transparent Qt surface only
-    // after its QML tree is complete, then let webOS perform the fullscreen
-    // handoff from the first event-loop turn.
-    JellyfinNative::showPlatformWindow(window);
     QTimer::singleShot(1000, router.get(), [router = router.get()] { router->beginSession(false); });
 
-    QTimer::singleShot(0, &window, [&window, &startupTimer]() {
-        logLine(
-            "startup: event loop entered, first-frame path at %lld ms", static_cast<long long>(startupTimer.elapsed()));
+    QTimer::singleShot(0, &window, [&startupTimer]() {
+        logLine("startup: first event-loop turn at %lld ms", static_cast<long long>(startupTimer.elapsed()));
         JellyfinNative::Diagnostics::setInstanceState(QStringLiteral("running"));
-        JellyfinNative::enterPlatformRunningState(window);
     });
 
+    logLine("startup: entering event loop at %lld ms", static_cast<long long>(startupTimer.elapsed()));
     const int exitCode = app.exec();
     logLine("app.exec returned: %d", exitCode);
     JellyfinNative::Diagnostics::setInstanceState(
