@@ -77,7 +77,6 @@ TestCase {
         modelSize = 100
         grid.currentIndex = 0
         grid.reducedMotion = false
-        grid.acceptUnmarkedHoldRepeats = false
         fakeNow = 1000
         grid.holdTraversalSeconds = 5
         holdStartedSpy.clear()
@@ -104,7 +103,7 @@ TestCase {
         verify(grid.routeKey(Qt.Key_Down, "release", false))
     }
 
-    function test_desktopUnmarkedDuplicateCannotConfirmHold() {
+    function test_singleUnmarkedDuplicateCannotConfirmHold() {
         verify(grid.routeKey(Qt.Key_Down, "press", false))
         compare(grid.currentIndex, 4)
         fakeNow += grid.holdDelay
@@ -189,13 +188,16 @@ TestCase {
         verify(grid.routeKey(Qt.Key_Down, "release", false))
     }
 
-    function test_webOsStyleUnmarkedRepeatConfirmsHold() {
+    function test_unmarkedRepeatCadenceConfirmsHold() {
         modelSize = 250
         grid.currentIndex = 0
-        grid.acceptUnmarkedHoldRepeats = true
         verify(grid.routeKey(Qt.Key_Down, "press", false))
         compare(grid.currentIndex, 4)
         fakeNow += 500
+        verify(grid.routeKey(Qt.Key_Down, "press", false))
+        compare(grid.currentIndex, 4)
+        compare(grid.holdRepeatSeen, false)
+        fakeNow += 100
         verify(grid.routeKey(Qt.Key_Down, "press", false))
         compare(grid.currentIndex, 8)
         compare(grid.heldKey, Qt.Key_Down)

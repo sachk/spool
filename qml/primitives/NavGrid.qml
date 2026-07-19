@@ -16,7 +16,7 @@ GridView {
     property int holdReleaseTimeout: 220
     property int holdInitialReleaseTimeout: 800
     property bool holdRepeatSeen: false
-    property bool acceptUnmarkedHoldRepeats: false
+    property double unmarkedRepeatCandidateAt: -1
     property int holdDelay: 500
     property int holdCruiseDuration: 700
     property int holdRampDuration: 1700
@@ -57,6 +57,7 @@ GridView {
         holdReleaseWatchdog.stop()
         heldKey = 0
         holdRepeatSeen = false
+        unmarkedRepeatCandidateAt = -1
         holdAccumulator = 0
         stepDurationMs = singleStepDurationMs
     }
@@ -70,6 +71,7 @@ GridView {
         holdStartedAt = nowMs()
         lastHoldTickAt = holdStartedAt
         holdRepeatSeen = false
+        unmarkedRepeatCandidateAt = -1
         holdAccumulator = 0
         holdTimer.start()
         holdReleaseWatchdog.restart()
@@ -78,6 +80,7 @@ GridView {
     function confirmHold(moveImmediately) {
         if (!holdRepeatSeen) {
             holdRepeatSeen = true
+            unmarkedRepeatCandidateAt = -1
             lastHoldTickAt = nowMs()
             if (moveImmediately)
                 moveBy(heldDelta())
@@ -142,11 +145,19 @@ GridView {
         if (!directional)
             return false
         if (key === heldKey) {
-            // webOS can repeat a held remote key without marking the event as
-            // auto-repeat. Desktop keyboard holds must use Qt's repeat flag:
-            // an unmarked duplicate may be a stale event after key release.
-            if (repeat || acceptUnmarkedHoldRepeats)
+            // A marked repeat confirms immediately. For unmarked repeat
+            // streams, require two presses at repeat cadence: one delayed
+            // duplicate after a click must never start acceleration.
+            if (repeat || holdRepeatSeen) {
                 confirmHold(true)
+            } else {
+                const now = nowMs()
+                if (unmarkedRepeatCandidateAt >= 0 && now - unmarkedRepeatCandidateAt <= holdReleaseTimeout) {
+                    confirmHold(true)
+                } else {
+                    unmarkedRepeatCandidateAt = now
+                }
+            }
             return true
         }
         if (heldKey)

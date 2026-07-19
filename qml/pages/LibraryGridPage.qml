@@ -987,7 +987,6 @@ FocusScope {
                                                                          12
                 readonly property int focusPadding: Math.max(2, Metrics.scaled(2))
                 holdTraversalSeconds: root.listMode && count > 200 ? 3.5 : 5
-                acceptUnmarkedHoldRepeats: Platform.isTV
                 Layout.fillWidth: true
                 Layout.fillHeight: true
                 focus: true
