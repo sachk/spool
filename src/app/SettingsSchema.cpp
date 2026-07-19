@@ -21,12 +21,13 @@ namespace {
     constexpr SettingChoice kTextRenderModeChoices[] = { { "0", "Qt" }, { "1", "Curve" } };
     constexpr SettingChoice kTechnicalMetadataChoices[]
         = { { "Always", "Always" }, { "On details only", "On details only" }, { "Hidden", "Hidden" } };
-    constexpr SettingChoice kSubtitleModeChoices[]
-        = { { "Default", "Default - use embedded Default and Forced flags; preferred language breaks ties" },
-              { "Smart", "Smart - show the preferred language when selected audio uses another language" },
-              { "OnlyForced", "Only forced - show only tracks marked Forced" },
-              { "Always", "Always - show the preferred subtitle language regardless of audio language" },
-              { "None", "None - do not select subtitles automatically" } };
+    // "%1" is replaced with the user's preferred-language name when shown.
+    constexpr SettingChoice kSubtitleModeChoices[] = { { "Default", "Default (follow the file's flags)" },
+        { "Smart", "Smart (%1 when audio is another language)" }, { "OnlyForced", "Only forced" },
+        { "Always", "Always (%1 when available)" }, { "None", "Off" } };
+    constexpr SettingChoice kAudioTrackModeChoices[]
+        = { { "Default", "Default (the file's default track)" }, { "Smart", "Smart (%1 when available)" } };
+    constexpr SettingChoice kLibraryViewChoices[] = { { "Posters", "Posters" }, { "List", "List" } };
     constexpr SettingChoice kSubtitleStylingChoices[]
         = { { "Auto", "Automatic - respect ASS/SSA styles and style plain text" },
               { "Native", "Respect embedded styles" }, { "Custom", "Override with my style" } };
@@ -192,6 +193,10 @@ const QVector<SettingSpec>& settingSpecs()
             "Show warnings when input processing exceeds the threshold", SettingType::Toggle, SettingLevel::Expert),
         externalSpec("action/clearLatencyStatistics", "Diagnostics", "Clear Latency Statistics",
             "Erase the current in-memory latency samples", SettingType::Action, SettingLevel::Expert),
+        { "appearance/libraryView", "Appearance", "Library Layout", "Browse libraries as a poster grid or a title list",
+            SettingType::Select, "Posters", kLibraryViewChoices, countOf(kLibraryViewChoices), 0, 0, 1, 0, "", 0, 0,
+            SettingTarget::LibraryView, SettingNormalizer::Choice, true, true, SettingLevel::Essential,
+            SettingPlatform::All, "view_list" },
         { "appearance/uiScalePercent", "Appearance", "UI Scale",
             "Scale text, controls, spacing, cards, rows, and grids", SettingType::Slider, "115", nullptr, 0, 80, 180, 5,
             0, "%", 86, 300, SettingTarget::UiScale, SettingNormalizer::IntRange, true, false },
@@ -222,6 +227,10 @@ const QVector<SettingSpec>& settingSpecs()
             "Memory reserved for upcoming media; takes effect on the next playback", SettingType::Slider, "32", nullptr,
             0, 16, 4096, 1, 0, "MB", 100, 340, SettingTarget::ForwardCacheSize, SettingNormalizer::IntRange, true,
             false, SettingLevel::Advanced },
+        { "audio/trackMode", "Playback", "Audio Track", "Choose which audio track plays automatically",
+            SettingType::Select, "Default", kAudioTrackModeChoices, countOf(kAudioTrackModeChoices), 0, 0, 1, 0, "", 0,
+            0, SettingTarget::AudioTrackMode, SettingNormalizer::Choice, true, true, SettingLevel::Essential,
+            SettingPlatform::All, "graphic_eq" },
         { "settings/audioOutputMode", "Playback", "Audio Output",
             "Automatic lets mpv choose the first available platform output; takes effect on the next playback",
             SettingType::Select, audioOutput.defaultValue, audioOutput.choices, audioOutput.choiceCount, 0, 0, 1, 0, "",

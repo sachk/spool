@@ -89,7 +89,9 @@ void requiredPersistedKeysArePresentExactlyOnce()
 {
     const QStringList expectedKeys {
         QStringLiteral("settings/detailLevel"),
+        QStringLiteral("appearance/libraryView"),
         QStringLiteral("appearance/uiScalePercent"),
+        QStringLiteral("audio/trackMode"),
         QStringLiteral("settings/nightMode"),
         QStringLiteral("playback/manualStreamingBitrate"),
         QStringLiteral("playback/maxStreamingBitrateMbps"),
@@ -307,10 +309,16 @@ void subtitleChoicesExplainTheirBehavior()
     const QString smartLabel = choiceLabel(subtitleMode, QStringLiteral("Smart"));
     require(smartLabel.contains(QStringLiteral("another language")),
         QStringLiteral("Smart subtitle mode should explain the audio-language condition"));
+    require(smartLabel.contains(QStringLiteral("%1")),
+        QStringLiteral("Smart subtitle mode should carry the preferred-language placeholder"));
+
+    const SettingSpec& audioTrackMode = requiredSpec(QStringLiteral("audio/trackMode"));
+    require(choiceLabel(audioTrackMode, QStringLiteral("Smart")).contains(QStringLiteral("%1")),
+        QStringLiteral("Smart audio mode should carry the preferred-language placeholder"));
 
     for (const QString& value : choiceValues(subtitleMode)) {
-        require(choiceLabel(subtitleMode, value).contains(QStringLiteral(" - ")),
-            QStringLiteral("subtitle mode %1 should include a behavior explanation").arg(value));
+        require(!choiceLabel(subtitleMode, value).isEmpty(),
+            QStringLiteral("subtitle mode %1 should have a label").arg(value));
     }
     const QVariantMap dimInHdr = schemaRow(QStringLiteral("subtitles/dimInHdr"));
     require(dimInHdr.value(QStringLiteral("requiresHdrPlayback")).toBool(),

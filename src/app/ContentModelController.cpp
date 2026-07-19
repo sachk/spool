@@ -21,6 +21,11 @@ ContentModelController::ContentModelController(
 {
 }
 
+QVariantMap ContentModelController::detailMediaInfo(const QString& preferredAudioLanguage) const
+{
+    return formatMediaInfo(m_detailItem, preferredAudioLanguage);
+}
+
 QVariantList ContentModelController::personItemRows() const
 {
     QVariantList rows;

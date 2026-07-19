@@ -6,6 +6,7 @@
 #include <QObject>
 #include <QString>
 #include <QVariantList>
+#include <QVariantMap>
 
 #include <memory>
 #include <vector>
@@ -67,6 +68,7 @@ public:
         const QString& itemId, const QString& itemType, const QString& seriesId = {}, const QString& seasonId = {});
     Q_INVOKABLE void loadItemDetail(const QString& itemId);
     Q_INVOKABLE void loadPersonItems(const QString& personId);
+    Q_INVOKABLE QVariantMap detailMediaInfo(const QString& preferredAudioLanguage) const;
     Q_INVOKABLE void prepareLinkedItem(const QString& itemId, const QString& title, const QString& itemType,
         const QString& seriesId = {}, const QString& seriesName = {}, const QString& seasonId = {});
     void updateResumeTicks(const QString& itemId, qint64 positionTicks);

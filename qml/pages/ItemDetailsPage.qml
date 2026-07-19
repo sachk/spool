@@ -46,9 +46,17 @@ FocusScope {
     readonly property int rowLandscapeWidth: Math.round(rowPosterWidth * 1.75)
     readonly property int rowGap: Math.max(14, Metrics.gapPx)
     readonly property bool compactEpisodicDetail: typeText === "Season" || typeText === "Episode"
+    readonly property bool smallZoom: Metrics.uiScalePercent <= 100
     readonly property string backgroundArt: Art.url(item, "backdrop", Math.ceil(width))
-    readonly property string stillArt: Art.url(item, "landscape", Math.ceil(rowLandscapeWidth))
+    readonly property int sideArtWidth: Math.min(Math.round(width * 0.38), 1100)
+    readonly property string stillArt: Art.url(item, "landscape", Math.ceil(sideArtWidth))
     readonly property bool showSideArt: width >= 1120 && Metrics.uiScale < 1.45 && stillArt.length > 0
+    readonly property var technicalInfo: {
+        if (!fullDetailItem.movieId || (typeText !== "Movie" && typeText !== "Series"))
+        return null
+        const smart = String(Settings.values["audio/trackMode"] || "Default") === "Smart"
+        return Content.detailMediaInfo(smart ? String(Settings.values["subtitles/language"] || "") : "")
+    }
     readonly property real copyWidth: showSideArt ? Math.min(width * 0.56, 940) : width - contentMargin * 2
     readonly property bool loadingDetailRows: Content.detailRowsBusy
     readonly property int contextCount: Content.detailSeasons ? Content.detailSeasons.count : 0
@@ -1132,6 +1140,7 @@ FocusScope {
     Flickable {
         id: detailsFlick
         anchors.fill: parent
+        anchors.bottomMargin: technicalInfoBar.visible ? technicalInfoBar.height : 0
         contentWidth: width
         contentHeight: Math.max(height, contentColumn.implicitHeight + root.contentMargin)
         clip: true
@@ -1166,9 +1175,10 @@ FocusScope {
                     anchors.left: parent.left
                     anchors.top: parent.top
                     anchors.leftMargin: root.contentMargin
-                    anchors.topMargin: root.compactEpisodicDetail ? Math.max(16, root.height * 0.022) : Math.max(30,
-                                                                                                                 root.height
-                                                                                                                 * 0.05)
+                    anchors.topMargin: root.compactEpisodicDetail ? Math.max(root.smallZoom ? 16 : 12, root.height * (
+                                                                                 root.smallZoom ? 0.02 : 0.016)) :
+                                                                    Math.max(root.smallZoom ? 28 : 22, root.height * (
+                                                                                 root.smallZoom ? 0.038 : 0.032))
                     width: root.copyWidth
                     spacing: root.compactEpisodicDetail ? 8 : 14
 
@@ -1295,10 +1305,10 @@ FocusScope {
                 Item {
                     id: stillPanel
                     visible: root.showSideArt
-                    anchors.right: parent.right
-                    anchors.rightMargin: root.contentMargin
+                    anchors.left: heroCopy.right
+                    anchors.leftMargin: Metrics.sectionGapPx * 2
                     anchors.top: heroCopy.top
-                    width: Math.min(parent.width * 0.38, 760)
+                    width: Math.max(0, Math.min(root.sideArtWidth, parent.width - x - root.contentMargin))
                     height: Math.round(width * 9 / 16) + (root.hasProgress ? 46 : 0)
 
                     ImageCard {
@@ -1445,6 +1455,17 @@ FocusScope {
                 }
             }
         }
+    }
+
+    TechnicalDetailsBar {
+        id: technicalInfoBar
+        visible: root.technicalInfo !== null && Theme.technicalMetadataMode === "Always" && hasContent
+        anchors.right: parent.right
+        anchors.bottom: parent.bottom
+        width: Math.max(0, parent.width - root.contentMargin)
+        height: implicitHeight
+        info: root.technicalInfo
+        z: 18
     }
 
     MouseArea {

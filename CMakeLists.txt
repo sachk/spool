@@ -309,6 +309,7 @@ qt_add_qml_module(jellyfin-native
         qml/primitives/SliderRow.qml
         qml/primitives/Surface.qml
         qml/primitives/TechMetadataLine.qml
+        qml/primitives/TechnicalDetailsBar.qml
         qml/primitives/TextFieldRow.qml
         qml/primitives/ToggleRow.qml
         qml/shell/AppShell.qml

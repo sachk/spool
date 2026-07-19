@@ -11,7 +11,11 @@ FocusScope {
     id: root
     property var shell
     property var uiTransitionToken: 0
-    property int columns: Metrics.columns(width)
+    readonly property bool listMode: String(Settings.values["appearance/libraryView"] || "Posters") === "List"
+    property int columns: listMode ? 1 : Metrics.columns(width)
+    readonly property bool largeZoom: Metrics.uiScalePercent >= 150
+    readonly property bool smallZoom: Metrics.uiScalePercent <= 100
+    readonly property int contentTopMargin: Math.max(Metrics.scaled(8), Math.round(Metrics.pageMarginPx * 0.4))
     property bool sortOpen: false
     property bool filtersOpen: false
     property bool libraryOpen: false
@@ -566,6 +570,62 @@ FocusScope {
         InputKeys.focus(libraryButton)
     }
 
+    function toolbarButtons() {
+        return [libraryButton, viewButton, sortButton, filterButton, clearFiltersButton].filter(function (button) {
+            return button.visible
+        })
+    }
+
+    function toggleViewMode() {
+        Settings.setValue("appearance/libraryView", listMode ? "Posters" : "List")
+    }
+
+    // The focused item's poster and synopsis (list mode's left pane). Latched
+    // rather than bound so held-key scrolling does not request artwork for
+    // every row it passes.
+    property var paneItem: ({})
+
+    function updatePane() {
+        if (!listMode)
+            return
+        paneDebounce.stop()
+        paneItem = currentMediaItem()
+    }
+
+    function schedulePaneUpdate() {
+        if (!listMode)
+            return
+        if (grid.heldKey)
+            paneDebounce.restart()
+        else
+            updatePane()
+    }
+
+    onListModeChanged: {
+        updatePane()
+        Qt.callLater(function () {
+            grid.forceLayout()
+            grid.ensureCurrentVisible()
+            grid.requestMoreIfNeeded()
+        })
+    }
+
+    // Kodi-style media info for the focused item, formatted natively in one
+    // call so scrolling never iterates stream lists from JS.
+    readonly property var mediaInfo: {
+        if (grid.currentIndex < 0 || grid.count <= 0)
+        return null
+        const smart = String(Settings.values["audio/trackMode"] || "Default") === "Smart"
+        return Browse.mediaInfoFor(grid.currentIndex, smart ? String(Settings.values["subtitles/language"] || "") : "")
+    }
+
+    Timer {
+        id: paneDebounce
+        interval: 140
+        repeat: false
+        onTriggered: root.updatePane()
+    }
+
     Connections {
         target: Browse
         function onChanged() {
@@ -625,33 +685,24 @@ FocusScope {
         if (filterList && filterList.activeFocus)
             return filterList.routeKey(key, phase, repeat)
 
-        if (libraryButton.activeFocus || sortButton.activeFocus || filterButton.activeFocus
-                || clearFiltersButton.activeFocus) {
+        const toolbar = toolbarButtons()
+        const toolbarIndex = toolbar.findIndex(function (button) {
+            return button.activeFocus
+        })
+        if (toolbarIndex >= 0) {
             if (key === Qt.Key_Up) {
                 if (hasShell())
                     shell.focusNavBar()
                 return true
             }
-            if (key === Qt.Key_Left) {
-                if (sortButton.activeFocus)
-                    InputKeys.focus(libraryButton)
-                else if (filterButton.activeFocus)
-                    InputKeys.focus(sortButton)
-                else if (clearFiltersButton.activeFocus)
-                    InputKeys.focus(filterButton)
-                return true
-            }
-            if (key === Qt.Key_Right) {
-                if (libraryButton.activeFocus && sortButton.visible)
-                    InputKeys.focus(sortButton)
-                else if (sortButton.activeFocus)
-                    InputKeys.focus(filterButton)
-                else if (filterButton.activeFocus && clearFiltersButton.visible)
-                    InputKeys.focus(clearFiltersButton)
-                return true
-            }
             if (key === Qt.Key_Down) {
                 InputKeys.focus(grid)
+                return true
+            }
+            if (key === Qt.Key_Left || key === Qt.Key_Right) {
+                const next = toolbarIndex + (key === Qt.Key_Right ? 1 : -1)
+                if (next >= 0 && next < toolbar.length)
+                    InputKeys.focus(toolbar[next])
                 return true
             }
             return false
@@ -668,6 +719,8 @@ FocusScope {
             filterList.activate()
         else if (libraryButton.activeFocus)
             openLibraryMenu()
+        else if (viewButton.activeFocus)
+            toggleViewMode()
         else if (sortButton.activeFocus)
             openSortMenu()
         else if (filterButton.activeFocus)
@@ -702,7 +755,7 @@ FocusScope {
         anchors.fill: parent
         anchors.leftMargin: Metrics.pageMarginPx
         anchors.rightMargin: Metrics.pageMarginPx
-        anchors.topMargin: Metrics.pageMarginPx
+        anchors.topMargin: root.contentTopMargin
         anchors.bottomMargin: 0
         spacing: 12
         RowLayout {
@@ -786,6 +839,13 @@ FocusScope {
             }
 
             ToolbarButton {
+                id: viewButton
+                iconName: root.listMode ? "grid_view" : "view_list"
+                label: root.listMode ? "Posters" : "List"
+                onActivated: root.toggleViewMode()
+            }
+
+            ToolbarButton {
                 id: sortButton
                 visible: !root.isFixedBrowseView
                 iconName: root.currentSortOrder() === "Descending" ? "south" : "north"
@@ -817,263 +877,422 @@ FocusScope {
             }
         }
 
-        NavGrid {
-            id: grid
-            property int artworkWindowRevision: 0
-            readonly property int memoryMiB: NativeWindow.systemMemoryBytes > 0 ? Math.round(
-                                                                                      NativeWindow.systemMemoryBytes
-                                                                                      / 1048576) : 2048
-            readonly property int artworkMarginRows: Platform.isTV ? (memoryMiB >= 3000 ? 8 : memoryMiB >= 1800 ? 5 : 3) :
-                                                                     12
-            readonly property int focusPadding: Math.max(2, Metrics.scaled(2))
+        RowLayout {
             Layout.fillWidth: true
             Layout.fillHeight: true
-            focus: true
-            clip: true
-            keyNavigationEnabled: false
-            reuseItems: true
-            reducedMotion: Theme.reducedMotion
-            opacity: gridReveal.delegatesReady ? 1 : 0
-            boundsBehavior: Flickable.StopAtBounds
-            model: Browse.items
-            leftMargin: focusPadding
-            rightMargin: focusPadding + Math.max(Metrics.scaled(18), 18) + Metrics.scaled(6)
-            cellWidth: Math.floor((width - leftMargin - rightMargin - Metrics.gapPx * (columns - 1)) / columns)
-            cellHeight: cellWidth * 1.5 + Metrics.scaled(64)
-            cacheBuffer: gridReveal.delegatesReady ? cellHeight * artworkMarginRows : 0
-            Component.onCompleted: {
-                restoreIndex()
-                requestMoreIfNeeded()
-                gridReveal.reset()
-            }
-            onCountChanged: {
-                if (count <= 0)
-                currentIndex = -1
-                else if (currentIndex < 0 || currentIndex >= count)
-                restoreIndex()
-                requestMoreIfNeeded()
-            }
-            onContentYChanged: {
-                loadMoreDebounce.restart()
-                artworkWindowDebounce.restart()
-                alphabetFeedback.restart()
-            }
-            onCurrentIndexChanged: {
-                if (currentIndex >= 0)
-                root.savedIndex = currentIndex
-                alphabetFeedback.restart()
-                loadMoreDebounce.restart()
-                routeCheckpoint.restart()
-            }
+            Layout.topMargin: root.listMode ? 0 : Metrics.scaled(6)
+            Layout.bottomMargin: mediaInfoBar.visible ? mediaInfoBar.height + Metrics.scaled(10) : 0
+            spacing: root.listMode ? Metrics.sectionGapPx : 0
 
-            FastWheelHandler {
-                flickable: grid
-                animationDuration: Theme.reducedMotion ? 0 : 16
-            }
-            ScrollBar.vertical: ScrollBar {
-                id: libraryScrollBar
-                readonly property bool activeState: pressed || hovered || grid.moving
-                width: activeState ? Math.max(Metrics.scaled(18), 18) : Math.max(Metrics.scaled(10), 10)
-                z: 20
-                interactive: !Platform.isTV
-                policy: ScrollBar.AlwaysOn
-                minimumSize: 0.04
-                contentItem: Rectangle {
-                    implicitWidth: Math.max(Metrics.scaled(8), 8)
-                    radius: Math.min(Theme.radiusSmall, width / 4)
-                    color: libraryScrollBar.activeState ? Theme.accent : Theme.accentDim
-                    opacity: 1
-                    border.width: Theme.hoverBorderWidth
-                    border.color: libraryScrollBar.activeState ? Theme.textPrimary : Theme.accent
+            // List mode's left pane: focused item's poster with the synopsis
+            // underneath, Kodi list-view style.
+            Item {
+                id: listPane
+                visible: root.listMode
+                Layout.preferredWidth: Math.round(root.width * (root.largeZoom ? 0.36 : 0.28))
+                Layout.fillHeight: true
+
+                ImageCard {
+                    id: panePoster
+                    anchors.top: parent.top
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    height: Math.round(Math.min(parent.width * 1.5, parent.height * (root.largeZoom ? 0.64 : 0.56)))
+                    width: Math.round(height / 1.5)
+                    imageUrl: root.paneItem && root.paneItem.movieId ? Art.url(root.paneItem, "poster", Math.ceil(width)) :
+                                                                       ""
+                    fallbackText: String(root.paneItem && root.paneItem.title || "")
                 }
-                background: Rectangle {
-                    radius: Math.min(Theme.radiusSmall, width / 4)
-                    color: Theme.bgPanel
-                    opacity: 1
-                    border.width: Theme.hoverBorderWidth
-                    border.color: Theme.borderStrong
-                }
-                Behavior on width {
-                    NumberAnimation {
-                        duration: Theme.reducedMotion ? 0 : 90
+
+                Item {
+                    id: paneHeading
+                    readonly property bool metaInline: paneMeta.text.length > 0 && paneTitle.implicitWidth
+                                                       + paneMeta.implicitWidth + Metrics.scaled(10) <= width
+                    anchors.top: panePoster.bottom
+                    anchors.topMargin: Metrics.scaled(root.smallZoom ? 30 : 22)
+                    anchors.left: parent.left
+                    anchors.right: parent.right
+                    height: metaInline ? Math.max(paneTitle.contentHeight, paneMeta.implicitHeight) :
+                                         paneTitle.contentHeight + (paneMeta.text.length > 0 ? Metrics.scaled(4)
+                                                                                               + paneMeta.implicitHeight :
+                                                                                               0)
+
+                    TextMetrics {
+                        id: paneTitleMetrics
+                        font: paneTitle.font
+                        text: paneTitle.text
+                    }
+
+                    TextMetrics {
+                        id: paneMetaMetrics
+                        font: paneMeta.font
+                        text: paneMeta.text
+                    }
+
+                    AppText {
+                        id: paneTitle
+                        anchors.top: parent.top
+                        anchors.left: parent.left
+                        width: paneHeading.metaInline ? implicitWidth : parent.width
+                        text: String(root.paneItem && root.paneItem.title || "")
+                        font.pixelSize: Metrics.bodySizePx + 4
+                        font.weight: Font.DemiBold
+                        maximumLineCount: 2
+                        wrapMode: Text.Wrap
+                        elide: Text.ElideRight
+                    }
+
+                    MonoText {
+                        id: paneMeta
+                        anchors.left: paneHeading.metaInline ? paneTitle.right : parent.left
+                        anchors.leftMargin: paneHeading.metaInline ? Metrics.scaled(10) : 0
+                        y: paneHeading.metaInline ? Math.round(paneTitle.baselineOffset
+                                                               + paneTitleMetrics.tightBoundingRect.y
+                                                               + paneTitleMetrics.tightBoundingRect.height / 2
+                                                               - paneMeta.baselineOffset
+                                                               - paneMetaMetrics.tightBoundingRect.y
+                                                               - paneMetaMetrics.tightBoundingRect.height / 2) :
+                                                    paneTitle.contentHeight + Metrics.scaled(4)
+                        text: String(root.paneItem && root.paneItem.subtitle || "")
+                        visible: text.length > 0
+                        color: Theme.textMuted
+                        font.pixelSize: Metrics.metaSizePx
+                        maximumLineCount: 1
+                        elide: Text.ElideRight
                     }
                 }
-            }
-            onEdgeUp: root.focusToolbar()
-            onAccepted: root.activateCurrent()
-
-            function restoreIndex() {
-                currentIndex = count > 0 ? Math.max(0, Math.min(root.savedIndex, count - 1)) : -1
-                ensureCurrentVisible()
-            }
-
-            function ensureCurrentVisible() {
-                if (currentIndex >= 0)
-                    positionViewAtIndex(currentIndex, GridView.Contain)
-            }
-
-            function lastLikelyVisibleIndex() {
-                if (count <= 0 || cellHeight <= 0 || columns <= 0)
-                    return -1
-                const firstRow = Math.max(0, Math.floor(contentY / cellHeight))
-                const visibleRows = Math.ceil(height / cellHeight) + 3
-                return Math.min(count - 1, (firstRow + visibleRows) * columns - 1)
-            }
-
-            function firstLikelyVisibleIndex() {
-                if (count <= 0 || cellHeight <= 0 || columns <= 0)
-                    return -1
-                return Math.min(count - 1, Math.max(0, Math.floor(contentY / cellHeight) * columns))
-            }
-
-            function requestMoreIfNeeded() {
-                if (count <= 0 || !gridReveal.delegatesReady)
-                    return
-                const visibleHead = firstLikelyVisibleIndex()
-                const visibleTail = Math.max(currentIndex, lastLikelyVisibleIndex())
-                Browse.prefetchVisibleRange(visibleHead, visibleTail)
-            }
-
-            function artworkIndexResident(index) {
-                const revision = artworkWindowRevision
-                if (revision < 0 || index < 0 || count <= 0)
-                    return false
-                const margin = artworkMarginRows * Math.max(1, columns)
-                const first = Math.max(0, firstLikelyVisibleIndex() - margin)
-                const last = Math.min(count - 1, lastLikelyVisibleIndex() + margin)
-                return index >= first && index <= last
-            }
-
-            Timer {
-                id: loadMoreDebounce
-                interval: 80
-                repeat: false
-                onTriggered: grid.requestMoreIfNeeded()
-            }
-
-            Timer {
-                id: artworkWindowDebounce
-                interval: 60
-                repeat: false
-                onTriggered: grid.artworkWindowRevision++
-            }
-
-            Timer {
-                id: routeCheckpoint
-                interval: 250
-                repeat: false
-                onTriggered: if (root.shell)
-                Router.checkpoint({
-                                      libraryId: Browse.libraryId,
-                                      focusIndex: Math.max(0, grid.currentIndex)
-                                  })
-            }
-
-            Timer {
-                id: alphabetFeedback
-                interval: 700
-                repeat: false
-            }
-
-            Rectangle {
-                anchors.right: parent.right
-                anchors.rightMargin: Metrics.scaled(24)
-                y: Math.max(0, Math.min(parent.height - height, grid.visibleArea.yPosition * Math.max(0, parent.height
-                                                                                                      - height)))
-                width: Metrics.scaled(52)
-                height: width
-                radius: Theme.radiusMedium
-                color: Theme.accentPanel
-                border.width: Theme.hoverBorderWidth
-                border.color: Theme.accent
-                opacity: alphabetFeedback.running || libraryScrollBar.pressed ? 1 : 0
-                visible: opacity > 0
-                z: 6
 
                 AppText {
-                    anchors.centerIn: parent
-                    text: root.currentAlphabetLabel
-                    font.pixelSize: Metrics.scaled(26)
-                    font.weight: Font.Bold
-                    color: Theme.textPrimary
+                    anchors.top: paneHeading.bottom
+                    anchors.topMargin: Metrics.scaled(10)
+                    anchors.left: parent.left
+                    anchors.right: parent.right
+                    anchors.bottom: parent.bottom
+                    visible: text.length > 0
+                    text: String(root.paneItem && root.paneItem.overview || "")
+                    color: Theme.textSecondary
+                    font.pixelSize: Metrics.bodySizePx
+                    lineHeight: 1.2
+                    wrapMode: Text.Wrap
+                    elide: Text.ElideRight
+                }
+            }
+
+            NavGrid {
+                id: grid
+                property int artworkWindowRevision: 0
+                readonly property int memoryMiB: NativeWindow.systemMemoryBytes > 0 ? Math.round(
+                                                                                          NativeWindow.systemMemoryBytes
+                                                                                          / 1048576) : 2048
+                readonly property int artworkMarginRows: Platform.isTV ? (memoryMiB >= 3000 ? 8 : memoryMiB >= 1800 ? 5 : 3) :
+                                                                         12
+                readonly property int focusPadding: Math.max(2, Metrics.scaled(2))
+                holdTraversalSeconds: root.listMode && count > 200 ? 3.5 : 5
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+                focus: true
+                clip: true
+                keyNavigationEnabled: false
+                reuseItems: true
+                reducedMotion: Theme.reducedMotion
+                opacity: gridReveal.delegatesReady ? 1 : 0
+                boundsBehavior: Flickable.StopAtBounds
+                model: Browse.items
+                leftMargin: focusPadding
+                rightMargin: focusPadding + Math.max(Metrics.scaled(12), 12) + Metrics.scaled(8)
+                cellWidth: Math.floor((width - leftMargin - rightMargin - Metrics.gapPx * (columns - 1)) / columns)
+                cellHeight: root.listMode ? Metrics.scaled(root.largeZoom ? 60 : 54) : cellWidth * 1.5 + Metrics.scaled(
+                                                64)
+
+                cacheBuffer: gridReveal.delegatesReady ? cellHeight * artworkMarginRows : 0
+                Component.onCompleted: {
+                    restoreIndex()
+                    requestMoreIfNeeded()
+                    gridReveal.reset()
+                }
+                onCountChanged: {
+                    if (count <= 0)
+                    currentIndex = -1
+                    else if (currentIndex < 0 || currentIndex >= count)
+                    restoreIndex()
+                    requestMoreIfNeeded()
+                    root.updatePane()
+                }
+                onContentYChanged: {
+                    loadMoreDebounce.restart()
+                    artworkWindowDebounce.restart()
+                    alphabetFeedback.restart()
+                }
+                onCurrentIndexChanged: {
+                    if (currentIndex >= 0)
+                    root.savedIndex = currentIndex
+                    alphabetFeedback.restart()
+                    loadMoreDebounce.restart()
+                    routeCheckpoint.restart()
+                    root.schedulePaneUpdate()
                 }
 
-                Behavior on opacity {
-                    NumberAnimation {
-                        duration: Theme.reducedMotion ? 0 : 100
+                FastWheelHandler {
+                    flickable: grid
+                    animationDuration: Theme.reducedMotion ? 0 : 16
+                }
+                ScrollBar.vertical: ScrollBar {
+                    id: libraryScrollBar
+                    readonly property bool activeState: pressed || hovered || grid.moving
+                    anchors.top: parent.top
+                    anchors.right: parent.right
+                    anchors.bottom: parent.bottom
+                    width: Math.max(Metrics.scaled(12), 12)
+                    z: 20
+                    interactive: !Platform.isTV
+                    policy: ScrollBar.AlwaysOn
+                    minimumSize: 0.04
+                    contentItem: Rectangle {
+                        implicitWidth: Math.max(Metrics.scaled(8), 8)
+                        radius: Math.min(Theme.radiusSmall, width / 4)
+                        color: libraryScrollBar.activeState ? Theme.accent : Theme.accentDim
+                        opacity: 1
+                        border.width: Theme.hoverBorderWidth
+                        border.color: libraryScrollBar.activeState ? Theme.textPrimary : Theme.accent
+                    }
+                    background: Rectangle {
+                        radius: Math.min(Theme.radiusSmall, width / 4)
+                        color: Theme.bgPanel
+                        opacity: 1
+                        border.width: Theme.hoverBorderWidth
+                        border.color: Theme.borderStrong
                     }
                 }
-            }
+                onEdgeUp: root.focusToolbar()
+                onAccepted: root.activateCurrent()
 
-            delegate: MediaItemCard {
-                id: gridDelegate
+                function restoreIndex() {
+                    currentIndex = count > 0 ? Math.max(0, Math.min(root.savedIndex, count - 1)) : -1
+                    ensureCurrentVisible()
+                }
 
-                required property int index
+                function ensureCurrentVisible() {
+                    if (currentIndex >= 0)
+                        positionViewAtIndex(currentIndex, GridView.Contain)
+                }
 
-                width: grid.cellWidth - Metrics.gapPx
-                height: grid.cellHeight
-                shell: root.shell
-                kind: "poster"
-                preferEpisodeTitle: false
-                useSeriesPoster: true
-                focused: gridDelegate.GridView.isCurrentItem
-                artworkVisible: true
-                artworkEnabled: grid.artworkIndexResident(index)
+                function lastLikelyVisibleIndex() {
+                    if (count <= 0 || cellHeight <= 0 || columns <= 0)
+                        return -1
+                    const firstRow = Math.max(0, Math.floor(contentY / cellHeight))
+                    const visibleRows = Math.ceil(height / cellHeight) + 3
+                    return Math.min(count - 1, (firstRow + visibleRows) * columns - 1)
+                }
 
-                Component.onCompleted: gridReveal.schedule()
-                onArtworkReadyChanged: gridReveal.schedule()
-            }
-            highlightFollowsCurrentItem: true
-            highlight: Item {
-                width: grid.currentItem ? grid.currentItem.width : grid.cellWidth - Metrics.gapPx
-                height: grid.currentItem ? grid.currentItem.focusOutlineHeight : grid.cellHeight - Metrics.scaled(6)
+                function firstLikelyVisibleIndex() {
+                    if (count <= 0 || cellHeight <= 0 || columns <= 0)
+                        return -1
+                    return Math.min(count - 1, Math.max(0, Math.floor(contentY / cellHeight) * columns))
+                }
+
+                function requestMoreIfNeeded() {
+                    if (count <= 0 || !gridReveal.delegatesReady)
+                        return
+                    const visibleHead = firstLikelyVisibleIndex()
+                    const visibleTail = Math.max(currentIndex, lastLikelyVisibleIndex())
+                    Browse.prefetchVisibleRange(visibleHead, visibleTail)
+                }
+
+                function artworkIndexResident(index) {
+                    const revision = artworkWindowRevision
+                    if (revision < 0 || index < 0 || count <= 0)
+                        return false
+                    const margin = artworkMarginRows * Math.max(1, columns)
+                    const first = Math.max(0, firstLikelyVisibleIndex() - margin)
+                    const last = Math.min(count - 1, lastLikelyVisibleIndex() + margin)
+                    return index >= first && index <= last
+                }
+
+                Timer {
+                    id: loadMoreDebounce
+                    interval: 80
+                    repeat: false
+                    onTriggered: grid.requestMoreIfNeeded()
+                }
+
+                Timer {
+                    id: artworkWindowDebounce
+                    interval: 60
+                    repeat: false
+                    onTriggered: grid.artworkWindowRevision++
+                }
+
+                Timer {
+                    id: routeCheckpoint
+                    interval: 250
+                    repeat: false
+                    onTriggered: if (root.shell)
+                    Router.checkpoint({
+                                          libraryId: Browse.libraryId,
+                                          focusIndex: Math.max(0, grid.currentIndex)
+                                      })
+                }
+
+                Timer {
+                    id: alphabetFeedback
+                    interval: 700
+                    repeat: false
+                }
 
                 Rectangle {
-                    anchors.fill: parent
-                    anchors.leftMargin: -grid.focusPadding
-                    anchors.rightMargin: -grid.focusPadding
-                    color: "transparent"
+                    anchors.right: libraryScrollBar.left
+                    anchors.rightMargin: Metrics.scaled(10)
+                    anchors.verticalCenter: parent.verticalCenter
+                    width: Metrics.scaled(52)
+                    height: width
                     radius: Theme.radiusMedium
-                    border.width: Theme.focusBorderWidth
-                    border.color: grid.activeFocus ? Theme.accent : "transparent"
-                    z: 2
-                }
-            }
+                    color: Theme.accentPanel
+                    border.width: Theme.hoverBorderWidth
+                    border.color: Theme.accent
+                    opacity: alphabetFeedback.running || libraryScrollBar.pressed ? 1 : 0
+                    visible: opacity > 0
+                    z: 6
 
-            MouseArea {
-                property int pressedIndex: -1
-                property bool longPressed: false
-                anchors.fill: parent
-                z: 3
-                acceptedButtons: Qt.LeftButton | Qt.RightButton
-                pressAndHoldInterval: 520
-                onPressed: mouse => {
-                    longPressed = false
-                    pressedIndex = grid.indexAt(mouse.x + grid.contentX, mouse.y + grid.contentY)
-                    if (pressedIndex >= 0)
-                    grid.currentIndex = pressedIndex
-                }
-                onReleased: if (longPressed && root.shell)
-                root.shell.finishItemMenuOpeningGesture()
-                onCanceled: if (longPressed && root.shell)
-                root.shell.finishItemMenuOpeningGesture()
-                onClicked: mouse => {
-                    if (pressedIndex < 0)
-                    return
-                    if (longPressed) {
-                        longPressed = false
-                        return
+                    AppText {
+                        anchors.centerIn: parent
+                        text: root.currentAlphabetLabel
+                        font.pixelSize: Metrics.scaled(26)
+                        font.weight: Font.Bold
+                        color: Theme.textPrimary
                     }
-                    if (mouse.button === Qt.RightButton && root.shell)
-                    root.shell.openItemMenu(Browse.items.get(pressedIndex), grid.itemAtIndex(pressedIndex))
-                    else
-                    root.activateCurrent()
+
+                    Behavior on opacity {
+                        NumberAnimation {
+                            duration: Theme.reducedMotion ? 0 : 100
+                        }
+                    }
                 }
-                onPressAndHold: if (pressedIndex >= 0 && root.shell) {
-                    longPressed = true
-                    root.shell.openItemMenu(Browse.items.get(pressedIndex), grid.itemAtIndex(pressedIndex), {
-                                                "deferBackdropDismissal": true
-                                            })
+
+                delegate: root.listMode ? listRowComponent : posterCardComponent
+
+                Component {
+                    id: posterCardComponent
+
+                    MediaItemCard {
+                        id: gridDelegate
+
+                        required property int index
+
+                        width: grid.cellWidth - Metrics.gapPx
+                        height: grid.cellHeight
+                        shell: root.shell
+                        kind: "poster"
+                        preferEpisodeTitle: false
+                        useSeriesPoster: true
+                        focused: gridDelegate.GridView.isCurrentItem
+                        artworkVisible: true
+                        artworkEnabled: grid.artworkIndexResident(index)
+
+                        Component.onCompleted: gridReveal.schedule()
+                        onArtworkReadyChanged: gridReveal.schedule()
+                    }
+                }
+
+                Component {
+                    id: listRowComponent
+
+                    Item {
+                        id: listRow
+
+                        required property int index
+                        required property string displayTitle
+                        required property string displaySubtitle
+
+                        // Consumed by the shared highlight delegate.
+                        readonly property real focusOutlineHeight: height - Metrics.scaled(6)
+
+                        width: grid.cellWidth - Metrics.gapPx
+                        height: grid.cellHeight
+
+                        AppText {
+                            anchors.left: parent.left
+                            anchors.leftMargin: Metrics.scaled(14)
+                            anchors.right: rowSubtitle.left
+                            anchors.rightMargin: Metrics.scaled(16)
+                            anchors.verticalCenter: parent.verticalCenter
+                            text: listRow.displayTitle
+                            font.pixelSize: Metrics.bodySizePx + Metrics.scaled(2)
+                            font.weight: listRow.GridView.isCurrentItem ? Font.DemiBold : Font.Medium
+                            color: listRow.GridView.isCurrentItem ? Theme.textPrimary : Theme.textSecondary
+                            maximumLineCount: 1
+                            elide: Text.ElideRight
+                        }
+
+                        MonoText {
+                            id: rowSubtitle
+                            anchors.right: parent.right
+                            anchors.rightMargin: Metrics.scaled(14)
+                            anchors.verticalCenter: parent.verticalCenter
+                            text: listRow.displaySubtitle
+                            color: Theme.textMuted
+                            font.pixelSize: Metrics.metaSizePx + Metrics.scaled(1)
+                            maximumLineCount: 1
+                        }
+
+                        Component.onCompleted: gridReveal.schedule()
+                    }
+                }
+                highlightFollowsCurrentItem: true
+                highlight: Item {
+                    width: grid.currentItem ? grid.currentItem.width : grid.cellWidth - Metrics.gapPx
+                    height: grid.currentItem ? grid.currentItem.focusOutlineHeight : grid.cellHeight - Metrics.scaled(6)
+
+                    Rectangle {
+                        anchors.fill: parent
+                        anchors.leftMargin: -grid.focusPadding
+                        anchors.rightMargin: -grid.focusPadding
+                        color: "transparent"
+                        radius: Theme.radiusMedium
+                        border.width: Theme.focusBorderWidth
+                        border.color: grid.activeFocus ? Theme.accent : "transparent"
+                        z: 2
+                    }
+                }
+
+                MouseArea {
+                    property int pressedIndex: -1
+                    property bool longPressed: false
+                    property bool pressedCurrent: false
+                    anchors.fill: parent
+                    z: 3
+                    acceptedButtons: Qt.LeftButton | Qt.RightButton
+                    pressAndHoldInterval: 520
+                    onPressed: mouse => {
+                        longPressed = false
+                        pressedCurrent = false
+                        pressedIndex = grid.indexAt(mouse.x + grid.contentX, mouse.y + grid.contentY)
+                        pressedCurrent = pressedIndex === grid.currentIndex
+                        if (pressedIndex >= 0) {
+                            grid.currentIndex = pressedIndex
+                            grid.forceActiveFocus()
+                        }
+                    }
+                    onReleased: if (longPressed && root.shell)
+                    root.shell.finishItemMenuOpeningGesture()
+                    onCanceled: if (longPressed && root.shell)
+                    root.shell.finishItemMenuOpeningGesture()
+                    onClicked: mouse => {
+                        if (pressedIndex < 0)
+                        return
+                        if (longPressed) {
+                            longPressed = false
+                            return
+                        }
+                        if (mouse.button === Qt.RightButton && root.shell)
+                        root.shell.openItemMenu(Browse.items.get(pressedIndex), grid.itemAtIndex(pressedIndex))
+                        else if (!root.listMode || pressedCurrent)
+                        root.activateCurrent()
+                    }
+                    onPressAndHold: if (pressedIndex >= 0 && root.shell) {
+                        longPressed = true
+                        root.shell.openItemMenu(Browse.items.get(pressedIndex), grid.itemAtIndex(pressedIndex), {
+                                                    "deferBackdropDismissal": true
+                                                })
+                    }
                 }
             }
         }
@@ -1083,7 +1302,7 @@ FocusScope {
         anchors.right: parent.right
         anchors.top: parent.top
         anchors.rightMargin: Metrics.pageMarginPx
-        anchors.topMargin: Metrics.pageMarginPx + 54
+        anchors.topMargin: root.contentTopMargin + 54
         width: typeAheadText.implicitWidth + 30
         height: 40
         radius: height / 2
@@ -1109,11 +1328,26 @@ FocusScope {
         onTriggered: root.typeAheadBuffer = ""
     }
 
+    // Kodi-style single-line media info for the focused item.
+    TechnicalDetailsBar {
+        id: mediaInfoBar
+        visible: root.mediaInfo !== null && Theme.technicalMetadataMode === "Always" && hasContent
+        anchors.bottom: parent.bottom
+        anchors.bottomMargin: 0
+        anchors.right: parent.right
+        anchors.rightMargin: 0
+        width: root.listMode ? grid.cellWidth - Metrics.gapPx : Math.max(0, grid.width - grid.leftMargin
+                                                                         - grid.rightMargin)
+        height: implicitHeight
+        info: root.mediaInfo
+        z: 18
+    }
+
     LazyMenuPanel {
         id: libraryPanel
         anchors.top: parent.top
         anchors.left: parent.left
-        anchors.topMargin: Metrics.pageMarginPx + 52
+        anchors.topMargin: root.contentTopMargin + 52
         anchors.leftMargin: Metrics.pageMarginPx
         width: 360
         open: root.libraryOpen
@@ -1134,7 +1368,7 @@ FocusScope {
         id: sortPanel
         anchors.top: parent.top
         anchors.right: parent.right
-        anchors.topMargin: Metrics.pageMarginPx + 52
+        anchors.topMargin: root.contentTopMargin + 52
         anchors.rightMargin: Metrics.pageMarginPx
         width: 320
         open: root.sortOpen
@@ -1157,7 +1391,7 @@ FocusScope {
         id: filterPanel
         anchors.top: parent.top
         anchors.right: parent.right
-        anchors.topMargin: Metrics.pageMarginPx + 52
+        anchors.topMargin: root.contentTopMargin + 52
         anchors.rightMargin: Metrics.pageMarginPx
         width: 380
         open: root.filtersOpen

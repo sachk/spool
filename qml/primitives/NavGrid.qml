@@ -12,20 +12,26 @@ GridView {
     property double holdStartedAt: 0
     property double lastHoldTickAt: 0
     property real holdAccumulator: 0
-    property int holdReleaseTimeout: 150
-    property int holdDelay: 100
-    property int holdRampDuration: 2900
-    property real holdInitialRate: 10
-    readonly property real holdMaximumRate: Math.max(30, count / 7)
+    property int holdReleaseTimeout: 70
+    property int holdDelay: 0
+    property int holdCruiseDuration: 700
+    property int holdRampDuration: 1700
+    property real holdInitialRate: 18
+    property real holdTraversalSeconds: 5
+    readonly property real holdMaximumRate: Math.max(30, count / Math.max(1, holdTraversalSeconds))
     property int holdTickInterval: 16
     property bool reducedMotion: false
+    // Keep the initial traversal readable, then shorten the highlight glide
+    // as held navigation accelerates.
+    property int singleStepDurationMs: 55
+    property int stepDurationMs: singleStepDurationMs
     property var nowProvider: function () {
         return Date.now()
     }
 
     focus: true
     keyNavigationEnabled: false
-    highlightMoveDuration: reducedMotion ? 0 : 16
+    highlightMoveDuration: reducedMotion ? 0 : stepDurationMs
 
     onActiveFocusChanged: if (!activeFocus)
                               stopAccelerating()
@@ -47,6 +53,7 @@ GridView {
         holdReleaseWatchdog.stop()
         heldKey = 0
         holdAccumulator = 0
+        stepDurationMs = singleStepDurationMs
     }
 
     function nowMs() {
@@ -58,6 +65,7 @@ GridView {
         holdStartedAt = nowMs()
         lastHoldTickAt = holdStartedAt
         holdAccumulator = 0
+        moveBy(heldDelta())
         holdTimer.start()
         holdReleaseWatchdog.restart()
     }
@@ -76,7 +84,10 @@ GridView {
     function accelerationRate(heldMs) {
         if (heldMs < holdDelay)
             return 0
-        const progress = Math.min(1, Math.max(0, (heldMs - holdDelay) / holdRampDuration))
+        const rampElapsed = heldMs - holdDelay - holdCruiseDuration
+        if (rampElapsed <= 0)
+            return holdInitialRate
+        const progress = Math.min(1, rampElapsed / holdRampDuration)
         const eased = progress * progress * (3 - 2 * progress)
         return holdInitialRate + (holdMaximumRate - holdInitialRate) * eased
     }
@@ -91,6 +102,7 @@ GridView {
         const rate = accelerationRate(heldMs)
         if (rate <= 0)
             return
+        stepDurationMs = Math.max(24, Math.min(singleStepDurationMs, Math.round(700 / rate)))
         holdAccumulator += rate * frameMs / 1000
         let moves = Math.floor(holdAccumulator)
         holdAccumulator -= moves

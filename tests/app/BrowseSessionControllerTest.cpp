@@ -8,6 +8,8 @@
 using JellyfinNative::BrowseKind;
 using JellyfinNative::BrowseSessionController;
 using JellyfinNative::LibraryItem;
+using JellyfinNative::MediaSourceInfo;
+using JellyfinNative::MediaStreamInfo;
 using JellyfinNative::MovieItem;
 using JellyfinNative::PagedMovieItems;
 
@@ -135,6 +137,22 @@ int main()
     require(session.items()->count() == 3, "final page appended its item");
     require(session.nextStartIndex() == 3, "final page advanced to the server total");
     require(!session.hasMore(), "final page stopped pagination");
+    MovieItem metadataItem = item(QStringLiteral("metadata"), QStringLiteral("Metadata"), QStringLiteral("Movie"));
+    MediaStreamInfo undefinedAudio;
+    undefinedAudio.type = QStringLiteral("Audio");
+    undefinedAudio.language = QStringLiteral("und");
+    undefinedAudio.channels = 8;
+    undefinedAudio.isDefault = true;
+    MediaSourceInfo metadataSource;
+    metadataSource.streams = { undefinedAudio };
+    metadataItem.mediaSources = { metadataSource };
+    PagedMovieItems metadataPage;
+    metadataPage.items = { metadataItem };
+    metadataPage.totalRecordCount = 1;
+    session.setPage(metadataPage, QStringLiteral("metadata-cache"), false);
+    require(session.mediaInfoFor(0, {}).value(QStringLiteral("audio")).toString() == QStringLiteral("7.1"),
+        "undefined audio language omitted while channel layout remains");
+
     session.reset();
     require(!session.descriptor().isValid(), "reset clears descriptor");
     require(session.items()->count() == 0, "reset clears items");

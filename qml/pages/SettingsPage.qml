@@ -261,12 +261,30 @@ FocusScope {
             return Session.serverUrl
         if (row.key === "settings/audioDelayMs" && Platform.usesPerOutputAudioDelay)
             return "User trim for " + Settings.audioDelayTargetLabel + "; automatic compensation is applied separately"
-        if (row.key === "subtitles/mode") {
+        if (row.key === "subtitles/mode" || row.key === "audio/trackMode") {
             const index = rowCurrentIndex(row)
             const labels = rowOptions(row)
             return index >= 0 && index < labels.length ? labels[index] : row.description
         }
         return row.description || ""
+    }
+
+    // Choice labels may carry a "%1" placeholder for the user's preferred
+    // language, e.g. "Smart (English when available)".
+    function preferredLanguageWord() {
+        const labels = Settings.subtitleLanguageOptions
+        const index = Settings.subtitleLanguageIndex
+        if (index <= 0 || index >= labels.length)
+            return "your language"
+        return String(labels[index]).split(" ")[0]
+    }
+
+    function substitutedLabels(labels) {
+        const word = preferredLanguageWord()
+        const result = []
+        for (let index = 0; index < labels.length; ++index)
+            result.push(String(labels[index]).replace("%1", word))
+        return result
     }
 
     function rowValueText(row) {
@@ -299,6 +317,8 @@ FocusScope {
         }
         if (row.key === "subtitles/language")
             return Settings.subtitleLanguageOptions
+        if (row.key === "subtitles/mode" || row.key === "audio/trackMode")
+            return substitutedLabels(row.choiceLabels || [])
         return row.choiceLabels || []
     }
 

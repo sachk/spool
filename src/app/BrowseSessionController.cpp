@@ -20,6 +20,11 @@ int BrowseSessionController::filterActiveCount() const
     return activeLibraryFilterCount(m_query);
 }
 
+QVariantMap BrowseSessionController::mediaInfoFor(int index, const QString& preferredAudioLanguage) const
+{
+    return formatMediaInfo(m_items.movieAt(index), preferredAudioLanguage);
+}
+
 int BrowseSessionController::applyCachedPage(const QString& cacheKey)
 {
     if (!m_prefetch) {

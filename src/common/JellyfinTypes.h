@@ -324,6 +324,9 @@ struct TrickplayInfo {
 struct SubtitlePreferences {
     QString language;
     QString mode = QStringLiteral("Default");
+    // Audio track auto-selection ("Default" or "Smart") rides along so both
+    // track preferences reach the player through one apply path.
+    QString audioMode = QStringLiteral("Default");
     QString styling = QStringLiteral("Auto");
     QString textSize;
     QString textWeight = QStringLiteral("normal");
@@ -378,6 +381,7 @@ QString sanitizedDiagnosticUrl(QString url, qsizetype maxLength = -1);
 QUrl serverUrlWithPath(const QString& serverUrl, const QStringList& segments);
 bool isMeaningfulResumePosition(qint64 resumeTicks, qint64 runtimeTicks);
 qint64 normalizedResumeTicks(qint64 resumeTicks, qint64 runtimeTicks);
+QVariantMap formatMediaInfo(const MovieItem& item, const QString& preferredAudioLanguage);
 
 } // namespace JellyfinNative
 

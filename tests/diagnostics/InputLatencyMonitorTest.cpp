@@ -22,6 +22,7 @@ using JellyfinNative::Detail::InputLatencyRefreshSource;
 using JellyfinNative::Detail::InputLatencySample;
 using JellyfinNative::Detail::InputLatencyStage;
 using JellyfinNative::Detail::InputLatencyTimeline;
+using JellyfinNative::Detail::shouldWarnInputLatency;
 using JellyfinNative::Detail::UiLatencySample;
 
 namespace {
@@ -403,7 +404,7 @@ void testMissStatsFormatterAndClear()
         line.contains(QStringLiteral("present_queue_ms=20.00")), "miss line should contain presentation-queue timing");
     require(line.contains(QStringLiteral("stage=present_queued")), "miss line should contain terminal stage");
     require(line.contains(QStringLiteral("refresh_source=screen")), "miss line should contain refresh source");
-    require(line.contains(QStringLiteral("forced_update=1")), "miss line should declare forced update");
+    require(line.contains(QStringLiteral("forced_update=0")), "miss line should report that updates are not forced");
     require(!line.contains(QStringLiteral("private typed text")), "miss line must not contain typed text");
 
     capturedWarnings.clear();
@@ -443,6 +444,23 @@ void testMissStatsFormatterAndClear()
     require(timeline.lastLatencyMs() == 0.0 && timeline.worstLatencyMs() == 0.0 && timeline.lastStage().isEmpty(),
         "clear should reset last, worst, and stage statistics");
     require(!timeline.nextDeadline(), "clear should cancel pending and current measurements");
+}
+
+void testPointerMoveWarningPolicy()
+{
+    InputLatencySample sample;
+    sample.event.kind = InputLatencyEventKind::MouseMove;
+    sample.budgetNs = ms(8).count();
+    sample.totalNs = ms(42).count();
+    sample.late = true;
+    require(!shouldWarnInputLatency(sample), "video-paced 42 ms mouse movement should not warn");
+
+    sample.totalNs = ms(101).count();
+    require(shouldWarnInputLatency(sample), "visible 101 ms mouse movement stall should warn");
+
+    sample.event.kind = InputLatencyEventKind::KeyPress;
+    sample.totalNs = ms(42).count();
+    require(shouldWarnInputLatency(sample), "non-pointer input should retain the two-frame warning threshold");
 }
 
 void testUiLatencyFormatter()
@@ -494,6 +512,7 @@ int main()
     testEpochCancellationAndSemantics();
     testDeadlineCompletionRaces();
     testMissStatsFormatterAndClear();
+    testPointerMoveWarningPolicy();
     testUiLatencyFormatter();
     return 0;
 }

@@ -110,6 +110,7 @@ namespace Detail {
     QString inputLatencyEventName(InputLatencyEventKind kind);
     QString inputLatencyStageName(InputLatencyStage stage);
     QString formatInputLatencyMiss(const InputLatencySample& sample);
+    bool shouldWarnInputLatency(const InputLatencySample& sample);
     QString formatUiLatency(const UiLatencySample& sample);
 
     class InputLatencyTimeline final {

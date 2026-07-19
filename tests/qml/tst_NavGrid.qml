@@ -71,6 +71,7 @@ TestCase {
         grid.currentIndex = 0
         grid.reducedMotion = false
         fakeNow = 1000
+        grid.holdTraversalSeconds = 5
         pagedModel.clear()
     }
 
@@ -121,12 +122,34 @@ TestCase {
         modelSize = 10
         compare(grid.holdMaximumRate, 30)
         modelSize = 250
-        compare(grid.holdMaximumRate, 250 / 7)
+        compare(grid.holdMaximumRate, 250 / 5)
         modelSize = 5000
-        compare(grid.holdMaximumRate, 5000 / 7)
+        compare(grid.holdMaximumRate, 5000 / 5)
         compare(grid.accelerationRate(grid.holdDelay - 1), 0)
-        compare(grid.accelerationRate(grid.holdDelay), 10)
-        compare(grid.accelerationRate(3000), grid.holdMaximumRate)
+        compare(grid.accelerationRate(grid.holdDelay), grid.holdInitialRate)
+        compare(grid.accelerationRate(grid.holdDelay + grid.holdCruiseDuration), grid.holdInitialRate)
+        verify(grid.accelerationRate(grid.holdDelay + grid.holdCruiseDuration + 500) > grid.holdInitialRate)
+        compare(grid.accelerationRate(grid.holdDelay + grid.holdCruiseDuration + grid.holdRampDuration),
+                grid.holdMaximumRate)
+    }
+
+    function test_largeLibraryMaximumTraversesInThreePointFiveSeconds() {
+        modelSize = 250
+        grid.holdTraversalSeconds = 3.5
+        compare(grid.holdMaximumRate, 250 / 3.5)
+        compare(modelSize / grid.holdMaximumRate, 3.5)
+    }
+
+    function test_firstRepeatMovesImmediatelyThenCruises() {
+        modelSize = 250
+        grid.currentIndex = 0
+        verify(grid.routeKey(Qt.Key_Down, "press", false))
+        compare(grid.currentIndex, 4)
+        fakeNow += 500
+        verify(grid.routeKey(Qt.Key_Down, "press", true))
+        compare(grid.currentIndex, 8)
+        compare(grid.accelerationRate(grid.holdCruiseDuration - 1), grid.holdInitialRate)
+        verify(grid.routeKey(Qt.Key_Down, "release", false))
     }
 
     function test_fractionalMovementUsesElapsedTime() {
@@ -147,8 +170,8 @@ TestCase {
         fakeNow = 5000
         arm(grid, Qt.Key_Down, 3000, 1000, 0)
         grid.accelerate()
-        compare(grid.currentIndex, 140)
-        verify(grid.holdAccumulator > 0.7 && grid.holdAccumulator < 0.8)
+        compare(grid.currentIndex, 200)
+        compare(grid.holdAccumulator, 0)
     }
 
     function test_directionReversalAndReleaseResetAccumulator() {

@@ -167,7 +167,10 @@ FocusScope {
         id: sectionList
 
         anchors.fill: parent
-        anchors.margins: Metrics.pageMarginPx
+        anchors.leftMargin: Metrics.pageMarginPx
+        anchors.rightMargin: Metrics.pageMarginPx
+        anchors.topMargin: Metrics.pageMarginPx
+        anchors.bottomMargin: 0
         model: root.sections
         spacing: Metrics.scaled(14)
         clip: true

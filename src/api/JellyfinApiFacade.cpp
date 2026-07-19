@@ -670,9 +670,14 @@ QCoro::Task<PagedMovieItems> JellyfinApiFacade::fetchBrowsePage(
     QString path = QStringLiteral("/Items");
     QStringList allowedTypes;
     const int maximumLimit = descriptor.kind == BrowseKind::Library ? 100 : 200;
+    // Stream metadata feeds the browse info line; person credits page through
+    // entire filmographies, so keep that path on the lean field set.
+    const QString fields = descriptor.kind == BrowseKind::Person
+        ? libraryItemFields()
+        : libraryItemFields() + QStringLiteral(",MediaSources");
     ItemsQuery builder = ItemsQuery()
                              .userId(m_session.userId)
-                             .fields(libraryItemFields())
+                             .fields(fields)
                              .images()
                              .startIndex(startIndex)
                              .limit(limit, maximumLimit);

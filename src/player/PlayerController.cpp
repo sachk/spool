@@ -690,7 +690,8 @@ bool PlayerController::applyMpvSubtitleOptions(MpvOptionApplyMode mode, mpv_hand
         = MpvOptionProfile::subtitleOptions(m_subtitlePreferences, m_tracks.subtitlesEnabled(), m_hdrPlayback);
     for (const MpvOption& option : options) {
         const bool selectsTrack = option.name == QByteArrayLiteral("sid") || option.name == QByteArrayLiteral("slang")
-            || option.name == QByteArrayLiteral("sub-auto") || option.name == QByteArrayLiteral("sub-visibility")
+            || option.name == QByteArrayLiteral("alang") || option.name == QByteArrayLiteral("sub-auto")
+            || option.name == QByteArrayLiteral("sub-visibility")
             || option.name == QByteArrayLiteral("sub-forced-events-only")
             || option.name == QByteArrayLiteral("subs-with-matching-audio")
             || option.name == QByteArrayLiteral("subs-fallback")

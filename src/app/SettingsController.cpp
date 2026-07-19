@@ -280,11 +280,16 @@ void SettingsController::loadRemote()
             m_userConfiguration = configuration;
             const SettingSpec& languageSpec = specForKey("subtitles/language");
             const SettingSpec& modeSpec = specForKey("subtitles/mode");
+            const SettingSpec& audioModeSpec = specForKey("audio/trackMode");
             setSchemaValue(languageSpec, configuration.value(QStringLiteral("SubtitleLanguagePreference")).toString(),
                 true, false, false);
             setSchemaValue(modeSpec,
                 configuration.value(QStringLiteral("SubtitleMode")).toString(QStringLiteral("Default")), true, false,
                 false);
+            setSchemaValue(audioModeSpec,
+                configuration.value(QStringLiteral("PlayDefaultAudioTrack")).toBool(true) ? QStringLiteral("Default")
+                                                                                          : QStringLiteral("Smart"),
+                true, false, false);
             applySubtitlePreferencesToPlayer();
             emit settingsValuesChanged();
             emit subtitleSettingsChanged();
@@ -545,6 +550,15 @@ void SettingsController::applySchemaValue(const SettingSpec& spec, const QVarian
     case SettingTarget::UiScale:
         m_uiScalePercent = value.toInt();
         break;
+    case SettingTarget::LibraryView:
+        break;
+    case SettingTarget::AudioTrackMode:
+        m_subtitlePreferences.audioMode = value.toString();
+        if (apply) {
+            saveSubtitleUserConfiguration();
+            applySubtitlePreferencesToPlayer();
+        }
+        break;
     case SettingTarget::SubtitleLanguage:
         m_subtitlePreferences.language = value.toString();
         if (apply) {
@@ -673,6 +687,9 @@ void SettingsController::emitSchemaSignals(const SettingSpec& spec)
     case SettingTarget::UiScale:
         emit appearanceChanged();
         break;
+    case SettingTarget::LibraryView:
+        break;
+    case SettingTarget::AudioTrackMode:
     case SettingTarget::SubtitleLanguage:
     case SettingTarget::SubtitleMode:
     case SettingTarget::SubtitleStyling:
@@ -793,6 +810,10 @@ void SettingsController::saveSubtitleUserConfiguration()
     QJsonObject configuration = m_userConfiguration;
     configuration.insert(QStringLiteral("SubtitleLanguagePreference"), m_subtitlePreferences.language);
     configuration.insert(QStringLiteral("SubtitleMode"), m_subtitlePreferences.mode);
+    const bool smartAudio = m_subtitlePreferences.audioMode == QStringLiteral("Smart");
+    configuration.insert(QStringLiteral("PlayDefaultAudioTrack"), !smartAudio);
+    if (smartAudio)
+        configuration.insert(QStringLiteral("AudioLanguagePreference"), m_subtitlePreferences.language);
     m_userConfiguration = configuration;
 
     Async::runScoped(

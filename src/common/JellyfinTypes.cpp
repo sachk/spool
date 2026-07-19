@@ -2,10 +2,13 @@
 #include "../platform/PlatformSettingsPolicy.h"
 #include "MetaJson.h"
 
+#include <QDate>
 #include <QJsonValue>
+#include <QLocale>
 #include <QRegularExpression>
 #include <QUrl>
 
+#include <algorithm>
 #include <stdexcept>
 
 namespace JellyfinNative {
@@ -13,6 +16,80 @@ namespace JellyfinNative {
 namespace {
 
     constexpr qint64 kTicksPerSecond = 10000000;
+
+    bool streamLanguagesMatch(const QString& requested, const QString& available)
+    {
+        const QString a = requested.trimmed().toLower();
+        const QString b = available.trimmed().toLower();
+        if (a.isEmpty() || b.isEmpty())
+            return false;
+        return a == b || (a.size() >= 2 && b.size() >= 2 && (a.startsWith(b) || b.startsWith(a)));
+    }
+
+    QString languageTag(const QString& language)
+    {
+        const QString trimmed = language.trimmed().toUpper();
+        return trimmed.isEmpty() ? QStringLiteral("UND") : trimmed;
+    }
+
+    QString channelLayoutLabel(int channels)
+    {
+        switch (channels) {
+        case 1:
+            return QStringLiteral("1.0");
+        case 2:
+            return QStringLiteral("2.0");
+        case 3:
+            return QStringLiteral("2.1");
+        case 5:
+            return QStringLiteral("4.1");
+        case 6:
+            return QStringLiteral("5.1");
+        case 7:
+            return QStringLiteral("6.1");
+        case 8:
+            return QStringLiteral("7.1");
+        default:
+            return channels > 0 ? QStringLiteral("%1ch").arg(channels) : QString();
+        }
+    }
+
+    QString resolutionLabel(int width, int height)
+    {
+        if (width <= 0 && height <= 0)
+            return {};
+        if (width >= 6000 || height >= 3100)
+            return QStringLiteral("8K UHD");
+        if (width >= 3200 || height >= 1660)
+            return QStringLiteral("4K UHD");
+        if (width >= 1900 || height >= 1000)
+            return QStringLiteral("1080p HD");
+        if (width >= 1260 || height >= 700)
+            return QStringLiteral("720p HD");
+        return QStringLiteral("SD");
+    }
+
+    QString runtimeLabel(qint64 runtimeTicks)
+    {
+        const qint64 totalSeconds = runtimeTicks / kTicksPerSecond;
+        if (totalSeconds <= 0)
+            return {};
+        const qint64 hours = totalSeconds / 3600;
+        const qint64 minutes = (totalSeconds % 3600) / 60;
+        const qint64 seconds = totalSeconds % 60;
+        if (hours > 0)
+            return QStringLiteral("%1:%2:%3")
+                .arg(hours)
+                .arg(minutes, 2, 10, QLatin1Char('0'))
+                .arg(seconds, 2, 10, QLatin1Char('0'));
+        return QStringLiteral("%1:%2").arg(minutes).arg(seconds, 2, 10, QLatin1Char('0'));
+    }
+
+    QString releaseDateLabel(const QString& premiereDate)
+    {
+        const QDate date = QDate::fromString(premiereDate.left(10), Qt::ISODate);
+        return date.isValid() ? QLocale().toString(date, QStringLiteral("d MMM yyyy")) : QString();
+    }
 
     QString browseKindKey(BrowseKind kind)
     {
@@ -384,6 +461,80 @@ int episodicPlaybackStartIndex(const std::vector<MovieItem>& episodes)
             return index;
     }
     return -1;
+}
+
+QVariantMap formatMediaInfo(const MovieItem& item, const QString& preferredAudioLanguage)
+{
+    if (item.id.isEmpty())
+        return {};
+
+    QVariantMap info { { QStringLiteral("date"), releaseDateLabel(item.premiereDate) },
+        { QStringLiteral("runtime"), runtimeLabel(item.runtimeTicks) } };
+
+    const MediaSourceInfo *source = nullptr;
+    for (const MediaSourceInfo& candidate : item.mediaSources) {
+        if (!candidate.streams.isEmpty()) {
+            source = &candidate;
+            break;
+        }
+    }
+    if (!source)
+        return info;
+
+    const MediaStreamInfo *selectedAudio = nullptr;
+    const MediaStreamInfo *defaultAudio = nullptr;
+    QStringList audioLanguages;
+    QStringList subtitleLanguages;
+    int audioCount = 0;
+    QString resolution;
+    for (const MediaStreamInfo& stream : source->streams) {
+        if (stream.type.compare(QStringLiteral("Video"), Qt::CaseInsensitive) == 0) {
+            if (resolution.isEmpty())
+                resolution = resolutionLabel(stream.width, stream.height);
+        } else if (stream.type.compare(QStringLiteral("Audio"), Qt::CaseInsensitive) == 0) {
+            ++audioCount;
+            const QString tag = languageTag(stream.language);
+            if (tag != QStringLiteral("UND") && !audioLanguages.contains(tag))
+                audioLanguages.push_back(tag);
+            if (!selectedAudio && streamLanguagesMatch(preferredAudioLanguage, stream.language))
+                selectedAudio = &stream;
+            if (!defaultAudio || (stream.isDefault && !defaultAudio->isDefault))
+                defaultAudio = &stream;
+        } else if (stream.type.compare(QStringLiteral("Subtitle"), Qt::CaseInsensitive) == 0) {
+            if (!subtitleLanguages.contains(languageTag(stream.language)))
+                subtitleLanguages.push_back(languageTag(stream.language));
+        }
+    }
+    if (!selectedAudio)
+        selectedAudio = defaultAudio;
+
+    info.insert(QStringLiteral("resolution"), resolution);
+
+    if (selectedAudio) {
+        const QString selectedLanguage = languageTag(selectedAudio->language);
+        if (selectedLanguage != QStringLiteral("UND")) {
+            audioLanguages.removeOne(selectedLanguage);
+            audioLanguages.prepend(selectedLanguage);
+        }
+        QStringList parts;
+        if (!audioLanguages.isEmpty())
+            parts.push_back(audioLanguages.join(QLatin1Char(' ')));
+        const QString layout = channelLayoutLabel(selectedAudio->channels);
+        if (!layout.isEmpty())
+            parts.push_back(layout);
+        if (audioCount > 1)
+            parts.push_back(QStringLiteral("×%1").arg(audioCount));
+        info.insert(QStringLiteral("audio"), parts.join(QLatin1Char(' ')));
+    }
+
+    if (!subtitleLanguages.isEmpty()) {
+        const qsizetype shown = std::min<qsizetype>(4, subtitleLanguages.size());
+        QString subs = subtitleLanguages.mid(0, shown).join(QLatin1Char(' '));
+        if (subtitleLanguages.size() > shown)
+            subs += QStringLiteral(" +%1").arg(subtitleLanguages.size() - shown);
+        info.insert(QStringLiteral("subs"), subs);
+    }
+    return info;
 }
 
 bool isMeaningfulResumePosition(qint64 resumeTicks, qint64 runtimeTicks)

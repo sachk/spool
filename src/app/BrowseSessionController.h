@@ -113,6 +113,7 @@ public:
     void setLoadingMore(bool loading);
     void setWarmCachePaging(int cachedCount, int pageSize);
     Q_INVOKABLE void prefetchVisibleRange(int firstIndex, int lastIndex);
+    Q_INVOKABLE QVariantMap mediaInfoFor(int index, const QString& preferredAudioLanguage) const;
     void updateResumeTicks(const QString& itemId, qint64 positionTicks);
     void updateFavorite(const QString& itemId, bool favorite);
     void updatePlayed(const QString& itemId, bool played);

@@ -185,7 +185,7 @@ QString formatInputLatencyMiss(const InputLatencySample& sample)
     fields.append(QStringLiteral("key=%1").arg(sample.event.key));
     fields.append(QStringLiteral("scan=%1").arg(sample.event.nativeScanCode));
     fields.append(QStringLiteral("coalesced=%1").arg(sample.coalesced));
-    fields.append(QStringLiteral("forced_update=1"));
+    fields.append(QStringLiteral("forced_update=0"));
     fields.append(QStringLiteral("budget_ms=%1").arg(millisecondsText(sample.budgetNs)));
     fields.append(QStringLiteral("refresh_source=%1")
             .arg(sample.refreshSource == InputLatencyRefreshSource::Screen ? QStringLiteral("screen")
@@ -200,6 +200,16 @@ QString formatInputLatencyMiss(const InputLatencySample& sample)
     fields.append(QStringLiteral("stage=%1").arg(inputLatencyStageName(sample.stage)));
     fields.append(QStringLiteral("exposed=%1").arg(sample.exposed ? 1 : 0));
     return fields.join(QLatin1Char(' '));
+}
+
+bool shouldWarnInputLatency(const InputLatencySample& sample)
+{
+    if (!sample.late)
+        return false;
+    qint64 thresholdNs = sample.budgetNs * 2;
+    if (sample.event.kind == InputLatencyEventKind::MouseMove)
+        thresholdNs = std::max<qint64>(thresholdNs, 100'000'000);
+    return sample.totalNs > thresholdNs;
 }
 
 QString formatUiLatency(const UiLatencySample& sample)
@@ -1050,8 +1060,6 @@ void InputLatencyMonitor::handleDeadline()
     const auto expired = m_timeline.expire(now(), m_window && m_window->isExposed());
     for (std::size_t index = 0; index < expired.count; ++index)
         handleCompletedSample(expired.samples[index]);
-    if (expired.count > 0 && m_window)
-        m_window->update();
     scheduleDeadline();
 }
 
@@ -1061,12 +1069,10 @@ void InputLatencyMonitor::handleCompletedSample(const InputLatencySample& sample
         return;
 
     emit statisticsChanged();
-    if (m_window)
-        m_window->update();
-    // A response just over one refresh period is common phase jitter, not an
-    // actionable stall. Keep it in the statistics, but only warn after two
-    // full frame periods so the guard reports work that blocked the GUI.
-    if (!sample.late || sample.totalNs <= sample.budgetNs * 2)
+    // Continuous pointer motion can overlap video-paced frames without the
+    // pointer dispatch itself being slow. Retain those samples in statistics,
+    // but reserve warnings for a visible 100 ms hover stall.
+    if (!Detail::shouldWarnInputLatency(sample))
         return;
 
     qWarning().noquote() << Detail::formatInputLatencyMiss(sample);

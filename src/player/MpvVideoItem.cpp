@@ -42,6 +42,7 @@ namespace {
 
         QOpenGLFramebufferObject *createFramebufferObject(const QSize& size) override
         {
+            m_hasRenderedFrame = false;
             QOpenGLFramebufferObjectFormat fmt;
             fmt.setAttachment(QOpenGLFramebufferObject::CombinedDepthStencil);
             return new QOpenGLFramebufferObject(size, fmt);
@@ -80,6 +81,10 @@ namespace {
             if (!ctx)
                 return;
 
+            const uint64_t updateFlags = mpv_render_context_update(ctx);
+            if (m_hasRenderedFrame && !(updateFlags & MPV_RENDER_UPDATE_FRAME))
+                return;
+
             QOpenGLFramebufferObject *fbo = framebufferObject();
             if (!fbo)
                 return;
@@ -100,6 +105,7 @@ namespace {
             mpv_render_context_render(ctx, params);
             if (m_window)
                 m_window->endExternalCommands();
+            m_hasRenderedFrame = true;
         }
 
     private:
@@ -154,6 +160,7 @@ namespace {
 
         void releaseRenderContext()
         {
+            m_hasRenderedFrame = false;
             if (!m_item)
                 return;
             if (auto *ctx = m_item->m_renderCtxAtomic.exchange(nullptr)) {
@@ -183,6 +190,7 @@ namespace {
         QQuickWindow *m_window = nullptr;
         mpv_handle *m_nextHandle = nullptr;
         bool m_handleDirty = false;
+        bool m_hasRenderedFrame = false;
         QPointer<QObject> m_releaseWaiter;
         std::shared_ptr<std::atomic_bool> m_releaseCompleted;
     };

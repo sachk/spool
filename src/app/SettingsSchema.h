@@ -41,6 +41,8 @@ enum class SettingTarget {
     AudioDelay,
     AudioOutput,
     UiScale,
+    LibraryView,
+    AudioTrackMode,
     SubtitleLanguage,
     SubtitleMode,
     SubtitleStyling,

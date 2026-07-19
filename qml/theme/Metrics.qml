@@ -7,7 +7,9 @@ QtObject {
     readonly property real uiScale: uiScalePercent / 100
     readonly property int density: densityForWidth(refWidth)
     readonly property int topBarHeightPx: scaled([52, 56, 62, 72][density])
-    readonly property int pageMarginPx: scaled([24, 32, 44, 64][density])
+    // Page margins track the zoom (uiScale) with only a slight density ramp;
+    // proportional-to-screen margins looked far too wide on 4K panels.
+    readonly property int pageMarginPx: scaled([24, 28, 30, 32][density])
     readonly property int gapPx: scaled([14, 18, 22, 28][density])
     readonly property int controlHeightPx: scaled([42, 46, 48, 54][density])
     readonly property int sectionGapPx: scaled([22, 26, 28, 34][density])
@@ -31,7 +33,7 @@ QtObject {
     }
 
     function pageMargin(width) {
-        return scaled([24, 32, 44, 64][densityForWidth(width)])
+        return scaled([24, 28, 30, 32][densityForWidth(width)])
     }
     function gap(width) {
         return scaled([14, 18, 22, 28][densityForWidth(width)])
