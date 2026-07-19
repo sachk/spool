@@ -55,19 +55,17 @@ set(JELLYFIN_QT_COMPONENTS
     Network
     Qml
     Quick
-    QuickControls2
     Sql
     OpenGL
     LinguistTools
     WebSockets
 )
 if(JELLYFIN_NATIVE_WEBOS)
-    set(OPENSSL_USE_STATIC_LIBS TRUE)
+    set(OPENSSL_USE_STATIC_LIBS FALSE)
     set(JELLYFIN_QT_MIN_VERSION 6.11)
     list(APPEND JELLYFIN_QT_COMPONENTS
         GuiPrivate
         QuickLayouts
-        Svg
         WaylandClient
     )
 else()
@@ -215,6 +213,31 @@ qt_add_executable(jellyfin-native
 
 set(JELLYFIN_NATIVE_TARGETS jellyfin-core jellyfin-native)
 jellyfin_configure_platform_targets(jellyfin-native jellyfin-core)
+
+if(NOT JELLYFIN_NATIVE_DEV_BUILD)
+    include(CheckIPOSupported)
+    check_ipo_supported(RESULT JELLYFIN_IPO_SUPPORTED OUTPUT JELLYFIN_IPO_ERROR)
+    if(JELLYFIN_IPO_SUPPORTED)
+        foreach(target IN LISTS JELLYFIN_NATIVE_TARGETS)
+            set_property(TARGET ${target} PROPERTY INTERPROCEDURAL_OPTIMIZATION_RELEASE TRUE)
+            set_property(TARGET ${target} PROPERTY INTERPROCEDURAL_OPTIMIZATION_MINSIZEREL TRUE)
+        endforeach()
+    else()
+        message(STATUS "Interprocedural optimization unavailable: ${JELLYFIN_IPO_ERROR}")
+    endif()
+
+    if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+        foreach(target IN LISTS JELLYFIN_NATIVE_TARGETS)
+            target_compile_options(${target} PRIVATE -ffunction-sections -fdata-sections)
+            if(UNIX AND NOT APPLE)
+                target_compile_options(${target} PRIVATE -fno-semantic-interposition)
+                target_link_options(${target} PRIVATE -Wl,--gc-sections -Wl,--as-needed)
+            elseif(APPLE)
+                target_link_options(${target} PRIVATE -Wl,-dead_strip)
+            endif()
+        endforeach()
+    endif()
+endif()
 if(JELLYFIN_DIAGNOSTICS)
     foreach(target IN LISTS JELLYFIN_NATIVE_TARGETS)
         target_compile_definitions(${target} PRIVATE JELLYFIN_DIAGNOSTICS=1)
@@ -254,6 +277,8 @@ qt_add_translations(jellyfin-native
 set(JELLYFIN_QML_MODULE_OPTIONS)
 if(QT6_IS_SHARED_LIBS_BUILD)
     list(APPEND JELLYFIN_QML_MODULE_OPTIONS NO_IMPORT_SCAN)
+else()
+    list(APPEND JELLYFIN_QML_MODULE_OPTIONS DISCARD_QML_CONTENTS)
 endif()
 
 qt_add_qml_module(jellyfin-native
@@ -285,10 +310,12 @@ qt_add_qml_module(jellyfin-native
         qml/primitives/ActionButton.qml
         qml/primitives/AppText.qml
         qml/primitives/AtomicViewReveal.qml
+        qml/primitives/BusySpinner.qml
         qml/primitives/ChoiceStrip.qml
         qml/primitives/ConfirmationDialog.qml
         qml/primitives/EmptyPlaceholder.qml
         qml/primitives/FastWheelHandler.qml
+        qml/primitives/InlineSlider.qml
         qml/primitives/IconButton.qml
         qml/primitives/ImageCard.qml
         qml/primitives/LazyMenuPanel.qml
@@ -298,6 +325,7 @@ qt_add_qml_module(jellyfin-native
         qml/primitives/MediaRow.qml
         qml/primitives/MetadataChip.qml
         qml/primitives/MenuListView.qml
+        qml/primitives/ListScrollBar.qml
         qml/primitives/MenuRow.qml
         qml/primitives/MonoText.qml
         qml/primitives/NavGrid.qml
@@ -333,13 +361,16 @@ qt_add_qml_module(jellyfin-native
         qml/theme/Theme.qml
         qml/theme/Typography.qml
     RESOURCES
-        qml/fonts/Inter-Regular.ttf
-        qml/fonts/Inter-Medium.ttf
-        qml/fonts/Inter-SemiBold.ttf
-        qml/fonts/Inter-Bold.ttf
-        qml/fonts/SourceSerif4-Regular.ttf
+        qml/fonts/IBMPlexSans-Variable.ttf
         qml/fonts/MaterialIcons-Regular.ttf
 )
+if(NOT JELLYFIN_NATIVE_WEBOS)
+    qt_target_qml_sources(jellyfin-native
+        QML_FILES
+            qml/pages/DesktopFolderDialog.qml
+    )
+endif()
+
 
 add_custom_target(jellyfin-native_qmllint_strict
     COMMAND Qt6::qmllint
@@ -364,12 +395,20 @@ set_property(TARGET jellyfin-native APPEND PROPERTY
     QT_QML_IMPORT_SCANNER_EXTRA_ARGS
         -exclude build
         -exclude build-arm
+        -exclude tests
         -exclude build-linux-dev
         -exclude dist
         -exclude mpv
         -exclude squashfs-root
         -exclude third_party
 )
+if(JELLYFIN_NATIVE_WEBOS)
+    set_property(TARGET jellyfin-native APPEND PROPERTY
+        QT_QML_IMPORT_SCANNER_EXTRA_ARGS
+            -exclude qml/pages/DesktopFolderDialog.qml
+    )
+endif()
+
 
 get_target_property(JELLYFIN_NATIVE_INCLUDE_DIRS jellyfin-native INCLUDE_DIRECTORIES)
 if(JELLYFIN_NATIVE_INCLUDE_DIRS)
@@ -397,7 +436,6 @@ target_link_libraries(jellyfin-core PUBLIC
     Qt6::Network
     Qt6::Qml
     Qt6::Quick
-    Qt6::QuickControls2
     Qt6::Sql
     Qt6::OpenGL
     Qt6::WebSockets

@@ -1,7 +1,6 @@
 pragma ComponentBehavior: Bound
 
 import QtQuick
-import QtQuick.Controls.Basic
 import QtQuick.Layouts
 import "../theme"
 import "../primitives"
@@ -254,7 +253,7 @@ FocusScope {
                 root.search.submit()
             }
 
-            BusyIndicator {
+            BusySpinner {
                 anchors.right: parent.right
                 anchors.verticalCenter: parent.verticalCenter
                 anchors.rightMargin: Metrics.scaled(18)

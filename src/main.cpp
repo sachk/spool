@@ -47,7 +47,6 @@
 #include <QQmlIncubationController>
 #include <QQmlPropertyMap>
 #include <QQuickGraphicsConfiguration>
-#include <QQuickStyle>
 #include <QQuickWindow>
 #include <QSGRendererInterface>
 #include <QStandardPaths>
@@ -283,8 +282,6 @@ int main(int argc, char **argv)
 
     qInstallMessageHandler(qtMessageHandler);
     QLoggingCategory::setFilterRules(QStringLiteral("qt.*.debug=false\nqt.*.info=false"));
-
-    QQuickStyle::setStyle(QStringLiteral("Basic"));
 
     // MpvVideoItem renders into an FBO via libmpv's OpenGL render API; force
     // Qt Quick to use the OpenGL RHI backend (Qt 6 defaults to Vulkan/Metal

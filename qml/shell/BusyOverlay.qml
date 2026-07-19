@@ -1,5 +1,4 @@
 import QtQuick
-import QtQuick.Controls.Basic
 import "../theme"
 import "../primitives"
 
@@ -22,7 +21,7 @@ Item {
                 anchors.centerIn: parent
                 spacing: 18
 
-                BusyIndicator {
+                BusySpinner {
                     running: true
                     width: 30
                     height: 30

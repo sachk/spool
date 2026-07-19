@@ -48,14 +48,14 @@ FocusScope {
             "source": "code.videolan.org/videolan/libplacebo"
         },
         {
-            "name": "Lua and libdovi",
+            "name": "libdovi",
             "license": "MIT",
-            "source": "lua.org · github.com/quietvoid/dovi_tool"
+            "source": "github.com/quietvoid/dovi_tool"
         },
         {
-            "name": "Inter and Source Serif 4",
+            "name": "IBM Plex Sans",
             "license": "SIL Open Font License 1.1",
-            "source": "rsms.me/inter · adobe-fonts/source-serif"
+            "source": "github.com/IBM/plex"
         },
         {
             "name": "Google Material Icons",

@@ -1,7 +1,6 @@
 pragma ComponentBehavior: Bound
 
 import QtQuick
-import QtQuick.Dialogs
 import "../theme"
 import "../primitives"
 import "SettingsNavigation.js" as SettingsNavigation
@@ -22,6 +21,7 @@ FocusScope {
     property var choiceDialogRow: null
     property Item choiceDialogAnchor: null
     readonly property var choiceDialog: choiceDialogLoader.item
+    readonly property var mpvFolderDialog: mpvFolderDialogLoader.item
     property bool contentReady: false
     property bool resetSubtitleConfirmationVisible: false
     property bool certificateManagerVisible: false
@@ -78,7 +78,7 @@ FocusScope {
         if (value.indexOf("system:") === 0)
             return value.slice(7)
         if (value === "serif")
-            return String(previewSerif.item ? previewSerif.item.name : Typography.sans)
+            return Typography.sans
         if (value === "typewriter")
             return "Courier New"
         if (value === "print")
@@ -91,7 +91,7 @@ FocusScope {
             return "Segoe Print"
         if (value === "smallcaps")
             return "Copperplate Gothic"
-        return String(Typography.regularFamily || "Inter")
+        return Typography.sans
     }
 
     function previewTextSize() {
@@ -389,7 +389,7 @@ FocusScope {
         if (index < 0 || index >= values.length)
             return
         if (row.key === "playback/mpvConfigMode" && values[index] === "custom" && !String(
-                    Settings.values["playback/mpvConfigDirectory"] || "").length) {
+                    Settings.values["playback/mpvConfigDirectory"] || "").length && mpvFolderDialog) {
             pendingCustomMpvMode = true
             mpvFolderDialog.open()
             return
@@ -629,13 +629,6 @@ FocusScope {
         target: Player
         function onHdrPlaybackChanged() {
             root.refreshSettingsFilter(true)
-        }
-    }
-    Loader {
-        id: previewSerif
-        active: root.subtitleEditor
-        sourceComponent: FontLoader {
-            source: Qt.resolvedUrl("../fonts/SourceSerif4-Regular.ttf")
         }
     }
 
@@ -974,14 +967,14 @@ FocusScope {
             focused: settingsList.activeFocus && settingsList.currentIndex === rowIndex
 
             function activate() {
-                if (browseButton.activeFocus)
-                    mpvFolderDialog.open()
+                if (browseButton.visible && browseButton.activeFocus)
+                    root.mpvFolderDialog.open()
                 else
                     pathField.focusField()
             }
 
             function move(direction) {
-                if (direction > 0)
+                if (direction > 0 && browseButton.visible)
                     InputKeys.focus(browseButton)
                 else
                     pathField.focusField()
@@ -1018,7 +1011,8 @@ FocusScope {
 
                     TextFieldRow {
                         id: pathField
-                        width: Math.max(0, parent.width - browseButton.width - parent.spacing)
+                        width: browseButton.visible ? Math.max(0, parent.width - browseButton.width - parent.spacing) :
+                                                      parent.width
                         label: "Directory"
                         text: row ? String(root.settingsValue(row) || "") : ""
                         placeholderText: "/absolute/path/to/mpv"
@@ -1033,27 +1027,37 @@ FocusScope {
 
                     ActionButton {
                         id: browseButton
-                        width: Metrics.scaled(132)
+                        visible: root.mpvFolderDialog !== null
+                        width: visible ? Metrics.scaled(132) : 0
                         height: pathField.height
                         text: "Browse"
                         iconName: "folder"
-                        onClicked: mpvFolderDialog.open()
+                        onClicked: root.mpvFolderDialog.open()
                     }
                 }
             }
         }
     }
 
-    FolderDialog {
-        id: mpvFolderDialog
-        title: "Choose custom mpv directory"
-        onAccepted: {
-            Settings.setValue("playback/mpvConfigDirectory", selectedFolder)
+    Loader {
+        id: mpvFolderDialogLoader
+        active: !Platform.isTV
+        source: active ? Qt.resolvedUrl("DesktopFolderDialog.qml") : ""
+    }
+
+    Connections {
+        target: root.mpvFolderDialog
+
+        function onFolderSelected(folder) {
+            Settings.setValue("playback/mpvConfigDirectory", folder)
             if (root.pendingCustomMpvMode)
-            Settings.setValue("playback/mpvConfigMode", "custom")
+                Settings.setValue("playback/mpvConfigMode", "custom")
             root.pendingCustomMpvMode = false
         }
-        onRejected: root.pendingCustomMpvMode = false
+
+        function onDismissed() {
+            root.pendingCustomMpvMode = false
+        }
     }
 
     Loader {

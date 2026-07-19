@@ -1,7 +1,6 @@
 pragma ComponentBehavior: Bound
 
 import QtQuick
-import QtQuick.Controls.Basic
 import QtQuick.Layouts
 import "../theme"
 import "../primitives"
@@ -140,7 +139,7 @@ RowLayout {
             }
         }
 
-        Slider {
+        InlineSlider {
             visible: parent.showSlider
             Layout.minimumWidth: visible ? root.overlay.dp(144) : 0
             Layout.preferredWidth: visible ? root.overlay.dp(144) : 0
@@ -149,36 +148,10 @@ RowLayout {
             to: 100
             stepSize: 1
             value: root.overlay.hasPlayer ? root.overlay.player.volume : 100
-            focusPolicy: Qt.NoFocus
+            barHeight: root.overlay.dp(6)
+            handleSize: root.overlay.dp(16)
             onMoved: if (root.overlay.hasPlayer)
             root.overlay.player.setVolume(Math.round(value))
-
-            background: Rectangle {
-                x: parent.leftPadding
-                y: parent.topPadding + parent.availableHeight / 2 - height / 2
-                width: parent.availableWidth
-                height: root.overlay.dp(6)
-                radius: height / 2
-                color: Theme.borderStrong
-
-                Rectangle {
-                    width: parent.parent.visualPosition * parent.width
-                    height: parent.height
-                    radius: parent.radius
-                    color: Theme.textSecondary
-                }
-            }
-
-            handle: Rectangle {
-                x: parent.leftPadding + parent.visualPosition * (parent.availableWidth - width)
-                y: parent.topPadding + parent.availableHeight / 2 - height / 2
-                width: root.overlay.dp(16)
-                height: width
-                radius: width / 2
-                color: Theme.textPrimary
-                border.width: root.overlay.dp(1)
-                border.color: Theme.bg
-            }
         }
 
         AppText {

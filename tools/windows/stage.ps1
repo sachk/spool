@@ -51,12 +51,10 @@ Copy-Item -LiteralPath (Join-Path $root 'app\notices\OPEN_SOURCE_NOTICES.txt') `
     -Destination (Join-Path $licenseDir 'OPEN_SOURCE_NOTICES.txt')
 Copy-Item -LiteralPath (Join-Path $root 'LICENSE') `
     -Destination (Join-Path $licenseDir 'GPL-2.0-or-later.txt')
-Copy-Item -LiteralPath (Join-Path $root 'qml\fonts\Inter-LICENSE.txt') `
-    -Destination (Join-Path $licenseDir 'Inter-OFL.txt')
+Copy-Item -LiteralPath (Join-Path $root 'qml\fonts\IBMPlexSans-LICENSE.txt') `
+    -Destination (Join-Path $licenseDir 'IBMPlexSans-OFL.txt')
 Copy-Item -LiteralPath (Join-Path $root 'qml\fonts\MaterialIcons-LICENSE.txt') `
     -Destination (Join-Path $licenseDir 'MaterialIcons-Apache-2.0.txt')
-Copy-Item -LiteralPath (Join-Path $root 'qml\fonts\SourceSerif4-LICENSE.md') `
-    -Destination (Join-Path $licenseDir 'SourceSerif4-OFL.md')
 
 $ffmpegAuditArguments = @(
     (Join-Path $root 'tools\ffmpeg-capabilities.py'),

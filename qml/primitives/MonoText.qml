@@ -6,6 +6,6 @@ Text {
     textFormat: Text.PlainText
     antialiasing: Theme.antialiasedText
     renderType: Theme.normalTextRenderType
-    font.family: Typography.mono
+    font.family: Typography.sans
     font.preferTypoLineMetrics: true
 }

@@ -1,7 +1,6 @@
 pragma ComponentBehavior: Bound
 
 import QtQuick
-import QtQuick.Controls.Basic
 import QtQuick.Layouts
 import "../theme"
 import "../primitives"
@@ -822,7 +821,7 @@ FocusScope {
                     width: Math.min(520, Math.max(0, parent.width * 0.52))
                 }
 
-                BusyIndicator {
+                BusySpinner {
                     anchors.right: headerDetailText.left
                     anchors.rightMargin: 10
                     anchors.verticalCenter: parent.verticalCenter
@@ -1035,32 +1034,16 @@ FocusScope {
                     flickable: grid
                     animationDuration: Theme.reducedMotion ? 0 : 16
                 }
-                ScrollBar.vertical: ScrollBar {
+                ListScrollBar {
                     id: libraryScrollBar
-                    readonly property bool activeState: pressed || hovered || grid.moving
                     anchors.top: parent.top
                     anchors.right: parent.right
                     anchors.bottom: parent.bottom
                     width: Math.max(Metrics.scaled(12), 12)
                     z: 20
+                    flickable: grid
                     interactive: !Platform.isTV
-                    policy: ScrollBar.AlwaysOn
                     minimumSize: 0.04
-                    contentItem: Rectangle {
-                        implicitWidth: Math.max(Metrics.scaled(8), 8)
-                        radius: Math.min(Theme.radiusSmall, width / 4)
-                        color: libraryScrollBar.activeState ? Theme.accent : Theme.accentDim
-                        opacity: 1
-                        border.width: Theme.hoverBorderWidth
-                        border.color: libraryScrollBar.activeState ? Theme.textPrimary : Theme.accent
-                    }
-                    background: Rectangle {
-                        radius: Math.min(Theme.radiusSmall, width / 4)
-                        color: Theme.bgPanel
-                        opacity: 1
-                        border.width: Theme.hoverBorderWidth
-                        border.color: Theme.borderStrong
-                    }
                 }
                 onEdgeUp: root.focusToolbar()
                 onAccepted: root.activateCurrent()
