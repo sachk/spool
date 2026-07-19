@@ -108,7 +108,7 @@ GridView {
     }
 
     function accelerate() {
-        if (!heldKey || count <= 0)
+        if (!heldKey || !holdRepeatSeen || count <= 0)
             return
         const now = nowMs()
         const heldMs = Math.max(0, now - holdStartedAt)

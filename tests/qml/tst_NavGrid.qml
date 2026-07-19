@@ -68,6 +68,7 @@ TestCase {
         target.holdStartedAt = fakeNow - heldMs
         target.lastHoldTickAt = fakeNow - frameMs
         target.holdAccumulator = accumulator || 0
+        target.holdRepeatSeen = true
     }
 
     function init() {
@@ -90,6 +91,16 @@ TestCase {
         compare(grid.currentIndex, 4)
         verify(grid.routeKey(Qt.Key_Down, "release", false))
         compare(grid.heldKey, 0)
+    }
+
+    function test_singlePressNeverAcceleratesWithoutRepeat() {
+        verify(grid.routeKey(Qt.Key_Down, "press", false))
+        compare(grid.currentIndex, 4)
+        fakeNow += grid.holdDelay + 100
+        grid.accelerate()
+        compare(grid.currentIndex, 4)
+        compare(grid.holdRepeatSeen, false)
+        verify(grid.routeKey(Qt.Key_Down, "release", false))
     }
 
     function test_modelSizesKeepFirstPressPrecise_data() {
