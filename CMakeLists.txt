@@ -505,13 +505,18 @@ if(BUILD_TESTING AND NOT CMAKE_CROSSCOMPILING)
         message(FATAL_ERROR "FFmpeg capability header generation failed: ${JELLYFIN_FFMPEG_HEADER_ERROR}")
     endif()
 
-    pkg_check_modules(FFMPEG_AUDIT REQUIRED IMPORTED_TARGET libavutil libavcodec libavformat libavfilter)
-    add_executable(ffmpeg-compliance-tests tests/media/FfmpegComplianceTest.cpp)
-    target_include_directories(ffmpeg-compliance-tests PRIVATE "${CMAKE_CURRENT_BINARY_DIR}/generated")
-    target_compile_definitions(ffmpeg-compliance-tests PRIVATE
-        TEST_MEDIA_DIR="${CMAKE_CURRENT_SOURCE_DIR}/tests/media/fixtures")
-    target_link_libraries(ffmpeg-compliance-tests PRIVATE PkgConfig::FFMPEG_AUDIT)
-    add_test(NAME ffmpeg-compliance COMMAND ffmpeg-compliance-tests)
+    if(NOT WIN32)
+        # Windows packages expose libmpv but do not ship FFmpeg development
+        # libraries or pkg-config; keep its manifest generator test below,
+        # but only build the linked compliance test where FFmpeg is available.
+        pkg_check_modules(FFMPEG_AUDIT REQUIRED IMPORTED_TARGET libavutil libavcodec libavformat libavfilter)
+        add_executable(ffmpeg-compliance-tests tests/media/FfmpegComplianceTest.cpp)
+        target_include_directories(ffmpeg-compliance-tests PRIVATE "${CMAKE_CURRENT_BINARY_DIR}/generated")
+        target_compile_definitions(ffmpeg-compliance-tests PRIVATE
+            TEST_MEDIA_DIR="${CMAKE_CURRENT_SOURCE_DIR}/tests/media/fixtures")
+        target_link_libraries(ffmpeg-compliance-tests PRIVATE PkgConfig::FFMPEG_AUDIT)
+        add_test(NAME ffmpeg-compliance COMMAND ffmpeg-compliance-tests)
+    endif()
     add_test(NAME ffmpeg-capability-generator
         COMMAND "${Python3_EXECUTABLE}"
             "${CMAKE_CURRENT_SOURCE_DIR}/tests/tools/FfmpegCapabilitiesTest.py"
