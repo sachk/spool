@@ -158,6 +158,7 @@ TestCase {
         compare(grid.holdMaximumRate, 250 / 5)
         modelSize = 5000
         compare(grid.holdMaximumRate, 5000 / 5)
+        compare(grid.holdInitialRate, 40)
         compare(grid.accelerationRate(grid.holdDelay - 1), 0)
         compare(grid.accelerationRate(grid.holdDelay), grid.holdInitialRate)
         compare(grid.accelerationRate(grid.holdDelay + grid.holdCruiseDuration), grid.holdInitialRate)
@@ -182,6 +183,9 @@ TestCase {
         verify(grid.routeKey(Qt.Key_Down, "press", true))
         compare(grid.currentIndex, 8)
         compare(grid.accelerationRate(grid.holdCruiseDuration - 1), grid.holdInitialRate)
+        fakeNow += 50
+        grid.accelerate()
+        compare(grid.currentIndex, 16)
         verify(grid.routeKey(Qt.Key_Down, "release", false))
     }
 

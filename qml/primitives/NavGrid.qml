@@ -20,9 +20,9 @@ GridView {
     property int holdDelay: 500
     property int holdCruiseDuration: 700
     property int holdRampDuration: 1700
-    property real holdInitialRate: 18
     property real holdTraversalSeconds: 5
     readonly property real holdMaximumRate: Math.max(30, count / Math.max(1, holdTraversalSeconds))
+    readonly property real holdInitialRate: Math.min(40, holdMaximumRate)
     property int holdTickInterval: 16
     property bool reducedMotion: false
     // Keep the initial traversal readable, then shorten the highlight glide
