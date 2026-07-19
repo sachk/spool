@@ -18,8 +18,10 @@ FocusScope {
     property bool pressActivated: false
     property bool backClaimed: false
     property int typeAheadKey: 0
+    property int pressedDirectionKey: 0
 
     focus: true
+    onActiveTargetChanged: pressedDirectionKey = 0
     Keys.priority: Keys.BeforeItem
 
     function backspaceNavigates() {
@@ -41,6 +43,26 @@ FocusScope {
         if (InputKeys.isIgnoredPlayerNoise(event))
             return 0
         return InputKeys.isBackEvent(event, backspaceNavigates()) ? Qt.Key_Back : event.key
+    }
+
+    function routeDirection(key, phase, repeat, modifiers) {
+        if (phase === "release") {
+            // Qt-generated auto-repeat releases are not physical releases.
+            if (!repeat && pressedDirectionKey === key)
+                pressedDirectionKey = 0
+            if (activeTarget && activeTarget.directionRelease)
+                router.deliver(activeTarget, key, phase, repeat)
+            return true
+        }
+
+        // Some LG webOS remotes report repeated directional presses without
+        // setting QKeyEvent::isAutoRepeat. A second press for a key that is
+        // still physically down is a repeat; real rapid clicks have a release
+        // between presses and therefore remain independent.
+        const effectiveRepeat = repeat || pressedDirectionKey === key
+        pressedDirectionKey = key
+        const handled = router.deliver(activeTarget, key, phase, effectiveRepeat)
+        return handled || Boolean(globalHandler && globalHandler(key, phase, effectiveRepeat, modifiers))
     }
 
     function deliver(target, key, phase, repeat) {
@@ -138,11 +160,8 @@ FocusScope {
             return true
         if (textInputActive)
             return false
-        if (phase === "release" && InputKeys.isDirection(key)) {
-            if (activeTarget && activeTarget.directionRelease)
-                router.deliver(activeTarget, key, phase, repeat)
-            return true
-        }
+        if (InputKeys.isDirection(key))
+            return routeDirection(key, phase, repeat, event.modifiers)
         if (InputKeys.isAccept(key))
             return phase === "press" ? pressAccept(key, repeat) : releaseAccept(key, repeat)
         const handled = router.deliver(activeTarget, key, phase, repeat)

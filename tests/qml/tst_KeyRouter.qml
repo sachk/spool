@@ -15,6 +15,8 @@ TestCase {
     property bool routeResult: true
     property bool typeAheadResult: true
 
+    property bool lastRouteRepeat: false
+    property string lastRoutePhase: ""
     Item {
         // Reproduces AppShell's route property, which previously shadowed the
         // router's unqualified route() helper at runtime.
@@ -27,9 +29,12 @@ TestCase {
 
         QtObject {
             id: target
+            property bool directionRelease: true
 
             function routeKey(key, phase, repeat) {
                 ++testCase.routeCalls
+                testCase.lastRouteRepeat = repeat
+                testCase.lastRoutePhase = phase
                 return testCase.routeResult
             }
 
@@ -63,6 +68,9 @@ TestCase {
         typeAheadText = ""
         routeResult = true
         typeAheadResult = true
+        lastRouteRepeat = false
+        lastRoutePhase = ""
+        keyRouter.pressedDirectionKey = 0
         keyRouter.clearAccept()
         keyRouter.backClaimed = false
         keyRouter.typeAheadKey = 0
@@ -74,6 +82,26 @@ TestCase {
     function test_directionUsesRouterHelper() {
         verify(keyRouter.deliver(target, Qt.Key_Right, "press", false))
         compare(routeCalls, 1)
+    }
+
+    function test_unmarkedPressWhilePhysicallyDownBecomesRepeat() {
+        verify(keyRouter.routeDirection(Qt.Key_Down, "press", false, Qt.NoModifier))
+        compare(lastRouteRepeat, false)
+        verify(keyRouter.routeDirection(Qt.Key_Down, "press", false, Qt.NoModifier))
+        compare(lastRouteRepeat, true)
+        compare(keyRouter.pressedDirectionKey, Qt.Key_Down)
+        verify(keyRouter.routeDirection(Qt.Key_Down, "release", false, Qt.NoModifier))
+        compare(keyRouter.pressedDirectionKey, 0)
+    }
+
+    function test_tenRapidClicksRemainIndependent() {
+        for (let click = 0; click < 10; ++click) {
+            verify(keyRouter.routeDirection(Qt.Key_Down, "press", false, Qt.NoModifier))
+            compare(lastRouteRepeat, false)
+            verify(keyRouter.routeDirection(Qt.Key_Down, "release", false, Qt.NoModifier))
+            compare(lastRoutePhase, "release")
+            compare(keyRouter.pressedDirectionKey, 0)
+        }
     }
 
     function test_backFallsThroughToTarget() {
