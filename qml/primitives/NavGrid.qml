@@ -7,13 +7,16 @@ GridView {
     property int fallbackColumns: 1
     signal edgeUp
     signal accepted(int index)
+    signal holdStarted(int key)
     readonly property bool directionRelease: true
     property int heldKey: 0
     property double holdStartedAt: 0
     property double lastHoldTickAt: 0
     property real holdAccumulator: 0
-    property int holdReleaseTimeout: 70
-    property int holdDelay: 0
+    property int holdReleaseTimeout: 220
+    property int holdInitialReleaseTimeout: 800
+    property bool holdRepeatSeen: false
+    property int holdDelay: 500
     property int holdCruiseDuration: 700
     property int holdRampDuration: 1700
     property real holdInitialRate: 18
@@ -52,6 +55,7 @@ GridView {
         holdTimer.stop()
         holdReleaseWatchdog.stop()
         heldKey = 0
+        holdRepeatSeen = false
         holdAccumulator = 0
         stepDurationMs = singleStepDurationMs
     }
@@ -64,9 +68,20 @@ GridView {
         heldKey = key
         holdStartedAt = nowMs()
         lastHoldTickAt = holdStartedAt
+        holdRepeatSeen = false
         holdAccumulator = 0
-        moveBy(heldDelta())
         holdTimer.start()
+        holdReleaseWatchdog.restart()
+    }
+
+    function confirmHold(moveImmediately) {
+        if (!holdRepeatSeen) {
+            holdRepeatSeen = true
+            lastHoldTickAt = nowMs()
+            if (moveImmediately)
+                moveBy(heldDelta())
+            holdStarted(heldKey)
+        }
         holdReleaseWatchdog.restart()
     }
 
@@ -123,39 +138,45 @@ GridView {
             return true
         }
         const directional = key === Qt.Key_Left || key === Qt.Key_Right || key === Qt.Key_Up || key === Qt.Key_Down
-        if (repeat && directional) {
-            if (key !== heldKey)
-                beginAccelerating(key)
-            else
-                holdReleaseWatchdog.restart()
+        if (!directional)
+            return false
+        if (key === heldKey) {
+            // Some webOS compositors send repeated presses without setting
+            // QKeyEvent::isAutoRepeat. A second press for the armed direction
+            // is sufficient to confirm the hold on every platform.
+            confirmHold(true)
             return true
         }
-        if (directional && heldKey)
+        if (heldKey)
             stopAccelerating()
+        if (repeat) {
+            // Preserve acceleration if the first event observed by this view
+            // is already marked as an auto-repeat.
+            beginAccelerating(key)
+            moveBy(heldDelta())
+            confirmHold(false)
+            return true
+        }
         const columns = columnCount()
+        const before = currentIndex
         if (key === Qt.Key_Left) {
             if (currentIndex % columns === 0)
                 return true
-            const handled = moveBy(-1)
-            return handled
-        }
-        if (key === Qt.Key_Right) {
-            const handled = moveBy(1)
-            return handled
-        }
-        if (key === Qt.Key_Up) {
+            moveBy(-1)
+        } else if (key === Qt.Key_Right) {
+            moveBy(1)
+        } else if (key === Qt.Key_Up) {
             if (currentIndex < columns) {
                 edgeUp()
                 return true
             }
-            const handled = moveBy(-columns)
-            return handled
+            moveBy(-columns)
+        } else {
+            moveBy(columns)
         }
-        if (key === Qt.Key_Down) {
-            const handled = moveBy(columns)
-            return handled
-        }
-        return false
+        if (currentIndex !== before)
+            beginAccelerating(key)
+        return true
     }
 
     function activate() {
@@ -181,7 +202,7 @@ GridView {
 
     Timer {
         id: holdReleaseWatchdog
-        interval: root.holdReleaseTimeout
+        interval: root.holdRepeatSeen ? root.holdReleaseTimeout : root.holdInitialReleaseTimeout
         repeat: false
         onTriggered: root.stopAccelerating()
     }

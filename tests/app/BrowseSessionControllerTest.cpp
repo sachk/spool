@@ -114,9 +114,15 @@ int main()
     require(session.nextStartIndex() == 1, "next start index updated");
     int moreRequests = 0;
     QObject::connect(&session, &BrowseSessionController::moreItemsRequested, [&moreRequests]() { ++moreRequests; });
+    session.prefetchNextPage();
+    require(moreRequests == 1, "hold prefetch requests the next page");
+    session.setLoadingMore(true);
+    session.prefetchNextPage();
+    require(moreRequests == 1, "hold prefetch does not duplicate an active page request");
+    session.setLoadingMore(false);
     session.prefetchVisibleRange(0, 0);
     session.prefetchVisibleRange(-1, 0);
-    require(moreRequests == 1, "visible tail requests the next page once");
+    require(moreRequests == 2, "visible tail requests the next page once");
 
     PagedMovieItems secondPage;
     secondPage.items = { item(QStringLiteral("movie-2"), QStringLiteral("Movie 2"), QStringLiteral("Movie")) };
@@ -137,6 +143,8 @@ int main()
     require(session.items()->count() == 3, "final page appended its item");
     require(session.nextStartIndex() == 3, "final page advanced to the server total");
     require(!session.hasMore(), "final page stopped pagination");
+    session.prefetchNextPage();
+    require(moreRequests == 2, "hold prefetch stops after the final page");
     MovieItem metadataItem = item(QStringLiteral("metadata"), QStringLiteral("Metadata"), QStringLiteral("Movie"));
     MediaStreamInfo undefinedAudio;
     undefinedAudio.type = QStringLiteral("Audio");

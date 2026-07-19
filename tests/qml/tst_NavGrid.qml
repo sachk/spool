@@ -29,6 +29,12 @@ TestCase {
         }
     }
 
+    SignalSpy {
+        id: holdStartedSpy
+        target: grid
+        signalName: "holdStarted"
+    }
+
     ListModel {
         id: pagedModel
     }
@@ -72,16 +78,18 @@ TestCase {
         grid.reducedMotion = false
         fakeNow = 1000
         grid.holdTraversalSeconds = 5
+        holdStartedSpy.clear()
         pagedModel.clear()
     }
 
     function test_singlePressMovesOneRowOnly() {
         verify(grid.routeKey(Qt.Key_Down, "press", false))
         compare(grid.currentIndex, 4)
-        compare(grid.heldKey, 0)
+        compare(grid.heldKey, Qt.Key_Down)
         wait(150)
         compare(grid.currentIndex, 4)
         verify(grid.routeKey(Qt.Key_Down, "release", false))
+        compare(grid.heldKey, 0)
     }
 
     function test_modelSizesKeepFirstPressPrecise_data() {
@@ -149,6 +157,23 @@ TestCase {
         verify(grid.routeKey(Qt.Key_Down, "press", true))
         compare(grid.currentIndex, 8)
         compare(grid.accelerationRate(grid.holdCruiseDuration - 1), grid.holdInitialRate)
+        verify(grid.routeKey(Qt.Key_Down, "release", false))
+    }
+
+    function test_webOsStyleUnmarkedRepeatConfirmsHold() {
+        modelSize = 250
+        grid.currentIndex = 0
+        verify(grid.routeKey(Qt.Key_Down, "press", false))
+        compare(grid.currentIndex, 4)
+        fakeNow += 500
+        verify(grid.routeKey(Qt.Key_Down, "press", false))
+        compare(grid.currentIndex, 8)
+        compare(grid.heldKey, Qt.Key_Down)
+        compare(grid.holdRepeatSeen, true)
+        compare(holdStartedSpy.count, 1)
+        fakeNow += 100
+        verify(grid.routeKey(Qt.Key_Down, "press", false))
+        compare(holdStartedSpy.count, 1)
         verify(grid.routeKey(Qt.Key_Down, "release", false))
     }
 

@@ -126,6 +126,12 @@ void BrowseSessionController::prefetchVisibleRange(int firstIndex, int lastIndex
         emit moreItemsRequested();
 }
 
+void BrowseSessionController::prefetchNextPage()
+{
+    if (!m_loadingMore && m_hasMore)
+        emit moreItemsRequested();
+}
+
 void BrowseSessionController::updateResumeTicks(const QString& itemId, qint64 positionTicks)
 {
     m_items.updateResumeTicks(itemId, positionTicks);

@@ -1064,6 +1064,7 @@ FocusScope {
                 }
                 onEdgeUp: root.focusToolbar()
                 onAccepted: root.activateCurrent()
+                onHoldStarted: Browse.prefetchNextPage()
 
                 function restoreIndex() {
                     currentIndex = count > 0 ? Math.max(0, Math.min(root.savedIndex, count - 1)) : -1
