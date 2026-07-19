@@ -284,6 +284,7 @@ void PlayerController::prepareForShutdown()
 
 void PlayerController::teardownMpv(bool async)
 {
+    ++m_mpvTeardownGeneration;
     Diagnostics::Phase phase(QStringLiteral("shutdown"), QStringLiteral("player_teardown_mpv"));
     m_idleMpvPreparationEnabled = false;
     m_idleMpvPreparationScheduled = false;
@@ -406,6 +407,8 @@ void PlayerController::observeMpvProperties(mpv_handle *handle)
     mpv_observe_property(handle, 0, "chapter-list", MPV_FORMAT_NODE);
     mpv_observe_property(handle, 0, "chapter", MPV_FORMAT_INT64);
     mpv_observe_property(handle, 0, "video-params/transfer", MPV_FORMAT_STRING);
+    mpv_observe_property(handle, 0, "decoder-frame-drop-count", MPV_FORMAT_INT64);
+    mpv_observe_property(handle, 0, "frame-drop-count", MPV_FORMAT_INT64);
 }
 
 void PlayerController::scheduleMpvTeardown()
@@ -414,8 +417,9 @@ void PlayerController::scheduleMpvTeardown()
     if (!scheduledHandle)
         return;
 
-    QTimer::singleShot(1000, this, [this, scheduledHandle]() {
-        if (m_mpvLifecycle.handle() != scheduledHandle)
+    const quint64 scheduledGeneration = ++m_mpvTeardownGeneration;
+    QTimer::singleShot(1000, this, [this, scheduledHandle, scheduledGeneration]() {
+        if (m_mpvTeardownGeneration != scheduledGeneration || m_mpvLifecycle.handle() != scheduledHandle)
             return;
         qInfo() << "player: deferred mpv teardown";
         teardownMpv(true);
@@ -498,6 +502,21 @@ bool PlayerController::seeking() const
 bool PlayerController::debugOsdVisible() const
 {
     return m_debugOsdVisible;
+}
+
+bool PlayerController::embeddedVideoOutput() const
+{
+    return m_embeddedVideoOutput;
+}
+
+qint64 PlayerController::decoderDroppedFrames() const
+{
+    return m_decoderDroppedFrames;
+}
+
+qint64 PlayerController::outputDroppedFrames() const
+{
+    return m_outputDroppedFrames;
 }
 
 bool PlayerController::subtitlesEnabled() const
@@ -979,6 +998,13 @@ void PlayerController::togglePause()
 {
     qInfo() << "player: toggle pause requested";
     mpvCommand({ QByteArrayLiteral("no-osd"), QByteArrayLiteral("cycle"), QByteArrayLiteral("pause") });
+}
+
+void PlayerController::setPaused(bool paused)
+{
+    qInfo() << "player: pause requested" << paused;
+    mpvCommand({ QByteArrayLiteral("no-osd"), QByteArrayLiteral("set"), QByteArrayLiteral("pause"),
+        paused ? QByteArrayLiteral("yes") : QByteArrayLiteral("no") });
 }
 
 void PlayerController::prepareForBackground()
@@ -1527,6 +1553,8 @@ void PlayerController::resetPlaybackUiState()
     m_pendingSeekFlags.clear();
     m_positionTracker.clear();
     m_debugOsdVisible = false;
+    m_decoderDroppedFrames = 0;
+    m_outputDroppedFrames = 0;
     m_timeline.clear();
     rebuildTrickplaySheetUrls();
     m_statusText = QStringLiteral("Ready");
@@ -1715,6 +1743,18 @@ void PlayerController::handleMpvEvent(mpv_event *event)
             QMetaObject::invokeMethod(this, [this, percent]() {
                 m_bufferingPercent = percent;
                 notifyPlaybackStateChanged();
+            });
+        } else if ((strcmp(property->name, "decoder-frame-drop-count") == 0
+                       || strcmp(property->name, "frame-drop-count") == 0)
+            && property->format == MPV_FORMAT_INT64) {
+            const bool decoder = strcmp(property->name, "decoder-frame-drop-count") == 0;
+            const qint64 count = *static_cast<int64_t *>(property->data);
+            QMetaObject::invokeMethod(this, [this, decoder, count]() {
+                qint64& current = decoder ? m_decoderDroppedFrames : m_outputDroppedFrames;
+                if (current == count)
+                    return;
+                current = count;
+                emit performanceStatsChanged();
             });
         } else if (strcmp(property->name, "seeking") == 0 && property->format == MPV_FORMAT_FLAG) {
             const bool seeking = *static_cast<int *>(property->data);

@@ -219,6 +219,7 @@ std::vector<MpvOption> MpvOptionProfile::preInitializeOptions(const MpvConfigPol
 {
     std::vector<MpvOption> options {
         { "config", policy.mode == MpvConfigPolicy::Mode::Disabled ? "no" : "yes" },
+        { "script-opts", "stats-redraw_delay=2" },
     };
     if (policy.mode == MpvConfigPolicy::Mode::Custom)
         options.push_back({ "config-dir", policy.directory.toUtf8() });
@@ -269,7 +270,7 @@ std::vector<MpvOption> MpvOptionProfile::applicationOptions(Platform platform, c
     };
 
     if (webOS) {
-        options.push_back({ "initial-audio-sync", "no" });
+        options.push_back({ "initial-audio-sync", softwareVideo ? "yes" : "no" });
         options.push_back({ "vo", softwareVideo ? "libmpv" : "starfish" });
         options.push_back({ "vd", softwareVideo ? "lavc" : "starfish" });
         options.push_back({ "ao", starfishAudio ? "starfish,null" : "alsa,null" });
@@ -277,7 +278,7 @@ std::vector<MpvOption> MpvOptionProfile::applicationOptions(Platform platform, c
             options.push_back({ "vo-starfish-audio-hint", starfishAudio ? "yes" : "no" });
         else {
             options.push_back({ "hwdec", "no" });
-            options.push_back({ "profile", "fast" });
+            options.push_back({ "vd-lavc-threads", "3" });
             options.push_back({ "scale", "bilinear" });
             options.push_back({ "cscale", "bilinear" });
             options.push_back({ "dscale", "bilinear" });
@@ -297,7 +298,7 @@ std::vector<MpvOption> MpvOptionProfile::applicationOptions(Platform platform, c
         options.push_back({ "audio-format", starfishAudio ? "s16" : "s32" });
         options.push_back({ "audio-samplerate", starfishAudio ? "192000" : "48000" });
         if (!starfishAudio) {
-            options.push_back({ "audio-buffer", "0.050" });
+            options.push_back({ "audio-buffer", softwareVideo ? "0.100" : "0.050" });
             options.push_back({ "alsa-buffer-time", "40000" });
             options.push_back({ "alsa-periods", "8" });
             options.push_back({ "alsa-no-hw-pause", "yes" });

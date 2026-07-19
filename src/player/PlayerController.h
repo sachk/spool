@@ -41,6 +41,9 @@ class PlayerController final : public QObject {
     Q_PROPERTY(int bufferingPercent READ bufferingPercent NOTIFY playbackStateChanged)
     Q_PROPERTY(bool seeking READ seeking NOTIFY playbackStateChanged)
     Q_PROPERTY(bool debugOsdVisible READ debugOsdVisible NOTIFY playbackStateChanged)
+    Q_PROPERTY(bool embeddedVideoOutput READ embeddedVideoOutput NOTIFY playbackStateChanged)
+    Q_PROPERTY(qint64 decoderDroppedFrames READ decoderDroppedFrames NOTIFY performanceStatsChanged)
+    Q_PROPERTY(qint64 outputDroppedFrames READ outputDroppedFrames NOTIFY performanceStatsChanged)
     Q_PROPERTY(bool subtitlesEnabled READ subtitlesEnabled NOTIFY tracksChanged)
     Q_PROPERTY(QStringList subtitleTracks READ subtitleTracks NOTIFY tracksChanged)
     Q_PROPERTY(int selectedSubtitleIndex READ selectedSubtitleIndex NOTIFY tracksChanged)
@@ -86,6 +89,9 @@ public:
     int bufferingPercent() const;
     bool seeking() const;
     bool debugOsdVisible() const;
+    bool embeddedVideoOutput() const;
+    qint64 decoderDroppedFrames() const;
+    qint64 outputDroppedFrames() const;
     bool subtitlesEnabled() const;
     QStringList subtitleTracks() const;
     int selectedSubtitleIndex() const;
@@ -117,6 +123,7 @@ public:
     Q_INVOKABLE void play(const JellyfinNative::PlaybackSession& session, bool startPaused = false);
     void setMediaSegments(const QString& itemId, const std::vector<MediaSegment>& segments);
     Q_INVOKABLE void togglePause();
+    void setPaused(bool paused);
     Q_INVOKABLE void seekBack();
     Q_INVOKABLE void seekForward();
     Q_INVOKABLE void seek(double seconds);
@@ -160,6 +167,7 @@ signals:
     void positionChanged();
     void hdrPlaybackChanged();
     void playbackStateChanged();
+    void performanceStatsChanged();
     void tracksChanged();
     void segmentsChanged();
     void trickplayChanged();
@@ -245,6 +253,7 @@ private:
     PlaybackSession m_session;
     PlaybackReporter m_reporter;
     MpvLifecycle m_mpvLifecycle;
+    quint64 m_mpvTeardownGeneration = 0;
     mpv_handle *m_idleMpvHandle = nullptr;
     bool m_idleMpvPreparationScheduled = false;
     bool m_idleMpvPreparationEnabled = true;
@@ -266,6 +275,8 @@ private:
     double m_pendingSeekTargetSeconds = 0.0;
     QByteArray m_pendingSeekFlags;
     bool m_debugOsdVisible = false;
+    qint64 m_decoderDroppedFrames = 0;
+    qint64 m_outputDroppedFrames = 0;
     bool m_embeddedVideoOutput = false;
     PlaybackTrackState m_tracks;
     bool m_restoreFallbackStreamSelection = false;

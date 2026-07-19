@@ -1,6 +1,7 @@
 #include "MpvVideoItem.h"
 
 #include <QEventLoop>
+#include <QMetaObject>
 #include <QMutexLocker>
 #include <QOpenGLContext>
 #include <QOpenGLFramebufferObject>
@@ -37,6 +38,7 @@ namespace {
 
         ~MpvFboRenderer() override
         {
+            QObject::disconnect(m_frameSwappedConnection);
             releaseRenderContext();
         }
 
@@ -50,7 +52,7 @@ namespace {
 
         void synchronize(QQuickFramebufferObject *fbo) override
         {
-            m_window = fbo->window();
+            setWindow(fbo->window());
             auto *item = static_cast<MpvVideoItem *>(fbo);
             m_item = item;
             const auto snap = item->takePendingHandle();
@@ -109,6 +111,27 @@ namespace {
         }
 
     private:
+        void setWindow(QQuickWindow *window)
+        {
+            if (m_window == window)
+                return;
+
+            QObject::disconnect(m_frameSwappedConnection);
+            m_window = window;
+            if (!m_window)
+                return;
+
+            m_frameSwappedConnection = QObject::connect(
+                m_window, &QQuickWindow::frameSwapped, m_window,
+                [this] {
+                    if (m_item) {
+                        if (auto *ctx = m_item->m_renderCtxAtomic.load())
+                            mpv_render_context_report_swap(ctx);
+                    }
+                },
+                Qt::DirectConnection);
+        }
+
         void createRenderContext(mpv_handle *next)
         {
             mpv_opengl_init_params glInit {};
@@ -186,6 +209,7 @@ namespace {
             QMetaObject::invokeMethod(item, "update", Qt::QueuedConnection);
         }
 
+        QMetaObject::Connection m_frameSwappedConnection;
         MpvVideoItem *m_item = nullptr;
         QQuickWindow *m_window = nullptr;
         mpv_handle *m_nextHandle = nullptr;

@@ -50,7 +50,7 @@ FocusScope {
     // qmllint disable import unresolved-type
     MpvVideoItem {
         anchors.fill: parent
-        visible: root.active
+        visible: root.active && Player.embeddedVideoOutput
         z: 0
     }
     // qmllint enable import unresolved-type

@@ -668,10 +668,17 @@ void AppController::startQueuedPlayback(bool fromStart)
     const qint64 startPositionTicks
         = fromStart || !isMeaningfulResumePosition(item.resumeTicks, item.runtimeTicks) ? 0 : item.resumeTicks;
     setBusy(true, QStringLiteral("Updating SyncPlay queue…"));
+    const RequestGeneration::Token generation = m_syncPlayQueueRequestGeneration.next();
+    // Arm this before SetNewQueue: the websocket PlayQueue update can arrive
+    // before or after the HTTP response. Waiting for the response allowed an
+    // old loaded session to consume the pending unpause request.
+    m_syncPlay->requestUnpauseWhenReady();
     Async::runScoped(
-        this, m_api->syncPlaySetNewQueue(itemIds, m_playQueue->currentIndex(), startPositionTicks),
-        [this]() { m_syncPlay->requestUnpauseWhenReady(); },
-        [this](const std::exception_ptr& error) {
+        this, m_api->syncPlaySetNewQueue(itemIds, m_playQueue->currentIndex(), startPositionTicks), []() {},
+        [this, generation](const std::exception_ptr& error) {
+            if (!m_syncPlayQueueRequestGeneration.isCurrent(generation))
+                return;
+            m_syncPlay->cancelPendingUnpause();
             setBusy(false);
             showToast(exceptionMessage(error));
         },
@@ -848,10 +855,13 @@ QCoro::Task<void> AppController::startPlayback(
     Diagnostics::Task task(QStringLiteral("playback_negotiate"),
         { { QStringLiteral("itemId"), playItem.id }, { QStringLiteral("title"), playItem.title },
             { QStringLiteral("type"), playItem.itemType } });
+    const RequestGeneration::Token generation = m_playbackLoadGeneration.next();
 
     if (!forceTranscode)
         m_codecFallbackAttempted = false;
     PlaybackSession session = co_await m_api->negotiatePlayback(playItem, forceTranscode);
+    if (!m_playbackLoadGeneration.isCurrent(generation))
+        co_return;
     const std::vector<PlaybackQueueItem> queue = m_playQueue->nowPlayingQueue();
     if (forceTranscode)
         PlaybackFailurePolicy::prepareFallbackSession(session, queue, audioStreamIndex, subtitleStreamIndex);

@@ -238,6 +238,14 @@ int main(int argc, char **argv)
     require(valueFor(webOSSoftware, "ao") == "alsa,null",
         "software rendering must not use audio tied to the absent Starfish video context");
     require(valueFor(webOSSoftware, "hwdec") == "no", "software rendering should not negotiate a hardware decoder");
+    require(valueFor(webOSSoftware, "initial-audio-sync") == "yes",
+        "software video should wait for its first video frame before starting audio");
+    require(valueFor(webOSSoftware, "audio-buffer") == "0.100",
+        "software video should retain enough audio to survive render-thread stalls");
+    require(valueFor(webOSSoftware, "load-stats-overlay").isEmpty(),
+        "the full mpv statistics overlay should remain loaded");
+    require(valueFor(webOSSoftware, "script-opts") == "stats-redraw_delay=2",
+        "the statistics overlay should avoid redrawing every second");
     require(valueFor(webOSSoftware, "scale") == "bilinear" && valueFor(webOSSoftware, "cscale") == "bilinear",
         "software rendering should use low-cost bilinear shaders");
     require(valueFor(webOSSoftware, "deband") == "no" && valueFor(webOSSoftware, "interpolation") == "no",

@@ -17,6 +17,33 @@ class PlayerController;
 class PlayQueueController;
 class TlsTrustController;
 
+class SyncPlayQueueHandoff final {
+public:
+    void arm()
+    {
+        m_armed = true;
+        m_queueUpdateObserved = false;
+    }
+    void observeQueueUpdate()
+    {
+        if (m_armed)
+            m_queueUpdateObserved = true;
+    }
+    void cancel()
+    {
+        m_armed = false;
+        m_queueUpdateObserved = false;
+    }
+    bool canSend(bool queueLoading, bool playbackStarting, bool sessionActive, bool fileLoaded) const
+    {
+        return m_armed && m_queueUpdateObserved && !queueLoading && !playbackStarting && sessionActive && fileLoaded;
+    }
+
+private:
+    bool m_armed = false;
+    bool m_queueUpdateObserved = false;
+};
+
 class SyncPlayController final : public QObject {
     Q_OBJECT
     Q_PROPERTY(QString currentGroupId READ currentGroupId NOTIFY groupChanged)
@@ -114,6 +141,7 @@ public:
     Q_INVOKABLE void requestNextItem();
     Q_INVOKABLE void requestPreviousItem();
     void requestUnpauseWhenReady();
+    void cancelPendingUnpause();
 
 signals:
     void groupsChanged();
@@ -180,6 +208,7 @@ private:
     double m_playbackDiffMs = 0.0;
     quint64 m_playQueueGeneration = 0;
     int m_greedyTimeSyncRemaining = 0;
+    SyncPlayQueueHandoff m_queueHandoff;
     int m_syncCorrectionAttempts = 0;
     bool m_socketDesired = false;
     bool m_timeSyncInFlight = false;
@@ -188,10 +217,7 @@ private:
     bool m_lastPlayerBuffering = false;
     bool m_playQueueLoading = false;
     bool m_waitingForPlaybackStart = false;
-    bool m_waitingForPauseAck = false;
-    bool m_pausePreparationScheduled = false;
     bool m_commandDue = false;
-    bool m_unpauseWhenReady = false;
     bool m_waitingForGroupPlayback = false;
     bool m_playbackDiffValid = false;
     bool m_unpauseRequestPending = false;

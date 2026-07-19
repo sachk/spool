@@ -197,6 +197,8 @@ private:
     QString m_busyText;
     QString m_errorText;
     RequestGeneration m_libraryLoadGeneration;
+    RequestGeneration m_playbackLoadGeneration;
+    RequestGeneration m_syncPlayQueueRequestGeneration;
     bool m_shuttingDown = false;
     bool m_codecFallbackAttempted = false;
 };

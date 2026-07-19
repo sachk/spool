@@ -1,6 +1,7 @@
 #include "JellyfinApiFacade.h"
 
 #include "../common/MetaJson.h"
+#include "../common/NetworkAddress.h"
 #include "../common/TlsTrust.h"
 #include "../common/VariantUtils.h"
 #include "../diagnostics/Diagnostics.h"
@@ -293,8 +294,8 @@ void JellyfinApiFacade::setServerUrl(const QString& serverUrl)
     m_requestFactory.setBaseUrl(QUrl(m_serverUrl));
     if (serverChanged) {
         ++m_playbackNetworkGeneration;
-        m_playbackEndpointKnown = false;
-        m_inLocalNetwork = false;
+        m_inLocalNetwork = isLanHost(QUrl(m_serverUrl).host());
+        m_playbackEndpointKnown = m_inLocalNetwork;
         m_measuredStreamingBitrate = 0;
         setPlaybackParallelRequests(1);
         updateEffectiveStreamingBitrate();

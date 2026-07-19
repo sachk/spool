@@ -14,6 +14,8 @@ qint64 PlaybackBandwidthPolicy::effectiveBitrate(
         return std::clamp<qint64>(manualBitrate, 1'000'000, MaximumBitrate);
     if (measuredBitrate > 0)
         return std::clamp<qint64>(measuredBitrate, 1'000'000, MaximumBitrate);
+    if (endpointKnown && inLocalNetwork)
+        return MaximumBitrate;
     return AutoFallbackBitrate;
 }
 

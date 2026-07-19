@@ -427,6 +427,7 @@ if(BUILD_TESTING AND NOT CMAKE_CROSSCOMPILING)
         content-model-controller tests/app/ContentModelControllerTest.cpp
         discovery-controller tests/discovery/DiscoveryControllerTest.cpp
         sync-play-clock tests/app/SyncPlayClockTest.cpp
+        sync-play-queue-handoff tests/app/SyncPlayQueueHandoffTest.cpp
         request-generation tests/common/RequestGenerationTest.cpp
         diagnostic-redaction tests/common/DiagnosticRedactionTest.cpp
         tls-trust tests/common/TlsTrustTest.cpp

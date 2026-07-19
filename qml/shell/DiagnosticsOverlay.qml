@@ -1,5 +1,6 @@
 import QtQuick
 import QtQuick.Layouts
+import JellyfinWebOS
 import "../theme"
 import "../primitives"
 
@@ -62,6 +63,10 @@ Item {
             MonoText {
                 text: "audio  decode " + root.cpu(SystemPerformance.audioDecodeCpuPercent) + "  output " + root.cpu(
                           SystemPerformance.audioOutputCpuPercent)
+            }
+            MonoText {
+                text: "Dropped frames  decoder " + Player.decoderDroppedFrames + "  output "
+                      + Player.outputDroppedFrames
             }
             MonoText {
                 text: "Load  " + SystemPerformance.loadOne.toFixed(2) + "  " + SystemPerformance.loadFive.toFixed(2)

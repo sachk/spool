@@ -49,6 +49,7 @@ extern "C" {
     X(mpv_render_context_create)                                                                                       \
     X(mpv_render_context_free)                                                                                         \
     X(mpv_render_context_render)                                                                                       \
+    X(mpv_render_context_report_swap)                                                                                  \
     X(mpv_render_context_set_update_callback)                                                                          \
     X(mpv_render_context_update)                                                                                       \
     X(starfish_overlay_set_callbacks)                                                                                  \
@@ -409,9 +410,8 @@ const char *mpv_error_string(int error)
     return g_api.mpv_error_string(error);
 }
 
-// Render API: referenced by MpvVideoItem, which is dead code on webOS
-// (vo=starfish renders out-of-process); the definitions exist to satisfy the
-// linker and fail safely if ever reached.
+// Render API: the Starfish path does not use it, but software-decoded video
+// renders through MpvVideoItem and therefore requires these runtime forwards.
 
 int mpv_render_context_create(mpv_render_context **res, mpv_handle *mpv, mpv_render_param *params)
 {
@@ -431,6 +431,12 @@ int mpv_render_context_render(mpv_render_context *ctx, mpv_render_param *params)
     if (!JellyfinNative::WebOSMpvRuntime::ensureLoaded())
         return MPV_ERROR_GENERIC;
     return g_api.mpv_render_context_render(ctx, params);
+}
+
+void mpv_render_context_report_swap(mpv_render_context *ctx)
+{
+    if (ctx && JellyfinNative::WebOSMpvRuntime::ensureLoaded())
+        g_api.mpv_render_context_report_swap(ctx);
 }
 
 void mpv_render_context_set_update_callback(mpv_render_context *ctx, mpv_render_update_fn callback, void *callback_ctx)

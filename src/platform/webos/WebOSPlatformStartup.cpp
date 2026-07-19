@@ -63,8 +63,10 @@ bool configurePlatformEnvironment(const QString& appRootPath)
     qputenv("QT_PLUGIN_PATH", QFile::encodeName(appRootPath + QStringLiteral("/qt-plugins")));
     qputenv("QT_QPA_PLATFORM_PLUGIN_PATH", QFile::encodeName(appRootPath + QStringLiteral("/qt-plugins/platforms")));
     qputenv("QML2_IMPORT_PATH", QFile::encodeName(appRootPath + QStringLiteral("/qt-qml")));
+    // Keep video FBO rendering off the GUI thread. The basic loop makes every
+    // QML or diagnostics stall a missed mpv presentation deadline.
     if (!qEnvironmentVariableIsSet("QSG_RENDER_LOOP"))
-        qputenv("QSG_RENDER_LOOP", QByteArrayLiteral("basic"));
+        qputenv("QSG_RENDER_LOOP", QByteArrayLiteral("threaded"));
     return ensureWaylandEnvironment();
 }
 

@@ -226,9 +226,15 @@ void SyncPlayController::requestUnpauseWhenReady()
 {
     if (!enabled())
         return;
-    m_unpauseWhenReady = true;
+    m_queueHandoff.arm();
     setWaitingForGroupPlayback(true);
-    sendPendingUnpause();
+}
+
+void SyncPlayController::cancelPendingUnpause()
+{
+    m_queueHandoff.cancel();
+    m_unpauseRequestPending = false;
+    setWaitingForGroupPlayback(false);
 }
 
 void SyncPlayController::requestTogglePause()
@@ -250,9 +256,11 @@ void SyncPlayController::requestTogglePause()
             },
             "SyncPlay unpause request");
     } else {
-        // Match jellyfin-mpv-shim: pause locally immediately, then let the
-        // scheduled server command establish the authoritative position.
-        m_player->togglePause();
+        // Pause locally immediately, then let the scheduled server command
+        // establish the authoritative position. Setting an explicit state is
+        // idempotent when the server acknowledgement arrives before mpv's
+        // property-change event.
+        m_player->setPaused(true);
         Async::runScoped(
             this, m_api->syncPlayPause(), []() {},
             [this](const std::exception_ptr& error) { reportRequestError(QStringLiteral("pause group"), error); },
@@ -468,66 +476,105 @@ void SyncPlayController::applyPlayQueueUpdate(const QJsonObject& queue)
     }
 
     const quint64 generation = ++m_playQueueGeneration;
-    m_playQueueLoading = true;
+    m_queueHandoff.observeQueueUpdate();
     m_playlistItemId = playlistItemIds.at(playingIndex);
     const QString selectedItemId = itemIds.at(playingIndex);
     const bool selectedItemAlreadyActive
         = m_player && m_player->sessionActive() && m_playQueue->currentItem().id == selectedItemId;
-    if (!selectedItemAlreadyActive)
-        setWaitingForGroupPlayback(true);
     const qint64 requestedTicks = queue.value(QStringLiteral("StartPositionTicks")).toVariant().toLongLong();
     const QString reason = queue.value(QStringLiteral("Reason")).toString();
     qInfo() << "syncplay: resolving incoming queue" << itemIds.size() << "items, index" << playingIndex << "reason"
             << reason;
 
+    // A large SyncPlay playlist can take seconds to hydrate. Resolve and start
+    // the selected item first; the rest of the queue is not on the critical
+    // path for reporting Ready or executing the scheduled play command.
+    const auto hydrateQueue = [this, generation, itemIds, playlistItemIds, playingIndex]() {
+        Async::runScoped(
+            this, m_api->fetchItemsByIds(itemIds),
+            [this, generation, itemIds, playlistItemIds, playingIndex](const std::vector<MovieItem>& fetched) {
+                if (generation != m_playQueueGeneration)
+                    return;
+
+                std::vector<MovieItem> ordered;
+                ordered.reserve(static_cast<size_t>(itemIds.size()));
+                int resolvedIndex = -1;
+                for (int requestedIndex = 0; requestedIndex < itemIds.size(); ++requestedIndex) {
+                    const auto found = std::find_if(fetched.begin(), fetched.end(),
+                        [&](const MovieItem& item) { return item.id == itemIds.at(requestedIndex); });
+                    if (found == fetched.end())
+                        continue;
+                    MovieItem item = *found;
+                    item.playlistItemId = playlistItemIds.at(requestedIndex);
+                    if (requestedIndex == playingIndex)
+                        resolvedIndex = static_cast<int>(ordered.size());
+                    ordered.push_back(std::move(item));
+                }
+                m_playQueue->setShuffled(false);
+                if (resolvedIndex < 0 || !m_playQueue->playNow(ordered, resolvedIndex)) {
+                    qWarning() << "syncplay: could not hydrate the full play queue";
+                    return;
+                }
+                qInfo() << "syncplay: hydrated incoming queue" << ordered.size() << "items";
+            },
+            [this, generation](const std::exception_ptr& error) {
+                if (generation == m_playQueueGeneration)
+                    qWarning() << "syncplay: full queue hydration failed:" << exceptionMessage(error);
+            },
+            "SyncPlay full queue hydration");
+    };
+
+    if (selectedItemAlreadyActive) {
+        m_playQueueLoading = false;
+        qInfo() << "syncplay: selected queue item is already active; preserving playback session";
+        hydrateQueue();
+        sendPlayerBufferingState(true);
+        sendPendingUnpause();
+        return;
+    }
+
+    m_playQueueLoading = true;
+    setWaitingForGroupPlayback(true);
     Async::runScoped(
-        this, m_api->fetchItemsByIds(itemIds),
-        [this, generation, itemIds, playlistItemIds, playingIndex, requestedTicks, selectedItemAlreadyActive](
+        this, m_api->fetchItemsByIds({ selectedItemId }),
+        [this, generation, selectedItemId, selectedPlaylistItemId = m_playlistItemId, requestedTicks, hydrateQueue](
             const std::vector<MovieItem>& fetched) {
             if (generation != m_playQueueGeneration)
                 return;
-            m_playQueueLoading = false;
-
-            std::vector<MovieItem> ordered;
-            ordered.reserve(static_cast<size_t>(itemIds.size()));
-            int resolvedIndex = -1;
-            for (int requestedIndex = 0; requestedIndex < itemIds.size(); ++requestedIndex) {
-                const auto found = std::find_if(fetched.begin(), fetched.end(),
-                    [&](const MovieItem& item) { return item.id == itemIds.at(requestedIndex); });
-                if (found == fetched.end())
-                    continue;
-                MovieItem item = *found;
-                item.playlistItemId = playlistItemIds.at(requestedIndex);
-                if (requestedIndex == playingIndex)
-                    resolvedIndex = static_cast<int>(ordered.size());
-                ordered.push_back(std::move(item));
-            }
-            if (resolvedIndex < 0 || !m_playQueue->playNow(ordered, resolvedIndex)) {
+            const auto selected = std::find_if(
+                fetched.cbegin(), fetched.cend(), [&](const MovieItem& item) { return item.id == selectedItemId; });
+            if (selected == fetched.cend()) {
+                m_playQueueLoading = false;
                 setWaitingForGroupPlayback(false);
                 emit errorText(QStringLiteral("SyncPlay could not resolve the selected queue item."));
                 return;
             }
 
-            if (selectedItemAlreadyActive) {
-                qInfo() << "syncplay: selected queue item is already active; preserving playback session";
-                sendPlayerBufferingState(true);
-                sendPendingUnpause();
+            MovieItem item = *selected;
+            item.playlistItemId = selectedPlaylistItemId;
+            m_playQueue->setShuffled(false);
+            if (!m_playQueue->playNow(item)) {
+                m_playQueueLoading = false;
+                setWaitingForGroupPlayback(false);
+                emit errorText(QStringLiteral("SyncPlay could not start the selected queue item."));
                 return;
             }
 
+            m_playQueueLoading = false;
             m_waitingForPlaybackStart = true;
             m_playerStateKnown = false;
             prepareQueuePlayback(requestedTicks);
             emit queuePlaybackRequested(requestedTicks);
+            hydrateQueue();
         },
         [this, generation](const std::exception_ptr& error) {
             if (generation != m_playQueueGeneration)
                 return;
             m_playQueueLoading = false;
             setWaitingForGroupPlayback(false);
-            reportRequestError(QStringLiteral("load play queue"), error);
+            reportRequestError(QStringLiteral("load selected queue item"), error);
         },
-        "SyncPlay queue resolution");
+        "SyncPlay selected item resolution");
 }
 
 void SyncPlayController::prepareQueuePlayback(qint64 positionTicks)
@@ -584,12 +631,11 @@ void SyncPlayController::clearGroup()
     m_scheduledCommand.clear();
     m_scheduledPlaylistItemId.clear();
     m_joinedAtServerMs = 0;
-    m_lastPlayQueueUpdateMs = 0;
+    m_queueHandoff.cancel();
     ++m_playQueueGeneration;
     m_playQueueLoading = false;
     m_waitingForPlaybackStart = false;
     m_commandDue = false;
-    m_unpauseWhenReady = false;
     m_unpauseRequestPending = false;
     m_syncCorrectionAttempts = 0;
     m_lastCorrectionAtMs = 0;
@@ -636,8 +682,7 @@ void SyncPlayController::executeScheduledCommand()
         finishSpeedCorrection();
         m_unpauseRequestPending = false;
         setWaitingForGroupPlayback(false);
-        if (!m_player->paused())
-            m_player->togglePause();
+        m_player->setPaused(true);
         if (positionDelta > 0.1)
             m_player->seek(targetSeconds);
     } else if (command == QStringLiteral("Unpause")) {
@@ -652,12 +697,10 @@ void SyncPlayController::executeScheduledCommand()
             m_suppressSeekBufferingUntilMs = QDateTime::currentMSecsSinceEpoch() + kInternalSeekBufferingSuppressionMs;
             m_player->seek(targetSeconds);
         }
-        if (m_player->paused())
-            m_player->togglePause();
+        m_player->setPaused(false);
     } else if (command == QStringLiteral("Seek")) {
         finishSpeedCorrection();
-        if (!m_player->paused())
-            m_player->togglePause();
+        m_player->setPaused(true);
         m_player->seek(targetSeconds);
         QTimer::singleShot(250, this, [this]() { sendPlayerBufferingState(true); });
     } else if (command == QStringLiteral("Stop")) {
@@ -806,15 +849,15 @@ void SyncPlayController::sendPlayerBufferingState(bool force)
         },
         buffering ? "SyncPlay buffering report" : "SyncPlay ready report");
 }
-
 void SyncPlayController::sendPendingUnpause()
 {
-    if (!m_unpauseWhenReady || !enabled() || !m_api || !m_player || m_playQueueLoading || m_waitingForPlaybackStart
-        || !m_player->sessionActive() || !m_player->fileLoaded()) {
+    if (!enabled() || !m_api || !m_player
+        || !m_queueHandoff.canSend(
+            m_playQueueLoading, m_waitingForPlaybackStart, m_player->sessionActive(), m_player->fileLoaded())) {
         return;
     }
 
-    m_unpauseWhenReady = false;
+    m_queueHandoff.cancel();
     m_unpauseRequestPending = true;
     qInfo() << "syncplay: requesting group-wide unpause";
     Async::runScoped(
