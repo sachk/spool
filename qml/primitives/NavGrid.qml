@@ -17,6 +17,7 @@ GridView {
     property int holdInitialReleaseTimeout: 800
     property bool holdRepeatSeen: false
     property double unmarkedRepeatCandidateAt: -1
+    readonly property int unmarkedRepeatConfirmationTimeout: 650
     property int holdDelay: 500
     property int holdCruiseDuration: 700
     property int holdRampDuration: 1700
@@ -77,12 +78,13 @@ GridView {
         holdReleaseWatchdog.restart()
     }
 
-    function confirmHold(moveImmediately) {
+    function confirmHold(immediateMoves) {
         if (!holdRepeatSeen) {
             holdRepeatSeen = true
             unmarkedRepeatCandidateAt = -1
             lastHoldTickAt = nowMs()
-            if (moveImmediately)
+            let moves = Math.max(0, Math.floor(Number(immediateMoves) || 0))
+            while (moves-- > 0)
                 moveBy(heldDelta())
             holdStarted(heldKey)
         }
@@ -149,13 +151,15 @@ GridView {
             // streams, require two presses at repeat cadence: one delayed
             // duplicate after a click must never start acceleration.
             if (repeat || holdRepeatSeen) {
-                confirmHold(true)
+                confirmHold(2)
             } else {
                 const now = nowMs()
-                if (unmarkedRepeatCandidateAt >= 0 && now - unmarkedRepeatCandidateAt <= holdReleaseTimeout) {
-                    confirmHold(true)
+                if (unmarkedRepeatCandidateAt >= 0 && now - unmarkedRepeatCandidateAt
+                        <= unmarkedRepeatConfirmationTimeout) {
+                    confirmHold(2)
                 } else {
                     unmarkedRepeatCandidateAt = now
+                    holdReleaseWatchdog.restart()
                 }
             }
             return true
@@ -166,8 +170,7 @@ GridView {
             // Preserve acceleration if the first event observed by this view
             // is already marked as an auto-repeat.
             beginAccelerating(key)
-            moveBy(heldDelta())
-            confirmHold(false)
+            confirmHold(2)
             return true
         }
         const columns = columnCount()
