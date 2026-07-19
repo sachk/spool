@@ -48,7 +48,6 @@ QTWEBSOCKETS_TARBALL="$SRC_DIR/qtwebsockets-everywhere-src-$QT_VERSION.tar.xz"
 QTWAYLAND_TARBALL="$SRC_DIR/qtwayland-everywhere-src-$QT_VERSION.tar.xz"
 QTOPENAPI_TARBALL="$SRC_DIR/qtopenapi-everywhere-src-$QT_VERSION.tar.xz"
 QTIMAGEFORMATS_TARBALL="$SRC_DIR/qtimageformats-everywhere-src-$QT_VERSION.tar.xz"
-QTSVG_TARBALL="$SRC_DIR/qtsvg-everywhere-src-$QT_VERSION.tar.xz"
 
 QTBASE_SRC="$SRC_DIR/qtbase-everywhere-src-$QT_VERSION"
 QTSHADERTOOLS_SRC="$SRC_DIR/qtshadertools-everywhere-src-$QT_VERSION"
@@ -58,7 +57,6 @@ QTWEBSOCKETS_SRC="$SRC_DIR/qtwebsockets-everywhere-src-$QT_VERSION"
 QTWAYLAND_SRC="$SRC_DIR/qtwayland-everywhere-src-$QT_VERSION"
 QTOPENAPI_SRC="$SRC_DIR/qtopenapi-everywhere-src-$QT_VERSION"
 QTIMAGEFORMATS_SRC="$SRC_DIR/qtimageformats-everywhere-src-$QT_VERSION"
-QTSVG_SRC="$SRC_DIR/qtsvg-everywhere-src-$QT_VERSION"
 
 QT_BUILD_TAG="${QT_SERIES//./}"
 HOST_BUILD_ROOT="$ROOT/build/qt6-$QT_BUILD_TAG-host"
@@ -74,6 +72,11 @@ else
   TARGET_PREFIX="${QT_TARGET_PREFIX:-/opt/qt6-webos-$QT_SERIES}"
 fi
 TARGET_QTBASE_REBUILT=0
+HOST_QTBASE_REBUILT=0
+HOST_MODULES_REBUILD=0
+if [[ ! -f "$HOST_INSTALL/.jellyfin-host-tools-profile-v1" ]]; then
+  HOST_MODULES_REBUILD=1
+fi
 
 TOOLCHAIN_FILE="$ROOT/tools/webos-native/qt6-webos-toolchain.cmake"
 PKG_CONFIG_WEBOS="$ROOT/tools/webos-native/pkg-config-webos.sh"
@@ -330,7 +333,6 @@ fetch_sources() {
     download_submodule qtopenapi "$QTOPENAPI_TARBALL"
   fi
   download_submodule qtimageformats "$QTIMAGEFORMATS_TARBALL"
-  download_submodule qtsvg "$QTSVG_TARBALL"
 
   extract_if_needed "$QTBASE_TARBALL" "$QTBASE_SRC"
   extract_if_needed "$QTSHADERTOOLS_TARBALL" "$QTSHADERTOOLS_SRC"
@@ -342,7 +344,6 @@ fetch_sources() {
     extract_if_needed "$QTOPENAPI_TARBALL" "$QTOPENAPI_SRC"
   fi
   extract_if_needed "$QTIMAGEFORMATS_TARBALL" "$QTIMAGEFORMATS_SRC"
-  extract_if_needed "$QTSVG_TARBALL" "$QTSVG_SRC"
 
   apply_local_patches
 }
@@ -352,6 +353,7 @@ host_qtbase_up_to_date() {
   qt_prefix_matches_version "$HOST_INSTALL" || return 1
   [[ -f "$HOST_INSTALL/lib/cmake/Qt6/Qt6Config.cmake" ]] || return 1
   [[ -e "$HOST_INSTALL/lib/libQt6Core.so" || -e "$HOST_INSTALL/lib/libQt6Core.a" ]] || return 1
+  [[ -f "$HOST_INSTALL/.jellyfin-host-qtbase-profile-v1" ]] || return 1
   [[ -e "$HOST_INSTALL/lib/libQt6Gui.so" || -e "$HOST_INSTALL/lib/libQt6Gui.a" ]] || return 1
   [[ -e "$HOST_INSTALL/lib/libQt6Widgets.so" || -e "$HOST_INSTALL/lib/libQt6Widgets.a" ]] || return 1
   return 0
@@ -369,6 +371,7 @@ configure_host_qtbase() {
     -DQT_BUILD_EXAMPLES=OFF \
     -DQT_BUILD_TESTS=OFF \
     -DINPUT_opengl=no \
+    -DFEATURE_vulkan=OFF \
     -DFEATURE_gui=ON \
     -DFEATURE_widgets=ON \
     -DFEATURE_accessibility=ON \
@@ -389,10 +392,16 @@ build_host_qtbase() {
     log "host qtbase: up to date, skipping"
     return 0
   fi
+  if [[ ! -f "$HOST_INSTALL/.jellyfin-host-qtbase-profile-v1" ]]; then
+    log "host Qt profile changed; removing incompatible cached host prefix"
+    rm -rf "$HOST_INSTALL" "$HOST_BUILD_ROOT"
+  fi
+  HOST_QTBASE_REBUILT=1
   configure_host_qtbase
   cmake_build "$HOST_BUILD_ROOT/qtbase" --parallel "$JOBS"
   cmake_install "$HOST_BUILD_ROOT/qtbase"
   prune_completed_build_dir "$HOST_BUILD_ROOT/qtbase"
+  printf '1\n' >"$HOST_INSTALL/.jellyfin-host-qtbase-profile-v1"
 }
 
 configure_host_module() {
@@ -425,6 +434,8 @@ host_module_up_to_date() {
   local name="$1"
   local marker="$2"
   [[ "${QT_BUILD_FORCE:-0}" != "1" ]] || return 1
+  [[ "$HOST_QTBASE_REBUILT" != "1" ]] || return 1
+  [[ "$HOST_MODULES_REBUILD" != "1" ]] || return 1
   [[ ",${QT_BUILD_FORCE_MODULES:-}," != *",$name,"* ]] || return 1
   [[ -e "$HOST_INSTALL/$marker" ]] || return 1
   return 0
@@ -507,7 +518,8 @@ build_all_host_modules() {
       && qmlimportscanner_excludes_subtrees; then
     log "host qtdeclarative: up to date, skipping"
   else
-    configure_host_module qtdeclarative "$QTDECLARATIVE_SRC"
+    configure_host_module qtdeclarative "$QTDECLARATIVE_SRC" \
+      -DFEATURE_quick_vectorimage=OFF
     build_host_module qtdeclarative
   fi
 
@@ -540,11 +552,9 @@ build_all_host_modules() {
     build_host_module qtwayland
   fi
 
-  if host_module_up_to_date qtsvg "lib/cmake/Qt6Svg/Qt6SvgConfig.cmake"; then
-    log "host qtsvg: up to date, skipping"
-  else
-    configure_host_module qtsvg "$QTSVG_SRC"
-    build_host_module qtsvg
+
+  if [[ -z "${QT_BUILD_FORCE_MODULES:-}" ]]; then
+    printf '1\n' >"$HOST_INSTALL/.jellyfin-host-tools-profile-v1"
   fi
 
 }
@@ -560,15 +570,8 @@ configure_target_qtbase() {
   sdk_glesv2_lib="$(sdk_sysroot_library GLESv2)"
   sdk_egl_lib="$(sdk_sysroot_library EGL)"
   sdk_xkb_lib="$(sdk_sysroot_library xkbcommon)"
-  if [[ "$QT_STATIC" == "1" ]]; then
-    sdk_ssl_lib="$SYSROOT/usr/lib/libssl.a"
-    sdk_crypto_lib="$SYSROOT/usr/lib/libcrypto.a"
-    [[ -f "$sdk_ssl_lib" ]] || die "webOS sysroot static library not found: libssl.a"
-    [[ -f "$sdk_crypto_lib" ]] || die "webOS sysroot static library not found: libcrypto.a"
-  else
-    sdk_ssl_lib="$(sdk_sysroot_library ssl)"
-    sdk_crypto_lib="$(sdk_sysroot_library crypto)"
-  fi
+  sdk_ssl_lib="$(sdk_sysroot_library ssl)"
+  sdk_crypto_lib="$(sdk_sysroot_library crypto)"
   sdk_wayland_client_lib="$(sdk_sysroot_library wayland-client)"
   sdk_wayland_server_lib="$(sdk_sysroot_library wayland-server)"
   sdk_wayland_cursor_lib="$(sdk_sysroot_library wayland-cursor)"
@@ -652,7 +655,7 @@ configure_target_qtbase() {
     -DWayland_Egl_LIBRARY="$sdk_wayland_egl_lib" \
     -DINPUT_openssl=linked \
     -DFEATURE_ssl=ON \
-    -DOPENSSL_USE_STATIC_LIBS="$QT_STATIC" \
+    -DOPENSSL_USE_STATIC_LIBS=OFF \
     -DOPENSSL_ROOT_DIR="$SYSROOT/usr" \
     -DOPENSSL_INCLUDE_DIR="$SYSROOT/usr/include" \
     -DOPENSSL_SSL_LIBRARY="$sdk_ssl_lib" \
@@ -663,6 +666,10 @@ configure_target_qtbase() {
 target_qtbase_up_to_date() {
   [[ "${QT_BUILD_FORCE:-0}" != "1" ]] || return 1
   qt_prefix_matches_version "$TARGET_STAGING" || return 1
+  [[ -f "$TARGET_STAGING/.jellyfin-openssl-shared" ]] || return 1
+  if [[ "$QT_STATIC" == "1" ]]; then
+    [[ -f "$TARGET_STAGING/.jellyfin-static-size-profile-v1" ]] || return 1
+  fi
   [[ -f "$TARGET_STAGING/lib/cmake/Qt6/Qt6Config.cmake" ]] || return 1
   [[ -e "$TARGET_STAGING/$(target_lib_marker Qt6Core)" ]] || return 1
   [[ -e "$TARGET_STAGING/$(target_lib_marker Qt6Gui)" ]] || return 1
@@ -684,6 +691,7 @@ build_target_qtbase() {
   configure_target_qtbase
   cmake_build "$TARGET_BUILD_ROOT/qtbase" --parallel "$JOBS"
   cmake_install "$TARGET_BUILD_ROOT/qtbase"
+  printf 'shared\n' >"$TARGET_STAGING/.jellyfin-openssl-shared"
   prune_completed_build_dir "$TARGET_BUILD_ROOT/qtbase"
 }
 
@@ -810,7 +818,8 @@ build_all_target_modules() {
   if target_module_up_to_date qtdeclarative "$(target_lib_marker Qt6Qml)"; then
     log "target qtdeclarative: up to date, skipping"
   else
-    configure_target_module qtdeclarative "$QTDECLARATIVE_SRC"
+    configure_target_module qtdeclarative "$QTDECLARATIVE_SRC" \
+      -DFEATURE_quick_vectorimage=OFF
     build_target_module qtdeclarative
   fi
 
@@ -856,11 +865,9 @@ build_all_target_modules() {
     build_target_module qtimageformats
   fi
 
-  if target_module_up_to_date qtsvg "$(target_lib_marker Qt6Svg)"; then
-    log "target qtsvg: up to date, skipping"
-  else
-    configure_target_module qtsvg "$QTSVG_SRC"
-    build_target_module qtsvg
+
+  if [[ "$QT_STATIC" == "1" && -z "${QT_BUILD_FORCE_MODULES:-}" ]]; then
+    printf '1\n' >"$TARGET_STAGING/.jellyfin-static-size-profile-v1"
   fi
 
 }
