@@ -197,6 +197,10 @@ TestCase {
         verify(grid.currentIndex > 8)
         verify(grid.routeKey(Qt.Key_Down, "release", false))
         compare(grid.heldKey, 0)
+        const stoppedAt = grid.currentIndex
+        fakeNow += 500
+        grid.accelerate()
+        compare(grid.currentIndex, stoppedAt)
     }
 
     function test_fractionalMovementUsesElapsedTime() {

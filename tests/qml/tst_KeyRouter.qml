@@ -76,7 +76,7 @@ TestCase {
         keyRouter.typeAheadKey = 0
         keyRouter.textInputActive = false
         keyRouter.backspaceNavigatesInTextInput = false
-        keyRouter.webOsColorScanCodes = false
+        keyRouter.webOsScanCodes = false
     }
 
     function test_directionUsesRouterHelper() {
@@ -102,6 +102,23 @@ TestCase {
             compare(lastRoutePhase, "release")
             compare(keyRouter.pressedDirectionKey, 0)
         }
+    }
+
+    function test_webOSScanOnlyDirectionReleaseStopsPhysicalHold() {
+        keyRouter.webOsScanCodes = true
+        verify(keyRouter.routeDirection(Qt.Key_Down, "press", false, Qt.NoModifier))
+        verify(keyRouter.routeDirection(Qt.Key_Down, "press", false, Qt.NoModifier))
+        compare(lastRouteRepeat, true)
+        const releaseKey = keyRouter.normalizedKey({
+                                                       "key": 0,
+                                                       "nativeScanCode": 116,
+                                                       "nativeVirtualKey": 0
+                                                   })
+        compare(releaseKey, Qt.Key_Down)
+        verify(keyRouter.routeDirection(releaseKey, "release", false, Qt.NoModifier))
+        compare(lastRoutePhase, "release")
+        compare(lastRouteRepeat, false)
+        compare(keyRouter.pressedDirectionKey, 0)
     }
 
     function test_backFallsThroughToTarget() {
@@ -133,7 +150,7 @@ TestCase {
     }
 
     function test_webOSColorScansNormalizeAsQtColorKeys() {
-        keyRouter.webOsColorScanCodes = true
+        keyRouter.webOsScanCodes = true
         const scans = [406, 407, 408, 409]
         const keys = [Qt.Key_Red, Qt.Key_Green, Qt.Key_Yellow, Qt.Key_Blue]
         for (let index = 0; index < scans.length; ++index)

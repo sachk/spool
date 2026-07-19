@@ -9,7 +9,7 @@ KeyRouter {
     onWidthChanged: Metrics.refWidth = width
     focus: true
     backspaceNavigatesInTextInput: Platform.isTV
-    webOsColorScanCodes: Platform.isTV
+    webOsScanCodes: Platform.isTV
 
     readonly property string route: Router.route
     readonly property var routeArgs: Router.args || ({})

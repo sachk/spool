@@ -7,7 +7,7 @@ FocusScope {
     property var activeTarget: null
     property bool textInputActive: false
     property bool backspaceNavigatesInTextInput: false
-    property bool webOsColorScanCodes: false
+    property bool webOsScanCodes: false
     property var backHandler: null
     property var globalHandler: null
     property int longPressInterval: 520
@@ -29,8 +29,20 @@ FocusScope {
     }
 
     function normalizedKey(event) {
-        if (webOsColorScanCodes && event.key === 0) {
+        if (webOsScanCodes && event.key === 0) {
+            // LG's Wayland stack can lose the Qt key on physical remote
+            // releases while retaining the XKB scan code. Recover directions
+            // so release reaches the active view instead of waiting for its
+            // repeat watchdog.
             const scanCode = Number(event.nativeScanCode || 0)
+            if (scanCode === 111)
+                return Qt.Key_Up
+            if (scanCode === 113)
+                return Qt.Key_Left
+            if (scanCode === 114)
+                return Qt.Key_Right
+            if (scanCode === 116)
+                return Qt.Key_Down
             if (scanCode === 406)
                 return Qt.Key_Red
             if (scanCode === 407)
