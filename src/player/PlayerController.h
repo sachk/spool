@@ -129,9 +129,8 @@ public:
     Q_INVOKABLE void seek(double seconds);
     Q_INVOKABLE void previewSeekBy(double deltaSeconds);
     void prepareForBackground();
-    void pauseForBackground();
+    void teardownForBackground();
     void resyncForForeground();
-    void setKeepPlayingInBackground(bool keepPlaying);
     Q_INVOKABLE void toggleDebugOsd();
     Q_INVOKABLE void toggleSubtitles();
     Q_INVOKABLE void cycleSubtitles();
@@ -261,12 +260,11 @@ private:
     QTimer m_backGuardTimer;
     QTimer m_uiPositionTimer;
     QTimer m_seekWatchdogTimer;
-    QTimer m_backgroundPauseTimer;
+    QTimer m_backgroundTeardownTimer;
     bool m_visible = false;
     bool m_sessionActive = false;
     bool m_fileLoaded = false;
     bool m_seekDispatchReady = false;
-    bool m_keepPlayingInBackground = false;
     bool m_paused = false;
     bool m_buffering = false;
     int m_bufferingPercent = 0;

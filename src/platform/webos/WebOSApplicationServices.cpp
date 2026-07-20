@@ -179,7 +179,7 @@ void PlatformApplicationServices::start()
         [platform = m_platform.get()](Qt::ApplicationState state) {
             PlayerController *player = platform->controller->player();
             if (state == Qt::ApplicationHidden || state == Qt::ApplicationSuspended)
-                player->pauseForBackground();
+                player->teardownForBackground();
             else if (state == Qt::ApplicationInactive)
                 player->prepareForBackground();
             else if (state == Qt::ApplicationActive)
@@ -199,7 +199,7 @@ void PlatformApplicationServices::start()
                 platform->backgroundTrimTimer.stop();
                 player->resyncForForeground();
             } else {
-                player->prepareForBackground();
+                player->teardownForBackground();
                 platform->backgroundTrimTimer.start();
             }
         });

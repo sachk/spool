@@ -87,8 +87,6 @@ AppController::AppController(DatabaseManager *database, DiscoveryController *dis
     connect(m_api, &JellyfinApiFacade::authenticationExpired, m_session, &SessionController::expireSession);
     connect(m_syncPlay, &SyncPlayController::errorText, this, &AppController::showToast);
     connect(m_database, &DatabaseManager::recoveryNotice, this, &AppController::showToast);
-    connect(m_syncPlay, &SyncPlayController::groupChanged, this,
-        [this]() { m_player->setKeepPlayingInBackground(m_syncPlay->enabled()); });
     connect(m_syncPlay, &SyncPlayController::remotePlayCommand, this, &AppController::handleRemotePlay);
     connect(m_syncPlay, &SyncPlayController::remotePlaystateCommand, this, &AppController::handleRemotePlaystate);
     connect(m_syncPlay, &SyncPlayController::remoteGeneralCommand, this, &AppController::handleRemoteGeneralCommand);

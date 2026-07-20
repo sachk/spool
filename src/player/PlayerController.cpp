@@ -207,14 +207,14 @@ PlayerController::PlayerController(
     m_backGuardTimer.setInterval(1500);
     m_seekWatchdogTimer.setSingleShot(true);
     m_seekWatchdogTimer.setInterval(2500);
-    m_backgroundPauseTimer.setSingleShot(true);
-    m_backgroundPauseTimer.setInterval(750);
-    connect(&m_backgroundPauseTimer, &QTimer::timeout, this, [this]() {
-        if (!platformUsesBackgroundPlaybackPolicy() || !m_sessionActive || m_paused || m_keepPlayingInBackground)
+    m_backgroundTeardownTimer.setSingleShot(true);
+    m_backgroundTeardownTimer.setInterval(750);
+    connect(&m_backgroundTeardownTimer, &QTimer::timeout, this, [this]() {
+        if (!platformUsesBackgroundPlaybackPolicy() || !m_sessionActive)
             return;
-        qInfo() << "player: pausing after sustained background/hidden app state";
-        mpvCommand({ QByteArrayLiteral("no-osd"), QByteArrayLiteral("set"), QByteArrayLiteral("pause"),
-            QByteArrayLiteral("yes") });
+        qInfo() << "player: stopping after sustained background/hidden app state";
+        stopWithReason(QStringLiteral("background"));
+        teardownMpv();
     });
     connect(&m_backGuardTimer, &QTimer::timeout, this, [this]() {
         if (!m_sessionActive || m_backAllowed)
@@ -1023,37 +1023,27 @@ void PlayerController::prepareForBackground()
     setPositionSeconds(position, PlaybackPositionTracker::Source::Lifecycle);
 }
 
-void PlayerController::pauseForBackground()
+void PlayerController::teardownForBackground()
 {
     if (!platformUsesBackgroundPlaybackPolicy())
         return;
     prepareForBackground();
-    if (!m_sessionActive || m_paused || m_keepPlayingInBackground)
+    if (!m_sessionActive)
         return;
-    // A transient hidden state during surface handoff must not synchronously
-    // pause ordinary playback. A real background transition outlasts this timer.
-    qInfo() << "player: scheduling pause for background/hidden app state";
-    m_backgroundPauseTimer.start();
-}
-
-void PlayerController::setKeepPlayingInBackground(bool keepPlaying)
-{
-    if (m_keepPlayingInBackground == keepPlaying)
-        return;
-    m_keepPlayingInBackground = keepPlaying;
-    if (keepPlaying && m_backgroundPauseTimer.isActive()) {
-        m_backgroundPauseTimer.stop();
-        qInfo() << "player: cancelled background pause for SyncPlay";
-    }
+    // A transient hidden state during surface handoff must not tear down
+    // ordinary playback. A real background transition outlasts this timer,
+    // at which point Starfish must release the system media pipeline.
+    qInfo() << "player: scheduling teardown for background/hidden app state";
+    m_backgroundTeardownTimer.start();
 }
 
 void PlayerController::resyncForForeground()
 {
     if (!platformUsesBackgroundPlaybackPolicy())
         return;
-    if (m_backgroundPauseTimer.isActive()) {
-        m_backgroundPauseTimer.stop();
-        qInfo() << "player: cancelled transient background pause";
+    if (m_backgroundTeardownTimer.isActive()) {
+        m_backgroundTeardownTimer.stop();
+        qInfo() << "player: cancelled transient background teardown";
     }
     if (!m_visible)
         return;
