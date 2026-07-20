@@ -47,6 +47,10 @@ bool configurePlatformEnvironment(const QString& appRootPath)
     setenv("QSG_RHI_BACKEND", "opengl", 1);
     unsetenv("QT_QUICK_BACKEND");
     unsetenv("QMLSCENE_DEVICE");
+    // webOS exports this for its Qt 5 applications, but Qt 6 also uses it to
+    // reject embedded qmlcachegen units. Our QML source is discarded, so the
+    // launcher-provided value would leave every QML resource empty.
+    unsetenv("QML_DISABLE_DISK_CACHE");
     unsetenv("QT_IM_MODULES");
     setenv("QT_IM_MODULE", "webosim", 1);
     setenv("QT_WAYLAND_SHELL_INTEGRATION", "wl-shell", 1);
