@@ -74,6 +74,8 @@ int main(int argc, char **argv)
     require(valueFor(desktop, "config") == "no", "disabled user configuration should bypass mpv.conf");
     require(indexOf(desktop, "config") < indexOf(desktop, "input-default-bindings"),
         "application input invariants must be applied after user configuration policy");
+    require(valueFor(desktop, "ytdl") == "no", "desktop should disable the bundled URL script");
+    require(valueFor(desktop, "osc") == "no", "desktop should disable mpv's script UI");
 
     MpvConfigPolicy standardConfig;
     standardConfig.mode = MpvConfigPolicy::Mode::Standard;
@@ -201,6 +203,9 @@ int main(int argc, char **argv)
     require(valueFor(webOSPcm, "curl-buffer-size") == "2097152", "webOS should use a 2 MiB network ring");
     require(valueFor(webOSPcm, "curl-max-request-size") == "524288", "webOS should issue 512 KiB ranges");
     require(valueFor(webOSPcm, "curl-parallel-requests") == "1", "webOS should default to one range request");
+    require(valueFor(webOSPcm, "ytdl").isEmpty(), "webOS should not configure the omitted URL script");
+    require(valueFor(webOSPcm, "osc").isEmpty(), "webOS should not configure the omitted script UI");
+    require(valueFor(webOSPcm, "load-console").isEmpty(), "webOS should not configure omitted builtin scripts");
 
     const auto webOSAlsa = profileOptions(MpvConfigPolicy {}, MpvOptionProfile::Platform::WebOS, QStringLiteral("alsa"),
         QByteArrayLiteral("/tmp/mpv.log"));
@@ -315,8 +320,11 @@ int main(int argc, char **argv)
     require(valueFor(MpvOptionProfile::subtitleOptions(hdrSubtitles, true, true), "sub-color") == "#FFFFFFFF",
         "disabled HDR dimming should preserve the configured subtitle colour");
     hdrSubtitles.font = QStringLiteral("serif");
-    require(valueFor(MpvOptionProfile::subtitleOptions(hdrSubtitles, true), "sub-font") == "Source Serif 4",
-        "bundled Source Serif preference was not mapped");
+    require(valueFor(MpvOptionProfile::subtitleOptions(hdrSubtitles, true), "sub-font") == "IBM Plex Sans Var",
+        "legacy serif preference should fall back to the bundled IBM Plex Sans font");
+    SubtitlePreferences defaultSubtitles;
+    require(valueFor(MpvOptionProfile::subtitleOptions(defaultSubtitles, true), "sub-font") == "IBM Plex Sans Var",
+        "default subtitles should use the bundled IBM Plex Sans font");
     SubtitlePreferences hidden;
     hidden.mode = QStringLiteral("None");
     hidden.textColor = QStringLiteral("not-a-color");

@@ -100,9 +100,9 @@ namespace {
         if (!QDir().mkpath(fontsPath))
             return {};
 
-        const QString target = QDir(fontsPath).filePath(QStringLiteral("SourceSerif4-Regular.ttf"));
+        const QString target = QDir(fontsPath).filePath(QStringLiteral("IBMPlexSans-Variable.ttf"));
         if (!QFile::exists(target)
-            && !QFile::copy(QStringLiteral(":/qt/qml/JellyfinWebOS/qml/fonts/SourceSerif4-Regular.ttf"), target)) {
+            && !QFile::copy(QStringLiteral(":/qt/qml/JellyfinWebOS/qml/fonts/IBMPlexSans-Variable.ttf"), target)) {
             qWarning() << "player: failed to extract bundled subtitle font";
             return {};
         }

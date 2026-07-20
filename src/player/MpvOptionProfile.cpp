@@ -98,7 +98,7 @@ namespace {
     QByteArray subtitleFontFamily(const QString& value)
     {
         if (value == QStringLiteral("serif"))
-            return QByteArrayLiteral("Source Serif 4");
+            return QByteArrayLiteral("IBM Plex Sans Var");
         if (value == QStringLiteral("typewriter"))
             return QByteArrayLiteral("Courier New");
         if (value == QStringLiteral("print"))
@@ -113,7 +113,7 @@ namespace {
             return QByteArrayLiteral("Segoe Print");
         if (value == QStringLiteral("smallcaps"))
             return QByteArrayLiteral("Copperplate Gothic");
-        return QByteArrayLiteral("sans-serif");
+        return QByteArrayLiteral("IBM Plex Sans Var");
     }
 
     QByteArray subtitleBackgroundColor(const QString& value)
@@ -255,7 +255,6 @@ std::vector<MpvOption> MpvOptionProfile::applicationOptions(Platform platform, c
         { "terminal", "no" },
         { "msg-level", webOS ? "all=warn,starfish=info,sub=v" : "all=warn,sub=v" },
         { "log-file", logPath },
-        { "ytdl", "no" },
         { "demuxer-lavf-analyzeduration", "1" },
         { "demuxer-lavf-probesize", "1048576" },
         { "cache", "yes" },
@@ -268,6 +267,8 @@ std::vector<MpvOption> MpvOptionProfile::applicationOptions(Platform platform, c
         { "curl-parallel-requests", QByteArray::number(network.parallelRequests) },
         { "force-window", "no" },
     };
+    if (!webOS)
+        options.push_back({ "ytdl", "no" });
 
     if (webOS) {
         options.push_back({ "initial-audio-sync", softwareVideo ? "yes" : "no" });
@@ -317,18 +318,23 @@ std::vector<MpvOption> MpvOptionProfile::applicationOptions(Platform platform, c
         { "osd-bar", "no" },
         { "osd-duration", "0" },
         { "audio-file-auto", "no" },
-        { "osc", "no" },
-        { "load-console", "no" },
-        { "load-select", "no" },
-        { "load-positioning", "no" },
-        { "load-commands", "no" },
-        { "load-context-menu", "no" },
         { "input-default-bindings", "no" },
         { "input-vo-keyboard", "no" },
         { "keep-open", "no" },
         { "idle", "yes" },
     };
     options.insert(options.end(), std::begin(applicationOptions), std::end(applicationOptions));
+    if (!webOS) {
+        const MpvOption desktopScriptOptions[] = {
+            { "osc", "no" },
+            { "load-console", "no" },
+            { "load-select", "no" },
+            { "load-positioning", "no" },
+            { "load-commands", "no" },
+            { "load-context-menu", "no" },
+        };
+        options.insert(options.end(), std::begin(desktopScriptOptions), std::end(desktopScriptOptions));
+    }
     return options;
 }
 
