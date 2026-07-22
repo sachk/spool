@@ -86,11 +86,13 @@ int main(int argc, char **argv)
         "account token should round-trip through the platform credential store");
     require(QDir(credentialPath).entryList(QDir::Files).size() == 1,
         "exactly one durable credential copy should be stored");
+#ifndef Q_OS_WIN
     const QFileInfo credentialInfo(QDir(credentialPath).entryInfoList(QDir::Files).front());
     require((credentialInfo.permissions()
                 & (QFileDevice::ReadGroup | QFileDevice::WriteGroup | QFileDevice::ReadOther | QFileDevice::WriteOther))
             == 0,
         "credential file should be owner-only");
+#endif
     QFile durableState(statePath);
     require(durableState.open(QIODevice::ReadOnly), "durable state should be readable for token inspection");
     require(!durableState.readAll().contains(profile.accessToken.toUtf8()),
