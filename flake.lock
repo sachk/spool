@@ -3,17 +3,17 @@
     "libplacebo-src": {
       "flake": false,
       "locked": {
-        "lastModified": 1777455926,
-        "narHash": "sha256-7cuIy6Ldbf7XP49HRNOJ5Ur2+aDXGsAGx1KKd71iBEk=",
+        "lastModified": 1783535157,
+        "narHash": "sha256-cA8+APhpu3m38z5hs2EhsNlLb/xHAy/Tcxi5loFS6j0=",
         "owner": "haasn",
         "repo": "libplacebo",
-        "rev": "27aa71a97f4daed84916936572fa6a2e1c3eedb7",
+        "rev": "a7a18af88ff0a17c04840dcb3246047bb6b46df3",
         "type": "github"
       },
       "original": {
         "owner": "haasn",
         "repo": "libplacebo",
-        "rev": "27aa71a97f4daed84916936572fa6a2e1c3eedb7",
+        "rev": "a7a18af88ff0a17c04840dcb3246047bb6b46df3",
         "type": "github"
       }
     },
@@ -31,17 +31,34 @@
     },
     "nixpkgs": {
       "locked": {
-        "lastModified": 1777578337,
-        "narHash": "sha256-Ad49moKWeXtKBJNy2ebiTQUEgdLyvGmTeykAQ9xM+Z4=",
+        "lastModified": 1784726549,
+        "narHash": "sha256-N6qFnWWKaLW437i+qgDgLYzGV9Xzka0rofo6ZO0CHKc=",
         "owner": "NixOS",
         "repo": "nixpkgs",
-        "rev": "15f4ee454b1dce334612fa6843b3e05cf546efab",
+        "rev": "88cc2017b8412e0b62c0f2d04ae91a5d7e611984",
         "type": "github"
       },
       "original": {
         "owner": "NixOS",
         "repo": "nixpkgs",
-        "rev": "15f4ee454b1dce334612fa6843b3e05cf546efab",
+        "rev": "88cc2017b8412e0b62c0f2d04ae91a5d7e611984",
+        "type": "github"
+      }
+    },
+    "qcoro-src": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1771018093,
+        "narHash": "sha256-+uArJ9wuq/Cu8/P81xktPLAs6GH13RFepqhdqOof0Jo=",
+        "owner": "danvratil",
+        "repo": "qcoro",
+        "rev": "d1b52b5db2ff9560185c39a4ed9f944dc610c235",
+        "type": "github"
+      },
+      "original": {
+        "owner": "danvratil",
+        "repo": "qcoro",
+        "rev": "d1b52b5db2ff9560185c39a4ed9f944dc610c235",
         "type": "github"
       }
     },
@@ -49,7 +66,8 @@
       "inputs": {
         "libplacebo-src": "libplacebo-src",
         "mpv-src": "mpv-src",
-        "nixpkgs": "nixpkgs"
+        "nixpkgs": "nixpkgs",
+        "qcoro-src": "qcoro-src"
       }
     }
   },

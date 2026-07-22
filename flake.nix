@@ -2,9 +2,13 @@
   description = "Jellyfin webOS native build environment";
 
   inputs = {
-    nixpkgs.url = "github:NixOS/nixpkgs/15f4ee454b1dce334612fa6843b3e05cf546efab";
+    nixpkgs.url = "github:NixOS/nixpkgs/88cc2017b8412e0b62c0f2d04ae91a5d7e611984";
     libplacebo-src = {
-      url = "github:haasn/libplacebo/27aa71a97f4daed84916936572fa6a2e1c3eedb7?submodules=1";
+      url = "github:haasn/libplacebo/a7a18af88ff0a17c04840dcb3246047bb6b46df3?submodules=1";
+      flake = false;
+    };
+    qcoro-src = {
+      url = "github:danvratil/qcoro/d1b52b5db2ff9560185c39a4ed9f944dc610c235";
       flake = false;
     };
     mpv-src = {
@@ -13,13 +17,13 @@
     };
   };
 
-  outputs = { self, nixpkgs, libplacebo-src, mpv-src, ... }:
+  outputs = { self, nixpkgs, libplacebo-src, qcoro-src, mpv-src, ... }:
     let
       systems = [ "x86_64-linux" "aarch64-darwin" "x86_64-darwin" ];
 
       libplaceboOverlay = final: prev: {
         libplacebo = prev.libplacebo.overrideAttrs (_: {
-          version = "master-27aa71a";
+          version = "master-a7a18af";
           src = libplacebo-src;
           patches = [];
         });
@@ -69,7 +73,7 @@
             !(nixpkgs.lib.hasPrefix "--enable-" flag)
             || builtins.elem flag structuralEnableFlags;
         in {
-        ffmpeg-full = (prev.ffmpeg-full.override
+        ffmpeg-full = (prev.ffmpeg_8-full.override
           (nixpkgs.lib.genAttrs ffmpegCapabilities.disabledNixFeatures (_: false))).overrideAttrs (old: {
             doCheck = false;
             configureFlags =
@@ -81,9 +85,11 @@
           });
       };
 
-      qcoroDarwinOverlay = final: prev: {
+      qcoroOverlay = final: prev: {
         qt6Packages = prev.qt6Packages.overrideScope (_qtFinal: qtPrev: {
           qcoro = qtPrev.qcoro.overrideAttrs (old: {
+            version = "0.13.0";
+            src = qcoro-src;
             meta = old.meta // {
               platforms = old.meta.platforms ++ final.lib.platforms.darwin;
             };
@@ -96,7 +102,7 @@
           f (import nixpkgs {
             inherit system;
             config.allowUnfree = true;
-            overlays = [ libplaceboOverlay ffmpegSlimOverlay qcoroDarwinOverlay ];
+            overlays = [ libplaceboOverlay ffmpegSlimOverlay qcoroOverlay ];
           }));
 
       # Shared build/media dependencies. Intentionally contains no qt6.* packages.

@@ -77,7 +77,7 @@ else()
     endif()
 endif()
 find_package(Qt6 ${JELLYFIN_QT_MIN_VERSION} REQUIRED COMPONENTS ${JELLYFIN_QT_COMPONENTS})
-find_package(QCoro6 0.12 REQUIRED COMPONENTS Core Network)
+find_package(QCoro6 0.13 REQUIRED COMPONENTS Core Network)
 
 qt_standard_project_setup(
     REQUIRES ${JELLYFIN_QT_MIN_VERSION}

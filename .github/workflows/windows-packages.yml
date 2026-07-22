@@ -30,8 +30,8 @@ env:
   QT_VERSION: 6.11.1
   QT_ARCH: win64_msvc2022_64
   JELLYFIN_QT_ROOT: C:\Qt\6.11.1\msvc2022_64
-  JELLYFIN_QCORO_ROOT: C:\Qt\qcoro-0.12-msvc2022
-  QCORO_REVISION: ef1231ae490465b4f592ca326eee6d56a3d802ae
+  JELLYFIN_QCORO_ROOT: C:\Qt\qcoro-0.13-msvc2022
+  QCORO_REVISION: d1b52b5db2ff9560185c39a4ed9f944dc610c235
 
 jobs:
   windows-x64:
@@ -62,8 +62,8 @@ jobs:
         with:
           path: |
             C:\Qt\6.11.1\msvc2022_64
-            C:\Qt\qcoro-0.12-msvc2022
-          key: windows-qt-6.11.1-qcoro-ef1231ae490465b4f592ca326eee6d56a3d802ae-v2
+            C:\Qt\qcoro-0.13-msvc2022
+          key: windows-qt-6.11.1-qcoro-d1b52b5db2ff9560185c39a4ed9f944dc610c235-v1
 
       - name: Install Qt from pinned official archives
         if: steps.qt-cache.outputs.cache-hit != 'true'
@@ -104,8 +104,8 @@ jobs:
         with:
           path: |
             C:\Qt\6.11.1\msvc2022_64
-            C:\Qt\qcoro-0.12-msvc2022
-          key: windows-qt-6.11.1-qcoro-ef1231ae490465b4f592ca326eee6d56a3d802ae-v2
+            C:\Qt\qcoro-0.13-msvc2022
+          key: windows-qt-6.11.1-qcoro-d1b52b5db2ff9560185c39a4ed9f944dc610c235-v1
 
       - name: Read mpv revision
         id: mpv-revision

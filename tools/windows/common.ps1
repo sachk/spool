@@ -58,7 +58,7 @@ function Initialize-WindowsBuildEnvironment {
     }
 
     $qtRoot = if ($env:JELLYFIN_QT_ROOT) { $env:JELLYFIN_QT_ROOT } else { 'C:\Qt\6.11.1\msvc2022_64' }
-    $qcoroRoot = if ($env:JELLYFIN_QCORO_ROOT) { $env:JELLYFIN_QCORO_ROOT } else { 'C:\Qt\qcoro-0.12-msvc2022' }
+    $qcoroRoot = if ($env:JELLYFIN_QCORO_ROOT) { $env:JELLYFIN_QCORO_ROOT } else { 'C:\Qt\qcoro-0.13-msvc2022' }
     $mpvRoot = if ($env:JELLYFIN_MPV_ROOT) { $env:JELLYFIN_MPV_ROOT } else { Join-Path (Get-RepositoryRoot) 'build\windows-deps\mpv' }
 
     foreach ($path in @($qtRoot, $qcoroRoot)) {

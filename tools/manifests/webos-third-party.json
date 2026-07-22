@@ -2,19 +2,19 @@
   "schemaVersion": 1,
   "sources": {
     "ffmpeg": {
-      "version": "8.1",
-      "url": "https://ffmpeg.org/releases/ffmpeg-8.1.tar.xz",
-      "sha256": "b072aed6871998cce9b36e7774033105ca29e33632be5b6347f3206898e0756a"
+      "version": "8.1.2",
+      "url": "https://ffmpeg.org/releases/ffmpeg-8.1.2.tar.xz",
+      "sha256": "464beb5e7bf0c311e68b45ae2f04e9cc2af88851abb4082231742a74d97b524c"
     },
     "curl": {
-      "version": "8.12.1",
-      "url": "https://curl.se/download/curl-8.12.1.tar.xz",
-      "sha256": "0341f1ed97a26c811abaebd37d62b833956792b7607ea3f15d001613c76de202"
+      "version": "8.21.0",
+      "url": "https://curl.se/download/curl-8.21.0.tar.xz",
+      "sha256": "aa1b66a70eace83dc624508745646c08ae561de512ab403adffb93ac87fc72e6"
     },
     "qcoro": {
-      "version": "0.12.0",
-      "url": "https://codeload.github.com/danvratil/qcoro/tar.gz/refs/tags/v0.12.0",
-      "sha256": "809afafab61593f994c005ca6e242300e1e3e7f4db8b5d41f8c642aab9450fbc"
+      "version": "0.13.0",
+      "url": "https://codeload.github.com/danvratil/qcoro/tar.gz/refs/tags/v0.13.0",
+      "sha256": "4bff7513c5c8e301b66308df05795043b1792ed16381a484e5c990171b8ff19e"
     },
     "fribidi": {
       "revision": "069a7e3d31e6aa74f2068a8e0804106ce7906639",
@@ -22,19 +22,19 @@
       "sha256": "25eea1fc1fbc9a8b87682f59bea935c54871ae504fbc51459288064d876bd4a7"
     },
     "harfbuzz": {
-      "revision": "259cd490449c0e7bea0a78931301c164b3ab8a66",
-      "url": "https://codeload.github.com/harfbuzz/harfbuzz/tar.gz/259cd490449c0e7bea0a78931301c164b3ab8a66",
-      "sha256": "d25fd04725a395bddb557ea36b46d005ae6e507b046ad59b864d87625a0e5126"
+      "revision": "cce964cb4f3f29a9addbb079b52c7a712fba93b8",
+      "url": "https://codeload.github.com/harfbuzz/harfbuzz/tar.gz/cce964cb4f3f29a9addbb079b52c7a712fba93b8",
+      "sha256": "4ef53558f28bc4a2645a4bc1d1a77c64d98756054e54fd5ee5c81912ee16c64e"
     },
     "libass": {
-      "revision": "c425f6d7ec9ca7e5dfa3f8bbed29a6ddbf39a596",
-      "url": "https://codeload.github.com/libass/libass/tar.gz/c425f6d7ec9ca7e5dfa3f8bbed29a6ddbf39a596",
-      "sha256": "b21865e180c077716d2d3c087a9a364b87179be4e2a67c51df6d856e291a556b"
+      "revision": "f9fd3d20dff1cd84b7c74c8ae7f79711ad7736fa",
+      "url": "https://codeload.github.com/libass/libass/tar.gz/f9fd3d20dff1cd84b7c74c8ae7f79711ad7736fa",
+      "sha256": "f720b449bdf8354afd193ca90795ea7b2f9fec05c85ca9709c8ea69d4290157d"
     },
     "libplacebo": {
-      "revision": "d4624cbfb37fdef337a7da5794b66202671a89cd",
-      "url": "https://codeload.github.com/haasn/libplacebo/tar.gz/d4624cbfb37fdef337a7da5794b66202671a89cd",
-      "sha256": "8370e47a802f653040b116b3849b3c257f5defaa4b247172c7ca40df637293de",
+      "revision": "a7a18af88ff0a17c04840dcb3246047bb6b46df3",
+      "url": "https://codeload.github.com/haasn/libplacebo/tar.gz/a7a18af88ff0a17c04840dcb3246047bb6b46df3",
+      "sha256": "ba0c8c011c19cb74bcee26646d2d6070447151da89a9abdd01c9034e768de8b2",
       "vendoredSources": {
         "3rdparty/fast_float": {
           "revision": "97b54ca9e75f5303507699d27c6b4f4efe4641a1",
@@ -64,9 +64,9 @@
       }
     },
     "dovi_tool": {
-      "revision": "ccf640939377ee19035bbf871040bf79d437fb6b",
-      "url": "https://codeload.github.com/quietvoid/dovi_tool/tar.gz/ccf640939377ee19035bbf871040bf79d437fb6b",
-      "sha256": "7d6f54bd04d72aaa652b75b748f94f31bb5a837d3f5da5e8b68523e1ee4b3f5b",
+      "revision": "38adec045bf183c24df38149836c920398072281",
+      "url": "https://codeload.github.com/quietvoid/dovi_tool/tar.gz/38adec045bf183c24df38149836c920398072281",
+      "sha256": "3d802d7f06f157ba4dd345d79f65d64c3f3bc3c37ba5e0d097e0c3727d87e30e",
       "patches": [
         "tools/webos-native/patches/dovi-tool-staticlib.patch"
       ]

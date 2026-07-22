@@ -94,7 +94,7 @@ depth = 1
     @'
 [wrap-git]
 url = https://code.videolan.org/videolan/libplacebo.git
-revision = 27aa71a97f4daed84916936572fa6a2e1c3eedb7
+revision = a7a18af88ff0a17c04840dcb3246047bb6b46df3
 depth = 1
 clone-recursive = true
 '@ | Set-Content -LiteralPath (Join-Path $subprojects 'libplacebo.wrap') -Encoding ascii

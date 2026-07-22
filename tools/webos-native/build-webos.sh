@@ -24,7 +24,7 @@ run_phase() {
       "$ROOT/tools/webos-native/build-third-party.sh" fetch
       "$ROOT/tools/webos-native/build-curl.sh" fetch
       "$ROOT/tools/webos-native/build-qcoro.sh" fetch
-      fetch_archive ffmpeg ffmpeg-8.1.tar.xz
+      fetch_archive ffmpeg ffmpeg-8.1.2.tar.xz
       ;;
     qt-host)
       "$ROOT/tools/webos-native/build-qt6-611.sh" host
