@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>com.sachk.tern</id>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>GPL-3.0-or-later</project_license>
+  <name>Jellyfin Native</name>
+  <summary>Native Jellyfin media client</summary>
+  <description>
+    <p>Browse and play media from a Jellyfin server with a native mpv playback pipeline.</p>
+  </description>
+  <launchable type="desktop-id">jellyfin-native.desktop</launchable>
+  <provides>
+    <binary>jellyfin-native</binary>
+  </provides>
+  <categories>
+    <category>AudioVideo</category>
+    <category>Video</category>
+  </categories>
+  <url type="homepage">https://github.com/sachk/tern</url>
+  <releases>
+    <release version="0.2.1" date="2026-07-22" type="development"/>
+  </releases>
+  <content_rating type="oars-1.1"/>
+</component>

@@ -15,12 +15,17 @@ function(jellyfin_configure_macos_targets native_target core_target)
         src/platform/macos/MacOSPlatformStartup.cpp
         src/platform/common/UnixProcessIntegration.cpp
     )
+    if(JELLYFIN_MACOS_ICON)
+        set_source_files_properties("${JELLYFIN_MACOS_ICON}" PROPERTIES MACOSX_PACKAGE_LOCATION Resources)
+        target_sources(${native_target} PRIVATE "${JELLYFIN_MACOS_ICON}")
+    endif()
     target_link_libraries(${core_target} PUBLIC PkgConfig::MPV)
     target_link_libraries(${native_target} PRIVATE "-framework IOKit")
     set_target_properties(${native_target} PROPERTIES
         MACOSX_BUNDLE TRUE
         MACOSX_BUNDLE_BUNDLE_NAME "Jellyfin Native"
         MACOSX_BUNDLE_GUI_IDENTIFIER "com.sachk.tern"
+        MACOSX_BUNDLE_ICON_FILE "jellyfin-native.icns"
         MACOSX_BUNDLE_BUNDLE_VERSION "${PROJECT_VERSION}"
         MACOSX_BUNDLE_SHORT_VERSION_STRING "${PROJECT_VERSION}"
         INSTALL_RPATH "@executable_path/../Frameworks"

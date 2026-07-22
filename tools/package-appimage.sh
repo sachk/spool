@@ -43,7 +43,7 @@ is_bundleable_elf_dep() {
   local base="${dep##*/}"
   [[ -f "$dep" ]] || return 1
   case "$dep" in
-    /nix/store/*-glibc-*|/nix/store/*-glibc-*) return 1 ;;
+    /nix/store/*-glibc-*) return 1 ;;
   esac
   case "$base" in
     ld-linux*.so*|libc.so*|libdl.so*|libm.so*|libpthread.so*|libresolv.so*|librt.so*|libutil.so*)
@@ -261,13 +261,27 @@ cp -f "$BUILD_ROOT/jellyfin-native" "$APPDIR/usr/bin/jellyfin-native"
 find "$MPV_PREFIX/lib" -name 'libmpv.so*' -exec cp -a {} "$APPDIR/usr/lib/" \;
 cp -f "$APP_ROOT/app/icon.png" "$APPDIR/usr/share/icons/hicolor/256x256/apps/jellyfin-native.png"
 cp -f "$APP_ROOT/app/icon.png" "$APPDIR/jellyfin-native.png"
+mkdir -p "$APPDIR/usr/share/metainfo"
+cp -f "$APP_ROOT/app/com.sachk.tern.metainfo.xml" \
+  "$APPDIR/usr/share/metainfo/com.sachk.tern.metainfo.xml"
 cp -f "$APP_ROOT/app/notices/OPEN_SOURCE_NOTICES.txt" "$APP_ROOT/LICENSE" \
   "$APP_ROOT/qml/fonts/IBMPlexSans-LICENSE.txt" "$APP_ROOT/qml/fonts/MaterialIcons-LICENSE.txt" \
   "$APPDIR/usr/share/jellyfin-native/notices/"
+cat > "$APPDIR/usr/share/jellyfin-native/fonts.conf" <<'FONTCONFIG'
+<?xml version="1.0"?>
+<!DOCTYPE fontconfig SYSTEM "urn:fontconfig:fonts.dtd">
+<fontconfig>
+  <dir>/usr/share/fonts</dir>
+  <dir prefix="xdg">fonts</dir>
+  <cachedir prefix="xdg">fontconfig</cachedir>
+  <config></config>
+</fontconfig>
+FONTCONFIG
 cat > "$APPDIR/AppRun" <<'APPRUN'
 #!/usr/bin/env bash
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 unset QML2_IMPORT_PATH QML_IMPORT_PATH QT_PLUGIN_PATH QT_QPA_PLATFORM_PLUGIN_PATH
+export FONTCONFIG_FILE="$HERE/usr/share/jellyfin-native/fonts.conf"
 if [[ -d /run/opengl-driver/lib ]]; then
   export LD_LIBRARY_PATH="$HERE/usr/lib:/run/opengl-driver/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
 else
@@ -351,7 +365,7 @@ while IFS= read -r lib_dir; do
 done < <(find "$MPV_PREFIX/lib" -name 'libmpv.so*' -exec dirname {} \; | sort -u)
 while IFS= read -r dep; do
   case "$dep" in
-    /nix/store/*-glibc-*|/nix/store/*-glibc-*) continue ;;
+    /nix/store/*-glibc-*) continue ;;
   esac
   append_library_path "$(dirname "$dep")"
   is_bundleable_elf_dep "$dep" || continue

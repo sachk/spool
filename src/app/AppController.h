@@ -128,6 +128,8 @@ public:
     Q_INVOKABLE void onMemoryPressure(const QString& level);
     Q_INVOKABLE void clearError();
     Q_INVOKABLE void clearLogs();
+    Q_INVOKABLE QString diagnosticsPreview() const;
+    Q_INVOKABLE QString saveDiagnosticsReport();
 
 signals:
     void busyChanged();

@@ -32,6 +32,7 @@ for asset in "${assets[@]}"; do
       ;;
   esac
   "$SYFT" "dir:$root" -o "cyclonedx-json=$report_dir/$base.cdx.json"
+  "$SYFT" "dir:$root" -o "spdx-json=$report_dir/$base.spdx.json"
   "$GRYPE" "sbom:$report_dir/$base.cdx.json" -o json >"$report_dir/$base.grype.json"
   "$GRYPE" "sbom:$report_dir/$base.cdx.json" --fail-on high --only-fixed
   rm -rf "$work"

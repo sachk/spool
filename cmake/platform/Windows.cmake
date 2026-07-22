@@ -31,5 +31,11 @@ function(jellyfin_configure_windows_targets native_target core_target)
         src/platform/windows/WindowsPlatformStartup.cpp
         src/platform/windows/WindowsProcessIntegration.cpp
     )
+    configure_file(
+        "${CMAKE_CURRENT_SOURCE_DIR}/cmake/platform/windows-version.rc.in"
+        "${CMAKE_CURRENT_BINARY_DIR}/jellyfin-native-version.rc"
+        @ONLY
+    )
+    target_sources(${native_target} PRIVATE "${CMAKE_CURRENT_BINARY_DIR}/jellyfin-native-version.rc")
     target_link_libraries(${core_target} PUBLIC MPV::MPV)
 endfunction()

@@ -1,6 +1,10 @@
 #include "common/JellyfinTypes.h"
+#include "diagnostics/Diagnostics.h"
 
+#include <QJsonDocument>
+#include <QJsonObject>
 #include <QString>
+#include <QStringList>
 
 #include <cstdlib>
 #include <iostream>
@@ -47,5 +51,15 @@ int main()
     require(!personal.contains(QStringLiteral("Recognisable")), "media title should be removed");
     require(!personal.contains(QStringLiteral("0123456789abcdef")), "stable item ID should be removed");
     require(!personal.contains(QStringLiteral("192.168.1.25")), "network address should be removed");
+    const QJsonObject report
+        = QJsonDocument::fromJson(JellyfinNative::Diagnostics::supportReportPreview().toUtf8()).object();
+    QStringList keys = report.keys();
+    keys.sort();
+    const QStringList expectedKeys { QStringLiteral("appVersion"), QStringLiteral("architecture"),
+        QStringLiteral("diagnosticsOptIn"), QStringLiteral("disclosure"), QStringLiteral("errorCategories"),
+        QStringLiteral("platform"), QStringLiteral("platformVersion"), QStringLiteral("qtVersion"),
+        QStringLiteral("schemaVersion"), QStringLiteral("uptimeSeconds") };
+    require(keys == expectedKeys, "support report must expose only the reviewed allowlist");
+    require(!report.value(QStringLiteral("disclosure")).toString().isEmpty(), "support report must explain disclosure");
     return EXIT_SUCCESS;
 }

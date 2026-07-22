@@ -25,6 +25,8 @@ FocusScope {
     property bool contentReady: false
     property bool resetSubtitleConfirmationVisible: false
     property bool certificateManagerVisible: false
+    property bool diagnosticsExportVisible: false
+    property string diagnosticsExportPreview: ""
     property var pendingSubtitleAppearance: ({})
     readonly property var subtitleAppearanceKeys: ["subtitles/styling", "subtitles/textSize", "subtitles/scalePercent",
         "subtitles/bitmapSmoothing", "subtitles/textWeight", "subtitles/font", "subtitles/textColor",
@@ -293,7 +295,8 @@ FocusScope {
         if (row.key === "action/logout")
             return "Sign out"
         if (row.key === "action/uiScaleSetup" || row.key === "action/openSourceNotices" || row.key
-                === "action/subtitleSettings" || row.key === "action/manageCertificates")
+                === "action/exportDiagnostics" || row.key === "action/subtitleSettings" || row.key
+                === "action/manageCertificates")
             return "Open"
         if (row.key === "action/clearLatencyStatistics" || row.key === "action/clearLogs")
             return "Clear"
@@ -412,7 +415,10 @@ FocusScope {
                 InputLatency.clearStatistics()
             else if (row.key === "action/clearLogs")
                 App.clearLogs()
-            else if (row.key === "action/uiScaleSetup" && shell)
+            else if (row.key === "action/exportDiagnostics") {
+                diagnosticsExportPreview = App.diagnosticsPreview()
+                diagnosticsExportVisible = true
+            } else if (row.key === "action/uiScaleSetup" && shell)
                 shell.pushRoute("scaleSetup", {
                                     "returnRoute": "settings"
                                 })
@@ -1074,6 +1080,27 @@ FocusScope {
             destructive: true
             onAccepted: root.confirmResetSubtitleAppearance()
             onDismissed: root.closeResetSubtitleConfirmation()
+        }
+    }
+
+    Loader {
+        id: diagnosticsExportLoader
+        anchors.fill: parent
+        active: root.diagnosticsExportVisible
+        z: 200
+        sourceComponent: ConfirmationDialog {
+            title: "Save diagnostics report?"
+            message: root.diagnosticsExportPreview
+            confirmText: "Save"
+            onAccepted: {
+                App.saveDiagnosticsReport()
+                root.diagnosticsExportVisible = false
+                InputKeys.focus(settingsList)
+            }
+            onDismissed: {
+                root.diagnosticsExportVisible = false
+                InputKeys.focus(settingsList)
+            }
         }
     }
 

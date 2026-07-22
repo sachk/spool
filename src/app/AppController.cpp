@@ -924,6 +924,18 @@ void AppController::clearLogs()
     emit clearLogsRequested();
     emit toastMessage(QStringLiteral("Logs cleared."));
 }
+QString AppController::diagnosticsPreview() const
+{
+    return Diagnostics::supportReportPreview();
+}
+
+QString AppController::saveDiagnosticsReport()
+{
+    const QString path = Diagnostics::saveSupportReport();
+    emit toastMessage(
+        path.isEmpty() ? QStringLiteral("Could not save diagnostics.") : QStringLiteral("Diagnostics saved."));
+    return path;
+}
 
 void AppController::setBusy(bool busy, const QString& busyText)
 {

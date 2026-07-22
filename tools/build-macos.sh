@@ -17,6 +17,17 @@ DEPLOY_APP="${DEPLOY_APP:-1}"
 
 setup_native_ccache "$APP_ROOT"
 mkdir -p "$MPV_PREFIX" "$APP_BUILD" "$APP_INSTALL"
+MACOS_ICON="$BUILD_ROOT/jellyfin-native.icns"
+ICONSET="$BUILD_ROOT/jellyfin-native.iconset"
+rm -rf "$ICONSET"
+mkdir -p "$ICONSET"
+for size in 16 32 128 256 512; do
+  sips -z "$size" "$size" "$APP_ROOT/app/icon.png" --out "$ICONSET/icon_${size}x${size}.png" >/dev/null
+  doubled=$((size * 2))
+  sips -z "$doubled" "$doubled" "$APP_ROOT/app/icon.png" --out "$ICONSET/icon_${size}x${size}@2x.png" >/dev/null
+done
+iconutil -c icns "$ICONSET" -o "$MACOS_ICON"
+rm -rf "$ICONSET"
 
 native_mpv_args "$MPV_PREFIX" release macos
 MPV_SETUP_ARGS=(
@@ -30,6 +41,7 @@ append_colon_path PKG_CONFIG_PATH "$MPV_PREFIX/lib/pkgconfig"
 cmake_build_app "$APP_ROOT" "$APP_BUILD" \
   -DCMAKE_BUILD_TYPE=Release \
   -DJELLYFIN_NATIVE_WEBOS=OFF \
+  -DJELLYFIN_MACOS_ICON="$MACOS_ICON" \
   -DCMAKE_PREFIX_PATH="$MPV_PREFIX${CMAKE_PREFIX_PATH:+;$CMAKE_PREFIX_PATH}" \
   -DCMAKE_INSTALL_PREFIX="$APP_INSTALL"
 

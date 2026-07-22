@@ -13,6 +13,8 @@ void shutdown();
 void logEvent(const QString& category, const QString& event, QJsonObject data = {});
 void setInstanceState(const QString& state, QJsonObject extra = {});
 void dumpDiagnostics(const QString& reason);
+QString supportReportPreview();
+QString saveSupportReport();
 
 class EventLoopWatchdog final : public QObject {
     Q_OBJECT

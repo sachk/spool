@@ -15,6 +15,7 @@
 #include <QMutex>
 #include <QProcess>
 #include <QStandardPaths>
+#include <QSysInfo>
 #include <QTextStream>
 #include <QThread>
 #include <QTimer>
@@ -332,6 +333,46 @@ void initialize(const QString& appId, const QString& rootPath)
         QStringLiteral("lifecycle"), QStringLiteral("diagnostics_started"), { { QStringLiteral("root"), s.root } });
     s.watchdogRunning = true;
     s.watchdogThread = std::thread(runWatchdog);
+}
+
+QString supportReportPreview()
+{
+    QJsonObject report;
+    report.insert(QStringLiteral("schemaVersion"), 1);
+    report.insert(QStringLiteral("disclosure"),
+        QStringLiteral("Contains app/platform versions, architecture, coarse runtime state, and bounded error "
+                       "categories. Excludes account, media, server, network, path, credential, cookie, and header "
+                       "data."));
+    report.insert(QStringLiteral("appVersion"), QCoreApplication::applicationVersion());
+    report.insert(QStringLiteral("platform"), QSysInfo::productType());
+    report.insert(QStringLiteral("platformVersion"), QSysInfo::productVersion());
+    report.insert(QStringLiteral("architecture"), QSysInfo::currentCpuArchitecture());
+    report.insert(QStringLiteral("qtVersion"), QString::fromLatin1(qVersion()));
+    report.insert(QStringLiteral("diagnosticsOptIn"), diagnosticsEnabled());
+    report.insert(QStringLiteral("uptimeSeconds"),
+        state().uptime.isValid() ? qMax<qint64>(0, state().uptime.elapsed() / 1000) : 0);
+    report.insert(QStringLiteral("errorCategories"), QJsonArray {});
+    return QString::fromUtf8(QJsonDocument(report).toJson(QJsonDocument::Indented));
+}
+
+QString saveSupportReport()
+{
+    QString directory = QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation);
+    if (directory.isEmpty())
+        directory = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
+    if (directory.isEmpty() || !QDir().mkpath(directory))
+        return {};
+    QFile::setPermissions(directory, QFileDevice::ReadOwner | QFileDevice::WriteOwner | QFileDevice::ExeOwner);
+
+    const QString path = QDir(directory).filePath(QStringLiteral("Jellyfin-Native-Diagnostics-%1.json")
+            .arg(QDateTime::currentDateTimeUtc().toString(QStringLiteral("yyyyMMdd-hhmmss"))));
+    QFile file(path);
+    if (!file.open(QIODevice::WriteOnly | QIODevice::Truncate))
+        return {};
+    file.setPermissions(QFileDevice::ReadOwner | QFileDevice::WriteOwner);
+    if (file.write(supportReportPreview().toUtf8()) < 0)
+        return {};
+    return path;
 }
 
 void shutdown()

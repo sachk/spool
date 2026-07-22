@@ -26,6 +26,7 @@ namespace {
     constexpr int kManualProbeTimeoutMs = 3000;
     constexpr int kHttpProbeConcurrency = 8;
     constexpr int kInitialHttpFallbackDelayMs = 1500;
+    constexpr int kMaxAutomaticHttpProbeTargets = 254;
 
     QUrl normalizedServerUrl(QUrl url)
     {
@@ -339,16 +340,21 @@ void DiscoveryController::startHttpFallbackScan()
 
     const auto interfaces = QNetworkInterface::allInterfaces();
     for (const QNetworkInterface& iface : interfaces) {
+        if (m_httpProbeQueue.size() >= kMaxAutomaticHttpProbeTargets)
+            break;
         if (!(iface.flags() & QNetworkInterface::IsUp) || !(iface.flags() & QNetworkInterface::IsRunning)
             || (iface.flags() & QNetworkInterface::IsLoopBack)) {
             continue;
         }
 
         for (const QNetworkAddressEntry& entry : iface.addressEntries()) {
+            if (m_httpProbeQueue.size() >= kMaxAutomaticHttpProbeTargets)
+                break;
             if (entry.ip().protocol() != QAbstractSocket::IPv4Protocol || entry.netmask().isNull())
                 continue;
 
-            const auto targets = httpFallbackTargets(entry.ip(), entry.netmask());
+            const auto targets = httpFallbackTargets(
+                entry.ip(), entry.netmask(), kMaxAutomaticHttpProbeTargets - m_httpProbeQueue.size());
             for (const QHostAddress& target : targets)
                 enqueueHttpProbeTarget(target);
         }

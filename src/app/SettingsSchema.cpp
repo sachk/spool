@@ -195,6 +195,8 @@ const QVector<SettingSpec>& settingSpecs()
             "Erase the current in-memory latency samples", SettingType::Action, SettingLevel::Expert),
         externalSpec("action/clearLogs", "Diagnostics", "Clear logs", "Permanently erase persistent application logs",
             SettingType::Action),
+        externalSpec("action/exportDiagnostics", "Diagnostics", "Export diagnostics",
+            "Preview and save a privacy-filtered support report", SettingType::Action),
         { "appearance/libraryView", "Appearance", "Library Layout", "Browse libraries as a poster grid or a title list",
             SettingType::Select, "Posters", kLibraryViewChoices, countOf(kLibraryViewChoices), 0, 0, 1, 0, "", 0, 0,
             SettingTarget::LibraryView, SettingNormalizer::Choice, true, true, SettingLevel::Essential,
