@@ -9,7 +9,7 @@ namespace JellyfinNative {
 MpvConfigPolicy validatedPlatformMpvConfigPolicy(const QString& mode, const QString& directory)
 {
     if (mode.compare(QStringLiteral("standard"), Qt::CaseInsensitive) == 0)
-        return { MpvConfigPolicy::Mode::Standard, {}, false, {} };
+        return { MpvConfigPolicy::Mode::Standard, {}, true, {} };
     if (mode.compare(QStringLiteral("custom"), Qt::CaseInsensitive) != 0)
         return {};
 
@@ -30,7 +30,7 @@ MpvConfigPolicy validatedPlatformMpvConfigPolicy(const QString& mode, const QStr
         return { MpvConfigPolicy::Mode::Disabled, {}, false,
             QStringLiteral("The custom mpv configuration directory cannot be resolved.") };
     }
-    return { MpvConfigPolicy::Mode::Custom, canonical, false, {} };
+    return { MpvConfigPolicy::Mode::Custom, canonical, true, {} };
 }
 
 } // namespace JellyfinNative

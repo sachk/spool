@@ -24,6 +24,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <exception>
+#include <iostream>
 #include <utility>
 
 using JellyfinNative::AuthSession;
@@ -45,7 +46,7 @@ void require(bool condition, const char *message)
 {
     if (condition)
         return;
-    qCritical() << message;
+    std::cerr << message << '\n';
     std::exit(EXIT_FAILURE);
 }
 
@@ -569,7 +570,7 @@ int main(int argc, char **argv)
     FakeNetworkAccessManager network;
     TlsTrustController tlsTrust;
     JellyfinApiFacade api(&network, &tlsTrust);
-    api.setServerUrl(QStringLiteral("http://jellyfin.test"));
+    api.setServerUrl(QStringLiteral("http://192.168.1.2"));
     api.setSession(AuthSession {
         QStringLiteral("user-1"), QStringLiteral("Tester"), QStringLiteral("token-1"), QStringLiteral("server-1") });
     LibraryPrefetchController prefetch(&api);
