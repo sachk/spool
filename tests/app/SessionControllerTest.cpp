@@ -57,6 +57,7 @@ int main(int argc, char **argv)
     QCoreApplication app(argc, argv);
     QTemporaryDir directory;
     require(directory.isValid(), "temporary profile directory should be available");
+    qputenv("JELLYFIN_CREDENTIAL_STORE_DIR", directory.filePath(QStringLiteral("credentials")).toUtf8());
 
     DatabaseManager database;
     require(database.initialize(directory.filePath(QStringLiteral("profiles.sqlite"))),
@@ -120,17 +121,20 @@ int main(int argc, char **argv)
         "activation should swap the server URL and token together");
     require(tokenChanges == 1, "profile activation should replace the playback authentication once");
 
+    session.setPassword(QStringLiteral("temporary-password"));
     session.deactivate();
     require(!session.authenticated(), "switch user should clear the active session");
     require(session.accountProfiles().size() == 3, "switch user should preserve saved pairs");
     require(tokenChanges == 2 && api.authorizationHeader().contains(QStringLiteral("bob-secret")) == false,
         "switch user should clear the old playback token");
+    require(session.password().isEmpty(), "switch user should erase the in-memory password");
 
     session.activateProfile(aliceAway.profileId);
     require(waitUntil(app, [&session]() { return session.authenticated(); }), "second server profile should activate");
     require(tokenChanges == 3 && api.authorizationHeader().contains(QStringLiteral("away-secret"))
             && !api.authorizationHeader().contains(QStringLiteral("bob-secret")),
         "profile switching should expose only the newly selected token");
+    session.setPassword(QStringLiteral("temporary-password"));
     session.logout();
     require(!session.authenticated(), "sign out should clear the active token");
     require(session.accountProfiles().size() == 3, "sign out should keep the account tile");
@@ -141,6 +145,7 @@ int main(int argc, char **argv)
         "sign out should clear retained playback authentication");
     require(expired != stored.cend() && expired->needsAuthentication && expired->accessToken.isEmpty(),
         "sign out should expire only the active profile");
+    require(session.password().isEmpty(), "sign out should erase the in-memory password");
     require(std::any_of(stored.cbegin(), stored.cend(),
                 [&bobHome](const AccountProfile& candidate) {
                     return candidate.profileId == bobHome.profileId && !candidate.accessToken.isEmpty();

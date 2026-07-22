@@ -1,6 +1,7 @@
 #include "DatabaseManager.h"
 
 #include "../diagnostics/Diagnostics.h"
+#include "../platform/CredentialStore.h"
 #include <QCoroFuture>
 
 #include <QDateTime>
@@ -42,6 +43,7 @@ public:
         const QString statePath = cacheInfo.dir().filePath(QStringLiteral("state.sqlite"));
         if (!openState(statePath)) {
             qWarning() << "database: invalid durable state; preserving and rebuilding" << statePath;
+            CredentialStore::clear();
             if (!recoverState(statePath))
                 return false;
             m_recoveryNotice = QStringLiteral(
@@ -160,7 +162,7 @@ private:
         if (!query.exec(QStringLiteral("PRAGMA user_version")) || !query.next())
             return false;
         const int existingVersion = query.value(0).toInt();
-        if (existingVersion != 0 && existingVersion != 2)
+        if (existingVersion != 0 && existingVersion != 3)
             return false;
         if (!query.exec(QStringLiteral("CREATE TABLE IF NOT EXISTS kv ("
                                        "key TEXT PRIMARY KEY,"
@@ -173,7 +175,6 @@ private:
                                           "server_url TEXT NOT NULL,"
                                           "user_id TEXT NOT NULL,"
                                           "user_name TEXT NOT NULL,"
-                                          "access_token TEXT NOT NULL,"
                                           "avatar_tag TEXT NOT NULL,"
                                           "last_used_at INTEGER NOT NULL,"
                                           "created_at INTEGER NOT NULL,"
@@ -181,7 +182,7 @@ private:
                                           ")"))
             || !query.exec(QStringLiteral("CREATE INDEX IF NOT EXISTS profiles_usage "
                                           "ON profiles(last_used_at DESC, created_at ASC)"))
-            || !query.exec(QStringLiteral("PRAGMA user_version = 2"))) {
+            || !query.exec(QStringLiteral("PRAGMA user_version = 3"))) {
             qWarning() << "database: durable schema creation failed" << query.lastError().text();
             return false;
         }
@@ -443,7 +444,7 @@ public:
         std::vector<AccountProfile> profiles;
         QSqlQuery query(m_database);
         if (!query.exec(QStringLiteral("SELECT profile_id, server_id, server_name, server_url, user_id, user_name, "
-                                       "access_token, avatar_tag, last_used_at, created_at, needs_authentication "
+                                       "avatar_tag, last_used_at, created_at, needs_authentication "
                                        "FROM profiles ORDER BY last_used_at DESC, created_at ASC"))) {
             qWarning() << "database: profile load failed" << query.lastError().text();
             return profiles;
@@ -460,7 +461,7 @@ public:
 
         QSqlQuery query(m_database);
         query.prepare(QStringLiteral("SELECT profile_id, server_id, server_name, server_url, user_id, user_name, "
-                                     "access_token, avatar_tag, last_used_at, created_at, needs_authentication "
+                                     "avatar_tag, last_used_at, created_at, needs_authentication "
                                      "FROM profiles WHERE profile_id = ?"));
         query.addBindValue(profileId);
         if (!query.exec() || !query.next()) {
@@ -483,16 +484,21 @@ public:
 
     void upsertAccountProfile(const AccountProfile& profile)
     {
+        const bool credentialSaved
+            = !profile.accessToken.isEmpty() && CredentialStore::save(profile.profileId, profile.accessToken);
+        if (!credentialSaved)
+            CredentialStore::remove(profile.profileId);
+
         QSqlQuery query(m_database);
         query.prepare(QStringLiteral(
             "INSERT INTO profiles(profile_id, server_id, server_name, server_url, user_id, user_name, "
-            "access_token, avatar_tag, last_used_at, created_at, needs_authentication) "
-            "VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) "
+            "avatar_tag, last_used_at, created_at, needs_authentication) "
+            "VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?) "
             "ON CONFLICT(profile_id) DO UPDATE SET "
             "server_id = excluded.server_id, server_name = excluded.server_name, "
             "server_url = excluded.server_url, user_id = excluded.user_id, user_name = excluded.user_name, "
-            "access_token = excluded.access_token, avatar_tag = excluded.avatar_tag, "
-            "last_used_at = excluded.last_used_at, needs_authentication = excluded.needs_authentication"));
+            "avatar_tag = excluded.avatar_tag, last_used_at = excluded.last_used_at, "
+            "needs_authentication = excluded.needs_authentication"));
         const auto bindText
             = [&query](const QString& value) { query.addBindValue(value.isNull() ? QStringLiteral("") : value); };
         bindText(profile.profileId);
@@ -501,11 +507,10 @@ public:
         bindText(profile.serverUrl);
         bindText(profile.userId);
         bindText(profile.userName);
-        bindText(profile.accessToken);
         bindText(profile.avatarTag);
         query.addBindValue(profile.lastUsedAt);
         query.addBindValue(profile.createdAt);
-        query.addBindValue(profile.needsAuthentication);
+        query.addBindValue(profile.needsAuthentication || !credentialSaved);
         if (!query.exec())
             qWarning() << "database: profile upsert failed" << query.lastError().text();
     }
@@ -513,11 +518,11 @@ public:
     void expireAccountProfile(const QString& profileId)
     {
         QSqlQuery query(m_database);
-        query.prepare(
-            QStringLiteral("UPDATE profiles SET access_token = '', needs_authentication = 1 WHERE profile_id = ?"));
+        query.prepare(QStringLiteral("UPDATE profiles SET needs_authentication = 1 WHERE profile_id = ?"));
         query.addBindValue(profileId);
         if (!query.exec())
             qWarning() << "database: profile expiration failed" << query.lastError().text();
+        CredentialStore::remove(profileId);
     }
 
     void removeAccountProfile(const QString& profileId)
@@ -527,6 +532,7 @@ public:
         query.addBindValue(profileId);
         if (!query.exec())
             qWarning() << "database: profile removal failed" << query.lastError().text();
+        CredentialStore::remove(profileId);
     }
 
     void clearAccountProfiles()
@@ -534,6 +540,7 @@ public:
         QSqlQuery query(m_database);
         if (!query.exec(QStringLiteral("DELETE FROM profiles")))
             qWarning() << "database: profile clear failed" << query.lastError().text();
+        CredentialStore::clear();
     }
 
     void close()
@@ -554,10 +561,12 @@ private:
     }
     static AccountProfile accountProfileFromQuery(const QSqlQuery& query)
     {
-        return { query.value(0).toString(), query.value(1).toString(), query.value(2).toString(),
-            query.value(3).toString(), query.value(4).toString(), query.value(5).toString(), query.value(6).toString(),
-            query.value(7).toString(), query.value(8).toLongLong(), query.value(9).toLongLong(),
-            query.value(10).toBool() };
+        const QString profileId = query.value(0).toString();
+        const QString accessToken = CredentialStore::load(profileId);
+        return { profileId, query.value(1).toString(), query.value(2).toString(), query.value(3).toString(),
+            query.value(4).toString(), query.value(5).toString(), accessToken, query.value(6).toString(),
+            query.value(7).toLongLong(), query.value(8).toLongLong(),
+            query.value(9).toBool() || accessToken.isEmpty() };
     }
     QSqlDatabase m_database;
     QSqlDatabase m_cacheDatabase;

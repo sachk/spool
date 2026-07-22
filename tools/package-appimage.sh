@@ -259,11 +259,14 @@ mkdir -p "$APPDIR/usr/bin" "$APPDIR/usr/lib" "$APPDIR/usr/share/applications" \
 
 cp -f "$BUILD_ROOT/jellyfin-native" "$APPDIR/usr/bin/jellyfin-native"
 find "$MPV_PREFIX/lib" -name 'libmpv.so*' -exec cp -a {} "$APPDIR/usr/lib/" \;
+if command -v secret-tool >/dev/null 2>&1; then
+  cp -f "$(command -v secret-tool)" "$APPDIR/usr/bin/secret-tool"
+fi
 cp -f "$APP_ROOT/app/icon.png" "$APPDIR/usr/share/icons/hicolor/256x256/apps/jellyfin-native.png"
 cp -f "$APP_ROOT/app/icon.png" "$APPDIR/jellyfin-native.png"
 mkdir -p "$APPDIR/usr/share/metainfo"
 cp -f "$APP_ROOT/app/com.sachk.tern.metainfo.xml" \
-  "$APPDIR/usr/share/metainfo/com.sachk.tern.metainfo.xml"
+  "$APPDIR/usr/share/metainfo/jellyfin-native.appdata.xml"
 cp -f "$APP_ROOT/app/notices/OPEN_SOURCE_NOTICES.txt" "$APP_ROOT/LICENSE" \
   "$APP_ROOT/qml/fonts/IBMPlexSans-LICENSE.txt" "$APP_ROOT/qml/fonts/MaterialIcons-LICENSE.txt" \
   "$APPDIR/usr/share/jellyfin-native/notices/"
@@ -280,6 +283,7 @@ FONTCONFIG
 cat > "$APPDIR/AppRun" <<'APPRUN'
 #!/usr/bin/env bash
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+export PATH="$HERE/usr/bin${PATH:+:$PATH}"
 unset QML2_IMPORT_PATH QML_IMPORT_PATH QT_PLUGIN_PATH QT_QPA_PLATFORM_PLUGIN_PATH
 export FONTCONFIG_FILE="$HERE/usr/share/jellyfin-native/fonts.conf"
 if [[ -d /run/opengl-driver/lib ]]; then

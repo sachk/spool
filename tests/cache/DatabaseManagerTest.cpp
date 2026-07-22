@@ -31,6 +31,8 @@ int main(int argc, char **argv)
     QCoreApplication app(argc, argv);
     QTemporaryDir directory;
     require(directory.isValid(), "temporary directory should be available");
+    const QString credentialPath = directory.filePath(QStringLiteral("credentials"));
+    qputenv("JELLYFIN_CREDENTIAL_STORE_DIR", credentialPath.toUtf8());
     const QString databasePath = directory.filePath(QStringLiteral("cache.sqlite"));
     const QString statePath = directory.filePath(QStringLiteral("state.sqlite"));
 
@@ -80,6 +82,20 @@ int main(int argc, char **argv)
     const std::vector<AccountProfile> storedProfiles = QCoro::waitFor(database.loadAccountProfilesAsync());
     require(storedProfiles.size() == 1 && storedProfiles.front().profileId == profile.profileId,
         "account profile should be persisted before cache recovery");
+    require(storedProfiles.front().accessToken == profile.accessToken,
+        "account token should round-trip through the platform credential store");
+    require(QDir(credentialPath).entryList(QDir::Files).size() == 1,
+        "exactly one durable credential copy should be stored");
+    const QFileInfo credentialInfo(QDir(credentialPath).entryInfoList(QDir::Files).front());
+    require((credentialInfo.permissions()
+                & (QFileDevice::ReadGroup | QFileDevice::WriteGroup | QFileDevice::ReadOther | QFileDevice::WriteOther))
+            == 0,
+        "credential file should be owner-only");
+    QFile durableState(statePath);
+    require(durableState.open(QIODevice::ReadOnly), "durable state should be readable for token inspection");
+    require(!durableState.readAll().contains(profile.accessToken.toUtf8()),
+        "SQLite durable state must not contain an access-token copy");
+    durableState.close();
     database.saveDeviceId(QStringLiteral("device"));
     const StartupState startup = QCoro::waitFor(
         database.loadStartupStateAsync({ QStringLiteral("batch/first"), QStringLiteral("batch/missing") }));

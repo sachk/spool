@@ -36,6 +36,7 @@ Major bundled components
   curl                        curl license
   FriBidi                     LGPL-2.1-or-later
   HarfBuzz                    MIT
+  libsecret                    LGPL-2.1-or-later
   IBM Plex Sans                SIL Open Font License 1.1
   Google Material Icons       Apache License 2.0
 

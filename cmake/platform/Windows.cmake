@@ -21,6 +21,7 @@ endfunction()
 function(jellyfin_configure_windows_targets native_target core_target)
     target_sources(${core_target} PRIVATE
         src/platform/windows/WindowsSettingsPolicy.cpp
+        src/platform/windows/WindowsCredentialStore.cpp
         src/platform/windows/WindowsSystemProbes.cpp
         src/platform/desktop/UnsupportedPerformanceSampler.cpp
     )
@@ -37,5 +38,5 @@ function(jellyfin_configure_windows_targets native_target core_target)
         @ONLY
     )
     target_sources(${native_target} PRIVATE "${CMAKE_CURRENT_BINARY_DIR}/jellyfin-native-version.rc")
-    target_link_libraries(${core_target} PUBLIC MPV::MPV)
+    target_link_libraries(${core_target} PUBLIC MPV::MPV Advapi32)
 endfunction()

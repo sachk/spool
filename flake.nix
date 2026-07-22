@@ -155,6 +155,7 @@
         libICE
         libdrm
         libpulseaudio
+        libsecret
         libSM
         libva
         libvdpau

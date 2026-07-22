@@ -1,0 +1,72 @@
+#include "../CredentialStore.h"
+
+#include <QByteArray>
+#include <QProcess>
+
+#include <Security/Security.h>
+
+namespace JellyfinNative::CredentialStore {
+namespace {
+    constexpr auto kService = "com.sachk.tern";
+}
+
+QString load(const QString& profileId)
+{
+    const QByteArray account = profileId.toUtf8();
+    void *data = nullptr;
+    UInt32 length = 0;
+    SecKeychainItemRef item = nullptr;
+    const OSStatus status = SecKeychainFindGenericPassword(nullptr, sizeof(kService) - 1, kService,
+        static_cast<UInt32>(account.size()), account.constData(), &length, &data, &item);
+    if (status != errSecSuccess)
+        return {};
+    const QString token = QString::fromUtf8(static_cast<const char *>(data), static_cast<qsizetype>(length));
+    SecKeychainItemFreeContent(nullptr, data);
+    if (item)
+        CFRelease(item);
+    return token;
+}
+
+bool save(const QString& profileId, const QString& accessToken)
+{
+    const QByteArray account = profileId.toUtf8();
+    const QByteArray token = accessToken.toUtf8();
+    SecKeychainItemRef item = nullptr;
+    const OSStatus found = SecKeychainFindGenericPassword(nullptr, sizeof(kService) - 1, kService,
+        static_cast<UInt32>(account.size()), account.constData(), nullptr, nullptr, &item);
+    OSStatus status = errSecSuccess;
+    if (found == errSecSuccess) {
+        status = SecKeychainItemModifyAttributesAndData(
+            item, nullptr, static_cast<UInt32>(token.size()), token.constData());
+    } else if (found == errSecItemNotFound) {
+        status = SecKeychainAddGenericPassword(nullptr, sizeof(kService) - 1, kService,
+            static_cast<UInt32>(account.size()), account.constData(), static_cast<UInt32>(token.size()),
+            token.constData(), nullptr);
+    } else {
+        status = found;
+    }
+    if (item)
+        CFRelease(item);
+    return status == errSecSuccess;
+}
+
+void remove(const QString& profileId)
+{
+    const QByteArray account = profileId.toUtf8();
+    SecKeychainItemRef item = nullptr;
+    if (SecKeychainFindGenericPassword(nullptr, sizeof(kService) - 1, kService, static_cast<UInt32>(account.size()),
+            account.constData(), nullptr, nullptr, &item)
+        == errSecSuccess) {
+        SecKeychainItemDelete(item);
+    }
+    if (item)
+        CFRelease(item);
+}
+
+void clear()
+{
+    QProcess::execute(QStringLiteral("/usr/bin/security"),
+        { QStringLiteral("delete-generic-password"), QStringLiteral("-s"), QString::fromLatin1(kService) });
+}
+
+} // namespace JellyfinNative::CredentialStore

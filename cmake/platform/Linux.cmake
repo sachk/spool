@@ -6,6 +6,7 @@ endfunction()
 function(jellyfin_configure_linux_targets native_target core_target)
     target_sources(${core_target} PRIVATE
         src/platform/linux/LinuxSettingsPolicy.cpp
+        src/platform/linux/LinuxCredentialStore.cpp
         src/platform/linux/LinuxSystemProbes.cpp
         src/platform/common/LinuxPerformanceSampler.cpp
     )

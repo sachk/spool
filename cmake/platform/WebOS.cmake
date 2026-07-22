@@ -89,6 +89,7 @@ endfunction()
 function(jellyfin_configure_webos_targets native_target core_target)
     target_sources(${core_target} PRIVATE
         src/platform/webos/WebOSAudioSyncPolicy.cpp
+        src/platform/webos/WebOSCredentialStore.cpp
         src/platform/webos/WebOSAudioSyncPolicy.h
         src/platform/webos/WebOSMpvConfigPolicy.cpp
         src/platform/webos/WebOSSettingsPolicy.cpp
