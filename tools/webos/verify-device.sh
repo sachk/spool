@@ -3,7 +3,7 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 
-host="${TV_HOST:-root@192.168.0.200}"
+host="${TV_HOST:-}"
 device="${ARES_DEVICE:-}"
 app_id="${APP_ID:-com.sachk.tern}"
 ipk=""
@@ -26,7 +26,7 @@ captures current app logs, and captures a screenshot using supported webOS
 services. It does not remove app data, patch TV files, or restart services.
 
 Options:
-  --host HOST          SSH target for LS2/log access (default: $host)
+  --host HOST          required SSH target unless TV_HOST is set
   --device NAME        ares device name; omitted means ares default
   --app-id ID          app id (default: $app_id)
   --ipk PATH           IPK to install; defaults to newest matching build IPK
@@ -68,6 +68,7 @@ while [[ $# -gt 0 ]]; do
       ;;
   esac
 done
+[[ -n "$host" ]] || { echo "missing required --host HOST (or TV_HOST)" >&2; usage >&2; exit 2; }
 
 require_command() {
   command -v "$1" >/dev/null 2>&1 || {

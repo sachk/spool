@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-host="root@192.168.0.200"
+host="${TV_HOST:-}"
 app_id="com.sachk.tern"
 interval="1"
 duration="0"
@@ -19,7 +19,7 @@ Streams memory samples from the TV over SSH and writes a local CSV plus SVG.
 No listener or endpoint is opened on the desktop, and the TV is only read.
 
 Options:
-  --host HOST        SSH host (default: root@192.168.0.200)
+  --host HOST        required SSH host unless TV_HOST is set
   --app-id ID       app id/process match (default: com.sachk.tern)
   --interval SEC    sample interval (default: 1)
   --duration SEC    stop after SEC; 0 means until Ctrl-C (default: 0)
@@ -53,6 +53,7 @@ while [[ $# -gt 0 ]]; do
     *) echo "unknown option: $1" >&2; usage >&2; exit 2 ;;
   esac
 done
+[[ -n "$host" ]] || { echo "missing required --host HOST (or TV_HOST)" >&2; usage >&2; exit 2; }
 
 if [[ -z "$out" ]]; then
   mkdir -p build/memory

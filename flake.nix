@@ -135,8 +135,6 @@
         mujs
         ninja
         nodejs_22
-        openapi-generator-cli
-        jdk17_headless
         patchelf
         pcre2
         perl
@@ -260,10 +258,6 @@
         unset QT_PLUGIN_PATH QML_IMPORT_PATH QML2_IMPORT_PATH QT_SELECT
         export QT_BUILD_CLEAN_POISONED=1
 
-        if [ -z "''${OPENAPI_GENERATOR_CLI_JAR:-}" ]; then
-          OPENAPI_GENERATOR_CLI_JAR="$(${pkgs.findutils}/bin/find ${pkgs.openapi-generator-cli} -type f -name 'openapi-generator-cli*.jar' -print -quit 2>/dev/null || true)"
-          export OPENAPI_GENERATOR_CLI_JAR
-        fi
       '';
 
       nativeShellHook = pkgs: commonShellHook pkgs + ''

@@ -18,9 +18,9 @@ Generated files:
 
 webOS helpers:
 
-- `tools/webos/diagnose.sh root@192.168.0.200`
-- `tools/webos/collect-diagnostics-bundle.sh root@192.168.0.200`
-- `tools/webos/kill-stale.sh root@192.168.0.200`
+- `tools/webos/diagnose.sh root@tv.local`
+- `tools/webos/collect-diagnostics-bundle.sh root@tv.local`
+- `tools/webos/kill-stale.sh root@tv.local`
 
 Simulation knobs:
 
@@ -32,5 +32,5 @@ Typical stale-process flow:
 
 1. Install a diagnostics build.
 2. Launch, wait for home, close, then relaunch after the slow/no-op symptom.
-3. Run `tools/webos/collect-diagnostics-bundle.sh root@192.168.0.200`.
+3. Run `tools/webos/collect-diagnostics-bundle.sh root@tv.local`.
 4. Inspect `stale-processes.json`, `current-instance.json`, `lifecycle.jsonl`, and `watchdog/watchdog.jsonl` first.

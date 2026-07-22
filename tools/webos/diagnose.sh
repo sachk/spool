@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-TARGET="${1:-root@192.168.0.200}"
+TARGET="${1:-}"
+[[ -n "$TARGET" ]] || { echo "Usage: $0 root@tv.local" >&2; exit 2; }
 APP_ID="${APP_ID:-com.sachk.tern}"
 
 # Logs live in /tmp/$APP_ID/ since the log-dir refactor; older builds wrote

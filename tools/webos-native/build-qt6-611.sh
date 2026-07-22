@@ -25,7 +25,6 @@ QT_SERIES="${QT_VERSION%.*}"
 QT_BASE_URL="${QT_BASE_URL:-$(manifest_qt_field "$QT_MANIFEST" baseUrl)}"
 QT_STATIC="${QT_STATIC:-0}"
 PHASE="${1:-all}"
-BUILD_QTOPENAPI="${BUILD_QTOPENAPI:-0}"
 QT_BUILD_CLEAN_POISONED="${QT_BUILD_CLEAN_POISONED:-1}"
 QT_BUILD_MEMORY_PER_JOB_MIB="${QT_BUILD_MEMORY_PER_JOB_MIB:-1536}"
 QT_BUILD_MEMORY_RESERVE_MIB="${QT_BUILD_MEMORY_RESERVE_MIB:-2048}"
@@ -46,7 +45,6 @@ QTTOOLS_TARBALL="$SRC_DIR/qttools-everywhere-src-$QT_VERSION.tar.xz"
 QTDECLARATIVE_TARBALL="$SRC_DIR/qtdeclarative-everywhere-src-$QT_VERSION.tar.xz"
 QTWEBSOCKETS_TARBALL="$SRC_DIR/qtwebsockets-everywhere-src-$QT_VERSION.tar.xz"
 QTWAYLAND_TARBALL="$SRC_DIR/qtwayland-everywhere-src-$QT_VERSION.tar.xz"
-QTOPENAPI_TARBALL="$SRC_DIR/qtopenapi-everywhere-src-$QT_VERSION.tar.xz"
 QTIMAGEFORMATS_TARBALL="$SRC_DIR/qtimageformats-everywhere-src-$QT_VERSION.tar.xz"
 
 QTBASE_SRC="$SRC_DIR/qtbase-everywhere-src-$QT_VERSION"
@@ -55,7 +53,6 @@ QTTOOLS_SRC="$SRC_DIR/qttools-everywhere-src-$QT_VERSION"
 QTDECLARATIVE_SRC="$SRC_DIR/qtdeclarative-everywhere-src-$QT_VERSION"
 QTWEBSOCKETS_SRC="$SRC_DIR/qtwebsockets-everywhere-src-$QT_VERSION"
 QTWAYLAND_SRC="$SRC_DIR/qtwayland-everywhere-src-$QT_VERSION"
-QTOPENAPI_SRC="$SRC_DIR/qtopenapi-everywhere-src-$QT_VERSION"
 QTIMAGEFORMATS_SRC="$SRC_DIR/qtimageformats-everywhere-src-$QT_VERSION"
 
 QT_BUILD_TAG="${QT_SERIES//./}"
@@ -83,7 +80,6 @@ PKG_CONFIG_WEBOS="$ROOT/tools/webos-native/pkg-config-webos.sh"
 PATCH_DIR="$ROOT/tools/webos-native/patches"
 HOST_WAYLAND_SCANNER_DEFAULT="$(command -v wayland-scanner || true)"
 TARGET_WAYLAND_SCANNER_DEFAULT="$SDK_ROOT/bin/wayland-scanner"
-OPENAPI_GENERATOR_CLI_JAR_DEFAULT=""
 
 fresh_flag=()
 if [[ "${QT_BUILD_FRESH:-0}" == "1" ]]; then
@@ -144,40 +140,6 @@ cmake_configure() { cmake_clean_env cmake "$@"; }
 cmake_build() { cmake_clean_env cmake --build "$@"; }
 cmake_install() { cmake_clean_env cmake --install "$@"; }
 
-find_openapi_generator_jar() {
-  if [[ -n "${OPENAPI_GENERATOR_CLI_JAR:-}" ]]; then
-    [[ -f "$OPENAPI_GENERATOR_CLI_JAR" ]] && printf '%s\n' "$OPENAPI_GENERATOR_CLI_JAR"
-    return 0
-  fi
-
-  if have openapi-generator-cli; then
-    local cli prefix candidate
-    cli="$(readlink -f "$(command -v openapi-generator-cli)" 2>/dev/null || command -v openapi-generator-cli)"
-    prefix="$(dirname "$(dirname "$cli")")"
-    for candidate in \
-      "$prefix/share/java/openapi-generator-cli.jar" \
-      "$prefix/share/java/openapi-generator-cli/openapi-generator-cli.jar" \
-      "$prefix/lib/openapi-generator-cli.jar"; do
-      [[ -f "$candidate" ]] && { printf '%s\n' "$candidate"; return 0; }
-    done
-  fi
-
-  # Nix wrappers sometimes obscure the final jar path. Fall back to a bounded
-  # store-ish search around PATH entries rather than a full filesystem scan.
-  local path_dir root candidate
-  IFS=: read -ra path_dirs <<<"${PATH:-}"
-  for path_dir in "${path_dirs[@]}"; do
-    [[ -n "$path_dir" && -d "$path_dir" ]] || continue
-    root="$(cd "$path_dir/.." 2>/dev/null && pwd -P || true)"
-    [[ -n "$root" && -d "$root" ]] || continue
-    candidate="$(find "$root" -maxdepth 5 -type f -name 'openapi-generator-cli*.jar' -print -quit 2>/dev/null || true)"
-    [[ -n "$candidate" && -f "$candidate" ]] && { printf '%s\n' "$candidate"; return 0; }
-  done
-
-  return 1
-}
-
-OPENAPI_GENERATOR_CLI_JAR_DEFAULT="$(find_openapi_generator_jar || true)"
 
 require_base_tools() {
   require_command cmake
@@ -329,9 +291,6 @@ fetch_sources() {
   download_submodule qtdeclarative "$QTDECLARATIVE_TARBALL"
   download_submodule qtwebsockets "$QTWEBSOCKETS_TARBALL"
   download_submodule qtwayland "$QTWAYLAND_TARBALL"
-  if [[ "$BUILD_QTOPENAPI" == "1" ]]; then
-    download_submodule qtopenapi "$QTOPENAPI_TARBALL"
-  fi
   download_submodule qtimageformats "$QTIMAGEFORMATS_TARBALL"
 
   extract_if_needed "$QTBASE_TARBALL" "$QTBASE_SRC"
@@ -340,9 +299,6 @@ fetch_sources() {
   extract_if_needed "$QTDECLARATIVE_TARBALL" "$QTDECLARATIVE_SRC"
   extract_if_needed "$QTWEBSOCKETS_TARBALL" "$QTWEBSOCKETS_SRC"
   extract_if_needed "$QTWAYLAND_TARBALL" "$QTWAYLAND_SRC"
-  if [[ "$BUILD_QTOPENAPI" == "1" ]]; then
-    extract_if_needed "$QTOPENAPI_TARBALL" "$QTOPENAPI_SRC"
-  fi
   extract_if_needed "$QTIMAGEFORMATS_TARBALL" "$QTIMAGEFORMATS_SRC"
 
   apply_local_patches
@@ -467,22 +423,6 @@ qmlimportscanner_excludes_subtrees() {
   rm -rf "$fixture"
 }
 
-require_openapi_jar() {
-  local jar="${OPENAPI_GENERATOR_CLI_JAR:-$OPENAPI_GENERATOR_CLI_JAR_DEFAULT}"
-  if [[ -z "$jar" || ! -f "$jar" ]]; then
-    cat >&2 <<'OPENAPI_EOF'
-error: OpenAPI generator jar not found.
-
-Fix one of:
-  1. enter the fixed nix source shell, which exports OPENAPI_GENERATOR_CLI_JAR;
-  2. add openapi-generator-cli + jdk17_headless to your shell;
-  3. set OPENAPI_GENERATOR_CLI_JAR=/path/to/openapi-generator-cli.jar;
-  4. or run with BUILD_QTOPENAPI=0 if you do not need QtOpenApi.
-OPENAPI_EOF
-    exit 1
-  fi
-  printf '%s\n' "$jar"
-}
 
 
 
@@ -530,19 +470,6 @@ build_all_host_modules() {
     build_host_module qtwebsockets
   fi
 
-  if [[ "$BUILD_QTOPENAPI" == "1" ]]; then
-    if host_module_up_to_date qtopenapi "lib/cmake/Qt6OpenApi/Qt6OpenApiConfig.cmake"; then
-      log "host qtopenapi: up to date, skipping"
-    else
-      local openapi_generator_cli_jar
-      openapi_generator_cli_jar="$(require_openapi_jar)"
-      configure_host_module qtopenapi "$QTOPENAPI_SRC" \
-        -DOPENAPI_GENERATOR_CLI_JAR="$openapi_generator_cli_jar"
-      build_host_module qtopenapi
-    fi
-  else
-    log "host qtopenapi: disabled by BUILD_QTOPENAPI=0"
-  fi
 
   if host_module_up_to_date qtwayland "lib/cmake/Qt6WaylandClient/Qt6WaylandClientConfig.cmake"; then
     log "host qtwayland: up to date, skipping"
@@ -830,19 +757,6 @@ build_all_target_modules() {
     build_target_module qtwebsockets
   fi
 
-  if [[ "$BUILD_QTOPENAPI" == "1" ]]; then
-    if target_module_up_to_date qtopenapi "$(target_lib_marker Qt6OpenApi)"; then
-      log "target qtopenapi: up to date, skipping"
-    else
-      local openapi_generator_cli_jar
-      openapi_generator_cli_jar="$(require_openapi_jar)"
-      configure_target_module qtopenapi "$QTOPENAPI_SRC" \
-        -DOPENAPI_GENERATOR_CLI_JAR="$openapi_generator_cli_jar"
-      build_target_module qtopenapi
-    fi
-  else
-    log "target qtopenapi: disabled by BUILD_QTOPENAPI=0"
-  fi
 
   if target_module_up_to_date qtwayland "$(target_lib_marker Qt6WaylandClient)"; then
     log "target qtwayland: up to date, skipping"
@@ -906,7 +820,6 @@ Environment knobs:
   QT_BUILD_FORCE=1              ignore module install markers
   QT_BUILD_FORCE_MODULES=a,b    rebuild selected modules
   QT_BUILD_CLEAN_POISONED=0|1   auto-remove CMake caches that mention nixpkgs Qt
-  BUILD_QTOPENAPI=0|1           optional QtOpenApi module (default: 0)
   WEBOS_SDK_ROOT=/path/to/arm-webos-linux-gnueabi_sdk-buildroot
 USAGE_EOF
 }

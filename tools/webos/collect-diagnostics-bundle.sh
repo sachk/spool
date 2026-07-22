@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-TARGET="${1:-root@192.168.0.200}"
+TARGET="${1:-}"
+[[ -n "$TARGET" ]] || { echo "Usage: $0 root@tv.local" >&2; exit 2; }
 APP_ID="${APP_ID:-com.sachk.tern}"
 OUT="${OUT:-diagnostics-bundle-$(date -u +%Y%m%d-%H%M%S).tar.gz}"
 

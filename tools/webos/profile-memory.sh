@@ -15,7 +15,7 @@
 # build output.
 set -euo pipefail
 
-HOST="${TV_HOST:-root@192.168.0.200}"
+HOST="${TV_HOST:-}"
 APP_ID="${APP_ID:-com.sachk.tern}"
 DURATION="${DURATION:-60}"
 OUTDIR=""
@@ -32,7 +32,7 @@ Arms heaptrack on the TV, waits for the app to relaunch under profiling,
 records DURATION seconds, then pulls + symbolises + opens the trace.
 
 Options:
-  --host HOST        SSH target (default: $HOST)
+  --host HOST        required SSH target unless TV_HOST is set
   --duration SEC     record window after profiled launch (default: $DURATION)
   --out DIR          output dir (default: build/memory/heaptrack/<timestamp>)
   --no-stop          leave the app running after recording (partial-but-live trace)
@@ -54,6 +54,7 @@ while [[ $# -gt 0 ]]; do
     *) echo "unknown option: $1" >&2; usage >&2; exit 2 ;;
   esac
 done
+[[ -n "$HOST" ]] || { echo "missing required --host HOST (or TV_HOST)" >&2; usage >&2; exit 2; }
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 [[ -n "$OUTDIR" ]] || OUTDIR="$ROOT/build/memory/heaptrack/$(date +%Y%m%d-%H%M%S)"

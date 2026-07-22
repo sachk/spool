@@ -28,39 +28,39 @@ for breaking down a resident heap footprint.
   unstripped `build/jellyfin-native.unstripped` via `--extra-paths` (build-id
   matched).
 
-## One-time: cross-build the recorder
+## Build and install the recorder
+
+Heaptrack is opt-in and is not included in normal packages. Build and install a
+profiling package with an explicit TV host:
 
 ```sh
-bash tools/webos-native/build-heaptrack.sh
+TV_HOST=root@tv.local
+BUNDLE_HEAPTRACK=1 ./build-ipk.sh
+nix develop -c bash tools/webos/verify-device.sh --no-launch \
+  --host "$TV_HOST" ./build/com.sachk.tern_0.2.1_arm.ipk
 ```
 
-Produces `build/webos-heaptrack/install/...`. Once present, `build-ipk.sh`
-auto-bundles it (set `BUNDLE_HEAPTRACK=0` to opt out). It is built from the same
-source as the desktop nixpkgs heaptrack, so the trace format matches.
+This builds the recorder into `build/webos-heaptrack/install/...` and bundles it
+in the IPK. It is built from the same source as the desktop nixpkgs heaptrack,
+so the trace format matches.
 
 ## Capture a session
 
-1. Build + deploy a bundle that contains the recorder (e.g. the normal cycle):
+Run the orchestrator with the TV host. It arms one-shot profiling, blocks until
+the app relaunches under the preload, waits for playback to start, records,
+finalises a clean trace, pulls and symbolises it, then opens `heaptrack_gui`:
 
-   ```sh
-   ./webos-mpv-demo-cycle.sh
-   ```
+```sh
+tools/webos/profile-memory.sh --host root@tv.local --duration 60
+```
 
-2. Run the orchestrator. It arms one-shot profiling, blocks until the app
-   relaunches under the preload, waits for playback to start, records, finalises
-   a clean trace, pulls + symbolises it, and opens `heaptrack_gui`:
-
-   ```sh
-   tools/webos/profile-memory.sh --duration 60
-   ```
-
-   Useful options: `--no-stop` (leave the app running; partial-but-live trace),
-   `--no-gui`, `--duration SEC`, `--host root@<ip>`. Env: `WAIT_PLAYBACK=0` to
-   record from launch instead of from the first play event; `PLAY_WAIT=SEC`.
+Useful options: `--no-stop` (leave the app running; partial-but-live trace),
+`--no-gui`, and `--duration SEC`. Set `WAIT_PLAYBACK=0` to record from launch
+instead of from the first play event, or `PLAY_WAIT=SEC` to change that wait.
 
 Output lands in `build/memory/heaptrack/<timestamp>/`:
-`heaptrack.jellyfin.gz` (open in `heaptrack_gui`), `summary.txt` (heaptrack_print),
-`maps.txt`, `smaps_rollup.txt` (RSS breakdown for context).
+`heaptrack.jellyfin.gz` (open in `heaptrack_gui`), `summary.txt`
+(`heaptrack_print`), `maps.txt`, and `smaps_rollup.txt` (RSS breakdown).
 
 ## Reading the result for the +350 MB question
 
