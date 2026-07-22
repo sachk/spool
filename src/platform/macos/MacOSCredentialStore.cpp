@@ -1,4 +1,5 @@
 #include "../CredentialStore.h"
+#include "../common/CredentialStoreFileBackend.h"
 
 #include <QByteArray>
 #include <QProcess>
@@ -12,6 +13,8 @@ namespace {
 
 QString load(const QString& profileId)
 {
+    if (FileBackend::enabled())
+        return FileBackend::load(profileId);
     const QByteArray account = profileId.toUtf8();
     void *data = nullptr;
     UInt32 length = 0;
@@ -29,6 +32,8 @@ QString load(const QString& profileId)
 
 bool save(const QString& profileId, const QString& accessToken)
 {
+    if (FileBackend::enabled())
+        return FileBackend::save(profileId, accessToken);
     const QByteArray account = profileId.toUtf8();
     const QByteArray token = accessToken.toUtf8();
     SecKeychainItemRef item = nullptr;
@@ -52,6 +57,10 @@ bool save(const QString& profileId, const QString& accessToken)
 
 void remove(const QString& profileId)
 {
+    if (FileBackend::enabled()) {
+        FileBackend::remove(profileId);
+        return;
+    }
     const QByteArray account = profileId.toUtf8();
     SecKeychainItemRef item = nullptr;
     if (SecKeychainFindGenericPassword(nullptr, sizeof(kService) - 1, kService, static_cast<UInt32>(account.size()),
@@ -65,6 +74,10 @@ void remove(const QString& profileId)
 
 void clear()
 {
+    if (FileBackend::enabled()) {
+        FileBackend::clear();
+        return;
+    }
     QProcess::execute(QStringLiteral("/usr/bin/security"),
         { QStringLiteral("delete-generic-password"), QStringLiteral("-s"), QString::fromLatin1(kService) });
 }
