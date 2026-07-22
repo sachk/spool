@@ -2,8 +2,9 @@
 
 #include <QByteArray>
 
-#include <wincred.h>
 #include <windows.h>
+
+#include <wincred.h>
 
 namespace JellyfinNative::CredentialStore {
 namespace {
