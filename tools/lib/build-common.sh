@@ -380,6 +380,23 @@ clean_mpv_install_prefix() {
   rm -f "$prefix/lib/pkgconfig/mpv.pc"
 }
 
+first_missing_nix_store_path() {
+  local file="$1"
+  python3 - "$file" <<'PY'
+import pathlib
+import re
+import sys
+
+content = pathlib.Path(sys.argv[1]).read_text(errors="replace")
+paths = set(re.findall(r"/nix/store/[a-z0-9]{32}-[^\s$\"',;:]+", content))
+for path in sorted(candidate.rstrip("\\)]}") for candidate in paths):
+    if not pathlib.Path(path).exists():
+        print(path)
+        raise SystemExit(0)
+raise SystemExit(1)
+PY
+}
+
 # mpv_meson_build SRC BUILD_DIR [meson setup args...]
 #
 # Configure + compile + install an mpv tree. Wipes BUILD_DIR first if it was
@@ -399,6 +416,13 @@ mpv_meson_build() {
       echo "mpv build dir cached with stale source path ($cached_src != $src); wiping" >&2
       rm -rf "$build"
     fi
+  fi
+
+  local missing_dependency_path=""
+  if [[ -f "$build/build.ninja" ]] \
+      && missing_dependency_path="$(first_missing_nix_store_path "$build/build.ninja")"; then
+    echo "mpv build dir references a missing Nix dependency ($missing_dependency_path); wiping" >&2
+    rm -rf "$build"
   fi
 
   local dependency_fingerprint dependency_marker cached_fingerprint=""
@@ -463,8 +487,9 @@ cmake_cache_has_stale_qt_prefix() {
 # cmake_build_app SRC BUILD_DIR [cmake configure args...]
 #
 # Configure (Ninja) + build + install the app. Wipes BUILD_DIR first if its
-# CMakeCache.txt points at a different source tree or a Qt package outside the
-# current CMAKE_PREFIX_PATH, which otherwise keeps stale Qt private ABI paths.
+# CMakeCache.txt points at a different source tree, a Qt package outside the
+# current CMAKE_PREFIX_PATH, or a generated Ninja rule references a collected
+# Nix store dependency.
 cmake_build_app() {
   local src="$1" build="$2"
   shift 2
@@ -476,12 +501,17 @@ cmake_build_app() {
     cmake_args+=(${JELLYFIN_CMAKE_EXTRA_ARGS})
   fi
 
+  local missing_dependency_path=""
   if [[ -f "$build/CMakeCache.txt" ]]; then
     if ! grep -q "^CMAKE_HOME_DIRECTORY:INTERNAL=$src$" "$build/CMakeCache.txt"; then
       echo "app build dir cached with stale source path; wiping" >&2
       rm -rf "$build"
     elif cmake_cache_has_stale_qt_prefix "$build/CMakeCache.txt"; then
       echo "app build dir cached with stale Qt package paths; wiping" >&2
+      rm -rf "$build"
+    elif [[ -f "$build/build.ninja" ]] \
+        && missing_dependency_path="$(first_missing_nix_store_path "$build/build.ninja")"; then
+      echo "app build dir references a missing Nix dependency ($missing_dependency_path); wiping" >&2
       rm -rf "$build"
     fi
   fi
