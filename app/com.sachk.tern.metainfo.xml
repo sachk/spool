@@ -8,7 +8,7 @@
   <description>
     <p>Browse and play media from a Jellyfin server with a native mpv playback pipeline.</p>
   </description>
-  <launchable type="desktop-id">jellyfin-native.desktop</launchable>
+  <launchable type="desktop-id">com.sachk.tern.desktop</launchable>
   <provides>
     <binary>jellyfin-native</binary>
   </provides>
@@ -16,7 +16,10 @@
     <category>AudioVideo</category>
     <category>Video</category>
   </categories>
-  <url type="homepage">https://github.com/sachk/tern</url>
+  <url type="homepage">https://github.com/sachk</url>
+  <developer id="io.github.sachk">
+    <name>sachk</name>
+  </developer>
   <releases>
     <release version="0.2.1" date="2026-07-22" type="development"/>
   </releases>

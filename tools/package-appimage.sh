@@ -266,7 +266,7 @@ cp -f "$APP_ROOT/app/icon.png" "$APPDIR/usr/share/icons/hicolor/256x256/apps/jel
 cp -f "$APP_ROOT/app/icon.png" "$APPDIR/jellyfin-native.png"
 mkdir -p "$APPDIR/usr/share/metainfo"
 cp -f "$APP_ROOT/app/com.sachk.tern.metainfo.xml" \
-  "$APPDIR/usr/share/metainfo/jellyfin-native.appdata.xml"
+  "$APPDIR/usr/share/metainfo/com.sachk.tern.appdata.xml"
 cp -f "$APP_ROOT/app/notices/OPEN_SOURCE_NOTICES.txt" "$APP_ROOT/LICENSE" \
   "$APP_ROOT/qml/fonts/IBMPlexSans-LICENSE.txt" "$APP_ROOT/qml/fonts/MaterialIcons-LICENSE.txt" \
   "$APPDIR/usr/share/jellyfin-native/notices/"
@@ -325,7 +325,7 @@ exec "$HERE/usr/bin/jellyfin-native" "$@"
 APPRUN
 chmod +x "$APPDIR/AppRun"
 
-cat > "$APPDIR/usr/share/applications/jellyfin-native.desktop" <<'DESKTOP'
+cat > "$APPDIR/usr/share/applications/com.sachk.tern.desktop" <<'DESKTOP'
 [Desktop Entry]
 Type=Application
 Name=Jellyfin Native
@@ -333,7 +333,7 @@ Exec=jellyfin-native
 Icon=jellyfin-native
 Categories=AudioVideo;Video;
 DESKTOP
-cp -f "$APPDIR/usr/share/applications/jellyfin-native.desktop" "$APPDIR/jellyfin-native.desktop"
+cp -f "$APPDIR/usr/share/applications/com.sachk.tern.desktop" "$APPDIR/com.sachk.tern.desktop"
 
 download_verified \
   "$(manifest_tool_field "$TOOL_MANIFEST" linuxdeploy url)" \
