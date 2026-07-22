@@ -11,18 +11,20 @@ QtObject {
     property var transitionToken: 0
     property int firstIndex: 0
     property int lastIndex: -1
+    property bool firstDelegateReady: !enabled
     property bool delegatesReady: !enabled
     property bool artworkReady: !enabled
 
     function reset() {
         updateTimer.stop()
+        firstDelegateReady = !enabled
         delegatesReady = !enabled
         artworkReady = !enabled
         schedule()
     }
 
     function schedule() {
-        if (enabled && (!delegatesReady || !artworkReady))
+        if (enabled && (!firstDelegateReady || !delegatesReady || !artworkReady))
             updateTimer.restart()
     }
 
@@ -43,14 +45,16 @@ QtObject {
                 artworkSettled = false
                 break
             }
+            if (index === first && !firstDelegateReady) {
+                firstDelegateReady = true
+                if (latencyMonitor)
+                    latencyMonitor.mark(transitionToken, "first_delegate")
+            }
             if (delegate.artworkReady === false)
                 artworkSettled = false
         }
-        if (delegatesSettled && !delegatesReady) {
+        if (delegatesSettled && !delegatesReady)
             delegatesReady = true
-            if (latencyMonitor)
-                latencyMonitor.mark(transitionToken, "first_delegate")
-        }
         if (artworkSettled && !artworkReady) {
             artworkReady = true
             if (latencyMonitor)

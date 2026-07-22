@@ -55,11 +55,12 @@ FocusScope {
     readonly property bool isFixedBrowseView: ["genre", "studio", "playlist", "boxset", "folder", "artist"].indexOf(
         Browse.viewKind) >= 0
     focus: true
-    readonly property bool contentReady: grid.count > 0 && gridReveal.delegatesReady
+    readonly property bool contentReady: grid.count > 0 && gridReveal.firstDelegateReady
     // Grid position to restore across model resets (sort/filter/library
     // changes); the page itself is resident, so this survives navigation.
     property int savedIndex: shell ? Number(shell.routeArgs.focusIndex || 0) : 0
-    Component.onCompleted: InputKeys.focus(grid)
+    Component.onCompleted: if (activeFocus)
+    InputKeys.focus(grid)
     onActiveFocusChanged: if (activeFocus)
     InputKeys.focus(grid)
 
@@ -863,9 +864,8 @@ FocusScope {
             Layout.bottomMargin: mediaInfoBar.visible ? mediaInfoBar.height + Metrics.scaled(10) : 0
             spacing: root.listMode ? Metrics.sectionGapPx : 0
 
-            // List mode's left pane. A one-viewport display margin on each
-            // side keeps the previews immediately above and below the selected
-            // row constructed, including their poster image requests.
+            // List mode's detail controls stay resident and rebind to the
+            // current item; no adjacent or off-screen preview panes exist.
             Item {
                 id: listPane
                 visible: root.listMode
@@ -974,7 +974,6 @@ FocusScope {
                 keyNavigationEnabled: false
                 reuseItems: true
                 reducedMotion: Theme.reducedMotion
-                opacity: gridReveal.delegatesReady ? 1 : 0
                 boundsBehavior: Flickable.StopAtBounds
                 model: Browse.items
                 leftMargin: focusPadding

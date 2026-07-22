@@ -120,19 +120,24 @@ FocusScope {
         return listView.currentItem
     }
 
-    function routeKey(key, phase, repeat) {
+    function moveBy(delta) {
         if (count <= 0)
             return false
-        if (key === Qt.Key_Left)
-            currentIndex = Math.max(0, currentIndex - 1)
-        else if (key === Qt.Key_Right)
-            currentIndex = Math.min(count - 1, currentIndex + 1)
-        else
-            return false
+        currentIndex = Math.max(0, Math.min(count - 1, currentIndex + delta))
         // Covers the clamped no-op case too (already at an edge): the view
         // may still be showing a stale highlight that needs re-asserting.
         syncViewCurrentIndex()
         return true
+    }
+
+    function routeKey(key, phase, repeat) {
+        if (phase === "release")
+            return true
+        if (key === Qt.Key_Left)
+            return moveBy(-1)
+        if (key === Qt.Key_Right)
+            return moveBy(1)
+        return false
     }
 
     function activateIndex(index) {

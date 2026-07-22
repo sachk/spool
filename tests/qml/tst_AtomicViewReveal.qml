@@ -18,9 +18,11 @@ TestCase {
     QtObject {
         id: fakeView
         property int count: 2
-        function forceLayout() {}
+        property bool firstDelegateAvailable: true
+        function forceLayout() {
+        }
         function itemAtIndex(index) {
-            return index === 0 ? firstDelegate : secondDelegate
+            return index === 0 ? (firstDelegateAvailable ? firstDelegate : null) : secondDelegate
         }
     }
 
@@ -32,10 +34,24 @@ TestCase {
     }
 
     function init() {
+        fakeView.firstDelegateAvailable = true
         firstDelegate.artworkReady = true
         secondDelegate.artworkReady = false
         reveal.reset()
         reveal.update()
+    }
+
+    function test_firstDelegateDoesNotWaitForTheViewport() {
+        fakeView.firstDelegateAvailable = false
+        reveal.reset()
+        reveal.update()
+        compare(reveal.firstDelegateReady, false)
+        compare(reveal.delegatesReady, false)
+
+        fakeView.firstDelegateAvailable = true
+        reveal.update()
+        compare(reveal.firstDelegateReady, true)
+        compare(reveal.delegatesReady, true)
     }
 
     function test_waitsForEveryArtwork() {

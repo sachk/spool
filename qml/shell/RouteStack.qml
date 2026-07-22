@@ -19,6 +19,7 @@ FocusScope {
     property var pendingLoader: null
     property string activeRoute: ""
     readonly property Item activeItem: activeLoader ? activeLoader.item : null
+    readonly property bool directionRelease: Boolean(activeItem && activeItem.directionRelease)
 
     function pageKey(nextRoute) {
         switch (nextRoute) {

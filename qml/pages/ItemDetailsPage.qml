@@ -101,6 +101,23 @@ FocusScope {
     property bool routeRefreshScheduled: false
 
     focus: true
+    readonly property bool directionRelease: true
+
+    HoldNavigationController {
+        id: rowHold
+        initialRate: 3
+        maximumRate: {
+            const row = root.focusedMediaRow()
+            return row ? Math.max(12, row.count / 5) : 12
+        }
+        cruiseDuration: 2000
+        rampDuration: 500
+        stepCallback: function (key, steps) {
+            const row = root.focusedMediaRow()
+            if (row)
+                row.moveBy((key === Qt.Key_Left ? -1 : 1) * steps)
+        }
+    }
 
     component DetailAction: ActionButton {
         property string label: ""
@@ -404,7 +421,6 @@ FocusScope {
         updateDetailCounts()
         rebuildSeasonEntries()
         scheduleActiveRouteRefresh()
-        Qt.callLater(focusDefaultAction)
     }
 
     onRouteActiveChanged: {
@@ -416,8 +432,12 @@ FocusScope {
         }
     }
 
-    onActiveFocusChanged: if (activeFocus)
-    focusDefaultAction()
+    onActiveFocusChanged: {
+        if (activeFocus)
+        focusDefaultAction()
+        else
+        rowHold.stopTracking()
+    }
     function currentMediaItem() {
         return item
     }
@@ -654,10 +674,21 @@ FocusScope {
         return similarRow
     }
 
+    function focusedMediaRow() {
+        if (focusZone === "context")
+            return contextRow
+        if (focusZone === "people")
+            return peopleRow
+        if (focusZone === "similar")
+            return similarRow
+        return null
+    }
+
     function focusNamedZone(zone) {
         const target = zoneTarget(zone)
         if (!target)
             return false
+        rowHold.stopTracking()
         focusZone = zone
         if (zone === "actions")
             focusActionIndex(actionIndex)
@@ -836,7 +867,13 @@ FocusScope {
     function routeKey(key, phase, repeat) {
         if (seasonPickerOpen)
             return seasonPickerList ? seasonPickerList.routeKey(key, phase, repeat) : true
+        if (phase === "release") {
+            if (rowHold.active)
+                return rowHold.routeKey(key, phase, repeat)
+            return true
+        }
         if (focusZone === "overflow") {
+            rowHold.stopTracking()
             const options = overflowOptions()
             if (key === Qt.Key_Up && overflowIndex > 0) {
                 focusOverflow(overflowIndex - 1)
@@ -854,9 +891,12 @@ FocusScope {
             }
             return true
         }
-        if (focusZone === "metadata")
+        if (focusZone === "metadata") {
+            rowHold.stopTracking()
             return metadataPanel.routeKey(key, phase, repeat)
+        }
         if (InputKeys.isVertical(key)) {
+            rowHold.stopTracking()
             if (focusZone === "actions" && key === Qt.Key_Down && overflowOpen && orderedActions()[actionIndex]
                     === menuAction) {
                 focusOverflow(0)
@@ -865,14 +905,21 @@ FocusScope {
             return moveFocusZone(key === Qt.Key_Down ? 1 : -1)
         }
         if (focusZone === "actions") {
+            rowHold.stopTracking()
             if (key === Qt.Key_Left)
                 return focusNextAction(-1)
             if (key === Qt.Key_Right)
                 return focusNextAction(1)
             return false
         }
-        if (focusZone === "series" || focusZone === "season")
+        if (focusZone === "series" || focusZone === "season") {
+            rowHold.stopTracking()
             return InputKeys.isHorizontal(key)
+        }
+        const row = focusedMediaRow()
+        if (row && InputKeys.isHorizontal(key))
+            return rowHold.routeKey(key, phase, repeat)
+        rowHold.stopTracking()
         const target = zoneTarget(focusZone)
         return Boolean(target && target.routeKey && target.routeKey(key, phase, repeat))
     }

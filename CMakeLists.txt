@@ -315,6 +315,7 @@ qt_add_qml_module(jellyfin-native
         qml/primitives/ConfirmationDialog.qml
         qml/primitives/EmptyPlaceholder.qml
         qml/primitives/FastWheelHandler.qml
+        qml/primitives/HoldNavigationController.qml
         qml/primitives/InlineSlider.qml
         qml/primitives/IconButton.qml
         qml/primitives/ImageCard.qml
@@ -595,6 +596,10 @@ if(BUILD_TESTING AND NOT CMAKE_CROSSCOMPILING)
             COMMAND "${QMLTESTRUNNER_EXECUTABLE}"
                 -input "${CMAKE_CURRENT_SOURCE_DIR}/tests/qml/tst_NavGrid.qml"
         )
+        add_test(NAME hold-navigation-controller
+            COMMAND "${QMLTESTRUNNER_EXECUTABLE}"
+                -input "${CMAKE_CURRENT_SOURCE_DIR}/tests/qml/tst_HoldNavigationController.qml"
+        )
         add_test(NAME library-navigation
             COMMAND "${QMLTESTRUNNER_EXECUTABLE}"
                 -input "${CMAKE_CURRENT_SOURCE_DIR}/tests/qml/tst_LibraryNavigation.qml"
@@ -629,8 +634,8 @@ if(BUILD_TESTING AND NOT CMAKE_CROSSCOMPILING)
             ${JELLYFIN_TEST_ENV}
         )
         set_tests_properties(route-policy key-router player-overlay-input option-picker-input tls-trust-dialogs
-            nav-grid library-navigation profile-navigation settings-navigation atomic-view-reveal
-            input-latency-warning player-seek-bar-hover
+            nav-grid hold-navigation-controller library-navigation profile-navigation settings-navigation
+            atomic-view-reveal input-latency-warning player-seek-bar-hover
             PROPERTIES ENVIRONMENT "${JELLYFIN_QML_TEST_ENV}"
         )
     endif()
