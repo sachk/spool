@@ -35,6 +35,12 @@ TestCase {
         signalName: "holdStarted"
     }
 
+    SignalSpy {
+        id: currentIndexSpy
+        target: grid
+        signalName: "currentIndexChanged"
+    }
+
     ListModel {
         id: pagedModel
     }
@@ -80,6 +86,7 @@ TestCase {
         fakeNow = 1000
         grid.holdTraversalSeconds = 5
         holdStartedSpy.clear()
+        currentIndexSpy.clear()
         pagedModel.clear()
     }
 
@@ -223,6 +230,17 @@ TestCase {
         grid.accelerate()
         compare(grid.currentIndex, 200)
         compare(grid.holdAccumulator, 0)
+    }
+
+    function test_acceleratedTickCoalescesIndexChange() {
+        modelSize = 5000
+        grid.currentIndex = 0
+        currentIndexSpy.clear()
+        fakeNow = 5000
+        arm(grid, Qt.Key_Down, 3000, 50, 0)
+        grid.accelerate()
+        compare(grid.currentIndex, 200)
+        compare(currentIndexSpy.count, 1)
     }
 
     function test_directionReversalAndReleaseResetAccumulator() {

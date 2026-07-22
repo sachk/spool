@@ -117,16 +117,17 @@ GridView {
             return
         stepDurationMs = Math.max(24, Math.min(singleStepDurationMs, Math.round(700 / rate)))
         holdAccumulator += rate * frameMs / 1000
-        let moves = Math.floor(holdAccumulator)
+        const moves = Math.floor(holdAccumulator)
         holdAccumulator -= moves
-        while (moves-- > 0) {
-            const before = currentIndex
-            moveBy(heldDelta())
-            if (currentIndex === before) {
-                holdAccumulator = 0
-                break
-            }
-        }
+        if (moves <= 0)
+            return
+
+        // One index assignment per tick keeps accelerated traversal from
+        // flooding the UI thread with stale selection work ahead of release.
+        const requestedIndex = currentIndex + heldDelta() * moves
+        moveBy(heldDelta() * moves)
+        if (currentIndex !== requestedIndex)
+            holdAccumulator = 0
     }
 
     function routeKey(key, phase, repeat) {
