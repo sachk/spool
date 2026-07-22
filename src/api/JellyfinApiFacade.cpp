@@ -1617,6 +1617,9 @@ QNetworkRequest JellyfinApiFacade::createRequest(const QString& path, const QUrl
 {
     QNetworkRequest request
         = query.isEmpty() ? m_requestFactory.createRequest(path) : m_requestFactory.createRequest(path, query);
+    if (!HttpRequestPolicy::allowsCredentialTransport(request.url()))
+        throw std::runtime_error("Credentials require HTTPS or a numeric private/loopback HTTP address");
+    request.setAttribute(QNetworkRequest::RedirectPolicyAttribute, QNetworkRequest::ManualRedirectPolicy);
     request.setRawHeader("Authorization", authorizationHeader().toUtf8());
     if (path == QStringLiteral("/Playback/BitrateTest") || path == QStringLiteral("/System/Endpoint")) {
         request.setAttribute(QNetworkRequest::CacheLoadControlAttribute, QNetworkRequest::AlwaysNetwork);
@@ -1687,9 +1690,8 @@ QCoro::Task<QByteArray> JellyfinApiFacade::requestBytes(
         Diagnostics::NetworkRequest diagnosticsRequest(methodName, request.url().toString(QUrl::FullyEncoded));
         QNetworkReply *reply = nullptr;
 
-        if (isQuickConnectPath(path)) {
-            qInfo() << "api:" << methodName << request.url().toString(QUrl::FullyEncoded) << "deviceId" << m_deviceId;
-        }
+        if (isQuickConnectPath(path))
+            qInfo() << "api: quick connect request" << methodName;
 
         switch (method) {
         case HttpMethod::Get:
@@ -1714,12 +1716,8 @@ QCoro::Task<QByteArray> JellyfinApiFacade::requestBytes(
             reply->deleteLater();
         diagnosticsRequest.finish(statusCode, networkError == QNetworkReply::NoError ? QString() : errorText);
 
-        if (networkError == QNetworkReply::NoError && statusCode < 400) {
-            if (isQuickConnectPath(path)) {
-                qInfo() << "api:" << path << "ok" << statusCode << QString::fromUtf8(payload.left(256));
-            }
+        if (networkError == QNetworkReply::NoError && statusCode < 300)
             co_return payload;
-        }
 
         const QString details = payload.isEmpty() ? errorText : QString::fromUtf8(payload);
         if (statusCode == 401 && shouldExpireSession(path) && !m_authExpirationReported) {
@@ -1729,13 +1727,13 @@ QCoro::Task<QByteArray> JellyfinApiFacade::requestBytes(
 
         if (!HttpRequestPolicy::shouldRetry(operation, attempt, statusCode, networkError)) {
             if (isQuickConnectPath(path))
-                qWarning() << "api:" << path << "failed" << statusCode << details;
+                qWarning() << "api: quick connect request failed" << statusCode;
             throw std::runtime_error(QStringLiteral("%1 (%2)").arg(details).arg(statusCode).toStdString());
         }
 
         const int delayMs = HttpRequestPolicy::retryDelayMs(attempt);
-        qWarning() << "api:" << methodName << path << "attempt" << attempt << "failed with" << statusCode << errorText
-                   << "- retrying in" << delayMs << "ms";
+        qWarning() << "api: request attempt" << attempt << "failed with" << statusCode << "- retrying in" << delayMs
+                   << "ms";
         co_await QCoro::sleepFor(std::chrono::milliseconds(delayMs));
     }
 
@@ -1794,6 +1792,7 @@ PlaybackSession JellyfinApiFacade::buildPlaybackSession(
         mediaStreamsFromApiJson(selectedSource.value(QStringLiteral("MediaStreams")).toArray()),
         {},
         trickplay,
+        {},
     };
 }
 

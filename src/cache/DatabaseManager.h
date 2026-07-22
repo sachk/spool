@@ -43,10 +43,6 @@ public:
     QCoro::Task<QString> loadLastUsernameAsync();
     void saveLoginHints(const QString& serverUrl, const QString& username);
 
-    QCoro::Task<AuthSession> loadAuthSessionAsync();
-    void saveAuthSession(const AuthSession& session);
-    void clearAuthSession();
-
     QCoro::Task<std::vector<AccountProfile>> loadAccountProfilesAsync();
     QCoro::Task<std::optional<AccountProfile>> activateAccountProfileAsync(const QString& profileId);
     void upsertAccountProfile(const AccountProfile& profile);

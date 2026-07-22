@@ -378,6 +378,7 @@ struct PlaybackSession {
 QString exceptionMessage(const std::exception_ptr& exception);
 QString normalizedAudioOutputMode(const QString& mode);
 QString sanitizedDiagnosticUrl(QString url, qsizetype maxLength = -1);
+QString sanitizedLogMessage(QString message);
 QUrl serverUrlWithPath(const QString& serverUrl, const QStringList& segments);
 bool isMeaningfulResumePosition(qint64 resumeTicks, qint64 runtimeTicks);
 qint64 normalizedResumeTicks(qint64 resumeTicks, qint64 runtimeTicks);

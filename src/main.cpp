@@ -8,6 +8,7 @@
 #include "app/SessionController.h"
 #include "app/UserItemStateController.h"
 #include "cache/DatabaseManager.h"
+#include "common/JellyfinTypes.h"
 #include "common/LogRotation.h"
 #include "common/TlsTrust.h"
 #include "diagnostics/Diagnostics.h"
@@ -63,6 +64,9 @@
 #include <cstring>
 #include <memory>
 #include <mutex>
+#ifdef Q_OS_UNIX
+#include <sys/stat.h>
+#endif
 
 namespace {
 
@@ -101,6 +105,7 @@ constexpr auto kAppVersion = JELLYFIN_VERSION;
 FILE *g_logFile = nullptr;
 QByteArray g_logPath;
 QElapsedTimer g_startupTimer;
+std::mutex g_logMutex;
 
 FILE *openRotatedLogFile(const QByteArray& path)
 {
@@ -115,9 +120,11 @@ FILE *openAppLogFile(const QString& appRootPath)
         if (directory.isEmpty())
             continue;
         QDir().mkpath(directory);
+        QFile::setPermissions(directory, QFileDevice::ReadOwner | QFileDevice::WriteOwner | QFileDevice::ExeOwner);
         const QByteArray encodedDirectory = QFile::encodeName(directory);
         const QByteArray path = QFile::encodeName(QDir(directory).filePath(QString::fromUtf8(fileName)));
         if (FILE *file = openRotatedLogFile(path)) {
+            QFile::setPermissions(QString::fromLocal8Bit(path), QFileDevice::ReadOwner | QFileDevice::WriteOwner);
             g_logPath = path;
             qputenv("JELLYFIN_NATIVE_LOG_DIR", encodedDirectory);
             return file;
@@ -156,6 +163,7 @@ void configurePersistentRhiPipelineCache(QQuickWindow& window, const QString& ca
 
 void logLine(const char *fmt, ...)
 {
+    const std::lock_guard lock(g_logMutex);
     const long long elapsedMs = g_startupTimer.isValid() ? static_cast<long long>(g_startupTimer.elapsed()) : 0;
 
     va_list ap;
@@ -205,7 +213,7 @@ void qtMessageHandler(QtMsgType type, const QMessageLogContext& context, const Q
         break;
     }
 
-    const QByteArray local = message.toLocal8Bit();
+    const QByteArray local = JellyfinNative::sanitizedLogMessage(message).toLocal8Bit();
     if (context.category && context.category[0])
         logLine("[qt:%s] %s: %s", level, context.category, local.constData());
     else
@@ -225,6 +233,9 @@ void logQmlWarnings(const QList<QQmlError>& warnings)
 
 int main(int argc, char **argv)
 {
+#ifdef Q_OS_UNIX
+    umask(S_IRWXG | S_IRWXO);
+#endif
     const JellyfinNative::ProcessStartupTiming processStartupTiming = JellyfinNative::captureProcessStartupTiming();
     g_startupTimer.start();
     QElapsedTimer& startupTimer = g_startupTimer;
@@ -417,6 +428,23 @@ int main(int argc, char **argv)
     QObject::connect(player.get(), &JellyfinNative::PlayerController::sessionActiveChanged, &app, updateScreenSaver);
     auto controller = std::make_unique<JellyfinNative::AppController>(
         &database, discovery.get(), api.get(), artworkService.get(), player.get(), &tlsTrust);
+    QObject::connect(controller.get(), &JellyfinNative::AppController::clearLogsRequested, &app, [appRootPath]() {
+        const std::lock_guard lock(g_logMutex);
+        if (g_logFile) {
+            fclose(g_logFile);
+            g_logFile = nullptr;
+        }
+        const QByteArray fileName = QFile::encodeName(JellyfinNative::appLogFileName());
+        for (const QString& directory : JellyfinNative::appLogDirectories(appRootPath)) {
+            if (directory.isEmpty())
+                continue;
+            const QString path = QDir(directory).filePath(QString::fromUtf8(fileName));
+            QFile::remove(path);
+            QFile::remove(path + QStringLiteral(".1"));
+            QFile::remove(path + QStringLiteral(".2"));
+        }
+        g_logFile = openAppLogFile(appRootPath);
+    });
     // A desktop close event arrives while the scene graph is still rendering.
     // Tear down here so the mpv render-context handoff completes immediately;
     // aboutToQuit is too late because the window no longer produces frames.

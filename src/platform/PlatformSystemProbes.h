@@ -1,5 +1,6 @@
 #pragma once
 
+#include <QByteArray>
 #include <QString>
 #include <QtGlobal>
 
@@ -22,6 +23,8 @@ struct PlatformMemoryPolicy {
 
 PlatformCpuProbe platformCpuProbe(int logicalCpus);
 PlatformMemoryPolicy platformMemoryPolicy();
+qint64 effectiveLinuxMemoryBytes(
+    const QByteArray& meminfo, const QByteArray& cgroupV2Limit, const QByteArray& cgroupV1Limit);
 QString platformProcessMemoryDiagnostics();
 
 } // namespace JellyfinNative

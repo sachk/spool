@@ -54,6 +54,55 @@ namespace {
 
     constexpr qint64 kGuiWarnMs = 4000;
     constexpr qint64 kShutdownWarnMs = 6000;
+    bool diagnosticsEnabled()
+    {
+        return kDiagnosticsEnabled && qEnvironmentVariableIntValue("JELLYFIN_NATIVE_DIAGNOSTICS") == 1;
+    }
+
+    bool credentialKey(const QString& key)
+    {
+        const QString normalized = key.toLower().remove(QLatin1Char('_')).remove(QLatin1Char('-'));
+        return normalized == QStringLiteral("secret") || normalized == QStringLiteral("code")
+            || normalized == QStringLiteral("password") || normalized == QStringLiteral("pw")
+            || normalized == QStringLiteral("apikey") || normalized == QStringLiteral("accesstoken")
+            || normalized == QStringLiteral("token") || normalized == QStringLiteral("xembytoken")
+            || normalized == QStringLiteral("authorization");
+    }
+
+    bool personalDataKey(const QString& key)
+    {
+        const QString normalized = key.toLower().remove(QLatin1Char('_')).remove(QLatin1Char('-'));
+        return normalized.contains(QStringLiteral("title")) || normalized.contains(QStringLiteral("name"))
+            || normalized.contains(QStringLiteral("url")) || normalized.contains(QStringLiteral("address"))
+            || normalized.contains(QStringLiteral("userid")) || normalized.contains(QStringLiteral("itemid"))
+            || normalized.contains(QStringLiteral("profileid")) || normalized.contains(QStringLiteral("cachekey"))
+            || normalized.contains(QStringLiteral("response")) || normalized.contains(QStringLiteral("header"))
+            || normalized.contains(QStringLiteral("cookie")) || normalized.contains(QStringLiteral("path"));
+    }
+
+    QJsonValue sanitizedValue(const QString& key, const QJsonValue& value)
+    {
+        if (credentialKey(key))
+            return QStringLiteral("<redacted:credential>");
+        if (personalDataKey(key))
+            return QStringLiteral("<redacted:personal>");
+        if (value.isString())
+            return sanitizedLogMessage(value.toString());
+        if (value.isArray()) {
+            QJsonArray result;
+            for (const QJsonValue& child : value.toArray())
+                result.append(sanitizedValue({}, child));
+            return result;
+        }
+        if (value.isObject()) {
+            QJsonObject result;
+            const QJsonObject object = value.toObject();
+            for (auto it = object.begin(); it != object.end(); ++it)
+                result.insert(it.key(), sanitizedValue(it.key(), it.value()));
+            return result;
+        }
+        return value;
+    }
 
     struct State {
         QString appId;
@@ -88,11 +137,6 @@ namespace {
     QString timestamp()
     {
         return QDateTime::currentDateTimeUtc().toString(Qt::ISODateWithMs);
-    }
-
-    QString procRoot()
-    {
-        return QStringLiteral("/proc/%1").arg(QCoreApplication::applicationPid());
     }
 
     void ensureDir(const QString& path)
@@ -195,7 +239,7 @@ namespace {
 
     void writeInstance(const QString& stateName, QJsonObject extra)
     {
-        if (!kDiagnosticsEnabled)
+        if (!diagnosticsEnabled())
             return;
         QJsonObject object;
         object.insert(QStringLiteral("instanceId"), state().instanceId);
@@ -204,9 +248,9 @@ namespace {
         object.insert(QStringLiteral("state"), stateName);
         object.insert(QStringLiteral("ts"), timestamp());
         object.insert(QStringLiteral("uptimeMs"), uptimeMs());
-        object.insert(QStringLiteral("diagnosticsRoot"), state().root);
+        object.insert(QStringLiteral("diagnosticsRoot"), QStringLiteral("<redacted:personal>"));
         for (auto it = extra.begin(); it != extra.end(); ++it)
-            object.insert(it.key(), it.value());
+            object.insert(it.key(), sanitizedValue(it.key(), it.value()));
         writeJsonFile(jsonPath(QStringLiteral("current-instance.json")), object);
     }
 
@@ -259,7 +303,7 @@ namespace {
 
 void initialize(const QString& appId, const QString& rootPath)
 {
-    if (!kDiagnosticsEnabled)
+    if (!diagnosticsEnabled())
         return;
     auto& s = state();
     {
@@ -292,7 +336,7 @@ void initialize(const QString& appId, const QString& rootPath)
 
 void shutdown()
 {
-    if (!kDiagnosticsEnabled || !state().uptime.isValid())
+    if (!diagnosticsEnabled() || !state().uptime.isValid())
         return;
     setInstanceState(QStringLiteral("exited"));
     logEvent(QStringLiteral("lifecycle"), QStringLiteral("diagnostics_stopping"));
@@ -304,11 +348,11 @@ void shutdown()
 
 void logEvent(const QString& category, const QString& event, QJsonObject data)
 {
-    if (!kDiagnosticsEnabled || state().root.isEmpty())
+    if (!diagnosticsEnabled() || state().root.isEmpty())
         return;
     QJsonObject object = baseObject(category, event);
     for (auto it = data.begin(); it != data.end(); ++it)
-        object.insert(it.key(), it.value());
+        object.insert(it.key(), sanitizedValue(it.key(), it.value()));
     const QByteArray line = QJsonDocument(object).toJson(QJsonDocument::Compact) + '\n';
     const QString path = category == QStringLiteral("watchdog")
         ? state().root + QStringLiteral("/watchdog/watchdog.jsonl")
@@ -321,7 +365,7 @@ void logEvent(const QString& category, const QString& event, QJsonObject data)
 
 void setInstanceState(const QString& stateName, QJsonObject extra)
 {
-    if (!kDiagnosticsEnabled)
+    if (!diagnosticsEnabled())
         return;
     if (stateName == QStringLiteral("shutting_down")) {
         state().shuttingDown = true;
@@ -333,7 +377,7 @@ void setInstanceState(const QString& stateName, QJsonObject extra)
 
 void dumpDiagnostics(const QString& reason)
 {
-    if (!kDiagnosticsEnabled || state().root.isEmpty())
+    if (!diagnosticsEnabled() || state().root.isEmpty())
         return;
     const QString safeReason = reason.isEmpty() ? QStringLiteral("manual") : reason;
     const QString stamp = QDateTime::currentDateTimeUtc().toString(QStringLiteral("yyyyMMdd-hhmmsszzz"));
@@ -365,7 +409,7 @@ void dumpDiagnostics(const QString& reason)
 EventLoopWatchdog::EventLoopWatchdog(QObject *parent)
     : QObject(parent)
 {
-    if (!kDiagnosticsEnabled)
+    if (!diagnosticsEnabled())
         return;
     state().guiHeartbeatMs = nowMs();
     if (auto *dispatcher = QAbstractEventDispatcher::instance(QThread::currentThread())) {
@@ -388,7 +432,7 @@ Phase::Phase(QString category, QString name, QJsonObject data)
     : m_category(std::move(category))
     , m_name(std::move(name))
     , m_startedMs(nowMs())
-    , m_active(kDiagnosticsEnabled)
+    , m_active(diagnosticsEnabled())
 {
     if (m_active) {
         data.insert(QStringLiteral("phase"), m_name);
@@ -413,7 +457,7 @@ Task::Task(QString name, QJsonObject data)
     : m_name(std::move(name))
     , m_id(QStringLiteral("task-%1-%2").arg(QCoreApplication::applicationPid()).arg(nowMs()))
     , m_startedMs(nowMs())
-    , m_active(kDiagnosticsEnabled)
+    , m_active(diagnosticsEnabled())
 {
     if (m_active) {
         data.insert(QStringLiteral("task"), m_name);

@@ -50,7 +50,6 @@ void QuickConnectController::start(const QString& serverUrl)
     const quint64 generation = m_generation;
     emit busyChanged(true, QStringLiteral("Starting Quick Connect…"));
     m_api->setServerUrl(serverUrl);
-    qInfo() << "quick connect: starting for" << serverUrl;
 
     Async::runScoped(
         this, m_api->quickConnectEnabled(),
@@ -74,8 +73,6 @@ void QuickConnectController::start(const QString& serverUrl)
                     m_status = QStringLiteral("Waiting for authorization…");
                     m_pollAttempts = 0;
                     m_pollErrors = 0;
-                    qInfo() << "quick connect: initiated code" << m_code << "deviceId"
-                            << result.value(QStringLiteral("DeviceId")).toString();
                     emit changed();
                     poll();
                     m_pollTimer.start();
@@ -85,7 +82,7 @@ void QuickConnectController::start(const QString& serverUrl)
                         return;
                     emit busyChanged(false, {});
                     const QString message = exceptionMessage(error);
-                    qWarning() << "quick connect: initiate failed" << message;
+                    qWarning() << "quick connect: initiate failed";
                     emit errorOccurred(message);
                 });
         },
@@ -94,7 +91,7 @@ void QuickConnectController::start(const QString& serverUrl)
                 return;
             emit busyChanged(false, {});
             const QString message = exceptionMessage(error);
-            qWarning() << "quick connect: enabled check failed" << message;
+            qWarning() << "quick connect: enabled check failed";
             emit errorOccurred(message);
         });
 }
@@ -103,8 +100,10 @@ void QuickConnectController::cancel()
 {
     ++m_generation;
     m_pollTimer.stop();
+    m_code.fill(QLatin1Char('\0'));
     m_code.clear();
     m_status.clear();
+    m_secret.fill(QLatin1Char('\0'));
     m_secret.clear();
     m_pollAttempts = 0;
     m_pollErrors = 0;
@@ -124,11 +123,11 @@ void QuickConnectController::poll()
         return;
     }
 
-    const QString secret = m_secret;
+    const quint64 generation = m_generation;
     Async::runScoped(
-        this, m_api->pollQuickConnect(secret),
-        [this, secret](const QJsonObject& result) {
-            if (secret != m_secret)
+        this, m_api->pollQuickConnect(m_secret),
+        [this, generation](const QJsonObject& result) {
+            if (generation != m_generation)
                 return;
 
             m_pollErrors = 0;
@@ -142,30 +141,30 @@ void QuickConnectController::poll()
             emit changed();
 
             Async::runScoped(
-                this, m_api->authenticateWithQuickConnect(secret),
-                [this, secret](const AuthSession& session) {
-                    if (secret != m_secret)
+                this, m_api->authenticateWithQuickConnect(m_secret),
+                [this, generation](const AuthSession& session) {
+                    if (generation != m_generation)
                         return;
                     qInfo() << "quick connect: authenticated successfully";
                     cancel();
                     emit authenticated(session);
                 },
-                [this, secret](const std::exception_ptr& error) {
-                    if (secret != m_secret)
+                [this, generation](const std::exception_ptr& error) {
+                    if (generation != m_generation)
                         return;
                     const QString message = exceptionMessage(error);
-                    qWarning() << "quick connect: token exchange failed" << message;
+                    qWarning() << "quick connect: token exchange failed";
                     cancel();
                     emit errorOccurred(message);
                 });
         },
-        [this, secret](const std::exception_ptr& error) {
-            if (secret != m_secret)
+        [this, generation](const std::exception_ptr& error) {
+            if (generation != m_generation)
                 return;
 
             const QString message = exceptionMessage(error);
             ++m_pollErrors;
-            qWarning() << "quick connect: poll failed" << m_pollErrors << message;
+            qWarning() << "quick connect: poll failed" << m_pollErrors;
 
             if (message.contains(QStringLiteral("(401)")) || message.contains(QStringLiteral("(404)"))
                 || m_pollErrors >= kMaxPollErrors) {

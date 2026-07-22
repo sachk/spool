@@ -82,6 +82,7 @@ private:
     void upsertActiveProfile(const AuthSession& session);
     void setProfileSignInFields(const AccountProfile& profile);
     void clearActiveSession();
+    void clearPassword();
     void sortProfiles();
 
     DatabaseManager *m_database = nullptr;

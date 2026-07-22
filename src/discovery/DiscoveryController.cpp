@@ -22,9 +22,9 @@ namespace {
     constexpr quint16 kDiscoveryPort = 7359;
     constexpr auto kDiscoveryPayload = "who is JellyfinServer?";
     constexpr int kHttpProbePort = 8096;
-    constexpr int kHttpProbeTimeoutMs = 850;
+    constexpr int kHttpProbeTimeoutMs = 600;
     constexpr int kManualProbeTimeoutMs = 3000;
-    constexpr int kHttpProbeConcurrency = 12;
+    constexpr int kHttpProbeConcurrency = 8;
     constexpr int kInitialHttpFallbackDelayMs = 1500;
 
     QUrl normalizedServerUrl(QUrl url)
@@ -122,8 +122,6 @@ DiscoveryController::DiscoveryController(TlsTrustController *tlsTrust, QObject *
     connect(&m_socket, &QUdpSocket::readyRead, this, &DiscoveryController::handlePendingDatagrams);
     connect(&m_rescanTimer, &QTimer::timeout, this, &DiscoveryController::sendProbe);
     m_rescanTimer.setInterval(15000);
-    connect(&m_httpFallbackTimer, &QTimer::timeout, this, &DiscoveryController::startHttpFallbackScan);
-    m_httpFallbackTimer.setInterval(60000);
 }
 
 DiscoveryController::~DiscoveryController()
@@ -248,14 +246,12 @@ void DiscoveryController::start()
 
     m_active = true;
     const bool udpReady = ensureSocket();
-    qInfo() << "discovery active" << m_active << "udpReady=" << udpReady << "bound to" << m_socket.localAddress()
-            << m_socket.localPort();
+    qInfo() << "discovery active" << m_active << "udpReady=" << udpReady;
     emit activeChanged();
 
     if (udpReady)
         sendProbe();
     m_rescanTimer.start();
-    m_httpFallbackTimer.start();
     QTimer::singleShot(kInitialHttpFallbackDelayMs, this, &DiscoveryController::startHttpFallbackScan);
 }
 
@@ -269,7 +265,6 @@ void DiscoveryController::stop()
 
     m_active = false;
     m_rescanTimer.stop();
-    m_httpFallbackTimer.stop();
     m_socket.close();
     m_httpProbeQueue.clear();
     m_enqueuedHttpProbeTargets.clear();
@@ -292,7 +287,7 @@ void DiscoveryController::sendProbe()
         return;
 
     m_socket.writeDatagram(QByteArray(kDiscoveryPayload), QHostAddress::Broadcast, kDiscoveryPort);
-    qInfo() << "discovery probe sent" << QHostAddress(QHostAddress::Broadcast).toString() << kDiscoveryPort;
+    qInfo() << "discovery broadcast probe sent";
 
     const auto interfaces = QNetworkInterface::allInterfaces();
     for (const QNetworkInterface& iface : interfaces) {
@@ -306,8 +301,7 @@ void DiscoveryController::sendProbe()
                 continue;
 
             m_socket.writeDatagram(QByteArray(kDiscoveryPayload), entry.broadcast(), kDiscoveryPort);
-            qInfo() << "discovery probe sent" << iface.humanReadableName() << entry.broadcast().toString()
-                    << kDiscoveryPort;
+            qInfo() << "discovery interface probe sent";
         }
     }
 }
@@ -328,7 +322,7 @@ void DiscoveryController::handlePendingDatagrams()
             continue;
         }
 
-        qInfo() << "discovery reply" << datagram.senderAddress().toString() << object;
+        qInfo() << "discovery reply accepted";
         emit serverDiscovered({
             object.value(QStringLiteral("Id")).toString(),
             object.value(QStringLiteral("Name")).toString(),
@@ -405,7 +399,7 @@ void DiscoveryController::pumpHttpProbeQueue()
             m_httpProbeReplies.remove(reply);
             if (reply->error() == QNetworkReply::NoError) {
                 const QByteArray payload = reply->readAll();
-                qInfo() << "http discovery reply" << host;
+                qInfo() << "http discovery reply accepted";
                 handleHttpProbeResult(serverUrl, payload);
             }
 

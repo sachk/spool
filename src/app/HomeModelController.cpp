@@ -23,17 +23,6 @@ namespace JellyfinNative {
 namespace {
     constexpr int kHomePayloadSchemaVersion = 7;
 
-    QString homeItemSample(const std::vector<MovieItem>& items)
-    {
-        QStringList sample;
-        for (const auto& item : items) {
-            sample.push_back(QStringLiteral("%1:%2:%3").arg(item.itemType, item.title).arg(item.resumeTicks));
-            if (sample.size() >= 5)
-                break;
-        }
-        return sample.join(QStringLiteral(" | "));
-    }
-
     bool latestRowPrefersLandscape(const LibraryItem& library, const std::vector<MovieItem>& items)
     {
         if (!items.empty()) {
@@ -273,9 +262,9 @@ QCoro::Task<void> HomeModelController::refreshAsync(
     std::vector<MovieItem> resumeItems;
     try {
         resumeItems = co_await resumeTask;
-        qInfo() << "home: resume items" << resumeItems.size() << homeItemSample(resumeItems);
-    } catch (const std::exception& error) {
-        qWarning() << "home: resume fetch failed" << error.what();
+        qInfo() << "home: resume items" << resumeItems.size();
+    } catch (const std::exception&) {
+        qWarning() << "home: resume fetch failed";
     }
     if (!m_generation.isCurrent(generation))
         co_return;
@@ -283,9 +272,9 @@ QCoro::Task<void> HomeModelController::refreshAsync(
     std::vector<MovieItem> nextUpItems;
     try {
         nextUpItems = co_await nextUpTask;
-        qInfo() << "home: next-up items" << nextUpItems.size() << homeItemSample(nextUpItems);
-    } catch (const std::exception& error) {
-        qWarning() << "home: next-up fetch failed" << error.what();
+        qInfo() << "home: next-up items" << nextUpItems.size();
+    } catch (const std::exception&) {
+        qWarning() << "home: next-up fetch failed";
     }
     if (!m_generation.isCurrent(generation))
         co_return;
@@ -299,11 +288,11 @@ QCoro::Task<void> HomeModelController::refreshAsync(
         const LibraryItem& library = latestLibraries[static_cast<size_t>(order)];
         try {
             std::vector<MovieItem> items = co_await latestTasks[static_cast<size_t>(order)];
-            qInfo() << "home: latest items" << library.name << items.size() << homeItemSample(items);
+            qInfo() << "home: latest items" << items.size();
             if (!items.empty())
                 latestSections.push_back({ order, library, std::move(items) });
-        } catch (const std::exception& error) {
-            qWarning() << "home: latest fetch failed" << library.name << error.what();
+        } catch (const std::exception&) {
+            qWarning() << "home: latest fetch failed";
         }
         if (!m_generation.isCurrent(generation))
             co_return;
@@ -340,8 +329,7 @@ QCoro::Task<std::vector<MovieItem>> HomeModelController::fetchLatestLibraryItems
         std::vector<MovieItem> rawItems = co_await m_api->fetchLatestItems(library.id, limit);
         const int rawCount = static_cast<int>(rawItems.size());
         std::vector<MovieItem> groupedItems = groupLatestEpisodes(library, std::move(rawItems));
-        qInfo() << "home: latest fill" << library.name << "raw=" << rawCount << "grouped=" << groupedItems.size()
-                << "limit=" << limit;
+        qInfo() << "home: latest fill raw=" << rawCount << "grouped=" << groupedItems.size() << "limit=" << limit;
         if (groupedItems.size() >= kTargetItems) {
             groupedItems.resize(kTargetItems);
             co_return groupedItems;

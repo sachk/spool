@@ -107,7 +107,6 @@ bool SessionController::initializeFromStorage(QVariantMap values, std::vector<Ac
     m_profiles = std::move(profiles);
     sortProfiles();
 
-    m_database->clearAuthSession();
     m_api->setSession({});
     emit serverUrlChanged();
     emit usernameChanged();
@@ -165,8 +164,10 @@ void SessionController::login()
 
     emit busyChanged(true, QStringLiteral("Signing in…"));
     m_api->setServerUrl(m_serverUrl);
+    auto authentication = m_api->authenticateByName(m_username, m_password);
+    clearPassword();
     Async::runScoped(
-        this, m_api->authenticateByName(m_username, m_password),
+        this, std::move(authentication),
         [this](const AuthSession& session) {
             emit busyChanged(false, {});
             activateSession(session, true);
@@ -221,10 +222,7 @@ bool SessionController::applyStoredProfile(AccountProfile profile, bool persistU
     setServerName(profile.serverName);
     setServerUrl(profile.serverUrl);
     setUsername(profile.userName);
-    if (!m_password.isEmpty()) {
-        m_password.clear();
-        emit passwordChanged();
-    }
+    clearPassword();
     if (authenticationRequired) {
         if (!m_profileSignInRequired) {
             m_profileSignInRequired = true;
@@ -259,10 +257,7 @@ void SessionController::setProfileSignInFields(const AccountProfile& profile)
     setServerUrl(profile.serverUrl);
     setServerName(profile.serverName);
     setUsername(profile.userName);
-    if (!m_password.isEmpty()) {
-        m_password.clear();
-        emit passwordChanged();
-    }
+    clearPassword();
     if (!m_profileSignInRequired) {
         m_profileSignInRequired = true;
         emit profileSignInRequiredChanged();
@@ -318,6 +313,7 @@ void SessionController::clearProfiles()
 
 void SessionController::deactivate()
 {
+    clearPassword();
     m_profileSignInRequired = false;
     emit profileSignInRequiredChanged();
     clearActiveSession();
@@ -331,6 +327,7 @@ void SessionController::acceptSession(const AuthSession& session)
 
 void SessionController::logout()
 {
+    clearPassword();
     if (!m_activeProfileId.isEmpty()) {
         const auto it = std::find_if(m_profiles.begin(), m_profiles.end(),
             [this](const AccountProfile& profile) { return profile.profileId == m_activeProfileId; });
@@ -372,6 +369,7 @@ bool SessionController::handleUnauthorized(const std::exception_ptr& error)
 
 void SessionController::activateSession(const AuthSession& session, bool persist)
 {
+    clearPassword();
     if (session.accessToken.isEmpty()) {
         emit errorOccurred(QStringLiteral("The server returned an empty session."));
         return;
@@ -453,16 +451,21 @@ void SessionController::clearActiveSession()
     const bool wasAuthenticated = authenticated();
     const bool hadActiveProfile = !m_activeProfileId.isEmpty();
     m_activeProfileId.clear();
-    m_database->clearAuthSession();
     m_api->setSession({});
-    if (!m_password.isEmpty()) {
-        m_password.clear();
-        emit passwordChanged();
-    }
+    clearPassword();
     if (hadActiveProfile)
         emit activeProfileChanged();
     if (wasAuthenticated)
         emit authenticatedStateChanged();
+}
+
+void SessionController::clearPassword()
+{
+    if (m_password.isEmpty())
+        return;
+    m_password.fill(QLatin1Char('\0'));
+    m_password.clear();
+    emit passwordChanged();
 }
 
 void SessionController::sortProfiles()

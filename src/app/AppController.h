@@ -127,6 +127,7 @@ public:
     Q_INVOKABLE void openNamedCollection(const QString& kind, const QString& name);
     Q_INVOKABLE void onMemoryPressure(const QString& level);
     Q_INVOKABLE void clearError();
+    Q_INVOKABLE void clearLogs();
 
 signals:
     void busyChanged();
@@ -136,6 +137,7 @@ signals:
     void aggressiveMemoryPressure();
     void toastMessage(const QString& message);
     void remoteUiActionRequested(const QString& action);
+    void clearLogsRequested();
 
 private:
     void setBusy(bool busy, const QString& busyText = {});

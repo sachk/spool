@@ -1,0 +1,63 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:recommended",
+    ":dependencyDashboard",
+    "security:openssf-scorecard",
+    "helpers:pinGitHubActionDigests"
+  ],
+  "schedule": ["before 6am on monday"],
+  "timezone": "Etc/UTC",
+  "prConcurrentLimit": 5,
+  "prHourlyLimit": 2,
+  "vulnerabilityAlerts": {
+    "enabled": true,
+    "schedule": ["at any time"],
+    "prConcurrentLimit": 0
+  },
+  "enabledManagers": [
+    "cargo",
+    "cmake",
+    "git-submodules",
+    "github-actions",
+    "github-releases",
+    "nix",
+    "npm",
+    "regex"
+  ],
+  "packageRules": [
+    {
+      "description": "Keep native media stack updates reviewable and together",
+      "matchPackageNames": ["ffmpeg", "mpv", "libplacebo", "/^qt/", "/qcoro/i"],
+      "groupName": "native media stack",
+      "automerge": false
+    },
+    {
+      "description": "Never automerge toolchains, packaging, or submodules",
+      "matchManagers": ["git-submodules", "nix", "cmake", "github-releases", "regex"],
+      "automerge": false
+    },
+    {
+      "description": "Preserve readable action versions beside immutable digests",
+      "matchManagers": ["github-actions"],
+      "pinDigests": true,
+      "automerge": false
+    }
+  ],
+  "customManagers": [
+    {
+      "customType": "regex",
+      "managerFilePatterns": ["/\\.github/workflows/.*\\.ya?ml$/"],
+      "matchStrings": ["(?<depName>[A-Za-z0-9_.-]+)_VERSION:\\s*(?<currentValue>[^\\s#]+)\\s*#\\s*renovate: datasource=(?<datasource>\\S+)(?: depName=(?<packageName>\\S+))?"],
+      "versioningTemplate": "loose"
+    },
+    {
+      "customType": "regex",
+      "managerFilePatterns": ["/^tools/manifests/.*\\.json$/"],
+      "matchStrings": ["\"version\"\\s*:\\s*\"(?<currentValue>[^\"]+)\"[\\s\\S]{0,200}?\"url\"\\s*:\\s*\"https://github\\.com/(?<depName>[^/]+/[^/]+)/releases/download/[^\"]+\""],
+      "datasourceTemplate": "github-releases",
+      "versioningTemplate": "loose"
+    }
+  ],
+  "ignorePaths": ["build/**", "dist/**", "mpv/**"]
+}

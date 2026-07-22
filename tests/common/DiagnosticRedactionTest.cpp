@@ -6,6 +6,7 @@
 #include <iostream>
 
 using JellyfinNative::sanitizedDiagnosticUrl;
+using JellyfinNative::sanitizedLogMessage;
 
 namespace {
 
@@ -21,21 +22,30 @@ void require(bool condition, const char *message)
 
 int main()
 {
-    const QString query
-        = sanitizedDiagnosticUrl(QStringLiteral("https://server/Videos/id/stream?api_key=secret&MediaSourceId=source"));
-    require(!query.contains(QStringLiteral("secret")), "query token should be removed from diagnostics");
-    require(query.contains(QStringLiteral("api_key=<redacted>")), "query token should retain a useful key marker");
+    const QString query = sanitizedDiagnosticUrl(
+        QStringLiteral("https://server/QuickConnect/Connect?SeCrEt=first%26TOKEN%3Dsecond&api_key=third"));
+    require(!query.contains(QStringLiteral("first")), "mixed-case query secret should be removed");
+    require(!query.contains(QStringLiteral("second")), "URL-encoded duplicate token should be removed");
+    require(!query.contains(QStringLiteral("third")), "duplicate API key should be removed");
+    require(query.contains(QStringLiteral("<redacted:credential>")), "credentials should have a stable marker");
 
-    const QString mpvOption
-        = sanitizedDiagnosticUrl(QStringLiteral("http-header-fields=X-Emby-Token: top-secret,Accept: video/*"));
-    require(!mpvOption.contains(QStringLiteral("top-secret")), "mpv token header should be removed from diagnostics");
-    require(mpvOption.contains(QStringLiteral("X-Emby-Token: <redacted>")),
-        "mpv token header should retain a useful name marker");
+    const QString headers
+        = sanitizedDiagnosticUrl(QStringLiteral("Authorization: Bearer auth-secret\nX-Emby-Token=header-secret"));
+    require(!headers.contains(QStringLiteral("auth-secret")), "authorization value should be removed");
+    require(!headers.contains(QStringLiteral("header-secret")), "token header should be removed");
 
-    const QString authorization
-        = sanitizedDiagnosticUrl(QStringLiteral("Authorization: MediaBrowser Client=\"Tern\", Token=\"hidden\""));
-    require(!authorization.contains(QStringLiteral("hidden")), "authorization token should be removed");
-    require(authorization == QStringLiteral("Authorization: <redacted>"),
-        "authorization redaction should remove the whole credential value");
+    const QString json = sanitizedDiagnosticUrl(
+        QStringLiteral(R"({"Password":"json-password","access_TOKEN":"json-token","Code":"123456"})"));
+    require(!json.contains(QStringLiteral("json-password")), "JSON password should be removed");
+    require(!json.contains(QStringLiteral("json-token")), "mixed-case JSON token should be removed");
+    require(!json.contains(QStringLiteral("123456")), "Quick Connect code should be removed");
+
+    const QString personal = sanitizedLogMessage(QStringLiteral(
+        R"(serverUrl=https://media.example:8096 userName=Alice title="Recognisable Show" itemId=0123456789abcdef0123456789abcdef address=192.168.1.25)"));
+    require(!personal.contains(QStringLiteral("media.example")), "server URL should be removed");
+    require(!personal.contains(QStringLiteral("Alice")), "user name should be removed");
+    require(!personal.contains(QStringLiteral("Recognisable")), "media title should be removed");
+    require(!personal.contains(QStringLiteral("0123456789abcdef")), "stable item ID should be removed");
+    require(!personal.contains(QStringLiteral("192.168.1.25")), "network address should be removed");
     return EXIT_SUCCESS;
 }

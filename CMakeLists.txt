@@ -22,6 +22,8 @@ option(JELLYFIN_DIAGNOSTICS "Build debug lifecycle/process/watchdog diagnostics"
 option(JELLYFIN_DIAGNOSTICS_STACKDUMP "Allow diagnostics to request gdb stack dumps" OFF)
 option(JELLYFIN_DIAGNOSTICS_ABORT_ON_HANG "Abort after watchdog hang diagnostics are written" OFF)
 option(JELLYFIN_ARTWORK_ASPECT_DIAGNOSTICS "Log artwork decode requests whose target aspect would stretch the source" OFF)
+option(JELLYFIN_WARNINGS_AS_ERRORS "Treat compiler warnings as errors" OFF)
+option(JELLYFIN_SANITIZERS "Enable AddressSanitizer and UndefinedBehaviorSanitizer" OFF)
 include(CTest)
 
 set(MPV_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/mpv" CACHE PATH "mpv source tree")
@@ -213,6 +215,28 @@ qt_add_executable(jellyfin-native
 
 set(JELLYFIN_NATIVE_TARGETS jellyfin-core jellyfin-native)
 jellyfin_configure_platform_targets(jellyfin-native jellyfin-core)
+foreach(target IN LISTS JELLYFIN_NATIVE_TARGETS)
+    if(MSVC)
+        target_compile_options(${target} PRIVATE /W4)
+        if(JELLYFIN_WARNINGS_AS_ERRORS)
+            target_compile_options(${target} PRIVATE /WX)
+        endif()
+    elseif(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+        target_compile_options(${target} PRIVATE -Wall -Wextra -Wpedantic)
+        if(JELLYFIN_WARNINGS_AS_ERRORS)
+            target_compile_options(${target} PRIVATE -Werror)
+        endif()
+        if(JELLYFIN_SANITIZERS)
+            target_compile_options(${target} PRIVATE -fsanitize=address,undefined -fno-omit-frame-pointer)
+            target_link_options(${target} PRIVATE -fsanitize=address,undefined)
+        endif()
+    endif()
+endforeach()
+
+if(JELLYFIN_SANITIZERS AND MSVC)
+    message(FATAL_ERROR "JELLYFIN_SANITIZERS requires GCC or Clang")
+endif()
+
 
 if(NOT JELLYFIN_NATIVE_DEV_BUILD)
     include(CheckIPOSupported)
@@ -230,8 +254,8 @@ if(NOT JELLYFIN_NATIVE_DEV_BUILD)
         foreach(target IN LISTS JELLYFIN_NATIVE_TARGETS)
             target_compile_options(${target} PRIVATE -ffunction-sections -fdata-sections)
             if(UNIX AND NOT APPLE)
-                target_compile_options(${target} PRIVATE -fno-semantic-interposition)
-                target_link_options(${target} PRIVATE -Wl,--gc-sections -Wl,--as-needed)
+                target_compile_options(${target} PRIVATE -fno-semantic-interposition -fstack-protector-strong -fPIE)
+                target_link_options(${target} PRIVATE -pie -Wl,--gc-sections -Wl,--as-needed -Wl,-z,relro,-z,now)
             elseif(APPLE)
                 target_link_options(${target} PRIVATE -Wl,-dead_strip)
             endif()
@@ -480,6 +504,7 @@ if(BUILD_TESTING AND NOT CMAKE_CROSSCOMPILING)
         database-manager tests/cache/DatabaseManagerTest.cpp
         input-latency-monitor tests/diagnostics/InputLatencyMonitorTest.cpp
         system-performance-monitor tests/diagnostics/SystemPerformanceMonitorTest.cpp
+        linux-memory-policy tests/platform/LinuxMemoryPolicyTest.cpp
     )
 
 

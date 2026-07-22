@@ -2,6 +2,8 @@ name: build artifacts
 
 on:
   push:
+    branches:
+      - master
   pull_request:
   workflow_dispatch:
     inputs:
@@ -16,7 +18,7 @@ on:
         default: false
         type: boolean
       build_webos:
-        description: "Build webOS IPK"
+        description: "Build webOS IPK on the maintainer runner"
         required: true
         default: false
         type: boolean
@@ -24,7 +26,34 @@ on:
         description: "Optional tar archive containing build/webos-sdk and Qt webOS prefixes"
         required: false
         type: string
+  workflow_call:
+    inputs:
+      release:
+        required: false
+        default: false
+        type: boolean
+      enable_macos_signing:
+        required: false
+        default: false
+        type: boolean
+    secrets:
+      MACOS_CERTIFICATE_P12:
+        required: false
+      MACOS_CERTIFICATE_PASSWORD:
+        required: false
+      MACOS_SIGNING_IDENTITY:
+        required: false
+      APPLE_NOTARY_KEY_P8:
+        required: false
+      APPLE_NOTARY_KEY_ID:
+        required: false
+      APPLE_NOTARY_ISSUER_ID:
+        required: false
+      APPLE_TEAM_ID:
+        required: false
 
+permissions:
+  contents: read
 concurrency:
   group: build-artifacts-${{ github.ref }}
   cancel-in-progress: true
@@ -32,12 +61,20 @@ concurrency:
 jobs:
   lint:
     name: Lint scripts
-    runs-on: [self-hosted, linux, X64]
+    runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.0.2
         with:
           fetch-depth: 2
           submodules: recursive
+      - uses: nixbuild/nix-quick-install-action@2c9db80fb984ceb1bcaa77cdda3fdf8cfba92035 # v34
+        with:
+          nix_conf: |
+            experimental-features = nix-command flakes
+      - uses: nix-community/cache-nix-action@7df957e333c1e5da7721f60227dbba6d06080569 # v7.0.1
+        with:
+          primary-key: nix-${{ runner.os }}-${{ hashFiles('flake.lock') }}
+          restore-prefixes-first-match: nix-${{ runner.os }}-
 
       - name: Check commit whitespace
         run: git show --check --format= HEAD
@@ -77,20 +114,23 @@ jobs:
 
   linux-appimage:
     name: Linux AppImage
-    runs-on: [self-hosted, linux, X64]
+    runs-on: ubuntu-24.04
     needs: lint
     if: ${{ github.event_name != 'workflow_dispatch' || inputs.build_linux }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.0.2
         with:
           submodules: recursive
 
-      # This self-hosted runner is NixOS and already provides Nix system-wide
-      # with a persistent store. The Linux and webOS jobs therefore use the
-      # host's nix directly and skip nix-quick-install-action /
-      # cache-nix-action, which exist to provision and cache Nix on an
-      # ephemeral Ubuntu runner (and fail here: /nix is read-only, no sudo).
-      - uses: actions/cache@v5
+      - uses: nixbuild/nix-quick-install-action@2c9db80fb984ceb1bcaa77cdda3fdf8cfba92035 # v34
+        with:
+          nix_conf: |
+            experimental-features = nix-command flakes
+      - uses: nix-community/cache-nix-action@7df957e333c1e5da7721f60227dbba6d06080569 # v7.0.1
+        with:
+          primary-key: nix-${{ runner.os }}-${{ hashFiles('flake.lock') }}
+          restore-prefixes-first-match: nix-${{ runner.os }}-
+      - uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5.0.3
         with:
           path: .ccache
           key: linux4-${{ runner.os }}-${{ hashFiles('flake.lock', 'mpv/meson.build', 'mpv/meson.options', 'tools/manifests/mpv-native.json', 'tools/manifests/ffmpeg-capabilities.json', 'tools/ffmpeg-capabilities.py', 'tools/build-linux-release.sh', 'tools/lib/build-common.sh', 'CMakeLists.txt') }}
@@ -114,7 +154,7 @@ jobs:
       - name: Package AppImage
         run: nix develop .#native -c bash tools/package-appimage.sh
 
-      - uses: actions/upload-artifact@v7
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.0
         with:
           name: jellyfin-native-linux-appimage
           path: dist/*.AppImage
@@ -126,26 +166,26 @@ jobs:
     # macOS runners cost ~10x Linux minutes, so the DMG is built only on manual
     # dispatch. Every push/PR still gets the lint gate (which checks these
     # scripts) plus the Linux build for shared CMake/mpv coverage.
-    if: ${{ github.event_name == 'workflow_dispatch' && inputs.build_macos }}
+    if: ${{ (github.event_name == 'workflow_dispatch' && inputs.build_macos) || (github.event_name == 'workflow_call' && inputs.release) }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.0.2
         with:
           submodules: recursive
 
-      - uses: nixbuild/nix-quick-install-action@v30
+      - uses: nixbuild/nix-quick-install-action@2c9db80fb984ceb1bcaa77cdda3fdf8cfba92035 # v34
         with:
           nix_conf: |
             experimental-features = nix-command flakes
             keep-env-derivations = true
             keep-outputs = true
 
-      - uses: nix-community/cache-nix-action@v7
+      - uses: nix-community/cache-nix-action@7df957e333c1e5da7721f60227dbba6d06080569 # v7.0.1
         with:
           primary-key: nix-${{ runner.os }}-${{ hashFiles('flake.lock') }}
           restore-prefixes-first-match: nix-${{ runner.os }}-
           gc-max-store-size-macos: 8G
 
-      - uses: actions/cache@v5
+      - uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5.0.3
         with:
           path: |
             build/macos
@@ -178,10 +218,26 @@ jobs:
       - name: Smoke-test macOS app startup
         run: nix develop .#native --no-write-lock-file -c bash tools/smoke-native-app.sh build/macos/install/jellyfin-native.app
 
+      - name: Sign macOS application
+        if: ${{ inputs.enable_macos_signing }}
+        env:
+          MACOS_CERTIFICATE_P12: ${{ secrets.MACOS_CERTIFICATE_P12 }}
+          MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
+          MACOS_SIGNING_IDENTITY: ${{ secrets.MACOS_SIGNING_IDENTITY }}
+        run: tools/sign-macos.sh build/macos/install/jellyfin-native.app
+
       - name: Package DMG
         run: nix develop .#native --no-write-lock-file -c bash tools/package-macos-dmg.sh
+      - name: Notarize and staple DMG
+        if: ${{ inputs.enable_macos_signing }}
+        env:
+          APPLE_NOTARY_KEY_P8: ${{ secrets.APPLE_NOTARY_KEY_P8 }}
+          APPLE_NOTARY_KEY_ID: ${{ secrets.APPLE_NOTARY_KEY_ID }}
+          APPLE_NOTARY_ISSUER_ID: ${{ secrets.APPLE_NOTARY_ISSUER_ID }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: tools/notarize-macos.sh dist/*.dmg
 
-      - uses: actions/upload-artifact@v7
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.0
         with:
           name: jellyfin-native-macos-dmg
           path: dist/*.dmg
@@ -190,15 +246,15 @@ jobs:
     name: webOS IPK
     runs-on: [self-hosted, linux, X64]
     needs: lint
-    if: ${{ github.event_name != 'workflow_dispatch' || inputs.build_webos }}
+    if: ${{ (github.event_name == 'workflow_dispatch' && inputs.build_webos) || (github.event_name == 'workflow_call' && inputs.release) }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.0.2
         with:
           submodules: recursive
 
       # See the Linux job: this self-hosted NixOS runner provides Nix natively,
       # so we skip nix-quick-install-action / cache-nix-action here too.
-      - uses: actions/cache/restore@v5
+      - uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5.0.3
         id: webos-cache
         with:
           path: |
@@ -238,7 +294,7 @@ jobs:
 
       - name: Save webOS dependency cache
         if: ${{ steps.webos-cache.outputs.cache-hit != 'true' }}
-        uses: actions/cache/save@v5
+        uses: actions/cache/save@caa296126883cff596d87d8935842f9db880ef25 # v5.0.3
         with:
           path: |
             build/webos-sdk
@@ -333,7 +389,7 @@ jobs:
           print(f"Validated 32-bit little-endian ARM app binary: {binary.name}")
           PY
 
-      - uses: actions/upload-artifact@v7
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.0
         with:
           name: jellyfin-native-webos-ipk
           path: build/*.ipk

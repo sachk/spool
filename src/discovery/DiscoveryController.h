@@ -29,7 +29,7 @@ public:
 
     static QList<QUrl> serverProbeCandidates(const QString& input);
     static QList<QHostAddress> httpFallbackTargets(
-        const QHostAddress& address, const QHostAddress& netmask, int maxTargets = 1022);
+        const QHostAddress& address, const QHostAddress& netmask, int maxTargets = 254);
     static DiscoveredServer serverFromPublicInfo(const QByteArray& payload, const QUrl& serverUrl, QString *version);
 
     Q_INVOKABLE void start();
@@ -60,7 +60,6 @@ private:
 
     QUdpSocket m_socket;
     QTimer m_rescanTimer;
-    QTimer m_httpFallbackTimer;
     QNetworkAccessManager m_http;
     QQueue<QHostAddress> m_httpProbeQueue;
     QSet<QString> m_enqueuedHttpProbeTargets;

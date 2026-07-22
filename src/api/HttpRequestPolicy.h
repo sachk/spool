@@ -1,6 +1,8 @@
 #pragma once
 
+#include "../common/NetworkAddress.h"
 #include <QNetworkReply>
+#include <QUrl>
 
 #include <algorithm>
 
@@ -14,6 +16,28 @@ enum class HttpOperation {
 
 class HttpRequestPolicy final {
 public:
+    static bool allowsCredentialTransport(const QUrl& url)
+    {
+        if (!url.isValid() || url.host().isEmpty() || !url.userInfo().isEmpty())
+            return false;
+        if (url.scheme().compare(QStringLiteral("https"), Qt::CaseInsensitive) == 0)
+            return true;
+        if (url.scheme().compare(QStringLiteral("http"), Qt::CaseInsensitive) != 0)
+            return false;
+        QHostAddress address;
+        return address.setAddress(url.host()) && isPrivateNetworkAddress(address);
+    }
+
+    static bool sameOrigin(const QUrl& left, const QUrl& right)
+    {
+        const auto effectivePort = [](const QUrl& url) {
+            return url.port(url.scheme().compare(QStringLiteral("https"), Qt::CaseInsensitive) == 0 ? 443 : 80);
+        };
+        return left.scheme().compare(right.scheme(), Qt::CaseInsensitive) == 0
+            && left.host().compare(right.host(), Qt::CaseInsensitive) == 0
+            && effectivePort(left) == effectivePort(right);
+    }
+
     static constexpr int transferTimeoutMs()
     {
         return 30000;

@@ -295,7 +295,7 @@ FocusScope {
         if (row.key === "action/uiScaleSetup" || row.key === "action/openSourceNotices" || row.key
                 === "action/subtitleSettings" || row.key === "action/manageCertificates")
             return "Open"
-        if (row.key === "action/clearLatencyStatistics")
+        if (row.key === "action/clearLatencyStatistics" || row.key === "action/clearLogs")
             return "Clear"
         if (row.key === "action/resetSubtitleAppearance")
             return "Reset"
@@ -410,6 +410,8 @@ FocusScope {
                 certificateManagerVisible = true
             else if (row.key === "action/clearLatencyStatistics")
                 InputLatency.clearStatistics()
+            else if (row.key === "action/clearLogs")
+                App.clearLogs()
             else if (row.key === "action/uiScaleSetup" && shell)
                 shell.pushRoute("scaleSetup", {
                                     "returnRoute": "settings"

@@ -74,16 +74,19 @@ int main(int argc, char **argv)
 
     const QList<QHostAddress> local23 = DiscoveryController::httpFallbackTargets(
         QHostAddress(QStringLiteral("10.20.5.40")), QHostAddress(QStringLiteral("255.255.254.0")));
-    require(local23.size() == 509, "a bounded /23 should include both related /24 networks");
-    require(
-        local23.contains(QHostAddress(QStringLiteral("10.20.4.1"))), "a /23 scan should include the sibling subnet");
+    require(local23.size() == 254, "a /23 fallback should remain capped");
+    require(local23.contains(QHostAddress(QStringLiteral("10.20.4.1"))),
+        "a capped /23 scan should still sample the sibling subnet");
 
     const QList<QHostAddress> broad = DiscoveryController::httpFallbackTargets(
         QHostAddress(QStringLiteral("172.16.8.20")), QHostAddress(QStringLiteral("255.255.0.0")));
-    require(broad.contains(QHostAddress(QStringLiteral("172.16.7.1")))
-            && broad.contains(QHostAddress(QStringLiteral("172.16.9.1"))),
-        "a broad private subnet should probe adjacent /24 networks");
-    require(broad.size() == 761, "a broad subnet scan should remain bounded to three /24 networks");
+    require(broad.contains(QHostAddress(QStringLiteral("172.16.7.1"))),
+        "a broad private subnet should sample an adjacent /24");
+    require(broad.size() == 254, "a broad subnet scan should remain tightly bounded");
+    require(DiscoveryController::httpFallbackTargets(
+                QHostAddress(QStringLiteral("fe80::1")), QHostAddress(QStringLiteral("ffff:ffff:ffff:ffff::")))
+                .isEmpty(),
+        "HTTP subnet fallback must not enumerate IPv6 address space");
     require(DiscoveryController::httpFallbackTargets(
                 QHostAddress(QStringLiteral("203.0.113.5")), QHostAddress(QStringLiteral("255.255.255.0")))
                 .isEmpty(),

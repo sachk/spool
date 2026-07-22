@@ -36,6 +36,8 @@ public:
             qWarning() << "database: failed to create data directory for" << cachePath;
             return initializeTransient();
         }
+        QFile::setPermissions(
+            cacheInfo.absolutePath(), QFileDevice::ReadOwner | QFileDevice::WriteOwner | QFileDevice::ExeOwner);
 
         const QString statePath = cacheInfo.dir().filePath(QStringLiteral("state.sqlite"));
         if (!openState(statePath)) {
@@ -123,6 +125,15 @@ private:
             && query.exec(QStringLiteral("PRAGMA busy_timeout = 5000"));
     }
 
+    static void secureDatabaseFiles(const QString& path)
+    {
+        constexpr auto permissions = QFileDevice::ReadOwner | QFileDevice::WriteOwner;
+        for (const QString& candidate : { path, path + QStringLiteral("-wal"), path + QStringLiteral("-shm") }) {
+            if (QFileInfo::exists(candidate))
+                QFile::setPermissions(candidate, permissions);
+        }
+    }
+
     static bool ensureConnection(QSqlDatabase& database, const QString& connectionName, const QString& path)
     {
         if (!database.isValid()) {
@@ -144,11 +155,12 @@ private:
         if (!ensureConnection(m_database, QStringLiteral("jellyfin_native_state"), path)
             || !prepareConnection(m_database))
             return false;
+        secureDatabaseFiles(path);
         QSqlQuery query(m_database);
         if (!query.exec(QStringLiteral("PRAGMA user_version")) || !query.next())
             return false;
         const int existingVersion = query.value(0).toInt();
-        if (existingVersion > 1)
+        if (existingVersion != 0 && existingVersion != 2)
             return false;
         if (!query.exec(QStringLiteral("CREATE TABLE IF NOT EXISTS kv ("
                                        "key TEXT PRIMARY KEY,"
@@ -169,7 +181,7 @@ private:
                                           ")"))
             || !query.exec(QStringLiteral("CREATE INDEX IF NOT EXISTS profiles_usage "
                                           "ON profiles(last_used_at DESC, created_at ASC)"))
-            || !query.exec(QStringLiteral("PRAGMA user_version = 1"))) {
+            || !query.exec(QStringLiteral("PRAGMA user_version = 2"))) {
             qWarning() << "database: durable schema creation failed" << query.lastError().text();
             return false;
         }
@@ -181,6 +193,7 @@ private:
         if (!ensureConnection(m_cacheDatabase, QStringLiteral("jellyfin_native_cache"), path)
             || !prepareConnection(m_cacheDatabase))
             return false;
+        secureDatabaseFiles(path);
         QSqlQuery query(m_cacheDatabase);
         if (!query.exec(QStringLiteral("PRAGMA user_version")) || !query.next())
             return false;
@@ -229,14 +242,18 @@ private:
             + QDateTime::currentDateTimeUtc().toString(QStringLiteral("yyyyMMdd'T'HHmmsszzz'Z'"));
         if (!QFile::rename(path, backup))
             return false;
+        QFile::setPermissions(backup, QFileDevice::ReadOwner | QFileDevice::WriteOwner);
 
         const QFileInfo fileInfo(path);
         QDir directory = fileInfo.dir();
         const QFileInfoList backups
             = directory.entryInfoList({ fileInfo.fileName() + QStringLiteral(".corrupt-*") }, QDir::Files, QDir::Time);
         constexpr qsizetype maximumBackups = 3;
-        for (qsizetype index = maximumBackups; index < backups.size(); ++index)
-            QFile::remove(backups.at(index).absoluteFilePath());
+        const QDateTime oldestAllowed = QDateTime::currentDateTimeUtc().addDays(-30);
+        for (qsizetype index = 0; index < backups.size(); ++index) {
+            if (index >= maximumBackups || backups.at(index).lastModified() < oldestAllowed)
+                QFile::remove(backups.at(index).absoluteFilePath());
+        }
         return true;
     }
 
@@ -569,16 +586,6 @@ namespace {
         co_return co_await future;
     }
 
-    AuthSession authSessionFromWorker(DatabaseWorker *worker)
-    {
-        AuthSession session;
-        session.accessToken = worker->value(QStringLiteral("login/accessToken")).toString();
-        session.userId = worker->value(QStringLiteral("login/userId")).toString();
-        session.userName = worker->value(QStringLiteral("login/userName")).toString();
-        session.serverId = worker->value(QStringLiteral("login/serverId")).toString();
-        return session;
-    }
-
     QString settingFromWorker(DatabaseWorker *worker, const QString& key, const QString& defaultValue)
     {
         const QVariant value = worker->value(key);
@@ -684,34 +691,6 @@ void DatabaseManager::saveLoginHints(const QString& serverUrl, const QString& us
     });
 }
 
-QCoro::Task<AuthSession> DatabaseManager::loadAuthSessionAsync()
-{
-    if (!co_await awaitInitialization())
-        co_return AuthSession {};
-    DatabaseWorker *worker = m_worker;
-    co_return co_await workerTask(
-        worker, [worker]() { return worker ? authSessionFromWorker(worker) : AuthSession(); });
-}
-
-void DatabaseManager::saveAuthSession(const AuthSession& session)
-{
-    invokeOnWorkerAsync([this, session]() {
-        m_worker->setValue(QStringLiteral("login/accessToken"), session.accessToken);
-        m_worker->setValue(QStringLiteral("login/userId"), session.userId);
-        m_worker->setValue(QStringLiteral("login/userName"), session.userName);
-        m_worker->setValue(QStringLiteral("login/serverId"), session.serverId);
-    });
-}
-
-void DatabaseManager::clearAuthSession()
-{
-    invokeOnWorkerAsync([this]() {
-        m_worker->setValue(QStringLiteral("login/accessToken"), QString());
-        m_worker->setValue(QStringLiteral("login/userId"), QString());
-        m_worker->setValue(QStringLiteral("login/userName"), QString());
-        m_worker->setValue(QStringLiteral("login/serverId"), QString());
-    });
-}
 QCoro::Task<std::vector<AccountProfile>> DatabaseManager::loadAccountProfilesAsync()
 {
     if (!co_await awaitInitialization())

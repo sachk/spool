@@ -5,6 +5,7 @@
 
 #include <algorithm>
 #include <cstdio>
+#include <limits>
 
 #if defined(__GLIBC__)
 #include <malloc.h>
@@ -37,18 +38,59 @@ namespace {
         return std::max(1, cpuListSize(QString::fromUtf8(siblings.readAll()).trimmed()));
     }
 
-    qint64 totalMemoryBytes()
+    QByteArray readFile(const QString& path)
     {
-        QFile file(QStringLiteral("/proc/meminfo"));
+        QFile file(path);
         if (!file.open(QIODevice::ReadOnly | QIODevice::Text))
-            return 0;
-        while (!file.atEnd()) {
-            const QByteArray line = file.readLine();
-            if (line.startsWith("MemTotal:"))
-                return line.simplified().split(' ').value(1).toLongLong() * 1024LL;
+            return {};
+        return file.readAll();
+    }
+
+    qint64 memoryValue(const QByteArray& meminfo, const QByteArray& key)
+    {
+        for (const QByteArray& line : meminfo.split('\n')) {
+            if (!line.startsWith(key))
+                continue;
+            const QList<QByteArray> fields = line.simplified().split(' ');
+            bool ok = false;
+            const qint64 kib = fields.value(1).toLongLong(&ok);
+            if (!ok || kib <= 0 || kib > std::numeric_limits<qint64>::max() / 1024LL)
+                return 0;
+            return kib * 1024LL;
         }
         return 0;
     }
+
+    qint64 cgroupLimit(const QByteArray& raw)
+    {
+        const QByteArray value = raw.trimmed();
+        if (value.isEmpty() || value == QByteArrayLiteral("max"))
+            return 0;
+        bool ok = false;
+        const qulonglong parsed = value.toULongLong(&ok);
+        constexpr qulonglong unlimitedThreshold = 1ULL << 60;
+        return ok && parsed > 0 && parsed < unlimitedThreshold ? static_cast<qint64>(parsed) : 0;
+    }
+
+    qint64 totalMemoryBytes()
+    {
+        return effectiveLinuxMemoryBytes(readFile(QStringLiteral("/proc/meminfo")),
+            readFile(QStringLiteral("/sys/fs/cgroup/memory.max")),
+            readFile(QStringLiteral("/sys/fs/cgroup/memory/memory.limit_in_bytes")));
+    }
+}
+
+qint64 effectiveLinuxMemoryBytes(
+    const QByteArray& meminfo, const QByteArray& cgroupV2Limit, const QByteArray& cgroupV1Limit)
+{
+    qint64 effective = memoryValue(meminfo, QByteArrayLiteral("MemAvailable:"));
+    if (effective <= 0)
+        effective = memoryValue(meminfo, QByteArrayLiteral("MemTotal:"));
+    for (const qint64 limit : { cgroupLimit(cgroupV2Limit), cgroupLimit(cgroupV1Limit) }) {
+        if (limit > 0)
+            effective = effective > 0 ? std::min(effective, limit) : limit;
+    }
+    return effective;
 }
 
 PlatformCpuProbe platformCpuProbe(int logicalCpus)
@@ -61,7 +103,7 @@ PlatformCpuProbe platformCpuProbe(int logicalCpus)
 
 PlatformMemoryPolicy platformMemoryPolicy()
 {
-    return { totalMemoryBytes(), 4LL * 1024LL * kMiB, 256LL * kMiB, 256LL * kMiB, 32, 24LL * kMiB, 96LL * kMiB };
+    return { totalMemoryBytes(), 1024LL * kMiB, 256LL * kMiB, 256LL * kMiB, 32, 24LL * kMiB, 96LL * kMiB };
 }
 
 QString platformProcessMemoryDiagnostics()

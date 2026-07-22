@@ -193,6 +193,8 @@ const QVector<SettingSpec>& settingSpecs()
             "Show warnings when input processing exceeds the threshold", SettingType::Toggle, SettingLevel::Expert),
         externalSpec("action/clearLatencyStatistics", "Diagnostics", "Clear Latency Statistics",
             "Erase the current in-memory latency samples", SettingType::Action, SettingLevel::Expert),
+        externalSpec("action/clearLogs", "Diagnostics", "Clear logs", "Permanently erase persistent application logs",
+            SettingType::Action),
         { "appearance/libraryView", "Appearance", "Library Layout", "Browse libraries as a poster grid or a title list",
             SettingType::Select, "Posters", kLibraryViewChoices, countOf(kLibraryViewChoices), 0, 0, 1, 0, "", 0, 0,
             SettingTarget::LibraryView, SettingNormalizer::Choice, true, true, SettingLevel::Essential,

@@ -1,0 +1,34 @@
+name: Feature request
+description: Propose a focused user-facing improvement
+title: "[Feature]: "
+labels: [enhancement]
+body:
+  - type: markdown
+    attributes:
+      value: Never include credentials, private logs, server addresses, personal media/account data, or stable Jellyfin identifiers.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What user problem is not handled today?
+    validations:
+      required: true
+  - type: textarea
+    id: behavior
+    attributes:
+      label: Proposed behavior
+      description: Describe the observable behavior, not an implementation.
+    validations:
+      required: true
+  - type: dropdown
+    id: platforms
+    attributes:
+      label: Affected platform
+      multiple: true
+      options: [Linux, macOS, Windows, webOS, All platforms]
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered

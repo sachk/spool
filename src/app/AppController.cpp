@@ -919,6 +919,12 @@ void AppController::clearError()
     setErrorText({});
 }
 
+void AppController::clearLogs()
+{
+    emit clearLogsRequested();
+    emit toastMessage(QStringLiteral("Logs cleared."));
+}
+
 void AppController::setBusy(bool busy, const QString& busyText)
 {
     if (m_busy == busy && m_busyText == busyText)

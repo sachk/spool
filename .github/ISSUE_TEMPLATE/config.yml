@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Security vulnerability
+    url: https://github.com/sachk/tern/security/advisories/new
+    about: Report vulnerabilities privately. Never put credentials or private logs in an issue.
+  - name: Support policy
+    url: https://github.com/sachk/tern/blob/master/SUPPORT.md
+    about: Read scope and privacy requirements before requesting support.
