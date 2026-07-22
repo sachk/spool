@@ -579,29 +579,16 @@ FocusScope {
         Settings.setValue("appearance/libraryView", listMode ? "Posters" : "List")
     }
 
-    // Keep the selected list preview stable during held-key traversal. The
-    // preview ListView constructs the adjacent delegates around this latched
-    // index, so a single-step move can reveal an already-built pane.
-    property int paneIndex: -1
-
-    function updatePane() {
-        paneDebounce.stop()
-        paneIndex = listMode && grid.currentIndex >= 0 && grid.currentIndex < grid.count ? grid.currentIndex : -1
-        if (paneIndex >= 0)
-            previewList.positionViewAtIndex(paneIndex, ListView.Beginning)
-    }
-
-    function schedulePaneUpdate() {
-        if (!listMode)
-            return
-        if (grid.heldKey)
-            paneDebounce.restart()
-        else
-            updatePane()
+    // The preview controls stay resident. Only their bound item changes, so
+    // title and synopsis update immediately while artwork decodes separately.
+    readonly property var paneItem: {
+        const index = grid.currentIndex
+        if (!listMode || !Browse.items || index < 0 || index >= Browse.items.count)
+        return null
+        return Browse.items.get(index)
     }
 
     onListModeChanged: {
-        updatePane()
         Qt.callLater(function () {
             grid.forceLayout()
             grid.ensureCurrentVisible()
@@ -616,13 +603,6 @@ FocusScope {
         return null
         const smart = String(Settings.values["audio/trackMode"] || "Default") === "Smart"
         return Browse.mediaInfoFor(grid.currentIndex, smart ? String(Settings.values["subtitles/language"] || "") : "")
-    }
-
-    Timer {
-        id: paneDebounce
-        interval: Platform.isTV ? 320 : 140
-        repeat: false
-        onTriggered: root.updatePane()
     }
 
     Connections {
@@ -892,117 +872,88 @@ FocusScope {
                 Layout.preferredWidth: Math.round(root.width * (root.largeZoom ? 0.36 : 0.28))
                 Layout.fillHeight: true
 
-                ListView {
-                    id: previewList
-                    anchors.fill: parent
-                    model: Browse.items
-                    currentIndex: root.paneIndex
-                    interactive: false
-                    clip: true
-                    reuseItems: false
-                    boundsBehavior: Flickable.StopAtBounds
-                    displayMarginBeginning: height
-                    displayMarginEnd: height
-                    cacheBuffer: height
+                ImageCard {
+                    id: panePoster
+                    anchors.top: parent.top
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    height: Math.round(Math.min(parent.width * 1.5, parent.height * (root.largeZoom ? 0.64 : 0.56)))
+                    width: Math.round(height / 1.5)
+                    imageUrl: root.paneItem && root.paneItem.movieId ? Art.url(root.paneItem, "poster", Math.ceil(width)) :
+                                                                       ""
+                    fallbackText: String(root.paneItem && root.paneItem.title || "")
+                }
 
-                    onCurrentIndexChanged: if (currentIndex >= 0)
-                    positionViewAtIndex(currentIndex, ListView.Beginning)
-                    onHeightChanged: if (currentIndex >= 0)
-                    positionViewAtIndex(currentIndex, ListView.Beginning)
+                Item {
+                    id: paneHeading
+                    readonly property bool metaInline: paneMeta.text.length > 0 && paneTitle.implicitWidth
+                                                       + paneMeta.implicitWidth + Metrics.scaled(10) <= width
+                    anchors.top: panePoster.bottom
+                    anchors.topMargin: Metrics.scaled(root.smallZoom ? 30 : 22)
+                    anchors.left: parent.left
+                    anchors.right: parent.right
+                    height: metaInline ? Math.max(paneTitle.contentHeight, paneMeta.implicitHeight) :
+                                         paneTitle.contentHeight + (paneMeta.text.length > 0 ? Metrics.scaled(4)
+                                                                                               + paneMeta.implicitHeight :
+                                                                                               0)
 
-                    delegate: Item {
-                        id: previewPane
-                        required property var item
-
-                        width: previewList.width
-                        height: previewList.height
-
-                        ImageCard {
-                            id: panePoster
-                            anchors.top: parent.top
-                            anchors.horizontalCenter: parent.horizontalCenter
-                            height: Math.round(Math.min(parent.width * 1.5, parent.height * (root.largeZoom ? 0.64 :
-                                                                                                              0.56)))
-
-                            width: Math.round(height / 1.5)
-                            imageUrl: previewPane.item && previewPane.item.movieId ? Art.url(previewPane.item, "poster",
-                                                                                             Math.ceil(width)) : ""
-                            fallbackText: String(previewPane.item && previewPane.item.title || "")
-                        }
-
-                        Item {
-                            id: paneHeading
-                            readonly property bool metaInline: paneMeta.text.length > 0 && paneTitle.implicitWidth
-                                                               + paneMeta.implicitWidth + Metrics.scaled(10) <= width
-                            anchors.top: panePoster.bottom
-                            anchors.topMargin: Metrics.scaled(root.smallZoom ? 30 : 22)
-                            anchors.left: parent.left
-                            anchors.right: parent.right
-                            height: metaInline ? Math.max(paneTitle.contentHeight, paneMeta.implicitHeight) :
-                                                 paneTitle.contentHeight + (paneMeta.text.length > 0 ? Metrics.scaled(
-                                                                                                           4) + paneMeta.implicitHeight :
-                                                                                                       0)
-
-                            TextMetrics {
-                                id: paneTitleMetrics
-                                font: paneTitle.font
-                                text: paneTitle.text
-                            }
-
-                            TextMetrics {
-                                id: paneMetaMetrics
-                                font: paneMeta.font
-                                text: paneMeta.text
-                            }
-
-                            AppText {
-                                id: paneTitle
-                                anchors.top: parent.top
-                                anchors.left: parent.left
-                                width: paneHeading.metaInline ? implicitWidth : parent.width
-                                text: String(previewPane.item && previewPane.item.title || "")
-                                font.pixelSize: Metrics.bodySizePx + 4
-                                font.weight: Font.DemiBold
-                                maximumLineCount: 2
-                                wrapMode: Text.Wrap
-                                elide: Text.ElideRight
-                            }
-
-                            MonoText {
-                                id: paneMeta
-                                anchors.left: paneHeading.metaInline ? paneTitle.right : parent.left
-                                anchors.leftMargin: paneHeading.metaInline ? Metrics.scaled(10) : 0
-                                y: paneHeading.metaInline ? Math.round(paneTitle.baselineOffset
-                                                                       + paneTitleMetrics.tightBoundingRect.y
-                                                                       + paneTitleMetrics.tightBoundingRect.height / 2
-                                                                       - paneMeta.baselineOffset
-                                                                       - paneMetaMetrics.tightBoundingRect.y
-                                                                       - paneMetaMetrics.tightBoundingRect.height / 2) :
-                                                            paneTitle.contentHeight + Metrics.scaled(4)
-                                text: String(previewPane.item && previewPane.item.subtitle || "")
-                                visible: text.length > 0
-                                color: Theme.textMuted
-                                font.pixelSize: Metrics.metaSizePx
-                                maximumLineCount: 1
-                                elide: Text.ElideRight
-                            }
-                        }
-
-                        AppText {
-                            anchors.top: paneHeading.bottom
-                            anchors.topMargin: Metrics.scaled(10)
-                            anchors.left: parent.left
-                            anchors.right: parent.right
-                            anchors.bottom: parent.bottom
-                            visible: text.length > 0
-                            text: String(previewPane.item && previewPane.item.overview || "")
-                            color: Theme.textSecondary
-                            font.pixelSize: Metrics.bodySizePx
-                            lineHeight: 1.2
-                            wrapMode: Text.Wrap
-                            elide: Text.ElideRight
-                        }
+                    TextMetrics {
+                        id: paneTitleMetrics
+                        font: paneTitle.font
+                        text: paneTitle.text
                     }
+
+                    TextMetrics {
+                        id: paneMetaMetrics
+                        font: paneMeta.font
+                        text: paneMeta.text
+                    }
+
+                    AppText {
+                        id: paneTitle
+                        anchors.top: parent.top
+                        anchors.left: parent.left
+                        width: paneHeading.metaInline ? implicitWidth : parent.width
+                        text: String(root.paneItem && root.paneItem.title || "")
+                        font.pixelSize: Metrics.bodySizePx + 4
+                        font.weight: Font.DemiBold
+                        maximumLineCount: 2
+                        wrapMode: Text.Wrap
+                        elide: Text.ElideRight
+                    }
+
+                    MonoText {
+                        id: paneMeta
+                        anchors.left: paneHeading.metaInline ? paneTitle.right : parent.left
+                        anchors.leftMargin: paneHeading.metaInline ? Metrics.scaled(10) : 0
+                        y: paneHeading.metaInline ? Math.round(paneTitle.baselineOffset
+                                                               + paneTitleMetrics.tightBoundingRect.y
+                                                               + paneTitleMetrics.tightBoundingRect.height / 2
+                                                               - paneMeta.baselineOffset
+                                                               - paneMetaMetrics.tightBoundingRect.y
+                                                               - paneMetaMetrics.tightBoundingRect.height / 2) :
+                                                    paneTitle.contentHeight + Metrics.scaled(4)
+                        text: String(root.paneItem && root.paneItem.subtitle || "")
+                        visible: text.length > 0
+                        color: Theme.textMuted
+                        font.pixelSize: Metrics.metaSizePx
+                        maximumLineCount: 1
+                        elide: Text.ElideRight
+                    }
+                }
+
+                AppText {
+                    anchors.top: paneHeading.bottom
+                    anchors.topMargin: Metrics.scaled(10)
+                    anchors.left: parent.left
+                    anchors.right: parent.right
+                    anchors.bottom: parent.bottom
+                    visible: text.length > 0
+                    text: String(root.paneItem && root.paneItem.overview || "")
+                    color: Theme.textSecondary
+                    font.pixelSize: Metrics.bodySizePx
+                    lineHeight: 1.2
+                    wrapMode: Text.Wrap
+                    elide: Text.ElideRight
                 }
             }
 
@@ -1044,7 +995,6 @@ FocusScope {
                     else if (currentIndex < 0 || currentIndex >= count)
                     restoreIndex()
                     requestMoreIfNeeded()
-                    root.updatePane()
                 }
                 onContentYChanged: {
                     requestPageIfNeeded()
@@ -1057,7 +1007,6 @@ FocusScope {
                     alphabetFeedback.restart()
                     requestPageIfNeeded()
                     routeCheckpoint.restart()
-                    root.schedulePaneUpdate()
                 }
 
                 FastWheelHandler {
