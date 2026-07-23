@@ -39,6 +39,7 @@ jobs:
         with:
           name: jellyfin-native-corresponding-source
           path: release-source/*
+          retention-days: 1
 
   platforms:
     needs: validate

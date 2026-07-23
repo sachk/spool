@@ -159,6 +159,7 @@ jobs:
         with:
           name: jellyfin-native-linux-appimage
           path: dist/*.AppImage
+          retention-days: 1
 
   macos-dmg:
     name: macOS DMG
@@ -242,6 +243,7 @@ jobs:
         with:
           name: jellyfin-native-macos-dmg
           path: dist/*.dmg
+          retention-days: 1
 
   webos-ipk:
     name: webOS IPK
@@ -400,3 +402,4 @@ jobs:
           path: |
             build/*.ipk
             build/relink/*
+          retention-days: 1
