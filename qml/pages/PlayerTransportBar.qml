@@ -25,6 +25,9 @@ RowLayout {
         readonly property bool emphasized: focused || selected
         readonly property string tooltip: root.overlay.actionTooltip(action)
         readonly property bool waitingForSyncPlay: action === "pause" && SyncPlay.enabled && SyncPlay.waitingForPlayback
+        readonly property string badge: action === "prevQueue" || action === "nextQueue" ? "EP" : action
+                                                                                           === "prevChapter" || action
+                                                                                           === "nextChapter" ? "CH" : ""
         Layout.preferredWidth: root.overlay.actionTargetSize
         Layout.preferredHeight: root.overlay.actionTargetSize
         radius: width / 2
@@ -47,6 +50,17 @@ RowLayout {
             name: "play_arrow"
             iconColor: parent.focused ? Theme.textPrimary : Theme.textSecondary
             iconSize: root.overlay.dp(20)
+        }
+        AppText {
+            anchors.right: parent.right
+            anchors.bottom: parent.bottom
+            anchors.rightMargin: root.overlay.dp(5)
+            anchors.bottomMargin: root.overlay.dp(5)
+            visible: parent.badge.length > 0
+            text: parent.badge
+            color: parent.emphasized ? Theme.textPrimary : Theme.textSecondary
+            font.pixelSize: root.overlay.dp(10)
+            font.weight: Font.Bold
         }
 
         HoverHandler {

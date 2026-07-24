@@ -66,12 +66,12 @@ Item {
             return true
         }
         if (key === Qt.Key_Down) {
-            if (overlay.focusZone === "actions" && overlay.actionIndex === 1) {
+            if (overlay.focusZone === "actions" && overlay.actions[overlay.actionIndex] === "pause") {
                 overlay.openAudioSync()
                 return true
             }
             if (overlay.focusZone === "timeline")
-                overlay.actionIndex = 1
+                overlay.actionIndex = overlay.pauseActionIndex
             overlay.focusZone = overlay.focusZone === "back" ? "timeline" : "actions"
             overlay.showControls(overlay.focusZone)
             return true

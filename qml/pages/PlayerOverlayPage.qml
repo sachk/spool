@@ -78,15 +78,20 @@ FocusScope {
     }
     readonly property var transportActions: {
         const values = []
-        if ((queueNavigationAvailable && playQueue.canGoPrevious) || episodeContextMissing)
+        const previousEpisode = (queueNavigationAvailable && playQueue.canGoPrevious) || episodeContextMissing
+        const nextEpisode = (queueNavigationAvailable && playQueue.canGoNext) || episodeContextMissing
+        if (previousEpisode)
             values.push("prevQueue")
-        values.push("back", "pause", "forward")
-        if ((queueNavigationAvailable && playQueue.canGoNext) || episodeContextMissing)
-            values.push("nextQueue")
         if (hasPlayer && player.hasChapters)
-            values.push("prevChapter", "nextChapter")
+            values.push("prevChapter")
+        values.push("back", "pause", "forward")
+        if (hasPlayer && player.hasChapters)
+            values.push("nextChapter")
+        if (nextEpisode)
+            values.push("nextQueue")
         return values
     }
+    readonly property int pauseActionIndex: Math.max(0, actions.indexOf("pause"))
     readonly property var utilityActions: {
         const values = []
         values.push("subtitles")
@@ -683,7 +688,7 @@ FocusScope {
         audioSyncVisible = false
         subtitleSettingsVisible = false
         focusZone = "timeline"
-        actionIndex = 1
+        actionIndex = pauseActionIndex
         controlsVisible = visible
         if (visible)
             restartAutohide()
