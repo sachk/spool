@@ -37,6 +37,7 @@ void PlaybackFailurePolicy::prepareFallbackSession(PlaybackSession& session,
     session.audioStreamIndex = audioStreamIndex;
     session.subtitleStreamIndex = subtitleStreamIndex;
     session.codecFallback = true;
+    session.restoreStreamSelection = true;
 }
 
 } // namespace JellyfinNative

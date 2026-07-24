@@ -373,6 +373,7 @@ struct PlaybackSession {
     int audioStreamIndex = -1;
     int subtitleStreamIndex = -1;
     bool codecFallback = false;
+    bool restoreStreamSelection = false;
 };
 
 QString exceptionMessage(const std::exception_ptr& exception);

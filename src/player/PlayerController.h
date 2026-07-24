@@ -174,6 +174,7 @@ signals:
     void playbackStopped(const QString& itemId, qint64 positionTicks, bool completed);
     void playbackLoadFailed(const QString& itemId, qint64 positionTicks, const QString& message,
         bool retryableCodecFailure, int audioStreamIndex, int subtitleStreamIndex);
+    void streamSelectionChanged(int audioStreamIndex, int subtitleStreamIndex);
     void nightModeEnabledChanged();
     void toneMappingVisualizationEnabledChanged();
     void audioDelayMsChanged();
@@ -277,7 +278,7 @@ private:
     qint64 m_outputDroppedFrames = 0;
     bool m_embeddedVideoOutput = false;
     PlaybackTrackState m_tracks;
-    bool m_restoreFallbackStreamSelection = false;
+    bool m_restoreStreamSelection = false;
     bool m_backAllowed = true;
     QString m_title;
     QString m_statusText = QStringLiteral("Ready");

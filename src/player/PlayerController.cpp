@@ -878,7 +878,7 @@ void PlayerController::play(const PlaybackSession& session, bool startPaused)
     m_pendingSeekFlags.clear();
     m_debugOsdVisible = false;
     m_tracks.resetForPlayback();
-    m_restoreFallbackStreamSelection = session.codecFallback;
+    m_restoreStreamSelection = session.restoreStreamSelection;
     m_backAllowed = false;
     m_backGuardTimer.start();
     m_uiPositionTimer.start();
@@ -1202,12 +1202,18 @@ int PlayerController::streamIndexForUiTrack(const QString& type, int uiIndex, in
 
 void PlayerController::updateReportedStreamSelection(bool sendProgress)
 {
+    const int previousAudioStreamIndex = m_session.audioStreamIndex;
+    const int previousSubtitleStreamIndex = m_session.subtitleStreamIndex;
     m_session.audioStreamIndex = streamIndexForUiTrack(QStringLiteral("Audio"), m_tracks.selectedAudioIndex(), 0);
     m_session.subtitleStreamIndex = m_tracks.subtitlesEnabled()
         ? streamIndexForUiTrack(QStringLiteral("Subtitle"), m_tracks.selectedSubtitleIndex(), 1)
         : -1;
-    const bool changed = m_reporter.setStreamIndexes(m_session.audioStreamIndex, m_session.subtitleStreamIndex);
-    if (changed && sendProgress && m_sessionActive)
+    const bool selectionChanged = previousAudioStreamIndex != m_session.audioStreamIndex
+        || previousSubtitleStreamIndex != m_session.subtitleStreamIndex;
+    const bool reportChanged = m_reporter.setStreamIndexes(m_session.audioStreamIndex, m_session.subtitleStreamIndex);
+    if (selectionChanged)
+        emit streamSelectionChanged(m_session.audioStreamIndex, m_session.subtitleStreamIndex);
+    if (reportChanged && sendProgress && m_sessionActive)
         m_reporter.reportProgress(secondsToTicks(m_positionTracker.position()), m_paused, effectivePlaybackSpeed());
 }
 
@@ -1800,11 +1806,12 @@ void PlayerController::handleMpvEvent(mpv_event *event)
             const ParsedPlaybackTracks tracks = PlaybackTrackParser::parseTracks(node);
             QMetaObject::invokeMethod(this, [this, tracks]() {
                 m_tracks.applyParsedTracks(tracks);
-                if (m_restoreFallbackStreamSelection) {
-                    m_restoreFallbackStreamSelection = false;
+                if (m_restoreStreamSelection) {
+                    m_restoreStreamSelection = false;
                     if (m_session.audioStreamIndex >= 0)
                         selectAudioStreamIndex(m_session.audioStreamIndex);
                     selectSubtitleStreamIndex(m_session.subtitleStreamIndex);
+                    updateReportedStreamSelection(true);
                 } else {
                     updateReportedStreamSelection(true);
                 }

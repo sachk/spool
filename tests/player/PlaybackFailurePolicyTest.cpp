@@ -56,7 +56,7 @@ int main()
         { QStringLiteral("next"), QStringLiteral("playlist-next") },
     };
     PlaybackFailurePolicy::prepareFallbackSession(fallback, queue, 3, 7);
-    require(fallback.codecFallback && fallback.nowPlayingQueue.size() == 2
+    require(fallback.codecFallback && fallback.restoreStreamSelection && fallback.nowPlayingQueue.size() == 2
             && fallback.nowPlayingQueue[0].playlistItemId == QStringLiteral("playlist-item")
             && fallback.nowPlayingQueue[1].itemId == QStringLiteral("next") && fallback.audioStreamIndex == 3
             && fallback.subtitleStreamIndex == 7,
