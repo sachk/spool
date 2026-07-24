@@ -323,6 +323,7 @@ struct TrickplayInfo {
 
 struct SubtitlePreferences {
     QString language;
+    QString audioLanguage;
     QString mode = QStringLiteral("Default");
     // Audio track auto-selection ("Default" or "Smart") rides along so both
     // track preferences reach the player through one apply path.

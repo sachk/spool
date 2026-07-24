@@ -271,6 +271,8 @@ int main(int argc, char **argv)
     SubtitlePreferences subtitles;
     subtitles.language = QStringLiteral("eng");
     subtitles.mode = QStringLiteral("OnlyForced");
+    subtitles.audioMode = QStringLiteral("Smart");
+    subtitles.audioLanguage = QStringLiteral("jpn");
     subtitles.styling = QStringLiteral("Native");
     subtitles.textSize = QStringLiteral("large");
     subtitles.textWeight = QStringLiteral("bold");
@@ -289,6 +291,8 @@ int main(int argc, char **argv)
     const auto subtitleOptions = MpvOptionProfile::subtitleOptions(subtitles, true);
     require(valueFor(subtitleOptions, "sid") == "auto", "enabled subtitles should select automatic subtitle tracks");
     require(valueFor(subtitleOptions, "slang") == "eng", "subtitle language was not propagated");
+    require(valueFor(subtitleOptions, "alang") == "jpn",
+        "Smart audio should use the server's audio language instead of the subtitle language");
     require(
         valueFor(subtitleOptions, "sub-forced-events-only") == "yes", "OnlyForced mode should use forced events only");
     require(valueFor(subtitleOptions, "subs-fallback") == "no",

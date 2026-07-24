@@ -1428,11 +1428,14 @@ void PlayerController::setSubtitlePreferences(const SubtitlePreferences& prefere
     if (m_subtitlePreferences == preferences)
         return;
 
-    const bool preserveTrackSelection
-        = m_subtitlePreferences.language == preferences.language && m_subtitlePreferences.mode == preferences.mode;
+    const bool preserveTrackSelection = m_subtitlePreferences.language == preferences.language
+        && m_subtitlePreferences.mode == preferences.mode && m_subtitlePreferences.audioMode == preferences.audioMode
+        && m_subtitlePreferences.audioLanguage == preferences.audioLanguage;
     m_subtitlePreferences = preferences;
-    qInfo() << "player: subtitle preferences changed"
-            << "mode=" << preferences.mode << "language=" << preferences.language << "styling=" << preferences.styling;
+    qInfo() << "player: track preferences changed"
+            << "subtitleMode=" << preferences.mode << "subtitleLanguage=" << preferences.language
+            << "audioMode=" << preferences.audioMode << "audioLanguage=" << preferences.audioLanguage
+            << "styling=" << preferences.styling;
     if (auto *handle = m_mpvLifecycle.handle()) {
         applyMpvSubtitleOptions(MpvOptionApplyMode::Runtime, handle, preserveTrackSelection);
     } else {

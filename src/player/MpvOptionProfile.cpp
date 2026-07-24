@@ -347,7 +347,9 @@ std::vector<MpvOption> MpvOptionProfile::subtitleOptions(
     const bool onlyForced = subtitleMode == QStringLiteral("OnlyForced");
     const bool alwaysPlay = subtitleMode == QStringLiteral("Always");
     const bool smart = subtitleMode == QStringLiteral("Smart");
-    const bool smartAudio = prefs.audioMode == QStringLiteral("Smart") && !prefs.language.trimmed().isEmpty();
+    const QString audioLanguage
+        = prefs.audioLanguage.trimmed().isEmpty() ? prefs.language.trimmed() : prefs.audioLanguage.trimmed();
+    const bool smartAudio = prefs.audioMode == QStringLiteral("Smart") && !audioLanguage.isEmpty();
     const bool overrideEmbeddedStyling = prefs.styling.compare(QStringLiteral("custom"), Qt::CaseInsensitive) == 0;
     const int vertical = qBound(0, prefs.verticalPosition, 100);
     const SubtitleShadowOptions shadow = subtitleShadowOptions(prefs.dropShadow);
@@ -361,7 +363,7 @@ std::vector<MpvOption> MpvOptionProfile::subtitleOptions(
     return {
         { "sid", !subtitlesEnabled || noSubtitles ? QByteArrayLiteral("no") : QByteArrayLiteral("auto") },
         { "slang", prefs.language.toUtf8() },
-        { "alang", smartAudio ? prefs.language.toUtf8() : QByteArray() },
+        { "alang", smartAudio ? audioLanguage.toUtf8() : QByteArray() },
         { "sub-auto", "all" },
         { "sub-visibility", mpvBool(!noSubtitles) },
         { "sub-forced-events-only", mpvBool(onlyForced) },

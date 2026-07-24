@@ -278,6 +278,8 @@ void SettingsController::loadRemote()
         this, m_api->fetchUserConfiguration(),
         [this](const QJsonObject& configuration) {
             m_userConfiguration = configuration;
+            m_subtitlePreferences.audioLanguage
+                = configuration.value(QStringLiteral("AudioLanguagePreference")).toString();
             const SettingSpec& languageSpec = specForKey("subtitles/language");
             const SettingSpec& modeSpec = specForKey("subtitles/mode");
             const SettingSpec& audioModeSpec = specForKey("audio/trackMode");
@@ -812,8 +814,6 @@ void SettingsController::saveSubtitleUserConfiguration()
     configuration.insert(QStringLiteral("SubtitleMode"), m_subtitlePreferences.mode);
     const bool smartAudio = m_subtitlePreferences.audioMode == QStringLiteral("Smart");
     configuration.insert(QStringLiteral("PlayDefaultAudioTrack"), !smartAudio);
-    if (smartAudio)
-        configuration.insert(QStringLiteral("AudioLanguagePreference"), m_subtitlePreferences.language);
     m_userConfiguration = configuration;
 
     Async::runScoped(
