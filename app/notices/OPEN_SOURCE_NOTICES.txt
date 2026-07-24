@@ -15,7 +15,7 @@ Thank you to the Qt developers for the application and user-interface toolkit.
 
 Application and corresponding source
 
-This application is free software licensed under GPL-2.0-or-later. Its
+This application is free software licensed under MPL-2.0. Its
 corresponding source is available at:
 
   https://github.com/sachk/tern
