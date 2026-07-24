@@ -23,7 +23,8 @@ RowLayout {
                                         && root.overlay.actionIndex === globalIndex
         readonly property bool selected: action === "syncplay" && root.overlay.syncPlayMenuOpen
         readonly property bool emphasized: focused || selected
-        readonly property string tooltip: root.overlay.actionTooltip(action)
+        readonly property string tooltip: Settings.playerControlTooltipsEnabled ? root.overlay.actionTooltip(action) :
+                                                                                  ""
         readonly property bool waitingForSyncPlay: action === "pause" && SyncPlay.enabled && SyncPlay.waitingForPlayback
         readonly property string badge: action === "prevQueue" || action === "nextQueue" ? "EP" : action
                                                                                            === "prevChapter" || action

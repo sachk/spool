@@ -43,6 +43,7 @@ int main(int argc, char **argv)
         "fresh profile unexpectedly enabled unlimited local-network playback");
     require(settings.value(QStringLiteral("playback/forwardCacheSizeMiB")).toInt() == 32,
         "fresh profile did not use the 32 MB forward cache default");
+    require(settings.playerControlTooltipsEnabled(), "fresh profile unexpectedly hid player control tooltips");
 
     settings.setValue(QStringLiteral("playback/forwardCacheSizeMiB"), QStringLiteral("256"));
     require(settings.value(QStringLiteral("playback/forwardCacheSizeMiB")).toString() == QStringLiteral("256"),
@@ -83,6 +84,15 @@ int main(int argc, char **argv)
     require(settings.value(QStringLiteral("subtitles/dimInHdr")).toBool(),
         "subtitle appearance reset did not restore HDR dimming");
 
+    settings.completePlayerControlTooltipSession();
+    settings.completePlayerControlTooltipSession();
+    settings.completePlayerControlTooltipSession();
+    require(
+        !settings.playerControlTooltipsEnabled(), "control tooltips remained enabled after three playback sessions");
+    require(QCoro::waitFor(database.loadSettingAsync(QStringLiteral("player/controlTooltipSessions")))
+            == QStringLiteral("3"),
+        "completed control-tooltip sessions were not persisted");
+
     SettingsController restored(&database, nullptr, nullptr);
     QCoro::waitFor(restored.loadLocalAsync());
     require(restored.uiScalePercent() == 135, "persisted UI scale was not restored");
@@ -90,6 +100,7 @@ int main(int argc, char **argv)
     require(restored.audioDelayMs() == 120, "persisted global desktop audio delay was not restored");
     require(restored.value(QStringLiteral("playback/forwardCacheSizeMiB")).toString() == QStringLiteral("256"),
         "persisted forward cache size was not restored");
+    require(!restored.playerControlTooltipsEnabled(), "persisted control-tooltip sessions were not restored");
 
     database.saveSetting(QStringLiteral("appearance/uiScalePercent"), QStringLiteral("100"));
     database.saveSetting(QStringLiteral("appearance/uiScaleSetupVersion"), QStringLiteral("1"));

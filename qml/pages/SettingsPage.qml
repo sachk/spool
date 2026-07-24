@@ -36,7 +36,7 @@ FocusScope {
 
     signal dismissed
 
-    readonly property var groupOrder: ["Account", "Appearance", "Subtitles", "Playback", "About", "Diagnostics",
+    readonly property var groupOrder: ["Account", "Playback", "Subtitles", "Appearance", "Diagnostics", "About",
         "Button Remap"]
 
     function rowAvailable(row) {
@@ -79,21 +79,9 @@ FocusScope {
         const value = String(Settings.values["subtitles/font"] || "")
         if (value.indexOf("system:") === 0)
             return value.slice(7)
-        if (value === "serif")
+        if (value === "interface")
             return Typography.sans
-        if (value === "typewriter")
-            return "Courier New"
-        if (value === "print")
-            return "Georgia"
-        if (value === "console")
-            return "Consolas"
-        if (value === "cursive")
-            return "Lucida Handwriting"
-        if (value === "casual")
-            return "Segoe Print"
-        if (value === "smallcaps")
-            return "Copperplate Gothic"
-        return Typography.sans
+        return Typography.subtitle
     }
 
     function previewTextSize() {
@@ -1131,7 +1119,7 @@ FocusScope {
             currentIndex: root.choiceDialogRow ? root.rowCurrentIndex(root.choiceDialogRow) : 0
             onSelected: index => {
                 if (root.choiceDialogRow)
-                root.setRowChoice(root.choiceDialogRow, index)
+                    root.setRowChoice(root.choiceDialogRow, index)
                 root.closeChoiceDialog()
             }
             onDismissed: root.closeChoiceDialog()

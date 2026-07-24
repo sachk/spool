@@ -82,10 +82,10 @@ Item {
                 if (syncTarget) {
                     const syncLocal = syncTarget.mapFromItem(root, eventPoint.position.x, eventPoint.position.y)
                     if (syncTarget.contains(syncLocal))
-                    return
+                        return
                 }
                 if (!syncPlayMenu.contains(local))
-                root.overlay.closeMenu()
+                    root.overlay.closeMenu()
                 return
             }
             root.overlay.showControls("timeline")
@@ -264,25 +264,6 @@ Item {
                         maximumLineCount: 1
                         elide: Text.ElideRight
                     }
-                    AppText {
-                        Layout.fillWidth: true
-                        text: root.overlay.hasPlayer ? root.overlay.player.statusText : ""
-                        color: root.overlay.hasPlayer && (root.overlay.player.buffering || root.overlay.player.seeking)
-                               ? Theme.accent : Theme.textSecondary
-                        font.pixelSize: root.dp(24)
-                        font.weight: Font.Medium
-                        maximumLineCount: 1
-                        elide: Text.ElideRight
-                    }
-                }
-
-                AppText {
-                    text: root.overlay.hasPlayer && root.overlay.player.paused ? "Paused" : "Playing"
-                    color: root.overlay.hasPlayer && root.overlay.player.paused ? Theme.textPrimary :
-                                                                                  Theme.textSecondary
-
-                    font.pixelSize: root.dp(23)
-                    font.weight: Font.DemiBold
                 }
             }
 

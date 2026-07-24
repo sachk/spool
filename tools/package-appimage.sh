@@ -268,6 +268,7 @@ mkdir -p "$APPDIR/usr/share/metainfo"
 cp -f "$APP_ROOT/app/com.sachk.tern.metainfo.xml" \
   "$APPDIR/usr/share/metainfo/com.sachk.tern.appdata.xml"
 cp -f "$APP_ROOT/app/notices/OPEN_SOURCE_NOTICES.txt" "$APP_ROOT/LICENSE" \
+  "$APP_ROOT/qml/fonts/AtkinsonHyperlegible-LICENSE.txt" \
   "$APP_ROOT/qml/fonts/IBMPlexSans-LICENSE.txt" "$APP_ROOT/qml/fonts/MaterialIcons-LICENSE.txt" \
   "$APPDIR/usr/share/jellyfin-native/notices/"
 cat > "$APPDIR/usr/share/jellyfin-native/fonts.conf" <<'FONTCONFIG'

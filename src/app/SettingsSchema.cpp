@@ -34,9 +34,8 @@ namespace {
     constexpr SettingChoice kSubtitleTextSizeChoices[] = { { "smaller", "Smaller" }, { "small", "Small" },
         { "", "Normal" }, { "large", "Large" }, { "larger", "Larger" }, { "extralarge", "Extra large" } };
     constexpr SettingChoice kSubtitleTextWeightChoices[] = { { "normal", "Normal" }, { "bold", "Bold" } };
-    constexpr SettingChoice kSubtitleFontChoices[] = { { "", "Default" }, { "serif", "Source Serif 4" },
-        { "typewriter", "Typewriter" }, { "print", "Print" }, { "console", "Console" }, { "cursive", "Cursive" },
-        { "casual", "Casual" }, { "smallcaps", "Small caps" } };
+    constexpr SettingChoice kSubtitleFontChoices[]
+        = { { "", "Atkinson Hyperlegible" }, { "interface", "IBM Plex Sans" } };
     constexpr SettingChoice kSubtitleTextColorChoices[] = { { "#ffffff", "White" }, { "#d3d3d3", "Light gray" },
         { "#808080", "Gray" }, { "#ffff00", "Yellow" }, { "#008000", "Green" }, { "#00ffff", "Cyan" },
         { "#0000ff", "Blue" }, { "#ff00ff", "Magenta" }, { "#ff0000", "Red" }, { "#000000", "Black" } };

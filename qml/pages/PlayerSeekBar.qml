@@ -21,6 +21,15 @@ Item {
         return overlay.dp(value)
     }
 
+    function endsAtText() {
+        if (!overlay.hasPlayer || overlay.player.durationSeconds <= 0)
+            return ""
+        const remainingSeconds = Math.max(0, overlay.player.durationSeconds - overlay.positionSeconds())
+        const playbackSpeed = Math.max(0.01, Number(overlay.player.effectivePlaybackSpeed))
+        const endTime = new Date(Date.now() + remainingSeconds / playbackSpeed * 1000)
+        return qsTr("Ends at %1").arg(endTime.toLocaleTimeString(Qt.locale(), Locale.ShortFormat))
+    }
+
     Layout.fillWidth: true
     Layout.preferredHeight: dp(76)
 
@@ -35,7 +44,12 @@ Item {
     AppText {
         anchors.right: parent.right
         anchors.top: parent.top
-        text: root.overlay.formatClock(root.overlay.hasPlayer ? root.overlay.player.durationSeconds : 0)
+        text: {
+            const duration = root.overlay.hasPlayer ? root.overlay.player.durationSeconds : 0
+            const endsAt = root.endsAtText()
+            return endsAt.length > 0 ? root.overlay.formatClock(duration) + "  ·  " + endsAt : root.overlay.formatClock(
+                                           duration)
+        }
         color: Theme.textSecondary
         font.pixelSize: root.dp(22)
         font.weight: Font.Medium
@@ -138,15 +152,15 @@ Item {
         onPressed: mouse => updatePosition(mouse)
         onPositionChanged: mouse => {
             if (pressed || root.overlay.scrubbing)
-            updatePosition(mouse)
+                updatePosition(mouse)
             else
-            updateHover(mouse.x)
+                updateHover(mouse.x)
         }
         onReleased: mouse => {
             updatePosition(mouse)
             root.overlay.commitScrub()
             if (containsMouse)
-            updateHover(mouse.x)
+                updateHover(mouse.x)
         }
         onCanceled: {
             root.overlay.scrubbing = false

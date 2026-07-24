@@ -18,6 +18,8 @@ namespace {
     constexpr auto kUiScaleSetupVersionKey = "appearance/uiScaleSetupVersion";
     constexpr int kUiScaleSetupVersion = 2;
     constexpr int kUiScaleRebasePercent = 15;
+    constexpr auto kPlayerControlTooltipSessionsKey = "player/controlTooltipSessions";
+    constexpr int kPlayerControlTooltipSessionLimit = 3;
 
     QString keyString(const SettingSpec& spec)
     {
@@ -136,7 +138,7 @@ QString SettingsController::audioDelayTargetLabel() const
 QStringList SettingsController::localSettingKeys()
 {
     QStringList keys;
-    keys.reserve(static_cast<qsizetype>(settingSpecs().size()) + 1);
+    keys.reserve(static_cast<qsizetype>(settingSpecs().size()) + 2);
     for (const SettingSpec& spec : settingSpecs()) {
         if (!spec.persisted)
             continue;
@@ -145,6 +147,7 @@ QStringList SettingsController::localSettingKeys()
         keys.append(keyString(spec));
     }
     keys.append(QString::fromLatin1(kUiScaleSetupVersionKey));
+    keys.append(QString::fromLatin1(kPlayerControlTooltipSessionsKey));
     return keys;
 }
 
@@ -191,6 +194,11 @@ void SettingsController::applyLocalValues(const QVariantMap& storedValues)
         m_uiScaleSetupVersion = kUiScaleSetupVersion;
         m_database->saveSetting(QString::fromLatin1(kUiScaleSetupVersionKey), QString::number(kUiScaleSetupVersion));
     }
+    bool tooltipCountValid = false;
+    const int tooltipSessions
+        = storedValues.value(QString::fromLatin1(kPlayerControlTooltipSessionsKey)).toInt(&tooltipCountValid);
+    m_playerControlTooltipSessions
+        = tooltipCountValid ? qBound(0, tooltipSessions, kPlayerControlTooltipSessionLimit) : 0;
 
     MpvConfigPolicy configPolicy = validatedPlatformMpvConfigPolicy(m_mpvConfigMode, m_mpvConfigDirectory);
     if (!configPolicy.valid) {
@@ -305,6 +313,17 @@ void SettingsController::clearRemote()
 {
     m_userConfiguration = {};
     m_remoteLoadStarted = false;
+}
+
+void SettingsController::completePlayerControlTooltipSession()
+{
+    if (m_playerControlTooltipSessions >= kPlayerControlTooltipSessionLimit)
+        return;
+    ++m_playerControlTooltipSessions;
+    m_database->saveSetting(
+        QString::fromLatin1(kPlayerControlTooltipSessionsKey), QString::number(m_playerControlTooltipSessions));
+    if (m_playerControlTooltipSessions == kPlayerControlTooltipSessionLimit)
+        emit playerControlTooltipsEnabledChanged();
 }
 
 void SettingsController::setValue(const QString& key, const QVariant& value)

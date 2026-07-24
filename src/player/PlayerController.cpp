@@ -100,11 +100,20 @@ namespace {
         if (!QDir().mkpath(fontsPath))
             return {};
 
-        const QString target = QDir(fontsPath).filePath(QStringLiteral("IBMPlexSans-Variable.ttf"));
-        if (!QFile::exists(target)
-            && !QFile::copy(QStringLiteral(":/qt/qml/JellyfinWebOS/qml/fonts/IBMPlexSans-Variable.ttf"), target)) {
-            qWarning() << "player: failed to extract bundled subtitle font";
-            return {};
+        const QStringList fontFiles {
+            QStringLiteral("AtkinsonHyperlegible-Bold.otf"),
+            QStringLiteral("AtkinsonHyperlegible-Regular.otf"),
+            QStringLiteral("IBMPlexSans-Variable.ttf"),
+        };
+        for (const QString& fileName : fontFiles) {
+            const QString target = QDir(fontsPath).filePath(fileName);
+            if (QFile::exists(target))
+                continue;
+            const QString source = QStringLiteral(":/qt/qml/JellyfinWebOS/qml/fonts/") + fileName;
+            if (!QFile::copy(source, target)) {
+                qWarning() << "player: failed to extract bundled subtitle font" << fileName;
+                return {};
+            }
         }
         return QFile::encodeName(fontsPath);
     }

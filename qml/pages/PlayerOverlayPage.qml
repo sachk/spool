@@ -21,6 +21,7 @@ FocusScope {
     signal diagnosticsVisibilityRequested(bool visible)
     signal playbackBackRequested(var item)
 
+    property bool tooltipSessionHadFile: false
     property bool controlsVisible: false
     property string focusZone: "timeline"
     property int actionIndex: 1
@@ -691,9 +692,28 @@ FocusScope {
         controlsVisible = visible
         if (visible)
             restartAutohide()
+        if (visible && hasPlayer && player.fileLoaded)
+            tooltipSessionHadFile = true
     }
     onScrubbingChanged: if (!scrubbing)
                             maybeRestartAutohide()
+
+    Connections {
+        target: player
+
+        function onPlaybackStateChanged() {
+            if (player.sessionActive && player.fileLoaded)
+                overlay.tooltipSessionHadFile = true
+        }
+
+        function onSessionActiveChanged() {
+            if (player.sessionActive)
+                return
+            if (overlay.tooltipSessionHadFile)
+                Settings.completePlayerControlTooltipSession()
+            overlay.tooltipSessionHadFile = false
+        }
+    }
 
     PlayerOverlayInput {
         id: input

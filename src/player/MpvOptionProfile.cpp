@@ -97,23 +97,11 @@ namespace {
 
     QByteArray subtitleFontFamily(const QString& value)
     {
-        if (value == QStringLiteral("serif"))
+        if (value == QStringLiteral("interface"))
             return QByteArrayLiteral("IBM Plex Sans Var");
-        if (value == QStringLiteral("typewriter"))
-            return QByteArrayLiteral("Courier New");
-        if (value == QStringLiteral("print"))
-            return QByteArrayLiteral("Georgia");
         if (value.startsWith(QStringLiteral("system:")))
             return value.sliced(7).toUtf8();
-        if (value == QStringLiteral("console"))
-            return QByteArrayLiteral("Consolas");
-        if (value == QStringLiteral("cursive"))
-            return QByteArrayLiteral("Lucida Handwriting");
-        if (value == QStringLiteral("casual"))
-            return QByteArrayLiteral("Segoe Print");
-        if (value == QStringLiteral("smallcaps"))
-            return QByteArrayLiteral("Copperplate Gothic");
-        return QByteArrayLiteral("IBM Plex Sans Var");
+        return QByteArrayLiteral("Atkinson Hyperlegible");
     }
 
     QByteArray subtitleBackgroundColor(const QString& value)

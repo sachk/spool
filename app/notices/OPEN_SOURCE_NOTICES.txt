@@ -37,6 +37,7 @@ Major bundled components
   FriBidi                     LGPL-2.1-or-later
   HarfBuzz                    MIT
   libsecret                    LGPL-2.1-or-later
+  Atkinson Hyperlegible       SIL Open Font License 1.1
   IBM Plex Sans                SIL Open Font License 1.1
   Google Material Icons       Apache License 2.0
 

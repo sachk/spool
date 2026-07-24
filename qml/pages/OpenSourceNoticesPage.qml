@@ -53,6 +53,11 @@ FocusScope {
             "source": "github.com/quietvoid/dovi_tool"
         },
         {
+            "name": "Atkinson Hyperlegible",
+            "license": "SIL Open Font License 1.1",
+            "source": "brailleinstitute.org/freefont"
+        },
+        {
             "name": "IBM Plex Sans",
             "license": "SIL Open Font License 1.1",
             "source": "github.com/IBM/plex"

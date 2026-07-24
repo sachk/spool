@@ -386,6 +386,8 @@ qt_add_qml_module(jellyfin-native
         qml/theme/Theme.qml
         qml/theme/Typography.qml
     RESOURCES
+        qml/fonts/AtkinsonHyperlegible-Bold.otf
+        qml/fonts/AtkinsonHyperlegible-Regular.otf
         qml/fonts/IBMPlexSans-Variable.ttf
         qml/fonts/MaterialIcons-Regular.ttf
 )

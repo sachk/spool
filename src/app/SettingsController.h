@@ -59,6 +59,8 @@ class SettingsController final : public QObject {
     Q_PROPERTY(QStringList systemSubtitleFonts READ systemSubtitleFonts CONSTANT)
     Q_PROPERTY(QVariantList settingsSchema READ settingsSchema CONSTANT)
     Q_PROPERTY(QVariantMap values READ values NOTIFY settingsValuesChanged)
+    Q_PROPERTY(
+        bool playerControlTooltipsEnabled READ playerControlTooltipsEnabled NOTIFY playerControlTooltipsEnabledChanged)
 
 public:
     SettingsController(
@@ -100,6 +102,10 @@ public:
     QVariantList settingsSchema() const;
     QVariantMap values() const;
     Q_INVOKABLE QVariant value(const QString& key) const;
+    bool playerControlTooltipsEnabled() const
+    {
+        return m_playerControlTooltipSessions < 3;
+    }
 
     static QStringList localSettingKeys();
     void applyLocalValues(const QVariantMap& storedValues);
@@ -108,6 +114,7 @@ public:
     Q_INVOKABLE void loadRemote();
     void clearRemote();
     Q_INVOKABLE void setValue(const QString& key, const QVariant& value);
+    Q_INVOKABLE void completePlayerControlTooltipSession();
     Q_INVOKABLE void setNightModeEnabled(bool enabled);
     Q_INVOKABLE void setToneMappingVisualizationEnabled(bool enabled);
     Q_INVOKABLE void setMaxStreamingBitrateMbps(int bitrateMbps);
@@ -152,6 +159,7 @@ signals:
     void appearanceChanged();
     void settingChanged(const QString& key);
     void settingsValuesChanged();
+    void playerControlTooltipsEnabledChanged();
     void errorOccurred(const QString& message);
 
 private:
@@ -189,6 +197,7 @@ private:
     QString m_mpvConfigDirectory;
     int m_uiScalePercent = 115;
     int m_uiScaleSetupVersion = 0;
+    int m_playerControlTooltipSessions = 0;
     SubtitlePreferences m_subtitlePreferences;
     QTimer m_subtitleApplyTimer;
     QStringList m_subtitleLanguageCodes { QString() };

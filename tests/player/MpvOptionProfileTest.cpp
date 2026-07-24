@@ -276,7 +276,7 @@ int main(int argc, char **argv)
     subtitles.styling = QStringLiteral("Native");
     subtitles.textSize = QStringLiteral("large");
     subtitles.textWeight = QStringLiteral("bold");
-    subtitles.font = QStringLiteral("typewriter");
+    subtitles.font = QStringLiteral("interface");
     subtitles.textColor = QStringLiteral("#00ffcc");
     subtitles.dropShadow = QStringLiteral("uniform");
     subtitles.verticalPosition = 40;
@@ -298,7 +298,7 @@ int main(int argc, char **argv)
     require(valueFor(subtitleOptions, "subs-fallback") == "no",
         "OnlyForced mode should disable non-forced fallback subtitles");
     require(valueFor(subtitleOptions, "sub-ass-override") == "no", "native styling should avoid forced ASS override");
-    require(valueFor(subtitleOptions, "sub-font") == "Courier New", "subtitle font preference was not mapped");
+    require(valueFor(subtitleOptions, "sub-font") == "IBM Plex Sans Var", "interface subtitle font was not mapped");
     require(valueFor(subtitleOptions, "sub-font-size") == "66", "subtitle size preference was not mapped");
     require(valueFor(subtitleOptions, "sub-bold") == "yes", "subtitle bold preference was not mapped");
     require(valueFor(subtitleOptions, "sub-pos") == "40", "subtitle vertical percentage was not mapped");
@@ -323,12 +323,9 @@ int main(int argc, char **argv)
     hdrSubtitles.dimInHdr = false;
     require(valueFor(MpvOptionProfile::subtitleOptions(hdrSubtitles, true, true), "sub-color") == "#FFFFFFFF",
         "disabled HDR dimming should preserve the configured subtitle colour");
-    hdrSubtitles.font = QStringLiteral("serif");
-    require(valueFor(MpvOptionProfile::subtitleOptions(hdrSubtitles, true), "sub-font") == "IBM Plex Sans Var",
-        "legacy serif preference should fall back to the bundled IBM Plex Sans font");
     SubtitlePreferences defaultSubtitles;
-    require(valueFor(MpvOptionProfile::subtitleOptions(defaultSubtitles, true), "sub-font") == "IBM Plex Sans Var",
-        "default subtitles should use the bundled IBM Plex Sans font");
+    require(valueFor(MpvOptionProfile::subtitleOptions(defaultSubtitles, true), "sub-font") == "Atkinson Hyperlegible",
+        "default subtitles should use the bundled Atkinson Hyperlegible font");
     SubtitlePreferences hidden;
     hidden.mode = QStringLiteral("None");
     hidden.textColor = QStringLiteral("not-a-color");
