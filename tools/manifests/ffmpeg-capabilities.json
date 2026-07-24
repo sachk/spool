@@ -173,34 +173,50 @@
   ],
   "platforms": {
     "linux": {
+      "gpl": true,
       "configureFlags": [
+        "--enable-cuda",
+        "--enable-ffnvcodec",
         "--enable-network",
+        "--enable-nvdec",
         "--enable-vaapi",
         "--enable-vdpau"
       ],
       "hardwareAccelerators": [
+        "av1_nvdec",
         "av1_vaapi",
         "av1_vdpau",
+        "h264_nvdec",
         "h264_vaapi",
         "h264_vdpau",
+        "hevc_nvdec",
         "hevc_vaapi",
         "hevc_vdpau",
+        "mpeg1_nvdec",
         "mpeg1_vdpau",
+        "mpeg2_nvdec",
         "mpeg2_vaapi",
         "mpeg2_vdpau",
+        "mpeg4_nvdec",
         "mpeg4_vaapi",
         "mpeg4_vdpau",
+        "vc1_nvdec",
         "vc1_vaapi",
         "vc1_vdpau",
+        "vp8_nvdec",
         "vp8_vaapi",
+        "vp9_nvdec",
         "vp9_vaapi",
         "vp9_vdpau",
+        "vvc_vaapi",
+        "wmv3_nvdec",
         "wmv3_vaapi",
         "wmv3_vdpau"
       ],
       "protocols": []
     },
     "macos": {
+      "gpl": true,
       "configureFlags": [
         "--enable-network",
         "--enable-audiotoolbox",
@@ -220,6 +236,7 @@
       "protocols": []
     },
     "webos": {
+      "gpl": true,
       "configureFlags": [
         "--disable-network"
       ],
@@ -227,6 +244,7 @@
       "protocols": []
     },
     "windows": {
+      "gpl": true,
       "configureFlags": [
         "--disable-network"
       ],
@@ -316,12 +334,9 @@
     "withCdio",
     "withCaca",
     "withAmf",
-    "withCuda",
     "withCudaLLVM",
     "withCudaNVCC",
     "withNpp",
-    "withNvcodec",
-    "withNvdec",
     "withNvenc",
     "withCuvid",
     "withMfx",
@@ -336,7 +351,6 @@
     "withRubberband"
   ],
   "forbiddenConfigureFlags": [
-    "--enable-gpl",
     "--enable-version3",
     "--enable-nonfree"
   ],

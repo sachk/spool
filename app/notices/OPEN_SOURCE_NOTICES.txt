@@ -15,8 +15,9 @@ Thank you to the Qt developers for the application and user-interface toolkit.
 
 Application and corresponding source
 
-This application is free software licensed under MPL-2.0. Its
-corresponding source is available at:
+The application's original source files are licensed under MPL-2.0. Desktop
+and webOS distributions combine them with GPL-2.0-or-later components and are
+distributed under GPL-2.0-or-later as a whole. Corresponding source is available at:
 
   https://github.com/sachk/tern
 
@@ -26,8 +27,8 @@ The modified mpv source used by the application is available at:
 
 Major bundled components
 
-  mpv                         GPL-2.0-or-later / LGPL-2.1-or-later
-  FFmpeg                      LGPL-2.1-or-later
+  mpv                         GPL-2.0-or-later
+  FFmpeg                      GPL-2.0-or-later
   Qt 6                        LGPL-3.0 / GPL-2.0-or-later / GPL-3.0
   QCoro                       MIT
   libass                      ISC

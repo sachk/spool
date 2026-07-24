@@ -39,6 +39,7 @@
         in
         ffmpegCapabilities.requiredDisableFlags
         ++ ffmpegCapabilities.commonConfigureFlags
+        ++ nixpkgs.lib.optional platformConfig.gpl "--enable-gpl"
         ++ platformConfig.configureFlags
         ++ map (library: "--enable-${library}") ffmpegCapabilities.libraries
         ++ enableEach "protocol" protocols
@@ -162,10 +163,17 @@
         libdrm
         libpulseaudio
         libsecret
+        libGL
         libSM
         libva
         libvdpau
+        libx11
+        libxext
+        libxpresent
+        libxrandr
+        libxscrnsaver
         mesa
+        nv-codec-headers-11
         pipewire
         shaderc
         squashfsTools

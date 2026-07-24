@@ -67,7 +67,17 @@ int main()
     const std::string license = avutil_license();
     const std::string configuration = avutil_configuration();
 
-    require(license.starts_with("LGPL"), "FFmpeg must report an LGPL license");
+    if (FfmpegCapabilities::kGplEnabled) {
+        require(license.starts_with("GPL"), "FFmpeg must report a GPL license");
+        require(configuration.find("--enable-gpl") != std::string::npos,
+            "GPL FFmpeg platforms must explicitly enable GPL code");
+        require(configuration.find("--disable-gpl") < configuration.find("--enable-gpl"),
+            "the explicit platform GPL policy must follow the disabled license baseline");
+    } else {
+        require(license.starts_with("LGPL"), "FFmpeg must report an LGPL license");
+        require(
+            configuration.find("--enable-gpl") == std::string::npos, "LGPL FFmpeg platforms must not enable GPL code");
+    }
     require(configuration.find("--disable-everything") != std::string::npos,
         "FFmpeg must start from a disable-everything feature set");
     require(configuration.find("--disable-autodetect") != std::string::npos,
@@ -77,8 +87,6 @@ int main()
         "FFmpeg must explicitly disable version-3-only code");
     require(
         configuration.find("--disable-nonfree") != std::string::npos, "FFmpeg must explicitly disable non-free code");
-    require(configuration.find("--enable-gpl") == std::string::npos,
-        "FFmpeg configuration must not contain an inherited GPL enable flag");
     require(configuration.find("--enable-version3") == std::string::npos,
         "FFmpeg configuration must not contain an inherited version-3 enable flag");
     require(configuration.find("--enable-nonfree") == std::string::npos,
@@ -90,6 +98,10 @@ int main()
     for (const std::string_view name : FfmpegCapabilities::kDecoders)
         require(avcodec_find_decoder_by_name(name.data()) != nullptr,
             "FFmpeg is missing allowed decoder: " + std::string(name));
+    for (const std::string_view name : FfmpegCapabilities::kHardwareAccelerators) {
+        require(configuration.find("--enable-hwaccel=" + std::string(name)) != std::string::npos,
+            "FFmpeg is missing configured hardware accelerator: " + std::string(name));
+    }
     for (const std::string_view name : FfmpegCapabilities::kFilters)
         require(avfilter_get_by_name(name.data()) != nullptr, "FFmpeg is missing allowed filter: " + std::string(name));
     for (const std::string_view name : FfmpegCapabilities::kMuxers)

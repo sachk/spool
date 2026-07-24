@@ -71,6 +71,8 @@ def load_manifest(path: pathlib.Path) -> dict:
     for platform in ("linux", "macos", "webos", "windows"):
         if platform not in data.get("platforms", {}):
             raise ValueError(f"missing platform capability set: {platform}")
+        if not isinstance(data["platforms"][platform].get("gpl"), bool):
+            raise ValueError(f"{platform} gpl must be a boolean")
         hardware_accelerators = data["platforms"][platform].get("hardwareAccelerators")
         if (
             not isinstance(hardware_accelerators, list)
@@ -95,6 +97,8 @@ def configure_flags(data: dict, platform: str) -> list[str]:
     flags = list(data["requiredDisableFlags"])
     flags.extend(data["commonConfigureFlags"])
     flags.extend(data["platforms"][platform].get("configureFlags", []))
+    if data["platforms"][platform]["gpl"]:
+        flags.append("--enable-gpl")
     flags.extend(f"--enable-{library}" for library in data["libraries"])
     for key, configure_name in CATEGORIES.items():
         values = platform_protocols(data, platform) if key == "protocols" else data[key]
@@ -111,7 +115,7 @@ def meson_flags(data: dict, platform: str) -> list[str]:
     flags = [
         "ffmpeg:default_library=static",
         "ffmpeg:auto_features=disabled",
-        "ffmpeg:gpl=disabled",
+        f"ffmpeg:gpl={'enabled' if data['platforms'][platform]['gpl'] else 'disabled'}",
         "ffmpeg:version3=disabled",
         "ffmpeg:nonfree=disabled",
         "ffmpeg:programs=disabled",
@@ -169,6 +173,7 @@ def cpp_header(data: dict, platform: str) -> str:
         "Demuxers": [RUNTIME_DEMUXER_NAMES.get(value, value) for value in data["demuxers"]],
         "Decoders": [RUNTIME_DECODER_NAMES.get(value, value) for value in data["decoders"]],
         "Encoders": data["encoders"],
+        "HardwareAccelerators": data["platforms"][platform]["hardwareAccelerators"],
         "Filters": data["filters"],
         "Muxers": data["muxers"],
         "BitstreamFilters": data["bitstreamFilters"],
@@ -182,6 +187,7 @@ def cpp_header(data: dict, platform: str) -> str:
         "",
         "namespace FfmpegCapabilities {",
         f'inline constexpr std::string_view kPlatform = "{platform}";',
+        f"inline constexpr bool kGplEnabled = {'true' if data['platforms'][platform]['gpl'] else 'false'};",
     ]
     for name, values in arrays.items():
         lines.append(f"inline constexpr std::array<std::string_view, {len(values)}> k{name} {{")
@@ -198,6 +204,9 @@ def audit_configuration(data: dict, platform: str, configuration: str) -> None:
     present_forbidden = [flag for flag in data["forbiddenConfigureFlags"] if flag in configuration]
     if present_forbidden:
         raise ValueError(f"effective FFmpeg configuration enables forbidden licensing: {', '.join(present_forbidden)}")
+    gpl_enabled = "--enable-gpl" in configuration
+    if gpl_enabled != data["platforms"][platform]["gpl"]:
+        raise ValueError(f"effective FFmpeg GPL policy does not match platform {platform}")
     allowed: dict[str, set[str]] = {}
     for key, configure_name in CATEGORIES.items():
         values = platform_protocols(data, platform) if key == "protocols" else data[key]
