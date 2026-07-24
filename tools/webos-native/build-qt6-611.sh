@@ -508,11 +508,12 @@ configure_target_qtbase() {
   if [[ "$QT_STATIC" == "1" ]]; then
     build_type_flags=(
       -DBUILD_SHARED_LIBS=OFF
+      -DCMAKE_POSITION_INDEPENDENT_CODE=ON
       -DCMAKE_BUILD_TYPE=MinSizeRel
       -DCMAKE_INTERPROCEDURAL_OPTIMIZATION=ON
       "-DCMAKE_C_FLAGS_MINSIZEREL=$QT_TARGET_TUNE_CFLAGS -Os -ffunction-sections -fdata-sections -DNDEBUG"
       "-DCMAKE_CXX_FLAGS_MINSIZEREL=$QT_TARGET_TUNE_CFLAGS -Os -ffunction-sections -fdata-sections -DNDEBUG"
-      -DCMAKE_EXE_LINKER_FLAGS=-Wl,--gc-sections
+      "-DCMAKE_EXE_LINKER_FLAGS=-Wl,--gc-sections"
       -DFEATURE_ltcg=ON
       -DFEATURE_reduce_exports=ON
     )
@@ -596,6 +597,7 @@ target_qtbase_up_to_date() {
   [[ -f "$TARGET_STAGING/.jellyfin-openssl-shared" ]] || return 1
   if [[ "$QT_STATIC" == "1" ]]; then
     [[ -f "$TARGET_STAGING/.jellyfin-static-size-profile-v1" ]] || return 1
+    [[ -f "$TARGET_STAGING/.jellyfin-static-pic-profile-v1" ]] || return 1
   fi
   [[ -f "$TARGET_STAGING/lib/cmake/Qt6/Qt6Config.cmake" ]] || return 1
   [[ -e "$TARGET_STAGING/$(target_lib_marker Qt6Core)" ]] || return 1
@@ -635,10 +637,11 @@ configure_target_module() {
     build_type="MinSizeRel"
     module_flags=(
       -DBUILD_SHARED_LIBS=OFF
+      -DCMAKE_POSITION_INDEPENDENT_CODE=ON
       -DCMAKE_INTERPROCEDURAL_OPTIMIZATION=ON
       "-DCMAKE_C_FLAGS_MINSIZEREL=$QT_TARGET_TUNE_CFLAGS -Os -ffunction-sections -fdata-sections -DNDEBUG"
       "-DCMAKE_CXX_FLAGS_MINSIZEREL=$QT_TARGET_TUNE_CFLAGS -Os -ffunction-sections -fdata-sections -DNDEBUG"
-      -DCMAKE_EXE_LINKER_FLAGS=-Wl,--gc-sections
+      "-DCMAKE_EXE_LINKER_FLAGS=-Wl,--gc-sections"
       -DFEATURE_ltcg=ON
     )
   fi
@@ -782,6 +785,7 @@ build_all_target_modules() {
 
   if [[ "$QT_STATIC" == "1" && -z "${QT_BUILD_FORCE_MODULES:-}" ]]; then
     printf '1\n' >"$TARGET_STAGING/.jellyfin-static-size-profile-v1"
+    printf '1\n' >"$TARGET_STAGING/.jellyfin-static-pic-profile-v1"
   fi
 
 }
