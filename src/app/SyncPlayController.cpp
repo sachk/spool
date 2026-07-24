@@ -19,6 +19,7 @@
 #include <cmath>
 #include <cstdlib>
 #include <limits>
+#include <utility>
 
 namespace JellyfinNative {
 
@@ -217,8 +218,10 @@ void SyncPlayController::leaveGroup()
 {
     if (!m_api || m_groupId.isEmpty())
         return;
+    auto request = m_api->leaveSyncPlayGroup();
+    clearGroup();
     Async::runScoped(
-        this, m_api->leaveSyncPlayGroup(), [this]() { clearGroup(); },
+        this, std::move(request), []() {},
         [this](const std::exception_ptr& error) { reportRequestError(QStringLiteral("leave group"), error); });
 }
 
@@ -618,6 +621,7 @@ void SyncPlayController::clearGroup()
 {
     m_commandTimer.stop();
     m_speedCorrectionTimer.stop();
+    m_bufferingDebounceTimer.stop();
     m_speedCorrectionActive = false;
     if (m_player)
         m_player->clearSyncPlaybackSpeed();
@@ -630,6 +634,8 @@ void SyncPlayController::clearGroup()
     m_lastCommandKey.clear();
     m_scheduledCommand.clear();
     m_scheduledPlaylistItemId.clear();
+    m_scheduledPositionTicks = 0;
+    m_scheduledServerTimeMs = 0;
     m_joinedAtServerMs = 0;
     m_queueHandoff.cancel();
     ++m_playQueueGeneration;
