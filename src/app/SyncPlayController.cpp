@@ -693,7 +693,8 @@ void SyncPlayController::executeScheduledCommand()
         m_lastCorrectionAtMs = 0;
         setPlaybackDiff(0, false);
         setSyncMethod(QStringLiteral("None"));
-        if (positionDelta * 1'000.0 > kDriftCorrectionThresholdMs && !m_player->seeking()) {
+        const bool soloGroup = participantCount() == 1;
+        if (!soloGroup && positionDelta * 1'000.0 > kDriftCorrectionThresholdMs && !m_player->seeking()) {
             m_suppressSeekBufferingUntilMs = QDateTime::currentMSecsSinceEpoch() + kInternalSeekBufferingSuppressionMs;
             m_player->seek(targetSeconds);
         }
@@ -718,6 +719,12 @@ void SyncPlayController::executeScheduledCommand()
 
 void SyncPlayController::correctPlaybackDrift()
 {
+    if (participantCount() == 1) {
+        setPlaybackDiff(0, false);
+        if (m_speedCorrectionActive)
+            finishSpeedCorrection();
+        return;
+    }
     if (!enabled() || !m_player || !m_player->sessionActive() || m_scheduledCommand != QStringLiteral("Unpause")
         || m_scheduledServerTimeMs <= 0 || m_player->paused() || m_player->buffering() || m_player->seeking()) {
         setPlaybackDiff(0, false);
