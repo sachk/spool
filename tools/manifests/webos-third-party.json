@@ -16,6 +16,11 @@
       "url": "https://codeload.github.com/danvratil/qcoro/tar.gz/refs/tags/v0.13.0",
       "sha256": "4bff7513c5c8e301b66308df05795043b1792ed16381a484e5c990171b8ff19e"
     },
+    "lua": {
+      "version": "5.2.4",
+      "url": "https://www.lua.org/ftp/lua-5.2.4.tar.gz",
+      "sha256": "b9e2e4aad6789b3b63a056d442f7b39f0ecfca3ae0f1fc0ae4e9614401b69f4b"
+    },
     "fribidi": {
       "revision": "069a7e3d31e6aa74f2068a8e0804106ce7906639",
       "url": "https://codeload.github.com/fribidi/fribidi/tar.gz/069a7e3d31e6aa74f2068a8e0804106ce7906639",

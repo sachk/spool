@@ -583,7 +583,6 @@ FocusScope {
             return
         const showing = !player.debugOsdVisible
         player.toggleDebugOsd()
-        diagnosticsVisibilityRequested(showing)
         if (showing) {
             autohide.stop()
             controlsVisible = false

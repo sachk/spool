@@ -131,6 +131,7 @@
     "webos": [
       "alsa=enabled",
       "wayland=enabled",
+      "lua=enabled",
       "starfish=enabled"
     ],
     "windows": [

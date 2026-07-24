@@ -32,6 +32,7 @@ fetch_sources() {
   prepare_manifest_source "$ROOT" "$MANIFEST" libass "$SRC_ROOT/libass"
   prepare_manifest_source "$ROOT" "$MANIFEST" libplacebo "$SRC_ROOT/libplacebo"
   prepare_manifest_source "$ROOT" "$MANIFEST" dovi_tool "$SRC_ROOT/dovi_tool"
+  prepare_manifest_source "$ROOT" "$MANIFEST" lua "$SRC_ROOT/lua"
 
   while IFS=$'\t' read -r path url sha; do
     [[ -n "$path" ]] || continue
@@ -100,6 +101,31 @@ build_meson() {
   meson compile -C "$build_dir" -j "$WEBOS_BUILD_JOBS"
   DESTDIR="$SYSROOT" meson install -C "$build_dir"
 }
+
+rm -f "$SRC_ROOT/lua/src"/*.o "$SRC_ROOT/lua/src/liblua.a"
+make -C "$SRC_ROOT/lua/src" \
+  CC="$SDK_BIN/arm-webos-linux-gnueabi-gcc -std=gnu99" \
+  AR="$SDK_BIN/arm-webos-linux-gnueabi-ar rcu" \
+  RANLIB="$SDK_BIN/arm-webos-linux-gnueabi-ranlib" \
+  MYCFLAGS="-fPIC" \
+  SYSLIBS="-ldl -lm" \
+  liblua.a
+install -Dm644 "$SRC_ROOT/lua/src/liblua.a" "$PREFIX/lib/liblua.a"
+for header in lua.h luaconf.h lualib.h lauxlib.h lua.hpp; do
+  install -Dm644 "$SRC_ROOT/lua/src/$header" "$PREFIX/include/$header"
+done
+mkdir -p "$PREFIX/lib/pkgconfig"
+cat >"$PREFIX/lib/pkgconfig/lua.pc" <<EOF
+prefix=$TARGET_PREFIX
+libdir=\${prefix}/lib
+includedir=\${prefix}/include
+
+Name: Lua
+Description: Lua 5.2 scripting language
+Version: 5.2.4
+Libs: -L\${libdir} -llua -lm -ldl
+Cflags: -I\${includedir}
+EOF
 
 build_meson fribidi "$SRC_ROOT/fribidi" \
   --default-library static \
