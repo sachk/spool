@@ -45,6 +45,9 @@ namespace {
         QOpenGLFramebufferObject *createFramebufferObject(const QSize& size) override
         {
             m_hasRenderedFrame = false;
+            m_hasRenderedVideoFrame = false;
+            m_swapPending = false;
+            m_firstVideoFrameSwapPending = false;
             QOpenGLFramebufferObjectFormat fmt;
             fmt.setAttachment(QOpenGLFramebufferObject::CombinedDepthStencil);
             return new QOpenGLFramebufferObject(size, fmt);
@@ -87,6 +90,8 @@ namespace {
             if (m_hasRenderedFrame && !(updateFlags & MPV_RENDER_UPDATE_FRAME))
                 return;
 
+            const bool firstVideoFrame = !m_hasRenderedVideoFrame && (updateFlags & MPV_RENDER_UPDATE_FRAME);
+
             QOpenGLFramebufferObject *fbo = framebufferObject();
             if (!fbo)
                 return;
@@ -108,6 +113,12 @@ namespace {
             if (m_window)
                 m_window->endExternalCommands();
             m_hasRenderedFrame = true;
+            m_swapPending = true;
+            if (firstVideoFrame) {
+                m_hasRenderedVideoFrame = true;
+                m_firstVideoFrameSwapPending = true;
+                qInfo() << "player: first video frame rendered";
+            }
         }
 
     private:
@@ -124,9 +135,16 @@ namespace {
             m_frameSwappedConnection = QObject::connect(
                 m_window, &QQuickWindow::frameSwapped, m_window,
                 [this] {
-                    if (m_item) {
-                        if (auto *ctx = m_item->m_renderCtxAtomic.load())
-                            mpv_render_context_report_swap(ctx);
+                    if (!m_item || !m_swapPending)
+                        return;
+
+                    m_swapPending = false;
+                    if (auto *ctx = m_item->m_renderCtxAtomic.load()) {
+                        mpv_render_context_report_swap(ctx);
+                        if (m_firstVideoFrameSwapPending) {
+                            m_firstVideoFrameSwapPending = false;
+                            qInfo() << "player: first video frame swapped";
+                        }
                     }
                 },
                 Qt::DirectConnection);
@@ -184,6 +202,9 @@ namespace {
         void releaseRenderContext()
         {
             m_hasRenderedFrame = false;
+            m_hasRenderedVideoFrame = false;
+            m_swapPending = false;
+            m_firstVideoFrameSwapPending = false;
             if (!m_item)
                 return;
             if (auto *ctx = m_item->m_renderCtxAtomic.exchange(nullptr)) {
@@ -215,6 +236,9 @@ namespace {
         mpv_handle *m_nextHandle = nullptr;
         bool m_handleDirty = false;
         bool m_hasRenderedFrame = false;
+        bool m_hasRenderedVideoFrame = false;
+        bool m_swapPending = false;
+        bool m_firstVideoFrameSwapPending = false;
         QPointer<QObject> m_releaseWaiter;
         std::shared_ptr<std::atomic_bool> m_releaseCompleted;
     };

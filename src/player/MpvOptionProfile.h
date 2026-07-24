@@ -38,7 +38,7 @@ public:
     static std::vector<MpvOption> applicationOptions(Platform platform, const QString& audioOutputMode,
         const QByteArray& logPath, const QByteArray& demuxerMaxBytes = QByteArrayLiteral("64M"),
         const QByteArray& demuxerMaxBackBytes = QByteArrayLiteral("32M"), int parallelRequests = 1,
-        bool softwareVideo = false);
+        bool softwareVideo = false, const QByteArray& shaderCachePath = {});
     static std::vector<MpvOption> subtitleOptions(
         const SubtitlePreferences& preferences, bool subtitlesEnabled, bool hdrPlayback = false);
 };

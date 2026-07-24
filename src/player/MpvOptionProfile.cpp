@@ -230,7 +230,7 @@ bool MpvOptionProfile::useWebOSSoftwareVideo(const PlaybackSession& session)
 
 std::vector<MpvOption> MpvOptionProfile::applicationOptions(Platform platform, const QString& audioOutputMode,
     const QByteArray& logPath, const QByteArray& demuxerMaxBytes, const QByteArray& demuxerMaxBackBytes,
-    int parallelRequests, bool softwareVideo)
+    int parallelRequests, bool softwareVideo, const QByteArray& shaderCachePath)
 {
     const bool webOS = platform == Platform::WebOS;
     softwareVideo = webOS && softwareVideo;
@@ -255,8 +255,11 @@ std::vector<MpvOption> MpvOptionProfile::applicationOptions(Platform platform, c
         { "curl-parallel-requests", QByteArray::number(network.parallelRequests) },
         { "force-window", "no" },
     };
-    if (!webOS)
+    if (!webOS) {
         options.push_back({ "ytdl", "no" });
+        if (!shaderCachePath.isEmpty())
+            options.push_back({ "gpu-shader-cache-dir", shaderCachePath });
+    }
 
     if (webOS) {
         options.push_back({ "initial-audio-sync", softwareVideo ? "yes" : "no" });

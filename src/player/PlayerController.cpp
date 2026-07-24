@@ -93,6 +93,13 @@ namespace {
         return path;
     }
 
+    QByteArray mpvShaderCachePath()
+    {
+        const QString cacheDirectory = QDir(QStandardPaths::writableLocation(QStandardPaths::CacheLocation))
+                                           .filePath(QStringLiteral("mpv-shaders"));
+        return QFile::encodeName(cacheDirectory);
+    }
+
     QByteArray bundledSubtitleFontsPath()
     {
         const QString fontsPath
@@ -395,7 +402,7 @@ bool PlayerController::configureAndInitializeMpv(mpv_handle *handle, bool embedd
         return false;
 
     auto applicationOptions = MpvOptionProfile::applicationOptions(platform, m_audioOutputMode, mpvLogPath(),
-        m_demuxerMaxBytes, m_demuxerMaxBackBytes, parallelRequests, embeddedVideo);
+        m_demuxerMaxBytes, m_demuxerMaxBackBytes, parallelRequests, embeddedVideo, mpvShaderCachePath());
     const QByteArray subtitleFontsPath = bundledSubtitleFontsPath();
     if (!subtitleFontsPath.isEmpty())
         applicationOptions.push_back({ "sub-fonts-dir", subtitleFontsPath });
@@ -416,6 +423,7 @@ void PlayerController::observeMpvProperties(mpv_handle *handle)
     mpv_observe_property(handle, 0, "chapter-list", MPV_FORMAT_NODE);
     mpv_observe_property(handle, 0, "chapter", MPV_FORMAT_INT64);
     mpv_observe_property(handle, 0, "video-params/transfer", MPV_FORMAT_STRING);
+    mpv_observe_property(handle, 0, "hwdec-current", MPV_FORMAT_STRING);
     mpv_observe_property(handle, 0, "decoder-frame-drop-count", MPV_FORMAT_INT64);
     mpv_observe_property(handle, 0, "frame-drop-count", MPV_FORMAT_INT64);
 }
@@ -1797,6 +1805,10 @@ void PlayerController::handleMpvEvent(mpv_event *event)
                 m_volume = clampedVolume;
                 emit volumeChanged();
             });
+        } else if (strcmp(property->name, "hwdec-current") == 0 && property->format == MPV_FORMAT_STRING) {
+            const QByteArray decoder(static_cast<const char *>(property->data));
+            QMetaObject::invokeMethod(
+                this, [decoder]() { qInfo() << "player: hardware decoder" << (decoder.isEmpty() ? "none" : decoder); });
         } else if (strcmp(property->name, "video-params/transfer") == 0 && property->format == MPV_FORMAT_STRING) {
             const QByteArray transfer(static_cast<const char *>(property->data));
             const QByteArray normalizedTransfer = transfer.toLower();

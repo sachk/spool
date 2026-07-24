@@ -32,11 +32,11 @@ std::vector<MpvOption> profileOptions(const MpvConfigPolicy& policy, MpvOptionPr
     const QString& audioOutputMode, const QByteArray& logPath,
     const QByteArray& demuxerMaxBytes = QByteArrayLiteral("64M"),
     const QByteArray& demuxerMaxBackBytes = QByteArrayLiteral("32M"), int parallelRequests = 1,
-    bool softwareVideo = false)
+    bool softwareVideo = false, const QByteArray& shaderCachePath = QByteArrayLiteral("/tmp/mpv-shaders"))
 {
     std::vector<MpvOption> options = MpvOptionProfile::preInitializeOptions(policy);
-    std::vector<MpvOption> applicationOptions = MpvOptionProfile::applicationOptions(
-        platform, audioOutputMode, logPath, demuxerMaxBytes, demuxerMaxBackBytes, parallelRequests, softwareVideo);
+    std::vector<MpvOption> applicationOptions = MpvOptionProfile::applicationOptions(platform, audioOutputMode, logPath,
+        demuxerMaxBytes, demuxerMaxBackBytes, parallelRequests, softwareVideo, shaderCachePath);
     options.insert(options.end(), applicationOptions.cbegin(), applicationOptions.cend());
     return options;
 }
@@ -65,6 +65,8 @@ int main(int argc, char **argv)
     require(valueFor(desktop, "vo") == "libmpv", "desktop should render through libmpv");
     require(valueFor(desktop, "hwdec") == "auto-safe", "desktop should enable safe hardware decoding");
     require(valueFor(desktop, "log-file") == "/tmp/mpv.log", "profile should carry the configured log path");
+    require(valueFor(desktop, "gpu-shader-cache-dir") == "/tmp/mpv-shaders",
+        "desktop should use the application-owned persistent shader cache");
     require(valueFor(desktop, "curl-enabled") == "yes", "desktop should use the libcurl stream backend");
     require(valueFor(desktop, "curl-buffer-size") == "4194304", "desktop should use a 4 MiB network ring");
     require(valueFor(desktop, "curl-max-request-size") == "1048576", "desktop should issue 1 MiB ranges");
@@ -203,6 +205,8 @@ int main(int argc, char **argv)
     require(valueFor(webOSPcm, "curl-buffer-size") == "2097152", "webOS should use a 2 MiB network ring");
     require(valueFor(webOSPcm, "curl-max-request-size") == "524288", "webOS should issue 512 KiB ranges");
     require(valueFor(webOSPcm, "curl-parallel-requests") == "1", "webOS should default to one range request");
+    require(
+        valueFor(webOSPcm, "gpu-shader-cache-dir").isEmpty(), "webOS should not configure the desktop shader cache");
     require(valueFor(webOSPcm, "ytdl").isEmpty(), "webOS should not configure the omitted URL script");
     require(valueFor(webOSPcm, "osc").isEmpty(), "webOS should not configure the omitted script UI");
     require(valueFor(webOSPcm, "load-console").isEmpty(), "webOS should not configure omitted builtin scripts");
