@@ -93,7 +93,13 @@ FocusScope {
         entries = buildEntries()
         currentIndex = firstActionable(entries)
         menuOpen = true
-        InputKeys.focus(list)
+        Qt.callLater(function () {
+            if (!menuOpen)
+                return
+            list.currentIndex = currentIndex
+            InputKeys.focus(list)
+            list.forceActiveFocus(Qt.PopupFocusReason)
+        })
     }
 
     function closeMenu() {
