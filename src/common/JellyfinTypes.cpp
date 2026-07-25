@@ -453,6 +453,12 @@ bool isGenericEpisodeTitle(const MovieItem& item)
 
 int episodicPlaybackStartIndex(const std::vector<MovieItem>& episodes)
 {
+    for (int index = 0; index < static_cast<int>(episodes.size()); ++index) {
+        const MovieItem& episode = episodes[static_cast<size_t>(index)];
+        if (!episode.played && episode.resumeTicks > 0 && isPlayableItem(episode))
+            return index;
+    }
+
     int lastPlayed = -1;
     for (int index = 0; index < static_cast<int>(episodes.size()); ++index) {
         if (episodes[static_cast<size_t>(index)].played)

@@ -520,6 +520,15 @@ void testEpisodePlaybackMetadata()
     require(episodicPlaybackStartIndex(episodes) == 3,
         "Episodic playback should skip virtual rows after the last watched episode");
 
+    MovieItem resumableEpisode = episode;
+    resumableEpisode.played = false;
+    resumableEpisode.resumeTicks = 12'000'000;
+    episodes[1] = resumableEpisode;
+    episodes[3].played = true;
+    require(episodicPlaybackStartIndex(episodes) == 1,
+        "Episodic playback should resume an in-progress episode before later watched episodes");
+
+    episodes[1] = episode;
     episodes[3].played = true;
     require(
         episodicPlaybackStartIndex(episodes) == -1, "Episodic playback must not wrap after the final watched episode");
