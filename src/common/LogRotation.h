@@ -16,6 +16,30 @@ inline void ensureParentDirectoryExists(const char *path)
     QDir().mkpath(info.absolutePath());
 }
 
+inline void makeWebOSSupportLogsReadable(const QString& current)
+{
+#ifdef JELLYFIN_NATIVE_WEBOS
+    const QFileInfo info(current);
+    QFile::setPermissions(info.absolutePath(),
+        QFileDevice::ReadOwner | QFileDevice::WriteOwner | QFileDevice::ExeOwner | QFileDevice::ReadGroup
+            | QFileDevice::ExeGroup | QFileDevice::ReadOther | QFileDevice::ExeOther);
+
+    QFile active(current);
+    if (!active.open(QIODevice::WriteOnly | QIODevice::Truncate))
+        return;
+    active.close();
+
+    constexpr auto permissions
+        = QFileDevice::ReadOwner | QFileDevice::WriteOwner | QFileDevice::ReadGroup | QFileDevice::ReadOther;
+    for (const QString& path : { current, current + QStringLiteral(".1"), current + QStringLiteral(".2") }) {
+        if (QFileInfo::exists(path))
+            QFile::setPermissions(path, permissions);
+    }
+#else
+    Q_UNUSED(current);
+#endif
+}
+
 inline void rotateLogFile(const char *path)
 {
     ensureParentDirectoryExists(path);
@@ -25,6 +49,7 @@ inline void rotateLogFile(const char *path)
     QFile::remove(second);
     QFile::rename(first, second);
     QFile::rename(current, first);
+    makeWebOSSupportLogsReadable(current);
 }
 
 } // namespace JellyfinNative
