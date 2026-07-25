@@ -32,6 +32,7 @@
 #include <QWindow>
 
 #include <algorithm>
+#include <cstdio>
 #include <memory>
 #if defined(__GLIBC__)
 #include <malloc.h>
@@ -59,18 +60,8 @@ namespace {
 
     bool decodeTrackSelection(const QByteArray& value, int& audioStreamIndex, int& subtitleStreamIndex)
     {
-        const QList<QByteArray> parts = value.split(',');
-        if (parts.size() != 2)
-            return false;
-        bool audioValid = false;
-        bool subtitleValid = false;
-        const int audio = parts[0].toInt(&audioValid);
-        const int subtitle = parts[1].toInt(&subtitleValid);
-        if (!audioValid || !subtitleValid)
-            return false;
-        audioStreamIndex = audio;
-        subtitleStreamIndex = subtitle;
-        return true;
+        char trailing;
+        return std::sscanf(value.constData(), "%d,%d%c", &audioStreamIndex, &subtitleStreamIndex, &trailing) == 2;
     }
 
     bool isBrowseContainer(const MovieItem& item)

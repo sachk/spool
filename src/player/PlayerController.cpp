@@ -1150,6 +1150,7 @@ void PlayerController::selectSubtitle(int index)
         m_window->clearOverlay();
     }
     updateReportedStreamSelection(true);
+    emit streamSelectionChanged(m_session.audioStreamIndex, m_session.subtitleStreamIndex);
     emit tracksChanged();
 }
 
@@ -1174,6 +1175,7 @@ void PlayerController::selectAudio(int index)
         return;
     m_tracks.applyAudioSelection(index);
     updateReportedStreamSelection(true);
+    emit streamSelectionChanged(m_session.audioStreamIndex, m_session.subtitleStreamIndex);
     platformAudioTrackChanged(index);
     emit tracksChanged();
 }
@@ -1219,17 +1221,11 @@ int PlayerController::streamIndexForUiTrack(const QString& type, int uiIndex, in
 
 void PlayerController::updateReportedStreamSelection(bool sendProgress)
 {
-    const int previousAudioStreamIndex = m_session.audioStreamIndex;
-    const int previousSubtitleStreamIndex = m_session.subtitleStreamIndex;
     m_session.audioStreamIndex = streamIndexForUiTrack(QStringLiteral("Audio"), m_tracks.selectedAudioIndex(), 0);
     m_session.subtitleStreamIndex = m_tracks.subtitlesEnabled()
         ? streamIndexForUiTrack(QStringLiteral("Subtitle"), m_tracks.selectedSubtitleIndex(), 1)
         : -1;
-    const bool selectionChanged = previousAudioStreamIndex != m_session.audioStreamIndex
-        || previousSubtitleStreamIndex != m_session.subtitleStreamIndex;
     const bool reportChanged = m_reporter.setStreamIndexes(m_session.audioStreamIndex, m_session.subtitleStreamIndex);
-    if (selectionChanged)
-        emit streamSelectionChanged(m_session.audioStreamIndex, m_session.subtitleStreamIndex);
     if (reportChanged && sendProgress && m_sessionActive)
         m_reporter.reportProgress(secondsToTicks(m_positionTracker.position()), m_paused, effectivePlaybackSpeed());
 }
@@ -1831,14 +1827,24 @@ void PlayerController::handleMpvEvent(mpv_event *event)
             QMetaObject::invokeMethod(this, [this, tracks]() {
                 m_tracks.applyParsedTracks(tracks);
                 if (m_restoreStreamSelection) {
-                    m_restoreStreamSelection = false;
-                    if (m_session.audioStreamIndex >= 0)
-                        selectAudioStreamIndex(m_session.audioStreamIndex);
-                    selectSubtitleStreamIndex(m_session.subtitleStreamIndex);
-                    updateReportedStreamSelection(true);
-                } else {
-                    updateReportedStreamSelection(true);
+                    const int audioStreamIndex = m_session.audioStreamIndex;
+                    const int subtitleStreamIndex = m_session.subtitleStreamIndex;
+                    const int audioUiIndex = uiTrackIndexForStream(QStringLiteral("Audio"), audioStreamIndex, 0);
+                    const int subtitleUiIndex = subtitleStreamIndex < 0
+                        ? 0
+                        : uiTrackIndexForStream(QStringLiteral("Subtitle"), subtitleStreamIndex, 1);
+                    const bool tracksPending = (audioUiIndex >= 0 && !m_tracks.audioCommand(audioUiIndex))
+                        || (subtitleUiIndex >= 0 && !m_tracks.subtitleCommand(subtitleUiIndex));
+                    if (!tracksPending) {
+                        m_restoreStreamSelection = false;
+                        if (audioUiIndex >= 0)
+                            selectAudio(audioUiIndex);
+                        if (subtitleUiIndex >= 0)
+                            selectSubtitle(subtitleUiIndex);
+                    }
                 }
+                if (!m_restoreStreamSelection)
+                    updateReportedStreamSelection(true);
                 qInfo() << "player: subtitle tracks" << tracks.subtitleLabels << "selected"
                         << tracks.selectedSubtitleIndex << "audio tracks" << tracks.audioLabels << "selected"
                         << tracks.selectedAudioIndex;
