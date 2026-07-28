@@ -424,12 +424,10 @@ FocusScope {
     }
 
     onRouteActiveChanged: {
-        if (routeActive) {
-            syncUserState()
-            scheduleActiveRouteRefresh()
-        } else {
-            App.cancelEpisodicPlaybackSelection()
-        }
+        if (routeActive)
+        enterRoute(false)
+        else
+        App.cancelEpisodicPlaybackSelection()
     }
 
     onActiveFocusChanged: {
@@ -445,10 +443,14 @@ FocusScope {
     onRouteItemChanged: {
         seasonPickerOpen = false
         overflowOpen = false
-        if (routeActive) {
-            syncUserState()
-            scheduleActiveRouteRefresh()
-        }
+        if (routeActive)
+        enterRoute(true)
+    }
+    function enterRoute(resetFocus) {
+        syncUserState()
+        if (resetFocus)
+            focusDefaultAction()
+        scheduleActiveRouteRefresh()
     }
 
     function scheduleActiveRouteRefresh() {

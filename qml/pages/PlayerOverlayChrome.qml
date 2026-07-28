@@ -75,20 +75,23 @@ Item {
     }
 
     TapHandler {
-        onTapped: eventPoint => {
+        acceptedButtons: Qt.LeftButton
+        onPressedChanged: {
+            if (!pressed)
+            return
             if (root.syncPlayMenuOpen) {
-                const local = syncPlayMenu.mapFromItem(root, eventPoint.position.x, eventPoint.position.y)
+                const local = syncPlayMenu.mapFromItem(root, point.position.x, point.position.y)
                 const syncTarget = transportBar.actionTarget("syncplay")
                 if (syncTarget) {
-                    const syncLocal = syncTarget.mapFromItem(root, eventPoint.position.x, eventPoint.position.y)
+                    const syncLocal = syncTarget.mapFromItem(root, point.position.x, point.position.y)
                     if (syncTarget.contains(syncLocal))
-                        return
+                    return
                 }
                 if (!syncPlayMenu.contains(local))
-                    root.overlay.closeMenu()
+                root.overlay.closeMenu()
                 return
             }
-            root.overlay.showControls("timeline")
+            root.overlay.showControlsFromPointer()
         }
     }
     HoverHandler {

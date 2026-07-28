@@ -261,27 +261,30 @@ KeyRouter {
         InputKeys.focus(routeStack)
     }
 
-    function openDetailsRoute(request) {
-        const normalized = RoutePolicy.normalizeDetailsRoute(request, Browse.items, route)
-        if (!normalized) {
-            const focusIndex = Math.max(0, Number(request && request.focusIndex !== undefined ? request.focusIndex : 0))
-            console.warn("details route ignored: missing item id", request ? request.source : "", focusIndex)
+    function commitDetailsRoute(args, source, focusIndex) {
+        if (!args) {
+            console.warn("details route ignored: missing item id", source || "", Math.max(0, Number(focusIndex || 0)))
             return false
         }
-
         if (route === "itemDetails") {
-            Router.replace("itemDetails", normalized)
+            Router.replace("itemDetails", args)
             InputKeys.focus(routeStack)
-            return true
+        } else {
+            pushRoute("itemDetails", args)
         }
-        pushRoute("itemDetails", normalized)
         return true
+    }
+
+    function openDetailsRoute(request) {
+        return commitDetailsRoute(RoutePolicy.normalizeDetailsRoute(request, Browse.items, route), request
+                                  ? request.source : "", request ? request.focusIndex : 0)
     }
 
     function openDetailsAt(model, index, source, returnRoute) {
         const nextModel = model || (Browse.items)
-        const request = RoutePolicy.detailsRouteAt(nextModel, index, source, returnRoute, route)
-        return request ? openDetailsRoute(request) : false
+        return commitDetailsRoute(RoutePolicy.detailsRouteAt(nextModel, index, source, returnRoute, route), source,
+                                  index)
+
     }
 
     function openSeriesDetails(seriesId, seriesName, returnRoute) {
@@ -639,15 +642,15 @@ KeyRouter {
             onActiveFocusChanged: if (activeFocus)
                                       root.navigationTarget = navBar
             onNavigate: r => {
-                            if (r === "home")
-                            root.goHome()
-                            else if (r === "switchUser")
-                            root.switchUser()
-                            else if (r === "settings")
-                            root.pushRoute("settings")
-                            else
-                            root.pushRoute(r)
-                        }
+                if (r === "home")
+                    root.goHome()
+                else if (r === "switchUser")
+                    root.switchUser()
+                else if (r === "settings")
+                    root.pushRoute("settings")
+                else
+                    root.pushRoute(r)
+            }
             onContentRequested: root.focusContent()
         }
 
