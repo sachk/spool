@@ -12,6 +12,9 @@ T.Control {
     property bool rowFocus: activeFocus
     property int settingIndex: -1
     property bool pointerActivationEnabled: true
+    // Controls placed where valueText would otherwise go, laid out rather than
+    // anchored so the title column cannot run underneath them.
+    property alias trailing: trailingRow.data
     signal clicked
     focusPolicy: Qt.StrongFocus
     focus: true
@@ -70,6 +73,12 @@ T.Control {
             Layout.maximumWidth: Math.max(Metrics.scaled(96), root.width * 0.42)
             maximumLineCount: 1
             elide: Text.ElideRight
+        }
+
+        RowLayout {
+            id: trailingRow
+            spacing: Metrics.scaled(12)
+            Layout.alignment: Qt.AlignVCenter
         }
     }
 }

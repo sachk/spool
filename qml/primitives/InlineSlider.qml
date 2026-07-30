@@ -10,6 +10,9 @@ Item {
     property real stepSize: 0
     property real barHeight: 6
     property real handleSize: 16
+    // Set when the owning row has focus, so the track reads as the thing the
+    // remote is about to change.
+    property bool highlighted: false
 
     signal moved
 
@@ -40,7 +43,7 @@ Item {
             width: parent.width * root.position
             height: parent.height
             radius: parent.radius
-            color: Theme.textSecondary
+            color: root.highlighted ? Theme.accent : Theme.textSecondary
         }
     }
 
@@ -51,8 +54,8 @@ Item {
         height: width
         radius: width / 2
         color: Theme.textPrimary
-        border.width: 1
-        border.color: Theme.bg
+        border.width: root.highlighted ? Theme.focusBorderWidth : 1
+        border.color: root.highlighted ? Theme.accent : Theme.bg
     }
 
     TapHandler {
