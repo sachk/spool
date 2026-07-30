@@ -17,6 +17,11 @@ on:
         required: true
         default: false
         type: boolean
+      upload_artifacts:
+        description: "Upload packages after successful builds"
+        required: true
+        default: true
+        type: boolean
       build_webos:
         description: "Build webOS IPK on the maintainer runner"
         required: true
@@ -155,7 +160,7 @@ jobs:
         run: nix develop .#native -c bash tools/package-appimage.sh
 
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.0
-        if: ${{ github.event_name == 'workflow_dispatch' || inputs.release }}
+        if: ${{ (github.event_name == 'workflow_dispatch' && inputs.upload_artifacts) || inputs.release }}
         with:
           name: jellyfin-native-linux-appimage
           path: dist/*.AppImage
@@ -240,6 +245,7 @@ jobs:
         run: tools/notarize-macos.sh dist/*.dmg
 
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.0
+        if: ${{ github.event_name != 'workflow_dispatch' || inputs.upload_artifacts }}
         with:
           name: jellyfin-native-macos-dmg
           path: dist/*.dmg
@@ -397,6 +403,7 @@ jobs:
         run: tools/package-webos-relink.sh build/relink
 
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.0
+        if: ${{ github.event_name != 'workflow_dispatch' || inputs.upload_artifacts }}
         with:
           name: jellyfin-native-webos-ipk
           path: |
