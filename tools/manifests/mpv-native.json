@@ -132,7 +132,7 @@
       "gl-cocoa=enabled",
       "macos-cocoa-cb=disabled",
       "macos-media-player=disabled",
-      "swift-build=disabled",
+      "swift-build=enabled",
       "videotoolbox-gl=enabled",
       "videotoolbox-pl=disabled",
       "vulkan=disabled"

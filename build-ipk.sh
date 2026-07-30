@@ -142,6 +142,10 @@ echo "Building libdovi..."
 
   CARGO_CMD=(cargo)
   if command -v rustup >/dev/null 2>&1; then
+    if ! rustup run "$DOVI_RUST_TOOLCHAIN" cargo --version >/dev/null 2>&1; then
+      echo "Repairing incomplete Rust $DOVI_RUST_TOOLCHAIN toolchain..."
+      rustup toolchain uninstall "$DOVI_RUST_TOOLCHAIN" || true
+    fi
     rustup toolchain install "$DOVI_RUST_TOOLCHAIN" \
       --profile minimal \
       --target "$DOVI_RUST_TARGET"
