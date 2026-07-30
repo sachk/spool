@@ -14,6 +14,38 @@ function rowAvailable(row, isTV, hdrPlayback, valueForKey) {
     return true
 }
 
+// Flatten hand-authored sections into a MenuListView model. resolve(key)
+// returns the spec to show for a key, or a falsy value to leave it out; a
+// section whose rows all drop out takes its header with it. Header entries are
+// tagged so MenuListView's default rowEnabled skips over them.
+function sectionedRows(sections, resolve) {
+    const rows = []
+    for (let s = 0; s < sections.length; ++s) {
+        const section = sections[s]
+        const visible = []
+        for (let k = 0; k < section.keys.length; ++k) {
+            const spec = resolve(section.keys[k])
+            if (spec) {
+                visible.push({
+                                 "section": false,
+                                 "spec": spec
+                             })
+            }
+        }
+        if (visible.length === 0)
+            continue
+        rows.push({
+                      "section": true,
+                      "spec": {
+                          "title": section.title
+                      }
+                  })
+        for (let v = 0; v < visible.length; ++v)
+            rows.push(visible[v])
+    }
+    return rows
+}
+
 function detailLevel(row) {
     return row && row.level !== undefined ? Number(row.level) : 0
 }

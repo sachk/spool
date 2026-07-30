@@ -340,6 +340,7 @@ qt_add_qml_module(jellyfin-native
         qml/pages/SearchPage.qml
         qml/pages/SettingsPage.qml
         qml/pages/SettingsNavigation.js
+        qml/pages/SubtitleSettingsPanel.qml
         qml/primitives/ActionButton.qml
         qml/primitives/AppText.qml
         qml/primitives/AtomicViewReveal.qml
@@ -648,6 +649,10 @@ if(BUILD_TESTING AND NOT CMAKE_CROSSCOMPILING)
         add_test(NAME settings-navigation
             COMMAND "${QMLTESTRUNNER_EXECUTABLE}"
                 -input "${CMAKE_CURRENT_SOURCE_DIR}/tests/qml/tst_SettingsNavigation.qml"
+        )
+        add_test(NAME subtitle-settings-panel
+            COMMAND "${QMLTESTRUNNER_EXECUTABLE}"
+                -input "${CMAKE_CURRENT_SOURCE_DIR}/tests/qml/tst_SubtitleSettingsPanel.qml"
         )
         add_test(NAME atomic-view-reveal
             COMMAND "${QMLTESTRUNNER_EXECUTABLE}"

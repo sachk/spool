@@ -15,26 +15,16 @@ FocusScope {
     property var allSettingsRows: []
     property var settingsRows: []
     property int detailLevelRevision: 0
-    property bool subtitleEditor: false
-    property bool playbackPreview: false
     property bool choiceDialogVisible: false
     property var choiceDialogRow: null
     property Item choiceDialogAnchor: null
     readonly property var choiceDialog: choiceDialogLoader.item
     readonly property var mpvFolderDialog: mpvFolderDialogLoader.item
     property bool contentReady: false
-    property bool resetSubtitleConfirmationVisible: false
     property bool certificateManagerVisible: false
     property bool diagnosticsExportVisible: false
     property string diagnosticsExportPreview: ""
-    property var pendingSubtitleAppearance: ({})
-    readonly property var subtitleAppearanceKeys: ["subtitles/styling", "subtitles/textSize", "subtitles/scalePercent",
-        "subtitles/bitmapSmoothing", "subtitles/textWeight", "subtitles/font", "subtitles/textColor",
-        "subtitles/dropShadow", "subtitles/textBackground", "subtitles/verticalPositionPercent", "subtitles/dimInHdr",
-        "subtitles/hdrBrightnessPercent"]
     property bool pendingCustomMpvMode: false
-
-    signal dismissed
 
     readonly property var groupOrder: ["Account", "Playback", "Subtitles", "Appearance", "Diagnostics", "About",
         "Button Remap"]
@@ -57,55 +47,7 @@ FocusScope {
         return SettingsNavigation.detailLevel(row)
     }
 
-    function expandedSchemaRow(row) {
-        if (!row || row.key !== "subtitles/font" || !Platform.hasSystemFonts)
-            return row
-        const expanded = Object.assign({}, row)
-        expanded.choiceLabels = []
-        expanded.choiceValues = []
-        for (let index = 0; index < row.choiceLabels.length; ++index) {
-            expanded.choiceLabels.push(row.choiceLabels[index])
-            expanded.choiceValues.push(row.choiceValues[index])
-        }
-        const families = Settings.systemSubtitleFonts
-        for (let index = 0; index < families.length; ++index) {
-            expanded.choiceLabels.push("System — " + families[index])
-            expanded.choiceValues.push("system:" + families[index])
-        }
-        return expanded
-    }
-
-    function previewFontFamily() {
-        const value = String(Settings.values["subtitles/font"] || "")
-        if (value.indexOf("system:") === 0)
-            return value.slice(7)
-        if (value === "interface")
-            return Typography.sans
-        return Typography.subtitle
-    }
-
-    function previewTextSize() {
-        const value = String(Settings.values["subtitles/textSize"] || "")
-        const factors = {
-            "smaller": 0.8,
-            "small": 0.91,
-            "large": 1.16,
-            "extralarge": 1.53
-        }
-        return Metrics.scaled(28) * Number(factors[value] || 1) * Number(Settings.values["subtitles/scalePercent"]
-                                                                         || 100) / 100
-    }
-
-    function previewBackgroundColor() {
-        const value = String(Settings.values["subtitles/textBackground"] || "transparent")
-        if (value === "opaque")
-            return "#ff000000"
-        if (value === "translucent")
-            return "#a0000000"
-        return "transparent"
-    }
-
-    function appendSourceRows(rows, context, rowMap, targetRows) {
+    function appendSourceRows(rows, rowMap, targetRows) {
         const lastGroups = ["", "", ""]
         for (let index = 0; index < rows.length; ++index) {
             const row = rows[index]
@@ -120,7 +62,6 @@ FocusScope {
             }
             targetRows.push({
                                 "rowKey": row.key,
-                                "rowContext": context,
                                 "detailLevel": level,
                                 "headerEssential": headers[0],
                                 "headerAdvanced": headers[1],
@@ -136,8 +77,7 @@ FocusScope {
             const row = rowsByKey[entry.rowKey]
             if (!rowAvailable(row))
                 continue
-            if (subtitleEditor ? entry.rowContext === "subtitle" : entry.rowContext === "main" && entry.detailLevel
-                                 <= currentDetailLevel())
+            if (entry.detailLevel <= currentDetailLevel())
                 visibleRows.push(entry)
         }
         settingsRows = visibleRows
@@ -148,26 +88,21 @@ FocusScope {
         const schema = Settings.settingsSchema
         const detailKey = "settings/detailLevel"
         const mainRows = []
-        const subtitleRows = []
         const rowMap = {}
-        const sourceRows = []
+        const sourceRows = [];
 
+        // "Subtitle Appearance" lives in SubtitleSettingsPanel, which can show
+        // it over live video where the changes are actually visible.
         for (let groupIndex = 0; groupIndex < groupOrder.length; ++groupIndex) {
             const group = groupOrder[groupIndex]
             for (let index = 0; index < schema.length; ++index) {
                 const row = schema[index]
                 if (row.group === group && row.key !== detailKey && row.group !== "Subtitle Appearance")
-                    mainRows.push(expandedSchemaRow(row))
+                    mainRows.push(row)
             }
         }
-        for (let index = 0; index < schema.length; ++index) {
-            const row = schema[index]
-            if (row.group === "Subtitles" || row.group === "Subtitle Appearance")
-                subtitleRows.push(expandedSchemaRow(row))
-        }
 
-        appendSourceRows(mainRows, "main", rowMap, sourceRows)
-        appendSourceRows(subtitleRows, "subtitle", rowMap, sourceRows)
+        appendSourceRows(mainRows, rowMap, sourceRows)
         rowsByKey = rowMap
         allSettingsRows = sourceRows
         rebuildVisibleRows()
@@ -204,11 +139,7 @@ FocusScope {
     }
 
     function focusEntry() {
-        if (!subtitleEditor) {
-            InputKeys.focus(detailSelector)
-            return
-        }
-        selectRow(currentIndex, true)
+        InputKeys.focus(detailSelector)
     }
 
     function rowControlAt(index) {
@@ -288,8 +219,6 @@ FocusScope {
             return "Open"
         if (row.key === "action/clearLatencyStatistics" || row.key === "action/clearLogs")
             return "Clear"
-        if (row.key === "action/resetSubtitleAppearance")
-            return "Reset"
         if (row.key === "session/account")
             return Session.activeProfileLabel.length > 0 ? Session.activeProfileLabel : "Offline"
         if (row.key === "about/version")
@@ -414,15 +343,6 @@ FocusScope {
                 shell.pushRoute("subtitleSettings")
             else if (row.key === "action/openSourceNotices" && shell)
                 shell.pushRoute("openSourceNotices")
-            else if (row.key === "action/resetSubtitleAppearance") {
-                const snapshot = {}
-                for (let keyIndex = 0; keyIndex < subtitleAppearanceKeys.length; ++keyIndex) {
-                    const key = subtitleAppearanceKeys[keyIndex]
-                    snapshot[key] = Settings.values[key]
-                }
-                pendingSubtitleAppearance = snapshot
-                resetSubtitleConfirmationVisible = true
-            }
         } else if (row.type === "toggle") {
             setRowValue(row, !Boolean(settingsValue(row)), -1)
         } else if (row.type === "select") {
@@ -435,10 +355,6 @@ FocusScope {
                 choiceDialogAnchor = anchor
                 choiceDialogVisible = true
             })
-        } else if (row.type === "slider") {
-            const control = rowControlAt(index)
-            if (control && control.focusSlider)
-                control.focusSlider()
         } else if (row.type === "text") {
             const control = rowControlAt(index)
             if (control && control.activate)
@@ -485,42 +401,14 @@ FocusScope {
             Qt.callLater(choiceDialog.completePresentation)
     }
 
-    function closeResetSubtitleConfirmation() {
-        resetSubtitleConfirmationVisible = false
-        Qt.callLater(function () {
-            selectRow(currentIndex, true)
-        })
-    }
-
-    function confirmResetSubtitleAppearance() {
-        const snapshot = pendingSubtitleAppearance
-        Settings.resetSubtitleAppearance()
-        closeResetSubtitleConfirmation()
-        if (shell && shell.showToastAction)
-            shell.showToastAction("Subtitle appearance reset", "Undo", function () {
-                for (let keyIndex = 0; keyIndex < subtitleAppearanceKeys.length; ++keyIndex) {
-                    const key = subtitleAppearanceKeys[keyIndex]
-                    Settings.setValue(key, snapshot[key])
-                }
-            })
-    }
-
     function back() {
         if (certificateManagerVisible) {
             certificateManagerVisible = false
             InputKeys.focus(settingsList)
             return true
         }
-        if (resetSubtitleConfirmationVisible) {
-            closeResetSubtitleConfirmation()
-            return true
-        }
         if (choiceDialogVisible) {
             closeChoiceDialog()
-            return true
-        }
-        if (subtitleEditor && playbackPreview) {
-            dismissed()
             return true
         }
         return false
@@ -529,8 +417,6 @@ FocusScope {
     function routeKey(key, phase, repeat) {
         if (certificateManagerVisible)
             return certificateManagerLoader.item.routeKey(key, phase, repeat)
-        if (resetSubtitleConfirmationVisible)
-            return resetSubtitleConfirmationLoader.item.routeKey(key, phase, repeat)
         if (choiceDialogVisible)
             return choiceDialog.routeKey(key, phase, repeat)
         if (phase === "release" && InputKeys.isDirection(key))
@@ -555,12 +441,7 @@ FocusScope {
         if (InputKeys.isVertical(key) && !settingsList.activeFocus)
             InputKeys.focus(settingsList)
         if (key === Qt.Key_Up && settingsList.currentIndex <= 0) {
-            if (subtitleEditor) {
-                if (shell)
-                    shell.focusNavBar()
-            } else {
-                InputKeys.focus(detailSelector)
-            }
+            InputKeys.focus(detailSelector)
             return true
         }
         return settingsList.routeKey(key, phase, repeat)
@@ -571,9 +452,7 @@ FocusScope {
             certificateManagerLoader.item.activate()
             return
         }
-        if (resetSubtitleConfirmationVisible)
-            resetSubtitleConfirmationLoader.item.activate()
-        else if (choiceDialogVisible)
+        if (choiceDialogVisible)
             choiceDialog.activate()
         else if (!detailSelector.activeFocus)
             activateRow(currentRow(), settingsList.currentIndex)
@@ -600,18 +479,12 @@ FocusScope {
 
     // Only take focus if the page is actually active: the route host
     // prewarms an invisible instance, which must not steal focus.
-    // The player overlay embeds an always-present subtitle editor; building
-    // its rows while hidden would put the schema walk on the startup path,
-    // so that instance defers to first show.
     Component.onCompleted: Qt.callLater(function () {
         Settings.loadRemote()
-        if (!playbackPreview || visible)
-            ensureRowsBuilt()
+        ensureRowsBuilt()
         if (activeFocus)
             focusEntry()
     })
-    onSubtitleEditorChanged: refreshSettingsFilter(true)
-
     Connections {
         target: Settings
 
@@ -628,158 +501,8 @@ FocusScope {
         }
     }
 
-    Rectangle {
-        anchors.fill: settingsList
-        anchors.margins: -Metrics.scaled(12)
-        visible: root.subtitleEditor
-        radius: Theme.radiusLarge
-        color: "#d9000000"
-        border.width: Theme.hoverBorderWidth
-        border.color: Theme.border
-    }
-
-    Component {
-        id: subtitlePreviewComponent
-
-        Item {
-            width: settingsList.width
-            height: root.playbackPreview ? 0 : previewCard.height + Metrics.scaled(20)
-            visible: !root.playbackPreview
-
-            Surface {
-                id: previewCard
-                width: parent.width
-                height: Math.round(width * 9 / 16)
-                clip: true
-                elevated: true
-                baseColor: "#10131a"
-
-                Rectangle {
-                    width: parent.width / 2
-                    height: parent.height
-                    gradient: Gradient {
-                        GradientStop {
-                            position: 0
-                            color: "#7dc8f0"
-                        }
-                        GradientStop {
-                            position: 0.58
-                            color: "#e6d7aa"
-                        }
-                        GradientStop {
-                            position: 1
-                            color: "#493f35"
-                        }
-                    }
-                }
-
-                Rectangle {
-                    anchors.right: parent.right
-                    width: parent.width / 2
-                    height: parent.height
-                    gradient: Gradient {
-                        GradientStop {
-                            position: 0
-                            color: "#27304b"
-                        }
-                        GradientStop {
-                            position: 0.55
-                            color: "#11131d"
-                        }
-                        GradientStop {
-                            position: 1
-                            color: "#050609"
-                        }
-                    }
-                }
-
-                Rectangle {
-                    anchors.left: parent.left
-                    anchors.right: parent.right
-                    anchors.bottom: parent.bottom
-                    height: parent.height * 0.3
-                    color: "#46151b22"
-                }
-
-                Rectangle {
-                    id: safeArea
-                    anchors.fill: parent
-                    anchors.leftMargin: parent.width * 0.05
-                    anchors.rightMargin: parent.width * 0.05
-                    anchors.topMargin: parent.height * 0.05
-                    anchors.bottomMargin: parent.height * 0.05
-                    color: "transparent"
-                    border.width: 1
-                    border.color: "#66ffffff"
-                    radius: Theme.radiusSmall
-                }
-
-                AppText {
-                    anchors.left: safeArea.left
-                    anchors.top: safeArea.top
-                    anchors.margins: Metrics.scaled(10)
-                    text: "LIVE SUBTITLE PREVIEW"
-                    color: "#d9ffffff"
-                    font.pixelSize: Metrics.metaSizePx
-                    font.weight: Font.DemiBold
-                }
-
-                Surface {
-                    visible: Player.hdrPlayback && Boolean(Settings.values["subtitles/dimInHdr"])
-                    anchors.right: safeArea.right
-                    anchors.top: safeArea.top
-                    anchors.margins: Metrics.scaled(10)
-                    width: hdrBadge.implicitWidth + Metrics.scaled(18)
-                    height: hdrBadge.implicitHeight + Metrics.scaled(10)
-                    baseColor: "#cc2f3442"
-
-                    AppText {
-                        id: hdrBadge
-                        anchors.centerIn: parent
-                        text: "HDR PAPER WHITE " + String(Settings.values["subtitles/hdrBrightnessPercent"] || 75) + "%"
-                        color: "#fff4c46b"
-                        font.pixelSize: Metrics.metaSizePx
-                        font.weight: Font.DemiBold
-                    }
-                }
-
-                Rectangle {
-                    id: subtitlePreviewBackground
-                    anchors.horizontalCenter: parent.horizontalCenter
-                    y: safeArea.y + Math.round((safeArea.height - height) * Number(
-                                                   Settings.values["subtitles/verticalPositionPercent"] || 0) / 100)
-                    width: Math.min(safeArea.width - Metrics.scaled(16), subtitlePreviewText.implicitWidth + Metrics.scaled(
-                                        28))
-                    height: subtitlePreviewText.implicitHeight + Metrics.scaled(14)
-                    radius: Theme.radiusSmall
-                    color: root.previewBackgroundColor()
-
-                    AppText {
-                        id: subtitlePreviewText
-                        anchors.centerIn: parent
-                        width: parent.width - Metrics.scaled(20)
-                        text: "We can read this across bright skies.\nAnd across the darkest scene."
-                        font.family: root.previewFontFamily()
-                        font.pixelSize: root.previewTextSize()
-                        font.weight: Settings.values["subtitles/textWeight"] === "bold" ? Font.Bold : Font.Normal
-                        style: Settings.values["subtitles/dropShadow"] === "none" ? Text.Normal : Text.Outline
-                        styleColor: "#e6000000"
-                        color: Settings.values["subtitles/textColor"] || "white"
-                        opacity: Player.hdrPlayback && Boolean(Settings.values["subtitles/dimInHdr"]) ? Number(
-                                                                                                            Settings.values["subtitles/hdrBrightnessPercent"]
-                                                                                                            || 75) / 100 :
-                                                                                                        1
-                        horizontalAlignment: Text.AlignHCenter
-                        wrapMode: Text.Wrap
-                    }
-                }
-            }
-        }
-    }
-
     ChoiceStrip {
         id: detailSelector
-        visible: !root.subtitleEditor
         width: settingsList.width
         anchors.top: parent.top
         anchors.right: parent.right
@@ -798,21 +521,16 @@ FocusScope {
     MenuListView {
         id: settingsList
         readonly property real pageInset: Metrics.pageMarginPx
-        width: root.subtitleEditor ? Math.min(parent.width - pageInset * 2, Metrics.scaled(760)) : Math.max(0,
-                                                                                                            parent.width
-                                                                                                            - pageInset
-                                                                                                            * 2)
-        anchors.top: root.subtitleEditor ? parent.top : detailSelector.bottom
+        width: Math.max(0, parent.width - pageInset * 2)
+        anchors.top: detailSelector.bottom
         anchors.bottom: parent.bottom
         anchors.right: parent.right
-        anchors.topMargin: root.subtitleEditor ? pageInset : Metrics.scaled(10)
+        anchors.topMargin: Metrics.scaled(10)
         anchors.rightMargin: pageInset
         anchors.bottomMargin: pageInset
         bottomMargin: root.choiceDialogVisible && root.choiceDialog ? root.choiceDialog.panelHeight + Metrics.scaled(16) :
                                                                       0
         model: root.settingsRows
-        header: root.subtitleEditor ? subtitlePreviewComponent : null
-        headerPositioning: ListView.InlineHeader
         dismissOnBack: false
         dismissOnHorizontal: false
         spacing: Metrics.scaled(10)
@@ -822,7 +540,7 @@ FocusScope {
             positionViewAtIndex(currentIndex, ListView.Contain)
         }
         onAccepted: index => root.activateRow(root.rowAtVisibleIndex(index), index)
-        onEdgeUp: if (root.shell && !root.subtitleEditor)
+        onEdgeUp: if (root.shell)
         root.shell.focusNavBar()
         delegate: Column {
             required property int index
@@ -832,10 +550,9 @@ FocusScope {
             readonly property bool headerAdvanced: modelData.headerAdvanced
             readonly property bool headerExpert: modelData.headerExpert
             readonly property var rowData: root.rowsByKey[rowKey]
-            readonly property bool showHeader: root.subtitleEditor ? (index === 0 || headerExpert) : root.currentDetailLevel(
-                                                                         ) === 0 ? headerEssential :
-                                                                                   root.currentDetailLevel() === 1
-                                                                                   ? headerAdvanced : headerExpert
+            readonly property bool showHeader: root.currentDetailLevel() === 0 ? headerEssential :
+                                                                                 root.currentDetailLevel() === 1
+                                                                                 ? headerAdvanced : headerExpert
             width: settingsList.width
             Component.onCompleted: {
                 InputLatency.noteDelegate("settings_row", 1)
@@ -935,7 +652,6 @@ FocusScope {
             property var row
             property int rowIndex: -1
             width: settingsList.width
-            metricsWidth: root.width
             selected: settingsList.activeFocus && settingsList.currentIndex === rowIndex
             title: row ? row.title : ""
             description: row ? root.rowDescription(row) : ""
@@ -944,8 +660,6 @@ FocusScope {
             step: row ? Number(row.step || 1) : 1
             decimals: row ? Number(row.decimals || 0) : 0
             unitText: row ? String(row.unitText || "") : ""
-            valueBoxWidth: row && row.valueBoxWidth > 0 ? row.valueBoxWidth : 86
-            sliderPreferredWidth: row && row.sliderPreferredWidth > 0 ? row.sliderPreferredWidth : 300
             value: row ? Number(root.settingsValue(row)) : 0
             onValueEdited: value => root.setRowValue(row, value, -1)
             onInteractionStarted: root.selectRow(rowIndex, false)
@@ -1053,21 +767,6 @@ FocusScope {
 
         function onDismissed() {
             root.pendingCustomMpvMode = false
-        }
-    }
-
-    Loader {
-        id: resetSubtitleConfirmationLoader
-        anchors.fill: parent
-        active: root.resetSubtitleConfirmationVisible
-        z: 200
-        sourceComponent: ConfirmationDialog {
-            title: "Reset subtitle appearance?"
-            message: "This restores local font, colour, position, bitmap smoothing, and HDR subtitle defaults."
-            confirmText: "Reset"
-            destructive: true
-            onAccepted: root.confirmResetSubtitleAppearance()
-            onDismissed: root.closeResetSubtitleConfirmation()
         }
     }
 

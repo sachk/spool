@@ -744,14 +744,13 @@ FocusScope {
         onTriggered: overlay.hideControls()
     }
 
-    SettingsPage {
+    SubtitleSettingsPanel {
         id: subtitleSettings
         anchors.fill: parent
         visible: overlay.subtitleSettingsVisible
         enabled: visible
         z: 60
-        subtitleEditor: true
-        playbackPreview: true
+        overVideo: true
         onDismissed: overlay.closeSubtitleSettings()
     }
 

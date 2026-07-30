@@ -38,8 +38,9 @@ FocusScope {
         case "openSourceNotices":
             return "openSourceNotices"
         case "settings":
-        case "subtitleSettings":
             return "settings"
+        case "subtitleSettings":
+            return "subtitleSettings"
         default:
             return "home"
         }
@@ -63,6 +64,8 @@ FocusScope {
             return Qt.resolvedUrl("../pages/OpenSourceNoticesPage.qml")
         case "settings":
             return Qt.resolvedUrl("../pages/SettingsPage.qml")
+        case "subtitleSettings":
+            return Qt.resolvedUrl("../pages/SubtitleSettingsPanel.qml")
         default:
             return Qt.resolvedUrl("../pages/HomePage.qml")
         }
@@ -131,8 +134,6 @@ FocusScope {
             item.uiTransitionToken = uiTransitionToken
         if (item.shell !== root.shell)
             item.shell = root.shell
-        if (pageKey(route) === "settings")
-            item.subtitleEditor = route === "subtitleSettings"
         if (activeLoader !== loader) {
             const previous = activeLoader
             activeLoader = loader
@@ -151,7 +152,7 @@ FocusScope {
         // launch look as if Settings or another stale route had opened.
         if (Session.authenticated && !Platform.isTV && !prewarmScheduled) {
             prewarmScheduled = true
-            prewarmQueue = ["settings", "libraryGrid", "itemDetails", "personDetails"]
+            prewarmQueue = ["settings", "subtitleSettings", "libraryGrid", "itemDetails", "personDetails"]
             prewarmTimer.start()
         }
         completeUiTransitionIfReady()
