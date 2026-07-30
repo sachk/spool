@@ -57,6 +57,14 @@ FocusScope {
             return showName + " · " + code
         return showName.length > 0 ? showName : code
     }
+    readonly property string overlayMetadataText: {
+        if (episodeQueue)
+            return episodeContextText
+        if (String(currentQueueItem.itemType || "") !== "Movie")
+            return ""
+        const year = Number(currentQueueItem.year || 0)
+        return year > 0 ? String(year) : ""
+    }
     readonly property bool showEpisodeTitle: episodeQueue && !Boolean(currentQueueItem.genericEpisodeTitle) && String(
                                                  currentQueueItem.title || "").trim().length > 0
     readonly property string overlayTitle: episodeQueue ? String(currentQueueItem.title || "") : hasPlayer

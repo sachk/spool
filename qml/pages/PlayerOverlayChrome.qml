@@ -247,11 +247,11 @@ Item {
                     AppText {
                         Layout.fillWidth: true
                         Layout.preferredHeight: visible ? implicitHeight : 0
-                        visible: root.overlay.episodeContextText.length > 0
-                        text: root.overlay.episodeContextText
-                        color: Theme.textSecondary
-                        font.pixelSize: root.dp(22)
-                        font.weight: Font.DemiBold
+                        visible: !root.overlay.episodeQueue || root.overlay.showEpisodeTitle
+                        text: root.overlay.overlayTitle
+                        color: Theme.textPrimary
+                        font.pixelSize: root.dp(40)
+                        font.weight: Font.Bold
                         maximumLineCount: 1
                         elide: Text.ElideRight
                     }
@@ -259,11 +259,11 @@ Item {
                     AppText {
                         Layout.fillWidth: true
                         Layout.preferredHeight: visible ? implicitHeight : 0
-                        visible: !root.overlay.episodeQueue || root.overlay.showEpisodeTitle
-                        text: root.overlay.overlayTitle
-                        color: Theme.textPrimary
-                        font.pixelSize: root.dp(40)
-                        font.weight: Font.Bold
+                        visible: root.overlay.overlayMetadataText.length > 0
+                        text: root.overlay.overlayMetadataText
+                        color: Theme.textSecondary
+                        font.pixelSize: root.dp(22)
+                        font.weight: Font.DemiBold
                         maximumLineCount: 1
                         elide: Text.ElideRight
                     }

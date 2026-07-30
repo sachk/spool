@@ -30,6 +30,7 @@ namespace {
             { QStringLiteral("seriesId"), item.seriesId },
             { QStringLiteral("seasonId"), item.seasonId },
             { QStringLiteral("seriesName"), item.seriesName },
+            { QStringLiteral("year"), item.year },
             { QStringLiteral("seasonNumber"), item.seasonNumber },
             { QStringLiteral("episodeNumber"), item.episodeNumber },
             { QStringLiteral("episodeCode"), itemEpisodeCode(item) },
@@ -78,6 +79,8 @@ QVariant PlayQueueController::data(const QModelIndex& index, int role) const
         return item.seasonId;
     case SeriesNameRole:
         return item.seriesName;
+    case YearRole:
+        return item.year;
     case SeasonNumberRole:
         return item.seasonNumber;
     case EpisodeNumberRole:
@@ -105,6 +108,7 @@ QHash<int, QByteArray> PlayQueueController::roleNames() const
         { SeriesIdRole, "seriesId" },
         { SeasonIdRole, "seasonId" },
         { SeriesNameRole, "seriesName" },
+        { YearRole, "year" },
         { SeasonNumberRole, "seasonNumber" },
         { EpisodeNumberRole, "episodeNumber" },
         { EpisodeCodeRole, "episodeCode" },

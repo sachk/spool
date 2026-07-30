@@ -29,6 +29,7 @@ public:
         SeriesIdRole,
         SeasonIdRole,
         SeriesNameRole,
+        YearRole,
         SeasonNumberRole,
         EpisodeNumberRole,
         EpisodeCodeRole,

@@ -46,6 +46,7 @@ int main(int argc, char **argv)
         item(QStringLiteral("c"), QStringLiteral("Episode C"), QStringLiteral("pl-c")),
     };
     entries[1].seriesName = QStringLiteral("Queue Show");
+    entries[1].year = 2024;
     entries[1].seasonNumber = 3;
     entries[1].episodeNumber = 7;
     entries[1].title = QStringLiteral("Episode 7");
@@ -56,10 +57,13 @@ int main(int argc, char **argv)
     require(queue.currentItem().id == QStringLiteral("b"), "current item should be requested item");
     const QVariantMap episodeSnapshot = queue.get(1);
     require(episodeSnapshot.value(QStringLiteral("seriesName")).toString() == QStringLiteral("Queue Show")
-            && episodeSnapshot.value(QStringLiteral("episodeCode")).toString() == QStringLiteral("S03E07"),
-        "queue snapshots should expose series context and episode code");
+            && episodeSnapshot.value(QStringLiteral("episodeCode")).toString() == QStringLiteral("S03E07")
+            && episodeSnapshot.value(QStringLiteral("year")).toInt() == 2024,
+        "queue snapshots should expose series context, episode code, and year");
     require(episodeSnapshot.value(QStringLiteral("genericEpisodeTitle")).toBool(),
         "queue snapshots should identify generic episode titles");
+    require(queue.data(queue.index(1), PlayQueueController::YearRole).toInt() == 2024,
+        "the queue model should expose the production year role");
     require(queue.canGoPrevious() && queue.canGoNext(), "middle current item should allow both directions");
 
     const std::vector<PlaybackQueueItem> reported = queue.nowPlayingQueue();
