@@ -1803,8 +1803,9 @@ void PlayerController::handleMpvEvent(mpv_event *event)
             });
         } else if (strcmp(property->name, "hwdec-current") == 0 && property->format == MPV_FORMAT_STRING) {
             const QByteArray decoder(static_cast<const char *>(property->data));
-            QMetaObject::invokeMethod(
-                this, [decoder]() { qInfo() << "player: hardware decoder" << (decoder.isEmpty() ? "none" : decoder); });
+            QMetaObject::invokeMethod(this, [decoder]() {
+                qInfo() << "player: hardware decoder" << (decoder.isEmpty() ? QByteArrayLiteral("none") : decoder);
+            });
         } else if (strcmp(property->name, "video-params/transfer") == 0 && property->format == MPV_FORMAT_STRING) {
             const QByteArray transfer(static_cast<const char *>(property->data));
             const QByteArray normalizedTransfer = transfer.toLower();
