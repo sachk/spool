@@ -195,6 +195,7 @@ private:
     DiscoveredServerModel m_discoveredServers;
     LibraryListModel m_libraries;
     MovieItem m_activePlaybackItem;
+    QList<MediaStreamInfo> m_activePlaybackStreams;
     bool m_busy = false;
     bool m_hasDefaultProfile = false;
     bool m_initialized = false;

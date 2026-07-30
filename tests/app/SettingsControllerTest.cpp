@@ -43,6 +43,8 @@ int main(int argc, char **argv)
         "fresh profile unexpectedly enabled unlimited local-network playback");
     require(settings.value(QStringLiteral("playback/forwardCacheSizeMiB")).toInt() == 32,
         "fresh profile did not use the 32 MB forward cache default");
+    require(settings.value(QStringLiteral("playback/rememberSeriesAudioTrack")).toBool(),
+        "fresh profile did not remember per-series audio tracks by default");
     require(settings.playerControlTooltipsEnabled(), "fresh profile unexpectedly hid player control tooltips");
 
     settings.setValue(QStringLiteral("playback/forwardCacheSizeMiB"), QStringLiteral("256"));
@@ -51,6 +53,9 @@ int main(int argc, char **argv)
     require(QCoro::waitFor(database.loadSettingAsync(QStringLiteral("playback/forwardCacheSizeMiB")))
             == QStringLiteral("256"),
         "forward cache size was not persisted");
+    settings.setValue(QStringLiteral("playback/rememberSeriesAudioTrack"), false);
+    require(!settings.value(QStringLiteral("playback/rememberSeriesAudioTrack")).toBool(),
+        "series audio-track retention toggle was not updated");
 
     settings.setAudioDelayMs(120);
     require(settings.audioDelayMs() == 120, "audio delay setter did not update the global desktop value");
@@ -100,6 +105,8 @@ int main(int argc, char **argv)
     require(restored.audioDelayMs() == 120, "persisted global desktop audio delay was not restored");
     require(restored.value(QStringLiteral("playback/forwardCacheSizeMiB")).toString() == QStringLiteral("256"),
         "persisted forward cache size was not restored");
+    require(!restored.value(QStringLiteral("playback/rememberSeriesAudioTrack")).toBool(),
+        "series audio-track retention toggle was not restored");
     require(!restored.playerControlTooltipsEnabled(), "persisted control-tooltip sessions were not restored");
 
     database.saveSetting(QStringLiteral("appearance/uiScalePercent"), QStringLiteral("100"));

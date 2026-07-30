@@ -43,6 +43,7 @@ enum class SettingTarget {
     UiScale,
     LibraryView,
     AudioTrackMode,
+    RememberSeriesAudioTrack,
     SubtitleLanguage,
     SubtitleMode,
     SubtitleStyling,

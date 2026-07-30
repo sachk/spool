@@ -580,6 +580,8 @@ void SettingsController::applySchemaValue(const SettingSpec& spec, const QVarian
             applySubtitlePreferencesToPlayer();
         }
         break;
+    case SettingTarget::RememberSeriesAudioTrack:
+        break;
     case SettingTarget::SubtitleLanguage:
         m_subtitlePreferences.language = value.toString();
         if (apply) {
@@ -711,6 +713,8 @@ void SettingsController::emitSchemaSignals(const SettingSpec& spec)
     case SettingTarget::LibraryView:
         break;
     case SettingTarget::AudioTrackMode:
+    case SettingTarget::RememberSeriesAudioTrack:
+        break;
     case SettingTarget::SubtitleLanguage:
     case SettingTarget::SubtitleMode:
     case SettingTarget::SubtitleStyling:

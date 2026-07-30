@@ -161,6 +161,8 @@ set(JELLYFIN_CORE_SOURCES
     src/cache/DatabaseManager.h
     src/common/JellyfinTypes.cpp
     src/common/JellyfinTypes.h
+    src/common/SeriesAudioSelection.cpp
+    src/common/SeriesAudioSelection.h
     src/common/MetaJson.h
     src/common/TlsTrust.cpp
     src/common/TlsTrust.h
@@ -488,6 +490,7 @@ if(BUILD_TESTING AND NOT CMAKE_CROSSCOMPILING)
         mpv-option-profile tests/player/MpvOptionProfileTest.cpp
         playback-failure-policy tests/player/PlaybackFailurePolicyTest.cpp
         play-queue-controller tests/player/PlayQueueControllerTest.cpp
+        series-audio-selection tests/player/SeriesAudioSelectionTest.cpp
         browse-session-controller tests/app/BrowseSessionControllerTest.cpp
         settings-schema tests/app/SettingsSchemaTest.cpp
         settings-controller tests/app/SettingsControllerTest.cpp

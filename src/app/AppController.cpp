@@ -5,6 +5,7 @@
 #include "../api/JellyfinApiFacade.h"
 #include "../common/AsyncTask.h"
 #include "../common/MetaJson.h"
+#include "../common/SeriesAudioSelection.h"
 #include "../diagnostics/Diagnostics.h"
 #include "../player/PlayQueueController.h"
 #include "../player/PlaybackFailurePolicy.h"
@@ -32,7 +33,6 @@
 #include <QWindow>
 
 #include <algorithm>
-#include <cstdio>
 #include <memory>
 #if defined(__GLIBC__)
 #include <malloc.h>
@@ -46,22 +46,34 @@ namespace {
     // Reopening a library within this window shows the cached page as-is;
     // a server refresh so soon after the last one only causes delegate churn.
     constexpr qint64 kFreshLibraryCacheMs = 30000;
-    constexpr auto kSeriesTrackSelectionNamespace = "series-track-selection-v1";
+    constexpr auto kSeriesTrackSelectionNamespace = "series-track-selection-v2";
+    constexpr auto kRememberSeriesAudioTrackKey = "playback/rememberSeriesAudioTrack";
 
     QString seriesTrackSelectionKey(const AuthSession& session, const QString& seriesId)
     {
         return session.serverId + QLatin1Char('/') + session.userId + QLatin1Char('/') + seriesId;
     }
 
-    QByteArray encodeTrackSelection(int audioStreamIndex, int subtitleStreamIndex)
+    QByteArray encodeTrackSelection(const SeriesAudioPreference& audioPreference, int subtitleStreamIndex)
     {
-        return QByteArray::number(audioStreamIndex) + ',' + QByteArray::number(subtitleStreamIndex);
+        return audioPreference.language.toUtf8() + ',' + QByteArray::number(audioPreference.languageTrackNumber) + ','
+            + QByteArray::number(subtitleStreamIndex);
     }
 
-    bool decodeTrackSelection(const QByteArray& value, int& audioStreamIndex, int& subtitleStreamIndex)
+    bool decodeTrackSelection(const QByteArray& value, SeriesAudioPreference& audioPreference, int& subtitleStreamIndex)
     {
-        char trailing;
-        return std::sscanf(value.constData(), "%d,%d%c", &audioStreamIndex, &subtitleStreamIndex, &trailing) == 2;
+        const QList<QByteArray> parts = value.split(',');
+        if (parts.size() != 3)
+            return false;
+        bool trackNumberOk = false;
+        bool subtitleIndexOk = false;
+        const int languageTrackNumber = parts.at(1).toInt(&trackNumberOk);
+        const int storedSubtitleStreamIndex = parts.at(2).toInt(&subtitleIndexOk);
+        if (!trackNumberOk || !subtitleIndexOk)
+            return false;
+        audioPreference = { QString::fromUtf8(parts.at(0)).trimmed(), languageTrackNumber };
+        subtitleStreamIndex = storedSubtitleStreamIndex;
+        return true;
     }
 
     bool isBrowseContainer(const MovieItem& item)
@@ -187,12 +199,15 @@ AppController::AppController(DatabaseManager *database, DiscoveryController *dis
     connect(m_player, &PlayerController::playbackStopped, this, &AppController::handlePlaybackStopped);
     connect(m_player, &PlayerController::streamSelectionChanged, this,
         [this](int audioStreamIndex, int subtitleStreamIndex) {
-            if (m_activePlaybackItem.itemType != QStringLiteral("Episode") || m_activePlaybackItem.seriesId.isEmpty()) {
+            if (m_activePlaybackItem.itemType != QStringLiteral("Episode") || m_activePlaybackItem.seriesId.isEmpty())
                 return;
-            }
+            const bool rememberAudio = m_settings->value(QString::fromLatin1(kRememberSeriesAudioTrackKey)).toBool();
+            const SeriesAudioPreference audioPreference = rememberAudio
+                ? seriesAudioPreferenceForSelection(m_activePlaybackStreams, audioStreamIndex)
+                : SeriesAudioPreference {};
             m_database->saveCacheEntry(QString::fromLatin1(kSeriesTrackSelectionNamespace),
                 seriesTrackSelectionKey(m_api->session(), m_activePlaybackItem.seriesId),
-                encodeTrackSelection(audioStreamIndex, subtitleStreamIndex));
+                encodeTrackSelection(audioPreference, subtitleStreamIndex));
         });
     connect(m_player, &PlayerController::playbackLoadFailed, this,
         [this](const QString& itemId, qint64 positionTicks, const QString&, bool retryableCodecFailure,
@@ -893,10 +908,18 @@ QCoro::Task<void> AppController::startPlayback(
                 seriesTrackSelectionKey(m_api->session(), playItem.seriesId));
         if (!m_playbackLoadGeneration.isCurrent(generation))
             co_return;
-        int storedAudioStreamIndex = -1;
+        SeriesAudioPreference storedAudioPreference;
         int storedSubtitleStreamIndex = -1;
-        if (decodeTrackSelection(storedSelection, storedAudioStreamIndex, storedSubtitleStreamIndex)) {
-            session.audioStreamIndex = storedAudioStreamIndex;
+        if (decodeTrackSelection(storedSelection, storedAudioPreference, storedSubtitleStreamIndex)) {
+            const int matchingAudioStreamIndex
+                = m_settings->value(QString::fromLatin1(kRememberSeriesAudioTrackKey)).toBool()
+                ? matchingSeriesAudioStreamIndex(session.mediaStreams, storedAudioPreference)
+                : -1;
+            if (matchingAudioStreamIndex >= 0) {
+                session.audioStreamIndex = matchingAudioStreamIndex;
+                qInfo() << "app: restoring series audio preference" << storedAudioPreference.language << "track"
+                        << storedAudioPreference.languageTrackNumber << "stream" << matchingAudioStreamIndex;
+            }
             session.subtitleStreamIndex = storedSubtitleStreamIndex;
             session.restoreStreamSelection = true;
         }
@@ -906,6 +929,7 @@ QCoro::Task<void> AppController::startPlayback(
         PlaybackFailurePolicy::prepareFallbackSession(session, queue, audioStreamIndex, subtitleStreamIndex);
     else
         session.nowPlayingQueue = queue;
+    m_activePlaybackStreams = session.mediaStreams;
     setBusy(false);
     m_player->play(session, startPaused);
 

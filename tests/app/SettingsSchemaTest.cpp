@@ -92,6 +92,7 @@ void requiredPersistedKeysArePresentExactlyOnce()
         QStringLiteral("appearance/libraryView"),
         QStringLiteral("appearance/uiScalePercent"),
         QStringLiteral("audio/trackMode"),
+        QStringLiteral("playback/rememberSeriesAudioTrack"),
         QStringLiteral("settings/nightMode"),
         QStringLiteral("playback/manualStreamingBitrate"),
         QStringLiteral("playback/maxStreamingBitrateMbps"),
