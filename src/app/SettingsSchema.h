@@ -56,6 +56,7 @@ enum class SettingTarget {
     SubtitleVerticalPosition,
     SubtitleScale,
     SubtitleBitmapSmoothing,
+    SubtitleImageColorMode,
     SubtitleDimInHdr,
     SubtitleHdrBrightness,
     RedButton,
@@ -100,8 +101,6 @@ struct SettingSpec {
     int step;
     int decimals;
     const char *unit;
-    int valueBoxWidth;
-    int sliderPreferredWidth;
     SettingTarget target;
     SettingNormalizer normalizer;
     bool visible;

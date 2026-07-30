@@ -350,6 +350,11 @@ std::vector<MpvOption> MpvOptionProfile::subtitleOptions(
     const QByteArray bitmapSmoothing = prefs.bitmapSmoothing == QStringLiteral("softer") ? QByteArrayLiteral("1.0")
         : prefs.bitmapSmoothing == QStringLiteral("sharp")                               ? QByteArrayLiteral("0.0")
                                                                                          : QByteArrayLiteral("0.5");
+    // Image subtitles carry their own palette, so matching the text colour
+    // means recolouring it. Reusing subtitleColor also gets them the same HDR
+    // paper-white treatment as text.
+    const bool recolorImages = prefs.imageColorMode != QStringLiteral("keep");
+    const QByteArray disabledColor = QByteArrayLiteral("#00000000");
 
     return {
         { "sid", !subtitlesEnabled || noSubtitles ? QByteArrayLiteral("no") : QByteArrayLiteral("auto") },
@@ -376,6 +381,12 @@ std::vector<MpvOption> MpvOptionProfile::subtitleOptions(
         { "sub-shadow-offset", shadow.shadowOffset },
         { "sub-shadow-color", shadow.shadowColor },
         { "sub-back-color", subtitleBackgroundColor(prefs.textBackground) },
+        { "sub-image-color", recolorImages ? subtitleColor : disabledColor },
+        { "sub-image-color-mode",
+            prefs.imageColorMode == QStringLiteral("tint") ? QByteArrayLiteral("retint")
+                                                           : QByteArrayLiteral("replace") },
+        { "sub-image-outline-color", recolorImages ? QByteArrayLiteral("#FF000000") : disabledColor },
+        { "sub-image-position", "bottom-block" },
     };
 }
 

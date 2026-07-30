@@ -110,6 +110,7 @@ void requiredPersistedKeysArePresentExactlyOnce()
         QStringLiteral("subtitles/textSize"),
         QStringLiteral("subtitles/scalePercent"),
         QStringLiteral("subtitles/bitmapSmoothing"),
+        QStringLiteral("subtitles/imageColorMode"),
         QStringLiteral("subtitles/textWeight"),
         QStringLiteral("subtitles/font"),
         QStringLiteral("subtitles/textColor"),
