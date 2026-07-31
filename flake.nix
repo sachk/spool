@@ -187,7 +187,7 @@
       darwinPackages = pkgs: with pkgs; [
         apple-sdk_15
         create-dmg
-        libiconv
+        libiconvReal
       ];
 
       qmlToolWrappers = pkgs:
@@ -264,7 +264,7 @@
         ''}
 
         ${pkgs.lib.optionalString pkgs.stdenv.isDarwin ''
-          export GNU_ICONV_DYLIB="${pkgs.libiconv}/lib/libiconv.2.dylib"
+          export GNU_ICONV_DYLIB="${pkgs.libiconvReal}/lib/libiconv.2.dylib"
         ''}
       '';
 
