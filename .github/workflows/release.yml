@@ -69,6 +69,13 @@ jobs:
         with:
           path: release-assets
           merge-multiple: true
+      - name: Package LGPL relink material
+        run: |
+          if [[ -d release-assets/relink ]]; then
+            archive="Spool-for-Jellyfin-${GITHUB_REF_NAME#v}-webOS-LGPL-relink.tar.gz"
+            tar -czf "release-assets/$archive" -C release-assets relink
+            rm -rf release-assets/relink
+          fi
       - name: Install analysis prerequisites
         run: |
           sudo apt-get update
@@ -114,9 +121,10 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          mapfile -d '' assets < <(find release-assets -maxdepth 1 -type f -print0 | sort -z)
           gh release create "$GITHUB_REF_NAME" \
             --repo "$GITHUB_REPOSITORY" \
-            release-assets/* \
+            "${assets[@]}" \
             --verify-tag \
             --generate-notes \
             --notes-file release-notes.md \
