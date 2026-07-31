@@ -16,8 +16,10 @@ if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
   exit 0
 fi
 
+bundled_app=0
 candidate="${1:-$APP_ROOT/build/linux-release/install/bin/jellyfin-native}"
 if [[ -d "$candidate" && "$candidate" == *.app ]]; then
+  bundled_app=1
   candidate="$candidate/Contents/MacOS/jellyfin-native"
 fi
 
@@ -119,7 +121,11 @@ export JELLYFIN_DIAGNOSTICS_DIR="$work/diagnostics"
 export QT_QPA_PLATFORM="${JELLYFIN_SMOKE_QPA_PLATFORM:-offscreen}"
 export QT_QUICK_BACKEND="${QT_QUICK_BACKEND:-software}"
 export QSG_RHI_BACKEND="${QSG_RHI_BACKEND:-opengl}"
-configure_isolated_qt_paths
+if [[ "$bundled_app" == "1" ]]; then
+  unset QT_PLUGIN_PATH QML_IMPORT_PATH QML2_IMPORT_PATH NIXPKGS_QT6_QML_IMPORT_PATH QMAKEPATH
+else
+  configure_isolated_qt_paths
+fi
 export LC_NUMERIC=C
 
 "$candidate" --smoke-and-exit
