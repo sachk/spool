@@ -71,18 +71,9 @@ if [[ "$DEPLOY_APP" == "1" ]]; then
   # macdeployqt may resolve libidn2's GNU libiconv dependency to macOS's
   # ABI-incompatible system dylib because both use the same install name.
   # Overwrite that copy with the GNU implementation from this Nix shell.
-  gnu_iconv=""
-  for linker_flag in ${NIX_LDFLAGS:-}; do
-    if [[ "$linker_flag" == -L* ]]; then
-      candidate="${linker_flag#-L}/libiconv.2.dylib"
-      if [[ -f "$candidate" ]] && /usr/bin/nm -gU "$candidate" | grep -q '[[:space:]]_libiconv$'; then
-        gnu_iconv="$candidate"
-        break
-      fi
-    fi
-  done
-  if [[ -z "$gnu_iconv" ]]; then
-    echo "error: GNU libiconv with the _libiconv ABI is unavailable" >&2
+  gnu_iconv="${GNU_ICONV_DYLIB:-}"
+  if [[ ! -f "$gnu_iconv" ]] || ! /usr/bin/nm -gU "$gnu_iconv" | grep -q '[[:space:]]_libiconv$'; then
+    echo "error: GNU libiconv with the _libiconv ABI is unavailable: $gnu_iconv" >&2
     exit 1
   fi
   cp -f "$gnu_iconv" "$APP_INSTALL/jellyfin-native.app/Contents/Frameworks/libiconv.2.dylib"

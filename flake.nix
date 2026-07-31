@@ -262,6 +262,10 @@
         ${pkgs.lib.optionalString pkgs.stdenv.isLinux ''
           export WAYLAND_PROTOCOLS_DIR="${pkgs.wayland-protocols}/share/wayland-protocols"
         ''}
+
+        ${pkgs.lib.optionalString pkgs.stdenv.isDarwin ''
+          export GNU_ICONV_DYLIB="${pkgs.libiconv}/lib/libiconv.2.dylib"
+        ''}
       '';
 
       sourceShellHook = pkgs: commonShellHook pkgs + ''
