@@ -21,7 +21,14 @@ for asset in "${assets[@]}"; do
       (cd "$work" && "$OLDPWD/$asset" --appimage-extract >/dev/null)
       mv "$work/squashfs-root" "$root/appimage"
       ;;
-    *.dmg|*-Portable.exe|*-Setup.exe)
+    *.dmg)
+      7z t "$asset" >/dev/null
+      # DMGs intentionally contain an /Applications link and Qt plugin links.
+      # 7-Zip rejects those external/parent-relative targets during extraction
+      # after extracting the regular files needed for package analysis.
+      7z x -y -o"$root" "$asset" >/dev/null || true
+      ;;
+    *-Portable.exe|*-Setup.exe)
       7z x -y -o"$root" "$asset" >/dev/null
       ;;
     *.ipk)
