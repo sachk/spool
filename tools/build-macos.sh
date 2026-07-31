@@ -72,7 +72,7 @@ if [[ "$DEPLOY_APP" == "1" ]]; then
   # symbols (_iconv vs _libiconv). Keep macdeployqt's system-compatible copy
   # for libass, and give GNU libiconv a distinct name for libidn2.
   gnu_iconv="${GNU_ICONV_DYLIB:-}"
-  if [[ ! -f "$gnu_iconv" ]] || ! /usr/bin/nm -gU "$gnu_iconv" | grep -q '[[:space:]]_libiconv$'; then
+  if [[ ! -f "$gnu_iconv" ]] || ! /usr/bin/nm -gU "$gnu_iconv" | grep -q '_libiconv$'; then
     echo "error: GNU libiconv with the _libiconv ABI is unavailable: $gnu_iconv" >&2
     exit 1
   fi
@@ -80,7 +80,7 @@ if [[ "$DEPLOY_APP" == "1" ]]; then
   cp -f "$gnu_iconv" "$gnu_iconv_bundle"
   install_name_tool -id @rpath/libiconv-gnu.2.dylib "$gnu_iconv_bundle"
   while IFS= read -r binary; do
-    if /usr/bin/nm -u "$binary" 2>/dev/null | grep -q '[[:space:]]_libiconv$'; then
+    if /usr/bin/nm -u "$binary" 2>/dev/null | grep -q '_libiconv$'; then
       while IFS= read -r dependency; do
         if [[ "$(basename "$dependency")" == "libiconv.2.dylib" ]]; then
           install_name_tool -change "$dependency" @rpath/libiconv-gnu.2.dylib "$binary"
@@ -88,6 +88,11 @@ if [[ "$DEPLOY_APP" == "1" ]]; then
       done < <(otool -L "$binary" 2>/dev/null | sed -n '2,$s/^[[:space:]]*\([^[:space:]]*\).*/\1/p')
     fi
   done < <(find "$APP_INSTALL/jellyfin-native.app" -type f)
+  if ! otool -L "$APP_INSTALL/jellyfin-native.app/Contents/Frameworks/libidn2.0.dylib" \
+    | grep -q 'libiconv-gnu\.2\.dylib'; then
+    echo "error: libidn2 was not rebound to GNU libiconv" >&2
+    exit 1
+  fi
   mkdir -p "$APP_INSTALL/jellyfin-native.app/Contents/Resources/notices"
   cp -f "$APP_ROOT/app/notices/OPEN_SOURCE_NOTICES.txt" "$APP_ROOT/LICENSE" \
     "$APP_ROOT/qml/fonts/AtkinsonHyperlegible-LICENSE.txt" \
