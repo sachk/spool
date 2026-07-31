@@ -68,15 +68,26 @@ if [[ "$DEPLOY_APP" == "1" ]]; then
     "$(command -v macdeployqt)")"
   "$macdeployqt_shadow" "$APP_INSTALL/jellyfin-native.app" -qmldir="$APP_ROOT/qml" -no-strip
 
-  # macdeployqt may resolve libidn2's GNU libiconv dependency to macOS's
-  # ABI-incompatible system dylib because both use the same install name.
-  # Overwrite that copy with the GNU implementation from this Nix shell.
+  # macOS and GNU libiconv use the same install name but expose different
+  # symbols (_iconv vs _libiconv). Keep macdeployqt's system-compatible copy
+  # for libass, and give GNU libiconv a distinct name for libidn2.
   gnu_iconv="${GNU_ICONV_DYLIB:-}"
   if [[ ! -f "$gnu_iconv" ]] || ! /usr/bin/nm -gU "$gnu_iconv" | grep -q '[[:space:]]_libiconv$'; then
     echo "error: GNU libiconv with the _libiconv ABI is unavailable: $gnu_iconv" >&2
     exit 1
   fi
-  cp -f "$gnu_iconv" "$APP_INSTALL/jellyfin-native.app/Contents/Frameworks/libiconv.2.dylib"
+  gnu_iconv_bundle="$APP_INSTALL/jellyfin-native.app/Contents/Frameworks/libiconv-gnu.2.dylib"
+  cp -f "$gnu_iconv" "$gnu_iconv_bundle"
+  install_name_tool -id @rpath/libiconv-gnu.2.dylib "$gnu_iconv_bundle"
+  while IFS= read -r binary; do
+    if /usr/bin/nm -u "$binary" 2>/dev/null | grep -q '[[:space:]]_libiconv$'; then
+      while IFS= read -r dependency; do
+        if [[ "$(basename "$dependency")" == "libiconv.2.dylib" ]]; then
+          install_name_tool -change "$dependency" @rpath/libiconv-gnu.2.dylib "$binary"
+        fi
+      done < <(otool -L "$binary" 2>/dev/null | sed -n '2,$s/^[[:space:]]*\([^[:space:]]*\).*/\1/p')
+    fi
+  done < <(find "$APP_INSTALL/jellyfin-native.app" -type f)
   mkdir -p "$APP_INSTALL/jellyfin-native.app/Contents/Resources/notices"
   cp -f "$APP_ROOT/app/notices/OPEN_SOURCE_NOTICES.txt" "$APP_ROOT/LICENSE" \
     "$APP_ROOT/qml/fonts/AtkinsonHyperlegible-LICENSE.txt" \
