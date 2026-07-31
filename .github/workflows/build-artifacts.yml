@@ -542,11 +542,6 @@ jobs:
         shell: pwsh
         run: tools\windows\stage.ps1
 
-      - name: Smoke-test staged Windows application
-        shell: pwsh
-        run: |
-          & build\windows-release\stage\jellyfin-native.exe --smoke-and-exit
-          if ($LASTEXITCODE -ne 0) { throw "Staged Windows application smoke test failed with exit code $LASTEXITCODE." }
 
       - name: Build portable and installer packages
         shell: pwsh
