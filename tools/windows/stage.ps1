@@ -36,10 +36,16 @@ foreach ($runtimeDll in $mpvRuntimeDlls) {
     Copy-Item -LiteralPath $runtimeDll.FullName -Destination $stageDir
 }
 
-$crtDirectory = Join-Path $env:VCToolsRedistDir 'x64\Microsoft.VC143.CRT'
-$crtRuntimeDlls = @(Get-ChildItem -LiteralPath $crtDirectory -Filter '*.dll' -File -ErrorAction SilentlyContinue)
+$crtRoot = Join-Path $env:VCToolsRedistDir 'x64'
+$crtDirectory = Get-ChildItem -LiteralPath $crtRoot -Directory -Filter 'Microsoft.VC*.CRT' -ErrorAction SilentlyContinue |
+    Sort-Object Name -Descending |
+    Select-Object -First 1
+if (-not $crtDirectory) {
+    throw "The app-local MSVC runtime was not found below $crtRoot"
+}
+$crtRuntimeDlls = @(Get-ChildItem -LiteralPath $crtDirectory.FullName -Filter '*.dll' -File)
 if ($crtRuntimeDlls.Count -eq 0) {
-    throw "The app-local MSVC runtime was not found below $crtDirectory"
+    throw "The app-local MSVC runtime contains no DLLs: $($crtDirectory.FullName)"
 }
 foreach ($runtimeDll in $crtRuntimeDlls) {
     Copy-Item -LiteralPath $runtimeDll.FullName -Destination $stageDir
