@@ -609,7 +609,7 @@ KeyRouter {
 
         AppText {
             anchors.horizontalCenter: parent.horizontalCenter
-            text: "Jellyfin Native"
+            text: "Spool for Jellyfin"
             color: Theme.textPrimary
             font.pixelSize: Metrics.scaled(34)
             font.weight: Font.DemiBold

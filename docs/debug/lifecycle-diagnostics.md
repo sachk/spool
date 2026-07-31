@@ -24,7 +24,7 @@ webOS helpers:
 
 Simulation knobs:
 
-- `JELLYFIN_DIAGNOSTICS_DIR=/tmp/com.sachk.tern-diagnostics` overrides the output directory.
+- `JELLYFIN_DIAGNOSTICS_DIR=/tmp/com.sachk.spool-diagnostics` overrides the output directory.
 - `JELLYFIN_DIAGNOSTICS_BLOCK_GUI_MS=8000` blocks the GUI thread after startup to test watchdog capture.
 - `JELLYFIN_DIAGNOSTICS_SHUTDOWN_HANG_MS=8000` blocks shutdown to test shutdown-stall capture.
 

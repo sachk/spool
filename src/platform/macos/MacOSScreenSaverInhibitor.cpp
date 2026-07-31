@@ -12,7 +12,7 @@ namespace {
         bool acquire() override
         {
             const IOReturn result = IOPMAssertionCreateWithName(kIOPMAssertionTypePreventUserIdleDisplaySleep,
-                kIOPMAssertionLevelOn, CFSTR("Jellyfin Native media playback"), &m_assertion);
+                kIOPMAssertionLevelOn, CFSTR("Spool for Jellyfin media playback"), &m_assertion);
             if (result == kIOReturnSuccess)
                 return true;
             qWarning() << "screensaver: macOS idle assertion failed" << result;

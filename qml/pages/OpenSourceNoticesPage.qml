@@ -15,7 +15,7 @@ FocusScope {
         {
             "name": "This application",
             "license": "MPL-2.0",
-            "source": "github.com/sachk/tern"
+            "source": "github.com/sachk/spool"
         },
         {
             "name": "mpv",
@@ -235,7 +235,7 @@ FocusScope {
 
             AppText {
                 Layout.fillWidth: true
-                text: "This application is free software licensed under MPL-2.0. Corresponding source is available at github.com/sachk/tern. The modified mpv source is available at github.com/sachk/mpv."
+                text: "This application is free software licensed under MPL-2.0. Corresponding source is available at github.com/sachk/spool. The modified mpv source is available at github.com/sachk/mpv."
                 color: Theme.textSecondary
                 font.pixelSize: Metrics.bodySizePx
                 wrapMode: Text.Wrap

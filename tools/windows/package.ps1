@@ -50,8 +50,8 @@ if (-not $MakeNsis -or -not (Test-Path -LiteralPath $MakeNsis)) {
 }
 
 New-Item -ItemType Directory -Force $output | Out-Null
-$portable = Join-Path $output "Jellyfin-Native-$version-Windows-x64-Portable.exe"
-$installer = Join-Path $output "Jellyfin-Native-$version-Windows-x64-Setup.exe"
+$portable = Join-Path $output "Spool-for-Jellyfin-$version-Windows-x64-Portable.exe"
+$installer = Join-Path $output "Spool-for-Jellyfin-$version-Windows-x64-Setup.exe"
 Remove-Item -LiteralPath $portable, $installer -Force -ErrorAction SilentlyContinue
 
 function Invoke-NsisPackage {
@@ -92,7 +92,7 @@ if ($sevenZip) {
     }
 }
 
-$checksumPath = Join-Path $output "Jellyfin-Native-$version-Windows-x64-SHA256SUMS.txt"
+$checksumPath = Join-Path $output "Spool-for-Jellyfin-$version-Windows-x64-SHA256SUMS.txt"
 $checksumLines = @($portable, $installer) | ForEach-Object {
     $hash = (Get-FileHash -LiteralPath $_ -Algorithm SHA256).Hash.ToLowerInvariant()
     "$hash  $([IO.Path]::GetFileName($_))"

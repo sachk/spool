@@ -43,7 +43,7 @@ bool save(const QString& profileId, const QString& accessToken)
     credential.CredentialBlobSize = static_cast<DWORD>(token.size());
     credential.CredentialBlob = reinterpret_cast<LPBYTE>(const_cast<char *>(token.constData()));
     credential.Persist = CRED_PERSIST_LOCAL_MACHINE;
-    credential.UserName = const_cast<LPWSTR>(L"Jellyfin Native");
+    credential.UserName = const_cast<LPWSTR>(L"Spool for Jellyfin");
     return CredWriteW(&credential, 0) != FALSE;
 }
 

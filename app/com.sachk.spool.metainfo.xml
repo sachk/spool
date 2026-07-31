@@ -1,14 +1,14 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <component type="desktop-application">
-  <id>com.sachk.tern</id>
+  <id>com.sachk.spool</id>
   <metadata_license>CC0-1.0</metadata_license>
   <project_license>MPL-2.0</project_license>
-  <name>Jellyfin Native</name>
-  <summary>Native Jellyfin media client</summary>
+  <name>Spool for Jellyfin</name>
+  <summary>Fast Jellyfin client for TVs and desktop</summary>
   <description>
     <p>Browse and play media from a Jellyfin server with a native mpv playback pipeline.</p>
   </description>
-  <launchable type="desktop-id">com.sachk.tern.desktop</launchable>
+  <launchable type="desktop-id">com.sachk.spool.desktop</launchable>
   <provides>
     <binary>jellyfin-native</binary>
   </provides>
@@ -16,12 +16,12 @@
     <category>AudioVideo</category>
     <category>Video</category>
   </categories>
-  <url type="homepage">https://github.com/sachk</url>
+  <url type="homepage">https://github.com/sachk/spool</url>
   <developer id="io.github.sachk">
     <name>sachk</name>
   </developer>
   <releases>
-    <release version="0.2.1" date="2026-07-22" type="development"/>
+    <release version="0.3.0" date="2026-07-31" type="development"/>
   </releases>
   <content_rating type="oars-1.1"/>
 </component>

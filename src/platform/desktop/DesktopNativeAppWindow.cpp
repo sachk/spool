@@ -13,7 +13,7 @@ NativeAppWindow::NativeAppWindow(const QString& appId, QWindow *parent)
 {
     setColor(Qt::black);
     setResizeMode(QQuickView::SizeRootObjectToView);
-    setTitle(QStringLiteral("Jellyfin Native"));
+    setTitle(QStringLiteral("Spool for Jellyfin"));
     resize(1280, 720);
 }
 

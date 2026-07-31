@@ -1,5 +1,5 @@
 #!/bin/sh
-# Jellyfin Native launch shim (installed in the app bundle as bin/jellyfin-native).
+# Spool for Jellyfin launch shim (installed in the app bundle as bin/jellyfin-native).
 #
 # Default behaviour: a transparent passthrough to the real binary with NO
 # environment changes at all -- a normal launch is identical to launching

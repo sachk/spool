@@ -40,7 +40,7 @@ namespace {
 
 bool configurePlatformEnvironment(const QString& appRootPath)
 {
-    setenv("APPID", "com.sachk.tern", 1);
+    setenv("APPID", "com.sachk.spool", 1);
     setenv("MALLOC_ARENA_MAX", "2", 0);
     setenv("DISPLAY_ID", "0", 1);
     setenv("QT_QPA_PLATFORM", "wayland-egl", 1);

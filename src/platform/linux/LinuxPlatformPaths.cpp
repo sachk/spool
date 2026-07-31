@@ -23,7 +23,7 @@ QString startupCacheRoot(const QString&)
         return QString::fromLocal8Bit(configured);
     const QByteArray xdgCache = qgetenv("XDG_CACHE_HOME");
     if (!xdgCache.isEmpty())
-        return QDir(QString::fromLocal8Bit(xdgCache)).filePath(QStringLiteral("com.sachk.tern"));
+        return QDir(QString::fromLocal8Bit(xdgCache)).filePath(QStringLiteral("com.sachk.spool"));
     return QStandardPaths::writableLocation(QStandardPaths::CacheLocation);
 }
 

@@ -1,6 +1,6 @@
 # Contributing
 
-Jellyfin Native welcomes focused bug reports and feature proposals. Before submitting code, open or find an issue for consequential behavior changes so the user-facing contract is clear.
+Spool for Jellyfin welcomes focused bug reports and feature proposals. Before submitting code, open or find an issue for consequential behavior changes so the user-facing contract is clear.
 
 ## Privacy
 

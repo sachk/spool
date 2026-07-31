@@ -1633,7 +1633,7 @@ QNetworkRequest JellyfinApiFacade::createRequest(const QString& path, const QUrl
 QString JellyfinApiFacade::authorizationHeader(const QString& tokenOverride) const
 {
     QStringList parts {
-        QStringLiteral("Client=\"Jellyfin Native\""),
+        QStringLiteral("Client=\"Spool for Jellyfin\""),
         QStringLiteral("Device=\"%1\"").arg(m_deviceName),
         QStringLiteral("DeviceId=\"%1\"").arg(m_deviceId),
         QStringLiteral("Version=\"%1\"").arg(m_clientVersion),

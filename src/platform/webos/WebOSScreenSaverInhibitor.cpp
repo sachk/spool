@@ -20,7 +20,7 @@ namespace {
             context->callback = &WebOSScreenSaverBackend::request;
             context->userdata = this;
             if (HLunaServiceCall("luna://com.webos.service.tvpower/power/registerScreenSaverRequest",
-                    "{\"subscribe\":true,\"clientName\":\"com.sachk.tern\"}", context.get())) {
+                    "{\"subscribe\":true,\"clientName\":\"com.sachk.spool\"}", context.get())) {
                 qWarning() << "screensaver: webOS inhibit registration failed";
                 return false;
             }

@@ -47,7 +47,7 @@ QByteArray webOsScreenSaverResponsePayload(const QByteArray& requestPayload)
     const QJsonObject request = QJsonDocument::fromJson(requestPayload).object();
     if (request.value(QStringLiteral("state")).toString() != QStringLiteral("Active"))
         return {};
-    const QJsonObject response { { QStringLiteral("clientName"), QStringLiteral("com.sachk.tern") },
+    const QJsonObject response { { QStringLiteral("clientName"), QStringLiteral("com.sachk.spool") },
         { QStringLiteral("ack"), false }, { QStringLiteral("timestamp"), request.value(QStringLiteral("timestamp")) } };
     return QJsonDocument(response).toJson(QJsonDocument::Compact);
 }

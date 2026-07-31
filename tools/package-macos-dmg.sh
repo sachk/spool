@@ -9,7 +9,7 @@ APP_VERSION="$(read_project_version "$APP_ROOT")"
 BUILD_ROOT="${BUILD_ROOT:-$APP_ROOT/build/macos}"
 APP_BUNDLE="${APP_BUNDLE:-$BUILD_ROOT/install/jellyfin-native.app}"
 ARTIFACT_DIR="${ARTIFACT_DIR:-$APP_ROOT/dist}"
-DMG_PATH="$ARTIFACT_DIR/Jellyfin-Native-${APP_VERSION}-macOS.dmg"
+DMG_PATH="$ARTIFACT_DIR/Spool-for-Jellyfin-${APP_VERSION}-macOS.dmg"
 
 if [[ ! -d "$APP_BUNDLE" ]]; then
   echo "error: app bundle not found at $APP_BUNDLE" >&2
@@ -21,7 +21,7 @@ rm -f "$DMG_PATH"
 
 if command -v create-dmg >/dev/null 2>&1; then
   create-dmg \
-    --volname "Jellyfin Native" \
+    --volname "Spool for Jellyfin" \
     --window-pos 200 120 \
     --window-size 640 420 \
     --icon-size 96 \
@@ -29,7 +29,7 @@ if command -v create-dmg >/dev/null 2>&1; then
     "$DMG_PATH" \
     "$APP_BUNDLE"
 else
-  hdiutil create -volname "Jellyfin Native" -srcfolder "$APP_BUNDLE" \
+  hdiutil create -volname "Spool for Jellyfin" -srcfolder "$APP_BUNDLE" \
     -ov -format UDZO "$DMG_PATH"
 fi
 

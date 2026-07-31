@@ -181,7 +181,7 @@ const QVector<SettingSpec>& settingSpecs()
         externalSpec("theme/technicalMetadata", "Appearance", "Show Technical Metadata",
             "Control codec and stream details in browse and detail views", SettingType::Select, SettingLevel::Advanced,
             kTechnicalMetadataChoices, countOf(kTechnicalMetadataChoices)),
-        externalSpec("about/version", "About", "Jellyfin Native", "Qt 6.11 client with native mpv playback",
+        externalSpec("about/version", "About", "Spool for Jellyfin", "Qt 6.11 client with native mpv playback",
             SettingType::ReadOnly),
         externalSpec("action/openSourceNotices", "About", "Open-source notices",
             "Acknowledgements, licenses, and corresponding source", SettingType::Action),

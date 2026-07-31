@@ -1,10 +1,10 @@
 {
-  "id": "com.sachk.tern",
+  "id": "com.sachk.spool",
   "version": "@VERSION@",
   "vendor": "sachk",
   "type": "native",
   "main": "bin/jellyfin-native",
-  "title": "Jellyfin Native",
+  "title": "Spool for Jellyfin",
   "icon": "icon.png",
   "largeIcon": "icon.png",
   "splashBackground": "splash.png",

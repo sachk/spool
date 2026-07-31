@@ -37,7 +37,7 @@ profiling package with an explicit TV host:
 TV_HOST=root@tv.local
 BUNDLE_HEAPTRACK=1 ./build-ipk.sh
 nix develop -c bash tools/webos/verify-device.sh --no-launch \
-  --host "$TV_HOST" ./build/com.sachk.tern_0.2.1_arm.ipk
+  --host "$TV_HOST" ./build/com.sachk.spool_0.3.0_arm.ipk
 ```
 
 This builds the recorder into `build/webos-heaptrack/install/...` and bundles it

@@ -265,8 +265,8 @@ fi
 cp -f "$APP_ROOT/app/icon.png" "$APPDIR/usr/share/icons/hicolor/256x256/apps/jellyfin-native.png"
 cp -f "$APP_ROOT/app/icon.png" "$APPDIR/jellyfin-native.png"
 mkdir -p "$APPDIR/usr/share/metainfo"
-cp -f "$APP_ROOT/app/com.sachk.tern.metainfo.xml" \
-  "$APPDIR/usr/share/metainfo/com.sachk.tern.appdata.xml"
+cp -f "$APP_ROOT/app/com.sachk.spool.metainfo.xml" \
+  "$APPDIR/usr/share/metainfo/com.sachk.spool.appdata.xml"
 cp -f "$APP_ROOT/app/notices/OPEN_SOURCE_NOTICES.txt" "$APP_ROOT/LICENSE" \
   "$APP_ROOT/qml/fonts/AtkinsonHyperlegible-LICENSE.txt" \
   "$APP_ROOT/qml/fonts/IBMPlexSans-LICENSE.txt" "$APP_ROOT/qml/fonts/MaterialIcons-LICENSE.txt" \
@@ -326,15 +326,15 @@ exec "$HERE/usr/bin/jellyfin-native" "$@"
 APPRUN
 chmod +x "$APPDIR/AppRun"
 
-cat > "$APPDIR/usr/share/applications/com.sachk.tern.desktop" <<'DESKTOP'
+cat > "$APPDIR/usr/share/applications/com.sachk.spool.desktop" <<'DESKTOP'
 [Desktop Entry]
 Type=Application
-Name=Jellyfin Native
+Name=Spool for Jellyfin
 Exec=jellyfin-native
 Icon=jellyfin-native
 Categories=AudioVideo;Video;
 DESKTOP
-cp -f "$APPDIR/usr/share/applications/com.sachk.tern.desktop" "$APPDIR/com.sachk.tern.desktop"
+cp -f "$APPDIR/usr/share/applications/com.sachk.spool.desktop" "$APPDIR/com.sachk.spool.desktop"
 
 download_verified \
   "$(manifest_tool_field "$TOOL_MANIFEST" linuxdeploy url)" \
@@ -379,7 +379,7 @@ done < <(ldd "$APPDIR/usr/bin/jellyfin-native" "$APPDIR"/usr/lib/libmpv.so* 2>/d
 export EXTRA_PLATFORM_PLUGINS="${EXTRA_PLATFORM_PLUGINS:-libqwayland.so}"
 export QML_SOURCES_PATHS="${QML_SOURCES_PATHS:-$APP_ROOT/qml}"
 export APPIMAGE_EXTRACT_AND_RUN="${APPIMAGE_EXTRACT_AND_RUN:-1}"
-export OUTPUT="${OUTPUT:-Jellyfin-Native-${APP_VERSION}-x86_64.AppImage}"
+export OUTPUT="${OUTPUT:-Spool-for-Jellyfin-${APP_VERSION}-x86_64.AppImage}"
 
 copy_elf_deps libQt6WebSockets.so.6
 set_appdir_rpaths

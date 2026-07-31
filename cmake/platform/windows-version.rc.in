@@ -11,12 +11,12 @@ BEGIN
     BEGIN
         BLOCK "040904b0"
         BEGIN
-            VALUE "CompanyName", "Jellyfin Native contributors\0"
-            VALUE "FileDescription", "Jellyfin Native client\0"
+            VALUE "CompanyName", "Spool for Jellyfin contributors\0"
+            VALUE "FileDescription", "Spool for Jellyfin client\0"
             VALUE "FileVersion", "@PROJECT_VERSION@\0"
             VALUE "InternalName", "jellyfin-native\0"
             VALUE "OriginalFilename", "jellyfin-native.exe\0"
-            VALUE "ProductName", "Jellyfin Native\0"
+            VALUE "ProductName", "Spool for Jellyfin\0"
             VALUE "ProductVersion", "@PROJECT_VERSION@\0"
         END
     END

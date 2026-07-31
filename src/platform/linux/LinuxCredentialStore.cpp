@@ -54,7 +54,7 @@ bool save(const QString& profileId, const QString& accessToken)
     if (FileBackend::enabled())
         return FileBackend::save(profileId, accessToken);
     return runSecretTool(
-        QStringList { QStringLiteral("store"), QStringLiteral("--label=Jellyfin Native") } + attributes(profileId),
+        QStringList { QStringLiteral("store"), QStringLiteral("--label=Spool for Jellyfin") } + attributes(profileId),
         accessToken.toUtf8())
         .success;
 }

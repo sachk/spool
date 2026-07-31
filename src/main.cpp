@@ -99,7 +99,7 @@ private:
     QTimer m_timer;
 };
 
-constexpr auto kAppId = "com.sachk.tern";
+constexpr auto kAppId = "com.sachk.spool";
 constexpr auto kAppVersion = JELLYFIN_VERSION;
 
 FILE *g_logFile = nullptr;
@@ -241,7 +241,7 @@ int main(int argc, char **argv)
     QElapsedTimer& startupTimer = g_startupTimer;
     for (int i = 1; i < argc; ++i) {
         if (strcmp(argv[i], "--version") == 0 || strcmp(argv[i], "-v") == 0) {
-            printf("Jellyfin Native %s\n", kAppVersion);
+            printf("Spool for Jellyfin %s\n", kAppVersion);
             return 0;
         }
     }
@@ -305,10 +305,10 @@ int main(int argc, char **argv)
     QGuiApplication app(argc, argv);
     JellyfinNative::TerminationSignalHandler terminationSignals(app);
     logLine("startup: QGuiApplication constructed");
-    app.setApplicationName(QStringLiteral("Jellyfin Native"));
+    app.setApplicationName(QStringLiteral("Spool for Jellyfin"));
     app.setApplicationVersion(QString::fromLatin1(kAppVersion));
     app.setOrganizationName(QStringLiteral("sachk"));
-    app.setApplicationDisplayName(QStringLiteral("Jellyfin Native"));
+    app.setApplicationDisplayName(QStringLiteral("Spool for Jellyfin"));
     const auto& capabilities = JellyfinNative::platformCapabilities();
 
     const QString diagnosticsRoot = qEnvironmentVariableIsSet("JELLYFIN_DIAGNOSTICS_DIR")

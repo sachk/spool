@@ -238,7 +238,7 @@ cmake -S "$ROOT" -B "$CMAKE_BUILD_DIR" -GNinja \
   -DCMAKE_PREFIX_PATH="$QT6_PREFIX;$QT6_PREFIX/lib/cmake" \
   -DQt6_DIR="$QT6_PREFIX/lib/cmake/Qt6" \
   -DQT_HOST_PATH="$QT6_HOST_PREFIX" \
-  -DCMAKE_INSTALL_PREFIX=/usr/palm/applications/com.sachk.tern
+  -DCMAKE_INSTALL_PREFIX=/usr/palm/applications/com.sachk.spool
 
 cmake --build "$CMAKE_BUILD_DIR" --parallel "$WEBOS_BUILD_JOBS"
 cmake --install "$CMAKE_BUILD_DIR" --prefix "$INSTALL_DIR"

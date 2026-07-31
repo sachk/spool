@@ -16,7 +16,7 @@
 set -euo pipefail
 
 HOST="${TV_HOST:-}"
-APP_ID="${APP_ID:-com.sachk.tern}"
+APP_ID="${APP_ID:-com.sachk.spool}"
 DURATION="${DURATION:-60}"
 OUTDIR=""
 OPEN_GUI=1

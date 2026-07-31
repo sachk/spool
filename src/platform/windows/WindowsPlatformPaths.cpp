@@ -13,7 +13,7 @@ namespace {
     {
         const QString configured = QString::fromLocal8Bit(qgetenv("LOCALAPPDATA"));
         return configured.isEmpty() ? QStandardPaths::writableLocation(QStandardPaths::AppLocalDataLocation)
-                                    : QDir(configured).filePath(QStringLiteral("com.sachk.tern"));
+                                    : QDir(configured).filePath(QStringLiteral("com.sachk.spool"));
     }
 } // namespace
 

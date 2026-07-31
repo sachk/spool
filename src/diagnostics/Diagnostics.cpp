@@ -364,7 +364,7 @@ QString saveSupportReport()
         return {};
     QFile::setPermissions(directory, QFileDevice::ReadOwner | QFileDevice::WriteOwner | QFileDevice::ExeOwner);
 
-    const QString path = QDir(directory).filePath(QStringLiteral("Jellyfin-Native-Diagnostics-%1.json")
+    const QString path = QDir(directory).filePath(QStringLiteral("Spool-for-Jellyfin-Diagnostics-%1.json")
             .arg(QDateTime::currentDateTimeUtc().toString(QStringLiteral("yyyyMMdd-hhmmss"))));
     QFile file(path);
     if (!file.open(QIODevice::WriteOnly | QIODevice::Truncate))

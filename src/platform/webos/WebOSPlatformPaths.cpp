@@ -23,7 +23,7 @@ QString startupCacheRoot(const QString& appRootPath)
         return QString::fromLocal8Bit(configured);
     const QByteArray xdgCache = qgetenv("XDG_CACHE_HOME");
     if (!xdgCache.isEmpty())
-        return QDir(QString::fromLocal8Bit(xdgCache)).filePath(QStringLiteral("com.sachk.tern"));
+        return QDir(QString::fromLocal8Bit(xdgCache)).filePath(QStringLiteral("com.sachk.spool"));
     return QDir(appRootPath).filePath(QStringLiteral(".cache"));
 }
 
@@ -39,7 +39,7 @@ QStringList appLogDirectories(const QString& appRootPath)
 
 QString appLogFileName()
 {
-    return QStringLiteral("com.sachk.tern.log");
+    return QStringLiteral("com.sachk.spool.log");
 }
 
 } // namespace JellyfinNative

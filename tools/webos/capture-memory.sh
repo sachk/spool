@@ -2,7 +2,7 @@
 set -euo pipefail
 
 host="${TV_HOST:-}"
-app_id="com.sachk.tern"
+app_id="com.sachk.spool"
 interval="1"
 duration="0"
 out=""
@@ -20,7 +20,7 @@ No listener or endpoint is opened on the desktop, and the TV is only read.
 
 Options:
   --host HOST        required SSH host unless TV_HOST is set
-  --app-id ID       app id/process match (default: com.sachk.tern)
+  --app-id ID       app id/process match (default: com.sachk.spool)
   --interval SEC    sample interval (default: 1)
   --duration SEC    stop after SEC; 0 means until Ctrl-C (default: 0)
   --out PATH        output CSV path (default: build/memory/<timestamp>.csv)
@@ -69,7 +69,7 @@ echo "Writing $out"
 
 ssh -F /dev/null -o BatchMode=yes "$host" \
   "APP_ID='$app_id' INTERVAL='$interval' DURATION='$duration' WAIT_FOR_ABSENT='$wait_for_absent' WAIT_FOR_PROCESS='$wait_for_process' STOP_ON_EXIT='$stop_on_exit' sh -s" >"$tmp" <<'REMOTE'
-app_id=${APP_ID:-com.sachk.tern}
+app_id=${APP_ID:-com.sachk.spool}
 interval=${INTERVAL:-1}
 duration=${DURATION:-0}
 wait_for_absent=${WAIT_FOR_ABSENT:-0}

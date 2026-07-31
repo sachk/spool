@@ -157,18 +157,17 @@ jobs:
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.0
         if: ${{ inputs.release }}
         with:
-          name: jellyfin-native-linux-appimage
+          name: spool-for-jellyfin-linux-appimage
           path: dist/*.AppImage
           retention-days: 1
 
   macos-dmg:
     name: macOS DMG
-    runs-on: macos-14
+    runs-on: macos-15
     needs: lint
-    # macOS runners cost ~10x Linux minutes, so the DMG is built only on manual
-    # dispatch. Every push/PR still gets the lint gate (which checks these
-    # scripts) plus the Linux build for shared CMake/mpv coverage.
-    if: ${{ (github.event_name == 'workflow_dispatch' && inputs.build_macos) || (github.event_name == 'workflow_call' && inputs.release) }}
+    # Public repositories receive unlimited standard GitHub-hosted runner
+    # minutes, so pushes, pull requests, and releases exercise macOS too.
+    if: ${{ github.event_name != 'workflow_dispatch' || inputs.build_macos }}
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.0.2
         with:
@@ -242,7 +241,7 @@ jobs:
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.0
         if: ${{ inputs.release }}
         with:
-          name: jellyfin-native-macos-dmg
+          name: spool-for-jellyfin-macos-dmg
           path: dist/*.dmg
           retention-days: 1
 
@@ -250,7 +249,7 @@ jobs:
     name: webOS IPK
     runs-on: ubuntu-24.04
     needs: lint
-    if: ${{ (github.event_name == 'workflow_dispatch' && inputs.build_webos) || (github.event_name == 'workflow_call' && inputs.release) }}
+    if: ${{ github.event_name != 'workflow_dispatch' || inputs.build_webos }}
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.0.2
         with:
@@ -364,7 +363,7 @@ jobs:
           with open(sys.argv[1], encoding="utf-8") as handle:
               appinfo = json.load(handle)
 
-          assert appinfo["id"] == "com.sachk.tern", appinfo.get("id")
+          assert appinfo["id"] == "com.sachk.spool", appinfo.get("id")
           assert appinfo["main"] == "bin/jellyfin-native", appinfo.get("main")
           assert re.fullmatch(r"\d+\.\d+\.\d+", appinfo["version"]), appinfo.get("version")
           print(f"Validated {appinfo['id']} {appinfo['version']} IPK")
@@ -406,7 +405,7 @@ jobs:
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.0
         if: ${{ inputs.release }}
         with:
-          name: jellyfin-native-webos-ipk
+          name: spool-for-jellyfin-webos-ipk
           path: |
             build/*.ipk
             build/relink/*

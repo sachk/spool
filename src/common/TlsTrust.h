@@ -18,7 +18,7 @@
 #include <optional>
 
 #if !QT_CONFIG(ssl)
-#error "Jellyfin Native requires a Qt Network build with TLS support"
+#error "Spool for Jellyfin requires a Qt Network build with TLS support"
 #endif
 
 class QNetworkAccessManager;

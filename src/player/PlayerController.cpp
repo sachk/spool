@@ -39,7 +39,7 @@ namespace JellyfinNative {
 
 namespace {
 
-    constexpr auto kMpvLogFileName = "com.sachk.tern-mpv.log";
+    constexpr auto kMpvLogFileName = "com.sachk.spool-mpv.log";
 
     constexpr uint64_t kTimePosRefreshReply = 0x6a666e7074730001ULL;
     constexpr uint64_t kPlaybackTimeRefreshReply = 0x6a666e7074730002ULL;

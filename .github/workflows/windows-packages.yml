@@ -36,7 +36,7 @@ env:
 jobs:
   windows-x64:
     name: Windows x64 portable and installer
-    runs-on: windows-2022
+    runs-on: windows-2025
     timeout-minutes: 75
 
     steps:
@@ -153,7 +153,7 @@ jobs:
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.0
         if: ${{ inputs.release }}
         with:
-          name: jellyfin-native-windows-x64-portable
+          name: spool-for-jellyfin-windows-x64-portable
           path: |
             dist/*-Portable.exe
           if-no-files-found: error
@@ -163,7 +163,7 @@ jobs:
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.0
         if: ${{ inputs.release }}
         with:
-          name: jellyfin-native-windows-x64-installer
+          name: spool-for-jellyfin-windows-x64-installer
           path: |
             dist/*-Setup.exe
           if-no-files-found: error

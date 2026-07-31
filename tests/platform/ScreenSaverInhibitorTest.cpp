@@ -94,7 +94,7 @@ int main()
     const QByteArray response
         = webOsScreenSaverResponsePayload(QByteArrayLiteral("{\"state\":\"Active\",\"timestamp\":12345}"));
     const QJsonObject responseObject = QJsonDocument::fromJson(response).object();
-    require(responseObject.value(QStringLiteral("clientName")).toString() == QStringLiteral("com.sachk.tern")
+    require(responseObject.value(QStringLiteral("clientName")).toString() == QStringLiteral("com.sachk.spool")
             && !responseObject.value(QStringLiteral("ack")).toBool(true)
             && responseObject.value(QStringLiteral("timestamp")).toInt() == 12345,
         "webOS Active requests should receive the required ack:false response payload");

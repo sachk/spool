@@ -24,8 +24,8 @@ function(jellyfin_configure_macos_targets native_target core_target)
     target_link_libraries(${native_target} PRIVATE "-framework IOKit")
     set_target_properties(${native_target} PROPERTIES
         MACOSX_BUNDLE TRUE
-        MACOSX_BUNDLE_BUNDLE_NAME "Jellyfin Native"
-        MACOSX_BUNDLE_GUI_IDENTIFIER "com.sachk.tern"
+        MACOSX_BUNDLE_BUNDLE_NAME "Spool for Jellyfin"
+        MACOSX_BUNDLE_GUI_IDENTIFIER "com.sachk.spool"
         MACOSX_BUNDLE_ICON_FILE "jellyfin-native.icns"
         MACOSX_BUNDLE_BUNDLE_VERSION "${PROJECT_VERSION}"
         MACOSX_BUNDLE_SHORT_VERSION_STRING "${PROJECT_VERSION}"

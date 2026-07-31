@@ -114,7 +114,7 @@ NativeAppWindow::NativeAppWindow(const QString& appId, QWindow *parent)
     setColor(Qt::transparent);
     setResizeMode(QQuickView::SizeRootObjectToView);
     setFlags(Qt::FramelessWindowHint | Qt::Window);
-    setTitle(QStringLiteral("Jellyfin Native"));
+    setTitle(QStringLiteral("Spool for Jellyfin"));
     resize(1920, 1080);
     // Note: cursor suppression on webOS happens in main.cpp via
     // XCURSOR_PATH=/dev/null. Setting Qt::BlankCursor here would make Qt

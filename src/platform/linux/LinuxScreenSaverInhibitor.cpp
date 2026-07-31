@@ -15,7 +15,7 @@ namespace {
             QDBusInterface screenSaver(QStringLiteral("org.freedesktop.ScreenSaver"), QStringLiteral("/ScreenSaver"),
                 QStringLiteral("org.freedesktop.ScreenSaver"), QDBusConnection::sessionBus());
             const QDBusReply<quint32> reply = screenSaver.call(QStringLiteral("Inhibit"),
-                QStringLiteral("Jellyfin Native"), QStringLiteral("Media playback is active"));
+                QStringLiteral("Spool for Jellyfin"), QStringLiteral("Media playback is active"));
             if (!reply.isValid()) {
                 qWarning() << "screensaver: freedesktop inhibit failed" << reply.error().message();
                 return false;
