@@ -53,7 +53,7 @@ FocusScope {
         if (spec.key === "subtitles/language")
             return Settings.subtitleLanguageIndex
         const value = Settings.values[spec.key]
-        return value === undefined ? spec.defaultValue : value
+        return value === undefined || value === null ? spec.defaultValue : value
     }
 
     // Desktop can offer whatever fonts are installed on top of the bundled ones.
@@ -357,6 +357,9 @@ FocusScope {
         anchors.bottomMargin: inset
         anchors.rightMargin: inset
         model: root.rows
+        entryProvider: function (index) {
+            return index >= 0 && index < root.rows.length ? root.rows[index] : null
+        }
         spacing: Metrics.scaled(10)
         dismissOnBack: false
         dismissOnHorizontal: false

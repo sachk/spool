@@ -1,9 +1,14 @@
 import QtQuick
 import QtTest
 import "../../qml/pages/SettingsNavigation.js" as SettingsNavigation
+import "../../qml/primitives" as Primitives
 
 TestCase {
+    id: testCase
     name: "SubtitleSettingsPanel"
+    width: 400
+    height: 300
+    when: windowShown
 
     readonly property var sections: [
         {
@@ -19,6 +24,20 @@ TestCase {
             "keys": ["subtitles/dimInHdr"]
         }
     ]
+
+    Component {
+        id: menuListComponent
+
+        Primitives.MenuListView {
+            width: 320
+            height: 240
+            delegate: Item {
+                required property int index
+                width: 320
+                height: 20
+            }
+        }
+    }
 
     function resolveAll(key) {
         return {
@@ -69,6 +88,24 @@ TestCase {
         verify(rowEnabled(rows[1]))
     }
 
+    function test_menuListReadsSectionedArrayEntries() {
+        const rows = SettingsNavigation.sectionedRows(sections, resolveAll)
+        const list = createTemporaryObject(menuListComponent, testCase)
+        verify(list)
+        list.model = rows.length
+        list.entryProvider = function (index) {
+            return rows[index]
+        }
+        tryCompare(list, "count", rows.length)
+        compare(list.entryAt(0).spec.title, "Track")
+        verify(!list.isRowEnabled(0))
+        verify(list.isRowEnabled(1))
+        list.currentIndex = 1
+        list.moveSelection(1)
+        compare(list.currentIndex, 2)
+        list.moveSelection(1)
+        compare(list.currentIndex, 4)
+    }
     function test_noSectionsYieldsNoRows() {
         compare(SettingsNavigation.sectionedRows([], resolveAll).length, 0)
     }

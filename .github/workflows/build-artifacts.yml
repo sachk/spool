@@ -163,7 +163,7 @@ jobs:
 
   macos-dmg:
     name: macOS DMG
-    runs-on: macos-15
+    runs-on: macos-14
     needs: lint
     # Public repositories receive unlimited standard GitHub-hosted runner
     # minutes, so pushes, pull requests, and releases exercise macOS too.

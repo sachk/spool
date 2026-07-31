@@ -6,6 +6,9 @@ ListView {
     property bool dismissOnBack: true
     property bool dismissOnHorizontal: true
     property Item edgeEscapeItem: null
+    // ListView converts JavaScript arrays into an opaque instance model.
+    // Supply a lookup callback when navigation needs to inspect their entries.
+    property var entryProvider: null
     property var rowEnabled: function (entry, index) {
         return !(entry && entry.section === true)
     }
@@ -23,9 +26,11 @@ ListView {
     function entryAt(index) {
         if (index < 0 || index >= count)
             return null
+        if (entryProvider)
+            return entryProvider(index)
         if (model && model.get)
             return model.get(index)
-        return Array.isArray(model) ? model[index] : null
+        return null
     }
 
     function isRowEnabled(index) {
