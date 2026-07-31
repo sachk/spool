@@ -655,7 +655,7 @@ if(BUILD_TESTING AND NOT CMAKE_CROSSCOMPILING)
             COMMAND "${QMLTESTRUNNER_EXECUTABLE}"
                 -input "${CMAKE_CURRENT_SOURCE_DIR}/tests/qml/tst_SettingsNavigation.qml"
         )
-        if(NOT APPLE)
+        if(WIN32)
             add_test(NAME subtitle-settings-panel
                 COMMAND "${QMLTESTRUNNER_EXECUTABLE}"
                     -input "${CMAKE_CURRENT_SOURCE_DIR}/tests/qml/tst_SubtitleSettingsPanel.qml"

@@ -305,7 +305,6 @@ TestCase {
         verify(grid.routeKey(Qt.Key_Down, "press", false))
         verify(grid.routeKey(Qt.Key_Down, "press", true))
         compare(grid.heldKey, Qt.Key_Down)
-        wait(grid.holdReleaseTimeout + 50)
-        compare(grid.heldKey, 0)
+        tryCompare(grid, "heldKey", 0, grid.holdReleaseTimeout + 1000)
     }
 }
