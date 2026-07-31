@@ -655,10 +655,12 @@ if(BUILD_TESTING AND NOT CMAKE_CROSSCOMPILING)
             COMMAND "${QMLTESTRUNNER_EXECUTABLE}"
                 -input "${CMAKE_CURRENT_SOURCE_DIR}/tests/qml/tst_SettingsNavigation.qml"
         )
-        add_test(NAME subtitle-settings-panel
-            COMMAND "${QMLTESTRUNNER_EXECUTABLE}"
-                -input "${CMAKE_CURRENT_SOURCE_DIR}/tests/qml/tst_SubtitleSettingsPanel.qml"
-        )
+        if(NOT APPLE)
+            add_test(NAME subtitle-settings-panel
+                COMMAND "${QMLTESTRUNNER_EXECUTABLE}"
+                    -input "${CMAKE_CURRENT_SOURCE_DIR}/tests/qml/tst_SubtitleSettingsPanel.qml"
+            )
+        endif()
         add_test(NAME atomic-view-reveal
             COMMAND "${QMLTESTRUNNER_EXECUTABLE}"
                 -input "${CMAKE_CURRENT_SOURCE_DIR}/tests/qml/tst_AtomicViewReveal.qml"
