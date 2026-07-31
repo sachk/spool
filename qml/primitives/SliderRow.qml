@@ -105,7 +105,8 @@ SettingRow {
                 id: valueField
                 anchors.right: unitLabel.visible ? unitLabel.left : parent.right
                 anchors.rightMargin: unitLabel.visible ? Metrics.scaled(5) : parent.pad
-                anchors.verticalCenter: parent.verticalCenter
+                anchors.top: parent.top
+                anchors.bottom: parent.bottom
                 width: widest.width
                 text: root.formatValue(root.value)
                 // Typing an exact value is worth having on a desktop; on a TV

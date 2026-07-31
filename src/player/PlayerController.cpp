@@ -913,6 +913,14 @@ void PlayerController::play(const PlaybackSession& session, bool startPaused)
     emit segmentsChanged();
     emit trickplayChanged();
 
+    QString surfaceReadyError;
+    if (!waitForPlatformMpvSurfaceReady(needsVideoSurface, embeddedVideo, surfaceReadyError)) {
+        m_errorText = surfaceReadyError;
+        m_statusText = QStringLiteral("Playback unavailable");
+        teardownMpv();
+        emit playbackStateChanged();
+        return;
+    }
     auto *handle = m_mpvLifecycle.handle();
     m_mpvLifecycle.beginFileLoad();
 
@@ -1802,12 +1810,15 @@ void PlayerController::handleMpvEvent(mpv_event *event)
                 emit volumeChanged();
             });
         } else if (strcmp(property->name, "hwdec-current") == 0 && property->format == MPV_FORMAT_STRING) {
-            const QByteArray decoder(static_cast<const char *>(property->data));
-            QMetaObject::invokeMethod(this, [decoder]() {
-                qInfo() << "player: hardware decoder" << (decoder.isEmpty() ? QByteArrayLiteral("none") : decoder);
+            const auto *decoder = static_cast<char **>(property->data);
+            const QByteArray decoderName(decoder && *decoder ? *decoder : "");
+            QMetaObject::invokeMethod(this, [decoderName]() {
+                qInfo() << "player: hardware decoder"
+                        << (decoderName.isEmpty() ? QByteArrayLiteral("none") : decoderName);
             });
         } else if (strcmp(property->name, "video-params/transfer") == 0 && property->format == MPV_FORMAT_STRING) {
-            const QByteArray transfer(static_cast<const char *>(property->data));
+            const auto *transferValue = static_cast<char **>(property->data);
+            const QByteArray transfer(transferValue && *transferValue ? *transferValue : "");
             const QByteArray normalizedTransfer = transfer.toLower();
             const bool hdrPlayback = normalizedTransfer == QByteArrayLiteral("pq")
                 || normalizedTransfer == QByteArrayLiteral("hlg") || normalizedTransfer.contains("2084")

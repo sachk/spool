@@ -519,6 +519,11 @@ if(BUILD_TESTING AND NOT CMAKE_CROSSCOMPILING)
         system-performance-monitor tests/diagnostics/SystemPerformanceMonitorTest.cpp
         linux-memory-policy tests/platform/LinuxMemoryPolicyTest.cpp
     )
+    if(UNIX AND NOT APPLE)
+        list(APPEND JELLYFIN_TEST_SOURCES
+            mpv-video-item tests/player/MpvVideoItemTest.cpp
+        )
+    endif()
 
 
     get_target_property(JELLYFIN_QT_CORE_LOCATION Qt6::Core IMPORTED_LOCATION_RELEASE)

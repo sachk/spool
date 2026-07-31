@@ -66,6 +66,7 @@ namespace {
             m_handleDirty = true;
             m_releaseWaiter = snap.releaseWaiter;
             m_releaseCompleted = snap.releaseCompleted;
+            m_attachCompleted = snap.attachCompleted;
         }
 
         void render() override
@@ -80,6 +81,7 @@ namespace {
                 m_nextHandle = nullptr;
                 m_handleDirty = false;
                 completeReleaseWaiter();
+                completeAttachHandoff();
             }
 
             mpv_render_context *ctx = m_item->m_renderCtxAtomic.load();
@@ -224,6 +226,16 @@ namespace {
             m_releaseCompleted.reset();
         }
 
+        void completeAttachHandoff()
+        {
+            if (!m_attachCompleted)
+                return;
+            m_attachCompleted->store(true);
+            m_attachCompleted.reset();
+            if (m_item)
+                QMetaObject::invokeMethod(m_item, "renderContextHandoffCompleted", Qt::QueuedConnection);
+        }
+
         static void onMpvUpdate(void *ctx)
         {
             auto *item = static_cast<MpvVideoItem *>(ctx);
@@ -241,6 +253,7 @@ namespace {
         bool m_firstVideoFrameSwapPending = false;
         QPointer<QObject> m_releaseWaiter;
         std::shared_ptr<std::atomic_bool> m_releaseCompleted;
+        std::shared_ptr<std::atomic_bool> m_attachCompleted;
     };
 
 } // namespace
@@ -275,8 +288,30 @@ void MpvVideoItem::setMpvHandle(mpv_handle *handle)
         m_handleDirty = true;
         m_releaseWaiter = nullptr;
         m_releaseCompleted.reset();
+        m_attachCompleted = std::make_shared<std::atomic_bool>(false);
     }
     update();
+}
+
+bool MpvVideoItem::waitForRenderContext(int timeoutMs)
+{
+    std::shared_ptr<std::atomic_bool> completed;
+    {
+        QMutexLocker locker(&m_handleMutex);
+        completed = m_attachCompleted;
+    }
+    if (!completed)
+        return m_renderCtxAtomic.load() != nullptr;
+
+    QEventLoop waitLoop;
+    QTimer timeout;
+    timeout.setSingleShot(true);
+    QObject::connect(&timeout, &QTimer::timeout, &waitLoop, &QEventLoop::quit);
+    QObject::connect(this, &MpvVideoItem::renderContextHandoffCompleted, &waitLoop, &QEventLoop::quit);
+    timeout.start(timeoutMs);
+    if (!completed->load())
+        waitLoop.exec(QEventLoop::ExcludeUserInputEvents);
+    return completed->load() && m_renderCtxAtomic.load() != nullptr;
 }
 
 bool MpvVideoItem::releaseMpvHandle(int timeoutMs)
@@ -311,7 +346,7 @@ QQuickFramebufferObject::Renderer *MpvVideoItem::createRenderer() const
 MpvVideoItem::HandleSnapshot MpvVideoItem::takePendingHandle()
 {
     QMutexLocker locker(&m_handleMutex);
-    HandleSnapshot snap { m_pendingHandle, m_handleDirty, m_releaseWaiter, m_releaseCompleted };
+    HandleSnapshot snap { m_pendingHandle, m_handleDirty, m_releaseWaiter, m_releaseCompleted, m_attachCompleted };
     m_handleDirty = false;
     m_releaseWaiter = nullptr;
     m_releaseCompleted.reset();

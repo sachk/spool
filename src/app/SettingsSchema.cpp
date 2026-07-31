@@ -305,7 +305,7 @@ const QVector<SettingSpec>& settingSpecs()
             SettingType::Select, "transparent", kSubtitleBackgroundChoices, countOf(kSubtitleBackgroundChoices), 0, 0,
             1, 0, "", SettingTarget::SubtitleTextBackground, SettingNormalizer::String, true, false,
             SettingLevel::Advanced, SettingPlatform::All, "contrast" },
-        { "subtitles/verticalPositionPercent", "Subtitle Appearance", "Vertical Position - Bottom ↔ Top",
+        { "subtitles/verticalPositionPercent", "Subtitle Appearance", "Vertical Position - Bottom to Top",
             "Lifts text and image subtitles alike; 100% keeps each where it was authored", SettingType::Slider, "100",
             nullptr, 0, 0, 100, 1, 0, "%", SettingTarget::SubtitleVerticalPosition, SettingNormalizer::IntRange, true,
             false, SettingLevel::Advanced },

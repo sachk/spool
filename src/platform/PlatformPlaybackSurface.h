@@ -24,6 +24,7 @@ bool configurePlatformMpvSurface(
     mpv_handle *handle, NativeAppWindow& window, bool needsVideoSurface, bool embeddedVideo, QString& errorMessage);
 bool attachPlatformMpvSurface(mpv_handle *handle, bool needsVideoSurface, bool embeddedVideo, QObject& context,
     std::function<void(const QString&)> errorHandler, QString& errorMessage);
+bool waitForPlatformMpvSurfaceReady(bool needsVideoSurface, bool embeddedVideo, QString& errorMessage);
 bool releasePlatformMpvSurface(bool embeddedVideo);
 QString platformPreparingStatus(bool needsVideoSurface, bool embeddedVideo);
 bool applyPlatformSubtitlePreload(

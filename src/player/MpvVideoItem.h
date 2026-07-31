@@ -26,9 +26,13 @@ public:
     explicit MpvVideoItem(QQuickItem *parent = nullptr);
     ~MpvVideoItem() override;
 
-    // Called from the GUI thread. A non-null handle is adopted by the renderer
-    // on its next frame, with Qt's OpenGL context current.
+    // Schedule render-context creation on Qt's scene-graph thread.
     void setMpvHandle(mpv_handle *handle);
+
+    // Wait until the scheduled render-context handoff has completed. The
+    // player must make this item visible before calling this so Qt will render
+    // it; media loading must not start until this returns true.
+    bool waitForRenderContext(int timeoutMs = 5000);
 
     // Release the render context on Qt's render thread and wait for that short
     // handoff before PlayerController destroys the underlying mpv core.
@@ -45,6 +49,7 @@ public:
         bool dirty;
         QPointer<QObject> releaseWaiter;
         std::shared_ptr<std::atomic_bool> releaseCompleted;
+        std::shared_ptr<std::atomic_bool> attachCompleted;
     };
     HandleSnapshot takePendingHandle();
 
@@ -54,6 +59,7 @@ public:
 
 signals:
     void renderError(const QString& message);
+    void renderContextHandoffCompleted();
 
 private:
     static MpvVideoItem *s_instance;
@@ -63,6 +69,7 @@ private:
     bool m_handleDirty = false;
     QPointer<QObject> m_releaseWaiter;
     std::shared_ptr<std::atomic_bool> m_releaseCompleted;
+    std::shared_ptr<std::atomic_bool> m_attachCompleted;
 };
 
 } // namespace JellyfinNative

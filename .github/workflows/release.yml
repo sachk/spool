@@ -49,21 +49,13 @@ jobs:
     with:
       release: true
       enable_macos_signing: ${{ vars.ENABLE_MACOS_SIGNING == 'true' }}
-    secrets: inherit
-
-  windows:
-    needs: validate
-    permissions:
-      contents: read
-    uses: ./.github/workflows/windows-packages.yml
-    with:
-      release: true
       enable_windows_signing: ${{ vars.ENABLE_WINDOWS_SIGNING == 'true' }}
     secrets: inherit
 
+
   publish:
     name: Scan, attest, and publish prerelease
-    needs: [platforms, windows]
+    needs: platforms
     runs-on: ubuntu-24.04
     environment: release
     permissions:

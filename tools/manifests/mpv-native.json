@@ -130,7 +130,7 @@
       "gl=enabled",
       "macos-cocoa-cb=disabled",
       "macos-media-player=disabled",
-      "videotoolbox-gl=enabled",
+      "videotoolbox-gl=disabled",
       "videotoolbox-pl=disabled",
       "vulkan=disabled"
     ],

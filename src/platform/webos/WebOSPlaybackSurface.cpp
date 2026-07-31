@@ -83,6 +83,18 @@ bool attachPlatformMpvSurface(mpv_handle *handle, bool needsVideoSurface, bool e
     return true;
 }
 
+bool waitForPlatformMpvSurfaceReady(bool needsVideoSurface, bool embeddedVideo, QString& errorMessage)
+{
+    if (!needsVideoSurface || !embeddedVideo)
+        return true;
+    auto *videoItem = MpvVideoItem::instance();
+    if (videoItem && videoItem->waitForRenderContext())
+        return true;
+    errorMessage
+        = QStringLiteral("The software video renderer did not become ready. Return to the library and try again.");
+    return false;
+}
+
 bool releasePlatformMpvSurface(bool embeddedVideo)
 {
     if (!embeddedVideo)
