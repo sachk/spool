@@ -154,7 +154,13 @@ jobs:
         run: nix develop .#native -c bash tools/build-linux-release.sh
 
       - name: Run native tests
-        run: nix shell nixpkgs#xvfb-run -c xvfb-run -a nix develop .#native -c ctest --test-dir build/linux-release/app --output-on-failure
+        run: nix develop .#native -c ctest --test-dir build/linux-release/app -E '^mpv-video-item$' --output-on-failure
+
+      - name: Run libmpv renderer test
+        env:
+          LIBGL_ALWAYS_SOFTWARE: "1"
+          QT_XCB_GL_INTEGRATION: xcb_glx
+        run: nix shell nixpkgs#xvfb-run -c xvfb-run -a nix develop .#native -c ctest --test-dir build/linux-release/app -R '^mpv-video-item$' --output-on-failure
 
       - name: Lint compiled QML
         run: nix develop .#native -c cmake --build build/linux-release/app --target jellyfin-native_qmllint_strict
