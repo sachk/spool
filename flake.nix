@@ -187,6 +187,7 @@
       darwinPackages = pkgs: with pkgs; [
         apple-sdk_15
         create-dmg
+        libiconv
       ];
 
       qmlToolWrappers = pkgs:
