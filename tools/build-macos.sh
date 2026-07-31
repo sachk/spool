@@ -67,6 +67,18 @@ if [[ "$DEPLOY_APP" == "1" ]]; then
     "$BUILD_ROOT/qt-tools-shadow" \
     "$(command -v macdeployqt)")"
   "$macdeployqt_shadow" "$APP_INSTALL/jellyfin-native.app" -qmldir="$APP_ROOT/qml" -no-strip
+
+  # macdeployqt can bundle Nix's GNU libiconv under the same install name as
+  # macOS's ABI-incompatible system libiconv. Dependencies built with the Apple
+  # SDK require the system ABI, so keep those load commands on /usr/lib.
+  while IFS= read -r binary; do
+    while IFS= read -r dependency; do
+      if [[ "$(basename "$dependency")" == "libiconv.2.dylib" ]]; then
+        install_name_tool -change "$dependency" /usr/lib/libiconv.2.dylib "$binary"
+      fi
+    done < <(otool -L "$binary" 2>/dev/null | sed -n '2,$s/^[[:space:]]*\([^[:space:]]*\).*/\1/p')
+  done < <(find "$APP_INSTALL/jellyfin-native.app" -type f)
+  rm -f "$APP_INSTALL/jellyfin-native.app/Contents/Frameworks/libiconv.2.dylib"
   mkdir -p "$APP_INSTALL/jellyfin-native.app/Contents/Resources/notices"
   cp -f "$APP_ROOT/app/notices/OPEN_SOURCE_NOTICES.txt" "$APP_ROOT/LICENSE" \
     "$APP_ROOT/qml/fonts/AtkinsonHyperlegible-LICENSE.txt" \
