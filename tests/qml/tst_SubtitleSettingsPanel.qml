@@ -6,9 +6,6 @@ import "../../qml/primitives" as Primitives
 TestCase {
     id: testCase
     name: "SubtitleSettingsPanel"
-    width: 400
-    height: 300
-    when: windowShown
 
     readonly property var sections: [
         {
