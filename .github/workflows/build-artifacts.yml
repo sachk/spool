@@ -17,13 +17,8 @@ on:
         required: true
         default: false
         type: boolean
-      upload_artifacts:
-        description: "Upload packages after successful builds"
-        required: true
-        default: true
-        type: boolean
       build_webos:
-        description: "Build webOS IPK on the maintainer runner"
+        description: "Build webOS IPK"
         required: true
         default: false
         type: boolean
@@ -160,7 +155,7 @@ jobs:
         run: nix develop .#native -c bash tools/package-appimage.sh
 
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.0
-        if: ${{ (github.event_name == 'workflow_dispatch' && inputs.upload_artifacts) || inputs.release }}
+        if: ${{ inputs.release }}
         with:
           name: jellyfin-native-linux-appimage
           path: dist/*.AppImage
@@ -245,7 +240,7 @@ jobs:
         run: tools/notarize-macos.sh dist/*.dmg
 
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.0
-        if: ${{ github.event_name != 'workflow_dispatch' || inputs.upload_artifacts }}
+        if: ${{ inputs.release }}
         with:
           name: jellyfin-native-macos-dmg
           path: dist/*.dmg
@@ -253,7 +248,7 @@ jobs:
 
   webos-ipk:
     name: webOS IPK
-    runs-on: [self-hosted, linux, X64]
+    runs-on: ubuntu-24.04
     needs: lint
     if: ${{ (github.event_name == 'workflow_dispatch' && inputs.build_webos) || (github.event_name == 'workflow_call' && inputs.release) }}
     steps:
@@ -261,8 +256,14 @@ jobs:
         with:
           submodules: recursive
 
-      # See the Linux job: this self-hosted NixOS runner provides Nix natively,
-      # so we skip nix-quick-install-action / cache-nix-action here too.
+      - uses: nixbuild/nix-quick-install-action@2c9db80fb984ceb1bcaa77cdda3fdf8cfba92035 # v34
+        with:
+          nix_conf: |
+            experimental-features = nix-command flakes
+      - uses: nix-community/cache-nix-action@7df957e333c1e5da7721f60227dbba6d06080569 # v7.0.1
+        with:
+          primary-key: nix-${{ runner.os }}-${{ hashFiles('flake.lock') }}
+          restore-prefixes-first-match: nix-${{ runner.os }}-
       - uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5.0.3
         id: webos-cache
         with:
@@ -403,7 +404,7 @@ jobs:
         run: tools/package-webos-relink.sh build/relink
 
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.0
-        if: ${{ github.event_name != 'workflow_dispatch' || inputs.upload_artifacts }}
+        if: ${{ inputs.release }}
         with:
           name: jellyfin-native-webos-ipk
           path: |
