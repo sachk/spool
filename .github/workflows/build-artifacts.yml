@@ -229,6 +229,8 @@ jobs:
         run: nix develop .#native --no-write-lock-file -c cmake --build build/macos/app --target jellyfin-native_qmllint_strict
 
       - name: Smoke-test macOS app startup
+        env:
+          JELLYFIN_SMOKE_QPA_PLATFORM: cocoa
         run: nix develop .#native --no-write-lock-file -c bash tools/smoke-native-app.sh build/macos/install/jellyfin-native.app
 
       - name: Sign macOS application
