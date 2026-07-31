@@ -128,7 +128,7 @@ download_verified() {
   fi
 
   rm -f "$destination"
-  curl -L --fail --retry 3 --retry-delay 2 -o "$destination" "$url"
+  curl -L --fail --retry 3 --retry-all-errors --retry-delay 2 -o "$destination" "$url"
   verify_sha256 "$destination" "$expected"
 }
 
