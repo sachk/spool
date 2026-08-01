@@ -19,6 +19,7 @@
 
 extern "C" {
 #include <luna-service2/lunaservice.h>
+#include <wayland-webos-shell-client-protocol.h>
 #include <webos-helpers/libhelpers.h>
 }
 
@@ -191,6 +192,22 @@ void PlatformApplicationServices::start()
                 platform->backgroundTrimTimer.stop();
             else
                 platform->backgroundTrimTimer.start();
+        });
+    QObject::connect(m_platform->window, &NativeAppWindow::platformSurfaceStateChanged, m_platform->application,
+        [platform = m_platform.get()](int state) {
+            PlayerController *player = platform->controller->player();
+            if (state == WL_WEBOS_SHELL_SURFACE_STATE_MINIMIZED) {
+                if (player->sessionActive() && !player->paused()) {
+                    qInfo() << "webOS shell minimized: pausing playback";
+                    player->setPaused(true);
+                }
+                player->prepareForBackground();
+                platform->backgroundTrimTimer.start();
+            } else if (state == WL_WEBOS_SHELL_SURFACE_STATE_MAXIMIZED
+                || state == WL_WEBOS_SHELL_SURFACE_STATE_FULLSCREEN) {
+                platform->backgroundTrimTimer.stop();
+                player->resyncForForeground();
+            }
         });
     QObject::connect(m_platform->window, &NativeAppWindow::platformSurfaceExposed, &m_platform->backgroundTrimTimer,
         [platform = m_platform.get()](bool exposed) {
