@@ -321,7 +321,13 @@ export QT_PLUGIN_PATH="$HERE/usr/plugins"
 export QT_QPA_PLATFORM_PLUGIN_PATH="$HERE/usr/plugins/platforms"
 export QML2_IMPORT_PATH="$HERE/usr/qml"
 export QML_IMPORT_PATH="$HERE/usr/qml"
-export QT_QPA_PLATFORM="${QT_QPA_PLATFORM:-wayland;xcb}"
+# NixOS appimage-run's FHS container cannot initialize the host Wayland EGL
+# vendor stack reliably. XWayland uses GLX and avoids that mixed-driver path.
+if [[ "$HERE" != /tmp/.mount_* && -n "${DISPLAY:-}" ]]; then
+  export QT_QPA_PLATFORM=xcb
+else
+  export QT_QPA_PLATFORM="${QT_QPA_PLATFORM:-wayland;xcb}"
+fi
 exec "$HERE/usr/bin/jellyfin-native" "$@"
 APPRUN
 chmod +x "$APPDIR/AppRun"

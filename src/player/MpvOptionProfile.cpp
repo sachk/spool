@@ -300,7 +300,11 @@ std::vector<MpvOption> MpvOptionProfile::applicationOptions(Platform platform, c
         }
     } else {
         options.push_back({ "vo", "libmpv" });
+#if defined(Q_OS_LINUX)
+        options.push_back({ "hwdec", "auto-copy" });
+#else
         options.push_back({ "hwdec", "auto-safe" });
+#endif
         if (normalizedAudioOutput != QStringLiteral("auto"))
             options.push_back({ "ao", normalizedAudioOutput.toUtf8() });
     }

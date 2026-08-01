@@ -63,7 +63,12 @@ int main(int argc, char **argv)
     const auto desktop = profileOptions(MpvConfigPolicy {}, MpvOptionProfile::Platform::Desktop, QStringLiteral("alsa"),
         QByteArrayLiteral("/tmp/mpv.log"));
     require(valueFor(desktop, "vo") == "libmpv", "desktop should render through libmpv");
+#if defined(Q_OS_LINUX)
+    require(valueFor(desktop, "hwdec") == "auto-copy",
+        "Linux desktop should copy decoded frames across the driver boundary");
+#else
     require(valueFor(desktop, "hwdec") == "auto-safe", "desktop should enable safe hardware decoding");
+#endif
     require(valueFor(desktop, "log-file") == "/tmp/mpv.log", "profile should carry the configured log path");
     require(valueFor(desktop, "gpu-shader-cache-dir") == "/tmp/mpv-shaders",
         "desktop should use the application-owned persistent shader cache");
