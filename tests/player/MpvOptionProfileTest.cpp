@@ -83,6 +83,7 @@ int main(int argc, char **argv)
         "application input invariants must be applied after user configuration policy");
     require(valueFor(desktop, "ytdl") == "no", "desktop should disable the bundled URL script");
     require(valueFor(desktop, "osc") == "no", "desktop should disable mpv's script UI");
+    require(valueFor(desktop, "load-stats-overlay") == "yes", "desktop should load mpv's playback statistics");
 
     MpvConfigPolicy standardConfig;
     standardConfig.mode = MpvConfigPolicy::Mode::Standard;
@@ -256,8 +257,8 @@ int main(int argc, char **argv)
         "software video should wait for its first video frame before starting audio");
     require(valueFor(webOSSoftware, "audio-buffer") == "0.100",
         "software video should retain enough audio to survive render-thread stalls");
-    require(valueFor(webOSSoftware, "load-stats-overlay").isEmpty(),
-        "the full mpv statistics overlay should remain loaded");
+    require(valueFor(webOSSoftware, "load-stats-overlay") == "yes",
+        "webOS software playback should load the full mpv statistics overlay");
     require(valueFor(webOSSoftware, "script-opts") == "stats-redraw_delay=2",
         "the statistics overlay should avoid redrawing every second");
     require(valueFor(webOSSoftware, "scale") == "bilinear" && valueFor(webOSSoftware, "cscale") == "bilinear",

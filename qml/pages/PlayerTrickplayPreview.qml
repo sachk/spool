@@ -33,7 +33,7 @@ Item {
     anchors.left: parent.left
     anchors.right: parent.right
     anchors.bottom: parent.bottom
-    anchors.bottomMargin: dp(310)
+    anchors.bottomMargin: dp(200)
     height: ready ? Math.round((trickplayData.height || 0) * scaleFactor) + dp(24) : 0
     visible: ready
     z: 22
