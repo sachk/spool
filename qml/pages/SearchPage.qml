@@ -183,6 +183,10 @@ FocusScope {
     }
 
     function activate() {
+        if (field.activeFocus && !field.editing) {
+            field.activate()
+            return
+        }
         if (suggestionsRow.activeFocus) {
             if (shell && suggestionsRow.currentIndex >= 0)
                 shell.openDetailsAt(search.suggestions, suggestionsRow.currentIndex, "suggestion", "search")
@@ -281,7 +285,7 @@ FocusScope {
             visible: root.query.length < 2
             onActivated: index => {
                 if (root.shell)
-                root.shell.openDetailsAt(model, index, "suggestion", "search")
+                    root.shell.openDetailsAt(model, index, "suggestion", "search")
             }
         }
 

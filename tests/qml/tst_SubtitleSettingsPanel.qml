@@ -102,6 +102,8 @@ TestCase {
         compare(list.currentIndex, 2)
         list.moveSelection(1)
         compare(list.currentIndex, 4)
+        verify(list.routeKey(Qt.Key_Down, "release", false))
+        compare(list.currentIndex, 4)
     }
     function test_noSectionsYieldsNoRows() {
         compare(SettingsNavigation.sectionedRows([], resolveAll).length, 0)

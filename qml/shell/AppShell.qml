@@ -364,8 +364,14 @@ KeyRouter {
     }
 
     function releaseTextInput() {
-        InputKeys.focus(routeStack)
+        let item = root.Window.window ? root.Window.window.activeFocusItem : null
+        while (item) {
+            if (item.releaseTextInput && item.releaseTextInput())
+                return
+            item = item.parent
+        }
         Qt.inputMethod.hide()
+        InputKeys.focus(routeStack)
     }
 
     function back() {

@@ -73,6 +73,8 @@ ListView {
     }
 
     function routeKey(key, phase, repeat) {
+        if (phase === "release")
+            return true
         if (dismissOnBack && InputKeys.isBack(key, false, false)) {
             dismissed()
             return true
