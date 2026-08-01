@@ -26,8 +26,8 @@ FocusScope {
     property string diagnosticsExportPreview: ""
     property bool pendingCustomMpvMode: false
 
-    readonly property var groupOrder: ["Account", "Playback", "Subtitles", "Appearance", "Diagnostics", "About",
-        "Button Remap"]
+    readonly property var groupOrder: ["Appearance", "Playback", "Subtitles", "Account", "Diagnostics", "Button Remap",
+        "About"]
 
     function rowAvailable(row) {
         return SettingsNavigation.rowAvailable(row, Platform.isTV, Player.hdrPlayback, function (key) {

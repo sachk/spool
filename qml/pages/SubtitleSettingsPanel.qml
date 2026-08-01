@@ -21,26 +21,36 @@ FocusScope {
     property var choiceRow: null
     property Item choiceAnchor: null
     property bool resetVisible: false
+    property bool advancedExpanded: false
     property var appearanceSnapshot: ({})
 
     readonly property var sections: [
         {
-            "title": "Track",
-            "keys": ["subtitles/language", "subtitles/mode"]
+            "title": "Size and colour",
+            "keys": ["subtitles/scalePercent", "subtitles/textSize", "subtitles/textColor"]
         },
         {
-            "title": "Text",
-            "keys": ["subtitles/styling", "subtitles/textSize", "subtitles/textWeight", "subtitles/font",
-                "subtitles/textColor", "subtitles/dropShadow", "subtitles/textBackground"]
+            "title": "Track",
+            "keys": ["subtitles/language", "subtitles/mode"]
+        }
+    ]
+    readonly property var advancedSections: [
+        {
+            "title": "Text style",
+            "keys": ["subtitles/styling", "subtitles/textWeight", "subtitles/font", "subtitles/dropShadow",
+                "subtitles/textBackground"]
         },
         {
             "title": "Image subtitles",
             "keys": ["subtitles/imageColorMode", "subtitles/bitmapSmoothing"]
         },
         {
-            "title": "Position and size",
-            "keys": ["subtitles/verticalPositionPercent", "subtitles/scalePercent", "subtitles/dimInHdr",
-                "subtitles/hdrBrightnessPercent", "action/resetSubtitleAppearance"]
+            "title": "Position and HDR",
+            "keys": ["subtitles/verticalPositionPercent", "subtitles/dimInHdr", "subtitles/hdrBrightnessPercent"]
+        },
+        {
+            "title": "Maintenance",
+            "keys": ["action/resetSubtitleAppearance"]
         }
     ]
 
@@ -77,14 +87,30 @@ FocusScope {
         for (let index = 0; index < schema.length; ++index)
             byKey[schema[index].key] = schema[index]
 
-        rows = SettingsNavigation.sectionedRows(sections, function (key) {
+        const resolve = function (key) {
             const spec = byKey[key]
             const available = SettingsNavigation.rowAvailable(spec, Platform.isTV, Player.hdrPlayback, function (name) {
                 const value = Settings.values[name]
                 return value === undefined ? "" : value
             })
             return available ? root.expandedSpec(spec) : null
-        })
+        }
+        const visibleRows = SettingsNavigation.sectionedRows(sections, resolve)
+        visibleRows.push({
+                             "section": false,
+                             "spec": {
+                                 "key": "action/toggleAdvanced",
+                                 "title": "Advanced",
+                                 "description": "Font, outline, position, image subtitle, and HDR controls",
+                                 "type": "submenu"
+                             }
+                         })
+        if (advancedExpanded) {
+            const advancedRows = SettingsNavigation.sectionedRows(advancedSections, resolve)
+            for (let index = 0; index < advancedRows.length; ++index)
+                visibleRows.push(advancedRows[index])
+        }
+        rows = visibleRows
     }
 
     function choiceLabels(spec) {
@@ -170,7 +196,10 @@ FocusScope {
         if (!entry || entry.section)
             return
         const spec = entry.spec
-        if (spec.type === "action") {
+        if (spec.type === "submenu") {
+            advancedExpanded = !advancedExpanded
+            rebuildRows()
+        } else if (spec.type === "action") {
             beginReset()
         } else if (spec.type === "toggle") {
             setValue(spec, !Boolean(specValue(spec)), -1)
@@ -236,6 +265,11 @@ FocusScope {
         }
         if (choiceVisible) {
             closeChoice()
+            return true
+        }
+        if (advancedExpanded) {
+            advancedExpanded = false
+            rebuildRows()
             return true
         }
         if (overVideo) {
@@ -493,7 +527,7 @@ FocusScope {
             rowFocus: list.activeFocus && list.currentIndex === rowIndex
             title: spec ? spec.title : ""
             description: spec ? spec.description : ""
-            valueText: "Reset"
+            valueText: spec && spec.type === "submenu" ? (root.advancedExpanded ? "Hide" : "Open") : "Reset"
             onClicked: {
                 root.focusRow(rowIndex)
                 root.activateRow(rowIndex)
