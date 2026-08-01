@@ -255,7 +255,8 @@ if [[ -d "$APPDIR" ]]; then
 fi
 rm -rf "$APPDIR"
 mkdir -p "$APPDIR/usr/bin" "$APPDIR/usr/lib" "$APPDIR/usr/share/applications" \
-  "$APPDIR/usr/share/icons/hicolor/256x256/apps" "$APPDIR/usr/share/jellyfin-native/notices"
+  "$APPDIR/usr/share/fonts" "$APPDIR/usr/share/icons/hicolor/256x256/apps" \
+  "$APPDIR/usr/share/jellyfin-native/notices"
 
 cp -f "$BUILD_ROOT/jellyfin-native" "$APPDIR/usr/bin/jellyfin-native"
 find "$MPV_PREFIX/lib" -name 'libmpv.so*' -exec cp -a {} "$APPDIR/usr/lib/" \;
@@ -271,11 +272,14 @@ cp -f "$APP_ROOT/app/notices/OPEN_SOURCE_NOTICES.txt" "$APP_ROOT/LICENSE" \
   "$APP_ROOT/qml/fonts/AtkinsonHyperlegible-LICENSE.txt" \
   "$APP_ROOT/qml/fonts/IBMPlexSans-LICENSE.txt" "$APP_ROOT/qml/fonts/MaterialIcons-LICENSE.txt" \
   "$APPDIR/usr/share/jellyfin-native/notices/"
+cp -f "$APP_ROOT/qml/fonts/AtkinsonHyperlegible-Regular.otf" \
+  "$APP_ROOT/qml/fonts/AtkinsonHyperlegible-Bold.otf" "$APP_ROOT/qml/fonts/IBMPlexSans-Variable.ttf" \
+  "$APPDIR/usr/share/fonts/"
 cat > "$APPDIR/usr/share/jellyfin-native/fonts.conf" <<'FONTCONFIG'
 <?xml version="1.0"?>
 <!DOCTYPE fontconfig SYSTEM "urn:fontconfig:fonts.dtd">
 <fontconfig>
-  <dir>/usr/share/fonts</dir>
+  <dir prefix="relative">../fonts</dir>
   <dir prefix="xdg">fonts</dir>
   <cachedir prefix="xdg">fontconfig</cachedir>
   <config></config>
