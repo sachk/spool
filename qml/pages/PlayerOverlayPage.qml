@@ -649,14 +649,12 @@ FocusScope {
     function routeKey(key, phase, repeat) {
         if (subtitleSettingsVisible)
             return subtitleSettings.routeKey(key, phase, repeat)
-        if (phase === "press" && (isMenuOpen() || audioSyncVisible) && InputKeys.isDirection(key))
-            return true
-        if (phase === "release" && syncPlayMenuOpen && chrome.routeSyncPlayMenuKey(key))
-            return true
-        if (phase === "release" && menuKind.length > 0 && chrome.routeMenuKey(key))
-            return true
-        if (phase === "release" && audioSyncVisible && handleAudioSyncKey(key))
-            return true
+        if (syncPlayMenuOpen && InputKeys.isDirection(key))
+            return phase === "press" ? chrome.routeSyncPlayMenuKey(key, repeat) : true
+        if (menuKind.length > 0 && InputKeys.isDirection(key))
+            return phase === "press" ? chrome.routeMenuKey(key, repeat) : true
+        if (audioSyncVisible && InputKeys.isDirection(key))
+            return phase === "press" ? handleAudioSyncKey(key) : true
         return input.routeKey(key, phase, repeat)
     }
 

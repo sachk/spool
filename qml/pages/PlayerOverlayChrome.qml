@@ -41,20 +41,20 @@ Item {
         syncPlayMenu.closeMenu()
     }
 
-    function routeSyncPlayMenuKey(key) {
-        return syncPlayMenu.routeKey(key, "release", false)
+    function routeSyncPlayMenuKey(key, repeat) {
+        return syncPlayMenu.routeKey(key, "press", repeat)
     }
 
     function activateSyncPlayMenu() {
         syncPlayMenu.activate()
     }
 
-    function routeMenuKey(key) {
+    function routeMenuKey(key, repeat) {
         if (overlay.menuKind === "debug" && menuList.currentIndex === 0 && InputKeys.isHorizontal(key)) {
             overlay.adjustPlaybackSpeed(key === Qt.Key_Left ? -1 : 1)
             return true
         }
-        return menuList.routeKey(key, "release", false)
+        return menuList.routeKey(key, "press", repeat)
     }
 
     function activateMenu() {
