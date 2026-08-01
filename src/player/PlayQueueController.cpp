@@ -36,6 +36,8 @@ namespace {
             { QStringLiteral("episodeCode"), itemEpisodeCode(item) },
             { QStringLiteral("genericEpisodeTitle"), isGenericEpisodeTitle(item) },
             { QStringLiteral("playable"), isPlayableItem(item) },
+            { QStringLiteral("resumeTicks"), item.resumeTicks },
+            { QStringLiteral("runtimeTicks"), item.runtimeTicks },
         };
     }
 
@@ -135,6 +137,23 @@ QVariantMap PlayQueueController::get(int index) const
     if (index < 0 || index >= rowCount())
         return {};
     return itemSnapshot(m_entries[static_cast<size_t>(index)]);
+}
+
+bool PlayQueueController::updateResumeTicks(const QString& itemId, qint64 resumeTicks)
+{
+    if (itemId.isEmpty())
+        return false;
+
+    bool updated = false;
+    for (int row = 0; row < rowCount(); ++row) {
+        MovieItem& item = m_entries[static_cast<size_t>(row)];
+        const qint64 normalizedTicks = normalizedResumeTicks(resumeTicks, item.runtimeTicks);
+        if (item.id != itemId || item.resumeTicks == normalizedTicks)
+            continue;
+        item.resumeTicks = normalizedTicks;
+        updated = true;
+    }
+    return updated;
 }
 
 bool PlayQueueController::next()

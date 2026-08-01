@@ -50,6 +50,8 @@ int main(int argc, char **argv)
     entries[1].seasonNumber = 3;
     entries[1].episodeNumber = 7;
     entries[1].title = QStringLiteral("Episode 7");
+    entries[1].runtimeTicks = 1'000'000'000;
+    entries[1].resumeTicks = 200'000'000;
 
     require(queue.playNow(entries, 1), "playNow should accept a playable item vector");
     require(queue.count() == 3, "playNow should keep all playable items");
@@ -65,6 +67,14 @@ int main(int argc, char **argv)
     require(queue.data(queue.index(1), PlayQueueController::YearRole).toInt() == 2024,
         "the queue model should expose the production year role");
     require(queue.canGoPrevious() && queue.canGoNext(), "middle current item should allow both directions");
+    require(episodeSnapshot.value(QStringLiteral("resumeTicks")).toLongLong() == 200'000'000
+            && episodeSnapshot.value(QStringLiteral("runtimeTicks")).toLongLong() == 1'000'000'000,
+        "queue snapshots should expose playback progress");
+    require(
+        queue.updateResumeTicks(QStringLiteral("b"), 350'000'000), "queue progress should update the matching item");
+    require(queue.currentItem().resumeTicks == 350'000'000
+            && queue.get(1).value(QStringLiteral("resumeTicks")).toLongLong() == 350'000'000,
+        "queue playback should use the current resume position");
 
     const std::vector<PlaybackQueueItem> reported = queue.nowPlayingQueue();
     require(reported.size() == 3, "reported queue should include all queued entries");

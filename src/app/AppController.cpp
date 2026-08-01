@@ -1145,6 +1145,7 @@ void AppController::handlePlaybackStopped(const QString& itemId, qint64 position
 {
     qInfo() << "app: playback stopped" << itemId << positionTicks << completed;
     m_itemState->recordPlaybackStopped(m_activePlaybackItem, itemId, positionTicks, completed);
+    m_playQueue->updateResumeTicks(itemId, completed ? 0 : positionTicks);
     if (!completed || m_activePlaybackItem.id != itemId || (m_syncPlay && m_syncPlay->enabled()))
         return;
     if (m_playQueue->next())

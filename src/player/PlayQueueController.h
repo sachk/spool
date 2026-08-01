@@ -84,6 +84,7 @@ public:
     bool playNext(const MovieItem& item);
     bool addToQueue(const MovieItem& item);
     void enqueueEpisodeSuccessors(const MovieItem& episode);
+    bool updateResumeTicks(const QString& itemId, qint64 resumeTicks);
 
 signals:
     void queueChanged();
