@@ -398,6 +398,11 @@ int main(int argc, char **argv)
     traceFirstFrameSignal(&QQuickWindow::afterRendering, "render_end");
     traceFirstFrameSignal(&QQuickWindow::frameSwapped, "swapped");
     traceFirstFrameSignal(&QQuickWindow::afterFrameEnd, "end");
+    window.setSource(QUrl(QStringLiteral("qrc:/startup/StartupSplash.qml")));
+    if (window.status() == QQuickView::Error) {
+        logQmlWarnings(window.errors());
+        return 1;
+    }
     configurePersistentRhiPipelineCache(window, cachePath);
     {
         JellyfinNative::Diagnostics::Phase phase(QStringLiteral("startup"), QStringLiteral("prepare_ui_surface"));

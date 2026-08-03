@@ -608,27 +608,6 @@ KeyRouter {
         visible: !(root.hasPlayer && root.player.visible)
     }
 
-    Column {
-        anchors.centerIn: parent
-        spacing: Metrics.scaled(12)
-        visible: !App.initialized && !(root.hasPlayer && root.player.visible)
-
-        AppText {
-            anchors.horizontalCenter: parent.horizontalCenter
-            text: "Spool for Jellyfin"
-            color: Theme.textPrimary
-            font.pixelSize: Metrics.scaled(34)
-            font.weight: Font.DemiBold
-        }
-
-        AppText {
-            anchors.horizontalCenter: parent.horizontalCenter
-            text: qsTr("Starting…")
-            color: Theme.textSecondary
-            font.pixelSize: Metrics.bodySizePx
-        }
-    }
-
     ColumnLayout {
         id: contentLayer
         anchors.fill: parent
@@ -676,6 +655,29 @@ KeyRouter {
                 onTapped: if (navBar.syncPlayMenuOpen)
                               navBar.closeSyncPlayMenu()
             }
+        }
+    }
+
+    Rectangle {
+        readonly property bool contentReady: routeStack.activeRoute.length > 0 && routeStack.activeItem && (
+                                                 typeof routeStack.activeItem.contentReady === "undefined"
+                                                 || routeStack.activeItem.contentReady)
+        property bool dismissed: false
+
+        anchors.fill: parent
+        color: "black"
+        visible: !dismissed
+        z: 70
+
+        onContentReadyChanged: if (contentReady)
+                                   dismissed = true
+
+        Image {
+            anchors.fill: parent
+            source: "qrc:/startup/splash.png"
+            fillMode: Image.PreserveAspectFit
+            asynchronous: false
+            cache: true
         }
     }
 

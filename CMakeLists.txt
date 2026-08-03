@@ -419,6 +419,17 @@ if(NOT JELLYFIN_NATIVE_WEBOS)
     )
 endif()
 
+qt_add_resources(jellyfin-native "startup_splash_qml"
+    PREFIX "/startup"
+    BASE "${CMAKE_CURRENT_SOURCE_DIR}/qml/shell"
+    FILES qml/shell/StartupSplash.qml
+)
+qt_add_resources(jellyfin-native "startup_splash_image"
+    PREFIX "/startup"
+    BASE "${CMAKE_CURRENT_SOURCE_DIR}/app"
+    FILES app/splash.png
+)
+
 
 add_custom_target(jellyfin-native_qmllint_strict
     COMMAND Qt6::qmllint
