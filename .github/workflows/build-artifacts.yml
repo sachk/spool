@@ -462,7 +462,7 @@ jobs:
           path: |
             C:\Qt\6.11.1\msvc2022_64
             C:\Qt\qcoro-0.13-msvc2022
-          key: windows-qt-6.11.1-qcoro-d1b52b5db2ff9560185c39a4ed9f944dc610c235-v1
+          key: windows-qt-6.11.1-qcoro-d1b52b5db2ff9560185c39a4ed9f944dc610c235-v2
 
       - name: Install Qt from pinned official archives
         if: steps.qt-cache.outputs.cache-hit != 'true'
@@ -504,7 +504,7 @@ jobs:
           path: |
             C:\Qt\6.11.1\msvc2022_64
             C:\Qt\qcoro-0.13-msvc2022
-          key: windows-qt-6.11.1-qcoro-d1b52b5db2ff9560185c39a4ed9f944dc610c235-v1
+          key: windows-qt-6.11.1-qcoro-d1b52b5db2ff9560185c39a4ed9f944dc610c235-v2
 
       - name: Read mpv revision
         id: mpv-revision

@@ -20,6 +20,11 @@
       "sha1": "f8f33d511bbf38b85aa701425b41455b3512b36d"
     },
     {
+      "package": "qt.qt6.6111.win64_msvc2022_64",
+      "file": "qtsvg-Windows-Windows_11_24H2-MSVC2022-Windows-Windows_11_24H2-X86_64.7z",
+      "sha1": "353d70f58e5cd55d4217e3ec806a4b5dad4d320b"
+    },
+    {
       "package": "qt.qt6.6111.addons.qtimageformats.win64_msvc2022_64",
       "file": "qtimageformats-Windows-Windows_11_24H2-MSVC2022-Windows-Windows_11_24H2-X86_64.7z",
       "sha1": "50ef50e84bf83ce1a3125572c15f729f1c5470ee"
