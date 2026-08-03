@@ -12,7 +12,7 @@ FocusScope {
     property var uiTransitionToken: 0
 
     // Resident-page host: pages are created once and route changes switch
-    // visibility + focus only. login/scaleSetup are destroyed on leave;
+    // visibility + focus only. Login is destroyed on leave;
     // itemDetails/personDetails/search are evicted under memory pressure.
     property var pages: ({})
     property var activeLoader: null
@@ -25,8 +25,6 @@ FocusScope {
         switch (nextRoute) {
         case "login":
             return "login"
-        case "scaleSetup":
-            return "scaleSetup"
         case "libraryGrid":
             return "libraryGrid"
         case "itemDetails":
@@ -50,8 +48,6 @@ FocusScope {
         switch (key) {
         case "login":
             return Qt.resolvedUrl("../pages/LoginPage.qml")
-        case "scaleSetup":
-            return Qt.resolvedUrl("../pages/ScaleSetupPage.qml")
         case "libraryGrid":
             return Qt.resolvedUrl("../pages/LibraryGridPage.qml")
         case "itemDetails":
@@ -159,7 +155,7 @@ FocusScope {
     }
 
     function dropTransientPages() {
-        for (const key of ["login", "scaleSetup"]) {
+        for (const key of ["login"]) {
             const loader = pages[key]
             if (loader && loader !== activeLoader) {
                 delete pages[key]

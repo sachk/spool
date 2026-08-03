@@ -203,8 +203,16 @@ FocusScope {
             return
         const spec = entry.spec
         if (spec.type === "submenu") {
-            advancedExpanded = !advancedExpanded
+            const opening = !advancedExpanded
+            advancedExpanded = opening
             rebuildRows()
+            if (opening) {
+                Qt.callLater(function () {
+                    const firstAdvancedRow = list.firstEnabled(index + 1, 1)
+                    if (firstAdvancedRow >= 0)
+                        root.focusRow(firstAdvancedRow)
+                })
+            }
         } else if (spec.type === "action") {
             beginReset()
         } else if (spec.type === "toggle") {

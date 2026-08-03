@@ -32,7 +32,6 @@ class SettingsController final : public QObject {
     Q_PROPERTY(QString audioDelayTargetLabel READ audioDelayTargetLabel NOTIFY audioOutputDeviceChanged)
     Q_PROPERTY(QString audioOutputMode MEMBER m_audioOutputMode WRITE setAudioOutputMode NOTIFY audioOutputModeChanged)
     Q_PROPERTY(int uiScalePercent READ uiScalePercent WRITE setUiScalePercent NOTIFY appearanceChanged)
-    Q_PROPERTY(bool uiScaleSetupComplete READ uiScaleSetupComplete NOTIFY appearanceChanged)
     Q_PROPERTY(QStringList subtitleLanguageOptions READ subtitleLanguageOptions NOTIFY subtitleSettingsChanged)
     Q_PROPERTY(int subtitleLanguageIndex READ subtitleLanguageIndex WRITE setSubtitleLanguageIndex NOTIFY
             subtitleSettingsChanged)
@@ -68,10 +67,6 @@ public:
     int uiScalePercent() const
     {
         return m_uiScalePercent;
-    }
-    bool uiScaleSetupComplete() const
-    {
-        return m_uiScaleSetupVersion > 0;
     }
     int audioDelayMs() const
     {
@@ -121,7 +116,6 @@ public:
     Q_INVOKABLE void setAudioDelayMs(int delayMs);
     Q_INVOKABLE void setAudioOutputMode(const QString& mode);
     Q_INVOKABLE void setUiScalePercent(int percent);
-    Q_INVOKABLE void completeUiScaleSetup(int percent);
     Q_INVOKABLE void setSubtitleLanguageIndex(int index);
     Q_INVOKABLE void setSubtitleMode(const QString& mode);
     Q_INVOKABLE void setSubtitleStyling(const QString& styling);
@@ -194,8 +188,7 @@ private:
     QString m_audioOutputMode = QStringLiteral("auto");
     QString m_mpvConfigMode = QStringLiteral("disabled");
     QString m_mpvConfigDirectory;
-    int m_uiScalePercent = 115;
-    int m_uiScaleSetupVersion = 0;
+    int m_uiScalePercent;
     int m_playerControlTooltipSessions = 0;
     SubtitlePreferences m_subtitlePreferences;
     QStringList m_subtitleLanguageCodes { QString() };

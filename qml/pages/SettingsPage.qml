@@ -213,9 +213,8 @@ FocusScope {
             return "Choose"
         if (row.key === "action/logout")
             return "Sign out"
-        if (row.key === "action/uiScaleSetup" || row.key === "action/openSourceNotices" || row.key
-                === "action/exportDiagnostics" || row.key === "action/subtitleSettings" || row.key
-                === "action/manageCertificates")
+        if (row.key === "action/openSourceNotices" || row.key === "action/exportDiagnostics" || row.key
+                === "action/subtitleSettings" || row.key === "action/manageCertificates")
             return "Open"
         if (row.key === "action/clearLatencyStatistics" || row.key === "action/clearLogs")
             return "Clear"
@@ -335,11 +334,7 @@ FocusScope {
             else if (row.key === "action/exportDiagnostics") {
                 diagnosticsExportPreview = App.diagnosticsPreview()
                 diagnosticsExportVisible = true
-            } else if (row.key === "action/uiScaleSetup" && shell)
-                shell.pushRoute("scaleSetup", {
-                                    "returnRoute": "settings"
-                                })
-            else if (row.key === "action/subtitleSettings" && shell)
+            } else if (row.key === "action/subtitleSettings" && shell)
                 shell.pushRoute("subtitleSettings")
             else if (row.key === "action/openSourceNotices" && shell)
                 shell.pushRoute("openSourceNotices")

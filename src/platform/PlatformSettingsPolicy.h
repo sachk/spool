@@ -18,6 +18,7 @@ const PlatformAudioOutputPolicy& platformAudioOutputPolicy();
 QString normalizedPlatformAudioOutputMode(const QString& mode);
 QStringList platformSystemSubtitleFonts();
 
+int platformDefaultUiScalePercent();
 bool platformUsesPerOutputAudioDelay();
 QString normalizedPlatformAudioRoute(const QString& output);
 QString platformAudioRouteDisplayName(const QString& output);

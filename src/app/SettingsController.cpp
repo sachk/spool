@@ -15,9 +15,6 @@ namespace JellyfinNative {
 
 namespace {
 
-    constexpr auto kUiScaleSetupVersionKey = "appearance/uiScaleSetupVersion";
-    constexpr int kUiScaleSetupVersion = 2;
-    constexpr int kUiScaleRebasePercent = 15;
     constexpr auto kPlayerControlTooltipSessionsKey = "player/controlTooltipSessions";
     constexpr int kPlayerControlTooltipSessionLimit = 3;
 
@@ -41,6 +38,7 @@ SettingsController::SettingsController(
     , m_database(database)
     , m_api(api)
     , m_player(player)
+    , m_uiScalePercent(platformDefaultUiScalePercent())
 {
 }
 
@@ -132,7 +130,7 @@ QString SettingsController::audioDelayTargetLabel() const
 QStringList SettingsController::localSettingKeys()
 {
     QStringList keys;
-    keys.reserve(static_cast<qsizetype>(settingSpecs().size()) + 2);
+    keys.reserve(static_cast<qsizetype>(settingSpecs().size()) + 1);
     for (const SettingSpec& spec : settingSpecs()) {
         if (!spec.persisted)
             continue;
@@ -140,7 +138,6 @@ QStringList SettingsController::localSettingKeys()
             continue;
         keys.append(keyString(spec));
     }
-    keys.append(QString::fromLatin1(kUiScaleSetupVersionKey));
     keys.append(QString::fromLatin1(kPlayerControlTooltipSessionsKey));
     return keys;
 }
@@ -158,35 +155,21 @@ void SettingsController::applyLocalValues(const QVariantMap& storedValues)
             continue;
         const QString key = keyString(spec);
         if (platformUsesPerOutputAudioDelay() && spec.target == SettingTarget::AudioDelay) {
-            const QVariant normalized = normalizedSettingValue(spec, spec.defaultValue);
+            const QVariant normalized = normalizedSettingValue(spec, settingDefaultValue(spec));
             m_values.insert(key, normalized);
             applySchemaValue(spec, normalized, false);
             continue;
         }
         const QVariant rawValue = storedValues.value(key);
-        const QString stored = !rawValue.isValid() || rawValue.toString().isEmpty()
-            ? QString::fromLatin1(spec.defaultValue)
-            : rawValue.toString();
+        const QVariant stored
+            = !rawValue.isValid() || rawValue.toString().isEmpty() ? settingDefaultValue(spec) : rawValue;
         const QVariant normalized = normalizedSettingValue(spec, stored);
         m_values.insert(key, normalized);
         applySchemaValue(spec, normalized, false);
 
         const QString serialized = serializedSettingValue(spec, normalized);
-        if (serialized != stored)
+        if (serialized != stored.toString())
             m_database->saveSetting(key, serialized);
-    }
-    const QString setupVersion
-        = storedValues.value(QString::fromLatin1(kUiScaleSetupVersionKey), QStringLiteral("0")).toString();
-    const int storedSetupVersion = setupVersion.toInt();
-    m_uiScaleSetupVersion = storedSetupVersion > 0 ? qMin(storedSetupVersion, kUiScaleSetupVersion) : 0;
-    if (storedSetupVersion == 1) {
-        const SettingSpec& scaleSpec = specForKey("appearance/uiScalePercent");
-        const int rebasedScale = normalizedSettingValue(scaleSpec, m_uiScalePercent + kUiScaleRebasePercent).toInt();
-        m_values.insert(keyString(scaleSpec), rebasedScale);
-        applySchemaValue(scaleSpec, rebasedScale, false);
-        m_database->saveSetting(keyString(scaleSpec), serializedSettingValue(scaleSpec, rebasedScale));
-        m_uiScaleSetupVersion = kUiScaleSetupVersion;
-        m_database->saveSetting(QString::fromLatin1(kUiScaleSetupVersionKey), QString::number(kUiScaleSetupVersion));
     }
     bool tooltipCountValid = false;
     const int tooltipSessions
@@ -406,15 +389,6 @@ void SettingsController::setAudioOutputMode(const QString& mode)
 void SettingsController::setUiScalePercent(int percent)
 {
     setValue(QStringLiteral("appearance/uiScalePercent"), percent);
-}
-void SettingsController::completeUiScaleSetup(int percent)
-{
-    setUiScalePercent(percent);
-    if (m_uiScaleSetupVersion >= kUiScaleSetupVersion)
-        return;
-    m_uiScaleSetupVersion = kUiScaleSetupVersion;
-    m_database->saveSetting(QString::fromLatin1(kUiScaleSetupVersionKey), QString::number(kUiScaleSetupVersion));
-    emit appearanceChanged();
 }
 void SettingsController::setSubtitleLanguageIndex(int index)
 {

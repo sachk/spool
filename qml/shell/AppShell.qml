@@ -129,7 +129,7 @@ KeyRouter {
     }
 
     function defaultRoute() {
-        return !Settings.uiScaleSetupComplete ? "scaleSetup" : Session.authenticated ? "home" : "login"
+        return Session.authenticated ? "home" : "login"
     }
 
     function restoreRecoveredRoute() {
@@ -620,8 +620,8 @@ KeyRouter {
         TopBar {
             id: navBar
             Layout.fillWidth: true
-            Layout.preferredHeight: route === "login" || route === "scaleSetup" ? 0 : Metrics.topBarHeightPx
-            visible: route !== "login" && route !== "scaleSetup"
+            Layout.preferredHeight: route === "login" ? 0 : Metrics.topBarHeightPx
+            visible: route !== "login"
             z: 1
             currentRoute: root.route
             onActiveFocusChanged: if (activeFocus)

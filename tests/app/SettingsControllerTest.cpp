@@ -35,8 +35,7 @@ int main(int argc, char **argv)
 
     SettingsController settings(&database, nullptr, nullptr);
     QCoro::waitFor(settings.loadLocalAsync());
-    require(settings.uiScalePercent() == 115, "UI scale default was not 115 percent");
-    require(!settings.uiScaleSetupComplete(), "fresh profile unexpectedly skipped scale setup");
+    require(settings.uiScalePercent() == 100, "desktop UI scale default was not 100 percent");
     require(!settings.value(QStringLiteral("playback/manualStreamingBitrate")).toBool(),
         "fresh profile unexpectedly enabled the manual streaming limit");
     require(!settings.value(QStringLiteral("playback/unlimitedLocalBitrate")).toBool(),
@@ -64,16 +63,12 @@ int main(int argc, char **argv)
 
     settings.setUiScalePercent(70);
     require(settings.uiScalePercent() == 80, "UI scale setter did not clamp to its lower bound");
-    settings.completeUiScaleSetup(135);
-    require(settings.uiScalePercent() == 135, "setup did not apply the selected scale");
-    require(settings.uiScaleSetupComplete(), "setup completion marker was not exposed");
+    settings.setUiScalePercent(135);
+    require(settings.uiScalePercent() == 135, "UI scale setter did not apply the selected scale");
 
     require(
         QCoro::waitFor(database.loadSettingAsync(QStringLiteral("appearance/uiScalePercent"))) == QStringLiteral("135"),
         "selected UI scale was not persisted");
-    require(QCoro::waitFor(database.loadSettingAsync(QStringLiteral("appearance/uiScaleSetupVersion")))
-            == QStringLiteral("2"),
-        "scale setup completion was not persisted");
 
     require(!settings.value(QStringLiteral("subtitles/alwaysOverridePositionAndSize")).toBool(),
         "fresh profile unexpectedly enabled subtitle geometry override");
@@ -117,22 +112,12 @@ int main(int argc, char **argv)
     SettingsController restored(&database, nullptr, nullptr);
     QCoro::waitFor(restored.loadLocalAsync());
     require(restored.uiScalePercent() == 135, "persisted UI scale was not restored");
-    require(restored.uiScaleSetupComplete(), "persisted setup completion was not restored");
     require(restored.audioDelayMs() == 120, "persisted global desktop audio delay was not restored");
     require(restored.value(QStringLiteral("playback/forwardCacheSizeMiB")).toString() == QStringLiteral("256"),
         "persisted forward cache size was not restored");
     require(!restored.value(QStringLiteral("playback/rememberSeriesAudioTrack")).toBool(),
         "series audio-track retention toggle was not restored");
     require(!restored.playerControlTooltipsEnabled(), "persisted control-tooltip sessions were not restored");
-
-    database.saveSetting(QStringLiteral("appearance/uiScalePercent"), QStringLiteral("100"));
-    database.saveSetting(QStringLiteral("appearance/uiScaleSetupVersion"), QStringLiteral("1"));
-    SettingsController migrated(&database, nullptr, nullptr);
-    QCoro::waitFor(migrated.loadLocalAsync());
-    require(migrated.uiScalePercent() == 115, "legacy UI scale was not rebased");
-    require(QCoro::waitFor(database.loadSettingAsync(QStringLiteral("appearance/uiScaleSetupVersion")))
-            == QStringLiteral("2"),
-        "UI scale migration version was not persisted");
 
     database.shutdown();
     return EXIT_SUCCESS;

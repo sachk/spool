@@ -3,7 +3,7 @@ import QtQuick
 
 QtObject {
     property real refWidth: 1920
-    readonly property int uiScalePercent: Math.max(80, Math.min(180, Number(Settings.uiScalePercent || 115)))
+    readonly property int uiScalePercent: Math.max(80, Math.min(180, Number(Settings.uiScalePercent || 100)))
     readonly property real uiScale: uiScalePercent / 100
     readonly property int density: densityForWidth(refWidth)
     readonly property int topBarHeightPx: scaled([52, 56, 62, 72][density])

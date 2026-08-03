@@ -165,10 +165,8 @@ const QVector<SettingSpec>& settingSpecs()
         externalSpec("action/manageCertificates", "Account", "Remembered Certificates",
             "Review or forget certificate fingerprints trusted for exact server endpoints", SettingType::Action),
         { "appearance/uiScalePercent", "Appearance", "UI Scale",
-            "Scale text, controls, spacing, cards, rows, and grids", SettingType::Slider, "115", nullptr, 0, 80, 180, 5,
+            "Scale text, controls, spacing, cards, rows, and grids", SettingType::Slider, "100", nullptr, 0, 80, 180, 5,
             0, "%", SettingTarget::UiScale, SettingNormalizer::IntRange, true, false },
-        externalSpec("action/uiScaleSetup", "Appearance", "Scale Setup",
-            "Compare Compact, Balanced, and Relaxed layouts", SettingType::Action),
         { "appearance/libraryView", "Appearance", "Library Layout", "Browse libraries as a poster grid or a title list",
             SettingType::Select, "Posters", kLibraryViewChoices, countOf(kLibraryViewChoices), 0, 0, 1, 0, "",
             SettingTarget::LibraryView, SettingNormalizer::Choice, true, true, SettingLevel::Essential,
@@ -358,6 +356,9 @@ const SettingSpec *findSettingSpec(const QString& key)
 
 QVariant settingDefaultValue(const SettingSpec& spec)
 {
+    if (spec.target == SettingTarget::UiScale)
+        return platformDefaultUiScalePercent();
+
     switch (spec.type) {
     case SettingType::Action:
     case SettingType::ReadOnly:

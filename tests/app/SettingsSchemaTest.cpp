@@ -304,13 +304,12 @@ void pageRowsShareTheSchemaContract()
 {
     const QStringList pageKeys { QStringLiteral("session/account"), QStringLiteral("action/switchUser"),
         QStringLiteral("action/logout"), QStringLiteral("i18n/locale"), QStringLiteral("theme/accent"),
-        QStringLiteral("action/uiScaleSetup"), QStringLiteral("theme/reducedMotion"),
-        QStringLiteral("theme/railLabels"), QStringLiteral("theme/renderMode"), QStringLiteral("theme/antialiasedText"),
-        QStringLiteral("theme/technicalMetadata"), QStringLiteral("action/subtitleSettings"),
-        QStringLiteral("action/resetSubtitleAppearance"), QStringLiteral("about/version"),
-        QStringLiteral("action/openSourceNotices"), QStringLiteral("about/locale"), QStringLiteral("shell/diagnostics"),
-        QStringLiteral("shell/latencyGuard"), QStringLiteral("shell/latencyOverlay"),
-        QStringLiteral("action/clearLatencyStatistics") };
+        QStringLiteral("theme/reducedMotion"), QStringLiteral("theme/railLabels"), QStringLiteral("theme/renderMode"),
+        QStringLiteral("theme/antialiasedText"), QStringLiteral("theme/technicalMetadata"),
+        QStringLiteral("action/subtitleSettings"), QStringLiteral("action/resetSubtitleAppearance"),
+        QStringLiteral("about/version"), QStringLiteral("action/openSourceNotices"), QStringLiteral("about/locale"),
+        QStringLiteral("shell/diagnostics"), QStringLiteral("shell/latencyGuard"),
+        QStringLiteral("shell/latencyOverlay"), QStringLiteral("action/clearLatencyStatistics") };
     for (const QString& key : pageKeys) {
         const SettingSpec& spec = requiredSpec(key);
         require(!spec.persisted, QStringLiteral("page-owned row %1 must not be persisted").arg(key));

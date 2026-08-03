@@ -24,6 +24,11 @@ QStringList platformSystemSubtitleFonts()
 {
     return {};
 }
+
+int platformDefaultUiScalePercent()
+{
+    return 150;
+}
 bool platformUsesPerOutputAudioDelay()
 {
     return true;
