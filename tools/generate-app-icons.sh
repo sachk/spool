@@ -27,8 +27,19 @@ for variant in spool spool-film; do
   done
 done
 
+splash_logo="$tmp_dir/spool-splash.png"
+magick -background none -density 4096 "$ICON_ROOT/spool.svg" \
+  -resize 1040x1040\! "$splash_logo"
+magick -size 7680x4320 xc:"#000000" "$splash_logo" \
+  -gravity center -geometry +0-520 -composite \
+  -font "$APP_ROOT/qml/fonts/IBMPlexSans-Variable.ttf" -pointsize 360 -weight 600 \
+  -fill "#F4F6F7" -gravity center -annotate +0+600 "Spool" \
+  -colorspace RGB -filter Lanczos -define filter:blur=0.989102836 \
+  -resize 1920x1080\! -colorspace sRGB -depth 8 -strip \
+  -define png:color-type=2 "$APP_ROOT/app/splash.png"
+
 oxipng --opt max --strip safe --alpha --zopfli \
-  "$PNG_ROOT/spool/"*.png "$PNG_ROOT/spool-film/"*.png
+  "$PNG_ROOT/spool/"*.png "$PNG_ROOT/spool-film/"*.png "$APP_ROOT/app/splash.png"
 
 windows_frames=()
 for size in "${WINDOWS_ICON_SIZES[@]}"; do

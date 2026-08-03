@@ -338,38 +338,6 @@ FocusScope {
         color: Theme.bg
     }
 
-    Row {
-        id: brand
-        anchors.left: parent.left
-        anchors.top: parent.top
-        anchors.leftMargin: Metrics.pageMarginPx
-        anchors.topMargin: 18
-        spacing: 10
-
-        Rectangle {
-            width: 24
-            height: 24
-            radius: Theme.radiusSmall
-            color: "transparent"
-            border.width: 1
-            border.color: Theme.border
-
-            Image {
-                anchors.fill: parent
-                anchors.margins: 3
-                source: ""
-                fillMode: Image.PreserveAspectFit
-            }
-        }
-
-        AppText {
-            anchors.verticalCenter: parent.verticalCenter
-            text: "Jellyfin"
-            font.pixelSize: 16
-            font.weight: Font.DemiBold
-        }
-    }
-
     Item {
         id: profileScreen
         anchors.fill: parent
@@ -999,9 +967,9 @@ FocusScope {
             acceptedButtons: Qt.LeftButton | Qt.RightButton
             onClicked: mouse => {
                 if (mouse.button === Qt.RightButton)
-                tile.contextRequested()
+                    tile.contextRequested()
                 else
-                tile.accepted()
+                    tile.accepted()
             }
             onPressAndHold: tile.contextRequested()
         }

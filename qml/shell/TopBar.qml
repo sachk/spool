@@ -127,7 +127,7 @@ FocusScope {
         onTapped: eventPoint => {
             const local = syncButton.mapFromItem(root, eventPoint.position.x, eventPoint.position.y)
             if (!syncButton.contains(local))
-            root.closeSyncPlayMenu()
+                root.closeSyncPlayMenu()
         }
     }
 
@@ -147,24 +147,6 @@ FocusScope {
         anchors.leftMargin: Metrics.scaled(14)
         anchors.rightMargin: Metrics.scaled(14)
         spacing: Metrics.scaled(4)
-
-        Rectangle {
-            Layout.alignment: Qt.AlignVCenter
-            Layout.preferredWidth: Metrics.scaled(28)
-            Layout.preferredHeight: width
-            Layout.rightMargin: Metrics.scaled(10)
-            radius: Theme.radiusMedium
-            gradient: Gradient {
-                GradientStop {
-                    position: 0
-                    color: Theme.jellyfinBlue
-                }
-                GradientStop {
-                    position: 1
-                    color: Theme.jellyfinPurple
-                }
-            }
-        }
 
         Repeater {
             id: railRepeater

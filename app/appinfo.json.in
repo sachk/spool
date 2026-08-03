@@ -8,7 +8,7 @@
   "icon": "icon.png",
   "largeIcon": "large-icon.png",
   "splashBackground": "splash.png",
-  "appDescription": "Native Qt Quick Jellyfin client for LG webOS using libmpv and Starfish.",
+  "appDescription": "Very fast mpv-based Jellyfin client for LG webOS.",
   "tileSize": "normal",
   "supportTouchMode": "full",
   "spinnerOnLaunch": false,
@@ -18,6 +18,6 @@
   "transparent": false,
   "disableBackHistoryAPI": true,
   "handlesRelaunch": true,
-  "requiredMemory": 350,
+  "requiredMemory": 300,
   "nativeLifeCycleInterfaceVersion": 2
 }
