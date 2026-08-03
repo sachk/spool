@@ -29,6 +29,7 @@ extern "C" {
 #include <QUrl>
 #include <QtGlobal>
 
+#include <algorithm>
 #include <cmath>
 #include <cstdint>
 #include <cstdio>
@@ -42,7 +43,6 @@ namespace {
     constexpr auto kMpvLogFileName = "com.sachk.spool-mpv.log";
 
     constexpr uint64_t kTimePosRefreshReply = 0x6a666e7074730001ULL;
-    constexpr uint64_t kPlaybackTimeRefreshReply = 0x6a666e7074730002ULL;
     constexpr auto kNightModeFilter
         = "lavfi=[pan=stereo|FL<0.5*FL+1.0*FC+0.25*BL|FR<0.5*FR+1.0*FC+0.25*BR,"
           "dialoguenhance=original=0.25:enhance=2.0,"
@@ -240,13 +240,8 @@ PlayerController::PlayerController(
         emit playbackStateChanged();
     });
     connect(&m_uiPositionTimer, &QTimer::timeout, this, [this]() {
-        if (!m_sessionActive || m_paused || m_buffering || m_seeking)
-            return;
-
-        if (!m_positionTracker.projectionIsValid())
-            return;
-
-        setPositionSeconds(projectedPositionSeconds(), PlaybackPositionTracker::Source::Projection, false);
+        if (m_sessionActive)
+            requestMpvPositionRefresh("ui timer");
     });
     connect(&m_seekWatchdogTimer, &QTimer::timeout, this, [this]() {
         if (!m_sessionActive || !m_seeking)
@@ -711,7 +706,8 @@ void PlayerController::discardPreparedMpvForOptionChange(const char *reason)
     scheduleIdleMpvPreparation();
 }
 
-bool PlayerController::applyMpvSubtitleOptions(MpvOptionApplyMode mode, mpv_handle *handle, bool preserveTrackSelection)
+bool PlayerController::applyMpvSubtitleOptions(MpvOptionApplyMode mode, mpv_handle *handle, bool preserveTrackSelection,
+    const SubtitlePreferences *previousPreferences)
 {
     if (!handle)
         return false;
@@ -724,7 +720,14 @@ bool PlayerController::applyMpvSubtitleOptions(MpvOptionApplyMode mode, mpv_hand
     bool ok = true;
     const auto options
         = MpvOptionProfile::subtitleOptions(m_subtitlePreferences, m_tracks.subtitlesEnabled(), m_hdrPlayback);
+    const auto previousOptions = previousPreferences
+        ? MpvOptionProfile::subtitleOptions(*previousPreferences, m_tracks.subtitlesEnabled(), m_hdrPlayback)
+        : std::vector<MpvOption> {};
     for (const MpvOption& option : options) {
+        const auto previous = std::find_if(previousOptions.begin(), previousOptions.end(),
+            [&option](const MpvOption& candidate) { return candidate.name == option.name; });
+        if (previous != previousOptions.end() && previous->value == option.value)
+            continue;
         const bool selectsTrack = option.name == QByteArrayLiteral("sid") || option.name == QByteArrayLiteral("slang")
             || option.name == QByteArrayLiteral("alang") || option.name == QByteArrayLiteral("sub-auto")
             || option.name == QByteArrayLiteral("sub-visibility")
@@ -884,7 +887,7 @@ void PlayerController::play(const PlaybackSession& session, bool startPaused)
     m_errorText.clear();
     const double startSeconds
         = session.startTimeTicks > 0 ? static_cast<double>(session.startTimeTicks) / 10000000.0 : 0.0;
-    m_positionTracker.reset(startSeconds);
+    m_positionTracker.reset();
     m_paused = startPaused;
     m_fileLoaded = false;
     m_seekDispatchReady = false;
@@ -1042,10 +1045,8 @@ void PlayerController::prepareForBackground()
         destroyIdleMpv("background");
         return;
     }
-    const double position = projectedPositionSeconds();
     qInfo() << "player: playback position snapshot background"
-            << "position=" << position;
-    setPositionSeconds(position, PlaybackPositionTracker::Source::Lifecycle);
+            << "position=" << m_positionTracker.position();
 }
 
 void PlayerController::teardownForBackground()
@@ -1074,14 +1075,12 @@ void PlayerController::resyncForForeground()
         return;
 
     qInfo() << "player: foreground position resync requested";
-    restoreTrustedPosition("foreground");
     requestMpvPositionRefresh("foreground");
 
     for (int delayMs : { 250, 1000, 2500 }) {
         QTimer::singleShot(delayMs, this, [this]() {
             if (!m_visible)
                 return;
-            restoreTrustedPosition("foreground-delayed");
             requestMpvPositionRefresh("foreground-delayed");
         });
     }
@@ -1402,7 +1401,6 @@ void PlayerController::changePlaybackSpeed(double speed, bool syncOverride, bool
 
     const double oldUserSpeed = m_playbackSpeed;
     const double oldEffectiveSpeed = effectivePlaybackSpeed();
-    const double positionBeforeChange = m_sessionActive ? projectedPositionSeconds() : 0.0;
 
     if (clearSyncOverride) {
         if (!m_syncPlaybackSpeedActive)
@@ -1429,10 +1427,6 @@ void PlayerController::changePlaybackSpeed(double speed, bool syncOverride, bool
             << "syncOverride=" << m_syncPlaybackSpeedActive;
 
     if (effectiveChanged) {
-        if (m_sessionActive) {
-            setPositionSeconds(positionBeforeChange, PlaybackPositionTracker::Source::Projection, false);
-            m_positionTracker.restartProjection();
-        }
         if (auto *handle = m_mpvLifecycle.handle()) {
             applyMpvRuntimeOption(MpvRuntimeOption::PlaybackSpeed, MpvOptionApplyMode::Runtime, handle);
         } else {
@@ -1449,16 +1443,19 @@ void PlayerController::setSubtitlePreferences(const SubtitlePreferences& prefere
     if (m_subtitlePreferences == preferences)
         return;
 
-    const bool preserveTrackSelection = m_subtitlePreferences.language == preferences.language
-        && m_subtitlePreferences.mode == preferences.mode && m_subtitlePreferences.audioMode == preferences.audioMode
-        && m_subtitlePreferences.audioLanguage == preferences.audioLanguage;
+    const SubtitlePreferences previousPreferences = m_subtitlePreferences;
+    const bool preserveTrackSelection = previousPreferences.language == preferences.language
+        && previousPreferences.mode == preferences.mode && previousPreferences.audioMode == preferences.audioMode
+        && previousPreferences.audioLanguage == preferences.audioLanguage;
     m_subtitlePreferences = preferences;
     qInfo() << "player: track preferences changed"
             << "subtitleMode=" << preferences.mode << "subtitleLanguage=" << preferences.language
             << "audioMode=" << preferences.audioMode << "audioLanguage=" << preferences.audioLanguage
-            << "styling=" << preferences.styling;
+            << "styling=" << preferences.styling << "geometryOverride=" << preferences.alwaysOverridePositionAndSize
+            << "subPos=" << preferences.verticalPosition << "subScale=" << preferences.scalePercent;
     if (auto *handle = m_mpvLifecycle.handle()) {
-        applyMpvSubtitleOptions(MpvOptionApplyMode::Runtime, handle, preserveTrackSelection);
+        applyMpvSubtitleOptions(MpvOptionApplyMode::Runtime, handle, preserveTrackSelection,
+            preserveTrackSelection ? &previousPreferences : nullptr);
     } else {
         discardPreparedMpvForOptionChange("subtitle preferences change");
     }
@@ -1619,7 +1616,6 @@ bool PlayerController::beginSeekCommand(double targetSeconds, const QByteArray& 
     const double clampedTarget = clampedPosition(targetSeconds);
     m_seeking = true;
     m_positionTracker.beginSeek(clampedTarget);
-    setPositionSeconds(clampedTarget, PlaybackPositionTracker::Source::Seek);
     notifyPlaybackStateChanged();
 
     if (!m_seekDispatchReady) {
@@ -1698,16 +1694,14 @@ void PlayerController::handleMpvEvent(mpv_event *event)
                 flushPendingSeek();
             } else if (m_seeking) {
                 m_seeking = false;
-                m_positionTracker.settleSeek();
                 m_seekWatchdogTimer.stop();
             }
-            m_positionTracker.restartProjection();
             notifyPlaybackStateChanged();
         });
         break;
     case MPV_EVENT_GET_PROPERTY_REPLY: {
 
-        if (event->reply_userdata != kTimePosRefreshReply && event->reply_userdata != kPlaybackTimeRefreshReply)
+        if (event->reply_userdata != kTimePosRefreshReply)
             break;
 
         auto *property = static_cast<mpv_event_property *>(event->data);
@@ -1715,8 +1709,7 @@ void PlayerController::handleMpvEvent(mpv_event *event)
             break;
 
         const double seconds = *static_cast<double *>(property->data);
-        QMetaObject::invokeMethod(
-            this, [this, seconds]() { setPositionSeconds(seconds, PlaybackPositionTracker::Source::Mpv); });
+        QMetaObject::invokeMethod(this, [this, seconds]() { setPositionSeconds(seconds); });
         break;
     }
     case MPV_EVENT_PROPERTY_CHANGE: {
@@ -1729,33 +1722,17 @@ void PlayerController::handleMpvEvent(mpv_event *event)
             QMetaObject::invokeMethod(this, [this, paused]() {
                 if (m_paused != paused)
                     qInfo() << "player: pause state changed" << paused;
-                const double positionBeforeStateChange = projectedPositionSeconds();
                 m_paused = paused;
-                if (m_paused) {
-                    setPositionSeconds(positionBeforeStateChange, PlaybackPositionTracker::Source::Projection);
-                    m_positionTracker.invalidateProjection();
-                } else {
-                    restoreTrustedPosition("unpause");
+                if (!m_paused)
                     requestMpvPositionRefresh("unpause");
-                    m_positionTracker.restartProjection();
-                }
                 notifyPlaybackStateChanged();
             });
         } else if (strcmp(property->name, "paused-for-cache") == 0 && property->format == MPV_FORMAT_FLAG) {
             const bool buffering = *static_cast<int *>(property->data);
             QMetaObject::invokeMethod(this, [this, buffering]() {
-                const double positionBeforeStateChange = projectedPositionSeconds();
                 m_buffering = buffering;
-                if (buffering) {
-                    setPositionSeconds(positionBeforeStateChange, PlaybackPositionTracker::Source::Projection);
-                    m_positionTracker.invalidateProjection();
-                } else {
+                if (!buffering)
                     m_bufferingPercent = 0;
-                    if (!m_paused) {
-                        restoreTrustedPosition("buffering-complete");
-                        m_positionTracker.restartProjection();
-                    }
-                }
                 notifyPlaybackStateChanged();
             });
         } else if (strcmp(property->name, "cache-buffering-state") == 0 && property->format == MPV_FORMAT_INT64) {
@@ -1782,16 +1759,13 @@ void PlayerController::handleMpvEvent(mpv_event *event)
                 m_seeking = seeking;
                 if (m_seeking)
                     m_seekWatchdogTimer.start();
-                else {
+                else
                     m_seekWatchdogTimer.stop();
-                    m_positionTracker.settleSeek();
-                }
                 notifyPlaybackStateChanged();
             });
         } else if (strcmp(property->name, "time-pos") == 0 && property->format == MPV_FORMAT_DOUBLE) {
             const double seconds = *static_cast<double *>(property->data);
-            QMetaObject::invokeMethod(
-                this, [this, seconds]() { setPositionSeconds(seconds, PlaybackPositionTracker::Source::Mpv); });
+            QMetaObject::invokeMethod(this, [this, seconds]() { setPositionSeconds(seconds); });
         } else if (strcmp(property->name, "duration") == 0 && property->format == MPV_FORMAT_DOUBLE) {
             const double seconds = *static_cast<double *>(property->data);
             QMetaObject::invokeMethod(this, [this, seconds]() {
@@ -1960,7 +1934,7 @@ double PlayerController::clampedPosition(double seconds) const
 
 double PlayerController::seekAnchorPosition()
 {
-    return m_positionTracker.seekAnchor(m_paused, m_buffering, effectivePlaybackSpeed());
+    return m_positionTracker.seekAnchor();
 }
 
 void PlayerController::requestMpvPositionRefresh(const char *reason)
@@ -1969,34 +1943,15 @@ void PlayerController::requestMpvPositionRefresh(const char *reason)
     if (!m_sessionActive || !handle)
         return;
 
-    int error = mpv_get_property_async(handle, kTimePosRefreshReply, "time-pos", MPV_FORMAT_DOUBLE);
+    const int error = mpv_get_property_async(handle, kTimePosRefreshReply, "time-pos", MPV_FORMAT_DOUBLE);
     if (error < 0)
         qWarning() << "player: async time-pos refresh failed" << (reason ? reason : "unknown")
                    << mpv_error_string(error);
-
-    error = mpv_get_property_async(handle, kPlaybackTimeRefreshReply, "playback-time", MPV_FORMAT_DOUBLE);
-    if (error < 0)
-        qWarning() << "player: async playback-time refresh failed" << (reason ? reason : "unknown")
-                   << mpv_error_string(error);
 }
 
-void PlayerController::restoreTrustedPosition(const char *reason)
+void PlayerController::setPositionSeconds(double seconds, bool notifySegments)
 {
-    if (m_positionTracker.restoreTrusted(reason)) {
-        if (m_timeline.updatePosition(m_positionTracker.position()))
-            emit segmentsChanged();
-        emit positionChanged();
-    }
-}
-
-double PlayerController::projectedPositionSeconds() const
-{
-    return m_positionTracker.projected(m_paused, m_buffering, effectivePlaybackSpeed());
-}
-
-void PlayerController::setPositionSeconds(double seconds, PlaybackPositionTracker::Source source, bool notifySegments)
-{
-    if (!m_positionTracker.update(seconds, source))
+    if (!m_positionTracker.update(seconds))
         return;
 
     const bool segmentChanged = m_timeline.updatePosition(m_positionTracker.position());

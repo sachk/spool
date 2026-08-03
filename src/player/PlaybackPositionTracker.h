@@ -6,14 +6,7 @@ namespace JellyfinNative {
 
 class PlaybackPositionTracker final {
 public:
-    enum class Source {
-        Projection,
-        Mpv,
-        Seek,
-        Lifecycle,
-    };
-
-    void reset(double startSeconds);
+    void reset();
     void clear();
 
     double position() const;
@@ -21,31 +14,24 @@ public:
     void setDuration(double seconds);
     double clamp(double seconds) const;
 
-    bool update(double seconds, Source source);
-    double projected(bool paused, bool buffering, double playbackRate = 1.0) const;
-    double seekAnchor(bool paused, bool buffering, double playbackRate = 1.0);
-    bool restoreTrusted(const char *reason);
+    bool update(double seconds);
+    double seekAnchor();
 
     void beginSeek(double targetSeconds);
-    void settleSeek();
     void cancelSeek();
     bool seekIsFresh(qint64 freshnessMs) const;
     void allowRegression();
-    void restartProjection();
-    void invalidateProjection();
-    bool projectionIsValid() const;
 
 private:
-    bool regressionAllowed(Source source) const;
+    bool regressionAllowed() const;
 
     double m_positionSeconds = 0.0;
     double m_durationSeconds = 0.0;
     double m_requestedSeekTargetSeconds = -1.0;
     double m_requestedSeekStartSeconds = -1.0;
     double m_lastTrustedPositionSeconds = 0.0;
-    QElapsedTimer m_positionClock;
+    bool m_hasMpvPosition = false;
     QElapsedTimer m_seekCommandClock;
-    QElapsedTimer m_lastTrustedPositionClock;
     QElapsedTimer m_positionRegressionAllowedClock;
 };
 

@@ -22,6 +22,8 @@ option(JELLYFIN_DIAGNOSTICS "Build debug lifecycle/process/watchdog diagnostics"
 option(JELLYFIN_DIAGNOSTICS_STACKDUMP "Allow diagnostics to request gdb stack dumps" OFF)
 option(JELLYFIN_DIAGNOSTICS_ABORT_ON_HANG "Abort after watchdog hang diagnostics are written" OFF)
 option(JELLYFIN_ARTWORK_ASPECT_DIAGNOSTICS "Log artwork decode requests whose target aspect would stretch the source" OFF)
+option(JELLYFIN_IMAGE_SUBTITLE_DIAGNOSTICS
+    "Log image subtitle crop, segmentation, geometry, and recoloring per subtitle event" OFF)
 option(JELLYFIN_WARNINGS_AS_ERRORS "Treat compiler warnings as errors" OFF)
 option(JELLYFIN_SANITIZERS "Enable AddressSanitizer and UndefinedBehaviorSanitizer" OFF)
 include(CTest)
@@ -292,6 +294,12 @@ if(JELLYFIN_ARTWORK_ASPECT_DIAGNOSTICS)
         target_compile_definitions(${target} PRIVATE JELLYFIN_ARTWORK_ASPECT_DIAGNOSTICS=1)
     endforeach()
 endif()
+if(JELLYFIN_IMAGE_SUBTITLE_DIAGNOSTICS)
+    foreach(target IN LISTS JELLYFIN_NATIVE_TARGETS)
+        target_compile_definitions(${target} PRIVATE JELLYFIN_IMAGE_SUBTITLE_DIAGNOSTICS=1)
+    endforeach()
+endif()
+
 
 set_source_files_properties(
     qml/primitives/InputKeys.qml
@@ -406,6 +414,14 @@ if(NOT JELLYFIN_NATIVE_WEBOS)
     qt_target_qml_sources(jellyfin-native
         QML_FILES
             qml/pages/DesktopFolderDialog.qml
+    )
+endif()
+
+if(JELLYFIN_NATIVE_WEBOS)
+    qt_add_resources(jellyfin-native "platform_branding"
+        PREFIX "/branding"
+        BASE "${CMAKE_CURRENT_SOURCE_DIR}/app/icons/png/spool"
+        FILES app/icons/png/spool/64.png
     )
 endif()
 

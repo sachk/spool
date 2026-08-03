@@ -15,16 +15,15 @@ namespace {
 
 } // namespace
 
-void PlaybackPositionTracker::reset(double startSeconds)
+void PlaybackPositionTracker::reset()
 {
-    m_positionSeconds = std::isfinite(startSeconds) ? qMax(0.0, startSeconds) : 0.0;
+    m_positionSeconds = 0.0;
     m_durationSeconds = 0.0;
     m_requestedSeekTargetSeconds = -1.0;
     m_requestedSeekStartSeconds = -1.0;
-    m_lastTrustedPositionSeconds = m_positionSeconds;
-    m_positionClock.invalidate();
+    m_lastTrustedPositionSeconds = 0.0;
+    m_hasMpvPosition = false;
     m_seekCommandClock.invalidate();
-    m_lastTrustedPositionClock.restart();
     m_positionRegressionAllowedClock.invalidate();
 }
 
@@ -35,9 +34,8 @@ void PlaybackPositionTracker::clear()
     m_requestedSeekTargetSeconds = -1.0;
     m_requestedSeekStartSeconds = -1.0;
     m_lastTrustedPositionSeconds = 0.0;
-    m_positionClock.invalidate();
+    m_hasMpvPosition = false;
     m_seekCommandClock.invalidate();
-    m_lastTrustedPositionClock.invalidate();
     m_positionRegressionAllowedClock.invalidate();
 }
 
@@ -54,7 +52,8 @@ double PlaybackPositionTracker::duration() const
 void PlaybackPositionTracker::setDuration(double seconds)
 {
     m_durationSeconds = std::isfinite(seconds) ? qMax(0.0, seconds) : 0.0;
-    update(m_positionSeconds, Source::Lifecycle);
+    m_positionSeconds = clamp(m_positionSeconds);
+    m_lastTrustedPositionSeconds = clamp(m_lastTrustedPositionSeconds);
 }
 
 double PlaybackPositionTracker::clamp(double seconds) const
@@ -66,84 +65,49 @@ double PlaybackPositionTracker::clamp(double seconds) const
     return qMax(0.0, seconds);
 }
 
-bool PlaybackPositionTracker::update(double seconds, Source source)
+bool PlaybackPositionTracker::update(double seconds)
 {
     double clamped = clamp(seconds);
-    if (source == Source::Mpv && m_requestedSeekTargetSeconds >= 0.0 && seekIsFresh(kSeekTargetFreshnessMs)) {
+    bool landedSeek = false;
+    if (m_requestedSeekTargetSeconds >= 0.0 && seekIsFresh(kSeekTargetFreshnessMs)) {
         const double midpoint = (m_requestedSeekStartSeconds + m_requestedSeekTargetSeconds) / 2.0;
         const bool movingForward = m_requestedSeekTargetSeconds > m_requestedSeekStartSeconds;
         const bool movingBackward = m_requestedSeekTargetSeconds < m_requestedSeekStartSeconds;
-        if ((movingForward && clamped < midpoint) || (movingBackward && clamped > midpoint)) {
+        if ((movingForward && clamped < midpoint) || (movingBackward && clamped > midpoint))
             return false;
-        }
+        landedSeek = true;
         m_requestedSeekTargetSeconds = -1.0;
         m_requestedSeekStartSeconds = -1.0;
         m_seekCommandClock.invalidate();
     }
-    if (!regressionAllowed(source) && m_lastTrustedPositionClock.isValid()
+    if (!landedSeek && !regressionAllowed() && m_hasMpvPosition
         && m_lastTrustedPositionSeconds > kPositionRegressionToleranceSeconds
         && clamped + kPositionRegressionToleranceSeconds < m_lastTrustedPositionSeconds) {
-        if (source == Source::Mpv) {
-            qInfo() << "player: ignoring stale mpv position"
-                    << "position=" << clamped << "ui=" << m_positionSeconds
-                    << "trusted=" << m_lastTrustedPositionSeconds;
-        }
+        qInfo() << "player: ignoring stale mpv position"
+                << "position=" << clamped << "ui=" << m_positionSeconds << "trusted=" << m_lastTrustedPositionSeconds;
         clamped = clamp(m_lastTrustedPositionSeconds);
     }
 
     m_lastTrustedPositionSeconds = clamped;
-    m_lastTrustedPositionClock.restart();
-    if (source == Source::Mpv && m_positionRegressionAllowedClock.isValid()
+    m_hasMpvPosition = true;
+    if (m_positionRegressionAllowedClock.isValid()
         && m_positionRegressionAllowedClock.elapsed() < kSeekTargetFreshnessMs) {
         m_positionRegressionAllowedClock.invalidate();
     }
 
-    if (std::abs(m_positionSeconds - clamped) < 0.05) {
-        m_positionClock.restart();
+    if (std::abs(m_positionSeconds - clamped) < 0.05)
         return false;
-    }
 
     m_positionSeconds = clamped;
-    m_positionClock.restart();
     return true;
 }
 
-double PlaybackPositionTracker::projected(bool paused, bool buffering, double playbackRate) const
+double PlaybackPositionTracker::seekAnchor()
 {
-    double position = m_positionSeconds;
-    if (!paused && !buffering && m_positionClock.isValid()) {
-        const double elapsed = m_positionClock.elapsed() / 1000.0;
-        if (elapsed > 0.0)
-            position += elapsed * qMax(0.01, playbackRate);
-    }
-    return clamp(position);
-}
+    if (m_requestedSeekTargetSeconds >= 0.0 && seekIsFresh(kSeekTargetFreshnessMs))
+        return clamp(m_requestedSeekTargetSeconds);
 
-double PlaybackPositionTracker::seekAnchor(bool paused, bool buffering, double playbackRate)
-{
-    if (m_requestedSeekTargetSeconds >= 0.0 && seekIsFresh(kSeekTargetFreshnessMs)) {
-        double position = m_requestedSeekTargetSeconds;
-        if (!paused && !buffering)
-            position += m_seekCommandClock.elapsed() / 1000.0 * qMax(0.01, playbackRate);
-        return clamp(position);
-    }
-
-    restoreTrusted("seek-anchor");
-    return projected(paused, buffering, playbackRate);
-}
-
-bool PlaybackPositionTracker::restoreTrusted(const char *reason)
-{
-    if (!m_lastTrustedPositionClock.isValid())
-        return false;
-
-    const double trusted = clamp(m_lastTrustedPositionSeconds);
-    if (m_positionSeconds + 0.05 >= trusted)
-        return false;
-
-    qInfo() << "player: restoring trusted playback position" << (reason ? reason : "unknown")
-            << "from=" << m_positionSeconds << "to=" << trusted;
-    return update(trusted, Source::Lifecycle);
+    return m_positionSeconds;
 }
 
 void PlaybackPositionTracker::beginSeek(double targetSeconds)
@@ -153,17 +117,11 @@ void PlaybackPositionTracker::beginSeek(double targetSeconds)
     m_seekCommandClock.restart();
 }
 
-void PlaybackPositionTracker::settleSeek()
-{
-    m_positionClock.restart();
-}
-
 void PlaybackPositionTracker::cancelSeek()
 {
     m_requestedSeekTargetSeconds = -1.0;
     m_requestedSeekStartSeconds = -1.0;
     m_seekCommandClock.invalidate();
-    m_positionClock.restart();
 }
 
 bool PlaybackPositionTracker::seekIsFresh(qint64 freshnessMs) const
@@ -176,30 +134,8 @@ void PlaybackPositionTracker::allowRegression()
     m_positionRegressionAllowedClock.restart();
 }
 
-void PlaybackPositionTracker::restartProjection()
+bool PlaybackPositionTracker::regressionAllowed() const
 {
-    m_positionClock.restart();
-}
-
-void PlaybackPositionTracker::invalidateProjection()
-{
-    m_positionClock.invalidate();
-}
-
-bool PlaybackPositionTracker::projectionIsValid() const
-{
-    return m_positionClock.isValid();
-}
-
-bool PlaybackPositionTracker::regressionAllowed(Source source) const
-{
-    if (source == Source::Seek)
-        return true;
-
-    if (source == Source::Mpv && seekIsFresh(kMpvPostSeekRegressionMs)) {
-        return true;
-    }
-
     return m_positionRegressionAllowedClock.isValid()
         && m_positionRegressionAllowedClock.elapsed() < kSeekTargetFreshnessMs;
 }

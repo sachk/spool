@@ -233,16 +233,15 @@ private:
     void flushPendingSeek();
     void updatePlaybackStatusText();
     void notifyPlaybackStateChanged();
-    void setPositionSeconds(double seconds, PlaybackPositionTracker::Source source, bool notifySegments = true);
+    void setPositionSeconds(double seconds, bool notifySegments = true);
     void requestMpvPositionRefresh(const char *reason);
-    void restoreTrustedPosition(const char *reason);
     double clampedPosition(double seconds) const;
     double seekAnchorPosition();
-    double projectedPositionSeconds() const;
     void resetPlaybackUiState();
     void rebuildTrickplaySheetUrls();
     bool applyMpvRuntimeOption(MpvRuntimeOption option, MpvOptionApplyMode mode, mpv_handle *handle);
-    bool applyMpvSubtitleOptions(MpvOptionApplyMode mode, mpv_handle *handle, bool preserveTrackSelection = false);
+    bool applyMpvSubtitleOptions(MpvOptionApplyMode mode, mpv_handle *handle, bool preserveTrackSelection = false,
+        const SubtitlePreferences *previousPreferences = nullptr);
     bool applyMpvRuntimeOptions(MpvOptionApplyMode mode, mpv_handle *handle);
     void discardPreparedMpvForOptionChange(const char *reason);
     void handleVideoRenderError(const QString& message);

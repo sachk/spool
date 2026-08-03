@@ -148,6 +148,16 @@ FocusScope {
         anchors.rightMargin: Metrics.scaled(14)
         spacing: Metrics.scaled(4)
 
+        Image {
+            visible: Platform.isTV
+            source: visible ? "qrc:/branding/64.png" : ""
+            Layout.preferredWidth: Metrics.scaled(40)
+            Layout.preferredHeight: Metrics.scaled(40)
+            fillMode: Image.PreserveAspectFit
+            sourceSize: Qt.size(64, 64)
+            mipmap: true
+        }
+
         Repeater {
             id: railRepeater
             model: [

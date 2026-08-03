@@ -42,12 +42,6 @@ SettingsController::SettingsController(
     , m_api(api)
     , m_player(player)
 {
-    m_subtitleApplyTimer.setSingleShot(true);
-    m_subtitleApplyTimer.setInterval(100);
-    connect(&m_subtitleApplyTimer, &QTimer::timeout, this, [this]() {
-        if (m_player)
-            m_player->setSubtitlePreferences(m_subtitlePreferences);
-    });
 }
 
 QStringList SettingsController::subtitleLanguageOptions() const
@@ -866,7 +860,7 @@ void SettingsController::applyMpvConfigPolicy()
 void SettingsController::applySubtitlePreferencesToPlayer()
 {
     if (m_player)
-        m_subtitleApplyTimer.start();
+        m_player->setSubtitlePreferences(m_subtitlePreferences);
 }
 
 } // namespace JellyfinNative

@@ -8,7 +8,6 @@
 #include <QJsonObject>
 #include <QObject>
 #include <QStringList>
-#include <QTimer>
 #include <QVariantList>
 #include <QVariantMap>
 
@@ -199,7 +198,6 @@ private:
     int m_uiScaleSetupVersion = 0;
     int m_playerControlTooltipSessions = 0;
     SubtitlePreferences m_subtitlePreferences;
-    QTimer m_subtitleApplyTimer;
     QStringList m_subtitleLanguageCodes { QString() };
     QStringList m_subtitleLanguageLabels { QStringLiteral("Any language") };
     QJsonObject m_userConfiguration;
