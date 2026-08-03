@@ -1,0 +1,37 @@
+<svg width="48" height="48" viewBox="2 2 44 44" version="1.1" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+        <linearGradient id="rim" x2="0" y1="44" y2="4" gradientUnits="userSpaceOnUse">
+            <stop stop-color="#7f8a90" offset="0"/>
+            <stop stop-color="#c2cbcf" offset="1"/>
+        </linearGradient>
+        <linearGradient id="flange" x2="0" y1="43" y2="5" gradientUnits="userSpaceOnUse">
+            <stop stop-color="#c2cacd" offset="0"/>
+            <stop stop-color="#eceff0" offset="1"/>
+        </linearGradient>
+        <linearGradient id="face" x2="0" y1="41" y2="7" gradientUnits="userSpaceOnUse">
+            <stop stop-color="#c5cdd1" offset="0"/>
+            <stop stop-color="#adb8be" offset="1"/>
+        </linearGradient>
+        <linearGradient id="boss" x2="0" y1="29" y2="19" gradientUnits="userSpaceOnUse">
+            <stop stop-color="#d3dadd" offset="0"/>
+            <stop stop-color="#f4f6f7" offset="1"/>
+        </linearGradient>
+        <linearGradient id="hole" x2="0" y1="38" y2="10" gradientUnits="userSpaceOnUse">
+            <stop stop-color="#5a646b" offset="0"/>
+            <stop stop-color="#3b444b" offset="1"/>
+        </linearGradient>
+    </defs>
+    <circle cx="24" cy="24" r="20" fill="url(#rim)"/>
+    <circle cx="24" cy="24" r="19" fill="url(#flange)"/>
+    <circle cx="24" cy="24" r="17" fill="url(#hole)"/>
+    <path fill="url(#face)" fill-rule="evenodd" d="M7 24a17 17 0 1 0 34 0 17 17 0 1 0-34 0z
+        M30.5 24a4.5 4.5 0 1 0 9 0 4.5 4.5 0 1 0-9 0z
+        M25 14.5a4.5 4.5 0 1 0 9 0 4.5 4.5 0 1 0-9 0z
+        M14 14.5a4.5 4.5 0 1 0 9 0 4.5 4.5 0 1 0-9 0z
+        M8.5 24a4.5 4.5 0 1 0 9 0 4.5 4.5 0 1 0-9 0z
+        M14 33.5a4.5 4.5 0 1 0 9 0 4.5 4.5 0 1 0-9 0z
+        M25 33.5a4.5 4.5 0 1 0 9 0 4.5 4.5 0 1 0-9 0z"/>
+    <circle cx="24.4" cy="24.4" r="4.5" fill="#9ba6ac"/>
+    <circle cx="24" cy="24" r="4.5" fill="url(#boss)"/>
+    <circle cx="24" cy="24" r="2" fill="url(#hole)"/>
+</svg>

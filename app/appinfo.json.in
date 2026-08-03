@@ -6,7 +6,7 @@
   "main": "bin/jellyfin-native",
   "title": "Spool for Jellyfin",
   "icon": "icon.png",
-  "largeIcon": "icon.png",
+  "largeIcon": "large-icon.png",
   "splashBackground": "splash.png",
   "appDescription": "Native Qt Quick Jellyfin client for LG webOS using libmpv and Starfish.",
   "tileSize": "normal",

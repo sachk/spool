@@ -72,6 +72,7 @@ if(JELLYFIN_NATIVE_WEBOS)
     )
 else()
     set(JELLYFIN_QT_MIN_VERSION 6.11)
+    list(APPEND JELLYFIN_QT_COMPONENTS Svg)
     if(UNIX AND NOT APPLE)
         list(APPEND JELLYFIN_QT_COMPONENTS DBus)
     endif()
@@ -408,6 +409,16 @@ if(NOT JELLYFIN_NATIVE_WEBOS)
     )
 endif()
 
+if(NOT JELLYFIN_NATIVE_WEBOS)
+    qt_add_resources(jellyfin-native "application_icons"
+        PREFIX "/icons"
+        BASE "${CMAKE_CURRENT_SOURCE_DIR}/app/icons"
+        FILES
+            app/icons/spool.svg
+            app/icons/spool-film.svg
+    )
+endif()
+
 
 add_custom_target(jellyfin-native_qmllint_strict
     COMMAND Qt6::qmllint
@@ -479,6 +490,9 @@ target_link_libraries(jellyfin-core PUBLIC
 )
 
 target_link_libraries(jellyfin-native PRIVATE jellyfin-core)
+if(NOT JELLYFIN_NATIVE_WEBOS)
+    target_link_libraries(jellyfin-native PRIVATE Qt6::Svg)
+endif()
 
 
 if(BUILD_TESTING AND NOT CMAKE_CROSSCOMPILING)
@@ -727,3 +741,23 @@ install(TARGETS jellyfin-native
     BUNDLE DESTINATION .
     RUNTIME DESTINATION bin
 )
+
+if(UNIX AND NOT APPLE AND NOT JELLYFIN_NATIVE_WEBOS)
+    install(FILES app/com.sachk.spool.desktop
+        DESTINATION share/applications
+    )
+    install(FILES app/com.sachk.spool.metainfo.xml
+        DESTINATION share/metainfo
+        RENAME com.sachk.spool.appdata.xml
+    )
+    install(FILES app/icons/spool.svg
+        DESTINATION share/icons/hicolor/scalable/apps
+        RENAME com.sachk.spool.svg
+    )
+    foreach(icon_size 16 22 24 32 48 64 128 256 512)
+        install(FILES "app/icons/png/spool/${icon_size}.png"
+            DESTINATION "share/icons/hicolor/${icon_size}x${icon_size}/apps"
+            RENAME com.sachk.spool.png
+        )
+    endforeach()
+endif()

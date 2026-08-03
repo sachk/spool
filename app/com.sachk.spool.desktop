@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=Spool for Jellyfin
+Comment=Browse and play media from a Jellyfin server
+Exec=jellyfin-native
+Icon=com.sachk.spool
+Categories=AudioVideo;Video;
+Keywords=Jellyfin;Media;Player;TV;
+StartupWMClass=com.sachk.spool
+Terminal=false

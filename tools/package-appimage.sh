@@ -255,7 +255,7 @@ if [[ -d "$APPDIR" ]]; then
 fi
 rm -rf "$APPDIR"
 mkdir -p "$APPDIR/usr/bin" "$APPDIR/usr/lib" "$APPDIR/usr/share/applications" \
-  "$APPDIR/usr/share/fonts" "$APPDIR/usr/share/icons/hicolor/256x256/apps" \
+  "$APPDIR/usr/share/fonts" "$APPDIR/usr/share/icons/hicolor/scalable/apps" \
   "$APPDIR/usr/share/jellyfin-native/notices"
 
 cp -f "$BUILD_ROOT/jellyfin-native" "$APPDIR/usr/bin/jellyfin-native"
@@ -263,8 +263,14 @@ find "$MPV_PREFIX/lib" -name 'libmpv.so*' -exec cp -a {} "$APPDIR/usr/lib/" \;
 if command -v secret-tool >/dev/null 2>&1; then
   cp -f "$(command -v secret-tool)" "$APPDIR/usr/bin/secret-tool"
 fi
-cp -f "$APP_ROOT/app/icon.png" "$APPDIR/usr/share/icons/hicolor/256x256/apps/jellyfin-native.png"
-cp -f "$APP_ROOT/app/icon.png" "$APPDIR/jellyfin-native.png"
+for icon_size in 16 22 24 32 48 64 128 256 512; do
+  icon_dir="$APPDIR/usr/share/icons/hicolor/${icon_size}x${icon_size}/apps"
+  mkdir -p "$icon_dir"
+  cp -f "$APP_ROOT/app/icons/png/spool/${icon_size}.png" "$icon_dir/com.sachk.spool.png"
+done
+cp -f "$APP_ROOT/app/icons/spool.svg" \
+  "$APPDIR/usr/share/icons/hicolor/scalable/apps/com.sachk.spool.svg"
+cp -f "$APP_ROOT/app/icons/png/spool/256.png" "$APPDIR/com.sachk.spool.png"
 mkdir -p "$APPDIR/usr/share/metainfo"
 cp -f "$APP_ROOT/app/com.sachk.spool.metainfo.xml" \
   "$APPDIR/usr/share/metainfo/com.sachk.spool.appdata.xml"
@@ -336,14 +342,8 @@ exec "$HERE/usr/bin/jellyfin-native" "$@"
 APPRUN
 chmod +x "$APPDIR/AppRun"
 
-cat > "$APPDIR/usr/share/applications/com.sachk.spool.desktop" <<'DESKTOP'
-[Desktop Entry]
-Type=Application
-Name=Spool for Jellyfin
-Exec=jellyfin-native
-Icon=jellyfin-native
-Categories=AudioVideo;Video;
-DESKTOP
+cp -f "$APP_ROOT/app/com.sachk.spool.desktop" \
+  "$APPDIR/usr/share/applications/com.sachk.spool.desktop"
 cp -f "$APPDIR/usr/share/applications/com.sachk.spool.desktop" "$APPDIR/com.sachk.spool.desktop"
 
 download_verified \

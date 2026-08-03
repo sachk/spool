@@ -216,6 +216,7 @@
           qt6.qtbase
           qt6.qtdeclarative
           qt6.qtimageformats
+          qt6.qtsvg
           qt6Packages.qcoro
           qt6.qttools
           qt6.qtwebsockets
@@ -231,6 +232,7 @@
           qt6.qtbase
           qt6.qtdeclarative
           qt6.qtimageformats
+          qt6.qtsvg
           qt6.qtwebsockets
         ])
         ++ pkgs.lib.optionals pkgs.stdenv.isLinux (with pkgs; [

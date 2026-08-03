@@ -33,6 +33,7 @@
 #include <QFile>
 #include <QFileInfo>
 #include <QGuiApplication>
+#include <QIcon>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QList>
@@ -229,6 +230,14 @@ void logQmlWarnings(const QList<QQmlError>& warnings)
         logLine("[qml] %s", qPrintable(warning.toString()));
 }
 
+#ifndef JELLYFIN_NATIVE_WEBOS
+QIcon applicationIcon(bool playerSelected)
+{
+    const QString variant = playerSelected ? QStringLiteral("spool-film") : QStringLiteral("spool");
+    return QIcon(QStringLiteral(":/icons/%1.svg").arg(variant));
+}
+#endif
+
 } // namespace
 
 int main(int argc, char **argv)
@@ -309,6 +318,12 @@ int main(int argc, char **argv)
     app.setApplicationVersion(QString::fromLatin1(kAppVersion));
     app.setOrganizationName(QStringLiteral("sachk"));
     app.setApplicationDisplayName(QStringLiteral("Spool for Jellyfin"));
+#ifndef JELLYFIN_NATIVE_WEBOS
+    const QIcon defaultApplicationIcon = applicationIcon(false);
+    const QIcon playerApplicationIcon = applicationIcon(true);
+    app.setWindowIcon(defaultApplicationIcon);
+    app.setDesktopFileName(QStringLiteral("com.sachk.spool"));
+#endif
     const auto& capabilities = JellyfinNative::platformCapabilities();
 
     const QString diagnosticsRoot = qEnvironmentVariableIsSet("JELLYFIN_DIAGNOSTICS_DIR")
@@ -426,6 +441,17 @@ int main(int argc, char **argv)
     };
     QObject::connect(player.get(), &JellyfinNative::PlayerController::playbackStateChanged, &app, updateScreenSaver);
     QObject::connect(player.get(), &JellyfinNative::PlayerController::sessionActiveChanged, &app, updateScreenSaver);
+#ifndef JELLYFIN_NATIVE_WEBOS
+    const auto updateApplicationIcon
+        = [&app, &window, player = player.get(), &defaultApplicationIcon, &playerApplicationIcon] {
+              const QIcon& icon = player->sessionActive() ? playerApplicationIcon : defaultApplicationIcon;
+              app.setWindowIcon(icon);
+              window.setIcon(icon);
+          };
+    QObject::connect(
+        player.get(), &JellyfinNative::PlayerController::sessionActiveChanged, &app, updateApplicationIcon);
+    updateApplicationIcon();
+#endif
     auto controller = std::make_unique<JellyfinNative::AppController>(
         &database, discovery.get(), api.get(), artworkService.get(), player.get(), &tlsTrust);
     QObject::connect(controller.get(), &JellyfinNative::AppController::clearLogsRequested, &app, [appRootPath]() {

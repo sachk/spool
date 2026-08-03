@@ -22,9 +22,9 @@ ICONSET="$BUILD_ROOT/jellyfin-native.iconset"
 rm -rf "$ICONSET"
 mkdir -p "$ICONSET"
 for size in 16 32 128 256 512; do
-  sips -z "$size" "$size" "$APP_ROOT/app/icon.png" --out "$ICONSET/icon_${size}x${size}.png" >/dev/null
+  cp -f "$APP_ROOT/app/icons/png/spool/${size}.png" "$ICONSET/icon_${size}x${size}.png"
   doubled=$((size * 2))
-  sips -z "$doubled" "$doubled" "$APP_ROOT/app/icon.png" --out "$ICONSET/icon_${size}x${size}@2x.png" >/dev/null
+  cp -f "$APP_ROOT/app/icons/png/spool/${doubled}.png" "$ICONSET/icon_${size}x${size}@2x.png"
 done
 iconutil -c icns "$ICONSET" -o "$MACOS_ICON"
 rm -rf "$ICONSET"
