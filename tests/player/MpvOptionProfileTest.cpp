@@ -308,6 +308,10 @@ int main(int argc, char **argv)
     require(valueFor(subtitleOptions, "subs-fallback") == "no",
         "OnlyForced mode should disable non-forced fallback subtitles");
     require(valueFor(subtitleOptions, "sub-ass-override") == "no", "native styling should avoid forced ASS override");
+    require(valueFor(subtitleOptions, "sub-scale-signs") == "no",
+        "disabled geometry override should leave authored ASS signs unchanged");
+    require(valueFor(subtitleOptions, "sub-image-position") == "bottom-block",
+        "disabled geometry override should only reposition normal lower-third image dialogue");
     require(valueFor(subtitleOptions, "sub-font") == "IBM Plex Sans Var", "interface subtitle font was not mapped");
     require(valueFor(subtitleOptions, "sub-font-size") == "66", "subtitle size preference was not mapped");
     require(valueFor(subtitleOptions, "sub-bold") == "yes", "subtitle bold preference was not mapped");
@@ -319,6 +323,21 @@ int main(int argc, char **argv)
     require(valueFor(subtitleOptions, "sub-gauss") == "1.0", "bitmap subtitle smoothing was not propagated");
     require(valueFor(subtitleOptions, "sub-image-color") == "#00000000",
         "image subtitles should keep their own palette until asked otherwise");
+
+    SubtitlePreferences overriddenGeometry = subtitles;
+    overriddenGeometry.alwaysOverridePositionAndSize = true;
+    require(overriddenGeometry != subtitles, "geometry override must invalidate prepared subtitle playback state");
+    const auto overriddenGeometryOptions = MpvOptionProfile::subtitleOptions(overriddenGeometry, true);
+    require(valueFor(overriddenGeometryOptions, "sub-ass-override") == "scale",
+        "geometry override should apply scale and position without replacing authored ASS styling");
+    require(valueFor(overriddenGeometryOptions, "sub-scale-signs") == "yes",
+        "geometry override should include authored ASS signs");
+    require(valueFor(overriddenGeometryOptions, "sub-image-position") == "all",
+        "geometry override should reposition every image subtitle event");
+    require(valueFor(overriddenGeometryOptions, "sub-pos") == "40",
+        "geometry override should retain the configured vertical position");
+    require(valueFor(overriddenGeometryOptions, "sub-scale") == "1.25",
+        "geometry override should retain the configured overall scale");
 
     // One colour control has to cover both subtitle kinds, so matching feeds
     // the text colour to the image palette transform as well.
@@ -340,6 +359,14 @@ int main(int argc, char **argv)
     subtitles.styling = QStringLiteral("Custom");
     require(valueFor(MpvOptionProfile::subtitleOptions(subtitles, true), "sub-ass-override") == "force",
         "custom styling should override embedded ASS/SSA styles");
+    subtitles.alwaysOverridePositionAndSize = true;
+    const auto customGeometryOptions = MpvOptionProfile::subtitleOptions(subtitles, true);
+    require(valueFor(customGeometryOptions, "sub-ass-override") == "force",
+        "custom styling should retain precedence over geometry-only ASS override");
+    require(valueFor(customGeometryOptions, "sub-scale-signs") == "yes",
+        "custom styling plus geometry override should include authored ASS signs");
+    require(valueFor(customGeometryOptions, "sub-image-position") == "all",
+        "custom styling plus geometry override should reposition every image event");
 
     SubtitlePreferences hdrSubtitles = subtitles;
     hdrSubtitles.textColor = QStringLiteral("#ffffff");

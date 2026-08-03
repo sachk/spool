@@ -347,6 +347,10 @@ std::vector<MpvOption> MpvOptionProfile::subtitleOptions(
         = prefs.audioLanguage.trimmed().isEmpty() ? prefs.language.trimmed() : prefs.audioLanguage.trimmed();
     const bool smartAudio = prefs.audioMode == QStringLiteral("Smart") && !audioLanguage.isEmpty();
     const bool overrideEmbeddedStyling = prefs.styling.compare(QStringLiteral("custom"), Qt::CaseInsensitive) == 0;
+    const bool overrideGeometry = prefs.alwaysOverridePositionAndSize;
+    const QByteArray assOverride = overrideEmbeddedStyling ? QByteArrayLiteral("force")
+        : overrideGeometry                                 ? QByteArrayLiteral("scale")
+                                                           : QByteArrayLiteral("no");
     const int vertical = qBound(0, prefs.verticalPosition, 100);
     const SubtitleShadowOptions shadow = subtitleShadowOptions(prefs.dropShadow);
     const QByteArray subtitleColor = hdrPlayback && prefs.dimInHdr
@@ -372,7 +376,8 @@ std::vector<MpvOption> MpvOptionProfile::subtitleOptions(
         { "subs-fallback", mpvBool(!noSubtitles && !onlyForced && !smart) },
         { "subs-fallback-forced", "yes" },
         { "sub-ass", "yes" },
-        { "sub-ass-override", overrideEmbeddedStyling ? QByteArrayLiteral("force") : QByteArrayLiteral("no") },
+        { "sub-ass-override", assOverride },
+        { "sub-scale-signs", mpvBool(overrideGeometry) },
         { "sub-use-margins", "yes" },
         { "sub-font", subtitleFontFamily(prefs.font) },
         { "sub-font-size", subtitleFontSize(prefs.textSize) },
@@ -391,7 +396,7 @@ std::vector<MpvOption> MpvOptionProfile::subtitleOptions(
             prefs.imageColorMode == QStringLiteral("tint") ? QByteArrayLiteral("retint")
                                                            : QByteArrayLiteral("replace") },
         { "sub-image-outline-color", recolorImages ? QByteArrayLiteral("#FF000000") : disabledColor },
-        { "sub-image-position", "bottom-block" },
+        { "sub-image-position", overrideGeometry ? QByteArrayLiteral("all") : QByteArrayLiteral("bottom-block") },
     };
 }
 

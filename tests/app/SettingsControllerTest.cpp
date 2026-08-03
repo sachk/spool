@@ -75,6 +75,17 @@ int main(int argc, char **argv)
             == QStringLiteral("2"),
         "scale setup completion was not persisted");
 
+    require(!settings.value(QStringLiteral("subtitles/alwaysOverridePositionAndSize")).toBool(),
+        "fresh profile unexpectedly enabled subtitle geometry override");
+    settings.setValue(QStringLiteral("subtitles/alwaysOverridePositionAndSize"), true);
+    require(QCoro::waitFor(database.loadSettingAsync(QStringLiteral("subtitles/alwaysOverridePositionAndSize")))
+            == QStringLiteral("true"),
+        "subtitle geometry override was not persisted");
+    SettingsController restoredSubtitleSettings(&database, nullptr, nullptr);
+    QCoro::waitFor(restoredSubtitleSettings.loadLocalAsync());
+    require(restoredSubtitleSettings.value(QStringLiteral("subtitles/alwaysOverridePositionAndSize")).toBool(),
+        "persisted subtitle geometry override was not restored");
+
     settings.setValue(QStringLiteral("subtitles/styling"), QStringLiteral("Custom"));
     settings.setValue(QStringLiteral("subtitles/textSize"), QStringLiteral("xlarge"));
     settings.setValue(QStringLiteral("subtitles/textColor"), QStringLiteral("#00ff00"));
@@ -88,6 +99,11 @@ int main(int argc, char **argv)
         "subtitle appearance reset did not restore white text");
     require(settings.value(QStringLiteral("subtitles/dimInHdr")).toBool(),
         "subtitle appearance reset did not restore HDR dimming");
+    require(!settings.value(QStringLiteral("subtitles/alwaysOverridePositionAndSize")).toBool(),
+        "subtitle appearance reset did not disable geometry override");
+    require(QCoro::waitFor(database.loadSettingAsync(QStringLiteral("subtitles/alwaysOverridePositionAndSize")))
+            == QStringLiteral("false"),
+        "subtitle appearance reset did not persist disabled geometry override");
 
     settings.completePlayerControlTooltipSession();
     settings.completePlayerControlTooltipSession();

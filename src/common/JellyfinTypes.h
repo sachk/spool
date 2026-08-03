@@ -337,6 +337,7 @@ struct SubtitlePreferences {
     QString textBackground = QStringLiteral("transparent");
     int verticalPosition = 100;
     int scalePercent = 100;
+    bool alwaysOverridePositionAndSize = false;
     QString bitmapSmoothing = QStringLiteral("soft");
     // "keep", "match" or "tint": whether PGS/VobSub bitmaps are recolored to
     // textColor, so one colour control covers both subtitle kinds.

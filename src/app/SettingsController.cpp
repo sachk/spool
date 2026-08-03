@@ -639,6 +639,11 @@ void SettingsController::applySchemaValue(const SettingSpec& spec, const QVarian
         if (apply)
             applySubtitlePreferencesToPlayer();
         break;
+    case SettingTarget::SubtitlePositionAndSizeOverride:
+        m_subtitlePreferences.alwaysOverridePositionAndSize = value.toBool();
+        if (apply)
+            applySubtitlePreferencesToPlayer();
+        break;
     case SettingTarget::SubtitleBitmapSmoothing:
         m_subtitlePreferences.bitmapSmoothing = value.toString();
         if (apply)
@@ -731,6 +736,7 @@ void SettingsController::emitSchemaSignals(const SettingSpec& spec)
     case SettingTarget::SubtitleTextBackground:
     case SettingTarget::SubtitleVerticalPosition:
     case SettingTarget::SubtitleScale:
+    case SettingTarget::SubtitlePositionAndSizeOverride:
     case SettingTarget::SubtitleBitmapSmoothing:
     case SettingTarget::SubtitleImageColorMode:
     case SettingTarget::SubtitleDimInHdr:

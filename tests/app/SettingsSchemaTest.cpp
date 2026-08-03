@@ -109,6 +109,7 @@ void requiredPersistedKeysArePresentExactlyOnce()
         QStringLiteral("subtitles/styling"),
         QStringLiteral("subtitles/textSize"),
         QStringLiteral("subtitles/scalePercent"),
+        QStringLiteral("subtitles/alwaysOverridePositionAndSize"),
         QStringLiteral("subtitles/bitmapSmoothing"),
         QStringLiteral("subtitles/imageColorMode"),
         QStringLiteral("subtitles/textWeight"),
@@ -241,6 +242,23 @@ void normalizersPreservePersistedValueSemantics()
         QStringLiteral("valid subtitle drop-shadow choice was not preserved"));
     require(normalizedSettingValue(dropShadow, QStringLiteral("outer-glow")).toString().isEmpty(),
         QStringLiteral("invalid subtitle drop-shadow choice did not fall back to the default choice"));
+}
+
+void subtitleGeometryOverrideMatchesSchemaContract()
+{
+    const SettingSpec& override = requiredSpec(QStringLiteral("subtitles/alwaysOverridePositionAndSize"));
+    require(override.type == SettingType::Toggle, QStringLiteral("geometry override should be a toggle"));
+    require(override.normalizer == SettingNormalizer::Bool,
+        QStringLiteral("geometry override should use boolean normalization"));
+    require(!settingDefaultValue(override).toBool(), QStringLiteral("geometry override should default to false"));
+    require(
+        override.visible && override.persisted, QStringLiteral("geometry override should be visible and persisted"));
+    require(override.platform == SettingPlatform::All,
+        QStringLiteral("geometry override should be available on every platform"));
+    require(QLatin1String(override.group) == QLatin1String("Subtitle Appearance"),
+        QStringLiteral("geometry override should belong to Subtitle Appearance"));
+    require(override.level == SettingLevel::Advanced,
+        QStringLiteral("geometry override should use the Subtitle Appearance schema level"));
 }
 
 void schemaModelRowsMatchVisibilityContract()
@@ -415,6 +433,7 @@ int main(int argc, char **argv)
     requiredPersistedKeysArePresentExactlyOnce();
     audioOutputChoicesMatchPlatform();
     normalizersPreservePersistedValueSemantics();
+    subtitleGeometryOverrideMatchesSchemaContract();
     schemaModelRowsMatchVisibilityContract();
     pageRowsShareTheSchemaContract();
     subtitleChoicesExplainTheirBehavior();

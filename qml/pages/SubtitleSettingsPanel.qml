@@ -26,8 +26,13 @@ FocusScope {
 
     readonly property var sections: [
         {
-            "title": "Size and colour",
-            "keys": ["subtitles/scalePercent", "subtitles/textSize", "subtitles/textColor"]
+            "title": "Size and position",
+            "keys": ["subtitles/scalePercent", "subtitles/textSize", "subtitles/verticalPositionPercent",
+                "subtitles/alwaysOverridePositionAndSize"]
+        },
+        {
+            "title": "Colour",
+            "keys": ["subtitles/textColor"]
         },
         {
             "title": "Track",
@@ -45,8 +50,8 @@ FocusScope {
             "keys": ["subtitles/imageColorMode", "subtitles/bitmapSmoothing"]
         },
         {
-            "title": "Position and HDR",
-            "keys": ["subtitles/verticalPositionPercent", "subtitles/dimInHdr", "subtitles/hdrBrightnessPercent"]
+            "title": "HDR",
+            "keys": ["subtitles/dimInHdr", "subtitles/hdrBrightnessPercent"]
         },
         {
             "title": "Maintenance",
@@ -57,7 +62,8 @@ FocusScope {
     readonly property var appearanceKeys: ["subtitles/styling", "subtitles/textSize", "subtitles/textWeight",
         "subtitles/font", "subtitles/textColor", "subtitles/dropShadow", "subtitles/textBackground",
         "subtitles/imageColorMode", "subtitles/bitmapSmoothing", "subtitles/verticalPositionPercent",
-        "subtitles/scalePercent", "subtitles/dimInHdr", "subtitles/hdrBrightnessPercent"]
+        "subtitles/scalePercent", "subtitles/alwaysOverridePositionAndSize", "subtitles/dimInHdr",
+        "subtitles/hdrBrightnessPercent"]
 
     function specValue(spec) {
         if (spec.key === "subtitles/language")
