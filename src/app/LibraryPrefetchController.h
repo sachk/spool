@@ -31,7 +31,6 @@ public:
     void storePage(const QString& cacheKey, const PagedMovieItems& page);
     // Milliseconds since the cached page was stored, or -1 when absent.
     qint64 pageAgeMs(const QString& cacheKey) const;
-    void configureImagePrefetch(int aheadItems, int maxConcurrent);
     void prefetchPosters(const std::vector<MovieItem>& items, int firstIndex = 0, int visibleCount = 12,
         ImageKind imageKind = ImageKind::Poster);
 

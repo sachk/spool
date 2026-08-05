@@ -165,12 +165,6 @@ public:
         }
     }
 
-    void setPrefetchConcurrency(int maxConcurrent)
-    {
-        m_prefetchMaxConcurrent = std::max(1, maxConcurrent);
-        drainPrefetch();
-    }
-
     void setAuthorizationHeader(QString header)
     {
         m_authorizationHeader = header.toUtf8();
@@ -607,11 +601,6 @@ void ArtworkService::setAuthorizationHeader(QString header)
 void ArtworkService::cancelPrefetches()
 {
     invokeWorker([](ArtworkFetchWorker *worker) { worker->cancelPrefetches(); });
-}
-
-void ArtworkService::configurePrefetch(int maxConcurrent)
-{
-    invokeWorker([maxConcurrent](ArtworkFetchWorker *worker) { worker->setPrefetchConcurrency(maxConcurrent); });
 }
 
 void ArtworkService::releaseMemory(bool aggressive)

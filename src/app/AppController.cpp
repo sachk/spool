@@ -262,8 +262,6 @@ QCoro::Task<void> AppController::initializeAsync()
     m_api->setDeviceId(deviceId);
 
     m_settings->applyLocalValues(startupState.values);
-    m_prefetch->configureImagePrefetch(m_settings->value(QStringLiteral("network/imagePrefetchAhead")).toInt(),
-        m_settings->value(QStringLiteral("network/imagePrefetchConcurrency")).toInt());
     const bool hasDefaultProfile
         = m_session->initializeFromStorage(std::move(startupState.values), std::move(startupState.profiles));
     if (m_hasDefaultProfile != hasDefaultProfile) {

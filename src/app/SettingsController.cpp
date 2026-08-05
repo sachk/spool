@@ -51,48 +51,6 @@ int SettingsController::subtitleLanguageIndex() const
     const int index = m_subtitleLanguageCodes.indexOf(m_subtitlePreferences.language);
     return index >= 0 ? index : 0;
 }
-QString SettingsController::subtitleMode() const
-{
-    return m_subtitlePreferences.mode;
-}
-QString SettingsController::subtitleStyling() const
-{
-    return m_subtitlePreferences.styling;
-}
-QString SettingsController::subtitleTextSize() const
-{
-    return m_subtitlePreferences.textSize;
-}
-QString SettingsController::subtitleTextWeight() const
-{
-    return m_subtitlePreferences.textWeight;
-}
-QString SettingsController::subtitleFont() const
-{
-    return m_subtitlePreferences.font;
-}
-QString SettingsController::subtitleTextColor() const
-{
-    return m_subtitlePreferences.textColor;
-}
-QString SettingsController::subtitleDropShadow() const
-{
-    return m_subtitlePreferences.dropShadow;
-}
-int SettingsController::subtitleVerticalPosition() const
-{
-    return m_subtitlePreferences.verticalPosition;
-}
-QStringList SettingsController::availableButtonActions() const
-{
-    QStringList actions;
-    const auto& spec = specForKey("input/redButton");
-    actions.reserve(spec.choiceCount);
-    for (qsizetype i = 0; i < spec.choiceCount; ++i)
-        actions.push_back(QLatin1String(spec.choices[i].value));
-    return actions;
-}
-
 QStringList SettingsController::systemSubtitleFonts() const
 {
     // Both CONSTANT list properties below must be cached: QML re-invokes the
@@ -211,10 +169,7 @@ void SettingsController::applyLocalValues(const QVariantMap& storedValues)
 
     emit settingsValuesChanged();
     emit nightModeChanged();
-    emit toneMappingVisualizationChanged();
-    emit playbackPreferencesChanged();
     emit audioDelayChanged();
-    emit audioOutputModeChanged();
     emit subtitleSettingsChanged();
     emit buttonRemapChanged();
     emit appearanceChanged();
@@ -344,18 +299,6 @@ void SettingsController::setNightModeEnabled(bool enabled)
 {
     setValue(QStringLiteral("settings/nightMode"), enabled);
 }
-void SettingsController::setToneMappingVisualizationEnabled(bool enabled)
-{
-    setValue(QStringLiteral("settings/toneMappingVisualization"), enabled);
-}
-void SettingsController::setMaxStreamingBitrateMbps(int bitrateMbps)
-{
-    setValue(QStringLiteral("playback/maxStreamingBitrateMbps"), bitrateMbps);
-}
-void SettingsController::setPreferRemux(bool enabled)
-{
-    setValue(QStringLiteral("playback/preferRemux"), enabled);
-}
 void SettingsController::setAudioDelayMs(int delayMs)
 {
     const SettingSpec& spec = specForKey("settings/audioDelayMs");
@@ -382,10 +325,6 @@ void SettingsController::setAudioDelayMs(int delayMs)
     emit settingsValuesChanged();
     emit audioDelayChanged();
 }
-void SettingsController::setAudioOutputMode(const QString& mode)
-{
-    setValue(QStringLiteral("settings/audioOutputMode"), mode);
-}
 void SettingsController::setUiScalePercent(int percent)
 {
     setValue(QStringLiteral("appearance/uiScalePercent"), percent);
@@ -395,38 +334,6 @@ void SettingsController::setSubtitleLanguageIndex(int index)
     if (index >= 0 && index < m_subtitleLanguageCodes.size())
         setValue(QStringLiteral("subtitles/language"), m_subtitleLanguageCodes.at(index));
 }
-void SettingsController::setSubtitleMode(const QString& mode)
-{
-    setValue(QStringLiteral("subtitles/mode"), mode);
-}
-void SettingsController::setSubtitleStyling(const QString& styling)
-{
-    setValue(QStringLiteral("subtitles/styling"), styling);
-}
-void SettingsController::setSubtitleTextSize(const QString& size)
-{
-    setValue(QStringLiteral("subtitles/textSize"), size);
-}
-void SettingsController::setSubtitleTextWeight(const QString& weight)
-{
-    setValue(QStringLiteral("subtitles/textWeight"), weight);
-}
-void SettingsController::setSubtitleFont(const QString& font)
-{
-    setValue(QStringLiteral("subtitles/font"), font);
-}
-void SettingsController::setSubtitleTextColor(const QString& color)
-{
-    setValue(QStringLiteral("subtitles/textColor"), color);
-}
-void SettingsController::setSubtitleDropShadow(const QString& shadow)
-{
-    setValue(QStringLiteral("subtitles/dropShadow"), shadow);
-}
-void SettingsController::setSubtitleVerticalPosition(int position)
-{
-    setValue(QStringLiteral("subtitles/verticalPositionPercent"), position);
-}
 void SettingsController::resetSubtitleAppearance()
 {
     for (const SettingSpec& spec : settingSpecs()) {
@@ -434,23 +341,6 @@ void SettingsController::resetSubtitleAppearance()
             setValue(keyString(spec), settingDefaultValue(spec));
     }
 }
-void SettingsController::setRedButtonAction(const QString& action)
-{
-    setValue(QStringLiteral("input/redButton"), action);
-}
-void SettingsController::setGreenButtonAction(const QString& action)
-{
-    setValue(QStringLiteral("input/greenButton"), action);
-}
-void SettingsController::setYellowButtonAction(const QString& action)
-{
-    setValue(QStringLiteral("input/yellowButton"), action);
-}
-void SettingsController::setBlueButtonAction(const QString& action)
-{
-    setValue(QStringLiteral("input/blueButton"), action);
-}
-
 bool SettingsController::setSchemaValue(
     const SettingSpec& spec, const QVariant& value, bool persist, bool apply, bool notify)
 {
@@ -668,22 +558,16 @@ void SettingsController::emitSchemaSignals(const SettingSpec& spec)
         emit nightModeChanged();
         break;
     case SettingTarget::ToneMappingVisualization:
-        emit toneMappingVisualizationChanged();
-        break;
     case SettingTarget::ManualStreamingBitrate:
     case SettingTarget::MaxStreamingBitrate:
     case SettingTarget::UnlimitedLocalBitrate:
     case SettingTarget::PreferRemux:
-        emit playbackPreferencesChanged();
-        break;
     case SettingTarget::ForwardCacheSize:
     case SettingTarget::PlayerVolumeSlider:
+    case SettingTarget::AudioOutput:
         break;
     case SettingTarget::AudioDelay:
         emit audioDelayChanged();
-        break;
-    case SettingTarget::AudioOutput:
-        emit audioOutputModeChanged();
         break;
     case SettingTarget::UiScale:
         emit appearanceChanged();

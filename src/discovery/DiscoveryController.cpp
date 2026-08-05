@@ -4,6 +4,7 @@
 
 #include "../diagnostics/Diagnostics.h"
 
+#include <QCoreApplication>
 #include <QDebug>
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -469,7 +470,8 @@ void DiscoveryController::startNextServerProbe()
     QNetworkRequest request(publicInfoUrl(serverUrl));
     request.setTransferTimeout(kManualProbeTimeoutMs);
     request.setAttribute(QNetworkRequest::RedirectPolicyAttribute, QNetworkRequest::NoLessSafeRedirectPolicy);
-    request.setHeader(QNetworkRequest::UserAgentHeader, QStringLiteral("Tern/0.1.0"));
+    request.setHeader(QNetworkRequest::UserAgentHeader,
+        QCoreApplication::applicationName() + QLatin1Char('/') + QCoreApplication::applicationVersion());
 
     QNetworkReply *reply = m_http.get(request);
     m_serverProbeReply = reply;
