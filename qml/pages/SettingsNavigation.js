@@ -1,7 +1,7 @@
 .pragma library
 
 function rowAvailable(row, isTV, hdrPlayback, valueForKey) {
-    if (!row || row.visible === false)
+    if (!row)
         return false
     if (row.platform === "desktop" && isTV)
         return false

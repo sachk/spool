@@ -27,12 +27,16 @@ SettingRow {
     onClicked: opened()
 
     Rectangle {
+        readonly property int sidePadding: Metrics.scaled(16)
+
         anchors.right: parent.right
         anchors.rightMargin: Metrics.scaled(14)
         anchors.verticalCenter: parent.verticalCenter
-        width: Math.min(Math.max(valueLabel.implicitWidth + Metrics.scaled(64), Metrics.scaled(220)), Math.max(Metrics.scaled(
-                                                                                                                   220), root.width
-                                                                                                               * 0.46))
+        // Hug the value instead of always reserving the widest pill: short
+        // answers like "Blue" should not sit in a field of empty chrome.
+        width: Math.max(Metrics.scaled(120), Math.min(valueLabel.implicitWidth + dropdownIcon.width + sidePadding * 2
+                                                      + Metrics.scaled(10), Math.max(Metrics.scaled(180), root.width
+                                                                                     * 0.46)))
         height: Math.max(Metrics.scaled(40), Metrics.controlHeightPx)
         radius: Theme.radiusMedium
         color: root.rowFocus ? Theme.accentPanel : Theme.bgRaised
@@ -46,7 +50,7 @@ SettingRow {
             anchors.right: dropdownIcon.left
             anchors.top: parent.top
             anchors.bottom: parent.bottom
-            anchors.leftMargin: Metrics.scaled(16)
+            anchors.leftMargin: parent.sidePadding
             anchors.rightMargin: Metrics.scaled(10)
             text: root.selectedText
             color: Theme.textPrimary
@@ -60,7 +64,7 @@ SettingRow {
         MaterialIcon {
             id: dropdownIcon
             anchors.right: parent.right
-            anchors.rightMargin: Metrics.scaled(14)
+            anchors.rightMargin: parent.sidePadding - Metrics.scaled(2)
             anchors.verticalCenter: parent.verticalCenter
             name: "expand_more"
             iconSize: Math.max(20, Metrics.iconSizePx)

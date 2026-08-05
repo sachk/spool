@@ -124,7 +124,7 @@ FocusScope {
                             text: String(modelData.authority || "")
                             font.weight: Font.DemiBold
                         }
-                        MonoText {
+                        SecondaryText {
                             Layout.fillWidth: true
                             text: String(modelData.fingerprint || "")
                             wrapMode: Text.WrapAnywhere

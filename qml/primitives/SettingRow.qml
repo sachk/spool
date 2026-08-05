@@ -10,7 +10,6 @@ T.Control {
     property string valueText: ""
     property bool valueTextVisible: true
     property bool rowFocus: activeFocus
-    property int settingIndex: -1
     property bool pointerActivationEnabled: true
     // Controls placed where valueText would otherwise go, laid out rather than
     // anchored so the title column cannot run underneath them.
@@ -65,7 +64,7 @@ T.Control {
             }
         }
 
-        MonoText {
+        SecondaryText {
             visible: root.valueTextVisible
             text: root.valueText
             color: Theme.textSecondary

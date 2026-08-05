@@ -57,7 +57,6 @@ public:
     QQuickImageResponse *requestImageResponse(const QString& id, const QSize& requestedSize);
     void prefetch(const QStringList& urls) override;
     void cancelPrefetches() override;
-    void configurePrefetch(int maxConcurrent) override;
     void releaseMemory(bool aggressive);
     void setAuthorizationHeader(QString header);
 

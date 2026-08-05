@@ -40,7 +40,7 @@ OverlayDialog {
         property string value: ""
         visible: value.length > 0
         spacing: 3
-        MonoText {
+        SecondaryText {
             Layout.fillWidth: true
             text: label
             color: Theme.textMuted
@@ -303,7 +303,7 @@ OverlayDialog {
                 Layout.fillWidth: true
                 visible: root.sources.length === 0
                 title: "No media source data"
-                detail: "This item did not include codec or stream metadata in the loaded Jellyfin response."
+                detail: "The server sent no codec or stream details for this item."
             }
 
             Repeater {
@@ -377,7 +377,7 @@ OverlayDialog {
                                         wrapMode: Text.Wrap
                                         maximumLineCount: 3
                                     }
-                                    MonoText {
+                                    SecondaryText {
                                         Layout.fillWidth: true
                                         visible: text.length > 0
                                         text: root.streamFlags(stream)

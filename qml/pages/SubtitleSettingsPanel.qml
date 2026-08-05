@@ -27,10 +27,6 @@ FocusScope {
 
     readonly property var sections: [
         {
-            "title": "Track",
-            "keys": ["subtitles/language", "subtitles/mode"]
-        },
-        {
             "title": "Size and position",
             "keys": ["subtitles/scalePercent", "subtitles/verticalPositionPercent",
                 "subtitles/alwaysOverridePositionAndSize", "subtitles/allowInBlackBars"]
@@ -38,6 +34,10 @@ FocusScope {
         {
             "title": "Colour",
             "keys": ["subtitles/overrideTextColor", "subtitles/textColor"]
+        },
+        {
+            "title": "Which subtitles",
+            "keys": ["subtitles/language", "subtitles/mode"]
         }
     ]
     readonly property var advancedSections: [
@@ -64,7 +64,7 @@ FocusScope {
             "keys": ["subtitles/hdrBrightnessPercent"]
         },
         {
-            "title": "Maintenance",
+            "title": "Start over",
             "keys": ["action/resetSubtitleAppearance"]
         }
     ]
@@ -120,7 +120,7 @@ FocusScope {
                              "spec": {
                                  "key": "action/toggleAdvanced",
                                  "title": "Advanced",
-                                 "description": "More appearance options",
+                                 "description": "Font, outline, image subtitles, and HDR",
                                  "type": "submenu"
                              }
                          })
@@ -446,7 +446,7 @@ FocusScope {
             implicitHeight: isSection ? sectionHeader.implicitHeight + Metrics.scaled(18) : rowLoader.implicitHeight
             height: implicitHeight
 
-            SectionHeader {
+            GroupHeader {
                 id: sectionHeader
                 anchors.left: parent.left
                 anchors.right: parent.right
@@ -605,7 +605,6 @@ FocusScope {
             from: spec ? Number(spec.from) : 0
             to: spec ? Number(spec.to) : 100
             step: spec ? Number(spec.step || 1) : 1
-            decimals: spec ? Number(spec.decimals || 0) : 0
             unitText: spec ? String(spec.unitText || "") : ""
             value: spec ? Number(root.specValue(spec)) : 0
             onValuePreviewed: value => Settings.previewValue(spec.key, value)
@@ -621,7 +620,7 @@ FocusScope {
         z: 200
         sourceComponent: ConfirmationDialog {
             title: "Reset subtitle appearance?"
-            message: "This restores the local font, colour, position, image subtitle, and HDR defaults."
+            message: "Font, colour, size, position, and HDR settings all go back to their defaults."
             confirmText: "Reset"
             destructive: true
             onAccepted: root.confirmReset()

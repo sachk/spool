@@ -47,49 +47,49 @@ Item {
             anchors.fill: parent
             anchors.margins: Metrics.scaled(12)
             spacing: Metrics.scaled(4)
-            MonoText {
+            SecondaryText {
                 text: "Diagnostics"
                 color: Theme.textPrimary
                 font.weight: Font.DemiBold
             }
-            MonoText {
+            SecondaryText {
                 text: "CPU  system " + root.cpu(SystemPerformance.systemCpuPercent) + "  app " + root.cpu(
                           SystemPerformance.processCpuPercent)
             }
-            MonoText {
+            SecondaryText {
                 text: "mpv  total " + root.cpu(SystemPerformance.mpvCpuPercent) + "  video decode " + root.cpu(
                           SystemPerformance.videoDecodeCpuPercent)
             }
-            MonoText {
+            SecondaryText {
                 text: "audio  decode " + root.cpu(SystemPerformance.audioDecodeCpuPercent) + "  output " + root.cpu(
                           SystemPerformance.audioOutputCpuPercent)
             }
-            MonoText {
+            SecondaryText {
                 text: "Dropped frames  decoder " + Player.decoderDroppedFrames + "  output "
                       + Player.outputDroppedFrames
             }
-            MonoText {
+            SecondaryText {
                 text: "Load  " + SystemPerformance.loadOne.toFixed(2) + "  " + SystemPerformance.loadFive.toFixed(2)
                       + "  " + SystemPerformance.loadFifteen.toFixed(2)
             }
-            MonoText {
+            SecondaryText {
                 text: "App memory  " + root.formatBytes(SystemPerformance.processRssBytes) + " RSS  " + root.formatBytes(
                           SystemPerformance.processAnonymousBytes) + " anon"
             }
-            MonoText {
+            SecondaryText {
                 text: "System memory  " + root.formatBytes(SystemPerformance.systemUsedBytes) + " / " + root.formatBytes(
                           SystemPerformance.systemTotalBytes) + "  free " + root.formatBytes(
                           SystemPerformance.systemAvailableBytes)
             }
-            MonoText {
+            SecondaryText {
                 text: "Input  " + InputLatency.lastLatencyMs.toFixed(2) + " ms  worst " + InputLatency.worstLatencyMs.toFixed(
                           2) + " ms  budget " + InputLatency.frameBudgetMs.toFixed(2) + " ms"
             }
-            MonoText {
+            SecondaryText {
                 text: "Frames  late " + InputLatency.lateCount + "  missed " + InputLatency.missedFrameCount
                       + "  samples " + InputLatency.sampleCount
             }
-            MonoText {
+            SecondaryText {
                 visible: SyncPlay.enabled
                 Layout.maximumWidth: Metrics.scaled(396)
                 text: "SyncPlay  " + (SyncPlay.groupState || "Unknown") + (SyncPlay.groupStateReason ? " / "
@@ -99,28 +99,28 @@ Item {
                                                                                                                 "")
                 elide: Text.ElideRight
             }
-            MonoText {
+            SecondaryText {
                 visible: SyncPlay.enabled
                 Layout.maximumWidth: Metrics.scaled(396)
                 text: "Time sync  " + SyncPlay.timeSyncDevice + "  offset " + root.signedMs(SyncPlay.clockOffsetMs)
                       + "  ping " + Number(SyncPlay.pingMs || 0).toFixed(2) + " ms"
                 elide: Text.ElideRight
             }
-            MonoText {
+            SecondaryText {
                 visible: SyncPlay.enabled
                 Layout.maximumWidth: Metrics.scaled(396)
                 text: "Playback drift  " + (SyncPlay.playbackDiffValid ? root.signedMs(SyncPlay.playbackDiffMs) : "—") + "  method "
                       + SyncPlay.syncMethod + "  (Speed ≥60 ms; skip ≥750 ms)"
                 elide: Text.ElideRight
             }
-            MonoText {
+            SecondaryText {
                 Layout.maximumWidth: Metrics.scaled(396)
                 text: "Stage  " + InputLatency.lastStage + (InputLatency.lastRouteSample.length > 0 ? "  ·  "
                                                                                                       + InputLatency.lastRouteSample :
                                                                                                       "")
                 elide: Text.ElideRight
             }
-            MonoText {
+            SecondaryText {
                 Layout.maximumWidth: Metrics.scaled(396)
                 text: "UI  " + root.width + "x" + root.height + "  " + Metrics.densityForWidth(root.width) + "  "
                       + root.route + (root.focusedItemId.length > 0 ? "  ·  " + root.focusedItemId : "")

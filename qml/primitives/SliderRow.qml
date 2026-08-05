@@ -6,12 +6,11 @@ import "../theme"
 SettingRow {
     id: root
 
-    property real value: 1.0
-    property real from: 0.75
-    property real to: 1.5
-    property real step: 0.05
-    property int decimals: 2
-    property string unitText: "x"
+    property int value: 0
+    property int from: 0
+    property int to: 100
+    property int step: 1
+    property string unitText: ""
     property bool selected: false
 
     signal valueEdited(real value)
@@ -32,12 +31,12 @@ SettingRow {
     }
 
     function rounded(v) {
-        const safeStep = Math.max(0.0001, Number(step || 1))
+        const safeStep = Math.max(1, Number(step || 1))
         return clamp(Math.round(Number(v || 0) / safeStep) * safeStep)
     }
 
     function formatValue(v) {
-        return Number(v).toFixed(decimals)
+        return String(Math.round(Number(v)))
     }
 
     function commit(next) {
@@ -123,12 +122,12 @@ SettingRow {
                 readOnly: Platform.isTV
                 horizontalAlignment: TextInput.AlignRight
                 verticalAlignment: TextInput.AlignVCenter
+                // Not ImhDigitsOnly: audio sync takes negative values, so the
+                // minus key has to stay reachable.
                 inputMethodHints: Qt.ImhFormattedNumbersOnly
-                validator: DoubleValidator {
+                validator: IntValidator {
                     bottom: root.from
                     top: root.to
-                    decimals: root.decimals
-                    notation: DoubleValidator.StandardNotation
                 }
                 color: Theme.textPrimary
                 selectedTextColor: Theme.textPrimary

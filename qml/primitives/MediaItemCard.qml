@@ -128,7 +128,7 @@ Item {
         elide: Text.ElideRight
     }
 
-    MonoText {
+    SecondaryText {
         id: metadataLabel
         anchors.top: titleLabel.bottom
         anchors.topMargin: Metrics.scaled(2)

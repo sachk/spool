@@ -87,7 +87,7 @@ Item {
                 maximumLineCount: 1
                 elide: Text.ElideRight
             }
-            MonoText {
+            SecondaryText {
                 Layout.fillWidth: true
                 visible: root.detail.length > 0
                 text: root.detail
@@ -127,7 +127,7 @@ Item {
                 }
             }
 
-            MonoText {
+            SecondaryText {
                 Layout.preferredWidth: Metrics.scaled(68)
                 text: root.stepperText
                 color: root.stepperEnabled ? Theme.textPrimary : Theme.textSecondary

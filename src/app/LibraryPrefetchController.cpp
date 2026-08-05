@@ -145,13 +145,6 @@ void LibraryPrefetchController::prefetchPosters(
         m_artwork->prefetch(urls);
 }
 
-void LibraryPrefetchController::configureImagePrefetch(int aheadItems, int maxConcurrent)
-{
-    m_imagePrefetchAheadItems = std::clamp(aheadItems, 4, 64);
-    if (m_artwork)
-        m_artwork->configurePrefetch(std::clamp(maxConcurrent, 1, 8));
-}
-
 void LibraryPrefetchController::startNext()
 {
     if (m_active || !m_api || m_api->session().accessToken.isEmpty())

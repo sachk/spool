@@ -369,7 +369,7 @@ FocusScope {
                         Layout.fillWidth: true
                         spacing: 16
 
-                        MonoText {
+                        SecondaryText {
                             Layout.preferredWidth: Math.min(128, Math.max(88, block.width * 0.12))
                             text: String(rowDelegate.modelData.label || "")
                             color: panel.browsing && panel.currentRow === rowDelegate.index ? Theme.textPrimary :
@@ -1332,7 +1332,7 @@ FocusScope {
                         }
                     }
 
-                    MonoText {
+                    SecondaryText {
                         Layout.fillWidth: true
                         visible: root.hasProgress && root.remainingText().length > 0
                         text: root.progressText() + " / " + root.remainingText()
@@ -1393,14 +1393,14 @@ FocusScope {
                         anchors.topMargin: 12
                         visible: root.hasProgress
 
-                        MonoText {
+                        SecondaryText {
                             Layout.fillWidth: true
                             text: root.progressText()
                             color: Theme.textMuted
                             font.pixelSize: Metrics.metaSizePx
                             elide: Text.ElideRight
                         }
-                        MonoText {
+                        SecondaryText {
                             text: root.remainingText()
                             color: Theme.textMuted
                             font.pixelSize: Metrics.metaSizePx

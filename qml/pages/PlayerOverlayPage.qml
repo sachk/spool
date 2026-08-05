@@ -223,7 +223,7 @@ FocusScope {
     }
 
     function isPinned() {
-        return scrubbing || timelineHovering || isMenuOpen() || audioSyncVisible || subtitleSettingsVisible
+        return scrubbing || timelineHovering || isMenuOpen() || audioSyncVisible
     }
 
     function isControlsActive() {
@@ -414,8 +414,7 @@ FocusScope {
         menuKind = ""
         audioSyncVisible = false
         subtitleSettingsVisible = true
-        controlsVisible = false
-        autohide.stop()
+        hideControls()
         Qt.callLater(function () {
             subtitleSettings.forceActiveFocus()
             subtitleSettings.focusRow(0)

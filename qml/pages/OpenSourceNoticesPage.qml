@@ -141,17 +141,9 @@ FocusScope {
                 font.weight: Font.DemiBold
             }
 
-            MonoText {
-                Layout.fillWidth: true
-                text: "Acknowledgements appear first, followed by license and source information."
-                color: Theme.textSecondary
-                font.pixelSize: Metrics.bodySizePx
-                wrapMode: Text.Wrap
-            }
-
             SectionHeader {
                 Layout.fillWidth: true
-                text: "Acknowledgements"
+                title: "Acknowledgements"
             }
 
             Surface {
@@ -230,7 +222,7 @@ FocusScope {
 
             SectionHeader {
                 Layout.fillWidth: true
-                text: "License and corresponding source"
+                title: "License and corresponding source"
             }
 
             AppText {
@@ -270,7 +262,7 @@ FocusScope {
                                 font.weight: Font.Medium
                             }
 
-                            MonoText {
+                            SecondaryText {
                                 Layout.fillWidth: true
                                 text: componentCard.modelData.source
                                 color: Theme.textMuted
