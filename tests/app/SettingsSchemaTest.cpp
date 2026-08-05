@@ -251,8 +251,7 @@ void subtitleGeometryOverrideMatchesSchemaContract()
     require(override.normalizer == SettingNormalizer::Bool,
         QStringLiteral("geometry override should use boolean normalization"));
     require(!settingDefaultValue(override).toBool(), QStringLiteral("geometry override should default to false"));
-    require(
-        override.visible && override.persisted, QStringLiteral("geometry override should be visible and persisted"));
+    require(override.persisted, QStringLiteral("geometry override should be persisted"));
     require(override.platform == SettingPlatform::All,
         QStringLiteral("geometry override should be available on every platform"));
     require(QLatin1String(override.group) == QLatin1String("Subtitle Appearance"),
@@ -261,14 +260,13 @@ void subtitleGeometryOverrideMatchesSchemaContract()
         QStringLiteral("geometry override should use the Subtitle Appearance schema level"));
 }
 
-void schemaModelRowsMatchVisibilityContract()
+void schemaModelExposesEverySpecOnce()
 {
     const QVariantList model = settingSchemaModel();
     require(
         model.size() == settingSpecs().size(), QStringLiteral("schema model did not expose one row per setting spec"));
 
     QSet<QString> modelKeys;
-    QStringList hiddenKeys;
     for (const QVariant& item : model) {
         const QVariantMap row = item.toMap();
         const QString key = row.value(QStringLiteral("key")).toString();
@@ -277,13 +275,9 @@ void schemaModelRowsMatchVisibilityContract()
         modelKeys.insert(key);
 
         const SettingSpec& spec = requiredSpec(key);
-        require(row.value(QStringLiteral("visible")).toBool() == spec.visible,
-            QStringLiteral("schema row visibility diverged for %1").arg(key));
         require(row.value(QStringLiteral("source")).toString()
                 == (spec.persisted ? QStringLiteral("settings") : QStringLiteral("page")),
             QStringLiteral("schema row source diverged for %1").arg(key));
-        if (!row.value(QStringLiteral("visible")).toBool())
-            hiddenKeys.push_back(key);
     }
 
     require(
@@ -293,11 +287,27 @@ void schemaModelRowsMatchVisibilityContract()
         require(modelKeys.contains(key), QStringLiteral("schema model missed setting row %1").arg(key));
     }
 
-    require(hiddenKeys.isEmpty(), QStringLiteral("schema model still exposed hidden settings rows"));
     for (const QString& obsoleteKey : { QStringLiteral("subtitles/burnIn"), QStringLiteral("subtitles/renderPgs"),
              QStringLiteral("subtitles/alwaysBurnInWhenTranscoding") }) {
         require(findSettingSpec(obsoleteKey) == nullptr,
             QStringLiteral("obsolete server-policy setting remained in the schema: %1").arg(obsoleteKey));
+    }
+}
+
+// The page renders rows in declaration order, so a group's rows have to stay
+// together or its header would repeat further down the list.
+void groupsAreDeclaredContiguously()
+{
+    QSet<QString> closedGroups;
+    QString currentGroup;
+    for (const SettingSpec& spec : settingSpecs()) {
+        const QString group = QString::fromLatin1(spec.group);
+        if (group == currentGroup)
+            continue;
+        require(!closedGroups.contains(group), QStringLiteral("settings group %1 was declared in two runs").arg(group));
+        if (!currentGroup.isEmpty())
+            closedGroups.insert(currentGroup);
+        currentGroup = group;
     }
 }
 void pageRowsShareTheSchemaContract()
@@ -433,7 +443,8 @@ int main(int argc, char **argv)
     audioOutputChoicesMatchPlatform();
     normalizersPreservePersistedValueSemantics();
     subtitleGeometryOverrideMatchesSchemaContract();
-    schemaModelRowsMatchVisibilityContract();
+    schemaModelExposesEverySpecOnce();
+    groupsAreDeclaredContiguously();
     pageRowsShareTheSchemaContract();
     subtitleChoicesExplainTheirBehavior();
     systemLanguageLabelNamesResolvedLanguage();

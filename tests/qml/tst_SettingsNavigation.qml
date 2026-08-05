@@ -46,9 +46,7 @@ TestCase {
                                                     "dependsOnKey": "playback/mpvConfigMode",
                                                     "dependsOnValue": "standard"
                                                 }, false, false, lookup))
-        verify(!SettingsNavigation.rowAvailable({
-                                                    "visible": false
-                                                }, false, false, lookup))
+        verify(!SettingsNavigation.rowAvailable(null, false, false, lookup))
         verify(!SettingsNavigation.rowAvailable({
                                                     "requiresHdrPlayback": true
                                                 }, false, false, lookup))

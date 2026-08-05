@@ -35,7 +35,7 @@ FocusScope {
             "keys": ["subtitles/textColor"]
         },
         {
-            "title": "Track",
+            "title": "Which subtitles",
             "keys": ["subtitles/language", "subtitles/mode"]
         }
     ]
@@ -54,7 +54,7 @@ FocusScope {
             "keys": ["subtitles/dimInHdr", "subtitles/hdrBrightnessPercent"]
         },
         {
-            "title": "Maintenance",
+            "title": "Start over",
             "keys": ["action/resetSubtitleAppearance"]
         }
     ]
@@ -107,7 +107,7 @@ FocusScope {
                              "spec": {
                                  "key": "action/toggleAdvanced",
                                  "title": "Advanced",
-                                 "description": "Font, outline, position, image subtitle, and HDR controls",
+                                 "description": "Font, outline, image subtitles, and HDR",
                                  "type": "submenu"
                              }
                          })
@@ -602,7 +602,6 @@ FocusScope {
             from: spec ? Number(spec.from) : 0
             to: spec ? Number(spec.to) : 100
             step: spec ? Number(spec.step || 1) : 1
-            decimals: spec ? Number(spec.decimals || 0) : 0
             unitText: spec ? String(spec.unitText || "") : ""
             value: spec ? Number(root.specValue(spec)) : 0
             onValueEdited: value => root.setValue(spec, value, -1)
@@ -617,7 +616,7 @@ FocusScope {
         z: 200
         sourceComponent: ConfirmationDialog {
             title: "Reset subtitle appearance?"
-            message: "This restores the local font, colour, position, image subtitle, and HDR defaults."
+            message: "Font, colour, size, position, and HDR settings all go back to their defaults."
             confirmText: "Reset"
             destructive: true
             onAccepted: root.confirmReset()

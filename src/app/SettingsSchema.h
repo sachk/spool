@@ -72,15 +72,12 @@ enum class SettingNormalizer {
     Bool,
     IntRange,
     String,
+    // Snaps to the spec's choices, or passes the value through when the choices
+    // are filled in at runtime rather than declared here.
     Choice,
     AudioOutput,
-    SubtitleMode,
-    SubtitleStyling,
-    SubtitleTextSize,
-    SubtitleTextWeight,
     SubtitleFont,
-    SubtitleTextColor,
-    SubtitleDropShadow,
+    SubtitleColor,
 };
 
 struct SettingChoice {
@@ -95,25 +92,29 @@ struct SettingSpec {
     const char *description;
     SettingType type;
     const char *defaultValue;
-    const SettingChoice *choices;
-    qsizetype choiceCount;
-    int minimum;
-    int maximum;
-    int step;
-    int decimals;
-    const char *unit;
     SettingTarget target;
     SettingNormalizer normalizer;
-    bool visible;
-    bool normalizeChoices;
+    const SettingChoice *choices = nullptr;
+    qsizetype choiceCount = 0;
+    int minimum = 0;
+    int maximum = 0;
+    int step = 1;
+    const char *unit = "";
     SettingLevel level = SettingLevel::Essential;
     SettingPlatform platform = SettingPlatform::All;
-    const char *icon = "settings";
-    const char *valueSummary = "";
     const char *dependsOnKey = "";
     const char *dependsOnValue = "";
     bool persisted = true;
     bool requiresHdrPlayback = false;
+
+    // Declaration modifiers. Each returns a copy so specs read as one
+    // expression: slider(...).advanced().onDesktop().
+    SettingSpec advanced() const;
+    SettingSpec expert() const;
+    SettingSpec onDesktop() const;
+    SettingSpec onWebOS() const;
+    SettingSpec whenSetTo(const char *otherKey, const char *otherValue) const;
+    SettingSpec duringHdrPlayback() const;
 };
 
 const QVector<SettingSpec>& settingSpecs();

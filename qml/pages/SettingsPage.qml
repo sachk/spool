@@ -26,8 +26,16 @@ FocusScope {
     property string diagnosticsExportPreview: ""
     property bool pendingCustomMpvMode: false
 
-    readonly property var groupOrder: ["Appearance", "Playback", "Subtitles", "Account", "Diagnostics", "Button Remap",
-        "About"]
+    // The detail strip above the list stands in for this row.
+    readonly property string detailKey: "settings/detailLevel"
+    readonly property var detailRow: {
+        const schema = Settings.settingsSchema
+        for (let index = 0; index < schema.length; ++index) {
+            if (schema[index].key === detailKey)
+            return schema[index]
+        }
+        return null
+    }
 
     function rowAvailable(row) {
         return SettingsNavigation.rowAvailable(row, Platform.isTV, Player.hdrPlayback, function (key) {
@@ -39,8 +47,8 @@ FocusScope {
     }
 
     function currentDetailLevel() {
-        const value = String(Settings.values["settings/detailLevel"] || "Essential")
-        return value === "All" ? 2 : value === "More" ? 1 : 0
+        const values = detailRow ? detailRow.choiceValues : []
+        return Math.max(0, valueIndex(values, String(Settings.values[detailKey] || "")))
     }
 
     function rowDetailLevel(row) {
@@ -84,22 +92,19 @@ FocusScope {
         contentReady = visibleRows.length === 0
     }
 
+    // Schema declaration order is display order. "Subtitle Appearance" lives in
+    // SubtitleSettingsPanel, which can show it over live video where the
+    // changes are actually visible.
     function buildSettingsRowsSource() {
         const schema = Settings.settingsSchema
-        const detailKey = "settings/detailLevel"
         const mainRows = []
         const rowMap = {}
-        const sourceRows = [];
+        const sourceRows = []
 
-        // "Subtitle Appearance" lives in SubtitleSettingsPanel, which can show
-        // it over live video where the changes are actually visible.
-        for (let groupIndex = 0; groupIndex < groupOrder.length; ++groupIndex) {
-            const group = groupOrder[groupIndex]
-            for (let index = 0; index < schema.length; ++index) {
-                const row = schema[index]
-                if (row.group === group && row.key !== detailKey && row.group !== "Subtitle Appearance")
-                    mainRows.push(row)
-            }
+        for (let index = 0; index < schema.length; ++index) {
+            const row = schema[index]
+            if (row.key !== root.detailKey && row.group !== "Subtitle Appearance")
+                mainRows.push(row)
         }
 
         appendSourceRows(mainRows, rowMap, sourceRows)
@@ -181,7 +186,7 @@ FocusScope {
         if (row.key === "session/account")
             return Session.serverUrl
         if (row.key === "settings/audioDelayMs" && Platform.usesPerOutputAudioDelay)
-            return "User trim for " + Settings.audioDelayTargetLabel + "; automatic compensation is applied separately"
+            return "Trim for " + Settings.audioDelayTargetLabel
         if (row.key === "subtitles/mode" || row.key === "audio/trackMode") {
             const index = rowCurrentIndex(row)
             const labels = rowOptions(row)
@@ -224,7 +229,7 @@ FocusScope {
             return "v" + Qt.application.version
         if (row.key === "about/locale")
             return I18n.currentLocale
-        return row.valueSummary || ""
+        return ""
     }
 
     function rowOptions(row) {
@@ -503,14 +508,18 @@ FocusScope {
         anchors.right: parent.right
         anchors.topMargin: Metrics.pageMarginPx
         anchors.rightMargin: Metrics.pageMarginPx
-        title: "Settings Shown"
-        description: "Choose how much control and diagnostic detail is visible"
-        options: ["Essential", "Advanced", "Expert"]
+        title: root.detailRow ? root.detailRow.title : ""
+        description: root.detailRow ? root.detailRow.description : ""
+        options: root.detailRow ? root.detailRow.choiceLabels : []
         currentIndex: {
             root.detailLevelRevision
             return root.currentDetailLevel()
         }
-        onSelected: index => Settings.setValue("settings/detailLevel", ["Essential", "More", "All"][index])
+        onSelected: index => {
+            const values = root.detailRow ? root.detailRow.choiceValues : []
+            if (index >= 0 && index < values.length)
+                Settings.setValue(root.detailKey, values[index])
+        }
     }
 
     MenuListView {
@@ -653,7 +662,6 @@ FocusScope {
             from: row ? Number(row.from) : 0
             to: row ? Number(row.to) : 100
             step: row ? Number(row.step || 1) : 1
-            decimals: row ? Number(row.decimals || 0) : 0
             unitText: row ? String(row.unitText || "") : ""
             value: row ? Number(root.settingsValue(row)) : 0
             onValueEdited: value => root.setRowValue(row, value, -1)
