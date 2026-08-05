@@ -712,9 +712,14 @@ bool PlayerController::applyMpvSubtitleOptions(MpvOptionApplyMode mode, mpv_hand
     if (!handle)
         return false;
 
-    auto applyString = [mode, handle](const char *name, const QByteArray& value) {
-        return mode == MpvOptionApplyMode::Initial ? setOption(handle, name, value.constData())
-                                                   : setMpvProperty(handle, name, value.constData());
+    auto applyString = [mode, handle, preserveTrackSelection](const char *name, const QByteArray& value) {
+        if (mode == MpvOptionApplyMode::Initial)
+            return setOption(handle, name, value.constData());
+        if (!preserveTrackSelection)
+            return setMpvProperty(handle, name, value.constData());
+
+        const char *raw = value.constData();
+        return mpv_set_property_async(handle, 0, name, MPV_FORMAT_STRING, &raw) >= 0;
     };
 
     bool ok = true;
@@ -743,7 +748,9 @@ bool PlayerController::applyMpvSubtitleOptions(MpvOptionApplyMode mode, mpv_hand
         qWarning() << "player: failed to apply subtitle preferences"
                    << "mode=" << (mode == MpvOptionApplyMode::Initial ? "initial" : "runtime");
     } else {
-        qInfo() << "player: subtitle appearance applied"
+        qInfo() << (mode == MpvOptionApplyMode::Runtime && preserveTrackSelection
+                ? "player: subtitle appearance queued"
+                : "player: subtitle appearance applied")
                 << "mode=" << (mode == MpvOptionApplyMode::Initial ? "initial" : "runtime")
                 << "preserveTrack=" << preserveTrackSelection << "hdr=" << m_hdrPlayback
                 << "brightnessPercent=" << m_subtitlePreferences.hdrBrightnessPercent;

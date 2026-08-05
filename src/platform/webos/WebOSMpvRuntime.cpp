@@ -37,6 +37,7 @@ extern "C" {
     X(mpv_observe_property)                                                                                            \
     X(mpv_set_option_string)                                                                                           \
     X(mpv_set_property)                                                                                                \
+    X(mpv_set_property_async)                                                                                          \
     X(mpv_set_property_string)                                                                                         \
     X(mpv_get_property)                                                                                                \
     X(mpv_get_property_async)                                                                                          \
@@ -353,6 +354,13 @@ int mpv_set_property(mpv_handle *ctx, const char *name, mpv_format format, void 
     if (!JellyfinNative::WebOSMpvRuntime::ensureLoaded())
         return MPV_ERROR_GENERIC;
     return g_api.mpv_set_property(ctx, name, format, data);
+}
+
+int mpv_set_property_async(mpv_handle *ctx, uint64_t reply_userdata, const char *name, mpv_format format, void *data)
+{
+    if (!JellyfinNative::WebOSMpvRuntime::ensureLoaded())
+        return MPV_ERROR_GENERIC;
+    return g_api.mpv_set_property_async(ctx, reply_userdata, name, format, data);
 }
 
 int mpv_set_property_string(mpv_handle *ctx, const char *name, const char *data)
