@@ -90,126 +90,157 @@ include(cmake/platform/Common.cmake)
 
 jellyfin_resolve_platform_dependencies()
 
-set(JELLYFIN_CORE_SOURCES
-    src/api/JellyfinApiFacade.cpp
-    src/api/JellyfinApiFacade.h
-    src/api/PlaybackBandwidthPolicy.cpp
-    src/api/PlaybackBandwidthPolicy.h
-    src/api/ItemsQuery.cpp
-    src/api/ItemsQuery.h
-    src/api/PlaybackNegotiation.cpp
-    src/api/PlaybackNegotiation.h
-    src/api/HttpRequestPolicy.h
-    src/app/AccountProfile.cpp
-    src/app/AccountProfile.h
-    src/app/AppController.cpp
-    src/app/AppController.h
-    src/app/ArtworkImageProvider.cpp
-    src/app/ArtworkImageProvider.h
-    src/app/ArtworkService.cpp
-    src/app/ArtworkService.h
-    src/app/ArtworkPrefetcher.h
-    src/app/ContentModelController.cpp
-    src/app/ContentModelController.h
-    src/app/CpuTopology.cpp
-    src/app/CpuTopology.h
-    src/app/BrowseSessionController.cpp
-    src/app/BrowseSessionController.h
-    src/app/HomeModelController.cpp
-    src/app/HomeModelController.h
-    src/app/LibraryManagementController.cpp
-    src/app/LibraryManagementController.h
-    src/app/LibraryQuery.cpp
-    src/app/LibraryQuery.h
-    src/app/LibraryPrefetchController.cpp
-    src/app/LibraryPrefetchController.h
-    src/app/MemoryBudget.cpp
-    src/app/MemoryBudget.h
-    src/app/RouterController.cpp
-    src/app/RouterController.h
+# The source groups below mark the seam a spool-jellyfin / spool-plex /
+# spool-stremio split would cut along. They all compile into one library for
+# now; keeping them apart here is what makes the split mechanical later.
+#
+# The rule that matters: nothing in the platform, player or shell groups may
+# include src/api/ or src/discovery/. Four places still break it and are the
+# work a split has to do first — PlayerController, PlaybackReporter,
+# PlayQueueController and SettingsController each take a JellyfinApiFacade,
+# and configurePlatformPlaybackCapabilities() is handed one.
+
+# Per-OS abstractions. No backend and no UI knowledge.
+set(SPOOL_PLATFORM_SOURCES
+    src/platform/MpvConfigPolicy.h
     src/platform/NativeAppWindow.h
     src/platform/PlatformApplicationServices.h
     src/platform/PlatformCapabilities.h
-    src/platform/MpvConfigPolicy.h
     src/platform/PlatformPaths.h
-    src/platform/PlatformPlaybackRuntime.h
     src/platform/PlatformPerformanceSampler.h
+    src/platform/PlatformPlaybackRuntime.h
     src/platform/PlatformPlaybackSurface.h
     src/platform/PlatformProcess.h
     src/platform/PlatformSettingsPolicy.h
     src/platform/PlatformStartup.h
     src/platform/PlatformSystemProbes.h
     src/platform/ScreenSaverInhibitor.h
-    src/platform/common/ScreenSaverInhibitor.cpp
     src/platform/common/NativeAppWindowCommon.cpp
-    src/app/QuickConnectController.cpp
-    src/app/QuickConnectController.h
-    src/app/SettingsController.cpp
-    src/app/SettingsController.h
-    src/app/SettingsSchema.cpp
-    src/app/SettingsSchema.h
-    src/app/SearchController.cpp
-    src/app/SearchController.h
-    src/app/SessionController.cpp
-    src/app/SessionController.h
-    src/app/SyncPlayController.cpp
-    src/app/SyncPlayController.h
-    src/app/SyncPlayClock.cpp
-    src/app/SyncPlayClock.h
-    src/app/UserItemStateController.cpp
-    src/app/UserItemStateController.h
-    src/app/LocalizationManager.cpp
-    src/app/LocalizationManager.h
-    src/cache/DatabaseManager.cpp
-    src/cache/DatabaseManager.h
-    src/common/JellyfinTypes.cpp
-    src/common/JellyfinTypes.h
-    src/common/SeriesAudioSelection.cpp
-    src/common/SeriesAudioSelection.h
-    src/common/MetaJson.h
-    src/common/TlsTrust.cpp
-    src/common/TlsTrust.h
-    src/common/LogRotation.h
-    src/common/AsyncTask.h
-    src/common/RequestGeneration.h
-    src/common/VariantUtils.cpp
-    src/common/VariantUtils.h
-    src/discovery/DiscoveryController.cpp
-    src/discovery/DiscoveryController.h
-    src/diagnostics/Diagnostics.cpp
-    src/diagnostics/Diagnostics.h
-    src/diagnostics/InputLatencyMonitor.cpp
-    src/diagnostics/InputLatencyMonitor.h
-    src/diagnostics/SystemPerformanceMonitor.cpp
-    src/diagnostics/SystemPerformanceMonitor.h
-    src/models/DiscoveredServerModel.cpp
-    src/models/DiscoveredServerModel.h
-    src/models/LibraryListModel.cpp
-    src/models/LibraryListModel.h
-    src/models/MovieGridModel.cpp
-    src/models/MovieGridModel.h
+    src/platform/common/ScreenSaverInhibitor.cpp
+)
+
+# libmpv facade and playback state.
+set(SPOOL_PLAYER_SOURCES
     src/player/MpvLifecycle.cpp
     src/player/MpvLifecycle.h
-    src/player/PlayerController.cpp
-    src/player/PlayerController.h
+    src/player/MpvOptionProfile.cpp
+    src/player/MpvOptionProfile.h
+    src/player/MpvVideoItem.cpp
+    src/player/MpvVideoItem.h
     src/player/PlayQueueController.cpp
     src/player/PlayQueueController.h
     src/player/PlaybackFailurePolicy.cpp
     src/player/PlaybackFailurePolicy.h
-    src/player/PlaybackReporter.cpp
-    src/player/PlaybackReporter.h
     src/player/PlaybackPositionTracker.cpp
     src/player/PlaybackPositionTracker.h
+    src/player/PlaybackReporter.cpp
+    src/player/PlaybackReporter.h
     src/player/PlaybackTimeline.cpp
     src/player/PlaybackTimeline.h
     src/player/PlaybackTrackParser.cpp
     src/player/PlaybackTrackParser.h
     src/player/PlaybackTrackState.cpp
     src/player/PlaybackTrackState.h
-    src/player/MpvVideoItem.cpp
-    src/player/MpvVideoItem.h
-    src/player/MpvOptionProfile.cpp
-    src/player/MpvOptionProfile.h
+    src/player/PlayerController.cpp
+    src/player/PlayerController.h
+)
+
+# Application plumbing that does not name a media backend.
+set(SPOOL_SHELL_SOURCES
+    src/app/CpuTopology.cpp
+    src/app/CpuTopology.h
+    src/app/LocalizationManager.cpp
+    src/app/LocalizationManager.h
+    src/app/MemoryBudget.cpp
+    src/app/MemoryBudget.h
+    src/app/RouterController.cpp
+    src/app/RouterController.h
+    src/app/SettingsController.cpp
+    src/app/SettingsController.h
+    src/app/SettingsSchema.cpp
+    src/app/SettingsSchema.h
+    src/cache/DatabaseManager.cpp
+    src/cache/DatabaseManager.h
+    src/common/AsyncTask.h
+    src/common/LogRotation.h
+    src/common/MetaJson.h
+    src/common/RequestGeneration.h
+    src/common/TlsTrust.cpp
+    src/common/TlsTrust.h
+    src/common/VariantUtils.cpp
+    src/common/VariantUtils.h
+    src/diagnostics/Diagnostics.cpp
+    src/diagnostics/Diagnostics.h
+    src/diagnostics/InputLatencyMonitor.cpp
+    src/diagnostics/InputLatencyMonitor.h
+    src/diagnostics/SystemPerformanceMonitor.cpp
+    src/diagnostics/SystemPerformanceMonitor.h
+)
+
+# Jellyfin REST, server discovery, and the controllers and models shaped
+# by them. This is the group a second backend would grow a sibling to.
+set(SPOOL_JELLYFIN_SOURCES
+    src/api/HttpRequestPolicy.h
+    src/api/ItemsQuery.cpp
+    src/api/ItemsQuery.h
+    src/api/JellyfinApiFacade.cpp
+    src/api/JellyfinApiFacade.h
+    src/api/PlaybackBandwidthPolicy.cpp
+    src/api/PlaybackBandwidthPolicy.h
+    src/api/PlaybackNegotiation.cpp
+    src/api/PlaybackNegotiation.h
+    src/app/AccountProfile.cpp
+    src/app/AccountProfile.h
+    src/app/AppController.cpp
+    src/app/AppController.h
+    src/app/ArtworkImageProvider.cpp
+    src/app/ArtworkImageProvider.h
+    src/app/ArtworkPrefetcher.h
+    src/app/ArtworkService.cpp
+    src/app/ArtworkService.h
+    src/app/BrowseSessionController.cpp
+    src/app/BrowseSessionController.h
+    src/app/ContentModelController.cpp
+    src/app/ContentModelController.h
+    src/app/HomeModelController.cpp
+    src/app/HomeModelController.h
+    src/app/LibraryManagementController.cpp
+    src/app/LibraryManagementController.h
+    src/app/LibraryPrefetchController.cpp
+    src/app/LibraryPrefetchController.h
+    src/app/LibraryQuery.cpp
+    src/app/LibraryQuery.h
+    src/app/QuickConnectController.cpp
+    src/app/QuickConnectController.h
+    src/app/SearchController.cpp
+    src/app/SearchController.h
+    src/app/SessionController.cpp
+    src/app/SessionController.h
+    src/app/SyncPlayClock.cpp
+    src/app/SyncPlayClock.h
+    src/app/SyncPlayController.cpp
+    src/app/SyncPlayController.h
+    src/app/UserItemStateController.cpp
+    src/app/UserItemStateController.h
+    src/common/JellyfinTypes.cpp
+    src/common/JellyfinTypes.h
+    src/common/SeriesAudioSelection.cpp
+    src/common/SeriesAudioSelection.h
+    src/discovery/DiscoveryController.cpp
+    src/discovery/DiscoveryController.h
+    src/models/DiscoveredServerModel.cpp
+    src/models/DiscoveredServerModel.h
+    src/models/LibraryListModel.cpp
+    src/models/LibraryListModel.h
+    src/models/MovieGridModel.cpp
+    src/models/MovieGridModel.h
+)
+
+set(JELLYFIN_CORE_SOURCES
+    ${SPOOL_PLATFORM_SOURCES}
+    ${SPOOL_PLAYER_SOURCES}
+    ${SPOOL_SHELL_SOURCES}
+    ${SPOOL_JELLYFIN_SOURCES}
 )
 
 add_library(jellyfin-core STATIC ${JELLYFIN_CORE_SOURCES})

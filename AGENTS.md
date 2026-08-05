@@ -8,6 +8,26 @@
 - `mpv/` is a submodule. Commit mpv changes inside `mpv/`, then commit its pointer here.
 - Make small conventional commits as coherent work finishes. Never push unless the user explicitly asks.
 
+## Module Seam
+
+The goal is one core that several backends can sit on (spool-jellyfin,
+spool-plex, spool-stremio). `CMakeLists.txt` groups sources into
+`SPOOL_PLATFORM_SOURCES`, `SPOOL_PLAYER_SOURCES`, `SPOOL_SHELL_SOURCES` and
+`SPOOL_JELLYFIN_SOURCES` to mark where that cut goes. They still build as one
+library; the grouping exists so the split stays mechanical.
+
+- Do not add a `src/api/` or `src/discovery/` include to the platform, player
+  or shell groups. Four such dependencies already exist and are the work a
+  split has to undo first: `PlayerController`, `PlaybackReporter`,
+  `PlayQueueController` and `SettingsController` each take a
+  `JellyfinApiFacade`, and `configurePlatformPlaybackCapabilities()` is
+  handed one.
+- `qml/primitives` and `qml/theme` reach exactly two singletons, `Art.url` and
+  `Settings.uiScalePercent`. Keep it that way; page- and shell-level QML is
+  where backend-shaped data belongs.
+- Keep backend branding out of shared code. Settings copy, theme colour names
+  and network user agents should read as the product, not as Jellyfin.
+
 ## Local Development
 
 - Build and launch the native release app with `nix run`; the default app always builds first.
