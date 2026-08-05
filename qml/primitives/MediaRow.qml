@@ -287,7 +287,7 @@ FocusScope {
                 longPressed = false
                 pressedIndex = listView.indexAt(mouse.x + listView.contentX, mouse.y + listView.contentY)
                 if (pressedIndex >= 0)
-                root.currentIndex = pressedIndex
+                    root.currentIndex = pressedIndex
             }
             onReleased: if (longPressed && root.shell)
             root.shell.finishItemMenuOpeningGesture()
@@ -295,15 +295,15 @@ FocusScope {
             root.shell.finishItemMenuOpeningGesture()
             onClicked: mouse => {
                 if (pressedIndex < 0)
-                return
+                    return
                 if (longPressed) {
                     longPressed = false
                     return
                 }
                 if (mouse.button === Qt.RightButton && root.shell)
-                root.openItemContext(pressedIndex, listView.itemAtIndex(pressedIndex))
+                    root.openItemContext(pressedIndex, listView.itemAtIndex(pressedIndex))
                 else
-                root.activateIndex(pressedIndex)
+                    root.activateIndex(pressedIndex)
             }
             onPressAndHold: if (pressedIndex >= 0 && root.shell) {
                 longPressed = true

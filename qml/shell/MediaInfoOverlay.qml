@@ -303,7 +303,7 @@ OverlayDialog {
                 Layout.fillWidth: true
                 visible: root.sources.length === 0
                 title: "No media source data"
-                detail: "This item did not include codec or stream metadata in the loaded Jellyfin response."
+                detail: "The server sent no codec or stream details for this item."
             }
 
             Repeater {

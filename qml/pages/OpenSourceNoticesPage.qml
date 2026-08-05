@@ -141,14 +141,6 @@ FocusScope {
                 font.weight: Font.DemiBold
             }
 
-            SecondaryText {
-                Layout.fillWidth: true
-                text: "Acknowledgements appear first, followed by license and source information."
-                color: Theme.textSecondary
-                font.pixelSize: Metrics.bodySizePx
-                wrapMode: Text.Wrap
-            }
-
             SectionHeader {
                 Layout.fillWidth: true
                 title: "Acknowledgements"
