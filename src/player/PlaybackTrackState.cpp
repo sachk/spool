@@ -47,6 +47,7 @@ void PlaybackTrackState::resetForPlayback()
     m_subtitleTracks = { QStringLiteral("Off") };
     m_subtitleIds = { -1 };
     m_selectedSubtitleIndex = 0;
+    m_subtitlesEnabled = true;
     m_audioTracks.clear();
     m_audioIds.clear();
     m_selectedAudioIndex = -1;

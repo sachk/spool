@@ -74,6 +74,7 @@ int main()
     state.resetForPlayback();
     require(state.subtitleTracks() == QStringList({ QStringLiteral("Off") }),
         "playback reset should restore subtitle labels");
+    require(state.subtitlesEnabled(), "playback reset should allow the next file to auto-select subtitles");
     require(state.audioTracks().isEmpty(), "playback reset should clear audio labels");
 
     return EXIT_SUCCESS;
