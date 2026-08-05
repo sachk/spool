@@ -841,14 +841,14 @@ FocusScope {
                 label: "Filter"
                 checked: root.filtersOpen
                 badge: root.activeFilterCount > 0
-                onActivated: root.openFilterMenu()
+                onActivated: root.filtersOpen ? root.closeMenus() : root.openFilterMenu()
             }
 
             ToolbarButton {
                 id: clearFiltersButton
                 iconName: "filter_list_off"
                 label: "Clear"
-                visible: !root.isFixedBrowseView && root.activeFilterCount > 0
+                visible: !root.isFixedBrowseView && root.activeFilterCount > 0 && root.width >= Metrics.scaled(900)
                 onActivated: {
                     root.savedIndex = 0
                     gridReveal.reset()
@@ -1241,15 +1241,15 @@ FocusScope {
                     root.shell.finishItemMenuOpeningGesture()
                     onClicked: mouse => {
                         if (pressedIndex < 0)
-                        return
+                            return
                         if (longPressed) {
                             longPressed = false
                             return
                         }
                         if (mouse.button === Qt.RightButton && root.shell)
-                        root.shell.openItemMenu(Browse.items.get(pressedIndex), grid.itemAtIndex(pressedIndex))
+                            root.shell.openItemMenu(Browse.items.get(pressedIndex), grid.itemAtIndex(pressedIndex))
                         else if (!root.listMode || pressedCurrent)
-                        root.activateCurrent()
+                            root.activateCurrent()
                     }
                     onPressAndHold: if (pressedIndex >= 0 && root.shell) {
                         longPressed = true
