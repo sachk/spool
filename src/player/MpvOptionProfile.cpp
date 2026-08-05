@@ -143,6 +143,17 @@ bool MpvOptionProfile::isHdrPlayback(const QList<MediaStreamInfo>& streams)
     }
     return false;
 }
+bool MpvOptionProfile::isHdrTransfer(const QByteArray& transfer)
+{
+    const QByteArray normalized = transfer.trimmed().toLower();
+    return normalized == QByteArrayLiteral("pq") || normalized == QByteArrayLiteral("hlg")
+        || normalized.contains("2084") || normalized.contains("b67");
+}
+
+bool MpvOptionProfile::isHdrOutput(bool starfishOutput, bool hdrInput, const QByteArray& targetTransfer)
+{
+    return starfishOutput ? hdrInput : isHdrTransfer(targetTransfer);
+}
 
 QByteArray MpvOptionProfile::preloadedSubtitleStreams(const PlaybackSession& session, const QString& preferredLanguage)
 {
@@ -341,10 +352,9 @@ std::vector<MpvOption> MpvOptionProfile::subtitleOptions(
     const SubtitleShadowOptions shadow = subtitleShadowOptions(prefs.dropShadow);
     const QByteArray subtitleColor = hdrPlayback ? scaledSubtitleColor(prefs.textColor, prefs.hdrBrightnessPercent)
                                                  : mpvArgbColor(prefs.textColor, QByteArrayLiteral("#FFFFFFFF"));
-    // TODO: Investigate higher-quality bitmap subtitle scaling algorithms; sub-gauss only trades sharp edges for blur.
-    const QByteArray bitmapSmoothing = prefs.bitmapSmoothing == QStringLiteral("softer") ? QByteArrayLiteral("1.0")
-        : prefs.bitmapSmoothing == QStringLiteral("sharp")                               ? QByteArrayLiteral("0.0")
-                                                                                         : QByteArrayLiteral("0.5");
+    const QByteArray bitmapSoftness = prefs.bitmapSmoothing == QStringLiteral("softer") ? QByteArrayLiteral("1.20")
+        : prefs.bitmapSmoothing == QStringLiteral("sharp")                              ? QByteArrayLiteral("0.85")
+                                                                                        : QByteArrayLiteral("1.00");
     const bool recolorImages = prefs.recolorImageSubtitles;
     const QByteArray disabledColor = QByteArrayLiteral("#00000000");
 
@@ -366,7 +376,8 @@ std::vector<MpvOption> MpvOptionProfile::subtitleOptions(
         { "sub-font", subtitleFontFamily(prefs.font) },
         { "sub-font-size", "55" },
         { "sub-scale", QByteArray::number(qBound(50, prefs.scalePercent, 200) / 100.0, 'f', 2) },
-        { "sub-gauss", bitmapSmoothing },
+        { "sub-gauss", "0.0" },
+        { "sub-sdf-softness", bitmapSoftness },
         { "sub-bold", mpvBool(prefs.textWeight == QStringLiteral("bold")) },
         { "sub-pos", QByteArray::number(vertical) },
         { "sub-color", subtitleColor },

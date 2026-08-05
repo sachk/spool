@@ -247,6 +247,7 @@ private:
     void discardPreparedMpvForOptionChange(const char *reason);
     void handleVideoRenderError(const QString& message);
     void changePlaybackSpeed(double speed, bool syncOverride, bool clearSyncOverride = false);
+    void updateHdrOutput(bool applySubtitleOptions);
 
     NativeAppWindow *m_window = nullptr;
     JellyfinApiFacade *m_api = nullptr;
@@ -302,6 +303,9 @@ private:
     int m_forwardCacheSizeMiB = 0;
     SubtitlePreferences m_subtitlePreferences;
     bool m_hdrPlayback = false;
+    bool m_hdrInput = false;
+    bool m_starfishVideoOutput = false;
+    QByteArray m_targetTransfer;
     PlaybackPositionTracker m_positionTracker;
     PlaybackTimeline m_timeline;
     QStringList m_trickplaySheetUrls;

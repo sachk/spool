@@ -30,6 +30,8 @@ public:
 
     static NetworkProfile networkProfile(Platform platform, int parallelRequests = 1);
     static bool isHdrPlayback(const QList<MediaStreamInfo>& streams);
+    static bool isHdrTransfer(const QByteArray& transfer);
+    static bool isHdrOutput(bool starfishOutput, bool hdrInput, const QByteArray& targetTransfer);
     static QByteArray preloadedSubtitleStreams(const PlaybackSession& session, const QString& preferredLanguage);
     static QByteArray loadFileOptions(const PlaybackSession& session);
     static bool useWebOSSoftwareVideo(const PlaybackSession& session);

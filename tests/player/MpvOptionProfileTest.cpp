@@ -277,6 +277,13 @@ int main(int argc, char **argv)
     dolbyVisionStream.colorTransfer = QStringLiteral("smpte2084");
     require(MpvOptionProfile::isHdrPlayback({ dolbyVisionStream }),
         "Dolby Vision metadata did not enable HDR subtitle handling");
+    require(!MpvOptionProfile::isHdrOutput(false, true, QByteArrayLiteral("bt.1886")),
+        "desktop HDR input must not enable paperwhite after SDR output conversion");
+    require(MpvOptionProfile::isHdrOutput(false, false, QByteArrayLiteral("smpte2084")),
+        "desktop PQ output must enable paperwhite independently of input metadata");
+    require(MpvOptionProfile::isHdrOutput(true, true, {}), "Starfish HDR input must assume HDR output");
+    require(!MpvOptionProfile::isHdrOutput(true, false, QByteArrayLiteral("pq")),
+        "Starfish output policy must follow its input transfer");
 
     SubtitlePreferences subtitles;
     subtitles.language = QStringLiteral("eng");
@@ -319,7 +326,10 @@ int main(int argc, char **argv)
     require(valueFor(subtitleOptions, "sub-border-size") == "4.5", "uniform shadow should increase border size");
     require(valueFor(subtitleOptions, "sub-shadow-offset") == "0", "uniform shadow should disable shadow offset");
     require(valueFor(subtitleOptions, "sub-scale") == "1.25", "overall subtitle scale was not propagated");
-    require(valueFor(subtitleOptions, "sub-gauss") == "1.0", "bitmap subtitle smoothing was not propagated");
+    require(
+        valueFor(subtitleOptions, "sub-gauss") == "0.0", "SDF scaling should not pre-blur bitmap subtitle coverage");
+    require(valueFor(subtitleOptions, "sub-sdf-softness") == "1.20",
+        "bitmap subtitle smoothing was not mapped to SDF softness");
     require(valueFor(subtitleOptions, "sub-image-color") == "#00000000",
         "image subtitles should keep their own palette until asked otherwise");
 

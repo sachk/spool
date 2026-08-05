@@ -418,6 +418,7 @@ void PlayerController::observeMpvProperties(mpv_handle *handle)
     mpv_observe_property(handle, 0, "chapter-list", MPV_FORMAT_NODE);
     mpv_observe_property(handle, 0, "chapter", MPV_FORMAT_INT64);
     mpv_observe_property(handle, 0, "video-params/transfer", MPV_FORMAT_STRING);
+    mpv_observe_property(handle, 0, "video-target-params/transfer", MPV_FORMAT_STRING);
     mpv_observe_property(handle, 0, "hwdec-current", MPV_FORMAT_STRING);
     mpv_observe_property(handle, 0, "decoder-frame-drop-count", MPV_FORMAT_INT64);
     mpv_observe_property(handle, 0, "frame-drop-count", MPV_FORMAT_INT64);
@@ -455,6 +456,20 @@ bool PlayerController::fileLoaded() const
 bool PlayerController::hdrPlayback() const
 {
     return m_hdrPlayback;
+}
+void PlayerController::updateHdrOutput(bool applySubtitleOptions)
+{
+    const bool hdrOutput = MpvOptionProfile::isHdrOutput(m_starfishVideoOutput, m_hdrInput, m_targetTransfer);
+    if (m_hdrPlayback == hdrOutput)
+        return;
+    m_hdrPlayback = hdrOutput;
+    emit hdrPlaybackChanged();
+    if (applySubtitleOptions) {
+        if (auto *handle = m_mpvLifecycle.handle())
+            applyMpvSubtitleOptions(MpvOptionApplyMode::Runtime, handle, true);
+    }
+    qInfo() << "player: HDR paperwhite" << (m_hdrPlayback ? "enabled" : "disabled") << "inputHdr=" << m_hdrInput
+            << "starfish=" << m_starfishVideoOutput << "targetTransfer=" << m_targetTransfer;
 }
 
 QString PlayerController::mediaKind() const
@@ -858,12 +873,13 @@ void PlayerController::play(const PlaybackSession& session, bool startPaused)
     if (hadSubtitleDelay)
         emit subtitleDelayMsChanged();
 
-    const bool hdrPlayback = MpvOptionProfile::isHdrPlayback(session.mediaStreams);
-    if (m_hdrPlayback != hdrPlayback) {
-        m_hdrPlayback = hdrPlayback;
-        emit hdrPlaybackChanged();
-    }
-    qInfo() << "player: HDR subtitle mode" << (m_hdrPlayback ? "enabled" : "disabled") << "source=media-metadata";
+    m_hdrInput = MpvOptionProfile::isHdrPlayback(session.mediaStreams);
+    m_starfishVideoOutput
+        = needsVideoSurface && !embeddedVideo && platformMpvOptionProfile() == MpvOptionProfile::Platform::WebOS;
+    m_targetTransfer.clear();
+    updateHdrOutput(false);
+    qInfo() << "player: HDR input metadata" << m_hdrInput
+            << "outputPolicy=" << (m_starfishVideoOutput ? "starfish-assumed" : "detected");
     m_window->clearOverlay();
     if (needsVideoSurface && !embeddedVideo) {
         QElapsedTimer playbackSurfaceTimer;
@@ -1822,19 +1838,22 @@ void PlayerController::handleMpvEvent(mpv_event *event)
         } else if (strcmp(property->name, "video-params/transfer") == 0 && property->format == MPV_FORMAT_STRING) {
             const auto *transferValue = static_cast<char **>(property->data);
             const QByteArray transfer(transferValue && *transferValue ? *transferValue : "");
-            const QByteArray normalizedTransfer = transfer.toLower();
-            const bool hdrPlayback = normalizedTransfer == QByteArrayLiteral("pq")
-                || normalizedTransfer == QByteArrayLiteral("hlg") || normalizedTransfer.contains("2084")
-                || normalizedTransfer.contains("b67");
-            QMetaObject::invokeMethod(this, [this, hdrPlayback, transfer]() {
-                if (m_hdrPlayback != hdrPlayback) {
-                    m_hdrPlayback = hdrPlayback;
-                    emit hdrPlaybackChanged();
-                    if (auto *handle = m_mpvLifecycle.handle())
-                        applyMpvSubtitleOptions(MpvOptionApplyMode::Runtime, handle, true);
-                }
-                qInfo() << "player: video transfer" << transfer << "HDR subtitle mode"
-                        << (m_hdrPlayback ? "enabled" : "disabled");
+            QMetaObject::invokeMethod(this, [this, transfer]() {
+                m_hdrInput = MpvOptionProfile::isHdrTransfer(transfer);
+                if (m_starfishVideoOutput)
+                    updateHdrOutput(true);
+                qInfo() << "player: input video transfer" << transfer << "HDR=" << m_hdrInput;
+            });
+        } else if (strcmp(property->name, "video-target-params/transfer") == 0
+            && property->format == MPV_FORMAT_STRING) {
+            const auto *transferValue = static_cast<char **>(property->data);
+            const QByteArray transfer(transferValue && *transferValue ? *transferValue : "");
+            QMetaObject::invokeMethod(this, [this, transfer]() {
+                m_targetTransfer = transfer;
+                if (!m_starfishVideoOutput)
+                    updateHdrOutput(true);
+                qInfo() << "player: output video transfer" << transfer
+                        << "HDR=" << MpvOptionProfile::isHdrTransfer(transfer);
             });
         } else if (strcmp(property->name, "track-list") == 0 && property->format == MPV_FORMAT_NODE) {
             const auto *node = static_cast<mpv_node *>(property->data);
