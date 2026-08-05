@@ -17,10 +17,10 @@ FocusScope {
     readonly property real edgeMargin: metrics.scaled(12)
     readonly property real rowHeight: Math.max(metrics.scaled(44), metrics.controlHeightPx)
     readonly property real panelWidth: Math.min(width - edgeMargin * 2, Math.max(metrics.scaled(280), Math.min(metrics.scaled(
-                                                                                                                   520), anchorItem
+                                                                                                                   680), anchorItem
                                                                                                                ? anchorItem.width
-                                                                                                                 * 0.52 : metrics.scaled(
-                                                                                                                     380))))
+                                                                                                                 * 0.78 : metrics.scaled(
+                                                                                                                     460))))
     readonly property real panelHeight: Math.min(height - edgeMargin * 2, Math.max(rowHeight + metrics.scaled(16), Math.min(
                                                                                        options.length, 8) * rowHeight
                                                                                    + metrics.scaled(16)))

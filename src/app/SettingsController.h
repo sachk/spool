@@ -37,7 +37,6 @@ class SettingsController final : public QObject {
             subtitleSettingsChanged)
     Q_PROPERTY(QString subtitleMode READ subtitleMode WRITE setSubtitleMode NOTIFY subtitleSettingsChanged)
     Q_PROPERTY(QString subtitleStyling READ subtitleStyling WRITE setSubtitleStyling NOTIFY subtitleSettingsChanged)
-    Q_PROPERTY(QString subtitleTextSize READ subtitleTextSize WRITE setSubtitleTextSize NOTIFY subtitleSettingsChanged)
     Q_PROPERTY(
         QString subtitleTextWeight READ subtitleTextWeight WRITE setSubtitleTextWeight NOTIFY subtitleSettingsChanged)
     Q_PROPERTY(QString subtitleFont READ subtitleFont WRITE setSubtitleFont NOTIFY subtitleSettingsChanged)
@@ -85,7 +84,6 @@ public:
     int subtitleVerticalPosition() const;
     QString subtitleMode() const;
     QString subtitleStyling() const;
-    QString subtitleTextSize() const;
     QString subtitleTextWeight() const;
     QString subtitleFont() const;
     QString subtitleTextColor() const;
@@ -120,7 +118,6 @@ public:
     Q_INVOKABLE void setSubtitleLanguageIndex(int index);
     Q_INVOKABLE void setSubtitleMode(const QString& mode);
     Q_INVOKABLE void setSubtitleStyling(const QString& styling);
-    Q_INVOKABLE void setSubtitleTextSize(const QString& size);
     Q_INVOKABLE void setSubtitleTextWeight(const QString& weight);
     Q_INVOKABLE void setSubtitleFont(const QString& font);
     Q_INVOKABLE void setSubtitleTextColor(const QString& color);

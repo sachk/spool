@@ -82,19 +82,22 @@ int main(int argc, char **argv)
         "persisted subtitle geometry override was not restored");
 
     settings.setValue(QStringLiteral("subtitles/styling"), QStringLiteral("Custom"));
-    settings.setValue(QStringLiteral("subtitles/textSize"), QStringLiteral("xlarge"));
+    settings.setValue(QStringLiteral("subtitles/scalePercent"), 150);
     settings.setValue(QStringLiteral("subtitles/textColor"), QStringLiteral("#00ff00"));
+    settings.setValue(QStringLiteral("subtitles/overrideTextColor"), true);
     settings.setValue(QStringLiteral("subtitles/hdrBrightnessPercent"), 100);
     settings.setValue(QStringLiteral("subtitles/recolorImageSubtitles"), true);
     settings.setValue(QStringLiteral("subtitles/allowInBlackBars"), false);
     settings.resetSubtitleAppearance();
     require(settings.value(QStringLiteral("subtitles/styling")).toString() == QStringLiteral("Auto"),
         "subtitle appearance reset did not restore automatic styling");
-    require(settings.value(QStringLiteral("subtitles/textSize")).toString().isEmpty(),
+    require(settings.value(QStringLiteral("subtitles/scalePercent")).toInt() == 100,
         "subtitle appearance reset did not restore normal text size");
     require(settings.value(QStringLiteral("subtitles/textColor")).toString() == QStringLiteral("#ffffff"),
         "subtitle appearance reset did not restore white text");
-    require(settings.value(QStringLiteral("subtitles/hdrBrightnessPercent")).toInt() == 75,
+    require(!settings.value(QStringLiteral("subtitles/overrideTextColor")).toBool(),
+        "subtitle appearance reset did not restore authored text colours");
+    require(settings.value(QStringLiteral("subtitles/hdrBrightnessPercent")).toInt() == 50,
         "subtitle appearance reset did not restore HDR subtitle brightness");
     require(!settings.value(QStringLiteral("subtitles/recolorImageSubtitles")).toBool(),
         "subtitle appearance reset did not restore original image colours");

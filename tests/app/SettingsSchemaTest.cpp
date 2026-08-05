@@ -107,8 +107,8 @@ void requiredPersistedKeysArePresentExactlyOnce()
         QStringLiteral("playback/mpvConfigDirectory"),
         QStringLiteral("subtitles/mode"),
         QStringLiteral("subtitles/styling"),
-        QStringLiteral("subtitles/textSize"),
         QStringLiteral("subtitles/scalePercent"),
+        QStringLiteral("subtitles/overrideTextColor"),
         QStringLiteral("subtitles/alwaysOverridePositionAndSize"),
         QStringLiteral("subtitles/bitmapSmoothing"),
         QStringLiteral("subtitles/recolorImageSubtitles"),
@@ -257,8 +257,11 @@ void subtitleGeometryOverrideMatchesSchemaContract()
         QStringLiteral("geometry override should be available on every platform"));
     require(QLatin1String(override.group) == QLatin1String("Subtitle Appearance"),
         QStringLiteral("geometry override should belong to Subtitle Appearance"));
-    require(override.level == SettingLevel::Advanced,
-        QStringLiteral("geometry override should use the Subtitle Appearance schema level"));
+    require(override.level == SettingLevel::Essential,
+        QStringLiteral("fixed-position override should be available in basic subtitle settings"));
+    const SettingSpec& colorOverride = requiredSpec(QStringLiteral("subtitles/overrideTextColor"));
+    require(colorOverride.type == SettingType::Toggle && colorOverride.level == SettingLevel::Essential,
+        QStringLiteral("text colour override should be available in basic subtitle settings"));
 }
 
 void schemaModelRowsMatchVisibilityContract()
@@ -345,6 +348,17 @@ void subtitleChoicesExplainTheirBehavior()
     require(hdrBrightness.value(QStringLiteral("requiresHdrPlayback")).toBool()
             && hdrBrightness.value(QStringLiteral("dependsOnKey")).toString().isEmpty(),
         QStringLiteral("HDR brightness should be available without a separate enable toggle"));
+    require(hdrBrightness.value(QStringLiteral("defaultValue")).toInt() == 50
+            && hdrBrightness.value(QStringLiteral("from")).toInt() == 5,
+        QStringLiteral("HDR brightness should default to 50% and allow 5%"));
+    const QVariantMap verticalPosition = schemaRow(QStringLiteral("subtitles/verticalPositionPercent"));
+    require(verticalPosition.value(QStringLiteral("defaultValue")).toInt() == 95,
+        QStringLiteral("vertical subtitle position should default to 95%"));
+    const QVariantMap textSize = schemaRow(QStringLiteral("subtitles/scalePercent"));
+    require(textSize.value(QStringLiteral("title")).toString() == QStringLiteral("Text Size"),
+        QStringLiteral("subtitle scale should use the text-size label"));
+    require(findSettingSpec(QStringLiteral("subtitles/textSize")) == nullptr,
+        QStringLiteral("separate subtitle text-size choice should be removed"));
     const QVariantMap recolorImages = schemaRow(QStringLiteral("subtitles/recolorImageSubtitles"));
     require(recolorImages.value(QStringLiteral("type")).toString() == QStringLiteral("toggle")
             && recolorImages.value(QStringLiteral("choiceValues")).toList().isEmpty(),

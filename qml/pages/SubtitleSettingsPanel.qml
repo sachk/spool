@@ -27,17 +27,17 @@ FocusScope {
 
     readonly property var sections: [
         {
+            "title": "Track",
+            "keys": ["subtitles/language", "subtitles/mode"]
+        },
+        {
             "title": "Size and position",
-            "keys": ["subtitles/scalePercent", "subtitles/textSize", "subtitles/verticalPositionPercent",
+            "keys": ["subtitles/scalePercent", "subtitles/verticalPositionPercent",
                 "subtitles/alwaysOverridePositionAndSize", "subtitles/allowInBlackBars"]
         },
         {
             "title": "Colour",
-            "keys": ["subtitles/textColor"]
-        },
-        {
-            "title": "Track",
-            "keys": ["subtitles/language", "subtitles/mode"]
+            "keys": ["subtitles/overrideTextColor", "subtitles/textColor"]
         }
     ]
     readonly property var advancedSections: [
@@ -60,8 +60,8 @@ FocusScope {
         }
     ]
 
-    readonly property var appearanceKeys: ["subtitles/styling", "subtitles/textSize", "subtitles/textWeight",
-        "subtitles/font", "subtitles/textColor", "subtitles/dropShadow", "subtitles/textBackground",
+    readonly property var appearanceKeys: ["subtitles/styling", "subtitles/textWeight", "subtitles/font",
+        "subtitles/textColor", "subtitles/overrideTextColor", "subtitles/dropShadow", "subtitles/textBackground",
         "subtitles/recolorImageSubtitles", "subtitles/bitmapSmoothing", "subtitles/verticalPositionPercent",
         "subtitles/scalePercent", "subtitles/alwaysOverridePositionAndSize", "subtitles/allowInBlackBars",
         "subtitles/hdrBrightnessPercent"]
@@ -511,18 +511,7 @@ FocusScope {
                         return value.slice(7)
                         return value === "interface" ? Typography.sans : Typography.subtitle
                     }
-                    font.pixelSize: {
-                        const factors = {
-                            "smaller": 0.8,
-                            "small": 0.91,
-                            "large": 1.16,
-                            "larger": 1.3,
-                            "extralarge": 1.53
-                        }
-                        const size = String(Settings.values["subtitles/textSize"] || "")
-                        return Metrics.scaled(26) * Number(factors[size] || 1) * Number(
-                            Settings.values["subtitles/scalePercent"] || 100) / 100
-                    }
+                    font.pixelSize: Metrics.scaled(26) * Number(Settings.values["subtitles/scalePercent"] || 100) / 100
                     font.weight: Settings.values["subtitles/textWeight"] === "bold" ? Font.Bold : Font.Normal
                     style: Settings.values["subtitles/dropShadow"] === "none" ? Text.Normal : Text.Outline
                     styleColor: "#e6000000"

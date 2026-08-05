@@ -30,8 +30,6 @@ namespace {
     constexpr SettingChoice kLibraryViewChoices[] = { { "Posters", "Posters" }, { "List", "List" } };
     constexpr SettingChoice kSubtitleStylingChoices[]
         = { { "Auto", "Automatic" }, { "Native", "Keep embedded styles" }, { "Custom", "Use my style" } };
-    constexpr SettingChoice kSubtitleTextSizeChoices[] = { { "smaller", "Smaller" }, { "small", "Small" },
-        { "", "Normal" }, { "large", "Large" }, { "larger", "Larger" }, { "extralarge", "Extra large" } };
     constexpr SettingChoice kSubtitleTextWeightChoices[] = { { "normal", "Normal" }, { "bold", "Bold" } };
     constexpr SettingChoice kSubtitleFontChoices[]
         = { { "", "Atkinson Hyperlegible" }, { "interface", "IBM Plex Sans" } };
@@ -261,15 +259,15 @@ const QVector<SettingSpec>& settingSpecs()
         { "subtitles/styling", "Subtitle Appearance", "Embedded Styles", "", SettingType::Select, "Auto",
             kSubtitleStylingChoices, countOf(kSubtitleStylingChoices), 0, 0, 1, 0, "", SettingTarget::SubtitleStyling,
             SettingNormalizer::SubtitleStyling, true, true, SettingLevel::Advanced },
-        { "subtitles/textSize", "Subtitle Appearance", "Text Size", "", SettingType::Select, "",
-            kSubtitleTextSizeChoices, countOf(kSubtitleTextSizeChoices), 0, 0, 1, 0, "",
-            SettingTarget::SubtitleTextSize, SettingNormalizer::SubtitleTextSize, true, true, SettingLevel::Advanced,
-            SettingPlatform::All, "subtitles" },
-        { "subtitles/scalePercent", "Subtitle Appearance", "Scale", "", SettingType::Slider, "100", nullptr, 0, 50, 200,
-            5, 0, "%", SettingTarget::SubtitleScale, SettingNormalizer::IntRange, true, false, SettingLevel::Advanced },
-        { "subtitles/recolorImageSubtitles", "Subtitle Appearance", "Use Text Colour", "", SettingType::Toggle, "false",
-            nullptr, 0, 0, 0, 1, 0, "", SettingTarget::SubtitleRecolorImages, SettingNormalizer::Bool, true, false,
-            SettingLevel::Advanced, SettingPlatform::All, "palette" },
+        { "subtitles/scalePercent", "Subtitle Appearance", "Text Size", "Matches text and image subtitle size",
+            SettingType::Slider, "100", nullptr, 0, 50, 200, 5, 0, "%", SettingTarget::SubtitleScale,
+            SettingNormalizer::IntRange, true, false },
+        { "subtitles/overrideTextColor", "Subtitle Appearance", "Override Text Colour",
+            "Use the selected colour instead of authored text colours", SettingType::Toggle, "false", nullptr, 0, 0, 0,
+            1, 0, "", SettingTarget::SubtitleTextColorOverride, SettingNormalizer::Bool, true, false },
+        { "subtitles/recolorImageSubtitles", "Subtitle Appearance", "Use Text Colour for Images", "",
+            SettingType::Toggle, "false", nullptr, 0, 0, 0, 1, 0, "", SettingTarget::SubtitleRecolorImages,
+            SettingNormalizer::Bool, true, false, SettingLevel::Advanced, SettingPlatform::All, "palette" },
         { "subtitles/bitmapSmoothing", "Subtitle Appearance", "Smoothing", "", SettingType::Select, "soft",
             kSubtitleBitmapSmoothingChoices, countOf(kSubtitleBitmapSmoothingChoices), 0, 0, 1, 0, "",
             SettingTarget::SubtitleBitmapSmoothing, SettingNormalizer::String, true, true, SettingLevel::Advanced },
@@ -293,16 +291,16 @@ const QVector<SettingSpec>& settingSpecs()
             SettingTarget::SubtitleTextBackground, SettingNormalizer::String, true, false, SettingLevel::Advanced,
             SettingPlatform::All, "contrast" },
         { "subtitles/verticalPositionPercent", "Subtitle Appearance", "Vertical Position", "0% top · 100% bottom",
-            SettingType::Slider, "100", nullptr, 0, 0, 100, 1, 0, "%", SettingTarget::SubtitleVerticalPosition,
+            SettingType::Slider, "95", nullptr, 0, 0, 100, 1, 0, "%", SettingTarget::SubtitleVerticalPosition,
             SettingNormalizer::IntRange, true, false, SettingLevel::Advanced },
-        { "subtitles/alwaysOverridePositionAndSize", "Subtitle Appearance", "Override Authored Layout", "",
-            SettingType::Toggle, "false", nullptr, 0, 0, 0, 1, 0, "", SettingTarget::SubtitlePositionAndSizeOverride,
-            SettingNormalizer::Bool, true, false, SettingLevel::Advanced },
+        { "subtitles/alwaysOverridePositionAndSize", "Subtitle Appearance", "Override Fixed Subtitle Positions",
+            "Apply text size and vertical position to authored signs too", SettingType::Toggle, "false", nullptr, 0, 0,
+            0, 1, 0, "", SettingTarget::SubtitlePositionAndSizeOverride, SettingNormalizer::Bool, true, false },
         { "subtitles/allowInBlackBars", "Subtitle Appearance", "Allow in Black Bars", "", SettingType::Toggle, "true",
             nullptr, 0, 0, 0, 1, 0, "", SettingTarget::SubtitleAllowInBlackBars, SettingNormalizer::Bool, true, false,
             SettingLevel::Advanced },
         { "subtitles/hdrBrightnessPercent", "Subtitle Appearance", "HDR Subtitle Brightness",
-            "100% keeps the original brightness", SettingType::Slider, "75", nullptr, 0, 40, 100, 5, 0, "%",
+            "100% keeps the original brightness", SettingType::Slider, "50", nullptr, 0, 5, 100, 5, 0, "%",
             SettingTarget::SubtitleHdrBrightness, SettingNormalizer::IntRange, true, false, SettingLevel::Advanced,
             SettingPlatform::All, "hdr", "", "", "", true, true },
         externalSpec("action/resetSubtitleAppearance", "Subtitle Appearance", "Reset Appearance", "",
@@ -369,7 +367,6 @@ QVariant normalizedSettingValue(const SettingSpec& spec, const QVariant& value)
         return choiceOrDefault(spec, value.toString());
     case SettingNormalizer::SubtitleMode:
     case SettingNormalizer::SubtitleStyling:
-    case SettingNormalizer::SubtitleTextSize:
     case SettingNormalizer::SubtitleTextWeight:
     case SettingNormalizer::SubtitleFont: {
         const QString font = value.toString();

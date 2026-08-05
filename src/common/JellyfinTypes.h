@@ -329,19 +329,19 @@ struct SubtitlePreferences {
     // track preferences reach the player through one apply path.
     QString audioMode = QStringLiteral("Default");
     QString styling = QStringLiteral("Auto");
-    QString textSize;
     QString textWeight = QStringLiteral("normal");
     QString font;
     QString textColor = QStringLiteral("#ffffff");
+    bool overrideTextColor = false;
     QString dropShadow;
     QString textBackground = QStringLiteral("transparent");
-    int verticalPosition = 100;
+    int verticalPosition = 95;
     int scalePercent = 100;
     bool alwaysOverridePositionAndSize = false;
     QString bitmapSmoothing = QStringLiteral("soft");
     bool recolorImageSubtitles = false;
     bool allowSubtitlesInBlackBars = true;
-    int hdrBrightnessPercent = 75;
+    int hdrBrightnessPercent = 50;
 
     friend bool operator==(const SubtitlePreferences&, const SubtitlePreferences&) = default;
 };

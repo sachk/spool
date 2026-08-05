@@ -81,6 +81,7 @@ TestCase {
         selectedSpy.clear()
         underlayClicks = 0
         picker.currentIndex = 0
+        pickerAnchor.width = 360
     }
 
     function test_directionMovesOnPressOnly() {
@@ -89,6 +90,11 @@ TestCase {
         picker.activate()
         compare(selectedSpy.count, 1)
         compare(selectedSpy.signalArguments[0][0], 1)
+    }
+
+    function test_wideAnchorMakesLongOptionsReadable() {
+        pickerAnchor.width = 680
+        verify(picker.panelWidth >= 520)
     }
 
     function test_pointerSelectionDoesNotClickThrough() {

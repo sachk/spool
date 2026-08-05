@@ -59,10 +59,6 @@ QString SettingsController::subtitleStyling() const
 {
     return m_subtitlePreferences.styling;
 }
-QString SettingsController::subtitleTextSize() const
-{
-    return m_subtitlePreferences.textSize;
-}
 QString SettingsController::subtitleTextWeight() const
 {
     return m_subtitlePreferences.textWeight;
@@ -427,10 +423,6 @@ void SettingsController::setSubtitleStyling(const QString& styling)
 {
     setValue(QStringLiteral("subtitles/styling"), styling);
 }
-void SettingsController::setSubtitleTextSize(const QString& size)
-{
-    setValue(QStringLiteral("subtitles/textSize"), size);
-}
 void SettingsController::setSubtitleTextWeight(const QString& weight)
 {
     setValue(QStringLiteral("subtitles/textWeight"), weight);
@@ -593,11 +585,6 @@ void SettingsController::applySchemaValue(const SettingSpec& spec, const QVarian
         if (apply)
             applySubtitlePreferencesToPlayer();
         break;
-    case SettingTarget::SubtitleTextSize:
-        m_subtitlePreferences.textSize = value.toString();
-        if (apply)
-            applySubtitlePreferencesToPlayer();
-        break;
     case SettingTarget::SubtitleTextWeight:
         m_subtitlePreferences.textWeight = value.toString();
         if (apply)
@@ -610,6 +597,11 @@ void SettingsController::applySchemaValue(const SettingSpec& spec, const QVarian
         break;
     case SettingTarget::SubtitleTextColor:
         m_subtitlePreferences.textColor = value.toString();
+        if (apply)
+            applySubtitlePreferencesToPlayer();
+        break;
+    case SettingTarget::SubtitleTextColorOverride:
+        m_subtitlePreferences.overrideTextColor = value.toBool();
         if (apply)
             applySubtitlePreferencesToPlayer();
         break;
@@ -720,10 +712,10 @@ void SettingsController::emitSchemaSignals(const SettingSpec& spec)
     case SettingTarget::SubtitleLanguage:
     case SettingTarget::SubtitleMode:
     case SettingTarget::SubtitleStyling:
-    case SettingTarget::SubtitleTextSize:
     case SettingTarget::SubtitleTextWeight:
     case SettingTarget::SubtitleFont:
     case SettingTarget::SubtitleTextColor:
+    case SettingTarget::SubtitleTextColorOverride:
     case SettingTarget::SubtitleDropShadow:
     case SettingTarget::SubtitleTextBackground:
     case SettingTarget::SubtitleVerticalPosition:

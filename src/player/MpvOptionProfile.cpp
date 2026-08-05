@@ -71,7 +71,7 @@ namespace {
         if (!ok || color.size() != 6)
             return QByteArrayLiteral("#FFFFFFFF");
 
-        const int scale = qBound(40, percent, 100);
+        const int scale = qBound(5, percent, 100);
         const auto channel = [scale](uint component) { return qBound(0, qRound(component * scale / 100.0), 255); };
         return (QStringLiteral("#FF%1%2%3")
                     .arg(channel((value >> 16) & 0xff), 2, 16, QLatin1Char('0'))
@@ -79,20 +79,6 @@ namespace {
                     .arg(channel(value & 0xff), 2, 16, QLatin1Char('0'))
                     .toUpper())
             .toLatin1();
-    }
-    QByteArray subtitleFontSize(const QString& value)
-    {
-        if (value == QStringLiteral("smaller"))
-            return QByteArrayLiteral("44");
-        if (value == QStringLiteral("small"))
-            return QByteArrayLiteral("50");
-        if (value == QStringLiteral("large"))
-            return QByteArrayLiteral("66");
-        if (value == QStringLiteral("larger"))
-            return QByteArrayLiteral("76");
-        if (value == QStringLiteral("extralarge"))
-            return QByteArrayLiteral("84");
-        return QByteArrayLiteral("55");
     }
 
     QByteArray subtitleFontFamily(const QString& value)
@@ -374,10 +360,11 @@ std::vector<MpvOption> MpvOptionProfile::subtitleOptions(
         { "subs-fallback-forced", "yes" },
         { "sub-ass", "yes" },
         { "sub-ass-override", assOverride },
+        { "sub-ass-override-colors", mpvBool(prefs.overrideTextColor) },
         { "sub-scale-signs", mpvBool(overrideGeometry) },
         { "sub-use-margins", mpvBool(prefs.allowSubtitlesInBlackBars) },
         { "sub-font", subtitleFontFamily(prefs.font) },
-        { "sub-font-size", subtitleFontSize(prefs.textSize) },
+        { "sub-font-size", "55" },
         { "sub-scale", QByteArray::number(qBound(50, prefs.scalePercent, 200) / 100.0, 'f', 2) },
         { "sub-gauss", bitmapSmoothing },
         { "sub-bold", mpvBool(prefs.textWeight == QStringLiteral("bold")) },

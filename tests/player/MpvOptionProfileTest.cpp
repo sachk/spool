@@ -284,7 +284,6 @@ int main(int argc, char **argv)
     subtitles.audioMode = QStringLiteral("Smart");
     subtitles.audioLanguage = QStringLiteral("jpn");
     subtitles.styling = QStringLiteral("Native");
-    subtitles.textSize = QStringLiteral("large");
     subtitles.textWeight = QStringLiteral("bold");
     subtitles.font = QStringLiteral("interface");
     subtitles.textColor = QStringLiteral("#00ffcc");
@@ -313,7 +312,7 @@ int main(int argc, char **argv)
     require(valueFor(subtitleOptions, "sub-image-position") == "bottom-block",
         "disabled geometry override should only reposition normal lower-third image dialogue");
     require(valueFor(subtitleOptions, "sub-font") == "IBM Plex Sans Var", "interface subtitle font was not mapped");
-    require(valueFor(subtitleOptions, "sub-font-size") == "66", "subtitle size preference was not mapped");
+    require(valueFor(subtitleOptions, "sub-font-size") == "55", "subtitle base font size should remain stable");
     require(valueFor(subtitleOptions, "sub-bold") == "yes", "subtitle bold preference was not mapped");
     require(valueFor(subtitleOptions, "sub-pos") == "40", "subtitle vertical percentage was not mapped");
     require(valueFor(subtitleOptions, "sub-color") == "#FF00FFCC", "subtitle color was not converted to ARGB");
@@ -338,6 +337,14 @@ int main(int argc, char **argv)
         "geometry override should retain the configured vertical position");
     require(valueFor(overriddenGeometryOptions, "sub-scale") == "1.25",
         "geometry override should retain the configured overall scale");
+
+    SubtitlePreferences colorOverride = overriddenGeometry;
+    colorOverride.overrideTextColor = true;
+    const auto colorOverrideOptions = MpvOptionProfile::subtitleOptions(colorOverride, true);
+    require(valueFor(colorOverrideOptions, "sub-ass-override") == "scale",
+        "text colour override should not replace the geometry-only override mode");
+    require(valueFor(colorOverrideOptions, "sub-ass-override-colors") == "yes",
+        "text colour override should remain enabled with fixed-position overrides");
 
     // One colour control has to cover both subtitle kinds, so matching feeds
     // the text colour to the image palette transform as well.
@@ -381,7 +388,12 @@ int main(int argc, char **argv)
     hdrSubtitles.hdrBrightnessPercent = 100;
     require(valueFor(MpvOptionProfile::subtitleOptions(hdrSubtitles, true, true), "sub-color") == "#FFFFFFFF",
         "100% HDR subtitle brightness should preserve the configured subtitle colour");
+    hdrSubtitles.hdrBrightnessPercent = 5;
+    require(valueFor(MpvOptionProfile::subtitleOptions(hdrSubtitles, true, true), "sub-color") == "#FF0D0D0D",
+        "5% HDR subtitle brightness should reach the configured lower bound");
     SubtitlePreferences defaultSubtitles;
+    require(defaultSubtitles.verticalPosition == 95 && defaultSubtitles.hdrBrightnessPercent == 50,
+        "subtitle defaults should use the requested position and HDR brightness");
     require(valueFor(MpvOptionProfile::subtitleOptions(defaultSubtitles, true), "sub-font") == "Atkinson Hyperlegible",
         "default subtitles should use the bundled Atkinson Hyperlegible font");
     SubtitlePreferences hidden;
