@@ -338,7 +338,7 @@ struct SubtitlePreferences {
     int verticalPosition = 95;
     int scalePercent = 100;
     bool alwaysOverridePositionAndSize = false;
-    QString bitmapSmoothing = QStringLiteral("soft");
+    int bitmapSharpnessPercent = 45;
     bool recolorImageSubtitles = false;
     bool allowSubtitlesInBlackBars = true;
     int hdrBrightnessPercent = 50;

@@ -14,7 +14,7 @@ TestCase {
         },
         {
             "title": "Image subtitles",
-            "keys": ["subtitles/recolorImageSubtitles", "subtitles/bitmapSmoothing"]
+            "keys": ["subtitles/recolorImageSubtitles", "subtitles/bitmapSharpnessPercent"]
         },
         {
             "title": "HDR",

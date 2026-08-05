@@ -110,7 +110,7 @@ void requiredPersistedKeysArePresentExactlyOnce()
         QStringLiteral("subtitles/scalePercent"),
         QStringLiteral("subtitles/overrideTextColor"),
         QStringLiteral("subtitles/alwaysOverridePositionAndSize"),
-        QStringLiteral("subtitles/bitmapSmoothing"),
+        QStringLiteral("subtitles/bitmapSharpnessPercent"),
         QStringLiteral("subtitles/recolorImageSubtitles"),
         QStringLiteral("subtitles/allowInBlackBars"),
         QStringLiteral("subtitles/textWeight"),
@@ -359,6 +359,14 @@ void subtitleChoicesExplainTheirBehavior()
         QStringLiteral("subtitle scale should use the text-size label"));
     require(findSettingSpec(QStringLiteral("subtitles/textSize")) == nullptr,
         QStringLiteral("separate subtitle text-size choice should be removed"));
+    require(findSettingSpec(QStringLiteral("subtitles/bitmapSmoothing")) == nullptr,
+        QStringLiteral("discrete bitmap smoothing choice should be removed"));
+    const QVariantMap bitmapSharpness = schemaRow(QStringLiteral("subtitles/bitmapSharpnessPercent"));
+    require(bitmapSharpness.value(QStringLiteral("type")).toString() == QStringLiteral("slider")
+            && bitmapSharpness.value(QStringLiteral("defaultValue")).toInt() == 45
+            && bitmapSharpness.value(QStringLiteral("from")).toInt() == 0
+            && bitmapSharpness.value(QStringLiteral("to")).toInt() == 100,
+        QStringLiteral("bitmap sharpness should be a slightly-softened percentage slider"));
     const QVariantMap recolorImages = schemaRow(QStringLiteral("subtitles/recolorImageSubtitles"));
     require(recolorImages.value(QStringLiteral("type")).toString() == QStringLiteral("toggle")
             && recolorImages.value(QStringLiteral("choiceValues")).toList().isEmpty(),

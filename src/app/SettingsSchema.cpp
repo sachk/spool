@@ -40,8 +40,6 @@ namespace {
         { "depressed", "Depressed" }, { "uniform", "Uniform" }, { "", "Drop shadow" } };
     constexpr SettingChoice kSubtitleBackgroundChoices[]
         = { { "transparent", "None" }, { "translucent", "Translucent black" }, { "opaque", "Solid black" } };
-    constexpr SettingChoice kSubtitleBitmapSmoothingChoices[]
-        = { { "sharp", "Sharp" }, { "soft", "Smooth" }, { "softer", "Extra smooth" } };
     constexpr SettingChoice kButtonActionChoices[] = { { "none", "No action" }, { "togglePause", "Play / Pause" },
         { "toggleSubs", "Toggle subtitles" }, { "cycleSubs", "Cycle subtitles" }, { "cycleAudio", "Cycle audio track" },
         { "queuePrevious", "Previous queue item" }, { "queueNext", "Next queue item" },
@@ -268,9 +266,9 @@ const QVector<SettingSpec>& settingSpecs()
         { "subtitles/recolorImageSubtitles", "Subtitle Appearance", "Use Text Colour for Images", "",
             SettingType::Toggle, "false", nullptr, 0, 0, 0, 1, 0, "", SettingTarget::SubtitleRecolorImages,
             SettingNormalizer::Bool, true, false, SettingLevel::Advanced, SettingPlatform::All, "palette" },
-        { "subtitles/bitmapSmoothing", "Subtitle Appearance", "Smoothing", "", SettingType::Select, "soft",
-            kSubtitleBitmapSmoothingChoices, countOf(kSubtitleBitmapSmoothingChoices), 0, 0, 1, 0, "",
-            SettingTarget::SubtitleBitmapSmoothing, SettingNormalizer::String, true, true, SettingLevel::Advanced },
+        { "subtitles/bitmapSharpnessPercent", "Subtitle Appearance", "Sharpness", "0% smoother · 100% sharper",
+            SettingType::Slider, "45", nullptr, 0, 0, 100, 5, 0, "%", SettingTarget::SubtitleBitmapSharpness,
+            SettingNormalizer::IntRange, true, false, SettingLevel::Advanced },
         { "subtitles/textWeight", "Subtitle Appearance", "Text Weight", "", SettingType::Select, "normal",
             kSubtitleTextWeightChoices, countOf(kSubtitleTextWeightChoices), 0, 0, 1, 0, "",
             SettingTarget::SubtitleTextWeight, SettingNormalizer::SubtitleTextWeight, true, true,

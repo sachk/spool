@@ -1473,8 +1473,11 @@ void PlayerController::setSubtitlePreferences(const SubtitlePreferences& prefere
     qInfo() << "player: track preferences changed"
             << "subtitleMode=" << preferences.mode << "subtitleLanguage=" << preferences.language
             << "audioMode=" << preferences.audioMode << "audioLanguage=" << preferences.audioLanguage
-            << "styling=" << preferences.styling << "geometryOverride=" << preferences.alwaysOverridePositionAndSize
-            << "subPos=" << preferences.verticalPosition << "subScale=" << preferences.scalePercent;
+            << "styling=" << preferences.styling << "colorOverride=" << preferences.overrideTextColor
+            << "geometryOverride=" << preferences.alwaysOverridePositionAndSize
+            << "allowBlackBars=" << preferences.allowSubtitlesInBlackBars
+            << "sharpness=" << preferences.bitmapSharpnessPercent << "subPos=" << preferences.verticalPosition
+            << "subScale=" << preferences.scalePercent;
     if (auto *handle = m_mpvLifecycle.handle()) {
         applyMpvSubtitleOptions(MpvOptionApplyMode::Runtime, handle, preserveTrackSelection,
             preserveTrackSelection ? &previousPreferences : nullptr);

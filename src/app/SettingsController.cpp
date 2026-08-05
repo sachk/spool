@@ -351,6 +351,9 @@ void SettingsController::previewValue(const QString& key, const QVariant& value)
     case SettingTarget::SubtitleScale:
         preview.scalePercent = normalized.toInt();
         break;
+    case SettingTarget::SubtitleBitmapSharpness:
+        preview.bitmapSharpnessPercent = normalized.toInt();
+        break;
     case SettingTarget::SubtitleHdrBrightness:
         preview.hdrBrightnessPercent = normalized.toInt();
         break;
@@ -628,8 +631,8 @@ void SettingsController::applySchemaValue(const SettingSpec& spec, const QVarian
         if (apply)
             applySubtitlePreferencesToPlayer();
         break;
-    case SettingTarget::SubtitleBitmapSmoothing:
-        m_subtitlePreferences.bitmapSmoothing = value.toString();
+    case SettingTarget::SubtitleBitmapSharpness:
+        m_subtitlePreferences.bitmapSharpnessPercent = value.toInt();
         if (apply)
             applySubtitlePreferencesToPlayer();
         break;
@@ -721,7 +724,7 @@ void SettingsController::emitSchemaSignals(const SettingSpec& spec)
     case SettingTarget::SubtitleVerticalPosition:
     case SettingTarget::SubtitleScale:
     case SettingTarget::SubtitlePositionAndSizeOverride:
-    case SettingTarget::SubtitleBitmapSmoothing:
+    case SettingTarget::SubtitleBitmapSharpness:
     case SettingTarget::SubtitleRecolorImages:
     case SettingTarget::SubtitleAllowInBlackBars:
     case SettingTarget::SubtitleHdrBrightness:

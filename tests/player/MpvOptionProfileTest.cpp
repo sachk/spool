@@ -297,7 +297,7 @@ int main(int argc, char **argv)
     subtitles.dropShadow = QStringLiteral("uniform");
     subtitles.verticalPosition = 40;
     subtitles.scalePercent = 125;
-    subtitles.bitmapSmoothing = QStringLiteral("softer");
+    subtitles.bitmapSharpnessPercent = 0;
     const SubtitlePreferences identicalSubtitles = subtitles;
     require(identicalSubtitles == subtitles, "identical subtitle preferences should be idempotent");
     SubtitlePreferences changedSubtitles = subtitles;
@@ -328,8 +328,8 @@ int main(int argc, char **argv)
     require(valueFor(subtitleOptions, "sub-scale") == "1.25", "overall subtitle scale was not propagated");
     require(
         valueFor(subtitleOptions, "sub-gauss") == "0.0", "SDF scaling should not pre-blur bitmap subtitle coverage");
-    require(valueFor(subtitleOptions, "sub-sdf-softness") == "1.20",
-        "bitmap subtitle smoothing was not mapped to SDF softness");
+    require(valueFor(subtitleOptions, "sub-sdf-softness") == "1.40",
+        "bitmap subtitle sharpness was not mapped inversely to SDF softness");
     require(valueFor(subtitleOptions, "sub-image-color") == "#00000000",
         "image subtitles should keep their own palette until asked otherwise");
 
@@ -368,8 +368,10 @@ int main(int argc, char **argv)
     require(valueFor(recoloredOptions, "sub-image-outline-color") == "#FF000000",
         "recoloured image subtitles should get a readable outline");
     recoloredSubtitles.allowSubtitlesInBlackBars = false;
-    require(valueFor(MpvOptionProfile::subtitleOptions(recoloredSubtitles, true), "sub-use-margins") == "no",
-        "disallowing black-bar placement should constrain the subtitle viewport");
+    const auto constrainedMargins = MpvOptionProfile::subtitleOptions(recoloredSubtitles, true);
+    require(valueFor(constrainedMargins, "sub-use-margins") == "no"
+            && valueFor(constrainedMargins, "sub-ass-force-margins") == "no",
+        "disallowing black-bar placement should constrain text, ASS, and image subtitle viewports");
 
     subtitles.textBackground = QStringLiteral("translucent");
     require(valueFor(MpvOptionProfile::subtitleOptions(subtitles, true), "sub-back-color") == "#A0000000",
@@ -377,6 +379,8 @@ int main(int argc, char **argv)
     subtitles.styling = QStringLiteral("Custom");
     require(valueFor(MpvOptionProfile::subtitleOptions(subtitles, true), "sub-ass-override") == "force",
         "custom styling should override embedded ASS/SSA styles");
+    require(valueFor(MpvOptionProfile::subtitleOptions(subtitles, true), "sub-ass-override-colors") == "no",
+        "custom styling must preserve authored text colours while colour override is disabled");
     subtitles.alwaysOverridePositionAndSize = true;
     const auto customGeometryOptions = MpvOptionProfile::subtitleOptions(subtitles, true);
     require(valueFor(customGeometryOptions, "sub-ass-override") == "force",

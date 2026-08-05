@@ -56,7 +56,7 @@ enum class SettingTarget {
     SubtitleVerticalPosition,
     SubtitleScale,
     SubtitlePositionAndSizeOverride,
-    SubtitleBitmapSmoothing,
+    SubtitleBitmapSharpness,
     SubtitleRecolorImages,
     SubtitleAllowInBlackBars,
     SubtitleHdrBrightness,

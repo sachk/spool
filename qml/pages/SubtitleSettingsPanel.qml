@@ -48,7 +48,7 @@ FocusScope {
         },
         {
             "title": "Image subtitles",
-            "keys": ["subtitles/recolorImageSubtitles", "subtitles/bitmapSmoothing"]
+            "keys": ["subtitles/recolorImageSubtitles", "subtitles/bitmapSharpnessPercent"]
         },
         {
             "title": "HDR",
@@ -62,7 +62,7 @@ FocusScope {
 
     readonly property var appearanceKeys: ["subtitles/styling", "subtitles/textWeight", "subtitles/font",
         "subtitles/textColor", "subtitles/overrideTextColor", "subtitles/dropShadow", "subtitles/textBackground",
-        "subtitles/recolorImageSubtitles", "subtitles/bitmapSmoothing", "subtitles/verticalPositionPercent",
+        "subtitles/recolorImageSubtitles", "subtitles/bitmapSharpnessPercent", "subtitles/verticalPositionPercent",
         "subtitles/scalePercent", "subtitles/alwaysOverridePositionAndSize", "subtitles/allowInBlackBars",
         "subtitles/hdrBrightnessPercent"]
 

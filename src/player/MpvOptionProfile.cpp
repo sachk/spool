@@ -352,9 +352,8 @@ std::vector<MpvOption> MpvOptionProfile::subtitleOptions(
     const SubtitleShadowOptions shadow = subtitleShadowOptions(prefs.dropShadow);
     const QByteArray subtitleColor = hdrPlayback ? scaledSubtitleColor(prefs.textColor, prefs.hdrBrightnessPercent)
                                                  : mpvArgbColor(prefs.textColor, QByteArrayLiteral("#FFFFFFFF"));
-    const QByteArray bitmapSoftness = prefs.bitmapSmoothing == QStringLiteral("softer") ? QByteArrayLiteral("1.20")
-        : prefs.bitmapSmoothing == QStringLiteral("sharp")                              ? QByteArrayLiteral("0.85")
-                                                                                        : QByteArrayLiteral("1.00");
+    const int bitmapSharpness = qBound(0, prefs.bitmapSharpnessPercent, 100);
+    const QByteArray bitmapSoftness = QByteArray::number(1.4 - bitmapSharpness * 0.0065, 'f', 2);
     const bool recolorImages = prefs.recolorImageSubtitles;
     const QByteArray disabledColor = QByteArrayLiteral("#00000000");
 
@@ -373,6 +372,7 @@ std::vector<MpvOption> MpvOptionProfile::subtitleOptions(
         { "sub-ass-override-colors", mpvBool(prefs.overrideTextColor) },
         { "sub-scale-signs", mpvBool(overrideGeometry) },
         { "sub-use-margins", mpvBool(prefs.allowSubtitlesInBlackBars) },
+        { "sub-ass-force-margins", mpvBool(prefs.allowSubtitlesInBlackBars) },
         { "sub-font", subtitleFontFamily(prefs.font) },
         { "sub-font-size", "55" },
         { "sub-scale", QByteArray::number(qBound(50, prefs.scalePercent, 200) / 100.0, 'f', 2) },
