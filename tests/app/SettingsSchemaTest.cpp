@@ -111,14 +111,14 @@ void requiredPersistedKeysArePresentExactlyOnce()
         QStringLiteral("subtitles/scalePercent"),
         QStringLiteral("subtitles/alwaysOverridePositionAndSize"),
         QStringLiteral("subtitles/bitmapSmoothing"),
-        QStringLiteral("subtitles/imageColorMode"),
+        QStringLiteral("subtitles/recolorImageSubtitles"),
+        QStringLiteral("subtitles/allowInBlackBars"),
         QStringLiteral("subtitles/textWeight"),
         QStringLiteral("subtitles/font"),
         QStringLiteral("subtitles/textColor"),
         QStringLiteral("subtitles/dropShadow"),
         QStringLiteral("subtitles/textBackground"),
         QStringLiteral("subtitles/verticalPositionPercent"),
-        QStringLiteral("subtitles/dimInHdr"),
         QStringLiteral("subtitles/hdrBrightnessPercent"),
         QStringLiteral("settings/toneMappingVisualization"),
         QStringLiteral("input/redButton"),
@@ -339,14 +339,20 @@ void subtitleChoicesExplainTheirBehavior()
         require(!choiceLabel(subtitleMode, value).isEmpty(),
             QStringLiteral("subtitle mode %1 should have a label").arg(value));
     }
-    const QVariantMap dimInHdr = schemaRow(QStringLiteral("subtitles/dimInHdr"));
-    require(dimInHdr.value(QStringLiteral("requiresHdrPlayback")).toBool(),
-        QStringLiteral("HDR dimming should only appear during HDR playback"));
     const QVariantMap hdrBrightness = schemaRow(QStringLiteral("subtitles/hdrBrightnessPercent"));
+    require(hdrBrightness.value(QStringLiteral("title")).toString() == QStringLiteral("HDR Subtitle Brightness"),
+        QStringLiteral("HDR brightness should use the subtitle-facing label"));
     require(hdrBrightness.value(QStringLiteral("requiresHdrPlayback")).toBool()
-            && hdrBrightness.value(QStringLiteral("dependsOnKey")).toString() == QStringLiteral("subtitles/dimInHdr")
-            && hdrBrightness.value(QStringLiteral("dependsOnValue")).toString() == QStringLiteral("true"),
-        QStringLiteral("HDR brightness should require active HDR subtitle dimming"));
+            && hdrBrightness.value(QStringLiteral("dependsOnKey")).toString().isEmpty(),
+        QStringLiteral("HDR brightness should be available without a separate enable toggle"));
+    const QVariantMap recolorImages = schemaRow(QStringLiteral("subtitles/recolorImageSubtitles"));
+    require(recolorImages.value(QStringLiteral("type")).toString() == QStringLiteral("toggle")
+            && recolorImages.value(QStringLiteral("choiceValues")).toList().isEmpty(),
+        QStringLiteral("image subtitle recolouring should be a simple toggle"));
+    const QVariantMap blackBars = schemaRow(QStringLiteral("subtitles/allowInBlackBars"));
+    require(blackBars.value(QStringLiteral("type")).toString() == QStringLiteral("toggle")
+            && blackBars.value(QStringLiteral("defaultValue")).toBool(),
+        QStringLiteral("black-bar subtitle placement should be an enabled-by-default toggle"));
 }
 
 void systemLanguageLabelNamesResolvedLanguage()

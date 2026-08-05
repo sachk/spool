@@ -746,7 +746,6 @@ bool PlayerController::applyMpvSubtitleOptions(MpvOptionApplyMode mode, mpv_hand
         qInfo() << "player: subtitle appearance applied"
                 << "mode=" << (mode == MpvOptionApplyMode::Initial ? "initial" : "runtime")
                 << "preserveTrack=" << preserveTrackSelection << "hdr=" << m_hdrPlayback
-                << "dimInHdr=" << m_subtitlePreferences.dimInHdr
                 << "brightnessPercent=" << m_subtitlePreferences.hdrBrightnessPercent;
     }
     return ok;
@@ -1458,6 +1457,29 @@ void PlayerController::setSubtitlePreferences(const SubtitlePreferences& prefere
             preserveTrackSelection ? &previousPreferences : nullptr);
     } else {
         discardPreparedMpvForOptionChange("subtitle preferences change");
+    }
+}
+
+void PlayerController::previewSubtitlePreferences(const SubtitlePreferences& preferences)
+{
+    mpv_handle *handle = m_mpvLifecycle.handle();
+    if (!handle || preferences == m_subtitlePreferences)
+        return;
+
+    const auto current
+        = MpvOptionProfile::subtitleOptions(m_subtitlePreferences, m_tracks.subtitlesEnabled(), m_hdrPlayback);
+    const auto preview = MpvOptionProfile::subtitleOptions(preferences, m_tracks.subtitlesEnabled(), m_hdrPlayback);
+    for (const MpvOption& option : preview) {
+        const auto previous = std::find_if(current.begin(), current.end(),
+            [&option](const MpvOption& candidate) { return candidate.name == option.name; });
+        if (previous != current.end() && previous->value == option.value)
+            continue;
+
+        const char *value = option.value.constData();
+        const int error = mpv_set_property_async(handle, 0, option.name.constData(), MPV_FORMAT_STRING, &value);
+        if (error < 0 && error != MPV_ERROR_OPTION_NOT_FOUND) {
+            qWarning() << "player: failed to preview subtitle option" << option.name << mpv_error_string(error);
+        }
     }
 }
 

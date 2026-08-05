@@ -15,6 +15,7 @@ Item {
     property bool section: false
     property bool highlighted: false
     property bool actionable: true
+    property bool pointerActivationEnabled: true
     property int metricsWidth: root.Window.window ? root.Window.window.width : 1920
     property int rowHeight: Metrics.scaled(detail.length > 0 ? 54 : 46)
     property string checkIconName: "done"
@@ -179,7 +180,7 @@ Item {
     }
 
     TapHandler {
-        enabled: root.actionable && !root.section
+        enabled: root.pointerActivationEnabled && root.actionable && !root.section
         onTapped: root.activated()
     }
 }

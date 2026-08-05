@@ -46,6 +46,14 @@ function sectionedRows(sections, resolve) {
     return rows
 }
 
+function firstActionableRow(rows, start) {
+    for (let index = Math.max(0, start); index < rows.length; ++index) {
+        if (!rows[index].section)
+            return index
+    }
+    return -1
+}
+
 function detailLevel(row) {
     return row && row.level !== undefined ? Number(row.level) : 0
 }

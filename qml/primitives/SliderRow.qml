@@ -15,6 +15,7 @@ SettingRow {
     property bool selected: false
 
     signal valueEdited(real value)
+    signal valuePreviewed(real value)
     signal interactionStarted
 
     // The page drives selection and left/right adjustment for the whole list,
@@ -45,6 +46,12 @@ SettingRow {
         valueEdited(value)
     }
 
+    function preview(next) {
+        const value = rounded(next)
+        valueField.text = formatValue(value)
+        valuePreviewed(value)
+    }
+
     onValueChanged: {
         const formatted = formatValue(value)
         if (valueField.text !== formatted)
@@ -72,8 +79,9 @@ SettingRow {
             handleSize: Metrics.scaled(18)
             onMoved: {
                 root.interactionStarted()
-                root.commit(value)
+                root.preview(value)
             }
+            onCommitted: root.commit(value)
         },
         Rectangle {
             readonly property int pad: Metrics.scaled(12)

@@ -156,6 +156,7 @@ public:
     void setSyncPlaybackSpeed(double speed);
     void clearSyncPlaybackSpeed();
     void setSubtitlePreferences(const JellyfinNative::SubtitlePreferences& preferences);
+    void previewSubtitlePreferences(const JellyfinNative::SubtitlePreferences& preferences);
     void setDemuxerBudget(const QByteArray& maxBytes, const QByteArray& maxBackBytes);
     void setForwardCacheSizeMiB(int sizeMiB);
     void setMpvConfigPolicy(const MpvConfigPolicy& policy);

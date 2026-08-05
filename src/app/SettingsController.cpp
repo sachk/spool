@@ -340,6 +340,30 @@ void SettingsController::setValue(const QString& key, const QVariant& value)
     setSchemaValue(*spec, value, true, true, true);
 }
 
+void SettingsController::previewValue(const QString& key, const QVariant& value)
+{
+    const SettingSpec *spec = findSettingSpec(key);
+    if (!spec || !m_player)
+        return;
+
+    SubtitlePreferences preview = m_subtitlePreferences;
+    const QVariant normalized = normalizedSettingValue(*spec, value);
+    switch (spec->target) {
+    case SettingTarget::SubtitleVerticalPosition:
+        preview.verticalPosition = normalized.toInt();
+        break;
+    case SettingTarget::SubtitleScale:
+        preview.scalePercent = normalized.toInt();
+        break;
+    case SettingTarget::SubtitleHdrBrightness:
+        preview.hdrBrightnessPercent = normalized.toInt();
+        break;
+    default:
+        return;
+    }
+    m_player->previewSubtitlePreferences(preview);
+}
+
 void SettingsController::setNightModeEnabled(bool enabled)
 {
     setValue(QStringLiteral("settings/nightMode"), enabled);
@@ -617,13 +641,13 @@ void SettingsController::applySchemaValue(const SettingSpec& spec, const QVarian
         if (apply)
             applySubtitlePreferencesToPlayer();
         break;
-    case SettingTarget::SubtitleImageColorMode:
-        m_subtitlePreferences.imageColorMode = value.toString();
+    case SettingTarget::SubtitleRecolorImages:
+        m_subtitlePreferences.recolorImageSubtitles = value.toBool();
         if (apply)
             applySubtitlePreferencesToPlayer();
         break;
-    case SettingTarget::SubtitleDimInHdr:
-        m_subtitlePreferences.dimInHdr = value.toBool();
+    case SettingTarget::SubtitleAllowInBlackBars:
+        m_subtitlePreferences.allowSubtitlesInBlackBars = value.toBool();
         if (apply)
             applySubtitlePreferencesToPlayer();
         break;
@@ -706,8 +730,8 @@ void SettingsController::emitSchemaSignals(const SettingSpec& spec)
     case SettingTarget::SubtitleScale:
     case SettingTarget::SubtitlePositionAndSizeOverride:
     case SettingTarget::SubtitleBitmapSmoothing:
-    case SettingTarget::SubtitleImageColorMode:
-    case SettingTarget::SubtitleDimInHdr:
+    case SettingTarget::SubtitleRecolorImages:
+    case SettingTarget::SubtitleAllowInBlackBars:
     case SettingTarget::SubtitleHdrBrightness:
         emit subtitleSettingsChanged();
         break;

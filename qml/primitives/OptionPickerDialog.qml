@@ -13,16 +13,17 @@ FocusScope {
     property bool spaceRequested: false
     property bool placementReady: false
     property var inputKeys: InputKeys
-    readonly property real edgeMargin: Metrics.scaled(12)
-    readonly property real rowHeight: Math.max(Metrics.scaled(44), Metrics.controlHeightPx)
-    readonly property real panelWidth: Math.min(width - edgeMargin * 2, Math.max(Metrics.scaled(280), Math.min(Metrics.scaled(
+    property var metrics: Metrics
+    readonly property real edgeMargin: metrics.scaled(12)
+    readonly property real rowHeight: Math.max(metrics.scaled(44), metrics.controlHeightPx)
+    readonly property real panelWidth: Math.min(width - edgeMargin * 2, Math.max(metrics.scaled(280), Math.min(metrics.scaled(
                                                                                                                    520), anchorItem
                                                                                                                ? anchorItem.width
-                                                                                                                 * 0.52 : Metrics.scaled(
+                                                                                                                 * 0.52 : metrics.scaled(
                                                                                                                      380))))
-    readonly property real panelHeight: Math.min(height - edgeMargin * 2, Math.max(rowHeight + Metrics.scaled(16), Math.min(
+    readonly property real panelHeight: Math.min(height - edgeMargin * 2, Math.max(rowHeight + metrics.scaled(16), Math.min(
                                                                                        options.length, 8) * rowHeight
-                                                                                   + Metrics.scaled(16)))
+                                                                                   + metrics.scaled(16)))
 
     signal selected(int index)
     signal dismissed
@@ -63,7 +64,7 @@ FocusScope {
             return false
 
         const anchor = anchorItem.mapToItem(root, 0, 0)
-        const below = anchor.y + anchorItem.height + Metrics.scaled(6)
+        const below = anchor.y + anchorItem.height + metrics.scaled(6)
         const deficit = below + panelHeight + edgeMargin - height
         if (deficit > 1 && !spaceRequested) {
             spaceRequested = true
@@ -71,7 +72,7 @@ FocusScope {
             return false
         }
 
-        const above = anchor.y - panelHeight - Metrics.scaled(6)
+        const above = anchor.y - panelHeight - metrics.scaled(6)
         const desiredY = below + panelHeight <= height - edgeMargin || above < edgeMargin ? below : above
         menuPanel.x = Math.max(edgeMargin, Math.min(width - panelWidth - edgeMargin, anchor.x + anchorItem.width
                                                     - panelWidth))
@@ -116,6 +117,7 @@ FocusScope {
 
     PopupMenuPanel {
         id: menuPanel
+        objectName: "optionPickerPanel"
         width: root.panelWidth
         open: root.visible && root.placementReady
         openHeight: root.panelHeight
@@ -127,6 +129,7 @@ FocusScope {
 
         MenuListView {
             id: optionList
+            objectName: "optionPickerList"
             anchors.fill: parent
             anchors.margins: Metrics.scaled(8)
             spacing: Metrics.scaled(2)
@@ -143,9 +146,23 @@ FocusScope {
                 label: String(modelData)
                 checked: index === root.currentIndex
                 highlighted: optionList.activeFocus && optionList.currentIndex === index
+                pointerActivationEnabled: false
                 metricsWidth: root.width
                 onHovered: optionList.currentIndex = index
                 onActivated: root.selected(index)
+                MouseArea {
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    preventStealing: true
+                    propagateComposedEvents: false
+                    onEntered: optionList.currentIndex = index
+                    onPressed: mouse => mouse.accepted = true
+                    onReleased: mouse => mouse.accepted = true
+                    onClicked: mouse => {
+                        mouse.accepted = true
+                        root.selected(index)
+                    }
+                }
             }
         }
     }

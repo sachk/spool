@@ -13,8 +13,10 @@ Item {
     // Set when the owning row has focus, so the track reads as the thing the
     // remote is about to change.
     property bool highlighted: false
+    property bool dragging: false
 
     signal moved
+    signal committed
 
     readonly property real range: Math.max(0, to - from)
     readonly property real position: range > 0 ? Math.max(0, Math.min(1, (value - from) / range)) : 0
@@ -59,13 +61,24 @@ Item {
     }
 
     TapHandler {
-        onTapped: eventPoint => root.updateValue(eventPoint.position.x)
+        onTapped: eventPoint => {
+            root.updateValue(eventPoint.position.x)
+            root.committed()
+        }
     }
 
     DragHandler {
         target: null
         xAxis.enabled: true
         yAxis.enabled: false
+        onActiveChanged: {
+            if (active) {
+                root.dragging = true
+            } else if (root.dragging) {
+                root.dragging = false
+                root.committed()
+            }
+        }
         onCentroidChanged: if (active)
                                root.updateValue(centroid.position.x)
     }

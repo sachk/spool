@@ -108,6 +108,7 @@ public:
     Q_INVOKABLE void loadRemote();
     void clearRemote();
     Q_INVOKABLE void setValue(const QString& key, const QVariant& value);
+    Q_INVOKABLE void previewValue(const QString& key, const QVariant& value);
     Q_INVOKABLE void completePlayerControlTooltipSession();
     Q_INVOKABLE void setNightModeEnabled(bool enabled);
     Q_INVOKABLE void setToneMappingVisualizationEnabled(bool enabled);

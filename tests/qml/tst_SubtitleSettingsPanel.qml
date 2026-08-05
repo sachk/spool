@@ -14,11 +14,11 @@ TestCase {
         },
         {
             "title": "Image subtitles",
-            "keys": ["subtitles/imageColorMode", "subtitles/bitmapSmoothing"]
+            "keys": ["subtitles/recolorImageSubtitles", "subtitles/bitmapSmoothing"]
         },
         {
             "title": "HDR",
-            "keys": ["subtitles/dimInHdr"]
+            "keys": ["subtitles/hdrBrightnessPercent"]
         }
     ]
 
@@ -51,14 +51,14 @@ TestCase {
         compare(rows[2].spec.key, "subtitles/mode")
         verify(rows[3].section)
         compare(rows[3].spec.title, "Image subtitles")
-        compare(rows[4].spec.key, "subtitles/imageColorMode")
+        compare(rows[4].spec.key, "subtitles/recolorImageSubtitles")
     }
 
     // A header with nothing under it is worse than no header, so an empty
     // section has to disappear entirely.
     function test_emptySectionDropsItsHeader() {
         const rows = SettingsNavigation.sectionedRows(sections, function (key) {
-            return key === "subtitles/dimInHdr" ? null : resolveAll(key)
+            return key === "subtitles/hdrBrightnessPercent" ? null : resolveAll(key)
         })
         for (let index = 0; index < rows.length; ++index)
             verify(!rows[index].section || rows[index].spec.title !== "HDR")
@@ -83,6 +83,13 @@ TestCase {
         }
         verify(!rowEnabled(rows[0]))
         verify(rowEnabled(rows[1]))
+    }
+
+    function test_firstActionableRowSkipsAdvancedHeader() {
+        const rows = SettingsNavigation.sectionedRows(sections, resolveAll)
+        compare(SettingsNavigation.firstActionableRow(rows, 0), 1)
+        compare(SettingsNavigation.firstActionableRow(rows, 3), 4)
+        compare(SettingsNavigation.firstActionableRow([], 0), -1)
     }
 
     function test_menuListReadsSectionedArrayEntries() {

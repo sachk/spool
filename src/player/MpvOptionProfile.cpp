@@ -353,16 +353,13 @@ std::vector<MpvOption> MpvOptionProfile::subtitleOptions(
                                                            : QByteArrayLiteral("no");
     const int vertical = qBound(0, prefs.verticalPosition, 100);
     const SubtitleShadowOptions shadow = subtitleShadowOptions(prefs.dropShadow);
-    const QByteArray subtitleColor = hdrPlayback && prefs.dimInHdr
-        ? scaledSubtitleColor(prefs.textColor, prefs.hdrBrightnessPercent)
-        : mpvArgbColor(prefs.textColor, QByteArrayLiteral("#FFFFFFFF"));
+    const QByteArray subtitleColor = hdrPlayback ? scaledSubtitleColor(prefs.textColor, prefs.hdrBrightnessPercent)
+                                                 : mpvArgbColor(prefs.textColor, QByteArrayLiteral("#FFFFFFFF"));
+    // TODO: Investigate higher-quality bitmap subtitle scaling algorithms; sub-gauss only trades sharp edges for blur.
     const QByteArray bitmapSmoothing = prefs.bitmapSmoothing == QStringLiteral("softer") ? QByteArrayLiteral("1.0")
         : prefs.bitmapSmoothing == QStringLiteral("sharp")                               ? QByteArrayLiteral("0.0")
                                                                                          : QByteArrayLiteral("0.5");
-    // Image subtitles carry their own palette, so matching the text colour
-    // means recolouring it. Reusing subtitleColor also gets them the same HDR
-    // paper-white treatment as text.
-    const bool recolorImages = prefs.imageColorMode != QStringLiteral("keep");
+    const bool recolorImages = prefs.recolorImageSubtitles;
     const QByteArray disabledColor = QByteArrayLiteral("#00000000");
 
     return {
@@ -378,7 +375,7 @@ std::vector<MpvOption> MpvOptionProfile::subtitleOptions(
         { "sub-ass", "yes" },
         { "sub-ass-override", assOverride },
         { "sub-scale-signs", mpvBool(overrideGeometry) },
-        { "sub-use-margins", "yes" },
+        { "sub-use-margins", mpvBool(prefs.allowSubtitlesInBlackBars) },
         { "sub-font", subtitleFontFamily(prefs.font) },
         { "sub-font-size", subtitleFontSize(prefs.textSize) },
         { "sub-scale", QByteArray::number(qBound(50, prefs.scalePercent, 200) / 100.0, 'f', 2) },
@@ -392,9 +389,7 @@ std::vector<MpvOption> MpvOptionProfile::subtitleOptions(
         { "sub-shadow-color", shadow.shadowColor },
         { "sub-back-color", subtitleBackgroundColor(prefs.textBackground) },
         { "sub-image-color", recolorImages ? subtitleColor : disabledColor },
-        { "sub-image-color-mode",
-            prefs.imageColorMode == QStringLiteral("tint") ? QByteArrayLiteral("retint")
-                                                           : QByteArrayLiteral("replace") },
+        { "sub-image-color-mode", "replace" },
         { "sub-image-outline-color", recolorImages ? QByteArrayLiteral("#FF000000") : disabledColor },
         { "sub-image-position", overrideGeometry ? QByteArrayLiteral("all") : QByteArrayLiteral("bottom-block") },
     };

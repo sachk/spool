@@ -22,13 +22,14 @@ FocusScope {
     property Item choiceAnchor: null
     property bool resetVisible: false
     property bool advancedExpanded: false
+    property int pendingFocusIndex: -1
     property var appearanceSnapshot: ({})
 
     readonly property var sections: [
         {
             "title": "Size and position",
             "keys": ["subtitles/scalePercent", "subtitles/textSize", "subtitles/verticalPositionPercent",
-                "subtitles/alwaysOverridePositionAndSize"]
+                "subtitles/alwaysOverridePositionAndSize", "subtitles/allowInBlackBars"]
         },
         {
             "title": "Colour",
@@ -47,11 +48,11 @@ FocusScope {
         },
         {
             "title": "Image subtitles",
-            "keys": ["subtitles/imageColorMode", "subtitles/bitmapSmoothing"]
+            "keys": ["subtitles/recolorImageSubtitles", "subtitles/bitmapSmoothing"]
         },
         {
             "title": "HDR",
-            "keys": ["subtitles/dimInHdr", "subtitles/hdrBrightnessPercent"]
+            "keys": ["subtitles/hdrBrightnessPercent"]
         },
         {
             "title": "Maintenance",
@@ -61,8 +62,8 @@ FocusScope {
 
     readonly property var appearanceKeys: ["subtitles/styling", "subtitles/textSize", "subtitles/textWeight",
         "subtitles/font", "subtitles/textColor", "subtitles/dropShadow", "subtitles/textBackground",
-        "subtitles/imageColorMode", "subtitles/bitmapSmoothing", "subtitles/verticalPositionPercent",
-        "subtitles/scalePercent", "subtitles/alwaysOverridePositionAndSize", "subtitles/dimInHdr",
+        "subtitles/recolorImageSubtitles", "subtitles/bitmapSmoothing", "subtitles/verticalPositionPercent",
+        "subtitles/scalePercent", "subtitles/alwaysOverridePositionAndSize", "subtitles/allowInBlackBars",
         "subtitles/hdrBrightnessPercent"]
 
     function specValue(spec) {
@@ -87,7 +88,7 @@ FocusScope {
         return expanded
     }
 
-    function rebuildRows() {
+    function rebuildRows(focusFirstAdvanced) {
         const schema = Settings.settingsSchema
         const byKey = {}
         for (let index = 0; index < schema.length; ++index)
@@ -107,12 +108,17 @@ FocusScope {
                              "spec": {
                                  "key": "action/toggleAdvanced",
                                  "title": "Advanced",
-                                 "description": "Font, outline, position, image subtitle, and HDR controls",
+                                 "description": "More appearance options",
                                  "type": "submenu"
                              }
                          })
         if (advancedExpanded) {
             const advancedRows = SettingsNavigation.sectionedRows(advancedSections, resolve)
+            if (focusFirstAdvanced) {
+                const relativeIndex = SettingsNavigation.firstActionableRow(advancedRows, 0)
+                if (relativeIndex >= 0)
+                    pendingFocusIndex = visibleRows.length + relativeIndex
+            }
             for (let index = 0; index < advancedRows.length; ++index)
                 visibleRows.push(advancedRows[index])
         }
@@ -205,14 +211,7 @@ FocusScope {
         if (spec.type === "submenu") {
             const opening = !advancedExpanded
             advancedExpanded = opening
-            rebuildRows()
-            if (opening) {
-                Qt.callLater(function () {
-                    const firstAdvancedRow = list.firstEnabled(index + 1, 1)
-                    if (firstAdvancedRow >= 0)
-                        root.focusRow(firstAdvancedRow)
-                })
-            }
+            rebuildRows(opening)
         } else if (spec.type === "action") {
             beginReset()
         } else if (spec.type === "toggle") {
@@ -328,12 +327,6 @@ FocusScope {
     }
 
     Connections {
-        target: Settings
-        function onSettingChanged() {
-            root.rebuildRows()
-        }
-    }
-    Connections {
         target: Player
         function onHdrPlaybackChanged() {
             root.rebuildRows()
@@ -414,6 +407,15 @@ FocusScope {
         header: root.overVideo ? null : previewComponent
         headerPositioning: ListView.InlineHeader
         bottomMargin: root.choiceVisible && choiceLoader.item ? choiceLoader.item.panelHeight + Metrics.scaled(16) : 0
+        onCountChanged: {
+            if (root.pendingFocusIndex < 0 || count !== root.rows.length)
+            return
+            const targetIndex = root.pendingFocusIndex
+            root.pendingFocusIndex = -1
+            Qt.callLater(function () {
+                root.focusRow(targetIndex)
+            })
+        }
         onAccepted: index => root.activateRow(index)
         onEdgeUp: if (!root.overVideo && root.shell)
         root.shell.focusNavBar()
@@ -605,6 +607,7 @@ FocusScope {
             decimals: spec ? Number(spec.decimals || 0) : 0
             unitText: spec ? String(spec.unitText || "") : ""
             value: spec ? Number(root.specValue(spec)) : 0
+            onValuePreviewed: value => Settings.previewValue(spec.key, value)
             onValueEdited: value => root.setValue(spec, value, -1)
             onInteractionStarted: root.focusRow(rowIndex)
         }

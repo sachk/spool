@@ -339,10 +339,8 @@ struct SubtitlePreferences {
     int scalePercent = 100;
     bool alwaysOverridePositionAndSize = false;
     QString bitmapSmoothing = QStringLiteral("soft");
-    // "keep", "match" or "tint": whether PGS/VobSub bitmaps are recolored to
-    // textColor, so one colour control covers both subtitle kinds.
-    QString imageColorMode = QStringLiteral("keep");
-    bool dimInHdr = true;
+    bool recolorImageSubtitles = false;
+    bool allowSubtitlesInBlackBars = true;
     int hdrBrightnessPercent = 75;
 
     friend bool operator==(const SubtitlePreferences&, const SubtitlePreferences&) = default;

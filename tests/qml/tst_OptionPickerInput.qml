@@ -7,7 +7,9 @@ TestCase {
     name: "OptionPickerInput"
     width: 1280
     height: 720
+    visible: true
     when: windowShown
+    property int underlayClicks: 0
 
     QtObject {
         id: inputKeysStub
@@ -30,12 +32,43 @@ TestCase {
         }
     }
 
+    QtObject {
+        id: metricsStub
+        readonly property int controlHeightPx: 44
+        function scaled(value) {
+            return value
+        }
+    }
+
+    Item {
+        id: stage
+        anchors.fill: parent
+    }
+
+    MouseArea {
+        parent: stage
+        anchors.fill: parent
+        onClicked: testCase.underlayClicks++
+    }
+
+    Rectangle {
+        id: pickerAnchor
+        parent: stage
+        x: 200
+        y: 120
+        width: 360
+        height: 60
+    }
+
     Primitives.OptionPickerDialog {
         id: picker
+        parent: stage
         visible: true
         options: ["First", "Second", "Third"]
         currentIndex: 0
         inputKeys: inputKeysStub
+        metrics: metricsStub
+        anchorItem: pickerAnchor
     }
 
     SignalSpy {
@@ -46,10 +79,8 @@ TestCase {
 
     function init() {
         selectedSpy.clear()
+        underlayClicks = 0
         picker.currentIndex = 0
-        picker.visible = false
-        picker.visible = true
-        wait(0)
     }
 
     function test_directionMovesOnPressOnly() {
@@ -58,5 +89,17 @@ TestCase {
         picker.activate()
         compare(selectedSpy.count, 1)
         compare(selectedSpy.signalArguments[0][0], 1)
+    }
+
+    function test_pointerSelectionDoesNotClickThrough() {
+        picker.completePresentation()
+        picker.completePresentation()
+        verify(picker.placementReady)
+        const panel = findChild(picker, "optionPickerPanel")
+        verify(panel)
+        mouseClick(testCase, panel.x + 20, panel.y + 8 + picker.rowHeight / 2, Qt.LeftButton)
+        compare(selectedSpy.count, 1)
+        compare(selectedSpy.signalArguments[0][0], 0)
+        compare(underlayClicks, 0)
     }
 }

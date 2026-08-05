@@ -342,16 +342,17 @@ int main(int argc, char **argv)
     // One colour control has to cover both subtitle kinds, so matching feeds
     // the text colour to the image palette transform as well.
     SubtitlePreferences recoloredSubtitles = subtitles;
-    recoloredSubtitles.imageColorMode = QStringLiteral("match");
+    recoloredSubtitles.recolorImageSubtitles = true;
     const auto recoloredOptions = MpvOptionProfile::subtitleOptions(recoloredSubtitles, true);
     require(valueFor(recoloredOptions, "sub-image-color") == valueFor(recoloredOptions, "sub-color"),
-        "matched image subtitles should use the same colour as text subtitles");
-    require(valueFor(recoloredOptions, "sub-image-color-mode") == "replace", "match mode should replace the fill");
+        "recoloured image subtitles should use the same colour as text subtitles");
+    require(valueFor(recoloredOptions, "sub-image-color-mode") == "replace",
+        "recoloured image subtitles should replace their palette");
     require(valueFor(recoloredOptions, "sub-image-outline-color") == "#FF000000",
         "recoloured image subtitles should get a readable outline");
-    recoloredSubtitles.imageColorMode = QStringLiteral("tint");
-    require(valueFor(MpvOptionProfile::subtitleOptions(recoloredSubtitles, true), "sub-image-color-mode") == "retint",
-        "tint mode should preserve per-entry lightness");
+    recoloredSubtitles.allowSubtitlesInBlackBars = false;
+    require(valueFor(MpvOptionProfile::subtitleOptions(recoloredSubtitles, true), "sub-use-margins") == "no",
+        "disallowing black-bar placement should constrain the subtitle viewport");
 
     subtitles.textBackground = QStringLiteral("translucent");
     require(valueFor(MpvOptionProfile::subtitleOptions(subtitles, true), "sub-back-color") == "#A0000000",
@@ -373,13 +374,13 @@ int main(int argc, char **argv)
     hdrSubtitles.hdrBrightnessPercent = 75;
     const auto hdrSubtitleOptions = MpvOptionProfile::subtitleOptions(hdrSubtitles, true, true);
     require(valueFor(hdrSubtitleOptions, "sub-color") == "#FFBFBFBF",
-        "HDR subtitle colour was not reduced to the configured paper-white level");
-    hdrSubtitles.imageColorMode = QStringLiteral("match");
+        "HDR subtitle colour was reduced to the configured brightness");
+    hdrSubtitles.recolorImageSubtitles = true;
     require(valueFor(MpvOptionProfile::subtitleOptions(hdrSubtitles, true, true), "sub-image-color") == "#FFBFBFBF",
-        "matched image subtitles should follow the HDR paper-white level too");
-    hdrSubtitles.dimInHdr = false;
+        "matched image subtitles should follow the HDR brightness too");
+    hdrSubtitles.hdrBrightnessPercent = 100;
     require(valueFor(MpvOptionProfile::subtitleOptions(hdrSubtitles, true, true), "sub-color") == "#FFFFFFFF",
-        "disabled HDR dimming should preserve the configured subtitle colour");
+        "100% HDR subtitle brightness should preserve the configured subtitle colour");
     SubtitlePreferences defaultSubtitles;
     require(valueFor(MpvOptionProfile::subtitleOptions(defaultSubtitles, true), "sub-font") == "Atkinson Hyperlegible",
         "default subtitles should use the bundled Atkinson Hyperlegible font");
