@@ -16,7 +16,7 @@ Surface {
             font.pixelSize: Metrics.bodySizePx + 2
             font.weight: Font.DemiBold
         }
-        MonoText {
+        SecondaryText {
             anchors.horizontalCenter: parent.horizontalCenter
             text: root.detail
             color: Theme.textMuted

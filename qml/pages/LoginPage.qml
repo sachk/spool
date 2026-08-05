@@ -357,7 +357,7 @@ FocusScope {
                 horizontalAlignment: Text.AlignHCenter
             }
 
-            MonoText {
+            SecondaryText {
                 width: Math.min(root.contentWidth, Metrics.scaled(720))
                 text: "Choose a Jellyfin account and its paired server"
                 color: Theme.textSecondary
@@ -411,7 +411,7 @@ FocusScope {
                 onAccepted: root.openAddAccount()
             }
         }
-        MonoText {
+        SecondaryText {
             anchors.top: profileRow.bottom
             anchors.topMargin: Metrics.scaled(18)
             anchors.horizontalCenter: parent.horizontalCenter
@@ -464,7 +464,7 @@ FocusScope {
                 horizontalAlignment: Text.AlignHCenter
             }
 
-            MonoText {
+            SecondaryText {
                 Layout.fillWidth: true
                 text: "Select a discovered server or enter its address"
                 color: Theme.textSecondary
@@ -659,7 +659,7 @@ FocusScope {
                         font.pixelSize: Metrics.scaled(16)
                     }
 
-                    MonoText {
+                    SecondaryText {
                         anchors.horizontalCenter: parent.horizontalCenter
                         text: QuickConnect.status
                         color: Theme.textSecondary
@@ -950,7 +950,7 @@ FocusScope {
                 elide: Text.ElideRight
             }
 
-            MonoText {
+            SecondaryText {
                 width: parent.width
                 visible: !tile.addTile
                 text: tile.serverAddress
@@ -1029,7 +1029,7 @@ FocusScope {
                     elide: Text.ElideRight
                 }
 
-                MonoText {
+                SecondaryText {
                     Layout.fillWidth: true
                     text: choice.address
                     color: Theme.textMuted
@@ -1038,7 +1038,7 @@ FocusScope {
                     elide: Text.ElideRight
                 }
 
-                MonoText {
+                SecondaryText {
                     Layout.fillWidth: true
                     visible: choice.detail.length > 0
                     text: choice.detail

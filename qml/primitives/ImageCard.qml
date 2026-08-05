@@ -28,7 +28,7 @@ Item {
         Loader {
             anchors.fill: parent
             active: !root.artworkEnabled || root.imageUrl.length === 0 || artwork.status === Image.Error
-            sourceComponent: MonoText {
+            sourceComponent: SecondaryText {
                 anchors.centerIn: parent
                 width: parent.width - Metrics.scaled(20)
                 text: root.fallbackText.length > 0 ? root.fallbackText : "..."

@@ -141,7 +141,7 @@ FocusScope {
                 font.weight: Font.DemiBold
             }
 
-            MonoText {
+            SecondaryText {
                 Layout.fillWidth: true
                 text: "Acknowledgements appear first, followed by license and source information."
                 color: Theme.textSecondary
@@ -270,7 +270,7 @@ FocusScope {
                                 font.weight: Font.Medium
                             }
 
-                            MonoText {
+                            SecondaryText {
                                 Layout.fillWidth: true
                                 text: componentCard.modelData.source
                                 color: Theme.textMuted

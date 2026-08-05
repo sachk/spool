@@ -24,7 +24,6 @@ FocusScope {
     property string itemContextReturnRoute: ""
     property int modelRevision: 0
     readonly property bool delegatesPresented: presentation.delegatesReady
-    readonly property bool artworkPresented: presentation.artworkReady
 
     readonly property int count: modelCount()
     readonly property bool rowVisible: enabledRow && (count > 0 || reserveWhenEmpty)
@@ -313,7 +312,7 @@ FocusScope {
         }
     }
 
-    MonoText {
+    SecondaryText {
         anchors.left: parent.left
         anchors.right: parent.right
         anchors.top: rowHeader.bottom

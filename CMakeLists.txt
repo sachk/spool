@@ -371,7 +371,7 @@ qt_add_qml_module(jellyfin-native
         qml/primitives/MenuListView.qml
         qml/primitives/ListScrollBar.qml
         qml/primitives/MenuRow.qml
-        qml/primitives/MonoText.qml
+        qml/primitives/SecondaryText.qml
         qml/primitives/NavGrid.qml
         qml/primitives/MaterialIcon.qml
         qml/primitives/PopupMenuPanel.qml

@@ -24,7 +24,7 @@ Item {
             iconColor: Theme.textSecondary
         }
 
-        MonoText {
+        SecondaryText {
             anchors.verticalCenter: parent.verticalCenter
             text: parent.text
             color: Theme.textPrimary
@@ -63,7 +63,7 @@ Item {
             border.width: Theme.hoverBorderWidth
             border.color: Theme.textSecondary
 
-            MonoText {
+            SecondaryText {
                 id: resolutionLabel
                 anchors.centerIn: parent
                 text: infoLineRow.resolutionText

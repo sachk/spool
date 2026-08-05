@@ -95,7 +95,7 @@ FocusScope {
                     text: "Connection"
                     color: Theme.textSecondary
                 }
-                MonoText {
+                SecondaryText {
                     Layout.fillWidth: true
                     text: root.trustController.pendingSource + " — " + root.trustController.pendingAuthority
                     wrapMode: Text.WrapAnywhere
@@ -104,7 +104,7 @@ FocusScope {
                     text: "Issuer"
                     color: Theme.textSecondary
                 }
-                MonoText {
+                SecondaryText {
                     Layout.fillWidth: true
                     text: root.trustController.pendingIssuer || "Not provided"
                     wrapMode: Text.WrapAnywhere
@@ -113,7 +113,7 @@ FocusScope {
                     text: "Fingerprint"
                     color: Theme.textSecondary
                 }
-                MonoText {
+                SecondaryText {
                     Layout.fillWidth: true
                     text: root.trustController.pendingFingerprint
                     wrapMode: Text.WrapAnywhere

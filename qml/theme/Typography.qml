@@ -25,5 +25,4 @@ QtObject {
         else if (status === FontLoader.Error)
             console.warn("typography: failed to load IBM Plex Sans variable font")
     }
-    readonly property string mono: sans
 }

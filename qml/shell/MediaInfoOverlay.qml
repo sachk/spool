@@ -40,7 +40,7 @@ OverlayDialog {
         property string value: ""
         visible: value.length > 0
         spacing: 3
-        MonoText {
+        SecondaryText {
             Layout.fillWidth: true
             text: label
             color: Theme.textMuted
@@ -377,7 +377,7 @@ OverlayDialog {
                                         wrapMode: Text.Wrap
                                         maximumLineCount: 3
                                     }
-                                    MonoText {
+                                    SecondaryText {
                                         Layout.fillWidth: true
                                         visible: text.length > 0
                                         text: root.streamFlags(stream)

@@ -1,7 +1,7 @@
 import QtQuick
 import "../theme"
 
-MonoText {
+SecondaryText {
     id: root
     property string metadata: ""
     text: metadata.length > 0 ? metadata : "Technical metadata unavailable"

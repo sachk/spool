@@ -790,7 +790,7 @@ FocusScope {
                     }
                 }
 
-                MonoText {
+                SecondaryText {
                     id: headerDetailText
                     anchors.right: parent.right
                     anchors.verticalCenter: parent.verticalCenter
@@ -921,7 +921,7 @@ FocusScope {
                         elide: Text.ElideRight
                     }
 
-                    MonoText {
+                    SecondaryText {
                         id: paneMeta
                         anchors.left: paneHeading.metaInline ? paneTitle.right : parent.left
                         anchors.leftMargin: paneHeading.metaInline ? Metrics.scaled(10) : 0
@@ -1186,7 +1186,7 @@ FocusScope {
                             elide: Text.ElideRight
                         }
 
-                        MonoText {
+                        SecondaryText {
                             id: rowSubtitle
                             anchors.right: parent.right
                             anchors.rightMargin: Metrics.scaled(14)
