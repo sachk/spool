@@ -567,7 +567,7 @@ FocusScope {
             readonly property var controlItem: rowLoader.item
             spacing: Metrics.scaled(10)
 
-            SectionHeader {
+            GroupHeader {
                 width: parent.width
                 visible: parent.showHeader
                 title: rowData.group

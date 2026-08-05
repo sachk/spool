@@ -909,7 +909,7 @@ FocusScope {
             width: tile.focused ? Math.round(tile.tileSize * 0.74) : 0
             height: Metrics.scaled(3)
             radius: Metrics.scaled(2)
-            color: Theme.accentPurple
+            color: Theme.accentAlternate
             opacity: tile.focused ? 1 : 0
 
             Behavior on width {

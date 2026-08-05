@@ -357,6 +357,7 @@ qt_add_qml_module(jellyfin-native
         qml/primitives/ConfirmationDialog.qml
         qml/primitives/EmptyPlaceholder.qml
         qml/primitives/FastWheelHandler.qml
+        qml/primitives/GroupHeader.qml
         qml/primitives/HoldNavigationController.qml
         qml/primitives/InlineSlider.qml
         qml/primitives/IconButton.qml

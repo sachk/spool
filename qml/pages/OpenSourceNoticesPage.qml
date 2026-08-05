@@ -151,7 +151,7 @@ FocusScope {
 
             SectionHeader {
                 Layout.fillWidth: true
-                text: "Acknowledgements"
+                title: "Acknowledgements"
             }
 
             Surface {
@@ -230,7 +230,7 @@ FocusScope {
 
             SectionHeader {
                 Layout.fillWidth: true
-                text: "License and corresponding source"
+                title: "License and corresponding source"
             }
 
             AppText {

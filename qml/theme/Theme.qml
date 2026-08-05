@@ -15,27 +15,25 @@ QtObject {
     readonly property color textDisabled: "#4A4A4A"
     readonly property color accentText: "#061017"
 
-    readonly property color jellyfinBlue: "#00A4DC"
-    readonly property color jellyfinPurple: "#AA5CC3"
+    readonly property color paletteBlue: "#00A4DC"
+    readonly property color palettePurple: "#AA5CC3"
     property int accentIndex: 0
-    readonly property color accent: accentIndex === 1 ? jellyfinPurple : accentIndex === 2 ? "#7E7CFF" : jellyfinBlue
+    readonly property color accent: accentIndex === 1 ? palettePurple : accentIndex === 2 ? "#7E7CFF" : paletteBlue
     readonly property color accentDim: accentIndex === 1 ? "#78408A" : accentIndex === 2 ? "#4F4DA8" : "#0077A0"
-    readonly property color accentPurple: accentIndex === 1 ? jellyfinBlue : jellyfinPurple
+    // The palette colour the accent is not currently using.
+    readonly property color accentAlternate: accentIndex === 1 ? paletteBlue : palettePurple
     readonly property color accentPanel: accentIndex === 1 ? "#2C1E31" : accentIndex === 2 ? "#20223C" : "#182A32"
     readonly property color success: "#3FB950"
     readonly property color errorPanel: "#2A1717"
     readonly property color errorText: "#FFD6D6"
 
-    readonly property color controlOutline: "#55FFFFFF"
     readonly property color focusedFill: "#30383D"
     readonly property color floatingPanel: "#F0181818"
-    readonly property color overlayScrim: "#AA000000"
     readonly property color overlayScrimStrong: "#CC000000"
     readonly property color busyScrim: "#AA0E0E0E"
     readonly property color backdropScrimTop: "#A0000000"
     readonly property color backdropScrimMiddle: "#D20D0D0D"
     readonly property color backdropScrimLeft: "#5A000000"
-    readonly property color backdropScrimCenter: "#22000000"
     readonly property color backdropScrimRight: "#C4000000"
 
     readonly property int radiusTiny: Metrics.scaled(2)
@@ -47,7 +45,6 @@ QtObject {
     readonly property int hoverBorderWidth: Math.max(1, Metrics.scaled(1))
 
     property int normalTextRenderType: Text.QtRendering
-    property int largeTextRenderType: Text.QtRendering
     property bool reducedMotion: false
     property bool antialiasedText: true
     property string technicalMetadataMode: "Always"

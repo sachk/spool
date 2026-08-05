@@ -432,7 +432,7 @@ FocusScope {
             implicitHeight: isSection ? sectionHeader.implicitHeight + Metrics.scaled(18) : rowLoader.implicitHeight
             height: implicitHeight
 
-            SectionHeader {
+            GroupHeader {
                 id: sectionHeader
                 anchors.left: parent.left
                 anchors.right: parent.right

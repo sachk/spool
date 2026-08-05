@@ -65,44 +65,79 @@ T.Control {
             }
         }
 
-        RowLayout {
-            Layout.preferredWidth: Math.min(root.width * 0.54, Metrics.scaled(520))
-            Layout.minimumWidth: Metrics.scaled(270)
-            spacing: Metrics.scaled(4)
+        // One track holding a moving pill, rather than a row of separate
+        // buttons whose borders would double up where they meet.
+        Rectangle {
+            id: track
+            readonly property int inset: Math.max(2, Metrics.scaled(3))
+            readonly property real cellWidth: root.options.length > 0 ? (width - inset * 2) / root.options.length : 0
 
-            Repeater {
-                model: root.options
+            Layout.preferredWidth: Math.min(root.width * 0.5, Metrics.scaled(430))
+            Layout.minimumWidth: Metrics.scaled(230)
+            Layout.preferredHeight: Math.max(Metrics.controlHeightPx, Metrics.scaled(42))
+            Layout.alignment: Qt.AlignVCenter
+            radius: Theme.radiusMedium
+            color: Theme.bgRaised
+            border.width: Theme.hoverBorderWidth
+            border.color: Theme.borderStrong
+            antialiasing: true
 
-                delegate: Rectangle {
-                    required property int index
-                    required property var modelData
-                    readonly property bool chosen: index === root.currentIndex
-                    Layout.fillWidth: true
-                    Layout.minimumWidth: Metrics.scaled(82)
-                    implicitHeight: Math.max(Metrics.controlHeightPx, Metrics.scaled(40))
-                    radius: Theme.radiusMedium
-                    color: chosen ? Theme.accentPanel : Theme.bgRaised
-                    border.width: chosen ? Theme.focusBorderWidth : Theme.hoverBorderWidth
-                    border.color: chosen ? Theme.accent : Theme.borderStrong
-                    antialiasing: true
+            Rectangle {
+                x: track.inset + track.cellWidth * root.currentIndex
+                y: track.inset
+                width: track.cellWidth
+                height: track.height - track.inset * 2
+                radius: Theme.radiusSmall
+                color: root.activeFocus ? Theme.accent : Theme.accentPanel
+                border.width: Theme.hoverBorderWidth
+                border.color: Theme.accent
+                antialiasing: true
 
-                    AppText {
-                        anchors.fill: parent
-                        anchors.leftMargin: Metrics.scaled(10)
-                        anchors.rightMargin: Metrics.scaled(10)
-                        text: String(modelData)
-                        color: parent.chosen ? Theme.textPrimary : Theme.textSecondary
-                        font.pixelSize: Metrics.metaSizePx
-                        font.weight: parent.chosen ? Font.DemiBold : Font.Medium
-                        horizontalAlignment: Text.AlignHCenter
-                        verticalAlignment: Text.AlignVCenter
-                        elide: Text.ElideRight
+                Behavior on x {
+                    enabled: !Theme.reducedMotion
+                    NumberAnimation {
+                        duration: 130
+                        easing.type: Easing.OutCubic
                     }
+                }
+            }
 
-                    TapHandler {
-                        onTapped: {
-                            InputKeys.focus(root)
-                            root.selected(index)
+            Row {
+                anchors.fill: parent
+                anchors.margins: track.inset
+
+                Repeater {
+                    model: root.options
+
+                    delegate: Item {
+                        id: cell
+                        required property int index
+                        required property var modelData
+                        readonly property bool chosen: index === root.currentIndex
+
+                        width: track.cellWidth
+                        height: track.height - track.inset * 2
+
+                        AppText {
+                            anchors.fill: parent
+                            anchors.leftMargin: Metrics.scaled(6)
+                            anchors.rightMargin: Metrics.scaled(6)
+                            text: String(cell.modelData)
+                            color: !cell.chosen ? Theme.textSecondary : root.activeFocus ? Theme.accentText :
+                                                                                           Theme.textPrimary
+
+                            font.pixelSize: Metrics.metaSizePx
+                            font.weight: cell.chosen ? Font.DemiBold : Font.Medium
+                            horizontalAlignment: Text.AlignHCenter
+                            verticalAlignment: Text.AlignVCenter
+                            elide: Text.ElideRight
+                        }
+
+                        TapHandler {
+                            onTapped: {
+                                InputKeys.focus(root)
+                                root.selected(cell.index)
+                            }
                         }
                     }
                 }
