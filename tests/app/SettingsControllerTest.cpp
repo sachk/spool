@@ -88,6 +88,8 @@ int main(int argc, char **argv)
     settings.setValue(QStringLiteral("subtitles/hdrBrightnessPercent"), 100);
     settings.setValue(QStringLiteral("subtitles/bitmapSharpnessPercent"), 100);
     settings.setValue(QStringLiteral("subtitles/recolorImageSubtitles"), true);
+    settings.setValue(QStringLiteral("subtitles/bitmapShadowEnabled"), false);
+    settings.setValue(QStringLiteral("subtitles/bitmapShadowSpreadSize"), 16);
     settings.setValue(QStringLiteral("subtitles/allowInBlackBars"), false);
     settings.resetSubtitleAppearance();
     require(settings.value(QStringLiteral("subtitles/styling")).toString() == QStringLiteral("Auto"),
@@ -104,6 +106,10 @@ int main(int argc, char **argv)
         "subtitle appearance reset did not restore HDR subtitle brightness");
     require(!settings.value(QStringLiteral("subtitles/recolorImageSubtitles")).toBool(),
         "subtitle appearance reset did not restore original image colours");
+    require(settings.value(QStringLiteral("subtitles/bitmapShadowEnabled")).toBool(),
+        "subtitle appearance reset did not restore the image subtitle shadow");
+    require(settings.value(QStringLiteral("subtitles/bitmapShadowSpreadSize")).toInt() == 6,
+        "subtitle appearance reset did not restore the mild wide-shadow size");
     require(settings.value(QStringLiteral("subtitles/allowInBlackBars")).toBool(),
         "subtitle appearance reset did not restore black-bar placement");
     require(!settings.value(QStringLiteral("subtitles/alwaysOverridePositionAndSize")).toBool(),

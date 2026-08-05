@@ -112,6 +112,17 @@ void requiredPersistedKeysArePresentExactlyOnce()
         QStringLiteral("subtitles/alwaysOverridePositionAndSize"),
         QStringLiteral("subtitles/bitmapSharpnessPercent"),
         QStringLiteral("subtitles/recolorImageSubtitles"),
+        QStringLiteral("subtitles/bitmapShadowEnabled"),
+        QStringLiteral("subtitles/bitmapShadowCoreSize"),
+        QStringLiteral("subtitles/bitmapShadowCoreGrow"),
+        QStringLiteral("subtitles/bitmapShadowCoreOpacityPercent"),
+        QStringLiteral("subtitles/bitmapShadowSpreadEnabled"),
+        QStringLiteral("subtitles/bitmapShadowSpreadSize"),
+        QStringLiteral("subtitles/bitmapShadowSpreadGrow"),
+        QStringLiteral("subtitles/bitmapShadowSpreadX"),
+        QStringLiteral("subtitles/bitmapShadowSpreadY"),
+        QStringLiteral("subtitles/bitmapShadowSpreadOpacityPercent"),
+        QStringLiteral("subtitles/bitmapShadowDither"),
         QStringLiteral("subtitles/allowInBlackBars"),
         QStringLiteral("subtitles/textWeight"),
         QStringLiteral("subtitles/font"),
@@ -371,6 +382,18 @@ void subtitleChoicesExplainTheirBehavior()
     require(recolorImages.value(QStringLiteral("type")).toString() == QStringLiteral("toggle")
             && recolorImages.value(QStringLiteral("choiceValues")).toList().isEmpty(),
         QStringLiteral("image subtitle recolouring should be a simple toggle"));
+    const QVariantMap bitmapShadow = schemaRow(QStringLiteral("subtitles/bitmapShadowEnabled"));
+    require(bitmapShadow.value(QStringLiteral("type")).toString() == QStringLiteral("toggle")
+            && bitmapShadow.value(QStringLiteral("defaultValue")).toBool()
+            && bitmapShadow.value(QStringLiteral("level")).toInt() == static_cast<int>(SettingLevel::Advanced),
+        QStringLiteral("image subtitle shadow should be enabled by default and advanced"));
+    const QVariantMap bitmapShadowSpread = schemaRow(QStringLiteral("subtitles/bitmapShadowSpreadSize"));
+    require(bitmapShadowSpread.value(QStringLiteral("defaultValue")).toInt() == 6
+            && bitmapShadowSpread.value(QStringLiteral("from")).toInt() == 1
+            && bitmapShadowSpread.value(QStringLiteral("to")).toInt() == 16
+            && bitmapShadowSpread.value(QStringLiteral("dependsOnKey")).toString()
+                == QStringLiteral("subtitles/bitmapShadowEnabled"),
+        QStringLiteral("wide image shadow should default to a mild six-pixel advanced layer"));
     const QVariantMap blackBars = schemaRow(QStringLiteral("subtitles/allowInBlackBars"));
     require(blackBars.value(QStringLiteral("type")).toString() == QStringLiteral("toggle")
             && blackBars.value(QStringLiteral("defaultValue")).toBool(),

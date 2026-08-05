@@ -48,7 +48,16 @@ FocusScope {
         },
         {
             "title": "Image subtitles",
-            "keys": ["subtitles/recolorImageSubtitles", "subtitles/bitmapSharpnessPercent"]
+            "keys": ["subtitles/recolorImageSubtitles", "subtitles/bitmapSharpnessPercent",
+                "subtitles/bitmapShadowEnabled"]
+        },
+        {
+            "title": "Image subtitle shadow",
+            "keys": ["subtitles/bitmapShadowCoreSize", "subtitles/bitmapShadowCoreGrow",
+                "subtitles/bitmapShadowCoreOpacityPercent", "subtitles/bitmapShadowSpreadEnabled",
+                "subtitles/bitmapShadowSpreadSize", "subtitles/bitmapShadowSpreadGrow", "subtitles/bitmapShadowSpreadX",
+                "subtitles/bitmapShadowSpreadY", "subtitles/bitmapShadowSpreadOpacityPercent",
+                "subtitles/bitmapShadowDither"]
         },
         {
             "title": "HDR",
@@ -62,9 +71,12 @@ FocusScope {
 
     readonly property var appearanceKeys: ["subtitles/styling", "subtitles/textWeight", "subtitles/font",
         "subtitles/textColor", "subtitles/overrideTextColor", "subtitles/dropShadow", "subtitles/textBackground",
-        "subtitles/recolorImageSubtitles", "subtitles/bitmapSharpnessPercent", "subtitles/verticalPositionPercent",
-        "subtitles/scalePercent", "subtitles/alwaysOverridePositionAndSize", "subtitles/allowInBlackBars",
-        "subtitles/hdrBrightnessPercent"]
+        "subtitles/recolorImageSubtitles", "subtitles/bitmapSharpnessPercent", "subtitles/bitmapShadowEnabled",
+        "subtitles/bitmapShadowCoreSize", "subtitles/bitmapShadowCoreGrow", "subtitles/bitmapShadowCoreOpacityPercent",
+        "subtitles/bitmapShadowSpreadEnabled", "subtitles/bitmapShadowSpreadSize", "subtitles/bitmapShadowSpreadGrow",
+        "subtitles/bitmapShadowSpreadX", "subtitles/bitmapShadowSpreadY", "subtitles/bitmapShadowSpreadOpacityPercent",
+        "subtitles/bitmapShadowDither", "subtitles/verticalPositionPercent", "subtitles/scalePercent",
+        "subtitles/alwaysOverridePositionAndSize", "subtitles/allowInBlackBars", "subtitles/hdrBrightnessPercent"]
 
     function specValue(spec) {
         if (spec.key === "subtitles/language")

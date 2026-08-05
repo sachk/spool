@@ -340,6 +340,17 @@ struct SubtitlePreferences {
     bool alwaysOverridePositionAndSize = false;
     int bitmapSharpnessPercent = 45;
     bool recolorImageSubtitles = false;
+    bool bitmapShadowEnabled = true;
+    int bitmapShadowCoreSize = 1;
+    int bitmapShadowCoreGrow = 1;
+    int bitmapShadowCoreOpacityPercent = 70;
+    bool bitmapShadowSpreadEnabled = true;
+    int bitmapShadowSpreadSize = 6;
+    int bitmapShadowSpreadGrow = 0;
+    int bitmapShadowSpreadX = 2;
+    int bitmapShadowSpreadY = 3;
+    int bitmapShadowSpreadOpacityPercent = 30;
+    bool bitmapShadowDither = true;
     bool allowSubtitlesInBlackBars = true;
     int hdrBrightnessPercent = 50;
 

@@ -298,6 +298,16 @@ int main(int argc, char **argv)
     subtitles.verticalPosition = 40;
     subtitles.scalePercent = 125;
     subtitles.bitmapSharpnessPercent = 0;
+    subtitles.bitmapShadowCoreSize = 2;
+    subtitles.bitmapShadowCoreGrow = 3;
+    subtitles.bitmapShadowCoreOpacityPercent = 55;
+    subtitles.bitmapShadowSpreadEnabled = false;
+    subtitles.bitmapShadowSpreadSize = 9;
+    subtitles.bitmapShadowSpreadGrow = 4;
+    subtitles.bitmapShadowSpreadX = -5;
+    subtitles.bitmapShadowSpreadY = 6;
+    subtitles.bitmapShadowSpreadOpacityPercent = 20;
+    subtitles.bitmapShadowDither = false;
     const SubtitlePreferences identicalSubtitles = subtitles;
     require(identicalSubtitles == subtitles, "identical subtitle preferences should be idempotent");
     SubtitlePreferences changedSubtitles = subtitles;
@@ -320,6 +330,10 @@ int main(int argc, char **argv)
         "disabled geometry override should only reposition normal lower-third image dialogue");
     require(valueFor(subtitleOptions, "sub-font") == "IBM Plex Sans Var", "interface subtitle font was not mapped");
     require(valueFor(subtitleOptions, "sub-font-size") == "55", "subtitle base font size should remain stable");
+    require(valueFor(subtitleOptions, "sub-scale-by-window") == "yes"
+            && valueFor(subtitleOptions, "sub-scale-with-window") == "yes"
+            && valueFor(subtitleOptions, "sub-ass-scale-with-window") == "yes",
+        "text subtitle size should remain proportional to the player viewport");
     require(valueFor(subtitleOptions, "sub-bold") == "yes", "subtitle bold preference was not mapped");
     require(valueFor(subtitleOptions, "sub-pos") == "40", "subtitle vertical percentage was not mapped");
     require(valueFor(subtitleOptions, "sub-color") == "#FF00FFCC", "subtitle color was not converted to ARGB");
@@ -330,6 +344,19 @@ int main(int argc, char **argv)
         valueFor(subtitleOptions, "sub-gauss") == "0.0", "SDF scaling should not pre-blur bitmap subtitle coverage");
     require(valueFor(subtitleOptions, "sub-sdf-softness") == "1.40",
         "bitmap subtitle sharpness was not mapped inversely to SDF softness");
+    require(valueFor(subtitleOptions, "sub-sdf-shadow") == "yes"
+            && valueFor(subtitleOptions, "sub-sdf-shadow-core-sigma") == "2"
+            && valueFor(subtitleOptions, "sub-sdf-shadow-core-grow") == "3"
+            && valueFor(subtitleOptions, "sub-sdf-shadow-core-opacity") == "0.55",
+        "tight image subtitle shadow parameters were not mapped");
+    require(valueFor(subtitleOptions, "sub-sdf-shadow-spread") == "no"
+            && valueFor(subtitleOptions, "sub-sdf-shadow-spread-sigma") == "9"
+            && valueFor(subtitleOptions, "sub-sdf-shadow-spread-grow") == "4"
+            && valueFor(subtitleOptions, "sub-sdf-shadow-spread-x") == "-5"
+            && valueFor(subtitleOptions, "sub-sdf-shadow-spread-y") == "6"
+            && valueFor(subtitleOptions, "sub-sdf-shadow-spread-opacity") == "0.20"
+            && valueFor(subtitleOptions, "sub-sdf-shadow-dither") == "no",
+        "wide image subtitle shadow parameters were not mapped");
     require(valueFor(subtitleOptions, "sub-image-color") == "#00000000",
         "image subtitles should keep their own palette until asked otherwise");
 

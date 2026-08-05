@@ -354,6 +354,30 @@ void SettingsController::previewValue(const QString& key, const QVariant& value)
     case SettingTarget::SubtitleBitmapSharpness:
         preview.bitmapSharpnessPercent = normalized.toInt();
         break;
+    case SettingTarget::SubtitleBitmapShadowCoreSize:
+        preview.bitmapShadowCoreSize = normalized.toInt();
+        break;
+    case SettingTarget::SubtitleBitmapShadowCoreGrow:
+        preview.bitmapShadowCoreGrow = normalized.toInt();
+        break;
+    case SettingTarget::SubtitleBitmapShadowCoreOpacity:
+        preview.bitmapShadowCoreOpacityPercent = normalized.toInt();
+        break;
+    case SettingTarget::SubtitleBitmapShadowSpreadSize:
+        preview.bitmapShadowSpreadSize = normalized.toInt();
+        break;
+    case SettingTarget::SubtitleBitmapShadowSpreadGrow:
+        preview.bitmapShadowSpreadGrow = normalized.toInt();
+        break;
+    case SettingTarget::SubtitleBitmapShadowSpreadX:
+        preview.bitmapShadowSpreadX = normalized.toInt();
+        break;
+    case SettingTarget::SubtitleBitmapShadowSpreadY:
+        preview.bitmapShadowSpreadY = normalized.toInt();
+        break;
+    case SettingTarget::SubtitleBitmapShadowSpreadOpacity:
+        preview.bitmapShadowSpreadOpacityPercent = normalized.toInt();
+        break;
     case SettingTarget::SubtitleHdrBrightness:
         preview.hdrBrightnessPercent = normalized.toInt();
         break;
@@ -641,6 +665,61 @@ void SettingsController::applySchemaValue(const SettingSpec& spec, const QVarian
         if (apply)
             applySubtitlePreferencesToPlayer();
         break;
+    case SettingTarget::SubtitleBitmapShadowEnabled:
+        m_subtitlePreferences.bitmapShadowEnabled = value.toBool();
+        if (apply)
+            applySubtitlePreferencesToPlayer();
+        break;
+    case SettingTarget::SubtitleBitmapShadowCoreSize:
+        m_subtitlePreferences.bitmapShadowCoreSize = value.toInt();
+        if (apply)
+            applySubtitlePreferencesToPlayer();
+        break;
+    case SettingTarget::SubtitleBitmapShadowCoreGrow:
+        m_subtitlePreferences.bitmapShadowCoreGrow = value.toInt();
+        if (apply)
+            applySubtitlePreferencesToPlayer();
+        break;
+    case SettingTarget::SubtitleBitmapShadowCoreOpacity:
+        m_subtitlePreferences.bitmapShadowCoreOpacityPercent = value.toInt();
+        if (apply)
+            applySubtitlePreferencesToPlayer();
+        break;
+    case SettingTarget::SubtitleBitmapShadowSpreadEnabled:
+        m_subtitlePreferences.bitmapShadowSpreadEnabled = value.toBool();
+        if (apply)
+            applySubtitlePreferencesToPlayer();
+        break;
+    case SettingTarget::SubtitleBitmapShadowSpreadSize:
+        m_subtitlePreferences.bitmapShadowSpreadSize = value.toInt();
+        if (apply)
+            applySubtitlePreferencesToPlayer();
+        break;
+    case SettingTarget::SubtitleBitmapShadowSpreadGrow:
+        m_subtitlePreferences.bitmapShadowSpreadGrow = value.toInt();
+        if (apply)
+            applySubtitlePreferencesToPlayer();
+        break;
+    case SettingTarget::SubtitleBitmapShadowSpreadX:
+        m_subtitlePreferences.bitmapShadowSpreadX = value.toInt();
+        if (apply)
+            applySubtitlePreferencesToPlayer();
+        break;
+    case SettingTarget::SubtitleBitmapShadowSpreadY:
+        m_subtitlePreferences.bitmapShadowSpreadY = value.toInt();
+        if (apply)
+            applySubtitlePreferencesToPlayer();
+        break;
+    case SettingTarget::SubtitleBitmapShadowSpreadOpacity:
+        m_subtitlePreferences.bitmapShadowSpreadOpacityPercent = value.toInt();
+        if (apply)
+            applySubtitlePreferencesToPlayer();
+        break;
+    case SettingTarget::SubtitleBitmapShadowDither:
+        m_subtitlePreferences.bitmapShadowDither = value.toBool();
+        if (apply)
+            applySubtitlePreferencesToPlayer();
+        break;
     case SettingTarget::SubtitleAllowInBlackBars:
         m_subtitlePreferences.allowSubtitlesInBlackBars = value.toBool();
         if (apply)
@@ -726,6 +805,17 @@ void SettingsController::emitSchemaSignals(const SettingSpec& spec)
     case SettingTarget::SubtitlePositionAndSizeOverride:
     case SettingTarget::SubtitleBitmapSharpness:
     case SettingTarget::SubtitleRecolorImages:
+    case SettingTarget::SubtitleBitmapShadowEnabled:
+    case SettingTarget::SubtitleBitmapShadowCoreSize:
+    case SettingTarget::SubtitleBitmapShadowCoreGrow:
+    case SettingTarget::SubtitleBitmapShadowCoreOpacity:
+    case SettingTarget::SubtitleBitmapShadowSpreadEnabled:
+    case SettingTarget::SubtitleBitmapShadowSpreadSize:
+    case SettingTarget::SubtitleBitmapShadowSpreadGrow:
+    case SettingTarget::SubtitleBitmapShadowSpreadX:
+    case SettingTarget::SubtitleBitmapShadowSpreadY:
+    case SettingTarget::SubtitleBitmapShadowSpreadOpacity:
+    case SettingTarget::SubtitleBitmapShadowDither:
     case SettingTarget::SubtitleAllowInBlackBars:
     case SettingTarget::SubtitleHdrBrightness:
         emit subtitleSettingsChanged();
