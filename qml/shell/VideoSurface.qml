@@ -92,7 +92,7 @@ FocusScope {
 
     Loader {
         anchors.fill: parent
-        active: root.active && root.diagnosticsVisible
+        active: root.active && (root.diagnosticsVisible || Player.debugOsdVisible)
         z: 4
         sourceComponent: DiagnosticsOverlay {
             route: "player"
