@@ -10,7 +10,6 @@ FocusScope {
     property bool diagnosticsVisible: false
     readonly property bool directionRelease: true
 
-    signal diagnosticsVisibilityRequested(bool visible)
     signal playbackBackRequested(var item)
 
     visible: active
@@ -71,8 +70,6 @@ FocusScope {
         id: playerOverlay
         anchors.fill: parent
         visible: root.active
-        diagnosticsVisible: root.diagnosticsVisible
-        onDiagnosticsVisibilityRequested: visible => root.diagnosticsVisibilityRequested(visible)
         onPlaybackBackRequested: item => root.playbackBackRequested(item)
         z: 2
     }

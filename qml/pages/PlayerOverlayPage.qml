@@ -18,9 +18,6 @@ FocusScope {
     readonly property bool nightModeEnabled: Settings.nightModeEnabled
     readonly property int timelineAutohideMs: 4000
     readonly property int actionAutohideMs: 6200
-    property bool diagnosticsVisible: false
-
-    signal diagnosticsVisibilityRequested(bool visible)
     signal playbackBackRequested(var item)
 
     property bool tooltipSessionHadFile: false
@@ -602,7 +599,6 @@ FocusScope {
             return
         const showing = !player.debugOsdVisible
         player.toggleDebugOsd()
-        diagnosticsVisibilityRequested(showing)
         if (showing) {
             autohide.stop()
             controlsVisible = false

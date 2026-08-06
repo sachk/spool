@@ -687,7 +687,6 @@ KeyRouter {
         active: root.hasPlayer && root.player.visible
         mediaInfoVisible: root.mediaInfoVisible
         diagnosticsVisible: root.diagnosticsVisible
-        onDiagnosticsVisibilityRequested: visible => root.diagnosticsVisible = visible
         onPlaybackBackRequested: item => root.preparePlaybackBackNavigation(item)
         z: 19
     }
