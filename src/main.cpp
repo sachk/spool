@@ -65,6 +65,9 @@
 #include <cstring>
 #include <memory>
 #include <mutex>
+#ifdef Q_OS_WIN
+#include <io.h>
+#endif
 #ifdef Q_OS_UNIX
 #include <sys/stat.h>
 #endif
@@ -107,6 +110,19 @@ FILE *g_logFile = nullptr;
 QByteArray g_logPath;
 QElapsedTimer g_startupTimer;
 std::mutex g_logMutex;
+
+bool hasUsableStandardError()
+{
+#ifdef Q_OS_WIN
+    // A Windows GUI-subsystem process has CRT stream objects even when it was
+    // launched without inherited standard handles. Writing to such a stream
+    // invokes the UCRT invalid-parameter handler and terminates the process.
+    const int descriptor = _fileno(stderr);
+    return descriptor >= 0 && _get_osfhandle(descriptor) != -1;
+#else
+    return true;
+#endif
+}
 
 FILE *openRotatedLogFile(const QByteArray& path)
 {
@@ -168,20 +184,22 @@ void logLine(const char *fmt, ...)
     const long long elapsedMs = g_startupTimer.isValid() ? static_cast<long long>(g_startupTimer.elapsed()) : 0;
 
     va_list ap;
+    if (g_logFile) {
+        va_start(ap, fmt);
+        fprintf(g_logFile, "[%7lld ms] ", elapsedMs);
+        vfprintf(g_logFile, fmt, ap);
+        fputc('\n', g_logFile);
+        fflush(g_logFile);
+        va_end(ap);
+    }
+
+    if (!hasUsableStandardError())
+        return;
+
     va_start(ap, fmt);
     fprintf(stderr, "[%7lld ms] ", elapsedMs);
     vfprintf(stderr, fmt, ap);
     fputc('\n', stderr);
-    va_end(ap);
-
-    if (!g_logFile)
-        return;
-
-    va_start(ap, fmt);
-    fprintf(g_logFile, "[%7lld ms] ", elapsedMs);
-    vfprintf(g_logFile, fmt, ap);
-    fputc('\n', g_logFile);
-    fflush(g_logFile);
     va_end(ap);
 }
 
@@ -260,10 +278,6 @@ int main(int argc, char **argv)
         return 1;
 
     g_logFile = openAppLogFile(appRootPath);
-    setvbuf(stderr, nullptr, _IOLBF, 0);
-    if (g_logFile)
-        setvbuf(g_logFile, nullptr, _IOLBF, 0);
-
     logLine("%s starting", kAppId);
     logLine("startup: exec_to_main_ms=%lld static_init_ms=%.2f",
         static_cast<long long>(processStartupTiming.execToMainMs), processStartupTiming.staticInitializationMs);
