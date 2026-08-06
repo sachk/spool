@@ -143,6 +143,7 @@
     ],
     "windows": [
       "gpl=true",
+      "lua=luajit",
       "wasapi=enabled",
       "gl=enabled",
       "gl-win32=disabled",
@@ -163,6 +164,8 @@
   },
   "subprojects": {
     "windows": [
+      "luajit:default_library=static",
+      "luajit:luajit=false",
       "curl:default_library=static",
       "curl:tool=disabled",
       "curl:tests=disabled",
