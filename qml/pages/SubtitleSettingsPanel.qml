@@ -100,7 +100,11 @@ FocusScope {
         return expanded
     }
 
-    function rebuildRows(focusFirstAdvanced) {
+    // `followAdvanced` keeps the selection with the section as it toggles: on
+    // its first row when it opens, and back on the Advanced row itself when it
+    // closes, so a list that just lost rows cannot strand the selection at the
+    // top of the page.
+    function rebuildRows(followAdvanced) {
         const schema = Settings.settingsSchema
         const byKey = {}
         for (let index = 0; index < schema.length; ++index)
@@ -115,6 +119,7 @@ FocusScope {
             return available ? root.expandedSpec(spec) : null
         }
         const visibleRows = SettingsNavigation.sectionedRows(sections, resolve)
+        const advancedIndex = visibleRows.length
         visibleRows.push({
                              "section": false,
                              "spec": {
@@ -126,13 +131,15 @@ FocusScope {
                          })
         if (advancedExpanded) {
             const advancedRows = SettingsNavigation.sectionedRows(advancedSections, resolve)
-            if (focusFirstAdvanced) {
+            if (followAdvanced) {
                 const relativeIndex = SettingsNavigation.firstActionableRow(advancedRows, 0)
                 if (relativeIndex >= 0)
                     pendingFocusIndex = visibleRows.length + relativeIndex
             }
             for (let index = 0; index < advancedRows.length; ++index)
                 visibleRows.push(advancedRows[index])
+        } else if (followAdvanced) {
+            pendingFocusIndex = advancedIndex
         }
         rows = visibleRows
     }
@@ -221,9 +228,8 @@ FocusScope {
             return
         const spec = entry.spec
         if (spec.type === "submenu") {
-            const opening = !advancedExpanded
-            advancedExpanded = opening
-            rebuildRows(opening)
+            advancedExpanded = !advancedExpanded
+            rebuildRows(true)
         } else if (spec.type === "action") {
             beginReset()
         } else if (spec.type === "toggle") {
@@ -294,7 +300,7 @@ FocusScope {
         }
         if (advancedExpanded) {
             advancedExpanded = false
-            rebuildRows()
+            rebuildRows(true)
             return true
         }
         if (overVideo) {
