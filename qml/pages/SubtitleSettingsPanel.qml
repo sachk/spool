@@ -542,15 +542,28 @@ FocusScope {
     Component {
         id: actionComponent
         SettingRow {
+            id: actionRow
             property var spec
             property int rowIndex: -1
+            // The chevron says "this row unfolds in place" the way the select
+            // rows do, so the submenu needs no word for it.
+            readonly property bool isSubmenu: spec !== undefined && spec !== null && spec.type === "submenu"
             width: list.width
             focus: false
             focusPolicy: Qt.NoFocus
             rowFocus: list.activeFocus && list.currentIndex === rowIndex
             title: spec ? spec.title : ""
             description: spec ? spec.description : ""
-            valueText: spec && spec.type === "submenu" ? (root.advancedExpanded ? "Hide" : "Open") : "Reset"
+            valueText: isSubmenu ? "" : "Reset"
+            valueTextVisible: !isSubmenu
+            trailing: [
+                MaterialIcon {
+                    visible: actionRow.isSubmenu
+                    name: root.advancedExpanded ? "expand_less" : "expand_more"
+                    iconSize: Math.max(20, Metrics.iconSizePx)
+                    iconColor: Theme.textSecondary
+                }
+            ]
             onClicked: {
                 root.focusRow(rowIndex)
                 root.activateRow(rowIndex)
