@@ -141,20 +141,6 @@ namespace {
             ok &= setOption(handle, option.name.constData(), option.value.constData());
         return ok;
     }
-    bool applyProperties(mpv_handle *handle, const std::vector<MpvOption>& options)
-    {
-        bool ok = true;
-        for (const MpvOption& option : options) {
-            const int error = mpv_set_property_string(handle, option.name.constData(), option.value.constData());
-            if (error >= 0 || error == MPV_ERROR_OPTION_NOT_FOUND)
-                continue;
-            qWarning() << "player: failed to set mpv property" << option.name << "=" << option.value
-                       << mpv_error_string(error);
-            ok = false;
-        }
-        return ok;
-    }
-
     bool setMpvProperty(mpv_handle *handle, const char *name, const char *value)
     {
         const int error = mpv_set_property_string(handle, name, value);
@@ -391,18 +377,19 @@ bool PlayerController::configureAndInitializeMpv(mpv_handle *handle, bool embedd
     qInfo().nospace() << "player: curl profile source=MpvOptionProfile platform="
                       << platformPlaybackBackendName(embeddedVideo) << " requestsPerStream=" << network.parallelRequests
                       << " rangeBytes=" << network.rangeBytes << " ringBytes=" << network.ringBytes;
-    if (!applyOptions(handle, MpvOptionProfile::preInitializeOptions(m_mpvConfigPolicy)))
-        return false;
-    if (mpv_initialize(handle) < 0)
-        return false;
-
     auto applicationOptions = MpvOptionProfile::applicationOptions(platform, m_audioOutputMode, mpvLogPath(),
         m_demuxerMaxBytes, m_demuxerMaxBackBytes, parallelRequests, embeddedVideo, mpvShaderCachePath());
     const QByteArray subtitleFontsPath = bundledSubtitleFontsPath();
     if (!subtitleFontsPath.isEmpty())
         applicationOptions.push_back({ "sub-fonts-dir", subtitleFontsPath });
 
-    return applyProperties(handle, applicationOptions) && applyMpvRuntimeOptions(MpvOptionApplyMode::Runtime, handle);
+    if (!applyOptions(handle, MpvOptionProfile::preInitializeOptions(m_mpvConfigPolicy))
+        || !applyOptions(handle, applicationOptions))
+        return false;
+    if (mpv_initialize(handle) < 0)
+        return false;
+
+    return applyMpvRuntimeOptions(MpvOptionApplyMode::Runtime, handle);
 }
 
 void PlayerController::observeMpvProperties(mpv_handle *handle)

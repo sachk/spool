@@ -82,4 +82,18 @@ if ($LASTEXITCODE -ne 0) { throw 'FFmpeg dependency closure audit failed.' }
 
 & (Join-Path $PSScriptRoot 'test-runtime-closure.ps1') -StageDirectory $stageDir
 
+$env:JELLYFIN_NATIVE_CACHE_HOME = Join-Path $env:TEMP "spool-stage-smoke-$PID\cache"
+$env:JELLYFIN_DIAGNOSTICS_DIR = Join-Path $env:TEMP "spool-stage-smoke-$PID\diagnostics"
+$smokeProcess = Start-Process -FilePath (Join-Path $stageDir 'jellyfin-native.exe') `
+    -ArgumentList '--smoke-and-exit' -WorkingDirectory $stageDir -PassThru
+if (-not $smokeProcess.WaitForExit(30000)) {
+    Stop-Process -Id $smokeProcess.Id -Force
+    throw 'The staged Windows executable did not complete its startup smoke test within 30 seconds.'
+}
+$smokeProcess.Refresh()
+if ($smokeProcess.ExitCode -ne 0) {
+    throw "The staged Windows executable failed its startup smoke test with exit code $($smokeProcess.ExitCode)."
+}
+Write-Host 'Staged executable startup smoke test passed.'
+
 Write-Host "Staged Windows release: $stageDir"

@@ -50,7 +50,7 @@ try {
         if ($LASTEXITCODE -ne 0) { throw 'Failed to update the Meson WrapDB catalog.' }
     }
 
-    foreach ($wrap in @('curl', 'expat', 'freetype2', 'fribidi', 'harfbuzz', 'libpng', 'zlib', 'xxhash')) {
+    foreach ($wrap in @('curl', 'expat', 'freetype2', 'fribidi', 'harfbuzz', 'libpng', 'luajit', 'zlib', 'xxhash')) {
         if (-not (Test-Path (Join-Path $subprojects "$wrap.wrap"))) {
             meson wrap install $wrap
             if ($LASTEXITCODE -ne 0) { throw "Failed to install the Meson wrap: $wrap" }
@@ -146,11 +146,14 @@ clone-recursive = true
 
     # Meson 1.9 records a fallback's per-subproject core option during the
     # initial setup but may still instantiate that first fallback as shared.
-    # Reapply it after curl exists so libmpv has no extra project DLL.
-    meson configure $buildDirectory '-Dcurl:default_library=static'
-    if ($LASTEXITCODE -ne 0) { throw 'Configuring static libcurl failed.' }
+    # Reapply these after the fallbacks exist so libmpv has no extra project
+    # DLLs and installation does not expect import libraries for their tools.
+    meson configure $buildDirectory '-Dcurl:default_library=static' '-Dluajit:default_library=static'
+    if ($LASTEXITCODE -ne 0) { throw 'Configuring static Windows libmpv dependencies failed.' }
 
-    meson compile -C $buildDirectory
+    # Ninja's default process fan-out can exhaust Windows process creation
+    # resources while compiling the large static FFmpeg closure.
+    meson compile -C $buildDirectory --jobs 4
     if ($LASTEXITCODE -ne 0) { throw 'Building Windows libmpv failed.' }
     if (Test-Path -LiteralPath $prefix) {
         Remove-Item -LiteralPath $prefix -Recurse -Force
