@@ -420,9 +420,17 @@ jobs:
         if: ${{ inputs.release }}
         with:
           name: spool-for-jellyfin-webos-ipk
-          path: |
-            build/*.ipk
-            build/relink/*
+          path: build/*.ipk
+          retention-days: 1
+
+      # The relink material carries every object file and static archive the
+      # webOS build produced, so it dwarfs the IPK it accompanies. It ships as
+      # its own artifact to keep the IPK download the size of the IPK.
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.0
+        if: ${{ inputs.release }}
+        with:
+          name: spool-for-jellyfin-webos-relink
+          path: build/relink/*.tar.gz
           retention-days: 1
 
   windows-x64:

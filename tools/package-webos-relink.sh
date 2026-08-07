@@ -6,7 +6,7 @@ root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 # shellcheck source=tools/lib/build-common.sh
 source "$root/tools/lib/build-common.sh"
 version="$(read_project_version "$root")"
-archive="$output_dir/Spool-for-Jellyfin-$version-webOS-relink.tar.gz"
+archive="$output_dir/Spool-for-Jellyfin-$version-webOS-LGPL-relink.tar.gz"
 list="$(mktemp)"
 trap 'rm -f "$list"' EXIT
 mkdir -p "$output_dir"

@@ -69,13 +69,6 @@ jobs:
         with:
           path: release-assets
           merge-multiple: true
-      - name: Package LGPL relink material
-        run: |
-          if [[ -d release-assets/relink ]]; then
-            archive="Spool-for-Jellyfin-${GITHUB_REF_NAME#v}-webOS-LGPL-relink.tar.gz"
-            tar -czf "release-assets/$archive" -C release-assets relink
-            rm -rf release-assets/relink
-          fi
       - name: Install analysis prerequisites
         run: |
           sudo apt-get update
