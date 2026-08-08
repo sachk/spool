@@ -110,7 +110,7 @@ Item {
                 visible: SyncPlay.enabled
                 Layout.maximumWidth: Metrics.scaled(396)
                 text: "Playback drift  " + (SyncPlay.playbackDiffValid ? root.signedMs(SyncPlay.playbackDiffMs) : "—") + "  method "
-                      + SyncPlay.syncMethod + "  (Speed ≥60 ms; skip ≥750 ms)"
+                      + SyncPlay.syncMethod + "  (speed ≥60 ms; skip ≥3.0 s)"
                 elide: Text.ElideRight
             }
             SecondaryText {

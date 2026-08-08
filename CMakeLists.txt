@@ -578,6 +578,7 @@ if(BUILD_TESTING AND NOT CMAKE_CROSSCOMPILING)
         content-model-controller tests/app/ContentModelControllerTest.cpp
         sync-play-clock tests/app/SyncPlayClockTest.cpp
         sync-play-queue-handoff tests/app/SyncPlayQueueHandoffTest.cpp
+        sync-play-drift-policy tests/app/SyncPlayDriftPolicyTest.cpp
     )
     set(JELLYFIN_TESTS_cache
         database-manager tests/cache/DatabaseManagerTest.cpp

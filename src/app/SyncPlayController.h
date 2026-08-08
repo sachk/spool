@@ -44,6 +44,24 @@ private:
     bool m_queueUpdateObserved = false;
 };
 
+struct SyncCorrection {
+    enum class Method { None, Speed, Skip };
+
+    Method method = Method::None;
+    double speed = 1.0;
+    int durationMs = 0;
+};
+
+// Mirrors the strategy selection in jellyfin-web
+// src/plugins/syncPlay/core/PlaybackCore.js so both clients tolerate and
+// recover the same amount of drift.
+class SyncPlayDriftPolicy final {
+public:
+    // diffMs is the estimated server position minus the local position, so a
+    // positive value means this client is behind the group.
+    static SyncCorrection evaluate(double diffMs);
+};
+
 class SyncPlayController final : public QObject {
     Q_OBJECT
     Q_PROPERTY(QString currentGroupId READ currentGroupId NOTIFY groupChanged)

@@ -28,13 +28,21 @@ namespace {
     constexpr int kGreedyTimeSyncIntervalMs = 1'000;
     constexpr int kSteadyTimeSyncIntervalMs = 60'000;
     constexpr int kReconnectDelayMs = 3'000;
-    constexpr int kSpeedCorrectionMinDriftMs = 60;
-    constexpr int kSpeedCorrectionBaseDurationMs = 1'500;
-    constexpr int kSpeedCorrectionMinimumDurationMs = 1'000;
-    constexpr int kSpeedCorrectionMaximumDurationMs = 7'500;
-    constexpr double kSpeedCorrectionMaximumDelta = 0.10;
-    constexpr int kDriftCorrectionThresholdMs = 750;
-    constexpr int kDriftCorrectionCooldownMs = 5'000;
+    // Defaults from jellyfin-web src/plugins/syncPlay/core/PlaybackCore.js.
+    constexpr int kMinDelaySpeedToSyncMs = 60;
+    constexpr int kMaxDelaySpeedToSyncMs = 3'000;
+    constexpr int kMinDelaySkipToSyncMs = 400;
+    constexpr int kSpeedToSyncDurationMs = 1'000;
+    constexpr double kSpeedToSyncMinSpeed = 0.2;
+    constexpr int kSyncMethodThresholdMs = kMaxDelaySpeedToSyncMs;
+    // Web re-enables sync one half threshold after a correction or an unpause.
+    constexpr int kSyncCooldownMs = kSyncMethodThresholdMs / 2;
+    // Local addition: mpv decodes for real, so bound the rate we ask for and
+    // stretch the window to recover the same amount. Web's unbounded formula
+    // reaches ~3.5x on a 2.5 s drift.
+    constexpr double kSpeedToSyncMinRate = 0.5;
+    constexpr double kSpeedToSyncMaxRate = 2.0;
+    constexpr int kSpeedToSyncMaxDurationMs = kMaxDelaySpeedToSyncMs;
     constexpr int kInternalSeekBufferingSuppressionMs = 3'000;
     constexpr qint64 kTicksPerSecond = 10'000'000;
     constexpr qint64 kTicksPerMillisecond = 10'000;
@@ -63,6 +71,36 @@ namespace {
     }
 
 } // namespace
+
+SyncCorrection SyncPlayDriftPolicy::evaluate(double diffMs)
+{
+    const double absDiffMs = std::abs(diffMs);
+    if (absDiffMs < kMinDelaySpeedToSyncMs)
+        return {};
+
+    if (absDiffMs < kMaxDelaySpeedToSyncMs) {
+        // Web keeps the speed positive when the client is ahead by more than
+        // the correction window allows.
+        double speedToSyncTimeMs = kSpeedToSyncDurationMs;
+        if (diffMs <= -speedToSyncTimeMs * kSpeedToSyncMinSpeed)
+            speedToSyncTimeMs = absDiffMs / (1.0 - kSpeedToSyncMinSpeed);
+
+        const double requestedSpeed = 1.0 + diffMs / speedToSyncTimeMs;
+        const double speed = std::clamp(requestedSpeed, kSpeedToSyncMinRate, kSpeedToSyncMaxRate);
+        if (speed != requestedSpeed) {
+            // Recover the same distance at the bounded rate. Hitting the
+            // duration cap leaves a remainder for the next correction.
+            speedToSyncTimeMs
+                = std::min(absDiffMs / std::abs(speed - 1.0), static_cast<double>(kSpeedToSyncMaxDurationMs));
+        }
+        return { SyncCorrection::Method::Speed, speed, static_cast<int>(std::llround(speedToSyncTimeMs)) };
+    }
+
+    if (absDiffMs >= kMinDelaySkipToSyncMs)
+        return { SyncCorrection::Method::Skip, 1.0, 0 };
+
+    return {};
+}
 
 SyncPlayController::SyncPlayController(JellyfinApiFacade *api, PlayerController *player, PlayQueueController *playQueue,
     TlsTrustController *tlsTrust, QObject *parent)
@@ -696,11 +734,12 @@ void SyncPlayController::executeScheduledCommand()
         m_unpauseRequestPending = false;
         setWaitingForGroupPlayback(false);
         m_syncCorrectionAttempts = 0;
-        m_lastCorrectionAtMs = 0;
+        // Web re-enables sync half a threshold after an unpause so the drift a
+        // player accumulates while it spins up never triggers a correction.
+        m_lastCorrectionAtMs = QDateTime::currentMSecsSinceEpoch();
         setPlaybackDiff(0, false);
         setSyncMethod(QStringLiteral("None"));
-        const bool soloGroup = participantCount() == 1;
-        if (!soloGroup && positionDelta * 1'000.0 > kDriftCorrectionThresholdMs && !m_player->seeking()) {
+        if (positionDelta * 1'000.0 > kMinDelaySkipToSyncMs && !m_player->seeking()) {
             m_suppressSeekBufferingUntilMs = QDateTime::currentMSecsSinceEpoch() + kInternalSeekBufferingSuppressionMs;
             m_player->seek(targetSeconds);
         }
@@ -725,12 +764,6 @@ void SyncPlayController::executeScheduledCommand()
 
 void SyncPlayController::correctPlaybackDrift()
 {
-    if (participantCount() == 1) {
-        setPlaybackDiff(0, false);
-        if (m_speedCorrectionActive)
-            finishSpeedCorrection();
-        return;
-    }
     if (!enabled() || !m_player || !m_player->sessionActive() || m_scheduledCommand != QStringLiteral("Unpause")
         || m_scheduledServerTimeMs <= 0 || m_player->paused() || m_player->buffering() || m_player->seeking()) {
         setPlaybackDiff(0, false);
@@ -746,7 +779,9 @@ void SyncPlayController::correctPlaybackDrift()
     const qint64 signedDiffTicks = expectedTicks - actualTicks;
     const qint64 diffMs = std::abs(signedDiffTicks) / kTicksPerMillisecond;
     setPlaybackDiff(signedDiffTicks, true);
-    if (diffMs < kSpeedCorrectionMinDriftMs) {
+    const double signedDiffMs = static_cast<double>(signedDiffTicks) / kTicksPerMillisecond;
+    const SyncCorrection correction = SyncPlayDriftPolicy::evaluate(signedDiffMs);
+    if (correction.method == SyncCorrection::Method::None) {
         m_syncCorrectionAttempts = 0;
         if (!m_speedCorrectionActive)
             setSyncMethod(QStringLiteral("None"));
@@ -756,35 +791,25 @@ void SyncPlayController::correctPlaybackDrift()
     if (m_speedCorrectionActive) {
         // A large discontinuity should not wait for the gentle rate
         // correction to finish; restore 1x before the authoritative seek.
-        if (diffMs < kDriftCorrectionThresholdMs)
+        if (correction.method == SyncCorrection::Method::Speed)
             return;
         finishSpeedCorrection();
     }
 
     // Keep diagnostics live during correction cooldowns even though another
     // correction is intentionally suppressed.
-    if (nowMs - m_lastCorrectionAtMs < kDriftCorrectionCooldownMs)
+    if (nowMs - m_lastCorrectionAtMs < kSyncCooldownMs)
         return;
 
-    if (diffMs < kDriftCorrectionThresholdMs) {
-        const double requestedDelta
-            = static_cast<double>(signedDiffTicks) / kTicksPerMillisecond / kSpeedCorrectionBaseDurationMs;
-        const double speedDelta
-            = std::clamp(requestedDelta, -kSpeedCorrectionMaximumDelta, kSpeedCorrectionMaximumDelta);
-        const double speed = 1.0 + speedDelta;
-        const int durationMs = std::clamp(
-            static_cast<int>(std::llround(
-                std::abs(static_cast<double>(signedDiffTicks) / kTicksPerMillisecond) / std::abs(speedDelta))),
-            kSpeedCorrectionMinimumDurationMs, kSpeedCorrectionMaximumDurationMs);
-
+    if (correction.method == SyncCorrection::Method::Speed) {
         m_lastCorrectionAtMs = nowMs;
         ++m_syncCorrectionAttempts;
         m_speedCorrectionActive = true;
-        m_player->setSyncPlaybackSpeed(speed);
-        setSyncMethod(QStringLiteral("SpeedToSync (x%1)").arg(speed, 0, 'f', 3));
-        qInfo() << "syncplay: correcting playback drift by speed" << signedDiffTicks / kTicksPerMillisecond << "ms rate"
-                << speed << "durationMs" << durationMs;
-        m_speedCorrectionTimer.start(durationMs);
+        m_player->setSyncPlaybackSpeed(correction.speed);
+        setSyncMethod(QStringLiteral("SpeedToSync (x%1)").arg(correction.speed, 0, 'f', 2));
+        qInfo() << "syncplay: correcting playback drift by speed" << signedDiffMs << "ms rate" << correction.speed
+                << "durationMs" << correction.durationMs;
+        m_speedCorrectionTimer.start(correction.durationMs);
         return;
     }
 
