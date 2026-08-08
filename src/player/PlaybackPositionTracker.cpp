@@ -15,13 +15,14 @@ namespace {
 
 } // namespace
 
-void PlaybackPositionTracker::reset()
+void PlaybackPositionTracker::reset(double startSeconds)
 {
-    m_positionSeconds = 0.0;
+    const double start = std::isfinite(startSeconds) ? qMax(0.0, startSeconds) : 0.0;
+    m_positionSeconds = start;
     m_durationSeconds = 0.0;
     m_requestedSeekTargetSeconds = -1.0;
     m_requestedSeekStartSeconds = -1.0;
-    m_lastTrustedPositionSeconds = 0.0;
+    m_lastTrustedPositionSeconds = start;
     m_hasMpvPosition = false;
     m_seekCommandClock.invalidate();
     m_positionRegressionAllowedClock.invalidate();

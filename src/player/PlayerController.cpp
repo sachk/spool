@@ -896,7 +896,12 @@ void PlayerController::play(const PlaybackSession& session, bool startPaused)
     m_errorText.clear();
     const double startSeconds
         = session.startTimeTicks > 0 ? static_cast<double>(session.startTimeTicks) / 10000000.0 : 0.0;
-    m_positionTracker.reset();
+    // Seed the position and runtime from the session so a restart, such as a
+    // quality change, never shows a seek bar snapped to zero on its way back
+    // to where the viewer was.
+    m_positionTracker.reset(startSeconds);
+    if (session.runtimeTicks > 0)
+        m_positionTracker.setDuration(static_cast<double>(session.runtimeTicks) / 10000000.0);
     m_paused = startPaused;
     m_fileLoaded = false;
     m_seekDispatchReady = false;

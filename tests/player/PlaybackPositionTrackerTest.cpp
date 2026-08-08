@@ -67,5 +67,16 @@ JELLYFIN_TEST_MAIN("playback-position-tracker")
     tracker.clear();
     require(near(tracker.position(), 0.0), "clear did not reset position");
     require(near(tracker.duration(), 0.0), "clear did not reset duration");
+
+    // A restart resumes where the viewer was, so the seeded position stands in
+    // until mpv reports one of its own.
+    tracker.reset(344.5);
+    require(near(tracker.position(), 344.5), "reset did not seed the resume position");
+    tracker.setDuration(600.0);
+    require(near(tracker.position(), 344.5), "a later duration moved the seeded position");
+    tracker.update(345.0);
+    require(near(tracker.position(), 345.0), "the first mpv sample after a seeded reset was rejected");
+    tracker.reset(-5.0);
+    require(near(tracker.position(), 0.0), "a negative seed was not clamped away");
     return EXIT_SUCCESS;
 }

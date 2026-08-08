@@ -6,7 +6,9 @@ namespace JellyfinNative {
 
 class PlaybackPositionTracker final {
 public:
-    void reset();
+    // Seeded with where playback is about to resume from, so a restart shows
+    // the position it is starting at rather than zero until mpv reports in.
+    void reset(double startSeconds = 0.0);
     void clear();
 
     double position() const;
