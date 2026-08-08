@@ -29,11 +29,13 @@ int main(int argc, char **argv)
     monitor.setAudioDecodeCpuTimeProvider(
         [&fakeAudioDecodeTimeNs] { return fakeAudioDecodeTimeNs.fetch_add(1'000'000) + 1'000'000; });
 
+#ifdef Q_OS_LINUX
+    // Counters only become meaningful once a second sampling tick has landed.
+    // Platforms without counters have nothing to wait for, so they skip it.
     QEventLoop waitForSecondSample;
     QTimer::singleShot(1100, &waitForSecondSample, &QEventLoop::quit);
     waitForSecondSample.exec();
 
-#ifdef Q_OS_LINUX
     require(monitor.available(), "Linux performance counters should be available");
     require(monitor.threadBreakdownAvailable(), "Linux thread counters should be available");
     if (QFileInfo::exists(QStringLiteral("/proc/self/task/%1/schedstat").arg(QCoreApplication::applicationPid())))
@@ -48,6 +50,10 @@ int main(int argc, char **argv)
     require(monitor.systemUsedBytes() > 0, "used memory should be populated");
 #else
     require(!monitor.available(), "unsupported platforms should report unavailable counters");
+    require(!monitor.threadBreakdownAvailable() && !monitor.preciseThreadCpuAvailable(),
+        "unsupported platforms must not advertise thread counters either");
+    require(monitor.processCpuPercent() == 0.0 && monitor.processRssBytes() == 0 && monitor.systemTotalBytes() == 0,
+        "unsupported platforms must report zeroed counters rather than stale or invented readings");
 #endif
     return 0;
 }
