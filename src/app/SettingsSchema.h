@@ -29,7 +29,6 @@ enum class SettingPlatform {
 
 enum class SettingTarget {
     External,
-    UiDetailLevel,
     NightMode,
     ToneMappingVisualization,
     ManualStreamingBitrate,

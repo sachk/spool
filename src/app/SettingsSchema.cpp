@@ -10,8 +10,6 @@
 namespace JellyfinNative {
 namespace {
 
-    constexpr SettingChoice kUiDetailLevelChoices[]
-        = { { "Essential", "Essential" }, { "More", "Advanced" }, { "All", "Expert" } };
     constexpr SettingChoice kAccentChoices[] = { { "0", "Blue" }, { "1", "Purple" }, { "2", "Indigo" } };
     constexpr SettingChoice kRailLabelChoices[]
         = { { "Never", "Never" }, { "On focus", "On focus" }, { "Always", "Always" } };
@@ -230,10 +228,25 @@ const QVector<SettingSpec>& settingSpecs()
 {
     const PlatformAudioOutputPolicy& audioOutput = platformAudioOutputPolicy();
     static const QVector<SettingSpec> specs {
-        // Drawn as the strip above the list rather than as a row of its own.
-        selectSpec("settings/detailLevel", "General", "Settings shown", "How many controls this page offers",
-            "Essential", kUiDetailLevelChoices, SettingTarget::UiDetailLevel),
 
+        sliderSpec("appearance/uiScalePercent", "Appearance", "Interface scale", "", "100", 80, 180, 5, "%",
+            SettingTarget::UiScale),
+        selectSpec("appearance/libraryView", "Appearance", "Library layout", "", "Posters", kLibraryViewChoices,
+            SettingTarget::LibraryView),
+        pageSpec("theme/accent", "Appearance", "Accent colour", "", SettingType::Select, kAccentChoices),
+        pageSpec("theme/reducedMotion", "Appearance", "Reduced motion", "Turns off focus and page animation",
+            SettingType::Toggle),
+        pageSpec(
+            "i18n/locale", "Appearance", "Language", "Some text only changes after a restart", SettingType::Select),
+        pageSpec("theme/technicalMetadata", "Appearance", "Technical details", "Codec, resolution, and audio format",
+            SettingType::Select, kTechnicalMetadataChoices)
+            .advanced(),
+        pageSpec("theme/railLabels", "Appearance", "Navigation labels", "", SettingType::Select, kRailLabelChoices)
+            .advanced(),
+        pageSpec("theme/antialiasedText", "Appearance", "Smooth text", "", SettingType::Toggle).advanced(),
+        pageSpec("theme/renderMode", "Appearance", "Text rendering", "Curve stays sharp at any scale",
+            SettingType::Select, kTextRenderModeChoices)
+            .advanced(),
         selectSpec("audio/trackMode", "Playback", "Audio track", "Which track plays when a video starts", "Default",
             kAudioTrackModeChoices, SettingTarget::AudioTrackMode),
         toggleSpec("playback/rememberSeriesAudioTrack", "Playback", "Remember audio track per series",
@@ -373,25 +386,6 @@ const QVector<SettingSpec>& settingSpecs()
             .advanced()
             .duringHdrPlayback(),
         pageSpec("action/resetSubtitleAppearance", "Subtitle Appearance", "Reset appearance", "", SettingType::Action)
-            .advanced(),
-
-        sliderSpec("appearance/uiScalePercent", "Appearance", "Interface scale", "", "100", 80, 180, 5, "%",
-            SettingTarget::UiScale),
-        selectSpec("appearance/libraryView", "Appearance", "Library layout", "", "Posters", kLibraryViewChoices,
-            SettingTarget::LibraryView),
-        pageSpec("theme/accent", "Appearance", "Accent colour", "", SettingType::Select, kAccentChoices),
-        pageSpec("theme/reducedMotion", "Appearance", "Reduced motion", "Turns off focus and page animation",
-            SettingType::Toggle),
-        pageSpec(
-            "i18n/locale", "Appearance", "Language", "Some text only changes after a restart", SettingType::Select),
-        pageSpec("theme/technicalMetadata", "Appearance", "Technical details", "Codec, resolution, and audio format",
-            SettingType::Select, kTechnicalMetadataChoices)
-            .advanced(),
-        pageSpec("theme/railLabels", "Appearance", "Navigation labels", "", SettingType::Select, kRailLabelChoices)
-            .advanced(),
-        pageSpec("theme/antialiasedText", "Appearance", "Smooth text", "", SettingType::Toggle).advanced(),
-        pageSpec("theme/renderMode", "Appearance", "Text rendering", "Curve stays sharp at any scale",
-            SettingType::Select, kTextRenderModeChoices)
             .advanced(),
 
         selectSpec(

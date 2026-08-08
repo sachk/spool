@@ -5,14 +5,16 @@ import "../theme"
 SettingRow {
     id: root
     property bool checked: false
+    property bool animateChange: false
     signal toggled(bool checked)
 
     // The switch itself says on or off; the word next to it only repeats it.
     valueTextVisible: false
 
     function toggle() {
-        checked = !checked
-        toggled(checked)
+        animateChange = true
+        animationReset.restart()
+        toggled(!checked)
     }
 
     onClicked: toggle()
@@ -41,7 +43,7 @@ SettingRow {
                 antialiasing: true
 
                 Behavior on x {
-                    enabled: !Theme.reducedMotion
+                    enabled: root.animateChange && !Theme.reducedMotion
                     NumberAnimation {
                         duration: 120
                         easing.type: Easing.OutCubic
@@ -50,4 +52,10 @@ SettingRow {
             }
         }
     ]
+
+    Timer {
+        id: animationReset
+        interval: 180
+        onTriggered: root.animateChange = false
+    }
 }

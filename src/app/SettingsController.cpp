@@ -430,8 +430,6 @@ void SettingsController::applySchemaValue(const SettingSpec& spec, const QVarian
     switch (spec.target) {
     case SettingTarget::External:
         break;
-    case SettingTarget::UiDetailLevel:
-        break;
     case SettingTarget::NightMode:
         m_nightModeEnabled = value.toBool();
         if (apply && m_player)
@@ -659,8 +657,6 @@ void SettingsController::emitSchemaSignals(const SettingSpec& spec)
 {
     switch (spec.target) {
     case SettingTarget::External:
-        break;
-    case SettingTarget::UiDetailLevel:
         break;
     case SettingTarget::NightMode:
         emit nightModeChanged();

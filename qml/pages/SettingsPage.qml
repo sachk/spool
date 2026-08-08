@@ -14,7 +14,7 @@ FocusScope {
     property var rowsByKey: ({})
     property var allSettingsRows: []
     property var settingsRows: []
-    property int detailLevelRevision: 0
+    property var expandedGroups: ({})
     property bool choiceDialogVisible: false
     property var choiceDialogRow: null
     property Item choiceDialogAnchor: null
@@ -26,17 +26,6 @@ FocusScope {
     property string diagnosticsExportPreview: ""
     property bool pendingCustomMpvMode: false
 
-    // The detail strip above the list stands in for this row.
-    readonly property string detailKey: "settings/detailLevel"
-    readonly property var detailRow: {
-        const schema = Settings.settingsSchema
-        for (let index = 0; index < schema.length; ++index) {
-            if (schema[index].key === detailKey)
-            return schema[index]
-        }
-        return null
-    }
-
     function rowAvailable(row) {
         return SettingsNavigation.rowAvailable(row, Platform.isTV, Player.hdrPlayback, function (key) {
             return settingsValue({
@@ -46,48 +35,69 @@ FocusScope {
         })
     }
 
-    function currentDetailLevel() {
-        const values = detailRow ? detailRow.choiceValues : []
-        return Math.max(0, valueIndex(values, String(Settings.values[detailKey] || "")))
+    function disclosureKey(group) {
+        return "action/toggleAdvanced/" + group
     }
 
-    function rowDetailLevel(row) {
-        return SettingsNavigation.detailLevel(row)
+    function groupExpanded(group) {
+        return Boolean(expandedGroups[group])
     }
 
-    function appendSourceRows(rows, rowMap, targetRows) {
-        const lastGroups = ["", "", ""]
-        for (let index = 0; index < rows.length; ++index) {
-            const row = rows[index]
-            const level = rowDetailLevel(row)
-            rowMap[row.key] = row
-            const headers = [false, false, false]
-            for (let detail = 0; detail < 3; ++detail) {
-                if (level > detail || !rowAvailable(row))
-                    continue
-                headers[detail] = lastGroups[detail] !== row.group
-                lastGroups[detail] = row.group
-            }
-            targetRows.push({
-                                "rowKey": row.key,
-                                "detailLevel": level,
-                                "headerEssential": headers[0],
-                                "headerAdvanced": headers[1],
-                                "headerExpert": headers[2]
-                            })
+    function appendVisibleGroup(target, group, entries) {
+        const essential = []
+        const additional = []
+        for (let index = 0; index < entries.length; ++index) {
+            const entry = entries[index]
+            const row = rowsByKey[entry.rowKey]
+            if (!rowAvailable(row))
+                continue
+            if (entry.detailLevel === 0)
+                essential.push(entry)
+            else
+                additional.push(entry)
         }
+        if (essential.length === 0 && additional.length === 0)
+            return
+        let first = true
+        for (let index = 0; index < essential.length; ++index) {
+            const entry = essential[index]
+            target.push({
+                            "rowKey": entry.rowKey,
+                            "showHeader": first
+                        })
+            first = false
+        }
+        if (additional.length === 0)
+            return
+        const key = disclosureKey(group)
+        target.push({
+                        "rowKey": key,
+                        "showHeader": first
+                    })
+        if (!groupExpanded(group))
+            return
+        for (let index = 0; index < additional.length; ++index)
+            target.push({
+                            "rowKey": additional[index].rowKey,
+                            "showHeader": false
+                        })
     }
 
     function rebuildVisibleRows() {
         const visibleRows = []
+        let group = ""
+        let groupEntries = []
         for (let index = 0; index < allSettingsRows.length; ++index) {
             const entry = allSettingsRows[index]
-            const row = rowsByKey[entry.rowKey]
-            if (!rowAvailable(row))
-                continue
-            if (entry.detailLevel <= currentDetailLevel())
-                visibleRows.push(entry)
+            if (group.length > 0 && entry.group !== group) {
+                appendVisibleGroup(visibleRows, group, groupEntries)
+                groupEntries = []
+            }
+            group = entry.group
+            groupEntries.push(entry)
         }
+        if (group.length > 0)
+            appendVisibleGroup(visibleRows, group, groupEntries)
         settingsRows = visibleRows
         contentReady = visibleRows.length === 0
     }
@@ -97,29 +107,45 @@ FocusScope {
     // changes are actually visible.
     function buildSettingsRowsSource() {
         const schema = Settings.settingsSchema
-        const mainRows = []
         const rowMap = {}
         const sourceRows = []
-
         for (let index = 0; index < schema.length; ++index) {
             const row = schema[index]
-            if (row.key !== root.detailKey && row.group !== "Subtitle Appearance")
-                mainRows.push(row)
+            if (row.group === "Subtitle Appearance")
+                continue
+            rowMap[row.key] = row
+            sourceRows.push({
+                                "rowKey": row.key,
+                                "detailLevel": SettingsNavigation.detailLevel(row),
+                                "group": row.group
+                            })
+            const key = disclosureKey(row.group)
+            if (!rowMap[key]) {
+                rowMap[key] = {
+                    "key": key,
+                    "group": row.group,
+                    "title": "Advanced",
+                    "description": "",
+                    "type": "submenu"
+                }
+            }
         }
-
-        appendSourceRows(mainRows, rowMap, sourceRows)
         rowsByKey = rowMap
         allSettingsRows = sourceRows
         rebuildVisibleRows()
     }
 
     function refreshSettingsFilter(resetSelection) {
+        const selectedKey = currentRow() ? currentRow().key : ""
         rebuildVisibleRows()
-        if (resetSelection)
-            currentIndex = 0
         Qt.callLater(function () {
+            let next = resetSelection ? 0 : settingsRows.findIndex(function (entry) {
+                return entry.rowKey === selectedKey
+            })
+            if (next < 0)
+                next = Math.min(currentIndex, settingsList.count - 1)
             if (settingsList.count > 0)
-                selectRow(Math.min(currentIndex, settingsList.count - 1), false)
+                selectRow(Math.max(0, next), false)
         })
     }
 
@@ -144,7 +170,8 @@ FocusScope {
     }
 
     function focusEntry() {
-        InputKeys.focus(detailSelector)
+        if (settingsList.count > 0)
+            selectRow(Math.max(0, Math.min(currentIndex, settingsList.count - 1)), true)
     }
 
     function rowControlAt(index) {
@@ -321,10 +348,29 @@ FocusScope {
         setRowValue(row, values[index], index)
     }
 
+    function toggleAdvancedGroup(group, index) {
+        const next = Object.assign({}, expandedGroups)
+        next[group] = !Boolean(next[group])
+        expandedGroups = next
+        rebuildVisibleRows()
+        const key = disclosureKey(group)
+        Qt.callLater(function () {
+            const disclosureIndex = settingsRows.findIndex(function (entry) {
+                return entry.rowKey === key
+            })
+            if (disclosureIndex >= 0)
+                selectRow(disclosureIndex, true)
+        })
+    }
+
     function activateRow(row, index) {
         if (!row)
             return
         currentIndex = index
+        if (row.type === "submenu") {
+            toggleAdvancedGroup(row.group, index)
+            return
+        }
         if (row.type === "action") {
             if (row.key === "action/switchUser" && shell)
                 shell.switchUser()
@@ -411,6 +457,18 @@ FocusScope {
             closeChoiceDialog()
             return true
         }
+        const selected = currentRow()
+        if (selected && groupExpanded(selected.group)) {
+            toggleAdvancedGroup(selected.group, currentIndex)
+            return true
+        }
+        const groups = Object.keys(expandedGroups)
+        for (let index = 0; index < groups.length; ++index) {
+            if (groupExpanded(groups[index])) {
+                toggleAdvancedGroup(groups[index], currentIndex)
+                return true
+            }
+        }
         return false
     }
 
@@ -421,27 +479,14 @@ FocusScope {
             return choiceDialog.routeKey(key, phase, repeat)
         if (phase === "release" && InputKeys.isDirection(key))
             return true
-        if (detailSelector.activeFocus) {
-            if (InputKeys.isHorizontal(key))
-                return detailSelector.move(key === Qt.Key_Right ? 1 : -1)
-            if (key === Qt.Key_Down) {
-                selectRow(0, true)
-                return true
-            }
-            if (key === Qt.Key_Up) {
-                if (shell)
-                    shell.focusNavBar()
-                return true
-            }
-            return InputKeys.isAccept(key)
-        }
         const row = currentRow()
         if (InputKeys.isHorizontal(key) && adjustRow(row, key === Qt.Key_Right ? 1 : -1))
             return true
         if (InputKeys.isVertical(key) && !settingsList.activeFocus)
             InputKeys.focus(settingsList)
         if (key === Qt.Key_Up && settingsList.currentIndex <= 0) {
-            InputKeys.focus(detailSelector)
+            if (shell)
+                shell.focusNavBar()
             return true
         }
         return settingsList.routeKey(key, phase, repeat)
@@ -454,7 +499,7 @@ FocusScope {
         }
         if (choiceDialogVisible)
             choiceDialog.activate()
-        else if (!detailSelector.activeFocus)
+        else
             activateRow(currentRow(), settingsList.currentIndex)
     }
 
@@ -489,9 +534,7 @@ FocusScope {
         target: Settings
 
         function onSettingChanged(key) {
-            if (key === "settings/detailLevel")
-                ++root.detailLevelRevision
-            root.refreshSettingsFilter(key === "settings/detailLevel")
+            root.refreshSettingsFilter(false)
         }
     }
     Connections {
@@ -501,35 +544,14 @@ FocusScope {
         }
     }
 
-    ChoiceStrip {
-        id: detailSelector
-        width: settingsList.width
-        anchors.top: parent.top
-        anchors.right: parent.right
-        anchors.topMargin: Metrics.pageMarginPx
-        anchors.rightMargin: Metrics.pageMarginPx
-        title: root.detailRow ? root.detailRow.title : ""
-        description: root.detailRow ? root.detailRow.description : ""
-        options: root.detailRow ? root.detailRow.choiceLabels : []
-        currentIndex: {
-            root.detailLevelRevision
-            return root.currentDetailLevel()
-        }
-        onSelected: index => {
-            const values = root.detailRow ? root.detailRow.choiceValues : []
-            if (index >= 0 && index < values.length)
-                Settings.setValue(root.detailKey, values[index])
-        }
-    }
-
     MenuListView {
         id: settingsList
         readonly property real pageInset: Metrics.pageMarginPx
         width: Math.max(0, parent.width - pageInset * 2)
-        anchors.top: detailSelector.bottom
+        anchors.top: parent.top
         anchors.bottom: parent.bottom
         anchors.right: parent.right
-        anchors.topMargin: Metrics.scaled(10)
+        anchors.topMargin: pageInset
         anchors.rightMargin: pageInset
         anchors.bottomMargin: pageInset
         bottomMargin: root.choiceDialogVisible && root.choiceDialog ? root.choiceDialog.panelHeight + Metrics.scaled(16) :
@@ -550,13 +572,8 @@ FocusScope {
             required property int index
             required property var modelData
             readonly property string rowKey: modelData.rowKey
-            readonly property bool headerEssential: modelData.headerEssential
-            readonly property bool headerAdvanced: modelData.headerAdvanced
-            readonly property bool headerExpert: modelData.headerExpert
             readonly property var rowData: root.rowsByKey[rowKey]
-            readonly property bool showHeader: root.currentDetailLevel() === 0 ? headerEssential :
-                                                                                 root.currentDetailLevel() === 1
-                                                                                 ? headerAdvanced : headerExpert
+            readonly property bool showHeader: Boolean(modelData.showHeader)
             width: settingsList.width
             Component.onCompleted: {
                 InputLatency.noteDelegate("settings_row", 1)
@@ -592,8 +609,10 @@ FocusScope {
     Component {
         id: settingComponent
         SettingRow {
+            id: settingRow
             property var row
             property int rowIndex: -1
+            readonly property bool isSubmenu: row && row.type === "submenu"
             width: settingsList.width
             focus: false
             focusPolicy: Qt.NoFocus
@@ -601,7 +620,16 @@ FocusScope {
             title: row ? row.title : ""
             description: row ? root.rowDescription(row) : ""
             valueText: row ? root.rowValueText(row) : ""
-            pointerActivationEnabled: row && row.type === "action"
+            valueTextVisible: !isSubmenu
+            pointerActivationEnabled: row && (row.type === "action" || isSubmenu)
+            trailing: [
+                MaterialIcon {
+                    visible: settingRow.isSubmenu
+                    name: root.groupExpanded(settingRow.row ? settingRow.row.group : "") ? "expand_less" : "expand_more"
+                    iconSize: Math.max(20, Metrics.iconSizePx)
+                    iconColor: Theme.textSecondary
+                }
+            ]
             onClicked: {
                 root.selectRow(rowIndex, true)
                 root.activateRow(row, rowIndex)
