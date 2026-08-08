@@ -118,7 +118,10 @@ bool hasUsableStandardError()
     // launched without inherited standard handles. Writing to such a stream
     // invokes the UCRT invalid-parameter handler and terminates the process.
     const int descriptor = _fileno(stderr);
-    return descriptor >= 0 && _get_osfhandle(descriptor) != -1;
+    if (descriptor < 0)
+        return false;
+    const auto handle = _get_osfhandle(descriptor);
+    return handle != -1 && handle != -2;
 #else
     return true;
 #endif
@@ -347,7 +350,7 @@ int main(int argc, char **argv)
     JellyfinNative::Diagnostics::EventLoopWatchdog eventLoopWatchdog(&app);
 
     const QStringList arguments = app.arguments();
-    const bool smokeAndExit = arguments.contains(QStringLiteral("--smoke-and-exit"));
+    const bool launchTest = arguments.contains(QStringLiteral("--launch-test"));
     if (arguments.contains(QStringLiteral("--diagnose-and-exit"))
         || arguments.contains(QStringLiteral("--dump-diagnostics"))) {
         JellyfinNative::Diagnostics::dumpDiagnostics(QStringLiteral("command-line"));
@@ -605,12 +608,21 @@ int main(int argc, char **argv)
     }
     logLine("startup: QML source loaded in %lld ms", static_cast<long long>(startupTimer.elapsed()));
 
-    if (smokeAndExit) {
-        logLine("startup smoke completed without showing window");
-        JellyfinNative::Diagnostics::setInstanceState(QStringLiteral("startup_smoke_complete"));
-        window.setSource(QUrl());
-        JellyfinNative::Diagnostics::shutdown();
-        return 0;
+    if (launchTest) {
+        QObject::connect(
+            &window, &QQuickWindow::frameSwapped, &app,
+            [&app, &window] {
+                logLine("launch test: application UI rendered");
+                JellyfinNative::Diagnostics::setInstanceState(QStringLiteral("launch_test_rendered"));
+                window.setSource(QUrl());
+                app.exit(0);
+            },
+            directSingleShot);
+        QTimer::singleShot(30'000, &app, [&app] {
+            logLine("launch test: application UI did not render within 30 seconds");
+            app.exit(1);
+        });
+        window.requestUpdate();
     }
 
     QTimer::singleShot(1000, router.get(), [router = router.get()] { router->beginSession(false); });

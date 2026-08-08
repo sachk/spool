@@ -7,7 +7,7 @@ usage() {
   cat <<EOF
 usage: $(basename "$0") [path-to-jellyfin-native-or-app-bundle]
 
-Runs the native app startup smoke test in an isolated headless environment.
+Runs the native app launch test in an isolated environment and requires a rendered frame.
 EOF
 }
 
@@ -81,7 +81,7 @@ qt_version_subdirs_from_roots() {
 }
 
 configure_isolated_qt_paths() {
-  [[ "${JELLYFIN_SMOKE_INHERIT_QT_PATHS:-0}" != "1" ]] || return 0
+  [[ "${JELLYFIN_LAUNCH_TEST_INHERIT_QT_PATHS:-0}" != "1" ]] || return 0
   command -v qtpaths6 >/dev/null 2>&1 || return 0
 
   local qt_version qt_plugins qt_qml
@@ -118,7 +118,7 @@ export XDG_CONFIG_HOME="$work/config"
 export XDG_DATA_HOME="$work/data"
 export XDG_RUNTIME_DIR="$work/runtime"
 export JELLYFIN_DIAGNOSTICS_DIR="$work/diagnostics"
-export QT_QPA_PLATFORM="${JELLYFIN_SMOKE_QPA_PLATFORM:-offscreen}"
+export QT_QPA_PLATFORM="${JELLYFIN_LAUNCH_TEST_QPA_PLATFORM:-offscreen}"
 export QT_QUICK_BACKEND="${QT_QUICK_BACKEND:-software}"
 export QSG_RHI_BACKEND="${QSG_RHI_BACKEND:-opengl}"
 if [[ "$bundled_app" == "1" ]]; then
@@ -129,4 +129,4 @@ else
 fi
 export LC_NUMERIC=C
 
-"$candidate" --smoke-and-exit
+"$candidate" --launch-test

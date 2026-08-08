@@ -162,8 +162,8 @@ jobs:
       - name: Lint compiled QML
         run: nix develop .#native -c cmake --build build/linux-release/app --target jellyfin-native_qmllint_strict
 
-      - name: Smoke-test host app startup
-        run: nix develop .#native -c bash tools/smoke-native-app.sh build/linux-release/install/bin/jellyfin-native
+      - name: Launch-test host app UI
+        run: nix develop .#native -c bash tools/launch-native-app.sh build/linux-release/install/bin/jellyfin-native
 
       - name: Package AppImage
         run: nix develop .#native -c bash tools/package-appimage.sh
@@ -232,10 +232,10 @@ jobs:
       - name: Lint compiled QML
         run: nix develop .#native --no-write-lock-file -c cmake --build build/macos/app --target jellyfin-native_qmllint_strict
 
-      - name: Smoke-test macOS app startup
+      - name: Launch-test macOS app UI
         env:
-          JELLYFIN_SMOKE_QPA_PLATFORM: cocoa
-        run: nix develop .#native --no-write-lock-file -c bash tools/smoke-native-app.sh build/macos/install/jellyfin-native.app
+          JELLYFIN_LAUNCH_TEST_QPA_PLATFORM: cocoa
+        run: nix develop .#native --no-write-lock-file -c bash tools/launch-native-app.sh build/macos/install/jellyfin-native.app
 
       - name: Sign macOS application
         if: ${{ inputs.enable_macos_signing }}
@@ -538,7 +538,7 @@ jobs:
         shell: pwsh
         run: tools\windows\test.ps1
 
-      - name: Stage release payload
+      - name: Stage and launch-test release payload
         shell: pwsh
         run: tools\windows\stage.ps1
 
