@@ -32,6 +32,63 @@ JELLYFIN_TEST_MAIN("playback-bandwidth-policy")
         "local unlimited mode should override both manual and measured rates");
     require(PlaybackBandwidthPolicy::effectiveBitrate(0, true, true, false, 40'000'000) == 40'000'000,
         "local unlimited mode should not affect remote connections");
+
+    using Source = PlaybackBandwidthPolicy::Source;
+    require(PlaybackBandwidthPolicy::effectiveBitrate(0, false, true, true, 0)
+            == PlaybackBandwidthPolicy::LocalNetworkFallbackBitrate,
+        "an unmeasured local network must not be assumed to be gigabit ethernet");
+    require(PlaybackBandwidthPolicy::LocalNetworkFallbackBitrate < PlaybackBandwidthPolicy::MaximumBitrate,
+        "the unmeasured local ceiling has to leave room for a slow wireless link");
+    require(PlaybackBandwidthPolicy::effectiveBitrate(0, false, true, true, 300'000'000) == 300'000'000,
+        "a measurement should replace the local estimate in both directions");
+    require(PlaybackBandwidthPolicy::effectiveBitrate(0, false, true, true, 6'000'000) == 6'000'000,
+        "a slow measured local link must not be raised back up to the estimate");
+    require(PlaybackBandwidthPolicy::effectiveBitrateSource(0, false, true, true, 0) == Source::LocalEstimate
+            && PlaybackBandwidthPolicy::isEstimate(Source::LocalEstimate),
+        "an unmeasured local ceiling should report itself as an estimate");
+    require(PlaybackBandwidthPolicy::effectiveBitrateSource(0, false, false, false, 0) == Source::Estimate
+            && PlaybackBandwidthPolicy::isEstimate(Source::Estimate),
+        "playback that starts before any measurement should report an estimate");
+    require(PlaybackBandwidthPolicy::effectiveBitrateSource(0, false, true, true, 300'000'000) == Source::Measured
+            && !PlaybackBandwidthPolicy::isEstimate(Source::Measured),
+        "a measured ceiling should not be presented as a guess");
+    require(
+        PlaybackBandwidthPolicy::effectiveBitrateSource(80'000'000, false, true, true, 40'000'000) == Source::Manual,
+        "an explicit limit should be reported as the user's own choice");
+    require(PlaybackBandwidthPolicy::effectiveBitrateSource(80'000'000, true, true, true, 0) == Source::UnlimitedLocal,
+        "the local opt-out should be reported ahead of a manual limit");
+
+    const QString home = PlaybackBandwidthPolicy::networkSignature(
+        QStringLiteral("media.example:8096"), { QStringLiteral("192.168.1.44") }, QStringLiteral("wifi"));
+    require(home
+            == PlaybackBandwidthPolicy::networkSignature(QStringLiteral("media.example:8096"),
+                { QStringLiteral("192.168.1.90"), QStringLiteral("127.0.0.1") }, QStringLiteral("wifi")),
+        "a new DHCP lease on the same network should reuse the remembered measurement");
+    require(home
+            != PlaybackBandwidthPolicy::networkSignature(
+                QStringLiteral("media.example:8096"), { QStringLiteral("10.4.0.9") }, QStringLiteral("wifi")),
+        "a different local network must not inherit the previous measurement");
+    require(home
+            != PlaybackBandwidthPolicy::networkSignature(
+                QStringLiteral("media.example:8096"), { QStringLiteral("192.168.1.44") }, QStringLiteral("cellular")),
+        "the same private range over cellular is a different route");
+    require(home
+            != PlaybackBandwidthPolicy::networkSignature(
+                QStringLiteral("other.example:8096"), { QStringLiteral("192.168.1.44") }, QStringLiteral("wifi")),
+        "a measurement describes the route to one server");
+    require(!PlaybackBandwidthPolicy::networkSignature(QStringLiteral("media.example:8096"), {}, QString()).isEmpty(),
+        "an unknown route should still produce a usable cache key");
+
+    constexpr qint64 now = 1'800'000'000'000;
+    require(PlaybackBandwidthPolicy::isRememberedMeasurementUsable(now - 60'000, now),
+        "a recent measurement should be reused instead of guessing");
+    require(!PlaybackBandwidthPolicy::isRememberedMeasurementUsable(
+                now - PlaybackBandwidthPolicy::RememberedLifetimeMs - 1, now),
+        "a stale measurement should be re-measured rather than trusted");
+    require(!PlaybackBandwidthPolicy::isRememberedMeasurementUsable(now + 60'000, now),
+        "a record from the future means the clock moved and must not be trusted");
+    require(!PlaybackBandwidthPolicy::isRememberedMeasurementUsable(0, now), "an absent record is not a measurement");
+
     require(PlaybackBandwidthPolicy::conservativeEstimate(10'000'000, 1'000) == 60'000'000,
         "measurement should reserve twenty-five percent of observed throughput");
     require(PlaybackBandwidthPolicy::conservativeEstimate(0, 1'000) == 0,
