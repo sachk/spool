@@ -452,8 +452,26 @@ qint64 JellyfinApiFacade::measuredStreamingBitrate() const
     return m_measuredStreamingBitrate;
 }
 
+void JellyfinApiFacade::setSessionBitrateOverride(qint64 bitrate)
+{
+    const qint64 normalized = bitrate > 0
+        ? std::clamp<qint64>(bitrate, PlaybackBandwidthPolicy::MinimumBitrate, PlaybackBandwidthPolicy::MaximumBitrate)
+        : 0;
+    if (normalized == m_sessionBitrateOverride)
+        return;
+    m_sessionBitrateOverride = normalized;
+    updateEffectiveStreamingBitrate();
+}
+
+qint64 JellyfinApiFacade::sessionBitrateOverride() const
+{
+    return m_sessionBitrateOverride;
+}
+
 PlaybackBandwidthPolicy::Source JellyfinApiFacade::streamingBitrateSource() const
 {
+    if (m_sessionBitrateOverride > 0)
+        return PlaybackBandwidthPolicy::Source::Manual;
     const PlaybackBandwidthPolicy::Source source
         = PlaybackBandwidthPolicy::effectiveBitrateSource(m_manualMaxStreamingBitrate, m_unlimitedLocalNetwork,
             m_playbackEndpointKnown, m_inLocalNetwork, m_measuredStreamingBitrate);
@@ -560,8 +578,12 @@ void JellyfinApiFacade::handleNetworkRouteChanged()
 
 void JellyfinApiFacade::updateEffectiveStreamingBitrate()
 {
-    const qint64 effective = PlaybackBandwidthPolicy::effectiveBitrate(m_manualMaxStreamingBitrate,
-        m_unlimitedLocalNetwork, m_playbackEndpointKnown, m_inLocalNetwork, m_measuredStreamingBitrate);
+    // A ceiling picked in the player is a direct instruction, so it bypasses
+    // every automatic input rather than competing with them.
+    const qint64 effective = m_sessionBitrateOverride > 0
+        ? m_sessionBitrateOverride
+        : PlaybackBandwidthPolicy::effectiveBitrate(m_manualMaxStreamingBitrate, m_unlimitedLocalNetwork,
+              m_playbackEndpointKnown, m_inLocalNetwork, m_measuredStreamingBitrate);
     const PlaybackBandwidthPolicy::Source source = streamingBitrateSource();
     // The description can change while the number does not: a remembered
     // ceiling confirmed by a fresh probe is the same ceiling, differently

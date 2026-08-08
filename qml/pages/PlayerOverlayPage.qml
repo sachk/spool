@@ -114,14 +114,46 @@ FocusScope {
         return values
     }
     readonly property var actions: transportActions.concat(utilityActions)
-    readonly property var debugOptions: ["Playback speed", "Subtitle settings", "Subtitle sync", "Audio sync",
-        nightModeEnabled ? "Disable night mode" : "Enable night mode", hasPlayer && player.debugOsdVisible
-        ? "Hide performance stats" : "Show performance stats"]
+    // Each row carries what it does, so inserting one cannot silently rewire
+    // the others the way a list of bare labels dispatched by position did.
+    readonly property var debugOptions: [
+        {
+            "action": "speed",
+            "label": "Playback speed"
+        },
+        {
+            "action": "quality",
+            "label": "Quality"
+        },
+        {
+            "action": "subtitleSettings",
+            "label": "Subtitle settings"
+        },
+        {
+            "action": "subtitleSync",
+            "label": "Subtitle sync"
+        },
+        {
+            "action": "audioSync",
+            "label": "Audio sync"
+        },
+        {
+            "action": "nightMode",
+            "label": nightModeEnabled ? "Disable night mode" : "Enable night mode"
+        },
+        {
+            "action": "stats",
+            "label": hasPlayer && player.debugOsdVisible ? "Hide performance stats" : "Show performance stats"
+        }
+    ]
+    property var qualityOptions: []
     readonly property var menuOptions: {
         if (menuKind === "subtitles")
             return hasPlayer ? player.subtitleTracks : []
         if (menuKind === "audio")
             return hasPlayer ? player.audioTracks : []
+        if (menuKind === "quality")
+            return qualityOptions
         if (menuKind === "debug")
             return debugOptions
         const values = []
@@ -293,6 +325,8 @@ FocusScope {
             return "Audio"
         if (menuKind === "queue")
             return "Queue"
+        if (menuKind === "quality")
+            return "Quality"
         return "Playback settings"
     }
 
@@ -302,10 +336,27 @@ FocusScope {
     }
 
     function menuLabel(item) {
-        return menuKind === "queue" ? String(item && (item.displayTitle || item.title) || "Untitled") : String(item)
+        if (menuKind === "queue")
+            return String(item && (item.displayTitle || item.title) || "Untitled")
+        if (menuKind === "quality" || menuKind === "debug")
+            return String(item && item.label || "")
+        return String(item)
+    }
+
+    function debugAction(index) {
+        return menuKind === "debug" && debugOptions[index] ? String(debugOptions[index].action) : ""
+    }
+
+    function menuDetail(index) {
+        if (menuKind === "quality")
+            return String(qualityOptions[index] && qualityOptions[index].detail || "")
+        // Playback speed is the one row a SyncPlay group takes away.
+        return debugAction(index) === "speed" && SyncPlay.enabled ? "Disabled by SyncPlay" : ""
     }
 
     function menuItemSelected(index) {
+        if (menuKind === "quality")
+            return Boolean(qualityOptions[index] && qualityOptions[index].selected)
         if (!hasPlayer)
             return false
         if (menuKind === "subtitles")
@@ -318,6 +369,8 @@ FocusScope {
     function openMenu(kind) {
         if (syncPlayMenuOpen)
             chrome.closeSyncPlayMenu()
+        if (kind === "quality")
+            qualityOptions = App.streamingQualityOptions()
         menuKind = kind
         audioSyncVisible = false
         subtitleSettingsVisible = false
@@ -360,25 +413,36 @@ FocusScope {
             player.selectAudio(index)
         else if (kind === "queue" && playQueue && playQueue.count > 0)
             App.playQueueItem(index)
-        else if (kind === "debug") {
-            if (index === 0)
+        else if (kind === "quality") {
+            const option = qualityOptions[index]
+            if (!option)
+                return
+            App.selectStreamingQuality(option.bitrate)
+        } else if (kind === "debug") {
+            const action = debugAction(index);
+            // The speed row is a stepper, not a destination.
+            if (action === "" || action === "speed")
                 return
             menuKind = ""
-            if (index === 1) {
+            if (action === "quality") {
+                openMenu("quality")
+                return
+            }
+            if (action === "subtitleSettings") {
                 openSubtitleSettings()
                 return
             }
-            if (index === 2) {
+            if (action === "subtitleSync") {
                 openSubtitleSync()
                 return
             }
-            if (index === 3) {
+            if (action === "audioSync") {
                 openAudioSync()
                 return
             }
-            if (index === 4)
+            if (action === "nightMode")
                 Settings.setNightModeEnabled(!nightModeEnabled)
-            else if (index === 5)
+            else if (action === "stats")
                 toggleDebugStats()
             if (controlsVisible)
                 maybeRestartAutohide()

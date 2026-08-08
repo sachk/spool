@@ -115,6 +115,74 @@ QString PlaybackBandwidthPolicy::networkSignature(
         QCryptographicHash::hash(material.toUtf8(), QCryptographicHash::Sha256).toHex().left(32));
 }
 
+QString PlaybackBandwidthPolicy::formatBitrate(qint64 bitsPerSecond)
+{
+    if (bitsPerSecond <= 0)
+        return QStringLiteral("unknown");
+    const double mbps = static_cast<double>(bitsPerSecond) / 1'000'000.0;
+    if (mbps >= 10.0)
+        return QString::number(std::llround(mbps)) + QStringLiteral(" Mbps");
+    if (mbps >= 1.0)
+        return QString::number(mbps, 'f', 1) + QStringLiteral(" Mbps");
+    return QString::number(std::llround(mbps * 1000.0)) + QStringLiteral(" kbps");
+}
+
+QList<PlaybackBandwidthPolicy::QualityOption> PlaybackBandwidthPolicy::qualityLadder(qint64 sourceBitrate)
+{
+    struct Rung {
+        qint64 bitrate;
+        const char *resolution;
+    };
+    // The rungs jellyfin-web offers, so a viewer who knows one client is not
+    // surprised by the other.
+    static constexpr Rung rungs[] = {
+        { 120'000'000, "4K" },
+        { 80'000'000, "4K" },
+        { 60'000'000, "1080p" },
+        { 40'000'000, "1080p" },
+        { 20'000'000, "1080p" },
+        { 15'000'000, "1080p" },
+        { 10'000'000, "720p" },
+        { 8'000'000, "720p" },
+        { 6'000'000, "720p" },
+        { 4'000'000, "480p" },
+        { 3'000'000, "480p" },
+        { 2'000'000, "480p" },
+        { 1'000'000, "360p" },
+    };
+
+    QList<QualityOption> options;
+    options.reserve(std::size(rungs));
+    for (const Rung& rung : rungs) {
+        if (sourceBitrate > 0 && rung.bitrate >= sourceBitrate)
+            continue;
+        options.push_back(QualityOption {
+            rung.bitrate, QString::fromLatin1(rung.resolution) + QStringLiteral(" · ") + formatBitrate(rung.bitrate) });
+    }
+    return options;
+}
+
+QString PlaybackBandwidthPolicy::describeAuto(Source source, qint64 effectiveBitrate, int parallelRequests)
+{
+    const QString ceiling = formatBitrate(effectiveBitrate);
+    const QString lanes = parallelRequests > 1 ? QStringLiteral(" · %1 connections").arg(parallelRequests) : QString();
+    switch (source) {
+    case Source::UnlimitedLocal:
+        return QStringLiteral("No limit on this network");
+    case Source::Manual:
+        return QStringLiteral("Limited to %1 in Settings").arg(ceiling);
+    case Source::Measured:
+        return QStringLiteral("Measured %1").arg(ceiling) + lanes;
+    case Source::Remembered:
+        return QStringLiteral("%1 remembered for this network").arg(ceiling) + lanes;
+    case Source::LocalEstimate:
+        return QStringLiteral("Estimated %1 · local network, not measured yet").arg(ceiling);
+    case Source::Estimate:
+        break;
+    }
+    return QStringLiteral("Estimated %1 · not measured yet").arg(ceiling);
+}
+
 bool PlaybackBandwidthPolicy::isRememberedMeasurementUsable(qint64 recordedAtMsSinceEpoch, qint64 nowMsSinceEpoch)
 {
     if (recordedAtMsSinceEpoch <= 0)

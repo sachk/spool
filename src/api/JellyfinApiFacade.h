@@ -59,6 +59,13 @@ public:
     qint64 maxStreamingBitrate() const;
     qint64 measuredStreamingBitrate() const;
     PlaybackBandwidthPolicy::Source streamingBitrateSource() const;
+
+    // A ceiling chosen from the player overlay. It outranks every automatic
+    // input and the Settings limit, and it lasts only as long as this session:
+    // a quality picked because the train Wi-Fi is bad should not still be
+    // capping playback at home tomorrow. Zero restores automatic selection.
+    void setSessionBitrateOverride(qint64 bitrate);
+    qint64 sessionBitrateOverride() const;
     QString authorizationHeader(const QString& tokenOverride = {}) const;
     void cancelRequests();
 
@@ -177,6 +184,7 @@ private:
     QString m_acceptLanguage;
     qint64 m_maxStreamingBitrate = 20'000'000;
     qint64 m_manualMaxStreamingBitrate = 0;
+    qint64 m_sessionBitrateOverride = 0;
     qint64 m_measuredStreamingBitrate = 0;
     QString m_measuredNetworkSignature;
     int m_playbackParallelRequests = 1;

@@ -203,6 +203,9 @@ AppController::AppController(DatabaseManager *database, DiscoveryController *dis
         [this]() { m_api->setPlaybackActive(m_player->sessionActive()); });
     connect(m_player, &PlayerController::streamSelectionChanged, this,
         [this](int audioStreamIndex, int subtitleStreamIndex) {
+            // Kept so a quality change can renegotiate onto the same tracks.
+            m_activeAudioStreamIndex = audioStreamIndex;
+            m_activeSubtitleStreamIndex = subtitleStreamIndex;
             if (m_activePlaybackItem.itemType != QStringLiteral("Episode") || m_activePlaybackItem.seriesId.isEmpty())
                 return;
             const bool rememberAudio = m_settings->value(QString::fromLatin1(kRememberSeriesAudioTrackKey)).toBool();
@@ -927,10 +930,19 @@ QCoro::Task<void> AppController::startPlayback(
         }
     }
     const std::vector<PlaybackQueueItem> queue = m_playQueue->nowPlayingQueue();
-    if (forceTranscode)
+    if (forceTranscode) {
         PlaybackFailurePolicy::prepareFallbackSession(session, queue, audioStreamIndex, subtitleStreamIndex);
-    else
+    } else {
         session.nowPlayingQueue = queue;
+        // A restart that is not a codec fallback - a quality change - still has
+        // to land on the tracks the viewer had chosen.
+        if (audioStreamIndex >= 0 || subtitleStreamIndex >= 0) {
+            if (audioStreamIndex >= 0)
+                session.audioStreamIndex = audioStreamIndex;
+            session.subtitleStreamIndex = subtitleStreamIndex;
+            session.restoreStreamSelection = true;
+        }
+    }
     m_activePlaybackStreams = session.mediaStreams;
     setBusy(false);
     m_player->play(session, startPaused);
@@ -1141,6 +1153,62 @@ void AppController::openNamedCollection(const QString& kind, const QString& valu
         return;
     m_browse->enterNamedCollection(kind, name);
     beginBrowse();
+}
+
+QVariantList AppController::streamingQualityOptions() const
+{
+    const qint64 override = m_api->sessionBitrateOverride();
+    QVariantList options;
+    options.push_back(QVariantMap {
+        { QStringLiteral("label"), QStringLiteral("Auto") },
+        { QStringLiteral("detail"),
+            PlaybackBandwidthPolicy::describeAuto(
+                m_api->streamingBitrateSource(), m_api->maxStreamingBitrate(), m_api->playbackParallelRequests()) },
+        { QStringLiteral("bitrate"), 0 },
+        { QStringLiteral("selected"), override <= 0 },
+    });
+
+    qint64 sourceBitrate = 0;
+    for (const MediaSourceInfo& source : m_activePlaybackItem.mediaSources)
+        sourceBitrate = std::max<qint64>(sourceBitrate, source.bitRate);
+
+    for (const PlaybackBandwidthPolicy::QualityOption& rung : PlaybackBandwidthPolicy::qualityLadder(sourceBitrate)) {
+        options.push_back(QVariantMap {
+            { QStringLiteral("label"), rung.label },
+            { QStringLiteral("detail"), QString() },
+            { QStringLiteral("bitrate"), rung.bitrate },
+            { QStringLiteral("selected"), override == rung.bitrate },
+        });
+    }
+    return options;
+}
+
+void AppController::selectStreamingQuality(qint64 bitrate)
+{
+    if (m_api->sessionBitrateOverride() == bitrate)
+        return;
+    m_api->setSessionBitrateOverride(bitrate);
+    emit streamingQualityChanged();
+
+    // The server chose direct play or transcoding against the ceiling it was
+    // given when the stream was negotiated, so a new ceiling only takes effect
+    // through a fresh negotiation. Resume where the viewer was, keeping the
+    // audio and subtitle tracks they had selected.
+    if (!m_player->sessionActive() || m_activePlaybackItem.id.isEmpty())
+        return;
+    const qint64 positionTicks = static_cast<qint64>(m_player->positionSeconds() * 10'000'000.0);
+    const MovieItem resumeItem = PlaybackFailurePolicy::retryItem(m_activePlaybackItem, positionTicks);
+    const int audioStreamIndex = m_activeAudioStreamIndex;
+    const int subtitleStreamIndex = m_activeSubtitleStreamIndex;
+    m_player->teardownMpv();
+    setBusy(true, QStringLiteral("Changing quality…"));
+    Async::runScoped(
+        this, startPlayback(resumeItem, false, false, audioStreamIndex, subtitleStreamIndex), []() {},
+        [this](const std::exception_ptr& error) {
+            setBusy(false);
+            showToast(exceptionMessage(error));
+        },
+        "playback quality change");
 }
 
 void AppController::handlePlaybackStopped(const QString& itemId, qint64 positionTicks, bool completed)

@@ -1,5 +1,6 @@
 #pragma once
 
+#include <QList>
 #include <QString>
 #include <QStringList>
 #include <QtTypes>
@@ -54,6 +55,20 @@ public:
     static QString networkSignature(
         const QString& serverAuthority, const QStringList& localAddresses, const QString& transportMedium);
     static bool isRememberedMeasurementUsable(qint64 recordedAtMsSinceEpoch, qint64 nowMsSinceEpoch);
+
+    struct QualityOption {
+        qint64 bitrate = 0;
+        QString label;
+    };
+
+    static QString formatBitrate(qint64 bitsPerSecond);
+    // The ladder a viewer can pick from, coarsest first. Rungs at or above the
+    // source bitrate are dropped: they would transcode the stream without
+    // lowering anything, which is the worst of both.
+    static QList<QualityOption> qualityLadder(qint64 sourceBitrate);
+    // The line under "Auto". jellyfin-web says only "Auto"; we know whether
+    // the ceiling was measured, remembered for this network, or guessed.
+    static QString describeAuto(Source source, qint64 effectiveBitrate, int parallelRequests);
 };
 
 } // namespace JellyfinNative

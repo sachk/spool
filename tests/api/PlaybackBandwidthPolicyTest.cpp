@@ -89,6 +89,48 @@ JELLYFIN_TEST_MAIN("playback-bandwidth-policy")
         "a record from the future means the clock moved and must not be trusted");
     require(!PlaybackBandwidthPolicy::isRememberedMeasurementUsable(0, now), "an absent record is not a measurement");
 
+    require(PlaybackBandwidthPolicy::formatBitrate(40'000'000) == QStringLiteral("40 Mbps")
+            && PlaybackBandwidthPolicy::formatBitrate(3'000'000) == QStringLiteral("3.0 Mbps")
+            && PlaybackBandwidthPolicy::formatBitrate(720'000) == QStringLiteral("720 kbps"),
+        "a ceiling should be readable at every scale the ladder covers");
+    require(PlaybackBandwidthPolicy::formatBitrate(0) == QStringLiteral("unknown"),
+        "an absent ceiling must not be printed as zero");
+
+    const QList<PlaybackBandwidthPolicy::QualityOption> fullLadder = PlaybackBandwidthPolicy::qualityLadder(0);
+    require(!fullLadder.isEmpty(), "an unknown source bitrate should still offer the whole ladder");
+    for (int index = 1; index < fullLadder.size(); ++index) {
+        require(fullLadder[index].bitrate < fullLadder[index - 1].bitrate,
+            "the ladder should descend so the first rungs are the best quality");
+    }
+    require(fullLadder.constFirst().label.contains(QStringLiteral("4K"))
+            && fullLadder.constFirst().label.contains(QStringLiteral("Mbps")),
+        "a rung should name both the resolution and the ceiling");
+
+    const QList<PlaybackBandwidthPolicy::QualityOption> ladder = PlaybackBandwidthPolicy::qualityLadder(12'000'000);
+    require(!ladder.isEmpty(), "a modest source should still offer lower rungs");
+    for (const PlaybackBandwidthPolicy::QualityOption& rung : ladder) {
+        require(rung.bitrate < 12'000'000, "a rung at or above the source would transcode without lowering anything");
+    }
+
+    require(PlaybackBandwidthPolicy::describeAuto(Source::Measured, 45'000'000, 2)
+            == QStringLiteral("Measured 45 Mbps · 2 connections"),
+        "Auto should report the measurement and how it was reached");
+    require(!PlaybackBandwidthPolicy::describeAuto(Source::Measured, 45'000'000, 1).contains(QStringLiteral("connect")),
+        "a single connection is the unremarkable case and should not be narrated");
+    require(
+        PlaybackBandwidthPolicy::describeAuto(Source::Remembered, 45'000'000, 1).contains(QStringLiteral("remembered")),
+        "Auto should admit when the ceiling came from a previous visit to this network");
+    require(PlaybackBandwidthPolicy::describeAuto(Source::LocalEstimate, 40'000'000, 1)
+                .contains(QStringLiteral("not measured yet"))
+            && PlaybackBandwidthPolicy::describeAuto(Source::Estimate, 20'000'000, 1)
+                .contains(QStringLiteral("not measured yet")),
+        "an unmeasured ceiling must say so rather than looking like a measurement");
+    require(PlaybackBandwidthPolicy::describeAuto(Source::UnlimitedLocal, PlaybackBandwidthPolicy::MaximumBitrate, 1)
+            == QStringLiteral("No limit on this network"),
+        "the local opt-out should not be printed as a 1000 Mbps measurement");
+    require(PlaybackBandwidthPolicy::describeAuto(Source::Manual, 25'000'000, 1).contains(QStringLiteral("Settings")),
+        "a ceiling from the Settings slider should point at where to change it");
+
     require(PlaybackBandwidthPolicy::conservativeEstimate(10'000'000, 1'000) == 60'000'000,
         "measurement should reserve twenty-five percent of observed throughput");
     require(PlaybackBandwidthPolicy::conservativeEstimate(0, 1'000) == 0,

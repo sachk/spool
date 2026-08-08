@@ -50,7 +50,7 @@ Item {
     }
 
     function routeMenuKey(key, repeat) {
-        if (overlay.menuKind === "debug" && menuList.currentIndex === 0 && InputKeys.isHorizontal(key)) {
+        if (overlay.debugAction(menuList.currentIndex) === "speed" && InputKeys.isHorizontal(key)) {
             overlay.adjustPlaybackSpeed(key === Qt.Key_Left ? -1 : 1)
             return true
         }
@@ -378,12 +378,11 @@ Item {
                         required property int index
                         required property var modelData
                         label: root.overlay.menuLabel(modelData)
-                        detail: root.overlay.menuKind === "debug" && index === 0 && SyncPlay.enabled ? "Disabled by SyncPlay" :
-                                                                                                       ""
+                        detail: root.overlay.menuDetail(index)
                         checked: root.overlay.menuItemSelected(index)
                         highlighted: menuList.currentIndex === index
                         metricsWidth: root.width
-                        stepperVisible: root.overlay.menuKind === "debug" && index === 0
+                        stepperVisible: root.overlay.debugAction(index) === "speed"
                         stepperEnabled: !SyncPlay.enabled
                         stepperText: root.overlay.formatPlaybackSpeed(root.overlay.player.effectivePlaybackSpeed)
                         onDecreaseRequested: {

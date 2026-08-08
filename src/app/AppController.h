@@ -21,6 +21,7 @@
 
 #include <QCoroTask>
 #include <QObject>
+#include <QVariantList>
 #include <QVariantMap>
 
 #include <vector>
@@ -131,8 +132,17 @@ public:
     Q_INVOKABLE QString diagnosticsPreview() const;
     Q_INVOKABLE QString saveDiagnosticsReport();
 
+    // Quality picker for the player overlay. Row zero is Auto and carries a
+    // description of where the automatic ceiling came from; the rest are fixed
+    // ceilings below the source bitrate. Choosing one restarts the stream at
+    // the current position because the server decides direct play against the
+    // ceiling it was handed at negotiation time.
+    Q_INVOKABLE QVariantList streamingQualityOptions() const;
+    Q_INVOKABLE void selectStreamingQuality(qint64 bitrate);
+
 signals:
     void busyChanged();
+    void streamingQualityChanged();
     void errorTextChanged();
     void defaultProfileChanged();
     void initializedChanged();
@@ -196,6 +206,8 @@ private:
     LibraryListModel m_libraries;
     MovieItem m_activePlaybackItem;
     QList<MediaStreamInfo> m_activePlaybackStreams;
+    int m_activeAudioStreamIndex = -1;
+    int m_activeSubtitleStreamIndex = -1;
     bool m_busy = false;
     bool m_hasDefaultProfile = false;
     bool m_initialized = false;
