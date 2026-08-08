@@ -198,6 +198,10 @@ AppController::AppController(DatabaseManager *database, DiscoveryController *dis
     });
 
     connect(m_player, &PlayerController::playbackStopped, this, &AppController::handlePlaybackStopped);
+    connect(m_player, &PlayerController::playbackStateChanged, this, [this]() {
+        if (m_player->fileLoaded())
+            m_qualityFallbackBitrate = -1;
+    });
     // Keep the bandwidth probe off the wire while a stream is running; it
     // resumes on its own once the session ends.
     connect(m_player, &PlayerController::sessionActiveChanged, this,
@@ -223,6 +227,26 @@ AppController::AppController(DatabaseManager *database, DiscoveryController *dis
             const bool syncPlayActive = m_syncPlay && m_syncPlay->enabled();
             if (itemId.isEmpty() || itemId != m_activePlaybackItem.id)
                 return;
+            // A quality the server cannot deliver should cost the viewer the
+            // quality, not the thing they were watching.
+            if (m_qualityFallbackBitrate >= 0) {
+                const qint64 restoredBitrate = m_qualityFallbackBitrate;
+                m_qualityFallbackBitrate = -1;
+                m_api->setSessionBitrateOverride(restoredBitrate);
+                emit streamingQualityChanged();
+                const MovieItem resumeItem = PlaybackFailurePolicy::retryItem(m_activePlaybackItem, positionTicks);
+                m_player->teardownMpv();
+                setBusy(true, QStringLiteral("Restoring the previous quality…"));
+                showToast(QStringLiteral("That quality could not be played; keeping the previous one."));
+                Async::runScoped(
+                    this, startPlayback(resumeItem, false, false, audioStreamIndex, subtitleStreamIndex), []() {},
+                    [this](const std::exception_ptr& error) {
+                        setBusy(false);
+                        showToast(exceptionMessage(error));
+                    },
+                    "playback quality restore");
+                return;
+            }
             if (retryableCodecFailure && syncPlayActive) {
                 m_syncPlay->leaveGroup();
                 showToast(QStringLiteral("This stream is not directly compatible. Leaving SyncPlay; start it again to "
@@ -1219,7 +1243,8 @@ QVariantList AppController::streamingQualityOptions() const
 
 void AppController::selectStreamingQuality(qint64 bitrate)
 {
-    if (m_api->sessionBitrateOverride() == bitrate)
+    const qint64 previousBitrate = m_api->sessionBitrateOverride();
+    if (previousBitrate == bitrate)
         return;
     m_api->setSessionBitrateOverride(bitrate);
     emit streamingQualityChanged();
@@ -1234,6 +1259,7 @@ void AppController::selectStreamingQuality(qint64 bitrate)
     const MovieItem resumeItem = PlaybackFailurePolicy::retryItem(m_activePlaybackItem, positionTicks);
     const int audioStreamIndex = m_activeAudioStreamIndex;
     const int subtitleStreamIndex = m_activeSubtitleStreamIndex;
+    m_qualityFallbackBitrate = previousBitrate;
     m_player->teardownMpv();
     setBusy(true, QStringLiteral("Changing quality…"));
     Async::runScoped(

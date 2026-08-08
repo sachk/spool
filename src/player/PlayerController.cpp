@@ -1913,6 +1913,10 @@ void PlayerController::handleMpvEvent(mpv_event *event)
             if (failed) {
                 m_errorText
                     = QStringLiteral("Playback failed: %1").arg(QString::fromUtf8(mpv_error_string(endFileError)));
+                // Which stream mpv could not open is the first thing anyone
+                // reading this log wants to know.
+                qWarning() << "player: playback failed method=" << m_session.playMethod
+                           << "url=" << sanitizedDiagnosticUrl(m_session.url);
             }
             const QString failedItemId = m_session.itemId;
             const qint64 failedPositionTicks = secondsToTicks(m_positionTracker.position());

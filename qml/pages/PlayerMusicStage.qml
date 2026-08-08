@@ -33,8 +33,8 @@ Item {
     // The chrome owns the lower band of the screen; centre the record in what
     // is left rather than in the window, so it never sits behind the controls.
     readonly property real stageHeight: Math.max(root.dp(240), root.height - root.dp(280))
-    readonly property real coverSize: Math.max(root.dp(180), Math.min(stageHeight * 0.72, root.dp(420)))
-    readonly property real textWidth: Math.min(root.dp(620), Math.max(root.dp(220), root.width - coverSize - root.dp(
+    readonly property real coverSize: Math.max(root.dp(180), Math.min(stageHeight * 0.9, root.dp(560)))
+    readonly property real textWidth: Math.min(root.dp(680), Math.max(root.dp(220), root.width - coverSize - root.dp(
                                                                           200)))
 
     function dp(value) {
@@ -78,7 +78,9 @@ Item {
     RowLayout {
         anchors.horizontalCenter: parent.horizontalCenter
         anchors.top: parent.top
-        anchors.topMargin: Math.round((root.stageHeight - root.coverSize) / 2)
+        // Weighted low rather than centred, so the controls sit close under the
+        // record instead of across a gap from it.
+        anchors.topMargin: Math.round((root.stageHeight - root.coverSize) * 0.62)
         width: root.coverSize + spacing + root.textWidth
         height: root.coverSize
         spacing: root.dp(40)
@@ -103,7 +105,7 @@ Item {
                 visible: root.queuePositionText.length > 0
                 text: root.queuePositionText
                 color: Theme.accent
-                font.pixelSize: root.dp(20)
+                font.pixelSize: root.dp(23)
                 font.weight: Font.DemiBold
             }
 
@@ -111,7 +113,7 @@ Item {
                 Layout.fillWidth: true
                 text: root.trackTitle
                 color: Theme.textPrimary
-                font.pixelSize: root.dp(52)
+                font.pixelSize: root.dp(62)
                 font.weight: Font.Bold
                 maximumLineCount: 2
                 wrapMode: Text.Wrap
@@ -124,7 +126,7 @@ Item {
                 visible: root.artistText.length > 0
                 text: root.artistText
                 color: Theme.textSecondary
-                font.pixelSize: root.dp(30)
+                font.pixelSize: root.dp(34)
                 font.weight: Font.DemiBold
                 maximumLineCount: 1
                 elide: Text.ElideRight
@@ -136,7 +138,7 @@ Item {
                 visible: root.albumText.length > 0
                 text: root.yearText.length > 0 ? root.albumText + "  ·  " + root.yearText : root.albumText
                 color: Theme.textMuted
-                font.pixelSize: root.dp(24)
+                font.pixelSize: root.dp(26)
                 maximumLineCount: 1
                 elide: Text.ElideRight
             }

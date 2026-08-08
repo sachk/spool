@@ -222,6 +222,10 @@ private:
     RequestGeneration m_syncPlayQueueRequestGeneration;
     bool m_shuttingDown = false;
     bool m_codecFallbackAttempted = false;
+    // The ceiling a quality change moved away from, kept only until that
+    // stream loads, so a stream the server cannot deliver falls back to the
+    // one that was playing instead of ending playback.
+    qint64 m_qualityFallbackBitrate = -1;
     // Held for the process lifetime so a second local instance picks the next
     // slot and reports a device identity of its own.
     std::unique_ptr<QLockFile> m_instanceLock;
