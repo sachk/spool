@@ -21,7 +21,7 @@
 namespace JellyfinNative {
 
 namespace {
-    constexpr int kHomePayloadSchemaVersion = 7;
+    constexpr int kHomePayloadSchemaVersion = 8;
 
     bool latestRowPrefersLandscape(const LibraryItem& library, const std::vector<MovieItem>& items)
     {
@@ -54,8 +54,32 @@ namespace {
         model.setMovies(items);
     }
 
-    std::vector<MovieItem> groupLatestEpisodes(const LibraryItem& library, std::vector<MovieItem> items)
+    std::vector<MovieItem> groupLatestItems(const LibraryItem& library, std::vector<MovieItem> items)
     {
+        if (library.collectionType == QStringLiteral("music")) {
+            QSet<QString> emittedAlbums;
+            std::vector<MovieItem> grouped;
+            grouped.reserve(items.size());
+            for (MovieItem& item : items) {
+                if (item.itemType != QStringLiteral("Audio") || item.albumId.isEmpty()) {
+                    grouped.push_back(std::move(item));
+                    continue;
+                }
+                if (emittedAlbums.contains(item.albumId))
+                    continue;
+                emittedAlbums.insert(item.albumId);
+                MovieItem album;
+                album.id = item.albumId;
+                album.title = item.album.isEmpty() ? item.title : item.album;
+                album.itemType = QStringLiteral("MusicAlbum");
+                album.album = album.title;
+                album.albumId = item.albumId;
+                album.albumArtist = item.albumArtist;
+                album.posterTag = item.albumPrimaryImageTag;
+                grouped.push_back(std::move(album));
+            }
+            return grouped;
+        }
         if (library.collectionType != QStringLiteral("tvshows"))
             return items;
 
@@ -328,7 +352,7 @@ QCoro::Task<std::vector<MovieItem>> HomeModelController::fetchLatestLibraryItems
     while (limit <= kMaximumRawItems) {
         std::vector<MovieItem> rawItems = co_await m_api->fetchLatestItems(library.id, limit);
         const int rawCount = static_cast<int>(rawItems.size());
-        std::vector<MovieItem> groupedItems = groupLatestEpisodes(library, std::move(rawItems));
+        std::vector<MovieItem> groupedItems = groupLatestItems(library, std::move(rawItems));
         qInfo() << "home: latest fill raw=" << rawCount << "grouped=" << groupedItems.size() << "limit=" << limit;
         if (groupedItems.size() >= kTargetItems) {
             groupedItems.resize(kTargetItems);

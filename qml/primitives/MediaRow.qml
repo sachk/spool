@@ -22,6 +22,7 @@ FocusScope {
     property bool atomicPopulate: false
     property string itemContextSource: ""
     property string itemContextReturnRoute: ""
+    property var wheelFlickable: null
     property int modelRevision: 0
     readonly property bool delegatesPresented: presentation.delegatesReady
 
@@ -32,6 +33,7 @@ FocusScope {
     readonly property int cardHeight: Math.round(cardWidth * (posterCard ? 1.5 : 9 / 16) + Metrics.scaled(60))
     readonly property int focusPadding: Math.max(2, Metrics.scaled(2))
 
+    signal verticalWheelScrolled
     signal activated(int index, var item)
 
     width: parent ? parent.width : implicitWidth
@@ -110,6 +112,16 @@ FocusScope {
         if (count <= 0)
             return false
         currentIndex = Math.max(0, Math.min(currentIndex, count - 1))
+        syncViewCurrentIndex()
+        InputKeys.focus(listView)
+        return true
+    }
+
+    function focusFirstVisible() {
+        if (count <= 0)
+            return false
+        const visible = listView.indexAt(listView.contentX + listView.leftMargin + 1, 1)
+        currentIndex = visible >= 0 ? visible : 0
         syncViewCurrentIndex()
         InputKeys.focus(listView)
         return true
@@ -256,6 +268,7 @@ FocusScope {
 
         highlightFollowsCurrentItem: true
         highlightMoveDuration: 16
+        highlightResizeDuration: Theme.reducedMotion ? 0 : 75
         highlight: Item {
             Rectangle {
                 anchors.fill: parent
@@ -274,8 +287,10 @@ FocusScope {
         positionViewAtIndex(currentIndex, ListView.Contain)
 
         FastWheelHandler {
-            flickable: listView
-            horizontal: true
+            flickable: root.wheelFlickable || listView
+            horizontal: root.wheelFlickable === null
+            onScrolled: if (root.wheelFlickable)
+            root.verticalWheelScrolled()
         }
 
         MouseArea {

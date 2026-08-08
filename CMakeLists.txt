@@ -440,8 +440,7 @@ qt_add_qml_module(jellyfin-native
         qml/fonts/AtkinsonHyperlegible-Bold.otf
         qml/fonts/AtkinsonHyperlegible-Regular.otf
         qml/fonts/IBMPlexSans-Variable.ttf
-        qml/fonts/PTSans-Regular.ttf
-        qml/fonts/PTSans-Bold.ttf
+        qml/fonts/PTRootUI-Variable.ttf
         qml/fonts/MaterialIcons-Regular.ttf
 )
 if(NOT JELLYFIN_NATIVE_WEBOS)

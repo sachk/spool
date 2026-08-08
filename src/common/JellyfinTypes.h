@@ -66,7 +66,7 @@ struct BrowseDescriptor {
     static BrowseDescriptor library(QString libraryId, QString collectionType, QString name = {});
     static BrowseDescriptor folderChildren(QString folderId, QString name = {});
     static BrowseDescriptor person(QString personId, QString name = {});
-    static BrowseDescriptor genre(QString name);
+    static BrowseDescriptor genre(QString name, QString collectionType = {});
     static BrowseDescriptor studio(QString name);
     static BrowseDescriptor seriesSeasons(QString seriesId, QString seriesName = {});
     static BrowseDescriptor seasonEpisodes(QString seriesId, QString seasonId = {}, QString seasonName = {});

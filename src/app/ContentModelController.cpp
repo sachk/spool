@@ -62,7 +62,8 @@ void ContentModelController::loadDetailRows(
         = (itemType == QStringLiteral("Episode") || itemType == QStringLiteral("Season")) && !seriesId.isEmpty();
     const bool loadSeasonOptions = loadEpisodes;
     const bool loadBoxSet = itemType == QStringLiteral("BoxSet");
-    const bool loadContext = loadSeasons || loadEpisodes || loadBoxSet;
+    const bool loadAlbum = itemType == QStringLiteral("MusicAlbum");
+    const bool loadContext = loadSeasons || loadEpisodes || loadBoxSet || loadAlbum;
     m_detailRowsBusy = true;
     m_detailRowsPending = 1 + (loadContext ? 1 : 0) + (loadSeasonOptions ? 1 : 0);
     emit detailRowsChanged();
@@ -71,6 +72,7 @@ void ContentModelController::loadDetailRows(
             << (loadSeasons           ? "seasons"
                        : loadEpisodes ? "episodes"
                        : loadBoxSet   ? "boxset"
+                       : loadAlbum    ? "album"
                                       : "none");
 
     if (loadSeasons) {
@@ -113,6 +115,20 @@ void ContentModelController::loadDetailRows(
             },
             [this, generation, itemId](const std::exception_ptr& error) {
                 qWarning() << "detail rows: box set children fetch failed" << itemId << exceptionMessage(error);
+                finishDetailRowLoad(generation);
+            });
+    } else if (loadAlbum) {
+        Async::runLatest(
+            this, m_api->fetchBrowsePage(BrowseDescriptor::folderChildren(itemId), 0, 200), m_detailRowsGeneration,
+            generation,
+            [this, generation, itemId](const PagedMovieItems& page) {
+                qInfo() << "detail rows: album tracks loaded" << itemId << page.items.size();
+                m_detailSeasons.setMovies(page.items);
+                emit detailRowsChanged();
+                finishDetailRowLoad(generation);
+            },
+            [this, generation, itemId](const std::exception_ptr& error) {
+                qWarning() << "detail rows: album tracks fetch failed" << itemId << exceptionMessage(error);
                 finishDetailRowLoad(generation);
             });
     }

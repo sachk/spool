@@ -276,7 +276,8 @@ cp -f "$APP_ROOT/app/com.sachk.spool.metainfo.xml" \
   "$APPDIR/usr/share/metainfo/com.sachk.spool.appdata.xml"
 cp -f "$APP_ROOT/app/notices/OPEN_SOURCE_NOTICES.txt" "$APP_ROOT/LICENSE" \
   "$APP_ROOT/qml/fonts/AtkinsonHyperlegible-LICENSE.txt" \
-  "$APP_ROOT/qml/fonts/IBMPlexSans-LICENSE.txt" "$APP_ROOT/qml/fonts/MaterialIcons-LICENSE.txt" \
+  "$APP_ROOT/qml/fonts/IBMPlexSans-LICENSE.txt" "$APP_ROOT/qml/fonts/PTRootUI-LICENSE.txt" \
+  "$APP_ROOT/qml/fonts/MaterialIcons-LICENSE.txt" \
   "$APPDIR/usr/share/jellyfin-native/notices/"
 cp -f "$APP_ROOT/qml/fonts/AtkinsonHyperlegible-Regular.otf" \
   "$APP_ROOT/qml/fonts/AtkinsonHyperlegible-Bold.otf" "$APP_ROOT/qml/fonts/IBMPlexSans-Variable.ttf" \

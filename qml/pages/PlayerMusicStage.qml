@@ -30,12 +30,14 @@ Item {
         return ""
         return "Track " + (queue.currentIndex + 1) + " of " + queue.count
     }
+    readonly property real viewportScale: Math.max(1, Math.min(1.8, Math.min(root.width / root.dp(1600), root.height
+                                                                             / root.dp(900))))
     // The chrome owns the lower band of the screen; centre the record in what
     // is left rather than in the window, so it never sits behind the controls.
     readonly property real stageHeight: Math.max(root.dp(240), root.height - root.dp(280))
-    readonly property real coverSize: Math.max(root.dp(180), Math.min(stageHeight * 0.9, root.dp(560)))
-    readonly property real textWidth: Math.min(root.dp(680), Math.max(root.dp(220), root.width - coverSize - root.dp(
-                                                                          200)))
+    readonly property real coverSize: Math.max(root.dp(180), Math.min(stageHeight * 0.9, root.dp(560) * viewportScale))
+    readonly property real textWidth: Math.min(root.dp(680) * viewportScale, Math.max(root.dp(220), root.width - coverSize
+                                                                                      - root.dp(200)))
 
     function dp(value) {
         return overlay ? overlay.dp(value) : Math.round(value)
@@ -105,15 +107,16 @@ Item {
                 visible: root.queuePositionText.length > 0
                 text: root.queuePositionText
                 color: Theme.accent
-                font.pixelSize: root.dp(23)
+                font.pixelSize: Math.round(root.dp(23) * root.viewportScale)
                 font.weight: Font.DemiBold
             }
 
             AppText {
                 Layout.fillWidth: true
+                Layout.topMargin: root.dp(8)
                 text: root.trackTitle
                 color: Theme.textPrimary
-                font.pixelSize: root.dp(62)
+                font.pixelSize: Math.round(root.dp(62) * root.viewportScale)
                 font.weight: Font.Bold
                 maximumLineCount: 2
                 wrapMode: Text.Wrap
@@ -126,7 +129,7 @@ Item {
                 visible: root.artistText.length > 0
                 text: root.artistText
                 color: Theme.textSecondary
-                font.pixelSize: root.dp(34)
+                font.pixelSize: Math.round(root.dp(34) * root.viewportScale)
                 font.weight: Font.DemiBold
                 maximumLineCount: 1
                 elide: Text.ElideRight
@@ -138,7 +141,7 @@ Item {
                 visible: root.albumText.length > 0
                 text: root.yearText.length > 0 ? root.albumText + "  ·  " + root.yearText : root.albumText
                 color: Theme.textMuted
-                font.pixelSize: root.dp(26)
+                font.pixelSize: Math.round(root.dp(26) * root.viewportScale)
                 maximumLineCount: 1
                 elide: Text.ElideRight
             }

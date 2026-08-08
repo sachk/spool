@@ -107,6 +107,14 @@ FocusScope {
         return true
     }
 
+    function focusTopLeftVisible() {
+        const visible = sectionList.indexAt(1, sectionList.contentY + 1)
+        sectionList.currentIndex = visible >= 0 ? visible : firstPopulatedSection(0, 1)
+        const row = currentRow()
+        if (row)
+            row.focusFirstVisible()
+    }
+
     function routeKey(key, phase, repeat) {
         const row = currentRow()
         if (!row)
@@ -180,12 +188,6 @@ FocusScope {
         keyNavigationEnabled: false
         focus: true
 
-        header: SectionHeader {
-            width: sectionList.width
-            height: implicitHeight + Metrics.scaled(18)
-            title: "My Media"
-        }
-
         FastWheelHandler {
             flickable: sectionList
         }
@@ -206,6 +208,8 @@ FocusScope {
             cardWidth: cardKind === "poster" ? Metrics.homePosterWidth(root.width) : Metrics.homeLandscapeWidth(
                                                    root.width)
             cardGap: Metrics.gapPx
+            wheelFlickable: sectionList
+            onVerticalWheelScrolled: root.focusTopLeftVisible()
             atomicPopulate: index === 0
             itemContextSource: String(modelData.source || "")
             itemContextReturnRoute: "home"

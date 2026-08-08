@@ -63,6 +63,11 @@ FocusScope {
             "source": "github.com/IBM/plex"
         },
         {
+            "name": "PT Root UI",
+            "license": "SIL Open Font License 1.1",
+            "source": "paratype.com/fonts/pt/pt-root-ui"
+        },
+        {
             "name": "Google Material Icons",
             "license": "Apache License 2.0",
             "source": "fonts.google.com/icons"
@@ -182,7 +187,7 @@ FocusScope {
 
                     AppText {
                         Layout.fillWidth: true
-                        text: "Thank you for the playback engine and the foundation on which the webOS playback work is built."
+                        text: "Thank you for making a player so fast and extensible it seems almost divinely created."
                         color: Theme.textSecondary
                         font.pixelSize: Metrics.bodySizePx
                         wrapMode: Text.Wrap

@@ -96,7 +96,8 @@ if [[ "$DEPLOY_APP" == "1" ]]; then
   mkdir -p "$APP_INSTALL/jellyfin-native.app/Contents/Resources/notices"
   cp -f "$APP_ROOT/app/notices/OPEN_SOURCE_NOTICES.txt" "$APP_ROOT/LICENSE" \
     "$APP_ROOT/qml/fonts/AtkinsonHyperlegible-LICENSE.txt" \
-    "$APP_ROOT/qml/fonts/IBMPlexSans-LICENSE.txt" "$APP_ROOT/qml/fonts/MaterialIcons-LICENSE.txt" \
+    "$APP_ROOT/qml/fonts/IBMPlexSans-LICENSE.txt" "$APP_ROOT/qml/fonts/PTRootUI-LICENSE.txt" \
+    "$APP_ROOT/qml/fonts/MaterialIcons-LICENSE.txt" \
     "$APP_INSTALL/jellyfin-native.app/Contents/Resources/notices/"
   python3 "$APP_ROOT/tools/ffmpeg-capabilities.py" \
     --manifest "$APP_ROOT/tools/manifests/ffmpeg-capabilities.json" \

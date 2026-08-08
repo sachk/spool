@@ -5,8 +5,8 @@ Acknowledgements
 Special thanks to the Kodi developers: their Starfish implementation both
 showed me this was possible and made it much easier.
 
-Thank you to the mpv developers for the playback engine and the foundation on
-which the webOS playback work is built.
+Thank you to the mpv developers for making a player so fast and extensible it
+seems almost divinely created.
 
 Thank you to the Jellyfin developers for the server, APIs, documentation, and
 the wider free-software media ecosystem.
@@ -40,6 +40,7 @@ Major bundled components
   libsecret                    LGPL-2.1-or-later
   Atkinson Hyperlegible       SIL Open Font License 1.1
   IBM Plex Sans                SIL Open Font License 1.1
+  PT Root UI                  SIL Open Font License 1.1
   Google Material Icons       Apache License 2.0
 
 The exact runtime set varies by platform and build configuration. Copyright

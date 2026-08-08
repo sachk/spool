@@ -89,6 +89,11 @@ JELLYFIN_TEST_MAIN("browse-session-controller")
 
     session.enterNamedCollection(QStringLiteral("genre"), QStringLiteral("Drama"));
     require(session.descriptor().kind == BrowseKind::Genre, "genre descriptor set");
+    session.enterNamedCollection(QStringLiteral("genre"), QStringLiteral("Post-Rock"), QStringLiteral("music"));
+    require(session.descriptor().kind == BrowseKind::Genre
+            && session.descriptor().collectionType == QStringLiteral("music")
+            && session.libraryCollectionType() == QStringLiteral("music"),
+        "music genre retains its collection type");
     session.enterNamedCollection(QStringLiteral("studio"), QStringLiteral("Studio"));
     require(session.descriptor().kind == BrowseKind::Studio, "studio descriptor set");
 

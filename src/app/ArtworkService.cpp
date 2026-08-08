@@ -456,6 +456,15 @@ QString ArtworkService::url(const QVariant& value, const QString& kind, int widt
 {
     if (value.canConvert<MovieItem>())
         return movieUrl(value.value<MovieItem>(), kind, width);
+    if (value.metaType().id() == QMetaType::QVariantMap) {
+        const QVariantMap map = value.toMap();
+        MovieItem item;
+        item.id = map.value(QStringLiteral("movieId")).toString();
+        item.posterTag = map.value(QStringLiteral("posterTag")).toString();
+        item.albumId = map.value(QStringLiteral("albumId")).toString();
+        item.albumPrimaryImageTag = map.value(QStringLiteral("albumPrimaryImageTag")).toString();
+        return movieUrl(item, kind, width);
+    }
     if (value.canConvert<LibraryItem>()) {
         const LibraryItem item = value.value<LibraryItem>();
         return buildUrl(item.id, item.imageTag, QStringLiteral("Primary"), width > 0 ? width : 280, 75);

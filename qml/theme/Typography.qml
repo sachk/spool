@@ -7,14 +7,12 @@ QtObject {
     readonly property FontLoader plexSans: FontLoader {
         source: Qt.resolvedUrl("../fonts/IBMPlexSans-Variable.ttf")
     }
-    // TRIAL: PT Sans as the UI face. Revert with
-    // `git checkout qml/theme/Typography.qml CMakeLists.txt && rm qml/fonts/PTSans-*.ttf`.
+    // PT Root UI is a UI face with a real weight axis, so the Medium and
+    // DemiBold this interface asks for everywhere are drawn rather than
+    // synthesised from Regular, which smears stems at small sizes.
     readonly property FontLoader uiSans: FontLoader {
-        source: Qt.resolvedUrl("../fonts/PTSans-Regular.ttf")
+        source: Qt.resolvedUrl("../fonts/PTRootUI-Variable.ttf")
         onStatusChanged: root.reportFontStatus(status, name)
-    }
-    readonly property FontLoader uiSansBold: FontLoader {
-        source: Qt.resolvedUrl("../fonts/PTSans-Bold.ttf")
     }
     readonly property FontLoader subtitleFont: FontLoader {
         source: Qt.resolvedUrl("../fonts/AtkinsonHyperlegible-Regular.otf")

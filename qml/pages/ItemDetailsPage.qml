@@ -35,10 +35,14 @@ FocusScope {
                                                                                                        || "")
 
     readonly property bool canPlay: Boolean(item && item.playable)
+    readonly property bool albumDetail: typeText === "MusicAlbum"
     readonly property bool canPlayEpisodicContainer: typeText === "Series" ? String(item.movieId || "").length > 0 : typeText === "Season"
                                                                              && seriesIdText.length > 0
                                                                              && seasonIdText.length > 0
-    readonly property bool showPrimaryAction: canPlayEpisodicContainer || (selectedIndex >= 0 && canPlay)
+    readonly property bool canPlayAlbum: albumDetail && contextCount > 0
+    readonly property bool showPrimaryAction: canPlayEpisodicContainer || canPlayAlbum || (selectedIndex >= 0
+                                                                                           && canPlay)
+
     readonly property bool hasProgress: Number(item.resumeTicks || 0) > 0 && Number(item.runtimeTicks || 0) > 0
     readonly property int detailTitlePx: Math.min(68, Metrics.titleSizePx + 24)
     readonly property int contentMargin: Metrics.pageMarginPx
@@ -48,8 +52,9 @@ FocusScope {
     readonly property bool compactEpisodicDetail: typeText === "Season" || typeText === "Episode"
     readonly property bool smallZoom: Metrics.uiScalePercent <= 100
     readonly property string backgroundArt: Art.url(item, "backdrop", Math.ceil(width))
-    readonly property int sideArtWidth: Math.min(Math.round(width * 0.38), 1100)
-    readonly property string stillArt: Art.url(item, "landscape", Math.ceil(sideArtWidth))
+    readonly property int sideArtWidth: Math.min(Math.round(width * (albumDetail ? 0.26 : 0.38)), albumDetail ? 620 :
+                                                                                                                1100)
+    readonly property string stillArt: Art.url(item, albumDetail ? "poster" : "landscape", Math.ceil(sideArtWidth))
     readonly property bool showSideArt: width >= 1120 && Metrics.uiScale < 1.45 && stillArt.length > 0
     readonly property var technicalInfo: {
         if (!fullDetailItem.movieId || (typeText !== "Movie" && typeText !== "Series"))
@@ -63,8 +68,9 @@ FocusScope {
     readonly property int seasonOptionCount: Content.detailSeasonOptions ? Content.detailSeasonOptions.count : 0
     readonly property int similarCount: Content.detailSimilarItems ? Content.detailSimilarItems.count : 0
     readonly property bool contextPosterCards: typeText === "Series" || typeText === "BoxSet"
-    readonly property bool contextItemsPossible: contextPosterCards || ((typeText === "Episode" || typeText
-                                                                         === "Season") && seriesIdText.length > 0)
+    readonly property bool contextItemsPossible: albumDetail || contextPosterCards || ((typeText === "Episode"
+                                                                                        || typeText === "Season")
+                                                                                       && seriesIdText.length > 0)
     readonly property bool reserveContextRow: contextItemsPossible && contextCount === 0 && loadingDetailRows
     readonly property bool showContextPlaybackActions: contextCount > 0 && typeText !== "Series"
     readonly property bool mediaInfoAvailable: typeText !== "Series" && typeText !== "Season"
@@ -761,6 +767,10 @@ FocusScope {
     function activatePrimary(fromStart) {
         if (App.busy)
             return
+        if (canPlayAlbum) {
+            App.playModel(Content.detailSeasons, false)
+            return
+        }
         if (canPlayEpisodicContainer) {
             const seriesId = typeText === "Series" ? String(item.movieId || "") : seriesIdText
             App.playEpisodicContainer(seriesId, typeText === "Season" ? seasonIdText : "")
@@ -843,6 +853,10 @@ FocusScope {
                 shell.openDetailsAt(Content.detailSeasons, index, "season", detailsReturnRoute)
             return
         }
+        if (albumDetail) {
+            App.playFromModel(Content.detailSeasons, index)
+            return
+        }
         if (shell)
             shell.openDetailsAt(Content.detailSeasons, index, "context", detailsReturnRoute)
     }
@@ -861,7 +875,8 @@ FocusScope {
         const name = chipText(value)
         if (!name)
             return
-        App.openNamedCollection(kind, name)
+        App.openNamedCollection(kind, name, typeText === "MusicAlbum" || typeText === "MusicArtist" || typeText
+                                === "Audio" ? "music" : "")
         if (shell)
             shell.replaceRoute("libraryGrid")
     }
@@ -976,7 +991,7 @@ FocusScope {
     }
 
     function primaryLabel() {
-        return item.playActionLabel || "Play"
+        return canPlayAlbum ? "Play album" : (item.playActionLabel || "Play")
     }
 
     function runtimeText(ticks) {
@@ -1019,6 +1034,8 @@ FocusScope {
             return "Seasons"
         if (typeText === "BoxSet")
             return "Collection"
+        if (typeText === "MusicAlbum")
+            return "Tracks"
         if (typeText === "Season")
             return "Episodes"
         return seasonTitleText !== "Season" ? "More from " + seasonTitleText : "More from this season"
@@ -1358,14 +1375,14 @@ FocusScope {
                     anchors.leftMargin: Metrics.sectionGapPx * 2
                     anchors.top: heroCopy.top
                     width: Math.max(0, Math.min(root.sideArtWidth, parent.width - x - root.contentMargin))
-                    height: Math.round(width * 9 / 16) + (root.hasProgress ? 46 : 0)
+                    height: (root.albumDetail ? width : Math.round(width * 9 / 16)) + (root.hasProgress ? 46 : 0)
 
                     ImageCard {
                         id: stillCard
                         anchors.left: parent.left
                         anchors.right: parent.right
                         anchors.top: parent.top
-                        height: Math.round(width * 9 / 16)
+                        height: root.albumDetail ? width : Math.round(width * 9 / 16)
                         imageUrl: root.stillArt
                         fallbackText: root.typeText
                     }
@@ -1460,7 +1477,10 @@ FocusScope {
                         loading: root.reserveContextRow
                         emptyText: root.typeText === "Series" ? "Loading seasons..." : (root.typeText === "BoxSet"
                                                                                         ? "Loading collection..." :
-                                                                                          "Loading episodes...")
+                                                                                          root.typeText
+                                                                                          === "MusicAlbum"
+                                                                                          ? "Loading tracks..." :
+                                                                                            "Loading episodes...")
                         useSeriesPoster: root.typeText === "Series"
                         preferEpisodeTitle: !root.contextPosterCards
                         onActivated: index => root.openContextItem(index)

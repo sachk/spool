@@ -202,11 +202,12 @@ BrowseDescriptor BrowseDescriptor::person(QString personId, QString name)
     return descriptor;
 }
 
-BrowseDescriptor BrowseDescriptor::genre(QString name)
+BrowseDescriptor BrowseDescriptor::genre(QString name, QString collectionType)
 {
     BrowseDescriptor descriptor;
     descriptor.kind = BrowseKind::Genre;
     descriptor.name = name;
+    descriptor.collectionType = collectionType;
     return descriptor;
 }
 

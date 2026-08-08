@@ -54,6 +54,8 @@ FocusScope {
     // switcher, sort, or filter controls.
     readonly property bool isFixedBrowseView: ["genre", "studio", "playlist", "boxset", "folder", "artist"].indexOf(
         Browse.viewKind) >= 0
+    onIsFixedBrowseViewChanged: if (isFixedBrowseView)
+    closeMenus()
     focus: true
     readonly property bool contentReady: grid.count > 0 && gridReveal.firstDelegateReady
     // Grid position to restore across model resets (sort/filter/library
@@ -82,7 +84,7 @@ FocusScope {
 
         Rectangle {
             anchors.fill: parent
-            radius: height / 2
+            radius: Theme.radiusSmall
             color: buttonRoot.checked ? Theme.accentPanel : (buttonRoot.activeFocus || hover.hovered) ? Theme.bgHover :
                                                                                                         Theme.bgRaised
             border.width: buttonRoot.activeFocus ? 2 : 1
@@ -643,7 +645,12 @@ FocusScope {
         savedIndex = grid.currentIndex
         const item = Browse.items ? (Browse.items.get(grid.currentIndex) || ({})) : ({})
         const type = String(item.itemType || "")
-        if (["Playlist", "Folder", "PhotoAlbum", "MusicAlbum", "MusicArtist"].indexOf(type) >= 0) {
+        if (type === "MusicAlbum") {
+            if (hasShell())
+                shell.openDetailsAt(Browse.items, grid.currentIndex, "album", "libraryGrid")
+            return
+        }
+        if (["Playlist", "Folder", "PhotoAlbum", "MusicArtist"].indexOf(type) >= 0) {
             App.playFromModel(Browse.items, grid.currentIndex)
             return
         }
@@ -740,6 +747,7 @@ FocusScope {
         spacing: 12
         RowLayout {
             Layout.fillWidth: true
+            Layout.rightMargin: -Metrics.pageMarginPx + Metrics.scaled(14)
             spacing: 10
 
             FocusScope {
@@ -859,6 +867,7 @@ FocusScope {
 
         RowLayout {
             Layout.fillWidth: true
+            Layout.rightMargin: -Metrics.pageMarginPx
             Layout.fillHeight: true
             Layout.topMargin: root.listMode ? 0 : Metrics.scaled(6)
             Layout.bottomMargin: mediaInfoBar.visible ? mediaInfoBar.height + Metrics.scaled(10) : 0
@@ -977,7 +986,7 @@ FocusScope {
                 boundsBehavior: Flickable.StopAtBounds
                 model: Browse.items
                 leftMargin: focusPadding
-                rightMargin: focusPadding + Math.max(Metrics.scaled(12), 12) + Metrics.scaled(8)
+                rightMargin: focusPadding + Math.max(Metrics.scaled(10), 10) + Metrics.scaled(6)
                 cellWidth: Math.floor((width - leftMargin - rightMargin - Metrics.gapPx * (columns - 1)) / columns)
                 cellHeight: root.listMode ? Metrics.scaled(root.largeZoom ? 60 : 54) : cellWidth * 1.5 + Metrics.scaled(
                                                 64)
@@ -1009,6 +1018,14 @@ FocusScope {
                 }
 
                 FastWheelHandler {
+                    onScrolled: {
+                        const visible = grid.firstLikelyVisibleIndex()
+                        if (visible >= 0) {
+                            grid.currentIndex = visible
+                            root.savedIndex = visible
+                            InputKeys.focus(grid)
+                        }
+                    }
                     flickable: grid
                     animationDuration: Theme.reducedMotion ? 0 : 16
                 }
@@ -1017,8 +1034,7 @@ FocusScope {
                     anchors.top: parent.top
                     anchors.right: parent.right
                     anchors.bottom: parent.bottom
-                    width: Math.max(Metrics.scaled(12), 12)
-                    z: 20
+                    width: Math.ceil(Math.max(Metrics.scaled(10), 10) * 3)
                     flickable: grid
                     interactive: !Platform.isTV
                     minimumSize: 0.04
@@ -1103,21 +1119,35 @@ FocusScope {
                 }
 
                 Rectangle {
-                    anchors.right: libraryScrollBar.left
-                    anchors.rightMargin: Metrics.scaled(10)
-                    anchors.verticalCenter: parent.verticalCenter
-                    width: Metrics.scaled(52)
-                    height: width
-                    radius: Theme.radiusMedium
+                    readonly property real desiredY: libraryScrollBar.handleCenterY - height / 2
+                    anchors.right: libraryScrollBar.horizontalCenter
+                    y: Math.max(0, Math.min(grid.height - height, desiredY))
+                    width: Metrics.scaled(60)
+                    height: Metrics.scaled(50)
+                    radius: Metrics.scaled(8)
                     color: Theme.accentPanel
                     border.width: Theme.hoverBorderWidth
                     border.color: Theme.accent
                     opacity: alphabetFeedback.running || libraryScrollBar.pressed ? 1 : 0
                     visible: opacity > 0
-                    z: 6
+                    z: 21
+
+                    Rectangle {
+                        anchors.right: parent.right
+                        anchors.rightMargin: -Metrics.scaled(6)
+                        anchors.verticalCenter: parent.verticalCenter
+                        width: Metrics.scaled(16)
+                        height: Metrics.scaled(20)
+                        radius: Metrics.scaled(2)
+                        color: parent.color
+                        border.width: parent.border.width
+                        border.color: parent.border.color
+                        z: -1
+                    }
 
                     AppText {
                         anchors.centerIn: parent
+                        anchors.horizontalCenterOffset: -Metrics.scaled(4)
                         text: root.currentAlphabetLabel
                         font.pixelSize: Metrics.scaled(26)
                         font.weight: Font.Bold
@@ -1302,19 +1332,25 @@ FocusScope {
         anchors.rightMargin: 0
         width: root.listMode ? grid.cellWidth - Metrics.gapPx : Math.max(0, grid.width - grid.leftMargin
                                                                          - grid.rightMargin)
+
         height: implicitHeight
         info: root.mediaInfo
         z: 18
     }
+    MouseArea {
+        anchors.fill: parent
+        visible: root.libraryOpen || root.sortOpen || root.filtersOpen
+        z: 19
+        onClicked: root.closeMenus()
+    }
 
     LazyMenuPanel {
         id: libraryPanel
-        anchors.top: parent.top
+        open: root.libraryOpen && !root.isFixedBrowseView
         anchors.left: parent.left
         anchors.topMargin: root.contentTopMargin + 52
         anchors.leftMargin: Metrics.pageMarginPx
         width: 360
-        open: root.libraryOpen
         maximumHeight: 420
         z: 22
         model: root.libraryEntries

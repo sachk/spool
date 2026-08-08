@@ -212,18 +212,20 @@ bool BrowseSessionController::enterItem(const MovieItem& item)
     return true;
 }
 
-void BrowseSessionController::enterNamedCollection(const QString& viewKind, const QString& name)
+void BrowseSessionController::enterNamedCollection(
+    const QString& viewKind, const QString& name, const QString& collectionType)
 {
     clearBrowseIdentity();
     if (viewKind == QStringLiteral("genre"))
-        m_descriptor = BrowseDescriptor::genre(name);
+        m_descriptor = BrowseDescriptor::genre(name, collectionType);
     else if (viewKind == QStringLiteral("studio"))
         m_descriptor = BrowseDescriptor::studio(name);
     else
         m_descriptor = {};
+    m_libraryCollectionType = collectionType;
     m_viewKind = viewKind;
     m_title = name;
-    m_contentLabel = QStringLiteral("Titles");
+    m_contentLabel = collectionType == QStringLiteral("music") ? QStringLiteral("Music") : QStringLiteral("Titles");
     m_query.clear();
     m_filterOptions.clear();
     emit changed();

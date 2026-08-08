@@ -138,8 +138,11 @@ FocusScope {
                              })
             return
         }
-        if (["Playlist", "Folder", "PhotoAlbum", "MusicAlbum", "MusicArtist"].indexOf(String(item.itemType || ""))
-                >= 0) {
+        if (String(item.itemType || "") === "MusicAlbum") {
+            shell.openDetailsAt(row.model, row.currentIndex, "album", "search")
+            return
+        }
+        if (["Playlist", "Folder", "PhotoAlbum", "MusicArtist"].indexOf(String(item.itemType || "")) >= 0) {
             App.playFromModel(row.model, row.currentIndex)
             shell.pushRoute("libraryGrid")
             return
@@ -332,12 +335,18 @@ FocusScope {
                 onActivated: root.activateResult(this)
             }
 
-            footer: EmptyPlaceholder {
+            footer: Item {
                 width: resultsScroller.width
                 height: resultsScroller.height
                 visible: root.resultCount === 0 && !root.searchBusy
-                title: "No results"
-                detail: "Try another title or name."
+
+                AppText {
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: "No Results"
+                    font.pixelSize: Metrics.bodySizePx + 10
+                    font.weight: Font.DemiBold
+                }
             }
         }
     }

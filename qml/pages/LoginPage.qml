@@ -356,14 +356,6 @@ FocusScope {
                 font.weight: Font.DemiBold
                 horizontalAlignment: Text.AlignHCenter
             }
-
-            SecondaryText {
-                width: Math.min(root.contentWidth, Metrics.scaled(720))
-                text: "Choose a Jellyfin account and its paired server"
-                color: Theme.textSecondary
-                font.pixelSize: Metrics.bodySizePx
-                horizontalAlignment: Text.AlignHCenter
-            }
         }
 
         Row {

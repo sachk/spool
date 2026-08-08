@@ -1,5 +1,6 @@
 pragma Singleton
 import QtQuick
+import JellyfinWebOS
 
 QtObject {
     readonly property color bg: "#0E0E0E"
@@ -82,7 +83,10 @@ QtObject {
     readonly property int focusBorderWidth: Math.max(2, Metrics.scaled(2))
     readonly property int hoverBorderWidth: Math.max(1, Metrics.scaled(1))
 
-    property int normalTextRenderType: Text.QtRendering
+    // Distance-field text scales smoothly, which is what a TV viewport needs,
+    // but it ignores hinting and goes soft at desktop text sizes. Only webOS
+    // pays that cost by default.
+    property int normalTextRenderType: Platform.isTV ? Text.QtRendering : Text.NativeRendering
     property bool reducedMotion: false
     property bool antialiasedText: true
     property string technicalMetadataMode: "Always"
