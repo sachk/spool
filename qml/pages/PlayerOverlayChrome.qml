@@ -2,6 +2,7 @@ pragma ComponentBehavior: Bound
 
 import QtQuick
 import QtQuick.Layouts
+import JellyfinWebOS
 import "../theme"
 import "../primitives"
 import "../shell" as Shell
@@ -221,6 +222,46 @@ Item {
                 to: 1
                 duration: 650
             }
+        }
+    }
+
+    // The shell's busy overlay stands down while the player owns the screen, so
+    // a restart that keeps the player up — a quality change — needs to say so
+    // here, in the same badge SyncPlay waits behind.
+    Item {
+        id: playbackBusyBadge
+
+        anchors.centerIn: parent
+        width: root.dp(116)
+        height: width
+        visible: App.busy && !syncPlayWaitingIcon.visible
+        z: 21
+
+        Rectangle {
+            anchors.fill: parent
+            radius: width / 2
+            color: "#C9161616"
+            border.width: 1
+            border.color: Theme.borderStrong
+        }
+
+        BusySpinner {
+            anchors.centerIn: parent
+            width: root.dp(56)
+            height: width
+            running: playbackBusyBadge.visible
+            color: Theme.accent
+        }
+
+        AppText {
+            anchors.horizontalCenter: parent.horizontalCenter
+            anchors.top: parent.bottom
+            anchors.topMargin: root.dp(14)
+            visible: App.busyText.length > 0
+            text: App.busyText
+            color: Theme.textSecondary
+            font.pixelSize: root.dp(20)
+            font.weight: Font.DemiBold
         }
     }
 
