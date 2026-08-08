@@ -73,14 +73,14 @@ Item {
         anchors.leftMargin: Metrics.scaled(10)
         anchors.rightMargin: Metrics.scaled(10)
         visible: !root.section
-        spacing: Metrics.scaled(10)
+        spacing: Metrics.scaled(root.compact ? 8 : 10)
 
         MaterialIcon {
             visible: root.iconName.length > 0
-            Layout.preferredWidth: Metrics.scaled(28)
+            Layout.preferredWidth: Metrics.scaled(root.compact ? 22 : 28)
             Layout.preferredHeight: width
             name: root.iconName
-            iconSize: Metrics.scaled(22)
+            iconSize: Metrics.scaled(root.compact ? 18 : 22)
             iconColor: root.checked || root.highlighted ? Theme.accent : root.actionable ? Theme.textSecondary :
                                                                                            Theme.textMuted
 
