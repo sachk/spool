@@ -305,63 +305,101 @@ Item {
         overlay: root.overlay
     }
 
-    OverlayDialog {
+    // A TV shows this as a modal sheet in the middle of the screen, where the
+    // heading is the only thing naming what the remote is pointed at. A
+    // desktop opens it from a button that is still on screen, so the same menu
+    // belongs under that button as a dropdown and the heading is redundant.
+    Item {
         id: menuDialog
+        anchors.fill: parent
         visible: root.overlay.menuKind.length > 0
-        preferredWidth: 620
         z: 50
-        onDismissed: root.overlay.closeMenu()
 
-        AppText {
-            Layout.fillWidth: true
-            text: root.overlay.menuTitle()
-            color: Theme.textPrimary
-            font.pixelSize: Metrics.titleSizePx
-            font.weight: Font.DemiBold
+        readonly property bool dropdown: root.overlay.desktopControlsAvailable
+
+        Rectangle {
+            anchors.fill: parent
+            color: menuDialog.dropdown ? "transparent" : "#99000000"
+            MouseArea {
+                anchors.fill: parent
+                onClicked: root.overlay.closeMenu()
+            }
         }
 
-        AppText {
-            Layout.fillWidth: true
-            Layout.preferredHeight: visible ? implicitHeight : 0
-            visible: menuList.count === 0
-            text: root.overlay.menuPlaceholder()
-            color: Theme.textMuted
-            font.pixelSize: Metrics.bodySizePx
-        }
+        Surface {
+            id: menuPanel
+            width: menuDialog.dropdown ? root.dp(420) : Math.min(parent.width - root.dp(96), root.dp(620))
+            height: Math.min(parent.height - root.dp(96), menuBody.implicitHeight + root.dp(48))
+            x: menuDialog.dropdown ? parent.width - width - root.dp(52) : (parent.width - width) / 2
+            y: menuDialog.dropdown ? Math.max(root.dp(24), hud.y - height - root.dp(18)) : (parent.height - height) / 2
+            elevated: true
+            clip: true
+            baseColor: menuDialog.dropdown ? Theme.bgRaised : Theme.bgPanel
 
-        MenuListView {
-            id: menuList
-            Layout.fillWidth: true
-            Layout.preferredHeight: visible ? Math.min(contentHeight, root.dp(360)) : 0
-            visible: count > 0
-            model: root.overlay.menuOptions
-            onDismissed: root.overlay.closeMenu()
-            onAccepted: index => root.overlay.activateMenuItem(index)
+            MouseArea {
+                anchors.fill: parent
+            }
 
-            delegate: MenuRow {
-                required property int index
-                required property var modelData
-                label: root.overlay.menuLabel(modelData)
-                detail: root.overlay.menuKind === "debug" && index === 0 && SyncPlay.enabled ? "Managed by SyncPlay while grouped" :
-                                                                                               ""
-                checked: root.overlay.menuItemSelected(index)
-                highlighted: menuList.currentIndex === index
-                metricsWidth: root.width
-                stepperVisible: root.overlay.menuKind === "debug" && index === 0
-                stepperEnabled: !SyncPlay.enabled
-                stepperText: root.overlay.formatPlaybackSpeed(root.overlay.player.effectivePlaybackSpeed)
-                onDecreaseRequested: {
-                    menuList.currentIndex = index
-                    root.overlay.adjustPlaybackSpeed(-1)
+            ColumnLayout {
+                id: menuBody
+                anchors.fill: parent
+                anchors.margins: root.dp(24)
+                spacing: root.dp(14)
+
+                AppText {
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: visible ? implicitHeight : 0
+                    visible: !menuDialog.dropdown
+                    text: root.overlay.menuTitle()
+                    color: Theme.textPrimary
+                    font.pixelSize: Metrics.titleSizePx
+                    font.weight: Font.DemiBold
                 }
-                onIncreaseRequested: {
-                    menuList.currentIndex = index
-                    root.overlay.adjustPlaybackSpeed(1)
+
+                AppText {
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: visible ? implicitHeight : 0
+                    visible: menuList.count === 0
+                    text: root.overlay.menuPlaceholder()
+                    color: Theme.textMuted
+                    font.pixelSize: Metrics.bodySizePx
                 }
-                onHovered: menuList.currentIndex = index
-                onActivated: {
-                    menuList.currentIndex = index
-                    root.overlay.activateMenuItem(index)
+
+                MenuListView {
+                    id: menuList
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: visible ? Math.min(contentHeight, root.dp(360)) : 0
+                    visible: count > 0
+                    model: root.overlay.menuOptions
+                    onDismissed: root.overlay.closeMenu()
+                    onAccepted: index => root.overlay.activateMenuItem(index)
+
+                    delegate: MenuRow {
+                        required property int index
+                        required property var modelData
+                        label: root.overlay.menuLabel(modelData)
+                        detail: root.overlay.menuKind === "debug" && index === 0 && SyncPlay.enabled ? "Disabled by SyncPlay" :
+                                                                                                       ""
+                        checked: root.overlay.menuItemSelected(index)
+                        highlighted: menuList.currentIndex === index
+                        metricsWidth: root.width
+                        stepperVisible: root.overlay.menuKind === "debug" && index === 0
+                        stepperEnabled: !SyncPlay.enabled
+                        stepperText: root.overlay.formatPlaybackSpeed(root.overlay.player.effectivePlaybackSpeed)
+                        onDecreaseRequested: {
+                            menuList.currentIndex = index
+                            root.overlay.adjustPlaybackSpeed(-1)
+                        }
+                        onIncreaseRequested: {
+                            menuList.currentIndex = index
+                            root.overlay.adjustPlaybackSpeed(1)
+                        }
+                        onHovered: menuList.currentIndex = index
+                        onActivated: {
+                            menuList.currentIndex = index
+                            root.overlay.activateMenuItem(index)
+                        }
+                    }
                 }
             }
         }
