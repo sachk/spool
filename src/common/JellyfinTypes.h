@@ -195,6 +195,10 @@ struct MovieItem {
     Q_PROPERTY(QString seriesId MEMBER seriesId)
     Q_PROPERTY(QString seasonId MEMBER seasonId)
     Q_PROPERTY(QString seriesName MEMBER seriesName)
+    Q_PROPERTY(QString album MEMBER album)
+    Q_PROPERTY(QString albumId MEMBER albumId)
+    Q_PROPERTY(QString albumArtist MEMBER albumArtist)
+    Q_PROPERTY(QString albumPrimaryImageTag MEMBER albumPrimaryImageTag)
     Q_PROPERTY(QString seriesPrimaryImageTag MEMBER seriesPrimaryImageTag)
     Q_PROPERTY(QString path MEMBER path)
     Q_PROPERTY(int year MEMBER year)
@@ -241,6 +245,11 @@ public:
     QString seasonId;
     QString seriesName;
     QString seriesPrimaryImageTag;
+    // Tracks carry their cover on the album rather than on themselves.
+    QString album;
+    QString albumId;
+    QString albumArtist;
+    QString albumPrimaryImageTag;
     QString path;
     int year = 0;
     int seasonNumber = 0;

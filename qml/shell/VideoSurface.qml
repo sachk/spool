@@ -66,6 +66,15 @@ FocusScope {
         z: 1
     }
 
+    Loader {
+        anchors.fill: parent
+        active: root.active && Player.mediaKind === "audio"
+        z: 0
+        sourceComponent: PlayerMusicStage {
+            overlay: playerOverlay
+        }
+    }
+
     PlayerOverlayPage {
         id: playerOverlay
         anchors.fill: parent

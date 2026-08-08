@@ -369,6 +369,7 @@ qt_add_qml_module(jellyfin-native
         qml/pages/OpenSourceNoticesPage.qml
         qml/pages/PersonDetailsPage.qml
         qml/pages/PlayerAudioSyncPanel.qml
+        qml/pages/PlayerMusicStage.qml
         qml/pages/PlayerOverlayChrome.qml
         qml/pages/PlayerOverlayInput.qml
         qml/pages/PlayerOverlayPage.qml

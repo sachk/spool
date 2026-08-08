@@ -41,6 +41,9 @@ FocusScope {
     readonly property int actionTargetSize: dp(68)
     readonly property var audioSyncSteps: [1, 5, 10, 100]
     readonly property bool audioSelectable: hasPlayer && player.audioTracks.length > 1
+    // Nothing hides over a now playing stage, and the controls that only make
+    // sense against a picture are left out of it.
+    readonly property bool audioOnly: hasPlayer && player.mediaKind === "audio"
     readonly property var currentQueueItem: playQueue && playQueue.currentIndex >= 0 ? playQueue.get(
                                                                                            playQueue.currentIndex) : (
                                                                                            {})
@@ -102,7 +105,8 @@ FocusScope {
     readonly property int pauseActionIndex: Math.max(0, actions.indexOf("pause"))
     readonly property var utilityActions: {
         const values = []
-        values.push("subtitles")
+        if (!audioOnly)
+            values.push("subtitles")
         if (audioSelectable)
             values.push("audio")
         if (playQueue && playQueue.count > 0)
@@ -116,36 +120,41 @@ FocusScope {
     readonly property var actions: transportActions.concat(utilityActions)
     // Each row carries what it does, so inserting one cannot silently rewire
     // the others the way a list of bare labels dispatched by position did.
-    readonly property var debugOptions: [
-        {
-            "action": "speed",
-            "label": "Playback speed"
-        },
-        {
-            "action": "quality",
-            "label": "Quality"
-        },
-        {
-            "action": "subtitleSettings",
-            "label": "Subtitle settings"
-        },
-        {
-            "action": "subtitleSync",
-            "label": "Subtitle sync"
-        },
-        {
-            "action": "audioSync",
-            "label": "Audio sync"
-        },
-        {
-            "action": "nightMode",
-            "label": nightModeEnabled ? "Disable night mode" : "Enable night mode"
-        },
-        {
-            "action": "stats",
-            "label": hasPlayer && player.debugOsdVisible ? "Hide performance stats" : "Show performance stats"
-        }
-    ]
+    readonly property var debugOptions: {
+        const values = [
+                  {
+                      "action": "speed",
+                      "label": "Playback speed"
+                  },
+                  {
+                      "action": "quality",
+                      "label": "Quality"
+                  }
+              ]
+        if (!audioOnly)
+            values.push({
+                            "action": "subtitleSettings",
+                            "label": "Subtitle settings"
+                        }, {
+                            "action": "subtitleSync",
+                            "label": "Subtitle sync"
+                        })
+        values.push({
+                        "action": "audioSync",
+                        "label": "Audio sync"
+                    })
+        if (!audioOnly)
+            values.push({
+                            "action": "nightMode",
+                            "label": nightModeEnabled ? "Disable night mode" : "Enable night mode"
+                        })
+        values.push({
+                        "action": "stats",
+                        "label": hasPlayer && player.debugOsdVisible ? "Hide performance stats" :
+                                                                       "Show performance stats"
+                    })
+        return values
+    }
     property var qualityOptions: []
     readonly property var menuOptions: {
         if (menuKind === "subtitles")
@@ -252,7 +261,7 @@ FocusScope {
     }
 
     function isPinned() {
-        return scrubbing || timelineHovering || isMenuOpen() || audioSyncVisible
+        return audioOnly || scrubbing || timelineHovering || isMenuOpen() || audioSyncVisible
     }
 
     function isControlsActive() {
@@ -783,8 +792,13 @@ FocusScope {
         }
 
         function onSessionActiveChanged() {
-            if (player.sessionActive)
+            if (player.sessionActive) {
+                // A now playing stage is only the chrome and the cover, so it
+                // opens with the controls already up rather than on a keypress.
+                if (overlay.audioOnly)
+                    overlay.showControls("actions")
                 return
+            }
             if (overlay.tooltipSessionHadFile)
                 Settings.completePlayerControlTooltipSession()
             overlay.tooltipSessionHadFile = false

@@ -913,7 +913,9 @@ void PlayerController::play(const PlaybackSession& session, bool startPaused)
     m_uiPositionTimer.start();
     const bool wasVisible = m_visible;
     const bool wasSessionActive = m_sessionActive;
-    m_visible = needsVideoSurface;
+    // Audio has no video surface but still owns the screen: it gets the same
+    // transport chrome over a now playing stage instead of playing unseen.
+    m_visible = true;
     m_sessionActive = true;
     if (wasVisible != m_visible)
         emit visibleChanged();

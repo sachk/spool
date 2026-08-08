@@ -15,6 +15,44 @@ QtObject {
     readonly property color textDisabled: "#4A4A4A"
     readonly property color accentText: "#061017"
 
+    // Jellyfin draws a library with no artwork as its collection glyph on a
+    // saturated field. Mirroring that keeps a fresh server recognisable
+    // instead of showing an empty card where every other row has a poster.
+    readonly property var libraryTints: ["#00A4DC", "#AA5CC3", "#F5C518", "#38B36B", "#E5533D", "#5A6BFF"]
+
+    function libraryIcon(collectionType) {
+        switch (String(collectionType || "").toLowerCase()) {
+        case "movies":
+            return "movie"
+        case "tvshows":
+            return "tv"
+        case "music":
+        case "musicvideos":
+            return "music_note"
+        case "books":
+            return "menu_book"
+        case "photos":
+        case "homevideos":
+            return "photo_library"
+        case "playlists":
+            return "queue_music"
+        case "livetv":
+            return "live_tv"
+        case "boxsets":
+            return "collections"
+        default:
+            return "folder"
+        }
+    }
+
+    function libraryTint(seed) {
+        const text = String(seed || "")
+        let hash = 0
+        for (let index = 0; index < text.length; ++index)
+            hash = (hash * 31 + text.charCodeAt(index)) % 100000
+        return libraryTints[hash % libraryTints.length]
+    }
+
     readonly property color paletteBlue: "#00A4DC"
     readonly property color palettePurple: "#AA5CC3"
     property int accentIndex: 0

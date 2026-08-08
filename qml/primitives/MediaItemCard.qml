@@ -11,6 +11,8 @@ Item {
     property string subtitleOverride: ""
     property string imageOverride: ""
     property string fallbackOverride: ""
+    property string fallbackIcon: ""
+    property color fallbackTint: "transparent"
     property bool focused: false
     property bool useSeriesPoster: false
     property bool preferEpisodeTitle: false
@@ -101,6 +103,8 @@ Item {
         imageUrl: root.imageSource()
         artworkEnabled: root.artworkEnabled
         fallbackText: root.fallbackText()
+        fallbackIcon: root.fallbackIcon
+        fallbackTint: root.fallbackTint
         artworkVisible: root.artworkVisible
     }
 

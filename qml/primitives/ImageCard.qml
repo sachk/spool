@@ -5,6 +5,10 @@ Item {
     id: root
     property string imageUrl: ""
     property string fallbackText: ""
+    // A library or an album with no artwork reads better as its own glyph on a
+    // tinted field than as the word "music" in a grey box.
+    property string fallbackIcon: ""
+    property color fallbackTint: "transparent"
     property bool artworkVisible: true
     property bool artworkEnabled: true
     readonly property bool artworkReady: !artworkEnabled || imageUrl.length === 0 || artwork.status === Image.Ready || artwork.status
@@ -16,18 +20,30 @@ Item {
         return url
     }
 
+    readonly property bool showingFallback: !artworkEnabled || imageUrl.length === 0 || artwork.status === Image.Error
+
     Rectangle {
         id: frame
         anchors.fill: parent
         radius: Theme.radiusMedium
-        color: Theme.bgRaised
+        color: root.showingFallback && root.fallbackTint.a > 0 ? root.fallbackTint : Theme.bgRaised
         border.width: Theme.hoverBorderWidth
-        border.color: Theme.border
+        border.color: root.showingFallback && root.fallbackTint.a > 0 ? "transparent" : Theme.border
         clip: true
 
         Loader {
+            anchors.centerIn: parent
+            active: root.showingFallback && root.fallbackIcon.length > 0
+            sourceComponent: MaterialIcon {
+                name: root.fallbackIcon
+                iconColor: Qt.rgba(1, 1, 1, 0.82)
+                iconSize: Math.round(Math.min(frame.width, frame.height) * 0.42)
+            }
+        }
+
+        Loader {
             anchors.fill: parent
-            active: !root.artworkEnabled || root.imageUrl.length === 0 || artwork.status === Image.Error
+            active: root.showingFallback && root.fallbackIcon.length === 0
             sourceComponent: SecondaryText {
                 anchors.centerIn: parent
                 width: parent.width - Metrics.scaled(20)

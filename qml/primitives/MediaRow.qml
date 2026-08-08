@@ -211,6 +211,8 @@ FocusScope {
             imageOverride: libraryCard ? Art.url(cardItem, "landscape", Math.ceil(root.cardWidth)) : personCard
                                          ? Art.url(cardItem, "poster", Math.ceil(root.cardWidth)) : ""
             fallbackOverride: personCard ? String(cardData.type || "Person") : ""
+            fallbackIcon: libraryCard ? Theme.libraryIcon(cardData.collectionType) : ""
+            fallbackTint: libraryCard ? Theme.libraryTint(cardData.name) : "transparent"
             useSeriesPoster: root.useSeriesPoster
             preferEpisodeTitle: root.preferEpisodeTitle
             focused: card.index === listView.currentIndex && listView.activeFocus

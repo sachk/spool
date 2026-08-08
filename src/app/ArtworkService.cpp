@@ -496,6 +496,13 @@ QString ArtworkService::movieUrl(const MovieItem& item, const QString& kind, int
     int fillWidth = 0;
     int fillHeight = 0;
 
+    if (tag.isEmpty() && !item.albumPrimaryImageTag.isEmpty() && !item.albumId.isEmpty()
+        && kind != QStringLiteral("logo") && kind != QStringLiteral("banner")) {
+        // A track rarely carries its own cover; the album holds it.
+        itemId = item.albumId;
+        tag = item.albumPrimaryImageTag;
+    }
+
     if (kind == QStringLiteral("seriesPoster")) {
         if (!item.seriesId.isEmpty() && !item.seriesPrimaryImageTag.isEmpty()) {
             itemId = item.seriesId;
