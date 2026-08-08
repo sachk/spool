@@ -605,11 +605,17 @@ int main(int argc, char **argv)
     if (launchTest) {
         QObject::connect(
             &window, &QQuickWindow::frameSwapped, &app,
-            [&app, &window] {
-                logLine("launch test: application UI rendered");
-                JellyfinNative::Diagnostics::setInstanceState(QStringLiteral("launch_test_rendered"));
-                window.setSource(QUrl());
-                app.exit(0);
+            [&app] {
+                // frameSwapped may be emitted by the render thread. Return to
+                // the GUI thread before beginning the normal shutdown path.
+                QMetaObject::invokeMethod(
+                    &app,
+                    [&app] {
+                        logLine("launch test: application UI rendered");
+                        JellyfinNative::Diagnostics::setInstanceState(QStringLiteral("launch_test_rendered"));
+                        app.exit(0);
+                    },
+                    Qt::QueuedConnection);
             },
             directSingleShot);
         QTimer::singleShot(30'000, &app, [&app] {

@@ -84,8 +84,10 @@ if ($LASTEXITCODE -ne 0) { throw 'FFmpeg dependency closure audit failed.' }
 
 & (Join-Path $PSScriptRoot 'test-runtime-closure.ps1') -StageDirectory $stageDir
 
-$env:JELLYFIN_NATIVE_CACHE_HOME = Join-Path $env:TEMP "spool-stage-launch-$PID\cache"
-$env:JELLYFIN_DIAGNOSTICS_DIR = Join-Path $env:TEMP "spool-stage-launch-$PID\diagnostics"
+$launchRoot = Join-Path $env:TEMP "spool-stage-launch-$PID"
+$env:LOCALAPPDATA = Join-Path $launchRoot 'data'
+$env:JELLYFIN_NATIVE_CACHE_HOME = Join-Path $launchRoot 'cache'
+$env:JELLYFIN_DIAGNOSTICS_DIR = Join-Path $launchRoot 'diagnostics'
 $launchProcess = Start-Process -FilePath (Join-Path $stageDir 'jellyfin-native.exe') `
     -ArgumentList '--launch-test' -WorkingDirectory $stageDir -PassThru
 if (-not $launchProcess.WaitForExit(30000)) {
@@ -94,6 +96,12 @@ if (-not $launchProcess.WaitForExit(30000)) {
 }
 $launchProcess.Refresh()
 if ($launchProcess.ExitCode -ne 0) {
+    $launchLog = Join-Path $env:LOCALAPPDATA 'com.sachk.spool\logs\jellyfin-native.log'
+    if (Test-Path -LiteralPath $launchLog) {
+        Write-Host '--- staged executable launch log ---'
+        Get-Content -LiteralPath $launchLog
+        Write-Host '--- end staged executable launch log ---'
+    }
     throw "The staged Windows executable failed its UI launch test with exit code $($launchProcess.ExitCode)."
 }
 Write-Host 'Staged executable UI launch test passed.'
