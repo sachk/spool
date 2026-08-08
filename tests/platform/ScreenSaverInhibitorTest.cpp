@@ -1,5 +1,7 @@
 #include "platform/ScreenSaverInhibitor.h"
 
+#include "TestMain.h"
+
 #include <QJsonDocument>
 #include <QJsonObject>
 
@@ -58,7 +60,7 @@ private:
 
 } // namespace
 
-int main()
+JELLYFIN_TEST_MAIN("screensaver-inhibitor")
 {
     using namespace JellyfinNative;
 

@@ -1,5 +1,7 @@
 #include "common/MetaJson.h"
 
+#include "TestMain.h"
+
 #include <QDebug>
 #include <QJsonArray>
 #include <QJsonObject>
@@ -536,7 +538,7 @@ void testEpisodePlaybackMetadata()
 
 } // namespace
 
-int main()
+JELLYFIN_TEST_MAIN("meta-json")
 {
     testDtoRoundTrips();
     testMovieRoundTripAndCamelCaseKey();

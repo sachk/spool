@@ -21,7 +21,11 @@ Push-Location $root
 try {
     cmake --preset windows-release
     if ($LASTEXITCODE -ne 0) { throw 'CMake configuration failed.' }
-    cmake --build --preset windows-release --target jellyfin-native
+    # Build every target, tests included, the way the Linux and macOS scripts
+    # do. The application's whole-program-optimized link is a long serial step;
+    # letting Ninja compile the tests alongside it keeps the runner's cores busy
+    # instead of paying for the tests in a second pass.
+    cmake --build --preset windows-release
     if ($LASTEXITCODE -ne 0) { throw 'Windows release build failed.' }
 } finally {
     Pop-Location

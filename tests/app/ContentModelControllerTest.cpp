@@ -7,6 +7,8 @@
 #include "common/MetaJson.h"
 #include "common/TlsTrust.h"
 
+#include "TestMain.h"
+
 #include <QCoreApplication>
 #include <QDebug>
 #include <QEventLoop>
@@ -563,7 +565,7 @@ bool requestedPathWithSeason(const QVector<QUrl>& urls)
 
 } // namespace
 
-int main(int argc, char **argv)
+JELLYFIN_TEST_MAIN("content-model-controller")
 {
     QCoreApplication app(argc, argv);
 

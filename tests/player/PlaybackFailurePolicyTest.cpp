@@ -1,5 +1,7 @@
 #include "player/PlaybackFailurePolicy.h"
 
+#include "TestMain.h"
+
 #include <mpv/client.h>
 
 #include <cstdlib>
@@ -17,7 +19,7 @@ void require(bool condition, const char *message)
 
 } // namespace
 
-int main()
+JELLYFIN_TEST_MAIN("playback-failure-policy")
 {
     using JellyfinNative::PlaybackFailurePolicy;
 

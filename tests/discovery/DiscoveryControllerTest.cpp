@@ -1,5 +1,7 @@
 #include "discovery/DiscoveryController.h"
 
+#include "TestMain.h"
+
 #include <QCoreApplication>
 #include <QSet>
 
@@ -28,7 +30,7 @@ QStringList strings(const QList<QUrl>& urls)
 
 } // namespace
 
-int main(int argc, char **argv)
+JELLYFIN_TEST_MAIN("discovery-controller")
 {
     QCoreApplication app(argc, argv);
 

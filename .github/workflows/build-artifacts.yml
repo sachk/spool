@@ -154,7 +154,9 @@ jobs:
         run: nix develop .#native -c bash tools/build-linux-release.sh
 
       - name: Run native tests
-        run: nix develop .#native -c ctest --test-dir build/linux-release/app -E '^mpv-video-item$' --output-on-failure
+        run: |
+          nix develop .#native -c ctest --test-dir build/linux-release/app \
+            -E '^mpv-video-item$' --parallel "$(nproc)" --output-on-failure
 
 
       - name: Lint compiled QML
@@ -223,7 +225,9 @@ jobs:
         run: nix develop .#native --no-write-lock-file -c bash tools/build-macos.sh
 
       - name: Run native tests
-        run: nix develop .#native --no-write-lock-file -c ctest --test-dir build/macos/app --output-on-failure
+        run: |
+          nix develop .#native --no-write-lock-file -c ctest --test-dir build/macos/app \
+            --parallel "$(sysctl -n hw.ncpu)" --output-on-failure
 
       - name: Lint compiled QML
         run: nix develop .#native --no-write-lock-file -c cmake --build build/macos/app --target jellyfin-native_qmllint_strict

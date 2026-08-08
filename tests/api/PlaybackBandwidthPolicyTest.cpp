@@ -1,5 +1,7 @@
 #include "api/PlaybackBandwidthPolicy.h"
 
+#include "TestMain.h"
+
 #include <QDebug>
 
 #include <cstdlib>
@@ -18,7 +20,7 @@ void require(bool condition, const char *message)
 
 } // namespace
 
-int main()
+JELLYFIN_TEST_MAIN("playback-bandwidth-policy")
 {
     require(PlaybackBandwidthPolicy::effectiveBitrate(0, false, false, false, 0)
             == PlaybackBandwidthPolicy::AutoFallbackBitrate,

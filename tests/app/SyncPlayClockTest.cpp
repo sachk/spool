@@ -1,5 +1,7 @@
 #include "app/SyncPlayClock.h"
 
+#include "TestMain.h"
+
 #include <cstdlib>
 #include <iostream>
 
@@ -17,7 +19,7 @@ void require(bool condition, const char *message)
 
 } // namespace
 
-int main()
+JELLYFIN_TEST_MAIN("sync-play-clock")
 {
     SyncPlayClock clock;
     clock.addMeasurement({ 1'000, 1'060, 1'061, 1'101 });

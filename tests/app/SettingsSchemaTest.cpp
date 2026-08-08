@@ -1,6 +1,8 @@
 #include "app/SettingsSchema.h"
 #include "app/LocalizationManager.h"
 
+#include "TestMain.h"
+
 #include <QCoreApplication>
 #include <QHash>
 #include <QLocale>
@@ -487,7 +489,7 @@ void buttonChoicesAndLabelsExposePlayerActions()
 
 } // namespace
 
-int main(int argc, char **argv)
+JELLYFIN_TEST_MAIN("settings-schema")
 {
     QCoreApplication app(argc, argv);
     requiredPersistedKeysArePresentExactlyOnce();

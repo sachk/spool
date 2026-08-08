@@ -1,5 +1,7 @@
 #include "player/MpvOptionProfile.h"
 
+#include "TestMain.h"
+
 #include <QCoreApplication>
 #include <QFileInfo>
 #include <QTemporaryDir>
@@ -51,7 +53,7 @@ void require(bool condition, const char *message)
 
 } // namespace
 
-int main(int argc, char **argv)
+JELLYFIN_TEST_MAIN("mpv-option-profile")
 {
     QCoreApplication app(argc, argv);
 

@@ -1,4 +1,6 @@
 #include "cache/DatabaseManager.h"
+
+#include "TestMain.h"
 #include <QCoroTask>
 
 #include <QCoreApplication>
@@ -26,7 +28,7 @@ void require(bool condition, const char *message)
 
 } // namespace
 
-int main(int argc, char **argv)
+JELLYFIN_TEST_MAIN("database-manager")
 {
     QCoreApplication app(argc, argv);
     QTemporaryDir directory;

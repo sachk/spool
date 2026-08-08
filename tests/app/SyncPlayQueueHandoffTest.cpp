@@ -1,5 +1,7 @@
 #include "app/SyncPlayController.h"
 
+#include "TestMain.h"
+
 #include <cstdlib>
 #include <iostream>
 
@@ -17,7 +19,7 @@ void require(bool condition, const char *message)
 
 } // namespace
 
-int main()
+JELLYFIN_TEST_MAIN("sync-play-queue-handoff")
 {
     SyncPlayQueueHandoff handoff;
     handoff.arm();

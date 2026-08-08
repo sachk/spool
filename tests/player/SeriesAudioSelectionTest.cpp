@@ -1,5 +1,7 @@
 #include "common/SeriesAudioSelection.h"
 
+#include "TestMain.h"
+
 #include <cstdlib>
 #include <iostream>
 
@@ -27,7 +29,7 @@ MediaStreamInfo stream(int index, QString language, bool isDefault = false)
 
 } // namespace
 
-int main()
+JELLYFIN_TEST_MAIN("series-audio-selection")
 {
     MediaStreamInfo video;
     video.index = 0;

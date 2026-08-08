@@ -4,6 +4,8 @@
 #include "cache/DatabaseManager.h"
 #include "common/TlsTrust.h"
 
+#include "TestMain.h"
+
 #include <QCoroTask>
 
 #include <QCoreApplication>
@@ -52,7 +54,7 @@ AccountProfile profile(const QString& serverId, const QString& serverUrl, const 
 
 } // namespace
 
-int main(int argc, char **argv)
+JELLYFIN_TEST_MAIN("session-controller")
 {
     QCoreApplication app(argc, argv);
     QTemporaryDir directory;

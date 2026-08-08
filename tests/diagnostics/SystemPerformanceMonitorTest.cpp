@@ -1,5 +1,7 @@
 #include "diagnostics/SystemPerformanceMonitor.h"
 
+#include "TestMain.h"
+
 #include <QCoreApplication>
 #include <QEventLoop>
 #include <QFileInfo>
@@ -21,7 +23,7 @@ void require(bool condition, const char *message)
 
 } // namespace
 
-int main(int argc, char **argv)
+JELLYFIN_TEST_MAIN("system-performance-monitor")
 {
     QCoreApplication app(argc, argv);
     JellyfinNative::SystemPerformanceMonitor monitor;

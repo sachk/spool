@@ -1,5 +1,7 @@
 #include "app/BrowseSessionController.h"
 
+#include "TestMain.h"
+
 #include <QDebug>
 
 #include <cstdlib>
@@ -43,7 +45,7 @@ MovieItem item(QString id, QString title, QString type)
 
 } // namespace
 
-int main()
+JELLYFIN_TEST_MAIN("browse-session-controller")
 {
     BrowseSessionController session(nullptr);
 

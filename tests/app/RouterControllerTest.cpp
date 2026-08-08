@@ -1,5 +1,7 @@
 #include "app/RouterController.h"
 
+#include "TestMain.h"
+
 #include <QCoreApplication>
 #include <QSettings>
 #include <QTemporaryDir>
@@ -20,7 +22,7 @@ void require(bool condition, const char *message)
 
 } // namespace
 
-int main(int argc, char **argv)
+JELLYFIN_TEST_MAIN("router-controller")
 {
     QCoreApplication app(argc, argv);
     QCoreApplication::setOrganizationName(QStringLiteral("jellyfin-native-tests"));

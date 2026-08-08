@@ -1,5 +1,7 @@
 #include "player/PlaybackTrackParser.h"
 
+#include "TestMain.h"
+
 extern "C" {
 #include <mpv/client.h>
 }
@@ -63,7 +65,7 @@ void require(bool condition, const char *message)
 
 } // namespace
 
-int main()
+JELLYFIN_TEST_MAIN("playback-track-parser")
 {
     char *subtitleKeys[] = {
         const_cast<char *>("type"),

@@ -1,5 +1,7 @@
 #include "common/JellyfinTypes.h"
 
+#include "TestMain.h"
+
 #include <QDebug>
 
 #include <cstdlib>
@@ -30,7 +32,7 @@ void requireDescriptor(const BrowseDescriptor& descriptor, BrowseKind kind, cons
 
 } // namespace
 
-int main()
+JELLYFIN_TEST_MAIN("browse-descriptor")
 {
     const BrowseDescriptor library
         = BrowseDescriptor::library(QStringLiteral("library-1"), QStringLiteral("movies"), QStringLiteral("Movies"));

@@ -1,5 +1,7 @@
 #include "player/PlaybackPositionTracker.h"
 
+#include "TestMain.h"
+
 #include <QDebug>
 
 #include <cmath>
@@ -24,7 +26,7 @@ bool near(double actual, double expected)
 
 } // namespace
 
-int main()
+JELLYFIN_TEST_MAIN("playback-position-tracker")
 {
     PlaybackPositionTracker tracker;
     tracker.reset();

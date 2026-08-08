@@ -1,5 +1,7 @@
 #include "platform/PlatformSystemProbes.h"
 
+#include "TestMain.h"
+
 #include <QtGlobal>
 
 #include <cstdlib>
@@ -18,7 +20,7 @@ void require(bool condition, const char *message)
 }
 }
 
-int main()
+JELLYFIN_TEST_MAIN("linux-memory-policy")
 {
 #ifdef Q_OS_LINUX
     constexpr qint64 mib = 1024LL * 1024LL;

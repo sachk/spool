@@ -1,5 +1,7 @@
 #include "player/MpvVideoItem.h"
 
+#include "TestMain.h"
+
 #include <QDir>
 #include <QElapsedTimer>
 #include <QGuiApplication>
@@ -54,7 +56,7 @@ bool containsVideoPixel(const QImage& image)
 
 } // namespace
 
-int main(int argc, char **argv)
+JELLYFIN_TEST_MAIN("mpv-video-item")
 {
     QQuickWindow::setGraphicsApi(QSGRendererInterface::OpenGL);
     QSurfaceFormat format;

@@ -1,5 +1,7 @@
 #include "player/PlayQueueController.h"
 
+#include "TestMain.h"
+
 #include <QCoreApplication>
 
 #include <cstdlib>
@@ -35,7 +37,7 @@ QString idAt(const PlayQueueController& queue, int index)
 
 } // namespace
 
-int main(int argc, char **argv)
+JELLYFIN_TEST_MAIN("play-queue-controller")
 {
     QCoreApplication app(argc, argv);
 

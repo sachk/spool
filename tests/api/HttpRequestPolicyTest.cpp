@@ -1,5 +1,7 @@
 #include "api/HttpRequestPolicy.h"
 
+#include "TestMain.h"
+
 #include <QCoreApplication>
 
 #include <cstdlib>
@@ -19,7 +21,7 @@ void require(bool condition, const char *message)
 
 } // namespace
 
-int main(int argc, char **argv)
+JELLYFIN_TEST_MAIN("http-request-policy")
 {
     QCoreApplication app(argc, argv);
 

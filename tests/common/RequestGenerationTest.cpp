@@ -1,5 +1,7 @@
 #include "common/RequestGeneration.h"
 
+#include "TestMain.h"
+
 #include <cstdlib>
 #include <iostream>
 
@@ -17,7 +19,7 @@ void require(bool condition, const char *message)
 
 } // namespace
 
-int main()
+JELLYFIN_TEST_MAIN("request-generation")
 {
     RequestGeneration generation;
     const RequestGeneration::Token first = generation.next();

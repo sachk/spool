@@ -1,5 +1,7 @@
 #include "diagnostics/InputLatencyMonitor.h"
 
+#include "TestMain.h"
+
 #include <QDebug>
 #include <QEvent>
 #include <QKeyEvent>
@@ -499,7 +501,7 @@ void testUiLatencyFormatter()
 
 } // namespace
 
-int main()
+JELLYFIN_TEST_MAIN("input-latency-monitor")
 {
     testDisabledCapture();
     testEventClassifier();

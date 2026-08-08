@@ -1,5 +1,7 @@
 #include "app/LibraryQuery.h"
 
+#include "TestMain.h"
+
 #include <QDebug>
 
 #include <cstdlib>
@@ -34,7 +36,7 @@ LibraryItem library(QString id, QString name, QString collectionType)
 
 } // namespace
 
-int main()
+JELLYFIN_TEST_MAIN("library-query")
 {
     const LibraryItem movies = library(QStringLiteral("movies-id"), QStringLiteral("Films"), QStringLiteral("movies"));
     const LibraryItem series = library(QStringLiteral("series-id"), QStringLiteral("Shows"), QStringLiteral("tvshows"));

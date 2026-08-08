@@ -1,5 +1,7 @@
 #include "platform/NativeAppWindow.h"
 
+#include "TestMain.h"
+
 #include <QCoreApplication>
 #include <QGuiApplication>
 #include <QMouseEvent>
@@ -25,7 +27,7 @@ bool sendMouseButton(
 }
 } // namespace
 
-int main(int argc, char **argv)
+JELLYFIN_TEST_MAIN("native-window-input")
 {
     qputenv("QT_QPA_PLATFORM", QByteArrayLiteral("offscreen"));
     QGuiApplication app(argc, argv);

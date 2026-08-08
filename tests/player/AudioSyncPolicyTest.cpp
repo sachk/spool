@@ -1,5 +1,7 @@
 #include "platform/webos/WebOSAudioSyncPolicy.h"
 
+#include "TestMain.h"
+
 #include <QCoreApplication>
 #include <QDebug>
 
@@ -19,7 +21,7 @@ void require(bool condition, const char *message)
 
 }
 
-int main(int argc, char **argv)
+JELLYFIN_TEST_MAIN("audio-sync-policy")
 {
     QCoreApplication app(argc, argv);
 

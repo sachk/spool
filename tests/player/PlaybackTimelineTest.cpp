@@ -1,5 +1,7 @@
 #include "player/PlaybackTimeline.h"
 
+#include "TestMain.h"
+
 #include <QCoreApplication>
 #include <QDebug>
 
@@ -69,7 +71,7 @@ void testTrickplay()
 
 } // namespace
 
-int main(int argc, char **argv)
+JELLYFIN_TEST_MAIN("playback-timeline")
 {
     QCoreApplication application(argc, argv);
     testSegments();

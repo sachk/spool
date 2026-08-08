@@ -1,5 +1,7 @@
 #include "player/PlaybackTrackState.h"
 
+#include "TestMain.h"
+
 #include <QDebug>
 #include <QVariantMap>
 
@@ -25,7 +27,7 @@ bool commandEquals(const std::optional<QByteArrayList>& command, const QByteArra
 
 } // namespace
 
-int main()
+JELLYFIN_TEST_MAIN("playback-track-state")
 {
     PlaybackTrackState state;
 

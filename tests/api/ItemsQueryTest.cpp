@@ -1,5 +1,7 @@
 #include "api/ItemsQuery.h"
 
+#include "TestMain.h"
+
 #include <QUrlQuery>
 
 #include <cstdlib>
@@ -34,7 +36,7 @@ void requireMissing(const QUrlQuery& query, const QString& key, const char *mess
 
 } // namespace
 
-int main()
+JELLYFIN_TEST_MAIN("items-query")
 {
     const QUrlQuery populated = ItemsQuery()
                                     .userId(QStringLiteral("user-1"))

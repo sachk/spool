@@ -1,5 +1,7 @@
 #include "api/PlaybackNegotiation.h"
 
+#include "TestMain.h"
+
 #include <QCoreApplication>
 #include <QJsonArray>
 #include <QUrl>
@@ -35,7 +37,7 @@ QJsonObject source(const QString& id, qint64 bitrate, bool directPlay, bool dire
 
 } // namespace
 
-int main(int argc, char **argv)
+JELLYFIN_TEST_MAIN("playback-negotiation")
 {
     QCoreApplication app(argc, argv);
 

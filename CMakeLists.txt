@@ -554,7 +554,53 @@ endif()
 
 
 if(BUILD_TESTING AND NOT CMAKE_CROSSCOMPILING)
-    set(JELLYFIN_TEST_SOURCES
+    # Tests are grouped into one executable per directory. Each test keeps its
+    # own ctest entry; tests/TestRunner.cpp dispatches on the selector passed
+    # by add_test(). One executable per test used to cost more to build on
+    # Windows than the application itself, because every one of them repeated a
+    # whole-program-optimized link against all of jellyfin-core.
+    set(JELLYFIN_TEST_GROUPS api app cache common diagnostics discovery platform player)
+
+    set(JELLYFIN_TESTS_api
+        http-request-policy tests/api/HttpRequestPolicyTest.cpp
+        playback-bandwidth-policy tests/api/PlaybackBandwidthPolicyTest.cpp
+        items-query tests/api/ItemsQueryTest.cpp
+        playback-negotiation tests/api/PlaybackNegotiationTest.cpp
+        jellyfin-api-facade-url tests/api/JellyfinApiFacadeUrlTest.cpp
+    )
+    set(JELLYFIN_TESTS_app
+        browse-session-controller tests/app/BrowseSessionControllerTest.cpp
+        settings-schema tests/app/SettingsSchemaTest.cpp
+        settings-controller tests/app/SettingsControllerTest.cpp
+        session-controller tests/app/SessionControllerTest.cpp
+        router-controller tests/app/RouterControllerTest.cpp
+        library-query tests/app/LibraryQueryTest.cpp
+        content-model-controller tests/app/ContentModelControllerTest.cpp
+        sync-play-clock tests/app/SyncPlayClockTest.cpp
+        sync-play-queue-handoff tests/app/SyncPlayQueueHandoffTest.cpp
+    )
+    set(JELLYFIN_TESTS_cache
+        database-manager tests/cache/DatabaseManagerTest.cpp
+    )
+    set(JELLYFIN_TESTS_common
+        request-generation tests/common/RequestGenerationTest.cpp
+        diagnostic-redaction tests/common/DiagnosticRedactionTest.cpp
+        tls-trust tests/common/TlsTrustTest.cpp
+        browse-descriptor tests/common/BrowseDescriptorTest.cpp
+        meta-json tests/common/MetaJsonTest.cpp
+    )
+    set(JELLYFIN_TESTS_diagnostics
+        input-latency-monitor tests/diagnostics/InputLatencyMonitorTest.cpp
+        system-performance-monitor tests/diagnostics/SystemPerformanceMonitorTest.cpp
+    )
+    set(JELLYFIN_TESTS_discovery
+        discovery-controller tests/discovery/DiscoveryControllerTest.cpp
+    )
+    set(JELLYFIN_TESTS_platform
+        screensaver-inhibitor tests/platform/ScreenSaverInhibitorTest.cpp
+        native-window-input tests/platform/NativeAppWindowInputTest.cpp
+    )
+    set(JELLYFIN_TESTS_player
         playback-timeline tests/player/PlaybackTimelineTest.cpp
         playback-track-parser tests/player/PlaybackTrackParserTest.cpp
         playback-track-state tests/player/PlaybackTrackStateTest.cpp
@@ -564,39 +610,21 @@ if(BUILD_TESTING AND NOT CMAKE_CROSSCOMPILING)
         playback-failure-policy tests/player/PlaybackFailurePolicyTest.cpp
         play-queue-controller tests/player/PlayQueueControllerTest.cpp
         series-audio-selection tests/player/SeriesAudioSelectionTest.cpp
-        browse-session-controller tests/app/BrowseSessionControllerTest.cpp
-        settings-schema tests/app/SettingsSchemaTest.cpp
-        settings-controller tests/app/SettingsControllerTest.cpp
-        session-controller tests/app/SessionControllerTest.cpp
-        screensaver-inhibitor tests/platform/ScreenSaverInhibitorTest.cpp
-        router-controller tests/app/RouterControllerTest.cpp
-        native-window-input tests/platform/NativeAppWindowInputTest.cpp
-        library-query tests/app/LibraryQueryTest.cpp
-        content-model-controller tests/app/ContentModelControllerTest.cpp
-        discovery-controller tests/discovery/DiscoveryControllerTest.cpp
-        sync-play-clock tests/app/SyncPlayClockTest.cpp
-        sync-play-queue-handoff tests/app/SyncPlayQueueHandoffTest.cpp
-        request-generation tests/common/RequestGenerationTest.cpp
-        diagnostic-redaction tests/common/DiagnosticRedactionTest.cpp
-        tls-trust tests/common/TlsTrustTest.cpp
-        browse-descriptor tests/common/BrowseDescriptorTest.cpp
-        meta-json tests/common/MetaJsonTest.cpp
-        http-request-policy tests/api/HttpRequestPolicyTest.cpp
-        playback-bandwidth-policy tests/api/PlaybackBandwidthPolicyTest.cpp
-        items-query tests/api/ItemsQueryTest.cpp
-        playback-negotiation tests/api/PlaybackNegotiationTest.cpp
-        jellyfin-api-facade-url tests/api/JellyfinApiFacadeUrlTest.cpp
-        database-manager tests/cache/DatabaseManagerTest.cpp
-        input-latency-monitor tests/diagnostics/InputLatencyMonitorTest.cpp
-        system-performance-monitor tests/diagnostics/SystemPerformanceMonitorTest.cpp
-        linux-memory-policy tests/platform/LinuxMemoryPolicyTest.cpp
     )
+    # Both of these assert nothing away from Linux: the memory policy parses
+    # /proc and cgroup text, and the mpv item needs a real GL surface.
     if(UNIX AND NOT APPLE)
-        list(APPEND JELLYFIN_TEST_SOURCES
+        list(APPEND JELLYFIN_TESTS_platform
+            linux-memory-policy tests/platform/LinuxMemoryPolicyTest.cpp
+        )
+        list(APPEND JELLYFIN_TESTS_player
             mpv-video-item tests/player/MpvVideoItemTest.cpp
         )
     endif()
 
+    # WebOSAudioSyncPolicy is a webOS platform source, so desktop builds of
+    # jellyfin-core do not carry it; the player group compiles it directly.
+    set(JELLYFIN_TEST_EXTRA_SOURCES_player src/platform/webos/WebOSAudioSyncPolicy.cpp)
 
     get_target_property(JELLYFIN_QT_CORE_LOCATION Qt6::Core IMPORTED_LOCATION_RELEASE)
     if(NOT JELLYFIN_QT_CORE_LOCATION)
@@ -611,25 +639,40 @@ if(BUILD_TESTING AND NOT CMAKE_CROSSCOMPILING)
             list(APPEND JELLYFIN_TEST_ENV "QT_PLUGIN_PATH=${JELLYFIN_QT_PLUGIN_DIR}")
         endif()
     endif()
-    list(LENGTH JELLYFIN_TEST_SOURCES JELLYFIN_TEST_SOURCE_COUNT)
-    math(EXPR JELLYFIN_TEST_SOURCE_LAST "${JELLYFIN_TEST_SOURCE_COUNT} - 1")
-    foreach(test_index RANGE 0 ${JELLYFIN_TEST_SOURCE_LAST} 2)
-        math(EXPR source_index "${test_index} + 1")
-        list(GET JELLYFIN_TEST_SOURCES ${test_index} test_name)
-        list(GET JELLYFIN_TEST_SOURCES ${source_index} test_source)
-        set(test_target "${test_name}-tests")
-        add_executable(${test_target} "${test_source}")
-        if(test_name STREQUAL "audio-sync-policy")
-            target_sources(${test_target} PRIVATE src/platform/webos/WebOSAudioSyncPolicy.cpp)
-        endif()
-        if(test_name STREQUAL "tls-trust")
-            target_compile_definitions(${test_target} PRIVATE TEST_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
-        endif()
-        target_link_libraries(${test_target} PRIVATE jellyfin-core)
-        add_test(NAME ${test_name} COMMAND ${test_target})
-        if(JELLYFIN_TEST_ENV)
-            set_tests_properties(${test_name} PROPERTIES ENVIRONMENT "${JELLYFIN_TEST_ENV}")
-        endif()
+    foreach(test_group IN LISTS JELLYFIN_TEST_GROUPS)
+        set(group_target "${test_group}-tests")
+        set(group_sources tests/TestRunner.cpp ${JELLYFIN_TEST_EXTRA_SOURCES_${test_group}})
+        set(group_names)
+        list(LENGTH JELLYFIN_TESTS_${test_group} group_entry_count)
+        math(EXPR group_entry_last "${group_entry_count} - 1")
+        foreach(test_index RANGE 0 ${group_entry_last} 2)
+            math(EXPR source_index "${test_index} + 1")
+            list(GET JELLYFIN_TESTS_${test_group} ${test_index} test_name)
+            list(GET JELLYFIN_TESTS_${test_group} ${source_index} test_source)
+            list(APPEND group_sources "${test_source}")
+            list(APPEND group_names "${test_name}")
+        endforeach()
+
+        add_executable(${group_target} ${group_sources})
+        target_include_directories(${group_target} PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/tests")
+        target_compile_definitions(${group_target} PRIVATE TEST_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
+        # No test declares Q_OBJECT, and none of them ships, so skip both the
+        # per-target autogen pass and whole-program optimization.
+        set_target_properties(${group_target} PROPERTIES
+            AUTOMOC OFF
+            AUTOUIC OFF
+            AUTORCC OFF
+            INTERPROCEDURAL_OPTIMIZATION OFF
+            INTERPROCEDURAL_OPTIMIZATION_RELEASE OFF
+            INTERPROCEDURAL_OPTIMIZATION_MINSIZEREL OFF)
+        target_link_libraries(${group_target} PRIVATE jellyfin-core)
+
+        foreach(test_name IN LISTS group_names)
+            add_test(NAME ${test_name} COMMAND ${group_target} ${test_name})
+            if(JELLYFIN_TEST_ENV)
+                set_tests_properties(${test_name} PROPERTIES ENVIRONMENT "${JELLYFIN_TEST_ENV}")
+            endif()
+        endforeach()
     endforeach()
 
     find_package(Python3 REQUIRED COMPONENTS Interpreter)
@@ -666,6 +709,13 @@ if(BUILD_TESTING AND NOT CMAKE_CROSSCOMPILING)
         # but only build the linked compliance test where FFmpeg is available.
         pkg_check_modules(FFMPEG_AUDIT REQUIRED IMPORTED_TARGET libavutil libavcodec libavformat libavfilter)
         add_executable(ffmpeg-compliance-tests tests/media/FfmpegComplianceTest.cpp)
+        set_target_properties(ffmpeg-compliance-tests PROPERTIES
+            AUTOMOC OFF
+            AUTOUIC OFF
+            AUTORCC OFF
+            INTERPROCEDURAL_OPTIMIZATION OFF
+            INTERPROCEDURAL_OPTIMIZATION_RELEASE OFF
+            INTERPROCEDURAL_OPTIMIZATION_MINSIZEREL OFF)
         target_include_directories(ffmpeg-compliance-tests PRIVATE "${CMAKE_CURRENT_BINARY_DIR}/generated")
         target_compile_definitions(ffmpeg-compliance-tests PRIVATE
             TEST_MEDIA_DIR="${CMAKE_CURRENT_SOURCE_DIR}/tests/media/fixtures")
@@ -687,64 +737,29 @@ if(BUILD_TESTING AND NOT CMAKE_CROSSCOMPILING)
 
     find_program(QMLTESTRUNNER_EXECUTABLE NAMES qmltestrunner)
     if(QMLTESTRUNNER_EXECUTABLE)
-        add_test(NAME route-policy
-            COMMAND "${QMLTESTRUNNER_EXECUTABLE}"
-                -input "${CMAKE_CURRENT_SOURCE_DIR}/tests/qml/tst_RoutePolicy.qml"
+        set(JELLYFIN_QML_TESTS
+            route-policy tests/qml/tst_RoutePolicy.qml
+            key-router tests/qml/tst_KeyRouter.qml
+            player-overlay-input tests/qml/tst_PlayerOverlayInput.qml
+            option-picker-input tests/qml/tst_OptionPickerInput.qml
+            tls-trust-dialogs tests/qml/tst_TlsTrustDialogs.qml
+            nav-grid tests/qml/tst_NavGrid.qml
+            hold-navigation-controller tests/qml/tst_HoldNavigationController.qml
+            library-navigation tests/qml/tst_LibraryNavigation.qml
+            profile-navigation tests/qml/tst_ProfileNavigation.qml
+            settings-navigation tests/qml/tst_SettingsNavigation.qml
+            atomic-view-reveal tests/qml/tst_AtomicViewReveal.qml
+            input-latency-warning tests/qml/tst_InputLatencyWarning.qml
+            player-seek-bar-hover tests/qml/tst_PlayerSeekBarHover.qml
         )
-        add_test(NAME key-router
-            COMMAND "${QMLTESTRUNNER_EXECUTABLE}"
-                -input "${CMAKE_CURRENT_SOURCE_DIR}/tests/qml/tst_KeyRouter.qml"
-        )
-        add_test(NAME player-overlay-input
-            COMMAND "${QMLTESTRUNNER_EXECUTABLE}"
-                -input "${CMAKE_CURRENT_SOURCE_DIR}/tests/qml/tst_PlayerOverlayInput.qml"
-        )
-        add_test(NAME option-picker-input
-            COMMAND "${QMLTESTRUNNER_EXECUTABLE}"
-                -input "${CMAKE_CURRENT_SOURCE_DIR}/tests/qml/tst_OptionPickerInput.qml"
-        )
-        add_test(NAME tls-trust-dialogs
-            COMMAND "${QMLTESTRUNNER_EXECUTABLE}"
-                -input "${CMAKE_CURRENT_SOURCE_DIR}/tests/qml/tst_TlsTrustDialogs.qml"
-        )
-        add_test(NAME nav-grid
-            COMMAND "${QMLTESTRUNNER_EXECUTABLE}"
-                -input "${CMAKE_CURRENT_SOURCE_DIR}/tests/qml/tst_NavGrid.qml"
-        )
-        add_test(NAME hold-navigation-controller
-            COMMAND "${QMLTESTRUNNER_EXECUTABLE}"
-                -input "${CMAKE_CURRENT_SOURCE_DIR}/tests/qml/tst_HoldNavigationController.qml"
-        )
-        add_test(NAME library-navigation
-            COMMAND "${QMLTESTRUNNER_EXECUTABLE}"
-                -input "${CMAKE_CURRENT_SOURCE_DIR}/tests/qml/tst_LibraryNavigation.qml"
-        )
-        add_test(NAME profile-navigation
-            COMMAND "${QMLTESTRUNNER_EXECUTABLE}"
-                -input "${CMAKE_CURRENT_SOURCE_DIR}/tests/qml/tst_ProfileNavigation.qml"
-        )
-        add_test(NAME settings-navigation
-            COMMAND "${QMLTESTRUNNER_EXECUTABLE}"
-                -input "${CMAKE_CURRENT_SOURCE_DIR}/tests/qml/tst_SettingsNavigation.qml"
-        )
-        if(WIN32)
-            add_test(NAME subtitle-settings-panel
-                COMMAND "${QMLTESTRUNNER_EXECUTABLE}"
-                    -input "${CMAKE_CURRENT_SOURCE_DIR}/tests/qml/tst_SubtitleSettingsPanel.qml"
+        # The subtitle panel test has never run on macOS; it was narrowed to
+        # Windows alone while chasing that, which silently dropped Linux too.
+        if(NOT APPLE)
+            list(APPEND JELLYFIN_QML_TESTS
+                subtitle-settings-panel tests/qml/tst_SubtitleSettingsPanel.qml
             )
         endif()
-        add_test(NAME atomic-view-reveal
-            COMMAND "${QMLTESTRUNNER_EXECUTABLE}"
-                -input "${CMAKE_CURRENT_SOURCE_DIR}/tests/qml/tst_AtomicViewReveal.qml"
-        )
-        add_test(NAME input-latency-warning
-            COMMAND "${QMLTESTRUNNER_EXECUTABLE}"
-                -input "${CMAKE_CURRENT_SOURCE_DIR}/tests/qml/tst_InputLatencyWarning.qml"
-        )
-        add_test(NAME player-seek-bar-hover
-            COMMAND "${QMLTESTRUNNER_EXECUTABLE}"
-                -input "${CMAKE_CURRENT_SOURCE_DIR}/tests/qml/tst_PlayerSeekBarHover.qml"
-        )
+
         get_filename_component(JELLYFIN_QML_PREFIX "${Qt6Qml_DIR}/../../.." ABSOLUTE)
         set(JELLYFIN_QML_IMPORT_DIR "${JELLYFIN_QML_PREFIX}/lib/qt-6/qml")
         set(JELLYFIN_QML_TEST_ENV
@@ -754,11 +769,19 @@ if(BUILD_TESTING AND NOT CMAKE_CROSSCOMPILING)
             "QML_IMPORT_PATH=${JELLYFIN_QML_IMPORT_DIR}"
             ${JELLYFIN_TEST_ENV}
         )
-        set_tests_properties(route-policy key-router player-overlay-input option-picker-input tls-trust-dialogs
-            nav-grid hold-navigation-controller library-navigation profile-navigation settings-navigation
-            atomic-view-reveal input-latency-warning player-seek-bar-hover
-            PROPERTIES ENVIRONMENT "${JELLYFIN_QML_TEST_ENV}"
-        )
+
+        list(LENGTH JELLYFIN_QML_TESTS JELLYFIN_QML_TEST_COUNT)
+        math(EXPR JELLYFIN_QML_TEST_LAST "${JELLYFIN_QML_TEST_COUNT} - 1")
+        foreach(qml_index RANGE 0 ${JELLYFIN_QML_TEST_LAST} 2)
+            math(EXPR qml_source_index "${qml_index} + 1")
+            list(GET JELLYFIN_QML_TESTS ${qml_index} qml_test_name)
+            list(GET JELLYFIN_QML_TESTS ${qml_source_index} qml_test_source)
+            add_test(NAME ${qml_test_name}
+                COMMAND "${QMLTESTRUNNER_EXECUTABLE}"
+                    -input "${CMAKE_CURRENT_SOURCE_DIR}/${qml_test_source}"
+            )
+            set_tests_properties(${qml_test_name} PROPERTIES ENVIRONMENT "${JELLYFIN_QML_TEST_ENV}")
+        endforeach()
     endif()
 endif()
 

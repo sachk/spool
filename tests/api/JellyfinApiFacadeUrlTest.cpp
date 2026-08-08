@@ -2,6 +2,8 @@
 #include "app/ArtworkService.h"
 #include "common/TlsTrust.h"
 
+#include "TestMain.h"
+
 #include <QCoreApplication>
 #include <QNetworkAccessManager>
 #include <QTemporaryDir>
@@ -48,7 +50,7 @@ void requireUrlPathBytes(const QString& url, const QString& expectedPath, const 
 
 } // namespace
 
-int main(int argc, char **argv)
+JELLYFIN_TEST_MAIN("jellyfin-api-facade-url")
 {
     QCoreApplication app(argc, argv);
     QNetworkAccessManager network;

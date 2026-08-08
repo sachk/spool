@@ -1,6 +1,8 @@
 #include "common/JellyfinTypes.h"
 #include "diagnostics/Diagnostics.h"
 
+#include "TestMain.h"
+
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QString>
@@ -24,7 +26,7 @@ void require(bool condition, const char *message)
 
 } // namespace
 
-int main()
+JELLYFIN_TEST_MAIN("diagnostic-redaction")
 {
     const QString query = sanitizedDiagnosticUrl(
         QStringLiteral("https://server/QuickConnect/Connect?SeCrEt=first%26TOKEN%3Dsecond&api_key=third"));

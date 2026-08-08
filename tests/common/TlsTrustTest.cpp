@@ -1,5 +1,7 @@
 #include "common/TlsTrust.h"
 
+#include "TestMain.h"
+
 #include <QCoreApplication>
 #include <QEventLoop>
 #include <QFile>
@@ -102,7 +104,7 @@ RequestResult request(QNetworkAccessManager& manager, const QUrl& url, const cha
 
 } // namespace
 
-int main(int argc, char **argv)
+JELLYFIN_TEST_MAIN("tls-trust")
 {
     QCoreApplication app(argc, argv);
     QCoreApplication::setOrganizationName(QStringLiteral("JellyfinNativeTests"));
