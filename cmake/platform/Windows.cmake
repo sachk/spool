@@ -23,11 +23,11 @@ function(jellyfin_configure_windows_targets native_target core_target)
         src/platform/windows/WindowsSettingsPolicy.cpp
         src/platform/windows/WindowsCredentialStore.cpp
         src/platform/windows/WindowsSystemProbes.cpp
+        src/platform/windows/WindowsPlatformPaths.cpp
         src/platform/desktop/UnsupportedPerformanceSampler.cpp
     )
     target_sources(${native_target} PRIVATE
         src/platform/windows/WindowsPlatformCapabilities.cpp
-        src/platform/windows/WindowsPlatformPaths.cpp
         src/platform/windows/WindowsScreenSaverInhibitor.cpp
         src/platform/windows/WindowsPlatformStartup.cpp
         src/platform/windows/WindowsProcessIntegration.cpp

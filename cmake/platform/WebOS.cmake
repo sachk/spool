@@ -92,6 +92,7 @@ function(jellyfin_configure_webos_targets native_target core_target)
         src/platform/webos/WebOSCredentialStore.cpp
         src/platform/webos/WebOSAudioSyncPolicy.h
         src/platform/webos/WebOSMpvConfigPolicy.cpp
+        src/platform/webos/WebOSPlatformPaths.cpp
         src/platform/webos/WebOSSettingsPolicy.cpp
         src/platform/webos/WebOSPlaybackSurface.cpp
         src/platform/webos/WebOSSystemProbes.cpp
@@ -106,7 +107,6 @@ function(jellyfin_configure_webos_targets native_target core_target)
         src/platform/webos/WebOSMpvRuntime.h
         src/platform/webos/WebOSPlatformCapabilities.cpp
         src/platform/webos/WebOSPlaybackRuntime.cpp
-        src/platform/webos/WebOSPlatformPaths.cpp
         src/platform/webos/WebOSPlatformStartup.cpp
         src/platform/webos/WebOSScreenSaverInhibitor.cpp
         src/platform/common/UnixProcessIntegration.cpp

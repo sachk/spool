@@ -6,13 +6,13 @@ endfunction()
 function(jellyfin_configure_linux_targets native_target core_target)
     target_sources(${core_target} PRIVATE
         src/platform/linux/LinuxSettingsPolicy.cpp
+        src/platform/linux/LinuxPlatformPaths.cpp
         src/platform/linux/LinuxCredentialStore.cpp
         src/platform/linux/LinuxSystemProbes.cpp
         src/platform/common/LinuxPerformanceSampler.cpp
     )
     target_sources(${native_target} PRIVATE
         src/platform/linux/LinuxPlatformCapabilities.cpp
-        src/platform/linux/LinuxPlatformPaths.cpp
         src/platform/linux/LinuxScreenSaverInhibitor.cpp
         src/platform/linux/LinuxPlatformStartup.cpp
         src/platform/common/UnixProcessIntegration.cpp

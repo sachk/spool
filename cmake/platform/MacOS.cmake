@@ -5,13 +5,13 @@ endfunction()
 function(jellyfin_configure_macos_targets native_target core_target)
     target_sources(${core_target} PRIVATE
         src/platform/macos/MacOSSettingsPolicy.cpp
+        src/platform/macos/MacOSPlatformPaths.cpp
         src/platform/macos/MacOSCredentialStore.cpp
         src/platform/macos/MacOSSystemProbes.cpp
         src/platform/desktop/UnsupportedPerformanceSampler.cpp
     )
     target_sources(${native_target} PRIVATE
         src/platform/macos/MacOSPlatformCapabilities.cpp
-        src/platform/macos/MacOSPlatformPaths.cpp
         src/platform/macos/MacOSScreenSaverInhibitor.cpp
         src/platform/macos/MacOSPlatformStartup.cpp
         src/platform/common/UnixProcessIntegration.cpp
