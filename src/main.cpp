@@ -263,11 +263,14 @@ int main(int argc, char **argv)
     const JellyfinNative::ProcessStartupTiming processStartupTiming = JellyfinNative::captureProcessStartupTiming();
     g_startupTimer.start();
     QElapsedTimer& startupTimer = g_startupTimer;
+    bool launchTest = false;
     for (int i = 1; i < argc; ++i) {
         if (strcmp(argv[i], "--version") == 0 || strcmp(argv[i], "-v") == 0) {
             printf("Spool for Jellyfin %s\n", kAppVersion);
             return 0;
         }
+        if (strcmp(argv[i], "--launch-test") == 0)
+            launchTest = true;
     }
 
     const QString appRootPath = JellyfinNative::resolveAppRoot(argv[0]);
@@ -314,10 +317,10 @@ int main(int argc, char **argv)
     qInstallMessageHandler(qtMessageHandler);
     QLoggingCategory::setFilterRules(QStringLiteral("qt.*.debug=false\nqt.*.info=false"));
 
-    // MpvVideoItem renders into an FBO via libmpv's OpenGL render API; force
-    // Qt Quick to use the OpenGL RHI backend (Qt 6 defaults to Vulkan/Metal
-    // on some platforms).
-    QQuickWindow::setGraphicsApi(QSGRendererInterface::OpenGL);
+    // Production playback needs OpenGL for MpvVideoItem's FBO. Launch tests
+    // validate the QML scene on headless runners, where no OpenGL adapter is
+    // guaranteed, so use Qt Quick's deterministic software renderer.
+    QQuickWindow::setGraphicsApi(launchTest ? QSGRendererInterface::Software : QSGRendererInterface::OpenGL);
 
     QSurfaceFormat::setDefaultFormat(JellyfinNative::platformSurfaceFormat());
 
@@ -344,7 +347,6 @@ int main(int argc, char **argv)
     JellyfinNative::Diagnostics::EventLoopWatchdog eventLoopWatchdog(&app);
 
     const QStringList arguments = app.arguments();
-    const bool launchTest = arguments.contains(QStringLiteral("--launch-test"));
     if (arguments.contains(QStringLiteral("--diagnose-and-exit"))
         || arguments.contains(QStringLiteral("--dump-diagnostics"))) {
         JellyfinNative::Diagnostics::dumpDiagnostics(QStringLiteral("command-line"));
