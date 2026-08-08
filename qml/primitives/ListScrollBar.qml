@@ -25,9 +25,9 @@ Item {
         anchors.right: parent.right
         anchors.bottom: parent.bottom
         width: root.visualWidth
-        radius: width / 2
-        color: Theme.bgRaised
-        opacity: root.hovered ? 0.8 : 0
+        radius: Math.max(1, width / 3)
+        color: Theme.accentPanel
+        opacity: root.hovered ? 0.9 : 0.55
 
         Behavior on opacity {
             NumberAnimation {
@@ -59,7 +59,7 @@ Item {
         x: root.width - (root.visualWidth + width) / 2
         y: root.scrollRange > 0 ? root.availableTrack * root.flickable.contentY / root.scrollRange : 0
         radius: Math.max(1, width / 3)
-        color: Theme.textMuted
+        color: Theme.accent
 
         HoverHandler {
             id: handleHover

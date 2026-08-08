@@ -12,6 +12,9 @@ FocusScope {
     property var sections: []
     property bool firstRowReady: false
     readonly property bool contentReady: firstRowReady
+    property bool navigationFocusVisible: true
+    property int pendingWheelSection: -1
+    property int pendingWheelItem: -1
 
     focus: true
 
@@ -107,15 +110,42 @@ FocusScope {
         return true
     }
 
-    function focusTopLeftVisible() {
-        const visible = sectionList.indexAt(1, sectionList.contentY + 1)
-        sectionList.currentIndex = visible >= 0 ? visible : firstPopulatedSection(0, 1)
+    function firstFullyVisibleSection() {
+        const top = sectionList.contentY
+        const bottom = top + sectionList.height
+        for (let index = 0; index < sections.length; ++index) {
+            const candidate = sectionList.itemAtIndex(index)
+            if (candidate && candidate.height > 0 && candidate.y >= top && candidate.y + candidate.height <= bottom)
+                return index
+        }
+        return -1
+    }
+
+    function rememberWheelFocus(rowIndex, itemIndex) {
+        const visibleSection = firstFullyVisibleSection()
+        pendingWheelSection = visibleSection >= 0 ? visibleSection : rowIndex
+        const visibleRow = pendingWheelSection >= 0 ? sectionList.itemAtIndex(pendingWheelSection) : null
+        pendingWheelItem = visibleRow && visibleRow.firstFullyVisibleIndex ? visibleRow.firstFullyVisibleIndex() :
+                                                                             itemIndex
+        navigationFocusVisible = false
+    }
+
+    function applyPendingWheelFocus() {
+        navigationFocusVisible = true
+        if (pendingWheelSection < 0)
+            return
+        sectionList.currentIndex = pendingWheelSection
         const row = currentRow()
-        if (row)
-            row.focusFirstVisible()
+        if (row && pendingWheelItem >= 0)
+            row.currentIndex = pendingWheelItem
+        pendingWheelSection = -1
+        pendingWheelItem = -1
+        focusCurrentSection()
     }
 
     function routeKey(key, phase, repeat) {
+        if (phase !== "release" && InputKeys.isDirection(key))
+            applyPendingWheelFocus()
         const row = currentRow()
         if (!row)
             return false
@@ -161,8 +191,10 @@ FocusScope {
     }
 
     Component.onCompleted: rebuildSections()
-    onActiveFocusChanged: if (activeFocus)
-    Qt.callLater(focusCurrentSection)
+    onActiveFocusChanged: if (activeFocus) {
+        navigationFocusVisible = true
+        Qt.callLater(focusCurrentSection)
+    }
 
     Connections {
         target: Home
@@ -190,6 +222,8 @@ FocusScope {
 
         FastWheelHandler {
             flickable: sectionList
+            onScrolled: root.rememberWheelFocus(sectionList.currentIndex, root.currentRow() ? root.currentRow().firstFullyVisibleIndex(
+                                                                                                  ) : 0)
         }
 
         delegate: MediaRow {
@@ -205,11 +239,12 @@ FocusScope {
             cardKind: modelData.kind
             useSeriesPoster: modelData.source === "latestLibrary"
             preferEpisodeTitle: modelData.source === "latestLibrary"
+            focusVisible: root.navigationFocusVisible
             cardWidth: cardKind === "poster" ? Metrics.homePosterWidth(root.width) : Metrics.homeLandscapeWidth(
                                                    root.width)
             cardGap: Metrics.gapPx
             wheelFlickable: sectionList
-            onVerticalWheelScrolled: root.focusTopLeftVisible()
+            onVerticalWheelScrolled: root.rememberWheelFocus(index, mediaRow.firstFullyVisibleIndex())
             atomicPopulate: index === 0
             itemContextSource: String(modelData.source || "")
             itemContextReturnRoute: "home"

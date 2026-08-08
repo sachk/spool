@@ -23,6 +23,7 @@ FocusScope {
     property string itemContextSource: ""
     property string itemContextReturnRoute: ""
     property var wheelFlickable: null
+    property bool focusVisible: true
     property int modelRevision: 0
     readonly property bool delegatesPresented: presentation.delegatesReady
 
@@ -117,11 +118,24 @@ FocusScope {
         return true
     }
 
-    function focusFirstVisible() {
+    function firstFullyVisibleIndex() {
         if (count <= 0)
+            return -1
+        const left = listView.contentX + listView.leftMargin
+        const right = listView.contentX + listView.width - listView.rightMargin
+        for (let index = 0; index < count; ++index) {
+            const candidate = listView.itemAtIndex(index)
+            if (candidate && candidate.x >= left && candidate.x + candidate.width <= right)
+                return index
+        }
+        return -1
+    }
+
+    function focusFirstVisible() {
+        const visible = firstFullyVisibleIndex()
+        if (visible < 0)
             return false
-        const visible = listView.indexAt(listView.contentX + listView.leftMargin + 1, 1)
-        currentIndex = visible >= 0 ? visible : 0
+        currentIndex = visible
         syncViewCurrentIndex()
         InputKeys.focus(listView)
         return true
@@ -227,7 +241,7 @@ FocusScope {
             fallbackTint: libraryCard ? Theme.libraryTint(cardData.name) : "transparent"
             useSeriesPoster: root.useSeriesPoster
             preferEpisodeTitle: root.preferEpisodeTitle
-            focused: card.index === listView.currentIndex && listView.activeFocus
+            focused: root.focusVisible && card.index === listView.currentIndex && listView.activeFocus
             artworkVisible: true
 
             Component.onCompleted: root.schedulePresentation()
@@ -277,7 +291,7 @@ FocusScope {
                 color: "transparent"
                 radius: Theme.radiusMedium
                 border.width: Theme.focusBorderWidth
-                border.color: listView.activeFocus ? Theme.accent : "transparent"
+                border.color: root.focusVisible && listView.activeFocus ? Theme.accent : "transparent"
                 z: 2
             }
         }

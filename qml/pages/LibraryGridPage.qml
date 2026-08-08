@@ -61,6 +61,8 @@ FocusScope {
     // Grid position to restore across model resets (sort/filter/library
     // changes); the page itself is resident, so this survives navigation.
     property int savedIndex: shell ? Number(shell.routeArgs.focusIndex || 0) : 0
+    property bool navigationFocusVisible: true
+    property int pendingWheelIndex: -1
     Component.onCompleted: if (activeFocus)
     InputKeys.focus(grid)
     onActiveFocusChanged: if (activeFocus)
@@ -665,6 +667,8 @@ FocusScope {
     function routeKey(key, phase, repeat) {
         if (phase === "release" && InputKeys.isDirection(key))
             return grid.routeKey(key, phase, repeat)
+        if (phase !== "release" && InputKeys.isDirection(key) && grid.activeFocus)
+            applyPendingWheelFocus()
         if (libraryList && libraryList.activeFocus)
             return libraryList.routeKey(key, phase, repeat)
         if (sortList && sortList.activeFocus)
@@ -695,6 +699,16 @@ FocusScope {
             return false
         }
         return grid.count > 0 && grid.routeKey(key, phase, repeat)
+    }
+
+    function applyPendingWheelFocus() {
+        navigationFocusVisible = true
+        if (pendingWheelIndex < 0)
+            return
+        grid.currentIndex = Math.min(grid.count - 1, pendingWheelIndex)
+        savedIndex = grid.currentIndex
+        pendingWheelIndex = -1
+        InputKeys.focus(grid)
     }
 
     function activate() {
@@ -1019,12 +1033,10 @@ FocusScope {
 
                 FastWheelHandler {
                     onScrolled: {
-                        const visible = grid.firstLikelyVisibleIndex()
-                        if (visible >= 0) {
-                            grid.currentIndex = visible
-                            root.savedIndex = visible
-                            InputKeys.focus(grid)
-                        }
+                        const visible = grid.firstFullyVisibleIndex()
+                        if (visible >= 0)
+                        root.pendingWheelIndex = visible
+                        root.navigationFocusVisible = false
                     }
                     flickable: grid
                     animationDuration: Theme.reducedMotion ? 0 : 16
@@ -1065,6 +1077,13 @@ FocusScope {
                     if (count <= 0 || cellHeight <= 0 || columns <= 0)
                         return -1
                     return Math.min(count - 1, Math.max(0, Math.floor(contentY / cellHeight) * columns))
+                }
+
+                function firstFullyVisibleIndex() {
+                    if (count <= 0 || cellHeight <= 0 || columns <= 0)
+                        return -1
+                    const firstFullRow = Math.ceil(Math.max(0, contentY) / cellHeight)
+                    return Math.min(count - 1, firstFullRow * columns)
                 }
 
                 function requestMoreIfNeeded() {
@@ -1122,32 +1141,31 @@ FocusScope {
                     readonly property real desiredY: libraryScrollBar.handleCenterY - height / 2
                     anchors.right: libraryScrollBar.horizontalCenter
                     y: Math.max(0, Math.min(grid.height - height, desiredY))
-                    width: Metrics.scaled(60)
-                    height: Metrics.scaled(50)
-                    radius: Metrics.scaled(8)
+                    width: Metrics.scaled(52)
+                    height: Metrics.scaled(48)
+                    radius: Metrics.scaled(2)
                     color: Theme.accentPanel
-                    border.width: Theme.hoverBorderWidth
+                    border.width: Math.max(1, Metrics.scaled(1))
                     border.color: Theme.accent
                     opacity: alphabetFeedback.running || libraryScrollBar.pressed ? 1 : 0
                     visible: opacity > 0
                     z: 21
 
                     Rectangle {
-                        anchors.right: parent.right
-                        anchors.rightMargin: -Metrics.scaled(6)
+                        anchors.left: parent.right
+                        anchors.leftMargin: -parent.border.width
                         anchors.verticalCenter: parent.verticalCenter
-                        width: Metrics.scaled(16)
-                        height: Metrics.scaled(20)
-                        radius: Metrics.scaled(2)
-                        color: parent.color
+                        width: Metrics.scaled(14)
+                        height: Metrics.scaled(18)
+                        radius: 0
+                        color: Theme.accentPanel
                         border.width: parent.border.width
-                        border.color: parent.border.color
+                        border.color: Theme.accent
                         z: -1
                     }
 
                     AppText {
                         anchors.centerIn: parent
-                        anchors.horizontalCenterOffset: -Metrics.scaled(4)
                         text: root.currentAlphabetLabel
                         font.pixelSize: Metrics.scaled(26)
                         font.weight: Font.Bold
@@ -1177,7 +1195,7 @@ FocusScope {
                         kind: "poster"
                         preferEpisodeTitle: false
                         useSeriesPoster: true
-                        focused: gridDelegate.GridView.isCurrentItem
+                        focused: root.navigationFocusVisible && grid.activeFocus && gridDelegate.GridView.isCurrentItem
                         artworkVisible: true
                         artworkEnabled: grid.artworkIndexResident(index)
 
@@ -1242,7 +1260,7 @@ FocusScope {
                         color: "transparent"
                         radius: Theme.radiusMedium
                         border.width: Theme.focusBorderWidth
-                        border.color: grid.activeFocus ? Theme.accent : "transparent"
+                        border.color: root.navigationFocusVisible && grid.activeFocus ? Theme.accent : "transparent"
                         z: 2
                     }
                 }
@@ -1258,6 +1276,7 @@ FocusScope {
                     onPressed: mouse => {
                         longPressed = false
                         pressedCurrent = false
+                        root.navigationFocusVisible = true
                         pressedIndex = grid.indexAt(mouse.x + grid.contentX, mouse.y + grid.contentY)
                         pressedCurrent = pressedIndex === grid.currentIndex
                         if (pressedIndex >= 0) {
