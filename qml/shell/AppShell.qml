@@ -123,6 +123,11 @@ KeyRouter {
         function onRemoteUiActionRequested(action) {
             root.handleRemoteUiAction(action)
         }
+        function onRemoteMessageRequested(message) {
+            remoteMessageText.text = message
+            remoteMessage.visible = true
+            remoteMessageTimer.restart()
+        }
     }
     function showToastAction(message, actionText, callback) {
         toast.showAction(message, actionText, callback)
@@ -548,7 +553,7 @@ KeyRouter {
     }
 
     function setUiScale(percent) {
-        Settings.setUiScalePercent(Math.max(80, Math.min(125, Math.round(Number(percent || 100) / 5) * 5)))
+        Settings.setUiScalePercent(Math.max(80, Math.min(180, Math.round(Number(percent || 100) / 5) * 5)))
     }
 
     function globalShortcut(key, phase, repeat, modifiers) {
@@ -560,13 +565,13 @@ KeyRouter {
             return true
         if (phase !== "release")
             return false
+        if (key === Qt.Key_Plus || key === Qt.Key_Minus || key === Qt.Key_Underscore) {
+            setUiScale(Settings.uiScalePercent + (key === Qt.Key_Plus ? 5 : -5))
+            return true
+        }
         if (modifiers & Qt.ControlModifier) {
-            if (key === Qt.Key_Plus || key === Qt.Key_Equal) {
+            if (key === Qt.Key_Equal) {
                 setUiScale(Settings.uiScalePercent + 5)
-                return true
-            }
-            if (key === Qt.Key_Minus || key === Qt.Key_Underscore) {
-                setUiScale(Settings.uiScalePercent - 5)
                 return true
             }
             if (key === Qt.Key_0) {
@@ -756,6 +761,36 @@ KeyRouter {
             focusedItemId: RoutePolicy.itemIdFor(root.currentMediaItem())
         }
     }
+    Rectangle {
+        id: remoteMessage
+        anchors.horizontalCenter: parent.horizontalCenter
+        y: Math.round(parent.height * 0.75 - height / 2)
+        width: Math.min(parent.width * 0.72, Metrics.scaled(960))
+        height: remoteMessageText.implicitHeight + Metrics.scaled(30)
+        visible: false
+        radius: Theme.radiusMedium
+        color: Theme.bgRaised
+        z: 69
+
+        AppText {
+            id: remoteMessageText
+            anchors.centerIn: parent
+            width: Math.max(0, parent.width - Metrics.scaled(32))
+            color: Theme.textPrimary
+            font.pixelSize: Metrics.bodySizePx + Metrics.scaled(1)
+            font.weight: Font.Normal
+            wrapMode: Text.Wrap
+            horizontalAlignment: Text.AlignHCenter
+            verticalAlignment: Text.AlignVCenter
+        }
+
+        Timer {
+            id: remoteMessageTimer
+            interval: 10000
+            onTriggered: remoteMessage.visible = false
+        }
+    }
+
     ToastLayer {
         id: toast
         anchors.fill: parent

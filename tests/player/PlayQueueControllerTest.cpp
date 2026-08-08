@@ -54,6 +54,10 @@ JELLYFIN_TEST_MAIN("play-queue-controller")
     entries[1].title = QStringLiteral("Episode 7");
     entries[1].runtimeTicks = 1'000'000'000;
     entries[1].resumeTicks = 200'000'000;
+    entries[1].album = QStringLiteral("Queue Album");
+    entries[1].albumId = QStringLiteral("album-id");
+    entries[1].albumArtist = QStringLiteral("Queue Artist");
+    entries[1].albumPrimaryImageTag = QStringLiteral("album-tag");
 
     require(queue.playNow(entries, 1), "playNow should accept a playable item vector");
     require(queue.count() == 3, "playNow should keep all playable items");
@@ -66,6 +70,11 @@ JELLYFIN_TEST_MAIN("play-queue-controller")
         "queue snapshots should expose series context, episode code, and year");
     require(episodeSnapshot.value(QStringLiteral("genericEpisodeTitle")).toBool(),
         "queue snapshots should identify generic episode titles");
+    require(episodeSnapshot.value(QStringLiteral("album")).toString() == QStringLiteral("Queue Album")
+            && episodeSnapshot.value(QStringLiteral("albumId")).toString() == QStringLiteral("album-id")
+            && episodeSnapshot.value(QStringLiteral("albumArtist")).toString() == QStringLiteral("Queue Artist")
+            && episodeSnapshot.value(QStringLiteral("albumPrimaryImageTag")).toString() == QStringLiteral("album-tag"),
+        "queue snapshots should preserve album metadata and artwork");
     require(queue.data(queue.index(1), PlayQueueController::YearRole).toInt() == 2024,
         "the queue model should expose the production year role");
     require(queue.canGoPrevious() && queue.canGoNext(), "middle current item should allow both directions");
@@ -82,6 +91,8 @@ JELLYFIN_TEST_MAIN("play-queue-controller")
     require(reported.size() == 3, "reported queue should include all queued entries");
     require(reported[1].itemId == QStringLiteral("b") && reported[1].playlistItemId == QStringLiteral("pl-b"),
         "reported queue should preserve item and playlist ids");
+    require(episodeSnapshot.value(QStringLiteral("displayTitle")).toString() == QStringLiteral("Episode 7"),
+        "episode queue rows should use episode titles rather than series names");
 
     require(queue.playNext(item(QStringLiteral("d"), QStringLiteral("Episode D"), QStringLiteral("pl-d"))),
         "playNext should accept playable item");
@@ -101,14 +112,24 @@ JELLYFIN_TEST_MAIN("play-queue-controller")
     require(!queue.playAt(99), "playAt should reject out-of-range rows");
     require(queue.playAt(2), "playAt should restore the natural successor");
 
+    require(queue.moveItem(2, 0), "queue rows should be reorderable");
+    require(idAt(queue, 0) == QStringLiteral("c") && queue.currentIndex() == 0,
+        "moving the current row should preserve the active item at its new index");
+    require(queue.moveItem(2, 1), "non-current queue rows should be reorderable");
+    require(idAt(queue, 1) == QStringLiteral("b") && queue.currentItem().id == QStringLiteral("c"),
+        "reordering another row should preserve the active item");
+    require(queue.removeItem(1), "non-current queue rows should be removable");
+    require(
+        queue.count() == 4 && idAt(queue, 1) == QStringLiteral("a"), "removing a queue row should close the model gap");
+    require(!queue.removeItem(queue.currentIndex()), "the active queue row should not be removable");
     queue.setShuffled(true);
     require(queue.shuffled(), "setShuffled(true) should enable shuffled mode");
     require(queue.currentItem().id == QStringLiteral("c"), "shuffle should keep current item active");
     queue.setShuffled(false);
     require(!queue.shuffled(), "setShuffled(false) should disable shuffled mode");
-    require(queue.currentIndex() == 2, "unshuffle should restore current natural index");
-    require(idAt(queue, 0) == QStringLiteral("a") && idAt(queue, 4) == QStringLiteral("e"),
-        "unshuffle should preserve natural row order");
+    require(queue.currentIndex() == 0, "unshuffle should restore the reordered current index");
+    require(idAt(queue, 0) == QStringLiteral("c") && idAt(queue, 3) == QStringLiteral("e"),
+        "unshuffle should preserve the explicitly reordered rows");
 
     queue.clear();
     require(queue.count() == 0 && queue.currentIndex() == -1, "clear should empty queue and reset current index");

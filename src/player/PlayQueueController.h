@@ -77,6 +77,8 @@ public:
     Q_INVOKABLE bool previous();
     Q_INVOKABLE bool playAt(int index);
     Q_INVOKABLE void setShuffled(bool shuffled);
+    Q_INVOKABLE bool moveItem(int from, int to);
+    Q_INVOKABLE bool removeItem(int index);
     Q_INVOKABLE void clear();
 
     bool playNow(const std::vector<MovieItem>& items, int startIndex);

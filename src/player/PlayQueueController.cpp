@@ -13,9 +13,7 @@ namespace {
 
     QString displayTitle(const MovieItem& item)
     {
-        if (item.itemType == QStringLiteral("Episode") && !item.seriesName.isEmpty())
-            return item.seriesName;
-        return item.title;
+        return item.title.isEmpty() ? item.seriesName : item.title;
     }
 
     QVariantMap itemSnapshot(const MovieItem& item)
@@ -30,6 +28,11 @@ namespace {
             { QStringLiteral("seriesId"), item.seriesId },
             { QStringLiteral("seasonId"), item.seasonId },
             { QStringLiteral("seriesName"), item.seriesName },
+            { QStringLiteral("album"), item.album },
+            { QStringLiteral("albumId"), item.albumId },
+            { QStringLiteral("albumArtist"), item.albumArtist },
+            { QStringLiteral("albumPrimaryImageTag"), item.albumPrimaryImageTag },
+            { QStringLiteral("posterTag"), item.posterTag },
             { QStringLiteral("year"), item.year },
             { QStringLiteral("seasonNumber"), item.seasonNumber },
             { QStringLiteral("episodeNumber"), item.episodeNumber },
@@ -202,6 +205,53 @@ void PlayQueueController::setShuffled(bool shuffled)
         m_orderIndex = previousCurrent >= 0 ? previousCurrent : 0;
     }
     emitQueueStateChanged(previousCurrent);
+}
+
+bool PlayQueueController::moveItem(int from, int to)
+{
+    if (from < 0 || from >= rowCount() || to < 0 || to >= rowCount() || from == to)
+        return false;
+
+    const int previousCurrent = currentIndex();
+    int nextCurrent = previousCurrent;
+    if (previousCurrent == from)
+        nextCurrent = to;
+    else if (from < previousCurrent && previousCurrent <= to)
+        --nextCurrent;
+    else if (to <= previousCurrent && previousCurrent < from)
+        ++nextCurrent;
+
+    beginMoveRows({}, from, from, {}, to > from ? to + 1 : to);
+    MovieItem moved = std::move(m_entries[static_cast<size_t>(from)]);
+    m_entries.erase(m_entries.begin() + from);
+    m_entries.insert(m_entries.begin() + to, std::move(moved));
+    endMoveRows();
+
+    // TODO: Replace these local edits with server-backed queue mutation when
+    // Jellyfin exposes a queue contract that preserves playlist item identity.
+    m_shuffled = false;
+    rebuildNaturalOrder();
+    m_orderIndex = nextCurrent;
+    emitQueueStateChanged(previousCurrent);
+    return true;
+}
+
+bool PlayQueueController::removeItem(int index)
+{
+    const int previousCurrent = currentIndex();
+    if (index < 0 || index >= rowCount() || index == previousCurrent)
+        return false;
+
+    beginRemoveRows({}, index, index);
+    m_entries.erase(m_entries.begin() + index);
+    endRemoveRows();
+
+    const int nextCurrent = index < previousCurrent ? previousCurrent - 1 : previousCurrent;
+    m_shuffled = false;
+    rebuildNaturalOrder();
+    m_orderIndex = nextCurrent;
+    emitQueueStateChanged(previousCurrent);
+    return true;
 }
 
 void PlayQueueController::clear()

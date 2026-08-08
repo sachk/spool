@@ -10,6 +10,7 @@ Item {
     property real stepSize: 0
     property real barHeight: 6
     property real handleSize: 16
+    property real interactionMargin: 0
     // Set when the owning row has focus, so the track reads as the thing the
     // remote is about to change.
     property bool highlighted: false
@@ -61,6 +62,7 @@ Item {
     }
 
     TapHandler {
+        margin: root.interactionMargin
         onTapped: eventPoint => {
             root.updateValue(eventPoint.position.x)
             root.committed()
@@ -68,6 +70,7 @@ Item {
     }
 
     DragHandler {
+        margin: root.interactionMargin
         target: null
         xAxis.enabled: true
         yAxis.enabled: false

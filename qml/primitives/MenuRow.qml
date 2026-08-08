@@ -26,11 +26,19 @@ Item {
     property bool stepperVisible: false
     property bool stepperEnabled: true
     property string stepperText: ""
+    property string stepperEditText: stepperText
+    property bool stepperEditable: false
+    property bool stepperInvalid: false
+    property bool removable: false
+    property bool dragEnabled: false
 
     signal activated
     signal hovered
     signal decreaseRequested
     signal increaseRequested
+    signal stepperAccepted(string text)
+    signal removeRequested
+    signal dragMoved(real sceneY)
 
     width: parent ? parent.width : Metrics.scaled(320)
     height: section ? Metrics.scaled(34) : rowHeight
@@ -131,13 +139,68 @@ Item {
                 }
             }
 
-            SecondaryText {
+            Rectangle {
                 Layout.preferredWidth: Metrics.scaled(root.compact ? 54 : 68)
-                text: root.stepperText
-                color: root.stepperEnabled ? Theme.textPrimary : Theme.textSecondary
-                font.pixelSize: root.compact ? Metrics.metaSizePx + 2 : Metrics.bodySizePx
-                font.weight: Font.DemiBold
-                horizontalAlignment: Text.AlignHCenter
+                Layout.preferredHeight: Metrics.scaled(root.compact ? 26 : 34)
+                radius: Theme.radiusSmall
+                color: speedInput.activeFocus ? Theme.bgPanel : "transparent"
+                border.width: root.stepperInvalid ? Theme.focusBorderWidth : 0
+                border.color: Theme.errorText
+
+                SecondaryText {
+                    anchors.fill: parent
+                    visible: !root.stepperEditable
+                    text: root.stepperText
+                    color: root.stepperEnabled ? Theme.textPrimary : Theme.textSecondary
+                    font.pixelSize: root.compact ? Metrics.metaSizePx + 2 : Metrics.bodySizePx
+                    font.weight: Font.DemiBold
+                    horizontalAlignment: Text.AlignHCenter
+                    verticalAlignment: Text.AlignVCenter
+                }
+
+                TextInput {
+                    id: speedInput
+                    anchors.fill: parent
+                    visible: root.stepperEditable
+                    enabled: root.stepperEnabled
+                    text: root.stepperEditText
+                    color: root.stepperInvalid ? Theme.errorText : root.stepperEnabled ? Theme.textPrimary :
+                                                                                         Theme.textSecondary
+
+                    selectionColor: Theme.accent
+                    selectedTextColor: Theme.textPrimary
+                    font.family: Theme.uiFontFamily
+                    font.pixelSize: root.compact ? Metrics.metaSizePx + 2 : Metrics.bodySizePx
+                    font.weight: Font.Normal
+                    horizontalAlignment: Text.AlignHCenter
+                    verticalAlignment: Text.AlignVCenter
+                    selectByMouse: true
+                    validator: RegularExpressionValidator {
+                        regularExpression: /[0-9.]*/
+                    }
+                    onActiveFocusChanged: {
+                        if (activeFocus)
+                            selectAll()
+                        else if (!root.stepperInvalid)
+                            text = root.stepperEditText
+                    }
+                    Keys.onReturnPressed: event => {
+                        root.stepperAccepted(text)
+                        event.accepted = true
+                        if (!root.stepperInvalid) {
+                            text = root.stepperEditText
+                            focus = false
+                        }
+                    }
+                    Keys.onEnterPressed: event => {
+                        root.stepperAccepted(text)
+                        event.accepted = true
+                        if (!root.stepperInvalid) {
+                            text = root.stepperEditText
+                            focus = false
+                        }
+                    }
+                }
             }
 
             Rectangle {
@@ -166,6 +229,27 @@ Item {
             }
         }
 
+        Rectangle {
+            visible: root.removable && hover.hovered
+            Layout.preferredWidth: Metrics.scaled(root.compact ? 30 : 38)
+            Layout.preferredHeight: width
+            radius: Theme.radiusSmall
+            color: removeHover.hovered ? Theme.errorPanel : "transparent"
+
+            MaterialIcon {
+                anchors.centerIn: parent
+                name: "delete"
+                iconSize: Metrics.scaled(root.compact ? 19 : 22)
+                iconColor: removeHover.hovered ? Theme.errorText : Theme.textSecondary
+            }
+            HoverHandler {
+                id: removeHover
+            }
+            TapHandler {
+                onTapped: root.removeRequested()
+            }
+        }
+
         MaterialIcon {
             visible: root.checked && root.checkIconName.length > 0
             Layout.preferredWidth: Metrics.scaled(24)
@@ -181,6 +265,15 @@ Item {
         enabled: root.actionable && !root.section
         onHoveredChanged: if (hovered)
                               root.hovered()
+    }
+
+    DragHandler {
+        enabled: root.dragEnabled
+        target: null
+        yAxis.enabled: true
+        xAxis.enabled: false
+        onCentroidChanged: if (active)
+                               root.dragMoved(centroid.scenePosition.y)
     }
 
     TapHandler {

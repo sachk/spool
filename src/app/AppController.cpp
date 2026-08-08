@@ -918,11 +918,18 @@ void AppController::handleRemoteGeneralCommand(const QJsonObject& data)
         emit remoteUiActionRequested(QStringLiteral("settings"));
     } else if (command == QStringLiteral("GoToSearch")) {
         emit remoteUiActionRequested(QStringLiteral("search"));
-    } else if (command == QStringLiteral("Play")) {
+    } else if (command == QStringLiteral("Play") || command == QStringLiteral("Unpause")) {
         if (m_player->paused())
             m_syncPlay->enabled() ? m_syncPlay->requestTogglePause() : m_player->togglePause();
+    } else if (command == QStringLiteral("Pause")) {
+        if (!m_player->paused())
+            m_syncPlay->enabled() ? m_syncPlay->requestTogglePause() : m_player->togglePause();
+    } else if (command == QStringLiteral("Stop")) {
+        m_player->stopWithReason(QStringLiteral("remote-stop"));
     } else if (command == QStringLiteral("DisplayMessage")) {
-        showToast(arguments.value(QStringLiteral("Text")).toString());
+        const QString message = arguments.value(QStringLiteral("Text")).toString().trimmed();
+        if (!message.isEmpty())
+            emit remoteMessageRequested(message);
     } else {
         const QHash<QString, int> keys = {
             { QStringLiteral("MoveUp"), Qt::Key_Up },
@@ -1203,12 +1210,12 @@ RequestGeneration::Token AppController::beginBrowse(bool useWarmCache)
     return generation;
 }
 
-void AppController::openNamedCollection(const QString& kind, const QString& value)
+void AppController::openNamedCollection(const QString& kind, const QString& value, const QString& collectionType)
 {
     const QString name = value.trimmed();
     if (name.isEmpty() || (kind != QStringLiteral("genre") && kind != QStringLiteral("studio")))
         return;
-    m_browse->enterNamedCollection(kind, name);
+    m_browse->enterNamedCollection(kind, name, collectionType);
     beginBrowse();
 }
 

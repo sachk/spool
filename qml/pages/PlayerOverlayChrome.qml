@@ -465,6 +465,26 @@ Item {
                         stepperVisible: root.overlay.debugAction(index) === "speed"
                         stepperEnabled: !SyncPlay.enabled
                         stepperText: root.overlay.formatPlaybackSpeed(root.overlay.player.effectivePlaybackSpeed)
+                        stepperEditText: Number(root.overlay.player.effectivePlaybackSpeed || 1).toFixed(2)
+                        stepperEditable: stepperVisible && root.overlay.desktopControlsAvailable
+                        removable: root.overlay.menuKind === "queue" && index !== root.overlay.playQueue.currentIndex
+                        dragEnabled: root.overlay.menuKind === "queue" && root.overlay.desktopControlsAvailable
+                        onStepperAccepted: text => {
+                            stepperInvalid = !root.overlay.applyPlaybackSpeedText(text)
+                            if (!stepperInvalid)
+                                menuList.forceActiveFocus()
+                        }
+                        onRemoveRequested: {
+                            if (root.overlay.playQueue.removeItem(index))
+                            menuList.currentIndex = Math.min(index, menuList.count - 1)
+                        }
+                        onDragMoved: sceneY => {
+                            const local = menuList.mapFromGlobal(menuList.width / 2, sceneY)
+                            const targetIndex = menuList.indexAt(local.x + menuList.contentX, local.y
+                                                                 + menuList.contentY)
+                            if (targetIndex >= 0 && targetIndex !== index)
+                                root.overlay.playQueue.moveItem(index, targetIndex)
+                        }
                         onDecreaseRequested: {
                             menuList.currentIndex = index
                             root.overlay.adjustPlaybackSpeed(-1)

@@ -128,7 +128,7 @@ public:
     Q_INVOKABLE void playModel(MovieGridModel *model, bool shuffled = false);
     Q_INVOKABLE void playEpisodicContainer(const QString& seriesId, const QString& seasonId = {});
     Q_INVOKABLE void cancelEpisodicPlaybackSelection();
-    Q_INVOKABLE void openNamedCollection(const QString& kind, const QString& name);
+    Q_INVOKABLE void openNamedCollection(const QString& kind, const QString& name, const QString& collectionType = {});
     Q_INVOKABLE void onMemoryPressure(const QString& level);
     Q_INVOKABLE void clearError();
     Q_INVOKABLE void clearLogs();
@@ -152,6 +152,7 @@ signals:
     void aggressiveMemoryPressure();
     void toastMessage(const QString& message);
     void remoteUiActionRequested(const QString& action);
+    void remoteMessageRequested(const QString& message);
     void clearLogsRequested();
 
 private:

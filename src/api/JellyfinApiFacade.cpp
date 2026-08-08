@@ -901,14 +901,18 @@ QCoro::Task<PagedMovieItems> JellyfinApiFacade::fetchBrowsePage(
             .sort(QStringLiteral("SortName"));
         allowedTypes = itemTypesList(QStringLiteral("Movie,Series,Episode"));
         break;
-    case BrowseKind::Genre:
+    case BrowseKind::Genre: {
+        const bool music = descriptor.collectionType == QStringLiteral("music");
+        const QString types = music ? QStringLiteral("MusicAlbum,Audio") : QStringLiteral("Movie,Series");
         builder.recursive()
             .add(QStringLiteral("genres"), descriptor.name)
-            .includeItemTypes(QStringLiteral("Movie,Series"))
-            .mediaTypes(QStringLiteral("Video"))
+            .includeItemTypes(types)
             .sort(QStringLiteral("SortName"));
-        allowedTypes = itemTypesList(QStringLiteral("Movie,Series"));
+        if (!music)
+            builder.mediaTypes(QStringLiteral("Video"));
+        allowedTypes = itemTypesList(types);
         break;
+    }
     case BrowseKind::Studio:
         builder.recursive()
             .add(QStringLiteral("studios"), descriptor.name)
@@ -1722,6 +1726,10 @@ QCoro::Task<void> JellyfinApiFacade::postCapabilities()
                 QStringLiteral("GoHome"),
                 QStringLiteral("GoToSettings"),
                 QStringLiteral("GoToSearch"),
+                QStringLiteral("Play"),
+                QStringLiteral("Pause"),
+                QStringLiteral("Unpause"),
+                QStringLiteral("Stop"),
                 QStringLiteral("DisplayMessage"),
             } },
         { QStringLiteral("SupportsMediaControl"), true },

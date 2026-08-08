@@ -518,6 +518,17 @@ FocusScope {
         return Number(value || 1).toFixed(2) + "×"
     }
 
+    function applyPlaybackSpeedText(text) {
+        const trimmed = String(text).trim()
+        if (!/^(?:[0-9]+(?:\.[0-9]*)?|\.[0-9]+)$/.test(trimmed))
+            return false
+        const value = Number(trimmed)
+        if (!Number.isFinite(value) || value < 0.25 || value > 4)
+            return false
+        player.setPlaybackSpeed(value)
+        return true
+    }
+
     function adjustPlaybackSpeed(direction) {
         if (!hasPlayer || SyncPlay.enabled || direction === 0)
             return

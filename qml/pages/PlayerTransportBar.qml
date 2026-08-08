@@ -145,7 +145,7 @@ RowLayout {
         MaterialIcon {
             name: root.overlay.hasPlayer && root.overlay.player.volume === 0 ? "volume_off" : "volume_up"
             iconColor: Theme.textSecondary
-            iconSize: root.overlay.dp(28)
+            iconSize: root.overlay.dp(38)
 
             TapHandler {
                 onTapped: {
@@ -171,8 +171,9 @@ RowLayout {
             to: 100
             stepSize: 1
             value: root.overlay.hasPlayer ? root.overlay.player.volume : 100
-            barHeight: root.overlay.dp(6)
-            handleSize: root.overlay.dp(16)
+            barHeight: root.overlay.dp(8)
+            handleSize: root.overlay.dp(20)
+            interactionMargin: handleSize
             onMoved: if (root.overlay.hasPlayer)
             root.overlay.player.setVolume(Math.round(value))
         }
