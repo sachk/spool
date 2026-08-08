@@ -73,7 +73,8 @@ namespace {
     QString detailItemFields()
     {
         return QStringLiteral(
-            "Overview,ProductionYear,PremiereDate,EndDate,DateCreated,DateLastContentAdded,ImageTags,BackdropImageTags,"
+            "Overview,ProductionYear,PremiereDate,EndDate,Status,DateCreated,DateLastContentAdded,ImageTags,"
+            "BackdropImageTags,"
             "UserData,Path,RunTimeTicks,SeriesInfo,LocationType,IsVirtualItem,Genres,Tags,Studios,"
             "OfficialRating,CommunityRating,CriticRating,People,PrimaryImageAspectRatio,MediaSources");
     }
@@ -81,7 +82,7 @@ namespace {
     QString libraryItemFields()
     {
         return QStringLiteral(
-            "SortName,Overview,ProductionYear,PremiereDate,EndDate,DateCreated,DateLastContentAdded,ImageTags,"
+            "SortName,Overview,ProductionYear,PremiereDate,EndDate,Status,DateCreated,DateLastContentAdded,ImageTags,"
             "BackdropImageTags,UserData,RunTimeTicks,SeriesInfo,LocationType,IsVirtualItem,Genres,Tags,Studios,"
             "OfficialRating,CommunityRating,CriticRating,PrimaryImageAspectRatio");
     }

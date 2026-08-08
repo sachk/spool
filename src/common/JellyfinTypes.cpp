@@ -404,7 +404,12 @@ QString itemSubtitle(const MovieItem& item)
     if (item.itemType == QStringLiteral("Series")) {
         if (!item.episodeLabel.isEmpty())
             return item.episodeLabel;
-        return item.year > 0 ? QString::number(item.year) : QStringLiteral("Series");
+        if (item.year <= 0)
+            return QStringLiteral("Series");
+        if (item.status.compare(QStringLiteral("Continuing"), Qt::CaseInsensitive) == 0)
+            return QStringLiteral("%1 - Present").arg(item.year);
+        const int endYear = QDate::fromString(item.endDate.left(10), Qt::ISODate).year();
+        return endYear > item.year ? QStringLiteral("%1 - %2").arg(item.year).arg(endYear) : QString::number(item.year);
     }
     if (item.itemType == QStringLiteral("Season"))
         return QStringLiteral("Season");

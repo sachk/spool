@@ -21,7 +21,7 @@
 namespace JellyfinNative {
 
 namespace {
-    constexpr int kHomePayloadSchemaVersion = 8;
+    constexpr int kHomePayloadSchemaVersion = 9;
 
     bool latestRowPrefersLandscape(const LibraryItem& library, const std::vector<MovieItem>& items)
     {

@@ -165,6 +165,7 @@ void requireMovieItem(const MovieItem& actual, const MovieItem& expected, const 
     require(actual.criticRating == expected.criticRating, message);
     require(actual.premiereDate == expected.premiereDate, message);
     require(actual.endDate == expected.endDate, message);
+    require(actual.status == expected.status, message);
     require(actual.people.size() == expected.people.size(), message);
     for (qsizetype i = 0; i < actual.people.size(); ++i)
         requirePersonItem(actual.people.at(i), expected.people.at(i), message);
@@ -403,6 +404,26 @@ void testLegacyStringTicksAndUnknownKeys()
     require(segment.endTicks == 2234567890LL, "MediaSegment endTicks did not parse a legacy JSON string value");
 }
 
+void testSeriesYearLabels()
+{
+    MovieItem series;
+    series.itemType = QStringLiteral("Series");
+    series.year = 2018;
+    series.endDate = QStringLiteral("2024-05-19T00:00:00.0000000Z");
+    series.status = QStringLiteral("Ended");
+    require(
+        itemSubtitle(series) == QStringLiteral("2018 - 2024"), "Completed series should display their full year range");
+
+    series.endDate.clear();
+    series.status = QStringLiteral("Continuing");
+    require(itemSubtitle(series) == QStringLiteral("2018 - Present"),
+        "Continuing series should display Present instead of a missing end year");
+
+    series.status = QStringLiteral("Ended");
+    require(itemSubtitle(series) == QStringLiteral("2018"),
+        "Series without a usable end year should retain their premiere year");
+}
+
 void testPascalCaseApiParsing()
 {
     const QJsonObject movieJson = jsonObject({
@@ -545,6 +566,7 @@ JELLYFIN_TEST_MAIN("meta-json")
     testMetaListRoundTrip();
     testLegacyStringTicksAndUnknownKeys();
     testPascalCaseApiParsing();
+    testSeriesYearLabels();
     testEpisodePlaybackMetadata();
     return EXIT_SUCCESS;
 }

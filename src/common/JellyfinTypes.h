@@ -228,6 +228,7 @@ struct MovieItem {
     Q_PROPERTY(int recursiveItemCount MEMBER recursiveItemCount)
     Q_PROPERTY(QString premiereDate MEMBER premiereDate)
     Q_PROPERTY(QString endDate MEMBER endDate)
+    Q_PROPERTY(QString status MEMBER status)
     Q_PROPERTY(QList<JellyfinNative::PersonItem> people MEMBER people)
     Q_PROPERTY(QList<JellyfinNative::MediaSourceInfo> mediaSources MEMBER mediaSources)
 
@@ -276,6 +277,7 @@ public:
     int recursiveItemCount = 0;
     QString premiereDate;
     QString endDate;
+    QString status;
     QList<PersonItem> people;
     QList<MediaSourceInfo> mediaSources;
 
