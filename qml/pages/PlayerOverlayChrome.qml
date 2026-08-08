@@ -109,7 +109,7 @@ Item {
         anchors.right: parent.right
         anchors.top: parent.top
         height: root.dp(150)
-        visible: root.overlay.controlsVisible && !root.overlay.audioSyncVisible
+        visible: root.overlay.controlsVisible && !root.overlay.audioSyncVisible && !root.overlay.audioOnly
         gradient: Gradient {
             GradientStop {
                 position: 0
@@ -127,7 +127,7 @@ Item {
         anchors.right: parent.right
         anchors.bottom: parent.bottom
         height: root.dp(360)
-        visible: root.overlay.controlsVisible
+        visible: root.overlay.controlsVisible && !root.overlay.audioOnly
         opacity: root.overlay.audioSyncVisible ? 0.35 : 1
         gradient: Gradient {
             GradientStop {
@@ -226,11 +226,18 @@ Item {
 
     Item {
         id: hud
+        // Video runs the chrome the full width of the picture it belongs to.
+        // Audio sets it under the record instead, narrow and centred, which
+        // symmetric margins do without fighting the left and right anchors.
+        readonly property real sideMargin: root.overlay.audioOnly ? Math.max(root.dp(52), (parent.width - root.dp(860))
+                                                                             / 2) : root.dp(52)
         anchors.left: parent.left
         anchors.right: parent.right
         anchors.bottom: parent.bottom
-        anchors.margins: root.dp(52)
-        height: root.dp(276)
+        anchors.leftMargin: sideMargin
+        anchors.rightMargin: sideMargin
+        anchors.bottomMargin: root.dp(52)
+        height: root.overlay.audioOnly ? root.dp(176) : root.dp(276)
         visible: root.overlay.controlsVisible
 
         ColumnLayout {
@@ -247,7 +254,9 @@ Item {
                     AppText {
                         Layout.fillWidth: true
                         Layout.preferredHeight: visible ? implicitHeight : 0
-                        visible: !root.overlay.episodeQueue || root.overlay.showEpisodeTitle
+                        visible: !root.overlay.audioOnly && (!root.overlay.episodeQueue
+                                                             || root.overlay.showEpisodeTitle)
+
                         text: root.overlay.overlayTitle
                         color: Theme.textPrimary
                         font.pixelSize: root.dp(40)
@@ -259,7 +268,7 @@ Item {
                     AppText {
                         Layout.fillWidth: true
                         Layout.preferredHeight: visible ? implicitHeight : 0
-                        visible: root.overlay.overlayMetadataText.length > 0
+                        visible: !root.overlay.audioOnly && root.overlay.overlayMetadataText.length > 0
                         text: root.overlay.overlayMetadataText
                         color: Theme.textSecondary
                         font.pixelSize: root.dp(22)
@@ -340,16 +349,16 @@ Item {
             id: menuPanel
             width: menuDialog.dropdown ? root.dp(360) : Math.min(parent.width - root.dp(96), root.dp(620))
             height: Math.min(parent.height - root.dp(96), menuBody.implicitHeight + menuBody.anchors.margins * 2)
-            // Hang off the button rather than the screen edge, clamped so the
-            // panel stays inside the window on a narrow one.
+            // Centre on the button rather than hanging off the screen edge,
+            // clamped so the panel stays inside a narrow window.
             x: {
                 if (!menuDialog.dropdown)
                 return (parent.width - width) / 2
                 const button = menuDialog.settingsButton
                 if (button.width <= 0)
                 return parent.width - width - root.dp(52)
-                return Math.max(root.dp(16), Math.min(button.x + button.width - width, parent.width - width - root.dp(
-                                                          16)))
+                const centred = button.x + (button.width - width) / 2
+                return Math.max(root.dp(16), Math.min(centred, parent.width - width - root.dp(16)))
             }
             y: {
                 if (!menuDialog.dropdown)

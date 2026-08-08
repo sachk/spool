@@ -22,7 +22,8 @@ Item {
     }
 
     function endsAtText() {
-        if (!overlay.hasPlayer || overlay.player.durationSeconds <= 0)
+        // A track is over in minutes: the clock time it ends at is noise.
+        if (overlay.audioOnly || !overlay.hasPlayer || overlay.player.durationSeconds <= 0)
             return ""
         const remainingSeconds = Math.max(0, overlay.player.durationSeconds - overlay.positionSeconds())
         const playbackSpeed = Math.max(0.01, Number(overlay.player.effectivePlaybackSpeed))

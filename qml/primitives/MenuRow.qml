@@ -86,7 +86,7 @@ Item {
                 Layout.fillWidth: true
                 text: root.label
                 color: root.actionable || root.highlighted ? Theme.textPrimary : Theme.textSecondary
-                font.pixelSize: root.compact ? Metrics.metaSizePx : Metrics.bodySizePx
+                font.pixelSize: root.compact ? Metrics.metaSizePx + 2 : Metrics.bodySizePx
                 font.weight: root.highlighted ? Font.DemiBold : Font.Medium
                 maximumLineCount: 1
                 elide: Text.ElideRight
@@ -96,7 +96,7 @@ Item {
                 visible: root.detail.length > 0
                 text: root.detail
                 color: Theme.textMuted
-                font.pixelSize: Metrics.metaSizePx - (root.compact ? 2 : 1)
+                font.pixelSize: Metrics.metaSizePx - 1
                 maximumLineCount: 1
                 elide: Text.ElideRight
             }
@@ -135,7 +135,7 @@ Item {
                 Layout.preferredWidth: Metrics.scaled(root.compact ? 54 : 68)
                 text: root.stepperText
                 color: root.stepperEnabled ? Theme.textPrimary : Theme.textSecondary
-                font.pixelSize: root.compact ? Metrics.metaSizePx : Metrics.bodySizePx
+                font.pixelSize: root.compact ? Metrics.metaSizePx + 2 : Metrics.bodySizePx
                 font.weight: Font.DemiBold
                 horizontalAlignment: Text.AlignHCenter
             }

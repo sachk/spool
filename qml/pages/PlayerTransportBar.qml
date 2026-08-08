@@ -101,6 +101,13 @@ RowLayout {
         }
     }
 
+    // Video spreads the controls across the foot of the picture. Audio has no
+    // picture to frame, so the same controls gather into one centred cluster
+    // under the record.
+    Item {
+        Layout.fillWidth: root.overlay.audioOnly
+    }
+
     Repeater {
         model: root.overlay.transportActions
         delegate: ActionTarget {
@@ -110,7 +117,8 @@ RowLayout {
     }
 
     Item {
-        Layout.fillWidth: true
+        Layout.fillWidth: !root.overlay.audioOnly
+        Layout.preferredWidth: root.overlay.audioOnly ? root.overlay.dp(40) : 0
     }
 
     Repeater {

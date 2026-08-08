@@ -32,8 +32,10 @@ Item {
     }
     // The chrome owns the lower band of the screen; centre the record in what
     // is left rather than in the window, so it never sits behind the controls.
-    readonly property real stageHeight: Math.max(root.dp(240), root.height - root.dp(400))
-    readonly property real coverSize: Math.max(root.dp(180), Math.min(stageHeight * 0.86, root.dp(460)))
+    readonly property real stageHeight: Math.max(root.dp(240), root.height - root.dp(280))
+    readonly property real coverSize: Math.max(root.dp(180), Math.min(stageHeight * 0.72, root.dp(420)))
+    readonly property real textWidth: Math.min(root.dp(620), Math.max(root.dp(220), root.width - coverSize - root.dp(
+                                                                          200)))
 
     function dp(value) {
         return overlay ? overlay.dp(value) : Math.round(value)
@@ -71,15 +73,15 @@ Item {
         }
     }
 
+    // Cover and title read as one block, so centre the pair rather than
+    // pinning the cover to an edge.
     RowLayout {
-        anchors.left: parent.left
-        anchors.leftMargin: root.dp(96)
-        anchors.right: parent.right
-        anchors.rightMargin: root.dp(96)
+        anchors.horizontalCenter: parent.horizontalCenter
         anchors.top: parent.top
         anchors.topMargin: Math.round((root.stageHeight - root.coverSize) / 2)
+        width: root.coverSize + spacing + root.textWidth
         height: root.coverSize
-        spacing: root.dp(48)
+        spacing: root.dp(40)
 
         ImageCard {
             id: cover
@@ -91,7 +93,7 @@ Item {
         }
 
         ColumnLayout {
-            Layout.fillWidth: true
+            Layout.preferredWidth: root.textWidth
             Layout.alignment: Qt.AlignVCenter
             spacing: root.dp(10)
 
