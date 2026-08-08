@@ -66,7 +66,7 @@
 #include <memory>
 #include <mutex>
 #ifdef Q_OS_WIN
-#include <io.h>
+#include <qt_windows.h>
 #endif
 #ifdef Q_OS_UNIX
 #include <sys/stat.h>
@@ -111,19 +111,19 @@ QByteArray g_logPath;
 QElapsedTimer g_startupTimer;
 std::mutex g_logMutex;
 
-bool hasUsableStandardError()
+void writeStandardError(const QByteArray& line)
 {
 #ifdef Q_OS_WIN
-    // A Windows GUI-subsystem process has CRT stream objects even when it was
-    // launched without inherited standard handles. Writing to such a stream
-    // invokes the UCRT invalid-parameter handler and terminates the process.
-    const int descriptor = _fileno(stderr);
-    if (descriptor < 0)
-        return false;
-    const auto handle = _get_osfhandle(descriptor);
-    return handle != -1 && handle != -2;
+    // GUI-subsystem processes do not reliably have a CRT stderr descriptor.
+    // Write through the Win32 handle so a missing console cannot trigger the
+    // UCRT invalid-parameter fast-fail.
+    const HANDLE handle = GetStdHandle(STD_ERROR_HANDLE);
+    if (!handle || handle == INVALID_HANDLE_VALUE)
+        return;
+    DWORD written = 0;
+    WriteFile(handle, line.constData(), static_cast<DWORD>(line.size()), &written, nullptr);
 #else
-    return true;
+    fwrite(line.constData(), 1, static_cast<size_t>(line.size()), stderr);
 #endif
 }
 
@@ -187,23 +187,17 @@ void logLine(const char *fmt, ...)
     const long long elapsedMs = g_startupTimer.isValid() ? static_cast<long long>(g_startupTimer.elapsed()) : 0;
 
     va_list ap;
-    if (g_logFile) {
-        va_start(ap, fmt);
-        fprintf(g_logFile, "[%7lld ms] ", elapsedMs);
-        vfprintf(g_logFile, fmt, ap);
-        fputc('\n', g_logFile);
-        fflush(g_logFile);
-        va_end(ap);
-    }
-
-    if (!hasUsableStandardError())
-        return;
-
     va_start(ap, fmt);
-    fprintf(stderr, "[%7lld ms] ", elapsedMs);
-    vfprintf(stderr, fmt, ap);
-    fputc('\n', stderr);
+    const QByteArray message = QString::vasprintf(fmt, ap).toUtf8();
     va_end(ap);
+    const QByteArray line = QByteArrayLiteral("[") + QByteArray::number(elapsedMs).rightJustified(7)
+        + QByteArrayLiteral(" ms] ") + message + '\n';
+
+    if (g_logFile) {
+        fwrite(line.constData(), 1, static_cast<size_t>(line.size()), g_logFile);
+        fflush(g_logFile);
+    }
+    writeStandardError(line);
 }
 
 void qtMessageHandler(QtMsgType type, const QMessageLogContext& context, const QString& message)
