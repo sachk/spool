@@ -235,7 +235,6 @@ AppController::AppController(DatabaseManager *database, DiscoveryController *dis
                 m_api->setSessionBitrateOverride(restoredBitrate);
                 emit streamingQualityChanged();
                 const MovieItem resumeItem = PlaybackFailurePolicy::retryItem(m_activePlaybackItem, positionTicks);
-                m_player->teardownMpv();
                 setBusy(true, QStringLiteral("Restoring the previous quality…"));
                 showToast(QStringLiteral("That quality could not be played; keeping the previous one."));
                 Async::runScoped(
@@ -1260,7 +1259,9 @@ void AppController::selectStreamingQuality(qint64 bitrate)
     const int audioStreamIndex = m_activeAudioStreamIndex;
     const int subtitleStreamIndex = m_activeSubtitleStreamIndex;
     m_qualityFallbackBitrate = previousBitrate;
-    m_player->teardownMpv();
+    // Renegotiating is a network round trip. Leaving the old core up for it
+    // keeps the picture on screen until the replacement is ready to start;
+    // play() still tears it down synchronously before the new one begins.
     setBusy(true, QStringLiteral("Changing quality…"));
     Async::runScoped(
         this, startPlayback(resumeItem, false, false, audioStreamIndex, subtitleStreamIndex), []() {},
