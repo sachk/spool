@@ -197,6 +197,10 @@ AppController::AppController(DatabaseManager *database, DiscoveryController *dis
     });
 
     connect(m_player, &PlayerController::playbackStopped, this, &AppController::handlePlaybackStopped);
+    // Keep the bandwidth probe off the wire while a stream is running; it
+    // resumes on its own once the session ends.
+    connect(m_player, &PlayerController::sessionActiveChanged, this,
+        [this]() { m_api->setPlaybackActive(m_player->sessionActive()); });
     connect(m_player, &PlayerController::streamSelectionChanged, this,
         [this](int audioStreamIndex, int subtitleStreamIndex) {
             if (m_activePlaybackItem.itemType != QStringLiteral("Episode") || m_activePlaybackItem.seriesId.isEmpty())

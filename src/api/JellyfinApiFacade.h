@@ -2,6 +2,7 @@
 
 #include "../common/JellyfinTypes.h"
 #include "HttpRequestPolicy.h"
+#include "PlaybackBandwidthPolicy.h"
 
 #include <QCoroTask>
 
@@ -49,6 +50,15 @@ public:
     void setVideoCodecCapabilities(QStringList videoCodecs, bool restrictVideoCodecs);
     int playbackParallelRequests() const;
     QCoro::Task<void> refreshPlaybackNetworkState();
+
+    // Measuring pulls several megabytes from the server, so it must never run
+    // beside a stream. Playback that starts before a measurement lands keeps
+    // whatever ceiling is known, which is a remembered one where the route has
+    // been seen before and a conservative estimate otherwise.
+    void setPlaybackActive(bool active);
+    qint64 maxStreamingBitrate() const;
+    qint64 measuredStreamingBitrate() const;
+    PlaybackBandwidthPolicy::Source streamingBitrateSource() const;
     QString authorizationHeader(const QString& tokenOverride = {}) const;
     void cancelRequests();
 
@@ -122,6 +132,7 @@ signals:
     void authenticationExpired(const QString& message);
     void deviceProfileChanged();
     void playbackNetworkProfileChanged();
+    void streamingBitrateChanged();
     void sessionTokenChanged();
 
 private:
@@ -148,6 +159,10 @@ private:
     void applyCommonHeaders();
     void updateEffectiveStreamingBitrate();
     void setPlaybackParallelRequests(int parallelRequests);
+    QString currentNetworkSignature() const;
+    void restoreRememberedMeasurement();
+    void rememberMeasurement();
+    void handleNetworkRouteChanged();
 
     QNetworkAccessManager *m_networkAccessManager = nullptr;
     QRestAccessManager m_rest;
@@ -163,10 +178,15 @@ private:
     qint64 m_maxStreamingBitrate = 20'000'000;
     qint64 m_manualMaxStreamingBitrate = 0;
     qint64 m_measuredStreamingBitrate = 0;
+    QString m_measuredNetworkSignature;
     int m_playbackParallelRequests = 1;
     quint64 m_playbackNetworkGeneration = 0;
     bool m_playbackEndpointKnown = false;
     bool m_inLocalNetwork = false;
+    PlaybackBandwidthPolicy::Source m_streamingBitrateSource = PlaybackBandwidthPolicy::Source::Estimate;
+    bool m_measurementRemembered = false;
+    bool m_playbackActive = false;
+    bool m_measurementDeferred = false;
     bool m_unlimitedLocalNetwork = false;
     QStringList m_videoCodecs;
     bool m_restrictVideoCodecs = false;

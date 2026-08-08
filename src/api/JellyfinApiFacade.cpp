@@ -1,5 +1,6 @@
 #include "JellyfinApiFacade.h"
 
+#include "../common/AsyncTask.h"
 #include "../common/MetaJson.h"
 #include "../common/NetworkAddress.h"
 #include "../common/TlsTrust.h"
@@ -15,10 +16,14 @@
 #include <QDebug>
 #include <QDir>
 #include <QElapsedTimer>
+#include <QHostAddress>
 #include <QHttpHeaders>
 #include <QJsonArray>
 #include <QJsonObject>
+#include <QNetworkInformation>
+#include <QNetworkInterface>
 #include <QNetworkReply>
+#include <QSettings>
 #if QT_CONFIG(ssl)
 #include <QSslConfiguration>
 #endif
@@ -276,6 +281,21 @@ JellyfinApiFacade::JellyfinApiFacade(
     m_requestFactory.setAttribute(
         QNetworkRequest::ConnectionCacheExpiryTimeoutSecondsAttribute, kConnectionCacheExpirySeconds);
 
+    // Moving between Wi-Fi, ethernet and cellular changes what the link can
+    // carry. Backends are optional: where none loads the ceiling simply keeps
+    // whatever the last measurement found.
+    if (QNetworkInformation::loadDefaultBackend()) {
+        if (auto *information = QNetworkInformation::instance()) {
+            connect(information, &QNetworkInformation::transportMediumChanged, this,
+                &JellyfinApiFacade::handleNetworkRouteChanged);
+            connect(information, &QNetworkInformation::reachabilityChanged, this,
+                [this](QNetworkInformation::Reachability reachability) {
+                    if (reachability == QNetworkInformation::Reachability::Online)
+                        handleNetworkRouteChanged();
+                });
+        }
+    }
+
     applyCommonHeaders();
 }
 
@@ -345,8 +365,15 @@ void JellyfinApiFacade::setSession(const AuthSession& session)
     m_authExpirationReported = false;
     if (m_session.accessToken.isEmpty())
         m_preconnectedAuthority.clear();
-    if (tokenChanged)
+    if (tokenChanged) {
+        // The bitrate probe needs a token, so nothing can be measured before
+        // sign-in. Reusing what this route measured last time gives playback a
+        // real number at once instead of the conservative estimate, and the
+        // probe that follows refreshes it.
+        if (!m_session.accessToken.isEmpty())
+            restoreRememberedMeasurement();
         emit sessionTokenChanged();
+    }
     preconnectToServer();
 }
 
@@ -415,17 +442,144 @@ void JellyfinApiFacade::setPlaybackParallelRequests(int parallelRequests)
     emit playbackNetworkProfileChanged();
 }
 
+qint64 JellyfinApiFacade::maxStreamingBitrate() const
+{
+    return m_maxStreamingBitrate;
+}
+
+qint64 JellyfinApiFacade::measuredStreamingBitrate() const
+{
+    return m_measuredStreamingBitrate;
+}
+
+PlaybackBandwidthPolicy::Source JellyfinApiFacade::streamingBitrateSource() const
+{
+    const PlaybackBandwidthPolicy::Source source
+        = PlaybackBandwidthPolicy::effectiveBitrateSource(m_manualMaxStreamingBitrate, m_unlimitedLocalNetwork,
+            m_playbackEndpointKnown, m_inLocalNetwork, m_measuredStreamingBitrate);
+    // The policy cannot tell a measurement taken now from one restored for
+    // this route, so name the difference here.
+    if (source == PlaybackBandwidthPolicy::Source::Measured && m_measurementRemembered)
+        return PlaybackBandwidthPolicy::Source::Remembered;
+    return source;
+}
+
+void JellyfinApiFacade::setPlaybackActive(bool active)
+{
+    if (m_playbackActive == active)
+        return;
+    m_playbackActive = active;
+    if (active || !m_measurementDeferred)
+        return;
+    m_measurementDeferred = false;
+    Async::runScoped(
+        this, refreshPlaybackNetworkState(), []() {},
+        [](const std::exception_ptr& error) {
+            qWarning() << "playback bandwidth: deferred measurement failed" << exceptionMessage(error);
+        });
+}
+
+QString JellyfinApiFacade::currentNetworkSignature() const
+{
+    QStringList addresses;
+    const QList<QHostAddress> local = QNetworkInterface::allAddresses();
+    addresses.reserve(local.size());
+    for (const QHostAddress& address : local)
+        addresses.push_back(address.toString());
+
+    QString transport;
+    if (auto *information = QNetworkInformation::instance())
+        transport = QVariant::fromValue(information->transportMedium()).toString();
+
+    const QUrl url(m_serverUrl);
+    const QString authority = url.host().toLower() + QLatin1Char(':') + QString::number(url.port(443));
+    return PlaybackBandwidthPolicy::networkSignature(authority, addresses, transport);
+}
+
+void JellyfinApiFacade::restoreRememberedMeasurement()
+{
+    if (m_serverUrl.isEmpty())
+        return;
+    m_measuredNetworkSignature = currentNetworkSignature();
+    m_measuredStreamingBitrate = 0;
+    m_measurementRemembered = false;
+
+    QSettings settings;
+    settings.beginGroup(QStringLiteral("playback/bandwidth/") + m_measuredNetworkSignature);
+    const qint64 bitrate = settings.value(QStringLiteral("bitrate")).toLongLong();
+    const qint64 recordedAt = settings.value(QStringLiteral("recordedAt")).toLongLong();
+    const int parallelRequests = settings.value(QStringLiteral("parallelRequests"), 1).toInt();
+    settings.endGroup();
+
+    if (bitrate <= 0
+        || !PlaybackBandwidthPolicy::isRememberedMeasurementUsable(recordedAt, QDateTime::currentMSecsSinceEpoch())) {
+        updateEffectiveStreamingBitrate();
+        return;
+    }
+
+    m_measuredStreamingBitrate = bitrate;
+    m_measurementRemembered = true;
+    setPlaybackParallelRequests(parallelRequests);
+    qInfo() << "playback bandwidth: restored" << bitrate << "for route" << m_measuredNetworkSignature;
+    updateEffectiveStreamingBitrate();
+}
+
+void JellyfinApiFacade::rememberMeasurement()
+{
+    if (m_measuredStreamingBitrate <= 0 || m_measuredNetworkSignature.isEmpty())
+        return;
+    QSettings settings;
+    settings.beginGroup(QStringLiteral("playback/bandwidth/") + m_measuredNetworkSignature);
+    settings.setValue(QStringLiteral("bitrate"), m_measuredStreamingBitrate);
+    settings.setValue(QStringLiteral("parallelRequests"), m_playbackParallelRequests);
+    settings.setValue(QStringLiteral("recordedAt"), QDateTime::currentMSecsSinceEpoch());
+    settings.endGroup();
+}
+
+void JellyfinApiFacade::handleNetworkRouteChanged()
+{
+    if (m_serverUrl.isEmpty() || m_session.accessToken.isEmpty())
+        return;
+    if (currentNetworkSignature() == m_measuredNetworkSignature)
+        return;
+
+    // A different route invalidates the measurement outright rather than
+    // carrying a home Wi-Fi ceiling onto a phone hotspot. Reload whatever is
+    // remembered for the new route so playback has a number immediately, then
+    // re-measure unless a stream is already running.
+    ++m_playbackNetworkGeneration;
+    m_playbackEndpointKnown = false;
+    m_inLocalNetwork = false;
+    restoreRememberedMeasurement();
+    Async::runScoped(
+        this, refreshPlaybackNetworkState(), []() {},
+        [](const std::exception_ptr& error) {
+            qWarning() << "playback bandwidth: re-measurement failed" << exceptionMessage(error);
+        });
+}
+
 void JellyfinApiFacade::updateEffectiveStreamingBitrate()
 {
     const qint64 effective = PlaybackBandwidthPolicy::effectiveBitrate(m_manualMaxStreamingBitrate,
         m_unlimitedLocalNetwork, m_playbackEndpointKnown, m_inLocalNetwork, m_measuredStreamingBitrate);
-    if (effective == m_maxStreamingBitrate)
+    const PlaybackBandwidthPolicy::Source source = streamingBitrateSource();
+    // The description can change while the number does not: a remembered
+    // ceiling confirmed by a fresh probe is the same ceiling, differently
+    // earned, and the player says so.
+    const bool descriptionChanged = source != m_streamingBitrateSource;
+    m_streamingBitrateSource = source;
+    if (effective == m_maxStreamingBitrate) {
+        if (descriptionChanged)
+            emit streamingBitrateChanged();
         return;
+    }
     m_maxStreamingBitrate = effective;
     qInfo() << "playback bandwidth: effective=" << m_maxStreamingBitrate << "manual=" << m_manualMaxStreamingBitrate
-            << "measured=" << m_measuredStreamingBitrate << "endpointKnown=" << m_playbackEndpointKnown
-            << "local=" << m_inLocalNetwork << "unlimitedLocal=" << m_unlimitedLocalNetwork;
+            << "measured=" << m_measuredStreamingBitrate << "remembered=" << m_measurementRemembered
+            << "endpointKnown=" << m_playbackEndpointKnown << "local=" << m_inLocalNetwork
+            << "unlimitedLocal=" << m_unlimitedLocalNetwork;
     emit deviceProfileChanged();
+    emit streamingBitrateChanged();
 }
 
 QCoro::Task<qint64> JellyfinApiFacade::measurePlaybackBitrate(int totalSampleBytes, int parallelRequests)
@@ -468,6 +622,13 @@ QCoro::Task<void> JellyfinApiFacade::refreshPlaybackNetworkState()
 {
     if (m_serverUrl.isEmpty() || m_session.accessToken.isEmpty())
         co_return;
+    if (m_playbackActive) {
+        // Several megabytes of probe traffic would compete with the stream it
+        // is meant to size. Whatever ceiling is already known carries this
+        // playback; measure once the stream ends.
+        m_measurementDeferred = true;
+        co_return;
+    }
 
     const quint64 generation = ++m_playbackNetworkGeneration;
     const QJsonObject endpoint = (co_await requestJson(HttpMethod::Get, QStringLiteral("/System/Endpoint"))).object();
@@ -503,11 +664,14 @@ QCoro::Task<void> JellyfinApiFacade::refreshPlaybackNetworkState()
     }
 
     m_measuredStreamingBitrate = std::max({ singleRequest, dualRequest, fourRequest });
+    m_measurementRemembered = false;
+    m_measuredNetworkSignature = currentNetworkSignature();
     setPlaybackParallelRequests(
         PlaybackBandwidthPolicy::selectParallelRequests(singleRequest, dualRequest, fourRequest));
     qInfo() << "playback bandwidth: benchmark rtt_ms=" << roundTripMilliseconds << "one=" << singleRequest
             << "two=" << dualRequest << "four=" << fourRequest << "selectedRequests=" << m_playbackParallelRequests
             << "selectedBitrate=" << m_measuredStreamingBitrate;
+    rememberMeasurement();
     updateEffectiveStreamingBitrate();
 }
 
