@@ -374,10 +374,24 @@ native_mpv_args() {
   )
 }
 
-clean_mpv_install_prefix() {
-  local prefix="$1"
-  rm -f "$prefix"/lib/libmpv.so*
-  rm -f "$prefix/lib/pkgconfig/mpv.pc"
+# prune_stale_mpv_libraries PREFIX BUILD_DIR
+#
+# Drop installed libmpv artifacts that the current build no longer produces, so
+# a soname bump cannot leave an old library behind for the linker to pick up.
+# Everything the build still produces is left in place: meson installs those
+# only when they change, and a fresh timestamp on libmpv relinks every
+# executable that links it, which is most of the tree.
+prune_stale_mpv_libraries() {
+  local prefix="$1" build="$2"
+  local installed name
+  local matches=()
+  mapfile -t matches < <(compgen -G "$prefix/lib/libmpv.so*" || true)
+  mapfile -t -O "${#matches[@]}" matches < <(compgen -G "$prefix/lib/libmpv*.dylib" || true)
+  for installed in "${matches[@]}"; do
+    name="$(basename "$installed")"
+    [[ -e "$build/$name" ]] && continue
+    rm -f "$installed"
+  done
 }
 
 first_missing_nix_store_path() {
@@ -427,30 +441,29 @@ mpv_meson_build() {
 
   local dependency_fingerprint dependency_marker cached_fingerprint=""
   dependency_marker="$build/.jellyfin-dependency-env"
-  dependency_fingerprint="$(printf '%s\n%s\n' "${PKG_CONFIG_PATH:-}" "${CMAKE_PREFIX_PATH:-}" | sha256sum)"
+  dependency_fingerprint="$(printf '%s\n%s\n%s\n' \
+    "${PKG_CONFIG_PATH:-}" "${CMAKE_PREFIX_PATH:-}" "${setup_args[*]}" | sha256sum)"
   dependency_fingerprint="${dependency_fingerprint%% *}"
   [[ -f "$dependency_marker" ]] && read -r cached_fingerprint <"$dependency_marker"
 
-  if [[ -f "$build/build.ninja" ]]; then
-    local clear_cache_args=()
-    if [[ "$cached_fingerprint" != "$dependency_fingerprint" ]]; then
-      # Unchanged dependency versions can move to new Nix store paths and
-      # require libmpv to relink, but clearing every cache slows local launches.
-      clear_cache_args+=(--clearcache)
-    fi
-    if ! meson setup --reconfigure "${clear_cache_args[@]}" "$build" "$src" "${setup_args[@]}"; then
+  if [[ ! -f "$build/build.ninja" ]]; then
+    meson setup "$build" "$src" "${setup_args[@]}"
+  elif [[ "$cached_fingerprint" != "$dependency_fingerprint" ]]; then
+    # Unchanged dependency versions can move to new Nix store paths and
+    # require libmpv to relink, but clearing every cache slows local launches.
+    if ! meson setup --reconfigure --clearcache "$build" "$src" "${setup_args[@]}"; then
       echo "mpv reconfigure failed; retrying with a clean build directory" >&2
       rm -rf "$build"
       meson setup "$build" "$src" "${setup_args[@]}"
     fi
-  else
-    meson setup "$build" "$src" "${setup_args[@]}"
   fi
+  # A matching fingerprint means this build dir is already configured for these
+  # inputs. Edits to meson.build still land: ninja reruns meson setup itself.
   printf '%s\n' "$dependency_fingerprint" >"$dependency_marker"
   local jobs
   jobs="$(recommended_parallel_jobs)"
   meson compile -C "$build" -j "$jobs"
-  meson install -C "$build"
+  meson install -C "$build" --no-rebuild --only-changed
 }
 
 path_under_any_root() {
@@ -517,7 +530,18 @@ cmake_build_app() {
   fi
   mkdir -p "$build"
 
-  cmake -S "$src" -B "$build" -GNinja "${cmake_args[@]}"
+  # Reconfiguring costs a couple of seconds on every launch and only matters
+  # when the arguments move. Edits to CMakeLists.txt still land: the generated
+  # ninja file reruns cmake itself.
+  local configure_fingerprint configure_marker cached_configure=""
+  configure_marker="$build/.jellyfin-configure-args"
+  configure_fingerprint="$(printf '%s\n' "${cmake_args[*]}" | sha256sum)"
+  configure_fingerprint="${configure_fingerprint%% *}"
+  [[ -f "$configure_marker" ]] && read -r cached_configure <"$configure_marker"
+  if [[ ! -f "$build/build.ninja" || "$cached_configure" != "$configure_fingerprint" ]]; then
+    cmake -S "$src" -B "$build" -GNinja "${cmake_args[@]}"
+    printf '%s\n' "$configure_fingerprint" >"$configure_marker"
+  fi
   local jobs
   jobs="$(recommended_parallel_jobs)"
   cmake --build "$build" --parallel "$jobs"

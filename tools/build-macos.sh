@@ -34,8 +34,8 @@ MPV_SETUP_ARGS=(
   "${MPV_NATIVE_ARGS[@]}"
 )
 
-clean_mpv_install_prefix "$MPV_PREFIX"
 mpv_meson_build "$MPV_SRC" "$MPV_BUILD" "${MPV_SETUP_ARGS[@]}"
+prune_stale_mpv_libraries "$MPV_PREFIX" "$MPV_BUILD"
 append_colon_path PKG_CONFIG_PATH "$MPV_PREFIX/lib/pkgconfig"
 
 cmake_build_app "$APP_ROOT" "$APP_BUILD" \
