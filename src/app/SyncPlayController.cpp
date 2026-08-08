@@ -195,6 +195,12 @@ void SyncPlayController::connectSocket()
         return;
 
     QNetworkRequest request(socketUrl());
+    // The server resolves the session behind a socket from the authorization
+    // header alone; the deviceId query parameter every client sends is never
+    // read. Without the header it falls back to the device registered against
+    // the token, so a second instance sharing that token would land on the
+    // first one's session and silently steal its group traffic.
+    request.setRawHeader("Authorization", m_api->authorizationHeader().toUtf8());
     request.setRawHeader("X-Emby-Token", m_api->session().accessToken.toUtf8());
     m_socket.open(request);
 }
@@ -479,6 +485,10 @@ void SyncPlayController::handleSyncPlayGroupUpdate(const QJsonObject& data)
         return;
     }
     if (type == QStringLiteral("GroupLeft") || type == QStringLiteral("NotInGroup")) {
+        // Worth a line: NotInGroup means the server disagrees with us about
+        // membership, which otherwise looks like a client that has simply
+        // stopped receiving group updates.
+        qInfo() << "syncplay: leaving group after" << type;
         clearGroup();
         return;
     }
