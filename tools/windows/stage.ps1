@@ -17,7 +17,7 @@ Copy-Item -LiteralPath $exe -Destination $stageDir
 
 & (Join-Path $env:JELLYFIN_QT_ROOT 'bin\windeployqt.exe') `
     --release --no-translations --no-system-d3d-compiler --no-system-dxc-compiler `
-    --no-compiler-runtime --no-opengl-sw `
+    --no-compiler-runtime `
     --skip-plugin-types qmltooling,generic `
     --include-plugins qwebp `
     --exclude-plugins qsqlibase,qsqlmimer,qsqloci,qsqlodbc,qsqlpsql `
