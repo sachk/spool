@@ -432,9 +432,17 @@ void SyncPlayController::handleSyncPlayGroupUpdate(const QJsonObject& data)
     const QJsonValue updateData = data.value(QStringLiteral("Data"));
 
     if (type == QStringLiteral("GroupJoined") || type == QStringLiteral("GroupUpdate")) {
-        applyGroupInfo(groupId, updateData.toObject());
-        m_joinedAtServerMs
-            = QDateTime::currentMSecsSinceEpoch() + static_cast<qint64>(std::llround(m_clock.offsetMs()));
+        const QJsonObject info = updateData.toObject();
+        applyGroupInfo(groupId, info);
+        // The server stamps this payload and then, for a group that is already
+        // playing, immediately emits the command that brings us in line. Both
+        // carry server time, so compare against the payload rather than
+        // against a local estimate taken a round trip later — that estimate is
+        // always ahead of the catch-up command and would discard it.
+        const qint64 stampedAtMs = dateTimeMs(info.value(QStringLiteral("LastUpdatedAt")));
+        m_joinedAtServerMs = stampedAtMs > 0
+            ? stampedAtMs
+            : QDateTime::currentMSecsSinceEpoch() + static_cast<qint64>(std::llround(m_clock.offsetMs()));
         refreshGroups();
         sendPlayerBufferingState(true);
         return;

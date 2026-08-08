@@ -20,9 +20,12 @@
 #include "SyncPlayController.h"
 
 #include <QCoroTask>
+#include <QLockFile>
 #include <QObject>
 #include <QVariantList>
 #include <QVariantMap>
+
+#include <memory>
 
 #include <vector>
 
@@ -152,6 +155,7 @@ signals:
     void clearLogsRequested();
 
 private:
+    int claimInstanceSlot();
     void setBusy(bool busy, const QString& busyText = {});
     void setErrorText(const QString& errorText);
     void showToast(const QString& message);
@@ -218,6 +222,9 @@ private:
     RequestGeneration m_syncPlayQueueRequestGeneration;
     bool m_shuttingDown = false;
     bool m_codecFallbackAttempted = false;
+    // Held for the process lifetime so a second local instance picks the next
+    // slot and reports a device identity of its own.
+    std::unique_ptr<QLockFile> m_instanceLock;
 };
 
 } // namespace JellyfinNative

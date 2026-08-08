@@ -7,6 +7,7 @@
 #include "../common/MetaJson.h"
 #include "../common/SeriesAudioSelection.h"
 #include "../diagnostics/Diagnostics.h"
+#include "../platform/PlatformPaths.h"
 #include "../player/PlayQueueController.h"
 #include "../player/PlaybackFailurePolicy.h"
 #include "../player/PlayerController.h"
@@ -247,6 +248,24 @@ AppController::AppController(DatabaseManager *database, DiscoveryController *dis
         });
 }
 
+int AppController::claimInstanceSlot()
+{
+    // QLockFile only treats a lock as stale once its owner is gone, so the
+    // slot a running instance holds stays taken. A read-only data root leaves
+    // every attempt failing, which lands on the stored identity as before.
+    constexpr int kMaxLocalInstances = 8;
+    const QString dataRoot = persistentDataRoot();
+    for (int slot = 0; slot < kMaxLocalInstances; ++slot) {
+        auto lock = std::make_unique<QLockFile>(QStringLiteral("%1/instance-%2.lock").arg(dataRoot).arg(slot));
+        if (lock->tryLock(0)) {
+            m_instanceLock = std::move(lock);
+            return slot;
+        }
+    }
+    qWarning() << "app: no free instance slot; sharing the stored device identity";
+    return 0;
+}
+
 void AppController::initialize()
 {
     Async::runScoped(
@@ -265,6 +284,21 @@ QCoro::Task<void> AppController::initializeAsync()
     if (deviceId.isEmpty()) {
         deviceId = QUuid::createUuid().toString(QUuid::WithoutBraces);
         m_database->saveDeviceId(deviceId);
+    }
+    // Jellyfin keys a session on the device id, and delivers each websocket
+    // message to the one socket of that session that was last active. Two
+    // instances sharing the stored id therefore collapse into a single
+    // session: SyncPlay counts them once and their group updates land on
+    // whichever process spoke last. Give every extra instance its own
+    // identity, derived from the stored one so the first is unchanged.
+    // The device name is deliberately left alone: the server stores it on the
+    // row it looks up by access token, which both instances share, so a
+    // per-instance name would be rewritten on every request by whichever
+    // instance spoke last.
+    const int instanceSlot = claimInstanceSlot();
+    if (instanceSlot > 0) {
+        deviceId += QStringLiteral("-%1").arg(instanceSlot + 1);
+        qInfo() << "app: another instance holds the stored device identity; running as instance" << instanceSlot + 1;
     }
     m_api->setDeviceId(deviceId);
 

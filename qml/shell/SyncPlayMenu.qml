@@ -42,8 +42,10 @@ FocusScope {
         if (!syncPlay)
             return out
         if (syncPlay.enabled) {
+            // The server reports distinct usernames, not sessions, so several
+            // devices signed in as one person count once.
             const memberCount = syncPlay.participantCount || 0
-            const statusParts = [memberCount + " member" + (memberCount === 1 ? "" : "s")]
+            const statusParts = [memberCount + " user" + (memberCount === 1 ? "" : "s")]
             if ((syncPlay.groupState || "").length > 0)
                 statusParts.push(syncPlay.groupState)
             statusParts.push(syncPlay.socketConnected ? Math.round(syncPlay.pingMs) + " ms" : "Reconnecting")
@@ -68,7 +70,7 @@ FocusScope {
                              kind: "join",
                              groupId: group.GroupId || "",
                              label: group.GroupName || "Group",
-                             sub: count + " member" + (count === 1 ? "" : "s"),
+                             sub: count + " user" + (count === 1 ? "" : "s"),
                              icon: "login"
                          })
             }
