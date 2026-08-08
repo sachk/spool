@@ -17,7 +17,11 @@ Item {
     property bool actionable: true
     property bool pointerActivationEnabled: true
     property int metricsWidth: root.Window.window ? root.Window.window.width : 1920
-    property int rowHeight: Metrics.scaled(detail.length > 0 ? 54 : 46)
+    // Rows are sized for a remote by default. A pointer opens the same menu as
+    // a dropdown beside its button, where that scale reads as oversized and
+    // costs the width the labels need.
+    property bool compact: false
+    property int rowHeight: Metrics.scaled(detail.length > 0 ? (compact ? 44 : 54) : (compact ? 36 : 46))
     property string checkIconName: "done"
     property bool stepperVisible: false
     property bool stepperEnabled: true
@@ -82,7 +86,7 @@ Item {
                 Layout.fillWidth: true
                 text: root.label
                 color: root.actionable || root.highlighted ? Theme.textPrimary : Theme.textSecondary
-                font.pixelSize: Metrics.bodySizePx
+                font.pixelSize: root.compact ? Metrics.metaSizePx : Metrics.bodySizePx
                 font.weight: root.highlighted ? Font.DemiBold : Font.Medium
                 maximumLineCount: 1
                 elide: Text.ElideRight
@@ -92,7 +96,7 @@ Item {
                 visible: root.detail.length > 0
                 text: root.detail
                 color: Theme.textMuted
-                font.pixelSize: Metrics.metaSizePx - 1
+                font.pixelSize: Metrics.metaSizePx - (root.compact ? 2 : 1)
                 maximumLineCount: 1
                 elide: Text.ElideRight
             }
@@ -100,11 +104,11 @@ Item {
 
         RowLayout {
             visible: root.stepperVisible
-            spacing: Metrics.scaled(6)
+            spacing: Metrics.scaled(root.compact ? 4 : 6)
 
             Rectangle {
-                Layout.preferredWidth: Metrics.scaled(38)
-                Layout.preferredHeight: Metrics.scaled(34)
+                Layout.preferredWidth: Metrics.scaled(root.compact ? 30 : 38)
+                Layout.preferredHeight: Metrics.scaled(root.compact ? 26 : 34)
                 radius: Theme.radiusSmall
                 color: minusHover.hovered && root.stepperEnabled ? Theme.bgHover : Theme.bgPanel
                 border.width: Theme.hoverBorderWidth
@@ -114,7 +118,7 @@ Item {
                     anchors.centerIn: parent
                     text: "−"
                     color: root.stepperEnabled ? Theme.textPrimary : Theme.textDisabled
-                    font.pixelSize: Metrics.titleSizePx
+                    font.pixelSize: root.compact ? Metrics.bodySizePx : Metrics.titleSizePx
                     font.weight: Font.DemiBold
                 }
                 TapHandler {
@@ -128,17 +132,17 @@ Item {
             }
 
             SecondaryText {
-                Layout.preferredWidth: Metrics.scaled(68)
+                Layout.preferredWidth: Metrics.scaled(root.compact ? 54 : 68)
                 text: root.stepperText
                 color: root.stepperEnabled ? Theme.textPrimary : Theme.textSecondary
-                font.pixelSize: Metrics.bodySizePx
+                font.pixelSize: root.compact ? Metrics.metaSizePx : Metrics.bodySizePx
                 font.weight: Font.DemiBold
                 horizontalAlignment: Text.AlignHCenter
             }
 
             Rectangle {
-                Layout.preferredWidth: Metrics.scaled(38)
-                Layout.preferredHeight: Metrics.scaled(34)
+                Layout.preferredWidth: Metrics.scaled(root.compact ? 30 : 38)
+                Layout.preferredHeight: Metrics.scaled(root.compact ? 26 : 34)
                 radius: Theme.radiusSmall
                 color: plusHover.hovered && root.stepperEnabled ? Theme.bgHover : Theme.bgPanel
                 border.width: Theme.hoverBorderWidth
@@ -148,7 +152,7 @@ Item {
                     anchors.centerIn: parent
                     text: "+"
                     color: root.stepperEnabled ? Theme.textPrimary : Theme.textDisabled
-                    font.pixelSize: Metrics.titleSizePx
+                    font.pixelSize: root.compact ? Metrics.bodySizePx : Metrics.titleSizePx
                     font.weight: Font.DemiBold
                 }
                 TapHandler {

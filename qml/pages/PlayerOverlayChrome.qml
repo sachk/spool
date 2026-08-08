@@ -81,7 +81,7 @@ Item {
             return
             if (root.syncPlayMenuOpen) {
                 const local = syncPlayMenu.mapFromItem(root, point.position.x, point.position.y)
-                const syncTarget = transportBar.actionTarget("syncplay")
+                const syncTarget = actionRow.actionTarget("syncplay")
                 if (syncTarget) {
                     const syncLocal = syncTarget.mapFromItem(root, point.position.x, point.position.y)
                     if (syncTarget.contains(syncLocal))
@@ -326,12 +326,38 @@ Item {
             }
         }
 
+        // Reading menuDialog.visible keeps the placement bound to the moment
+        // the menu opens, when the button it hangs from has settled.
+        readonly property rect settingsButton: {
+            const target = actionRow.actionTarget("debug")
+            if (!menuDialog.visible || !target)
+            return Qt.rect(0, 0, 0, 0)
+            const origin = target.mapToItem(menuDialog, 0, 0)
+            return Qt.rect(origin.x, origin.y, target.width, target.height)
+        }
+
         Surface {
             id: menuPanel
-            width: menuDialog.dropdown ? root.dp(420) : Math.min(parent.width - root.dp(96), root.dp(620))
-            height: Math.min(parent.height - root.dp(96), menuBody.implicitHeight + root.dp(48))
-            x: menuDialog.dropdown ? parent.width - width - root.dp(52) : (parent.width - width) / 2
-            y: menuDialog.dropdown ? Math.max(root.dp(24), hud.y - height - root.dp(18)) : (parent.height - height) / 2
+            width: menuDialog.dropdown ? root.dp(360) : Math.min(parent.width - root.dp(96), root.dp(620))
+            height: Math.min(parent.height - root.dp(96), menuBody.implicitHeight + menuBody.anchors.margins * 2)
+            // Hang off the button rather than the screen edge, clamped so the
+            // panel stays inside the window on a narrow one.
+            x: {
+                if (!menuDialog.dropdown)
+                return (parent.width - width) / 2
+                const button = menuDialog.settingsButton
+                if (button.width <= 0)
+                return parent.width - width - root.dp(52)
+                return Math.max(root.dp(16), Math.min(button.x + button.width - width, parent.width - width - root.dp(
+                                                          16)))
+            }
+            y: {
+                if (!menuDialog.dropdown)
+                return (parent.height - height) / 2
+                const button = menuDialog.settingsButton
+                const bottom = button.height > 0 ? button.y : hud.y
+                return Math.max(root.dp(16), bottom - height - root.dp(10))
+            }
             elevated: true
             clip: true
             baseColor: menuDialog.dropdown ? Theme.bgRaised : Theme.bgPanel
@@ -343,8 +369,8 @@ Item {
             ColumnLayout {
                 id: menuBody
                 anchors.fill: parent
-                anchors.margins: root.dp(24)
-                spacing: root.dp(14)
+                anchors.margins: menuDialog.dropdown ? root.dp(10) : root.dp(24)
+                spacing: menuDialog.dropdown ? root.dp(6) : root.dp(14)
 
                 AppText {
                     Layout.fillWidth: true
@@ -368,7 +394,10 @@ Item {
                 MenuListView {
                     id: menuList
                     Layout.fillWidth: true
-                    Layout.preferredHeight: visible ? Math.min(contentHeight, root.dp(360)) : 0
+                    // The dropdown is short enough to show every option, and a
+                    // list that scrolls beside its own button reads as broken.
+                    Layout.preferredHeight: !visible ? 0 : menuDialog.dropdown ? contentHeight : Math.min(contentHeight, root.dp(
+                                                                                                              360))
                     visible: count > 0
                     model: root.overlay.menuOptions
                     onDismissed: root.overlay.closeMenu()
@@ -379,6 +408,7 @@ Item {
                         required property var modelData
                         label: root.overlay.menuLabel(modelData)
                         detail: root.overlay.menuDetail(index)
+                        compact: menuDialog.dropdown
                         checked: root.overlay.menuItemSelected(index)
                         highlighted: menuList.currentIndex === index
                         metricsWidth: root.width
