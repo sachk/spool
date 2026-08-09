@@ -34,5 +34,20 @@ JELLYFIN_TEST_MAIN("sync-play-queue-handoff")
 
     handoff.cancel();
     require(!handoff.canSend(false, false, true, true), "a consumed or cancelled request must not be sent twice");
+
+    SyncPlaySeekResume seekResume;
+    seekResume.arm(true);
+    require(!seekResume.takeWhenReady(QStringLiteral("Waiting"), QStringLiteral("Ready")),
+        "seek resume must wait for the group to finish buffering");
+    require(!seekResume.takeWhenReady(QStringLiteral("Paused"), QStringLiteral("Pause")),
+        "an ordinary pause must not resume playback");
+    require(seekResume.takeWhenReady(QStringLiteral("Paused"), QStringLiteral("Ready")),
+        "the initiating client should unpause only after every participant is ready");
+    require(!seekResume.takeWhenReady(QStringLiteral("Paused"), QStringLiteral("Ready")),
+        "a completed seek must request unpause only once");
+
+    seekResume.arm(false);
+    require(!seekResume.takeWhenReady(QStringLiteral("Paused"), QStringLiteral("Ready")),
+        "seeking a paused group must leave it paused");
     return 0;
 }

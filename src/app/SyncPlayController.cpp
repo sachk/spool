@@ -290,18 +290,7 @@ void SyncPlayController::requestTogglePause()
         return;
 
     if (m_player->paused()) {
-        if (m_unpauseRequestPending)
-            return;
-        m_unpauseRequestPending = true;
-        setWaitingForGroupPlayback(true);
-        Async::runScoped(
-            this, m_api->syncPlayUnpause(), []() {},
-            [this](const std::exception_ptr& error) {
-                m_unpauseRequestPending = false;
-                setWaitingForGroupPlayback(false);
-                reportRequestError(QStringLiteral("unpause group"), error);
-            },
-            "SyncPlay unpause request");
+        requestGroupUnpause();
     } else {
         // Pause locally immediately, then let the scheduled server command
         // establish the authoritative position. Setting an explicit state is
@@ -317,12 +306,16 @@ void SyncPlayController::requestTogglePause()
 
 void SyncPlayController::requestSeek(double positionSeconds)
 {
-    if (!enabled() || !m_api || !std::isfinite(positionSeconds))
+    if (!enabled() || !m_api || !m_player || !std::isfinite(positionSeconds))
         return;
+    m_seekResume.arm(!m_player->paused());
     const qint64 ticks = static_cast<qint64>(std::max(0.0, positionSeconds) * kTicksPerSecond);
     Async::runScoped(
         this, m_api->syncPlaySeek(ticks), []() {},
-        [this](const std::exception_ptr& error) { reportRequestError(QStringLiteral("seek group"), error); },
+        [this](const std::exception_ptr& error) {
+            m_seekResume.cancel();
+            reportRequestError(QStringLiteral("seek group"), error);
+        },
         "SyncPlay seek request");
 }
 
@@ -476,6 +469,10 @@ void SyncPlayController::handleSyncPlayGroupUpdate(const QJsonObject& data)
             && (m_groupStateReason == QStringLiteral("Ready") || m_groupStateReason == QStringLiteral("Pause"))
             && !m_unpauseRequestPending) {
             setWaitingForGroupPlayback(false);
+        }
+        if (m_seekResume.takeWhenReady(m_groupState, m_groupStateReason)) {
+            qInfo() << "syncplay: every participant is ready after seek; requesting group-wide unpause";
+            requestGroupUnpause();
         }
         emit groupChanged();
         return;
@@ -694,6 +691,7 @@ void SyncPlayController::clearGroup()
     m_scheduledServerTimeMs = 0;
     m_joinedAtServerMs = 0;
     m_queueHandoff.cancel();
+    m_seekResume.cancel();
     ++m_playQueueGeneration;
     m_playQueueLoading = false;
     m_waitingForPlaybackStart = false;
@@ -741,6 +739,7 @@ void SyncPlayController::executeScheduledCommand()
             << static_cast<qint64>(positionDelta * 1'000.0);
 
     if (command == QStringLiteral("Pause")) {
+        m_seekResume.cancel();
         finishSpeedCorrection();
         m_unpauseRequestPending = false;
         setWaitingForGroupPlayback(false);
@@ -768,6 +767,7 @@ void SyncPlayController::executeScheduledCommand()
         m_player->seek(targetSeconds);
         QTimer::singleShot(250, this, [this]() { sendPlayerBufferingState(true); });
     } else if (command == QStringLiteral("Stop")) {
+        m_seekResume.cancel();
         finishSpeedCorrection();
         m_unpauseRequestPending = false;
         setWaitingForGroupPlayback(false);
@@ -914,14 +914,23 @@ void SyncPlayController::sendPendingUnpause()
     }
 
     m_queueHandoff.cancel();
-    m_unpauseRequestPending = true;
     qInfo() << "syncplay: requesting group-wide unpause";
+    requestGroupUnpause();
+}
+
+void SyncPlayController::requestGroupUnpause()
+{
+    if (!enabled() || !m_api || m_unpauseRequestPending)
+        return;
+
+    m_unpauseRequestPending = true;
+    setWaitingForGroupPlayback(true);
     Async::runScoped(
         this, m_api->syncPlayUnpause(), []() {},
         [this](const std::exception_ptr& error) {
             m_unpauseRequestPending = false;
             setWaitingForGroupPlayback(false);
-            reportRequestError(QStringLiteral("start group playback"), error);
+            reportRequestError(QStringLiteral("unpause group"), error);
         },
         "SyncPlay group unpause");
 }

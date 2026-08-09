@@ -44,6 +44,28 @@ private:
     bool m_queueUpdateObserved = false;
 };
 
+class SyncPlaySeekResume final {
+public:
+    void arm(bool groupWasPlaying)
+    {
+        m_pending = m_pending || groupWasPlaying;
+    }
+    bool takeWhenReady(const QString& state, const QString& reason)
+    {
+        if (!m_pending || state != QStringLiteral("Paused") || reason != QStringLiteral("Ready"))
+            return false;
+        m_pending = false;
+        return true;
+    }
+    void cancel()
+    {
+        m_pending = false;
+    }
+
+private:
+    bool m_pending = false;
+};
+
 struct SyncCorrection {
     enum class Method { None, Speed, Skip };
 
@@ -179,6 +201,7 @@ private:
     void applyPlayQueueUpdate(const QJsonObject& queue);
     void prepareQueuePlayback(qint64 positionTicks);
     void sendPendingUnpause();
+    void requestGroupUnpause();
     void setWaitingForGroupPlayback(bool waiting);
     void setPlaybackDiff(qint64 diffTicks, bool valid);
     void setSyncMethod(const QString& method);
@@ -227,6 +250,7 @@ private:
     quint64 m_playQueueGeneration = 0;
     int m_greedyTimeSyncRemaining = 0;
     SyncPlayQueueHandoff m_queueHandoff;
+    SyncPlaySeekResume m_seekResume;
     int m_syncCorrectionAttempts = 0;
     bool m_socketDesired = false;
     bool m_timeSyncInFlight = false;
