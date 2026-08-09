@@ -8,6 +8,7 @@ Item {
     property string title: ""
 
     implicitHeight: label.implicitHeight
+    height: implicitHeight
 
     AppText {
         id: label

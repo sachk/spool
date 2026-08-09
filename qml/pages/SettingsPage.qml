@@ -69,6 +69,7 @@ FocusScope {
             target.push({
                             "rowKey": entry.rowKey,
                             "showHeader": first,
+                            "advanced": false,
                             "sourceIndex": entry.sourceIndex
                         })
             first = false
@@ -79,6 +80,7 @@ FocusScope {
         target.push({
                         "rowKey": key,
                         "showHeader": first,
+                        "advanced": false,
                         "sourceIndex": additional[0].sourceIndex - 1
                     })
         if (!groupExpanded(group))
@@ -86,6 +88,7 @@ FocusScope {
         for (let index = 0; index < additional.length; ++index)
             target.push({
                             "rowKey": additional[index].rowKey,
+                            "advanced": true,
                             "showHeader": false,
                             "sourceIndex": additional[index].sourceIndex
                         })
@@ -609,12 +612,11 @@ FocusScope {
     MenuListView {
         id: settingsList
         readonly property real pageInset: Metrics.pageMarginPx
-        width: Math.max(0, parent.width - pageInset * 2)
+        width: Math.min(Math.max(0, parent.width - pageInset * 2), Metrics.scaled(1280))
         anchors.top: parent.top
         anchors.bottom: parent.bottom
-        anchors.right: parent.right
+        anchors.horizontalCenter: parent.horizontalCenter
         anchors.topMargin: pageInset
-        anchors.rightMargin: pageInset
         anchors.bottomMargin: pageInset
         bottomMargin: root.choiceDialogVisible && root.choiceDialog ? root.choiceDialog.panelHeight + Metrics.scaled(16) :
                                                                       0
@@ -636,6 +638,7 @@ FocusScope {
             required property int index
             required property string rowKey
             required property bool showHeader
+            required property bool advanced
             required property int sourceIndex
             readonly property var rowData: root.rowsByKey[rowKey]
             width: settingsList.width
@@ -655,7 +658,8 @@ FocusScope {
             }
             Loader {
                 id: rowLoader
-                width: parent.width
+                width: Math.max(0, parent.width - (parent.advanced ? Metrics.scaled(24) : 0))
+                x: parent.advanced ? Metrics.scaled(24) : 0
                 property var row: rowData
                 property int rowIndex: index
                 sourceComponent: rowData.type === "toggle" ? toggleComponent : rowData.type === "select"
@@ -677,7 +681,7 @@ FocusScope {
             property var row
             property int rowIndex: -1
             readonly property bool isSubmenu: row && row.type === "submenu"
-            width: settingsList.width
+            width: parent ? parent.width : settingsList.width
             focus: false
             focusPolicy: Qt.NoFocus
             rowFocus: settingsList.activeFocus && settingsList.currentIndex === rowIndex
@@ -706,7 +710,7 @@ FocusScope {
         ToggleRow {
             property var row
             property int rowIndex: -1
-            width: settingsList.width
+            width: parent ? parent.width : settingsList.width
             focus: false
             focusPolicy: Qt.NoFocus
             rowFocus: settingsList.activeFocus && settingsList.currentIndex === rowIndex
@@ -725,7 +729,7 @@ FocusScope {
         SelectRow {
             property var row
             property int rowIndex: -1
-            width: settingsList.width
+            width: parent ? parent.width : settingsList.width
             metricsWidth: root.width
             focus: false
             focusPolicy: Qt.NoFocus
@@ -747,7 +751,7 @@ FocusScope {
         SliderRow {
             property var row
             property int rowIndex: -1
-            width: settingsList.width
+            width: parent ? parent.width : settingsList.width
             selected: settingsList.activeFocus && settingsList.currentIndex === rowIndex
             title: row ? row.title : ""
             description: row ? root.rowDescription(row) : ""
@@ -766,7 +770,7 @@ FocusScope {
         Surface {
             property var row
             property int rowIndex: -1
-            width: settingsList.width
+            width: parent ? parent.width : settingsList.width
             implicitHeight: textContent.implicitHeight + Metrics.scaled(28)
             elevated: true
             focused: settingsList.activeFocus && settingsList.currentIndex === rowIndex
