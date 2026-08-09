@@ -17,6 +17,72 @@ QtObject {
         })
     }
 
+    function topLeftVisibleCandidate(view, clipItem) {
+        if (!view || !clipItem || !Number.isFinite(Number(view.count)) || view.count <= 0)
+            return null
+        const clipBounds = {
+            "left": 0,
+            "top": 0,
+            "right": Number(clipItem.width),
+            "bottom": Number(clipItem.height)
+        }
+        const viewport = view.mapToItem(clipItem, 0, 0, view.width, view.height)
+        const viewportLeft = Math.max(clipBounds.left, viewport.x)
+        const viewportTop = Math.max(clipBounds.top, viewport.y)
+        const viewportRight = Math.min(clipBounds.right, viewport.x + viewport.width)
+        const viewportBottom = Math.min(clipBounds.bottom, viewport.y + viewport.height)
+        if (viewportRight <= viewportLeft || viewportBottom <= viewportTop)
+            return null
+
+        let best = null
+        for (let index = 0; index < view.count; ++index) {
+            const item = view.itemAtIndex(index)
+            if (!item)
+                continue
+            const rect = item.mapToItem(clipItem, 0, 0, item.width, item.height)
+            const left = Math.max(viewportLeft, rect.x)
+            const top = Math.max(viewportTop, rect.y)
+            const right = Math.min(viewportRight, rect.x + rect.width)
+            const bottom = Math.min(viewportBottom, rect.y + rect.height)
+            if (right <= left || bottom <= top)
+                continue
+            const candidate = {
+                "index": index,
+                "top": top,
+                "left": left
+            }
+            if (!best || earlierVisibleCandidate(candidate, best))
+                best = candidate
+        }
+        return best
+    }
+
+    function earlierVisibleCandidate(candidate, current) {
+        if (!candidate)
+            return false
+        if (!current)
+            return true
+        if (candidate.top !== current.top)
+            return candidate.top < current.top
+        if (candidate.left !== current.left)
+            return candidate.left < current.left
+        return candidate.index < current.index
+    }
+
+    function focusIndexWithoutScrolling(view, index) {
+        if (!view || !Number.isFinite(Number(index)) || index < 0 || index >= view.count)
+            return false
+        const contentX = Number(view.contentX)
+        const contentY = Number(view.contentY)
+        view.currentIndex = index
+        focus(view)
+        if (Number.isFinite(contentX))
+            view.contentX = contentX
+        if (Number.isFinite(contentY))
+            view.contentY = contentY
+        return view.currentIndex === index
+    }
+
     function isAccept(key, includeSpace) {
         return key === Qt.Key_Return || key === Qt.Key_Enter || key === Qt.Key_Select || (includeSpace !== false && key
                                                                                           === Qt.Key_Space)

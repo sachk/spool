@@ -10,11 +10,12 @@ FocusScope {
 
     property var shell
     property var uiTransitionToken: 0
-    property int currentIndex: 0
+    property int currentIndex: -1
+    property string selectedRowKey: ""
     property var rowsByKey: ({})
     property var allSettingsRows: []
-    property var settingsRows: []
     property var expandedGroups: ({})
+    property bool reconcilingSettingsRows: false
     property bool choiceDialogVisible: false
     property var choiceDialogRow: null
     property Item choiceDialogAnchor: null
@@ -25,6 +26,10 @@ FocusScope {
     property bool diagnosticsExportVisible: false
     property string diagnosticsExportPreview: ""
     property bool pendingCustomMpvMode: false
+
+    ListModel {
+        id: settingsRows
+    }
 
     function rowAvailable(row) {
         return SettingsNavigation.rowAvailable(row, Platform.isTV, Player.hdrPlayback, function (key) {
@@ -63,7 +68,8 @@ FocusScope {
             const entry = essential[index]
             target.push({
                             "rowKey": entry.rowKey,
-                            "showHeader": first
+                            "showHeader": first,
+                            "sourceIndex": entry.sourceIndex
                         })
             first = false
         }
@@ -72,14 +78,16 @@ FocusScope {
         const key = disclosureKey(group)
         target.push({
                         "rowKey": key,
-                        "showHeader": first
+                        "showHeader": first,
+                        "sourceIndex": additional[0].sourceIndex - 1
                     })
         if (!groupExpanded(group))
             return
         for (let index = 0; index < additional.length; ++index)
             target.push({
                             "rowKey": additional[index].rowKey,
-                            "showHeader": false
+                            "showHeader": false,
+                            "sourceIndex": additional[index].sourceIndex
                         })
     }
 
@@ -98,8 +106,7 @@ FocusScope {
         }
         if (group.length > 0)
             appendVisibleGroup(visibleRows, group, groupEntries)
-        settingsRows = visibleRows
-        contentReady = visibleRows.length === 0
+        return visibleRows
     }
 
     // Schema declaration order is display order. "Subtitle Appearance" lives in
@@ -117,7 +124,8 @@ FocusScope {
             sourceRows.push({
                                 "rowKey": row.key,
                                 "detailLevel": SettingsNavigation.detailLevel(row),
-                                "group": row.group
+                                "group": row.group,
+                                "sourceIndex": index * 2
                             })
             const key = disclosureKey(row.group)
             if (!rowMap[key]) {
@@ -132,46 +140,83 @@ FocusScope {
         }
         rowsByKey = rowMap
         allSettingsRows = sourceRows
-        rebuildVisibleRows()
+        refreshSettingsFilter(true)
+    }
+
+    function reconcileSettingsRows(nextRows, targetKey, takeFocus) {
+        settingsList.autoPositionCurrentItem = false
+        reconcilingSettingsRows = true
+        SettingsNavigation.reconcileRows(settingsRows, nextRows)
+        const target = SettingsNavigation.indexForRowKey(settingsRows, targetKey)
+        currentIndex = target
+        selectedRowKey = target >= 0 ? targetKey : ""
+        settingsList.currentIndex = target
+        settingsList.forceLayout()
+        reconcilingSettingsRows = false
+        settingsList.autoPositionCurrentItem = true
+        if (target >= 0)
+            settingsList.positionViewAtIndex(target, ListView.Contain)
+        if (takeFocus !== false)
+            InputKeys.focus(settingsList)
+        contentReady = settingsRows.count === 0
+        return target
     }
 
     function refreshSettingsFilter(resetSelection) {
-        const selectedKey = currentRow() ? currentRow().key : ""
-        rebuildVisibleRows()
-        Qt.callLater(function () {
-            let next = resetSelection ? 0 : settingsRows.findIndex(function (entry) {
-                return entry.rowKey === selectedKey
-            })
-            if (next < 0)
-                next = Math.min(currentIndex, settingsList.count - 1)
-            if (settingsList.count > 0)
-                selectRow(Math.max(0, next), false)
-        })
+        const selectedDescriptorIndex = SettingsNavigation.indexForRowKey(settingsRows, selectedRowKey)
+        const selectedDescriptor = selectedDescriptorIndex >= 0 ? settingsRows.get(selectedDescriptorIndex) : null
+        const selectedSourceIndex = selectedDescriptor ? Number(selectedDescriptor.sourceIndex) : 0
+        const selectedRow = rowsByKey[selectedRowKey]
+        const nextRows = rebuildVisibleRows()
+        let targetKey = resetSelection ? "" : selectedRowKey
+        if (SettingsNavigation.indexForRowKey(nextRows, targetKey) < 0 && !resetSelection && selectedRow) {
+            const groupDisclosure = disclosureKey(selectedRow.group)
+            if (SettingsNavigation.indexForRowKey(nextRows, groupDisclosure) >= 0)
+                targetKey = groupDisclosure
+        }
+        if (SettingsNavigation.indexForRowKey(nextRows, targetKey) < 0)
+            targetKey = SettingsNavigation.nearestRowKey(nextRows, selectedSourceIndex)
+        if (SettingsNavigation.indexForRowKey(nextRows, targetKey) < 0 && nextRows.length > 0)
+            targetKey = nextRows[0].rowKey
+        reconcileSettingsRows(nextRows, targetKey, false)
     }
 
     function currentRow() {
-        const delegate = settingsList.currentItem
-        return delegate ? delegate.rowData : null
+        return rowAtVisibleIndex(currentIndex)
     }
 
     function rowAtVisibleIndex(index) {
-        const delegate = settingsList.itemAtIndex(index)
-        return delegate ? delegate.rowData : null
+        if (index < 0 || index >= settingsRows.count)
+            return null
+        return rowsByKey[settingsRows.get(index).rowKey] || null
     }
 
     function selectRow(index, takeFocus) {
-        if (settingsList.count <= 0)
+        const target = SettingsNavigation.clampIndex(index, settingsRows.count)
+        if (target < 0) {
+            currentIndex = -1
+            selectedRowKey = ""
+            settingsList.currentIndex = -1
+            InputKeys.focus(settingsList)
             return
-        currentIndex = SettingsNavigation.clampIndex(index, settingsList.count)
-        settingsList.currentIndex = currentIndex
-        settingsList.positionViewAtIndex(currentIndex, ListView.Contain)
+        }
+        const changed = settingsList.currentIndex !== target
+        currentIndex = target
+        selectedRowKey = settingsRows.get(target).rowKey
+        settingsList.currentIndex = target
+        if (!changed && settingsList.autoPositionCurrentItem)
+            settingsList.positionViewAtIndex(target, ListView.Contain)
         if (takeFocus !== false)
             InputKeys.focus(settingsList)
     }
 
     function focusEntry() {
-        if (settingsList.count > 0)
-            selectRow(Math.max(0, Math.min(currentIndex, settingsList.count - 1)), true)
+        if (settingsRows.count <= 0) {
+            selectRow(-1, true)
+            return
+        }
+        const selectedIndex = SettingsNavigation.indexForRowKey(settingsRows, selectedRowKey)
+        selectRow(selectedIndex >= 0 ? selectedIndex : Math.max(0, currentIndex), true)
     }
 
     function rowControlAt(index) {
@@ -349,24 +394,37 @@ FocusScope {
     }
 
     function toggleAdvancedGroup(group, index) {
+        const key = disclosureKey(group)
+        const disclosureIndex = SettingsNavigation.indexForRowKey(settingsRows, key)
+        if (disclosureIndex < 0)
+            return
+        settingsList.autoPositionCurrentItem = false
+        reconcilingSettingsRows = true
+        currentIndex = disclosureIndex
+        selectedRowKey = key
+        settingsList.currentIndex = disclosureIndex
+        InputKeys.focus(settingsList)
+
         const next = Object.assign({}, expandedGroups)
         next[group] = !Boolean(next[group])
         expandedGroups = next
-        rebuildVisibleRows()
-        const key = disclosureKey(group)
-        Qt.callLater(function () {
-            const disclosureIndex = settingsRows.findIndex(function (entry) {
-                return entry.rowKey === key
-            })
-            if (disclosureIndex >= 0)
-                selectRow(disclosureIndex, true)
-        })
+        SettingsNavigation.reconcileRows(settingsRows, rebuildVisibleRows())
+        const settledIndex = SettingsNavigation.indexForRowKey(settingsRows, key)
+        currentIndex = settledIndex
+        selectedRowKey = settledIndex >= 0 ? key : ""
+        settingsList.currentIndex = settledIndex
+        settingsList.forceLayout()
+        reconcilingSettingsRows = false
+        settingsList.autoPositionCurrentItem = true
+        if (settledIndex >= 0)
+            settingsList.positionViewAtIndex(settledIndex, ListView.Contain)
+        contentReady = settingsRows.count === 0
     }
 
     function activateRow(row, index) {
         if (!row)
             return
-        currentIndex = index
+        selectRow(index, false)
         if (row.type === "submenu") {
             toggleAdvancedGroup(row.group, index)
             return
@@ -462,10 +520,14 @@ FocusScope {
             toggleAdvancedGroup(selected.group, currentIndex)
             return true
         }
-        const groups = Object.keys(expandedGroups)
-        for (let index = 0; index < groups.length; ++index) {
-            if (groupExpanded(groups[index])) {
-                toggleAdvancedGroup(groups[index], currentIndex)
+        const seenGroups = {}
+        for (let index = 0; index < allSettingsRows.length; ++index) {
+            const group = allSettingsRows[index].group
+            if (seenGroups[group])
+                continue
+            seenGroups[group] = true
+            if (groupExpanded(group)) {
+                toggleAdvancedGroup(group, currentIndex)
                 return true
             }
         }
@@ -556,24 +618,26 @@ FocusScope {
         anchors.bottomMargin: pageInset
         bottomMargin: root.choiceDialogVisible && root.choiceDialog ? root.choiceDialog.panelHeight + Metrics.scaled(16) :
                                                                       0
-        model: root.settingsRows
+        model: settingsRows
         dismissOnBack: false
         dismissOnHorizontal: false
         spacing: Metrics.scaled(10)
-        currentIndex: root.currentIndex
-        onCurrentIndexChanged: if (currentIndex >= 0) {
+        onCurrentIndexChanged: {
+            if (root.reconcilingSettingsRows)
+            return
             root.currentIndex = currentIndex
-            positionViewAtIndex(currentIndex, ListView.Contain)
+            root.selectedRowKey = currentIndex >= 0 && currentIndex < settingsRows.count ? settingsRows.get(
+                                                                                               currentIndex).rowKey : ""
         }
         onAccepted: index => root.activateRow(root.rowAtVisibleIndex(index), index)
         onEdgeUp: if (root.shell)
         root.shell.focusNavBar()
         delegate: Column {
             required property int index
-            required property var modelData
-            readonly property string rowKey: modelData.rowKey
+            required property string rowKey
+            required property bool showHeader
+            required property int sourceIndex
             readonly property var rowData: root.rowsByKey[rowKey]
-            readonly property bool showHeader: Boolean(modelData.showHeader)
             width: settingsList.width
             Component.onCompleted: {
                 InputLatency.noteDelegate("settings_row", 1)

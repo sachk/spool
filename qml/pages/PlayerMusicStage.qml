@@ -91,7 +91,7 @@ Item {
             id: cover
             Layout.preferredWidth: root.coverSize
             Layout.preferredHeight: root.coverSize
-            imageUrl: Art.url(root.item, "poster", Math.ceil(root.coverSize))
+            imageUrl: Art.url(root.item, "poster")
             fallbackIcon: "music_note"
             fallbackTint: Theme.libraryTint(root.albumText.length > 0 ? root.albumText : root.trackTitle)
         }

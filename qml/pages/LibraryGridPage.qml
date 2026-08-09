@@ -10,7 +10,7 @@ FocusScope {
     id: root
     property var shell
     property var uiTransitionToken: 0
-    readonly property bool listMode: String(Settings.values["appearance/libraryView"] || "Posters") === "List"
+    property bool listMode: false
     property int columns: listMode ? 1 : Metrics.columns(width)
     readonly property bool largeZoom: Metrics.uiScalePercent >= 150
     readonly property bool smallZoom: Metrics.uiScalePercent <= 100
@@ -29,13 +29,7 @@ FocusScope {
     readonly property int alphabetFeedbackIndex: {
         if (grid.heldKey && grid.currentIndex >= 0)
         return grid.currentIndex
-        grid.contentY
-        if (grid.count <= 0)
-        return -1
-        const visibleIndex = grid.indexAt(grid.leftMargin + 1, Math.max(0, grid.contentY) + grid.topMargin + 1)
-        if (visibleIndex >= 0)
-        return Math.floor(visibleIndex / Math.max(1, root.columns)) * Math.max(1, root.columns)
-        return grid.firstLikelyVisibleIndex()
+        return grid.topLeftVisibleIndex()
     }
     readonly property string currentAlphabetLabel: {
         if (!Browse.items || alphabetFeedbackIndex < 0 || alphabetFeedbackIndex >= Browse.items.count)
@@ -62,11 +56,15 @@ FocusScope {
     // changes); the page itself is resident, so this survives navigation.
     property int savedIndex: shell ? Number(shell.routeArgs.focusIndex || 0) : 0
     property bool navigationFocusVisible: true
-    property int pendingWheelIndex: -1
+    property bool pointerNavigationPending: false
+    property var pendingScrollController: null
     Component.onCompleted: if (activeFocus)
     InputKeys.focus(grid)
-    onActiveFocusChanged: if (activeFocus)
-    InputKeys.focus(grid)
+    onActiveFocusChanged: {
+        clearPendingPointerNavigation()
+        if (activeFocus)
+        InputKeys.focus(grid)
+    }
 
     component ToolbarButton: FocusScope {
         id: buttonRoot
@@ -581,7 +579,7 @@ FocusScope {
     }
 
     function toggleViewMode() {
-        Settings.setValue("appearance/libraryView", listMode ? "Posters" : "List")
+        listMode = !listMode
     }
 
     // The preview controls stay resident. Only their bound item changes, so
@@ -667,8 +665,8 @@ FocusScope {
     function routeKey(key, phase, repeat) {
         if (phase === "release" && InputKeys.isDirection(key))
             return grid.routeKey(key, phase, repeat)
-        if (phase !== "release" && InputKeys.isDirection(key) && grid.activeFocus)
-            applyPendingWheelFocus()
+        if (phase !== "release" && InputKeys.isDirection(key) && grid.activeFocus && pointerNavigationPending)
+            return applyPendingPointerNavigation()
         if (libraryList && libraryList.activeFocus)
             return libraryList.routeKey(key, phase, repeat)
         if (sortList && sortList.activeFocus)
@@ -701,14 +699,37 @@ FocusScope {
         return grid.count > 0 && grid.routeKey(key, phase, repeat)
     }
 
-    function applyPendingWheelFocus() {
+    function clearPendingPointerNavigation() {
+        pointerNavigationPending = false
+        pendingScrollController = null
+    }
+
+    function beginPointerNavigation(controller) {
+        if (controller)
+            pendingScrollController = controller
+        pointerNavigationPending = true
+        navigationFocusVisible = false
+    }
+
+    function applyPendingPointerNavigation() {
+        if (pendingScrollController && pendingScrollController.stopScrolling)
+            pendingScrollController.stopScrolling()
+        grid.cancelFlick()
+        grid.forceLayout()
+        const visibleIndex = grid.topLeftVisibleIndex()
+        if (visibleIndex < 0) {
+            clearPendingPointerNavigation()
+            navigationFocusVisible = true
+            return true
+        }
+        const contentX = grid.contentX
+        const contentY = grid.contentY
+        InputKeys.focusIndexWithoutScrolling(grid, visibleIndex)
+        grid.contentX = contentX
+        grid.contentY = contentY
         navigationFocusVisible = true
-        if (pendingWheelIndex < 0)
-            return
-        grid.currentIndex = Math.min(grid.count - 1, pendingWheelIndex)
-        savedIndex = grid.currentIndex
-        pendingWheelIndex = -1
-        InputKeys.focus(grid)
+        clearPendingPointerNavigation()
+        return true
     }
 
     function activate() {
@@ -901,8 +922,7 @@ FocusScope {
                     anchors.horizontalCenter: parent.horizontalCenter
                     height: Math.round(Math.min(parent.width * 1.5, parent.height * (root.largeZoom ? 0.64 : 0.56)))
                     width: Math.round(height / 1.5)
-                    imageUrl: root.paneItem && root.paneItem.movieId ? Art.url(root.paneItem, "poster", Math.ceil(width)) :
-                                                                       ""
+                    imageUrl: root.paneItem && root.paneItem.movieId ? Art.url(root.paneItem, "poster") : ""
                     fallbackText: String(root.paneItem && root.paneItem.title || "")
                 }
 
@@ -1032,15 +1052,12 @@ FocusScope {
                 }
 
                 FastWheelHandler {
-                    onScrolled: {
-                        const visible = grid.firstFullyVisibleIndex()
-                        if (visible >= 0)
-                        root.pendingWheelIndex = visible
-                        root.navigationFocusVisible = false
-                    }
+                    id: gridWheelHandler
+                    onScrolled: root.beginPointerNavigation(gridWheelHandler)
                     flickable: grid
                     animationDuration: Theme.reducedMotion ? 0 : 16
                 }
+                onMovementStarted: root.beginPointerNavigation(null)
                 ListScrollBar {
                     id: libraryScrollBar
                     anchors.top: parent.top
@@ -1050,6 +1067,7 @@ FocusScope {
                     flickable: grid
                     interactive: !Platform.isTV
                     minimumSize: 0.04
+                    onScrolled: root.beginPointerNavigation(null)
                 }
                 onEdgeUp: root.focusToolbar()
                 onAccepted: root.activateCurrent()
@@ -1077,13 +1095,6 @@ FocusScope {
                     if (count <= 0 || cellHeight <= 0 || columns <= 0)
                         return -1
                     return Math.min(count - 1, Math.max(0, Math.floor(contentY / cellHeight) * columns))
-                }
-
-                function firstFullyVisibleIndex() {
-                    if (count <= 0 || cellHeight <= 0 || columns <= 0)
-                        return -1
-                    const firstFullRow = Math.ceil(Math.max(0, contentY) / cellHeight)
-                    return Math.min(count - 1, firstFullRow * columns)
                 }
 
                 function requestMoreIfNeeded() {
@@ -1280,6 +1291,7 @@ FocusScope {
                         pressedIndex = grid.indexAt(mouse.x + grid.contentX, mouse.y + grid.contentY)
                         pressedCurrent = pressedIndex === grid.currentIndex
                         if (pressedIndex >= 0) {
+                            root.clearPendingPointerNavigation()
                             grid.currentIndex = pressedIndex
                             grid.forceActiveFocus()
                         }

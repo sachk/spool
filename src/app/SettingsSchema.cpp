@@ -16,7 +16,6 @@ namespace {
     constexpr SettingChoice kTextRenderModeChoices[] = { { "0", "Standard" }, { "1", "Curve" } };
     constexpr SettingChoice kTechnicalMetadataChoices[]
         = { { "Always", "Always" }, { "On details only", "Details page only" }, { "Hidden", "Never" } };
-    constexpr SettingChoice kLibraryViewChoices[] = { { "Posters", "Posters" }, { "List", "List" } };
     // "%1" is replaced with the user's preferred-language name when shown.
     constexpr SettingChoice kAudioTrackModeChoices[]
         = { { "Default", "Default (the file's own default)" }, { "Smart", "Smart (%1 when available)" } };
@@ -237,8 +236,6 @@ const QVector<SettingSpec>& settingSpecs()
 
         sliderSpec("appearance/uiScalePercent", "Appearance", "Interface scale", "", "100", 80, 180, 5, "%",
             SettingTarget::UiScale),
-        selectSpec("appearance/libraryView", "Appearance", "Library layout", "", "Posters", kLibraryViewChoices,
-            SettingTarget::LibraryView),
         pageSpec("theme/accent", "Appearance", "Accent colour", "", SettingType::Select, kAccentChoices),
         pageSpec("theme/reducedMotion", "Appearance", "Reduced motion", "Turns off focus and page animation",
             SettingType::Toggle),

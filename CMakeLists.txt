@@ -747,10 +747,12 @@ if(BUILD_TESTING AND NOT CMAKE_CROSSCOMPILING)
             option-picker-input tests/qml/tst_OptionPickerInput.qml
             tls-trust-dialogs tests/qml/tst_TlsTrustDialogs.qml
             nav-grid tests/qml/tst_NavGrid.qml
+            viewport-focus-recovery tests/qml/tst_ViewportFocusRecovery.qml
             hold-navigation-controller tests/qml/tst_HoldNavigationController.qml
             library-navigation tests/qml/tst_LibraryNavigation.qml
             profile-navigation tests/qml/tst_ProfileNavigation.qml
             settings-navigation tests/qml/tst_SettingsNavigation.qml
+            settings-disclosure tests/qml/tst_SettingsDisclosure.qml
             atomic-view-reveal tests/qml/tst_AtomicViewReveal.qml
             input-latency-warning tests/qml/tst_InputLatencyWarning.qml
             player-seek-bar-hover tests/qml/tst_PlayerSeekBarHover.qml

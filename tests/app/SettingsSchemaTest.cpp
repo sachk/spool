@@ -90,7 +90,6 @@ QHash<QString, QString> choicesByLabelFromRow(const QVariantMap& row)
 void requiredPersistedKeysArePresentExactlyOnce()
 {
     const QStringList expectedKeys {
-        QStringLiteral("appearance/libraryView"),
         QStringLiteral("appearance/uiScalePercent"),
         QStringLiteral("audio/trackMode"),
         QStringLiteral("playback/rememberSeriesAudioTrack"),

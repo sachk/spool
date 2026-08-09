@@ -34,7 +34,8 @@ T.Control {
     TapHandler {
         enabled: root.pointerActivationEnabled
         onTapped: {
-            InputKeys.focus(root)
+            if (root.focusPolicy !== Qt.NoFocus)
+                InputKeys.focus(root)
             root.clicked()
         }
     }

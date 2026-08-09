@@ -73,7 +73,7 @@ Item {
         if (imageOverride.length > 0)
             return imageOverride
         const artKind = posterKind && useSeriesPoster && text("itemType") === "Episode" ? "seriesPoster" : kind
-        return Art.url(item, artKind, Math.ceil(width))
+        return Art.url(item, artKind)
     }
 
     function fallbackText() {

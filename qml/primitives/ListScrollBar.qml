@@ -11,6 +11,14 @@ Item {
     readonly property bool hovered: trackHover.hovered || handleHover.hovered || drag.active
     readonly property bool pressed: drag.active
     readonly property real handleCenterY: handle.y + handle.height / 2
+    signal scrolled
+
+    function setContentY(value) {
+        const before = root.flickable.contentY
+        root.flickable.contentY = value
+        if (root.flickable.contentY !== before)
+            root.scrolled()
+    }
 
     readonly property real scrollRange: Math.max(0, flickable.contentHeight - flickable.height)
     readonly property real availableTrack: Math.max(0, height - handle.height)
@@ -47,7 +55,7 @@ Item {
             if (root.availableTrack <= 0)
                 return
             const targetY = Math.max(0, Math.min(root.availableTrack, point.position.y - handle.height / 2))
-            root.flickable.contentY = targetY * root.scrollRange / root.availableTrack
+            root.setContentY(targetY * root.scrollRange / root.availableTrack)
         }
     }
 
@@ -81,8 +89,8 @@ Item {
             onTranslationChanged: {
                 if (!active || root.availableTrack <= 0)
                     return
-                root.flickable.contentY = Math.max(0, Math.min(root.scrollRange, startContentY + translation.y
-                                                               * root.scrollRange / root.availableTrack))
+                root.setContentY(Math.max(0, Math.min(root.scrollRange, startContentY + translation.y
+                                                      * root.scrollRange / root.availableTrack)))
             }
         }
     }

@@ -34,7 +34,8 @@ FocusScope {
     readonly property int cardHeight: Math.round(cardWidth * (posterCard ? 1.5 : 9 / 16) + Metrics.scaled(60))
     readonly property int focusPadding: Math.max(2, Metrics.scaled(2))
 
-    signal verticalWheelScrolled
+    signal verticalWheelScrolled(var controller)
+    signal pointerSelected
     signal activated(int index, var item)
 
     width: parent ? parent.width : implicitWidth
@@ -118,26 +119,14 @@ FocusScope {
         return true
     }
 
-    function firstFullyVisibleIndex() {
-        if (count <= 0)
-            return -1
-        const left = listView.contentX + listView.leftMargin
-        const right = listView.contentX + listView.width - listView.rightMargin
-        for (let index = 0; index < count; ++index) {
-            const candidate = listView.itemAtIndex(index)
-            if (candidate && candidate.x >= left && candidate.x + candidate.width <= right)
-                return index
-        }
-        return -1
+    function topLeftVisibleCandidate(outerViewport) {
+        return InputKeys.topLeftVisibleCandidate(listView, outerViewport)
     }
 
-    function focusFirstVisible() {
-        const visible = firstFullyVisibleIndex()
-        if (visible < 0)
+    function focusIndexWithoutScrolling(index) {
+        if (!InputKeys.focusIndexWithoutScrolling(listView, index))
             return false
-        currentIndex = visible
-        syncViewCurrentIndex()
-        InputKeys.focus(listView)
+        currentIndex = index
         return true
     }
 
@@ -234,8 +223,7 @@ FocusScope {
             subtitleOverride: libraryCard ? String(cardData.collectionType || "") : personCard ? String(cardData.role
                                                                                                         || cardData.type
                                                                                                         || "") : ""
-            imageOverride: libraryCard ? Art.url(cardItem, "landscape", Math.ceil(root.cardWidth)) : personCard
-                                         ? Art.url(cardItem, "poster", Math.ceil(root.cardWidth)) : ""
+            imageOverride: libraryCard ? Art.url(cardItem, "landscape") : personCard ? Art.url(cardItem, "poster") : ""
             fallbackOverride: personCard ? String(cardData.type || "Person") : ""
             fallbackIcon: libraryCard ? Theme.libraryIcon(cardData.collectionType) : ""
             fallbackTint: libraryCard ? Theme.libraryTint(cardData.name) : "transparent"
@@ -301,10 +289,11 @@ FocusScope {
         positionViewAtIndex(currentIndex, ListView.Contain)
 
         FastWheelHandler {
+            id: wheelHandler
             flickable: root.wheelFlickable || listView
             horizontal: root.wheelFlickable === null
             onScrolled: if (root.wheelFlickable)
-            root.verticalWheelScrolled()
+            root.verticalWheelScrolled(wheelHandler)
         }
 
         MouseArea {
@@ -317,8 +306,10 @@ FocusScope {
             onPressed: mouse => {
                 longPressed = false
                 pressedIndex = listView.indexAt(mouse.x + listView.contentX, mouse.y + listView.contentY)
-                if (pressedIndex >= 0)
+                if (pressedIndex >= 0) {
+                    root.pointerSelected()
                     root.currentIndex = pressedIndex
+                }
             }
             onReleased: if (longPressed && root.shell)
             root.shell.finishItemMenuOpeningGesture()

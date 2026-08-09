@@ -13,8 +13,8 @@ FocusScope {
     property bool firstRowReady: false
     readonly property bool contentReady: firstRowReady
     property bool navigationFocusVisible: true
-    property int pendingWheelSection: -1
-    property int pendingWheelItem: -1
+    property bool pointerNavigationPending: false
+    property var pendingScrollController: null
 
     focus: true
 
@@ -110,42 +110,62 @@ FocusScope {
         return true
     }
 
-    function firstFullyVisibleSection() {
-        const top = sectionList.contentY
-        const bottom = top + sectionList.height
-        for (let index = 0; index < sections.length; ++index) {
-            const candidate = sectionList.itemAtIndex(index)
-            if (candidate && candidate.height > 0 && candidate.y >= top && candidate.y + candidate.height <= bottom)
-                return index
-        }
-        return -1
+    function clearPendingPointerNavigation() {
+        pointerNavigationPending = false
+        pendingScrollController = null
     }
 
-    function rememberWheelFocus(rowIndex, itemIndex) {
-        const visibleSection = firstFullyVisibleSection()
-        pendingWheelSection = visibleSection >= 0 ? visibleSection : rowIndex
-        const visibleRow = pendingWheelSection >= 0 ? sectionList.itemAtIndex(pendingWheelSection) : null
-        pendingWheelItem = visibleRow && visibleRow.firstFullyVisibleIndex ? visibleRow.firstFullyVisibleIndex() :
-                                                                             itemIndex
+    function beginPointerNavigation(controller) {
+        if (controller)
+            pendingScrollController = controller
+        pointerNavigationPending = true
         navigationFocusVisible = false
     }
 
-    function applyPendingWheelFocus() {
+    function topLeftVisibleCard() {
+        sectionList.forceLayout()
+        let best = null
+        for (let rowIndex = 0; rowIndex < sectionList.count; ++rowIndex) {
+            const row = sectionList.itemAtIndex(rowIndex)
+            if (!row || !row.topLeftVisibleCandidate)
+                continue
+            const card = row.topLeftVisibleCandidate(sectionList)
+            if (!card)
+                continue
+            const candidate = {
+                "index": card.index,
+                "top": card.top,
+                "left": card.left,
+                "rowIndex": rowIndex,
+                "row": row
+            }
+            if (!best || InputKeys.earlierVisibleCandidate(candidate, best))
+                best = candidate
+        }
+        return best
+    }
+
+    function recoverPointerNavigation() {
+        if (pendingScrollController && pendingScrollController.stopScrolling)
+            pendingScrollController.stopScrolling()
+        sectionList.cancelFlick()
+        const candidate = topLeftVisibleCard()
+        if (!candidate)
+            return true
+        const contentY = sectionList.contentY
+        if (!InputKeys.focusIndexWithoutScrolling(sectionList, candidate.rowIndex))
+            return true
+        if (!candidate.row.focusIndexWithoutScrolling(candidate.index))
+            return true
+        sectionList.contentY = contentY
         navigationFocusVisible = true
-        if (pendingWheelSection < 0)
-            return
-        sectionList.currentIndex = pendingWheelSection
-        const row = currentRow()
-        if (row && pendingWheelItem >= 0)
-            row.currentIndex = pendingWheelItem
-        pendingWheelSection = -1
-        pendingWheelItem = -1
-        focusCurrentSection()
+        clearPendingPointerNavigation()
+        return true
     }
 
     function routeKey(key, phase, repeat) {
-        if (phase !== "release" && InputKeys.isDirection(key))
-            applyPendingWheelFocus()
+        if (phase !== "release" && InputKeys.isDirection(key) && pointerNavigationPending)
+            return recoverPointerNavigation()
         const row = currentRow()
         if (!row)
             return false
@@ -191,9 +211,12 @@ FocusScope {
     }
 
     Component.onCompleted: rebuildSections()
-    onActiveFocusChanged: if (activeFocus) {
-        navigationFocusVisible = true
-        Qt.callLater(focusCurrentSection)
+    onActiveFocusChanged: {
+        clearPendingPointerNavigation()
+        if (activeFocus) {
+            navigationFocusVisible = true
+            Qt.callLater(focusCurrentSection)
+        }
     }
 
     Connections {
@@ -221,10 +244,12 @@ FocusScope {
         focus: true
 
         FastWheelHandler {
+            id: sectionWheelHandler
             flickable: sectionList
-            onScrolled: root.rememberWheelFocus(sectionList.currentIndex, root.currentRow() ? root.currentRow().firstFullyVisibleIndex(
-                                                                                                  ) : 0)
+            onScrolled: root.beginPointerNavigation(sectionWheelHandler)
         }
+
+        onMovementStarted: root.beginPointerNavigation(null)
 
         delegate: MediaRow {
             id: mediaRow
@@ -244,7 +269,8 @@ FocusScope {
                                                    root.width)
             cardGap: Metrics.gapPx
             wheelFlickable: sectionList
-            onVerticalWheelScrolled: root.rememberWheelFocus(index, mediaRow.firstFullyVisibleIndex())
+            onVerticalWheelScrolled: controller => root.beginPointerNavigation(controller)
+            onPointerSelected: root.clearPendingPointerNavigation()
             atomicPopulate: index === 0
             itemContextSource: String(modelData.source || "")
             itemContextReturnRoute: "home"

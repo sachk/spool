@@ -63,3 +63,71 @@ function clampIndex(index, count) {
         return -1
     return Math.max(0, Math.min(count - 1, index))
 }
+
+function rowCount(rows) {
+    if (!rows)
+        return 0
+    return rows.count !== undefined ? Number(rows.count) : Number(rows.length || 0)
+}
+
+function rowAt(rows, index) {
+    if (!rows || index < 0 || index >= rowCount(rows))
+        return null
+    return rows.get ? rows.get(index) : rows[index]
+}
+
+function indexForRowKey(rows, key) {
+    for (let index = 0; index < rowCount(rows); ++index) {
+        const row = rowAt(rows, index)
+        if (row && row.rowKey === key)
+            return index
+    }
+    return -1
+}
+
+function nearestRowKey(rows, sourceIndex) {
+    let best = null
+    let bestDistance = Number.POSITIVE_INFINITY
+    for (let index = 0; index < rowCount(rows); ++index) {
+        const row = rowAt(rows, index)
+        if (!row)
+            continue
+        const distance = Math.abs(Number(row.sourceIndex) - Number(sourceIndex))
+        const precedes = Number(row.sourceIndex) <= Number(sourceIndex)
+        const bestPrecedes = best && Number(best.sourceIndex) <= Number(sourceIndex)
+        if (distance < bestDistance || (distance === bestDistance && precedes && !bestPrecedes)) {
+            best = row
+            bestDistance = distance
+        }
+    }
+    return best ? String(best.rowKey || "") : ""
+}
+
+function reconcileRows(model, nextRows) {
+    const oldCount = rowCount(model)
+    const nextCount = rowCount(nextRows)
+    let prefix = 0
+    while (prefix < oldCount && prefix < nextCount
+           && rowAt(model, prefix).rowKey === rowAt(nextRows, prefix).rowKey)
+        ++prefix
+
+    let suffix = 0
+    while (suffix < oldCount - prefix && suffix < nextCount - prefix
+           && rowAt(model, oldCount - suffix - 1).rowKey === rowAt(nextRows, nextCount - suffix - 1).rowKey)
+        ++suffix
+
+    const removeCount = oldCount - prefix - suffix
+    if (removeCount > 0)
+        model.remove(prefix, removeCount)
+    const insertCount = nextCount - prefix - suffix
+    for (let index = 0; index < insertCount; ++index)
+        model.insert(prefix + index, rowAt(nextRows, prefix + index))
+    if (model.set) {
+        for (let index = 0; index < prefix; ++index)
+            model.set(index, rowAt(nextRows, index))
+        for (let offset = 0; offset < suffix; ++offset) {
+            const index = nextCount - suffix + offset
+            model.set(index, rowAt(nextRows, index))
+        }
+    }
+}

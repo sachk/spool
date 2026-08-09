@@ -68,8 +68,6 @@ Item {
             cache: !Platform.isTV
             smooth: true
             mipmap: false
-            sourceSize.width: Math.max(1, Math.round(root.width * Screen.devicePixelRatio))
-            sourceSize.height: Math.max(1, Math.round(root.height * Screen.devicePixelRatio))
             opacity: root.artworkVisible ? 1 : 0
             Behavior on opacity {
                 NumberAnimation {

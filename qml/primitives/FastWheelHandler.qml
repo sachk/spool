@@ -30,6 +30,10 @@ WheelHandler {
         return Number.isFinite(current) ? current : 0
     }
 
+    function stopScrolling() {
+        root.scrollAnimation.stop()
+    }
+
     function moveFlickable(propertyName, value, animate) {
         if (!flickable || flickable[propertyName] === undefined || !Number.isFinite(Number(value)))
             return

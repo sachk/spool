@@ -54,7 +54,7 @@ FocusScope {
     readonly property string backgroundArt: Art.url(item, "backdrop", Math.ceil(width))
     readonly property int sideArtWidth: Math.min(Math.round(width * (albumDetail ? 0.26 : 0.38)), albumDetail ? 620 :
                                                                                                                 1100)
-    readonly property string stillArt: Art.url(item, albumDetail ? "poster" : "landscape", Math.ceil(sideArtWidth))
+    readonly property string stillArt: Art.url(item, albumDetail ? "poster" : "landscape")
     readonly property bool showSideArt: width >= 1120 && Metrics.uiScale < 1.45 && stillArt.length > 0
     readonly property var technicalInfo: {
         if (!fullDetailItem.movieId || (typeText !== "Movie" && typeText !== "Series"))

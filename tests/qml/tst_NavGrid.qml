@@ -64,6 +64,21 @@ TestCase {
         }
     }
 
+    Primitives.NavGrid {
+        id: fallbackGrid
+        width: 300
+        height: 100
+        visible: false
+        cellWidth: 100
+        cellHeight: 100
+        model: 30
+        delegate: Item {
+            required property int index
+            width: fallbackGrid.cellWidth
+            height: fallbackGrid.cellHeight
+        }
+    }
+
     Item {
         id: alternateFocus
         focus: true
@@ -306,5 +321,24 @@ TestCase {
         verify(grid.routeKey(Qt.Key_Down, "press", true))
         compare(grid.heldKey, Qt.Key_Down)
         tryCompare(grid, "heldKey", 0, grid.holdReleaseTimeout + 1000)
+    }
+
+    function test_topLeftVisibleIndexEmpty() {
+        modelSize = 0
+        compare(grid.topLeftVisibleIndex(), -1)
+    }
+
+    function test_topLeftVisibleIndexIncludesPartialRow() {
+        modelSize = 100
+        grid.forceLayout()
+        grid.contentY = 45
+        compare(grid.topLeftVisibleIndex(), 0)
+        grid.contentY = 145
+        compare(grid.topLeftVisibleIndex(), 4)
+    }
+
+    function test_topLeftVisibleIndexFallsBackWithoutDelegate() {
+        fallbackGrid.contentY = 145
+        compare(fallbackGrid.topLeftVisibleIndex(), 3)
     }
 }

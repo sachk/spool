@@ -44,6 +44,18 @@ GridView {
         return Math.max(1, Math.floor(width / Math.max(1, cellWidth || fallbackColumns)))
     }
 
+    function topLeftVisibleIndex() {
+        if (count <= 0 || !Number.isFinite(Number(cellHeight)) || cellHeight <= 0)
+            return -1
+        const columns = columnCount()
+        const hit = indexAt(leftMargin + 1, Math.max(0, contentY) + topMargin + 1)
+        if (hit >= 0)
+            return hit - hit % columns
+        const row = Math.max(0, Math.floor(Math.max(0, contentY) / cellHeight))
+        const fallback = row * columns
+        return fallback < count ? fallback : count - 1 - (count - 1) % columns
+    }
+
     function moveBy(delta) {
         if (count <= 0)
             return true

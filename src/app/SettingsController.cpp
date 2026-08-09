@@ -480,8 +480,6 @@ void SettingsController::applySchemaValue(const SettingSpec& spec, const QVarian
     case SettingTarget::UiScale:
         m_uiScalePercent = value.toInt();
         break;
-    case SettingTarget::LibraryView:
-        break;
     case SettingTarget::AudioTrackMode:
         m_subtitlePreferences.audioMode = value.toString();
         if (apply) {
@@ -675,8 +673,6 @@ void SettingsController::emitSchemaSignals(const SettingSpec& spec)
         break;
     case SettingTarget::UiScale:
         emit appearanceChanged();
-        break;
-    case SettingTarget::LibraryView:
         break;
     case SettingTarget::AudioTrackMode:
     case SettingTarget::RememberSeriesAudioTrack:

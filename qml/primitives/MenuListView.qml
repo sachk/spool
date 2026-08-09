@@ -6,6 +6,7 @@ ListView {
     property bool dismissOnBack: true
     property bool dismissOnHorizontal: true
     property Item edgeEscapeItem: null
+    property bool autoPositionCurrentItem: true
     // ListView converts JavaScript arrays into an opaque instance model.
     // Supply a lookup callback when navigation needs to inspect their entries.
     property var entryProvider: null
@@ -58,10 +59,9 @@ ListView {
         if (!clampEnabled())
             return true
         const next = firstEnabled(currentIndex + step, step)
-        if (next >= 0) {
+        if (next >= 0)
             currentIndex = next
-            positionViewAtIndex(currentIndex, ListView.Contain)
-        } else if (step < 0) {
+        else if (step < 0) {
             if (edgeEscapeItem)
                 InputKeys.focus(edgeEscapeItem)
             else
@@ -103,7 +103,7 @@ ListView {
     }
 
     onCountChanged: clampEnabled()
-    onCurrentIndexChanged: if (currentIndex >= 0)
+    onCurrentIndexChanged: if (autoPositionCurrentItem && currentIndex >= 0)
                                positionViewAtIndex(currentIndex, ListView.Contain)
 
     FastWheelHandler {
