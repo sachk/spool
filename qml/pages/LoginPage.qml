@@ -998,6 +998,7 @@ FocusScope {
                 text: tile.serverName
                 color: Theme.textSecondary
                 font.pixelSize: Metrics.scaled(13)
+                font.weight: Font.Medium
                 horizontalAlignment: Text.AlignHCenter
                 maximumLineCount: 1
                 elide: Text.ElideRight
@@ -1009,6 +1010,7 @@ FocusScope {
                 text: tile.serverAddress
                 color: Theme.textMuted
                 font.pixelSize: Metrics.scaled(11)
+                font.weight: Font.Medium
                 horizontalAlignment: Text.AlignHCenter
                 maximumLineCount: 1
                 elide: Text.ElideRight
