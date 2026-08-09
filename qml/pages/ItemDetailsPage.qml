@@ -97,6 +97,7 @@ FocusScope {
     property bool favoriteState: false
     property bool playedState: false
     property bool overflowOpen: false
+    property point overflowAnchorPoint: Qt.point(0, 0)
     property string focusZone: "actions"
     property int actionIndex: 0
     property int overflowIndex: 0
@@ -818,14 +819,20 @@ FocusScope {
         InputKeys.focus(options[overflowIndex])
     }
 
+    function updateOverflowAnchor() {
+        overflowAnchorPoint = menuAction.mapToItem(root, menuAction.width / 2, menuAction.height)
+    }
+
     function toggleOverflow() {
         overflowOpen = !overflowOpen
-        if (overflowOpen)
+        if (overflowOpen) {
+            updateOverflowAnchor()
             Qt.callLater(function () {
                 focusOverflow(0)
             })
-        else
+        } else {
             focusActionIndex(orderedActions().indexOf(menuAction))
+        }
     }
 
     function openMediaInfo() {
@@ -1549,16 +1556,10 @@ FocusScope {
 
     PopupMenuPanel {
         id: overflowMenu
-        readonly property point anchorPoint: menuAction.mapToItem(root, 0, 0)
         width: Math.min(Metrics.scaled(292), root.width - root.contentMargin * 2)
-        x: Math.max(root.contentMargin, Math.min(root.width - width - root.contentMargin, anchorPoint.x
-                                                 + menuAction.width - width))
-        y: {
-            const below = anchorPoint.y + menuAction.height + Metrics.scaled(8)
-            return below + openHeight <= root.height - root.contentMargin ? below : Math.max(root.contentMargin,
-                                                                                             anchorPoint.y - openHeight
-                                                                                             - Metrics.scaled(8))
-        }
+        x: Math.max(root.contentMargin, Math.min(root.width - width - root.contentMargin, root.overflowAnchorPoint.x
+                                                 - width / 2))
+        y: root.overflowAnchorPoint.y + Metrics.scaled(8)
         open: root.overflowOpen
         openHeight: menuColumn.implicitHeight + Metrics.scaled(14)
         baseColor: Theme.floatingPanel
