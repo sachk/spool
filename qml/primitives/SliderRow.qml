@@ -133,6 +133,7 @@ SettingRow {
                 selectedTextColor: Theme.textPrimary
                 selectionColor: Theme.accentDim
                 font.family: Typography.sans
+                font.hintingPreference: Typography.sansHinting
                 font.pixelSize: Metrics.metaSizePx + 1
                 font.weight: Font.DemiBold
                 onActiveFocusChanged: if (activeFocus)

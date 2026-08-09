@@ -4,6 +4,11 @@ import QtQuick
 QtObject {
     id: root
 
+    // DirectWrite's default full hinting snaps both axes and distorts this
+    // UI face at small sizes. Vertical hinting keeps ClearType antialiasing
+    // while leaving horizontal glyph shapes and spacing intact.
+    readonly property int sansHinting: Qt.platform.os === "windows" ? Font.PreferVerticalHinting :
+                                                                      Font.PreferDefaultHinting
     readonly property FontLoader plexSans: FontLoader {
         source: Qt.resolvedUrl("../fonts/IBMPlexSans-Variable.ttf")
     }

@@ -169,7 +169,8 @@ Item {
 
                     selectionColor: Theme.accent
                     selectedTextColor: Theme.textPrimary
-                    font.family: Theme.uiFontFamily
+                    font.family: Typography.sans
+                    font.hintingPreference: Typography.sansHinting
                     font.pixelSize: root.compact ? Metrics.metaSizePx + 2 : Metrics.bodySizePx
                     font.weight: Font.Normal
                     horizontalAlignment: Text.AlignHCenter

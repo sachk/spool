@@ -7,5 +7,6 @@ Text {
     antialiasing: Theme.antialiasedText
     renderType: Theme.normalTextRenderType
     font.family: Typography.sans
+    font.hintingPreference: Typography.sansHinting
     font.preferTypoLineMetrics: true
 }
