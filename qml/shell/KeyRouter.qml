@@ -157,10 +157,8 @@ FocusScope {
         return true
     }
 
-    function dispatch(event, phase) {
-        const key = normalizedKey(event)
-        const repeat = Boolean(event.isAutoRepeat)
-        if (key === 0)
+    function dispatchNormalized(event, key, phase, repeat) {
+        if (globalHandler && globalHandler(key, phase, repeat, event.modifiers))
             return true
         if (InputKeys.isBack(key, false)) {
             const handled = routeBack(phase, repeat)
@@ -176,8 +174,15 @@ FocusScope {
             return routeDirection(key, phase, repeat, event.modifiers)
         if (InputKeys.isAccept(key))
             return phase === "press" ? pressAccept(key, repeat) : releaseAccept(key, repeat)
-        const handled = router.deliver(activeTarget, key, phase, repeat)
-        return handled || Boolean(globalHandler && globalHandler(key, phase, repeat, event.modifiers))
+        return router.deliver(activeTarget, key, phase, repeat)
+    }
+
+    function dispatch(event, phase) {
+        const key = normalizedKey(event)
+        const repeat = Boolean(event.isAutoRepeat)
+        if (key === 0)
+            return true
+        return dispatchNormalized(event, key, phase, repeat)
     }
 
     Keys.onPressed: event => event.accepted = dispatch(event, "press")

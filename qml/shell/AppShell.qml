@@ -16,6 +16,7 @@ KeyRouter {
     property bool diagnosticsVisible: false
     property bool mediaInfoVisible: false
     property bool itemMenuLoaded: false
+    property int uiScaleShortcutKey: 0
     readonly property bool itemMenuOpen: itemContextMenuLoader.item ? itemContextMenuLoader.item.opened : false
     readonly property bool tlsTrustPending: TlsTrust.pending
     property var mediaInfoItem: ({})
@@ -557,7 +558,28 @@ KeyRouter {
     }
 
     function globalShortcut(key, phase, repeat, modifiers) {
-        if (repeat || textInputActive)
+        if (phase === "release" && key === uiScaleShortcutKey) {
+            uiScaleShortcutKey = 0
+            return true
+        }
+        if (repeat)
+            return key === uiScaleShortcutKey
+
+        const control = Boolean(modifiers & Qt.ControlModifier)
+        if (phase === "press" && control) {
+            let scaleDelta = 0
+            if (key === Qt.Key_Plus || key === Qt.Key_Equal)
+                scaleDelta = 5
+            else if (key === Qt.Key_Minus || key === Qt.Key_Underscore)
+                scaleDelta = -5
+            if (scaleDelta !== 0 || key === Qt.Key_0) {
+                uiScaleShortcutKey = key
+                setUiScale(key === Qt.Key_0 ? 100 : Settings.uiScalePercent + scaleDelta)
+                return true
+            }
+        }
+
+        if (textInputActive)
             return false
         // Claim the physical Menu press as well as its release so focus remains
         // stable until the release-triggered context menu opens.
@@ -565,23 +587,9 @@ KeyRouter {
             return true
         if (phase !== "release")
             return false
-        if (key === Qt.Key_Plus || key === Qt.Key_Minus || key === Qt.Key_Underscore) {
-            setUiScale(Settings.uiScalePercent + (key === Qt.Key_Plus ? 5 : -5))
+        if (control && key === Qt.Key_D) {
+            diagnosticsVisible = !diagnosticsVisible
             return true
-        }
-        if (modifiers & Qt.ControlModifier) {
-            if (key === Qt.Key_Equal) {
-                setUiScale(Settings.uiScalePercent + 5)
-                return true
-            }
-            if (key === Qt.Key_0) {
-                setUiScale(100)
-                return true
-            }
-            if (key === Qt.Key_D) {
-                diagnosticsVisible = !diagnosticsVisible
-                return true
-            }
         }
         if (key === Qt.Key_Slash) {
             pushRoute("search")

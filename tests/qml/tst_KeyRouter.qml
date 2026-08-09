@@ -11,6 +11,7 @@ TestCase {
     property int activateCalls: 0
     property int finishOpeningCalls: 0
     property int typeAheadCalls: 0
+    property int globalCalls: 0
     property string typeAheadText: ""
     property bool routeResult: true
     property bool typeAheadResult: true
@@ -66,6 +67,7 @@ TestCase {
         finishOpeningCalls = 0
         typeAheadCalls = 0
         typeAheadText = ""
+        globalCalls = 0
         routeResult = true
         typeAheadResult = true
         lastRouteRepeat = false
@@ -77,6 +79,7 @@ TestCase {
         keyRouter.textInputActive = false
         keyRouter.backspaceNavigatesInTextInput = false
         keyRouter.webOsScanCodes = false
+        keyRouter.globalHandler = null
     }
 
     function test_directionUsesRouterHelper() {
@@ -210,5 +213,29 @@ TestCase {
         event.modifiers = Qt.NoModifier
         verify(!keyRouter.routeTypeAhead(event, Qt.Key_A, "press"))
         compare(typeAheadCalls, 0)
+    }
+
+    function test_modifiedGlobalShortcutPrecedesTextInputAndTarget() {
+        keyRouter.textInputActive = true
+        keyRouter.globalHandler = function (key, phase, repeat, modifiers) {
+            ++globalCalls
+            compare(key, Qt.Key_Plus)
+            compare(phase, "press")
+            compare(repeat, false)
+            verify(modifiers & Qt.ControlModifier)
+            return true
+        }
+        const event = {
+            "key": Qt.Key_Plus,
+            "text": "+",
+            "modifiers": Qt.ControlModifier,
+            "isAutoRepeat": false,
+            "nativeScanCode": 0,
+            "nativeVirtualKey": 0
+        }
+
+        verify(keyRouter.dispatchNormalized(event, Qt.Key_Plus, "press", false))
+        compare(globalCalls, 1)
+        compare(routeCalls, 0)
     }
 }
