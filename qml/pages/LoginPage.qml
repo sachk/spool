@@ -24,6 +24,7 @@ FocusScope {
     property Item profileActionAnchor: null
     property string profileActionName: ""
     property string profileActionUrl: ""
+    property Item backReturnControl: null
 
     readonly property bool hasSavedPair: Session.accountProfiles.length > 0
     readonly property bool textInputActive: shell ? shell.textInputActive : Qt.inputMethod.visible
@@ -212,12 +213,29 @@ FocusScope {
             InputKeys.focus(item)
     }
 
+    function focusBackButton(returnControl) {
+        if (!backButton.visible)
+            return false
+        backReturnControl = returnControl
+        InputKeys.focus(backButton)
+        return true
+    }
+
+    function restoreBackButtonFocus() {
+        const items = controls()
+        const target = items.indexOf(backReturnControl) >= 0 ? backReturnControl : items.length > 0 ? items[0] : null
+        backReturnControl = null
+        if (target)
+            focusControl(target)
+    }
+
     function moveControl(delta) {
         const items = controls()
         const current = focusedControl()
         if (!addMode && (current === profileList || current === addAccountTile)) {
-            const next = ProfileNavigation.move(profileList.currentIndex, profileList.count, current === addAccountTile,
-                                                delta)
+            const previousIndex = profileList.currentIndex
+            const addWasFocused = current === addAccountTile
+            const next = ProfileNavigation.move(profileList.currentIndex, profileList.count, addWasFocused, delta)
             if (next.addFocused) {
                 InputKeys.focus(addAccountTile)
             } else {
@@ -225,24 +243,29 @@ FocusScope {
                 profileList.positionViewAtIndex(next.profileIndex, ListView.Contain)
                 InputKeys.focus(profileList)
             }
-            return
+            return next.addFocused !== addWasFocused || next.profileIndex !== previousIndex
         }
         if (current === profileList) {
             const nextProfile = profileList.currentIndex + delta
             if (nextProfile >= 0 && nextProfile < profileList.count) {
                 profileList.currentIndex = nextProfile
                 profileList.positionViewAtIndex(nextProfile, ListView.Contain)
-                return
+                return true
             }
         }
         if (current === discoveredList) {
             const next = discoveredList.currentIndex + delta
             if (next >= 0 && next < discoveredList.count) {
                 discoveredList.currentIndex = next
-                return
+                return true
             }
         }
-        focusControl(items[Math.max(0, Math.min(items.length - 1, items.indexOf(current) + delta))])
+        const currentIndex = items.indexOf(current)
+        const nextIndex = Math.max(0, Math.min(items.length - 1, currentIndex + delta))
+        if (nextIndex === currentIndex)
+            return false
+        focusControl(items[nextIndex])
+        return true
     }
 
     function routeKey(key, phase, repeat) {
@@ -254,24 +277,46 @@ FocusScope {
         }
         if (!InputKeys.isDirection(key))
             return false
-        const current = focusedControl()
-        if (InputKeys.isHorizontal(key)) {
-            if (!addMode || current === signInButton || current === quickConnectButton)
-                moveControl(key === Qt.Key_Right ? 1 : -1)
+        if (backButton.activeFocus) {
+            if (key === Qt.Key_Right || key === Qt.Key_Down)
+                restoreBackButtonFocus()
             return true
         }
-        if (!addMode)
+
+        const current = focusedControl()
+        if (InputKeys.isHorizontal(key)) {
+            let moved = false
+            if (!addMode || current === signInButton || current === quickConnectButton)
+                moved = moveControl(key === Qt.Key_Right ? 1 : -1)
+            if (!moved && key === Qt.Key_Left)
+                focusBackButton(current)
             return true
-        if (addStep === 2 && current === quickConnectButton && key === Qt.Key_Up)
+        }
+        if (!addMode) {
+            if (key === Qt.Key_Up)
+                focusBackButton(current)
+            return true
+        }
+
+        let moved = false
+        if (addStep === 2 && current === quickConnectButton && key === Qt.Key_Up) {
             focusControl(passwordRow)
-        else
-            moveControl(key === Qt.Key_Down ? 1 : -1)
+            moved = true
+        } else {
+            moved = moveControl(key === Qt.Key_Down ? 1 : -1)
+        }
+        if (!moved && key === Qt.Key_Up)
+            focusBackButton(current)
         return true
     }
 
     function activate() {
         if (profileDialogLoader.item) {
             profileDialogLoader.item.activate()
+            return
+        }
+        if (backButton.activeFocus) {
+            backButton.clicked()
             return
         }
         const control = focusedControl()
@@ -357,6 +402,8 @@ FocusScope {
         visible: root.canNavigateBack
         onClicked: root.back()
         z: 2
+        onVisibleChanged: if (!visible && activeFocus)
+        root.restoreBackButtonFocus()
     }
 
     Item {

@@ -72,6 +72,15 @@ TestCase {
         compare(overlayStub.actionIndex, 2)
     }
 
+    function test_leftFromFirstActionFocusesBackButton() {
+        overlayStub.focusZone = "actions"
+        overlayStub.actionIndex = 0
+        verify(input.pressed(Qt.Key_Left, false))
+        verify(input.released(Qt.Key_Left, false))
+        compare(overlayStub.focusZone, "back")
+        compare(overlayStub.actionIndex, 0)
+    }
+
     function test_repeatedSeekAccelerates() {
         verify(input.pressed(Qt.Key_Right, false))
         for (let repeat = 0; repeat < 16; ++repeat)

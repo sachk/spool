@@ -77,10 +77,15 @@ Item {
             return true
         }
         if (key === Qt.Key_Left) {
-            if (overlay.focusZone === "timeline")
+            if (overlay.focusZone === "timeline") {
                 overlay.seekBy(-10)
-            else if (overlay.focusZone === "actions")
-                overlay.actionIndex = Math.max(0, overlay.actionIndex - 1)
+            } else if (overlay.focusZone === "actions") {
+                const moved = overlay.actionIndex > 0
+                if (moved)
+                    --overlay.actionIndex
+                else
+                    overlay.focusZone = "back"
+            }
             overlay.showControls(overlay.focusZone)
             return true
         }
