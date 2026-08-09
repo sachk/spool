@@ -341,6 +341,11 @@ void pageRowsShareTheSchemaContract()
         require(schemaRow(key).value(QStringLiteral("source")).toString() == QStringLiteral("page"),
             QStringLiteral("page-owned row %1 was missing from the schema model").arg(key));
     }
+    const QHash<QString, QString> accentChoices = choicesByLabelFromRow(schemaRow(QStringLiteral("theme/accent")));
+    require(accentChoices.size() == 3 && accentChoices.value(QStringLiteral("0")) == QStringLiteral("Blue")
+            && accentChoices.value(QStringLiteral("1")) == QStringLiteral("Purple")
+            && accentChoices.value(QStringLiteral("2")) == QStringLiteral("Indigo"),
+        QStringLiteral("accent colour choices were missing instead of falling back to the default palette"));
     require(requiredSpec(QStringLiteral("theme/railLabels")).level == SettingLevel::Advanced,
         QStringLiteral("rail label tuning should be hidden at Essential detail"));
     require(requiredSpec(QStringLiteral("shell/diagnostics")).level == SettingLevel::Expert,

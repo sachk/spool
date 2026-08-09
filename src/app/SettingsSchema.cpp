@@ -94,7 +94,7 @@ namespace {
     // Rows the settings page owns end to end: the schema only describes how to
     // draw them, and SettingsController never stores their value.
     SettingSpec pageSpec(const char *key, const char *group, const char *title, const char *description,
-        SettingType type, const SettingChoice *choices = nullptr, qsizetype choiceCount = 0)
+        SettingType type, const SettingChoice *choices, qsizetype choiceCount)
     {
         SettingSpec spec { key, group, title, description, type, "", SettingTarget::External,
             type == SettingType::Select ? SettingNormalizer::Choice : SettingNormalizer::String };
@@ -102,6 +102,12 @@ namespace {
         spec.choiceCount = choiceCount;
         spec.persisted = false;
         return spec;
+    }
+
+    SettingSpec pageSpec(
+        const char *key, const char *group, const char *title, const char *description, SettingType type)
+    {
+        return pageSpec(key, group, title, description, type, nullptr, 0);
     }
 
     template <size_t N>
