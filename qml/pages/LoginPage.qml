@@ -27,7 +27,10 @@ FocusScope {
 
     readonly property bool hasSavedPair: Session.accountProfiles.length > 0
     readonly property bool textInputActive: shell ? shell.textInputActive : Qt.inputMethod.visible
-    readonly property bool manualServerVisible: manualServerAddress.length > 0
+    readonly property string manualServerDraftAddress: String(manualServerDraft || "").trim()
+    readonly property bool manualServerVisible: manualServerDraftAddress.length > 0
+    readonly property bool manualServerVerified: manualServerVisible && manualProbeInput === manualServerDraftAddress
+                                                 && manualServerAddress.length > 0
     readonly property int contentWidth: Math.min(width - Metrics.pageMarginPx * 2, 1040)
     readonly property int tileSize: width >= 1920 ? Metrics.scaled(190) : width >= 1280 ? Metrics.scaled(164) :
                                                                                           Metrics.scaled(152)
@@ -35,6 +38,9 @@ FocusScope {
     readonly property string chosenServerName: selectedServerName.length > 0 ? selectedServerName : savedServerName
     readonly property string chosenServerAddress: selectedServerAddress.length > 0 ? selectedServerAddress : Session
                                                                                      ? Session.serverUrl : ""
+    readonly property bool canNavigateBack: Boolean(shell && shell.canCancelSwitchUser) || (addMode && (hasSavedPair
+                                                                                                        || addStep
+                                                                                                        === 2))
 
     focus: true
     function firstInitial(value) {
@@ -114,7 +120,7 @@ FocusScope {
     }
 
     function chooseManualServer() {
-        if (!manualServerVisible || manualServerStatus.indexOf("Online") !== 0)
+        if (!manualServerVerified || manualServerStatus.indexOf("Online") !== 0)
             return
         selectedServerName = savedServerName
         selectedServerAddress = manualServerAddress
@@ -173,6 +179,8 @@ FocusScope {
             showProfiles()
             return true
         }
+        if (!addMode && shell && shell.canCancelSwitchUser)
+            return shell.cancelSwitchUser()
         return false
     }
 
@@ -272,7 +280,7 @@ FocusScope {
         else if (control === addAccountTile)
             openAddAccount()
         else if (control === manualServerCard)
-            chooseManualServer()
+            manualServerVerified ? chooseManualServer() : submitManualServer()
         else if (control === discoveredList && discoveredList.currentItem)
             discoveredList.currentItem.accepted()
         else if (control === urlRow || control === usernameRow || control === passwordRow)
@@ -336,6 +344,19 @@ FocusScope {
     Rectangle {
         anchors.fill: parent
         color: Theme.bg
+    }
+
+    IconButton {
+        id: backButton
+        anchors.left: parent.left
+        anchors.top: parent.top
+        anchors.margins: Metrics.pageMarginPx
+        width: 46
+        height: 46
+        iconName: "arrow_back"
+        visible: root.canNavigateBack
+        onClicked: root.back()
+        z: 2
     }
 
     Item {
@@ -419,26 +440,6 @@ FocusScope {
         anchors.fill: parent
         visible: root.addMode
 
-        IconButton {
-            id: backButton
-            anchors.left: parent.left
-            anchors.top: parent.top
-            anchors.leftMargin: Metrics.pageMarginPx
-            anchors.topMargin: 64
-            width: 46
-            height: 46
-            iconName: "arrow_back"
-            visible: root.hasSavedPair || root.addStep === 2
-            onClicked: {
-                if (root.addStep === 2) {
-                    root.addStep = 1
-                    Qt.callLater(root.focusServerStep)
-                } else {
-                    root.showProfiles()
-                }
-            }
-        }
-
         ColumnLayout {
             id: serverStep
             visible: root.addStep === 1
@@ -467,6 +468,7 @@ FocusScope {
             TextFieldRow {
                 id: urlRow
                 Layout.fillWidth: true
+                Layout.topMargin: Metrics.scaled(20)
                 label: "URL"
                 placeholderText: "192.168.1.10:8096 or https://jellyfin.example.com"
                 text: root.manualServerDraft
@@ -478,20 +480,32 @@ FocusScope {
             ServerChoice {
                 id: manualServerCard
                 Layout.fillWidth: true
+                Layout.topMargin: Metrics.scaled(4)
                 visible: root.manualServerVisible
                 focus: false
-                title: root.selectedServerName.length > 0 ? root.selectedServerName : root.savedServerName
-                address: root.manualServerAddress
-                status: root.manualServerStatus
-                detail: root.manualServerVersion
-                selectable: root.manualServerStatus.indexOf("Online") === 0
-                onAccepted: root.chooseManualServer()
+                title: root.manualServerVerified && root.selectedServerName.length > 0 ? root.selectedServerName :
+                                                                                         "Entered address"
+                serverAddress: root.manualServerVerified ? root.manualServerAddress : root.manualServerDraftAddress
+                status: root.manualServerVerified ? root.manualServerStatus : "Press Enter to check"
+                detail: root.manualServerVerified ? root.manualServerVersion : ""
+                selectable: root.manualServerVerified && root.manualServerStatus.indexOf("Online") === 0
+                onAccepted: root.manualServerVerified ? root.chooseManualServer() : root.submitManualServer()
+            }
+
+            AppText {
+                Layout.fillWidth: true
+                Layout.topMargin: Metrics.scaled(30)
+                text: "On your network"
+                color: Theme.textSecondary
+                font.pixelSize: Metrics.bodySizePx
+                font.weight: Font.Medium
             }
 
             ListView {
                 id: discoveredList
                 Layout.fillWidth: true
-                Layout.preferredHeight: Math.min(390, Math.max(96, contentHeight))
+                visible: count > 0
+                Layout.preferredHeight: visible ? Math.min(390, Math.max(96, contentHeight)) : 0
                 clip: true
                 spacing: 10
                 focus: false
@@ -518,8 +532,8 @@ FocusScope {
                     required property bool online
 
                     width: discoveredList.width
+                    serverAddress: address
                     title: name.length > 0 ? name : root.savedServerName
-                    address: address
                     status: online ? "Online" : "Saved"
                     focused: ListView.isCurrentItem && discoveredList.activeFocus
                     onAccepted: root.chooseDiscoveredServer(index, title, address, online)
@@ -536,9 +550,9 @@ FocusScope {
 
             EmptyPlaceholder {
                 Layout.fillWidth: true
-                visible: discoveredList.count === 0 && !root.manualServerVisible
-                title: "No servers found"
-                detail: ""
+                visible: discoveredList.count === 0
+                title: "No local servers found"
+                detail: "You can still connect with the address above."
             }
         }
 
@@ -565,7 +579,7 @@ FocusScope {
                 id: chosenServerCard
                 Layout.fillWidth: true
                 title: root.chosenServerName
-                address: root.chosenServerAddress
+                serverAddress: root.chosenServerAddress
                 status: "Online"
                 onAccepted: {
                     root.addStep = 1
@@ -975,7 +989,7 @@ FocusScope {
         id: choice
 
         property string title: ""
-        property string address: ""
+        property string serverAddress: ""
         property string status: ""
         property string detail: ""
         property bool selectable: true
@@ -1023,7 +1037,7 @@ FocusScope {
 
                 SecondaryText {
                     Layout.fillWidth: true
-                    text: choice.address
+                    text: choice.serverAddress
                     color: Theme.textMuted
                     font.pixelSize: Metrics.metaSizePx + Metrics.scaled(3)
                     maximumLineCount: 1

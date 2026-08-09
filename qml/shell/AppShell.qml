@@ -14,6 +14,11 @@ KeyRouter {
     readonly property string route: Router.route
     readonly property var routeArgs: Router.args || ({})
     property bool diagnosticsVisible: false
+    property string switchUserReturnProfileId: ""
+    property string switchUserReturnRoute: ""
+    property var switchUserReturnArgs: ({})
+    property bool switchUserReturnPending: false
+    readonly property bool canCancelSwitchUser: switchUserReturnProfileId.length > 0
     property bool mediaInfoVisible: false
     property bool itemMenuLoaded: false
     property int uiScaleShortcutKey: 0
@@ -196,6 +201,12 @@ KeyRouter {
     Connections {
         target: Session
         function onAuthenticatedStateChanged() {
+            if (Session.authenticated && root.switchUserReturnPending) {
+                root.completeSwitchUserReturn()
+                return
+            }
+            if (Session.authenticated)
+                root.clearSwitchUserReturn()
             if (Session.authenticated && root.restoreRecoveredRoute())
                 return
             if (Session.authenticated)
@@ -363,10 +374,43 @@ KeyRouter {
     }
 
     function switchUser() {
+        switchUserReturnProfileId = Session.activeProfileId
+        switchUserReturnRoute = route
+        switchUserReturnArgs = Object.assign({}, routeArgs)
+        switchUserReturnPending = false
         Router.reset("login")
         App.switchUser()
         navigationTarget = routeStack
         InputKeys.focus(routeStack)
+    }
+
+    function cancelSwitchUser() {
+        if (!canCancelSwitchUser)
+            return false
+        if (switchUserReturnPending)
+            return true
+        switchUserReturnPending = true
+        App.useProfile(switchUserReturnProfileId)
+        return true
+    }
+
+    function completeSwitchUserReturn() {
+        if (!switchUserReturnPending || !Session.authenticated)
+            return false
+        const returnRoute = switchUserReturnRoute
+        const returnArgs = switchUserReturnArgs
+        clearSwitchUserReturn()
+        Router.reset(returnRoute, returnArgs)
+        navigationTarget = routeStack
+        InputKeys.focus(routeStack)
+        return true
+    }
+
+    function clearSwitchUserReturn() {
+        switchUserReturnProfileId = ""
+        switchUserReturnRoute = ""
+        switchUserReturnArgs = ({})
+        switchUserReturnPending = false
     }
 
     function releaseTextInput() {
