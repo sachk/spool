@@ -2,6 +2,7 @@ pragma ComponentBehavior: Bound
 
 import QtQuick
 import QtQuick.Layouts
+import QtQuick.Shapes
 import "../theme"
 import "../primitives"
 import "LibraryNavigation.js" as LibraryNavigation
@@ -1021,7 +1022,11 @@ FocusScope {
                 model: Browse.items
                 leftMargin: focusPadding
                 rightMargin: focusPadding + Math.max(Metrics.scaled(10), 10) + Metrics.scaled(6)
-                cellWidth: Math.floor((width - leftMargin - rightMargin - Metrics.gapPx * (columns - 1)) / columns)
+                // Each cell carries its own trailing gap (delegates are
+                // cellWidth - gapPx), so the track must not be charged for the
+                // gaps a second time: divide the whole run evenly and let the
+                // posters grow into the space the double count used to waste.
+                cellWidth: Math.floor((width - leftMargin - rightMargin) / columns)
                 cellHeight: root.listMode ? Metrics.scaled(root.largeZoom ? 60 : 54) : cellWidth * 1.5 + Metrics.scaled(
                                                 64)
 
@@ -1064,6 +1069,9 @@ FocusScope {
                     anchors.right: parent.right
                     anchors.bottom: parent.bottom
                     width: Math.ceil(Math.max(Metrics.scaled(10), 10) * 3)
+                    // Above the delegate MouseArea below, which fills the view
+                    // and would otherwise grab every press over the bar.
+                    z: 4
                     flickable: grid
                     interactive: !Platform.isTV
                     minimumSize: 0.04
@@ -1148,35 +1156,91 @@ FocusScope {
                     repeat: false
                 }
 
-                Rectangle {
+                // Scrub letter callout: rounded on its left, top and bottom, with
+                // no right edge — the top-right and bottom-right shoulders funnel
+                // into the scroll bar so the tag reads as emanating from it.
+                Shape {
+                    id: alphabetCallout
+
+                    readonly property real stroke: Math.max(2, Metrics.scaled(2))
+                    readonly property real inset: stroke / 2
+                    readonly property real cornerRadius: Metrics.scaled(12)
+                    readonly property real neckWidth: Metrics.scaled(16)
+                    readonly property real mouthHalf: Metrics.scaled(13)
+                    readonly property real bodyRight: width - neckWidth
+                    readonly property real midY: height / 2
                     readonly property real desiredY: libraryScrollBar.handleCenterY - height / 2
-                    anchors.right: libraryScrollBar.horizontalCenter
+
+                    anchors.right: libraryScrollBar.right
+                    anchors.rightMargin: libraryScrollBar.visualWidth
                     y: Math.max(0, Math.min(grid.height - height, desiredY))
-                    width: Metrics.scaled(52)
+                    width: Metrics.scaled(52) + neckWidth
                     height: Metrics.scaled(48)
-                    radius: Metrics.scaled(2)
-                    color: Theme.accentPanel
-                    border.width: Math.max(1, Metrics.scaled(1))
-                    border.color: Theme.accent
                     opacity: alphabetFeedback.running || libraryScrollBar.pressed ? 1 : 0
                     visible: opacity > 0
+                    preferredRendererType: Shape.CurveRenderer
                     z: 21
 
-                    Rectangle {
-                        anchors.left: parent.right
-                        anchors.leftMargin: -parent.border.width
-                        anchors.verticalCenter: parent.verticalCenter
-                        width: Metrics.scaled(14)
-                        height: Metrics.scaled(18)
-                        radius: 0
-                        color: Theme.accentPanel
-                        border.width: parent.border.width
-                        border.color: Theme.accent
-                        z: -1
+                    // The stroke runs mouth -> top -> left -> bottom -> mouth and
+                    // stops there; only the fill closes the contour across the
+                    // bar, which is what leaves the right edge open.
+                    ShapePath {
+                        fillColor: Theme.accentPanel
+                        strokeColor: Theme.accent
+                        strokeWidth: alphabetCallout.stroke
+                        capStyle: ShapePath.FlatCap
+                        joinStyle: ShapePath.RoundJoin
+                        startX: alphabetCallout.width
+                        startY: alphabetCallout.midY - alphabetCallout.mouthHalf
+
+                        PathCubic {
+                            control1X: alphabetCallout.width - alphabetCallout.neckWidth * 0.35
+                            control1Y: alphabetCallout.midY - alphabetCallout.mouthHalf
+                            control2X: alphabetCallout.bodyRight + alphabetCallout.neckWidth * 0.55
+                            control2Y: alphabetCallout.inset
+                            x: alphabetCallout.bodyRight
+                            y: alphabetCallout.inset
+                        }
+                        PathLine {
+                            x: alphabetCallout.cornerRadius + alphabetCallout.inset
+                            y: alphabetCallout.inset
+                        }
+                        PathArc {
+                            radiusX: alphabetCallout.cornerRadius
+                            radiusY: alphabetCallout.cornerRadius
+                            direction: PathArc.Counterclockwise
+                            x: alphabetCallout.inset
+                            y: alphabetCallout.cornerRadius + alphabetCallout.inset
+                        }
+                        PathLine {
+                            x: alphabetCallout.inset
+                            y: alphabetCallout.height - alphabetCallout.cornerRadius - alphabetCallout.inset
+                        }
+                        PathArc {
+                            radiusX: alphabetCallout.cornerRadius
+                            radiusY: alphabetCallout.cornerRadius
+                            direction: PathArc.Counterclockwise
+                            x: alphabetCallout.cornerRadius + alphabetCallout.inset
+                            y: alphabetCallout.height - alphabetCallout.inset
+                        }
+                        PathLine {
+                            x: alphabetCallout.bodyRight
+                            y: alphabetCallout.height - alphabetCallout.inset
+                        }
+                        PathCubic {
+                            control1X: alphabetCallout.bodyRight + alphabetCallout.neckWidth * 0.55
+                            control1Y: alphabetCallout.height - alphabetCallout.inset
+                            control2X: alphabetCallout.width - alphabetCallout.neckWidth * 0.35
+                            control2Y: alphabetCallout.midY + alphabetCallout.mouthHalf
+                            x: alphabetCallout.width
+                            y: alphabetCallout.midY + alphabetCallout.mouthHalf
+                        }
                     }
 
                     AppText {
-                        anchors.centerIn: parent
+                        anchors.verticalCenter: parent.verticalCenter
+                        anchors.horizontalCenter: parent.horizontalCenter
+                        anchors.horizontalCenterOffset: -alphabetCallout.neckWidth / 2
                         text: root.currentAlphabetLabel
                         font.pixelSize: Metrics.scaled(26)
                         font.weight: Font.Bold

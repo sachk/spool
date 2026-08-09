@@ -756,6 +756,7 @@ if(BUILD_TESTING AND NOT CMAKE_CROSSCOMPILING)
             atomic-view-reveal tests/qml/tst_AtomicViewReveal.qml
             input-latency-warning tests/qml/tst_InputLatencyWarning.qml
             player-seek-bar-hover tests/qml/tst_PlayerSeekBarHover.qml
+            list-scroll-bar tests/qml/tst_ListScrollBar.qml
         )
         # The subtitle panel test has never run on macOS; it was narrowed to
         # Windows alone while chasing that, which silently dropped Linux too.
