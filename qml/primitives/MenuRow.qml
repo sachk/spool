@@ -94,7 +94,7 @@ Item {
                 Layout.fillWidth: true
                 text: root.label
                 color: root.actionable || root.highlighted ? Theme.textPrimary : Theme.textSecondary
-                font.pixelSize: root.compact ? Metrics.metaSizePx + 2 : Metrics.bodySizePx
+                font.pixelSize: root.compact ? Metrics.metaSizePx + 2 : Metrics.bodySizePx + Metrics.scaled(2)
                 font.weight: root.highlighted ? Font.DemiBold : Font.Medium
                 maximumLineCount: 1
                 elide: Text.ElideRight
@@ -104,7 +104,7 @@ Item {
                 visible: root.detail.length > 0
                 text: root.detail
                 color: Theme.textMuted
-                font.pixelSize: Metrics.metaSizePx - 1
+                font.pixelSize: root.compact ? Metrics.metaSizePx - 1 : Metrics.metaSizePx + Metrics.scaled(1)
                 maximumLineCount: 1
                 elide: Text.ElideRight
             }
@@ -152,7 +152,7 @@ Item {
                     visible: !root.stepperEditable
                     text: root.stepperText
                     color: root.stepperEnabled ? Theme.textPrimary : Theme.textSecondary
-                    font.pixelSize: root.compact ? Metrics.metaSizePx + 2 : Metrics.bodySizePx
+                    font.pixelSize: root.compact ? Metrics.metaSizePx + 2 : Metrics.bodySizePx + Metrics.scaled(2)
                     font.weight: Font.DemiBold
                     horizontalAlignment: Text.AlignHCenter
                     verticalAlignment: Text.AlignVCenter
@@ -171,7 +171,7 @@ Item {
                     selectedTextColor: Theme.textPrimary
                     font.family: Typography.sans
                     font.hintingPreference: Typography.sansHinting
-                    font.pixelSize: root.compact ? Metrics.metaSizePx + 2 : Metrics.bodySizePx
+                    font.pixelSize: root.compact ? Metrics.metaSizePx + 2 : Metrics.bodySizePx + Metrics.scaled(2)
                     font.weight: Font.Normal
                     horizontalAlignment: Text.AlignHCenter
                     verticalAlignment: Text.AlignVCenter

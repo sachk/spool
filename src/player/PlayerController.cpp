@@ -940,6 +940,16 @@ void PlayerController::play(const PlaybackSession& session, bool startPaused)
         return;
     }
     auto *handle = m_mpvLifecycle.handle();
+    // An idle-prepared mpv was configured before this session's HDR policy
+    // was known. Reapply subtitle options now so HDR paperwhite is correct
+    // from the first rendered subtitle, not only after a settings change.
+    if (!applyMpvSubtitleOptions(MpvOptionApplyMode::Runtime, handle)) {
+        m_mpvLifecycle.cancelFileLoad();
+        m_errorText = QStringLiteral("libmpv rejected the subtitle appearance.");
+        stopProgressReporting(true);
+        return;
+    }
+
     m_mpvLifecycle.beginFileLoad();
 
     // SyncPlay queue preparation must never emit audio or advance the

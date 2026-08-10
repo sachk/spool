@@ -388,8 +388,8 @@ Item {
 
         Surface {
             id: menuPanel
-            width: menuDialog.dropdown ? root.dp(360) : Math.min(parent.width - root.dp(96), root.dp(620))
-            height: Math.min(parent.height - root.dp(96), menuBody.implicitHeight + menuBody.anchors.margins * 2)
+            width: menuDialog.dropdown ? root.dp(360) : Math.min(parent.width - root.dp(64), root.dp(760))
+            height: Math.min(parent.height - root.dp(64), menuBody.implicitHeight + menuBody.anchors.margins * 2)
             // Centre on the button rather than hanging off the screen edge,
             // clamped so the panel stays inside a narrow window.
             x: {
@@ -444,10 +444,10 @@ Item {
                 MenuListView {
                     id: menuList
                     Layout.fillWidth: true
-                    // The dropdown is short enough to show every option, and a
-                    // list that scrolls beside its own button reads as broken.
+                    // The TV sheet has room for every playback setting; only
+                    // unusually long track and queue menus need to scroll.
                     Layout.preferredHeight: !visible ? 0 : menuDialog.dropdown ? contentHeight : Math.min(contentHeight, root.dp(
-                                                                                                              360))
+                                                                                                              480))
                     visible: count > 0
                     model: root.overlay.menuOptions
                     onDismissed: root.overlay.closeMenu()
