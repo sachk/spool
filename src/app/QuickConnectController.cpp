@@ -29,9 +29,9 @@ QString QuickConnectController::code() const
     return m_code;
 }
 
-QString QuickConnectController::status() const
+QString QuickConnectController::phase() const
 {
-    return m_status;
+    return m_phase;
 }
 
 bool QuickConnectController::active() const
@@ -70,7 +70,7 @@ void QuickConnectController::start(const QString& serverUrl)
                     emit busyChanged(false, {});
                     m_code = result.value(QStringLiteral("Code")).toString();
                     m_secret = result.value(QStringLiteral("Secret")).toString();
-                    m_status = QStringLiteral("Waiting for authorization…");
+                    m_phase = QStringLiteral("user");
                     m_pollAttempts = 0;
                     m_pollErrors = 0;
                     emit changed();
@@ -102,7 +102,7 @@ void QuickConnectController::cancel()
     m_pollTimer.stop();
     m_code.fill(QLatin1Char('\0'));
     m_code.clear();
-    m_status.clear();
+    m_phase.clear();
     m_secret.fill(QLatin1Char('\0'));
     m_secret.clear();
     m_pollAttempts = 0;
@@ -137,7 +137,7 @@ void QuickConnectController::poll()
                 return;
 
             m_pollTimer.stop();
-            m_status = QStringLiteral("Authorized. Signing in…");
+            m_phase = QStringLiteral("server");
             emit changed();
 
             Async::runScoped(
@@ -172,11 +172,8 @@ void QuickConnectController::poll()
                 emit errorOccurred(message);
                 return;
             }
-
-            if (!m_secret.isEmpty()) {
-                m_status = QStringLiteral("Waiting for authorization…");
-                emit changed();
-            }
+            // A transient poll failure changes nothing the screen shows: the
+            // flow is still waiting on the user to approve the code.
         });
 }
 

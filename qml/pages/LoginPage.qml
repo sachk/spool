@@ -14,79 +14,45 @@ FocusScope {
     property int addStep: Session.profileSignInRequired ? 2 : 1
     property string selectedServerName: Session.serverName
     property string selectedServerAddress: Session.serverUrl
-    property string manualServerDraft: ""
-    property string manualServerAddress: ""
-    property string manualServerStatus: ""
-    property string manualServerVersion: ""
-    property string manualProbeInput: ""
-    property string profileActionMode: ""
-    property string profileActionId: ""
-    property Item profileActionAnchor: null
-    property string profileActionName: ""
-    property string profileActionUrl: ""
     property Item backReturnControl: null
 
-    readonly property bool hasSavedPair: Session.accountProfiles.length > 0
-    readonly property bool textInputActive: shell ? shell.textInputActive : Qt.inputMethod.visible
-    readonly property string manualServerDraftAddress: String(manualServerDraft || "").trim()
-    readonly property bool manualServerVisible: manualServerDraftAddress.length > 0
-    readonly property bool manualServerVerified: manualServerVisible && manualProbeInput === manualServerDraftAddress
-                                                 && manualServerAddress.length > 0
+    // Live probe of whatever is in the address field. `probeInput` is the text
+    // handed to Discovery, so comparing it with the current draft tells us
+    // whether the result on screen still describes what the user has typed.
+    property string manualDraft: ""
+    property string probeInput: ""
+    // idle | checking | online | offline
+    property string probeState: "idle"
+    property string probeAddress: ""
+    property string probeServerName: ""
+    property string probeStatus: ""
+    property string probeDetail: ""
+    // Set when the user commits to an address that is still being checked, so
+    // the wait costs them nothing: the moment it answers, we move on.
+    property bool advanceWhenOnline: false
+
+    readonly property bool hasSavedAccounts: Session.accountProfiles.length > 0
+    // A real on-screen keyboard, not merely a focused field: on desktop the
+    // form must not rearrange itself the moment you click into it.
+    readonly property bool keyboardVisible: Qt.inputMethod.visible
+    readonly property string draftAddress: String(manualDraft || "").trim()
+    readonly property bool probeCardVisible: probeInput.length > 0 && probeInput === draftAddress
+    readonly property bool probeOnline: probeCardVisible && probeState === "online"
     readonly property int contentWidth: Math.min(width - Metrics.pageMarginPx * 2, 1040)
     readonly property int tileSize: width >= 1920 ? Metrics.scaled(190) : width >= 1280 ? Metrics.scaled(164) :
                                                                                           Metrics.scaled(152)
-    readonly property string savedServerName: "Jellyfin Server"
-    readonly property string chosenServerName: selectedServerName.length > 0 ? selectedServerName : savedServerName
-    readonly property string chosenServerAddress: selectedServerAddress.length > 0 ? selectedServerAddress : Session
-                                                                                     ? Session.serverUrl : ""
-    readonly property bool canNavigateBack: Boolean(shell && shell.canCancelSwitchUser) || (addMode && (hasSavedPair
-                                                                                                        || addStep
-                                                                                                        === 2))
+    readonly property string fallbackServerName: "Jellyfin Server"
+    readonly property string chosenServerName: selectedServerName.length > 0 ? selectedServerName : fallbackServerName
+    readonly property string chosenServerAddress: selectedServerAddress.length > 0 ? selectedServerAddress :
+                                                                                     Session.serverUrl
+    readonly property bool canNavigateBack: Boolean(shell && shell.canCancelSwitchUser) || (addMode && (
+                                                                                                hasSavedAccounts
+                                                                                                || addStep === 2))
 
     focus: true
-    function firstInitial(value) {
-        const text = String(value || "").trim()
-        return text.length > 0 ? text.charAt(0).toUpperCase() : "?"
-    }
-
-    function profileTint(value) {
-        const palette = ["#1F4631", "#314026", "#243F46", "#3E3147", "#49352B", "#2D3D55"]
-        let hash = 0
-        const text = String(value || "")
-        for (let i = 0; i < text.length; ++i)
-            hash = ((hash << 5) - hash + text.charCodeAt(i)) | 0
-        return palette[Math.abs(hash) % palette.length]
-    }
 
     function enterProfile(profileId) {
         App.useProfile(profileId)
-    }
-    function openProfileActions(profileId, anchor, serverName, serverUrl) {
-        profileActionId = profileId
-        profileActionAnchor = anchor
-        profileActionName = serverName
-        profileActionUrl = serverUrl
-        profileActionMode = "menu"
-    }
-
-    function closeProfileActions() {
-        profileActionMode = ""
-        profileActionId = ""
-        profileActionAnchor = null
-        Qt.callLater(function () {
-            InputKeys.focus(profileList)
-        })
-    }
-
-    function chooseProfileAction(index) {
-        if (index === 0) {
-            Session.prepareProfileSignIn(profileActionId)
-            closeProfileActions()
-            addMode = true
-            addStep = 2
-            return
-        }
-        profileActionMode = index === 1 ? "edit" : "remove"
     }
 
     function openAddAccount() {
@@ -96,7 +62,7 @@ FocusScope {
     }
 
     function showProfiles() {
-        if (!hasSavedPair)
+        if (!hasSavedAccounts)
             return
         addMode = false
         Qt.callLater(function () {
@@ -104,44 +70,48 @@ FocusScope {
         })
     }
 
-    function submitManualServer() {
-        const address = String(manualServerDraft || "").trim()
-        if (address.length === 0)
+    // Reaching a server is the slow part of adding an account, so the field
+    // starts it as soon as the text names somewhere reachable. Enter still
+    // forces an attempt for addresses too unusual to recognise.
+    function probeDraft(force) {
+        const address = draftAddress
+        if (address.length === 0) {
+            clearProbe()
             return
-        manualProbeInput = address
-        manualServerAddress = address
-        manualServerStatus = "Checking"
-        manualServerVersion = ""
+        }
+        if (!force) {
+            if (address === probeInput)
+                return
+            if (!Discovery.looksLikeServerAddress(address)) {
+                clearProbe()
+                return
+            }
+        }
+        probeInput = address
+        probeAddress = address
+        advanceWhenOnline = false
+        probeServerName = ""
+        probeStatus = ""
+        probeDetail = ""
+        probeState = "checking"
         selectedServerName = ""
         selectedServerAddress = ""
         Discovery.probeServer(address)
-        Qt.callLater(function () {
-            InputKeys.focus(manualServerCard)
-        })
     }
 
-    function chooseManualServer() {
-        if (!manualServerVerified || manualServerStatus.indexOf("Online") !== 0)
-            return
-        selectedServerName = savedServerName
-        selectedServerAddress = manualServerAddress
-        App.rememberServer(selectedServerName, manualServerAddress)
-        addStep = 2
-        Qt.callLater(function () {
-            usernameRow.focusField()
-        })
+    function clearProbe() {
+        Discovery.cancelServerProbe()
+        probeInput = ""
+        advanceWhenOnline = false
+        probeState = "idle"
+        probeAddress = ""
+        probeServerName = ""
+        probeStatus = ""
+        probeDetail = ""
     }
 
-    function chooseDiscoveredServer(index, name, address, online) {
-        if (index < 0)
-            return
-        if (!online) {
-            manualServerDraft = address
-            submitManualServer()
-            return
-        }
-        App.chooseDiscoveredServer(index)
-        selectedServerName = name && name.length > 0 ? name : savedServerName
+    function useServer(name, address) {
+        selectedServerName = name && name.length > 0 ? name : fallbackServerName
         selectedServerAddress = address
         addStep = 2
         Qt.callLater(function () {
@@ -149,17 +119,42 @@ FocusScope {
         })
     }
 
+    // Enter or a click means "use this one", whatever the probe is doing. If
+    // the answer has not landed yet the intent is queued rather than refused.
+    function commitProbedServer() {
+        if (probeOnline) {
+            advanceWhenOnline = false
+            App.rememberServer(probeServerName, probeAddress)
+            useServer(probeServerName, probeAddress)
+            return
+        }
+        if (probeState !== "checking")
+            probeDraft(true)
+        advanceWhenOnline = probeState === "checking"
+    }
+
+    // Picking a server that is already listed goes straight to sign-in. A
+    // saved entry has been reached before, and re-checking it first would sit
+    // the user in front of a spinner to be told what the row already said.
+    function chooseDiscoveredServer(index, name, address) {
+        if (index < 0)
+            return
+        App.chooseDiscoveredServer(index)
+        useServer(name, address)
+    }
+
     function focusServerStep() {
         if (!addMode || addStep !== 1)
             return
-        if (manualServerVisible)
-            InputKeys.focus(manualServerCard)
+        if (probeCardVisible)
+            InputKeys.focus(probeCard)
         else if (discoveredList.count > 0) {
             if (discoveredList.currentIndex < 0)
                 discoveredList.currentIndex = 0
             InputKeys.focus(discoveredList)
         } else {
-            urlRow.focusRow()
+            // The row decides whether that means the caret or the D-pad stop.
+            addressRow.focusRow()
         }
     }
 
@@ -169,14 +164,14 @@ FocusScope {
     }
 
     function back() {
-        if (profileDialogLoader.item)
-            return profileDialogLoader.item.back()
+        if (profileDialogs.open)
+            return profileDialogs.back()
         if (addMode && addStep === 2) {
             addStep = 1
             Qt.callLater(focusServerStep)
             return true
         }
-        if (addMode && hasSavedPair) {
+        if (addMode && hasSavedAccounts) {
             showProfiles()
             return true
         }
@@ -190,9 +185,9 @@ FocusScope {
             return [profileList, addAccountTile]
         if (addStep === 2)
             return [chosenServerCard, usernameRow, passwordRow, signInButton, quickConnectButton]
-        const items = [urlRow]
-        if (manualServerVisible)
-            items.push(manualServerCard)
+        const items = [addressRow]
+        if (probeCardVisible)
+            items.push(probeCard)
         if (discoveredList.count > 0)
             items.push(discoveredList)
         return items
@@ -207,7 +202,7 @@ FocusScope {
     }
 
     function focusControl(item) {
-        if (item === urlRow || item === usernameRow || item === passwordRow)
+        if (item === addressRow || item === usernameRow || item === passwordRow)
             item.focusRow()
         else
             InputKeys.focus(item)
@@ -245,14 +240,6 @@ FocusScope {
             }
             return next.addFocused !== addWasFocused || next.profileIndex !== previousIndex
         }
-        if (current === profileList) {
-            const nextProfile = profileList.currentIndex + delta
-            if (nextProfile >= 0 && nextProfile < profileList.count) {
-                profileList.currentIndex = nextProfile
-                profileList.positionViewAtIndex(nextProfile, ListView.Contain)
-                return true
-            }
-        }
         if (current === discoveredList) {
             const next = discoveredList.currentIndex + delta
             if (next >= 0 && next < discoveredList.count) {
@@ -269,8 +256,8 @@ FocusScope {
     }
 
     function routeKey(key, phase, repeat) {
-        if (profileDialogLoader.item)
-            return profileDialogLoader.item.routeKey(key, phase, repeat)
+        if (profileDialogs.open)
+            return profileDialogs.routeKey(key, phase, repeat)
         if (InputKeys.isMedia(key) && phase === "press") {
             signIn()
             return true
@@ -311,8 +298,8 @@ FocusScope {
     }
 
     function activate() {
-        if (profileDialogLoader.item) {
-            profileDialogLoader.item.activate()
+        if (profileDialogs.open) {
+            profileDialogs.activate()
             return
         }
         if (backButton.activeFocus) {
@@ -324,11 +311,11 @@ FocusScope {
             enterProfile(profileList.currentItem.profileId)
         else if (control === addAccountTile)
             openAddAccount()
-        else if (control === manualServerCard)
-            manualServerVerified ? chooseManualServer() : submitManualServer()
+        else if (control === probeCard)
+            commitProbedServer()
         else if (control === discoveredList && discoveredList.currentItem)
             discoveredList.currentItem.accepted()
-        else if (control === urlRow || control === usernameRow || control === passwordRow)
+        else if (control === addressRow || control === usernameRow || control === passwordRow)
             control.focusField()
         else if (control === chosenServerCard) {
             addStep = 1
@@ -360,27 +347,31 @@ FocusScope {
         target: Discovery
 
         function onServerProbeSucceeded(input, server, version, plainHttp) {
-            if (input !== root.manualProbeInput)
+            if (input !== root.probeInput)
                 return
-            root.manualServerAddress = server.address
-            root.manualServerStatus = plainHttp ? "Online · HTTP" : "Online"
-            root.manualServerVersion = version
+            root.probeState = "online"
+            root.probeAddress = server.address
+            root.probeServerName = server.name
+            root.probeStatus = plainHttp ? "Online · HTTP" : "Online"
             root.selectedServerName = server.name
             root.selectedServerAddress = server.address
             Session.serverUrl = server.address
+            if (root.advanceWhenOnline)
+                root.commitProbedServer()
         }
 
         function onServerProbeFailed(input, message) {
-            if (input !== root.manualProbeInput)
+            if (input !== root.probeInput)
                 return
-            root.manualServerAddress = root.manualProbeInput
-            root.manualServerStatus = TlsTrust.pending ? "Certificate not trusted" : "Not found"
-            root.manualServerVersion = TlsTrust.pending ? TlsTrust.pendingFingerprint : message
+            root.probeState = "offline"
+            root.advanceWhenOnline = false
+            root.probeStatus = TlsTrust.pending ? "Not trusted" : "No server"
+            root.probeDetail = TlsTrust.pending ? TlsTrust.pendingFingerprint : message
         }
     }
 
     Component.onCompleted: Qt.callLater(function () {
-        if (hasSavedPair)
+        if (hasSavedAccounts)
             InputKeys.focus(profileList)
         else
             focusServerStep()
@@ -396,8 +387,8 @@ FocusScope {
         anchors.left: parent.left
         anchors.top: parent.top
         anchors.margins: Metrics.pageMarginPx
-        width: 46
-        height: 46
+        width: Metrics.scaled(46)
+        height: Metrics.scaled(46)
         iconName: "arrow_back"
         visible: root.canNavigateBack
         onClicked: root.back()
@@ -410,21 +401,6 @@ FocusScope {
         id: profileScreen
         anchors.fill: parent
         visible: !root.addMode
-
-        Column {
-            anchors.bottom: profileRow.top
-            anchors.bottomMargin: Metrics.scaled(30)
-            anchors.horizontalCenter: parent.horizontalCenter
-            spacing: Metrics.scaled(8)
-
-            AppText {
-                width: Math.min(root.contentWidth, Metrics.scaled(720))
-                text: "Who’s watching?"
-                font.pixelSize: Metrics.titleSizePx + Metrics.scaled(10)
-                font.weight: Font.DemiBold
-                horizontalAlignment: Text.AlignHCenter
-            }
-        }
 
         Row {
             id: profileRow
@@ -452,14 +428,13 @@ FocusScope {
 
                     tileSize: root.tileSize
                     username: String(modelData.userName || "Saved account")
-                    serverName: String(modelData.serverName || root.savedServerName)
+                    serverName: String(modelData.serverName || root.fallbackServerName)
                     serverAddress: String(modelData.serverHost || modelData.serverUrl || "")
-                    status: String(modelData.status || "")
-                    initial: root.firstInitial(username)
+                    needsSignIn: Boolean(modelData.needsAuthentication)
                     focused: ListView.isCurrentItem && profileList.activeFocus
                     onAccepted: root.enterProfile(profileId)
-                    onContextRequested: root.openProfileActions(profileId, this, serverName, String(modelData.serverUrl
-                                                                                                    || ""))
+                    onContextRequested: profileDialogs.show(profileId, this, serverName, String(modelData.serverUrl
+                                                                                                || ""))
                 }
             }
 
@@ -471,6 +446,7 @@ FocusScope {
                 onAccepted: root.openAddAccount()
             }
         }
+
         SecondaryText {
             anchors.top: profileRow.bottom
             anchors.topMargin: Metrics.scaled(18)
@@ -492,114 +468,198 @@ FocusScope {
             visible: root.addStep === 1
             anchors.horizontalCenter: parent.horizontalCenter
             anchors.top: parent.top
-            anchors.topMargin: Math.max(110, Math.round(parent.height * 0.21))
+            anchors.bottom: parent.bottom
+            // The heading is the first thing to give up its space: on a short
+            // window, and on a TV once the on-screen keyboard has taken the
+            // bottom half, the field and the results matter more.
+            anchors.topMargin: root.keyboardVisible ? Metrics.scaled(20) : Math.max(Metrics.scaled(32), Math.min(
+                                                                                        Math.round(parent.height * 0.16),
+                                                                                        Metrics.scaled(150)))
+            anchors.bottomMargin: Metrics.pageMarginPx
             width: root.contentWidth
-            spacing: 16
+            spacing: Metrics.scaled(16)
+
+            Behavior on anchors.topMargin {
+                enabled: !Theme.reducedMotion
+                NumberAnimation {
+                    duration: 180
+                    easing.type: Easing.OutCubic
+                }
+            }
 
             AppText {
                 Layout.fillWidth: true
+                Layout.bottomMargin: Metrics.scaled(12)
+                visible: !root.keyboardVisible
                 text: "Choose a server"
                 font.pixelSize: Metrics.titleSizePx + Metrics.scaled(8)
                 font.weight: Font.DemiBold
                 horizontalAlignment: Text.AlignHCenter
             }
 
-            SecondaryText {
-                Layout.fillWidth: true
-                text: "Select a discovered server or enter its address"
-                color: Theme.textSecondary
-                font.pixelSize: Metrics.bodySizePx
-                horizontalAlignment: Text.AlignHCenter
-            }
-
             TextFieldRow {
-                id: urlRow
+                id: addressRow
                 Layout.fillWidth: true
-                Layout.topMargin: Metrics.scaled(20)
-                label: "URL"
+                label: "Server address"
                 placeholderText: "192.168.1.10:8096 or https://jellyfin.example.com"
-                text: root.manualServerDraft
+                text: root.manualDraft
                 inputMethodHints: Qt.ImhUrlCharactersOnly | Qt.ImhNoPredictiveText | Qt.ImhNoAutoUppercase
-                onTextEdited: root.manualServerDraft = text
-                onAccepted: root.submitManualServer()
+                onTextEdited: text => {
+                    root.manualDraft = text
+                    probeDebounce.restart()
+                }
+                // Enter before the debounce has even fired still means "go":
+                // it starts the check and rides it in when it answers.
+                onAccepted: {
+                    probeDebounce.stop()
+                    root.commitProbedServer()
+                }
             }
 
-            ServerChoice {
-                id: manualServerCard
+            // Grows out of the field rather than appearing beneath it, so the
+            // results below slide once instead of jumping.
+            ServerCard {
+                id: probeCard
                 Layout.fillWidth: true
-                Layout.topMargin: Metrics.scaled(4)
-                visible: root.manualServerVisible
-                focus: false
-                title: root.manualServerVerified && root.selectedServerName.length > 0 ? root.selectedServerName :
-                                                                                         "Entered address"
-                serverAddress: root.manualServerVerified ? root.manualServerAddress : root.manualServerDraftAddress
-                status: root.manualServerVerified ? root.manualServerStatus : "Press Enter to check"
-                detail: root.manualServerVerified ? root.manualServerVersion : ""
-                selectable: root.manualServerVerified && root.manualServerStatus.indexOf("Online") === 0
-                onAccepted: root.manualServerVerified ? root.chooseManualServer() : root.submitManualServer()
-            }
-
-            AppText {
-                Layout.fillWidth: true
-                Layout.topMargin: Metrics.scaled(30)
-                text: "On your network"
-                color: Theme.textSecondary
-                font.pixelSize: Metrics.bodySizePx
-                font.weight: Font.Medium
-            }
-
-            ListView {
-                id: discoveredList
-                Layout.fillWidth: true
-                visible: count > 0
-                Layout.preferredHeight: visible ? Math.min(390, Math.max(96, contentHeight)) : 0
+                Layout.preferredHeight: root.probeCardVisible ? implicitHeight : 0
+                opacity: root.probeCardVisible ? 1 : 0
                 clip: true
-                spacing: 10
                 focus: false
-                keyNavigationEnabled: false
-                boundsBehavior: Flickable.StopAtBounds
-                model: DiscoveredServers
-                currentIndex: count > 0 ? 0 : -1
-                onCountChanged: {
-                    if (root.addMode && root.addStep === 1 && count > 0 && !urlRow.editing &&
-                        !manualServerCard.activeFocus)
-                    Qt.callLater(root.focusServerStep)
+                // Clickable while it is still checking too: committing early
+                // just queues the move rather than turning the click away.
+                selectable: root.probeOnline || root.probeState === "checking"
+                tone: root.probeState === "checking" ? "pending" : root.probeState === "online" ? "positive" :
+                                                                                                  "negative"
+
+                title: root.probeState === "online" && root.probeServerName.length > 0 ? root.probeServerName :
+                                                                                         root.probeAddress
+                serverAddress: root.probeState === "online" ? root.probeAddress : ""
+                status: root.probeState === "checking" ? "Connecting…" : root.probeStatus
+                detail: root.probeState === "offline" ? root.probeDetail : ""
+                onAccepted: {
+                    InputKeys.focus(probeCard)
+                    root.commitProbedServer()
                 }
-                onCurrentIndexChanged: if (currentIndex >= 0)
-                positionViewAtIndex(currentIndex, ListView.Contain)
 
-                FastWheelHandler {
-                    flickable: discoveredList
+                Behavior on Layout.preferredHeight {
+                    enabled: !Theme.reducedMotion
+                    NumberAnimation {
+                        duration: 160
+                        easing.type: Easing.OutCubic
+                    }
                 }
 
-                delegate: ServerChoice {
-                    required property int index
-                    required property string name
-                    required property string address
-                    required property bool online
+                Behavior on opacity {
+                    enabled: !Theme.reducedMotion
+                    NumberAnimation {
+                        duration: 160
+                    }
+                }
+            }
 
-                    width: discoveredList.width
-                    serverAddress: address
-                    title: name.length > 0 ? name : root.savedServerName
-                    status: online ? "Online" : "Saved"
-                    focused: ListView.isCurrentItem && discoveredList.activeFocus
-                    onAccepted: root.chooseDiscoveredServer(index, title, address, online)
+            RowLayout {
+                Layout.fillWidth: true
+                Layout.topMargin: Metrics.scaled(18)
+                spacing: Metrics.scaled(10)
 
-                    MouseArea {
-                        anchors.fill: parent
-                        onClicked: {
+                AppText {
+                    text: "On your network"
+                    color: Theme.textSecondary
+                    font.pixelSize: Metrics.bodySizePx
+                    font.weight: Font.Medium
+                }
+
+                Item {
+                    Layout.fillWidth: true
+                }
+            }
+
+            // The results keep their space whether or not anything has been
+            // found yet, so a server arriving mid-scan slides into a slot that
+            // was already there instead of shoving the page around.
+            Item {
+                id: discoveryBox
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+                Layout.minimumHeight: Metrics.scaled(96)
+                Layout.maximumHeight: Metrics.scaled(302)
+
+                ListView {
+                    id: discoveredList
+                    anchors.fill: parent
+                    visible: count > 0
+                    clip: true
+                    spacing: Metrics.scaled(10)
+                    focus: false
+                    keyNavigationEnabled: false
+                    boundsBehavior: Flickable.StopAtBounds
+                    model: DiscoveredServers
+                    currentIndex: count > 0 ? 0 : -1
+                    onCountChanged: {
+                        if (root.addMode && root.addStep === 1 && count > 0 && !addressRow.editing &&
+                            !probeCard.activeFocus)
+                        Qt.callLater(root.focusServerStep)
+                    }
+                    onCurrentIndexChanged: if (currentIndex >= 0)
+                    positionViewAtIndex(currentIndex, ListView.Contain)
+
+                    FastWheelHandler {
+                        flickable: discoveredList
+                    }
+
+                    delegate: ServerCard {
+                        required property int index
+                        required property string name
+                        required property string address
+                        required property bool online
+
+                        width: discoveredList.width
+                        title: name.length > 0 ? name : root.fallbackServerName
+                        serverAddress: address
+                        status: online ? "Online" : "Saved"
+                        tone: online ? "positive" : "neutral"
+                        focused: ListView.isCurrentItem && discoveredList.activeFocus
+                        onAccepted: {
                             discoveredList.currentIndex = index
-                            root.chooseDiscoveredServer(index, title, address, online)
+                            InputKeys.focus(discoveredList)
+                            root.chooseDiscoveredServer(index, title, address)
+                        }
+                    }
+                }
+
+                Rectangle {
+                    anchors.fill: parent
+                    visible: discoveredList.count === 0
+                    radius: Theme.radiusMedium
+                    color: "transparent"
+                    border.width: 1
+                    border.color: Theme.border
+
+                    Column {
+                        anchors.centerIn: parent
+                        spacing: Metrics.scaled(6)
+
+                        MaterialIcon {
+                            anchors.horizontalCenter: parent.horizontalCenter
+                            name: Discovery.active ? "wifi_tethering" : "wifi_off"
+                            iconSize: Metrics.scaled(26)
+                            iconColor: Theme.textDisabled
+                        }
+
+                        SecondaryText {
+                            anchors.horizontalCenter: parent.horizontalCenter
+                            text: Discovery.active ? "Looking for servers" : "No servers found here"
+                            color: Theme.textMuted
+                            font.pixelSize: Metrics.metaSizePx + Metrics.scaled(1)
                         }
                     }
                 }
             }
 
-            EmptyPlaceholder {
-                Layout.fillWidth: true
-                visible: discoveredList.count === 0
-                title: "No local servers found"
-                detail: "You can still connect with the address above."
+            Timer {
+                id: probeDebounce
+                interval: 450
+                onTriggered: root.probeDraft(false)
             }
         }
 
@@ -622,13 +682,14 @@ FocusScope {
                 horizontalAlignment: Text.AlignHCenter
             }
 
-            ServerChoice {
+            ServerCard {
                 id: chosenServerCard
                 Layout.fillWidth: true
                 title: root.chosenServerName
                 serverAddress: root.chosenServerAddress
-                status: "Online"
+                status: "Change"
                 onAccepted: {
+                    InputKeys.focus(chosenServerCard)
                     root.addStep = 1
                     Qt.callLater(root.focusServerStep)
                 }
@@ -638,10 +699,9 @@ FocusScope {
                 id: usernameRow
                 Layout.fillWidth: true
                 label: "Username"
-                placeholderText: "Username"
                 text: Session.username
                 inputMethodHints: Qt.ImhNoPredictiveText | Qt.ImhNoAutoUppercase
-                onTextEdited: Session.username = text
+                onTextEdited: text => Session.username = text
                 onAccepted: passwordRow.focusField()
             }
 
@@ -649,17 +709,16 @@ FocusScope {
                 id: passwordRow
                 Layout.fillWidth: true
                 label: "Password"
-                placeholderText: "Password"
                 text: Session.password
                 echoMode: TextInput.Password
                 inputMethodHints: Qt.ImhSensitiveData | Qt.ImhNoPredictiveText
-                onTextEdited: Session.password = text
+                onTextEdited: text => Session.password = text
                 onAccepted: InputKeys.focus(signInButton)
             }
 
             RowLayout {
                 Layout.fillWidth: true
-                spacing: 12
+                spacing: Metrics.scaled(12)
 
                 ActionButton {
                     id: signInButton
@@ -690,432 +749,52 @@ FocusScope {
 
             Surface {
                 Layout.fillWidth: true
-                Layout.preferredHeight: Metrics.scaled(118)
+                Layout.preferredHeight: quickConnectPanel.implicitHeight + Metrics.scaled(40)
                 visible: QuickConnect.active
                 baseColor: Theme.accentPanel
 
-                Column {
-                    anchors.centerIn: parent
-                    spacing: 6
-
-                    AppText {
-                        anchors.horizontalCenter: parent.horizontalCenter
-                        text: QuickConnect.code
-                        font.pixelSize: 32
-                        font.weight: Font.Bold
-                    }
-
-                    AppText {
-                        anchors.horizontalCenter: parent.horizontalCenter
-                        text: "Log in from another device"
-                        color: Theme.textSecondary
-                        font.pixelSize: Metrics.scaled(16)
-                    }
-
-                    SecondaryText {
-                        anchors.horizontalCenter: parent.horizontalCenter
-                        text: QuickConnect.status
-                        color: Theme.textSecondary
-                    }
-                }
-            }
-        }
-    }
-
-    Loader {
-        id: profileDialogLoader
-        anchors.fill: parent
-        active: root.profileActionMode.length > 0
-        z: 200
-        sourceComponent: root.profileActionMode === "menu" ? profileActionMenu : root.profileActionMode === "remove"
-                                                             ? removeProfileDialog : editProfileDialog
-    }
-
-    Component {
-        id: profileActionMenu
-
-        OptionPickerDialog {
-            title: "Account actions"
-            options: ["Sign in again", "Edit server", "Remove from this device"]
-            currentIndex: 0
-            anchorItem: root.profileActionAnchor
-            onSelected: index => root.chooseProfileAction(index)
-            onDismissed: root.closeProfileActions()
-        }
-    }
-
-    Component {
-        id: removeProfileDialog
-
-        ConfirmationDialog {
-            title: "Remove " + root.profileActionName + "?"
-            message: "This removes the saved account and token for " + root.profileActionName
-                     + " on this device. Other accounts are unchanged."
-            confirmText: "Remove"
-            destructive: true
-            onAccepted: {
-                Session.removeProfile(root.profileActionId)
-                root.closeProfileActions()
-                if (Session.accountProfiles.length === 0)
-                root.openAddAccount()
-            }
-            onDismissed: root.closeProfileActions()
-        }
-    }
-
-    Component {
-        id: editProfileDialog
-
-        FocusScope {
-            id: editDialog
-            anchors.fill: parent
-            focus: true
-
-            function routeKey(key, phase, repeat) {
-                if (InputKeys.isBack(key, false, false)) {
-                    if (phase === "release")
-                        root.closeProfileActions()
-                    return true
-                }
-                if (!InputKeys.isDirection(key))
-                    return InputKeys.isAccept(key)
-                if (phase !== "press")
-                    return true
-                const controls = [nameField, addressField, cancelEditButton, saveEditButton]
-                let index = nameField.activeFocus ? 0 : addressField.activeFocus ? 1 : cancelEditButton.activeFocus ? 2 :
-                                                                                                                      3
-                if (key === Qt.Key_Down || key === Qt.Key_Right)
-                    index = Math.min(controls.length - 1, index + 1)
-                else if (key === Qt.Key_Up || key === Qt.Key_Left)
-                    index = Math.max(0, index - 1)
-                if (controls[index] === nameField || controls[index] === addressField)
-                    controls[index].focusRow()
-                else
-                    InputKeys.focus(controls[index])
-                return true
-            }
-
-            function activate() {
-                if (saveEditButton.activeFocus)
-                    saveEditButton.clicked()
-                else if (cancelEditButton.activeFocus)
-                    root.closeProfileActions()
-            }
-
-            function back() {
-                root.closeProfileActions()
-                return true
-            }
-
-            Component.onCompleted: Qt.callLater(function () {
-                nameField.focusRow()
-            })
-
-            Rectangle {
-                anchors.fill: parent
-                color: "#99000000"
-            }
-
-            Surface {
-                anchors.centerIn: parent
-                width: Math.min(parent.width - Metrics.scaled(96), Metrics.scaled(620))
-                height: editContent.implicitHeight + Metrics.scaled(48)
-                elevated: true
-                baseColor: Theme.floatingPanel
-
                 ColumnLayout {
-                    id: editContent
-                    anchors.fill: parent
-                    anchors.margins: Metrics.scaled(24)
-                    spacing: Metrics.scaled(14)
+                    id: quickConnectPanel
+                    anchors.centerIn: parent
+                    width: Math.min(parent.width - Metrics.scaled(56), Metrics.scaled(420))
+                    spacing: Metrics.scaled(10)
+
+                    AppText {
+                        Layout.alignment: Qt.AlignHCenter
+                        text: QuickConnect.code
+                        font.pixelSize: Metrics.scaled(34)
+                        font.weight: Font.Bold
+                        font.letterSpacing: Metrics.scaled(6)
+                    }
 
                     AppText {
                         Layout.fillWidth: true
-                        text: "Edit server"
-                        font.pixelSize: Metrics.titleSizePx
-                        font.weight: Font.DemiBold
-                    }
-
-                    TextFieldRow {
-                        id: nameField
-                        Layout.fillWidth: true
-                        label: "Server label"
-                        text: root.profileActionName
-                        onTextEdited: root.profileActionName = text
-                    }
-
-                    TextFieldRow {
-                        id: addressField
-                        Layout.fillWidth: true
-                        label: "Server address"
-                        text: root.profileActionUrl
-                        inputMethodHints: Qt.ImhUrlCharactersOnly | Qt.ImhNoPredictiveText | Qt.ImhNoAutoUppercase
-                        onTextEdited: root.profileActionUrl = text
-                    }
-
-                    RowLayout {
-                        Layout.fillWidth: true
-                        spacing: Metrics.scaled(12)
-
-                        Item {
-                            Layout.fillWidth: true
-                        }
-
-                        ActionButton {
-                            id: cancelEditButton
-                            text: "Cancel"
-                            onClicked: root.closeProfileActions()
-                        }
-
-                        ActionButton {
-                            id: saveEditButton
-                            text: "Save"
-                            kind: "primary"
-                            onClicked: {
-                                Session.updateProfileServer(root.profileActionId, root.profileActionName,
-                                                            root.profileActionUrl)
-                                root.closeProfileActions()
-                            }
-                        }
+                        Layout.alignment: Qt.AlignHCenter
+                        text: QuickConnect.phase === "server" ? "Signing you in" :
+                                                                "Enter this code on a device you are already signed in on"
+                        color: Theme.textSecondary
+                        font.pixelSize: Metrics.scaled(15)
+                        horizontalAlignment: Text.AlignHCenter
+                        wrapMode: Text.WordWrap
                     }
                 }
             }
         }
     }
 
-    component ProfileTile: FocusScope {
-        id: tile
-
-        property int tileSize: Metrics.scaled(152)
-        property string username: ""
-        property string serverName: ""
-        property string serverAddress: ""
-        property string status: ""
-        property string initial: ""
-        property color avatarColor: "#1F4631"
-        property bool addTile: false
-        property bool focused: activeFocus
-        property bool pointerHovered: hover.hovered
-
-        signal accepted
-        signal contextRequested
-
-        width: tileSize
-        height: tileSize + Metrics.scaled(76)
-        focus: true
-        focusPolicy: Qt.StrongFocus
-        scale: focused && !Theme.reducedMotion ? 1.055 : 1.0
-
-        Behavior on scale {
-            enabled: !Theme.reducedMotion
-            NumberAnimation {
-                duration: 120
-                easing.type: Easing.OutCubic
-            }
+    LoginProfileDialogs {
+        id: profileDialogs
+        anchors.fill: parent
+        z: 200
+        onSignInAgainRequested: {
+            root.addMode = true
+            root.addStep = 2
         }
-
-        Rectangle {
-            id: avatar
-            anchors.top: parent.top
-            anchors.horizontalCenter: parent.horizontalCenter
-            width: tile.tileSize
-            height: tile.tileSize
-            radius: Theme.radiusMedium
-            color: tile.addTile ? Theme.bgRaised : tile.avatarColor
-            border.width: tile.focused ? 3 : tile.pointerHovered ? 1 : 0
-            border.color: tile.focused ? Theme.accent : Theme.borderStrong
-            antialiasing: true
-
-            AppText {
-                anchors.centerIn: parent
-                text: tile.addTile ? "+" : tile.initial
-                color: tile.addTile ? Theme.accent : Theme.textPrimary
-                font.pixelSize: tile.addTile ? Math.round(tile.tileSize * 0.34) : Math.round(tile.tileSize * 0.42)
-                font.weight: Font.DemiBold
-            }
-
-            Rectangle {
-                anchors.right: parent.right
-                anchors.top: parent.top
-                anchors.margins: Metrics.scaled(8)
-                width: Metrics.scaled(30)
-                height: width
-                radius: width / 2
-                visible: tile.status.length > 0
-                color: Theme.errorPanel
-                border.width: Theme.hoverBorderWidth
-                border.color: Theme.errorText
-
-                MaterialIcon {
-                    anchors.centerIn: parent
-                    name: "lock"
-                    iconSize: Metrics.scaled(17)
-                    iconColor: Theme.errorText
-                }
-            }
-        }
-
-        Rectangle {
-            anchors.top: avatar.bottom
-            anchors.topMargin: Metrics.scaled(8)
-            anchors.horizontalCenter: parent.horizontalCenter
-            width: tile.focused ? Math.round(tile.tileSize * 0.74) : 0
-            height: Metrics.scaled(3)
-            radius: Metrics.scaled(2)
-            color: Theme.accentAlternate
-            opacity: tile.focused ? 1 : 0
-
-            Behavior on width {
-                enabled: !Theme.reducedMotion
-                NumberAnimation {
-                    duration: 120
-                    easing.type: Easing.OutCubic
-                }
-            }
-        }
-
-        Column {
-            anchors.top: avatar.bottom
-            anchors.topMargin: Metrics.scaled(14)
-            anchors.left: parent.left
-            anchors.right: parent.right
-            spacing: Metrics.scaled(3)
-
-            AppText {
-                width: parent.width
-                text: tile.username
-                color: Theme.textPrimary
-                font.pixelSize: Metrics.scaled(18)
-                font.weight: Font.DemiBold
-                horizontalAlignment: Text.AlignHCenter
-                maximumLineCount: 1
-                elide: Text.ElideRight
-            }
-
-            AppText {
-                width: parent.width
-                visible: !tile.addTile
-                text: tile.serverName
-                color: Theme.textSecondary
-                font.pixelSize: Metrics.scaled(13)
-                font.weight: Font.Medium
-                horizontalAlignment: Text.AlignHCenter
-                maximumLineCount: 1
-                elide: Text.ElideRight
-            }
-
-            SecondaryText {
-                width: parent.width
-                visible: !tile.addTile
-                text: tile.serverAddress
-                color: Theme.textMuted
-                font.pixelSize: Metrics.scaled(11)
-                font.weight: Font.Medium
-                horizontalAlignment: Text.AlignHCenter
-                maximumLineCount: 1
-                elide: Text.ElideRight
-            }
-        }
-
-        MouseArea {
-            anchors.fill: parent
-            acceptedButtons: Qt.LeftButton | Qt.RightButton
-            onClicked: mouse => {
-                if (mouse.button === Qt.RightButton)
-                    tile.contextRequested()
-                else
-                    tile.accepted()
-            }
-            onPressAndHold: tile.contextRequested()
-        }
-
-        HoverHandler {
-            id: hover
-        }
-    }
-
-    component ServerChoice: FocusScope {
-        id: choice
-
-        property string title: ""
-        property string serverAddress: ""
-        property string status: ""
-        property string detail: ""
-        property bool selectable: true
-        property bool focused: activeFocus
-        property bool pointerHovered: hover.hovered
-
-        signal accepted
-
-        implicitHeight: Metrics.scaled(choice.detail.length > 0 ? 112 : 94)
-        focusPolicy: Qt.StrongFocus
-
-        Rectangle {
-            anchors.fill: parent
-            radius: Theme.radiusMedium
-            color: choice.focused ? Theme.accentPanel : Theme.bgRaised
-            border.width: choice.focused ? 3 : choice.pointerHovered ? 1 : 1
-            border.color: choice.focused ? Theme.accent : choice.pointerHovered ? Theme.borderStrong : Theme.border
-            opacity: choice.selectable ? 1.0 : 0.68
-            antialiasing: true
-        }
-
-        RowLayout {
-            anchors.fill: parent
-            anchors.margins: Metrics.scaled(18)
-            spacing: Metrics.scaled(16)
-
-            MaterialIcon {
-                name: "dns"
-                iconSize: Metrics.scaled(30)
-                iconColor: choice.focused ? Theme.accent : Theme.textSecondary
-            }
-
-            ColumnLayout {
-                Layout.fillWidth: true
-                spacing: Metrics.scaled(5)
-
-                AppText {
-                    Layout.fillWidth: true
-                    text: choice.title
-                    font.pixelSize: Metrics.bodySizePx + Metrics.scaled(3)
-                    font.weight: Font.Medium
-                    maximumLineCount: 1
-                    elide: Text.ElideRight
-                }
-
-                SecondaryText {
-                    Layout.fillWidth: true
-                    text: choice.serverAddress
-                    color: Theme.textMuted
-                    font.pixelSize: Metrics.metaSizePx + Metrics.scaled(3)
-                    maximumLineCount: 1
-                    elide: Text.ElideRight
-                }
-
-                SecondaryText {
-                    Layout.fillWidth: true
-                    visible: choice.detail.length > 0
-                    text: choice.detail
-                    color: Theme.textMuted
-                    font.pixelSize: Metrics.metaSizePx
-                    maximumLineCount: 1
-                    elide: Text.ElideRight
-                }
-            }
-
-            AppText {
-                text: choice.status
-                color: choice.status.indexOf("Online") === 0 ? Theme.success : choice.status === "Not found"
-                                                               ? Theme.errorText : Theme.textSecondary
-                font.pixelSize: Metrics.metaSizePx + Metrics.scaled(3)
-                font.weight: Font.Medium
-                maximumLineCount: 1
-            }
-        }
-
-        HoverHandler {
-            id: hover
-        }
+        onClosed: Qt.callLater(function () {
+            if (!root.addMode)
+                InputKeys.focus(profileList)
+            if (Session.accountProfiles.length === 0)
+                root.openAddAccount()
+        })
     }
 }

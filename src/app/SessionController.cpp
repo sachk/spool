@@ -81,10 +81,7 @@ QVariantList SessionController::accountProfiles() const
             { QStringLiteral("serverName"), profile.serverName }, { QStringLiteral("serverUrl"), profile.serverUrl },
             { QStringLiteral("serverHost"), host }, { QStringLiteral("userName"), profile.userName },
             { QStringLiteral("avatarTag"), profile.avatarTag },
-            { QStringLiteral("needsAuthentication"), profile.needsAuthentication || profile.accessToken.isEmpty() },
-            { QStringLiteral("status"),
-                profile.needsAuthentication || profile.accessToken.isEmpty() ? QStringLiteral("Authentication required")
-                                                                             : QString() } });
+            { QStringLiteral("needsAuthentication"), profile.needsAuthentication || profile.accessToken.isEmpty() } });
     }
     return result;
 }

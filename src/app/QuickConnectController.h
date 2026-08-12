@@ -13,14 +13,16 @@ class JellyfinApiFacade;
 class QuickConnectController final : public QObject {
     Q_OBJECT
     Q_PROPERTY(QString code READ code NOTIFY changed)
-    Q_PROPERTY(QString status READ status NOTIFY changed)
+    // Who the flow is waiting on: "user" until the code is approved elsewhere,
+    // "server" while the token is exchanged, empty when nothing is running.
+    Q_PROPERTY(QString phase READ phase NOTIFY changed)
     Q_PROPERTY(bool active READ active NOTIFY changed)
 
 public:
     explicit QuickConnectController(JellyfinApiFacade *api, QObject *parent = nullptr);
 
     QString code() const;
-    QString status() const;
+    QString phase() const;
     bool active() const;
 
     Q_INVOKABLE void start(const QString& serverUrl);
@@ -38,7 +40,7 @@ private:
     JellyfinApiFacade *m_api = nullptr;
     QTimer m_pollTimer;
     QString m_code;
-    QString m_status;
+    QString m_phase;
     QString m_secret;
     int m_pollAttempts = 0;
     int m_pollErrors = 0;

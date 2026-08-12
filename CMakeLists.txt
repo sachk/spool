@@ -365,6 +365,7 @@ qt_add_qml_module(jellyfin-native
         qml/pages/LibraryGridPage.qml
         qml/pages/LibraryNavigation.js
         qml/pages/LoginPage.qml
+        qml/pages/LoginProfileDialogs.qml
         qml/pages/ProfileNavigation.js
         qml/pages/OpenSourceNoticesPage.qml
         qml/pages/PersonDetailsPage.qml
@@ -407,7 +408,9 @@ qt_add_qml_module(jellyfin-native
         qml/primitives/NavGrid.qml
         qml/primitives/MaterialIcon.qml
         qml/primitives/PopupMenuPanel.qml
+        qml/primitives/ProfileTile.qml
         qml/primitives/SectionHeader.qml
+        qml/primitives/ServerCard.qml
         qml/primitives/SelectRow.qml
         qml/primitives/SettingRow.qml
         qml/primitives/SliderRow.qml
