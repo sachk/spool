@@ -203,6 +203,11 @@ jobs:
             experimental-features = nix-command flakes
             keep-env-derivations = true
             keep-outputs = true
+            # Relocking fetches every input afresh, and nixpkgs tarballs are
+            # large enough that the default five-second connect timeout trips
+            # on a slow runner.
+            connect-timeout = 30
+            download-attempts = 5
 
       - uses: nix-community/cache-nix-action@7df957e333c1e5da7721f60227dbba6d06080569 # v7.0.1
         with:
@@ -229,7 +234,16 @@ jobs:
         run: |
           revision="$(git -C mpv rev-parse HEAD)"
           mv flake.lock flake.lock.repository
-          nix flake lock --override-input mpv-src "git+file:$PWD/mpv?rev=$revision&shallow=1"
+          # Every input is refetched here, so a single dropped connection
+          # would otherwise fail the build before it starts compiling.
+          for attempt in 1 2 3; do
+            if nix flake lock --override-input mpv-src "git+file:$PWD/mpv?rev=$revision&shallow=1"; then
+              exit 0
+            fi
+            printf 'flake lock attempt %d failed; retrying\n' "$attempt" >&2
+            sleep $((attempt * 20))
+          done
+          exit 1
 
       - name: Build macOS app
         run: nix develop .#native --no-write-lock-file -c bash tools/build-macos.sh
