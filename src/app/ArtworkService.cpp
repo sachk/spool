@@ -519,6 +519,9 @@ QString ArtworkService::movieUrl(const MovieItem& item, const QString& kind, int
         }
         maxWidth = width > 0 ? width : 360;
         quality = 80;
+    } else if (kind == QStringLiteral("square")) {
+        maxWidth = width > 0 ? width : 320;
+        quality = 80;
     } else if (kind == QStringLiteral("landscape")) {
         if (!item.thumbTag.isEmpty()) {
             tag = item.thumbTag;

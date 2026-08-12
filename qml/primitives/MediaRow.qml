@@ -9,7 +9,7 @@ FocusScope {
     property string title: ""
     property var model
     property var shell
-    property string cardKind: "poster" // poster, landscape, library, or person
+    property string cardKind: "poster" // poster, square, landscape, library, or person
     property bool useSeriesPoster: false
     property bool preferEpisodeTitle: false
     property int cardWidth: Metrics.scaled(156)
@@ -30,8 +30,10 @@ FocusScope {
     readonly property int count: modelCount()
     readonly property bool rowVisible: enabledRow && (count > 0 || reserveWhenEmpty)
     readonly property bool posterCard: cardKind === "poster" || cardKind === "person"
+    readonly property bool squareCard: cardKind === "square"
+    readonly property real cardAspect: squareCard ? 1 : posterCard ? 1.5 : 9 / 16
     readonly property int headerHeight: Metrics.scaled(34)
-    readonly property int cardHeight: Math.round(cardWidth * (posterCard ? 1.5 : 9 / 16) + Metrics.scaled(60))
+    readonly property int cardHeight: Math.round(cardWidth * cardAspect + Metrics.scaled(60))
     readonly property int focusPadding: Math.max(2, Metrics.scaled(2))
 
     signal verticalWheelScrolled(var controller)

@@ -41,6 +41,9 @@ FocusScope {
     readonly property var sortList: sortPanel.menuList
     readonly property var filterList: filterPanel.menuList
     readonly property string collectionType: Browse.libraryCollectionType
+    // Music browses cover art, which is square: poster cells would crop it.
+    readonly property bool squareArtwork: collectionType === "music"
+    readonly property real artworkAspect: squareArtwork ? 1 : 1.5
     readonly property var libraryQuery: Browse.query
     readonly property var filterOptions: Browse.filterOptions
     readonly property int activeFilterCount: Browse.filterActiveCount
@@ -921,9 +924,12 @@ FocusScope {
                     id: panePoster
                     anchors.top: parent.top
                     anchors.horizontalCenter: parent.horizontalCenter
-                    height: Math.round(Math.min(parent.width * 1.5, parent.height * (root.largeZoom ? 0.64 : 0.56)))
-                    width: Math.round(height / 1.5)
-                    imageUrl: root.paneItem && root.paneItem.movieId ? Art.url(root.paneItem, "poster") : ""
+                    height: Math.round(Math.min(parent.width * root.artworkAspect,
+                                                parent.height * (root.largeZoom ? 0.64 : 0.56)))
+                    width: Math.round(height / root.artworkAspect)
+                    imageUrl: root.paneItem
+                              && root.paneItem.movieId ? Art.url(root.paneItem,
+                                                                 root.squareArtwork ? "square" : "poster") : ""
                     fallbackText: String(root.paneItem && root.paneItem.title || "")
                 }
 
@@ -1027,8 +1033,8 @@ FocusScope {
                 // gaps a second time: divide the whole run evenly and let the
                 // posters grow into the space the double count used to waste.
                 cellWidth: Math.floor((width - leftMargin - rightMargin) / columns)
-                cellHeight: root.listMode ? Metrics.scaled(root.largeZoom ? 60 : 54) : cellWidth * 1.5 + Metrics.scaled(
-                                                64)
+                cellHeight: root.listMode ? Metrics.scaled(root.largeZoom ? 60 : 54) : cellWidth * root.artworkAspect
+                                            + Metrics.scaled(64)
 
                 cacheBuffer: gridReveal.delegatesReady ? cellHeight * artworkMarginRows : 0
                 Component.onCompleted: {
@@ -1267,7 +1273,7 @@ FocusScope {
                         width: grid.cellWidth - Metrics.gapPx
                         height: grid.cellHeight
                         shell: root.shell
-                        kind: "poster"
+                        kind: root.squareArtwork ? "square" : "poster"
                         preferEpisodeTitle: false
                         useSeriesPoster: true
                         focused: root.navigationFocusVisible && grid.activeFocus && gridDelegate.GridView.isCurrentItem

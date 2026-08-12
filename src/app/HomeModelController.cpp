@@ -23,6 +23,18 @@ namespace JellyfinNative {
 namespace {
     constexpr int kHomePayloadSchemaVersion = 9;
 
+    // Cover art is square; cropping it to a poster or a thumbnail throws away
+    // the edges of the artwork the way the album was meant to be seen.
+    bool latestRowPrefersSquare(const LibraryItem& library, const std::vector<MovieItem>& items)
+    {
+        if (!items.empty()) {
+            const QString& type = items.front().itemType;
+            return type == QStringLiteral("MusicAlbum") || type == QStringLiteral("Audio")
+                || type == QStringLiteral("MusicArtist");
+        }
+        return library.collectionType == QStringLiteral("music");
+    }
+
     bool latestRowPrefersLandscape(const LibraryItem& library, const std::vector<MovieItem>& items)
     {
         if (!items.empty()) {
@@ -39,6 +51,8 @@ namespace {
 
     QString latestRowKind(const LibraryItem& library, const std::vector<MovieItem>& items)
     {
+        if (latestRowPrefersSquare(library, items))
+            return QStringLiteral("square");
         return latestRowPrefersLandscape(library, items) ? QStringLiteral("landscape") : QStringLiteral("poster");
     }
 

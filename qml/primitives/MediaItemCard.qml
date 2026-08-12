@@ -21,8 +21,9 @@ Item {
     property bool artworkEnabled: true
 
     readonly property bool posterKind: kind === "poster"
+    readonly property bool squareKind: kind === "square"
     readonly property real metadataHeight: metadataLabel.text.length > 0 ? metadataLabel.implicitHeight : 0
-    readonly property real artHeight: posterKind ? width * 1.5 : width * 9 / 16
+    readonly property real artHeight: width * (squareKind ? 1 : posterKind ? 1.5 : 9 / 16)
     readonly property real titleAvailableHeight: Math.max(0, height - art.height - Metrics.scaled(10) - metadataHeight)
     readonly property real effectiveProgress: playbackProgress()
     readonly property bool artworkReady: art.artworkReady

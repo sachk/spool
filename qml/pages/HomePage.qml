@@ -265,8 +265,9 @@ FocusScope {
             useSeriesPoster: modelData.source === "latestLibrary"
             preferEpisodeTitle: modelData.source === "latestLibrary"
             focusVisible: root.navigationFocusVisible
-            cardWidth: cardKind === "poster" ? Metrics.homePosterWidth(root.width) : Metrics.homeLandscapeWidth(
-                                                   root.width)
+            cardWidth: cardKind === "poster" || cardKind === "square" ? Metrics.homePosterWidth(
+                                                                            root.width) : Metrics.homeLandscapeWidth(
+                                                                            root.width)
             cardGap: Metrics.gapPx
             wheelFlickable: sectionList
             onVerticalWheelScrolled: controller => root.beginPointerNavigation(controller)
