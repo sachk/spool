@@ -42,7 +42,14 @@ FocusScope {
     readonly property var filterList: filterPanel.menuList
     readonly property string collectionType: Browse.libraryCollectionType
     // Music browses cover art, which is square: poster cells would crop it.
-    readonly property bool squareArtwork: collectionType === "music"
+    // Artist and album browses arrive without a collection type, so read the
+    // content itself; an empty page falls back to the library it came from.
+    readonly property bool squareArtwork: {
+        if (Browse.items && Browse.items.count > 0)
+            return ["MusicAlbum", "MusicArtist", "Audio"].indexOf(
+                        String(Browse.items.get(0).itemType || "")) >= 0
+        return collectionType === "music"
+    }
     readonly property real artworkAspect: squareArtwork ? 1 : 1.5
     readonly property var libraryQuery: Browse.query
     readonly property var filterOptions: Browse.filterOptions
