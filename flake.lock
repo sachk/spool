@@ -45,6 +45,22 @@
         "type": "github"
       }
     },
+    "nixpkgs-x86-darwin": {
+      "locked": {
+        "lastModified": 1786444855,
+        "narHash": "sha256-Uu0Qa0gg5Ztgl7EYhAEIDy0jJioPPP43zLqSNoMlAV4=",
+        "owner": "NixOS",
+        "repo": "nixpkgs",
+        "rev": "2e49fce950fece113519c5d75da869601d01550f",
+        "type": "github"
+      },
+      "original": {
+        "owner": "NixOS",
+        "repo": "nixpkgs",
+        "rev": "2e49fce950fece113519c5d75da869601d01550f",
+        "type": "github"
+      }
+    },
     "qcoro-src": {
       "flake": false,
       "locked": {
@@ -67,6 +83,7 @@
         "libplacebo-src": "libplacebo-src",
         "mpv-src": "mpv-src",
         "nixpkgs": "nixpkgs",
+        "nixpkgs-x86-darwin": "nixpkgs-x86-darwin",
         "qcoro-src": "qcoro-src"
       }
     }

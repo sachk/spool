@@ -3,6 +3,9 @@
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/88cc2017b8412e0b62c0f2d04ae91a5d7e611984";
+    # Nixpkgs 26.11 dropped x86_64-darwin, so Intel macOS builds track the
+    # 26.05 darwin branch, which is maintained to the end of 2026.
+    nixpkgs-x86-darwin.url = "github:NixOS/nixpkgs/2e49fce950fece113519c5d75da869601d01550f";
     libplacebo-src = {
       url = "github:haasn/libplacebo/a7a18af88ff0a17c04840dcb3246047bb6b46df3?submodules=1";
       flake = false;
@@ -17,9 +20,14 @@
     };
   };
 
-  outputs = { self, nixpkgs, libplacebo-src, qcoro-src, mpv-src, ... }:
+  outputs = { self, nixpkgs, nixpkgs-x86-darwin, libplacebo-src, qcoro-src, mpv-src, ... }:
     let
       systems = [ "x86_64-linux" "aarch64-darwin" "x86_64-darwin" ];
+
+      # Only Intel macOS needs the older branch; every other system stays on
+      # the pin the rest of the project is built and tested against.
+      nixpkgsFor = system:
+        if system == "x86_64-darwin" then nixpkgs-x86-darwin else nixpkgs;
 
       libplaceboOverlay = final: prev: {
         libplacebo = prev.libplacebo.overrideAttrs (_: {
@@ -100,7 +108,7 @@
 
       forAllSystems = f:
         nixpkgs.lib.genAttrs systems (system:
-          f (import nixpkgs {
+          f (import (nixpkgsFor system) {
             inherit system;
             config.allowUnfree = true;
             overlays = [ libplaceboOverlay ffmpegSlimOverlay qcoroOverlay ];
