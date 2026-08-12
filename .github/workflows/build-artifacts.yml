@@ -245,6 +245,22 @@ jobs:
           done
           exit 1
 
+      # `nix develop` pulls bashInteractive from the registry's nixpkgs rather
+      # than from this flake. The default registry tracks a release that no
+      # longer supports x86_64-darwin, and when that lookup fails nix quietly
+      # falls back to macOS's bash 3.2, which cannot parse the environment
+      # script it generates. Point the alias at whichever nixpkgs this
+      # system's shell is already built from.
+      - name: Pin the registry nixpkgs to this system's pin
+        env:
+          NIXPKGS_NODE: ${{ matrix.arch == 'x86_64' && 'nixpkgs-x86-darwin' || 'nixpkgs' }}
+        run: |
+          url="$(nix flake metadata --json --no-write-lock-file \
+            | jq -r --arg node "$NIXPKGS_NODE" \
+              '.locks.nodes[$node].locked | "github:\(.owner)/\(.repo)/\(.rev)"')"
+          printf 'pinning registry nixpkgs to %s\n' "$url"
+          nix registry add nixpkgs "$url"
+
       - name: Build macOS app
         run: nix develop .#native --no-write-lock-file -c bash tools/build-macos.sh
 
