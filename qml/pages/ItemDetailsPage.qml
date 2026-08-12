@@ -57,7 +57,10 @@ FocusScope {
     readonly property string stillArt: Art.url(item, albumDetail ? "poster" : "landscape")
     readonly property bool showSideArt: width >= 1120 && Metrics.uiScale < 1.45 && stillArt.length > 0
     readonly property var technicalInfo: {
-        if (!fullDetailItem.movieId || (typeText !== "Movie" && typeText !== "Series"))
+        // Anything with a playable file has a readout worth showing, which is
+        // the same rule the media-info overlay uses. Series and Season are the
+        // only kinds that are containers rather than something with streams.
+        if (!fullDetailItem.movieId || !mediaInfoAvailable)
         return null
         const smart = String(Settings.values["audio/trackMode"] || "Default") === "Smart"
         return Content.detailMediaInfo(smart ? String(Settings.values["subtitles/language"] || "") : "")
