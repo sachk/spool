@@ -63,6 +63,8 @@ QtObject {
     readonly property color accentAlternate: accentIndex === 1 ? paletteBlue : palettePurple
     readonly property color accentPanel: accentIndex === 1 ? "#2C1E31" : accentIndex === 2 ? "#20223C" : "#182A32"
     readonly property color success: "#3FB950"
+    // Work in progress: reaching a server, waiting on an approval elsewhere.
+    readonly property color pending: "#E3B341"
     readonly property color errorPanel: "#2A1717"
     readonly property color errorText: "#FFD6D6"
 
@@ -87,6 +89,9 @@ QtObject {
     // Distance-field rendering ignores hinting, which makes UI-sized text
     // visibly soft on the 1080p webOS scene.
     property int normalTextRenderType: Text.NativeRendering
+    // Set by the shell. Without an on-screen keyboard to defer, focusing a
+    // text field should always mean you can type into it.
+    property bool textEntryFollowsFocus: true
     property bool reducedMotion: false
     property bool antialiasedText: true
     property string technicalMetadataMode: "Always"

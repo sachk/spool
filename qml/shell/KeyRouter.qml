@@ -168,10 +168,17 @@ FocusScope {
         }
         if (routeTypeAhead(event, key, phase))
             return true
-        if (textInputActive)
+        // A focused field keeps the horizontal keys, which move its caret, but
+        // never the vertical ones: a one-line field has no use for them and
+        // swallowing them is what strands people in a form with no way out
+        // but Escape. Everything else belongs to the field while it is being
+        // typed into.
+        if (textInputActive && !InputKeys.isVertical(key))
             return false
         if (InputKeys.isDirection(key))
             return routeDirection(key, phase, repeat, event.modifiers)
+        if (textInputActive)
+            return false
         if (InputKeys.isAccept(key))
             return phase === "press" ? pressAccept(key, repeat) : releaseAccept(key, repeat)
         return router.deliver(activeTarget, key, phase, repeat)

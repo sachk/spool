@@ -15,6 +15,13 @@ T.Control {
     property int enterKeyType: Qt.EnterKeyDefault
     property string label: ""
     readonly property bool editing: field.activeFocus
+    readonly property bool masked: field.echoMode === TextInput.Password
+
+    // Where there is no on-screen keyboard to defer, the row is a waypoint
+    // rather than a stop: anything that focuses it — Tab, D-pad navigation, a
+    // restored focus — passes straight through to the field. That removes the
+    // state that looks focused, draws a focus ring, and eats every keystroke.
+    property bool focusEntersField: Theme.textEntryFollowsFocus
 
     signal textEdited(string text)
     signal accepted
@@ -23,7 +30,14 @@ T.Control {
     implicitHeight: Metrics.scaled(68)
     implicitWidth: Metrics.scaled(400)
 
+    onActiveFocusChanged: if (activeFocus && focusEntersField && !field.activeFocus)
+                              InputKeys.focus(field)
+
     function focusRow() {
+        if (focusEntersField) {
+            focusField()
+            return
+        }
         if (field.activeFocus)
             field.focus = false
         InputKeys.focus(row)
@@ -37,8 +51,10 @@ T.Control {
         focusField()
     }
 
+    // Only meaningful where the row is a real focus stop. Otherwise there is
+    // nothing to step back to, and claiming Back here would trap the user.
     function releaseTextInput() {
-        if (!editing)
+        if (!editing || focusEntersField)
             return false
         Qt.inputMethod.hide()
         focusRow()
@@ -49,9 +65,9 @@ T.Control {
         radius: Theme.radiusMedium
         color: row.editing ? Theme.bgRaised : Theme.bgPanel
         border.width: (row.activeFocus || row.editing) ? Theme.focusBorderWidth : 1
-        border.color: row.editing ? Theme.accent : row.activeFocus ? Theme.accent : Theme.border
+        border.color: (row.activeFocus || row.editing) ? Theme.accent : Theme.border
 
-        Text {
+        SecondaryText {
             anchors.left: parent.left
             anchors.top: parent.top
             anchors.leftMargin: Metrics.scaled(16)
@@ -74,7 +90,18 @@ T.Control {
         anchors.bottomMargin: Metrics.scaled(9)
         background: Item {}
         color: Theme.textPrimary
-        font.pixelSize: Metrics.bodySizePx + Metrics.scaled(2)
+        // The UI face has no U+25CF, the mask character Qt asks for by
+        // default, so masked text would fall back to a stranger's glyph or a
+        // blank box. U+2022 is in the face; bold and spaced it draws the row
+        // of dots people expect at these sizes.
+        passwordCharacter: "•"
+        font.family: Typography.sans
+        font.hintingPreference: Typography.sansHinting
+        font.preferTypoLineMetrics: true
+        font.pixelSize: Metrics.bodySizePx + Metrics.scaled(row.masked ? 6 : 2)
+        font.weight: row.masked ? Font.Bold : Font.Normal
+        font.letterSpacing: row.masked ? Metrics.scaled(2) : 0
+        renderType: Theme.normalTextRenderType
         verticalAlignment: TextInput.AlignVCenter
         selectByMouse: true
         focus: false
@@ -82,6 +109,18 @@ T.Control {
 
         onTextEdited: row.textEdited(text)
         onAccepted: row.accepted()
+
+        // Templates carry the placeholder text but draw nothing for it, and a
+        // hint is the difference between a labelled box and a guess.
+        SecondaryText {
+            anchors.fill: parent
+            visible: field.text.length === 0 && field.placeholderText.length > 0
+            text: field.placeholderText
+            color: Theme.textDisabled
+            font.pixelSize: Metrics.bodySizePx + Metrics.scaled(2)
+            verticalAlignment: Text.AlignVCenter
+            elide: Text.ElideRight
+        }
     }
 
     MouseArea {

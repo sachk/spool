@@ -216,8 +216,20 @@ KeyRouter {
         }
     }
 
-    Component.onCompleted: if (App.initialized)
-                               root.applyInitializedRoute()
+    // Native rasterisation snaps every stem to the pixel grid, which is what
+    // keeps small text legible on the 1080p TV scene but reads as thin and
+    // mechanical on a desktop display. Distance-field text is unhinted, so
+    // curves stay round and weight stays even the way desktop users expect.
+    Component.onCompleted: {
+        if (!Platform.isTV)
+            Theme.normalTextRenderType = Text.QtRendering
+        // The TV keeps its two-step text entry: there the field taking focus
+        // is what raises the on-screen keyboard, so the row stays the D-pad
+        // target until Select is pressed.
+        Theme.textEntryFollowsFocus = !Platform.isTV
+        if (App.initialized)
+            root.applyInitializedRoute()
+    }
 
     Connections {
         target: Libraries
