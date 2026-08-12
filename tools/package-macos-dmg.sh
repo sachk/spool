@@ -9,12 +9,24 @@ APP_VERSION="$(read_project_version "$APP_ROOT")"
 BUILD_ROOT="${BUILD_ROOT:-$APP_ROOT/build/macos}"
 APP_BUNDLE="${APP_BUNDLE:-$BUILD_ROOT/install/jellyfin-native.app}"
 ARTIFACT_DIR="${ARTIFACT_DIR:-$APP_ROOT/dist}"
-DMG_PATH="$ARTIFACT_DIR/Spool-for-Jellyfin-${APP_VERSION}-macOS.dmg"
 
 if [[ ! -d "$APP_BUNDLE" ]]; then
   echo "error: app bundle not found at $APP_BUNDLE" >&2
   exit 1
 fi
+
+# Apple Silicon and Intel DMGs ship side by side in one release, so name each
+# for the architecture its binary actually carries rather than for the host
+# that happened to build it.
+APP_BINARY="$APP_BUNDLE/Contents/MacOS/jellyfin-native"
+if [[ -z "${APP_ARCH:-}" ]]; then
+  APP_ARCH="$(lipo -archs "$APP_BINARY" 2>/dev/null | tr ' ' '-')"
+fi
+if [[ -z "$APP_ARCH" ]]; then
+  echo "error: could not determine the architecture of $APP_BINARY" >&2
+  exit 1
+fi
+DMG_PATH="$ARTIFACT_DIR/Spool-for-Jellyfin-${APP_VERSION}-macOS-${APP_ARCH}.dmg"
 
 mkdir -p "$ARTIFACT_DIR"
 rm -f "$DMG_PATH"

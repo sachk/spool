@@ -176,12 +176,22 @@ jobs:
           retention-days: 1
 
   macos-dmg:
-    name: macOS DMG
-    runs-on: macos-14
+    name: macOS DMG (${{ matrix.arch }})
+    runs-on: ${{ matrix.runner }}
     needs: lint
     # Public repositories receive unlimited standard GitHub-hosted runner
     # minutes, so pushes, pull requests, and releases exercise macOS too.
     if: ${{ github.event_name != 'workflow_dispatch' || inputs.build_macos }}
+    strategy:
+      # Apple Silicon and Intel Macs each get a native build; one failing
+      # architecture should still let the other produce its DMG.
+      fail-fast: false
+      matrix:
+        include:
+          - arch: arm64
+            runner: macos-14
+          - arch: x86_64
+            runner: macos-15-intel
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.0.2
         with:
@@ -196,8 +206,8 @@ jobs:
 
       - uses: nix-community/cache-nix-action@7df957e333c1e5da7721f60227dbba6d06080569 # v7.0.1
         with:
-          primary-key: nix-${{ runner.os }}-${{ hashFiles('flake.lock') }}
-          restore-prefixes-first-match: nix-${{ runner.os }}-
+          primary-key: nix-${{ runner.os }}-${{ matrix.arch }}-${{ hashFiles('flake.lock') }}
+          restore-prefixes-first-match: nix-${{ runner.os }}-${{ matrix.arch }}-
           gc-max-store-size-macos: 8G
 
       - uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5.0.3
@@ -205,9 +215,9 @@ jobs:
           path: |
             build/macos
             ~/Library/Caches/ccache
-          key: macos-${{ runner.os }}-${{ hashFiles('mpv/meson.build', 'tools/manifests/mpv-native.json', 'tools/manifests/ffmpeg-capabilities.json', 'tools/ffmpeg-capabilities.py', 'tools/build-macos.sh', 'tools/lib/build-common.sh', 'CMakeLists.txt') }}
+          key: macos-${{ matrix.arch }}-${{ hashFiles('mpv/meson.build', 'tools/manifests/mpv-native.json', 'tools/manifests/ffmpeg-capabilities.json', 'tools/ffmpeg-capabilities.py', 'tools/build-macos.sh', 'tools/lib/build-common.sh', 'CMakeLists.txt') }}
           restore-keys: |
-            macos-${{ runner.os }}-
+            macos-${{ matrix.arch }}-
 
       # Older Nix releases reject the relative path input recorded by newer
       # lock files when the root flake comes from a shallow Git checkout.
@@ -259,7 +269,7 @@ jobs:
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.0
         if: ${{ inputs.release }}
         with:
-          name: spool-for-jellyfin-macos-dmg
+          name: spool-for-jellyfin-macos-dmg-${{ matrix.arch }}
           path: dist/*.dmg
           retention-days: 1
 

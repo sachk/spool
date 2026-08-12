@@ -2,6 +2,7 @@
   "schemaVersion": 1,
   "axes": {
     "hostOs": ["linux", "macos"],
+    "hostArch": ["x86_64", "arm64"],
     "targetOs": ["linux", "macos", "webos"],
     "qtSource": ["nixpkgs", "source", "cached-archive"],
     "qtLinkage": ["shared", "static"],
@@ -11,6 +12,7 @@
   "targets": {
     "linux-appimage": {
       "hostOs": "linux",
+      "hostArch": ["x86_64"],
       "targetOs": "linux",
       "qtSource": "nixpkgs",
       "qtLinkage": "shared",
@@ -20,6 +22,7 @@
     },
     "macos-dmg": {
       "hostOs": "macos",
+      "hostArch": ["arm64", "x86_64"],
       "targetOs": "macos",
       "qtSource": "nixpkgs",
       "qtLinkage": "shared",
@@ -29,6 +32,7 @@
     },
     "webos-ipk": {
       "hostOs": "linux",
+      "hostArch": ["x86_64"],
       "targetOs": "webos",
       "qtSource": "cached-archive",
       "qtLinkage": "static",
