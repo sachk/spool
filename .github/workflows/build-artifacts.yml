@@ -231,35 +231,35 @@ jobs:
       # to treat the CI checkout as a complete repository. The build scripts
       # still compile the local mpv/ checkout.
       - name: Resolve checked-out mpv input
+        env:
+          ARCH: ${{ matrix.arch }}
         run: |
           revision="$(git -C mpv rev-parse HEAD)"
+          overrides=()
+          # `nix develop` builds bashInteractive from the flake's own `nixpkgs`
+          # input. On Intel that input evaluates to a release which dropped
+          # x86_64-darwin, and nix answers the failure by silently falling back
+          # to the system bash 3.2, which cannot parse the environment script
+          # it generates. Point the input at the same pin this system's shell
+          # already uses, read from the lock so the two cannot drift.
+          if [[ "$ARCH" == "x86_64" ]]; then
+            url="$(jq -r '.nodes["nixpkgs-x86-darwin"].locked
+              | "github:\(.owner)/\(.repo)/\(.rev)"' flake.lock)"
+            printf 'overriding nixpkgs with %s\n' "$url"
+            overrides=(--override-input nixpkgs "$url")
+          fi
           mv flake.lock flake.lock.repository
           # Every input is refetched here, so a single dropped connection
           # would otherwise fail the build before it starts compiling.
           for attempt in 1 2 3; do
-            if nix flake lock --override-input mpv-src "git+file:$PWD/mpv?rev=$revision&shallow=1"; then
+            if nix flake lock --override-input mpv-src "git+file:$PWD/mpv?rev=$revision&shallow=1" \
+              ${overrides[@]+"${overrides[@]}"}; then
               exit 0
             fi
             printf 'flake lock attempt %d failed; retrying\n' "$attempt" >&2
             sleep $((attempt * 20))
           done
           exit 1
-
-      # `nix develop` pulls bashInteractive from the registry's nixpkgs rather
-      # than from this flake. The default registry tracks a release that no
-      # longer supports x86_64-darwin, and when that lookup fails nix quietly
-      # falls back to macOS's bash 3.2, which cannot parse the environment
-      # script it generates. Point the alias at whichever nixpkgs this
-      # system's shell is already built from.
-      - name: Pin the registry nixpkgs to this system's pin
-        env:
-          NIXPKGS_NODE: ${{ matrix.arch == 'x86_64' && 'nixpkgs-x86-darwin' || 'nixpkgs' }}
-        run: |
-          url="$(nix flake metadata --json --no-write-lock-file \
-            | jq -r --arg node "$NIXPKGS_NODE" \
-              '.locks.nodes[$node].locked | "github:\(.owner)/\(.repo)/\(.rev)"')"
-          printf 'pinning registry nixpkgs to %s\n' "$url"
-          nix registry add nixpkgs "$url"
 
       - name: Build macOS app
         run: nix develop .#native --no-write-lock-file -c bash tools/build-macos.sh
