@@ -14,6 +14,7 @@
 #include <QNetworkRequest>
 #include <QRegularExpression>
 
+#include <algorithm>
 #include <utility>
 
 namespace JellyfinNative {
@@ -28,6 +29,70 @@ namespace {
     constexpr int kHttpProbeConcurrency = 8;
     constexpr int kInitialHttpFallbackDelayMs = 1500;
     constexpr int kMaxAutomaticHttpProbeTargets = 254;
+    // Sweeping neighbours is the expensive half of discovery, so only the two
+    // best-ranked networks get one. A shared budget instead let whichever
+    // interface the kernel happened to list first — routinely a docker bridge
+    // or a VPN tunnel — spend the whole allowance before the LAN was reached.
+    constexpr int kMaxScannedNetworks = 2;
+    constexpr int kUnicastSweepBatch = 24;
+    constexpr int kUnicastSweepIntervalMs = 15;
+
+    // Names that belong to container bridges, hypervisors and VPN tunnels.
+    // A Jellyfin server is very unlikely to live behind one, and each costs a
+    // full subnet sweep, so they sort behind real network interfaces.
+    bool isSyntheticInterface(const QString& name)
+    {
+        static const QStringList prefixes
+            = { QStringLiteral("docker"), QStringLiteral("br-"), QStringLiteral("virbr"), QStringLiteral("veth"),
+                  QStringLiteral("vmnet"), QStringLiteral("vboxnet"), QStringLiteral("tun"), QStringLiteral("tap"),
+                  QStringLiteral("utun"), QStringLiteral("wg"), QStringLiteral("zt"), QStringLiteral("tailscale"),
+                  QStringLiteral("podman"), QStringLiteral("cni"), QStringLiteral("flannel"), QStringLiteral("kube") };
+        for (const QString& prefix : prefixes) {
+            if (name.startsWith(prefix, Qt::CaseInsensitive))
+                return true;
+        }
+        return false;
+    }
+
+    int scanPriority(const QNetworkInterface& iface, const QNetworkAddressEntry& entry)
+    {
+        int score = 0;
+        if (isSyntheticInterface(iface.name()))
+            score += 100;
+        if (iface.flags() & QNetworkInterface::IsPointToPoint)
+            score += 50;
+        // A /16 is a container bridge far more often than it is a home LAN.
+        if (entry.prefixLength() > 0 && entry.prefixLength() < 24)
+            score += 10;
+        return score;
+    }
+
+    struct ScanNetwork {
+        QHostAddress ip;
+        QHostAddress netmask;
+        int priority = 0;
+    };
+
+    QList<ScanNetwork> rankedScanNetworks()
+    {
+        QList<ScanNetwork> networks;
+        const auto interfaces = QNetworkInterface::allInterfaces();
+        for (const QNetworkInterface& iface : interfaces) {
+            if (!(iface.flags() & QNetworkInterface::IsUp) || !(iface.flags() & QNetworkInterface::IsRunning)
+                || (iface.flags() & QNetworkInterface::IsLoopBack)) {
+                continue;
+            }
+
+            for (const QNetworkAddressEntry& entry : iface.addressEntries()) {
+                if (entry.ip().protocol() != QAbstractSocket::IPv4Protocol || entry.netmask().isNull())
+                    continue;
+                networks.push_back({ entry.ip(), entry.netmask(), scanPriority(iface, entry) });
+            }
+        }
+        std::stable_sort(networks.begin(), networks.end(),
+            [](const ScanNetwork& lhs, const ScanNetwork& rhs) { return lhs.priority < rhs.priority; });
+        return networks;
+    }
 
     QUrl normalizedServerUrl(QUrl url)
     {
@@ -73,6 +138,47 @@ namespace {
             return;
         seen->insert(key);
         urls->push_back(normalized);
+    }
+
+    // Parses what the user typed the way the probe does: a bare host gains an
+    // http:// prefix so QUrl can split host from port and path.
+    QUrl parseTypedAddress(const QString& input, bool *explicitUrl)
+    {
+        QString value = input.trimmed();
+        while (value.endsWith(QLatin1Char('/')))
+            value.chop(1);
+        if (value.isEmpty())
+            return {};
+
+        static const QRegularExpression explicitScheme(
+            QStringLiteral(R"(^[a-z][a-z0-9+.-]*://)"), QRegularExpression::CaseInsensitiveOption);
+        const bool scheme = explicitScheme.match(value).hasMatch();
+        if (explicitUrl)
+            *explicitUrl = scheme;
+        const QUrl parsed(scheme ? value : QStringLiteral("http://") + value);
+        if (!parsed.isValid() || parsed.host().isEmpty())
+            return {};
+        return normalizedServerUrl(parsed);
+    }
+
+    // Servers behind container networking announce the address they see
+    // themselves on, which is routable only inside that network. The datagram
+    // reached us from somewhere we can actually talk to, so that wins.
+    QString reachableServerAddress(const QString& advertised, const QHostAddress& sender)
+    {
+        QUrl url(advertised);
+        QHostAddress advertisedHost;
+        if (!url.isValid() || url.host().isEmpty() || sender.isNull())
+            return advertised;
+        // Only literals are second-guessed. A name may resolve perfectly well
+        // for us even when it names something the server reached differently.
+        if (!advertisedHost.setAddress(url.host()))
+            return advertised;
+        if (advertisedHost.isEqual(sender, QHostAddress::TolerantConversion))
+            return advertised;
+
+        url.setHost(sender.toString());
+        return normalizedServerUrl(url).toString(QUrl::FullyEncoded);
     }
 
     void appendSubnetTargets(QList<QHostAddress> *targets, QSet<quint32> *seen, quint32 network, quint32 broadcast,
@@ -124,6 +230,8 @@ DiscoveryController::DiscoveryController(TlsTrustController *tlsTrust, QObject *
     connect(&m_socket, &QUdpSocket::readyRead, this, &DiscoveryController::handlePendingDatagrams);
     connect(&m_rescanTimer, &QTimer::timeout, this, &DiscoveryController::sendProbe);
     m_rescanTimer.setInterval(15000);
+    connect(&m_unicastSweepTimer, &QTimer::timeout, this, &DiscoveryController::pumpUnicastSweep);
+    m_unicastSweepTimer.setInterval(kUnicastSweepIntervalMs);
 }
 
 DiscoveryController::~DiscoveryController()
@@ -143,20 +251,11 @@ bool DiscoveryController::serverProbeActive() const
 
 QList<QUrl> DiscoveryController::serverProbeCandidates(const QString& input)
 {
-    QString value = input.trimmed();
-    while (value.endsWith(QLatin1Char('/')))
-        value.chop(1);
-    if (value.isEmpty())
+    bool explicitUrl = false;
+    const QUrl parsed = parseTypedAddress(input, &explicitUrl);
+    if (parsed.isEmpty())
         return {};
 
-    static const QRegularExpression explicitScheme(
-        QStringLiteral(R"(^[a-z][a-z0-9+.-]*://)"), QRegularExpression::CaseInsensitiveOption);
-    const bool explicitUrl = explicitScheme.match(value).hasMatch();
-    QUrl parsed(explicitUrl ? value : QStringLiteral("http://") + value);
-    if (!parsed.isValid() || parsed.host().isEmpty())
-        return {};
-
-    parsed = normalizedServerUrl(parsed);
     const QString host = parsed.host();
     const bool lan = isLanHost(host);
     const int suppliedPort = parsed.port(-1);
@@ -191,6 +290,31 @@ QList<QUrl> DiscoveryController::serverProbeCandidates(const QString& input)
             add(QStringLiteral("http"), -1);
     }
     return result;
+}
+
+bool DiscoveryController::looksLikeServerAddress(const QString& input)
+{
+    QString typed = input.trimmed();
+    while (typed.endsWith(QLatin1Char('/')))
+        typed.chop(1);
+    // The login screen probes while the user types, so anything that reads as
+    // mid-keystroke — a dangling label, hyphen or port separator — waits.
+    if (typed.endsWith(QLatin1Char('.')) || typed.endsWith(QLatin1Char('-')) || typed.endsWith(QLatin1Char(':')))
+        return false;
+
+    const QUrl parsed = parseTypedAddress(typed, nullptr);
+    if (parsed.isEmpty() || serverProbeCandidates(typed).isEmpty())
+        return false;
+
+    // An explicit port, an IP literal, localhost or a plausible public suffix
+    // are the shapes that can already resolve to a host.
+    const QString host = parsed.host();
+    if (parsed.port(-1) > 0 || !QHostAddress(host).isNull())
+        return true;
+    if (host.compare(QStringLiteral("localhost"), Qt::CaseInsensitive) == 0)
+        return true;
+    const qsizetype lastDot = host.lastIndexOf(QLatin1Char('.'));
+    return lastDot > 0 && host.size() - lastDot - 1 >= 2;
 }
 
 QList<QHostAddress> DiscoveryController::httpFallbackTargets(
@@ -248,7 +372,8 @@ void DiscoveryController::start()
 
     m_active = true;
     const bool udpReady = ensureSocket();
-    qInfo() << "discovery active" << m_active << "udpReady=" << udpReady;
+    qInfo() << "discovery active" << m_active << "udpReady=" << udpReady << "boundPort" << m_socket.localPort()
+            << "error" << (udpReady ? QStringLiteral("none") : m_socket.errorString());
     emit activeChanged();
 
     if (udpReady)
@@ -267,6 +392,8 @@ void DiscoveryController::stop()
 
     m_active = false;
     m_rescanTimer.stop();
+    m_unicastSweepTimer.stop();
+    m_unicastSweepQueue.clear();
     m_socket.close();
     m_httpProbeQueue.clear();
     m_enqueuedHttpProbeTargets.clear();
@@ -291,6 +418,10 @@ void DiscoveryController::sendProbe()
     m_socket.writeDatagram(QByteArray(kDiscoveryPayload), QHostAddress::Broadcast, kDiscoveryPort);
     qInfo() << "discovery broadcast probe sent";
 
+    // Docker forwards a published UDP port for unicast only, so a server in a
+    // container on this machine never sees the broadcasts above.
+    m_socket.writeDatagram(QByteArray(kDiscoveryPayload), QHostAddress::LocalHost, kDiscoveryPort);
+
     const auto interfaces = QNetworkInterface::allInterfaces();
     for (const QNetworkInterface& iface : interfaces) {
         if (!(iface.flags() & QNetworkInterface::IsUp) || !(iface.flags() & QNetworkInterface::IsRunning)
@@ -306,6 +437,55 @@ void DiscoveryController::sendProbe()
             qInfo() << "discovery interface probe sent";
         }
     }
+
+    if (!m_foundAnyServer)
+        sendUnicastSweep();
+}
+
+void DiscoveryController::sendUnicastSweep()
+{
+    // Container runtimes forward a published UDP port for unicast traffic
+    // only, so a server in one never sees the broadcasts above. Asking each
+    // neighbour directly costs a few hundred small datagrams — far less than
+    // the HTTP sweep — and the replies are ordinary unicast answers, which a
+    // stateful firewall lets back in without a rule of its own.
+    if (!m_unicastSweepQueue.isEmpty())
+        return;
+
+    const auto networks = rankedScanNetworks();
+    int swept = 0;
+    for (const ScanNetwork& network : networks) {
+        if (swept >= kMaxScannedNetworks)
+            break;
+        ++swept;
+        const auto targets = httpFallbackTargets(network.ip, network.netmask, kMaxAutomaticHttpProbeTargets);
+        for (const QHostAddress& target : targets)
+            m_unicastSweepQueue.enqueue(target);
+    }
+
+    qInfo() << "discovery unicast sweep queued" << m_unicastSweepQueue.size() << "targets across" << swept
+            << "networks";
+    m_unicastSweepTimer.start();
+    pumpUnicastSweep();
+}
+
+void DiscoveryController::pumpUnicastSweep()
+{
+    // The socket send buffer cannot take a few hundred datagrams in one go;
+    // past it writeDatagram simply fails and those neighbours are never asked.
+    // Anything that does not fit stays at the head of the queue for next tick.
+    int sent = 0;
+    while (!m_unicastSweepQueue.isEmpty() && sent < kUnicastSweepBatch) {
+        if (m_socket.writeDatagram(QByteArray(kDiscoveryPayload), m_unicastSweepQueue.head(), kDiscoveryPort) <= 0)
+            return;
+        m_unicastSweepQueue.dequeue();
+        ++sent;
+    }
+
+    if (m_unicastSweepQueue.isEmpty()) {
+        m_unicastSweepTimer.stop();
+        qInfo() << "discovery unicast sweep drained";
+    }
 }
 
 void DiscoveryController::handlePendingDatagrams()
@@ -315,20 +495,30 @@ void DiscoveryController::handlePendingDatagrams()
         if (datagram.data() == QByteArray(kDiscoveryPayload))
             continue;
 
+        qInfo() << "discovery datagram from" << datagram.senderAddress().toString() << "bytes"
+                << datagram.data().size();
         const auto document = QJsonDocument::fromJson(datagram.data());
-        if (!document.isObject())
+        if (!document.isObject()) {
+            qWarning() << "discovery datagram was not a JSON object";
             continue;
+        }
         const auto object = document.object();
         if (!object.contains(QStringLiteral("Id")) || !object.contains(QStringLiteral("Name"))
             || !object.contains(QStringLiteral("Address"))) {
+            qWarning() << "discovery datagram missing Id/Name/Address keys" << object.keys();
             continue;
         }
 
+        const QString advertised = object.value(QStringLiteral("Address")).toString();
+        const QString address = reachableServerAddress(advertised, datagram.senderAddress());
+        if (address != advertised)
+            qInfo() << "discovery rewrote unroutable advertised address to the datagram sender";
         qInfo() << "discovery reply accepted";
+        m_foundAnyServer = true;
         emit serverDiscovered({
             object.value(QStringLiteral("Id")).toString(),
             object.value(QStringLiteral("Name")).toString(),
-            object.value(QStringLiteral("Address")).toString(),
+            address,
         });
     }
 }
@@ -339,29 +529,26 @@ void DiscoveryController::startHttpFallbackScan()
     if (!m_active || m_inFlightHttpProbes > 0 || !m_httpProbeQueue.isEmpty())
         return;
 
-    const auto interfaces = QNetworkInterface::allInterfaces();
-    for (const QNetworkInterface& iface : interfaces) {
-        if (m_httpProbeQueue.size() >= kMaxAutomaticHttpProbeTargets)
+    const auto networks = rankedScanNetworks();
+
+    // A server published on this machine — a container forwarding 8096, or a
+    // plain local install — only answers on loopback or on one of this host's
+    // own addresses, and a neighbour sweep skips both by design.
+    enqueueHttpProbeTarget(QHostAddress(QHostAddress::LocalHost));
+    for (const ScanNetwork& network : networks)
+        enqueueHttpProbeTarget(network.ip);
+
+    int scanned = 0;
+    for (const ScanNetwork& network : networks) {
+        if (scanned >= kMaxScannedNetworks)
             break;
-        if (!(iface.flags() & QNetworkInterface::IsUp) || !(iface.flags() & QNetworkInterface::IsRunning)
-            || (iface.flags() & QNetworkInterface::IsLoopBack)) {
-            continue;
-        }
-
-        for (const QNetworkAddressEntry& entry : iface.addressEntries()) {
-            if (m_httpProbeQueue.size() >= kMaxAutomaticHttpProbeTargets)
-                break;
-            if (entry.ip().protocol() != QAbstractSocket::IPv4Protocol || entry.netmask().isNull())
-                continue;
-
-            const auto targets = httpFallbackTargets(
-                entry.ip(), entry.netmask(), kMaxAutomaticHttpProbeTargets - m_httpProbeQueue.size());
-            for (const QHostAddress& target : targets)
-                enqueueHttpProbeTarget(target);
-        }
+        ++scanned;
+        const auto targets = httpFallbackTargets(network.ip, network.netmask, kMaxAutomaticHttpProbeTargets);
+        for (const QHostAddress& target : targets)
+            enqueueHttpProbeTarget(target);
     }
 
-    qInfo() << "http discovery queued" << m_httpProbeQueue.size() << "targets";
+    qInfo() << "http discovery queued" << m_httpProbeQueue.size() << "targets across" << scanned << "networks";
     pumpHttpProbeQueue();
 }
 
@@ -491,7 +678,10 @@ void DiscoveryController::startNextServerProbe()
             m_serverProbeCandidates.clear();
             m_serverProbeInput.clear();
             emit serverProbeActiveChanged();
-            emit serverDiscovered(server);
+            // Deliberately not announced as a discovered server: the screen
+            // already shows this result next to the address that produced it,
+            // and listing it again reads as two servers. It joins the list
+            // when the user actually picks it.
             emit serverProbeSucceeded(input, server, version, plainHttp);
             return;
         }

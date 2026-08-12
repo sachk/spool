@@ -47,10 +47,15 @@ QHash<int, QByteArray> DiscoveredServerModel::roleNames() const
 void DiscoveredServerModel::setServers(const std::vector<DiscoveredServer>& servers, bool online)
 {
     beginResetModel();
-    m_servers = servers;
+    m_servers.clear();
     m_onlineServers.clear();
-    if (online) {
-        for (const DiscoveredServer& server : servers) {
+    for (const DiscoveredServer& server : servers) {
+        // An entry with no address cannot be connected to, so it would only
+        // ever draw as a nameless row the user can select and get nothing from.
+        if (server.address.isEmpty())
+            continue;
+        m_servers.push_back(server);
+        if (online) {
             m_onlineServers.insert(server.id);
             m_onlineServers.insert(server.address);
         }
@@ -60,6 +65,8 @@ void DiscoveredServerModel::setServers(const std::vector<DiscoveredServer>& serv
 
 void DiscoveredServerModel::upsertServer(const DiscoveredServer& server, bool online)
 {
+    if (server.address.isEmpty())
+        return;
     if (online) {
         m_onlineServers.insert(server.id);
         m_onlineServers.insert(server.address);

@@ -53,6 +53,22 @@ JELLYFIN_TEST_MAIN("discovery-controller")
     require(DiscoveryController::serverProbeCandidates(QStringLiteral("not a url")).isEmpty(),
         "invalid manual addresses should not produce candidates");
 
+    require(DiscoveryController::looksLikeServerAddress(QStringLiteral("192.168.1.30")),
+        "an IP literal is complete enough to probe as it is typed");
+    require(DiscoveryController::looksLikeServerAddress(QStringLiteral("jellyfin:8096")),
+        "an explicit port completes an otherwise bare host");
+    require(DiscoveryController::looksLikeServerAddress(QStringLiteral("localhost")),
+        "localhost resolves without a suffix or a port");
+    require(DiscoveryController::looksLikeServerAddress(QStringLiteral("https://media.example.test/jellyfin")),
+        "a full URL is always worth probing");
+    require(!DiscoveryController::looksLikeServerAddress(QStringLiteral("jellyfin")),
+        "a bare hostname is too likely to be half-typed to probe");
+    require(!DiscoveryController::looksLikeServerAddress(QStringLiteral("media.example.")),
+        "a trailing dot means the suffix is still being typed");
+    require(!DiscoveryController::looksLikeServerAddress(QStringLiteral("media.e")),
+        "a one-character suffix is still being typed");
+    require(!DiscoveryController::looksLikeServerAddress(QString()), "empty input should never probe");
+
     QString version;
     const DiscoveredServer parsed = DiscoveryController::serverFromPublicInfo(
         QByteArrayLiteral(R"({"Id":"server-id","ServerName":"Living Room","Version":"10.11.8"})"),

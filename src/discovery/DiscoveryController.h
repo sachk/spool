@@ -28,6 +28,9 @@ public:
     bool serverProbeActive() const;
 
     static QList<QUrl> serverProbeCandidates(const QString& input);
+    // True once the typed text names an address worth probing on its own, so
+    // the login screen can connect as you type instead of waiting for Enter.
+    Q_INVOKABLE static bool looksLikeServerAddress(const QString& input);
     static QList<QHostAddress> httpFallbackTargets(
         const QHostAddress& address, const QHostAddress& netmask, int maxTargets = 254);
     static DiscoveredServer serverFromPublicInfo(const QByteArray& payload, const QUrl& serverUrl, QString *version);
@@ -52,6 +55,8 @@ private slots:
 
 private:
     bool ensureSocket();
+    void sendUnicastSweep();
+    void pumpUnicastSweep();
     void enqueueHttpProbeTarget(const QHostAddress& address);
     void pumpHttpProbeQueue();
     void handleHttpProbeResult(const QString& serverUrl, const QByteArray& payload);
@@ -60,6 +65,8 @@ private:
 
     QUdpSocket m_socket;
     QTimer m_rescanTimer;
+    QTimer m_unicastSweepTimer;
+    QQueue<QHostAddress> m_unicastSweepQueue;
     QNetworkAccessManager m_http;
     QQueue<QHostAddress> m_httpProbeQueue;
     QSet<QString> m_enqueuedHttpProbeTargets;
@@ -70,6 +77,7 @@ private:
     QString m_tlsRetryInput;
     int m_inFlightHttpProbes = 0;
     bool m_active = false;
+    bool m_foundAnyServer = false;
 };
 
 } // namespace JellyfinNative
