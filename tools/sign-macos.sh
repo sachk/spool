@@ -26,7 +26,7 @@ security import "$work/certificate.p12" -k "$keychain" -P "$MACOS_CERTIFICATE_PA
 security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$keychain_password" "$keychain"
 
 while IFS= read -r -d '' file; do
-  if file "$file" | grep -Eq 'Mach-O'; then
+  if [[ "$file" == *.dylib || "$file" == *.so ]] || file "$file" | grep -Eq 'Mach-O'; then
     codesign --force --options runtime --timestamp --sign "$MACOS_SIGNING_IDENTITY" --keychain "$keychain" "$file"
   fi
 done < <(find "$app" -type f \( -perm -111 -o -name '*.dylib' -o -name '*.so' \) -print0)
