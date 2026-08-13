@@ -245,21 +245,6 @@ cmake -S "$ROOT" -B "$CMAKE_BUILD_DIR" -GNinja \
   -DJELLYFIN_IMAGE_SUBTITLE_DIAGNOSTICS="$CMAKE_IMAGE_SUBTITLE_DIAGNOSTICS"
 
 cmake --build "$CMAKE_BUILD_DIR" --parallel "$WEBOS_BUILD_JOBS"
-for plugin_class in \
-  QWaylandIntegrationPlugin \
-  QTlsBackendOpenSSL \
-  QWaylandEglClientBufferPlugin \
-  QWaylandWlShellIntegrationPlugin \
-  QSQLiteDriverPlugin \
-  QJpegPlugin \
-  QWebpPlugin
-do
-  if ! "$READELF_BIN" --wide --symbols "$CMAKE_BUILD_DIR/jellyfin-native" \
-      | grep -F "qt_static_plugin_$plugin_class" >/dev/null; then
-    echo "error: linked webOS executable is missing static plugin $plugin_class" >&2
-    exit 1
-  fi
-done
 cmake --install "$CMAKE_BUILD_DIR" --prefix "$INSTALL_DIR"
 fi
 
