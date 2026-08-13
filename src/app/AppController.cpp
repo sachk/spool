@@ -44,6 +44,9 @@ namespace JellyfinNative {
 namespace {
 
     constexpr int kLibraryPageSize = 100;
+    // Long enough to cover a slow negotiate, short enough that a stuck one does
+    // not leave the shell holding a player surface over nothing.
+    constexpr int kPlaybackTransitionTimeoutMs = 12000;
     // Reopening a library within this window shows the cached page as-is;
     // a server refresh so soon after the last one only causes delegate churn.
     constexpr qint64 kFreshLibraryCacheMs = 30000;
@@ -204,6 +207,10 @@ AppController::AppController(DatabaseManager *database, DiscoveryController *dis
     });
     // Keep the bandwidth probe off the wire while a stream is running; it
     // resumes on its own once the session ends.
+    connect(m_player, &PlayerController::visibleChanged, this, [this]() {
+        if (m_player->visible())
+            setPlaybackTransition(false);
+    });
     connect(m_player, &PlayerController::sessionActiveChanged, this,
         [this]() { m_api->setPlaybackActive(m_player->sessionActive()); });
     connect(m_player, &PlayerController::streamSelectionChanged, this,
@@ -1411,12 +1418,40 @@ void AppController::handlePlaybackStopped(const QString& itemId, qint64 position
     qInfo() << "app: playback stopped" << itemId << positionTicks << completed;
     m_itemState->recordPlaybackStopped(m_activePlaybackItem, itemId, positionTicks, completed);
     m_playQueue->updateResumeTicks(itemId, completed ? 0 : positionTicks);
-    if (!completed || m_activePlaybackItem.id != itemId || (m_syncPlay && m_syncPlay->enabled()))
+    if (!completed || m_activePlaybackItem.id != itemId || (m_syncPlay && m_syncPlay->enabled())) {
+        setPlaybackTransition(false);
         return;
-    if (m_playQueue->next())
+    }
+    if (m_playQueue->next()) {
+        // The player surface comes down the moment mpv reports end-of-file and
+        // does not come back until the next item has been negotiated and
+        // decoded — most of a second, during which the shell would fall back to
+        // the details page behind it. Hold the surface across the gap.
+        setPlaybackTransition(true);
         playQueueCurrent(false);
-    else
+    } else {
+        setPlaybackTransition(false);
         m_playQueue->enqueueEpisodeSuccessors(m_activePlaybackItem);
+    }
+}
+
+void AppController::setPlaybackTransition(bool transition)
+{
+    if (m_playbackTransition == transition)
+        return;
+    m_playbackTransition = transition;
+    emit playbackTransitionChanged();
+    if (!transition)
+        return;
+
+    // Normally the next item becoming visible clears this. If it never
+    // arrives — a negotiate that fails or hangs — the shell must not be left
+    // holding a player surface over nothing.
+    const quint64 generation = ++m_playbackTransitionGeneration;
+    QTimer::singleShot(kPlaybackTransitionTimeoutMs, this, [this, generation]() {
+        if (generation == m_playbackTransitionGeneration)
+            setPlaybackTransition(false);
+    });
 }
 
 } // namespace JellyfinNative

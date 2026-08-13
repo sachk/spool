@@ -49,6 +49,11 @@ KeyRouter {
     readonly property var player: Player
     readonly property bool hasPlayer: true
     readonly property bool playerSessionActive: hasPlayer && player.sessionActive
+    // The player owns the screen for a whole queue step, not only while a file
+    // is decoding. mpv drops the surface the instant it reports end-of-file and
+    // the next item takes most of a second to negotiate, so keying the shell on
+    // player.visible alone flashed the details page between every two tracks.
+    readonly property bool playerHoldsScreen: hasPlayer && (player.visible || App.playbackTransition)
     readonly property string errorTextValue: App.errorText
     readonly property bool busyValue: App.busy
     readonly property string busyTextValue: App.busyText
@@ -674,7 +679,7 @@ KeyRouter {
     Rectangle {
         anchors.fill: parent
         color: Theme.bg
-        visible: !(root.hasPlayer && root.player.visible)
+        visible: !(root.hasPlayer && root.playerHoldsScreen)
     }
 
     ColumnLayout {
@@ -683,7 +688,7 @@ KeyRouter {
         anchors.topMargin: -root.keyboardAvoidance
         anchors.bottomMargin: root.keyboardAvoidance
         spacing: 0
-        visible: App.initialized && !(root.hasPlayer && root.player.visible)
+        visible: App.initialized && !(root.hasPlayer && root.playerHoldsScreen)
         enabled: visible
 
         TopBar {
@@ -715,7 +720,7 @@ KeyRouter {
             route: root.route
             shell: root
             startupReady: App.initialized
-            focus: !(root.hasPlayer && root.player.visible)
+            focus: !(root.hasPlayer && root.playerHoldsScreen)
             onActiveFocusChanged: if (activeFocus)
                                       root.navigationTarget = routeStack
 
@@ -764,14 +769,17 @@ KeyRouter {
         id: busyOverlayLoader
         anchors.fill: parent
         z: 40
-        active: root.busyValue && !(root.hasPlayer && root.player.visible)
+        // Stepping to the next item is the one case where the busy state should
+        // show over the player: the surface is being held deliberately and
+        // would otherwise be a frozen last frame with no sign of progress.
+        active: App.playbackTransition || (root.busyValue && !(root.hasPlayer && root.playerHoldsScreen))
         asynchronous: true
         source: active ? "BusyOverlay.qml" : ""
 
         Binding {
             target: busyOverlayLoader.item
             property: "text"
-            value: root.busyTextValue
+            value: App.playbackTransition ? "Loading next item…" : root.busyTextValue
             when: busyOverlayLoader.item
         }
     }
@@ -819,7 +827,7 @@ KeyRouter {
     Loader {
         anchors.fill: parent
         z: 61
-        active: root.diagnosticsVisible && !(root.hasPlayer && root.player.visible)
+        active: root.diagnosticsVisible && !(root.hasPlayer && root.playerHoldsScreen)
         sourceComponent: DiagnosticsOverlay {
             route: root.route
             focusedItemId: RoutePolicy.itemIdFor(root.currentMediaItem())

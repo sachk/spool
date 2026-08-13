@@ -183,38 +183,6 @@ Item {
             accessibleName: "Remove from queue"
             onClicked: row.removeRequested()
         }
-
-        // The drag grip, not the whole row: dragging anywhere would fight the
-        // list's own flicking and swallow taps meant to play a track.
-        Item {
-            id: grip
-            Layout.preferredWidth: row.pointerAffordances ? overlay.dp(26) : 0
-            Layout.fillHeight: true
-            visible: row.pointerAffordances
-
-            MaterialIcon {
-                anchors.centerIn: parent
-                name: "drag_indicator"
-                iconSize: overlay.dp(18)
-                iconColor: gripHover.hovered ? Theme.textPrimary : Theme.textMuted
-            }
-
-            HoverHandler {
-                id: gripHover
-            }
-
-            // Dragging is confined to the grip. Attached to the whole row it
-            // would fight the list's own flicking and swallow taps meant to
-            // play a track.
-            DragHandler {
-                target: null
-                xAxis.enabled: false
-                yAxis.enabled: true
-                onActiveChanged: active ? row.dragStarted() : row.dragEnded()
-                onCentroidChanged: if (active)
-                                       row.dragMovedTo(centroid.scenePosition.y)
-            }
-        }
     }
 
     HoverHandler {
@@ -222,8 +190,42 @@ Item {
         enabled: row.playable
     }
 
+    // The whole row is the handle. The list stops flicking for the duration
+    // (PlayerQueuePanel clears interactive), so the two no longer compete for
+    // the same vertical drag, and the wheel still scrolls.
+    DragHandler {
+        id: rowDrag
+        enabled: row.pointerEnabled
+        target: null
+        xAxis.enabled: false
+        yAxis.enabled: true
+
+        onActiveChanged: {
+            if (active) {
+                row.dragStarted()
+                return
+            }
+            row.dragEnded()
+            // The release that ends a drag must not also read as a tap. It used
+            // to, so letting go of a row you had just moved started playing it.
+            tapSuppression.restart()
+        }
+
+        onCentroidChanged: if (active)
+                               row.dragMovedTo(centroid.scenePosition.y)
+    }
+
+    Timer {
+        id: tapSuppression
+        interval: 250
+    }
+
     TapHandler {
         enabled: row.playable && !row.reordering
-        onTapped: row.activated()
+        onTapped: {
+            if (rowDrag.active || tapSuppression.running)
+                return
+            row.activated()
+        }
     }
 }

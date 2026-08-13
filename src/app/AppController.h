@@ -39,6 +39,10 @@ class TlsTrustController;
 class AppController final : public QObject {
     Q_OBJECT
     Q_PROPERTY(bool busy MEMBER m_busy NOTIFY busyChanged)
+    // True only while the queue is stepping from one item to the next, so the
+    // shell can hold the player surface up instead of dropping to the page
+    // behind it for the length of a negotiate.
+    Q_PROPERTY(bool playbackTransition MEMBER m_playbackTransition NOTIFY playbackTransitionChanged)
     Q_PROPERTY(QString busyText MEMBER m_busyText NOTIFY busyChanged)
     Q_PROPERTY(QString errorText MEMBER m_errorText NOTIFY errorTextChanged)
     Q_PROPERTY(bool hasDefaultProfile MEMBER m_hasDefaultProfile NOTIFY defaultProfileChanged)
@@ -154,6 +158,7 @@ public:
 
 signals:
     void busyChanged();
+    void playbackTransitionChanged();
     void streamingQualityChanged();
     void errorTextChanged();
     void defaultProfileChanged();
@@ -188,6 +193,7 @@ private:
     bool modelIsOrderedList(MovieGridModel *model) const;
     void playAlbumFrom(const MovieItem& track, bool fromStart);
     bool inSyncPlayGroup() const;
+    void setPlaybackTransition(bool transition);
     QString queuePlaylistItemId(int index) const;
     bool enqueueForGroup(const MovieItem& item, bool queueNext);
     void playQueuedItem(const MovieItem& item, bool fromStart = false);
@@ -228,6 +234,8 @@ private:
     int m_activeAudioStreamIndex = -1;
     int m_activeSubtitleStreamIndex = -1;
     bool m_busy = false;
+    bool m_playbackTransition = false;
+    quint64 m_playbackTransitionGeneration = 0;
     bool m_hasDefaultProfile = false;
     bool m_initialized = false;
     QString m_busyText;
