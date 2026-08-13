@@ -515,8 +515,70 @@ void AppController::playFromModel(QObject *model, int index, bool fromStart)
         playOrOpen(item, fromStart);
     else if (item.itemType == QStringLiteral("Episode") && !item.seriesId.isEmpty())
         playQueuedItem(item, fromStart);
+    else if (item.itemType == QStringLiteral("Audio") && !item.albumId.isEmpty() && !modelIsOrderedList(movieModel))
+        playAlbumFrom(item, fromStart);
     else
         playQueuedItems(movieModel->movies(), index, fromStart);
+}
+
+// Whether the list a track was picked out of is one the user assembled or
+// opened on purpose, or just a shelf it happened to appear on. Playing a song
+// off the home screen should queue its album; playing one out of a playlist
+// should keep the playlist. Deciding by model identity keeps the rule here
+// rather than spreading a flag across every call site in QML.
+bool AppController::modelIsOrderedList(MovieGridModel *model) const
+{
+    if (!model)
+        return false;
+    if (model == m_content->detailSeasons())
+        return true;
+    if (model != m_browse->items())
+        return false;
+    switch (m_browse->descriptor().kind) {
+    case BrowseKind::FolderChildren:
+    case BrowseKind::Playlist:
+    case BrowseKind::BoxSet:
+    case BrowseKind::SeasonEpisodes:
+    case BrowseKind::ArtistAlbums:
+        return true;
+    default:
+        return false;
+    }
+}
+
+void AppController::playAlbumFrom(const MovieItem& track, bool fromStart)
+{
+    if (!m_api || track.albumId.isEmpty()) {
+        playQueuedItem(track, fromStart);
+        return;
+    }
+
+    const quint64 generation = ++m_albumQueueGeneration;
+    setBusy(true, QStringLiteral("Loading album…"));
+    // The same descriptor ContentModelController uses for album children, so
+    // there is one definition of what an album contains.
+    Async::runScoped(
+        this, m_api->fetchBrowsePage(BrowseDescriptor::folderChildren(track.albumId), 0, 200, {}),
+        [this, generation, track, fromStart](const PagedMovieItems& page) {
+            if (generation != m_albumQueueGeneration)
+                return;
+            setBusy(false);
+            const auto found = std::find_if(page.items.cbegin(), page.items.cend(),
+                [&track](const MovieItem& candidate) { return candidate.id == track.id; });
+            if (found == page.items.cend()) {
+                playQueuedItem(track, fromStart);
+                return;
+            }
+            playQueuedItems(page.items, static_cast<int>(std::distance(page.items.cbegin(), found)), fromStart);
+        },
+        [this, generation, track, fromStart](const std::exception_ptr&) {
+            if (generation != m_albumQueueGeneration)
+                return;
+            setBusy(false);
+            // The track is still what the user asked for; losing the rest of
+            // the album is a worse outcome than not playing at all.
+            playQueuedItem(track, fromStart);
+        });
 }
 
 void AppController::playQueueNext()

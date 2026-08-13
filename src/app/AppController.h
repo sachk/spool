@@ -185,6 +185,8 @@ private:
     QCoro::Task<void> startPlayback(MovieItem playItem, bool startPaused = false, bool forceTranscode = false,
         int audioStreamIndex = -2, int subtitleStreamIndex = -2);
     void playQueuedItems(const std::vector<MovieItem>& items, int startIndex, bool fromStart = false);
+    bool modelIsOrderedList(MovieGridModel *model) const;
+    void playAlbumFrom(const MovieItem& track, bool fromStart);
     void playQueuedItem(const MovieItem& item, bool fromStart = false);
     void playEpisodeWithContext(const MovieItem& episode, int direction, bool fromStart);
     void playQueueCurrent(bool fromStart = false);
@@ -214,6 +216,7 @@ private:
     UserItemStateController *m_itemState = nullptr;
     SearchController *m_search = nullptr;
     quint64 m_episodeQueueGeneration = 0;
+    quint64 m_albumQueueGeneration = 0;
     bool m_episodeQueuePending = false;
     LibraryManagementController *m_management = nullptr;
     DiscoveredServerModel m_discoveredServers;
