@@ -41,5 +41,5 @@ gnu_iconv="$app/Contents/Frameworks/libiconv-gnu.2.dylib"
 }
 codesign --force --options runtime --timestamp --sign "$MACOS_SIGNING_IDENTITY" --keychain "$keychain" "$gnu_iconv"
 codesign --verify --strict --verbose=2 "$gnu_iconv"
-codesign --force --options runtime --timestamp --sign "$MACOS_SIGNING_IDENTITY" --keychain "$keychain" "$app"
+codesign --force --deep --options runtime --timestamp --sign "$MACOS_SIGNING_IDENTITY" --keychain "$keychain" "$app"
 codesign --verify --strict --deep --verbose=2 "$app"
