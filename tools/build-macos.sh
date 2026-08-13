@@ -108,6 +108,19 @@ if [[ "$DEPLOY_APP" == "1" ]]; then
     "$APP_ROOT/qml/fonts/IBMPlexSans-LICENSE.txt" "$APP_ROOT/qml/fonts/PTRootUI-LICENSE.txt" \
     "$APP_ROOT/qml/fonts/MaterialIcons-LICENSE.txt" \
     "$APP_INSTALL/jellyfin-native.app/Contents/Resources/notices/"
+  while IFS= read -r binary; do
+    description="$(file -b "$binary")"
+    [[ "$description" == *Mach-O* ]] || continue
+    chmod u+w "$binary"
+    if [[ "$description" == *"dynamically linked shared library"* ]]; then
+      install_name_tool -id "@rpath/$(basename "$binary")" "$binary"
+    fi
+    while IFS= read -r rpath; do
+      if [[ "$rpath" == /nix/store/* || "$rpath" == *"/build/"* ]]; then
+        install_name_tool -delete_rpath "$rpath" "$binary"
+      fi
+    done < <(otool -l "$binary" | sed -n '/cmd LC_RPATH/{n;n;s/^[[:space:]]*path \([^[:space:]]*\).*/\1/p;}')
+  done < <(find "$APP_INSTALL/jellyfin-native.app" -type f | sort)
   strip_bin="$(env -u DEVELOPER_DIR -u SDKROOT /usr/bin/xcrun --find strip)"
   find "$APP_INSTALL/jellyfin-native.app" -type f -name '*.qmltypes' -delete
   while IFS= read -r binary; do

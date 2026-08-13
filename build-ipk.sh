@@ -374,6 +374,7 @@ for firmware_soname in \
   libEGL.so.1 libGLESv2.so.2 libwayland-client.so.0 libwayland-cursor.so.0 \
   libwayland-egl.so libwayland-egl.so.1 libwayland-webos-client.so.0 libwayland-webos-client.so.1 \
   libxkbcommon.so.0 libasound.so.2 libglib-2.0.so.0 libpbnjson_c.so.2 libluna-service2.so.3 \
+  libpf-1.0.so.1 libplayerAPIs.so.1 libunwind.so.8 \
   libPmLogLib.so.3 libnyx.so.0 libudev.so.0 libhelpers.so.1 libhelpers.so.2
 do
   WEBOS_ELF_AUDIT_ARGS+=(--allow-system "$firmware_soname")
