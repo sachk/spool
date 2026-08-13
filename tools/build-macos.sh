@@ -79,6 +79,10 @@ if [[ "$DEPLOY_APP" == "1" ]]; then
   gnu_iconv_bundle="$APP_INSTALL/jellyfin-native.app/Contents/Frameworks/libiconv-gnu.2.dylib"
   rm -f "$gnu_iconv_bundle"
   cp -L "$gnu_iconv" "$gnu_iconv_bundle"
+  if [[ -L "$gnu_iconv_bundle" || ! -f "$gnu_iconv_bundle" ]]; then
+    echo "error: GNU libiconv was not materialized in the app bundle" >&2
+    exit 1
+  fi
   install_name_tool -id @rpath/libiconv-gnu.2.dylib "$gnu_iconv_bundle"
   while IFS= read -r binary; do
     if /usr/bin/nm -u "$binary" 2>/dev/null | grep -q '_libiconv$'; then
