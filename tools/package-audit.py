@@ -19,7 +19,9 @@ class AuditError(RuntimeError):
 
 
 def run_tool(*args: str) -> str:
-    result = subprocess.run(args, text=True, capture_output=True, check=False)
+    result = subprocess.run(
+        args, text=True, encoding="utf-8", errors="replace", capture_output=True, check=False
+    )
     if result.returncode:
         raise AuditError(f"{' '.join(args)} failed:\n{result.stderr.strip()}")
     return result.stdout

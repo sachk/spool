@@ -360,6 +360,14 @@ WEBOS_ELF_AUDIT_ARGS=(
   --root bin/jellyfin-native
   --readelf "$READELF_BIN"
 )
+for runtime_root in \
+  "$MPV_STAGED_LIBRARY" \
+  "$CURL_STAGED_LIBRARY" \
+  "$STAGE_LIB"/libAcbAPI.so.* \
+  "$STAGE_LIB"/libpcre2-16.so.*
+do
+  WEBOS_ELF_AUDIT_ARGS+=(--root "${runtime_root#"$APP_DIR/"}")
+done
 for firmware_soname in \
   ld-linux.so.3 libc.so.6 libm.so.6 libdl.so.2 libpthread.so.0 librt.so.1 libresolv.so.2 libutil.so.1 \
   libatomic.so.1 libz.so.1 libfontconfig.so.1 libfreetype.so.6 \
