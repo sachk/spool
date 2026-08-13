@@ -99,6 +99,26 @@ EOF
   printf '%s\n' "$shadow_bin"
 }
 
+# Mirror a Qt plugin prefix as a tree of symlinks. macdeployqt reads a single
+# plugin root, so a split Qt install hides every module that is not qtbase from
+# it; the copies it makes follow these links through to the real files.
+qt_deploy_mirror_plugin_dir() {
+  local mirror="$1"
+  local source="$2"
+
+  rm -rf "$mirror"
+  mkdir -p "$mirror"
+  [[ -d "$source" ]] || return 0
+
+  local category entry
+  while IFS= read -r category; do
+    mkdir -p "$mirror/$(basename "$category")"
+    while IFS= read -r entry; do
+      ln -sfn "$entry" "$mirror/$(basename "$category")/$(basename "$entry")"
+    done < <(find "$category" -maxdepth 1 \( -type f -o -type l \) | sort)
+  done < <(find "$source" -mindepth 1 -maxdepth 1 -type d | sort)
+}
+
 qt_deploy_macdeployqt_shadow() {
   local build_ninja="$1"
   local shadow_root="$2"
@@ -147,6 +167,25 @@ EOF
   qt_prefix="$(qt_deploy_query_path QT_INSTALL_PREFIX)"
   qt_plugins="$(qt_deploy_query_path QT_INSTALL_PLUGINS)"
   qt_qml="$qml_import_dir"
+
+  # SPOOL_QT_EXTRA_PLUGIN_DIRS carries the Qt modules that live outside the
+  # qtbase prefix (see flake.nix). Without qwebp the bundle ships only qtbase's
+  # gif/ico/jpeg readers and every webp poster decodes to a null QImage. Take
+  # that one reader rather than the whole module: qtimageformats also carries a
+  # JPEG 2000 plugin that drags in libheif and an x265/aom/vmaf closure.
+  if [[ -n "${SPOOL_QT_EXTRA_PLUGIN_DIRS:-}" && -n "$qt_plugins" ]]; then
+    local mirror="$shadow_root/plugins" extra mirrored=0
+    while IFS= read -r extra; do
+      [[ -n "$extra" && -f "$extra/imageformats/libqwebp.dylib" ]] || continue
+      (( mirrored )) || qt_deploy_mirror_plugin_dir "$mirror" "$qt_plugins"
+      mirrored=1
+      mkdir -p "$mirror/imageformats"
+      ln -sfn "$extra/imageformats/libqwebp.dylib" "$mirror/imageformats/libqwebp.dylib"
+    done < <(printf '%s\n' "${SPOOL_QT_EXTRA_PLUGIN_DIRS//:/$'\n'}")
+    if (( mirrored )); then
+      qt_plugins="$mirror"
+    fi
+  fi
 
   cat >"$shadow_bin/qt.conf" <<EOF
 [Paths]

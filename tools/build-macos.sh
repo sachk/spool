@@ -93,6 +93,15 @@ if [[ "$DEPLOY_APP" == "1" ]]; then
     echo "error: libidn2 was not rebound to GNU libiconv" >&2
     exit 1
   fi
+  # Artwork is served as webp, so a bundle without this reader shows an app with
+  # no posters at all while every download still succeeds. macdeployqt reads one
+  # plugin prefix, and qtimageformats is not the one qtbase reports.
+  webp_plugin="$APP_INSTALL/jellyfin-native.app/Contents/PlugIns/imageformats/libqwebp.dylib"
+  if [[ ! -f "$webp_plugin" ]]; then
+    echo "error: qwebp imageformat plugin was not deployed to $webp_plugin" >&2
+    echo "hint: SPOOL_QT_EXTRA_PLUGIN_DIRS must point at the qtimageformats plugin prefix (see flake.nix)" >&2
+    exit 1
+  fi
   mkdir -p "$APP_INSTALL/jellyfin-native.app/Contents/Resources/notices"
   cp -f "$APP_ROOT/app/notices/OPEN_SOURCE_NOTICES.txt" "$APP_ROOT/LICENSE" \
     "$APP_ROOT/qml/fonts/AtkinsonHyperlegible-LICENSE.txt" \

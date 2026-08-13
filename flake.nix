@@ -294,6 +294,14 @@
         # This shell intentionally includes nixpkgs Qt for native Linux/macOS
         # development. Do not use it for tools/webos-native/build-qt6-611.sh.
         export JELLYFIN_NATIVE_SHELL=1
+
+        # macdeployqt and linuxdeploy-plugin-qt both discover plugins under one
+        # Qt prefix, and every Qt module is a separate store path here. That
+        # leaves qtimageformats invisible to packaging, so the bundles shipped
+        # only qtbase's gif/ico/jpeg readers while ArtworkService asks Jellyfin
+        # for webp. tools/lib/qt-deploy.sh and tools/package-appimage.sh take
+        # qwebp from this prefix; both then assert it landed.
+        export SPOOL_QT_EXTRA_PLUGIN_DIRS="${pkgs.qt6.qtimageformats}/lib/qt-6/plugins"
       '';
     in
     {

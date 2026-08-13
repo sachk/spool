@@ -158,6 +158,33 @@ prime_linuxdeploy_qt_plugins() {
       chmod u+w "$APPDIR/usr/lib/qt-6/plugins/platforms/$platform" 2>/dev/null || true
     done
   done
+
+  # qtimageformats is not on QMAKEPATH — nothing links it, it is loaded at
+  # runtime — so the readers above stop at qtbase's gif/ico/jpeg. Artwork is
+  # served as webp, which lands in none of them. Take that one reader and leave
+  # the rest of the module alone: its JPEG 2000 plugin pulls libheif and the
+  # x265/aom/vmaf closure that audit_ffmpeg_closure exists to keep out.
+  local extra_roots=()
+  IFS=: read -r -a extra_roots <<< "${SPOOL_QT_EXTRA_PLUGIN_DIRS:-}"
+  for plugins_dir in "${extra_roots[@]}"; do
+    [[ -n "$plugins_dir" && -f "$plugins_dir/imageformats/libqwebp.so" ]] || continue
+    mkdir -p "$APPDIR/usr/lib/qt-6/plugins/imageformats"
+    cp -a "$plugins_dir/imageformats/libqwebp.so" \
+      "$APPDIR/usr/lib/qt-6/plugins/imageformats/"
+    chmod u+w "$APPDIR/usr/lib/qt-6/plugins/imageformats/libqwebp.so" 2>/dev/null || true
+  done
+}
+
+# Artwork is served as webp, so a bundle without this reader shows an app with
+# no posters at all while every download still succeeds. tools/windows/stage.ps1
+# asserts the same thing for qwebp.dll; the failure is silent without a check.
+audit_image_formats() {
+  local plugin="$APPDIR/usr/plugins/imageformats/libqwebp.so"
+  if [[ ! -f "$plugin" ]]; then
+    printf 'error: qwebp imageformat plugin was not deployed to %s\n' "$plugin" >&2
+    printf 'hint: SPOOL_QT_EXTRA_PLUGIN_DIRS must point at the qtimageformats plugin prefix (see flake.nix)\n' >&2
+    exit 1
+  fi
 }
 
 prune_appdir() {
@@ -404,6 +431,7 @@ prune_appdir
 copy_elf_deps
 set_appdir_rpaths
 audit_ffmpeg_closure
+audit_image_formats
 
 APPIMAGETOOL="${APPIMAGETOOL:-}"
 if [[ -z "$APPIMAGETOOL" ]]; then
