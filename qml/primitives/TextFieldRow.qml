@@ -26,7 +26,14 @@ T.Control {
     signal textEdited(string text)
     signal accepted
 
-    focusPolicy: Qt.StrongFocus
+    // A waypoint must not also be a tab stop, and the field it forwards to has
+    // to be one. macOS reports Qt.TabFocusTextControls unless the user turns on
+    // Full Keyboard Access, which drops every non-text control from the chain:
+    // with the stop on this Control and the field opted out, the whole form
+    // became untabbable there. Putting the stop on the field itself is what the
+    // waypoint comment above already describes, and it keeps Shift+Tab from
+    // bouncing off the row straight back into the field it just left.
+    focusPolicy: focusEntersField ? Qt.ClickFocus : Qt.StrongFocus
     implicitHeight: Metrics.scaled(68)
     implicitWidth: Metrics.scaled(400)
 
@@ -105,7 +112,7 @@ T.Control {
         verticalAlignment: TextInput.AlignVCenter
         selectByMouse: true
         focus: false
-        activeFocusOnTab: false
+        activeFocusOnTab: row.focusEntersField
 
         onTextEdited: row.textEdited(text)
         onAccepted: row.accepted()
