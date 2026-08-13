@@ -36,7 +36,6 @@ Section
 
     SetOutPath "$InstDir"
     File /r "${STAGE_DIR}\*"
-    File /oname=LICENSE.txt "${SOURCE_ROOT}\LICENSE"
 
     FileOpen $0 "$InstDir\.payload-complete" w
     FileWrite $0 "${PAYLOAD_ID}"

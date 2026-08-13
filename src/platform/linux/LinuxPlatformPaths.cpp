@@ -16,6 +16,11 @@ QString resolveAppRoot(const char *argv0)
     return QDir::cleanPath(QDir(QFileInfo(executable).absolutePath()).absoluteFilePath(QStringLiteral("..")));
 }
 
+QString bundledFontsPath(const QString& appRootPath)
+{
+    return QDir(appRootPath).filePath(QStringLiteral("fonts"));
+}
+
 QString startupCacheRoot(const QString&)
 {
     const QByteArray configured = qgetenv("JELLYFIN_NATIVE_CACHE_HOME");

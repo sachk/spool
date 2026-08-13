@@ -7,7 +7,7 @@ Rectangle {
 
     Image {
         anchors.fill: parent
-        source: "splash.png"
+        source: startupSplashImageUrl
         fillMode: Image.PreserveAspectFit
         asynchronous: false
         cache: true

@@ -1,10 +1,15 @@
 {
   "schemaVersion": 1,
   "tools": {
-    "linuxdeploy": {
-      "version": "1-alpha-20251107-1",
-      "url": "https://github.com/linuxdeploy/linuxdeploy/releases/download/1-alpha-20251107-1/linuxdeploy-x86_64.AppImage",
-      "sha256": "c20cd71e3a4e3b80c3483cef793cda3f4e990aca14014d23c544ca3ce1270b4d"
+    "appimagetool": {
+      "version": "8c8c91f762b412a19f4e8d2c4b35afb98f2d7c81",
+      "url": "https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage",
+      "sha256": "a6d71e2b6cd66f8e8d16c37ad164658985e0cf5fcaa950c90a482890cb9d13e0"
+    },
+    "patchelf": {
+      "version": "0.18.0",
+      "url": "https://github.com/NixOS/patchelf/releases/download/0.18.0/patchelf-0.18.0-x86_64.tar.gz",
+      "sha256": "ce84f2447fb7a8679e58bc54a20dc2b01b37b5802e12c57eece772a6f14bf3f0"
     },
     "linuxdeploy-plugin-qt": {
       "version": "1-alpha-20250213-1",

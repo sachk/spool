@@ -2,19 +2,8 @@
 
 #include "platform/NativeAppWindow.h"
 
-#include <QFile>
-#include <QtPlugin>
-
 #include <cstdlib>
 #include <unistd.h>
-
-Q_IMPORT_PLUGIN(QWaylandIntegrationPlugin)
-Q_IMPORT_PLUGIN(QWaylandEglClientBufferPlugin)
-Q_IMPORT_PLUGIN(QWaylandWlShellIntegrationPlugin)
-Q_IMPORT_PLUGIN(QJpegPlugin)
-Q_IMPORT_PLUGIN(QWebpPlugin)
-Q_IMPORT_PLUGIN(QSQLiteDriverPlugin)
-Q_IMPORT_PLUGIN(QTlsBackendOpenSSL)
 
 namespace JellyfinNative {
 
@@ -38,7 +27,7 @@ namespace {
     }
 } // namespace
 
-bool configurePlatformEnvironment(const QString& appRootPath)
+bool configurePlatformEnvironment(const QString&)
 {
     setenv("APPID", "com.sachk.spool", 1);
     setenv("MALLOC_ARENA_MAX", "2", 0);
@@ -64,9 +53,6 @@ bool configurePlatformEnvironment(const QString& appRootPath)
         unsetenv("QT_DEBUG_PLUGINS");
         unsetenv("QT_LOGGING_RULES");
     }
-    qputenv("QT_PLUGIN_PATH", QFile::encodeName(appRootPath + QStringLiteral("/qt-plugins")));
-    qputenv("QT_QPA_PLATFORM_PLUGIN_PATH", QFile::encodeName(appRootPath + QStringLiteral("/qt-plugins/platforms")));
-    qputenv("QML2_IMPORT_PATH", QFile::encodeName(appRootPath + QStringLiteral("/qt-qml")));
     // Keep video FBO rendering off the GUI thread. The basic loop makes every
     // QML or diagnostics stall a missed mpv presentation deadline.
     if (!qEnvironmentVariableIsSet("QSG_RENDER_LOOP"))

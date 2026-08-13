@@ -13,7 +13,7 @@ APP_BUILD="${APP_BUILD:-$BUILD_ROOT/app}"
 APP_INSTALL="${APP_INSTALL:-$BUILD_ROOT/install}"
 
 setup_native_ccache "$APP_ROOT"
-mkdir -p "$MPV_PREFIX" "$APP_BUILD" "$APP_INSTALL" "$APP_INSTALL/lib"
+mkdir -p "$MPV_PREFIX" "$APP_BUILD"
 
 native_mpv_args "$MPV_PREFIX" release linux
 MPV_SETUP_ARGS=(
@@ -27,6 +27,9 @@ append_colon_path PKG_CONFIG_PATH "$MPV_PREFIX/lib/pkgconfig"
 while IFS= read -r pc_dir; do
   append_colon_path PKG_CONFIG_PATH "$pc_dir"
 done < <(find "$MPV_PREFIX/lib" -path '*/pkgconfig/mpv.pc' -exec dirname {} \;)
+
+rm -rf "$APP_INSTALL"
+mkdir -p "$APP_INSTALL"
 
 cmake_build_app "$APP_ROOT" "$APP_BUILD" \
   -DCMAKE_BUILD_TYPE=Release \

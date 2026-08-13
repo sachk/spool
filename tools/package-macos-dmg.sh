@@ -31,18 +31,17 @@ DMG_PATH="$ARTIFACT_DIR/Spool-for-Jellyfin-${APP_VERSION}-macOS-${APP_ARCH}.dmg"
 mkdir -p "$ARTIFACT_DIR"
 rm -f "$DMG_PATH"
 
-if command -v create-dmg >/dev/null 2>&1; then
-  create-dmg \
-    --volname "Spool for Jellyfin" \
-    --window-pos 200 120 \
-    --window-size 640 420 \
-    --icon-size 96 \
-    --app-drop-link 460 185 \
-    "$DMG_PATH" \
-    "$APP_BUNDLE"
-else
-  hdiutil create -volname "Spool for Jellyfin" -srcfolder "$APP_BUNDLE" \
-    -ov -format UDZO "$DMG_PATH"
-fi
+command -v create-dmg >/dev/null 2>&1 || {
+  echo "error: create-dmg is required for macOS release packaging" >&2
+  exit 1
+}
+create-dmg \
+  --volname "Spool for Jellyfin" \
+  --window-pos 200 120 \
+  --window-size 640 420 \
+  --icon-size 96 \
+  --app-drop-link 460 185 \
+  "$DMG_PATH" \
+  "$APP_BUNDLE"
 
 printf '%s\n' "$DMG_PATH"

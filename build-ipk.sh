@@ -68,7 +68,7 @@ MPV_LTO_CROSS_FILE="$BUILD_DIR/webos-lto.cross.ini"
 WEBOS_BUILD_MEMORY_PER_JOB_MIB="${WEBOS_BUILD_MEMORY_PER_JOB_MIB:-1536}"
 WEBOS_BUILD_MEMORY_RESERVE_MIB="${WEBOS_BUILD_MEMORY_RESERVE_MIB:-2048}"
 WEBOS_BUILD_JOBS="$(recommended_parallel_jobs "$WEBOS_BUILD_MEMORY_PER_JOB_MIB" "$WEBOS_BUILD_MEMORY_RESERVE_MIB")"
-IMAGE_SUBTITLE_DIAGNOSTICS="${JELLYFIN_IMAGE_SUBTITLE_DIAGNOSTICS:-1}"
+IMAGE_SUBTITLE_DIAGNOSTICS="${JELLYFIN_IMAGE_SUBTITLE_DIAGNOSTICS:-0}"
 if [[ "$IMAGE_SUBTITLE_DIAGNOSTICS" == "0" ]]; then
   MPV_IMAGE_SUBTITLE_DIAGNOSTICS_FLAG=
   CMAKE_IMAGE_SUBTITLE_DIAGNOSTICS=OFF
@@ -169,15 +169,9 @@ echo "Building libdovi..."
 DOVI_LIB="$DOVI_TOOL_ROOT/dolby_vision/target/arm-unknown-linux-gnueabi/release/libdovi.a"
 DOVI_INC="$DOVI_TOOL_ROOT/dolby_vision/include"
 
-# Heaptrack profiling needs unwind tables and frame pointers for useful stacks,
-# but release builds keep them out unless profiling is explicitly requested.
-if [[ -z "${HEAPTRACK_UNWIND_FLAGS+x}" ]]; then
-  if [[ "${BUNDLE_HEAPTRACK:-0}" == "1" ]]; then
-    HEAPTRACK_UNWIND_FLAGS="-fasynchronous-unwind-tables -funwind-tables -fno-omit-frame-pointer -g"
-  else
-    HEAPTRACK_UNWIND_FLAGS=""
-  fi
-fi
+# Profiling tooling may opt into unwind tables explicitly. Canonical release
+# builds leave them out.
+HEAPTRACK_UNWIND_FLAGS="${HEAPTRACK_UNWIND_FLAGS:-}"
 WEBOS_TUNE_CFLAGS_EXPANDED="$(webos_tune_cflags)"
 MPV_PGO_FLAGS="$(webos_pgo_flags MPV "$BUILD_DIR/pgo/mpv")"
 APP_PGO_FLAGS="$(webos_pgo_flags APP "$BUILD_DIR/pgo/app")"
@@ -251,12 +245,31 @@ cmake -S "$ROOT" -B "$CMAKE_BUILD_DIR" -GNinja \
   -DJELLYFIN_IMAGE_SUBTITLE_DIAGNOSTICS="$CMAKE_IMAGE_SUBTITLE_DIAGNOSTICS"
 
 cmake --build "$CMAKE_BUILD_DIR" --parallel "$WEBOS_BUILD_JOBS"
+PLUGIN_IMPORT_SOURCES=()
+while IFS= read -r import_source; do
+  PLUGIN_IMPORT_SOURCES+=("$import_source")
+done < <(find "$CMAKE_BUILD_DIR" -type f -name '*plugin_import.cpp' | sort)
+for plugin_class in \
+  QWaylandIntegrationPlugin \
+  QTlsBackendOpenSSL \
+  QWaylandEglClientBufferPlugin \
+  QWaylandWlShellIntegrationPlugin \
+  QSQLiteDriverPlugin \
+  QJpegPlugin \
+  QWebpPlugin
+do
+  if (( ${#PLUGIN_IMPORT_SOURCES[@]} == 0 )) \
+      || ! grep -Fq "Q_IMPORT_PLUGIN($plugin_class)" "${PLUGIN_IMPORT_SOURCES[@]}"; then
+    echo "error: generated static plugin imports are missing $plugin_class" >&2
+    exit 1
+  fi
+done
 cmake --install "$CMAKE_BUILD_DIR" --prefix "$INSTALL_DIR"
 fi
 
 if (( DO_STAGE )); then
 rm -rf "$APP_DIR"
-mkdir -p "$BUILD_DIR" "$STAGE_LIB" "$STAGE_BIN" "$APP_DIR/qt-qml"
+mkdir -p "$BUILD_DIR" "$STAGE_LIB" "$STAGE_BIN" "$APP_DIR/fonts"
 python3 "$ROOT/tools/render-appinfo.py" \
   "$APP_SOURCE_DIR/appinfo.json.in" \
   "$ROOT/VERSION" \
@@ -264,10 +277,12 @@ python3 "$ROOT/tools/render-appinfo.py" \
 cp -f "$APP_SOURCE_DIR/icons/png/spool/80.png" "$APP_DIR/icon.png"
 cp -f "$APP_SOURCE_DIR/icons/png/spool/130.png" "$APP_DIR/large-icon.png"
 cp -f "$APP_SOURCE_DIR/splash.png" "$APP_DIR/splash.png"
+cp -f "$INSTALL_DIR/fonts/"* "$APP_DIR/fonts/"
 mkdir -p "$APP_DIR/notices"
 cp -f "$ROOT/app/notices/OPEN_SOURCE_NOTICES.txt" "$ROOT/LICENSE" \
   "$ROOT/qml/fonts/AtkinsonHyperlegible-LICENSE.txt" \
-  "$ROOT/qml/fonts/IBMPlexSans-LICENSE.txt" "$ROOT/qml/fonts/MaterialIcons-LICENSE.txt" \
+  "$ROOT/qml/fonts/IBMPlexSans-LICENSE.txt" "$ROOT/qml/fonts/PTRootUI-LICENSE.txt" \
+  "$ROOT/qml/fonts/MaterialIcons-LICENSE.txt" \
   "$APP_DIR/notices/"
 PATCHELF_BIN="$(command -v patchelf)"
 
@@ -343,51 +358,40 @@ fi
   "$STAGE_BIN/jellyfin-native" "$MPV_STAGED_LIBRARY" "$CURL_STAGED_LIBRARY" \
   "$FFMPEG_STAGED_LIBRARY" "$AVFORMAT_STAGED_LIBRARY"
 
-# strip binary to reduce size
-"$STRIP_BIN" --strip-unneeded "$STAGE_BIN/jellyfin-native"
+echo "Stripping every staged webOS ELF"
+declare -A STRIPPED_ELF_INODES=()
+while IFS= read -r -d '' elf; do
+  "$READELF_BIN" -h "$elf" >/dev/null 2>&1 || continue
+  inode="$(stat -Lc '%d:%i' "$elf")"
+  [[ -z "${STRIPPED_ELF_INODES[$inode]:-}" ]] || continue
+  "$STRIP_BIN" --strip-unneeded "$elf"
+  STRIPPED_ELF_INODES[$inode]=1
+done < <(find "$APP_DIR" -type f -print0)
 
-cat > "$STAGE_BIN/qt.conf" <<'QTCONF'
-[Paths]
-QmlImports = ../qt-qml
-QTCONF
-
-# --- Optional: bundle heaptrack memory recorder + launch shim --------------
-# Controlled by BUNDLE_HEAPTRACK=1. Release IPKs keep main=bin/jellyfin-native
-# as the real executable; the profiling shim is opt-in for development bundles.
-HEAPTRACK_INSTALL="${HEAPTRACK_INSTALL:-$ROOT/build/webos-heaptrack/install}"
-HEAPTRACK_SHIM="$ROOT/tools/webos/heaptrack-launch-shim.sh"
-if [[ "${BUNDLE_HEAPTRACK:-0}" == "1" && -f "$HEAPTRACK_INSTALL/lib/heaptrack/libheaptrack_preload.so" ]]; then
-  echo "Bundling heaptrack memory recorder + launch shim"
-  mv -f "$STAGE_BIN/jellyfin-native" "$STAGE_BIN/jellyfin-native.real"
-  install -m 0755 "$HEAPTRACK_SHIM" "$STAGE_BIN/jellyfin-native"
-  mkdir -p "$STAGE_LIB/heaptrack/libexec"
-  cp -f "$HEAPTRACK_INSTALL/lib/heaptrack/libheaptrack_preload.so" "$STAGE_LIB/heaptrack/"
-  cp -f "$HEAPTRACK_INSTALL/bin/heaptrack" "$STAGE_BIN/heaptrack" 2>/dev/null || true
-  cp -f "$HEAPTRACK_INSTALL/lib/heaptrack/libexec/heaptrack_env" "$STAGE_LIB/heaptrack/libexec/" 2>/dev/null || true
-  # The preload (app/lib/heaptrack/) finds the bundled libstdc++ in app/lib via
-  # $ORIGIN/.. ; the shim also exports LD_LIBRARY_PATH as a belt-and-suspenders.
-  "$PATCHELF_BIN" --force-rpath --set-rpath '$ORIGIN/..' "$STAGE_LIB/heaptrack/libheaptrack_preload.so" 2>/dev/null || true
-  # Preserve an unstripped symbol source for desktop heaptrack_interpret.
-  cp -f "$INSTALL_DIR/bin/jellyfin-native" "$BUILD_DIR/jellyfin-native.unstripped" 2>/dev/null || true
-else
-  echo "Skipping heaptrack bundle (set BUNDLE_HEAPTRACK=1 after building heaptrack to enable)"
-fi
-
-echo "Stripping staged shared libraries"
-while IFS= read -r -d '' library; do
-  "$STRIP_BIN" --strip-unneeded "$library"
-done < <(find "$STAGE_LIB" -type f -name '*.so*' -print0)
-APP_AUDIT_BINARY="$STAGE_BIN/jellyfin-native"
-if [[ -f "$STAGE_BIN/jellyfin-native.real" ]]; then
-  APP_AUDIT_BINARY="$STAGE_BIN/jellyfin-native.real"
-fi
 "$ROOT/tools/webos-native/audit-arm-binaries.sh" \
   "$READELF_BIN" "$OBJDUMP_BIN" --stripped \
-  "$APP_AUDIT_BINARY" "$MPV_STAGED_LIBRARY" "$CURL_STAGED_LIBRARY" \
+  "$STAGE_BIN/jellyfin-native" "$MPV_STAGED_LIBRARY" "$CURL_STAGED_LIBRARY" \
   "$FFMPEG_STAGED_LIBRARY" "$AVFORMAT_STAGED_LIBRARY" "$OPENSSL_STAGED_LIBRARY" \
   "$OPENSSL_CRYPTO_STAGED_LIBRARY"
+
+WEBOS_ELF_AUDIT_ARGS=(
+  elf "$APP_DIR"
+  --root bin/jellyfin-native
+  --readelf "$READELF_BIN"
+)
+for firmware_soname in \
+  ld-linux.so.3 libc.so.6 libm.so.6 libdl.so.2 libpthread.so.0 librt.so.1 libresolv.so.2 libutil.so.1 \
+  libEGL.so.1 libGLESv2.so.2 libwayland-client.so.0 libwayland-egl.so.1 libwayland-webos-client.so.0 \
+  libasound.so.2 libglib-2.0.so.0 libpbnjson_c.so.2 libluna-service2.so.3 libPmLogLib.so.3 libnyx.so.0 \
+  libudev.so.0 libhelpers.so.1
+do
+  WEBOS_ELF_AUDIT_ARGS+=(--allow-system "$firmware_soname")
+done
+python3 "$ROOT/tools/package-audit.py" "${WEBOS_ELF_AUDIT_ARGS[@]}"
 python3 "$ROOT/tools/ffmpeg-capabilities.py" \
   --manifest "$FFMPEG_CAPABILITY_MANIFEST" audit-closure "$STAGE_LIB"
+python3 "$ROOT/tools/package-audit.py" inventory "$APP_DIR" \
+  --output "$BUILD_DIR/webos-stage.inventory.tsv"
 fi
 
 if (( DO_PACKAGE )); then

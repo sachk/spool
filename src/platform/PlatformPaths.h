@@ -6,6 +6,7 @@
 namespace JellyfinNative {
 
 QString resolveAppRoot(const char *argv0);
+QString bundledFontsPath(const QString& appRootPath);
 QString startupCacheRoot(const QString& appRootPath);
 QString persistentDataRoot();
 QStringList appLogDirectories(const QString& appRootPath);

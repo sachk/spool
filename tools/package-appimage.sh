@@ -12,12 +12,14 @@ source "$APP_ROOT/tools/lib/manifest-sources.sh"
 TOOL_MANIFEST="${LINUXDEPLOY_MANIFEST:-$APP_ROOT/tools/manifests/linuxdeploy.json}"
 FFMPEG_CAPABILITY_MANIFEST="${FFMPEG_CAPABILITY_MANIFEST:-$APP_ROOT/tools/manifests/ffmpeg-capabilities.json}"
 APP_VERSION="$(read_project_version "$APP_ROOT")"
-BUILD_ROOT="${BUILD_ROOT:-$APP_ROOT/build/linux-release/install/bin}"
-MPV_PREFIX="${MPV_PREFIX:-$APP_ROOT/build/linux-release/mpv-prefix}"
+APP_INSTALL="${APP_INSTALL:-$APP_ROOT/build/linux-release/install}"
 APPDIR="${APPDIR:-$APP_ROOT/build/appimage/AppDir}"
 ARTIFACT_DIR="${ARTIFACT_DIR:-$APP_ROOT/dist}"
-LINUXDEPLOY="${LINUXDEPLOY:-$APP_ROOT/build/appimage/linuxdeploy-x86_64.AppImage}"
 QT_PLUGIN="${QT_PLUGIN:-$APP_ROOT/build/appimage/linuxdeploy-plugin-qt-x86_64.AppImage}"
+APPIMAGETOOL="${APPIMAGETOOL:-$APP_ROOT/build/appimage/appimagetool-x86_64.AppImage}"
+PATCHELF_ARCHIVE="${PATCHELF_ARCHIVE:-$APP_ROOT/build/appimage/patchelf-0.18.0-x86_64.tar.gz}"
+PATCHELF_ROOT="${PATCHELF_ROOT:-$APP_ROOT/build/appimage/patchelf-0.18.0}"
+PATCHELF_BIN="$PATCHELF_ROOT/bin/patchelf"
 APPIMAGE_RUNTIME="${APPIMAGE_RUNTIME:-$APP_ROOT/build/appimage/runtime-x86_64}"
 
 append_library_path() {
@@ -54,7 +56,7 @@ is_bundleable_elf_dep() {
       ;;
   esac
   case "$dep" in
-    /nix/store/*|"$MPV_PREFIX"/*) return 0 ;;
+    /nix/store/*|"$APP_INSTALL"/*) return 0 ;;
     *) return 1 ;;
   esac
 }
@@ -97,18 +99,10 @@ copy_tree_if_exists() {
   chmod -R u+w "$dst" 2>/dev/null || true
 }
 
-qt_query() {
-  local key="$1"
-  if command -v qtpaths6 >/dev/null 2>&1; then
-    qtpaths6 -query "$key" 2>/dev/null || true
-  elif command -v qtpaths >/dev/null 2>&1; then
-    qtpaths -query "$key" 2>/dev/null || true
-  fi
-}
 
 bundle_wayland_plugins() {
   local plugins_dir
-  plugins_dir="$(qt_query QT_INSTALL_PLUGINS)"
+  plugins_dir="$(qt_deploy_query_path QT_INSTALL_PLUGINS)"
   [[ -d "$plugins_dir" ]] || return 0
 
   copy_tree_if_exists "$plugins_dir/platforms/libqwayland.so" \
@@ -125,7 +119,7 @@ prime_linuxdeploy_qt_plugins() {
   local root plugins_dir plugin_dir platform
   local plugin_roots=()
 
-  plugins_dir="$(qt_query QT_INSTALL_PLUGINS)"
+  plugins_dir="$(qt_deploy_query_path QT_INSTALL_PLUGINS)"
   [[ -d "$plugins_dir" ]] && plugin_roots+=("$plugins_dir")
 
   local qmake_roots=()
@@ -138,11 +132,7 @@ prime_linuxdeploy_qt_plugins() {
 
   for plugins_dir in "${plugin_roots[@]}"; do
     for plugin_dir in \
-      iconengines \
-      imageformats \
-      networkinformation \
       platforminputcontexts \
-      sqldrivers \
       tls \
       wayland-decoration-client \
       wayland-graphics-integration-client \
@@ -151,12 +141,16 @@ prime_linuxdeploy_qt_plugins() {
         "$APPDIR/usr/lib/qt-6/plugins/$plugin_dir"
     done
 
-    mkdir -p "$APPDIR/usr/lib/qt-6/plugins/platforms"
-    for platform in libqxcb.so libqwayland.so libqoffscreen.so; do
+    mkdir -p "$APPDIR/usr/lib/qt-6/plugins/platforms" "$APPDIR/usr/lib/qt-6/plugins/sqldrivers"
+    for platform in libqxcb.so libqwayland.so; do
       [[ -f "$plugins_dir/platforms/$platform" ]] || continue
       cp -a "$plugins_dir/platforms/$platform" "$APPDIR/usr/lib/qt-6/plugins/platforms/"
       chmod u+w "$APPDIR/usr/lib/qt-6/plugins/platforms/$platform" 2>/dev/null || true
     done
+    if [[ -f "$plugins_dir/sqldrivers/libqsqlite.so" ]]; then
+      cp -a "$plugins_dir/sqldrivers/libqsqlite.so" "$APPDIR/usr/lib/qt-6/plugins/sqldrivers/"
+      chmod u+w "$APPDIR/usr/lib/qt-6/plugins/sqldrivers/libqsqlite.so" 2>/dev/null || true
+    fi
   done
 
   # qtimageformats is not on QMAKEPATH — nothing links it, it is loaded at
@@ -197,14 +191,20 @@ prune_appdir() {
     "$APPDIR/usr/qml/QtQuick/Controls/Material" \
     "$APPDIR/usr/qml/QtQuick/Controls/Universal" \
     "$APPDIR/usr/qml/QtQuick/Controls/FluentWinUI3.impl" \
-    "$APPDIR/usr/qml/QtQuick/Dialogs/quickimpl/+Fusion" \
-    "$APPDIR/usr/qml/QtQuick/Dialogs/quickimpl/+Imagine" \
-    "$APPDIR/usr/qml/QtQuick/Dialogs/quickimpl/+Material" \
-    "$APPDIR/usr/qml/QtQuick/Dialogs/quickimpl/+Universal" \
-    "$APPDIR/usr/qml/QtQuick/Dialogs/quickimpl/+FluentWinUI3" \
+    "$APPDIR/usr/qml/QtQuick/Dialogs/quickimpl/qml/+Fusion" \
+    "$APPDIR/usr/qml/QtQuick/Dialogs/quickimpl/qml/+Imagine" \
+    "$APPDIR/usr/qml/QtQuick/Dialogs/quickimpl/qml/+Material" \
+    "$APPDIR/usr/qml/QtQuick/Dialogs/quickimpl/qml/+Universal" \
+    "$APPDIR/usr/qml/QtQuick/Dialogs/quickimpl/qml/+FluentWinUI3" \
     "$APPDIR/usr/qml/QtQuick/tooling" \
     "$APPDIR/usr/qml/QtQuick/Shapes/DesignHelpers" \
     "$APPDIR/usr/qml/QtQuick/VectorImage/Helpers"
+
+  local dialogs_qmldir="$APPDIR/usr/qml/QtQuick/Dialogs/quickimpl/qmldir"
+  if [[ -f "$dialogs_qmldir" ]]; then
+    sed -i '\|qml/+\(Fusion\|Imagine\|Material\|Universal\|FluentWinUI3\)/|d' "$dialogs_qmldir"
+  fi
+  find "$APPDIR/usr" -type f -name '*.qmltypes' -delete
 
   find "$APPDIR/usr/lib" -maxdepth 1 -type f \( \
     -name 'libQt6QuickControls2FluentWinUI3*.so*' -o \
@@ -226,7 +226,6 @@ prune_appdir() {
     -name 'libgbm*.so*' \
   \) -delete
 
-  # Translations: keep only English (linuxdeploy-plugin-qt copies all locales).
   if [[ -d "$APPDIR/usr/translations" ]]; then
     find "$APPDIR/usr/translations" -maxdepth 1 -type f -name '*.qm' \
       ! -name 'qtbase_en*.qm' ! -name 'qt_en*.qm' -delete 2>/dev/null || true
@@ -240,20 +239,31 @@ audit_ffmpeg_closure() {
     audit-closure "$APPDIR/usr/lib" "$APPDIR/usr/bin"
 }
 
+normalize_nix_store_needed() {
+  local elf="$1"
+  local needed
+  while IFS= read -r needed; do
+    if is_bundleable_elf_dep "$needed" && [[ ! -e "$APPDIR/usr/lib/${needed##*/}" ]]; then
+      cp -L "$needed" "$APPDIR/usr/lib/"
+      chmod u+w "$APPDIR/usr/lib/${needed##*/}"
+    fi
+    [[ "$needed" == /nix/store/* ]] || continue
+    "$PATCHELF_BIN" --replace-needed "$needed" "${needed##*/}" "$elf"
+  done < <("$PATCHELF_BIN" --print-needed "$elf")
+}
+
 patchelf_set_rpath() {
   local rpath="$1"
   local elf="$2"
-  # Some linuxdeploy/AppImage runtime ELFs can make this host patchelf abort.
-  # RPATH fixes are best-effort here and were already non-fatal; running
-  # patchelf through a child Bash keeps that shell's signal diagnostic out of
-  # otherwise successful package logs.
-  bash -c 'patchelf --set-rpath "$1" "$2" >/dev/null 2>&1' _ "$rpath" "$elf" >/dev/null 2>&1 || true
+  chmod u+w "$elf"
+  "$PATCHELF_BIN" --set-rpath "$rpath" "$elf"
 }
 
 set_appdir_rpaths() {
   local elf rel depth prefix
   while IFS= read -r elf; do
     file -b "$elf" | grep -q 'ELF' || continue
+    normalize_nix_store_needed "$elf"
     case "$elf" in
       "$APPDIR/usr/bin/"*) patchelf_set_rpath '$ORIGIN/../lib' "$elf" ;;
       "$APPDIR/usr/lib/"*) patchelf_set_rpath '$ORIGIN' "$elf" ;;
@@ -271,60 +281,98 @@ set_appdir_rpaths() {
   done < <(find "$APPDIR/usr" -type f)
 }
 
-if [[ ! -x "$BUILD_ROOT/jellyfin-native" ]]; then
-  echo "error: build output not found at $BUILD_ROOT/jellyfin-native" >&2
+strip_appdir_elfs() {
+  local elf inode
+  declare -A stripped_inodes=()
+  while IFS= read -r elf; do
+    file -b "$elf" | grep -q 'ELF.*not stripped' || continue
+    inode="$(stat -Lc '%d:%i' "$elf")"
+    [[ -z "${stripped_inodes[$inode]:-}" ]] || continue
+    llvm-strip --strip-unneeded "$elf"
+    stripped_inodes[$inode]=1
+  done < <(find "$APPDIR/usr" -type f | sort)
+}
+
+audit_and_sweep_appdir_elfs() {
+  local elf rel status kind
+  local -a audit_args=(
+    elf "$APPDIR"
+    --root usr/bin/jellyfin-native
+    --allow-system ld-linux-x86-64.so.2
+    --allow-system libc.so.6
+    --allow-system libdl.so.2
+    --allow-system libm.so.6
+    --allow-system libpthread.so.0
+    --allow-system libresolv.so.2
+    --allow-system librt.so.1
+    --allow-system libmvec.so.1
+    --allow-system libutil.so.1
+    --allow-system libGLESv2.so.2
+    --allow-system libgbm.so.1
+    --allow-system libglapi.so.0
+  )
+  if [[ -f "$APPDIR/usr/bin/secret-tool" ]]; then
+    audit_args+=(--root usr/bin/secret-tool)
+  fi
+  while IFS= read -r elf; do
+    audit_args+=(--root "${elf#"$APPDIR/"}")
+  done < <(find "$APPDIR/usr/lib" -type f -name 'libmpv.so.*' | sort)
+  for rel in usr/plugins usr/qml; do
+    [[ -d "$APPDIR/$rel" ]] || continue
+    while IFS= read -r elf; do
+      audit_args+=(--root "${elf#"$APPDIR/"}")
+    done < <(find "$APPDIR/$rel" -type f -name '*.so*' | sort)
+  done
+
+  local report="$APPDIR/.elf-audit-unreachable"
+  local errors="$APPDIR/.elf-audit-errors"
+  set +e
+  python3 "$APP_ROOT/tools/package-audit.py" "${audit_args[@]}" >"$report" 2>"$errors"
+  status=$?
+  set -e
+  local removed=0
+  while IFS=$'\t' read -r kind rel; do
+    [[ "$kind" == UNREACHABLE && -n "$rel" ]] || continue
+    rm -f "$APPDIR/$rel"
+    removed=$((removed + 1))
+  done <"$report"
+  rm -f "$report"
+  if (( status != 0 && removed == 0 )); then
+    cat "$errors" >&2
+    rm -f "$errors"
+    return "$status"
+  fi
+  rm -f "$errors"
+  python3 "$APP_ROOT/tools/package-audit.py" "${audit_args[@]}"
+}
+
+if [[ ! -x "$APP_INSTALL/bin/jellyfin-native" ]]; then
+  echo "error: installed build output not found at $APP_INSTALL/bin/jellyfin-native" >&2
   exit 1
 fi
 
-mkdir -p "$ARTIFACT_DIR" "$(dirname "$LINUXDEPLOY")"
+mkdir -p "$ARTIFACT_DIR" "$(dirname "$QT_PLUGIN")" "$(dirname "$APPIMAGETOOL")"
 if [[ -d "$APPDIR" ]]; then
   chmod -R u+w "$APPDIR" 2>/dev/null || true
 fi
 rm -rf "$APPDIR"
-mkdir -p "$APPDIR/usr/bin" "$APPDIR/usr/lib" "$APPDIR/usr/share/applications" \
-  "$APPDIR/usr/share/fonts" "$APPDIR/usr/share/icons/hicolor/scalable/apps" \
-  "$APPDIR/usr/share/jellyfin-native/notices"
-
-cp -f "$BUILD_ROOT/jellyfin-native" "$APPDIR/usr/bin/jellyfin-native"
-find "$MPV_PREFIX/lib" -name 'libmpv.so*' -exec cp -a {} "$APPDIR/usr/lib/" \;
+mkdir -p "$APPDIR/usr" "$APPDIR/usr/share/jellyfin-native/notices"
+cp -a "$APP_INSTALL/." "$APPDIR/usr/"
 if command -v secret-tool >/dev/null 2>&1; then
   cp -f "$(command -v secret-tool)" "$APPDIR/usr/bin/secret-tool"
 fi
-for icon_size in 16 22 24 32 48 64 128 256 512; do
-  icon_dir="$APPDIR/usr/share/icons/hicolor/${icon_size}x${icon_size}/apps"
-  mkdir -p "$icon_dir"
-  cp -f "$APP_ROOT/app/icons/png/spool/${icon_size}.png" "$icon_dir/com.sachk.spool.png"
-done
-cp -f "$APP_ROOT/app/icons/spool.svg" \
-  "$APPDIR/usr/share/icons/hicolor/scalable/apps/com.sachk.spool.svg"
-cp -f "$APP_ROOT/app/icons/png/spool/256.png" "$APPDIR/com.sachk.spool.png"
-mkdir -p "$APPDIR/usr/share/metainfo"
-cp -f "$APP_ROOT/app/com.sachk.spool.metainfo.xml" \
-  "$APPDIR/usr/share/metainfo/com.sachk.spool.appdata.xml"
 cp -f "$APP_ROOT/app/notices/OPEN_SOURCE_NOTICES.txt" "$APP_ROOT/LICENSE" \
   "$APP_ROOT/qml/fonts/AtkinsonHyperlegible-LICENSE.txt" \
   "$APP_ROOT/qml/fonts/IBMPlexSans-LICENSE.txt" "$APP_ROOT/qml/fonts/PTRootUI-LICENSE.txt" \
   "$APP_ROOT/qml/fonts/MaterialIcons-LICENSE.txt" \
   "$APPDIR/usr/share/jellyfin-native/notices/"
-cp -f "$APP_ROOT/qml/fonts/AtkinsonHyperlegible-Regular.otf" \
-  "$APP_ROOT/qml/fonts/AtkinsonHyperlegible-Bold.otf" "$APP_ROOT/qml/fonts/IBMPlexSans-Variable.ttf" \
-  "$APPDIR/usr/share/fonts/"
-cat > "$APPDIR/usr/share/jellyfin-native/fonts.conf" <<'FONTCONFIG'
-<?xml version="1.0"?>
-<!DOCTYPE fontconfig SYSTEM "urn:fontconfig:fonts.dtd">
-<fontconfig>
-  <dir prefix="relative">../fonts</dir>
-  <dir prefix="xdg">fonts</dir>
-  <cachedir prefix="xdg">fontconfig</cachedir>
-  <config></config>
-</fontconfig>
-FONTCONFIG
+ln -s "usr/share/icons/hicolor/256x256/apps/com.sachk.spool.png" "$APPDIR/com.sachk.spool.png"
+ln -s "usr/share/applications/com.sachk.spool.desktop" "$APPDIR/com.sachk.spool.desktop"
 cat > "$APPDIR/AppRun" <<'APPRUN'
 #!/usr/bin/env bash
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 export PATH="$HERE/usr/bin${PATH:+:$PATH}"
 unset QML2_IMPORT_PATH QML_IMPORT_PATH QT_PLUGIN_PATH QT_QPA_PLATFORM_PLUGIN_PATH
-export FONTCONFIG_FILE="$HERE/usr/share/jellyfin-native/fonts.conf"
 if [[ -d /run/opengl-driver/lib ]]; then
   export LD_LIBRARY_PATH="$HERE/usr/lib:/run/opengl-driver/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
 else
@@ -370,20 +418,28 @@ exec "$HERE/usr/bin/jellyfin-native" "$@"
 APPRUN
 chmod +x "$APPDIR/AppRun"
 
-cp -f "$APP_ROOT/app/com.sachk.spool.desktop" \
-  "$APPDIR/usr/share/applications/com.sachk.spool.desktop"
-cp -f "$APPDIR/usr/share/applications/com.sachk.spool.desktop" "$APPDIR/com.sachk.spool.desktop"
 
-download_verified \
-  "$(manifest_tool_field "$TOOL_MANIFEST" linuxdeploy url)" \
-  "$(manifest_tool_field "$TOOL_MANIFEST" linuxdeploy sha256)" \
-  "$LINUXDEPLOY"
-chmod +x "$LINUXDEPLOY"
 download_verified \
   "$(manifest_tool_field "$TOOL_MANIFEST" linuxdeploy-plugin-qt url)" \
   "$(manifest_tool_field "$TOOL_MANIFEST" linuxdeploy-plugin-qt sha256)" \
   "$QT_PLUGIN"
 chmod +x "$QT_PLUGIN"
+download_verified \
+  "$(manifest_tool_field "$TOOL_MANIFEST" appimagetool url)" \
+  "$(manifest_tool_field "$TOOL_MANIFEST" appimagetool sha256)" \
+  "$APPIMAGETOOL"
+chmod +x "$APPIMAGETOOL"
+download_verified \
+  "$(manifest_tool_field "$TOOL_MANIFEST" patchelf url)" \
+  "$(manifest_tool_field "$TOOL_MANIFEST" patchelf sha256)" \
+  "$PATCHELF_ARCHIVE"
+rm -rf "$PATCHELF_ROOT"
+mkdir -p "$PATCHELF_ROOT"
+tar -xzf "$PATCHELF_ARCHIVE" -C "$PATCHELF_ROOT"
+[[ -x "$PATCHELF_BIN" ]] || {
+  echo "error: pinned patchelf executable is missing at $PATCHELF_BIN" >&2
+  exit 1
+}
 download_verified \
   "$(manifest_tool_field "$TOOL_MANIFEST" type2-runtime url)" \
   "$(manifest_tool_field "$TOOL_MANIFEST" type2-runtime sha256)" \
@@ -398,14 +454,11 @@ if [[ -z "$qt_deploy_path" || ! -x "$qt_deploy_path/qmlimportscanner" ]]; then
 fi
 export PATH="$qt_deploy_path${PATH:+:$PATH}"
 
-append_library_path "$MPV_PREFIX/lib"
+append_library_path "$APP_INSTALL/lib"
 IFS=':' read -r -a cmake_library_dirs <<< "${CMAKE_LIBRARY_PATH:-}"
 for lib_dir in "${cmake_library_dirs[@]}"; do
   append_library_path "$lib_dir"
 done
-while IFS= read -r lib_dir; do
-  append_library_path "$lib_dir"
-done < <(find "$MPV_PREFIX/lib" -name 'libmpv.so*' -exec dirname {} \; | sort -u)
 while IFS= read -r dep; do
   case "$dep" in
     /nix/store/*-glibc-*) continue ;;
@@ -428,32 +481,19 @@ prime_linuxdeploy_qt_plugins
 unset EXTRA_PLATFORM_PLUGINS
 bundle_wayland_plugins
 prune_appdir
+set_appdir_rpaths
 copy_elf_deps
 set_appdir_rpaths
+chmod -R u+w "$APPDIR/usr"
+strip_appdir_elfs
+audit_and_sweep_appdir_elfs
 audit_ffmpeg_closure
 audit_image_formats
 
-APPIMAGETOOL="${APPIMAGETOOL:-}"
-if [[ -z "$APPIMAGETOOL" ]]; then
-  linuxdeploy_extract="$APP_ROOT/build/appimage/linuxdeploy-extracted"
-  linuxdeploy_sha="$(manifest_tool_field "$TOOL_MANIFEST" linuxdeploy sha256)"
-  linuxdeploy_marker="$linuxdeploy_extract/.linuxdeploy-sha256"
-  if [[ ! -x "$linuxdeploy_extract/plugins/linuxdeploy-plugin-appimage/appimagetool-prefix/usr/bin/appimagetool" ]] \
-      || [[ ! -f "$linuxdeploy_marker" ]] \
-      || [[ "$(<"$linuxdeploy_marker")" != "$linuxdeploy_sha" ]]; then
-    rm -rf "$linuxdeploy_extract" "$APP_ROOT/build/appimage/squashfs-root"
-    (
-      cd "$APP_ROOT/build/appimage"
-      "$LINUXDEPLOY" --appimage-extract >/dev/null
-      mv squashfs-root "$linuxdeploy_extract"
-      printf '%s\n' "$linuxdeploy_sha" >"$linuxdeploy_marker"
-    )
-  fi
-  APPIMAGETOOL="$linuxdeploy_extract/plugins/linuxdeploy-plugin-appimage/appimagetool-prefix/usr/bin/appimagetool"
-fi
 
-prepend_path "$(dirname "$APPIMAGETOOL")"
 ARCH="${ARCH:-x86_64}" "$APPIMAGETOOL" \
   --runtime-file "$APPIMAGE_RUNTIME" \
   "$APPDIR" "$ARTIFACT_DIR/$OUTPUT"
+python3 "$APP_ROOT/tools/package-audit.py" inventory "$APPDIR" \
+  --output "$ARTIFACT_DIR/${OUTPUT%.AppImage}.inventory.tsv"
 printf '%s\n' "$ARTIFACT_DIR/$OUTPUT"

@@ -72,8 +72,8 @@ class PlayerController final : public QObject {
     Q_PROPERTY(QStringList trickplaySheetUrls READ trickplaySheetUrls NOTIFY trickplayChanged)
 
 public:
-    PlayerController(
-        NativeAppWindow *window, JellyfinApiFacade *api, TlsTrustController *tlsTrust, QObject *parent = nullptr);
+    PlayerController(NativeAppWindow *window, JellyfinApiFacade *api, TlsTrustController *tlsTrust,
+        const QString& subtitleFontsPath, QObject *parent = nullptr);
     ~PlayerController() override;
 
     bool visible() const;
@@ -300,6 +300,7 @@ private:
     QByteArray m_demuxerMaxBackBytes = QByteArrayLiteral("32M");
     MpvConfigPolicy m_mpvConfigPolicy;
     TlsTrustController *m_tlsTrust = nullptr;
+    const QByteArray m_subtitleFontsPath;
     int m_forwardCacheSizeMiB = 0;
     SubtitlePreferences m_subtitlePreferences;
     bool m_hdrPlayback = false;

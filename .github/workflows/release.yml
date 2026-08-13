@@ -49,7 +49,6 @@ jobs:
     with:
       release: true
       enable_macos_signing: ${{ vars.ENABLE_MACOS_SIGNING == 'true' }}
-      enable_windows_signing: ${{ vars.ENABLE_WINDOWS_SIGNING == 'true' }}
     secrets: inherit
 
 
@@ -97,7 +96,6 @@ jobs:
       - name: Write release safety notice
         env:
           MACOS_SIGNED: ${{ vars.ENABLE_MACOS_SIGNING == 'true' }}
-          WINDOWS_SIGNED: ${{ vars.ENABLE_WINDOWS_SIGNING == 'true' }}
           TAG: ${{ github.ref_name }}
           REPO: ${{ github.repository }}
         run: |
@@ -139,9 +137,7 @@ jobs:
             echo '## Alpha installation trust'
             echo
             echo "This is prerelease software. Verify \`SHA256SUMS.txt\` and the GitHub artifact attestations before use."
-            if [[ "$WINDOWS_SIGNED" != true ]]; then
-              echo 'The Windows installer and portable executable are **not Authenticode signed**.'
-            fi
+            echo 'The Windows installer and portable executable are **not Authenticode signed**.'
             if [[ "$MACOS_SIGNED" != true ]]; then
               echo 'The macOS DMG is **not Developer ID signed or notarized**.'
             fi

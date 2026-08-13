@@ -38,6 +38,7 @@ mpv_meson_build "$MPV_SRC" "$MPV_BUILD" "${MPV_SETUP_ARGS[@]}"
 prune_stale_mpv_libraries "$MPV_PREFIX" "$MPV_BUILD"
 append_colon_path PKG_CONFIG_PATH "$MPV_PREFIX/lib/pkgconfig"
 
+rm -rf "$APP_INSTALL/jellyfin-native.app"
 cmake_build_app "$APP_ROOT" "$APP_BUILD" \
   -DCMAKE_BUILD_TYPE=Release \
   -DJELLYFIN_NATIVE_WEBOS=OFF \
@@ -55,12 +56,6 @@ if [[ "$DEPLOY_APP" == "1" ]]; then
     exit 1
   }
 
-  # Prefer Apple's /usr/bin/strip — nix's cctools-binutils strip rejects newer
-  # Mach-O load commands (LC_DYLD_CHAINED_FIXUPS, cmd=0x8000001f) emitted by
-  # the Apple SDK toolchain, which makes macdeployqt abort.
-  if [[ -x /usr/bin/strip ]]; then
-    export PATH="/usr/bin:$PATH"
-  fi
 
   macdeployqt_shadow="$(qt_deploy_macdeployqt_shadow \
     "$APP_BUILD/build.ninja" \
@@ -113,6 +108,14 @@ if [[ "$DEPLOY_APP" == "1" ]]; then
     "$APP_ROOT/qml/fonts/IBMPlexSans-LICENSE.txt" "$APP_ROOT/qml/fonts/PTRootUI-LICENSE.txt" \
     "$APP_ROOT/qml/fonts/MaterialIcons-LICENSE.txt" \
     "$APP_INSTALL/jellyfin-native.app/Contents/Resources/notices/"
+  find "$APP_INSTALL/jellyfin-native.app" -type f -name '*.qmltypes' -delete
+  while IFS= read -r binary; do
+    file -b "$binary" | grep -q 'Mach-O' || continue
+    /usr/bin/strip -S -x "$binary"
+  done < <(find "$APP_INSTALL/jellyfin-native.app" -type f | sort)
+  python3 "$APP_ROOT/tools/package-audit.py" macho "$APP_INSTALL/jellyfin-native.app"
+  python3 "$APP_ROOT/tools/package-audit.py" inventory "$APP_INSTALL/jellyfin-native.app" \
+    --output "$BUILD_ROOT/jellyfin-native.inventory.tsv"
   python3 "$APP_ROOT/tools/ffmpeg-capabilities.py" \
     --manifest "$APP_ROOT/tools/manifests/ffmpeg-capabilities.json" \
     audit-closure "$APP_INSTALL/jellyfin-native.app"

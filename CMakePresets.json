@@ -50,21 +50,6 @@
         "JELLYFIN_NATIVE_DEV_BUILD": "OFF",
         "MPV_ROOT": "$env{JELLYFIN_MPV_ROOT}"
       }
-    },
-    {
-      "name": "webos-static",
-      "generator": "Ninja",
-      "binaryDir": "${sourceDir}/build/webos/app-static",
-      "toolchainFile": "${sourceDir}/tools/webos-native/qt6-webos-toolchain.cmake",
-      "cacheVariables": {
-        "BUILD_SHARED_LIBS": "OFF",
-        "CMAKE_BUILD_TYPE": "Release",
-        "CMAKE_FIND_ROOT_PATH": "$env{WEBOS_SDK_ROOT}/arm-webos-linux-gnueabi/sysroot;${sourceDir}/build/qt6-611-target-static-install",
-        "CMAKE_PREFIX_PATH": "${sourceDir}/build/qt6-611-target-static-install",
-        "JELLYFIN_NATIVE_WEBOS": "ON",
-        "MPV_WEBOS_BUILD_DIR": "${sourceDir}/mpv/build/webos-libmpv",
-        "QT_HOST_PATH": "${sourceDir}/build/qt6-611-host-install"
-      }
     }
   ],
   "buildPresets": [
@@ -83,10 +68,6 @@
     {
       "name": "windows-release",
       "configurePreset": "windows-release"
-    },
-    {
-      "name": "webos-static",
-      "configurePreset": "webos-static"
     }
   ]
 }

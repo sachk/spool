@@ -232,6 +232,7 @@
         ])
         ++ pkgs.lib.optionals pkgs.stdenv.isLinux (with pkgs; [
           gammaray
+          llvmPackages.bintools
           qt6.qtwayland
         ]);
 

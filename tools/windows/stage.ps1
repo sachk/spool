@@ -14,6 +14,17 @@ if (Test-Path -LiteralPath $stageDir) {
 }
 New-Item -ItemType Directory -Path $stageDir | Out-Null
 Copy-Item -LiteralPath $exe -Destination $stageDir
+$fontDir = Join-Path $stageDir 'fonts'
+New-Item -ItemType Directory -Path $fontDir | Out-Null
+foreach ($fontName in @(
+    'AtkinsonHyperlegible-Bold.otf',
+    'AtkinsonHyperlegible-Regular.otf',
+    'IBMPlexSans-Variable.ttf',
+    'PTRootUI-Variable.ttf',
+    'MaterialIcons-Regular.ttf'
+)) {
+    Copy-Item -LiteralPath (Join-Path $root "qml\fonts\$fontName") -Destination $fontDir
+}
 
 & (Join-Path $env:JELLYFIN_QT_ROOT 'bin\windeployqt.exe') `
     --release --no-translations --no-system-d3d-compiler --no-system-dxc-compiler `
@@ -29,12 +40,12 @@ if (-not (Test-Path -LiteralPath $webpPlugin)) {
     throw 'Qt WebP support was not deployed. Install qt.qt6.6111.addons.qtimageformats with MaintenanceTool.'
 }
 
-$mpvRuntimeDlls = @(Get-ChildItem (Join-Path $env:JELLYFIN_MPV_ROOT 'bin') -Filter '*.dll' -File)
-$mpvDll = $mpvRuntimeDlls | Where-Object Name -Like '*mpv*.dll' | Select-Object -First 1
-if (-not $mpvDll) { throw "libmpv DLL was not found below $env:JELLYFIN_MPV_ROOT\bin" }
-foreach ($runtimeDll in $mpvRuntimeDlls) {
-    Copy-Item -LiteralPath $runtimeDll.FullName -Destination $stageDir
-}
+$mpvBin = Join-Path $env:JELLYFIN_MPV_ROOT 'bin'
+$mpvCandidates = @(Get-ChildItem -LiteralPath $mpvBin -Filter '*mpv*.dll' -File)
+$mpvDll = $mpvCandidates | Where-Object Name -EQ 'mpv-2.dll' | Select-Object -First 1
+if (-not $mpvDll) { $mpvDll = $mpvCandidates | Select-Object -First 1 }
+if (-not $mpvDll) { throw "libmpv DLL was not found below $mpvBin" }
+Copy-Item -LiteralPath $mpvDll.FullName -Destination (Join-Path $stageDir 'mpv-2.dll')
 
 $crtRoot = Join-Path $env:VCToolsRedistDir 'x64'
 $crtDirectory = Get-ChildItem -LiteralPath $crtRoot -Directory -Filter 'Microsoft.VC*.CRT' -ErrorAction SilentlyContinue |
@@ -43,12 +54,77 @@ $crtDirectory = Get-ChildItem -LiteralPath $crtRoot -Directory -Filter 'Microsof
 if (-not $crtDirectory) {
     throw "The app-local MSVC runtime was not found below $crtRoot"
 }
-$crtRuntimeDlls = @(Get-ChildItem -LiteralPath $crtDirectory.FullName -Filter '*.dll' -File)
-if ($crtRuntimeDlls.Count -eq 0) {
-    throw "The app-local MSVC runtime contains no DLLs: $($crtDirectory.FullName)"
+
+$externalProviders = @{}
+foreach ($directory in @($mpvBin, $crtDirectory.FullName)) {
+    foreach ($candidate in Get-ChildItem -LiteralPath $directory -Filter '*.dll' -File) {
+        $key = $candidate.Name.ToLowerInvariant()
+        if (-not $externalProviders.ContainsKey($key)) {
+            $externalProviders[$key] = [Collections.Generic.List[IO.FileInfo]]::new()
+        }
+        $externalProviders[$key].Add($candidate)
+    }
 }
-foreach ($runtimeDll in $crtRuntimeDlls) {
-    Copy-Item -LiteralPath $runtimeDll.FullName -Destination $stageDir
+$externalDuplicates = @($externalProviders.GetEnumerator() | Where-Object { $_.Value.Count -gt 1 })
+if ($externalDuplicates.Count -gt 0) {
+    $details = $externalDuplicates | Sort-Object Key | ForEach-Object {
+        "$($_.Key): $(($_.Value.FullName) -join ', ')"
+    }
+    throw "Runtime search roots have duplicate same-name DLL providers:`n$($details -join "`n")"
+}
+
+$dumpbin = (Get-Command dumpbin.exe -ErrorAction Stop).Source
+$stagedProviders = @{}
+$pending = [Collections.Generic.Queue[string]]::new()
+$runtimeRoots = [Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
+foreach ($binary in Get-ChildItem -LiteralPath $stageDir -Recurse -File |
+    Where-Object Extension -In @('.dll', '.exe')) {
+    $key = $binary.Name.ToLowerInvariant()
+    if ($stagedProviders.ContainsKey($key)) {
+        throw "The staged Windows payload has duplicate same-name providers: $($binary.Name)"
+    }
+    $stagedProviders[$key] = $binary.FullName
+    if ($binary.Name -in @('jellyfin-native.exe', 'mpv-2.dll') -or
+        $binary.DirectoryName -ne $stageDir) {
+        [void] $runtimeRoots.Add($binary.FullName)
+    }
+}
+foreach ($runtimeRoot in $runtimeRoots) { $pending.Enqueue($runtimeRoot) }
+$inspected = [Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
+$missing = [Collections.Generic.List[string]]::new()
+while ($pending.Count -gt 0) {
+    $binary = $pending.Dequeue()
+    if (-not $inspected.Add($binary)) { continue }
+    $relative = [IO.Path]::GetRelativePath($stageDir, $binary)
+    $imports = @(& $dumpbin /nologo /dependents $binary | ForEach-Object {
+        if ($_ -match '^\s+([^\s]+\.dll)\s*$') { $Matches[1] }
+    } | Sort-Object -Unique)
+    if ($LASTEXITCODE -ne 0) { throw "dumpbin could not inspect $binary" }
+    foreach ($import in $imports) {
+        $key = $import.ToLowerInvariant()
+        if ($stagedProviders.ContainsKey($key)) {
+            $pending.Enqueue($stagedProviders[$key])
+            continue
+        }
+        if ($import -match '^(api|ext)-ms-win-') { continue }
+        $isCompilerRuntime = $import -match '^(concrt|msvcp|vcruntime)\d*(_\d+)?\.dll$'
+        if (-not $isCompilerRuntime -and
+            (Test-Path -LiteralPath (Join-Path $env:SystemRoot "System32\$import"))) {
+            continue
+        }
+        $provider = $externalProviders[$key]
+        if ($null -eq $provider) {
+            $missing.Add("$relative -> $import")
+            continue
+        }
+        $destination = Join-Path $stageDir $import
+        Copy-Item -LiteralPath $provider[0].FullName -Destination $destination
+        $stagedProviders[$key] = $destination
+        $pending.Enqueue($destination)
+    }
+}
+if ($missing.Count -gt 0) {
+    throw "The Windows payload has missing runtime dependencies:`n$($missing -join "`n")"
 }
 
 $licenseDir = Join-Path $stageDir 'licenses'
@@ -66,6 +142,15 @@ Copy-Item -LiteralPath (Join-Path $root 'qml\fonts\PTRootUI-LICENSE.txt') `
 Copy-Item -LiteralPath (Join-Path $root 'qml\fonts\MaterialIcons-LICENSE.txt') `
     -Destination (Join-Path $licenseDir 'MaterialIcons-Apache-2.0.txt')
 
+$closureOutput = @(& (Join-Path $PSScriptRoot 'test-runtime-closure.ps1') `
+    -StageDirectory $stageDir -AllowOrphans)
+foreach ($line in $closureOutput) {
+    if ($line -match "^ORPHAN`t(.+)$") {
+        Remove-Item -LiteralPath (Join-Path $stageDir $Matches[1]) -Force
+    }
+}
+& (Join-Path $PSScriptRoot 'test-runtime-closure.ps1') -StageDirectory $stageDir
+
 $ffmpegAuditArguments = @(
     (Join-Path $root 'tools\ffmpeg-capabilities.py'),
     '--manifest',
@@ -82,7 +167,6 @@ if (Get-Command py.exe -ErrorAction SilentlyContinue) {
 }
 if ($LASTEXITCODE -ne 0) { throw 'FFmpeg dependency closure audit failed.' }
 
-& (Join-Path $PSScriptRoot 'test-runtime-closure.ps1') -StageDirectory $stageDir
 
 $launchRoot = Join-Path $env:TEMP "spool-stage-launch-$PID"
 $env:LOCALAPPDATA = Join-Path $launchRoot 'data'

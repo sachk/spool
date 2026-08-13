@@ -100,31 +100,6 @@ namespace {
         return QFile::encodeName(cacheDirectory);
     }
 
-    QByteArray bundledSubtitleFontsPath()
-    {
-        const QString fontsPath
-            = QDir(QStandardPaths::writableLocation(QStandardPaths::CacheLocation)).filePath(QStringLiteral("fonts"));
-        if (!QDir().mkpath(fontsPath))
-            return {};
-
-        const QStringList fontFiles {
-            QStringLiteral("AtkinsonHyperlegible-Bold.otf"),
-            QStringLiteral("AtkinsonHyperlegible-Regular.otf"),
-            QStringLiteral("IBMPlexSans-Variable.ttf"),
-        };
-        for (const QString& fileName : fontFiles) {
-            const QString target = QDir(fontsPath).filePath(fileName);
-            if (QFile::exists(target))
-                continue;
-            const QString source = QStringLiteral(":/qt/qml/JellyfinWebOS/qml/fonts/") + fileName;
-            if (!QFile::copy(source, target)) {
-                qWarning() << "player: failed to extract bundled subtitle font" << fileName;
-                return {};
-            }
-        }
-        return QFile::encodeName(fontsPath);
-    }
-
     bool setOption(mpv_handle *handle, const char *name, const char *value)
     {
         const int error = mpv_set_option_string(handle, name, value);
@@ -188,13 +163,14 @@ namespace {
 
 } // namespace
 
-PlayerController::PlayerController(
-    NativeAppWindow *window, JellyfinApiFacade *api, TlsTrustController *tlsTrust, QObject *parent)
+PlayerController::PlayerController(NativeAppWindow *window, JellyfinApiFacade *api, TlsTrustController *tlsTrust,
+    const QString& subtitleFontsPath, QObject *parent)
     : QObject(parent)
     , m_window(window)
     , m_api(api)
     , m_reporter(api, this)
     , m_tlsTrust(tlsTrust)
+    , m_subtitleFontsPath(QFile::encodeName(subtitleFontsPath))
 {
     if (m_api) {
         connect(m_api, &JellyfinApiFacade::sessionTokenChanged, this, [this]() {
@@ -379,9 +355,7 @@ bool PlayerController::configureAndInitializeMpv(mpv_handle *handle, bool embedd
                       << " rangeBytes=" << network.rangeBytes << " ringBytes=" << network.ringBytes;
     auto applicationOptions = MpvOptionProfile::applicationOptions(platform, m_audioOutputMode, mpvLogPath(),
         m_demuxerMaxBytes, m_demuxerMaxBackBytes, parallelRequests, embeddedVideo, mpvShaderCachePath());
-    const QByteArray subtitleFontsPath = bundledSubtitleFontsPath();
-    if (!subtitleFontsPath.isEmpty())
-        applicationOptions.push_back({ "sub-fonts-dir", subtitleFontsPath });
+    applicationOptions.push_back({ "sub-fonts-dir", m_subtitleFontsPath });
 
     if (!applyOptions(handle, MpvOptionProfile::preInitializeOptions(m_mpvConfigPolicy))
         || !applyOptions(handle, applicationOptions))

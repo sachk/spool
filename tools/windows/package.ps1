@@ -79,25 +79,49 @@ function Invoke-NsisPackage {
 Invoke-NsisPackage -Script 'portable.nsi' -Artifact $portable
 Invoke-NsisPackage -Script 'installer.nsi' -Artifact $installer
 
-$sevenZip = Get-Command 7z.exe -ErrorAction SilentlyContinue
-if ($sevenZip) {
-    foreach ($artifact in @($portable, $installer)) {
-        $listing = & $sevenZip.Source l -slt $artifact
-        if ($LASTEXITCODE -ne 0) { throw "7-Zip could not inspect $artifact" }
-        foreach ($required in @('jellyfin-native.exe', 'mpv-2.dll', 'qwebp.dll')) {
-            if (-not ($listing | Select-String -SimpleMatch $required -Quiet)) {
-                throw "$artifact does not contain $required"
+$sevenZip = (Get-Command 7z.exe -ErrorAction Stop).Source
+$stageFiles = @(Get-ChildItem -LiteralPath $stage -Recurse -File | ForEach-Object {
+    [PSCustomObject]@{
+        Path = [IO.Path]::GetRelativePath($stage, $_.FullName).Replace('\', '/')
+        Hash = (Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+        Size = $_.Length
+    }
+})
+$stageLogicalBytes = ($stageFiles | Measure-Object Size -Sum).Sum
+foreach ($artifact in @($portable, $installer)) {
+    $extractRoot = Join-Path $env:TEMP "spool-package-audit-$PID-$([IO.Path]::GetFileNameWithoutExtension($artifact))"
+    Remove-Item -LiteralPath $extractRoot -Recurse -Force -ErrorAction SilentlyContinue
+    New-Item -ItemType Directory -Path $extractRoot | Out-Null
+    try {
+        & $sevenZip x -y "-o$extractRoot" $artifact | Out-Null
+        if ($LASTEXITCODE -ne 0) { throw "7-Zip could not extract $artifact" }
+        $extractedFiles = @(Get-ChildItem -LiteralPath $extractRoot -Recurse -File | ForEach-Object {
+            [PSCustomObject]@{
+                File = $_
+                Path = [IO.Path]::GetRelativePath($extractRoot, $_.FullName).Replace('\', '/')
+                Hash = (Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+            }
+        })
+        $matched = [Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
+        foreach ($expected in $stageFiles) {
+            $suffix = "/$($expected.Path)"
+            $candidates = @($extractedFiles | Where-Object {
+                $_.Path -eq $expected.Path -or $_.Path.EndsWith($suffix, [StringComparison]::OrdinalIgnoreCase)
+            })
+            if (-not ($candidates | Where-Object Hash -EQ $expected.Hash)) {
+                throw "$artifact does not contain the staged path/hash $($expected.Path)"
+            }
+            foreach ($candidate in $candidates | Where-Object Hash -EQ $expected.Hash) {
+                [void] $matched.Add($candidate.File.FullName)
             }
         }
+        $wrapperBytes = ($extractedFiles | Where-Object { -not $matched.Contains($_.File.FullName) } |
+            ForEach-Object { $_.File.Length } | Measure-Object -Sum).Sum
+        Write-Host "$([IO.Path]::GetFileName($artifact)): stage logical bytes=$stageLogicalBytes; extracted wrapper bytes=$wrapperBytes; compressed bytes=$((Get-Item -LiteralPath $artifact).Length)"
+    } finally {
+        Remove-Item -LiteralPath $extractRoot -Recurse -Force -ErrorAction SilentlyContinue
     }
 }
 
-$checksumPath = Join-Path $output "Spool-for-Jellyfin-$version-Windows-x64-SHA256SUMS.txt"
-$checksumLines = @($portable, $installer) | ForEach-Object {
-    $hash = (Get-FileHash -LiteralPath $_ -Algorithm SHA256).Hash.ToLowerInvariant()
-    "$hash  $([IO.Path]::GetFileName($_))"
-}
-[IO.File]::WriteAllLines($checksumPath, $checksumLines, [Text.UTF8Encoding]::new($false))
-
-Get-Item -LiteralPath $portable, $installer, $checksumPath |
+Get-Item -LiteralPath $portable, $installer |
     Select-Object Name, Length, @{ Name = 'MiB'; Expression = { [math]::Round($_.Length / 1MB, 2) } }

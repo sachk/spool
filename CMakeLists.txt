@@ -441,12 +441,6 @@ qt_add_qml_module(jellyfin-native
         qml/theme/Metrics.qml
         qml/theme/Theme.qml
         qml/theme/Typography.qml
-    RESOURCES
-        qml/fonts/AtkinsonHyperlegible-Bold.otf
-        qml/fonts/AtkinsonHyperlegible-Regular.otf
-        qml/fonts/IBMPlexSans-Variable.ttf
-        qml/fonts/PTRootUI-Variable.ttf
-        qml/fonts/MaterialIcons-Regular.ttf
 )
 if(NOT JELLYFIN_NATIVE_WEBOS)
     qt_target_qml_sources(jellyfin-native
@@ -478,11 +472,13 @@ qt_add_resources(jellyfin-native "startup_splash_qml"
     BASE "${CMAKE_CURRENT_SOURCE_DIR}/qml/shell"
     FILES qml/shell/StartupSplash.qml
 )
-qt_add_resources(jellyfin-native "startup_splash_image"
-    PREFIX "/startup"
-    BASE "${CMAKE_CURRENT_SOURCE_DIR}/app"
-    FILES app/splash.png
-)
+if(NOT JELLYFIN_NATIVE_WEBOS)
+    qt_add_resources(jellyfin-native "startup_splash_image"
+        PREFIX "/startup"
+        BASE "${CMAKE_CURRENT_SOURCE_DIR}/app"
+        FILES app/splash.png
+    )
+endif()
 
 
 add_custom_target(jellyfin-native_qmllint_strict
@@ -607,6 +603,7 @@ if(BUILD_TESTING AND NOT CMAKE_CROSSCOMPILING)
     set(JELLYFIN_TESTS_platform
         screensaver-inhibitor tests/platform/ScreenSaverInhibitorTest.cpp
         native-window-input tests/platform/NativeAppWindowInputTest.cpp
+        platform-paths tests/platform/PlatformPathsTest.cpp
     )
     set(JELLYFIN_TESTS_player
         playback-timeline tests/player/PlaybackTimelineTest.cpp
@@ -736,6 +733,11 @@ if(BUILD_TESTING AND NOT CMAKE_CROSSCOMPILING)
             "${CMAKE_CURRENT_SOURCE_DIR}/tools/ffmpeg-capabilities.py"
             "${CMAKE_CURRENT_SOURCE_DIR}/tools/manifests/ffmpeg-capabilities.json"
     )
+    add_test(NAME package-audit
+        COMMAND "${Python3_EXECUTABLE}"
+            "${CMAKE_CURRENT_SOURCE_DIR}/tests/tools/PackageAuditTest.py"
+            "${CMAKE_CURRENT_SOURCE_DIR}/tools/package-audit.py"
+    )
 
     add_test(NAME network-shaper
         COMMAND "${Python3_EXECUTABLE}"
@@ -822,16 +824,30 @@ endif()
 
 set_target_properties(jellyfin-native PROPERTIES
     OUTPUT_NAME "jellyfin-native"
-    INSTALL_RPATH "$ORIGIN/../lib"
 )
+if(UNIX AND NOT APPLE)
+    set_property(TARGET jellyfin-native PROPERTY INSTALL_RPATH "$ORIGIN/../lib")
+endif()
 target_compile_definitions(jellyfin-native PRIVATE
     JELLYFIN_VERSION="${PROJECT_VERSION}"
 )
 
-
 install(TARGETS jellyfin-native
     BUNDLE DESTINATION .
     RUNTIME DESTINATION bin
+)
+
+set(JELLYFIN_FONT_INSTALL_DIRECTORY "fonts")
+if(APPLE)
+    set(JELLYFIN_FONT_INSTALL_DIRECTORY "jellyfin-native.app/Contents/fonts")
+endif()
+install(FILES
+    qml/fonts/AtkinsonHyperlegible-Bold.otf
+    qml/fonts/AtkinsonHyperlegible-Regular.otf
+    qml/fonts/IBMPlexSans-Variable.ttf
+    qml/fonts/PTRootUI-Variable.ttf
+    qml/fonts/MaterialIcons-Regular.ttf
+    DESTINATION "${JELLYFIN_FONT_INSTALL_DIRECTORY}"
 )
 
 if(UNIX AND NOT APPLE AND NOT JELLYFIN_NATIVE_WEBOS)

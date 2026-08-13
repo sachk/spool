@@ -49,7 +49,6 @@ Section "Spool for Jellyfin" SEC_APP
     SetShellVarContext current
     SetOutPath "$InstDir"
     File /r "${STAGE_DIR}\*"
-    File /oname=LICENSE.txt "${SOURCE_ROOT}\LICENSE"
 
     WriteUninstaller "$InstDir\Uninstall.exe"
     CreateDirectory "$SMPROGRAMS\Spool for Jellyfin"

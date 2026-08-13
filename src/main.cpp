@@ -32,6 +32,7 @@
 #include <QElapsedTimer>
 #include <QFile>
 #include <QFileInfo>
+#include <QFontDatabase>
 #include <QGuiApplication>
 #include <QIcon>
 #include <QJsonDocument>
@@ -155,16 +156,12 @@ FILE *openAppLogFile(const QString& appRootPath)
 
 void configurePersistentStartupCaches(const QString& cacheRoot)
 {
-    const QString fontconfigCache = QDir(cacheRoot).filePath(QStringLiteral("fontconfig"));
     const QString qtShaderCache = QDir(cacheRoot).filePath(QStringLiteral("qtshadercache"));
-    QDir().mkpath(fontconfigCache);
     QDir().mkpath(qtShaderCache);
 
-    // These must be in the environment before QGuiApplication is constructed:
-    // Qt and fontconfig both snapshot cache locations during platform/font
-    // setup. Point them at app-owned persistent storage; never clear them.
+    // Qt snapshots these locations during platform and renderer setup. Keep
+    // shader caches in app-owned persistent storage and never clear them.
     qputenv("XDG_CACHE_HOME", QFile::encodeName(cacheRoot));
-    qputenv("FONTCONFIG_CACHE", QFile::encodeName(fontconfigCache));
     qputenv("QT_SHADER_CACHE_PATH", QFile::encodeName(qtShaderCache));
 }
 
@@ -253,6 +250,30 @@ QIcon applicationIcon(bool playerSelected)
 }
 #endif
 
+bool registerBundledFonts(const QString& appRootPath)
+{
+    static constexpr const char *fontFiles[] = {
+        "AtkinsonHyperlegible-Bold.otf",
+        "AtkinsonHyperlegible-Regular.otf",
+        "IBMPlexSans-Variable.ttf",
+        "PTRootUI-Variable.ttf",
+        "MaterialIcons-Regular.ttf",
+    };
+    const QDir fontsDirectory(JellyfinNative::bundledFontsPath(appRootPath));
+    for (const char *fileName : fontFiles) {
+        const QString path = fontsDirectory.filePath(QString::fromLatin1(fileName));
+        if (!QFileInfo::exists(path)) {
+            logLine("font registration failed: missing bundled font: %s", qPrintable(path));
+            return false;
+        }
+        if (QFontDatabase::addApplicationFont(path) < 0) {
+            logLine("font registration failed: unloadable bundled font: %s", qPrintable(path));
+            return false;
+        }
+    }
+    return true;
+}
+
 } // namespace
 
 int main(int argc, char **argv)
@@ -327,6 +348,8 @@ int main(int argc, char **argv)
     logLine("startup: constructing QGuiApplication");
     QGuiApplication app(argc, argv);
     JellyfinNative::TerminationSignalHandler terminationSignals(app);
+    if (!registerBundledFonts(appRootPath))
+        return 1;
     logLine("startup: QGuiApplication constructed");
     app.setApplicationName(QStringLiteral("Spool for Jellyfin"));
     app.setApplicationVersion(QString::fromLatin1(kAppVersion));
@@ -388,6 +411,13 @@ int main(int argc, char **argv)
     systemPerformanceMonitor.setAudioDecodeCpuTimeProvider(
         [] { return JellyfinNative::platformAudioDecodeCpuTimeNs(); });
     JellyfinNative::NativeAppWindow window(QString::fromLatin1(kAppId));
+#ifdef JELLYFIN_NATIVE_WEBOS
+    window.rootContext()->setContextProperty(QStringLiteral("startupSplashImageUrl"),
+        QUrl::fromLocalFile(QDir(appRootPath).filePath(QStringLiteral("splash.png"))));
+#else
+    window.rootContext()->setContextProperty(
+        QStringLiteral("startupSplashImageUrl"), QUrl(QStringLiteral("qrc:/startup/splash.png")));
+#endif
     window.setSystemMemoryBytes(memoryBudget.memTotalBytes);
     JellyfinNative::configurePlatformWindow(window);
     inputLatencyMonitor.attachWindow(&window);
@@ -450,7 +480,8 @@ int main(int argc, char **argv)
         memoryBudget.artworkByteCacheBytes, cpuTopology.artworkDecodeThreads, &tlsTrust);
     artworkService->setUiWidth(window.width());
 
-    auto player = std::make_unique<JellyfinNative::PlayerController>(&window, api.get(), &tlsTrust);
+    auto player = std::make_unique<JellyfinNative::PlayerController>(
+        &window, api.get(), &tlsTrust, JellyfinNative::bundledFontsPath(appRootPath));
     player->setDemuxerBudget(memoryBudget.mpvDemuxerMaxBytes, memoryBudget.mpvDemuxerMaxBackBytes);
     JellyfinNative::ScreenSaverInhibitor screenSaverInhibitor;
     const auto updateScreenSaver = [&screenSaverInhibitor, player = player.get()] {
@@ -537,7 +568,9 @@ int main(int argc, char **argv)
     window.engine()->addImageProvider(
         QStringLiteral("artwork"), new JellyfinNative::ArtworkImageProvider(artworkService.get()));
     window.engine()->addImageProvider(QStringLiteral("mpv-overlay"), window.createOverlayImageProvider());
+#ifndef JELLYFIN_NATIVE_WEBOS
     window.engine()->addImportPath(appRootPath + QStringLiteral("/qt-qml"));
+#endif
     QObject::connect(window.engine(), &QQmlEngine::warnings, &logQmlWarnings);
     QObject::connect(&window, &QQuickView::statusChanged,
         [](QQuickView::Status status) { logLine("view status changed: %d", static_cast<int>(status)); });

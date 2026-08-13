@@ -754,7 +754,7 @@ KeyRouter {
 
         Image {
             anchors.fill: parent
-            source: "qrc:/startup/splash.png"
+            source: startupSplashImageUrl
             fillMode: Image.PreserveAspectFit
             asynchronous: false
             cache: true

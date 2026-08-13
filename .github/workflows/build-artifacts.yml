@@ -41,10 +41,6 @@ on:
         required: false
         default: false
         type: boolean
-      enable_windows_signing:
-        required: false
-        default: false
-        type: boolean
     secrets:
       MACOS_CERTIFICATE_P12:
         required: false
@@ -57,10 +53,6 @@ on:
       APPLE_NOTARY_KEY_ID:
         required: false
       APPLE_NOTARY_ISSUER_ID:
-        required: false
-      APPLE_TEAM_ID:
-        required: false
-      SIGNPATH_API_TOKEN:
         required: false
 
 permissions:
@@ -144,9 +136,9 @@ jobs:
       - uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5.0.3
         with:
           path: .ccache
-          key: linux4-${{ runner.os }}-${{ hashFiles('flake.lock', 'mpv/meson.build', 'mpv/meson.options', 'tools/manifests/mpv-native.json', 'tools/manifests/ffmpeg-capabilities.json', 'tools/ffmpeg-capabilities.py', 'tools/build-linux-release.sh', 'tools/lib/build-common.sh', 'CMakeLists.txt') }}
+          key: linux5-${{ runner.os }}-${{ hashFiles('flake.lock', 'mpv/meson.build', 'mpv/meson.options', 'tools/manifests/mpv-native.json', 'tools/manifests/ffmpeg-capabilities.json', 'tools/manifests/linuxdeploy.json', 'tools/ffmpeg-capabilities.py', 'tools/package-audit.py', 'tools/build-linux-release.sh', 'tools/package-appimage.sh', 'tools/lib/build-common.sh', 'tools/lib/qt-deploy.sh', 'CMakeLists.txt') }}
           restore-keys: |
-            linux4-${{ runner.os }}-
+            linux5-${{ runner.os }}-
 
       # The default dev shell has no Qt on purpose (it is the hermetic Qt-source
       # build shell). The native app build needs nixpkgs Qt, so use .#native.
@@ -167,6 +159,39 @@ jobs:
 
       - name: Package AppImage
         run: nix develop .#native -c bash tools/package-appimage.sh
+      - name: Audit extracted AppImage
+        shell: nix develop .#native -c bash -euo pipefail {0}
+        run: |
+          appimage="$(realpath dist/*.AppImage)"
+          expected="$(realpath dist/*.inventory.tsv)"
+          work="$(mktemp -d)"
+          trap 'rm -rf "$work"' EXIT
+          (
+            cd "$work"
+            APPIMAGE_EXTRACT_AND_RUN=1 "$appimage" --appimage-extract >/dev/null
+          )
+          extracted="$work/squashfs-root"
+          python3 tools/package-audit.py inventory "$extracted" --output "$work/extracted.tsv"
+          cmp "$expected" "$work/extracted.tsv"
+          if find "$extracted" -name '*.qmltypes' -print -quit | grep -q .; then
+            echo 'error: extracted AppImage contains qmltypes metadata' >&2
+            exit 1
+          fi
+          elf_args=(elf "$extracted" --root usr/bin/jellyfin-native)
+          test ! -f "$extracted/usr/bin/secret-tool" || elf_args+=(--root usr/bin/secret-tool)
+          while IFS= read -r elf; do elf_args+=(--root "${elf#"$extracted/"}"); done \
+            < <(find "$extracted/usr/lib" -type f -name 'libmpv.so.*' | sort)
+          for root in usr/plugins usr/qml; do
+            test ! -d "$extracted/$root" || while IFS= read -r elf; do
+              elf_args+=(--root "${elf#"$extracted/"}")
+            done < <(find "$extracted/$root" -type f -name '*.so*' | sort)
+          done
+          for soname in ld-linux-x86-64.so.2 libc.so.6 libdl.so.2 libm.so.6 libpthread.so.0 \
+            libresolv.so.2 librt.so.1 libutil.so.1 libGLESv2.so.2 libgbm.so.1 libglapi.so.0
+          do
+            elf_args+=(--allow-system "$soname")
+          done
+          python3 tools/package-audit.py "${elf_args[@]}"
 
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.0
         if: ${{ inputs.release }}
@@ -218,9 +243,11 @@ jobs:
       - uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5.0.3
         with:
           path: |
-            build/macos
+            build/macos/mpv
+            build/macos/mpv-prefix
+            build/macos/app
             ~/Library/Caches/ccache
-          key: macos-${{ matrix.arch }}-${{ hashFiles('mpv/meson.build', 'tools/manifests/mpv-native.json', 'tools/manifests/ffmpeg-capabilities.json', 'tools/ffmpeg-capabilities.py', 'tools/build-macos.sh', 'tools/lib/build-common.sh', 'CMakeLists.txt') }}
+          key: macos-${{ matrix.arch }}-${{ hashFiles('mpv/meson.build', 'tools/manifests/mpv-native.json', 'tools/manifests/ffmpeg-capabilities.json', 'tools/ffmpeg-capabilities.py', 'tools/package-audit.py', 'tools/build-macos.sh', 'tools/package-macos-dmg.sh', 'tools/sign-macos.sh', 'tools/lib/build-common.sh', 'tools/lib/qt-deploy.sh', 'CMakeLists.txt') }}
           restore-keys: |
             macos-${{ matrix.arch }}-
 
@@ -287,14 +314,31 @@ jobs:
 
       - name: Package DMG
         run: nix develop .#native --no-write-lock-file -c bash tools/package-macos-dmg.sh
+      - name: Audit mounted DMG
+        run: |
+          set -euo pipefail
+          mountpoint="$RUNNER_TEMP/spool-dmg"
+          mkdir -p "$mountpoint"
+          hdiutil attach -readonly -nobrowse -mountpoint "$mountpoint" dist/*.dmg
+          trap 'hdiutil detach "$mountpoint"' EXIT
+          app="$(find "$mountpoint" -maxdepth 1 -name '*.app' -print -quit)"
+          test -n "$app"
+          python3 tools/package-audit.py inventory "$app" --output "$RUNNER_TEMP/macos-dmg.inventory.tsv"
+          python3 tools/package-audit.py macho "$app"
+          test -z "$(find "$app" -name '*.qmltypes' -print -quit)"
+          if [[ '${{ inputs.enable_macos_signing }}' == true ]]; then
+            codesign --verify --strict --deep --verbose=2 "$app"
+          fi
+          hdiutil detach "$mountpoint"
+          trap - EXIT
       - name: Notarize and staple DMG
         if: ${{ inputs.enable_macos_signing }}
         timeout-minutes: 20
+        continue-on-error: true
         env:
           APPLE_NOTARY_KEY_P8: ${{ secrets.APPLE_NOTARY_KEY_P8 }}
           APPLE_NOTARY_KEY_ID: ${{ secrets.APPLE_NOTARY_KEY_ID }}
           APPLE_NOTARY_ISSUER_ID: ${{ secrets.APPLE_NOTARY_ISSUER_ID }}
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: tools/notarize-macos.sh dist/*.dmg
 
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.0
@@ -335,10 +379,10 @@ jobs:
             build/third_party
             .ccache
             mpv/build/webos-libmpv
-          key: webos2-${{ runner.os }}-${{ hashFiles('flake.nix', 'flake.lock', 'mpv/meson.build', 'build-ipk.sh', 'tools/lib/*.sh', 'tools/manifests/ffmpeg-capabilities.json', 'tools/manifests/mpv-native.json', 'tools/manifests/qt-webos-6.11.json', 'tools/manifests/webos-third-party.json', 'tools/webos-native/**') }}
+          key: webos3-${{ runner.os }}-${{ hashFiles('flake.nix', 'flake.lock', 'mpv/meson.build', 'build-ipk.sh', 'tools/package-audit.py', 'tools/lib/*.sh', 'tools/manifests/ffmpeg-capabilities.json', 'tools/manifests/mpv-native.json', 'tools/manifests/qt-webos-6.11.json', 'tools/manifests/webos-third-party.json', 'tools/webos-native/**') }}
           restore-keys: |
+            webos3-${{ runner.os }}-
             webos2-${{ runner.os }}-
-            webos-${{ runner.os }}-
 
       - name: Restore webOS toolchain archive
         env:
@@ -377,10 +421,7 @@ jobs:
           key: ${{ steps.webos-cache.outputs.cache-primary-key }}
 
       - name: Build IPK
-        run: |
-          for phase in app stage package; do
-            nix develop -c bash tools/webos-native/build-webos.sh "$phase"
-          done
+        run: ./build-ipk.sh
 
       - name: Validate IPK
         shell: nix develop -c bash -euo pipefail {0}
@@ -414,6 +455,17 @@ jobs:
           tar -xf "$data_tar" -C "$work/data"
           appinfo="$(find "$work/data" -name appinfo.json -print -quit)"
           test -n "$appinfo"
+          app_root="$(dirname "$appinfo")"
+          python3 tools/package-audit.py inventory "$app_root" --output "$work/extracted-webos.inventory.tsv"
+          cmp build/webos-stage.inventory.tsv "$work/extracted-webos.inventory.tsv"
+          test ! -e "$app_root/qt-qml"
+          test ! -e "$app_root/bin/qt.conf"
+          test "$(find "$app_root" -name splash.png | wc -l)" -eq 1
+          for font in AtkinsonHyperlegible-Bold.otf AtkinsonHyperlegible-Regular.otf \
+            IBMPlexSans-Variable.ttf PTRootUI-Variable.ttf MaterialIcons-Regular.ttf
+          do
+            test -f "$app_root/fonts/$font"
+          done
           python3 - "$appinfo" <<'PY'
           import json
           import re
@@ -585,6 +637,7 @@ jobs:
 
 
       - name: Build portable and installer packages
+        if: ${{ inputs.release }}
         shell: pwsh
         run: tools\windows\package.ps1
 

@@ -4,9 +4,8 @@
 # It arms one-shot profiling on the TV, blocks until the app relaunches under
 # the heaptrack preload, records for a fixed window, finalises a clean trace,
 # pulls it here, symbolises it on the desktop (heaptrack_interpret), and opens
-# the result in heaptrack_gui. Recording is done by the cross-built preload
-# bundled in the app (tools/webos-native/build-heaptrack.sh + build-ipk.sh);
-# this script is just the glue and the desktop analysis side.
+# the result in heaptrack_gui. tools/webos/package-heaptrack-profile.sh creates
+# the profiling IPK; this script is the device and desktop analysis glue.
 #
 # Symbolisation uses a sysroot assembled from the live process's own
 # /proc/<pid>/maps, so we copy exactly the modules that were loaded (small and
