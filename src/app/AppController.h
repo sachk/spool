@@ -187,11 +187,13 @@ private:
     void playQueuedItems(const std::vector<MovieItem>& items, int startIndex, bool fromStart = false);
     bool modelIsOrderedList(MovieGridModel *model) const;
     void playAlbumFrom(const MovieItem& track, bool fromStart);
+    bool inSyncPlayGroup() const;
+    QString queuePlaylistItemId(int index) const;
+    bool enqueueForGroup(const MovieItem& item, bool queueNext);
     void playQueuedItem(const MovieItem& item, bool fromStart = false);
     void playEpisodeWithContext(const MovieItem& episode, int direction, bool fromStart);
     void playQueueCurrent(bool fromStart = false);
     void startQueuedPlayback(bool fromStart = false);
-    bool queueMutationAllowed();
     void handleRemotePlay(const QJsonObject& data);
     void handleRemotePlaystate(const QJsonObject& data);
     void handleRemoteGeneralCommand(const QJsonObject& data);

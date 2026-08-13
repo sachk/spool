@@ -71,12 +71,20 @@ public:
     {
         return m_orderIndex > 0;
     }
+    MovieItem itemAt(int index) const
+    {
+        return index < 0 || index >= rowCount() ? MovieItem {} : m_entries[static_cast<size_t>(index)];
+    }
     MovieItem currentItem() const
     {
         const int index = currentIndex();
         return index < 0 || index >= rowCount() ? MovieItem {} : m_entries[static_cast<size_t>(index)];
     }
     std::vector<PlaybackQueueItem> nowPlayingQueue() const;
+    // Whether an incoming server queue is already what we hold. Rebuilding on a
+    // broadcast that echoes our own edit would reset the model and tear down
+    // every row the queue panel is showing.
+    bool matchesQueue(const std::vector<MovieItem>& items, int currentIndex) const;
 
     Q_INVOKABLE QVariantMap get(int index) const;
     Q_INVOKABLE bool next();

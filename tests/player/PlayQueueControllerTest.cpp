@@ -150,6 +150,31 @@ JELLYFIN_TEST_MAIN("play-queue-controller")
     require(queue.removeItem(0), "shuffled queues should still accept removals");
     require(queue.shuffled(), "removing a row should not silently end shuffle");
 
+    // A group broadcast that echoes an edit made here must not rebuild the
+    // model, or every row in the queue panel is torn down to end up unchanged.
+    require(queue.playNow(entries, 1), "a fresh queue should accept the sample entries");
+    // playNow keeps whatever shuffle was set; a group forces it off before
+    // hydrating, which is the state matchesQueue is written against.
+    queue.setShuffled(false);
+    std::vector<MovieItem> mirrored;
+    for (int row = 0; row < queue.count(); ++row)
+        mirrored.push_back(queue.itemAt(row));
+    require(queue.matchesQueue(mirrored, queue.currentIndex()),
+        "an identical server queue should be recognised as already held");
+    require(!queue.matchesQueue(mirrored, queue.currentIndex() + 1),
+        "a different playing position should not count as identical");
+    std::vector<MovieItem> reordered = mirrored;
+    std::reverse(reordered.begin(), reordered.end());
+    require(!queue.matchesQueue(reordered, queue.currentIndex()),
+        "a reordered server queue should not count as identical");
+    std::vector<MovieItem> shorter = mirrored;
+    shorter.pop_back();
+    require(!queue.matchesQueue(shorter, queue.currentIndex()),
+        "a shorter server queue should not count as identical");
+    queue.setShuffled(true);
+    require(!queue.matchesQueue(mirrored, queue.currentIndex()),
+        "a shuffled queue plays in a different order than its rows, so it never matches");
+
     queue.clear();
     require(queue.count() == 0 && queue.currentIndex() == -1, "clear should empty queue and reset current index");
 

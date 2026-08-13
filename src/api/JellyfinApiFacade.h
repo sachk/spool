@@ -127,6 +127,12 @@ public:
     QCoro::Task<void> syncPlaySeek(qint64 positionTicks);
     QCoro::Task<void> syncPlayNextItem(QString playlistItemId);
     QCoro::Task<void> syncPlayPreviousItem(QString playlistItemId);
+    // Group queue authoring. The queue is server state inside a group, so these
+    // replace the local edits rather than accompanying them.
+    QCoro::Task<void> syncPlayQueue(QStringList itemIds, bool queueNext);
+    QCoro::Task<void> syncPlayMovePlaylistItem(QString playlistItemId, int newIndex);
+    QCoro::Task<void> syncPlayRemoveFromPlaylist(QStringList playlistItemIds);
+    QCoro::Task<void> syncPlaySetPlaylistItem(QString playlistItemId);
 
     QCoro::Task<void> postCapabilities();
     QCoro::Task<void> reportPlaybackStart(PlaybackSession session, double playbackRate = 1.0);

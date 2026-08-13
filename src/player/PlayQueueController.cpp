@@ -149,6 +149,22 @@ std::vector<PlaybackQueueItem> PlayQueueController::nowPlayingQueue() const
     return queue;
 }
 
+bool PlayQueueController::matchesQueue(const std::vector<MovieItem>& items, int currentIndex) const
+{
+    if (m_shuffled || currentIndex != this->currentIndex() || items.size() != m_entries.size())
+        return false;
+
+    for (size_t row = 0; row < items.size(); ++row) {
+        const MovieItem& incoming = items[row];
+        const MovieItem& held = m_entries[row];
+        // playlistItemId is the group's identity for a row; ids alone would
+        // call two copies of the same track in one queue identical.
+        if (incoming.playlistItemId != held.playlistItemId || incoming.id != held.id)
+            return false;
+    }
+    return true;
+}
+
 QVariantMap PlayQueueController::get(int index) const
 {
     if (index < 0 || index >= rowCount())

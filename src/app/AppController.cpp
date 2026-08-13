@@ -613,36 +613,56 @@ void AppController::playQueuePrevious()
 
 void AppController::playQueueItem(int index)
 {
-    if (!queueMutationAllowed() || !m_playQueue->playAt(index))
+    if (inSyncPlayGroup()) {
+        // Jumping the group, not just this client.
+        m_syncPlay->requestPlayItem(queuePlaylistItemId(index));
+        return;
+    }
+    if (!m_playQueue->playAt(index))
         return;
     playQueueCurrent(false);
 }
 
 bool AppController::queueEditable() const
 {
-    return !(m_syncPlay && m_syncPlay->enabled());
+    return true;
+}
+
+bool AppController::inSyncPlayGroup() const
+{
+    return m_syncPlay && m_syncPlay->enabled();
+}
+
+QString AppController::queuePlaylistItemId(int index) const
+{
+    const MovieItem item = m_playQueue->itemAt(index);
+    return item.playlistItemId;
 }
 
 bool AppController::previewQueueMove(int from, int to)
 {
-    if (!queueEditable())
-        return false;
+    // Previewed locally even in a group. Waiting on a round trip per step would
+    // make a held D-pad key and a pointer drag both unusable; the group's own
+    // PlayQueue broadcast is what settles the order a moment later.
     return m_playQueue->moveItem(from, to);
 }
 
 void AppController::commitQueueMove(int from, int to)
 {
-    // Nothing to publish for local playback: the preview steps already left the
-    // queue in its final shape. This is the seam where a SyncPlay group sends
-    // its one move for the whole gesture.
-    Q_UNUSED(from)
-    Q_UNUSED(to)
+    if (from == to || !inSyncPlayGroup())
+        return;
+    // The preview already left the row at `to`, so that is the entry to publish.
+    m_syncPlay->requestMoveItem(queuePlaylistItemId(to), to);
 }
 
 void AppController::removeQueueItem(int index)
 {
-    if (!queueMutationAllowed())
+    if (inSyncPlayGroup()) {
+        // No local edit: a removal is a single action with nothing to animate,
+        // so let the group's broadcast be the one thing that changes the queue.
+        m_syncPlay->requestRemoveItems({ queuePlaylistItemId(index) });
         return;
+    }
 
     const bool removingCurrent = index == m_playQueue->currentIndex();
     if (!m_playQueue->removeItem(index))
@@ -662,7 +682,7 @@ void AppController::removeQueueItem(int index)
 
 void AppController::playNextFromItem(const MovieItem& item)
 {
-    if (!queueMutationAllowed())
+    if (enqueueForGroup(item, true))
         return;
     if (!m_playQueue->playNext(item))
         setErrorText(QStringLiteral("This item cannot be queued."));
@@ -670,10 +690,22 @@ void AppController::playNextFromItem(const MovieItem& item)
 
 void AppController::addToQueueFromItem(const MovieItem& item)
 {
-    if (!queueMutationAllowed())
+    if (enqueueForGroup(item, false))
         return;
     if (!m_playQueue->addToQueue(item))
         setErrorText(QStringLiteral("This item cannot be queued."));
+}
+
+bool AppController::enqueueForGroup(const MovieItem& item, bool queueNext)
+{
+    if (!inSyncPlayGroup())
+        return false;
+    if (item.id.isEmpty() || !isPlayableItem(item)) {
+        setErrorText(QStringLiteral("This item cannot be queued."));
+        return true;
+    }
+    m_syncPlay->requestQueueItems({ item.id }, queueNext);
+    return true;
 }
 
 void AppController::loadMoreCurrentItems()
@@ -1051,15 +1083,6 @@ void AppController::handleRemoteGeneralCommand(const QJsonObject& data)
             QCoreApplication::sendEvent(QGuiApplication::focusWindow(), &release);
         }
     }
-}
-
-bool AppController::queueMutationAllowed()
-{
-    if (m_syncPlay && m_syncPlay->enabled()) {
-        showToast(QStringLiteral("Leave SyncPlay before changing the play queue."));
-        return false;
-    }
-    return true;
 }
 
 QCoro::Task<void> AppController::startPlayback(

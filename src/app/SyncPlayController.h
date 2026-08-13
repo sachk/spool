@@ -180,6 +180,12 @@ public:
     Q_INVOKABLE void requestRelativeSeek(double deltaSeconds);
     Q_INVOKABLE void requestNextItem();
     Q_INVOKABLE void requestPreviousItem();
+    // Inside a group the queue belongs to the server. These publish an intent
+    // and the resulting PlayQueue broadcast is what actually changes the queue.
+    void requestMoveItem(const QString& playlistItemId, int newIndex);
+    void requestRemoveItems(const QStringList& playlistItemIds);
+    void requestQueueItems(const QStringList& itemIds, bool queueNext);
+    void requestPlayItem(const QString& playlistItemId);
     void requestUnpauseWhenReady();
     void cancelPendingUnpause();
 

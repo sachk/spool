@@ -1666,6 +1666,64 @@ QCoro::Task<void> JellyfinApiFacade::syncPlayPreviousItem(QString playlistItemId
     co_await requestNoContent(HttpMethod::Post, QStringLiteral("/SyncPlay/PreviousItem"), QJsonDocument(body));
 }
 
+QCoro::Task<void> JellyfinApiFacade::syncPlayQueue(QStringList itemIds, bool queueNext)
+{
+    QJsonArray ids;
+    for (const QString& itemId : itemIds) {
+        if (!itemId.isEmpty())
+            ids.append(itemId);
+    }
+    if (ids.isEmpty())
+        throw std::runtime_error("SyncPlay queue request has no items");
+
+    const QJsonObject body = {
+        { QStringLiteral("ItemIds"), ids },
+        { QStringLiteral("Mode"), queueNext ? QStringLiteral("QueueNext") : QStringLiteral("Queue") },
+    };
+    co_await requestNoContent(HttpMethod::Post, QStringLiteral("/SyncPlay/Queue"), QJsonDocument(body));
+}
+
+QCoro::Task<void> JellyfinApiFacade::syncPlayMovePlaylistItem(QString playlistItemId, int newIndex)
+{
+    if (playlistItemId.isEmpty())
+        throw std::runtime_error("SyncPlay move needs a playlist item id");
+
+    const QJsonObject body = {
+        { QStringLiteral("PlaylistItemId"), playlistItemId },
+        { QStringLiteral("NewIndex"), std::max(0, newIndex) },
+    };
+    co_await requestNoContent(HttpMethod::Post, QStringLiteral("/SyncPlay/MovePlaylistItem"), QJsonDocument(body));
+}
+
+QCoro::Task<void> JellyfinApiFacade::syncPlayRemoveFromPlaylist(QStringList playlistItemIds)
+{
+    QJsonArray ids;
+    for (const QString& playlistItemId : playlistItemIds) {
+        if (!playlistItemId.isEmpty())
+            ids.append(playlistItemId);
+    }
+    if (ids.isEmpty())
+        throw std::runtime_error("SyncPlay removal has no playlist items");
+
+    const QJsonObject body = {
+        { QStringLiteral("PlaylistItemIds"), ids },
+        // Removing rows is not the same as ending the session, and the server
+        // will happily do both if asked.
+        { QStringLiteral("ClearPlaylist"), false },
+        { QStringLiteral("ClearPlayingItem"), false },
+    };
+    co_await requestNoContent(HttpMethod::Post, QStringLiteral("/SyncPlay/RemoveFromPlaylist"), QJsonDocument(body));
+}
+
+QCoro::Task<void> JellyfinApiFacade::syncPlaySetPlaylistItem(QString playlistItemId)
+{
+    if (playlistItemId.isEmpty())
+        throw std::runtime_error("SyncPlay jump needs a playlist item id");
+
+    const QJsonObject body = { { QStringLiteral("PlaylistItemId"), playlistItemId } };
+    co_await requestNoContent(HttpMethod::Post, QStringLiteral("/SyncPlay/SetPlaylistItem"), QJsonDocument(body));
+}
+
 QCoro::Task<PlaybackSession> JellyfinApiFacade::negotiatePlayback(MovieItem movie, bool forceTranscode)
 {
     Diagnostics::Task task(QStringLiteral("api_negotiate_playback"),

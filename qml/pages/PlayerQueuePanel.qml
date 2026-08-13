@@ -13,9 +13,9 @@ FocusScope {
     required property var overlay
 
     readonly property var queue: PlayQueue
-    // Reorder and removal are local edits today, so a SyncPlay group has to sit
-    // this out until the server-backed queue calls land.
-    readonly property bool editable: !SyncPlay.enabled
+    // Editing works in a SyncPlay group too: AppController publishes the change
+    // to the server and the group's broadcast settles everyone's queue.
+    readonly property bool editable: true
 
     // A picked-up row, whether by remote or by pointer. Both funnel through the
     // same preview/commit pair so there is one reorder path to reason about.
@@ -182,9 +182,9 @@ FocusScope {
             anchors.right: parent.right
             anchors.top: headingText.bottom
             height: visible ? implicitHeight : 0
-            visible: root.grabbedIndex >= 0 || (!root.editable && list.count > 0)
+            visible: root.grabbedIndex >= 0 || (SyncPlay.enabled && list.count > 0)
             text: root.grabbedIndex >= 0 ? "Moving — Up/Down to place, OK to drop, Back to cancel" :
-                                           "Leave SyncPlay to change the queue"
+                                           "Changes apply to everyone in the group"
             color: root.grabbedIndex >= 0 ? Theme.accent : Theme.textMuted
             font.pixelSize: Metrics.metaSizePx
             maximumLineCount: 1

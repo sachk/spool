@@ -346,6 +346,48 @@ void SyncPlayController::requestPreviousItem()
         "SyncPlay previous item request");
 }
 
+void SyncPlayController::requestMoveItem(const QString& playlistItemId, int newIndex)
+{
+    if (!enabled() || !m_api || playlistItemId.isEmpty())
+        return;
+    Async::runScoped(
+        this, m_api->syncPlayMovePlaylistItem(playlistItemId, newIndex), []() {},
+        [this](const std::exception_ptr& error) { reportRequestError(QStringLiteral("move group queue item"), error); },
+        "SyncPlay move playlist item request");
+}
+
+void SyncPlayController::requestRemoveItems(const QStringList& playlistItemIds)
+{
+    if (!enabled() || !m_api || playlistItemIds.isEmpty())
+        return;
+    Async::runScoped(
+        this, m_api->syncPlayRemoveFromPlaylist(playlistItemIds), []() {},
+        [this](const std::exception_ptr& error) {
+            reportRequestError(QStringLiteral("remove group queue items"), error);
+        },
+        "SyncPlay remove from playlist request");
+}
+
+void SyncPlayController::requestQueueItems(const QStringList& itemIds, bool queueNext)
+{
+    if (!enabled() || !m_api || itemIds.isEmpty())
+        return;
+    Async::runScoped(
+        this, m_api->syncPlayQueue(itemIds, queueNext), []() {},
+        [this](const std::exception_ptr& error) { reportRequestError(QStringLiteral("queue items for group"), error); },
+        "SyncPlay queue request");
+}
+
+void SyncPlayController::requestPlayItem(const QString& playlistItemId)
+{
+    if (!enabled() || !m_api || playlistItemId.isEmpty())
+        return;
+    Async::runScoped(
+        this, m_api->syncPlaySetPlaylistItem(playlistItemId), []() {},
+        [this](const std::exception_ptr& error) { reportRequestError(QStringLiteral("play group queue item"), error); },
+        "SyncPlay set playlist item request");
+}
+
 void SyncPlayController::handleSocketTextMessage(const QString& message)
 {
     QJsonParseError parseError;
@@ -565,6 +607,12 @@ void SyncPlayController::applyPlayQueueUpdate(const QJsonObject& queue)
                     if (requestedIndex == playingIndex)
                         resolvedIndex = static_cast<int>(ordered.size());
                     ordered.push_back(std::move(item));
+                }
+                if (m_playQueue->matchesQueue(ordered, resolvedIndex)) {
+                    // Usually this broadcast is the echo of an edit made here.
+                    // Rebuilding would reset the model and tear down every row
+                    // the queue panel is showing, to arrive back where we are.
+                    return;
                 }
                 m_playQueue->setShuffled(false);
                 if (resolvedIndex < 0 || !m_playQueue->playNow(ordered, resolvedIndex)) {
