@@ -98,8 +98,44 @@ jobs:
         env:
           MACOS_SIGNED: ${{ vars.ENABLE_MACOS_SIGNING == 'true' }}
           WINDOWS_SIGNED: ${{ vars.ENABLE_WINDOWS_SIGNING == 'true' }}
+          TAG: ${{ github.ref_name }}
+          REPO: ${{ github.repository }}
         run: |
+          set -euo pipefail
+          base="https://github.com/$REPO/releases/download/$TAG"
+
+          # The asset list is mostly SBOM and scan sidecars, which bury the six
+          # files anyone actually installs. Build the table from what is really
+          # on disk so a renamed or dropped package leaves no dead link. Every
+          # sidecar ends in .json, so matching each package's own suffix keeps
+          # them out without naming them.
+          rows=()
+          add_row() {
+            local label="$1" pattern="$2" name
+            name="$(find release-assets -maxdepth 1 -type f -name "$pattern" -printf '%f\n' \
+              | sort | head -1)"
+            [[ -n "$name" ]] || return 0
+            rows+=("| $label | [\`$name\`]($base/$name) |")
+          }
+          add_row 'macOS — Apple Silicon' '*-macOS-arm64.dmg'
+          add_row 'macOS — Intel' '*-macOS-x86_64.dmg'
+          add_row 'Windows — installer' '*-Windows-x64-Setup.exe'
+          add_row 'Windows — portable' '*-Windows-x64-Portable.exe'
+          add_row 'Linux — AppImage' '*-x86_64.AppImage'
+          add_row 'LG webOS TV' '*_arm.ipk'
+
           {
+            if (( ${#rows[@]} )); then
+              echo '## Downloads'
+              echo
+              echo '| Platform | File |'
+              echo '| --- | --- |'
+              printf '%s\n' "${rows[@]}"
+              echo
+              echo "Checksums: [\`SHA256SUMS.txt\`]($base/SHA256SUMS.txt)."
+              echo "The \`.spdx.json\`, \`.cdx.json\` and \`.grype.json\` assets are per-package SBOMs and vulnerability scans — nothing you need in order to install."
+              echo
+            fi
             echo '## Alpha installation trust'
             echo
             echo "This is prerelease software. Verify \`SHA256SUMS.txt\` and the GitHub artifact attestations before use."
