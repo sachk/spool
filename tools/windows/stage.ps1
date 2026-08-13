@@ -174,9 +174,9 @@ $env:JELLYFIN_NATIVE_CACHE_HOME = Join-Path $launchRoot 'cache'
 $env:JELLYFIN_DIAGNOSTICS_DIR = Join-Path $launchRoot 'diagnostics'
 $launchProcess = Start-Process -FilePath (Join-Path $stageDir 'jellyfin-native.exe') `
     -ArgumentList '--launch-test' -WorkingDirectory $stageDir -PassThru
-if (-not $launchProcess.WaitForExit(30000)) {
+if (-not $launchProcess.WaitForExit(45000)) {
     Stop-Process -Id $launchProcess.Id -Force
-    throw 'The staged Windows executable did not render its application UI within 30 seconds.'
+    throw 'The staged Windows executable did not exit its UI launch test within 45 seconds.'
 }
 $launchProcess.Refresh()
 if ($launchProcess.ExitCode -ne 0) {

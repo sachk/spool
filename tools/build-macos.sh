@@ -112,6 +112,7 @@ if [[ "$DEPLOY_APP" == "1" ]]; then
   find "$APP_INSTALL/jellyfin-native.app" -type f -name '*.qmltypes' -delete
   while IFS= read -r binary; do
     file -b "$binary" | grep -q 'Mach-O' || continue
+    chmod u+w "$binary"
     "$strip_bin" -S -x "$binary"
   done < <(find "$APP_INSTALL/jellyfin-native.app" -type f | sort)
   python3 "$APP_ROOT/tools/package-audit.py" macho "$APP_INSTALL/jellyfin-native.app"

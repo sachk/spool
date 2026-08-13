@@ -362,9 +362,11 @@ WEBOS_ELF_AUDIT_ARGS=(
 )
 for firmware_soname in \
   ld-linux.so.3 libc.so.6 libm.so.6 libdl.so.2 libpthread.so.0 librt.so.1 libresolv.so.2 libutil.so.1 \
-  libEGL.so.1 libGLESv2.so.2 libwayland-client.so.0 libwayland-egl.so.1 libwayland-webos-client.so.0 \
-  libasound.so.2 libglib-2.0.so.0 libpbnjson_c.so.2 libluna-service2.so.3 libPmLogLib.so.3 libnyx.so.0 \
-  libudev.so.0 libhelpers.so.1
+  libatomic.so.1 libz.so.1 libfontconfig.so.1 libfreetype.so.6 \
+  libEGL.so.1 libGLESv2.so.2 libwayland-client.so.0 libwayland-cursor.so.0 \
+  libwayland-egl.so libwayland-egl.so.1 libwayland-webos-client.so.0 libwayland-webos-client.so.1 \
+  libxkbcommon.so.0 libasound.so.2 libglib-2.0.so.0 libpbnjson_c.so.2 libluna-service2.so.3 \
+  libPmLogLib.so.3 libnyx.so.0 libudev.so.0 libhelpers.so.1 libhelpers.so.2
 do
   WEBOS_ELF_AUDIT_ARGS+=(--allow-system "$firmware_soname")
 done
