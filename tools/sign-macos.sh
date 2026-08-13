@@ -34,5 +34,5 @@ while IFS= read -r -d '' bundle; do
   [[ "$bundle" == "$app" ]] && continue
   codesign --force --options runtime --timestamp --sign "$MACOS_SIGNING_IDENTITY" --keychain "$keychain" "$bundle"
 done < <(find "$app" -depth -type d \( -name '*.framework' -o -name '*.app' -o -name '*.xpc' \) -print0)
-codesign --force --deep --options runtime --timestamp --sign "$MACOS_SIGNING_IDENTITY" --keychain "$keychain" "$app"
+codesign --force --options runtime --timestamp --sign "$MACOS_SIGNING_IDENTITY" --keychain "$keychain" "$app"
 codesign --verify --strict --deep --verbose=2 "$app"

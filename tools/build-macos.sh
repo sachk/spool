@@ -77,7 +77,8 @@ if [[ "$DEPLOY_APP" == "1" ]]; then
     exit 1
   fi
   gnu_iconv_bundle="$APP_INSTALL/jellyfin-native.app/Contents/Frameworks/libiconv-gnu.2.dylib"
-  cp -f "$gnu_iconv" "$gnu_iconv_bundle"
+  rm -f "$gnu_iconv_bundle"
+  cp -L "$gnu_iconv" "$gnu_iconv_bundle"
   install_name_tool -id @rpath/libiconv-gnu.2.dylib "$gnu_iconv_bundle"
   while IFS= read -r binary; do
     if /usr/bin/nm -u "$binary" 2>/dev/null | grep -q '_libiconv$'; then
