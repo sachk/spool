@@ -620,6 +620,11 @@ void AppController::playQueuePrevious()
 
 void AppController::playQueueItem(int index)
 {
+    // A second click on the row already playing used to tear mpv down and
+    // restart the same track from the top, which is never what the click meant.
+    if (index == m_playQueue->currentIndex() && m_player->sessionActive())
+        return;
+
     if (inSyncPlayGroup()) {
         // Jumping the group, not just this client.
         m_syncPlay->requestPlayItem(queuePlaylistItemId(index));

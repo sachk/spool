@@ -2014,6 +2014,17 @@ void PlayerController::requestMpvPositionRefresh(const char *reason)
 
 void PlayerController::setPositionSeconds(double seconds, bool notifySegments)
 {
+    // Tearing down mpv leaves its last position events queued for the main
+    // thread, so they land *after* play() has reset the tracker for the new
+    // item and re-seed it with the outgoing item's position. Every genuine
+    // position from the new file then looks like a backwards jump and gets
+    // rejected, so the seek bar sat at the old value for as many seconds as the
+    // previous item had played. Until the new file is loaded the tracker
+    // already holds the requested start position, and nothing mpv says about
+    // the old one is worth hearing.
+    if (!m_fileLoaded)
+        return;
+
     if (!m_positionTracker.update(seconds))
         return;
 

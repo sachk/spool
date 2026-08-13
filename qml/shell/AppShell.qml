@@ -251,6 +251,12 @@ KeyRouter {
                 root.preparePlaybackBackNavigation(PlayQueue.currentIndex >= 0 ? PlayQueue.get(PlayQueue.currentIndex) :
                                                                                  ({}))
                 root.focusPlayerInput()
+            } else if (App.playbackTransition) {
+                // Stepping to the next item, not leaving playback. Navigating
+                // here would load details — item plus similar items — for the
+                // track that just ended, behind a player surface the shell is
+                // deliberately still holding. Nobody sees it and it costs a
+                // round trip per track.
             } else {
                 root.finishPlaybackBackNavigation()
                 root.navigationTarget = routeStack

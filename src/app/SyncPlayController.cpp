@@ -524,6 +524,12 @@ void SyncPlayController::handleSyncPlayGroupUpdate(const QJsonObject& data)
         return;
     }
     if (type == QStringLiteral("GroupLeft") || type == QStringLiteral("NotInGroup")) {
+        // NotInGroup says we are already out, so it is terminal rather than
+        // something to act on repeatedly. The server sends one per message we
+        // address to a group we have left, and answering each of them logged a
+        // fresh "leaving group" every second for a membership already cleared.
+        if (m_groupId.isEmpty())
+            return;
         // Worth a line: NotInGroup means the server disagrees with us about
         // membership, which otherwise looks like a client that has simply
         // stopped receiving group updates.
