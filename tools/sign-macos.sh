@@ -19,6 +19,7 @@ trap cleanup EXIT
 printf '%s' "$MACOS_CERTIFICATE_P12" | base64 --decode >"$work/certificate.p12"
 chmod 600 "$work/certificate.p12"
 security create-keychain -p "$keychain_password" "$keychain"
+security list-keychains -d user -s "$keychain"
 security set-keychain-settings -lut 21600 "$keychain"
 security unlock-keychain -p "$keychain_password" "$keychain"
 security import "$work/certificate.p12" -k "$keychain" -P "$MACOS_CERTIFICATE_PASSWORD" -T /usr/bin/codesign
