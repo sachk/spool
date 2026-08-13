@@ -30,17 +30,16 @@ while IFS= read -r -d '' file; do
     codesign --force --options runtime --timestamp --sign "$MACOS_SIGNING_IDENTITY" --keychain "$keychain" "$file"
   fi
 done < <(find "$app" -type f \( -perm -111 -o -name '*.dylib' -o -name '*.so' \) -print0)
-gnu_iconv="$app/Contents/Frameworks/libiconv-gnu.2.dylib"
-if [[ -e "$gnu_iconv" ]]; then
-  [[ -f "$gnu_iconv" && ! -L "$gnu_iconv" ]] || {
-    printf 'GNU libiconv is not a regular bundled file: %s\n' "$gnu_iconv" >&2
-    exit 1
-  }
-  codesign --force --options runtime --timestamp --sign "$MACOS_SIGNING_IDENTITY" --keychain "$keychain" "$gnu_iconv"
-fi
 while IFS= read -r -d '' bundle; do
   [[ "$bundle" == "$app" ]] && continue
   codesign --force --options runtime --timestamp --sign "$MACOS_SIGNING_IDENTITY" --keychain "$keychain" "$bundle"
 done < <(find "$app" -depth -type d \( -name '*.framework' -o -name '*.app' -o -name '*.xpc' \) -print0)
+gnu_iconv="$app/Contents/Frameworks/libiconv-gnu.2.dylib"
+[[ -f "$gnu_iconv" && ! -L "$gnu_iconv" ]] || {
+  printf 'GNU libiconv is not a regular bundled file: %s\n' "$gnu_iconv" >&2
+  exit 1
+}
+codesign --force --options runtime --timestamp --sign "$MACOS_SIGNING_IDENTITY" --keychain "$keychain" "$gnu_iconv"
+codesign --verify --strict --verbose=2 "$gnu_iconv"
 codesign --force --options runtime --timestamp --sign "$MACOS_SIGNING_IDENTITY" --keychain "$keychain" "$app"
 codesign --verify --strict --deep --verbose=2 "$app"

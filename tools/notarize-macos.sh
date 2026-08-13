@@ -14,7 +14,8 @@ key="$work/AuthKey_${APPLE_NOTARY_KEY_ID}.p8"
 printf '%s' "$APPLE_NOTARY_KEY_P8" >"$key"
 chmod 600 "$key"
 result="$work/notary-result.json"
-xcrun notarytool submit "$dmg" --wait --output-format json \
+printf 'Submitting %s to Apple notarization (15-minute limit)\n' "$dmg"
+xcrun notarytool submit "$dmg" --wait --timeout 15m --verbose --output-format json \
   --key "$key" --key-id "$APPLE_NOTARY_KEY_ID" --issuer "$APPLE_NOTARY_ISSUER_ID" >"$result"
 cat "$result"
 status="$(plutil -extract status raw -o - "$result")"
