@@ -108,10 +108,11 @@ if [[ "$DEPLOY_APP" == "1" ]]; then
     "$APP_ROOT/qml/fonts/IBMPlexSans-LICENSE.txt" "$APP_ROOT/qml/fonts/PTRootUI-LICENSE.txt" \
     "$APP_ROOT/qml/fonts/MaterialIcons-LICENSE.txt" \
     "$APP_INSTALL/jellyfin-native.app/Contents/Resources/notices/"
+  strip_bin="$(/usr/bin/xcrun --find strip)"
   find "$APP_INSTALL/jellyfin-native.app" -type f -name '*.qmltypes' -delete
   while IFS= read -r binary; do
     file -b "$binary" | grep -q 'Mach-O' || continue
-    /usr/bin/strip -S -x "$binary"
+    "$strip_bin" -S -x "$binary"
   done < <(find "$APP_INSTALL/jellyfin-native.app" -type f | sort)
   python3 "$APP_ROOT/tools/package-audit.py" macho "$APP_INSTALL/jellyfin-native.app"
   python3 "$APP_ROOT/tools/package-audit.py" inventory "$APP_INSTALL/jellyfin-native.app" \

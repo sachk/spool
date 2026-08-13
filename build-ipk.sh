@@ -245,10 +245,6 @@ cmake -S "$ROOT" -B "$CMAKE_BUILD_DIR" -GNinja \
   -DJELLYFIN_IMAGE_SUBTITLE_DIAGNOSTICS="$CMAKE_IMAGE_SUBTITLE_DIAGNOSTICS"
 
 cmake --build "$CMAKE_BUILD_DIR" --parallel "$WEBOS_BUILD_JOBS"
-PLUGIN_IMPORT_SOURCES=()
-while IFS= read -r import_source; do
-  PLUGIN_IMPORT_SOURCES+=("$import_source")
-done < <(find "$CMAKE_BUILD_DIR" -type f -name '*plugin_import.cpp' | sort)
 for plugin_class in \
   QWaylandIntegrationPlugin \
   QTlsBackendOpenSSL \
@@ -258,9 +254,9 @@ for plugin_class in \
   QJpegPlugin \
   QWebpPlugin
 do
-  if (( ${#PLUGIN_IMPORT_SOURCES[@]} == 0 )) \
-      || ! grep -Fq "Q_IMPORT_PLUGIN($plugin_class)" "${PLUGIN_IMPORT_SOURCES[@]}"; then
-    echo "error: generated static plugin imports are missing $plugin_class" >&2
+  if ! "$READELF_BIN" --wide --symbols "$CMAKE_BUILD_DIR/jellyfin-native" \
+      | grep -F "qt_static_plugin_$plugin_class" >/dev/null; then
+    echo "error: linked webOS executable is missing static plugin $plugin_class" >&2
     exit 1
   fi
 done

@@ -257,6 +257,10 @@ foreach(target IN LISTS JELLYFIN_NATIVE_TARGETS)
         if(JELLYFIN_WARNINGS_AS_ERRORS)
             target_compile_options(${target} PRIVATE /WX)
         endif()
+        target_link_options(${target} PRIVATE
+            "$<$<CONFIG:Release,MinSizeRel>:/OPT:REF>"
+            "$<$<CONFIG:Release,MinSizeRel>:/OPT:ICF>"
+        )
     elseif(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
         target_compile_options(${target} PRIVATE -Wall -Wextra -Wpedantic)
         if(JELLYFIN_WARNINGS_AS_ERRORS)
