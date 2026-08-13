@@ -374,6 +374,8 @@ qt_add_qml_module(jellyfin-native
         qml/pages/PlayerOverlayChrome.qml
         qml/pages/PlayerOverlayInput.qml
         qml/pages/PlayerOverlayPage.qml
+        qml/pages/PlayerQueuePanel.qml
+        qml/pages/PlayerQueueRow.qml
         qml/pages/PlayerSeekBar.qml
         qml/pages/PlayerSkipSegmentCard.qml
         qml/pages/PlayerTransportBar.qml

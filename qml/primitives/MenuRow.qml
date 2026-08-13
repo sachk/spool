@@ -29,16 +29,12 @@ Item {
     property string stepperEditText: stepperText
     property bool stepperEditable: false
     property bool stepperInvalid: false
-    property bool removable: false
-    property bool dragEnabled: false
 
     signal activated
     signal hovered
     signal decreaseRequested
     signal increaseRequested
     signal stepperAccepted(string text)
-    signal removeRequested
-    signal dragMoved(real sceneY)
 
     width: parent ? parent.width : Metrics.scaled(320)
     height: section ? Metrics.scaled(34) : rowHeight
@@ -230,27 +226,6 @@ Item {
             }
         }
 
-        Rectangle {
-            visible: root.removable && hover.hovered
-            Layout.preferredWidth: Metrics.scaled(root.compact ? 30 : 38)
-            Layout.preferredHeight: width
-            radius: Theme.radiusSmall
-            color: removeHover.hovered ? Theme.errorPanel : "transparent"
-
-            MaterialIcon {
-                anchors.centerIn: parent
-                name: "delete"
-                iconSize: Metrics.scaled(root.compact ? 19 : 22)
-                iconColor: removeHover.hovered ? Theme.errorText : Theme.textSecondary
-            }
-            HoverHandler {
-                id: removeHover
-            }
-            TapHandler {
-                onTapped: root.removeRequested()
-            }
-        }
-
         MaterialIcon {
             visible: root.checked && root.checkIconName.length > 0
             Layout.preferredWidth: Metrics.scaled(24)
@@ -266,15 +241,6 @@ Item {
         enabled: root.actionable && !root.section
         onHoveredChanged: if (hovered)
                               root.hovered()
-    }
-
-    DragHandler {
-        enabled: root.dragEnabled
-        target: null
-        yAxis.enabled: true
-        xAxis.enabled: false
-        onCentroidChanged: if (active)
-                               root.dragMoved(centroid.scenePosition.y)
     }
 
     TapHandler {

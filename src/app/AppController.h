@@ -123,6 +123,15 @@ public:
     Q_INVOKABLE void playQueueNext();
     Q_INVOKABLE void playQueuePrevious();
     Q_INVOKABLE void playQueueItem(int index);
+    // The queue panel edits through these rather than reaching for the
+    // PlayQueue singleton, so a SyncPlay group cannot be desynchronised by a
+    // drag that never passed a guard. A reorder gesture previews locally on
+    // every step — waiting on a round trip per step would make a held D-pad key
+    // unusable — and publishes once, on drop.
+    Q_INVOKABLE bool queueEditable() const;
+    Q_INVOKABLE bool previewQueueMove(int from, int to);
+    Q_INVOKABLE void commitQueueMove(int from, int to);
+    Q_INVOKABLE void removeQueueItem(int index);
     Q_INVOKABLE void playNextFromItem(const MovieItem& item);
     Q_INVOKABLE void addToQueueFromItem(const MovieItem& item);
     Q_INVOKABLE void playModel(MovieGridModel *model, bool shuffled = false);

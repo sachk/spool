@@ -27,6 +27,8 @@ FocusScope {
     property string menuKind: ""
     property bool audioSyncVisible: false
     property bool subtitleSettingsVisible: false
+    property bool queuePanelVisible: false
+    readonly property real queuePanelWidth: queuePanel.panelWidth
     property string audioSyncRow: "delay"
     property int audioSyncStepIndex: 2
     property string syncTarget: "audioFile"
@@ -165,11 +167,7 @@ FocusScope {
             return qualityOptions
         if (menuKind === "debug")
             return debugOptions
-        const values = []
-        if (menuKind === "queue" && playQueue)
-            for (let index = 0; index < playQueue.count; ++index)
-                values.push(playQueue.get(index))
-        return values
+        return []
     }
 
     function dp(value) {
@@ -261,7 +259,7 @@ FocusScope {
     }
 
     function isPinned() {
-        return audioOnly || scrubbing || timelineHovering || isMenuOpen() || audioSyncVisible
+        return audioOnly || scrubbing || timelineHovering || isMenuOpen() || audioSyncVisible || queuePanelVisible
     }
 
     function isControlsActive() {
@@ -332,8 +330,6 @@ FocusScope {
             return "Subtitles"
         if (menuKind === "audio")
             return "Audio"
-        if (menuKind === "queue")
-            return "Queue"
         if (menuKind === "quality")
             return "Quality"
         return "Playback settings"
@@ -345,8 +341,6 @@ FocusScope {
     }
 
     function menuLabel(item) {
-        if (menuKind === "queue")
-            return String(item && (item.displayTitle || item.title) || "Untitled")
         if (menuKind === "quality" || menuKind === "debug")
             return String(item && item.label || "")
         return String(item)
@@ -372,7 +366,7 @@ FocusScope {
             return player.selectedSubtitleIndex === index
         if (menuKind === "audio")
             return player.selectedAudioIndex === index
-        return menuKind === "queue" && playQueue && playQueue.currentIndex === index
+        return false
     }
 
     function openMenu(kind) {
@@ -384,8 +378,7 @@ FocusScope {
         audioSyncVisible = false
         subtitleSettingsVisible = false
         controlsVisible = true
-        const initialIndex = kind === "audio" && hasPlayer ? player.selectedAudioIndex : kind === "queue" && playQueue
-                                                             ? playQueue.currentIndex : 0
+        const initialIndex = kind === "audio" && hasPlayer ? player.selectedAudioIndex : 0
         chrome.resetMenu(Math.max(0, initialIndex))
         autohide.stop()
     }
@@ -420,8 +413,6 @@ FocusScope {
             player.selectSubtitle(index)
         else if (kind === "audio" && hasPlayer && player.audioTracks.length > 0)
             player.selectAudio(index)
-        else if (kind === "queue" && playQueue && playQueue.count > 0)
-            App.playQueueItem(index)
         else if (kind === "quality") {
             const option = qualityOptions[index]
             if (!option)
@@ -502,6 +493,39 @@ FocusScope {
         if (!audioSyncVisible)
             return
         audioSyncVisible = false
+        showControls("actions")
+    }
+
+    function openQueuePanel() {
+        menuKind = ""
+        audioSyncVisible = false
+        subtitleSettingsVisible = false
+        chrome.closeSyncPlayMenu()
+        queuePanelVisible = true
+        // The transport stays up beside the queue rather than hiding under it,
+        // so scrubbing and skipping keep working while the list is open. Note
+        // hideControls() would refuse anyway once queuePanelVisible pins it.
+        showControls("actions")
+        Qt.callLater(function () {
+            queuePanel.forceActiveFocus()
+            queuePanel.focusRow(playQueue ? playQueue.currentIndex : 0)
+        })
+    }
+
+    function queuePanelLongPress() {
+        return queuePanelVisible ? queuePanel.longPress() : false
+    }
+
+    function queuePanelFinishGesture() {
+        if (queuePanelVisible)
+            queuePanel.finishOpeningGesture()
+    }
+
+    function closeQueuePanel() {
+        if (!queuePanelVisible)
+            return
+        queuePanel.cancelReorder()
+        queuePanelVisible = false
         showControls("actions")
     }
 
@@ -669,7 +693,9 @@ FocusScope {
             player.previousChapter()
         else if (action === "nextChapter")
             player.nextChapter()
-        else if (action === "subtitles" || action === "audio" || action === "queue" || action === "debug")
+        else if (action === "queue")
+            openQueuePanel()
+        else if (action === "subtitles" || action === "audio" || action === "debug")
             openMenu(action)
         else if (action === "syncplay")
             openSyncPlayMenu()
@@ -712,6 +738,10 @@ FocusScope {
             closeSubtitleSettings()
             return true
         }
+        // The panel answers first: while a row is picked up, Back puts it back
+        // rather than closing out from under the move.
+        if (queuePanelVisible)
+            return queuePanel.back()
         if (audioSyncVisible) {
             closeAudioSync()
             return true
@@ -728,6 +758,8 @@ FocusScope {
     function routeKey(key, phase, repeat) {
         if (subtitleSettingsVisible)
             return subtitleSettings.routeKey(key, phase, repeat)
+        if (queuePanelVisible)
+            return queuePanel.routeKey(key, phase, repeat)
         if (syncPlayMenuOpen && InputKeys.isDirection(key))
             return phase === "press" ? chrome.routeSyncPlayMenuKey(key, repeat) : true
         if (menuKind.length > 0 && InputKeys.isDirection(key))
@@ -740,6 +772,10 @@ FocusScope {
     function activate() {
         if (subtitleSettingsVisible) {
             subtitleSettings.activate()
+            return
+        }
+        if (queuePanelVisible) {
+            queuePanel.activate()
             return
         }
         if (syncPlayMenuOpen) {
@@ -783,6 +819,7 @@ FocusScope {
         chrome.closeSyncPlayMenu()
         audioSyncVisible = false
         subtitleSettingsVisible = false
+        queuePanelVisible = false
         focusZone = "timeline"
         actionIndex = pauseActionIndex
         controlsVisible = visible
@@ -835,6 +872,16 @@ FocusScope {
         z: 60
         overVideo: true
         onDismissed: overlay.closeSubtitleSettings()
+    }
+
+    PlayerQueuePanel {
+        id: queuePanel
+        anchors.fill: parent
+        visible: overlay.queuePanelVisible
+        enabled: visible
+        z: 59
+        overlay: overlay
+        onDismissed: overlay.closeQueuePanel()
     }
 
     PlayerOverlayChrome {

@@ -276,10 +276,15 @@ Item {
         anchors.right: parent.right
         anchors.bottom: parent.bottom
         anchors.leftMargin: sideMargin
-        anchors.rightMargin: sideMargin
+        // Shorten beside the queue rather than sliding under it. The seek bar
+        // and transport row already fill their width, so they simply narrow.
+        anchors.rightMargin: sideMargin + (root.overlay.queuePanelVisible ? root.overlay.queuePanelWidth + root.dp(24) :
+                                                                            0)
         anchors.bottomMargin: root.dp(52)
         height: root.overlay.audioOnly ? root.dp(176) : root.dp(276)
-        visible: root.overlay.controlsVisible
+        // Below this there is no transport bar left worth drawing, only a
+        // mangled one.
+        visible: root.overlay.controlsVisible && width > root.dp(420)
 
         ColumnLayout {
             anchors.fill: parent
@@ -467,23 +472,10 @@ Item {
                         stepperText: root.overlay.formatPlaybackSpeed(root.overlay.player.effectivePlaybackSpeed)
                         stepperEditText: Number(root.overlay.player.effectivePlaybackSpeed || 1).toFixed(2)
                         stepperEditable: stepperVisible && root.overlay.desktopControlsAvailable
-                        removable: root.overlay.menuKind === "queue" && index !== root.overlay.playQueue.currentIndex
-                        dragEnabled: root.overlay.menuKind === "queue" && root.overlay.desktopControlsAvailable
                         onStepperAccepted: text => {
                             stepperInvalid = !root.overlay.applyPlaybackSpeedText(text)
                             if (!stepperInvalid)
                                 menuList.forceActiveFocus()
-                        }
-                        onRemoveRequested: {
-                            if (root.overlay.playQueue.removeItem(index))
-                            menuList.currentIndex = Math.min(index, menuList.count - 1)
-                        }
-                        onDragMoved: sceneY => {
-                            const local = menuList.mapFromGlobal(menuList.width / 2, sceneY)
-                            const targetIndex = menuList.indexAt(local.x + menuList.contentX, local.y
-                                                                 + menuList.contentY)
-                            if (targetIndex >= 0 && targetIndex !== index)
-                                root.overlay.playQueue.moveItem(index, targetIndex)
                         }
                         onDecreaseRequested: {
                             menuList.currentIndex = index

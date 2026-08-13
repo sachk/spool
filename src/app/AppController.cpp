@@ -556,6 +556,48 @@ void AppController::playQueueItem(int index)
     playQueueCurrent(false);
 }
 
+bool AppController::queueEditable() const
+{
+    return !(m_syncPlay && m_syncPlay->enabled());
+}
+
+bool AppController::previewQueueMove(int from, int to)
+{
+    if (!queueEditable())
+        return false;
+    return m_playQueue->moveItem(from, to);
+}
+
+void AppController::commitQueueMove(int from, int to)
+{
+    // Nothing to publish for local playback: the preview steps already left the
+    // queue in its final shape. This is the seam where a SyncPlay group sends
+    // its one move for the whole gesture.
+    Q_UNUSED(from)
+    Q_UNUSED(to)
+}
+
+void AppController::removeQueueItem(int index)
+{
+    if (!queueMutationAllowed())
+        return;
+
+    const bool removingCurrent = index == m_playQueue->currentIndex();
+    if (!m_playQueue->removeItem(index))
+        return;
+    if (!removingCurrent)
+        return;
+
+    // The model hands the cursor to whatever followed the removed row, but it
+    // has no player to act on it — the row that was playing is gone, so
+    // something has to take its place or stop.
+    if (m_playQueue->currentIndex() < 0) {
+        m_player->stopWithReason(QStringLiteral("queue-cleared"));
+        return;
+    }
+    playQueueCurrent(false);
+}
+
 void AppController::playNextFromItem(const MovieItem& item)
 {
     if (!queueMutationAllowed())

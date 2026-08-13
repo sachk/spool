@@ -10,6 +10,11 @@ FocusScope {
     property bool diagnosticsVisible: false
     readonly property bool directionRelease: true
 
+    // KeyRouter defers activation to key release for any target that merely
+    // owns a longPress member, so this is advertised only while the queue panel
+    // wants it. Everywhere else OK-to-pause stays a press-time action.
+    property var longPress: playerOverlay.queuePanelVisible ? root.queuePanelLongPress : undefined
+
     signal playbackBackRequested(var item)
 
     visible: active
@@ -30,6 +35,14 @@ FocusScope {
 
     function activate() {
         playerOverlay.activate()
+    }
+
+    function queuePanelLongPress() {
+        return playerOverlay.queuePanelLongPress()
+    }
+
+    function finishOpeningGesture() {
+        playerOverlay.queuePanelFinishGesture()
     }
 
     function openPlaybackSettings() {
@@ -87,7 +100,7 @@ FocusScope {
         id: inputShield
         anchors.fill: parent
         visible: root.active
-        enabled: visible && !playerOverlay.subtitleSettingsVisible
+        enabled: visible && !playerOverlay.subtitleSettingsVisible && !playerOverlay.queuePanelVisible
         focus: enabled
         z: 3
 
