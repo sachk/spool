@@ -170,19 +170,37 @@ namespace {
             // control_cb (null here) and returns VO_NOTIMPL immediately — stats
             // simply don't show GPU pass timings, and direct rendering / mpv
             // screenshots are disabled, neither of which we use.
-            mpv_render_param params[] = {
-                { MPV_RENDER_PARAM_API_TYPE, const_cast<char *>(MPV_RENDER_API_TYPE_OPENGL) },
+            // gpu-next is the desktop renderer, but libplacebo wants OpenGL 3.3
+            // and rejects software rasterisers outright. A Mac that has fallen
+            // back to the Apple Software Renderer reports 2.1, so gpu-next
+            // cannot start there at all. gpu drives the same render API on those
+            // contexts, and trying it is the difference between playback and a
+            // black screen.
 #ifdef JELLYFIN_NATIVE_WEBOS
-                { MPV_RENDER_PARAM_BACKEND, const_cast<char *>("gpu") },
+            static constexpr const char *backends[] = { "gpu" };
 #else
-                { MPV_RENDER_PARAM_BACKEND, const_cast<char *>("gpu-next") },
+            static constexpr const char *backends[] = { "gpu-next", "gpu" };
 #endif
-                { MPV_RENDER_PARAM_OPENGL_INIT_PARAMS, &glInit },
-                { MPV_RENDER_PARAM_INVALID, nullptr },
-            };
 
             mpv_render_context *newCtx = nullptr;
-            const int err = mpv_render_context_create(&newCtx, next, params);
+            int err = MPV_ERROR_UNSUPPORTED;
+            for (const char *backend : backends) {
+                mpv_render_param params[] = {
+                    { MPV_RENDER_PARAM_API_TYPE, const_cast<char *>(MPV_RENDER_API_TYPE_OPENGL) },
+                    { MPV_RENDER_PARAM_BACKEND, const_cast<char *>(backend) },
+                    { MPV_RENDER_PARAM_OPENGL_INIT_PARAMS, &glInit },
+                    { MPV_RENDER_PARAM_INVALID, nullptr },
+                };
+
+                newCtx = nullptr;
+                err = mpv_render_context_create(&newCtx, next, params);
+                if (err >= 0) {
+                    qInfo() << "player: render backend" << backend;
+                    break;
+                }
+                qWarning() << "player: render backend" << backend
+                           << "unavailable:" << mpv_error_string(err);
+            }
             if (err < 0) {
                 const QString message = QStringLiteral("Failed to initialize video rendering: %1")
                                             .arg(QString::fromUtf8(mpv_error_string(err)));
