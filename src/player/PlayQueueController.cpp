@@ -16,6 +16,14 @@ namespace {
         return item.title.isEmpty() ? item.seriesName : item.title;
     }
 
+    double playbackProgress(const MovieItem& item)
+    {
+        const qint64 resumeTicks = normalizedResumeTicks(item.resumeTicks, item.runtimeTicks);
+        if (resumeTicks <= 0 || item.runtimeTicks <= 0)
+            return 0.0;
+        return std::clamp(static_cast<double>(resumeTicks) / static_cast<double>(item.runtimeTicks), 0.0, 1.0);
+    }
+
     QVariantMap itemSnapshot(const MovieItem& item)
     {
         return {
@@ -96,6 +104,10 @@ QVariant PlayQueueController::data(const QModelIndex& index, int role) const
         return isGenericEpisodeTitle(item);
     case PlayableRole:
         return isPlayableItem(item);
+    case ItemRole:
+        return QVariant::fromValue(item);
+    case ProgressRole:
+        return playbackProgress(item);
     default:
         return {};
     }
@@ -119,6 +131,8 @@ QHash<int, QByteArray> PlayQueueController::roleNames() const
         { EpisodeCodeRole, "episodeCode" },
         { GenericEpisodeTitleRole, "genericEpisodeTitle" },
         { PlayableRole, "playable" },
+        { ItemRole, "item" },
+        { ProgressRole, "progress" },
     };
 }
 
@@ -155,6 +169,10 @@ bool PlayQueueController::updateResumeTicks(const QString& itemId, qint64 resume
             continue;
         item.resumeTicks = normalizedTicks;
         updated = true;
+        // The queue is a visible list now, so a silent write leaves stale
+        // progress on screen until something else rebuilds the delegates.
+        const QModelIndex changed = index(row);
+        emit dataChanged(changed, changed, { ItemRole, ProgressRole });
     }
     return updated;
 }
@@ -227,8 +245,10 @@ bool PlayQueueController::moveItem(int from, int to)
     m_entries.insert(m_entries.begin() + to, std::move(moved));
     endMoveRows();
 
-    // TODO: Replace these local edits with server-backed queue mutation when
-    // Jellyfin exposes a queue contract that preserves playlist item identity.
+    // Shuffle ends here on purpose. The panel lists entries in model order, so
+    // while shuffled a drag would rearrange rows without touching what plays
+    // next — the gesture would look broken. Taking manual control of the order
+    // is the clearer reading, and `shuffled` notifies so the toggle follows.
     m_shuffled = false;
     rebuildNaturalOrder();
     m_orderIndex = nextCurrent;
@@ -238,18 +258,37 @@ bool PlayQueueController::moveItem(int from, int to)
 
 bool PlayQueueController::removeItem(int index)
 {
-    const int previousCurrent = currentIndex();
-    if (index < 0 || index >= rowCount() || index == previousCurrent)
+    if (index < 0 || index >= rowCount())
         return false;
+
+    const int previousCurrent = currentIndex();
 
     beginRemoveRows({}, index, index);
     m_entries.erase(m_entries.begin() + index);
     endRemoveRows();
 
-    const int nextCurrent = index < previousCurrent ? previousCurrent - 1 : previousCurrent;
-    m_shuffled = false;
-    rebuildNaturalOrder();
-    m_orderIndex = nextCurrent;
+    // Drop the row from the play order and relabel the natural indices above
+    // it. Rebuilding instead would throw away a shuffle the user did not ask to
+    // end, which is what removing a row used to do.
+    const auto removed = std::find(m_order.begin(), m_order.end(), index);
+    const int removedOrderPos = removed == m_order.end() ? -1 : static_cast<int>(removed - m_order.begin());
+    if (removed != m_order.end())
+        m_order.erase(removed);
+    for (int& natural : m_order) {
+        if (natural > index)
+            --natural;
+    }
+
+    if (m_order.empty()) {
+        m_orderIndex = -1;
+    } else {
+        // Removing the playing row leaves the cursor in place, which now names
+        // whatever followed it; the caller restarts playback on that entry.
+        if (removedOrderPos >= 0 && removedOrderPos < m_orderIndex)
+            --m_orderIndex;
+        m_orderIndex = std::clamp(m_orderIndex, 0, static_cast<int>(m_order.size()) - 1);
+    }
+
     emitQueueStateChanged(previousCurrent);
     return true;
 }
@@ -314,10 +353,20 @@ bool PlayQueueController::playNext(const MovieItem& item)
         return playNow(item);
 
     const int previousCurrent = currentIndex();
-    const int naturalIndex = rowCount();
+    // Land beside the playing row, not at the end. Appending put the entry at
+    // the bottom of the list while playing it next, so a visible queue would
+    // contradict the order it is meant to describe.
+    const int naturalIndex = previousCurrent >= 0 ? previousCurrent + 1 : rowCount();
+
     beginInsertRows({}, naturalIndex, naturalIndex);
-    m_entries.push_back(item);
+    m_entries.insert(m_entries.begin() + naturalIndex, item);
     endInsertRows();
+
+    // Relabel before inserting, so the new row's own index is not bumped too.
+    for (int& natural : m_order) {
+        if (natural >= naturalIndex)
+            ++natural;
+    }
 
     const int insertOrderIndex = m_orderIndex >= 0 ? m_orderIndex + 1 : 0;
     m_order.insert(m_order.begin() + insertOrderIndex, naturalIndex);

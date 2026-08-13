@@ -99,6 +99,9 @@ JELLYFIN_TEST_MAIN("play-queue-controller")
     require(queue.addToQueue(item(QStringLiteral("e"), QStringLiteral("Episode E"), QStringLiteral("pl-e"))),
         "addToQueue should accept playable item");
     require(queue.count() == 5, "queue additions should append rows");
+    require(idAt(queue, 2) == QStringLiteral("d"),
+        "playNext should land beside the playing row so list order matches play order");
+    require(idAt(queue, 4) == QStringLiteral("e"), "addToQueue should land at the end of the list");
     require(queue.next(), "next should move to playNext item");
     require(queue.currentItem().id == QStringLiteral("d"), "playNext item should be first upcoming item");
     require(queue.next(), "next should move past playNext item");
@@ -110,9 +113,9 @@ JELLYFIN_TEST_MAIN("play-queue-controller")
     require(queue.playAt(0), "playAt should accept natural row indexes");
     require(queue.currentItem().id == QStringLiteral("a"), "playAt should switch to requested row");
     require(!queue.playAt(99), "playAt should reject out-of-range rows");
-    require(queue.playAt(2), "playAt should restore the natural successor");
+    require(queue.playAt(3), "playAt should restore the natural successor");
 
-    require(queue.moveItem(2, 0), "queue rows should be reorderable");
+    require(queue.moveItem(3, 0), "queue rows should be reorderable");
     require(idAt(queue, 0) == QStringLiteral("c") && queue.currentIndex() == 0,
         "moving the current row should preserve the active item at its new index");
     require(queue.moveItem(2, 1), "non-current queue rows should be reorderable");
@@ -121,7 +124,6 @@ JELLYFIN_TEST_MAIN("play-queue-controller")
     require(queue.removeItem(1), "non-current queue rows should be removable");
     require(
         queue.count() == 4 && idAt(queue, 1) == QStringLiteral("a"), "removing a queue row should close the model gap");
-    require(!queue.removeItem(queue.currentIndex()), "the active queue row should not be removable");
     queue.setShuffled(true);
     require(queue.shuffled(), "setShuffled(true) should enable shuffled mode");
     require(queue.currentItem().id == QStringLiteral("c"), "shuffle should keep current item active");
@@ -130,6 +132,23 @@ JELLYFIN_TEST_MAIN("play-queue-controller")
     require(queue.currentIndex() == 0, "unshuffle should restore the reordered current index");
     require(idAt(queue, 0) == QStringLiteral("c") && idAt(queue, 3) == QStringLiteral("e"),
         "unshuffle should preserve the explicitly reordered rows");
+
+    require(queue.data(queue.index(0), PlayQueueController::ItemRole).value<MovieItem>().id == QStringLiteral("c"),
+        "the item role should carry the whole MovieItem so artwork can resolve every tag");
+
+    // A visible queue has to let you drop the row you are on; refusing left the
+    // panel with a row it could not delete and no reason the user could see.
+    require(queue.removeItem(queue.currentIndex()), "the active queue row should be removable");
+    require(queue.count() == 3 && queue.currentItem().id == QStringLiteral("a"),
+        "removing the active row should hand the slot to the following entry");
+    require(queue.playAt(2), "playAt should select the final row");
+    require(queue.removeItem(2), "the final row should be removable while it is playing");
+    require(queue.count() == 2 && queue.currentItem().id == QStringLiteral("d"),
+        "removing the final row should fall back to its predecessor");
+
+    queue.setShuffled(true);
+    require(queue.removeItem(0), "shuffled queues should still accept removals");
+    require(queue.shuffled(), "removing a row should not silently end shuffle");
 
     queue.clear();
     require(queue.count() == 0 && queue.currentIndex() == -1, "clear should empty queue and reset current index");

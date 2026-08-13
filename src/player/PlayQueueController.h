@@ -35,6 +35,12 @@ public:
         EpisodeCodeRole,
         GenericEpisodeTitleRole,
         PlayableRole,
+        // The whole MovieItem, as MovieGridModel already does. Art.url() takes
+        // the gadget branch for this and reads every tag, where a QVariantMap
+        // only carries the four keys ArtworkService bothers to unpack — so
+        // episode thumbs and album covers resolve without new roles per tag.
+        ItemRole,
+        ProgressRole,
     };
 
     explicit PlayQueueController(JellyfinApiFacade *api = nullptr, QObject *parent = nullptr);
