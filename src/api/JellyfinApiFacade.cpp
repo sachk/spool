@@ -1786,9 +1786,11 @@ QCoro::Task<void> JellyfinApiFacade::postCapabilities()
                 QStringLiteral("GoToSettings"),
                 QStringLiteral("GoToSearch"),
                 QStringLiteral("Play"),
-                QStringLiteral("Pause"),
-                QStringLiteral("Unpause"),
-                QStringLiteral("Stop"),
+                // Pause, Unpause and Stop are PlaystateCommand values, not
+                // GeneralCommandType. Listing them here made the server reject
+                // the whole payload — "The JSON value could not be converted to
+                // GeneralCommandType" — so every capability report failed and
+                // the session advertised nothing at all.
                 QStringLiteral("DisplayMessage"),
             } },
         { QStringLiteral("SupportsMediaControl"), true },
