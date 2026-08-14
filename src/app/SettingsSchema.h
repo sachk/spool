@@ -80,6 +80,7 @@ enum class SettingTarget {
 enum class SettingNormalizer {
     Bool,
     IntRange,
+    PowerOfTwoRange,
     String,
     // Snaps to the spec's choices, or passes the value through when the choices
     // are filled in at runtime rather than declared here.

@@ -12,6 +12,7 @@ SettingRow {
     property int step: 1
     property string unitText: ""
     property bool selected: false
+    property bool logarithmic: false
 
     signal valueEdited(real value)
     signal valuePreviewed(real value)
@@ -31,8 +32,17 @@ SettingRow {
     }
 
     function rounded(v) {
+        if (logarithmic)
+            return clamp(valueFromSlider(sliderPosition(Number(v || 0))))
         const safeStep = Math.max(1, Number(step || 1))
         return clamp(Math.round(Number(v || 0) / safeStep) * safeStep)
+    }
+    function sliderPosition(v) {
+        return logarithmic ? Math.log(clamp(v)) / Math.LN2 : clamp(v)
+    }
+
+    function valueFromSlider(v) {
+        return logarithmic ? Math.pow(2, Math.round(v)) : v
     }
 
     function formatValue(v) {
@@ -70,17 +80,17 @@ SettingRow {
             Layout.preferredWidth: Math.max(Metrics.scaled(160), Math.min(Metrics.scaled(320), root.width * 0.3))
             Layout.alignment: Qt.AlignVCenter
             highlighted: root.rowFocus
-            from: root.from
-            to: root.to
-            stepSize: root.step
-            value: root.value
+            from: root.sliderPosition(root.from)
+            to: root.sliderPosition(root.to)
+            stepSize: root.logarithmic ? 1 : root.step
+            value: root.sliderPosition(root.value)
             barHeight: Metrics.scaled(7)
             handleSize: Metrics.scaled(18)
             onMoved: {
                 root.interactionStarted()
-                root.preview(value)
+                root.preview(root.valueFromSlider(value))
             }
-            onCommitted: root.commit(value)
+            onCommitted: root.commit(root.valueFromSlider(value))
         },
         Rectangle {
             readonly property int pad: Metrics.scaled(12)

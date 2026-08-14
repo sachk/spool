@@ -112,16 +112,15 @@ FocusScope {
         return visibleRows
     }
 
-    // Schema declaration order is display order. "Subtitle Appearance" lives in
-    // SubtitleSettingsPanel, which can show it over live video where the
-    // changes are actually visible.
+    // Player-only controls live over active playback, where their changes are
+    // visible or audible. Keep them out of the global settings page.
     function buildSettingsRowsSource() {
         const schema = Settings.settingsSchema
         const rowMap = {}
         const sourceRows = []
         for (let index = 0; index < schema.length; ++index) {
             const row = schema[index]
-            if (row.group === "Subtitle Appearance")
+            if (row.group === "Subtitle Appearance" || row.key === "settings/audioDelayMs")
                 continue
             rowMap[row.key] = row
             sourceRows.push({
@@ -260,8 +259,6 @@ FocusScope {
     function rowDescription(row) {
         if (row.key === "session/account")
             return Session.serverUrl
-        if (row.key === "settings/audioDelayMs" && Platform.usesPerOutputAudioDelay)
-            return "Trim for " + Settings.audioDelayTargetLabel
         if (row.key === "subtitles/mode" || row.key === "audio/trackMode") {
             const index = rowCurrentIndex(row)
             const labels = rowOptions(row)
@@ -481,8 +478,10 @@ FocusScope {
         if (row.type === "slider") {
             const from = Number(row.from || 0)
             const to = Number(row.to || 100)
-            const next = Math.max(from, Math.min(to, Number(settingsValue(row)) + Number(row.step || 1) * direction))
-            setRowValue(row, next, -1)
+            const current = Number(settingsValue(row))
+            const next = row.key === "playback/forwardCacheSizeMiB" ? current * (direction > 0 ? 2 : 0.5) : current
+                                                                      + Number(row.step || 1) * direction
+            setRowValue(row, Math.max(from, Math.min(to, next)), -1)
             return true
         }
         if (row.type === "text") {
@@ -758,6 +757,7 @@ FocusScope {
             from: row ? Number(row.from) : 0
             to: row ? Number(row.to) : 100
             step: row ? Number(row.step || 1) : 1
+            logarithmic: Boolean(row && row.key === "playback/forwardCacheSizeMiB")
             unitText: row ? String(row.unitText || "") : ""
             value: row ? Number(root.settingsValue(row)) : 0
             onValueEdited: value => root.setRowValue(row, value, -1)

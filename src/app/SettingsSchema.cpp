@@ -6,6 +6,7 @@
 #include <QVariantMap>
 
 #include <algorithm>
+#include <cmath>
 
 namespace JellyfinNative {
 namespace {
@@ -73,10 +74,10 @@ namespace {
     }
 
     SettingSpec sliderSpec(const char *key, const char *group, const char *title, const char *description,
-        const char *defaultValue, int minimum, int maximum, int step, const char *unit, SettingTarget target)
+        const char *defaultValue, int minimum, int maximum, int step, const char *unit, SettingTarget target,
+        SettingNormalizer normalizer = SettingNormalizer::IntRange)
     {
-        SettingSpec spec { key, group, title, description, SettingType::Slider, defaultValue, target,
-            SettingNormalizer::IntRange };
+        SettingSpec spec { key, group, title, description, SettingType::Slider, defaultValue, target, normalizer };
         spec.minimum = minimum;
         spec.maximum = maximum;
         spec.step = step;
@@ -289,7 +290,8 @@ const QVector<SettingSpec>& settingSpecs()
             "Repackages instead of re-encoding where it can", true, SettingTarget::PreferRemux)
             .advanced(),
         sliderSpec("playback/forwardCacheSizeMiB", "Streaming", "Read-ahead buffer",
-            "Applies the next time something plays", "32", 16, 4096, 1, "MB", SettingTarget::ForwardCacheSize)
+            "Applies the next time something plays", "32", 16, 2048, 1, "MB", SettingTarget::ForwardCacheSize,
+            SettingNormalizer::PowerOfTwoRange)
             .advanced(),
 
         selectSpec("subtitles/language", "Subtitles", "Preferred language", "Used when subtitles are picked for you",
@@ -471,6 +473,10 @@ QVariant normalizedSettingValue(const SettingSpec& spec, const QVariant& value)
         return boolValue(value);
     case SettingNormalizer::IntRange:
         return std::clamp(value.toString().toInt(), spec.minimum, spec.maximum);
+    case SettingNormalizer::PowerOfTwoRange: {
+        const int clamped = std::clamp(value.toString().toInt(), spec.minimum, spec.maximum);
+        return 1 << std::lround(std::log2(clamped));
+    }
     case SettingNormalizer::AudioOutput:
         return normalizedAudioOutputMode(value.toString());
     case SettingNormalizer::Choice:

@@ -213,15 +213,17 @@ void normalizersPreservePersistedValueSemantics()
     require(serializedSettingValue(bitrate, QStringLiteral("42")) == QStringLiteral("42"),
         QStringLiteral("in-range streaming bitrate was not serialized unchanged"));
     const SettingSpec& forwardCache = requiredSpec(QStringLiteral("playback/forwardCacheSizeMiB"));
-    require(forwardCache.type == SettingType::Slider && forwardCache.minimum == 16 && forwardCache.maximum == 4096,
-        QStringLiteral("forward cache should be a typeable 16-4096 MB numeric control"));
+    require(forwardCache.type == SettingType::Slider && forwardCache.minimum == 16 && forwardCache.maximum == 2048,
+        QStringLiteral("forward cache should span 16-2048 MB"));
     require(settingDefaultValue(forwardCache).toInt() == 32, QStringLiteral("forward cache should default to 32 MB"));
     require(normalizedSettingValue(forwardCache, QStringLiteral("256")).toInt() == 256,
         QStringLiteral("valid forward cache size was not preserved"));
+    require(normalizedSettingValue(forwardCache, QStringLiteral("300")).toInt() == 256,
+        QStringLiteral("forward cache did not snap to the nearest power of two"));
     require(normalizedSettingValue(forwardCache, QStringLiteral("1")).toInt() == 16,
         QStringLiteral("forward cache below 16 MB was not clamped"));
-    require(normalizedSettingValue(forwardCache, QStringLiteral("5000")).toInt() == 4096,
-        QStringLiteral("forward cache above 4096 MB was not clamped"));
+    require(normalizedSettingValue(forwardCache, QStringLiteral("5000")).toInt() == 2048,
+        QStringLiteral("forward cache above 2048 MB was not clamped"));
     const SettingSpec& uiScale = requiredSpec(QStringLiteral("appearance/uiScalePercent"));
     require(normalizedSettingValue(uiScale, QStringLiteral("65")).toInt() == 80,
         QStringLiteral("UI scale below the floor was not clamped"));
