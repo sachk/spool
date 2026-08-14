@@ -8,7 +8,7 @@
 
 namespace JellyfinNative::CredentialStore {
 namespace {
-    constexpr auto kService = "com.sachk.spool";
+    constexpr char kService[] = SPOOL_MACOS_CREDENTIAL_SERVICE;
 }
 
 QString load(const QString& profileId)

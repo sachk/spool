@@ -289,6 +289,8 @@ jobs:
           exit 1
 
       - name: Build macOS app
+        env:
+          SPOOL_MACOS_CREDENTIAL_SERVICE: ${{ inputs.enable_macos_signing && 'com.sachk.spool' || '' }}
         run: nix develop .#native --no-write-lock-file -c bash tools/build-macos.sh
 
       - name: Run native tests

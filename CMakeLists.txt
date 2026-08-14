@@ -25,6 +25,8 @@ option(JELLYFIN_ARTWORK_ASPECT_DIAGNOSTICS "Log artwork decode requests whose ta
 option(JELLYFIN_IMAGE_SUBTITLE_DIAGNOSTICS
     "Log image subtitle crop, segmentation, geometry, and recoloring per subtitle event" OFF)
 option(JELLYFIN_WARNINGS_AS_ERRORS "Treat compiler warnings as errors" OFF)
+set(SPOOL_MACOS_CREDENTIAL_SERVICE "com.sachk.spool.dev" CACHE STRING
+    "macOS Keychain service used for persisted session tokens")
 option(JELLYFIN_SANITIZERS "Enable AddressSanitizer and UndefinedBehaviorSanitizer" OFF)
 include(CTest)
 

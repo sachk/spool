@@ -3,12 +3,20 @@ function(jellyfin_resolve_macos_dependencies)
 endfunction()
 
 function(jellyfin_configure_macos_targets native_target core_target)
+    if(NOT SPOOL_MACOS_CREDENTIAL_SERVICE MATCHES "^[A-Za-z0-9_-]+(\\.[A-Za-z0-9_-]+)+$")
+        message(FATAL_ERROR
+            "SPOOL_MACOS_CREDENTIAL_SERVICE must be a non-empty reverse-DNS service name")
+    endif()
+
     target_sources(${core_target} PRIVATE
         src/platform/macos/MacOSSettingsPolicy.cpp
         src/platform/macos/MacOSPlatformPaths.cpp
         src/platform/macos/MacOSCredentialStore.cpp
         src/platform/macos/MacOSSystemProbes.cpp
         src/platform/desktop/UnsupportedPerformanceSampler.cpp
+    )
+    target_compile_definitions(${core_target} PRIVATE
+        "SPOOL_MACOS_CREDENTIAL_SERVICE=\"${SPOOL_MACOS_CREDENTIAL_SERVICE}\""
     )
     target_sources(${native_target} PRIVATE
         src/platform/macos/MacOSPlatformCapabilities.cpp
