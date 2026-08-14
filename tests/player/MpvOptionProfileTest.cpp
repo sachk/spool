@@ -80,6 +80,8 @@ JELLYFIN_TEST_MAIN("mpv-option-profile")
     require(valueFor(desktop, "curl-parallel-requests") == "1", "desktop should default to one range request");
     require(
         valueFor(desktop, "initial-audio-sync").isEmpty(), "desktop should retain mpv's initial audio sync default");
+    require(valueFor(desktop, "audio-fallback-to-null") == "yes",
+        "desktop playback should continue silently when no audio output device is available");
     require(valueFor(desktop, "config") == "no", "disabled user configuration should bypass mpv.conf");
     require(indexOf(desktop, "config") < indexOf(desktop, "input-default-bindings"),
         "application input invariants must be applied after user configuration policy");

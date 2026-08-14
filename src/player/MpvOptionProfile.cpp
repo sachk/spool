@@ -297,6 +297,7 @@ std::vector<MpvOption> MpvOptionProfile::applicationOptions(Platform platform, c
         }
     } else {
         options.push_back({ "vo", "libmpv" });
+        options.push_back({ "audio-fallback-to-null", "yes" });
 #if defined(Q_OS_LINUX)
         options.push_back({ "hwdec", "auto-copy" });
 #else
