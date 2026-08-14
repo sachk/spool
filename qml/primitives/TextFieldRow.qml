@@ -132,6 +132,7 @@ T.Control {
 
     MouseArea {
         anchors.fill: parent
+        enabled: !row.focusEntersField
         onClicked: row.focusField()
         propagateComposedEvents: true
     }

@@ -400,14 +400,8 @@ void AppController::switchUser()
 {
     qInfo() << "app: switch user requested";
     m_quickConnect->cancel();
-    if (m_player->visible())
-        m_player->stopWithReason(QStringLiteral("switch-user"));
-    m_syncPlay->disconnectSocket();
-    if (m_database)
-        m_database->invalidateHomePayloads();
     setBusy(false);
     setErrorText({});
-    m_session->deactivate();
     m_discovery->start();
 }
 

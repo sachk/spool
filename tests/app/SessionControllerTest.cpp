@@ -154,11 +154,19 @@ JELLYFIN_TEST_MAIN("session-controller")
                 }),
         "expiring one profile should not erase sibling tokens");
 
+    int profileSignInRequests = 0;
+    QObject::connect(&session, &SessionController::profileSignInRequiredChanged,
+        [&profileSignInRequests]() { ++profileSignInRequests; });
     session.activateProfile(aliceAway.profileId);
     require(waitUntil(app, [&session]() { return session.profileSignInRequired(); }),
         "expired profile activation should open exact-pair sign in");
     require(session.serverUrl() == aliceAway.serverUrl && session.username() == aliceAway.userName,
         "reauthentication should retain the selected server and user");
+    session.activateProfile(aliceAway.profileId);
+    require(waitUntil(app, [&profileSignInRequests]() { return profileSignInRequests >= 2; }),
+        "choosing an already-expired profile should request its sign-in page again");
+    require(session.serverUrl() == aliceAway.serverUrl && session.username() == aliceAway.userName,
+        "repeated reauthentication should keep the selected server and username prefilled");
 
     session.removeProfile(aliceAway.profileId);
     stored = QCoro::waitFor(database.loadAccountProfilesAsync());

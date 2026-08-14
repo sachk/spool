@@ -221,10 +221,11 @@ bool SessionController::applyStoredProfile(AccountProfile profile, bool persistU
     setUsername(profile.userName);
     clearPassword();
     if (authenticationRequired) {
-        if (!m_profileSignInRequired) {
+        if (!m_profileSignInRequired)
             m_profileSignInRequired = true;
-            emit profileSignInRequiredChanged();
-        }
+        // This is also the navigation event. Re-emit when an already-expired
+        // profile is chosen again after returning to the profile grid.
+        emit profileSignInRequiredChanged();
         return false;
     }
 
