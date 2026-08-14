@@ -1,5 +1,10 @@
 {
   description = "Jellyfin webOS native build environment";
+  nixConfig = {
+    extra-substituters = [ "https://spool.cachix.org" ];
+    extra-trusted-public-keys = [ "spool.cachix.org-1:yx+E3raAGXiyUNoMEscSu9c85b+WbgoV7swqyY8oL6s=" ];
+  };
+
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/88cc2017b8412e0b62c0f2d04ae91a5d7e611984";
@@ -15,7 +20,7 @@
       flake = false;
     };
     mpv-src = {
-      url = "path:./mpv";
+      url = "git+file:./mpv";
       flake = false;
     };
   };
@@ -95,15 +100,23 @@
       };
 
       qcoroOverlay = final: prev: {
-        qt6Packages = prev.qt6Packages.overrideScope (_qtFinal: qtPrev: {
-          qcoro = qtPrev.qcoro.overrideAttrs (old: {
-            version = "0.13.0";
-            src = qcoro-src;
-            meta = old.meta // {
-              platforms = old.meta.platforms ++ final.lib.platforms.darwin;
-            };
-          });
+        spoolQcoro = (prev.qt6Packages.qcoro.override {
+          qtbase = final.qt6.qtbase;
+          qtwebsockets = final.qt6.qtwebsockets;
+          wrapQtAppsHook = final.qt6.wrapQtAppsHook;
+        }).overrideAttrs (old: {
+          version = "0.13.0";
+          src = qcoro-src;
+
+          meta = old.meta // {
+            platforms = old.meta.platforms ++ final.lib.platforms.darwin;
+          };
         });
+      };
+      cacheDependencyOverlay = final: prev: {
+        # The regular nixpkgs build is widely substituted and avoids the very
+        # large codec/tool closure of ffmpeg-full.
+        ffmpeg-full = prev.ffmpeg;
       };
 
       forAllSystems = f:
@@ -113,6 +126,18 @@
             config.allowUnfree = true;
             overlays = [ libplaceboOverlay ffmpegSlimOverlay qcoroOverlay ];
           }));
+      # Published artifacts use upstream Qt and FFmpeg so those large closures
+      # come from cache.nixos.org. Only Spool and its bundled mpv need Cachix.
+      cachePkgsFor = system:
+        import (nixpkgsFor system) {
+          inherit system;
+          config.allowUnfree = true;
+          overlays = [ libplaceboOverlay qcoroOverlay cacheDependencyOverlay ];
+        };
+
+      forAllCacheSystems = f:
+        nixpkgs.lib.genAttrs systems (system: f (cachePkgsFor system));
+
 
       # Shared build/media dependencies. Intentionally contains no qt6.* packages.
       # The Qt source build must not see nixpkgs Qt through CMAKE_PREFIX_PATH.
@@ -225,7 +250,7 @@
           qt6.qtdeclarative
           qt6.qtimageformats
           qt6.qtsvg
-          qt6Packages.qcoro
+          spoolQcoro
           qt6.qttools
           qt6.qtwebsockets
           (qmlToolWrappers pkgs)
@@ -294,6 +319,10 @@
       nativeShellHook = pkgs: commonShellHook pkgs + ''
         # This shell intentionally includes nixpkgs Qt for native Linux/macOS
         # development. Do not use it for tools/webos-native/build-qt6-611.sh.
+        export SPOOL_QT_CMAKE_DIR="${pkgs.qt6.qtbase}/lib/cmake/Qt6"
+        native_qt_cmake_path="${pkgs.qt6.qtbase}:${pkgs.qt6.qtdeclarative}:${pkgs.qt6.qtsvg}:${pkgs.qt6.qttools}:${pkgs.qt6.qtwebsockets}"
+        export CMAKE_PREFIX_PATH="$native_qt_cmake_path''${CMAKE_PREFIX_PATH:+:$CMAKE_PREFIX_PATH}"
+        unset native_qt_cmake_path
         export JELLYFIN_NATIVE_SHELL=1
 
         # macdeployqt and linuxdeploy-plugin-qt both discover plugins under one
@@ -304,8 +333,63 @@
         # qwebp from this prefix; both then assert it landed.
         export SPOOL_QT_EXTRA_PLUGIN_DIRS="${pkgs.qt6.qtimageformats}/lib/qt-6/plugins"
       '';
+      cachedNativePackage = pkgs:
+        pkgs.stdenv.mkDerivation {
+          pname = "spool";
+          version = pkgs.lib.removeSuffix "\n" (builtins.readFile ./VERSION);
+          src = builtins.filterSource (path: _: baseNameOf path != "mpv") self;
+
+          nativeBuildInputs = nativePackages pkgs ++ [ pkgs.qt6.wrapQtAppsHook ];
+          dontWrapQtApps = pkgs.stdenv.isDarwin;
+          dontConfigure = true;
+          dontInstall = true;
+
+          postUnpack = ''
+            rm -rf "$sourceRoot/mpv"
+            cp -R ${mpv-src} "$sourceRoot/mpv"
+            chmod -R u+w "$sourceRoot/mpv"
+          '';
+
+          buildPhase = ''
+            patchShebangs mpv/TOOLS
+            runHook preBuild
+            export HOME="$TMPDIR/home"
+            export XDG_CACHE_HOME="$TMPDIR/cache"
+            export JELLYFIN_NATIVE_SHELL=1
+            export SPOOL_QT_CMAKE_DIR="${pkgs.qt6.qtbase}/lib/cmake/Qt6"
+            export CMAKE_PREFIX_PATH="${pkgs.qt6.qtbase}:${pkgs.qt6.qtdeclarative}:${pkgs.qt6.qtsvg}:${pkgs.qt6.qttools}:${pkgs.qt6.qtwebsockets}''${CMAKE_PREFIX_PATH:+:$CMAKE_PREFIX_PATH}"
+            mkdir -p "$HOME" "$XDG_CACHE_HOME"
+
+            ${if pkgs.stdenv.isDarwin then ''
+              export PATH="$PATH:/usr/bin:/bin"
+              BUILD_ROOT="$TMPDIR/spool-build" \
+              MPV_PREFIX="$out" \
+              APP_INSTALL="$out/Applications" \
+              DEPLOY_APP=0 \
+              SPOOL_MACOS_CREDENTIAL_SERVICE=com.sachk.spool \
+                bash tools/build-macos.sh
+            '' else ''
+              BUILD_ROOT="$TMPDIR/spool-build" \
+              APP_INSTALL="$out" \
+                bash tools/build-linux-release.sh
+            ''}
+            runHook postBuild
+          '';
+
+          meta = {
+            description = "Spool for Jellyfin";
+            license = pkgs.lib.licenses.gpl3Plus;
+            platforms = systems;
+          };
+        };
+
     in
     {
+      packages = forAllCacheSystems (pkgs: {
+        default = cachedNativePackage pkgs;
+        native-cache = cachedNativePackage pkgs;
+      });
+
       devShells = forAllSystems (pkgs: {
         default = pkgs.mkShell {
           packages = sourceBuildPackages pkgs ++ [ (qmlToolWrappers pkgs) ];
@@ -325,6 +409,11 @@
 
       apps = forAllSystems (pkgs:
         let
+          cachedPackage = cachedNativePackage (cachePkgsFor pkgs.stdenv.hostPlatform.system);
+          cachedProgram =
+            if pkgs.stdenv.isDarwin
+            then "${cachedPackage}/Applications/jellyfin-native.app/Contents/MacOS/jellyfin-native"
+            else "${cachedPackage}/bin/jellyfin-native";
           stagedSourceId = builtins.substring 0 12
             (builtins.hashString "sha256" "${self}-${mpv-src}");
           buildScript =
@@ -354,10 +443,10 @@
             pkgs.lib.makeSearchPath pkgs.qt6.qtbase.qtQmlPrefix
               (nativeQtPackages pkgs);
           nativeRuntimeLibPath = pkgs.lib.makeLibraryPath (nativeRuntimePackages pkgs);
-          # Resolves the checkout, optionally builds the selected native
-          # variant, then either exits or launches it inside the #native shell.
-          # The default app builds before launching; named run apps launch the
-          # existing binary without rebuilding.
+          # Named development apps resolve the checkout, optionally build the
+          # selected native variant, then launch it inside the #native shell.
+          # The default app is the publishable package so Cachix can substitute
+          # it before these local development paths are needed.
           makeRunner = {
             name,
             launchPrefix ? "",
@@ -375,6 +464,10 @@
               runnerMpvLibraryPath =
                 if buildRoot == "" then mpvLibraryPath
                 else "${buildRoot}/mpv-prefix/lib";
+              runnerBuildStamp =
+                if buildRoot != "" then "${buildRoot}/.jellyfin-nix-source-id"
+                else if pkgs.stdenv.isDarwin then "build/macos/.jellyfin-nix-source-id"
+                else "build/linux-release/.jellyfin-nix-source-id";
               buildRootExport = pkgs.lib.optionalString (buildRoot != "")
                 ''export BUILD_ROOT="$REPO_ROOT/${buildRoot}"; '';
               runnerBuildCommand =
@@ -425,13 +518,20 @@
             cd "$REPO_ROOT"
 
             BIN="$REPO_ROOT/${runnerBinaryPath}"
+            BUILD_STAMP="$REPO_ROOT/${runnerBuildStamp}"
 
             # Strip webOS cross state so native Linux builds do not pick up the
             # old SDK wayland-scanner/cross toolchain.
             scrub='PATH=$(printf %s "$PATH" | tr ":" "\n" | grep -v webos-sdk | paste -sd:); export PATH; unset WEBOS_SDK_ROOT QT_PLUGIN_PATH QML2_IMPORT_PATH QML_IMPORT_PATH'
 
             if ${if buildBeforeRun then "true" else "false"}; then
-              nix develop "$REPO_ROOT#native" -c bash -c "$scrub; ${buildRootExport}export JELLYFIN_CMAKE_EXTRA_ARGS='${cmakeExtraArgs}'; ${runnerBuildCommand}"
+              if [ -x "$BIN" ] && [ -f "$BUILD_STAMP" ] && [ "$(cat "$BUILD_STAMP")" = "${stagedSourceId}" ]; then
+                echo "native build is current (${stagedSourceId}); skipping rebuild"
+              else
+                nix develop "$REPO_ROOT#native" -c bash -c "$scrub; ${buildRootExport}export JELLYFIN_CMAKE_EXTRA_ARGS='${cmakeExtraArgs}'; ${runnerBuildCommand}"
+                mkdir -p "$(dirname "$BUILD_STAMP")"
+                printf '%s\n' "${stagedSourceId}" > "$BUILD_STAMP"
+              fi
             elif [ ! -x "$BIN" ]; then
               echo "error: native app is not built: $BIN" >&2
               echo "build it first with: nix run .#${if buildRoot == "" then "build" else "image-debug-build"}" >&2
@@ -500,7 +600,7 @@
 
           default = {
             type = "app";
-            program = "${runner}/bin/jellyfin-native-run";
+            program = cachedProgram;
           };
 
           run = {

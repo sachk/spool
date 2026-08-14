@@ -20,14 +20,18 @@
     "mpv-src": {
       "flake": false,
       "locked": {
-        "path": "./mpv",
-        "type": "path"
+        "lastModified": 1786707295,
+        "narHash": "sha256-SUdJWfTtxLVj1wNDbmvEntdqregqUG60u7dZlmxZJEA=",
+        "ref": "refs/heads/universal",
+        "rev": "9c3dcdd5cb2a8d8fd487261d176ff470c1ac90da",
+        "revCount": 55458,
+        "type": "git",
+        "url": "file:./mpv"
       },
       "original": {
-        "path": "./mpv",
-        "type": "path"
-      },
-      "parent": []
+        "type": "git",
+        "url": "file:./mpv"
+      }
     },
     "nixpkgs": {
       "locked": {

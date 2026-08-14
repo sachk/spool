@@ -480,6 +480,11 @@ path_under_any_root() {
 cmake_cache_has_stale_qt_prefix() {
   local cache="$1"
   [[ -n "${CMAKE_PREFIX_PATH:-}" ]] || return 1
+  local active_qt_dir="${SPOOL_QT_CMAKE_DIR:-}"
+  if [[ -z "$active_qt_dir" ]] && command -v qtpaths >/dev/null 2>&1; then
+    active_qt_dir="$(qtpaths --query QT_INSTALL_LIBS 2>/dev/null)/cmake/Qt6"
+  fi
+
 
   local roots=()
   IFS=':;' read -r -a roots <<< "${CMAKE_PREFIX_PATH:-}"
@@ -487,6 +492,10 @@ cmake_cache_has_stale_qt_prefix() {
   local key value
   while IFS='=' read -r key value; do
     [[ "$key" == Qt6*"_DIR:PATH" ]] || continue
+    if [[ "$key" == "Qt6_DIR:PATH" && -n "$active_qt_dir" && "$value" != "$active_qt_dir" ]]; then
+      echo "app build dir cached with inactive Qt package: $value" >&2
+      return 0
+    fi
     [[ "$value" == /nix/store/* ]] || continue
     if ! path_under_any_root "$value" "${roots[@]}"; then
       echo "app build dir cached with stale Qt prefix: $value" >&2
@@ -501,8 +510,8 @@ cmake_cache_has_stale_qt_prefix() {
 #
 # Configure (Ninja) + build + install the app. Wipes BUILD_DIR first if its
 # CMakeCache.txt points at a different source tree, a Qt package outside the
-# current CMAKE_PREFIX_PATH, or a generated Ninja rule references a collected
-# Nix store dependency.
+# current CMAKE_PREFIX_PATH or active qtpaths installation, or a generated
+# Ninja rule references a collected Nix store dependency.
 cmake_build_app() {
   local src="$1" build="$2"
   shift 2
@@ -512,6 +521,9 @@ cmake_build_app() {
     # switches from flake runners and local diagnostics.
     # shellcheck disable=SC2206
     cmake_args+=(${JELLYFIN_CMAKE_EXTRA_ARGS})
+  fi
+  if [[ -n "${SPOOL_QT_CMAKE_DIR:-}" ]]; then
+    cmake_args+=("-DQt6_DIR=$SPOOL_QT_CMAKE_DIR")
   fi
 
   local missing_dependency_path=""
