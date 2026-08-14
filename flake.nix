@@ -337,7 +337,11 @@
         pkgs.stdenv.mkDerivation {
           pname = "spool";
           version = pkgs.lib.removeSuffix "\n" (builtins.readFile ./VERSION);
-          src = builtins.filterSource (path: _: baseNameOf path != "mpv") self;
+          src = builtins.path {
+            path = self;
+            name = "spool-source";
+            filter = path: _: baseNameOf path != "mpv";
+          };
 
           nativeBuildInputs = nativePackages pkgs ++ [ pkgs.qt6.wrapQtAppsHook ];
           dontWrapQtApps = pkgs.stdenv.isDarwin;
