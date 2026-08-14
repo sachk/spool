@@ -316,6 +316,13 @@ jobs:
 
       - name: Package DMG
         run: nix develop .#native --no-write-lock-file -c bash tools/package-macos-dmg.sh
+      - name: Sign macOS disk image
+        if: ${{ inputs.enable_macos_signing }}
+        env:
+          MACOS_CERTIFICATE_P12: ${{ secrets.MACOS_CERTIFICATE_P12 }}
+          MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
+          MACOS_SIGNING_IDENTITY: ${{ secrets.MACOS_SIGNING_IDENTITY }}
+        run: tools/sign-macos.sh dist/*.dmg
       - name: Audit mounted DMG
         run: |
           set -euo pipefail

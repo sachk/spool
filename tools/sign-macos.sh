@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-app="${1:?usage: sign-macos.sh APP_BUNDLE}"
+target="${1:?usage: sign-macos.sh APP_BUNDLE_OR_DMG}"
 : "${MACOS_CERTIFICATE_P12:?MACOS_CERTIFICATE_P12 is required}"
 : "${MACOS_CERTIFICATE_PASSWORD:?MACOS_CERTIFICATE_PASSWORD is required}"
 : "${MACOS_SIGNING_IDENTITY:?MACOS_SIGNING_IDENTITY is required}"
-[[ -d "$app" ]] || { printf 'app bundle not found: %s\n' "$app" >&2; exit 1; }
+[[ -d "$target" || -f "$target" ]] || { printf 'signing target not found: %s\n' "$target" >&2; exit 1; }
 
 work="$(mktemp -d)"
 keychain="$work/release-signing.keychain-db"
@@ -32,6 +32,17 @@ security set-keychain-settings -lut 21600 "$keychain"
 security unlock-keychain -p "$keychain_password" "$keychain"
 security import "$work/certificate.p12" -k "$keychain" -P "$MACOS_CERTIFICATE_PASSWORD" -T /usr/bin/codesign
 security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$keychain_password" "$keychain"
+if [[ -f "$target" ]]; then
+  [[ "$target" == *.dmg ]] || {
+    printf 'unsupported signing target: %s\n' "$target" >&2
+    exit 1
+  }
+  codesign --force --timestamp --sign "$MACOS_SIGNING_IDENTITY" --keychain "$keychain" "$target"
+  codesign --verify --strict --verbose=2 "$target"
+  exit 0
+fi
+
+app="$target"
 
 while IFS= read -r -d '' file; do
   if [[ "$file" == *.dylib || "$file" == *.so ]] || file "$file" | grep -Eq 'Mach-O'; then
