@@ -35,13 +35,19 @@ command -v create-dmg >/dev/null 2>&1 || {
   echo "error: create-dmg is required for macOS release packaging" >&2
   exit 1
 }
-create-dmg \
-  --volname "Spool for Jellyfin" \
-  --window-pos 200 120 \
-  --window-size 640 420 \
-  --icon-size 96 \
-  --app-drop-link 460 185 \
-  "$DMG_PATH" \
-  "$APP_BUNDLE"
+create_dmg_args=(
+  --volname "Spool for Jellyfin"
+  --window-pos 200 120
+  --window-size 640 420
+  --icon-size 96
+  --app-drop-link 460 185
+)
+if [[ "${CI:-}" == true ]]; then
+  # Finder can retain the temporary image until hdiutil's two-minute detach
+  # timeout expires on hosted runners. CI needs a reliable image, not Finder
+  # window metadata.
+  create_dmg_args+=(--skip-jenkins)
+fi
+create-dmg "${create_dmg_args[@]}" "$DMG_PATH" "$APP_BUNDLE"
 
 printf '%s\n' "$DMG_PATH"
