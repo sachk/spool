@@ -326,9 +326,10 @@
       ];
 
       nativeLinuxPackages = pkgs:
-        builtins.filter (package:
+        (builtins.filter (package:
           package != pkgs.appimage-run && package != pkgs.libsecret)
-          (sourceLinuxPackages pkgs);
+          (sourceLinuxPackages pkgs))
+        ++ [ pkgs.elfutils pkgs.vulkan-loader ];
 
 
       qmlToolWrappers = pkgs:

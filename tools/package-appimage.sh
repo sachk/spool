@@ -288,7 +288,7 @@ strip_appdir_elfs() {
     file -b "$elf" | grep -q 'ELF.*not stripped' || continue
     inode="$(stat -Lc '%d:%i' "$elf")"
     [[ -z "${stripped_inodes[$inode]:-}" ]] || continue
-    strip --strip-unneeded "$elf"
+    eu-strip "$elf"
     stripped_inodes[$inode]=1
   done < <(find "$APPDIR/usr" -type f | sort)
 }
