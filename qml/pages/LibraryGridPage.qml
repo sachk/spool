@@ -46,8 +46,7 @@ FocusScope {
     // content itself; an empty page falls back to the library it came from.
     readonly property bool squareArtwork: {
         if (Browse.items && Browse.items.count > 0)
-            return ["MusicAlbum", "MusicArtist", "Audio"].indexOf(
-                        String(Browse.items.get(0).itemType || "")) >= 0
+        return ["MusicAlbum", "MusicArtist", "Audio"].indexOf(String(Browse.items.get(0).itemType || "")) >= 0
         return collectionType === "music"
     }
     readonly property real artworkAspect: squareArtwork ? 1 : 1.5
@@ -931,12 +930,11 @@ FocusScope {
                     id: panePoster
                     anchors.top: parent.top
                     anchors.horizontalCenter: parent.horizontalCenter
-                    height: Math.round(Math.min(parent.width * root.artworkAspect,
-                                                parent.height * (root.largeZoom ? 0.64 : 0.56)))
+                    height: Math.round(Math.min(parent.width * root.artworkAspect, parent.height * (root.largeZoom
+                                                                                                    ? 0.64 : 0.56)))
                     width: Math.round(height / root.artworkAspect)
-                    imageUrl: root.paneItem
-                              && root.paneItem.movieId ? Art.url(root.paneItem,
-                                                                 root.squareArtwork ? "square" : "poster") : ""
+                    imageUrl: root.paneItem && root.paneItem.movieId ? Art.url(root.paneItem, root.squareArtwork
+                                                                               ? "square" : "poster") : ""
                     fallbackText: String(root.paneItem && root.paneItem.title || "")
                 }
 
@@ -1040,8 +1038,8 @@ FocusScope {
                 // gaps a second time: divide the whole run evenly and let the
                 // posters grow into the space the double count used to waste.
                 cellWidth: Math.floor((width - leftMargin - rightMargin) / columns)
-                cellHeight: root.listMode ? Metrics.scaled(root.largeZoom ? 60 : 54) : cellWidth * root.artworkAspect
-                                            + Metrics.scaled(64)
+                cellHeight: root.listMode ? Metrics.scaled(root.largeZoom ? 60 : 54) : cellWidth * root.artworkAspect + Metrics.scaled(
+                                                64)
 
                 cacheBuffer: gridReveal.delegatesReady ? cellHeight * artworkMarginRows : 0
                 Component.onCompleted: {
@@ -1338,18 +1336,17 @@ FocusScope {
                 }
                 highlightFollowsCurrentItem: true
                 highlight: Item {
-                    width: grid.currentItem ? grid.currentItem.width : grid.cellWidth - Metrics.gapPx
-                    height: grid.currentItem ? grid.currentItem.focusOutlineHeight : grid.cellHeight - Metrics.scaled(6)
+                    z: 2
 
                     Rectangle {
-                        anchors.fill: parent
-                        anchors.leftMargin: -grid.focusPadding
-                        anchors.rightMargin: -grid.focusPadding
+                        anchors.top: parent.top
+                        anchors.left: parent.left
+                        anchors.right: parent.right
+                        height: grid.currentItem ? grid.currentItem.focusOutlineHeight : parent.height
                         color: "transparent"
-                        radius: Theme.radiusMedium
+                        radius: Math.max(0, Theme.radiusMedium - Theme.focusBorderWidth)
                         border.width: Theme.focusBorderWidth
                         border.color: root.navigationFocusVisible && grid.activeFocus ? Theme.accent : "transparent"
-                        z: 2
                     }
                 }
 

@@ -274,15 +274,16 @@ FocusScope {
         highlightMoveDuration: 16
         highlightResizeDuration: Theme.reducedMotion ? 0 : 75
         highlight: Item {
+            z: 2
             Rectangle {
-                anchors.fill: parent
-                anchors.leftMargin: -root.focusPadding
-                anchors.rightMargin: -root.focusPadding
+                anchors.top: parent.top
+                anchors.left: parent.left
+                anchors.right: parent.right
+                height: listView.currentItem ? listView.currentItem.focusOutlineHeight : parent.height
                 color: "transparent"
-                radius: Theme.radiusMedium
+                radius: Math.max(0, Theme.radiusMedium - Theme.focusBorderWidth)
                 border.width: Theme.focusBorderWidth
                 border.color: root.focusVisible && listView.activeFocus ? Theme.accent : "transparent"
-                z: 2
             }
         }
 
