@@ -78,8 +78,8 @@ jobs:
             experimental-features = nix-command flakes
       - uses: nix-community/cache-nix-action@7df957e333c1e5da7721f60227dbba6d06080569 # v7.0.1
         with:
-          primary-key: nix-${{ runner.os }}-${{ hashFiles('flake.nix', 'flake.lock') }}
-          restore-prefixes-first-match: nix-${{ runner.os }}-
+          primary-key: nix-lint-${{ runner.os }}-${{ hashFiles('flake.nix', 'flake.lock') }}
+          restore-prefixes-first-match: nix-lint-${{ runner.os }}-
 
       - name: Check commit whitespace
         run: git show --check --format= HEAD
@@ -128,15 +128,15 @@ jobs:
         include:
           - arch: x86_64-linux
             runner: ubuntu-24.04
-            cache_prefix: nix-Linux-
+            cache_prefix: nix-native-Linux-
             publish_cachix: true
           - arch: aarch64-darwin
             runner: macos-14
-            cache_prefix: nix-macOS-arm64-
+            cache_prefix: nix-native-macOS-arm64-
             publish_cachix: true
           - arch: x86_64-darwin
             runner: macos-15-intel
-            cache_prefix: nix-macOS-x86_64-
+            cache_prefix: nix-native-macOS-x86_64-
             publish_cachix: false
     env:
       CACHIX_AUTH_TOKEN: ${{ secrets.CACHIX_AUTH_TOKEN }}
@@ -186,8 +186,8 @@ jobs:
             experimental-features = nix-command flakes
       - uses: nix-community/cache-nix-action@7df957e333c1e5da7721f60227dbba6d06080569 # v7.0.1
         with:
-          primary-key: nix-${{ runner.os }}-${{ hashFiles('flake.nix', 'flake.lock') }}
-          restore-prefixes-first-match: nix-${{ runner.os }}-
+          primary-key: nix-native-${{ runner.os }}-${{ hashFiles('flake.nix', 'flake.lock') }}
+          restore-prefixes-first-match: nix-native-${{ runner.os }}-
       - uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5.0.3
         with:
           path: .ccache
@@ -292,8 +292,8 @@ jobs:
 
       - uses: nix-community/cache-nix-action@7df957e333c1e5da7721f60227dbba6d06080569 # v7.0.1
         with:
-          primary-key: nix-${{ runner.os }}-${{ matrix.arch }}-${{ hashFiles('flake.nix', 'flake.lock') }}
-          restore-prefixes-first-match: nix-${{ runner.os }}-${{ matrix.arch }}-
+          primary-key: nix-native-${{ runner.os }}-${{ matrix.arch }}-${{ hashFiles('flake.nix', 'flake.lock') }}
+          restore-prefixes-first-match: nix-native-${{ runner.os }}-${{ matrix.arch }}-
           gc-max-store-size-macos: 8G
 
       - uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5.0.3
