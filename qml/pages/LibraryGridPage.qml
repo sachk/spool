@@ -23,7 +23,7 @@ FocusScope {
     property int filterIndex: 0
     property string expandedFilterSection: ""
     property int libraryIndex: 0
-    property var sortEntries: []
+    property var sortEntries: buildSortEntries()
     property var filterEntries: []
     property var libraryEntries: []
     property string typeAheadBuffer: ""
@@ -85,8 +85,8 @@ FocusScope {
         property bool badge: false
         signal activated
 
-        width: Math.max(118, labelText.implicitWidth + 58)
-        height: 42
+        implicitWidth: Math.max(118, labelText.implicitWidth + 58)
+        implicitHeight: 42
         focus: true
 
         HoverHandler {
@@ -105,6 +105,7 @@ FocusScope {
 
         Row {
             anchors.centerIn: parent
+            height: parent.height
             spacing: 8
             MaterialIcon {
                 anchors.verticalCenter: parent.verticalCenter
@@ -114,7 +115,8 @@ FocusScope {
             }
             AppText {
                 id: labelText
-                anchors.verticalCenter: parent.verticalCenter
+                height: parent.height
+                verticalAlignment: Text.AlignVCenter
                 text: buttonRoot.label
                 font.pixelSize: Metrics.metaSizePx + 1
                 font.weight: Font.Medium
@@ -1223,7 +1225,7 @@ FocusScope {
                     y: Math.max(0, Math.min(grid.height - height, desiredY))
                     width: Metrics.scaled(52) + neckWidth
                     height: Metrics.scaled(48)
-                    opacity: alphabetFeedback.running || libraryScrollBar.pressed ? 1 : 0
+                    opacity: root.listMode && (alphabetFeedback.running || libraryScrollBar.pressed) ? 1 : 0
                     visible: opacity > 0
                     preferredRendererType: Shape.CurveRenderer
                     z: 21
@@ -1288,9 +1290,16 @@ FocusScope {
                         anchors.verticalCenter: parent.verticalCenter
                         anchors.horizontalCenter: parent.horizontalCenter
                         anchors.horizontalCenterOffset: -alphabetCallout.neckWidth / 2
+                        width: alphabetCallout.bodyRight - Metrics.scaled(8)
+                        height: alphabetCallout.height - Metrics.scaled(8)
                         text: root.currentAlphabetLabel
                         font.pixelSize: Metrics.scaled(26)
+                        fontSizeMode: Text.Fit
+                        minimumPixelSize: Metrics.scaled(8)
+                        elide: Text.ElideRight
                         font.weight: Font.Bold
+                        horizontalAlignment: Text.AlignHCenter
+                        verticalAlignment: Text.AlignVCenter
                         color: Theme.textPrimary
                     }
 
