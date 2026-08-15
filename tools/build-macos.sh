@@ -109,7 +109,6 @@ if [[ "$DEPLOY_APP" == "1" ]]; then
     "$APP_INSTALL/jellyfin-native.app/Contents/Resources/qml/QtQuick/Dialogs/quickimpl/qml/+Universal"
   find "$APP_INSTALL/jellyfin-native.app/Contents/Frameworks" -maxdepth 1 \
     \( -name 'QtQuickControls2FluentWinUI3*' \
-    -o -name 'QtQuickControls2Fusion*' \
     -o -name 'QtQuickControls2Imagine*' \
     -o -name 'QtQuickControls2IOS*' \
     -o -name 'QtQuickControls2Material*' \
