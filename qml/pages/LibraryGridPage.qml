@@ -21,6 +21,7 @@ FocusScope {
     property bool libraryOpen: false
     property int sortIndex: 0
     property int filterIndex: 0
+    property string expandedFilterSection: ""
     property int libraryIndex: 0
     property var sortEntries: []
     property var filterEntries: []
@@ -247,7 +248,7 @@ FocusScope {
     }
 
     function buildSortEntries() {
-        const common = [
+        const entries = [
                   {
                       label: "Name",
                       value: "SortName"
@@ -278,32 +279,34 @@ FocusScope {
                   }
               ]
         if (isSeriesLibrary())
-            common.splice(4, 0, {
-                              label: "Date episode added",
-                              value: "DateLastContentAdded"
-                          })
+            entries.splice(4, 0, {
+                               label: "Date episode added",
+                               value: "DateLastContentAdded"
+                           })
         else
-            common.splice(3, 0, {
-                              label: "Critic rating",
-                              value: "CriticRating"
-                          })
-        common.push({
-                        label: "Play count",
-                        value: "PlayCount"
-                    })
-        common.push({
-                        label: "Runtime",
-                        value: "Runtime"
-                    })
-        common.push({
-                        label: "Ascending",
-                        value: "order:Ascending"
-                    })
-        common.push({
-                        label: "Descending",
-                        value: "order:Descending"
-                    })
-        return common
+            entries.splice(3, 0, {
+                               label: "Critic rating",
+                               value: "CriticRating"
+                           })
+        entries.push({
+                         label: "Play count",
+                         value: "PlayCount"
+                     })
+        entries.push({
+                         label: "Runtime",
+                         value: "Runtime"
+                     })
+        return [
+                    {
+                        label: currentSortOrder(),
+                        iconName: currentSortOrder() === "Ascending" ? "arrow_upward" : "arrow_downward",
+                        value: currentSortOrder() === "Ascending" ? "order:Descending" : "order:Ascending"
+                    },
+                    {
+                        section: true,
+                        label: "Sort by"
+                    }
+                ].concat(entries)
     }
 
     function addSection(entries, title) {
@@ -417,7 +420,30 @@ FocusScope {
             for (let i = 0; i < studios.length; ++i)
                 addListFilter(entries, "Studios", studios[i].name || "", "studioIds", studios[i].id || "")
         }
-        return entries
+        const grouped = []
+        for (let index = 0; index < entries.length; ) {
+            const sectionName = entries[index].label
+            const options = []
+            let selected = 0;
+            ++index
+            while (index < entries.length && !entries[index].section) {
+                options.push(entries[index])
+                if (entries[index].checked)
+                    ++selected
+                ++index
+            }
+            grouped.push({
+                             label: sectionName,
+                             detail: selected > 0 ? selected + " selected" : "",
+                             sectionName: sectionName,
+                             kind: "category",
+                             iconName: expandedFilterSection === sectionName ? "expand_less" : "expand_more"
+                         })
+            if (expandedFilterSection === sectionName)
+                for (let optionIndex = 0; optionIndex < options.length; ++optionIndex)
+                    grouped.push(options[optionIndex])
+        }
+        return grouped
     }
 
     function firstActionableFilterIndex(entries) {
@@ -565,7 +591,17 @@ FocusScope {
     }
 
     function activateFilterEntry(entry) {
-        if (!entry || entry.section)
+        if (!entry)
+            return
+        if (entry.kind === "category") {
+            expandedFilterSection = expandedFilterSection === entry.sectionName ? "" : entry.sectionName
+            filterEntries = buildFilterEntries()
+            filterIndex = filterEntries.findIndex(function (candidate) {
+                return candidate.kind === "category" && candidate.sectionName === entry.sectionName
+            })
+            return
+        }
+        if (entry.section)
             return
         savedIndex = 0
         gridReveal.reset()
