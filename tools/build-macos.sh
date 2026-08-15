@@ -65,6 +65,78 @@ if [[ "$DEPLOY_APP" == "1" ]]; then
     "$(command -v macdeployqt)")"
   "$macdeployqt_shadow" "$APP_INSTALL/jellyfin-native.app" -qmldir="$APP_ROOT/qml" -no-strip
 
+  canonicalize_library_alias() {
+    local obsolete_name="$1"
+    local canonical_name="$2"
+    local frameworks="$APP_INSTALL/jellyfin-native.app/Contents/Frameworks"
+    local obsolete="$frameworks/$obsolete_name"
+    local canonical="$frameworks/$canonical_name"
+    local binary dependency
+    [[ -f "$obsolete" ]] || return 0
+    [[ -f "$canonical" ]] || {
+      echo "error: cannot replace $obsolete_name without $canonical_name" >&2
+      exit 1
+    }
+    while IFS= read -r binary; do
+      file -b "$binary" | grep -q 'Mach-O' || continue
+      while IFS= read -r dependency; do
+        [[ "$(basename "$dependency")" == "$obsolete_name" ]] || continue
+        chmod u+w "$binary"
+        install_name_tool -change "$dependency" "@rpath/$canonical_name" "$binary"
+      done < <(otool -L "$binary" 2>/dev/null | sed -n '2,$s/^[[:space:]]*\([^[:space:]]*\).*/\1/p')
+    done < <(find "$APP_INSTALL/jellyfin-native.app" -type f)
+    rm -f "$obsolete"
+  }
+
+  # nixpkgs Qt and ICU disagree over whether the ICU patch component belongs
+  # in the Mach-O install name. macdeployqt otherwise materializes both names
+  # as almost-identical signed libraries.
+  canonicalize_library_alias libicudata.76.1.dylib libicudata.76.dylib
+  canonicalize_library_alias libicuuc.76.1.dylib libicuuc.76.dylib
+
+  rm -rf \
+    "$APP_INSTALL/jellyfin-native.app/Contents/Resources/qml/QtQuick/Controls/FluentWinUI3" \
+    "$APP_INSTALL/jellyfin-native.app/Contents/Resources/qml/QtQuick/Controls/Fusion" \
+    "$APP_INSTALL/jellyfin-native.app/Contents/Resources/qml/QtQuick/Controls/Imagine" \
+    "$APP_INSTALL/jellyfin-native.app/Contents/Resources/qml/QtQuick/Controls/Material" \
+    "$APP_INSTALL/jellyfin-native.app/Contents/Resources/qml/QtQuick/Controls/Universal" \
+    "$APP_INSTALL/jellyfin-native.app/Contents/Resources/qml/QtQuick/Controls/iOS" \
+    "$APP_INSTALL/jellyfin-native.app/Contents/Resources/qml/QtQuick/Controls/Windows" \
+    "$APP_INSTALL/jellyfin-native.app/Contents/Resources/qml/QtQuick/Dialogs/quickimpl/qml/+FluentWinUI3" \
+    "$APP_INSTALL/jellyfin-native.app/Contents/Resources/qml/QtQuick/Dialogs/quickimpl/qml/+Fusion" \
+    "$APP_INSTALL/jellyfin-native.app/Contents/Resources/qml/QtQuick/Dialogs/quickimpl/qml/+Imagine" \
+    "$APP_INSTALL/jellyfin-native.app/Contents/Resources/qml/QtQuick/Dialogs/quickimpl/qml/+Material" \
+    "$APP_INSTALL/jellyfin-native.app/Contents/Resources/qml/QtQuick/Dialogs/quickimpl/qml/+Universal"
+  find "$APP_INSTALL/jellyfin-native.app/Contents/Frameworks" -maxdepth 1 \
+    \( -name 'QtQuickControls2FluentWinUI3*' \
+    -o -name 'QtQuickControls2Fusion*' \
+    -o -name 'QtQuickControls2Imagine*' \
+    -o -name 'QtQuickControls2IOS*' \
+    -o -name 'QtQuickControls2Material*' \
+    -o -name 'QtQuickControls2Universal*' \
+    -o -name 'QtQuickControls2Windows*' \) \
+    -exec rm -rf {} +
+  find "$APP_INSTALL/jellyfin-native.app/Contents/PlugIns/quick" -maxdepth 1 -type f \
+    \( -name '*fluentwinui3*' \
+    -o -name '*fusionstyle*' \
+    -o -name '*imaginestyle*' \
+    -o -name '*iosstyle*' \
+    -o -name '*materialstyle*' \
+    -o -name '*universalstyle*' \
+    -o -name '*windowsstyle*' \) \
+    -delete
+  dialogs_qmldir="$APP_INSTALL/jellyfin-native.app/Contents/Resources/qml/QtQuick/Dialogs/quickimpl/qmldir"
+  if [[ -f "$dialogs_qmldir" ]]; then
+    sed -i '' '\|qml/+\(Fusion\|Imagine\|Material\|Universal\|FluentWinUI3\)/|d' "$dialogs_qmldir"
+  fi
+  rm -f \
+    "$APP_INSTALL/jellyfin-native.app/Contents/PlugIns/networkinformation/libqglib.dylib" \
+    "$APP_INSTALL/jellyfin-native.app/Contents/PlugIns/sqldrivers/libqsqlodbc.dylib" \
+    "$APP_INSTALL/jellyfin-native.app/Contents/PlugIns/sqldrivers/libqsqlpsql.dylib" \
+    "$APP_INSTALL/jellyfin-native.app/Contents/Frameworks/libodbc.2.dylib" \
+    "$APP_INSTALL/jellyfin-native.app/Contents/Frameworks/libpq.5.dylib"
+
+
   # macOS and GNU libiconv use the same install name but expose different
   # symbols (_iconv vs _libiconv). Keep macdeployqt's system-compatible copy
   # for libass, and give GNU libiconv a distinct name for libidn2.

@@ -76,7 +76,7 @@ jobs:
             experimental-features = nix-command flakes
       - uses: nix-community/cache-nix-action@7df957e333c1e5da7721f60227dbba6d06080569 # v7.0.1
         with:
-          primary-key: nix-${{ runner.os }}-${{ hashFiles('flake.lock') }}
+          primary-key: nix-${{ runner.os }}-${{ hashFiles('flake.nix', 'flake.lock') }}
           restore-prefixes-first-match: nix-${{ runner.os }}-
 
       - name: Check commit whitespace
@@ -131,12 +131,12 @@ jobs:
             experimental-features = nix-command flakes
       - uses: nix-community/cache-nix-action@7df957e333c1e5da7721f60227dbba6d06080569 # v7.0.1
         with:
-          primary-key: nix-${{ runner.os }}-${{ hashFiles('flake.lock') }}
+          primary-key: nix-${{ runner.os }}-${{ hashFiles('flake.nix', 'flake.lock') }}
           restore-prefixes-first-match: nix-${{ runner.os }}-
       - uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5.0.3
         with:
           path: .ccache
-          key: linux5-${{ runner.os }}-${{ hashFiles('flake.lock', 'mpv/meson.build', 'mpv/meson.options', 'tools/manifests/mpv-native.json', 'tools/manifests/ffmpeg-capabilities.json', 'tools/manifests/linuxdeploy.json', 'tools/ffmpeg-capabilities.py', 'tools/package-audit.py', 'tools/build-linux-release.sh', 'tools/package-appimage.sh', 'tools/lib/build-common.sh', 'tools/lib/qt-deploy.sh', 'CMakeLists.txt') }}
+          key: linux5-${{ runner.os }}-${{ hashFiles('flake.nix', 'flake.lock', 'mpv/meson.build', 'mpv/meson.options', 'tools/manifests/mpv-native.json', 'tools/manifests/ffmpeg-capabilities.json', 'tools/manifests/linuxdeploy.json', 'tools/ffmpeg-capabilities.py', 'tools/package-audit.py', 'tools/build-linux-release.sh', 'tools/package-appimage.sh', 'tools/lib/build-common.sh', 'tools/lib/qt-deploy.sh', 'CMakeLists.txt') }}
           restore-keys: |
             linux5-${{ runner.os }}-
 
@@ -171,6 +171,7 @@ jobs:
             APPIMAGE_EXTRACT_AND_RUN=1 "$appimage" --appimage-extract >/dev/null
           )
           extracted="$work/squashfs-root"
+          test ! -d "$work/AppDir" || extracted="$work/AppDir"
           python3 tools/package-audit.py inventory "$extracted" --output "$work/extracted.tsv"
           cmp "$expected" "$work/extracted.tsv"
           if find "$extracted" -name '*.qmltypes' -print -quit | grep -q .; then
@@ -194,7 +195,7 @@ jobs:
           python3 tools/package-audit.py "${elf_args[@]}"
 
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.0
-        if: ${{ inputs.release }}
+        if: ${{ inputs.release || github.event_name == 'workflow_dispatch' }}
         with:
           name: spool-for-jellyfin-linux-appimage
           path: dist/*.AppImage
@@ -236,7 +237,7 @@ jobs:
 
       - uses: nix-community/cache-nix-action@7df957e333c1e5da7721f60227dbba6d06080569 # v7.0.1
         with:
-          primary-key: nix-${{ runner.os }}-${{ matrix.arch }}-${{ hashFiles('flake.lock') }}
+          primary-key: nix-${{ runner.os }}-${{ matrix.arch }}-${{ hashFiles('flake.nix', 'flake.lock') }}
           restore-prefixes-first-match: nix-${{ runner.os }}-${{ matrix.arch }}-
           gc-max-store-size-macos: 8G
 
@@ -247,7 +248,7 @@ jobs:
             build/macos/mpv-prefix
             build/macos/app
             ~/Library/Caches/ccache
-          key: macos-${{ matrix.arch }}-${{ hashFiles('mpv/meson.build', 'tools/manifests/mpv-native.json', 'tools/manifests/ffmpeg-capabilities.json', 'tools/ffmpeg-capabilities.py', 'tools/package-audit.py', 'tools/build-macos.sh', 'tools/package-macos-dmg.sh', 'tools/sign-macos.sh', 'tools/lib/build-common.sh', 'tools/lib/qt-deploy.sh', 'CMakeLists.txt') }}
+          key: macos-${{ matrix.arch }}-${{ hashFiles('flake.nix', 'flake.lock', 'mpv/meson.build', 'tools/manifests/mpv-native.json', 'tools/manifests/ffmpeg-capabilities.json', 'tools/ffmpeg-capabilities.py', 'tools/package-audit.py', 'tools/build-macos.sh', 'tools/package-macos-dmg.sh', 'tools/sign-macos.sh', 'tools/lib/build-common.sh', 'tools/lib/qt-deploy.sh', 'CMakeLists.txt') }}
           restore-keys: |
             macos-${{ matrix.arch }}-
 
@@ -351,7 +352,7 @@ jobs:
         run: tools/notarize-macos.sh dist/*.dmg
 
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.0
-        if: ${{ inputs.release }}
+        if: ${{ inputs.release || github.event_name == 'workflow_dispatch' }}
         with:
           name: spool-for-jellyfin-macos-dmg-${{ matrix.arch }}
           path: dist/*.dmg
@@ -373,7 +374,7 @@ jobs:
             experimental-features = nix-command flakes
       - uses: nix-community/cache-nix-action@7df957e333c1e5da7721f60227dbba6d06080569 # v7.0.1
         with:
-          primary-key: nix-${{ runner.os }}-${{ hashFiles('flake.lock') }}
+          primary-key: nix-${{ runner.os }}-${{ hashFiles('flake.nix', 'flake.lock') }}
           restore-prefixes-first-match: nix-${{ runner.os }}-
       - uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5.0.3
         id: webos-cache
@@ -519,7 +520,7 @@ jobs:
           PY
 
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.0
-        if: ${{ inputs.release }}
+        if: ${{ inputs.release || github.event_name == 'workflow_dispatch' }}
         with:
           name: spool-for-jellyfin-webos-ipk
           path: build/*.ipk
@@ -646,13 +647,13 @@ jobs:
 
 
       - name: Build portable and installer packages
-        if: ${{ inputs.release }}
+        if: ${{ inputs.release || github.event_name == 'workflow_dispatch' }}
         shell: pwsh
         run: tools\windows\package.ps1
 
       - name: Upload portable executable
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.0
-        if: ${{ inputs.release }}
+        if: ${{ inputs.release || github.event_name == 'workflow_dispatch' }}
         with:
           name: spool-for-jellyfin-windows-x64-portable
           path: |
@@ -662,7 +663,7 @@ jobs:
 
       - name: Upload installer executable
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.0
-        if: ${{ inputs.release }}
+        if: ${{ inputs.release || github.event_name == 'workflow_dispatch' }}
         with:
           name: spool-for-jellyfin-windows-x64-installer
           path: |

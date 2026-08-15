@@ -19,7 +19,11 @@ for asset in "${assets[@]}"; do
     *.AppImage)
       chmod +x "$asset"
       (cd "$work" && "$OLDPWD/$asset" --appimage-extract >/dev/null)
-      mv "$work/squashfs-root" "$root/appimage"
+      if [[ -d "$work/AppDir" ]]; then
+        mv "$work/AppDir" "$root/appimage"
+      else
+        mv "$work/squashfs-root" "$root/appimage"
+      fi
       ;;
     *.dmg)
       7z t "$asset" >/dev/null

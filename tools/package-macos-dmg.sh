@@ -41,6 +41,7 @@ create_dmg_args=(
   --window-size 640 420
   --icon-size 96
   --app-drop-link 460 185
+  --format "${DMG_FORMAT:-ULMO}"
 )
 if [[ "${CI:-}" == true ]]; then
   # Finder can retain the temporary image until hdiutil's two-minute detach

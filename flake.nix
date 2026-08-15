@@ -98,6 +98,55 @@
             '';
           });
       };
+      leanCurlOverlay = _final: prev: {
+        # Native playback only needs libcurl's HTTP stack. GSSAPI and SCP add
+        # Kerberos and libssh2 closures without participating in Jellyfin I/O.
+        curl = prev.curl.override {
+          gssSupport = false;
+          scpSupport = false;
+        };
+      };
+      tailoredQtOverlay = final: prev: {
+        qt6 = (prev.qt6.overrideScope (_qtFinal: qtPrev: {
+          qtbase = (qtPrev.qtbase.override {
+            withGtk3 = false;
+          }).overrideAttrs (old: {
+            propagatedBuildInputs = builtins.filter (input:
+              input != final.glib
+              && input != final.icu
+              && input != final.unixodbc
+              && input != final.unixodbcDrivers.mariadb
+              && input != final.unixodbcDrivers.psql
+              && input != final.unixodbcDrivers.sqlite
+              && input != final.vulkan-headers
+              && input != final.vulkan-loader)
+              old.propagatedBuildInputs;
+            buildInputs = builtins.filter (input:
+              input != final.libmysqlclient
+              && input != final.libpq
+              && (!final.stdenv.isDarwin || input != final.moltenvk))
+              old.buildInputs;
+            cmakeFlags =
+              builtins.filter (flag: flag != "-DQT_FEATURE_vulkan=ON") old.cmakeFlags
+              ++ [
+                "-DQT_FEATURE_glib=OFF"
+                "-DQT_FEATURE_icu=OFF"
+                "-DQT_FEATURE_sql_mysql=OFF"
+                "-DQT_FEATURE_sql_odbc=OFF"
+                "-DQT_FEATURE_sql_psql=OFF"
+                "-DQT_FEATURE_vulkan=OFF"
+              ];
+            postFixup = builtins.replaceStrings [
+              ''patchelf --add-rpath "${final.libmysqlclient}/lib/mariadb" $out/lib/qt-6/plugins/sqldrivers/libqsqlmysql.so''
+              ''patchelf --add-rpath "${final.vulkan-loader}/lib" --add-needed "libvulkan.so" $out/lib/libQt6Gui.so''
+            ] [ "" "" ] (old.postFixup or "");
+          });
+        })) // {
+          # pythonPackages.qt6 expects this secondary package scope.
+          override = prev.qt6.override;
+        };
+      };
+
 
       qcoroOverlay = final: prev: {
         spoolQcoro = (prev.qt6Packages.qcoro.override {
@@ -124,15 +173,15 @@
           f (import (nixpkgsFor system) {
             inherit system;
             config.allowUnfree = true;
-            overlays = [ libplaceboOverlay ffmpegSlimOverlay qcoroOverlay ];
+            overlays = [ libplaceboOverlay leanCurlOverlay ffmpegSlimOverlay tailoredQtOverlay qcoroOverlay ];
           }));
-      # Published artifacts use upstream Qt and FFmpeg so those large closures
-      # come from cache.nixos.org. Only Spool and its bundled mpv need Cachix.
+      # Native artifacts use a tailored Qt without ICU, Vulkan, foreign SQL
+      # drivers or GTK. Cachix publishes that complete source-built closure.
       cachePkgsFor = system:
         import (nixpkgsFor system) {
           inherit system;
           config.allowUnfree = true;
-          overlays = [ libplaceboOverlay qcoroOverlay cacheDependencyOverlay ];
+          overlays = [ libplaceboOverlay leanCurlOverlay tailoredQtOverlay qcoroOverlay cacheDependencyOverlay ];
         };
 
       forAllCacheSystems = f:
@@ -191,6 +240,7 @@
       sourceLinuxPackages = pkgs: with pkgs; [
         alsa-lib
         appimage-run
+        dwarfs
         expat
         libICE
         libdrm
@@ -256,7 +306,6 @@
           (qmlToolWrappers pkgs)
         ])
         ++ pkgs.lib.optionals pkgs.stdenv.isLinux (with pkgs; [
-          gammaray
           llvmPackages.bintools
           qt6.qtwayland
         ]);
@@ -333,6 +382,15 @@
         # qwebp from this prefix; both then assert it landed.
         export SPOOL_QT_EXTRA_PLUGIN_DIRS="${pkgs.qt6.qtimageformats}/lib/qt-6/plugins"
       '';
+      cachedNativeQtPackage = pkgs:
+        pkgs.symlinkJoin {
+          name = "spool-native-qt-${pkgs.qt6.qtbase.version}";
+          paths = nativeQtPackages pkgs ++ [
+            pkgs.qt6.qttools
+            pkgs.spoolQcoro
+          ];
+        };
+
       cachedNativePackage = pkgs:
         pkgs.stdenv.mkDerivation {
           pname = "spool";
@@ -392,6 +450,7 @@
       packages = forAllCacheSystems (pkgs: {
         default = cachedNativePackage pkgs;
         native-cache = cachedNativePackage pkgs;
+        native-qt-cache = cachedNativeQtPackage pkgs;
       });
 
       devShells = forAllSystems (pkgs: {
@@ -589,12 +648,12 @@
             # QuickInspector updates its scene-graph model on every render and
             # crashes GammaRay 3.4 during the mpv overlay transition. Keep the
             # default profiling runner stable; use .#gammaray-full for Quick Scenes.
-            launchPrefix = "env GAMMARAY_DisabledPlugins=gammaray_quickinspector gammaray ";
+            launchPrefix = "env GAMMARAY_DisabledPlugins=gammaray_quickinspector ${pkgs.gammaray}/bin/gammaray ";
           };
 
           gammarayFullRunner = makeRunner {
             name = "jellyfin-native-gammaray-full";
-            launchPrefix = "gammaray ";
+            launchPrefix = "${pkgs.gammaray}/bin/gammaray ";
           };
         in {
           build = {

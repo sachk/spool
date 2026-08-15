@@ -16,11 +16,11 @@ APP_INSTALL="${APP_INSTALL:-$APP_ROOT/build/linux-release/install}"
 APPDIR="${APPDIR:-$APP_ROOT/build/appimage/AppDir}"
 ARTIFACT_DIR="${ARTIFACT_DIR:-$APP_ROOT/dist}"
 QT_PLUGIN="${QT_PLUGIN:-$APP_ROOT/build/appimage/linuxdeploy-plugin-qt-x86_64.AppImage}"
-APPIMAGETOOL="${APPIMAGETOOL:-$APP_ROOT/build/appimage/appimagetool-x86_64.AppImage}"
+DWARFS_RUNTIME="${DWARFS_RUNTIME:-$APP_ROOT/build/appimage/uruntime-appimage-dwarfs-lite-x86_64}"
 PATCHELF_ARCHIVE="${PATCHELF_ARCHIVE:-$APP_ROOT/build/appimage/patchelf-0.18.0-x86_64.tar.gz}"
 PATCHELF_ROOT="${PATCHELF_ROOT:-$APP_ROOT/build/appimage/patchelf-0.18.0}"
 PATCHELF_BIN="$PATCHELF_ROOT/bin/patchelf"
-APPIMAGE_RUNTIME="${APPIMAGE_RUNTIME:-$APP_ROOT/build/appimage/runtime-x86_64}"
+DWARFS_IMAGE="${DWARFS_IMAGE:-$APP_ROOT/build/appimage/root.dwarfs}"
 
 append_library_path() {
   local dir="$1"
@@ -351,7 +351,7 @@ if [[ ! -x "$APP_INSTALL/bin/jellyfin-native" ]]; then
   exit 1
 fi
 
-mkdir -p "$ARTIFACT_DIR" "$(dirname "$QT_PLUGIN")" "$(dirname "$APPIMAGETOOL")"
+mkdir -p "$ARTIFACT_DIR" "$(dirname "$QT_PLUGIN")" "$(dirname "$DWARFS_RUNTIME")"
 if [[ -d "$APPDIR" ]]; then
   chmod -R u+w "$APPDIR" 2>/dev/null || true
 fi
@@ -425,11 +425,6 @@ download_verified \
   "$QT_PLUGIN"
 chmod +x "$QT_PLUGIN"
 download_verified \
-  "$(manifest_tool_field "$TOOL_MANIFEST" appimagetool url)" \
-  "$(manifest_tool_field "$TOOL_MANIFEST" appimagetool sha256)" \
-  "$APPIMAGETOOL"
-chmod +x "$APPIMAGETOOL"
-download_verified \
   "$(manifest_tool_field "$TOOL_MANIFEST" patchelf url)" \
   "$(manifest_tool_field "$TOOL_MANIFEST" patchelf sha256)" \
   "$PATCHELF_ARCHIVE"
@@ -441,9 +436,9 @@ tar -xzf "$PATCHELF_ARCHIVE" -C "$PATCHELF_ROOT"
   exit 1
 }
 download_verified \
-  "$(manifest_tool_field "$TOOL_MANIFEST" type2-runtime url)" \
-  "$(manifest_tool_field "$TOOL_MANIFEST" type2-runtime sha256)" \
-  "$APPIMAGE_RUNTIME"
+  "$(manifest_tool_field "$TOOL_MANIFEST" dwarfs-runtime url)" \
+  "$(manifest_tool_field "$TOOL_MANIFEST" dwarfs-runtime sha256)" \
+  "$DWARFS_RUNTIME"
 
 QT_DEPLOY_SHADOW="$APP_ROOT/build/appimage/qt-host-tools"
 qt_deploy_path="$(qt_deploy_linuxdeploy_qt_shadow \
@@ -490,10 +485,27 @@ audit_and_sweep_appdir_elfs
 audit_ffmpeg_closure
 audit_image_formats
 
-
-ARCH="${ARCH:-x86_64}" "$APPIMAGETOOL" \
-  --runtime-file "$APPIMAGE_RUNTIME" \
-  "$APPDIR" "$ARTIFACT_DIR/$OUTPUT"
+rm -f "$DWARFS_IMAGE" "$ARTIFACT_DIR/$OUTPUT.tmp"
+mkdwarfs \
+  --input "$APPDIR" \
+  --output "$DWARFS_IMAGE" \
+  --block-size-bits 24 \
+  --compression zstd:level=22 \
+  --schema-compression zstd:level=16 \
+  --metadata-compression zstd:level=22 \
+  --history-compression zstd:level=16 \
+  --window-size 12 \
+  --window-step 3 \
+  --order nilsimsa \
+  --set-owner 0 \
+  --set-group 0 \
+  --set-time "${SOURCE_DATE_EPOCH:-0}" \
+  --no-create-timestamp \
+  --no-history \
+  --no-progress
+cat "$DWARFS_RUNTIME" "$DWARFS_IMAGE" >"$ARTIFACT_DIR/$OUTPUT.tmp"
+chmod 0755 "$ARTIFACT_DIR/$OUTPUT.tmp"
+mv "$ARTIFACT_DIR/$OUTPUT.tmp" "$ARTIFACT_DIR/$OUTPUT"
 python3 "$APP_ROOT/tools/package-audit.py" inventory "$APPDIR" \
   --output "$ARTIFACT_DIR/${OUTPUT%.AppImage}.inventory.tsv"
 printf '%s\n' "$ARTIFACT_DIR/$OUTPUT"

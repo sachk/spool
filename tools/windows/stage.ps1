@@ -35,6 +35,43 @@ foreach ($fontName in @(
     --qmldir (Join-Path $root 'qml') (Join-Path $stageDir 'jellyfin-native.exe')
 if ($LASTEXITCODE -ne 0) { throw 'windeployqt failed.' }
 
+$foreignStylePaths = @(
+    'qml\QtQuick\Controls\FluentWinUI3',
+    'qml\QtQuick\Controls\Fusion',
+    'qml\QtQuick\Controls\Imagine',
+    'qml\QtQuick\Controls\Material',
+    'qml\QtQuick\Controls\Universal',
+    'qml\QtQuick\Dialogs\quickimpl\qml\+FluentWinUI3',
+    'qml\QtQuick\Dialogs\quickimpl\qml\+Fusion',
+    'qml\QtQuick\Dialogs\quickimpl\qml\+Imagine',
+    'qml\QtQuick\Dialogs\quickimpl\qml\+Material',
+    'qml\QtQuick\Dialogs\quickimpl\qml\+Universal'
+)
+foreach ($relativePath in $foreignStylePaths) {
+    $path = Join-Path $stageDir $relativePath
+    if (Test-Path -LiteralPath $path) {
+        Remove-Item -LiteralPath $path -Recurse -Force
+    }
+}
+$dialogsQmldir = Join-Path $stageDir 'qml\QtQuick\Dialogs\quickimpl\qmldir'
+if (Test-Path -LiteralPath $dialogsQmldir) {
+    $filteredQmldir = Get-Content -LiteralPath $dialogsQmldir |
+        Where-Object { $_ -notmatch 'qml/\+(FluentWinUI3|Fusion|Imagine|Material|Universal)/' }
+    Set-Content -LiteralPath $dialogsQmldir -Value $filteredQmldir -Encoding utf8NoBOM
+}
+foreach ($pattern in @(
+    'Qt6QuickControls2FluentWinUI3*.dll',
+    'Qt6QuickControls2Fusion*.dll',
+    'Qt6QuickControls2Imagine*.dll',
+    'Qt6QuickControls2Material*.dll',
+    'Qt6QuickControls2Universal*.dll'
+)) {
+    Get-ChildItem -LiteralPath $stageDir -Filter $pattern -File |
+        Remove-Item -Force
+}
+Get-ChildItem -LiteralPath $stageDir -Filter '*.qmltypes' -File -Recurse |
+    Remove-Item -Force
+
 $webpPlugin = Join-Path $stageDir 'imageformats\qwebp.dll'
 if (-not (Test-Path -LiteralPath $webpPlugin)) {
     throw 'Qt WebP support was not deployed. Install qt.qt6.6111.addons.qtimageformats with MaintenanceTool.'

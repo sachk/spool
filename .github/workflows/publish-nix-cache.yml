@@ -45,5 +45,7 @@ jobs:
           name: spool
           authToken: ${{ secrets.CACHIX_AUTH_TOKEN }}
 
+      - name: Build and publish tailored Qt
+        run: nix build --accept-flake-config .#native-qt-cache --print-build-logs
       - name: Build and publish native package
         run: nix build --accept-flake-config .#native-cache --print-build-logs
