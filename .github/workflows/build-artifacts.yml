@@ -402,6 +402,10 @@ jobs:
             bash tools/launch-native-app.sh "$app"
           hdiutil detach "$mountpoint"
           trap - EXIT
+      - name: Package macOS analysis input
+        run: |
+          dmg="$(printf '%s\n' dist/*.dmg)"
+          tar -czf "${dmg}.app.tar.gz" -C build/macos/install jellyfin-native.app
       - name: Notarize and staple DMG
         if: ${{ inputs.enable_macos_signing }}
         timeout-minutes: 20
@@ -416,7 +420,9 @@ jobs:
         if: ${{ inputs.release || github.event_name == 'workflow_dispatch' }}
         with:
           name: spool-for-jellyfin-macos-dmg-${{ matrix.arch }}
-          path: dist/*.dmg
+          path: |
+            dist/*.dmg
+            dist/*.dmg.app.tar.gz
           retention-days: 1
 
   webos-ipk:

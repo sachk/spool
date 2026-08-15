@@ -80,6 +80,7 @@ jobs:
           GRYPE: ${{ runner.temp }}/release-tools/grype
         run: |
           tools/analyze-release-artifacts.sh release-assets release-reports
+          rm release-assets/*.dmg.app.tar.gz
           mv release-reports/* release-assets/
       - name: Generate final checksums
         working-directory: release-assets

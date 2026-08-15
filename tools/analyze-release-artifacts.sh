@@ -26,11 +26,12 @@ for asset in "${assets[@]}"; do
       fi
       ;;
     *.dmg)
-      7z t "$asset" >/dev/null
-      # DMGs intentionally contain an /Applications link and Qt plugin links.
-      # 7-Zip rejects those external/parent-relative targets during extraction
-      # after extracting the regular files needed for package analysis.
-      7z x -y -o"$root" "$asset" >/dev/null || true
+      analysis_input="${asset}.app.tar.gz"
+      [[ -f "$analysis_input" ]] || {
+        echo "missing macOS analysis input: $(basename "$analysis_input")" >&2
+        exit 1
+      }
+      tar -xzf "$analysis_input" -C "$root"
       ;;
     *-Portable.exe|*-Setup.exe)
       7z x -y -o"$root" "$asset" >/dev/null
