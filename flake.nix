@@ -547,11 +547,6 @@
 
       apps = forAllSystems (pkgs:
         let
-          cachedPackage = cachedNativePackage (cachePkgsFor pkgs.stdenv.hostPlatform.system);
-          cachedProgram =
-            if pkgs.stdenv.isDarwin
-            then "${cachedPackage}/Applications/jellyfin-native.app/Contents/MacOS/jellyfin-native"
-            else "${cachedPackage}/bin/jellyfin-native";
           stagedSourceId = builtins.substring 0 12
             (builtins.hashString "sha256" "${self}-${mpv-src}");
           buildScript =
@@ -581,9 +576,8 @@
             pkgs.lib.makeSearchPath pkgs.qt6.qtbase.qtQmlPrefix
               (nativeQtPackages pkgs);
           nativeRuntimeLibPath = pkgs.lib.makeLibraryPath (nativeRuntimePackages pkgs);
-          # Named development apps resolve the checkout, optionally build the
+          # Development apps resolve the checkout, optionally build the
           # selected native variant, then launch it inside the #native shell.
-          # The default app remains the publishable package.
           makeRunner = {
             name,
             launchPrefix ? "",
@@ -737,7 +731,7 @@
 
           default = {
             type = "app";
-            program = cachedProgram;
+            program = "${runner}/bin/jellyfin-native-run";
           };
 
           run = {
