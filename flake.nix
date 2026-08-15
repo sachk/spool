@@ -7,10 +7,10 @@
 
 
   inputs = {
-    nixpkgs.url = "github:NixOS/nixpkgs/88cc2017b8412e0b62c0f2d04ae91a5d7e611984";
+    nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
     # Nixpkgs 26.11 dropped x86_64-darwin, so Intel macOS builds track the
     # 26.05 darwin branch, which is maintained to the end of 2026.
-    nixpkgs-x86-darwin.url = "github:NixOS/nixpkgs/2e49fce950fece113519c5d75da869601d01550f";
+    nixpkgs-x86-darwin.url = "github:NixOS/nixpkgs/nixpkgs-26.05-darwin";
     libplacebo-src = {
       url = "github:haasn/libplacebo/a7a18af88ff0a17c04840dcb3246047bb6b46df3?submodules=1";
       flake = false;
