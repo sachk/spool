@@ -106,9 +106,46 @@
           scpSupport = false;
         };
       };
+      leanNativeDepsOverlay = final: prev: {
+        # mpv consumes PipeWire's client API, not its daemon integrations,
+        # documentation or installed test suite.
+        pipewire = (prev.pipewire.override {
+          bluezSupport = false;
+          enableSystemd = false;
+          ffadoSupport = false;
+          raopSupport = false;
+          rocSupport = false;
+          vulkanSupport = false;
+          x11Support = false;
+          zeroconfSupport = false;
+        }).overrideAttrs (old: {
+          buildInputs = builtins.filter (input:
+            input != final.libcamera && input != final.modemmanager)
+            old.buildInputs;
+          doCheck = false;
+          doInstallCheck = false;
+          mesonFlags = map (builtins.replaceStrings [
+            "-Dbluez5-backend-native-mm=enabled"
+            "-Dlibcamera=enabled"
+          ] [
+            "-Dbluez5-backend-native-mm=disabled"
+            "-Dlibcamera=disabled"
+          ]) old.mesonFlags;
+          nativeCheckInputs = [ ];
+        });
+        libdrm = prev.libdrm.override {
+          withValgrind = false;
+        };
+        mesa = (prev.mesa.override {
+          withValgrind = false;
+        }).overrideAttrs (_old: {
+          doCheck = false;
+        });
+      };
       tailoredQtOverlay = final: prev: {
         qt6 = (prev.qt6.overrideScope (_qtFinal: qtPrev: {
           qtbase = (qtPrev.qtbase.override {
+            systemdSupport = false;
             withGtk3 = false;
           }).overrideAttrs (old: {
             propagatedBuildInputs = builtins.filter (input:
@@ -118,6 +155,7 @@
               && input != final.unixodbcDrivers.mariadb
               && input != final.unixodbcDrivers.psql
               && input != final.unixodbcDrivers.sqlite
+              && (!final.stdenv.isLinux || input != final.systemd)
               && input != final.vulkan-headers
               && input != final.vulkan-loader)
               old.propagatedBuildInputs;
@@ -173,7 +211,7 @@
           f (import (nixpkgsFor system) {
             inherit system;
             config.allowUnfree = true;
-            overlays = [ libplaceboOverlay leanCurlOverlay ffmpegSlimOverlay tailoredQtOverlay qcoroOverlay ];
+            overlays = [ libplaceboOverlay leanCurlOverlay leanNativeDepsOverlay ffmpegSlimOverlay tailoredQtOverlay qcoroOverlay ];
           }));
       # Native artifacts use a tailored Qt without ICU, Vulkan, foreign SQL
       # drivers or GTK. Cachix publishes that complete source-built closure.
@@ -181,7 +219,7 @@
         import (nixpkgsFor system) {
           inherit system;
           config.allowUnfree = true;
-          overlays = [ libplaceboOverlay leanCurlOverlay tailoredQtOverlay qcoroOverlay cacheDependencyOverlay ];
+          overlays = [ libplaceboOverlay leanCurlOverlay leanNativeDepsOverlay tailoredQtOverlay qcoroOverlay cacheDependencyOverlay ];
         };
 
       forAllCacheSystems = f:
@@ -272,6 +310,50 @@
         create-dmg
         libiconvReal
       ];
+      # Native release builds do not need the webOS Qt toolchain, JS/Lua
+      # interpreters, Rust, AppImage emulation or debugger stack.
+      nativeBasePackages = pkgs: with pkgs; [
+        bashInteractive
+        binutils
+        cacert
+        ccache
+        cmake
+        curl
+        ffmpeg-full
+        file
+        findutils
+        fontconfig
+        freetype
+        git
+        gnumake
+        jq
+        lcms2
+        libarchive
+        libass
+        libbluray
+        libffi
+        libplacebo
+        libuchardet
+        libxkbcommon
+        meson
+        ninja
+        patchelf
+        pcre2
+        perl
+        pkg-config
+        python3
+        rubberband
+        unzip
+        which
+        zlib
+        zip
+      ];
+
+      nativeLinuxPackages = pkgs:
+        builtins.filter (package:
+          package != pkgs.appimage-run && package != pkgs.libsecret)
+          (sourceLinuxPackages pkgs);
+
 
       qmlToolWrappers = pkgs:
         pkgs.runCommand "qt-qml-tool-wrappers" { nativeBuildInputs = [ pkgs.makeWrapper ]; } ''
@@ -294,7 +376,9 @@
       # Shell used by local native Linux app builds / nix run. This may use
       # nixpkgs Qt, but the Qt source-build script should not be run from it.
       nativePackages = pkgs:
-        sourceBuildPackages pkgs
+        nativeBasePackages pkgs
+        ++ pkgs.lib.optionals pkgs.stdenv.isLinux (nativeLinuxPackages pkgs)
+        ++ pkgs.lib.optionals pkgs.stdenv.isDarwin (darwinPackages pkgs)
         ++ (with pkgs; [
           qt6.qtbase
           qt6.qtdeclarative
@@ -306,7 +390,6 @@
           (qmlToolWrappers pkgs)
         ])
         ++ pkgs.lib.optionals pkgs.stdenv.isLinux (with pkgs; [
-          llvmPackages.bintools
           qt6.qtwayland
         ]);
 
@@ -324,7 +407,7 @@
 
       nativeRuntimePackages = pkgs:
         nativeQtPackages pkgs
-        ++ pkgs.lib.optionals pkgs.stdenv.isLinux (sourceLinuxPackages pkgs);
+        ++ pkgs.lib.optionals pkgs.stdenv.isLinux (nativeLinuxPackages pkgs);
 
       commonShellHook = pkgs: ''
         export SSL_CERT_FILE=${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt
