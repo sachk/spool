@@ -1,9 +1,5 @@
 {
   description = "Jellyfin webOS native build environment";
-  nixConfig = {
-    extra-substituters = [ "https://spool.cachix.org" ];
-    extra-trusted-public-keys = [ "spool.cachix.org-1:yx+E3raAGXiyUNoMEscSu9c85b+WbgoV7swqyY8oL6s=" ];
-  };
 
 
   inputs = {
@@ -170,7 +166,8 @@
             overlays = [ libplaceboOverlay ffmpegSlimOverlay tailoredQtOverlay qcoroOverlay ];
           }));
       # Native artifacts use a tailored Qt without ICU, Vulkan, foreign SQL
-      # drivers or GTK. Cachix publishes that complete source-built closure.
+      # drivers or GTK. Release jobs retain this source-built closure in the
+      # GitHub Actions Nix store cache for their platform and architecture.
       cachePkgsFor = system:
         import (nixpkgsFor system) {
           inherit system;
@@ -575,8 +572,7 @@
           nativeRuntimeLibPath = pkgs.lib.makeLibraryPath (nativeRuntimePackages pkgs);
           # Named development apps resolve the checkout, optionally build the
           # selected native variant, then launch it inside the #native shell.
-          # The default app is the publishable package so Cachix can substitute
-          # it before these local development paths are needed.
+          # The default app remains the publishable package.
           makeRunner = {
             name,
             launchPrefix ? "",
