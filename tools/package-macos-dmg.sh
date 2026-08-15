@@ -7,7 +7,7 @@ source "$APP_ROOT/tools/lib/build-common.sh"
 ensure_native_shell "$APP_ROOT" "$APP_ROOT/tools/package-macos-dmg.sh" "$@"
 APP_VERSION="$(read_project_version "$APP_ROOT")"
 BUILD_ROOT="${BUILD_ROOT:-$APP_ROOT/build/macos}"
-APP_BUNDLE="${APP_BUNDLE:-$BUILD_ROOT/install/jellyfin-native.app}"
+APP_BUNDLE="${APP_BUNDLE:-$BUILD_ROOT/install/Spool.app}"
 ARTIFACT_DIR="${ARTIFACT_DIR:-$APP_ROOT/dist}"
 
 if [[ ! -d "$APP_BUNDLE" ]]; then
@@ -18,7 +18,7 @@ fi
 # Apple Silicon and Intel DMGs ship side by side in one release, so name each
 # for the architecture its binary actually carries rather than for the host
 # that happened to build it.
-APP_BINARY="$APP_BUNDLE/Contents/MacOS/jellyfin-native"
+APP_BINARY="$APP_BUNDLE/Contents/MacOS/Spool"
 if [[ -z "${APP_ARCH:-}" ]]; then
   APP_ARCH="$(lipo -archs "$APP_BINARY" 2>/dev/null | tr ' ' '-')"
 fi

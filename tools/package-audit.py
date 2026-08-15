@@ -246,7 +246,7 @@ def expand_macho_name(name: str, owner: MachOInfo, executable_dir: Path) -> Path
 
 def audit_macho(args: argparse.Namespace) -> int:
     app = args.app.resolve()
-    executable = app / "Contents/MacOS/jellyfin-native"
+    executable = app / "Contents/MacOS/Spool"
     if not executable.is_file():
         raise AuditError(f"main Mach-O executable is missing: {executable}")
     files: list[MachOInfo] = []

@@ -559,7 +559,7 @@
             else "exec bash ${buildScript}";
           binaryPath =
             if pkgs.stdenv.isDarwin
-            then "build/macos/run-install/jellyfin-native.app/Contents/MacOS/jellyfin-native"
+            then "build/macos/run-install/Spool.app/Contents/MacOS/Spool"
             else "build/linux-release/install/bin/jellyfin-native";
           mpvLibraryPath =
             if pkgs.stdenv.isDarwin
@@ -590,7 +590,7 @@
               runnerBinaryPath =
                 if buildRoot == "" then binaryPath
                 else if pkgs.stdenv.isDarwin
-                then "${buildRoot}/run-install/jellyfin-native.app/Contents/MacOS/jellyfin-native"
+                then "${buildRoot}/run-install/Spool.app/Contents/MacOS/Spool"
                 else "${buildRoot}/install/bin/jellyfin-native";
               runnerMpvLibraryPath =
                 if buildRoot == "" then mpvLibraryPath
