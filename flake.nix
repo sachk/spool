@@ -98,50 +98,6 @@
             '';
           });
       };
-      leanCurlOverlay = _final: prev: {
-        # Native playback only needs libcurl's HTTP stack. GSSAPI and SCP add
-        # Kerberos and libssh2 closures without participating in Jellyfin I/O.
-        curl = prev.curl.override {
-          gssSupport = false;
-          scpSupport = false;
-        };
-      };
-      leanNativeDepsOverlay = final: prev: {
-        # mpv consumes PipeWire's client API, not its daemon integrations,
-        # documentation or installed test suite.
-        pipewire = (prev.pipewire.override {
-          bluezSupport = false;
-          enableSystemd = false;
-          ffadoSupport = false;
-          raopSupport = false;
-          rocSupport = false;
-          vulkanSupport = false;
-          x11Support = false;
-          zeroconfSupport = false;
-        }).overrideAttrs (old: {
-          buildInputs = builtins.filter (input:
-            input != final.libcamera && input != final.modemmanager)
-            old.buildInputs;
-          doCheck = false;
-          doInstallCheck = false;
-          mesonFlags = map (builtins.replaceStrings [
-            "-Dbluez5-backend-native-mm=enabled"
-            "-Dlibcamera=enabled"
-          ] [
-            "-Dbluez5-backend-native-mm=disabled"
-            "-Dlibcamera=disabled"
-          ]) old.mesonFlags;
-          nativeCheckInputs = [ ];
-        });
-        libdrm = prev.libdrm.override {
-          withValgrind = false;
-        };
-        mesa = (prev.mesa.override {
-          withValgrind = false;
-        }).overrideAttrs (_old: {
-          doCheck = false;
-        });
-      };
       tailoredQtOverlay = final: prev: {
         qt6 = (prev.qt6.overrideScope (_qtFinal: qtPrev: {
           qtbase = (qtPrev.qtbase.override {
@@ -211,7 +167,7 @@
           f (import (nixpkgsFor system) {
             inherit system;
             config.allowUnfree = true;
-            overlays = [ libplaceboOverlay leanCurlOverlay leanNativeDepsOverlay ffmpegSlimOverlay tailoredQtOverlay qcoroOverlay ];
+            overlays = [ libplaceboOverlay ffmpegSlimOverlay tailoredQtOverlay qcoroOverlay ];
           }));
       # Native artifacts use a tailored Qt without ICU, Vulkan, foreign SQL
       # drivers or GTK. Cachix publishes that complete source-built closure.
@@ -219,7 +175,7 @@
         import (nixpkgsFor system) {
           inherit system;
           config.allowUnfree = true;
-          overlays = [ libplaceboOverlay leanCurlOverlay leanNativeDepsOverlay tailoredQtOverlay qcoroOverlay cacheDependencyOverlay ];
+          overlays = [ libplaceboOverlay tailoredQtOverlay qcoroOverlay cacheDependencyOverlay ];
         };
 
       forAllCacheSystems = f:
