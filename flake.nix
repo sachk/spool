@@ -231,10 +231,26 @@
         zip
       ];
 
+      dwarfsTools = pkgs: pkgs.stdenvNoCC.mkDerivation {
+        pname = "dwarfs-tools";
+        version = "0.14.0";
+        src = pkgs.fetchurl {
+          url = "https://github.com/mhx/dwarfs/releases/download/v0.14.0/dwarfs-0.14.0-Linux-x86_64.tar.xz";
+          hash = "sha256-KyU67IIkNDenkT6Kh4lE2Wp6swijhh1ZzkGqoV4UCa0=";
+        };
+        dontBuild = true;
+        installPhase = ''
+          runHook preInstall
+          mkdir -p "$out"
+          cp -R bin share sbin "$out/"
+          runHook postInstall
+        '';
+      };
+
       sourceLinuxPackages = pkgs: with pkgs; [
         alsa-lib
         appimage-run
-        dwarfs
+        (dwarfsTools pkgs)
         expat
         libICE
         libdrm
