@@ -54,6 +54,8 @@ on:
         required: false
       APPLE_NOTARY_ISSUER_ID:
         required: false
+      CACHIX_AUTH_TOKEN:
+        required: false
 
 permissions:
   contents: read
@@ -115,10 +117,63 @@ jobs:
           done
           echo "build-common.sh OK"
 
+  native-qt:
+    name: Tailored Qt (${{ matrix.arch }})
+    runs-on: ${{ matrix.runner }}
+    needs: lint
+    if: ${{ github.event_name != 'workflow_dispatch' || inputs.build_linux || inputs.build_macos }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x86_64-linux
+            runner: ubuntu-24.04
+            cache_prefix: nix-Linux-
+            publish_cachix: true
+          - arch: aarch64-darwin
+            runner: macos-14
+            cache_prefix: nix-macOS-arm64-
+            publish_cachix: true
+          - arch: x86_64-darwin
+            runner: macos-15-intel
+            cache_prefix: nix-macOS-x86_64-
+            publish_cachix: false
+    env:
+      CACHIX_AUTH_TOKEN: ${{ secrets.CACHIX_AUTH_TOKEN }}
+      PUBLISH_CACHIX: ${{ matrix.publish_cachix }}
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.0.2
+        with:
+          submodules: recursive
+      - uses: nixbuild/nix-quick-install-action@2c9db80fb984ceb1bcaa77cdda3fdf8cfba92035 # v34
+        with:
+          nix_conf: |
+            experimental-features = nix-command flakes
+            connect-timeout = 30
+            download-attempts = 5
+      - uses: nix-community/cache-nix-action@7df957e333c1e5da7721f60227dbba6d06080569 # v7.0.1
+        with:
+          primary-key: ${{ matrix.cache_prefix }}${{ hashFiles('flake.nix', 'flake.lock') }}
+          restore-prefixes-first-match: ${{ matrix.cache_prefix }}
+          gc-max-store-size: 8G
+      - uses: cachix/cachix-action@3ba601ff5bbb07c7220846facfa2cd81eeee15a1 # v16
+        if: ${{ matrix.publish_cachix && env.CACHIX_AUTH_TOKEN != '' }}
+        with:
+          name: spool
+          authToken: ${{ secrets.CACHIX_AUTH_TOKEN }}
+          skipPush: true
+      - name: Build and cache tailored Qt
+        run: |
+          nix build --accept-flake-config .#native-qt-cache \
+            --out-link "$RUNNER_TEMP/spool-native-qt" --print-build-logs
+          if [[ "$PUBLISH_CACHIX" == true && -n "$CACHIX_AUTH_TOKEN" ]]; then
+            cachix push spool "$(readlink "$RUNNER_TEMP/spool-native-qt")"
+          fi
+
   linux-appimage:
     name: Linux AppImage
     runs-on: ubuntu-24.04
-    needs: lint
+    needs: [lint, native-qt]
     if: ${{ github.event_name != 'workflow_dispatch' || inputs.build_linux }}
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.0.2
@@ -204,7 +259,7 @@ jobs:
   macos-dmg:
     name: macOS DMG (${{ matrix.arch }})
     runs-on: ${{ matrix.runner }}
-    needs: lint
+    needs: [lint, native-qt]
     # Public repositories receive unlimited standard GitHub-hosted runner
     # minutes, so pushes, pull requests, and releases exercise macOS too.
     if: ${{ github.event_name != 'workflow_dispatch' || inputs.build_macos }}

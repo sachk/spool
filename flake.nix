@@ -1,5 +1,9 @@
 {
   description = "Jellyfin webOS native build environment";
+  nixConfig = {
+    extra-substituters = [ "https://spool.cachix.org" ];
+    extra-trusted-public-keys = [ "spool.cachix.org-1:yx+E3raAGXiyUNoMEscSu9c85b+WbgoV7swqyY8oL6s=" ];
+  };
 
 
   inputs = {
@@ -166,8 +170,9 @@
             overlays = [ libplaceboOverlay ffmpegSlimOverlay tailoredQtOverlay qcoroOverlay ];
           }));
       # Native artifacts use a tailored Qt without ICU, Vulkan, foreign SQL
-      # drivers or GTK. Release jobs retain this source-built closure in the
-      # GitHub Actions Nix store cache for their platform and architecture.
+      # drivers or GTK. Release jobs retain the full build closure in GitHub
+      # Actions; Cachix receives only the runtime and development outputs that
+      # keep `nix run` from compiling Qt.
       cachePkgsFor = system:
         import (nixpkgsFor system) {
           inherit system;
@@ -435,12 +440,15 @@
         export SPOOL_QT_EXTRA_PLUGIN_DIRS="${pkgs.qt6.qtimageformats}/lib/qt-6/plugins"
       '';
       cachedNativeQtPackage = pkgs:
-        pkgs.symlinkJoin {
-          name = "spool-native-qt-${pkgs.qt6.qtbase.version}";
-          paths = nativeQtPackages pkgs ++ [
+        let
+          packages = nativeQtPackages pkgs ++ [
             pkgs.qt6.qttools
             pkgs.spoolQcoro
           ];
+        in
+        pkgs.symlinkJoin {
+          name = "spool-native-qt-${pkgs.qt6.qtbase.version}";
+          paths = pkgs.lib.unique (packages ++ map pkgs.lib.getDev packages);
         };
 
       cachedNativePackage = pkgs:
