@@ -41,6 +41,10 @@ on:
         required: false
         default: false
         type: boolean
+      build_webos:
+        required: false
+        default: false
+        type: boolean
     secrets:
       MACOS_CERTIFICATE_P12:
         required: false
@@ -417,7 +421,7 @@ jobs:
     name: webOS IPK
     runs-on: ubuntu-24.04
     needs: lint
-    if: ${{ github.event_name != 'workflow_dispatch' || inputs.build_webos }}
+    if: ${{ (github.event_name != 'workflow_dispatch' && !inputs.release) || inputs.build_webos }}
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.0.2
         with:

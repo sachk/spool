@@ -48,6 +48,7 @@ jobs:
     uses: ./.github/workflows/build-artifacts.yml
     with:
       release: true
+      build_webos: false
       enable_macos_signing: ${{ vars.ENABLE_MACOS_SIGNING == 'true' }}
     secrets: inherit
 
