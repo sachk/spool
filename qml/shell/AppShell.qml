@@ -682,6 +682,19 @@ KeyRouter {
         return false
     }
 
+    Item {
+        anchors.fill: parent
+        z: 1000
+
+        PointHandler {
+            acceptedButtons: Qt.LeftButton
+            onActiveChanged: if (active && navBar.syncPlayMenuOpen && !navBar.containsSyncPlayPoint(root,
+                                                                                                    point.position.x,
+                                                                                                    point.position.y))
+                                 navBar.closeSyncPlayMenu(false)
+        }
+    }
+
     Rectangle {
         anchors.fill: parent
         color: Theme.bg
@@ -729,12 +742,6 @@ KeyRouter {
             focus: !(root.hasPlayer && root.playerHoldsScreen)
             onActiveFocusChanged: if (activeFocus)
                                       root.navigationTarget = routeStack
-
-            TapHandler {
-                acceptedButtons: Qt.LeftButton
-                onTapped: if (navBar.syncPlayMenuOpen)
-                              navBar.closeSyncPlayMenu()
-            }
         }
     }
 
