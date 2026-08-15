@@ -28,21 +28,18 @@ namespace {
     constexpr int kGreedyTimeSyncIntervalMs = 1'000;
     constexpr int kSteadyTimeSyncIntervalMs = 60'000;
     constexpr int kReconnectDelayMs = 3'000;
-    // Defaults from jellyfin-web src/plugins/syncPlay/core/PlaybackCore.js.
-    constexpr int kMinDelaySpeedToSyncMs = 60;
-    constexpr int kMaxDelaySpeedToSyncMs = 3'000;
+    // Browser clients can hide large rate changes in their media pipeline.
+    // mpv has to retime real audio output, so keep small clock errors inaudible
+    // and seek once rate correction would take too long.
+    constexpr int kMinDelaySpeedToSyncMs = 100;
     constexpr int kMinDelaySkipToSyncMs = 400;
     constexpr int kSpeedToSyncDurationMs = 1'000;
     constexpr double kSpeedToSyncMinSpeed = 0.2;
-    constexpr int kSyncMethodThresholdMs = kMaxDelaySpeedToSyncMs;
-    // Web re-enables sync one half threshold after a correction or an unpause.
+    constexpr int kSyncMethodThresholdMs = 3'000;
     constexpr int kSyncCooldownMs = kSyncMethodThresholdMs / 2;
-    // Local addition: mpv decodes for real, so bound the rate we ask for and
-    // stretch the window to recover the same amount. Web's unbounded formula
-    // reaches ~3.5x on a 2.5 s drift.
-    constexpr double kSpeedToSyncMinRate = 0.5;
-    constexpr double kSpeedToSyncMaxRate = 2.0;
-    constexpr int kSpeedToSyncMaxDurationMs = kMaxDelaySpeedToSyncMs;
+    constexpr double kSpeedToSyncMinRate = 0.97;
+    constexpr double kSpeedToSyncMaxRate = 1.03;
+    constexpr int kSpeedToSyncMaxDurationMs = 10'000;
     constexpr int kInternalSeekBufferingSuppressionMs = 3'000;
     constexpr qint64 kTicksPerSecond = 10'000'000;
     constexpr qint64 kTicksPerMillisecond = 10'000;
@@ -78,7 +75,7 @@ SyncCorrection SyncPlayDriftPolicy::evaluate(double diffMs)
     if (absDiffMs < kMinDelaySpeedToSyncMs)
         return {};
 
-    if (absDiffMs < kMaxDelaySpeedToSyncMs) {
+    if (absDiffMs < kMinDelaySkipToSyncMs) {
         // Web keeps the speed positive when the client is ahead by more than
         // the correction window allows.
         double speedToSyncTimeMs = kSpeedToSyncDurationMs;
@@ -96,10 +93,7 @@ SyncCorrection SyncPlayDriftPolicy::evaluate(double diffMs)
         return { SyncCorrection::Method::Speed, speed, static_cast<int>(std::llround(speedToSyncTimeMs)) };
     }
 
-    if (absDiffMs >= kMinDelaySkipToSyncMs)
-        return { SyncCorrection::Method::Skip, 1.0, 0 };
-
-    return {};
+    return { SyncCorrection::Method::Skip, 1.0, 0 };
 }
 
 SyncPlayController::SyncPlayController(JellyfinApiFacade *api, PlayerController *player, PlayQueueController *playQueue,
@@ -362,9 +356,8 @@ void SyncPlayController::requestRemoveItems(const QStringList& playlistItemIds)
         return;
     Async::runScoped(
         this, m_api->syncPlayRemoveFromPlaylist(playlistItemIds), []() {},
-        [this](const std::exception_ptr& error) {
-            reportRequestError(QStringLiteral("remove group queue items"), error);
-        },
+        [this](
+            const std::exception_ptr& error) { reportRequestError(QStringLiteral("remove group queue items"), error); },
         "SyncPlay remove from playlist request");
 }
 
@@ -847,10 +840,9 @@ void SyncPlayController::correctPlaybackDrift()
     const qint64 nowMs = QDateTime::currentMSecsSinceEpoch();
     const qint64 expectedTicks
         = m_clock.estimatePositionTicks(m_scheduledPositionTicks, m_scheduledServerTimeMs, nowMs);
-    const qint64 actualTicks = static_cast<qint64>(m_player->positionSeconds() * kTicksPerSecond);
+    const qint64 actualTicks = static_cast<qint64>(m_player->estimatedPositionSeconds() * kTicksPerSecond);
     const qint64 signedDiffTicks = expectedTicks - actualTicks;
     const qint64 diffMs = std::abs(signedDiffTicks) / kTicksPerMillisecond;
-    setPlaybackDiff(signedDiffTicks, true);
     const double signedDiffMs = static_cast<double>(signedDiffTicks) / kTicksPerMillisecond;
     const SyncCorrection correction = SyncPlayDriftPolicy::evaluate(signedDiffMs);
     if (correction.method == SyncCorrection::Method::None) {

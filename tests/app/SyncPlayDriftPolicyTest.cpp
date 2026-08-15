@@ -27,44 +27,36 @@ bool near(double value, double expected, double tolerance = 0.001)
 
 JELLYFIN_TEST_MAIN("sync-play-drift-policy")
 {
-    require(SyncPlayDriftPolicy::evaluate(59.0).method == SyncCorrection::Method::None,
+    require(SyncPlayDriftPolicy::evaluate(99.0).method == SyncCorrection::Method::None,
         "drift below the speed threshold must not be corrected");
-    require(SyncPlayDriftPolicy::evaluate(-59.0).method == SyncCorrection::Method::None,
+    require(SyncPlayDriftPolicy::evaluate(-99.0).method == SyncCorrection::Method::None,
         "a small lead must not be corrected either");
 
-    // Web: speed = 1 + diff / speedToSyncDuration, held for one second.
     const SyncCorrection behind = SyncPlayDriftPolicy::evaluate(200.0);
     require(behind.method == SyncCorrection::Method::Speed, "a 200 ms lag should speed up");
-    require(near(behind.speed, 1.2), "a 200 ms lag should ask for 1.2x");
-    require(behind.durationMs == 1'000, "an uncapped correction runs for the web duration");
+    require(near(behind.speed, 1.03), "a 200 ms lag should use the bounded mpv correction rate");
+    require(behind.durationMs == 6'667, "the bounded correction should recover the measured lag");
 
-    // Beyond the rate cap the window stretches so the recovered distance holds.
-    const SyncCorrection capped = SyncPlayDriftPolicy::evaluate(2'500.0);
-    require(capped.method == SyncCorrection::Method::Speed, "drift under 3 s stays on SpeedToSync");
-    require(near(capped.speed, 2.0), "the rate must be capped at 2x");
-    require(capped.durationMs == 2'500, "the capped rate must recover the whole drift");
+    const SyncCorrection nearSeek = SyncPlayDriftPolicy::evaluate(399.0);
+    require(nearSeek.method == SyncCorrection::Method::Speed, "drift below 400 ms should speed correct");
+    require(near(nearSeek.speed, 1.03), "near-threshold drift should retain the bounded rate");
+    require(nearSeek.durationMs == 10'000, "the correction window must remain bounded");
 
-    const SyncCorrection ahead = SyncPlayDriftPolicy::evaluate(-600.0);
-    require(ahead.method == SyncCorrection::Method::Speed, "a 600 ms lead should slow down");
-    require(near(ahead.speed, 0.5), "the rate must be capped at 0.5x");
-    require(ahead.durationMs == 1'200, "slowing to 0.5x for 1.2 s gives back 600 ms");
+    const SyncCorrection ahead = SyncPlayDriftPolicy::evaluate(-200.0);
+    require(ahead.method == SyncCorrection::Method::Speed, "a 200 ms lead should slow down");
+    require(near(ahead.speed, 0.97), "a lead should use the symmetric bounded rate");
+    require(ahead.durationMs == 6'667, "the bounded correction should give back the measured lead");
 
-    // A large lead cannot be given back within the duration cap, so the
-    // correction is partial and the next cycle finishes it.
-    const SyncCorrection clipped = SyncPlayDriftPolicy::evaluate(-2'500.0);
-    require(near(clipped.speed, 0.5), "a large lead still slows to the floor rate");
-    require(clipped.durationMs == 3'000, "the correction window is capped");
-
-    require(SyncPlayDriftPolicy::evaluate(3'000.0).method == SyncCorrection::Method::Skip,
+    require(SyncPlayDriftPolicy::evaluate(400.0).method == SyncCorrection::Method::Skip,
         "drift at the speed ceiling must seek instead");
-    require(SyncPlayDriftPolicy::evaluate(-3'500.0).method == SyncCorrection::Method::Skip,
-        "a large lead must seek instead");
+    require(
+        SyncPlayDriftPolicy::evaluate(-500.0).method == SyncCorrection::Method::Skip, "a large lead must seek instead");
 
-    for (const double diffMs : { 60.0, -60.0, 500.0, -500.0, 1'999.0, -1'500.0 }) {
+    for (const double diffMs : { 100.0, -100.0, 200.0, -200.0, 300.0, -300.0 }) {
         const SyncCorrection correction = SyncPlayDriftPolicy::evaluate(diffMs);
         require(correction.method == SyncCorrection::Method::Speed, "mid-range drift should speed correct");
         const double recovered = (correction.speed - 1.0) * correction.durationMs;
-        require(near(recovered, diffMs, 1.0), "a speed correction must recover exactly the measured drift");
+        require(near(recovered, diffMs, 1.0), "an unclipped speed correction must recover the measured drift");
     }
     return 0;
 }

@@ -26,6 +26,7 @@ void PlaybackPositionTracker::reset(double startSeconds)
     m_hasMpvPosition = false;
     m_seekCommandClock.invalidate();
     m_positionRegressionAllowedClock.invalidate();
+    m_positionClock.invalidate();
 }
 
 void PlaybackPositionTracker::clear()
@@ -38,11 +39,19 @@ void PlaybackPositionTracker::clear()
     m_hasMpvPosition = false;
     m_seekCommandClock.invalidate();
     m_positionRegressionAllowedClock.invalidate();
+    m_positionClock.invalidate();
 }
 
 double PlaybackPositionTracker::position() const
 {
     return m_positionSeconds;
+}
+
+double PlaybackPositionTracker::estimatedPosition(double playbackSpeed, bool advancing) const
+{
+    if (!advancing || !m_hasMpvPosition || !m_positionClock.isValid() || !std::isfinite(playbackSpeed))
+        return m_positionSeconds;
+    return clamp(m_positionSeconds + static_cast<double>(m_positionClock.elapsed()) * playbackSpeed / 1'000.0);
 }
 
 double PlaybackPositionTracker::duration() const
@@ -91,16 +100,15 @@ bool PlaybackPositionTracker::update(double seconds)
 
     m_lastTrustedPositionSeconds = clamped;
     m_hasMpvPosition = true;
+    m_positionClock.restart();
     if (m_positionRegressionAllowedClock.isValid()
         && m_positionRegressionAllowedClock.elapsed() < kSeekTargetFreshnessMs) {
         m_positionRegressionAllowedClock.invalidate();
     }
 
-    if (std::abs(m_positionSeconds - clamped) < 0.05)
-        return false;
-
+    const bool changed = std::abs(m_positionSeconds - clamped) >= 0.05;
     m_positionSeconds = clamped;
-    return true;
+    return changed;
 }
 
 double PlaybackPositionTracker::seekAnchor()

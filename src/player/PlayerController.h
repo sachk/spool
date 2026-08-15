@@ -99,6 +99,7 @@ public:
     int selectedAudioIndex() const;
     bool backAllowed() const;
     double positionSeconds() const;
+    double estimatedPositionSeconds() const;
     double durationSeconds() const;
     QVariantList chapters() const;
     bool hasChapters() const;

@@ -310,7 +310,7 @@ std::vector<MpvOption> MpvOptionProfile::applicationOptions(Platform platform, c
     const MpvOption applicationOptions[] = {
         { "osd-bar", "no" },
         { "osd-duration", "0" },
-        { "load-stats-overlay", "yes" },
+        { "load-stats-overlay", "no" },
         { "audio-file-auto", "no" },
         { "input-default-bindings", "no" },
         { "input-vo-keyboard", "no" },
@@ -322,6 +322,7 @@ std::vector<MpvOption> MpvOptionProfile::applicationOptions(Platform platform, c
         const MpvOption desktopScriptOptions[] = {
             { "osc", "no" },
             { "load-console", "no" },
+            { "load-auto-profiles", "no" },
             { "load-select", "no" },
             { "load-positioning", "no" },
             { "load-commands", "no" },

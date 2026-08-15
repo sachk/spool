@@ -12,6 +12,7 @@ public:
     void clear();
 
     double position() const;
+    double estimatedPosition(double playbackSpeed, bool advancing) const;
     double duration() const;
     void setDuration(double seconds);
     double clamp(double seconds) const;
@@ -33,6 +34,7 @@ private:
     double m_requestedSeekStartSeconds = -1.0;
     double m_lastTrustedPositionSeconds = 0.0;
     bool m_hasMpvPosition = false;
+    QElapsedTimer m_positionClock;
     QElapsedTimer m_seekCommandClock;
     QElapsedTimer m_positionRegressionAllowedClock;
 };
