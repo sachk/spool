@@ -32,9 +32,10 @@ FocusScope {
     readonly property bool posterCard: cardKind === "poster" || cardKind === "person"
     readonly property bool squareCard: cardKind === "square"
     readonly property real cardAspect: squareCard ? 1 : posterCard ? 1.5 : 9 / 16
-    readonly property int headerHeight: Metrics.scaled(34)
+    readonly property int headerHeight: Metrics.scaled(44)
     readonly property int cardHeight: Math.round(cardWidth * cardAspect + Metrics.scaled(60))
     readonly property int focusPadding: Math.max(2, Metrics.scaled(2))
+    readonly property int pageStep: Math.max(1, Math.floor((listView.width + cardGap) / (cardWidth + cardGap)))
 
     signal verticalWheelScrolled(var controller)
     signal pointerSelected
@@ -146,6 +147,11 @@ FocusScope {
         return true
     }
 
+    function pageBy(direction) {
+        if (moveBy(direction * pageStep))
+            focusList()
+    }
+
     function routeKey(key, phase, repeat) {
         if (phase === "release")
             return true
@@ -242,10 +248,41 @@ FocusScope {
     SectionHeader {
         id: rowHeader
         anchors.left: parent.left
-        anchors.right: parent.right
+        anchors.right: carouselButtons.visible ? carouselButtons.left : parent.right
         anchors.top: parent.top
         height: root.headerHeight
         title: root.title
+    }
+
+    Row {
+        id: carouselButtons
+        anchors.top: parent.top
+        anchors.right: parent.right
+        height: root.headerHeight
+        spacing: Metrics.scaled(4)
+        visible: root.count > root.pageStep
+
+        IconButton {
+            width: root.headerHeight
+            height: width
+            iconName: "chevron_left"
+            chromeless: true
+            accessibleName: "Scroll " + root.title + " left"
+            enabled: root.currentIndex > 0
+            opacity: enabled ? 1 : 0.35
+            onClicked: root.pageBy(-1)
+        }
+
+        IconButton {
+            width: root.headerHeight
+            height: width
+            iconName: "chevron_right"
+            chromeless: true
+            accessibleName: "Scroll " + root.title + " right"
+            enabled: root.currentIndex < root.count - 1
+            opacity: enabled ? 1 : 0.35
+            onClicked: root.pageBy(1)
+        }
     }
 
     ListView {
@@ -293,10 +330,9 @@ FocusScope {
 
         FastWheelHandler {
             id: wheelHandler
-            flickable: root.wheelFlickable || listView
-            horizontal: root.wheelFlickable === null
-            onScrolled: if (root.wheelFlickable)
-            root.verticalWheelScrolled(wheelHandler)
+            enabled: root.wheelFlickable !== null
+            flickable: root.wheelFlickable
+            onScrolled: root.verticalWheelScrolled(wheelHandler)
         }
 
         MouseArea {
