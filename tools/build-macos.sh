@@ -127,7 +127,10 @@ if [[ "$DEPLOY_APP" == "1" ]]; then
     -delete
   dialogs_qmldir="$APP_INSTALL/jellyfin-native.app/Contents/Resources/qml/QtQuick/Dialogs/quickimpl/qmldir"
   if [[ -f "$dialogs_qmldir" ]]; then
-    sed -i '' '\|qml/+\(Fusion\|Imagine\|Material\|Universal\|FluentWinUI3\)/|d' "$dialogs_qmldir"
+    filtered_qmldir="${dialogs_qmldir}.filtered"
+    sed -E '/qml\/\+(Fusion|Imagine|Material|Universal|FluentWinUI3)\//d' \
+      "$dialogs_qmldir" >"$filtered_qmldir"
+    mv "$filtered_qmldir" "$dialogs_qmldir"
   fi
   rm -f \
     "$APP_INSTALL/jellyfin-native.app/Contents/PlugIns/networkinformation/libqglib.dylib" \

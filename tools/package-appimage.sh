@@ -202,7 +202,7 @@ prune_appdir() {
 
   local dialogs_qmldir="$APPDIR/usr/qml/QtQuick/Dialogs/quickimpl/qmldir"
   if [[ -f "$dialogs_qmldir" ]]; then
-    sed -i '\|qml/+\(Fusion\|Imagine\|Material\|Universal\|FluentWinUI3\)/|d' "$dialogs_qmldir"
+    sed -E -i '/qml\/\+(Fusion|Imagine|Material|Universal|FluentWinUI3)\//d' "$dialogs_qmldir"
   fi
   find "$APPDIR/usr" -type f -name '*.qmltypes' -delete
 
