@@ -114,6 +114,11 @@ JELLYFIN_TEST_MAIN("playback-negotiation")
         "video transcodes should use fragmented MP4 HLS segments");
     require(transcodeProfile.value(QStringLiteral("Protocol")).toString() == QStringLiteral("hls"),
         "fragmented MP4 transcodes should retain HLS delivery");
+    const QString transcodeAudioCodecs = transcodeProfile.value(QStringLiteral("AudioCodec")).toString();
+    require(transcodeAudioCodecs == QStringLiteral("aac,ac3,eac3,mp3,flac,opus,dts,truehd"),
+        "video transcodes should retain the supported fMP4 HLS audio codecs");
+    require(transcodeAudioCodecs.size() <= 40,
+        "transcode audio codecs must satisfy Jellyfin's 40-character request validation limit");
     require(!transcodeProfile.value(QStringLiteral("BreakOnNonKeyFrames")).toBool(),
         "fragmented MP4 segments should only break on keyframes");
     bool foundSrtExternal = false;

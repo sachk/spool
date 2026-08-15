@@ -252,7 +252,7 @@ QJsonObject PlaybackNegotiation::buildDeviceProfile(
                     { QStringLiteral("Type"), QStringLiteral("Video") },
                     { QStringLiteral("Container"), QStringLiteral("mp4") },
                     { QStringLiteral("Protocol"), QStringLiteral("hls") },
-                    { QStringLiteral("AudioCodec"), QStringLiteral("aac,ac3,eac3,mp3,alac,flac,opus,dts,truehd") },
+                    { QStringLiteral("AudioCodec"), QStringLiteral("aac,ac3,eac3,mp3,flac,opus,dts,truehd") },
                     { QStringLiteral("VideoCodec"), outputVideoCodecs.join(QLatin1Char(',')) },
                     { QStringLiteral("Context"), QStringLiteral("Streaming") },
                     { QStringLiteral("MaxAudioChannels"), QStringLiteral("6") },
