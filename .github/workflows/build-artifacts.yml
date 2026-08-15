@@ -94,18 +94,18 @@ jobs:
         run: |
           mapfile -t scripts < <(git ls-files '*.py' | sort -u)
           printf 'checking %d scripts\n' "${#scripts[@]}"
-          nix develop -c python3 -m py_compile "${scripts[@]}"
+          nix develop .#lint -c python3 -m py_compile "${scripts[@]}"
 
       - name: Validate FFmpeg capability manifest
         run: |
-          nix develop .#native -c python3 tests/tools/FfmpegCapabilitiesTest.py \
+          nix develop .#lint -c python3 tests/tools/FfmpegCapabilitiesTest.py \
             tools/ffmpeg-capabilities.py tools/manifests/ffmpeg-capabilities.json
 
       - name: Evaluate Nix flake
         run: nix flake check --no-build --no-write-lock-file
 
       - name: Scan QML imports
-        run: nix develop .#native -c bash tools/check-qml-imports.sh
+        run: nix develop .#lint -c bash tools/check-qml-imports.sh
 
       - name: Verify shared build library sources and exports its helpers
         run: |

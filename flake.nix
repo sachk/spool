@@ -453,10 +453,22 @@
         native-qt-cache = cachedNativeQtPackage pkgs;
       });
 
-      devShells = forAllSystems (pkgs: {
+      devShells = forAllSystems (pkgs:
+        let
+          system = pkgs.stdenv.hostPlatform.system;
+          lintPkgs = import (nixpkgsFor system) { inherit system; };
+        in {
         default = pkgs.mkShell {
           packages = sourceBuildPackages pkgs ++ [ (qmlToolWrappers pkgs) ];
           shellHook = sourceShellHook pkgs;
+        };
+
+        lint = lintPkgs.mkShell {
+          packages = with lintPkgs; [
+            python3
+            qt6.qtdeclarative
+            (qmlToolWrappers lintPkgs)
+          ];
         };
 
         qt-source = pkgs.mkShell {
