@@ -284,8 +284,9 @@
         create-dmg
         libiconvReal
       ];
-      # Native release builds do not need the webOS Qt toolchain, JS/Lua
-      # interpreters, Rust, AppImage emulation or debugger stack.
+      # Native release builds do not need the webOS Qt toolchain, JavaScript
+      # interpreter, Rust, AppImage emulation or debugger stack. libmpv still
+      # enables Lua scripting on Linux and macOS.
       nativeBasePackages = pkgs: with pkgs; [
         bashInteractive
         binutils
@@ -309,6 +310,7 @@
         libplacebo
         libuchardet
         libxkbcommon
+        lua5_2
         meson
         ninja
         patchelf
