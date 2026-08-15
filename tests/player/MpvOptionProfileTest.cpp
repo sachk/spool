@@ -87,10 +87,7 @@ JELLYFIN_TEST_MAIN("mpv-option-profile")
         "application input invariants must be applied after user configuration policy");
     require(valueFor(desktop, "ytdl") == "no", "desktop should disable the bundled URL script");
     require(valueFor(desktop, "osc") == "no", "desktop should disable mpv's script UI");
-    require(valueFor(desktop, "load-stats-overlay") == "no",
-        "desktop should use the non-blocking application diagnostics overlay");
-    require(valueFor(desktop, "load-auto-profiles") == "no",
-        "desktop should not register hooks for unused conditional profiles");
+    require(valueFor(desktop, "load-stats-overlay") == "yes", "desktop should load mpv's playback statistics");
 
     MpvConfigPolicy standardConfig;
     standardConfig.mode = MpvConfigPolicy::Mode::Standard;

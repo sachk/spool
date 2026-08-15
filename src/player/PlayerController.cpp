@@ -1119,6 +1119,8 @@ void PlayerController::previewSeekBy(double deltaSeconds)
 
 void PlayerController::toggleDebugOsd()
 {
+    if (!mpvCommand({ QByteArrayLiteral("script-binding"), QByteArrayLiteral("stats/display-stats-toggle") }))
+        return;
     m_debugOsdVisible = !m_debugOsdVisible;
     emit playbackStateChanged();
 }
@@ -1710,6 +1712,11 @@ void PlayerController::handleMpvEvent(mpv_event *event)
         QMetaObject::invokeMethod(this, [this]() {
             qInfo() << "player: file loaded";
             m_fileLoaded = true;
+            // Every play request builds a fresh mpv core, which starts with the
+            // stats overlay off. A restart the viewer did not ask for, like a
+            // quality change, should not take their stats away with it.
+            if (m_debugOsdVisible)
+                mpvCommand({ QByteArrayLiteral("script-binding"), QByteArrayLiteral("stats/display-stats-toggle") });
             notifyPlaybackStateChanged();
             startProgressReporting();
         });
