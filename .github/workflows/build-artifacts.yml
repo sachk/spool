@@ -398,6 +398,8 @@ jobs:
           if [[ '${{ inputs.enable_macos_signing }}' == true ]]; then
             codesign --verify --strict --deep --verbose=2 "$app"
           fi
+          JELLYFIN_LAUNCH_TEST_QPA_PLATFORM=cocoa \
+            bash tools/launch-native-app.sh "$app"
           hdiutil detach "$mountpoint"
           trap - EXIT
       - name: Notarize and staple DMG
