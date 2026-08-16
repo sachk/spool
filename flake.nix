@@ -326,8 +326,7 @@
       ];
 
       nativeLinuxPackages = pkgs:
-        (builtins.filter (package:
-          package != pkgs.appimage-run && package != pkgs.libsecret)
+        (builtins.filter (package: package != pkgs.appimage-run)
           (sourceLinuxPackages pkgs))
         ++ [ pkgs.elfutils pkgs.vulkan-loader ];
 
@@ -476,6 +475,12 @@
           dontWrapQtApps = pkgs.stdenv.isDarwin;
           dontConfigure = true;
           dontInstall = true;
+          qtWrapperArgs = pkgs.lib.optionals pkgs.stdenv.isLinux [
+            "--prefix"
+            "PATH"
+            ":"
+            (pkgs.lib.makeBinPath [ pkgs.libsecret ])
+          ];
 
           postUnpack = ''
             rm -rf "$sourceRoot/mpv"
