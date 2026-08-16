@@ -12,6 +12,7 @@ T.Control {
     property bool chromeless: false
     property bool pointerHovered: hover.hovered
     property string accessibleName: ""
+    property alias acceptedButtons: tap.acceptedButtons
     signal clicked
 
     width: Metrics.scaled(44)

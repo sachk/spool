@@ -231,6 +231,8 @@ FocusScope {
             subtitleOverride: libraryCard ? String(cardData.collectionType || "") : personCard ? String(cardData.role
                                                                                                         || cardData.type
                                                                                                         || "") : ""
+            showSubtitle: !libraryCard
+            emphasizedTitle: libraryCard
             imageOverride: libraryCard ? Art.url(cardItem, "landscape") : personCard ? Art.url(cardItem, "poster") : ""
             fallbackOverride: personCard ? String(cardData.type || "Person") : ""
             fallbackIcon: libraryCard ? Theme.libraryIcon(cardData.collectionType) : ""

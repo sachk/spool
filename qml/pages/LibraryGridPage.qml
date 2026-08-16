@@ -1059,6 +1059,7 @@ FocusScope {
                 readonly property int artworkMarginRows: Platform.isTV ? (memoryMiB >= 3000 ? 8 : memoryMiB >= 1800 ? 5 : 3) :
                                                                          12
                 readonly property int focusPadding: Math.max(2, Metrics.scaled(2))
+                property int geometryAnchorIndex: -1
                 holdTraversalSeconds: root.listMode && count > 200 ? 3.5 : 5
                 Layout.fillWidth: true
                 Layout.fillHeight: true
@@ -1066,7 +1067,6 @@ FocusScope {
                 clip: true
                 keyNavigationEnabled: false
                 reuseItems: true
-                reducedMotion: Theme.reducedMotion
                 boundsBehavior: Flickable.StopAtBounds
                 model: Browse.items
                 leftMargin: focusPadding
@@ -1085,6 +1085,8 @@ FocusScope {
                     requestMoreIfNeeded()
                     gridReveal.reset()
                 }
+                onCellWidthChanged: scheduleGeometryRelayout()
+                onCellHeightChanged: scheduleGeometryRelayout()
                 onCountChanged: {
                     if (count <= 0)
                     currentIndex = -1
@@ -1110,7 +1112,8 @@ FocusScope {
                     onScrolled: root.beginPointerNavigation(gridWheelHandler)
                     flickable: grid
                 }
-                onMovementStarted: root.beginPointerNavigation(null)
+                onDraggingChanged: if (dragging)
+                root.beginPointerNavigation(null)
                 ListScrollBar {
                     id: libraryScrollBar
                     anchors.top: parent.top
@@ -1132,6 +1135,28 @@ FocusScope {
                 function restoreIndex() {
                     currentIndex = count > 0 ? Math.max(0, Math.min(root.savedIndex, count - 1)) : -1
                     ensureCurrentVisible()
+                }
+                function scheduleGeometryRelayout() {
+                    if (!geometryRelayout.running)
+                        geometryAnchorIndex = topLeftVisibleIndex()
+                    geometryRelayout.restart()
+                }
+
+                function applyGeometryRelayout() {
+                    forceLayout()
+                    const anchor = count > 0 ? Math.max(0, Math.min(geometryAnchorIndex, count - 1)) : -1
+                    if (anchor === 0)
+                        positionViewAtBeginning()
+                    else if (anchor > 0)
+                        positionViewAtIndex(anchor, GridView.Beginning)
+                    geometryAnchorIndex = -1
+                    requestMoreIfNeeded()
+                }
+
+                Timer {
+                    id: geometryRelayout
+                    interval: 0
+                    onTriggered: grid.applyGeometryRelayout()
                 }
 
                 function ensureCurrentVisible() {

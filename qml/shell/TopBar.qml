@@ -256,6 +256,7 @@ FocusScope {
                 accessibleName: "SyncPlay"
                 railStyle: true
                 selected: root.syncPlayMenuOpen
+                acceptedButtons: Qt.LeftButton | Qt.RightButton
                 onClicked: {
                     if (root.syncPlayMenuOpen)
                     root.closeSyncPlayMenu(false)

@@ -14,6 +14,8 @@ Item {
     property string fallbackIcon: ""
     property color fallbackTint: "transparent"
     property bool focused: false
+    property bool showSubtitle: true
+    property bool emphasizedTitle: false
     property bool useSeriesPoster: false
     property bool preferEpisodeTitle: false
     property real progress: -1
@@ -22,7 +24,8 @@ Item {
 
     readonly property bool posterKind: kind === "poster"
     readonly property bool squareKind: kind === "square"
-    readonly property real metadataHeight: metadataLabel.text.length > 0 ? metadataLabel.implicitHeight : 0
+    readonly property real metadataHeight: showSubtitle && metadataLabel.text.length > 0 ? metadataLabel.implicitHeight :
+                                                                                           0
     readonly property real artHeight: width * (squareKind ? 1 : posterKind ? 1.5 : 9 / 16)
     readonly property real titleAvailableHeight: Math.max(0, height - art.height - Metrics.scaled(10) - metadataHeight)
     readonly property real effectiveProgress: playbackProgress()
@@ -130,8 +133,8 @@ Item {
         anchors.right: parent.right
         visible: text.length > 0 && root.titleAvailableHeight > 0
         text: root.titleText()
-        font.pixelSize: Metrics.bodySizePx
-        font.weight: Font.Medium
+        font.pixelSize: Metrics.bodySizePx + (root.emphasizedTitle ? Metrics.scaled(2) : 0)
+        font.weight: root.emphasizedTitle ? Font.DemiBold : Font.Medium
         color: root.posterKind && !root.focused ? Theme.textSecondary : Theme.textPrimary
         maximumLineCount: root.titleAvailableHeight >= font.pixelSize * 2.25 ? 2 : 1
         elide: Text.ElideRight
@@ -145,7 +148,7 @@ Item {
         anchors.right: parent.right
         anchors.leftMargin: Metrics.scaled(4)
         anchors.rightMargin: Metrics.scaled(4)
-        visible: text.length > 0 && root.height > y
+        visible: root.showSubtitle && text.length > 0 && root.height > y
         text: root.subtitleText()
         color: Theme.textMuted
         font.pixelSize: Metrics.metaSizePx

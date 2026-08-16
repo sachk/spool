@@ -110,6 +110,7 @@ TestCase {
 
     function init() {
         horizontalCards.contentX = 0
+        rowViewport.width = 220
         horizontalCards.currentIndex = 0
         verticalItems.contentY = 0
         multiColumnGrid.contentY = 0
@@ -121,34 +122,68 @@ TestCase {
         wait(0)
     }
 
-    function test_partiallyClippedLeftDelegateWins() {
+    function test_fullyVisibleLeftDelegateWins() {
+        horizontalCards.contentX = 35
+        horizontalCards.forceLayout()
+        const candidate = Recovery.InputKeys.topLeftVisibleCandidate(horizontalCards, rowViewport)
+        verify(candidate !== null)
+        compare(candidate.index, 1)
+        verify(candidate.fullyVisible)
+    }
+
+    function test_fullyVisibleTopDelegateWins() {
+        verticalItems.contentY = 25
+        verticalItems.forceLayout()
+        const candidate = Recovery.InputKeys.topLeftVisibleCandidate(verticalItems, columnViewport)
+        verify(candidate !== null)
+        compare(candidate.index, 1)
+        verify(candidate.fullyVisible)
+    }
+
+    function test_mostlyVisibleTopLeftDelegateWins() {
+        horizontalCards.contentX = 20
+        const candidate = Recovery.InputKeys.topLeftVisibleCandidate(horizontalCards, rowViewport)
+        verify(candidate !== null)
+        compare(candidate.top, 40)
+        compare(candidate.index, 0)
+        verify(!candidate.fullyVisible)
+        verify(candidate.visibleFraction >= Recovery.InputKeys.focusRecoveryVisibleThreshold)
+    }
+
+    function test_partiallyVisibleCandidateIsFallback() {
+        rowViewport.width = 80
         horizontalCards.contentX = 35
         horizontalCards.forceLayout()
         const candidate = Recovery.InputKeys.topLeftVisibleCandidate(horizontalCards, rowViewport)
         verify(candidate !== null)
         compare(candidate.index, 0)
-        compare(candidate.left, 0)
-        compare(candidate.top, 40)
+        verify(!candidate.fullyVisible)
     }
 
-    function test_partiallyClippedTopDelegateWins() {
-        verticalItems.contentY = 25
-        verticalItems.forceLayout()
-        const candidate = Recovery.InputKeys.topLeftVisibleCandidate(verticalItems, columnViewport)
-        verify(candidate !== null)
-        compare(candidate.index, 0)
-        compare(candidate.top, 0)
-        compare(candidate.left, 0)
-    }
-
-    function test_innerViewClippingExcludesHeaderSpace() {
-        horizontalCards.contentX = 20
-        const candidate = Recovery.InputKeys.topLeftVisibleCandidate(horizontalCards, rowViewport)
-        verify(candidate !== null)
-        compare(candidate.top, 40)
-    }
-
-    function test_candidateOrderingIsTopThenLeftThenIndex() {
+    function test_candidateOrderingPrefersEnoughVisibilityThenTopLeft() {
+        verify(Recovery.InputKeys.earlierVisibleCandidate({
+                                                              "top": 100,
+                                                              "left": 100,
+                                                              "index": 3,
+                                                              "fullyVisible": true
+                                                          }, {
+                                                              "top": 0,
+                                                              "left": 0,
+                                                              "index": 0,
+                                                              "fullyVisible": false
+                                                          }))
+        verify(Recovery.InputKeys.earlierVisibleCandidate({
+                                                              "top": 0,
+                                                              "left": 0,
+                                                              "index": 0,
+                                                              "visibleFraction": 0.8
+                                                          }, {
+                                                              "top": 100,
+                                                              "left": 0,
+                                                              "index": 3,
+                                                              "fullyVisible": true,
+                                                              "visibleFraction": 1
+                                                          }))
         verify(Recovery.InputKeys.earlierVisibleCandidate({
                                                               "top": 5,
                                                               "left": 100,
@@ -183,15 +218,15 @@ TestCase {
         compare(Recovery.InputKeys.topLeftVisibleCandidate(zeroViewportView, zeroViewportView), null)
     }
 
-    function test_gridLookupsKeepPartialTopRow() {
+    function test_gridLookupsChooseFirstFullyVisibleRow() {
         multiColumnGrid.contentY = 25
-        compare(multiColumnGrid.topLeftVisibleIndex(), 0)
-        multiColumnGrid.contentY = 85
         compare(multiColumnGrid.topLeftVisibleIndex(), 3)
+        multiColumnGrid.contentY = 85
+        compare(multiColumnGrid.topLeftVisibleIndex(), 6)
         oneColumnGrid.contentY = 25
-        compare(oneColumnGrid.topLeftVisibleIndex(), 0)
-        oneColumnGrid.contentY = 85
         compare(oneColumnGrid.topLeftVisibleIndex(), 1)
+        oneColumnGrid.contentY = 85
+        compare(oneColumnGrid.topLeftVisibleIndex(), 2)
     }
 
     function test_focusIndexPreservesExactOffsetsAfterEventLoop() {

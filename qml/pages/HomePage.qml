@@ -249,7 +249,8 @@ FocusScope {
             onScrolled: root.beginPointerNavigation(sectionWheelHandler)
         }
 
-        onMovementStarted: root.beginPointerNavigation(null)
+        onDraggingChanged: if (dragging)
+        root.beginPointerNavigation(null)
 
         delegate: MediaRow {
             id: mediaRow
@@ -265,9 +266,9 @@ FocusScope {
             useSeriesPoster: modelData.source === "latestLibrary"
             preferEpisodeTitle: modelData.source === "latestLibrary"
             focusVisible: root.navigationFocusVisible
-            cardWidth: cardKind === "poster" || cardKind === "square" ? Metrics.homePosterWidth(
-                                                                            root.width) : Metrics.homeLandscapeWidth(
+            cardWidth: cardKind === "poster" || cardKind === "square" ? Metrics.homePosterWidth(root.width) : Metrics.homeLandscapeWidth(
                                                                             root.width)
+
             cardGap: Metrics.gapPx
             wheelFlickable: sectionList
             onVerticalWheelScrolled: controller => root.beginPointerNavigation(controller)

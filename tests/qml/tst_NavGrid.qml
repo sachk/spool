@@ -97,12 +97,14 @@ TestCase {
         pagedGrid.stopAccelerating()
         modelSize = 100
         grid.currentIndex = 0
-        grid.reducedMotion = false
         fakeNow = 1000
         grid.holdTraversalSeconds = 5
         holdStartedSpy.clear()
         currentIndexSpy.clear()
         pagedModel.clear()
+    }
+    function test_focusTransitionIsImmediate() {
+        compare(grid.highlightMoveDuration, 0)
     }
 
     function test_singlePressMovesOneRowOnly() {
@@ -303,18 +305,6 @@ TestCase {
         compare(pagedGrid.currentIndex, 10)
     }
 
-    function test_reducedMotionChangesAnimationNotTraversal() {
-        modelSize = 100
-        grid.currentIndex = 0
-        grid.reducedMotion = true
-        compare(grid.highlightMoveDuration, 0)
-        verify(grid.routeKey(Qt.Key_Down, "press", false))
-        compare(grid.currentIndex, 4)
-        arm(grid, Qt.Key_Down, 3000, 50, 1)
-        grid.accelerate()
-        verify(grid.currentIndex > 4)
-    }
-
     function test_accelerationStopsWhenTvOmitsReleaseEvent() {
         grid.forceActiveFocus()
         verify(grid.routeKey(Qt.Key_Down, "press", false))
@@ -328,17 +318,21 @@ TestCase {
         compare(grid.topLeftVisibleIndex(), -1)
     }
 
-    function test_topLeftVisibleIndexIncludesPartialRow() {
+    function test_topLeftVisibleIndexUsesVisibilityThreshold() {
         modelSize = 100
         grid.forceLayout()
-        grid.contentY = 45
+        grid.contentY = 15
         compare(grid.topLeftVisibleIndex(), 0)
-        grid.contentY = 145
+        grid.contentY = 45
         compare(grid.topLeftVisibleIndex(), 4)
+        grid.contentY = 115
+        compare(grid.topLeftVisibleIndex(), 4)
+        grid.contentY = 145
+        compare(grid.topLeftVisibleIndex(), 8)
     }
 
     function test_topLeftVisibleIndexFallsBackWithoutDelegate() {
         fallbackGrid.contentY = 145
-        compare(fallbackGrid.topLeftVisibleIndex(), 3)
+        compare(fallbackGrid.topLeftVisibleIndex(), 6)
     }
 }

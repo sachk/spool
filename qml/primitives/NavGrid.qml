@@ -23,18 +23,14 @@ GridView {
     readonly property real holdMaximumRate: Math.max(30, count / Math.max(1, holdTraversalSeconds))
     readonly property real holdInitialRate: Math.min(40, holdMaximumRate)
     property int holdTickInterval: 16
-    property bool reducedMotion: false
-    // Keep the initial traversal readable, then shorten the highlight glide
-    // as held navigation accelerates.
-    property int singleStepDurationMs: 55
-    property int stepDurationMs: singleStepDurationMs
+    readonly property real focusRecoveryVisibleThreshold: 0.7
     property var nowProvider: function () {
         return Date.now()
     }
 
     focus: true
     keyNavigationEnabled: false
-    highlightMoveDuration: reducedMotion ? 0 : stepDurationMs
+    highlightMoveDuration: 0
 
     onActiveFocusChanged: if (!activeFocus)
                               stopAccelerating()
@@ -48,12 +44,14 @@ GridView {
         if (count <= 0 || !Number.isFinite(Number(cellHeight)) || cellHeight <= 0)
             return -1
         const columns = columnCount()
-        const hit = indexAt(leftMargin + 1, Math.max(0, contentY) + topMargin + 1)
-        if (hit >= 0)
-            return hit - hit % columns
-        const row = Math.max(0, Math.floor(Math.max(0, contentY) / cellHeight))
-        const fallback = row * columns
-        return fallback < count ? fallback : count - 1 - (count - 1) % columns
+        const visibleTop = Math.max(0, Number(contentY) - Number(topMargin || 0) - 0.5)
+        const partialRow = Math.max(0, Math.floor(visibleTop / cellHeight))
+        const visibleFraction = 1 - (visibleTop - partialRow * cellHeight) / cellHeight
+        const row = visibleFraction >= focusRecoveryVisibleThreshold ? partialRow : partialRow + 1
+        const candidate = row * columns
+        if (candidate < count)
+            return candidate
+        return count - 1 - (count - 1) % columns
     }
 
     function moveBy(delta) {
@@ -69,7 +67,6 @@ GridView {
         heldKey = 0
         holdRepeatSeen = false
         holdAccumulator = 0
-        stepDurationMs = singleStepDurationMs
     }
 
     function nowMs() {
@@ -127,7 +124,6 @@ GridView {
         const rate = accelerationRate(heldMs)
         if (rate <= 0)
             return
-        stepDurationMs = Math.max(24, Math.min(singleStepDurationMs, Math.round(700 / rate)))
         holdAccumulator += rate * frameMs / 1000
         const moves = Math.floor(holdAccumulator)
         holdAccumulator -= moves

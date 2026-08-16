@@ -3,6 +3,7 @@ pragma Singleton
 import QtQuick
 
 QtObject {
+    readonly property real focusRecoveryVisibleThreshold: 0.7
     function focus(item) {
         if (item)
             item.forceActiveFocus()
@@ -46,10 +47,16 @@ QtObject {
             const bottom = Math.min(viewportBottom, rect.y + rect.height)
             if (right <= left || bottom <= top)
                 continue
+            const itemArea = Math.max(1, rect.width * rect.height)
+            const visibleFraction = (right - left) * (bottom - top) / itemArea
+            const fullyVisible = rect.x >= viewportLeft - 0.5 && rect.y >= viewportTop - 0.5 && rect.x + rect.width
+                  <= viewportRight + 0.5 && rect.y + rect.height <= viewportBottom + 0.5
             const candidate = {
                 "index": index,
                 "top": top,
-                "left": left
+                "left": left,
+                "fullyVisible": fullyVisible,
+                "visibleFraction": visibleFraction
             }
             if (!best || earlierVisibleCandidate(candidate, best))
                 best = candidate
@@ -62,6 +69,14 @@ QtObject {
             return false
         if (!current)
             return true
+        const candidatePreferred = Boolean(candidate.fullyVisible) || Number(candidate.visibleFraction || 0)
+              >= focusRecoveryVisibleThreshold
+
+        const currentPreferred = Boolean(current.fullyVisible) || Number(current.visibleFraction || 0)
+              >= focusRecoveryVisibleThreshold
+
+        if (candidatePreferred !== currentPreferred)
+            return candidatePreferred
         if (candidate.top !== current.top)
             return candidate.top < current.top
         if (candidate.left !== current.left)

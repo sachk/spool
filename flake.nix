@@ -66,7 +66,7 @@
         ++ enableEach "hwaccel" platformConfig.hardwareAccelerators;
       ffmpegSlimOverlay = final: prev:
         let
-          platform = if final.stdenv.isDarwin then "macos" else "linux";
+          platform = if final.stdenv.hostPlatform.isDarwin then "macos" else "linux";
           structuralEnableFlags = [
             "--enable-asm"
             "--enable-fast-unaligned"
@@ -111,14 +111,14 @@
               && input != final.unixodbcDrivers.mariadb
               && input != final.unixodbcDrivers.psql
               && input != final.unixodbcDrivers.sqlite
-              && (!final.stdenv.isLinux || input != final.systemd)
+              && (!final.stdenv.hostPlatform.isLinux || input != final.systemd)
               && input != final.vulkan-headers
               && input != final.vulkan-loader)
               old.propagatedBuildInputs;
             buildInputs = builtins.filter (input:
               input != final.libmysqlclient
               && input != final.libpq
-              && (!final.stdenv.isDarwin || input != final.moltenvk))
+              && (!final.stdenv.hostPlatform.isDarwin || input != final.moltenvk))
               old.buildInputs;
             cmakeFlags =
               builtins.filter (flag: flag != "-DQT_FEATURE_vulkan=ON") old.cmakeFlags
@@ -345,15 +345,15 @@
       # Shell used by tools/webos-native/build-qt6-611.sh. No nixpkgs Qt here.
       sourceBuildPackages = pkgs:
         basePackages pkgs
-        ++ pkgs.lib.optionals pkgs.stdenv.isLinux (sourceLinuxPackages pkgs)
-        ++ pkgs.lib.optionals pkgs.stdenv.isDarwin (darwinPackages pkgs);
+        ++ pkgs.lib.optionals pkgs.stdenv.hostPlatform.isLinux (sourceLinuxPackages pkgs)
+        ++ pkgs.lib.optionals pkgs.stdenv.hostPlatform.isDarwin (darwinPackages pkgs);
 
       # Shell used by local native Linux app builds / nix run. This may use
       # nixpkgs Qt, but the Qt source-build script should not be run from it.
       nativePackages = pkgs:
         nativeBasePackages pkgs
-        ++ pkgs.lib.optionals pkgs.stdenv.isLinux (nativeLinuxPackages pkgs)
-        ++ pkgs.lib.optionals pkgs.stdenv.isDarwin (darwinPackages pkgs)
+        ++ pkgs.lib.optionals pkgs.stdenv.hostPlatform.isLinux (nativeLinuxPackages pkgs)
+        ++ pkgs.lib.optionals pkgs.stdenv.hostPlatform.isDarwin (darwinPackages pkgs)
         ++ (with pkgs; [
           spoolQt6.qtbase
           spoolQt6.qtdeclarative
@@ -364,7 +364,7 @@
           spoolQt6.qtwebsockets
           (qmlToolWrappers pkgs pkgs.spoolQt6)
         ])
-        ++ pkgs.lib.optionals pkgs.stdenv.isLinux (with pkgs; [
+        ++ pkgs.lib.optionals pkgs.stdenv.hostPlatform.isLinux (with pkgs; [
           spoolQt6.qtwayland
         ]);
 
@@ -376,13 +376,13 @@
           spoolQt6.qtsvg
           spoolQt6.qtwebsockets
         ])
-        ++ pkgs.lib.optionals pkgs.stdenv.isLinux (with pkgs; [
+        ++ pkgs.lib.optionals pkgs.stdenv.hostPlatform.isLinux (with pkgs; [
           spoolQt6.qtwayland
         ]);
 
       nativeRuntimePackages = pkgs:
         nativeQtPackages pkgs
-        ++ pkgs.lib.optionals pkgs.stdenv.isLinux (nativeLinuxPackages pkgs);
+        ++ pkgs.lib.optionals pkgs.stdenv.hostPlatform.isLinux (nativeLinuxPackages pkgs);
 
       gitHooksShellHook = ''
         repo_root="$(git rev-parse --show-toplevel 2>/dev/null || true)"
@@ -410,11 +410,11 @@
           unset repo_sdk workspace_sdk
         fi
 
-        ${pkgs.lib.optionalString pkgs.stdenv.isLinux ''
+        ${pkgs.lib.optionalString pkgs.stdenv.hostPlatform.isLinux ''
           export WAYLAND_PROTOCOLS_DIR="${pkgs.wayland-protocols}/share/wayland-protocols"
         ''}
 
-        ${pkgs.lib.optionalString pkgs.stdenv.isDarwin ''
+        ${pkgs.lib.optionalString pkgs.stdenv.hostPlatform.isDarwin ''
           export GNU_ICONV_DYLIB="${pkgs.libiconvReal}/lib/libiconv.2.dylib"
         ''}
       '';
@@ -472,10 +472,10 @@
           };
 
           nativeBuildInputs = nativePackages pkgs ++ [ pkgs.spoolQt6.wrapQtAppsHook ];
-          dontWrapQtApps = pkgs.stdenv.isDarwin;
+          dontWrapQtApps = pkgs.stdenv.hostPlatform.isDarwin;
           dontConfigure = true;
           dontInstall = true;
-          qtWrapperArgs = pkgs.lib.optionals pkgs.stdenv.isLinux [
+          qtWrapperArgs = pkgs.lib.optionals pkgs.stdenv.hostPlatform.isLinux [
             "--prefix"
             "PATH"
             ":"
@@ -498,7 +498,7 @@
             export CMAKE_PREFIX_PATH="${pkgs.spoolQt6.qtbase}:${pkgs.spoolQt6.qtdeclarative}:${pkgs.spoolQt6.qtsvg}:${pkgs.spoolQt6.qttools}:${pkgs.spoolQt6.qtwebsockets}''${CMAKE_PREFIX_PATH:+:$CMAKE_PREFIX_PATH}"
             mkdir -p "$HOME" "$XDG_CACHE_HOME"
 
-            ${if pkgs.stdenv.isDarwin then ''
+            ${if pkgs.stdenv.hostPlatform.isDarwin then ''
               export PATH="$PATH:/usr/bin:/bin"
               BUILD_ROOT="$TMPDIR/spool-build" \
               MPV_PREFIX="$out" \
@@ -581,29 +581,29 @@
             exec "${cachedPackage}/Applications/Spool.app/Contents/MacOS/Spool" "$@"
           '';
           cachedProgram =
-            if pkgs.stdenv.isDarwin
+            if pkgs.stdenv.hostPlatform.isDarwin
             then cachedMacosRunner
             else "${cachedPackage}/bin/jellyfin-native";
           stagedSourceId = builtins.substring 0 12
             (builtins.hashString "sha256" "${self}-${mpv-src}");
           buildScript =
-            if pkgs.stdenv.isDarwin
+            if pkgs.stdenv.hostPlatform.isDarwin
             then "tools/build-macos.sh"
             else "tools/build-linux-release.sh";
           buildCommand =
-            if pkgs.stdenv.isDarwin
+            if pkgs.stdenv.hostPlatform.isDarwin
             then ''APP_INSTALL="$REPO_ROOT/build/macos/run-install" DEPLOY_APP=0 exec bash ${buildScript}''
             else "exec bash ${buildScript}";
           binaryPath =
-            if pkgs.stdenv.isDarwin
+            if pkgs.stdenv.hostPlatform.isDarwin
             then "build/macos/run-install/Spool.app/Contents/MacOS/Spool"
             else "build/linux-release/install/bin/jellyfin-native";
           mpvLibraryPath =
-            if pkgs.stdenv.isDarwin
+            if pkgs.stdenv.hostPlatform.isDarwin
             then "build/macos/mpv-prefix/lib"
             else "build/linux-release/mpv-prefix/lib";
           libraryPathVariable =
-            if pkgs.stdenv.isDarwin
+            if pkgs.stdenv.hostPlatform.isDarwin
             then "DYLD_LIBRARY_PATH"
             else "LD_LIBRARY_PATH";
           qtPluginPath =
@@ -626,7 +626,7 @@
             let
               runnerBinaryPath =
                 if buildRoot == "" then binaryPath
-                else if pkgs.stdenv.isDarwin
+                else if pkgs.stdenv.hostPlatform.isDarwin
                 then "${buildRoot}/run-install/Spool.app/Contents/MacOS/Spool"
                 else "${buildRoot}/install/bin/jellyfin-native";
               runnerMpvLibraryPath =
@@ -634,12 +634,12 @@
                 else "${buildRoot}/mpv-prefix/lib";
               runnerBuildStamp =
                 if buildRoot != "" then "${buildRoot}/.jellyfin-nix-source-id"
-                else if pkgs.stdenv.isDarwin then "build/macos/.jellyfin-nix-source-id"
+                else if pkgs.stdenv.hostPlatform.isDarwin then "build/macos/.jellyfin-nix-source-id"
                 else "build/linux-release/.jellyfin-nix-source-id";
               buildRootExport = pkgs.lib.optionalString (buildRoot != "")
                 ''export BUILD_ROOT="$REPO_ROOT/${buildRoot}"; '';
               runnerBuildCommand =
-                if pkgs.stdenv.isDarwin && buildRoot != ""
+                if pkgs.stdenv.hostPlatform.isDarwin && buildRoot != ""
                 then ''APP_INSTALL="$REPO_ROOT/${buildRoot}/run-install" DEPLOY_APP=0 exec bash ${buildScript}''
                 else buildCommand;
             in pkgs.writeShellScriptBin name ''
@@ -730,14 +730,14 @@
           imageDebugRunner = makeRunner {
             name = "jellyfin-native-image-debug";
             cmakeExtraArgs = "-DJELLYFIN_ARTWORK_ASPECT_DIAGNOSTICS=ON";
-            buildRoot = if pkgs.stdenv.isDarwin
+            buildRoot = if pkgs.stdenv.hostPlatform.isDarwin
               then "build/macos-image-debug"
               else "build/linux-release-image-debug";
           };
           imageDebugBuilder = makeRunner {
             name = "jellyfin-native-image-debug-build";
             cmakeExtraArgs = "-DJELLYFIN_ARTWORK_ASPECT_DIAGNOSTICS=ON";
-            buildRoot = if pkgs.stdenv.isDarwin
+            buildRoot = if pkgs.stdenv.hostPlatform.isDarwin
               then "build/macos-image-debug"
               else "build/linux-release-image-debug";
             buildBeforeRun = true;
@@ -791,7 +791,7 @@
             type = "app";
             program = "${imageDebugBuilder}/bin/jellyfin-native-image-debug-build";
           };
-        } // pkgs.lib.optionalAttrs pkgs.stdenv.isLinux {
+        } // pkgs.lib.optionalAttrs pkgs.stdenv.hostPlatform.isLinux {
           gammaray = {
             type = "app";
             program = "${gammarayRunner}/bin/jellyfin-native-gammaray";
