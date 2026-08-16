@@ -1109,7 +1109,6 @@ FocusScope {
                     id: gridWheelHandler
                     onScrolled: root.beginPointerNavigation(gridWheelHandler)
                     flickable: grid
-                    animationDuration: Theme.reducedMotion ? 0 : 16
                 }
                 onMovementStarted: root.beginPointerNavigation(null)
                 ListScrollBar {
