@@ -24,6 +24,25 @@ sort_nul_deepest_first() {
   python3 -c 'import sys; values=[v for v in sys.stdin.buffer.read().split(b"\0") if v]; values.sort(key=lambda v: (-v.count(b"/"), v)); sys.stdout.buffer.write(b"\0".join(values) + (b"\0" if values else b""))'
 }
 
+codesign_with_timestamp() {
+  local attempt output status
+  for attempt in 1 2 3 4 5; do
+    if output="$(codesign "$@" 2>&1)"; then
+      [[ -z "$output" ]] || printf '%s\n' "$output" >&2
+      return 0
+    else
+      status=$?
+    fi
+    [[ -z "$output" ]] || printf '%s\n' "$output" >&2
+    if [[ "$output" != *"The timestamp service is not available."* || "$attempt" == "5" ]]; then
+      return "$status"
+    fi
+    printf 'Apple timestamp service unavailable; retrying codesign in %d seconds (attempt %d/5)\n' \
+      "$((attempt * 5))" "$attempt" >&2
+    sleep "$((attempt * 5))"
+  done
+}
+
 printf '%s' "$MACOS_CERTIFICATE_P12" | base64 --decode >"$work/certificate.p12"
 chmod 600 "$work/certificate.p12"
 security create-keychain -p "$keychain_password" "$keychain"
@@ -37,7 +56,7 @@ if [[ -f "$target" ]]; then
     printf 'unsupported signing target: %s\n' "$target" >&2
     exit 1
   }
-  codesign --force --timestamp --sign "$MACOS_SIGNING_IDENTITY" --keychain "$keychain" "$target"
+  codesign_with_timestamp --force --timestamp --sign "$MACOS_SIGNING_IDENTITY" --keychain "$keychain" "$target"
   codesign --verify --strict --verbose=2 "$target"
   exit 0
 fi
@@ -46,12 +65,12 @@ app="$target"
 
 while IFS= read -r -d '' file; do
   if [[ "$file" == *.dylib || "$file" == *.so ]] || file "$file" | grep -Eq 'Mach-O'; then
-    codesign --force --options runtime --timestamp --sign "$MACOS_SIGNING_IDENTITY" --keychain "$keychain" "$file"
+    codesign_with_timestamp --force --options runtime --timestamp --sign "$MACOS_SIGNING_IDENTITY" --keychain "$keychain" "$file"
   fi
 done < <(find "$app" -type f \( -perm -111 -o -name '*.dylib' -o -name '*.so' \) -print0 | sort_nul)
 while IFS= read -r -d '' bundle; do
   [[ "$bundle" == "$app" ]] && continue
-  codesign --force --options runtime --timestamp --sign "$MACOS_SIGNING_IDENTITY" --keychain "$keychain" "$bundle"
+  codesign_with_timestamp --force --options runtime --timestamp --sign "$MACOS_SIGNING_IDENTITY" --keychain "$keychain" "$bundle"
 done < <(find "$app" -depth -type d \( -name '*.framework' -o -name '*.app' -o -name '*.xpc' \) -print0 \
   | sort_nul_deepest_first)
 gnu_iconv="$app/Contents/Frameworks/libiconv-gnu.2.dylib"
@@ -60,5 +79,5 @@ gnu_iconv="$app/Contents/Frameworks/libiconv-gnu.2.dylib"
   exit 1
 }
 codesign --verify --strict --verbose=2 "$gnu_iconv"
-codesign --force --deep --options runtime --timestamp --sign "$MACOS_SIGNING_IDENTITY" --keychain "$keychain" "$app"
+codesign_with_timestamp --force --deep --options runtime --timestamp --sign "$MACOS_SIGNING_IDENTITY" --keychain "$keychain" "$app"
 codesign --verify --strict --deep --verbose=2 "$app"

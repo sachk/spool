@@ -540,6 +540,7 @@ configure_target_qtbase() {
     -DBUILD_WITH_PCH="$QT_TARGET_BUILD_WITH_PCH" \
     -DQT_BUILD_EXAMPLES=OFF \
     -DQT_BUILD_TESTS=OFF \
+    -DFEATURE_testlib=OFF \
     -DINPUT_opengl=es2 \
     -DFEATURE_egl=ON \
     -DFEATURE_gui=ON \
@@ -599,6 +600,7 @@ target_qtbase_up_to_date() {
   [[ "${QT_BUILD_FORCE:-0}" != "1" ]] || return 1
   qt_prefix_matches_version "$TARGET_STAGING" || return 1
   [[ -f "$TARGET_STAGING/.jellyfin-openssl-shared" ]] || return 1
+  [[ -f "$TARGET_STAGING/.spool-no-testlib-v1" ]] || return 1
   if [[ "$QT_STATIC" == "1" ]]; then
     [[ -f "$TARGET_STAGING/.jellyfin-static-size-profile-v1" ]] || return 1
     [[ -f "$TARGET_STAGING/.jellyfin-static-pic-profile-v1" ]] || return 1
@@ -626,6 +628,7 @@ build_target_qtbase() {
   cmake_install "$TARGET_BUILD_ROOT/qtbase"
   printf 'shared\n' >"$TARGET_STAGING/.jellyfin-openssl-shared"
   prune_completed_build_dir "$TARGET_BUILD_ROOT/qtbase"
+  printf '1\n' >"$TARGET_STAGING/.spool-no-testlib-v1"
 }
 
 configure_target_module() {
