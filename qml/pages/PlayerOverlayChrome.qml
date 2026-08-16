@@ -98,6 +98,8 @@ Item {
     HoverHandler {
         onHoveredChanged: if (hovered && root.overlay.controlsVisible)
         root.overlay.showControls(root.overlay.focusZone)
+        onPointChanged: if (hovered)
+        root.overlay.showControlsFromPointer()
     }
     WheelHandler {
         target: null
