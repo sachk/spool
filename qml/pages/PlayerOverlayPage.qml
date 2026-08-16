@@ -732,6 +732,12 @@ FocusScope {
     }
 
     function back() {
+        if (desktopControlsAvailable && NativeWindow.fullScreen) {
+            toggleFullScreen()
+            return true
+        }
+        if (desktopControlsAvailable)
+            return stopPlayback("overlay-back")
         input.reset()
         if (scrubbing) {
             scrubbing = false
