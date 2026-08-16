@@ -110,4 +110,16 @@ TestCase {
         verify(input.released(Qt.Key_F, false))
         compare(fullscreenToggles, 1)
     }
+
+    function test_modifierDoesNotRevealControls() {
+        overlayStub.controlsVisible = false
+        verify(!input.released(Qt.Key_Meta, false))
+        compare(controlsShown, 0)
+    }
+
+    function test_verticalNavigationRevealsControls() {
+        overlayStub.controlsVisible = false
+        verify(input.released(Qt.Key_Up, false))
+        compare(controlsShown, 1)
+    }
 }

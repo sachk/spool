@@ -177,14 +177,20 @@ Item {
             overlay.player.skipActiveSegment()
             return true
         }
+        if (key === Qt.Key_F && overlay.hasPlayer) {
+            overlay.toggleFullScreen()
+            return true
+        }
+        if (!overlay.controlsVisible && (key === Qt.Key_Up || key === Qt.Key_Down)) {
+            overlay.showControls("timeline")
+            return true
+        }
+        if (key === Qt.Key_Meta || key === Qt.Key_Control || key === Qt.Key_Alt || key === Qt.Key_Shift)
+            return false
         if (InputKeys.isColor(key) && dispatchRemapAction(overlay.colorAction(key)))
             return true
         if ((key === Qt.Key_I || key === Qt.Key_Info) && overlay.hasPlayer) {
             overlay.toggleDebugStats()
-            return true
-        }
-        if (key === Qt.Key_F && overlay.hasPlayer) {
-            overlay.toggleFullScreen()
             return true
         }
         if (key === Qt.Key_Q && overlay.hasPlayer) {
@@ -202,10 +208,6 @@ Item {
         if (InputKeys.isMedia(key) && overlay.hasPlayer) {
             overlay.togglePlayback()
             overlay.showControls("actions")
-            return true
-        }
-        if (!overlay.controlsVisible) {
-            overlay.showControls("timeline")
             return true
         }
         if (key === Qt.Key_S) {
