@@ -22,6 +22,8 @@ KeyRouter {
     property bool mediaInfoVisible: false
     property bool itemMenuLoaded: false
     property int uiScaleShortcutKey: 0
+    property int searchShortcutKey: 0
+    property int settingsShortcutKey: 0
     readonly property bool itemMenuOpen: itemContextMenuLoader.item ? itemContextMenuLoader.item.opened : false
     readonly property bool tlsTrustPending: TlsTrust.pending
     property var mediaInfoItem: ({})
@@ -629,10 +631,35 @@ KeyRouter {
             uiScaleShortcutKey = 0
             return true
         }
+        if (phase === "release" && key === searchShortcutKey) {
+            searchShortcutKey = 0
+            return true
+        }
+        if (phase === "release" && key === settingsShortcutKey) {
+            settingsShortcutKey = 0
+            return true
+        }
         if (repeat)
-            return key === uiScaleShortcutKey
+            return key === uiScaleShortcutKey || key === searchShortcutKey || key === settingsShortcutKey
 
         const control = Boolean(modifiers & Qt.ControlModifier)
+        const primaryModifier = Boolean(modifiers & (Qt.ControlModifier | Qt.MetaModifier))
+        const shortcutRoute = key === Qt.Key_F ? "search" : key === Qt.Key_Comma ? "settings" : ""
+        if (phase === "press" && primaryModifier && shortcutRoute.length > 0) {
+            if (shortcutRoute === "search")
+                searchShortcutKey = key
+            else
+                settingsShortcutKey = key
+            if (playerSessionActive)
+                return true
+            if (route === shortcutRoute) {
+                navigationTarget = routeStack
+                InputKeys.focus(routeStack)
+            } else {
+                pushRoute(shortcutRoute)
+            }
+            return true
+        }
         if (phase === "press" && control) {
             let scaleDelta = 0
             if (key === Qt.Key_Plus || key === Qt.Key_Equal)
