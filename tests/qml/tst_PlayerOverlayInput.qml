@@ -9,6 +9,7 @@ TestCase {
     property var seekDeltas: []
     property int subtitleCycles: 0
     property int controlsShown: 0
+    property int fullscreenToggles: 0
 
     QtObject {
         id: playerStub
@@ -37,6 +38,9 @@ TestCase {
             focusZone = zone
             ++testCase.controlsShown
         }
+        function toggleFullScreen() {
+            ++testCase.fullscreenToggles
+        }
         function maybeRestartAutohide() {
         }
     }
@@ -50,6 +54,7 @@ TestCase {
         seekDeltas = []
         subtitleCycles = 0
         controlsShown = 0
+        fullscreenToggles = 0
         input.reset()
         overlayStub.controlsVisible = true
         overlayStub.focusZone = "timeline"
@@ -99,5 +104,10 @@ TestCase {
         compare(controlsShown, 2)
         verify(input.released(Qt.Key_Down, false))
         compare(input.downRepeats, 0)
+    }
+
+    function test_fTogglesFullscreen() {
+        verify(input.released(Qt.Key_F, false))
+        compare(fullscreenToggles, 1)
     }
 }

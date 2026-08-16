@@ -183,6 +183,10 @@ Item {
             overlay.toggleDebugStats()
             return true
         }
+        if (key === Qt.Key_F && overlay.hasPlayer) {
+            overlay.toggleFullScreen()
+            return true
+        }
         if (key === Qt.Key_Q && overlay.hasPlayer) {
             overlay.player.stopWithReason("player-q")
             return true
