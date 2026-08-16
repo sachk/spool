@@ -129,4 +129,21 @@ else
 fi
 export LC_NUMERIC=C
 
-"$candidate" --launch-test
+if [[ "$bundled_app" == "1" ]]; then
+  env -i \
+    HOME="$HOME" \
+    PATH=/usr/bin:/bin \
+    TMPDIR="$XDG_RUNTIME_DIR" \
+    XDG_CACHE_HOME="$XDG_CACHE_HOME" \
+    XDG_CONFIG_HOME="$XDG_CONFIG_HOME" \
+    XDG_DATA_HOME="$XDG_DATA_HOME" \
+    XDG_RUNTIME_DIR="$XDG_RUNTIME_DIR" \
+    JELLYFIN_DIAGNOSTICS_DIR="$JELLYFIN_DIAGNOSTICS_DIR" \
+    QT_QPA_PLATFORM="$QT_QPA_PLATFORM" \
+    QT_QUICK_BACKEND="$QT_QUICK_BACKEND" \
+    QSG_RHI_BACKEND="$QSG_RHI_BACKEND" \
+    LC_NUMERIC="$LC_NUMERIC" \
+    "$candidate" --launch-test
+else
+  "$candidate" --launch-test
+fi
