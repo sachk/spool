@@ -463,9 +463,10 @@ void AppController::openLibrary(int index)
     const LibraryItem library = m_libraries.libraryAt(index);
     if (library.id.isEmpty())
         return;
-    m_browse->enterLibrary(library, libraryContentLabel(library), defaultLibraryQuery(library));
+    const QVariantMap defaultQuery = defaultLibraryQuery(library);
+    m_browse->enterLibrary(library, libraryContentLabel(library), defaultQuery);
     m_home->recordLibraryUse(library);
-    loadLibraryFilterOptions(beginBrowse(true), library);
+    loadLibraryFilterOptions(beginBrowse(m_browse->query() == defaultQuery), library);
 }
 
 bool AppController::openLibraryById(const QString& libraryId)
