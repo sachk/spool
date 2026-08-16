@@ -622,6 +622,10 @@ build_target_qtbase() {
     log "target qtbase: up to date, skipping"
     return 0
   fi
+  if [[ ! -f "$TARGET_STAGING/.spool-no-testlib-v1" ]]; then
+    log "target Qt profile changed; removing incompatible cached target prefix"
+    clean_target
+  fi
   TARGET_QTBASE_REBUILT=1
   configure_target_qtbase
   cmake_build "$TARGET_BUILD_ROOT/qtbase" --parallel "$JOBS"
