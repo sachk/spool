@@ -432,8 +432,9 @@
       '';
 
       nativeShellHook = pkgs: commonShellHook pkgs + ''
-        # This shell intentionally includes nixpkgs Qt for native Linux/macOS
-        # development. Do not use it for tools/webos-native/build-qt6-611.sh.
+        # This shell intentionally includes Spool's tailored nixpkgs Qt
+        # (spoolQt6) for native Linux/macOS development. Do not use it for
+        # tools/webos-native/build-qt6-611.sh.
         export SPOOL_QT_CMAKE_DIR="${pkgs.spoolQt6.qtbase}/lib/cmake/Qt6"
         native_qt_cmake_path="${pkgs.spoolQt6.qtbase}:${pkgs.spoolQt6.qtdeclarative}:${pkgs.spoolQt6.qtsvg}:${pkgs.spoolQt6.qttools}:${pkgs.spoolQt6.qtwebsockets}"
         export CMAKE_PREFIX_PATH="$native_qt_cmake_path''${CMAKE_PREFIX_PATH:+:$CMAKE_PREFIX_PATH}"
@@ -771,9 +772,9 @@
           default = {
             type = "app";
             program =
-              if self ? dirtyRev
-              then "${runner}/bin/jellyfin-native-run"
-              else cachedProgram;
+              if self ? rev && !(self ? dirtyRev)
+              then cachedProgram
+              else "${runner}/bin/jellyfin-native-run";
           };
 
           run = {
