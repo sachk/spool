@@ -27,7 +27,7 @@ Rectangle {
     width: overlay.dp(220)
     height: overlay.dp(60)
     radius: Theme.radiusPanel
-    color: Theme.accentDim
+    color: skipHover.hovered ? Qt.lighter(Theme.accentDim, 1.2) : Theme.accentDim
     border.width: 1
     border.color: Theme.accent
     visible: segmentType.length > 0 && overlay.controlsVisible
@@ -56,6 +56,10 @@ Rectangle {
             color: Theme.textSecondary
             font.pixelSize: root.overlay.dp(13)
         }
+    }
+
+    HoverHandler {
+        id: skipHover
     }
 
     TapHandler {
