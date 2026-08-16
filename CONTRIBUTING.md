@@ -15,6 +15,14 @@ nix run .#build
 nix develop .#native -c ctest --test-dir build/linux-release/app --output-on-failure
 ```
 
+Entering any Nix development shell configures the repository's pre-commit and
+pre-push hooks automatically. To enable them without entering a development
+shell, run:
+
+```sh
+./tools/install-git-hooks.sh
+```
+
 Keep changes small and cohesive. Add tests for new observable contracts. Run the relevant targeted tests, strict QML lint, and QML import scan. Do not include generated build output.
 
 ## Pull requests

@@ -386,7 +386,15 @@
         nativeQtPackages pkgs
         ++ pkgs.lib.optionals pkgs.stdenv.isLinux (nativeLinuxPackages pkgs);
 
-      commonShellHook = pkgs: ''
+      gitHooksShellHook = ''
+        repo_root="$(git rev-parse --show-toplevel 2>/dev/null || true)"
+        if [ -n "$repo_root" ] && [ -x "$repo_root/tools/install-git-hooks.sh" ]; then
+          "$repo_root/tools/install-git-hooks.sh"
+        fi
+        unset repo_root
+      '';
+
+      commonShellHook = pkgs: gitHooksShellHook + ''
         export SSL_CERT_FILE=${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt
         export CURL_CA_BUNDLE="$SSL_CERT_FILE"
         export NIX_ENFORCE_PURITY=0
@@ -532,6 +540,7 @@
             qt6.qtdeclarative
             (qmlToolWrappers lintPkgs)
           ];
+          shellHook = gitHooksShellHook;
         };
 
         qt-source = pkgs.mkShell {
