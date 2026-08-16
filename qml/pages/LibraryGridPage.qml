@@ -937,7 +937,7 @@ FocusScope {
 
             ToolbarButton {
                 id: clearFiltersButton
-                iconName: "filter_list_off"
+                iconName: "close"
                 label: "Clear"
                 visible: !root.isFixedBrowseView && root.activeFilterCount > 0 && root.width >= Metrics.scaled(900)
                 onActivated: {
