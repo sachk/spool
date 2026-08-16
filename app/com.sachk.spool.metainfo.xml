@@ -21,6 +21,7 @@
     <name>sachk</name>
   </developer>
   <releases>
+    <release version="0.6.8" date="2026-08-16" type="development"/>
     <release version="0.6.7" date="2026-08-16" type="development"/>
     <release version="0.6.6" date="2026-08-15" type="development"/>
     <release version="0.6.5" date="2026-08-15" type="development"/>
