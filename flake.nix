@@ -582,7 +582,7 @@
           '';
           cachedProgram =
             if pkgs.stdenv.hostPlatform.isDarwin
-            then cachedMacosRunner
+            then "${cachedMacosRunner}"
             else "${cachedPackage}/bin/jellyfin-native";
           stagedSourceId = builtins.substring 0 12
             (builtins.hashString "sha256" "${self}-${mpv-src}");
