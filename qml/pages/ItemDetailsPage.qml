@@ -380,14 +380,13 @@ FocusScope {
                         spacing: 16
 
                         SecondaryText {
-                            Layout.preferredWidth: Math.min(128, Math.max(88, block.width * 0.12))
+                            Layout.preferredWidth: Math.min(104, Math.max(72, block.width * 0.1))
                             text: String(rowDelegate.modelData.label || "")
                             color: panel.browsing && panel.currentRow === rowDelegate.index ? Theme.textPrimary :
                                                                                               Theme.textMuted
 
                             font.pixelSize: Metrics.metaSizePx
                             font.weight: Font.DemiBold
-                            font.letterSpacing: 1.7
                             maximumLineCount: 1
                             elide: Text.ElideRight
                         }

@@ -21,8 +21,9 @@ FocusScope {
     property bool libraryOpen: false
     property int sortIndex: 0
     property int filterIndex: 0
+    property string expandedFilterSection: ""
     property int libraryIndex: 0
-    property var sortEntries: []
+    property var sortEntries: buildSortEntries()
     property var filterEntries: []
     property var libraryEntries: []
     property string typeAheadBuffer: ""
@@ -46,8 +47,7 @@ FocusScope {
     // content itself; an empty page falls back to the library it came from.
     readonly property bool squareArtwork: {
         if (Browse.items && Browse.items.count > 0)
-            return ["MusicAlbum", "MusicArtist", "Audio"].indexOf(
-                        String(Browse.items.get(0).itemType || "")) >= 0
+        return ["MusicAlbum", "MusicArtist", "Audio"].indexOf(String(Browse.items.get(0).itemType || "")) >= 0
         return collectionType === "music"
     }
     readonly property real artworkAspect: squareArtwork ? 1 : 1.5
@@ -85,8 +85,8 @@ FocusScope {
         property bool badge: false
         signal activated
 
-        width: Math.max(118, labelText.implicitWidth + 58)
-        height: 42
+        implicitWidth: Math.max(118, labelText.implicitWidth + 58)
+        implicitHeight: 42
         focus: true
 
         HoverHandler {
@@ -105,6 +105,7 @@ FocusScope {
 
         Row {
             anchors.centerIn: parent
+            height: parent.height
             spacing: 8
             MaterialIcon {
                 anchors.verticalCenter: parent.verticalCenter
@@ -114,7 +115,8 @@ FocusScope {
             }
             AppText {
                 id: labelText
-                anchors.verticalCenter: parent.verticalCenter
+                height: parent.height
+                verticalAlignment: Text.AlignVCenter
                 text: buttonRoot.label
                 font.pixelSize: Metrics.metaSizePx + 1
                 font.weight: Font.Medium
@@ -248,7 +250,7 @@ FocusScope {
     }
 
     function buildSortEntries() {
-        const common = [
+        const entries = [
                   {
                       label: "Name",
                       value: "SortName"
@@ -279,32 +281,34 @@ FocusScope {
                   }
               ]
         if (isSeriesLibrary())
-            common.splice(4, 0, {
-                              label: "Date episode added",
-                              value: "DateLastContentAdded"
-                          })
+            entries.splice(4, 0, {
+                               label: "Date episode added",
+                               value: "DateLastContentAdded"
+                           })
         else
-            common.splice(3, 0, {
-                              label: "Critic rating",
-                              value: "CriticRating"
-                          })
-        common.push({
-                        label: "Play count",
-                        value: "PlayCount"
-                    })
-        common.push({
-                        label: "Runtime",
-                        value: "Runtime"
-                    })
-        common.push({
-                        label: "Ascending",
-                        value: "order:Ascending"
-                    })
-        common.push({
-                        label: "Descending",
-                        value: "order:Descending"
-                    })
-        return common
+            entries.splice(3, 0, {
+                               label: "Critic rating",
+                               value: "CriticRating"
+                           })
+        entries.push({
+                         label: "Play count",
+                         value: "PlayCount"
+                     })
+        entries.push({
+                         label: "Runtime",
+                         value: "Runtime"
+                     })
+        return [
+                    {
+                        label: currentSortOrder(),
+                        iconName: currentSortOrder() === "Ascending" ? "arrow_upward" : "arrow_downward",
+                        value: currentSortOrder() === "Ascending" ? "order:Descending" : "order:Ascending"
+                    },
+                    {
+                        section: true,
+                        label: "Sort by"
+                    }
+                ].concat(entries)
     }
 
     function addSection(entries, title) {
@@ -418,7 +422,30 @@ FocusScope {
             for (let i = 0; i < studios.length; ++i)
                 addListFilter(entries, "Studios", studios[i].name || "", "studioIds", studios[i].id || "")
         }
-        return entries
+        const grouped = []
+        for (let index = 0; index < entries.length; ) {
+            const sectionName = entries[index].label
+            const options = []
+            let selected = 0;
+            ++index
+            while (index < entries.length && !entries[index].section) {
+                options.push(entries[index])
+                if (entries[index].checked)
+                    ++selected
+                ++index
+            }
+            grouped.push({
+                             label: sectionName,
+                             detail: selected > 0 ? selected + " selected" : "",
+                             sectionName: sectionName,
+                             kind: "category",
+                             iconName: expandedFilterSection === sectionName ? "expand_less" : "expand_more"
+                         })
+            if (expandedFilterSection === sectionName)
+                for (let optionIndex = 0; optionIndex < options.length; ++optionIndex)
+                    grouped.push(options[optionIndex])
+        }
+        return grouped
     }
 
     function firstActionableFilterIndex(entries) {
@@ -566,7 +593,17 @@ FocusScope {
     }
 
     function activateFilterEntry(entry) {
-        if (!entry || entry.section)
+        if (!entry)
+            return
+        if (entry.kind === "category") {
+            expandedFilterSection = expandedFilterSection === entry.sectionName ? "" : entry.sectionName
+            filterEntries = buildFilterEntries()
+            filterIndex = filterEntries.findIndex(function (candidate) {
+                return candidate.kind === "category" && candidate.sectionName === entry.sectionName
+            })
+            return
+        }
+        if (entry.section)
             return
         savedIndex = 0
         gridReveal.reset()
@@ -900,7 +937,7 @@ FocusScope {
 
             ToolbarButton {
                 id: clearFiltersButton
-                iconName: "filter_list_off"
+                iconName: "close"
                 label: "Clear"
                 visible: !root.isFixedBrowseView && root.activeFilterCount > 0 && root.width >= Metrics.scaled(900)
                 onActivated: {
@@ -931,12 +968,11 @@ FocusScope {
                     id: panePoster
                     anchors.top: parent.top
                     anchors.horizontalCenter: parent.horizontalCenter
-                    height: Math.round(Math.min(parent.width * root.artworkAspect,
-                                                parent.height * (root.largeZoom ? 0.64 : 0.56)))
+                    height: Math.round(Math.min(parent.width * root.artworkAspect, parent.height * (root.largeZoom
+                                                                                                    ? 0.64 : 0.56)))
                     width: Math.round(height / root.artworkAspect)
-                    imageUrl: root.paneItem
-                              && root.paneItem.movieId ? Art.url(root.paneItem,
-                                                                 root.squareArtwork ? "square" : "poster") : ""
+                    imageUrl: root.paneItem && root.paneItem.movieId ? Art.url(root.paneItem, root.squareArtwork
+                                                                               ? "square" : "poster") : ""
                     fallbackText: String(root.paneItem && root.paneItem.title || "")
                 }
 
@@ -1040,8 +1076,8 @@ FocusScope {
                 // gaps a second time: divide the whole run evenly and let the
                 // posters grow into the space the double count used to waste.
                 cellWidth: Math.floor((width - leftMargin - rightMargin) / columns)
-                cellHeight: root.listMode ? Metrics.scaled(root.largeZoom ? 60 : 54) : cellWidth * root.artworkAspect
-                                            + Metrics.scaled(64)
+                cellHeight: root.listMode ? Metrics.scaled(root.largeZoom ? 60 : 54) : cellWidth * root.artworkAspect + Metrics.scaled(
+                                                64)
 
                 cacheBuffer: gridReveal.delegatesReady ? cellHeight * artworkMarginRows : 0
                 Component.onCompleted: {
@@ -1189,7 +1225,7 @@ FocusScope {
                     y: Math.max(0, Math.min(grid.height - height, desiredY))
                     width: Metrics.scaled(52) + neckWidth
                     height: Metrics.scaled(48)
-                    opacity: alphabetFeedback.running || libraryScrollBar.pressed ? 1 : 0
+                    opacity: root.listMode && (alphabetFeedback.running || libraryScrollBar.pressed) ? 1 : 0
                     visible: opacity > 0
                     preferredRendererType: Shape.CurveRenderer
                     z: 21
@@ -1254,9 +1290,16 @@ FocusScope {
                         anchors.verticalCenter: parent.verticalCenter
                         anchors.horizontalCenter: parent.horizontalCenter
                         anchors.horizontalCenterOffset: -alphabetCallout.neckWidth / 2
+                        width: alphabetCallout.bodyRight - Metrics.scaled(8)
+                        height: alphabetCallout.height - Metrics.scaled(8)
                         text: root.currentAlphabetLabel
                         font.pixelSize: Metrics.scaled(26)
+                        fontSizeMode: Text.Fit
+                        minimumPixelSize: Metrics.scaled(8)
+                        elide: Text.ElideRight
                         font.weight: Font.Bold
+                        horizontalAlignment: Text.AlignHCenter
+                        verticalAlignment: Text.AlignVCenter
                         color: Theme.textPrimary
                     }
 
@@ -1338,18 +1381,17 @@ FocusScope {
                 }
                 highlightFollowsCurrentItem: true
                 highlight: Item {
-                    width: grid.currentItem ? grid.currentItem.width : grid.cellWidth - Metrics.gapPx
-                    height: grid.currentItem ? grid.currentItem.focusOutlineHeight : grid.cellHeight - Metrics.scaled(6)
+                    z: 2
 
                     Rectangle {
-                        anchors.fill: parent
-                        anchors.leftMargin: -grid.focusPadding
-                        anchors.rightMargin: -grid.focusPadding
+                        anchors.top: parent.top
+                        anchors.left: parent.left
+                        anchors.right: parent.right
+                        height: grid.currentItem ? grid.currentItem.focusOutlineHeight : parent.height
                         color: "transparent"
-                        radius: Theme.radiusMedium
+                        radius: Math.max(0, Theme.radiusMedium - Theme.focusBorderWidth)
                         border.width: Theme.focusBorderWidth
                         border.color: root.navigationFocusVisible && grid.activeFocus ? Theme.accent : "transparent"
-                        z: 2
                     }
                 }
 

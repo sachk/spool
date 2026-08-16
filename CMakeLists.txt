@@ -831,6 +831,9 @@ endif()
 set_target_properties(jellyfin-native PROPERTIES
     OUTPUT_NAME "jellyfin-native"
 )
+if(APPLE)
+    set_property(TARGET jellyfin-native PROPERTY OUTPUT_NAME "Spool")
+endif()
 if(UNIX AND NOT APPLE)
     set_property(TARGET jellyfin-native PROPERTY INSTALL_RPATH "$ORIGIN/../lib")
 endif()
@@ -845,7 +848,7 @@ install(TARGETS jellyfin-native
 
 set(JELLYFIN_FONT_INSTALL_DIRECTORY "fonts")
 if(APPLE)
-    set(JELLYFIN_FONT_INSTALL_DIRECTORY "jellyfin-native.app/Contents/fonts")
+    set(JELLYFIN_FONT_INSTALL_DIRECTORY "Spool.app/Contents/fonts")
 endif()
 install(FILES
     qml/fonts/AtkinsonHyperlegible-Bold.otf

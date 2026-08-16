@@ -364,7 +364,7 @@ jobs:
       - name: Launch-test macOS app UI
         env:
           JELLYFIN_LAUNCH_TEST_QPA_PLATFORM: cocoa
-        run: nix develop .#native --no-write-lock-file -c bash tools/launch-native-app.sh build/macos/install/jellyfin-native.app
+        run: nix develop .#native --no-write-lock-file -c bash tools/launch-native-app.sh build/macos/install/Spool.app
 
       - name: Sign macOS application
         if: ${{ inputs.enable_macos_signing }}
@@ -372,7 +372,7 @@ jobs:
           MACOS_CERTIFICATE_P12: ${{ secrets.MACOS_CERTIFICATE_P12 }}
           MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
           MACOS_SIGNING_IDENTITY: ${{ secrets.MACOS_SIGNING_IDENTITY }}
-        run: tools/sign-macos.sh build/macos/install/jellyfin-native.app
+        run: tools/sign-macos.sh build/macos/install/Spool.app
 
       - name: Package DMG
         run: nix develop .#native --no-write-lock-file -c bash tools/package-macos-dmg.sh

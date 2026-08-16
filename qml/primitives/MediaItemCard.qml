@@ -101,6 +101,8 @@ Item {
         anchors.left: parent.left
         anchors.right: parent.right
         height: root.artHeight
+        bordered: false
+        rounded: true
         imageUrl: root.imageSource()
         artworkEnabled: root.artworkEnabled
         fallbackText: root.fallbackText()
@@ -123,6 +125,8 @@ Item {
         anchors.top: art.bottom
         anchors.topMargin: Metrics.scaled(8)
         anchors.left: parent.left
+        anchors.leftMargin: Metrics.scaled(4)
+        anchors.rightMargin: Metrics.scaled(4)
         anchors.right: parent.right
         visible: text.length > 0 && root.titleAvailableHeight > 0
         text: root.titleText()
@@ -139,6 +143,8 @@ Item {
         anchors.topMargin: Metrics.scaled(2)
         anchors.left: parent.left
         anchors.right: parent.right
+        anchors.leftMargin: Metrics.scaled(4)
+        anchors.rightMargin: Metrics.scaled(4)
         visible: text.length > 0 && root.height > y
         text: root.subtitleText()
         color: Theme.textMuted

@@ -20,7 +20,7 @@ bundled_app=0
 candidate="${1:-$APP_ROOT/build/linux-release/install/bin/jellyfin-native}"
 if [[ -d "$candidate" && "$candidate" == *.app ]]; then
   bundled_app=1
-  candidate="$candidate/Contents/MacOS/jellyfin-native"
+  candidate="$candidate/Contents/MacOS/Spool"
 fi
 
 if [[ ! -x "$candidate" ]]; then

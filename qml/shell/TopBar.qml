@@ -73,11 +73,23 @@ FocusScope {
             menu.openMenu()
     }
 
-    function closeSyncPlayMenu() {
+    function closeSyncPlayMenu(restoreFocus) {
         const menu = syncMenuLoader.item
         if (menu)
             menu.closeMenu()
-        InputKeys.focus(syncButton)
+        if (restoreFocus !== false)
+            InputKeys.focus(syncButton)
+    }
+
+    function containsSyncPlayPoint(item, x, y) {
+        const buttonPoint = syncButton.mapFromItem(item, x, y)
+        if (syncButton.contains(buttonPoint))
+            return true
+        const menu = syncMenuLoader.item
+        if (!menu || !menu.menuOpen)
+            return false
+        const menuPoint = menu.mapFromItem(item, x, y)
+        return menu.contains(menuPoint)
     }
 
     function activate() {
@@ -103,6 +115,9 @@ FocusScope {
         return true
     }
 
+    onActiveFocusChanged: if (!activeFocus && syncPlayMenuOpen)
+    closeSyncPlayMenu(false)
+
     function routeKey(key, phase, repeat) {
         const menu = syncMenuLoader.item
         if (menu && menu.menuOpen)
@@ -127,7 +142,7 @@ FocusScope {
         onTapped: eventPoint => {
             const local = syncButton.mapFromItem(root, eventPoint.position.x, eventPoint.position.y)
             if (!syncButton.contains(local))
-                root.closeSyncPlayMenu()
+                root.closeSyncPlayMenu(false)
         }
     }
 
@@ -194,29 +209,9 @@ FocusScope {
                                     ? "Switch user — " + Session.activeProfileLabel : modelData.label
                     railStyle: true
                     selected: root.selectedRoute === modelData.route
-                    onClicked: root.navigate(modelData.route)
-                }
-                Rectangle {
-                    y: Math.min(parent.height - height - Metrics.scaled(4), button.y + button.height + Metrics.scaled(
-                                    4))
-                    anchors.horizontalCenter: button.horizontalCenter
-                    width: Metrics.scaled(button.activeFocus ? 30 : (root.selectedRoute === modelData.route ? 22 : 0))
-                    height: Metrics.scaled(3)
-                    radius: height / 2
-                    color: Theme.accent
-                    opacity: button.activeFocus ? 1.0 : (root.selectedRoute === modelData.route ? 0.85 : 0.0)
-                    visible: opacity > 0
-                    Behavior on width {
-                        NumberAnimation {
-                            duration: 90
-                            easing.type: Easing.OutCubic
-                        }
-                    }
-                    Behavior on opacity {
-                        NumberAnimation {
-                            duration: 90
-                            easing.type: Easing.OutCubic
-                        }
+                    onClicked: {
+                        root.closeSyncPlayMenu(false)
+                        root.navigate(modelData.route)
                     }
                 }
 
@@ -261,7 +256,12 @@ FocusScope {
                 accessibleName: "SyncPlay"
                 railStyle: true
                 selected: root.syncPlayMenuOpen
-                onClicked: root.openSyncMenu()
+                onClicked: {
+                    if (root.syncPlayMenuOpen)
+                    root.closeSyncPlayMenu(false)
+                    else
+                    root.openSyncMenu()
+                }
 
                 // Status dot: accent when in a group, green when groups exist to join.
                 Rectangle {

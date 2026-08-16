@@ -80,13 +80,19 @@ Loader {
                     width: list.width
                     section: Boolean(modelData && modelData.section)
                     label: modelData && modelData.label ? modelData.label : ""
+                    detail: modelData && modelData.detail ? modelData.detail : ""
                     checked: rowChecked
-                    iconName: rowChecked ? (root.selectionStyle === "radio" ? "radio_button_checked" : "check_box") : (
-                                               root.selectionStyle === "radio" ? "radio_button_unchecked" :
-                                                                                 "check_box_outline_blank")
+                    iconName: modelData && modelData.iconName ? modelData.iconName : rowChecked ? (root.selectionStyle
+                                                                                                   === "radio"
+                                                                                                   ? "radio_button_checked" :
+                                                                                                     "check_box") : (
+                                                                                                      root.selectionStyle
+                                                                                                      === "radio"
+                                                                                                      ? "radio_button_unchecked" :
+                                                                                                        "check_box_outline_blank")
                     highlighted: ListView.isCurrentItem && list.activeFocus
                     metricsWidth: Metrics.refWidth
-                    rowHeight: 48
+                    rowHeight: modelData && modelData.detail ? 54 : 48
                     checkIconName: ""
                     onHovered: list.currentIndex = index
                     onActivated: root.accepted(modelData, index)

@@ -1,4 +1,5 @@
 import QtQuick
+import QtQuick.Effects
 import "../theme"
 
 Item {
@@ -11,6 +12,8 @@ Item {
     property color fallbackTint: "transparent"
     property bool artworkVisible: true
     property bool artworkEnabled: true
+    property bool bordered: true
+    property bool rounded: false
     readonly property bool artworkReady: !artworkEnabled || imageUrl.length === 0 || artwork.status === Image.Ready || artwork.status
                                          === Image.Error
 
@@ -27,7 +30,7 @@ Item {
         anchors.fill: parent
         radius: Theme.radiusMedium
         color: root.showingFallback && root.fallbackTint.a > 0 ? root.fallbackTint : Theme.bgRaised
-        border.width: Theme.hoverBorderWidth
+        border.width: root.bordered ? Theme.hoverBorderWidth : 0
         border.color: root.showingFallback && root.fallbackTint.a > 0 ? "transparent" : Theme.border
         clip: true
 
@@ -55,6 +58,15 @@ Item {
             }
         }
 
+        Rectangle {
+            id: artworkMask
+            anchors.fill: artwork
+            radius: Theme.radiusMedium
+            color: "white"
+            visible: false
+            layer.enabled: true
+        }
+
         Image {
             id: artwork
             anchors.fill: parent
@@ -68,6 +80,12 @@ Item {
             cache: !Platform.isTV
             smooth: true
             mipmap: false
+            layer.enabled: root.rounded
+            layer.effect: MultiEffect {
+                autoPaddingEnabled: false
+                maskEnabled: true
+                maskSource: artworkMask
+            }
             opacity: root.artworkVisible ? 1 : 0
             Behavior on opacity {
                 NumberAnimation {
