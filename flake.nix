@@ -35,7 +35,7 @@
         if system == "x86_64-darwin" then nixpkgs-x86-darwin else nixpkgs;
 
       libplaceboOverlay = final: prev: {
-        libplacebo = prev.libplacebo.overrideAttrs (_: {
+        spoolLibplacebo = prev.libplacebo.overrideAttrs (_: {
           version = "master-a7a18af";
           src = libplacebo-src;
           patches = [];
@@ -87,7 +87,7 @@
             !(nixpkgs.lib.hasPrefix "--enable-" flag)
             || builtins.elem flag structuralEnableFlags;
         in {
-        ffmpeg-full = (prev.ffmpeg_8-full.override
+        spoolFfmpeg = (prev.ffmpeg_8-full.override
           (nixpkgs.lib.genAttrs ffmpegCapabilities.disabledNixFeatures (_: false))).overrideAttrs (old: {
             doCheck = false;
             configureFlags =
@@ -99,7 +99,7 @@
           });
       };
       tailoredQtOverlay = final: prev: {
-        qt6 = (prev.qt6.overrideScope (_qtFinal: qtPrev: {
+        spoolQt6 = (prev.qt6.overrideScope (_qtFinal: qtPrev: {
           qtbase = (qtPrev.qtbase.override {
             systemdSupport = false;
             withGtk3 = false;
@@ -144,9 +144,9 @@
 
       qcoroOverlay = final: prev: {
         spoolQcoro = (prev.qt6Packages.qcoro.override {
-          qtbase = final.qt6.qtbase;
-          qtwebsockets = final.qt6.qtwebsockets;
-          wrapQtAppsHook = final.qt6.wrapQtAppsHook;
+          qtbase = final.spoolQt6.qtbase;
+          qtwebsockets = final.spoolQt6.qtwebsockets;
+          wrapQtAppsHook = final.spoolQt6.wrapQtAppsHook;
         }).overrideAttrs (old: {
           version = "0.13.0";
           src = qcoro-src;
@@ -157,9 +157,8 @@
         });
       };
       cacheDependencyOverlay = final: prev: {
-        # The regular nixpkgs build is widely substituted and avoids the very
-        # large codec/tool closure of ffmpeg-full.
-        ffmpeg-full = prev.ffmpeg;
+        # Cached `nix run` packages use the widely substituted nixpkgs build.
+        spoolFfmpeg = prev.ffmpeg;
       };
 
       forAllSystems = f:
@@ -196,7 +195,7 @@
         cmake
         curl
         expat
-        ffmpeg-full
+        spoolFfmpeg
         file
         findutils
         flex
@@ -210,7 +209,7 @@
         libass
         libbluray
         libffi
-        libplacebo
+        spoolLibplacebo
         libtool
         libuchardet
         libxkbcommon
@@ -294,7 +293,7 @@
         ccache
         cmake
         curl
-        ffmpeg-full
+        spoolFfmpeg
         file
         findutils
         fontconfig
@@ -307,7 +306,7 @@
         libass
         libbluray
         libffi
-        libplacebo
+        spoolLibplacebo
         libuchardet
         libxkbcommon
         lua5_2
@@ -331,15 +330,15 @@
         ++ [ pkgs.elfutils pkgs.vulkan-loader ];
 
 
-      qmlToolWrappers = pkgs:
+      qmlToolWrappers = pkgs: qt:
         pkgs.runCommand "qt-qml-tool-wrappers" { nativeBuildInputs = [ pkgs.makeWrapper ]; } ''
           mkdir -p "$out/bin"
-          qml_import_path="${pkgs.qt6.qtdeclarative}/lib/qt-6/qml"
-          makeWrapper ${pkgs.qt6.qtdeclarative}/bin/qmllint "$out/bin/qmllint" \
+          qml_import_path="${qt.qtdeclarative}/lib/qt-6/qml"
+          makeWrapper ${qt.qtdeclarative}/bin/qmllint "$out/bin/qmllint" \
             --prefix QML2_IMPORT_PATH : "$qml_import_path"
-          makeWrapper ${pkgs.qt6.qtdeclarative}/bin/qmlformat "$out/bin/qmlformat" \
+          makeWrapper ${qt.qtdeclarative}/bin/qmlformat "$out/bin/qmlformat" \
             --prefix QML2_IMPORT_PATH : "$qml_import_path"
-          makeWrapper ${pkgs.qt6.qtdeclarative}/libexec/qmlcachegen "$out/bin/qmlcachegen" \
+          makeWrapper ${qt.qtdeclarative}/libexec/qmlcachegen "$out/bin/qmlcachegen" \
             --prefix QML2_IMPORT_PATH : "$qml_import_path"
         '';
 
@@ -356,29 +355,29 @@
         ++ pkgs.lib.optionals pkgs.stdenv.isLinux (nativeLinuxPackages pkgs)
         ++ pkgs.lib.optionals pkgs.stdenv.isDarwin (darwinPackages pkgs)
         ++ (with pkgs; [
-          qt6.qtbase
-          qt6.qtdeclarative
-          qt6.qtimageformats
-          qt6.qtsvg
+          spoolQt6.qtbase
+          spoolQt6.qtdeclarative
+          spoolQt6.qtimageformats
+          spoolQt6.qtsvg
           spoolQcoro
-          qt6.qttools
-          qt6.qtwebsockets
-          (qmlToolWrappers pkgs)
+          spoolQt6.qttools
+          spoolQt6.qtwebsockets
+          (qmlToolWrappers pkgs pkgs.spoolQt6)
         ])
         ++ pkgs.lib.optionals pkgs.stdenv.isLinux (with pkgs; [
-          qt6.qtwayland
+          spoolQt6.qtwayland
         ]);
 
       nativeQtPackages = pkgs:
         (with pkgs; [
-          qt6.qtbase
-          qt6.qtdeclarative
-          qt6.qtimageformats
-          qt6.qtsvg
-          qt6.qtwebsockets
+          spoolQt6.qtbase
+          spoolQt6.qtdeclarative
+          spoolQt6.qtimageformats
+          spoolQt6.qtsvg
+          spoolQt6.qtwebsockets
         ])
         ++ pkgs.lib.optionals pkgs.stdenv.isLinux (with pkgs; [
-          qt6.qtwayland
+          spoolQt6.qtwayland
         ]);
 
       nativeRuntimePackages = pkgs:
@@ -435,8 +434,8 @@
       nativeShellHook = pkgs: commonShellHook pkgs + ''
         # This shell intentionally includes nixpkgs Qt for native Linux/macOS
         # development. Do not use it for tools/webos-native/build-qt6-611.sh.
-        export SPOOL_QT_CMAKE_DIR="${pkgs.qt6.qtbase}/lib/cmake/Qt6"
-        native_qt_cmake_path="${pkgs.qt6.qtbase}:${pkgs.qt6.qtdeclarative}:${pkgs.qt6.qtsvg}:${pkgs.qt6.qttools}:${pkgs.qt6.qtwebsockets}"
+        export SPOOL_QT_CMAKE_DIR="${pkgs.spoolQt6.qtbase}/lib/cmake/Qt6"
+        native_qt_cmake_path="${pkgs.spoolQt6.qtbase}:${pkgs.spoolQt6.qtdeclarative}:${pkgs.spoolQt6.qtsvg}:${pkgs.spoolQt6.qttools}:${pkgs.spoolQt6.qtwebsockets}"
         export CMAKE_PREFIX_PATH="$native_qt_cmake_path''${CMAKE_PREFIX_PATH:+:$CMAKE_PREFIX_PATH}"
         unset native_qt_cmake_path
         export JELLYFIN_NATIVE_SHELL=1
@@ -447,17 +446,17 @@
         # only qtbase's gif/ico/jpeg readers while ArtworkService asks Jellyfin
         # for webp. tools/lib/qt-deploy.sh and tools/package-appimage.sh take
         # qwebp from this prefix; both then assert it landed.
-        export SPOOL_QT_EXTRA_PLUGIN_DIRS="${pkgs.qt6.qtimageformats}/lib/qt-6/plugins"
+        export SPOOL_QT_EXTRA_PLUGIN_DIRS="${pkgs.spoolQt6.qtimageformats}/lib/qt-6/plugins"
       '';
       cachedNativeQtPackage = pkgs:
         let
           packages = nativeQtPackages pkgs ++ [
-            pkgs.qt6.qttools
+            pkgs.spoolQt6.qttools
             pkgs.spoolQcoro
           ];
         in
         pkgs.symlinkJoin {
-          name = "spool-native-qt-${pkgs.qt6.qtbase.version}";
+          name = "spool-native-qt-${pkgs.spoolQt6.qtbase.version}";
           paths = pkgs.lib.unique (packages ++ map pkgs.lib.getDev packages);
         };
 
@@ -471,7 +470,7 @@
             filter = path: _: baseNameOf path != "mpv";
           };
 
-          nativeBuildInputs = nativePackages pkgs ++ [ pkgs.qt6.wrapQtAppsHook ];
+          nativeBuildInputs = nativePackages pkgs ++ [ pkgs.spoolQt6.wrapQtAppsHook ];
           dontWrapQtApps = pkgs.stdenv.isDarwin;
           dontConfigure = true;
           dontInstall = true;
@@ -494,8 +493,8 @@
             export HOME="$TMPDIR/home"
             export XDG_CACHE_HOME="$TMPDIR/cache"
             export JELLYFIN_NATIVE_SHELL=1
-            export SPOOL_QT_CMAKE_DIR="${pkgs.qt6.qtbase}/lib/cmake/Qt6"
-            export CMAKE_PREFIX_PATH="${pkgs.qt6.qtbase}:${pkgs.qt6.qtdeclarative}:${pkgs.qt6.qtsvg}:${pkgs.qt6.qttools}:${pkgs.qt6.qtwebsockets}''${CMAKE_PREFIX_PATH:+:$CMAKE_PREFIX_PATH}"
+            export SPOOL_QT_CMAKE_DIR="${pkgs.spoolQt6.qtbase}/lib/cmake/Qt6"
+            export CMAKE_PREFIX_PATH="${pkgs.spoolQt6.qtbase}:${pkgs.spoolQt6.qtdeclarative}:${pkgs.spoolQt6.qtsvg}:${pkgs.spoolQt6.qttools}:${pkgs.spoolQt6.qtwebsockets}''${CMAKE_PREFIX_PATH:+:$CMAKE_PREFIX_PATH}"
             mkdir -p "$HOME" "$XDG_CACHE_HOME"
 
             ${if pkgs.stdenv.isDarwin then ''
@@ -535,7 +534,7 @@
           lintPkgs = import (nixpkgsFor system) { inherit system; };
         in {
         default = pkgs.mkShell {
-          packages = sourceBuildPackages pkgs ++ [ (qmlToolWrappers pkgs) ];
+          packages = sourceBuildPackages pkgs;
           shellHook = sourceShellHook pkgs;
         };
 
@@ -543,7 +542,7 @@
           packages = with lintPkgs; [
             python3
             qt6.qtdeclarative
-            (qmlToolWrappers lintPkgs)
+            (qmlToolWrappers lintPkgs lintPkgs.qt6)
           ];
           shellHook = gitHooksShellHook;
         };
@@ -565,10 +564,10 @@
           cachedPkgs = cachePkgsFor system;
           cachedPackage = cachedNativePackage cachedPkgs;
           cachedQtPluginPath =
-            cachedPkgs.lib.makeSearchPath cachedPkgs.qt6.qtbase.qtPluginPrefix
+            cachedPkgs.lib.makeSearchPath cachedPkgs.spoolQt6.qtbase.qtPluginPrefix
               (nativeQtPackages cachedPkgs);
           cachedQmlImportPath =
-            cachedPkgs.lib.makeSearchPath cachedPkgs.qt6.qtbase.qtQmlPrefix
+            cachedPkgs.lib.makeSearchPath cachedPkgs.spoolQt6.qtbase.qtQmlPrefix
               (nativeQtPackages cachedPkgs);
           cachedRuntimeLibPath =
             cachedPkgs.lib.makeLibraryPath (nativeRuntimePackages cachedPkgs);
@@ -607,10 +606,10 @@
             then "DYLD_LIBRARY_PATH"
             else "LD_LIBRARY_PATH";
           qtPluginPath =
-            pkgs.lib.makeSearchPath pkgs.qt6.qtbase.qtPluginPrefix
+            pkgs.lib.makeSearchPath pkgs.spoolQt6.qtbase.qtPluginPrefix
               (nativeQtPackages pkgs);
           qmlImportPath =
-            pkgs.lib.makeSearchPath pkgs.qt6.qtbase.qtQmlPrefix
+            pkgs.lib.makeSearchPath pkgs.spoolQt6.qtbase.qtQmlPrefix
               (nativeQtPackages pkgs);
           nativeRuntimeLibPath = pkgs.lib.makeLibraryPath (nativeRuntimePackages pkgs);
           # Development apps resolve the checkout, optionally build the
