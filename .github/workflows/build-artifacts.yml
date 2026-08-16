@@ -151,6 +151,13 @@ jobs:
           if [[ -n "$CACHIX_AUTH_TOKEN" ]]; then
             cachix push spool "$(readlink "$RUNNER_TEMP/spool-native-qt")"
           fi
+      - name: Publish cached nix run package
+        if: ${{ env.CACHIX_AUTH_TOKEN != '' }}
+        run: |
+          nix build --accept-flake-config .#native-cache \
+            --out-link "$RUNNER_TEMP/spool-native" --print-build-logs
+          cachix push spool "$(readlink "$RUNNER_TEMP/spool-native")"
+
 
       - uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5.0.3
         with:
@@ -262,7 +269,7 @@ jobs:
           restore-prefixes-first-match: nix-native-${{ runner.os }}-${{ matrix.arch }}-
           gc-max-store-size-macos: 8G
       - uses: cachix/cachix-action@3ba601ff5bbb07c7220846facfa2cd81eeee15a1 # v16
-        if: ${{ matrix.arch == 'arm64' && env.CACHIX_AUTH_TOKEN != '' }}
+        if: ${{ env.CACHIX_AUTH_TOKEN != '' }}
         with:
           name: spool
           authToken: ${{ secrets.CACHIX_AUTH_TOKEN }}
@@ -276,6 +283,13 @@ jobs:
           if [[ "$ARCH" == arm64 && -n "$CACHIX_AUTH_TOKEN" ]]; then
             cachix push spool "$(readlink "$RUNNER_TEMP/spool-native-qt")"
           fi
+      - name: Publish cached nix run package
+        if: ${{ env.CACHIX_AUTH_TOKEN != '' }}
+        run: |
+          nix build --accept-flake-config .#native-cache \
+            --out-link "$RUNNER_TEMP/spool-native" --print-build-logs
+          cachix push spool "$(readlink "$RUNNER_TEMP/spool-native")"
+
 
 
       - uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5.0.3
@@ -383,7 +397,7 @@ jobs:
       - name: Package macOS analysis input
         run: |
           dmg="$(printf '%s\n' dist/*.dmg)"
-          tar -czf "${dmg}.app.tar.gz" -C build/macos/install jellyfin-native.app
+          tar -czf "${dmg}.app.tar.gz" -C build/macos/install Spool.app
       - name: Notarize and staple DMG
         if: ${{ inputs.enable_macos_signing }}
         timeout-minutes: 20

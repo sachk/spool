@@ -96,6 +96,7 @@ if [[ "$DEPLOY_APP" == "1" ]]; then
   canonicalize_library_alias libicuuc.76.1.dylib libicuuc.76.dylib
 
   rm -rf \
+    "$APP_BUNDLE/Contents/Resources/qml/QtQuick/Controls/designer" \
     "$APP_BUNDLE/Contents/Resources/qml/QtQuick/Controls/FluentWinUI3" \
     "$APP_BUNDLE/Contents/Resources/qml/QtQuick/Controls/Fusion" \
     "$APP_BUNDLE/Contents/Resources/qml/QtQuick/Controls/Imagine" \
