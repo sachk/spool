@@ -556,6 +556,29 @@
 
       apps = forAllSystems (pkgs:
         let
+          system = pkgs.stdenv.hostPlatform.system;
+          cachedPkgs = cachePkgsFor system;
+          cachedPackage = cachedNativePackage cachedPkgs;
+          cachedQtPluginPath =
+            cachedPkgs.lib.makeSearchPath cachedPkgs.qt6.qtbase.qtPluginPrefix
+              (nativeQtPackages cachedPkgs);
+          cachedQmlImportPath =
+            cachedPkgs.lib.makeSearchPath cachedPkgs.qt6.qtbase.qtQmlPrefix
+              (nativeQtPackages cachedPkgs);
+          cachedRuntimeLibPath =
+            cachedPkgs.lib.makeLibraryPath (nativeRuntimePackages cachedPkgs);
+          cachedMacosRunner = pkgs.writeShellScript "jellyfin-native-cached-run" ''
+            export DYLD_LIBRARY_PATH="${cachedPackage}/lib:${cachedRuntimeLibPath}''${DYLD_LIBRARY_PATH:+:$DYLD_LIBRARY_PATH}"
+            export QT_PLUGIN_PATH="${cachedQtPluginPath}"
+            export QML2_IMPORT_PATH="${cachedQmlImportPath}"
+            export QML_IMPORT_PATH="$QML2_IMPORT_PATH"
+            export LC_NUMERIC=C
+            exec "${cachedPackage}/Applications/Spool.app/Contents/MacOS/Spool" "$@"
+          '';
+          cachedProgram =
+            if pkgs.stdenv.isDarwin
+            then cachedMacosRunner
+            else "${cachedPackage}/bin/jellyfin-native";
           stagedSourceId = builtins.substring 0 12
             (builtins.hashString "sha256" "${self}-${mpv-src}");
           buildScript =
@@ -738,9 +761,15 @@
             program = "${builder}/bin/jellyfin-native-build";
           };
 
+          # A dirty Git flake keeps the incremental checkout build. Clean
+          # revisions execute the immutable package that release CI publishes
+          # to Cachix, so `nix run` only substitutes and launches it.
           default = {
             type = "app";
-            program = "${runner}/bin/jellyfin-native-run";
+            program =
+              if self ? dirtyRev
+              then "${runner}/bin/jellyfin-native-run"
+              else cachedProgram;
           };
 
           run = {

@@ -30,10 +30,10 @@ library; the grouping exists so the split stays mechanical.
 
 ## Local Development
 
-- Build and launch the native release app with `nix run`; the default app always builds first.
+- Launch the native release app with `nix run`. Clean Git revisions substitute the immutable package from Cachix; dirty tracked changes use the incremental checkout build.
 - Launch the already-built native release app without rebuilding with `nix run .#run`. It fails with a build-command hint when the binary is missing.
 - Build without launching with `nix run .#build`.
-- For a visible smoke test after a successful build, use `timeout 10s nix run .#run`. Never wrap the default `nix run` in the launch timeout because it builds before launching.
+- For a visible smoke test after a successful local build, use `timeout 10s nix run .#run`. Never wrap the default `nix run` in the launch timeout because it may substitute or build before launching.
 - Use `nix develop .#native -c ...` for targeted development commands (e.g. `cmake --preset linux-dev`, then `cmake --build build/linux-dev/app --target jellyfin-native`).
 - The image-diagnostics equivalents remain `nix run .#image-debug-build` followed by `nix run .#image-debug`.
 - Batch coherent edits, then run one build and one `qmlformat`/`clang-format` invocation over all touched files; don't build or format file-by-file.
