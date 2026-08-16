@@ -178,7 +178,7 @@ FocusScope {
                 shell.focusNavBar()
             return true
         }
-        if (key !== Qt.Key_Down || !field.activeFocus)
+        if (key !== Qt.Key_Down || !(field.activeFocus || field.editing))
             return false
         if (query.length >= 2)
             return focusPreferredResult()
