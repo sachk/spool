@@ -753,6 +753,7 @@ build_all_target_modules() {
     log "target qtdeclarative: up to date, skipping"
   else
     configure_target_module qtdeclarative "$QTDECLARATIVE_SRC" \
+      -DQT_NO_TARGET_QMLTESTRUNNER=ON \
       -DFEATURE_quick_vectorimage=OFF
     build_target_module qtdeclarative
   fi
