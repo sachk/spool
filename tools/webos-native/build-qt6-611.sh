@@ -458,7 +458,11 @@ build_all_host_modules() {
       && qmlimportscanner_excludes_subtrees; then
     log "host qtdeclarative: up to date, skipping"
   else
+    # The host prefix only supplies QML code-generation tools to the cross
+    # build. Hiding qsb prevents Qt Quick, Controls, styles, and examples from
+    # being built and installed for the host.
     configure_host_module qtdeclarative "$QTDECLARATIVE_SRC" \
+      -DCMAKE_DISABLE_FIND_PACKAGE_Qt6ShaderToolsTools=TRUE \
       -DFEATURE_quick_vectorimage=OFF
     build_host_module qtdeclarative
   fi
