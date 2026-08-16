@@ -3,6 +3,8 @@
 #include "TestMain.h"
 
 #include <QDebug>
+#include <QSettings>
+#include <QTemporaryDir>
 
 #include <cstdlib>
 #include <utility>
@@ -47,6 +49,11 @@ MovieItem item(QString id, QString title, QString type)
 
 JELLYFIN_TEST_MAIN("browse-session-controller")
 {
+    QTemporaryDir settingsDir;
+    require(settingsDir.isValid(), "temporary settings directory");
+    QSettings::setDefaultFormat(QSettings::IniFormat);
+    QSettings::setPath(QSettings::IniFormat, QSettings::UserScope, settingsDir.path());
+    QSettings().clear();
     BrowseSessionController session(nullptr);
 
     LibraryItem library;
@@ -78,6 +85,14 @@ JELLYFIN_TEST_MAIN("browse-session-controller")
     require(session.query().value(QStringLiteral("IsPlayed")).toBool(), "bool filter added");
     session.setQueryValue(QStringLiteral("IsPlayed"), {});
     require(!session.query().contains(QStringLiteral("IsPlayed")), "nullable filter removed");
+    BrowseSessionController restored(nullptr);
+    restored.enterLibrary(library, QStringLiteral("Movies"), defaultQuery);
+    require(restored.query().value(QStringLiteral("sortBy")) == QStringLiteral("DateCreated"),
+        "sort restored after reopening");
+    require(restored.query().value(QStringLiteral("sortOrder")) == QStringLiteral("Descending"),
+        "sort direction restored after reopening");
+    require(restored.query().value(QStringLiteral("Genres")).toStringList() == QStringList { QStringLiteral("Drama") },
+        "filters restored after reopening");
     session.clearFilters();
     require(session.query().size() == 2 && session.query().contains(QStringLiteral("sortBy"))
             && session.query().contains(QStringLiteral("sortOrder")),

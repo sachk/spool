@@ -911,8 +911,8 @@ FocusScope {
 
             ToolbarButton {
                 id: viewButton
-                iconName: root.listMode ? "grid_view" : "view_list"
-                label: root.listMode ? "Posters" : "List"
+                iconName: root.listMode ? "view_list" : "grid_view"
+                label: root.listMode ? "List" : "Posters"
                 onActivated: root.toggleViewMode()
             }
 
@@ -1109,7 +1109,6 @@ FocusScope {
                     id: gridWheelHandler
                     onScrolled: root.beginPointerNavigation(gridWheelHandler)
                     flickable: grid
-                    animationDuration: Theme.reducedMotion ? 0 : 16
                 }
                 onMovementStarted: root.beginPointerNavigation(null)
                 ListScrollBar {

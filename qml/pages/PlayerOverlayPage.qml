@@ -675,6 +675,11 @@ FocusScope {
             player.seekForward()
     }
 
+    function toggleFullScreen() {
+        if (desktopControlsAvailable)
+            NativeWindow.toggleFullScreen()
+    }
+
     function activateAction() {
         if (!hasPlayer || actions.length === 0)
             return
@@ -700,7 +705,7 @@ FocusScope {
         else if (action === "syncplay")
             openSyncPlayMenu()
         else if (action === "fullscreen")
-            NativeWindow.toggleFullScreen()
+            toggleFullScreen()
     }
 
     function toggleDebugStats() {
@@ -727,6 +732,12 @@ FocusScope {
     }
 
     function back() {
+        if (desktopControlsAvailable && NativeWindow.fullScreen) {
+            toggleFullScreen()
+            return true
+        }
+        if (desktopControlsAvailable)
+            return stopPlayback("overlay-back")
         input.reset()
         if (scrubbing) {
             scrubbing = false

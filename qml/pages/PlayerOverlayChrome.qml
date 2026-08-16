@@ -98,6 +98,8 @@ Item {
     HoverHandler {
         onHoveredChanged: if (hovered && root.overlay.controlsVisible)
         root.overlay.showControls(root.overlay.focusZone)
+        onPointChanged: if (hovered)
+        root.overlay.showControlsFromPointer()
     }
     WheelHandler {
         target: null
@@ -145,6 +147,7 @@ Item {
     Rectangle {
         id: backButton
         readonly property bool focused: root.overlay.isControlsActive() && root.overlay.focusZone === "back"
+        readonly property bool highlighted: focused || backHover.hovered
         anchors.left: parent.left
         anchors.top: parent.top
         anchors.margins: root.dp(40)
@@ -152,15 +155,19 @@ Item {
         height: width
         radius: width / 2
         visible: root.overlay.controlsVisible
-        color: focused ? Qt.alpha(Theme.accent, 0.2) : "transparent"
-        border.width: focused ? Theme.focusBorderWidth : 0
+        color: highlighted ? Qt.alpha(Theme.accent, 0.2) : "transparent"
+        border.width: highlighted ? Theme.focusBorderWidth : 0
         border.color: Theme.accent
 
         MaterialIcon {
             anchors.centerIn: parent
             name: "arrow_back"
-            iconColor: backButton.focused ? Theme.textPrimary : Theme.textSecondary
+            iconColor: backButton.highlighted ? Theme.textPrimary : Theme.textSecondary
             iconSize: root.dp(34)
+        }
+
+        HoverHandler {
+            id: backHover
         }
 
         TapHandler {

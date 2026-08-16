@@ -1323,7 +1323,7 @@ FocusScope {
                         DetailAction {
                             id: restartAction
                             iconName: "replay"
-                            label: "Restart"
+                            label: "Start from beginning"
                             visible: !root.canPlayEpisodicContainer && root.showPrimaryAction && root.hasProgress
                             enabledButton: visible && !App.busy
                             onActivated: root.activatePrimary(true)

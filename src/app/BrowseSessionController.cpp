@@ -5,6 +5,7 @@
 
 #include <QDebug>
 #include <QElapsedTimer>
+#include <QSettings>
 #include <algorithm>
 
 namespace JellyfinNative {
@@ -171,7 +172,8 @@ void BrowseSessionController::enterLibrary(
     m_seriesId.clear();
     m_seasonId.clear();
     m_descriptor = BrowseDescriptor::library(library.id, library.collectionType, library.name);
-    m_query = m_libraryQueries.value(library.id, defaultQuery);
+    m_query = m_libraryQueries.value(
+        library.id, QSettings().value(QStringLiteral("browse/libraryQueries/") + library.id, defaultQuery).toMap());
     m_filterOptions.clear();
     emit changed();
 }
@@ -286,8 +288,10 @@ bool BrowseSessionController::setQuery(QVariantMap query)
     if (m_query == query)
         return false;
     m_query = std::move(query);
-    if (!m_libraryId.isEmpty())
+    if (!m_libraryId.isEmpty()) {
         m_libraryQueries.insert(m_libraryId, m_query);
+        QSettings().setValue(QStringLiteral("browse/libraryQueries/") + m_libraryId, m_query);
+    }
     emit changed();
     return true;
 }

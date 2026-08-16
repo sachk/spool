@@ -22,7 +22,7 @@ RowLayout {
         readonly property bool focused: root.overlay.isControlsActive() && root.overlay.focusZone === "actions"
                                         && root.overlay.actionIndex === globalIndex
         readonly property bool selected: action === "syncplay" && root.overlay.syncPlayMenuOpen
-        readonly property bool emphasized: focused || selected
+        readonly property bool emphasized: focused || selected || hover.hovered
         readonly property string tooltip: Settings.playerControlTooltipsEnabled ? root.overlay.actionTooltip(action) :
                                                                                   ""
         readonly property bool waitingForSyncPlay: action === "pause" && SyncPlay.enabled && SyncPlay.waitingForPlayback
@@ -144,8 +144,12 @@ RowLayout {
 
         MaterialIcon {
             name: root.overlay.hasPlayer && root.overlay.player.volume === 0 ? "volume_off" : "volume_up"
-            iconColor: Theme.textSecondary
+            iconColor: muteHover.hovered ? Theme.textPrimary : Theme.textSecondary
             iconSize: root.overlay.dp(38)
+
+            HoverHandler {
+                id: muteHover
+            }
 
             TapHandler {
                 onTapped: {
