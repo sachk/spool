@@ -308,6 +308,7 @@ FocusScope {
             visible: root.query.length >= 2
             clip: true
             boundsBehavior: Flickable.StopAtBounds
+            keyNavigationEnabled: false
             spacing: Metrics.sectionGapPx
             reuseItems: true
             cacheBuffer: 0
