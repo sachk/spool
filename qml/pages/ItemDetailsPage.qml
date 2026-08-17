@@ -34,6 +34,30 @@ FocusScope {
     readonly property string seasonIdText: typeText === "Season" ? String(item.movieId || "") : String(item.seasonId
                                                                                                        || "")
 
+    readonly property var externalLinks: {
+        const links = []
+        const source = !Platform.isTV && item.externalUrls ? item.externalUrls : []
+        for (let index = 0; index < source.length; ++index) {
+            const name = String(source[index].name || "").trim()
+            const url = String(source[index].url || "").trim()
+            if (name.length > 0 && url.toLowerCase().indexOf("https://") === 0)
+            links.push({
+                           "name": name,
+                           "url": url
+                       })
+        }
+        return links
+    }
+    readonly property string letterboxdUrl: {
+        const tmdbId = String(item.tmdbId || "").trim()
+        if (tmdbId.length > 0)
+        return "https://letterboxd.com/tmdb/" + encodeURIComponent(tmdbId) + "/"
+        const imdbId = String(item.imdbId || "").trim()
+        return imdbId.length > 0 ? "https://letterboxd.com/imdb/" + encodeURIComponent(imdbId) + "/" : ""
+    }
+    readonly property bool showExternalActions: externalLinks.length > 0
+    readonly property bool showLetterboxdAction: !Platform.isTV && typeText === "Movie" && letterboxdUrl.length > 0
+
     readonly property bool canPlay: Boolean(item && item.playable)
     readonly property bool albumDetail: typeText === "MusicAlbum"
     readonly property bool canPlayEpisodicContainer: typeText === "Series" ? String(item.movieId || "").length > 0 : typeText === "Season"
@@ -158,6 +182,7 @@ FocusScope {
 
     component MenuOption: ActionButton {
         property string label: ""
+        property string externalUrl: ""
         signal activated
 
         width: parent ? parent.width : 280
@@ -748,7 +773,7 @@ FocusScope {
             actions.push(restartAction)
         actions.push(playedAction)
         actions.push(favoriteAction)
-        if (showContextPlaybackActions || mediaInfoAvailable)
+        if (showContextPlaybackActions || mediaInfoAvailable || showLetterboxdAction || showExternalActions)
             actions.push(menuAction)
         return actions
     }
@@ -811,6 +836,13 @@ FocusScope {
             options.push(playAllOption, shuffleOption)
         if (mediaInfoAvailable)
             options.push(mediaInfoOption)
+        if (showLetterboxdAction)
+            options.push(letterboxdOption)
+        for (let index = 0; index < externalLinkOptions.count; ++index) {
+            const option = externalLinkOptions.itemAt(index)
+            if (option)
+                options.push(option)
+        }
         return options
     }
 
@@ -841,6 +873,18 @@ FocusScope {
         overflowOpen = false
         if (shell)
             shell.openMediaInfo(item)
+    }
+
+    function openExternalUrl(url) {
+        overflowOpen = false
+        const target = String(url || "").trim()
+        if (!Platform.isTV && target.toLowerCase().indexOf("https://") === 0)
+            Qt.openUrlExternally(target)
+    }
+
+    function openLetterboxd() {
+        if (showLetterboxdAction)
+            openExternalUrl(letterboxdUrl)
     }
 
     function openSeriesLink() {
@@ -972,8 +1016,12 @@ FocusScope {
                 playDetailContext(false)
             else if (option === shuffleOption)
                 playDetailContext(true)
-            else
+            else if (option === mediaInfoOption)
                 openMediaInfo()
+            else if (option === letterboxdOption)
+                openLetterboxd()
+            else if (option)
+                openExternalUrl(option.externalUrl)
         } else {
             const action = orderedActions()[actionIndex]
             if (action === playedAction)
@@ -1353,6 +1401,7 @@ FocusScope {
                             label: "More"
                             checked: root.overflowOpen
                             visible: root.showContextPlaybackActions || root.mediaInfoAvailable
+                                     || root.showLetterboxdAction || root.showExternalActions
                             enabledButton: root.selectedIndex >= 0
                             onActivated: root.toggleOverflow()
                         }
@@ -1596,6 +1645,27 @@ FocusScope {
                 iconName: "info"
                 label: "Media info"
                 onActivated: root.openMediaInfo()
+            }
+
+            MenuOption {
+                id: letterboxdOption
+                visible: root.showLetterboxdAction
+                iconName: "open_in_new"
+                label: "Open in Letterboxd"
+                onActivated: root.openLetterboxd()
+            }
+
+            Repeater {
+                id: externalLinkOptions
+                model: root.externalLinks
+
+                delegate: MenuOption {
+                    required property var modelData
+                    externalUrl: String(modelData.url || "")
+                    iconName: "open_in_new"
+                    label: "Open in " + String(modelData.name || "")
+                    onActivated: root.openExternalUrl(externalUrl)
+                }
             }
         }
     }

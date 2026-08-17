@@ -13,6 +13,7 @@
 
 using JellyfinNative::DiscoveredServer;
 using JellyfinNative::episodicPlaybackStartIndex;
+using JellyfinNative::ExternalUrlInfo;
 using JellyfinNative::isGenericEpisodeTitle;
 using JellyfinNative::isPlayableItem;
 using JellyfinNative::itemEpisodeCode;
@@ -132,6 +133,8 @@ void requireMovieItem(const MovieItem& actual, const MovieItem& expected, const 
     require(actual.overview == expected.overview, message);
     require(actual.posterTag == expected.posterTag, message);
     require(actual.itemType == expected.itemType, message);
+    require(actual.imdbId == expected.imdbId, message);
+    require(actual.tmdbId == expected.tmdbId, message);
     require(actual.playlistItemId == expected.playlistItemId, message);
     require(actual.locationType == expected.locationType, message);
     require(actual.isVirtualItem == expected.isVirtualItem, message);
@@ -172,6 +175,7 @@ void requireMovieItem(const MovieItem& actual, const MovieItem& expected, const 
     require(actual.mediaSources.size() == expected.mediaSources.size(), message);
     for (qsizetype i = 0; i < actual.mediaSources.size(); ++i)
         requireMediaSourceInfo(actual.mediaSources.at(i), expected.mediaSources.at(i), message);
+    require(actual.externalUrls == expected.externalUrls, message);
 }
 
 MediaStreamInfo videoStream()
@@ -292,6 +296,10 @@ void testMovieRoundTripAndCamelCaseKey()
     director.role = QStringLiteral("Director");
     director.imageTag = QStringLiteral("director-tag");
 
+    ExternalUrlInfo imdbUrl;
+    imdbUrl.name = QStringLiteral("IMDb");
+    imdbUrl.url = QStringLiteral("https://www.imdb.com/title/tt1234567/");
+
     MovieItem movie;
     movie.id = QStringLiteral("movie-1");
     movie.title = QStringLiteral("A Generic Mapper");
@@ -300,6 +308,8 @@ void testMovieRoundTripAndCamelCaseKey()
     movie.locationType = QStringLiteral("FileSystem");
     movie.posterTag = QStringLiteral("poster-tag");
     movie.itemType = QStringLiteral("Episode");
+    movie.imdbId = QStringLiteral("tt1234567");
+    movie.tmdbId = QStringLiteral("12345");
     movie.playlistItemId = QStringLiteral("playlist-item-1");
     movie.seriesId = QStringLiteral("series-1");
     movie.seasonId = QStringLiteral("season-1");
@@ -331,6 +341,7 @@ void testMovieRoundTripAndCamelCaseKey()
     movie.endDate = QStringLiteral("2026-01-02T04:05:06.0000000Z");
     movie.people = { actor, director };
     movie.mediaSources = { mediaSource() };
+    movie.externalUrls = { imdbUrl };
 
     const QJsonObject json = metaToJson(movie);
     require(json.value(QStringLiteral("movieId")).toString() == movie.id,
@@ -342,6 +353,8 @@ void testMovieRoundTripAndCamelCaseKey()
         "MovieItem people were not serialized as a nested array");
     require(json.value(QStringLiteral("mediaSources")).toArray().size() == movie.mediaSources.size(),
         "MovieItem mediaSources were not serialized as a nested array");
+    require(json.value(QStringLiteral("externalUrls")).toArray().size() == movie.externalUrls.size(),
+        "MovieItem external URLs were not serialized as a nested array");
     require(json.value(QStringLiteral("mediaSources"))
                 .toArray()
                 .at(0)
@@ -389,6 +402,21 @@ void testLegacyStringTicksAndUnknownKeys()
         "MovieItem did not parse known keys when unknown keys were present");
     require(movie.resumeTicks == 4567890123LL, "MovieItem resumeTicks did not parse a legacy JSON string value");
     require(movie.runtimeTicks == 9876543210LL, "MovieItem runtimeTicks did not parse a legacy JSON string value");
+
+    const QJsonObject apiMovieJson = jsonObject({
+        { QStringLiteral("ProviderIds"),
+            QJsonObject({ { QStringLiteral("Imdb"), QStringLiteral("tt7654321") },
+                { QStringLiteral("Tmdb"), QStringLiteral("54321") } }) },
+        { QStringLiteral("ExternalUrls"),
+            QJsonArray({ QJsonObject({ { QStringLiteral("Name"), QStringLiteral("IMDb") },
+                { QStringLiteral("Url"), QStringLiteral("https://www.imdb.com/title/tt7654321/") } }) }) },
+    });
+    const MovieItem apiMovie = metaFromJson<MovieItem>(apiMovieJson, MetaJsonKeyPolicy::PascalCase);
+    require(apiMovie.imdbId == QStringLiteral("tt7654321") && apiMovie.tmdbId == QStringLiteral("54321"),
+        "MovieItem did not parse nested provider ids");
+    require(apiMovie.externalUrls.size() == 1 && apiMovie.externalUrls.first().name == QStringLiteral("IMDb")
+            && apiMovie.externalUrls.first().url == QStringLiteral("https://www.imdb.com/title/tt7654321/"),
+        "MovieItem did not parse external provider URLs");
 
     const QJsonObject segmentJson = jsonObject({
         { QStringLiteral("id"), QStringLiteral("chapter-1") },
