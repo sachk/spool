@@ -44,9 +44,13 @@ namespace MetaJsonDetail {
             return object.value(QStringLiteral("Name"));
         if (policy == MetaJsonKeyPolicy::PascalCase && key == QStringLiteral("ItemType"))
             return object.value(QStringLiteral("Type"));
+        if (policy == MetaJsonKeyPolicy::PascalCase && key == QStringLiteral("ImdbId"))
+            return object.value(QStringLiteral("ProviderIds")).toObject().value(QStringLiteral("Imdb"));
+        if (policy == MetaJsonKeyPolicy::PascalCase && key == QStringLiteral("TmdbId"))
+            return object.value(QStringLiteral("ProviderIds")).toObject().value(QStringLiteral("Tmdb"));
         if (policy == MetaJsonKeyPolicy::PascalCase && key == QStringLiteral("Year"))
             return object.value(QStringLiteral("ProductionYear"));
-        return {};
+        return { };
     }
 
     inline QJsonArray stringListToJson(const QStringList& items)
@@ -135,9 +139,11 @@ namespace MetaJsonDetail {
             return listToJson(qvariant_cast<QList<MediaStreamInfo>>(value), policy);
         if (type.id() == qMetaTypeId<QList<MediaSourceInfo>>())
             return listToJson(qvariant_cast<QList<MediaSourceInfo>>(value), policy);
+        if (type.id() == qMetaTypeId<QList<ExternalUrlInfo>>())
+            return listToJson(qvariant_cast<QList<ExternalUrlInfo>>(value), policy);
 
         qFatal("Unsupported MetaJson property type: %s", type.name());
-        return {};
+        return { };
     }
 
     inline QVariant variantFromJson(const QJsonValue& value, QMetaType type, MetaJsonKeyPolicy policy)
@@ -165,9 +171,11 @@ namespace MetaJsonDetail {
             return QVariant::fromValue(listFromJson<MediaStreamInfo>(value, policy));
         if (type.id() == qMetaTypeId<QList<MediaSourceInfo>>())
             return QVariant::fromValue(listFromJson<MediaSourceInfo>(value, policy));
+        if (type.id() == qMetaTypeId<QList<ExternalUrlInfo>>())
+            return QVariant::fromValue(listFromJson<ExternalUrlInfo>(value, policy));
 
         qFatal("Unsupported MetaJson property type: %s", type.name());
-        return {};
+        return { };
     }
 
     template <typename T> QJsonObject metaToJson(const T& value, MetaJsonKeyPolicy policy)

@@ -101,6 +101,7 @@ public:
     bool addToQueue(const MovieItem& item);
     void enqueueEpisodeSuccessors(const MovieItem& episode);
     bool updateResumeTicks(const QString& itemId, qint64 resumeTicks);
+    bool updatePeople(const QString& itemId, const QList<PersonItem>& people);
 
 signals:
     void queueChanged();

@@ -16,6 +16,23 @@ namespace {
         return item.title.isEmpty() ? item.seriesName : item.title;
     }
 
+    QString directorText(const MovieItem& item)
+    {
+        constexpr qsizetype maxNames = 3;
+        QStringList names;
+        qsizetype directorCount = 0;
+        for (const PersonItem& person : item.people) {
+            if (person.type != QStringLiteral("Director") || person.name.isEmpty())
+                continue;
+            if (names.size() < maxNames)
+                names.push_back(person.name);
+            ++directorCount;
+        }
+        const qsizetype hiddenCount = directorCount - names.size();
+        const QString visibleNames = names.join(QStringLiteral(", "));
+        return hiddenCount > 0 ? QStringLiteral("%1 +%2 more").arg(visibleNames).arg(hiddenCount) : visibleNames;
+    }
+
     double playbackProgress(const MovieItem& item)
     {
         const qint64 resumeTicks = normalizedResumeTicks(item.resumeTicks, item.runtimeTicks);
@@ -42,6 +59,7 @@ namespace {
             { QStringLiteral("albumPrimaryImageTag"), item.albumPrimaryImageTag },
             { QStringLiteral("posterTag"), item.posterTag },
             { QStringLiteral("year"), item.year },
+            { QStringLiteral("director"), directorText(item) },
             { QStringLiteral("seasonNumber"), item.seasonNumber },
             { QStringLiteral("episodeNumber"), item.episodeNumber },
             { QStringLiteral("episodeCode"), itemEpisodeCode(item) },
@@ -190,6 +208,26 @@ bool PlayQueueController::updateResumeTicks(const QString& itemId, qint64 resume
         const QModelIndex changed = index(row);
         emit dataChanged(changed, changed, { ItemRole, ProgressRole });
     }
+    return updated;
+}
+
+bool PlayQueueController::updatePeople(const QString& itemId, const QList<PersonItem>& people)
+{
+    if (itemId.isEmpty())
+        return false;
+
+    bool updated = false;
+    for (int row = 0; row < rowCount(); ++row) {
+        MovieItem& item = m_entries[static_cast<size_t>(row)];
+        if (item.id != itemId || item.people == people)
+            continue;
+        item.people = people;
+        updated = true;
+        const QModelIndex changed = index(row);
+        emit dataChanged(changed, changed, { ItemRole });
+    }
+    if (updated)
+        emit queueChanged();
     return updated;
 }
 

@@ -7,6 +7,8 @@ Item {
     property var info: null
     property int rightInset: Metrics.scaled(12)
     readonly property bool hasContent: infoLineRow.implicitWidth > 0
+    // PT Root UI's digit/cap ink center is 9.85% of an em above its typo line center.
+    readonly property real textInkCenterOffset: -Metrics.metaSizePx * 0.0985
 
     implicitWidth: infoLineRow.implicitWidth + rightInset
     implicitHeight: Metrics.scaled(40)
@@ -19,6 +21,7 @@ Item {
 
         MaterialIcon {
             anchors.verticalCenter: parent.verticalCenter
+            anchors.verticalCenterOffset: root.textInkCenterOffset
             name: parent.iconName
             iconSize: Metrics.metaSizePx + 4
             iconColor: Theme.textSecondary
@@ -43,7 +46,7 @@ Item {
         spacing: Metrics.scaled(16)
 
         InfoSegment {
-            iconName: "calendar_month"
+            iconName: "calendar_today"
             text: String(infoLineRow.values.date || "")
         }
 
@@ -55,9 +58,10 @@ Item {
         Rectangle {
             visible: infoLineRow.resolutionText.length > 0
             anchors.verticalCenter: parent.verticalCenter
-            anchors.verticalCenterOffset: -Metrics.scaled(1)
+            anchors.verticalCenterOffset: -Metrics.scaled(1) + root.textInkCenterOffset
             width: resolutionLabel.implicitWidth + Metrics.scaled(12)
-            height: resolutionLabel.implicitHeight + Metrics.scaled(5)
+            // Even padding keeps NativeRendering from snapping a half-pixel baseline upward.
+            height: resolutionLabel.implicitHeight + 2 * Metrics.scaled(3)
             radius: Theme.radiusTiny
             color: "transparent"
             border.width: Theme.hoverBorderWidth
@@ -66,6 +70,7 @@ Item {
             SecondaryText {
                 id: resolutionLabel
                 anchors.centerIn: parent
+                anchors.verticalCenterOffset: Metrics.scaled(2) - 0.5
                 text: infoLineRow.resolutionText
                 color: Theme.textPrimary
                 font.pixelSize: Metrics.metaSizePx - 1

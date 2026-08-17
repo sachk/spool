@@ -75,8 +75,8 @@ namespace {
         return QStringLiteral(
             "Overview,ProductionYear,PremiereDate,EndDate,Status,DateCreated,DateLastContentAdded,ImageTags,"
             "BackdropImageTags,"
-            "UserData,Path,RunTimeTicks,SeriesInfo,LocationType,IsVirtualItem,Genres,Tags,Studios,"
-            "OfficialRating,CommunityRating,CriticRating,People,PrimaryImageAspectRatio,MediaSources");
+            "UserData,Path,RunTimeTicks,SeriesInfo,LocationType,IsVirtualItem,Genres,Tags,Studios,ProviderIds,"
+            "ExternalUrls,OfficialRating,CommunityRating,CriticRating,People,PrimaryImageAspectRatio,MediaSources");
     }
 
     QString libraryItemFields()
@@ -94,7 +94,7 @@ namespace {
             if (!stringValue.isEmpty())
                 return stringValue;
         }
-        return {};
+        return { };
     }
 
     QString includeItemTypesForCollection(QString collectionType)
@@ -492,7 +492,7 @@ void JellyfinApiFacade::setPlaybackActive(bool active)
         return;
     m_measurementDeferred = false;
     Async::runScoped(
-        this, refreshPlaybackNetworkState(), []() {},
+        this, refreshPlaybackNetworkState(), []() { },
         [](const std::exception_ptr& error) {
             qWarning() << "playback bandwidth: deferred measurement failed" << exceptionMessage(error);
         });
@@ -571,7 +571,7 @@ void JellyfinApiFacade::handleNetworkRouteChanged()
     m_inLocalNetwork = false;
     restoreRememberedMeasurement();
     Async::runScoped(
-        this, refreshPlaybackNetworkState(), []() {},
+        this, refreshPlaybackNetworkState(), []() { },
         [](const std::exception_ptr& error) {
             qWarning() << "playback bandwidth: re-measurement failed" << exceptionMessage(error);
         });
@@ -718,7 +718,7 @@ void JellyfinApiFacade::cancelRequests()
 QCoro::Task<AuthSession> JellyfinApiFacade::authenticateByName(QString username, QString password)
 {
     const QJsonDocument response
-        = co_await requestJson(HttpMethod::Post, QStringLiteral("/Users/AuthenticateByName"), {},
+        = co_await requestJson(HttpMethod::Post, QStringLiteral("/Users/AuthenticateByName"), { },
             QJsonDocument(QJsonObject {
                 { QStringLiteral("Username"), username },
                 { QStringLiteral("Pw"), password },
@@ -760,7 +760,7 @@ QCoro::Task<QJsonObject> JellyfinApiFacade::pollQuickConnect(QString secret)
 QCoro::Task<AuthSession> JellyfinApiFacade::authenticateWithQuickConnect(QString secret)
 {
     const QJsonDocument response
-        = co_await requestJson(HttpMethod::Post, QStringLiteral("/Users/AuthenticateWithQuickConnect"), {},
+        = co_await requestJson(HttpMethod::Post, QStringLiteral("/Users/AuthenticateWithQuickConnect"), { },
             QJsonDocument(QJsonObject {
                 { QStringLiteral("Secret"), secret },
             }));
@@ -853,7 +853,7 @@ QCoro::Task<PagedMovieItems> JellyfinApiFacade::fetchBrowsePage(
     BrowseDescriptor descriptor, int startIndex, int limit, QVariantMap queryOptions)
 {
     if (!descriptor.isValid())
-        co_return PagedMovieItems { {}, 0, std::max(0, startIndex), std::clamp(limit, 1, 200) };
+        co_return PagedMovieItems { { }, 0, std::max(0, startIndex), std::clamp(limit, 1, 200) };
 
     QString path = QStringLiteral("/Items");
     QStringList allowedTypes;
@@ -1044,7 +1044,7 @@ QCoro::Task<QVariantMap> JellyfinApiFacade::fetchLibraryFilterOptions(QString li
 QCoro::Task<MovieItem> JellyfinApiFacade::fetchItemDetails(QString itemId)
 {
     if (itemId.isEmpty() || m_session.userId.isEmpty())
-        co_return MovieItem {};
+        co_return MovieItem { };
 
     QUrlQuery query = ItemsQuery().fields(detailItemFields()).images().toUrlQuery();
 
@@ -1059,7 +1059,7 @@ QCoro::Task<std::vector<MovieItem>> JellyfinApiFacade::fetchItemsByIds(QStringLi
     itemIds.removeAll(QString());
     itemIds.removeDuplicates();
     if (itemIds.isEmpty() || m_session.userId.isEmpty())
-        co_return std::vector<MovieItem> {};
+        co_return std::vector<MovieItem> { };
 
     std::vector<MovieItem> result;
     result.reserve(static_cast<size_t>(itemIds.size()));
@@ -1183,7 +1183,7 @@ QCoro::Task<std::vector<MovieItem>> JellyfinApiFacade::searchItems(QString searc
 {
     searchTerm = searchTerm.trimmed();
     if (searchTerm.isEmpty())
-        co_return std::vector<MovieItem> {};
+        co_return std::vector<MovieItem> { };
 
     const QStringList searchableTypes {
         QStringLiteral("Movie"),
@@ -1253,7 +1253,7 @@ QCoro::Task<std::vector<MovieItem>> JellyfinApiFacade::fetchSearchSuggestions(in
                           .includeItemTypes(QStringLiteral("Movie,Series"))
                           .mediaTypes(QStringLiteral("Video"))
                           .fields(libraryItemFields())
-                          .sort(QStringLiteral("IsFavoriteOrLiked,Random"), {})
+                          .sort(QStringLiteral("IsFavoriteOrLiked,Random"), { })
                           .images()
                           .enableTotalRecordCount(false)
                           .limit(limit, 60)
@@ -1272,7 +1272,7 @@ QCoro::Task<std::vector<MovieItem>> JellyfinApiFacade::fetchSearchSuggestions(in
 QCoro::Task<std::vector<MovieItem>> JellyfinApiFacade::fetchSimilarItems(QString itemId, int limit)
 {
     if (itemId.isEmpty())
-        co_return std::vector<MovieItem> {};
+        co_return std::vector<MovieItem> { };
 
     QUrlQuery query
         = ItemsQuery().userId(m_session.userId).limit(limit, 60).fields(libraryItemFields()).images().toUrlQuery();
@@ -1338,11 +1338,11 @@ QCoro::Task<PersonCredits> JellyfinApiFacade::fetchItemsByPerson(QString personI
 QCoro::Task<std::vector<MovieItem>> JellyfinApiFacade::fetchManagementTargets(QString itemType)
 {
     if (m_session.userId.isEmpty())
-        co_return std::vector<MovieItem> {};
+        co_return std::vector<MovieItem> { };
 
     itemType = itemType.trimmed();
     if (itemType != QStringLiteral("Playlist") && itemType != QStringLiteral("BoxSet"))
-        co_return std::vector<MovieItem> {};
+        co_return std::vector<MovieItem> { };
 
     QUrlQuery query = ItemsQuery()
                           .userId(m_session.userId)
@@ -1379,7 +1379,7 @@ QCoro::Task<QString> JellyfinApiFacade::createPlaylist(QString name, QStringList
         { QStringLiteral("IsPublic"), false },
     };
     const QJsonObject response
-        = (co_await requestJson(HttpMethod::Post, QStringLiteral("/Playlists"), {}, QJsonDocument(body))).object();
+        = (co_await requestJson(HttpMethod::Post, QStringLiteral("/Playlists"), { }, QJsonDocument(body))).object();
     co_return response.value(QStringLiteral("Id")).toString();
 }
 
@@ -1548,7 +1548,7 @@ QCoro::Task<std::vector<MediaSegment>> JellyfinApiFacade::fetchMediaSegments(QSt
 QString JellyfinApiFacade::trickplayTileUrl(const QString& itemId, int width, int tileIndex) const
 {
     if (m_serverUrl.isEmpty() || itemId.isEmpty() || width <= 0 || tileIndex < 0)
-        return {};
+        return { };
 
     QUrl url = serverUrlWithPath(m_serverUrl,
         { QStringLiteral("Videos"), itemId, QStringLiteral("Trickplay"), QString::number(width),
@@ -1925,7 +1925,7 @@ QCoro::Task<QJsonDocument> JellyfinApiFacade::requestJson(
 
 QCoro::Task<void> JellyfinApiFacade::requestNoContent(HttpMethod method, QString path, QJsonDocument body)
 {
-    co_await requestBytes(method, path, {}, body);
+    co_await requestBytes(method, path, { }, body);
 }
 
 QCoro::Task<QByteArray> JellyfinApiFacade::requestBytes(
@@ -1953,7 +1953,7 @@ QCoro::Task<QByteArray> JellyfinApiFacade::requestBytes(
             reply = m_rest.get(request);
             break;
         case HttpMethod::Post:
-            reply = body.isNull() ? m_rest.post(request, QByteArray {}) : m_rest.post(request, body);
+            reply = body.isNull() ? m_rest.post(request, QByteArray { }) : m_rest.post(request, body);
             break;
         case HttpMethod::Delete:
             reply = m_rest.deleteResource(request);
@@ -1963,7 +1963,7 @@ QCoro::Task<QByteArray> JellyfinApiFacade::requestBytes(
         m_activeReplies.insert(reply);
         reply = co_await reply;
         m_activeReplies.remove(reply);
-        const QByteArray payload = reply && reply->isReadable() ? reply->readAll() : QByteArray {};
+        const QByteArray payload = reply && reply->isReadable() ? reply->readAll() : QByteArray { };
         const QString errorText = reply ? reply->errorString() : QStringLiteral("Network reply disappeared");
         const int statusCode = reply ? reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt() : 500;
         const auto networkError = reply ? reply->error() : QNetworkReply::UnknownNetworkError;
@@ -2045,9 +2045,9 @@ PlaybackSession JellyfinApiFacade::buildPlaybackSession(
         movie.resumeTicks,
         movie.runtimeTicks,
         mediaStreamsFromApiJson(selectedSource.value(QStringLiteral("MediaStreams")).toArray()),
-        {},
+        { },
         trickplay,
-        {},
+        { },
     };
 }
 

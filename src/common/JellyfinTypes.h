@@ -63,20 +63,20 @@ struct BrowseDescriptor {
     QString seriesId;
     QString seasonId;
 
-    static BrowseDescriptor library(QString libraryId, QString collectionType, QString name = {});
-    static BrowseDescriptor folderChildren(QString folderId, QString name = {});
-    static BrowseDescriptor person(QString personId, QString name = {});
-    static BrowseDescriptor genre(QString name, QString collectionType = {});
+    static BrowseDescriptor library(QString libraryId, QString collectionType, QString name = { });
+    static BrowseDescriptor folderChildren(QString folderId, QString name = { });
+    static BrowseDescriptor person(QString personId, QString name = { });
+    static BrowseDescriptor genre(QString name, QString collectionType = { });
     static BrowseDescriptor studio(QString name);
-    static BrowseDescriptor seriesSeasons(QString seriesId, QString seriesName = {});
-    static BrowseDescriptor seasonEpisodes(QString seriesId, QString seasonId = {}, QString seasonName = {});
-    static BrowseDescriptor playlist(QString playlistId, QString name = {});
-    static BrowseDescriptor boxSet(QString boxSetId, QString name = {});
-    static BrowseDescriptor artistAlbums(QString artistId, QString artistName = {});
+    static BrowseDescriptor seriesSeasons(QString seriesId, QString seriesName = { });
+    static BrowseDescriptor seasonEpisodes(QString seriesId, QString seasonId = { }, QString seasonName = { });
+    static BrowseDescriptor playlist(QString playlistId, QString name = { });
+    static BrowseDescriptor boxSet(QString boxSetId, QString name = { });
+    static BrowseDescriptor artistAlbums(QString artistId, QString artistName = { });
 
     bool isValid() const;
     QString kindKey() const;
-    QString cacheKey(const QVariantMap& query = {}) const;
+    QString cacheKey(const QVariantMap& query = { }) const;
 };
 
 struct PersonItem {
@@ -181,6 +181,18 @@ public:
     friend bool operator==(const MediaSourceInfo&, const MediaSourceInfo&) = default;
 };
 
+struct ExternalUrlInfo {
+    Q_GADGET
+    Q_PROPERTY(QString name MEMBER name)
+    Q_PROPERTY(QString url MEMBER url)
+
+public:
+    QString name;
+    QString url;
+
+    friend bool operator==(const ExternalUrlInfo&, const ExternalUrlInfo&) = default;
+};
+
 struct MovieItem {
     Q_GADGET
     Q_PROPERTY(QString movieId MEMBER id)
@@ -189,6 +201,8 @@ struct MovieItem {
     Q_PROPERTY(QString overview MEMBER overview)
     Q_PROPERTY(QString posterTag MEMBER posterTag)
     Q_PROPERTY(QString itemType MEMBER itemType)
+    Q_PROPERTY(QString imdbId MEMBER imdbId)
+    Q_PROPERTY(QString tmdbId MEMBER tmdbId)
     Q_PROPERTY(QString playlistItemId MEMBER playlistItemId)
     Q_PROPERTY(QString locationType MEMBER locationType)
     Q_PROPERTY(bool isVirtualItem MEMBER isVirtualItem)
@@ -231,6 +245,7 @@ struct MovieItem {
     Q_PROPERTY(QString status MEMBER status)
     Q_PROPERTY(QList<JellyfinNative::PersonItem> people MEMBER people)
     Q_PROPERTY(QList<JellyfinNative::MediaSourceInfo> mediaSources MEMBER mediaSources)
+    Q_PROPERTY(QList<JellyfinNative::ExternalUrlInfo> externalUrls MEMBER externalUrls)
 
 public:
     QString id;
@@ -239,6 +254,8 @@ public:
     QString overview;
     QString posterTag;
     QString itemType;
+    QString imdbId;
+    QString tmdbId;
     QString playlistItemId;
     QString locationType;
     bool isVirtualItem = false;
@@ -280,6 +297,7 @@ public:
     QString status;
     QList<PersonItem> people;
     QList<MediaSourceInfo> mediaSources;
+    QList<ExternalUrlInfo> externalUrls;
 
     bool isPlayable() const;
     QString subtitle() const;
@@ -417,8 +435,10 @@ Q_DECLARE_METATYPE(JellyfinNative::LibraryItem)
 Q_DECLARE_METATYPE(JellyfinNative::PersonItem)
 Q_DECLARE_METATYPE(JellyfinNative::MediaStreamInfo)
 Q_DECLARE_METATYPE(JellyfinNative::MediaSourceInfo)
+Q_DECLARE_METATYPE(JellyfinNative::ExternalUrlInfo)
 Q_DECLARE_METATYPE(JellyfinNative::MovieItem)
 Q_DECLARE_METATYPE(JellyfinNative::MediaSegment)
 Q_DECLARE_METATYPE(QList<JellyfinNative::PersonItem>)
 Q_DECLARE_METATYPE(QList<JellyfinNative::MediaStreamInfo>)
 Q_DECLARE_METATYPE(QList<JellyfinNative::MediaSourceInfo>)
+Q_DECLARE_METATYPE(QList<JellyfinNative::ExternalUrlInfo>)

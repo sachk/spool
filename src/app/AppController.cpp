@@ -938,6 +938,16 @@ void AppController::playQueueCurrent(bool fromStart)
     if (fromStart || !isMeaningfulResumePosition(item.resumeTicks, item.runtimeTicks))
         item.resumeTicks = 0;
     m_activePlaybackItem = item;
+    if (m_api && item.itemType == QStringLiteral("Movie") && item.people.isEmpty()) {
+        const QString itemId = item.id;
+        Async::runScoped(
+            this, m_api->fetchItemDetails(itemId),
+            [this, itemId](const MovieItem& details) { m_playQueue->updatePeople(itemId, details.people); },
+            [itemId](const std::exception_ptr& error) {
+                qInfo() << "app: movie credits unavailable for" << itemId << ":" << exceptionMessage(error);
+            },
+            "movie credits");
+    }
     setBusy(true, QStringLiteral("Negotiating playback…"));
     Async::runScoped(
         this, startPlayback(item), []() {},

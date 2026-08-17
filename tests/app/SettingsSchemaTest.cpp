@@ -61,7 +61,7 @@ QString choiceLabel(const SettingSpec& spec, const QString& value)
         if (value == QString::fromLatin1(spec.choices[i].value))
             return QString::fromLatin1(spec.choices[i].label);
     }
-    return {};
+    return { };
 }
 
 QVariantMap schemaRow(const QString& key)
@@ -71,7 +71,7 @@ QVariantMap schemaRow(const QString& key)
         if (row.value(QStringLiteral("key")).toString() == key)
             return row;
     }
-    return {};
+    return { };
 }
 
 QHash<QString, QString> choicesByLabelFromRow(const QVariantMap& row)
@@ -100,6 +100,7 @@ void requiredPersistedKeysArePresentExactlyOnce()
         QStringLiteral("playback/preferRemux"),
         QStringLiteral("playback/forwardCacheSizeMiB"),
         QStringLiteral("playback/showVolumeSlider"),
+        QStringLiteral("playback/controlFadeDelaySeconds"),
         QStringLiteral("settings/audioDelayMs"),
         QStringLiteral("settings/audioOutputMode"),
         QStringLiteral("subtitles/language"),
@@ -224,6 +225,16 @@ void normalizersPreservePersistedValueSemantics()
         QStringLiteral("forward cache below 16 MB was not clamped"));
     require(normalizedSettingValue(forwardCache, QStringLiteral("5000")).toInt() == 2048,
         QStringLiteral("forward cache above 2048 MB was not clamped"));
+    const SettingSpec& controlFade = requiredSpec(QStringLiteral("playback/controlFadeDelaySeconds"));
+    require(controlFade.type == SettingType::Slider && controlFade.minimum == 1 && controlFade.maximum == 10
+            && controlFade.step == 1,
+        QStringLiteral("playback control fade delay should span 1-10 seconds in one-second steps"));
+    require(QString::fromLatin1(controlFade.title) == QStringLiteral("Hide player controls after"),
+        QStringLiteral("playback control fade delay title was not preserved"));
+    require(settingDefaultValue(controlFade).toInt() == 4,
+        QStringLiteral("playback controls should keep the existing four-second fade delay by default"));
+    require(normalizedSettingValue(controlFade, QStringLiteral("11")).toInt() == 10,
+        QStringLiteral("playback control fade delay above 10 seconds was not clamped"));
     const SettingSpec& uiScale = requiredSpec(QStringLiteral("appearance/uiScalePercent"));
     require(normalizedSettingValue(uiScale, QStringLiteral("65")).toInt() == 80,
         QStringLiteral("UI scale below the floor was not clamped"));

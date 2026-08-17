@@ -16,8 +16,8 @@ FocusScope {
                                                                              === "subtitle" ? player.subtitleDelayMs :
                                                                                               player.fileAudioDelayMs
     readonly property bool nightModeEnabled: Settings.nightModeEnabled
-    readonly property int timelineAutohideMs: 4000
-    readonly property int actionAutohideMs: 6200
+    readonly property int timelineAutohideMs: Number(Settings.values["playback/controlFadeDelaySeconds"] || 4) * 1000
+    readonly property int actionAutohideMs: timelineAutohideMs + 2200
     signal playbackBackRequested(var item)
 
     property bool tooltipSessionHadFile: false
@@ -46,9 +46,8 @@ FocusScope {
     // Nothing hides over a now playing stage, and the controls that only make
     // sense against a picture are left out of it.
     readonly property bool audioOnly: hasPlayer && player.mediaKind === "audio"
-    readonly property var currentQueueItem: playQueue && playQueue.currentIndex >= 0 ? playQueue.get(
-                                                                                           playQueue.currentIndex) : (
-                                                                                           {})
+    readonly property var currentQueueItem: playQueue && playQueue.currentIndex >= 0 && playQueue.currentIndex
+                                            < playQueue.count ? playQueue.get(playQueue.currentIndex) : ({})
     readonly property bool syncPlayMenuOpen: chrome.syncPlayMenuOpen
     readonly property string episodeContextText: {
         if (!episodeQueue)
@@ -64,8 +63,14 @@ FocusScope {
             return episodeContextText
         if (String(currentQueueItem.itemType || "") !== "Movie")
             return ""
+        const parts = []
         const year = Number(currentQueueItem.year || 0)
-        return year > 0 ? String(year) : ""
+        if (year > 0)
+            parts.push(String(year))
+        const director = String(currentQueueItem.director || "").trim()
+        if (director.length > 0)
+            parts.push("Directed by " + director)
+        return parts.join(" · ")
     }
     readonly property bool showEpisodeTitle: episodeQueue && !Boolean(currentQueueItem.genericEpisodeTitle) && String(
                                                  currentQueueItem.title || "").trim().length > 0

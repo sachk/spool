@@ -21,7 +21,7 @@
 namespace JellyfinNative {
 
 namespace {
-    constexpr int kHomePayloadSchemaVersion = 9;
+    constexpr int kHomePayloadSchemaVersion = 11;
 
     // Cover art is square; cropping it to a poster or a thumbnail throws away
     // the edges of the artwork the way the album was meant to be seen.
@@ -221,7 +221,7 @@ bool HomeModelController::applyCachedPayload(const QJsonObject& payload)
 void HomeModelController::loadCachedPayload()
 {
     Async::runScoped(
-        this, loadCachedPayloadAsync(), []() {},
+        this, loadCachedPayloadAsync(), []() { },
         [](const std::exception_ptr& error) {
             qWarning() << "home: warm payload cache failed" << exceptionMessage(error);
         },
@@ -243,7 +243,7 @@ QCoro::Task<void> HomeModelController::loadCachedPayloadAsync()
 QString HomeModelController::payloadCacheKey() const
 {
     if (!m_api)
-        return {};
+        return { };
     const AuthSession session = m_api->session();
     const QString userKey = session.userId.isEmpty() ? session.userName : session.userId;
     const QString serverKey = session.serverId.isEmpty() ? m_api->serverUrl() : session.serverId;
@@ -270,7 +270,7 @@ void HomeModelController::refresh(const std::vector<LibraryItem>& libraries)
     m_refreshInFlight = true;
     m_prefetch->stop();
     Async::runScoped(
-        this, refreshAsync(libraries, generation), []() {},
+        this, refreshAsync(libraries, generation), []() { },
         [this, generation](const std::exception_ptr& error) {
             if (!m_generation.isCurrent(generation))
                 return;
@@ -376,7 +376,7 @@ QCoro::Task<std::vector<MovieItem>> HomeModelController::fetchLatestLibraryItems
             co_return groupedItems;
         limit = kMaximumRawItems;
     }
-    co_return std::vector<MovieItem> {};
+    co_return std::vector<MovieItem> { };
 }
 
 void HomeModelController::recordLibraryUse(const LibraryItem& library)

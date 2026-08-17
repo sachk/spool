@@ -178,7 +178,7 @@ FocusScope {
                 shell.focusNavBar()
             return true
         }
-        if (key !== Qt.Key_Down || !field.activeFocus)
+        if (key !== Qt.Key_Down || !(field.activeFocus || field.editing))
             return false
         if (query.length >= 2)
             return focusPreferredResult()
@@ -308,6 +308,7 @@ FocusScope {
             visible: root.query.length >= 2
             clip: true
             boundsBehavior: Flickable.StopAtBounds
+            keyNavigationEnabled: false
             spacing: Metrics.sectionGapPx
             reuseItems: true
             cacheBuffer: 0
