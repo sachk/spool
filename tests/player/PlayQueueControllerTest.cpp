@@ -77,6 +77,27 @@ JELLYFIN_TEST_MAIN("play-queue-controller")
         "queue snapshots should preserve album metadata and artwork");
     require(queue.data(queue.index(1), PlayQueueController::YearRole).toInt() == 2024,
         "the queue model should expose the production year role");
+
+    PersonItem director;
+    director.name = QStringLiteral("Jane Director");
+    director.type = QStringLiteral("Director");
+    PersonItem actor;
+    actor.name = QStringLiteral("Alex Actor");
+    actor.type = QStringLiteral("Actor");
+    PersonItem coDirector;
+    coDirector.name = QStringLiteral("Sam Co-Director");
+    coDirector.type = QStringLiteral("Director");
+    PersonItem thirdDirector;
+    thirdDirector.name = QStringLiteral("Pat Third");
+    thirdDirector.type = QStringLiteral("Director");
+    PersonItem fourthDirector;
+    fourthDirector.name = QStringLiteral("Robin Fourth");
+    fourthDirector.type = QStringLiteral("Director");
+    require(queue.updatePeople(QStringLiteral("b"), { director, actor, coDirector, thirdDirector, fourthDirector }),
+        "movie credits should update matching queue items");
+    require(queue.get(1).value(QStringLiteral("director")).toString()
+            == QStringLiteral("Jane Director, Sam Co-Director, Pat Third +1 more"),
+        "queue snapshots should cap long director lists and exclude cast members");
     require(queue.canGoPrevious() && queue.canGoNext(), "middle current item should allow both directions");
     require(episodeSnapshot.value(QStringLiteral("resumeTicks")).toLongLong() == 200'000'000
             && episodeSnapshot.value(QStringLiteral("runtimeTicks")).toLongLong() == 1'000'000'000,
@@ -165,12 +186,11 @@ JELLYFIN_TEST_MAIN("play-queue-controller")
         "a different playing position should not count as identical");
     std::vector<MovieItem> reordered = mirrored;
     std::reverse(reordered.begin(), reordered.end());
-    require(!queue.matchesQueue(reordered, queue.currentIndex()),
-        "a reordered server queue should not count as identical");
+    require(
+        !queue.matchesQueue(reordered, queue.currentIndex()), "a reordered server queue should not count as identical");
     std::vector<MovieItem> shorter = mirrored;
     shorter.pop_back();
-    require(!queue.matchesQueue(shorter, queue.currentIndex()),
-        "a shorter server queue should not count as identical");
+    require(!queue.matchesQueue(shorter, queue.currentIndex()), "a shorter server queue should not count as identical");
     queue.setShuffled(true);
     require(!queue.matchesQueue(mirrored, queue.currentIndex()),
         "a shuffled queue plays in a different order than its rows, so it never matches");
