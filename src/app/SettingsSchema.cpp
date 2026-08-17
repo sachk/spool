@@ -262,6 +262,8 @@ const QVector<SettingSpec>& settingSpecs()
         toggleSpec("playback/showVolumeSlider", "Playback", "Volume slider in the player", "", true,
             SettingTarget::PlayerVolumeSlider)
             .onDesktop(),
+        sliderSpec("playback/controlFadeDelaySeconds", "Playback", "Hide player controls after", "", "4", 1, 10, 1, "s",
+            SettingTarget::External),
         selectSpec("settings/audioOutputMode", "Playback", "Audio output", "Applies the next time something plays",
             audioOutput.defaultValue, audioOutput.choices, audioOutput.choiceCount, SettingTarget::AudioOutput,
             SettingNormalizer::AudioOutput)

@@ -16,8 +16,8 @@ FocusScope {
                                                                              === "subtitle" ? player.subtitleDelayMs :
                                                                                               player.fileAudioDelayMs
     readonly property bool nightModeEnabled: Settings.nightModeEnabled
-    readonly property int timelineAutohideMs: 4000
-    readonly property int actionAutohideMs: 6200
+    readonly property int timelineAutohideMs: Number(Settings.values["playback/controlFadeDelaySeconds"] || 4) * 1000
+    readonly property int actionAutohideMs: timelineAutohideMs + 2200
     signal playbackBackRequested(var item)
 
     property bool tooltipSessionHadFile: false
