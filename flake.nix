@@ -613,6 +613,26 @@
             pkgs.lib.makeSearchPath pkgs.spoolQt6.qtbase.qtQmlPrefix
               (nativeQtPackages pkgs);
           nativeRuntimeLibPath = pkgs.lib.makeLibraryPath (nativeRuntimePackages pkgs);
+          appBuildDir =
+            if pkgs.stdenv.hostPlatform.isDarwin
+            then "build/macos/app"
+            else "build/linux-release/app";
+          # Mirrors the "Run native tests" CI steps. mpv-video-item needs a GPU
+          # the Linux runner does not have, so CI skips it there and here.
+          ctestExcludeArgs =
+            if pkgs.stdenv.hostPlatform.isDarwin
+            then ""
+            else "-E '^mpv-video-item$' ";
+          ctestJobs =
+            if pkgs.stdenv.hostPlatform.isDarwin
+            then "$(sysctl -n hw.ncpu)"
+            else "$(nproc)";
+          testScript = pkgs.writeShellScript "jellyfin-native-ctest" ''
+            set -euo pipefail
+            cd "$1"
+            shift
+            exec ctest --test-dir ${appBuildDir} ${ctestExcludeArgs}--parallel "${ctestJobs}" --output-on-failure "$@"
+          '';
           # Development apps resolve the checkout, optionally build the
           # selected native variant, then launch it inside the #native shell.
           makeRunner = {
@@ -622,6 +642,7 @@
             buildRoot ? "",
             buildBeforeRun ? false,
             buildOnly ? false,
+            runTests ? false,
           }:
             let
               runnerBinaryPath =
@@ -706,6 +727,10 @@
               exit 1
             fi
 
+            if ${if runTests then "true" else "false"}; then
+              exec nix develop "$REPO_ROOT#native" -c bash -c "$scrub"'; exec "$@"' _ ${testScript} "$REPO_ROOT" "$@"
+            fi
+
             if ${if buildOnly then "true" else "false"}; then
               exit 0
             fi
@@ -725,6 +750,13 @@
           runner = makeRunner {
             name = "jellyfin-native-run";
             buildBeforeRun = true;
+          };
+
+          # Same build and ctest invocation the release workflow runs.
+          tester = makeRunner {
+            name = "jellyfin-native-tests";
+            buildBeforeRun = true;
+            runTests = true;
           };
           noBuildRunner = makeRunner { name = "jellyfin-native-run-no-build"; };
           imageDebugRunner = makeRunner {
@@ -780,6 +812,11 @@
           run = {
             type = "app";
             program = "${noBuildRunner}/bin/jellyfin-native-run-no-build";
+          };
+
+          tests = {
+            type = "app";
+            program = "${tester}/bin/jellyfin-native-tests";
           };
 
           image-debug = {
