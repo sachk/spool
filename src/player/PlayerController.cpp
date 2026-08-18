@@ -203,7 +203,7 @@ PlayerController::PlayerController(NativeAppWindow *window, JellyfinApiFacade *a
     });
     connect(&m_uiPositionTimer, &QTimer::timeout, this, [this]() {
         if (m_sessionActive)
-            requestMpvPositionRefresh("ui timer");
+            emit positionChanged();
     });
     connect(&m_seekWatchdogTimer, &QTimer::timeout, this, [this]() {
         if (!m_sessionActive || !m_seeking)
@@ -539,7 +539,7 @@ bool PlayerController::backAllowed() const
 
 double PlayerController::positionSeconds() const
 {
-    return m_positionTracker.position();
+    return estimatedPositionSeconds();
 }
 
 double PlayerController::estimatedPositionSeconds() const
@@ -709,7 +709,7 @@ bool PlayerController::applyMpvSubtitleOptions(MpvOptionApplyMode mode, mpv_hand
         = MpvOptionProfile::subtitleOptions(m_subtitlePreferences, m_tracks.subtitlesEnabled(), m_hdrPlayback);
     const auto previousOptions = previousPreferences
         ? MpvOptionProfile::subtitleOptions(*previousPreferences, m_tracks.subtitlesEnabled(), m_hdrPlayback)
-        : std::vector<MpvOption> {};
+        : std::vector<MpvOption> { };
     for (const MpvOption& option : options) {
         const auto previous = std::find_if(previousOptions.begin(), previousOptions.end(),
             [&option](const MpvOption& candidate) { return candidate.name == option.name; });
@@ -952,8 +952,8 @@ void PlayerController::play(const PlaybackSession& session, bool startPaused)
     }
 
     const QByteArray urlBytes = session.url.toUtf8();
-    const QByteArray token = m_api ? m_api->session().accessToken.toUtf8() : QByteArray {};
-    const QByteArray header = token.isEmpty() ? QByteArray {} : QByteArrayLiteral("X-Emby-Token: ") + token;
+    const QByteArray token = m_api ? m_api->session().accessToken.toUtf8() : QByteArray { };
+    const QByteArray header = token.isEmpty() ? QByteArray { } : QByteArrayLiteral("X-Emby-Token: ") + token;
     if (!setRequiredMpvProperty(handle, "http-header-fields", header.constData())) {
         m_mpvLifecycle.cancelFileLoad();
         m_errorText = QStringLiteral("libmpv rejected the authenticated media request.");
