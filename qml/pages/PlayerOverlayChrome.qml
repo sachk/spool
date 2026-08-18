@@ -12,9 +12,20 @@ Item {
 
     required property var overlay
     readonly property bool syncPlayMenuOpen: syncPlayMenu.menuOpen
+    property int lastPointerX: -1
+    property int lastPointerY: -1
 
     function dp(value) {
         return overlay ? overlay.dp(value) : Math.round(value)
+    }
+    function handlePointerMove(position) {
+        const x = Math.round(position.x)
+        const y = Math.round(position.y)
+        if (x === lastPointerX && y === lastPointerY)
+            return
+        lastPointerX = x
+        lastPointerY = y
+        overlay.showControlsFromPointer()
     }
 
     function artworkSource(url) {
@@ -96,10 +107,10 @@ Item {
         }
     }
     HoverHandler {
-        onHoveredChanged: if (hovered && root.overlay.controlsVisible)
-        root.overlay.showControls(root.overlay.focusZone)
+        onHoveredChanged: if (hovered)
+        root.handlePointerMove(point.position)
         onPointChanged: if (hovered)
-        root.overlay.showControlsFromPointer()
+        root.handlePointerMove(point.position)
     }
     WheelHandler {
         target: null

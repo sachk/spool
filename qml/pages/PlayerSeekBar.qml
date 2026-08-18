@@ -134,7 +134,6 @@ Item {
         function updateHover(x) {
             root.overlay.timelineHoverSeconds = secondsForX(x)
             root.overlay.timelineHovering = true
-            root.overlay.showControls("timeline")
         }
 
         function updatePosition(mouse) {

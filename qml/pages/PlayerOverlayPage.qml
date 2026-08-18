@@ -16,8 +16,7 @@ FocusScope {
                                                                              === "subtitle" ? player.subtitleDelayMs :
                                                                                               player.fileAudioDelayMs
     readonly property bool nightModeEnabled: Settings.nightModeEnabled
-    readonly property int timelineAutohideMs: Number(Settings.values["playback/controlFadeDelaySeconds"] || 4) * 1000
-    readonly property int actionAutohideMs: timelineAutohideMs + 2200
+    readonly property int controlAutohideMs: Number(Settings.values["playback/controlFadeDelaySeconds"] || 4) * 1000
     signal playbackBackRequested(var item)
 
     property bool tooltipSessionHadFile: false
@@ -264,7 +263,7 @@ FocusScope {
     }
 
     function isPinned() {
-        return audioOnly || scrubbing || timelineHovering || isMenuOpen() || audioSyncVisible || queuePanelVisible
+        return audioOnly || scrubbing || isMenuOpen() || audioSyncVisible || queuePanelVisible
     }
 
     function isControlsActive() {
@@ -272,7 +271,7 @@ FocusScope {
     }
 
     function restartAutohide() {
-        autohide.interval = focusZone === "actions" ? actionAutohideMs : timelineAutohideMs
+        autohide.interval = controlAutohideMs
         autohide.restart()
     }
 
@@ -876,7 +875,7 @@ FocusScope {
 
     Timer {
         id: autohide
-        interval: overlay.timelineAutohideMs
+        interval: overlay.controlAutohideMs
         onTriggered: overlay.hideControls()
     }
 
