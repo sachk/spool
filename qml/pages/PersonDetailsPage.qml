@@ -143,7 +143,7 @@ FocusScope {
                 Layout.preferredHeight: Math.round(root.portraitWidth * 1.22)
                 Layout.alignment: Qt.AlignTop
                 imageUrl: Art.url(root.person, "poster")
-                fallbackText: root.person.type || "Person"
+                fallbackIcon: "person"
             }
 
             ColumnLayout {
