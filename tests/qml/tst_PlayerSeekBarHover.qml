@@ -81,7 +81,8 @@ TestCase {
     function test_hoverAboveAndBelowTrackPreviewsPosition() {
         mouseMove(seekBar, 150, 5)
         verify(overlayDouble.timelineHovering)
-        verify(overlayDouble.controlsShownByHover)
+        // Hover previews a position; it must not pin the controls open.
+        verify(!overlayDouble.controlsShownByHover)
         compare(Math.round(overlayDouble.timelineHoverSeconds), 30)
 
         mouseMove(seekBar, 450, 95)
