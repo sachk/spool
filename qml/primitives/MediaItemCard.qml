@@ -109,7 +109,7 @@ Item {
         imageUrl: root.imageSource()
         artworkEnabled: root.artworkEnabled
         fallbackText: root.fallbackText()
-        fallbackIcon: root.fallbackIcon
+        fallbackIcon: root.fallbackIcon.length > 0 ? root.fallbackIcon : root.posterKind ? "movie" : ""
         fallbackTint: root.fallbackTint
         artworkVisible: root.artworkVisible
     }
