@@ -38,9 +38,11 @@ FocusScope {
     readonly property string draftAddress: String(manualDraft || "").trim()
     readonly property bool probeCardVisible: probeInput.length > 0 && probeInput === draftAddress
     readonly property bool probeOnline: probeCardVisible && probeState === "online"
-    readonly property int contentWidth: Math.min(width - Metrics.pageMarginPx * 2, 1040)
-    readonly property int tileSize: width >= 1920 ? Metrics.scaled(190) : width >= 1280 ? Metrics.scaled(164) :
-                                                                                          Metrics.scaled(152)
+    readonly property int contentWidth: Math.min(width - Metrics.pageMarginPx * 2, Metrics.scaled(1040))
+    readonly property string lane: Metrics.lane(width)
+    // Profile tiles grow with the room a lane offers rather than with the
+    // pixel count of the panel they happen to be drawn on.
+    readonly property int tileSize: Metrics.scaled(lane === "wide" ? 190 : lane === "regular" ? 164 : 152)
     readonly property string fallbackServerName: "Jellyfin Server"
     readonly property string chosenServerName: selectedServerName.length > 0 ? selectedServerName : fallbackServerName
     readonly property string chosenServerAddress: selectedServerAddress.length > 0 ? selectedServerAddress :

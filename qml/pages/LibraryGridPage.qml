@@ -12,6 +12,7 @@ FocusScope {
     property var shell
     property var uiTransitionToken: 0
     property bool listMode: false
+    readonly property string lane: Metrics.lane(width)
     property int columns: listMode ? 1 : Metrics.columns(width)
     readonly property bool largeZoom: Metrics.uiScalePercent >= 150
     readonly property bool smallZoom: Metrics.uiScalePercent <= 100
@@ -85,8 +86,8 @@ FocusScope {
         property bool badge: false
         signal activated
 
-        implicitWidth: Math.max(118, labelText.implicitWidth + 58)
-        implicitHeight: 42
+        implicitWidth: Math.max(Metrics.scaled(118), labelText.implicitWidth + Metrics.scaled(58))
+        implicitHeight: Metrics.scaled(42)
         focus: true
 
         HoverHandler {
@@ -836,14 +837,14 @@ FocusScope {
             FocusScope {
                 id: libraryButton
                 Layout.fillWidth: true
-                Layout.preferredHeight: 44
+                Layout.preferredHeight: Metrics.scaled(44)
                 focus: true
 
                 Rectangle {
                     anchors.left: titleRow.left
                     anchors.right: titleRow.right
                     anchors.verticalCenter: titleRow.verticalCenter
-                    height: 36
+                    height: Metrics.scaled(36)
                     radius: Theme.radiusSmall
                     color: libraryButton.activeFocus || root.libraryOpen ? Theme.accentPanel : "transparent"
                     border.width: libraryButton.activeFocus ? 2 : 0
@@ -939,7 +940,7 @@ FocusScope {
                 id: clearFiltersButton
                 iconName: "close"
                 label: "Clear"
-                visible: !root.isFixedBrowseView && root.activeFilterCount > 0 && root.width >= Metrics.scaled(900)
+                visible: !root.isFixedBrowseView && root.activeFilterCount > 0 && root.lane !== "compact"
                 onActivated: {
                     root.savedIndex = 0
                     gridReveal.reset()
@@ -960,8 +961,10 @@ FocusScope {
             // current item; no adjacent or off-screen preview panes exist.
             Item {
                 id: listPane
-                visible: root.listMode
-                Layout.preferredWidth: Math.round(root.width * (root.largeZoom ? 0.36 : 0.28))
+                // The pane is a companion column, so it only exists where there is
+                // room for one beside the list.
+                visible: root.listMode && root.lane !== "compact"
+                Layout.preferredWidth: Math.round(root.width * (root.lane === "wide" ? 0.28 : 0.36))
                 Layout.fillHeight: true
 
                 ImageCard {
@@ -1524,8 +1527,8 @@ FocusScope {
         anchors.left: parent.left
         anchors.topMargin: root.contentTopMargin + 52
         anchors.leftMargin: Metrics.pageMarginPx
-        width: 360
-        maximumHeight: 420
+        width: Metrics.menuPanelWidth(root.width, 360)
+        maximumHeight: Metrics.scaled(420)
         z: 22
         model: root.libraryEntries
         currentIndex: root.libraryIndex
@@ -1544,9 +1547,9 @@ FocusScope {
         anchors.right: parent.right
         anchors.topMargin: root.contentTopMargin + 52
         anchors.rightMargin: Metrics.pageMarginPx
-        width: 320
+        width: Metrics.menuPanelWidth(root.width, 320)
         open: root.sortOpen
-        maximumHeight: 430
+        maximumHeight: Metrics.scaled(430)
         z: 20
         model: root.sortEntries
         currentIndex: root.sortIndex
@@ -1567,7 +1570,7 @@ FocusScope {
         anchors.right: parent.right
         anchors.topMargin: root.contentTopMargin + 52
         anchors.rightMargin: Metrics.pageMarginPx
-        width: 380
+        width: Metrics.menuPanelWidth(root.width, 380)
         open: root.filtersOpen
         maximumHeight: Math.min(root.height - Metrics.pageMarginPx * 2 - 70, 620)
         z: 21

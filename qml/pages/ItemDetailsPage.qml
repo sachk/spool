@@ -68,7 +68,8 @@ FocusScope {
                                                                                            && canPlay)
 
     readonly property bool hasProgress: Number(item.resumeTicks || 0) > 0 && Number(item.runtimeTicks || 0) > 0
-    readonly property int detailTitlePx: Math.min(68, Metrics.titleSizePx + 24)
+    readonly property string lane: Metrics.lane(width)
+    readonly property int detailTitlePx: Math.min(Metrics.scaled(68), Metrics.titleSizePx + Metrics.scaled(24))
     readonly property int contentMargin: Metrics.pageMarginPx
     readonly property int rowPosterWidth: Metrics.detailRowPosterWidth()
     readonly property int rowLandscapeWidth: Math.round(rowPosterWidth * 1.75)
@@ -76,10 +77,12 @@ FocusScope {
     readonly property bool compactEpisodicDetail: typeText === "Season" || typeText === "Episode"
     readonly property bool smallZoom: Metrics.uiScalePercent <= 100
     readonly property string backgroundArt: Art.url(item, "backdrop", Math.ceil(width))
-    readonly property int sideArtWidth: Math.min(Math.round(width * (albumDetail ? 0.26 : 0.38)), albumDetail ? 620 :
-                                                                                                                1100)
+    readonly property int sideArtWidth: Math.min(Math.round(width * (albumDetail ? 0.26 : 0.38)), Metrics.scaled(albumDetail
+                                                                                                                 ? 620 : 1100))
     readonly property string stillArt: Art.url(item, albumDetail ? "poster" : "landscape")
-    readonly property bool showSideArt: width >= 1120 && Metrics.uiScale < 1.45 && stillArt.length > 0
+    // Side art is a second column, so it waits for a lane wide enough to
+    // hold one without squeezing the copy beside it.
+    readonly property bool showSideArt: lane === "wide" && stillArt.length > 0
     readonly property var technicalInfo: {
         // Anything with a playable file has a readout worth showing, which is
         // the same rule the media-info overlay uses. Series and Season are the
@@ -89,7 +92,8 @@ FocusScope {
         const smart = String(Settings.values["audio/trackMode"] || "Default") === "Smart"
         return Content.detailMediaInfo(smart ? String(Settings.values["subtitles/language"] || "") : "")
     }
-    readonly property real copyWidth: showSideArt ? Math.min(width * 0.56, 940) : width - contentMargin * 2
+    readonly property real copyWidth: showSideArt ? Math.min(width * 0.56, Metrics.scaled(940)) : width - contentMargin
+                                                    * 2
     readonly property bool loadingDetailRows: Content.detailRowsBusy
     readonly property int contextCount: Content.detailSeasons ? Content.detailSeasons.count : 0
     readonly property int seasonOptionCount: Content.detailSeasonOptions ? Content.detailSeasonOptions.count : 0
@@ -1677,8 +1681,8 @@ FocusScope {
         anchors.leftMargin: root.contentMargin
         anchors.topMargin: Math.min(root.height - maximumHeight - root.contentMargin, root.contentMargin
                                     + root.detailTitlePx * 2.25)
-        width: Math.min(380, root.width - root.contentMargin * 2)
-        maximumHeight: Math.min(430, root.height - root.contentMargin * 2)
+        width: Math.min(Metrics.menuPanelWidth(root.width, 380), root.width - root.contentMargin * 2)
+        maximumHeight: Math.min(Metrics.scaled(430), root.height - root.contentMargin * 2)
         z: 40
         open: root.seasonPickerOpen
         model: root.seasonEntries

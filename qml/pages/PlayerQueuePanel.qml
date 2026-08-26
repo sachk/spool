@@ -27,8 +27,16 @@ FocusScope {
 
     signal dismissed
 
-    readonly property real panelWidth: Platform.isTV ? Math.min(parent ? parent.width * 0.38 : 0, overlay.dp(560)) : Math.min(
-                                                           parent ? parent.width * 0.42 : 0, overlay.dp(430))
+    // A sheet takes a share of the picture it is queueing against, capped so
+    // a wide window does not hand it half the film. A window narrow enough
+    // that a share of it would not hold a row of episode text gets the sheet
+    // over the whole screen instead, which is the phone form of the same rule.
+    readonly property real panelWidth: {
+        const available = parent ? parent.width : 0
+        if (Metrics.lane(available) === "compact")
+            return available
+        return Math.min(Math.round(available * 0.42), Metrics.scaled(430))
+    }
 
     function focusRow(index) {
         list.currentIndex = Math.max(0, Math.min(index, list.count - 1))

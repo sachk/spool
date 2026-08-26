@@ -328,9 +328,9 @@ OverlayDialog {
                         }
                         GridLayout {
                             Layout.fillWidth: true
-                            columns: root.width >= 1400 ? 4 : 2
-                            columnSpacing: 18
-                            rowSpacing: 12
+                            columns: Metrics.lane(root.width) === "wide" ? 4 : 2
+                            columnSpacing: Metrics.scaled(18)
+                            rowSpacing: Metrics.scaled(12)
                             Repeater {
                                 model: root.sourcePairs(source)
                                 Pair {
