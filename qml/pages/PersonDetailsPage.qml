@@ -4,110 +4,64 @@ import QtQuick
 import QtQuick.Layouts
 import "../theme"
 import "../primitives"
+import "../browse"
+import "../shell/ItemActivation.js" as ItemActivation
 
 FocusScope {
     id: root
 
     property var shell
     readonly property var person: shell ? shell.personItem : ({})
-    readonly property var sections: Content.personItemRows || []
+    // The controller supplies title/model/kind per credit row; the page adds
+    // the presentation the row kind implies. A person's episode credits name
+    // the episode, where Continue Watching names the series.
+    readonly property var sections: {
+        const source = Content.personItemRows || []
+        const result = []
+        for (let index = 0; index < source.length; ++index) {
+            const row = source[index]
+            const episodeRow = String((row && row.kind) || "") === "landscape"
+            result.push({
+                            "key": "credit" + index,
+                            "title": String((row && row.title) || ""),
+                            "model": row ? row.model : null,
+                            "kind": episodeRow ? "landscape" : "poster",
+                            "preferEpisodeTitle": episodeRow,
+                            "contextSource": "person"
+                        })
+        }
+        return result
+    }
     readonly property int contentMargin: Metrics.pageMarginPx
-    readonly property int portraitWidth: Math.min(176, Math.max(128, width * 0.1))
+    readonly property int portraitWidth: Math.min(Metrics.scaled(176), Math.max(Metrics.scaled(128), width * 0.1))
     readonly property bool contentReady: !Content.personItemsBusy
     focus: true
 
-    Component.onCompleted: rebuildSections()
-    onSectionsChanged: rebuildSections()
-    onActiveFocusChanged: if (activeFocus)
-    Qt.callLater(focusCurrentSection)
-
-    function modelCount(model) {
-        if (!model)
-            return 0
-        if (model.count !== undefined)
-            return Number(model.count)
-        return model.rowCount ? Number(model.rowCount()) : 0
-    }
-
-    function itemAt(model, index) {
-        if (!model || index < 0 || index >= modelCount(model))
-            return ({})
-        return model.get ? (model.get(index) || ({})) : ({})
-    }
-
-    function firstPopulatedSection(start, direction) {
-        for (let index = start; index >= 0 && index < sections.length; index += direction) {
-            if (modelCount(sections[index].model) > 0)
-                return index
-        }
-        return -1
-    }
-
-    function rebuildSections() {
-        sectionList.currentIndex = firstPopulatedSection(0, 1)
-        Qt.callLater(focusCurrentSection)
-    }
-
-    function currentRow() {
-        return sectionList.currentIndex >= 0 ? sectionList.itemAtIndex(sectionList.currentIndex) : null
-    }
-
-    function focusCurrentSection() {
-        const row = currentRow()
-        if (!row || !row.focusList())
-            return false
-        sectionList.positionViewAtIndex(sectionList.currentIndex, ListView.Contain)
-        return true
-    }
-
-    function moveSection(direction) {
-        const next = firstPopulatedSection(sectionList.currentIndex + direction, direction)
-        if (next < 0) {
-            if (direction < 0) {
-                revealHeader()
-            }
-            if (direction < 0 && shell)
-                shell.focusNavBar()
-            return true
-        }
-        sectionList.currentIndex = next
-        sectionList.positionViewAtIndex(next, ListView.Contain)
-        Qt.callLater(focusCurrentSection)
-        return true
-    }
-
-    function revealHeader() {
-        sectionList.positionViewAtBeginning()
-    }
+    Component.onCompleted: rows.reset()
+    onSectionsChanged: rows.reset()
 
     function routeKey(key, phase, repeat) {
-        const row = currentRow()
-        if (!row)
-            return false
-        if (key === Qt.Key_Up || key === Qt.Key_Down)
-            return moveSection(key === Qt.Key_Down ? 1 : -1)
-        return row.routeKey(key, phase, repeat)
+        return rows.routeKey(key, phase, repeat)
     }
 
-    function openAt(descriptor, index) {
-        if (shell && descriptor && descriptor.model)
-            shell.openDetailsAt(descriptor.model, index, "person", "personDetails")
+    function openAt(section, index, item) {
+        ItemActivation.open(item, {
+                                "source": "person",
+                                "returnRoute": "personDetails",
+                                "browseRoute": "libraryGrid"
+                            }, App, shell, section ? section.model : null, index)
     }
 
     function activate() {
-        const row = currentRow()
-        if (row)
-            openAt(sections[sectionList.currentIndex], row.currentIndex)
+        rows.activate()
     }
 
     function longPress() {
-        const row = currentRow()
-        return Boolean(row && row.longPress && row.longPress())
+        return rows.longPress()
     }
 
     function currentMediaItem() {
-        const row = currentRow()
-        return row ? itemAt(sections[sectionList.currentIndex].model, row.currentIndex) : ({})
+        return rows.currentItem()
     }
 
     Rectangle {
@@ -115,27 +69,29 @@ FocusScope {
         color: Theme.bg
     }
 
-    ListView {
-        id: sectionList
+    RowStackView {
+        id: rows
 
         anchors.fill: parent
         anchors.margins: root.contentMargin
-        model: root.sections
-        spacing: Metrics.sectionGapPx
-        clip: true
-        reuseItems: true
-        cacheBuffer: 0
-        boundsBehavior: Flickable.StopAtBounds
-        keyNavigationEnabled: false
+        sections: root.sections
+        shell: root.shell
+        contextReturnRoute: "personDetails"
+        rowSpacing: Metrics.sectionGapPx
         focus: true
 
-        FastWheelHandler {
-            flickable: sectionList
+        // Leaving the top rows brings the portrait back into view before
+        // handing focus up, so you can see whose credits you were reading.
+        onEdgeUp: {
+            positionAtBeginning()
+            if (root.shell)
+            root.shell.focusNavBar()
         }
+        onActivated: (section, index, item) => root.openAt(section, index, item)
 
         header: RowLayout {
-            width: sectionList.width
-            height: Math.max(172, root.portraitWidth * 1.22) + Metrics.scaled(22)
+            width: rows.width
+            height: Math.max(Metrics.scaled(172), root.portraitWidth * 1.22) + Metrics.scaled(22)
             spacing: Metrics.scaled(22)
 
             ImageCard {
@@ -154,7 +110,7 @@ FocusScope {
                 AppText {
                     Layout.fillWidth: true
                     text: root.person.name || "Person"
-                    font.pixelSize: Math.min(46, Metrics.titleSizePx + 8)
+                    font.pixelSize: Math.min(Metrics.scaled(46), Metrics.titleSizePx + Metrics.scaled(8))
                     font.weight: Font.DemiBold
                     maximumLineCount: 2
                     wrapMode: Text.Wrap
@@ -169,29 +125,9 @@ FocusScope {
             }
         }
 
-        delegate: MediaRow {
-            id: mediaRow
-
-            required property int index
-            required property var modelData
-            readonly property bool episodeRow: String(modelData.kind || "") === "landscape"
-
-            width: sectionList.width
-            title: String(modelData.title || "")
-            model: modelData.model
-            shell: root.shell
-            cardKind: episodeRow ? "landscape" : "poster"
-            preferEpisodeTitle: episodeRow
-            cardWidth: episodeRow ? Metrics.landscapeCardWidth(root.width) : Metrics.cardWidth(root.width)
-            cardGap: Metrics.gapPx
-            itemContextSource: "person"
-            itemContextReturnRoute: "personDetails"
-            onActivated: itemIndex => root.openAt(modelData, itemIndex)
-        }
-
         footer: EmptyPlaceholder {
-            width: sectionList.width
-            height: sectionList.height
+            width: rows.width
+            height: rows.height
             visible: root.sections.length === 0 && !Content.personItemsBusy
             title: "No items"
             detail: "No matching credits in your libraries."

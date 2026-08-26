@@ -6,6 +6,7 @@ import QtQuick.Shapes
 import "../theme"
 import "../primitives"
 import "LibraryNavigation.js" as LibraryNavigation
+import "../shell/ItemActivation.js" as ItemActivation
 
 FocusScope {
     id: root
@@ -692,19 +693,14 @@ FocusScope {
         if (grid.currentIndex < 0)
             return
         savedIndex = grid.currentIndex
-        const item = Browse.items ? (Browse.items.get(grid.currentIndex) || ({})) : ({})
-        const type = String(item.itemType || "")
-        if (type === "MusicAlbum") {
-            if (hasShell())
-                shell.openDetailsAt(Browse.items, grid.currentIndex, "album", "libraryGrid")
-            return
-        }
-        if (["Playlist", "Folder", "PhotoAlbum", "MusicArtist"].indexOf(type) >= 0) {
-            App.playFromModel(Browse.items, grid.currentIndex)
-            return
-        }
-        if (hasShell())
-            shell.openDetailsAt(Browse.items, grid.currentIndex, "movies", "libraryGrid")
+        const item = Browse.items ? (Browse.items.get(grid.currentIndex) || ({})) : ({});
+        // browseRoute is empty because this page already is the browse route:
+        // playing a container here should not push another one on top.
+        ItemActivation.open(item, {
+                                "source": "movies",
+                                "returnRoute": "libraryGrid",
+                                "browseRoute": ""
+                            }, App, hasShell() ? shell : null, Browse.items, grid.currentIndex)
     }
 
     function currentCard() {

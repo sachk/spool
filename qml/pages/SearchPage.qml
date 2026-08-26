@@ -4,6 +4,8 @@ import QtQuick
 import QtQuick.Layouts
 import "../theme"
 import "../primitives"
+import "../browse"
+import "../shell/ItemActivation.js" as ItemActivation
 
 FocusScope {
     id: root
@@ -30,7 +32,9 @@ FocusScope {
         {
             "key": "episodes",
             "title": "Episodes",
-            "model": search ? search.episodeResults : null
+            "model": search ? search.episodeResults : null,
+            "useSeriesPoster": true,
+            "preferEpisodeTitle": true
         },
         {
             "key": "other",
@@ -38,7 +42,6 @@ FocusScope {
             "model": search ? search.otherResults : null
         }
     ]
-    property int currentSection: 0
     // Result kind the user last interacted with; picks the row to focus
     // when results rebuild. Page-local — the page is resident.
     property string preferredKind: "movies"
@@ -64,90 +67,20 @@ FocusScope {
         }
     }
 
-    function resultRows() {
-        const rows = []
-        for (let index = 0; index < resultsScroller.count; ++index) {
-            const row = resultsScroller.itemAtIndex(index)
-            if (row && row.rowVisible)
-                rows.push(row)
-        }
-        return rows
-    }
-
-    function activeResultRow() {
-        const rows = resultRows()
-        if (rows.length <= 0)
-            return null
-        currentSection = Math.max(0, Math.min(currentSection, rows.length - 1))
-        return rows[currentSection]
-    }
-
-    function focusResultRow(row) {
-        const rows = resultRows()
-        const index = rows.indexOf(row)
-        if (index < 0 || !row.focusList())
-            return false
-        currentSection = index
-        InputKeys.positionChild(resultsScroller, row)
-        return true
-    }
-
-    function focusPreferredResult() {
-        const rows = resultRows()
-        if (rows.length <= 0)
-            return false
-        for (let index = 0; index < rows.length; ++index) {
-            if (rows[index].resultKind === root.preferredKind)
-                return focusResultRow(rows[index])
-        }
-        return focusResultRow(rows[0])
-    }
-
     function repairResultFocus() {
-        const row = activeResultRow()
-        if (row && row.activeFocus)
-            focusResultRow(row)
-        else if (!row && resultsScroller.activeFocus)
+        if (!results.repair() && results.activeFocus)
             field.focusField()
     }
 
-    function focusRelativeResult(direction) {
-        const rows = resultRows()
-        const current = activeResultRow()
-        const index = rows.indexOf(current)
-        const next = index + direction
-        if (next < 0) {
-            field.focusField()
-            return true
-        }
-        if (next >= rows.length)
-            return true
-        return focusResultRow(rows[next])
-    }
-
-    function activateResult(row) {
-        if (!row || !shell || row.currentIndex < 0)
+    function activateResult(section, index, item) {
+        if (!section)
             return
-        preferredKind = row.resultKind
-        const item = row.itemAt(row.currentIndex) || ({})
-        if (String(item.itemType || "") === "Person") {
-            shell.openPerson({
-                                 "id": String(item.movieId || ""),
-                                 "name": String(item.title || ""),
-                                 "type": "Person"
-                             })
-            return
-        }
-        if (String(item.itemType || "") === "MusicAlbum") {
-            shell.openDetailsAt(row.model, row.currentIndex, "album", "search")
-            return
-        }
-        if (["Playlist", "Folder", "PhotoAlbum", "MusicArtist"].indexOf(String(item.itemType || "")) >= 0) {
-            App.playFromModel(row.model, row.currentIndex)
-            shell.pushRoute("libraryGrid")
-            return
-        }
-        shell.openDetailsAt(row.model, row.currentIndex, "search", "search")
+        preferredKind = String(section.key || "")
+        ItemActivation.open(item, {
+                                "source": "search",
+                                "returnRoute": "search",
+                                "browseRoute": "libraryGrid"
+                            }, App, shell, section.model, index)
     }
 
     function setQuery(text) {
@@ -166,12 +99,8 @@ FocusScope {
             return suggestionsRow.routeKey(key, phase, repeat)
         }
 
-        const row = activeResultRow()
-        if (row && row.activeFocus) {
-            if (key === Qt.Key_Up || key === Qt.Key_Down)
-                return focusRelativeResult(key === Qt.Key_Down ? 1 : -1)
-            return row.routeKey(key, phase, repeat)
-        }
+        if (results.activeFocus)
+            return results.routeKey(key, phase, repeat)
 
         if (key === Qt.Key_Up && field.activeFocus && !field.editing) {
             if (shell)
@@ -181,7 +110,7 @@ FocusScope {
         if (key !== Qt.Key_Down || !(field.activeFocus || field.editing))
             return false
         if (query.length >= 2)
-            return focusPreferredResult()
+            return results.focusPreferred(preferredKind)
         return showSuggestions && suggestionsRow.focusList()
     }
 
@@ -195,26 +124,21 @@ FocusScope {
                 shell.openDetailsAt(search.suggestions, suggestionsRow.currentIndex, "suggestion", "search")
             return
         }
-        activateResult(activeResultRow())
+        results.activate()
     }
 
     function currentMediaItem() {
         if (suggestionsRow.activeFocus && suggestionsRow.currentIndex >= 0)
             return suggestionsRow.itemAt(suggestionsRow.currentIndex)
-        const row = activeResultRow()
-        if (row && row.activeFocus && row.currentIndex >= 0)
-            return row.itemAt(row.currentIndex)
-        return ({})
+        return results.activeFocus ? results.currentItem() : ({})
     }
 
     function longPress() {
-        const row = activeResultRow()
-        return Boolean(row && row.activeFocus && row.longPress())
+        return results.activeFocus && results.longPress()
     }
 
     function back() {
-        const row = activeResultRow()
-        if (!suggestionsRow.activeFocus && !(row && row.activeFocus))
+        if (!suggestionsRow.activeFocus && !results.activeFocus)
             return false
         field.focusField()
         return true
@@ -300,52 +224,37 @@ FocusScope {
             detail: "Enter at least two characters."
         }
 
-        ListView {
-            id: resultsScroller
+        RowStackView {
+            id: results
 
             Layout.fillWidth: true
             Layout.fillHeight: true
             visible: root.query.length >= 2
-            clip: true
-            boundsBehavior: Flickable.StopAtBounds
-            keyNavigationEnabled: false
-            spacing: Metrics.sectionGapPx
-            reuseItems: true
-            cacheBuffer: 0
-            model: root.resultSections
+            sections: root.resultSections
+            shell: root.shell
+            contextReturnRoute: "search"
+            rowSpacing: Metrics.sectionGapPx
 
-            FastWheelHandler {
-                flickable: resultsScroller
+            // Coming back to results should land on the kind you were last
+            // looking at rather than always on Movies.
+            onCurrentSectionChanged: {
+                const section = sectionAt(currentSection)
+                if (section && activeFocus)
+                root.preferredKind = String(section.key || "")
             }
-
-            delegate: MediaRow {
-                required property var modelData
-                readonly property string resultKind: modelData.key
-
-                width: resultsScroller.width
-                title: modelData.title
-                model: modelData.model
-                shell: root.shell
-                cardKind: "poster"
-                useSeriesPoster: resultKind === "episodes"
-                preferEpisodeTitle: resultKind === "episodes"
-                cardWidth: Metrics.cardWidth(root.width)
-                cardGap: Metrics.gapPx
-                onCurrentIndexChanged: if (activeFocus)
-                root.preferredKind = resultKind
-                onActivated: root.activateResult(this)
-            }
+            onEdgeUp: field.focusField()
+            onActivated: (section, index, item) => root.activateResult(section, index, item)
 
             footer: Item {
-                width: resultsScroller.width
-                height: resultsScroller.height
+                width: results.width
+                height: results.height
                 visible: root.resultCount === 0 && !root.searchBusy
 
                 AppText {
                     anchors.horizontalCenter: parent.horizontalCenter
                     anchors.verticalCenter: parent.verticalCenter
                     text: "No Results"
-                    font.pixelSize: Metrics.bodySizePx + 10
+                    font.pixelSize: Metrics.bodySizePx + Metrics.scaled(10)
                     font.weight: Font.DemiBold
                 }
             }

@@ -2,6 +2,7 @@ pragma ComponentBehavior: Bound
 
 import QtQuick
 import "../theme"
+import "ModelAccess.js" as ModelAccess
 
 FocusScope {
     id: root
@@ -96,21 +97,13 @@ FocusScope {
     }
 
     function modelCount() {
-        if (!model)
-            return 0
-        if (model.count !== undefined)
-            return Number(model.count)
-        if (model.length !== undefined)
-            return Number(model.length)
-        return model.rowCount ? Number(model.rowCount()) : 0
+        return ModelAccess.count(model)
     }
 
+    // revision is unused but must stay in the signature: bindings pass
+    // modelRevision so a model change re-evaluates them.
     function itemAt(index, revision) {
-        if (!model || index < 0 || index >= count)
-            return ({})
-        if (model.get)
-            return model.get(index) || ({})
-        return model[index] || ({})
+        return ModelAccess.at(model, index)
     }
 
     function focusList() {

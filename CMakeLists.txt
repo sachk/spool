@@ -366,10 +366,13 @@ qt_add_qml_module(jellyfin-native
     VERSION 1.0
     QML_FILES
         qml/Main.qml
+        qml/browse/RowStackView.qml
         qml/pages/HomePage.qml
         qml/pages/ItemDetailsPage.qml
         qml/pages/LibraryGridPage.qml
         qml/pages/LibraryNavigation.js
+        qml/shell/ItemActivation.js
+        qml/primitives/ModelAccess.js
         qml/pages/LoginPage.qml
         qml/pages/LoginProfileDialogs.qml
         qml/pages/ProfileNavigation.js
@@ -761,6 +764,8 @@ if(BUILD_TESTING AND NOT CMAKE_CROSSCOMPILING)
             option-picker-input tests/qml/tst_OptionPickerInput.qml
             media-row tests/qml/tst_MediaRow.qml
             metrics tests/qml/tst_Metrics.qml
+            item-activation tests/qml/tst_ItemActivation.qml
+            model-access tests/qml/tst_ModelAccess.qml
             tls-trust-dialogs tests/qml/tst_TlsTrustDialogs.qml
             nav-grid tests/qml/tst_NavGrid.qml
             viewport-focus-recovery tests/qml/tst_ViewportFocusRecovery.qml
