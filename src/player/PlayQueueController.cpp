@@ -108,6 +108,7 @@ namespace {
 PlayQueueController::PlayQueueController(JellyfinApiFacade *api, QObject *parent)
     : QAbstractListModel(parent)
     , m_api(api)
+    , m_outline(new PlayQueueOutlineModel(this, this))
 {
 }
 
@@ -159,6 +160,8 @@ QVariant PlayQueueController::data(const QModelIndex& index, int role) const
         return QVariant::fromValue(item);
     case ProgressRole:
         return playbackProgress(item);
+    case UserQueuedRole:
+        return isUserQueued(index.row());
     default:
         return {};
     }
@@ -184,6 +187,7 @@ QHash<int, QByteArray> PlayQueueController::roleNames() const
         { PlayableRole, "playable" },
         { ItemRole, "item" },
         { ProgressRole, "progress" },
+        { UserQueuedRole, "userQueued" },
     };
 }
 
@@ -330,6 +334,9 @@ bool PlayQueueController::moveItem(int from, int to)
     MovieItem moved = std::move(m_entries[static_cast<size_t>(from)]);
     m_entries.erase(m_entries.begin() + from);
     m_entries.insert(m_entries.begin() + to, std::move(moved));
+    const bool movedProvenance = m_userQueued[static_cast<size_t>(from)];
+    m_userQueued.erase(m_userQueued.begin() + from);
+    m_userQueued.insert(m_userQueued.begin() + to, movedProvenance);
     endMoveRows();
 
     // Shuffle ends here on purpose. The panel lists entries in model order, so
@@ -352,6 +359,7 @@ bool PlayQueueController::removeItem(int index)
 
     beginRemoveRows({}, index, index);
     m_entries.erase(m_entries.begin() + index);
+    m_userQueued.erase(m_userQueued.begin() + index);
     endRemoveRows();
 
     // Drop the row from the play order and relabel the natural indices above
@@ -387,6 +395,7 @@ void PlayQueueController::clear()
     const int previousCurrent = currentIndex();
     beginResetModel();
     m_entries.clear();
+    m_userQueued.clear();
     m_order.clear();
     m_orderIndex = -1;
     m_shuffled = false;
@@ -394,7 +403,7 @@ void PlayQueueController::clear()
     emitQueueStateChanged(previousCurrent);
 }
 
-bool PlayQueueController::playNow(const std::vector<MovieItem>& items, int startIndex)
+bool PlayQueueController::playNow(const std::vector<MovieItem>& items, int startIndex, bool userQueued)
 {
     if (startIndex < 0 || startIndex >= static_cast<int>(items.size())
         || !isQueueable(items[static_cast<size_t>(startIndex)])) {
@@ -417,6 +426,7 @@ bool PlayQueueController::playNow(const std::vector<MovieItem>& items, int start
     const int previousCurrent = currentIndex();
     beginResetModel();
     m_entries = std::move(nextEntries);
+    m_userQueued.assign(m_entries.size(), userQueued);
     rebuildNaturalOrder();
     m_orderIndex = nextCurrent;
     if (m_shuffled)
@@ -426,9 +436,9 @@ bool PlayQueueController::playNow(const std::vector<MovieItem>& items, int start
     return true;
 }
 
-bool PlayQueueController::playNow(const MovieItem& item)
+bool PlayQueueController::playNow(const MovieItem& item, bool userQueued)
 {
-    return playNow(std::vector<MovieItem> { item }, 0);
+    return playNow(std::vector<MovieItem> { item }, 0, userQueued);
 }
 
 bool PlayQueueController::playNext(const MovieItem& item)
@@ -437,7 +447,7 @@ bool PlayQueueController::playNext(const MovieItem& item)
         return false;
 
     if (m_entries.empty())
-        return playNow(item);
+        return playNow(item, true);
 
     const int previousCurrent = currentIndex();
     // Land beside the playing row, not at the end. Appending put the entry at
@@ -447,6 +457,7 @@ bool PlayQueueController::playNext(const MovieItem& item)
 
     beginInsertRows({}, naturalIndex, naturalIndex);
     m_entries.insert(m_entries.begin() + naturalIndex, item);
+    m_userQueued.insert(m_userQueued.begin() + naturalIndex, true);
     endInsertRows();
 
     // Relabel before inserting, so the new row's own index is not bumped too.
@@ -469,15 +480,80 @@ bool PlayQueueController::addToQueue(const MovieItem& item)
         return false;
 
     if (m_entries.empty())
-        return playNow(item);
+        return playNow(item, true);
 
     const int previousCurrent = currentIndex();
     const int naturalIndex = rowCount();
     beginInsertRows({}, naturalIndex, naturalIndex);
     m_entries.push_back(item);
+    m_userQueued.push_back(true);
     endInsertRows();
     m_order.push_back(naturalIndex);
     emitQueueStateChanged(previousCurrent);
+    return true;
+}
+
+bool PlayQueueController::addToQueue(const std::vector<MovieItem>& items, bool next)
+{
+    std::vector<MovieItem> queueable;
+    queueable.reserve(items.size());
+    std::copy_if(items.begin(), items.end(), std::back_inserter(queueable),
+        [](const MovieItem& item) { return isQueueable(item); });
+    if (queueable.empty())
+        return false;
+
+    if (m_entries.empty())
+        return playNow(queueable, 0, true);
+
+    const int previousCurrent = currentIndex();
+    // A whole season queued next lands beside the playing row in the order it
+    // was given, rather than reversed by inserting each one at the same anchor.
+    const int at = next ? (previousCurrent >= 0 ? previousCurrent + 1 : rowCount()) : rowCount();
+    const int added = static_cast<int>(queueable.size());
+
+    beginInsertRows({}, at, at + added - 1);
+    m_entries.insert(m_entries.begin() + at, queueable.begin(), queueable.end());
+    m_userQueued.insert(m_userQueued.begin() + at, static_cast<size_t>(added), true);
+    endInsertRows();
+
+    for (int& natural : m_order) {
+        if (natural >= at)
+            natural += added;
+    }
+    const int insertOrderIndex = next ? (m_orderIndex >= 0 ? m_orderIndex + 1 : 0) : static_cast<int>(m_order.size());
+    std::vector<int> inserted(static_cast<size_t>(added));
+    std::iota(inserted.begin(), inserted.end(), at);
+    m_order.insert(m_order.begin() + insertOrderIndex, inserted.begin(), inserted.end());
+    if (m_orderIndex < 0)
+        m_orderIndex = insertOrderIndex;
+    emitQueueStateChanged(previousCurrent);
+    return true;
+}
+
+bool PlayQueueController::moveRange(int from, int count, int to)
+{
+    if (count <= 1)
+        return count == 1 && moveItem(from, to);
+    // `to` is where the block lands once it has been lifted out, matching
+    // moveItem's own erase-then-insert reading of its arguments.
+    if (from < 0 || count < 0 || from + count > rowCount() || to < 0 || to > rowCount() - count)
+        return false;
+    if (to == from)
+        return false;
+
+    // Walk the block a row at a time so every index shift is one moveItem
+    // already reasons about, the playing row's included.
+    if (to < from) {
+        for (int offset = 0; offset < count; ++offset) {
+            if (!moveItem(from + offset, to + offset))
+                return false;
+        }
+        return true;
+    }
+    for (int offset = 0; offset < count; ++offset) {
+        if (!moveItem(from, to + count - 1))
+            return false;
+    }
     return true;
 }
 

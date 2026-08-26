@@ -131,6 +131,8 @@ set(SPOOL_PLAYER_SOURCES
     src/player/MpvVideoItem.h
     src/player/PlayQueueController.cpp
     src/player/PlayQueueController.h
+    src/player/PlayQueueOutlineModel.cpp
+    src/player/PlayQueueOutlineModel.h
     src/player/PlaybackFailurePolicy.cpp
     src/player/PlaybackFailurePolicy.h
     src/player/PlaybackPositionTracker.cpp
@@ -624,6 +626,7 @@ if(BUILD_TESTING AND NOT CMAKE_CROSSCOMPILING)
         mpv-option-profile tests/player/MpvOptionProfileTest.cpp
         playback-failure-policy tests/player/PlaybackFailurePolicyTest.cpp
         play-queue-controller tests/player/PlayQueueControllerTest.cpp
+        play-queue-outline-model tests/player/PlayQueueOutlineModelTest.cpp
         series-audio-selection tests/player/SeriesAudioSelectionTest.cpp
     )
     # Both of these assert nothing away from Linux: the memory policy parses

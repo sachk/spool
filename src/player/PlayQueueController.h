@@ -1,6 +1,10 @@
 #pragma once
 
 #include "../common/JellyfinTypes.h"
+// Full definition, not a forward declaration: moc needs the pointed-to type
+// of a Q_PROPERTY to be complete. The outline only forward-declares this
+// controller in turn, so there is no cycle.
+#include "PlayQueueOutlineModel.h"
 
 #include <QAbstractListModel>
 #include <QVariantMap>
@@ -17,6 +21,9 @@ class PlayQueueController final : public QAbstractListModel {
     Q_PROPERTY(bool shuffled READ shuffled WRITE setShuffled NOTIFY queueChanged)
     Q_PROPERTY(bool canGoNext READ canGoNext NOTIFY currentIndexChanged)
     Q_PROPERTY(bool canGoPrevious READ canGoPrevious NOTIFY currentIndexChanged)
+    // The same queue with its automatically filled runs folded up, which is
+    // what the panel lists. Owned here so there is one outline per queue.
+    Q_PROPERTY(JellyfinNative::PlayQueueOutlineModel *outline READ outline CONSTANT)
 
 public:
     enum Roles {
@@ -41,9 +48,18 @@ public:
         // episode thumbs and album covers resolve without new roles per tag.
         ItemRole,
         ProgressRole,
+        // Whether this row is here because the user asked for it, rather than
+        // because starting an episode filled the queue with its whole series.
+        // The outline folds runs of the latter and never the former.
+        UserQueuedRole,
     };
 
     explicit PlayQueueController(JellyfinApiFacade *api = nullptr, QObject *parent = nullptr);
+
+    PlayQueueOutlineModel *outline() const
+    {
+        return m_outline;
+    }
 
     int rowCount(const QModelIndex& parent = {}) const override;
     QVariant data(const QModelIndex& index, int role) const override;
@@ -75,6 +91,10 @@ public:
     {
         return index < 0 || index >= rowCount() ? MovieItem {} : m_entries[static_cast<size_t>(index)];
     }
+    bool isUserQueued(int index) const
+    {
+        return index >= 0 && index < rowCount() && m_userQueued[static_cast<size_t>(index)];
+    }
     MovieItem currentItem() const
     {
         const int index = currentIndex();
@@ -92,13 +112,18 @@ public:
     Q_INVOKABLE bool playAt(int index);
     Q_INVOKABLE void setShuffled(bool shuffled);
     Q_INVOKABLE bool moveItem(int from, int to);
+    // Move a whole folded run in one gesture, so dragging a collapsed group
+    // takes its hidden members with it.
+    Q_INVOKABLE bool moveRange(int from, int count, int to);
     Q_INVOKABLE bool removeItem(int index);
     Q_INVOKABLE void clear();
 
-    bool playNow(const std::vector<MovieItem>& items, int startIndex);
-    bool playNow(const MovieItem& item);
+    bool playNow(const std::vector<MovieItem>& items, int startIndex, bool userQueued = false);
+    bool playNow(const MovieItem& item, bool userQueued = false);
     bool playNext(const MovieItem& item);
     bool addToQueue(const MovieItem& item);
+    // Queue a whole season or series in one go, either next or at the end.
+    bool addToQueue(const std::vector<MovieItem>& items, bool next);
     void enqueueEpisodeSuccessors(const MovieItem& episode);
     bool updateResumeTicks(const QString& itemId, qint64 resumeTicks);
     bool updatePeople(const QString& itemId, const QList<PersonItem>& people);
@@ -117,7 +142,11 @@ private:
     void emitQueueStateChanged(int previousCurrentIndex);
 
     JellyfinApiFacade *m_api = nullptr;
+    PlayQueueOutlineModel *m_outline = nullptr;
     std::vector<MovieItem> m_entries;
+    // Parallel to m_entries. Provenance belongs to this queue, not to the
+    // item, so it does not go on the shared MovieItem gadget.
+    std::vector<bool> m_userQueued;
     std::vector<int> m_order;
     int m_orderIndex = -1;
     bool m_shuffled = false;
