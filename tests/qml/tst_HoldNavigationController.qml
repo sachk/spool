@@ -10,6 +10,7 @@ TestCase {
     property int callbackCount: 0
     property int stepCount: 0
     property var callbackKeys: []
+    property var releasedKeys: []
 
     Primitives.HoldNavigationController {
         id: controller
@@ -22,6 +23,8 @@ TestCase {
             testCase.stepCount += steps
             testCase.callbackKeys.push(key)
         }
+        onHoldReleased: key => testCase.releasedKeys.push(key)
+        stepDelay: 0
     }
 
     function advance(milliseconds, frameMilliseconds) {
@@ -39,7 +42,10 @@ TestCase {
         controller.maximumRate = 18
         controller.cruiseDuration = 2000
         controller.rampDuration = 500
+        controller.rampShape = 1
+        controller.stepDelay = 0
         fakeNow = 1000
+        releasedKeys = []
         callbackCount = 0
         stepCount = 0
         callbackKeys = []
@@ -95,6 +101,51 @@ TestCase {
         compare(controller.accumulator, 0)
         compare(stepCount, 2)
         compare(callbackKeys[callbackKeys.length - 1], Qt.Key_Left)
+    }
+
+    function test_rampShapeHoldsTheEarlyRampBack() {
+        controller.rampShape = 2
+        // Halfway through the ramp the symmetric curve is at half speed; the
+        // bent one is a quarter of the way up and still climbing.
+        compare(controller.rateAt(2250), 3 + 15 * 0.25)
+        compare(controller.rateAt(2000), 3)
+        compare(controller.rateAt(2500), 18)
+    }
+
+    function test_stepDelayWaitsForTheKeyToRepeatOrForTheDelay() {
+        controller.stepDelay = 300
+        controller.cruiseDuration = 100000
+        controller.routeKey(Qt.Key_Right, "press", false)
+        compare(stepCount, 1)
+
+        advance(200)
+        compare(stepCount, 1);
+
+        // The repeat is the fast path; the delay is what stands in for one on
+        // a remote that never sends it.
+        controller.routeKey(Qt.Key_Right, "press", true)
+        advance(1000)
+        compare(stepCount, 4)
+
+        controller.routeKey(Qt.Key_Right, "release", false)
+        controller.routeKey(Qt.Key_Left, "press", false)
+        advance(200)
+        compare(stepCount, 5)
+        advance(1000)
+        compare(stepCount, 7)
+    }
+
+    function test_holdReleasedAnnouncesOnlyTheEndOfTheGesture() {
+        controller.routeKey(Qt.Key_Right, "press", false)
+        controller.routeKey(Qt.Key_Left, "press", false)
+        compare(releasedKeys.length, 0)
+
+        controller.routeKey(Qt.Key_Left, "release", true)
+        compare(releasedKeys.length, 0)
+
+        controller.routeKey(Qt.Key_Left, "release", false)
+        compare(releasedKeys, [Qt.Key_Left])
+        compare(controller.state, Primitives.HoldNavigationController.Idle)
     }
 
     function test_fastTickCoalescesAllStepsIntoOneCallback() {

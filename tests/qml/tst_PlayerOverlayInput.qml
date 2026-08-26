@@ -7,6 +7,10 @@ TestCase {
     name: "PlayerOverlayInput"
 
     property var seekDeltas: []
+    property var previewDeltas: []
+    property int previewCommits: 0
+    property int previewCancels: 0
+    property double fakeNow: 1000
     property int subtitleCycles: 0
     property int controlsShown: 0
     property int fullscreenToggles: 0
@@ -14,6 +18,7 @@ TestCase {
     QtObject {
         id: playerStub
         property string activeSegmentType: ""
+        property double durationSeconds: 2400
         function cycleSubtitles() {
             ++testCase.subtitleCycles
         }
@@ -34,6 +39,15 @@ TestCase {
         function seekBy(delta) {
             testCase.seekDeltas.push(delta)
         }
+        function seekPreviewBy(delta) {
+            testCase.previewDeltas.push(delta)
+        }
+        function commitSeekPreview() {
+            ++testCase.previewCommits
+        }
+        function cancelSeekPreview() {
+            ++testCase.previewCancels
+        }
         function showControls(zone) {
             focusZone = zone
             ++testCase.controlsShown
@@ -50,8 +64,31 @@ TestCase {
         overlay: overlayStub
     }
 
+    function advance(milliseconds) {
+        const end = fakeNow + milliseconds
+        while (fakeNow < end) {
+            fakeNow = Math.min(end, fakeNow + 16)
+            input.seekHold.tick()
+        }
+    }
+
+    function previewTotal() {
+        let total = 0
+        for (let index = 0; index < previewDeltas.length; ++index)
+            total += previewDeltas[index]
+        return total
+    }
+
     function init() {
         seekDeltas = []
+        previewDeltas = []
+        previewCommits = 0
+        previewCancels = 0
+        fakeNow = 1000
+        input.seekHold.tickInterval = 3600000
+        input.seekHold.nowProvider = function () {
+            return testCase.fakeNow
+        }
         subtitleCycles = 0
         controlsShown = 0
         fullscreenToggles = 0
@@ -61,11 +98,12 @@ TestCase {
         overlayStub.actionIndex = 1
     }
 
-    function test_shortSeekUsesOneRouterGesture() {
+    function test_shortSeekPreviewsTenSecondsAndCommitsOnRelease() {
         verify(input.pressed(Qt.Key_Left, false))
-        compare(seekDeltas, [-10])
+        compare(previewDeltas, [-10])
         verify(input.previewing)
         verify(input.released(Qt.Key_Left, false))
+        compare(previewCommits, 1)
         verify(!input.previewing)
     }
 
@@ -86,15 +124,61 @@ TestCase {
         compare(overlayStub.actionIndex, 0)
     }
 
-    function test_repeatedSeekAccelerates() {
+    function test_heldSeekRampsWithoutTouchingThePlayer() {
         verify(input.pressed(Qt.Key_Right, false))
-        for (let repeat = 0; repeat < 16; ++repeat)
-            verify(input.pressed(Qt.Key_Right, true))
-        compare(seekDeltas.length, 17)
-        compare(seekDeltas[3], 10)
-        compare(seekDeltas[4], 30)
-        compare(seekDeltas[seekDeltas.length - 1], 120)
+        compare(previewDeltas, [10]);
+
+        // The nudge stands alone for a moment before the ramp picks it up.
+        advance(200)
+        compare(previewDeltas.length, 1)
+
+        verify(input.pressed(Qt.Key_Right, true))
+        advance(500)
+        const cruised = previewTotal()
+        verify(cruised > 10)
+        verify(cruised < 45)
+
+        advance(2500)
+        const early = previewTotal() - cruised
+        // The first seconds of the ramp stay steerable rather than bolting.
+        verify(early > 100)
+        verify(early < 600)
+
+        advance(2500)
+        const settled = previewTotal()
+        advance(1000)
+        // Past five seconds the rate is the running time's, near enough a third
+        // of the file every second.
+        verify(previewTotal() - settled > 700)
+        compare(seekDeltas, [])
+        compare(previewCommits, 0)
+
         verify(input.released(Qt.Key_Right, false))
+        compare(previewCommits, 1)
+    }
+
+    function test_syntheticReleaseKeepsTheHoldAlive() {
+        verify(input.pressed(Qt.Key_Right, false))
+        verify(input.pressed(Qt.Key_Right, true))
+        verify(input.released(Qt.Key_Right, true))
+        compare(previewCommits, 0)
+        verify(input.previewing)
+
+        advance(1000)
+        verify(previewTotal() > 10)
+        verify(input.released(Qt.Key_Right, false))
+        compare(previewCommits, 1)
+    }
+
+    function test_reversingDirectionKeepsThePreviewGoing() {
+        verify(input.pressed(Qt.Key_Right, false))
+        verify(input.pressed(Qt.Key_Right, true))
+        advance(1000)
+        verify(input.pressed(Qt.Key_Left, false))
+        compare(previewCommits, 0)
+        compare(previewDeltas[previewDeltas.length - 1], -10)
+        verify(input.released(Qt.Key_Left, false))
+        compare(previewCommits, 1)
     }
 
     function test_downRepeatCyclesAtBoundedRate() {

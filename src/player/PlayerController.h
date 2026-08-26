@@ -129,6 +129,9 @@ public:
     Q_INVOKABLE void seekForward();
     Q_INVOKABLE void seek(double seconds);
     Q_INVOKABLE void previewSeekBy(double deltaSeconds);
+    // Where a fresh seek gesture should start from: the target of a seek still
+    // in flight, so chained gestures compound instead of cancelling out.
+    Q_INVOKABLE double seekAnchorSeconds();
     void prepareForBackground();
     void teardownForBackground();
     void resyncForForeground();

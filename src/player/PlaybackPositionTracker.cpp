@@ -24,6 +24,7 @@ void PlaybackPositionTracker::reset(double startSeconds)
     m_requestedSeekStartSeconds = -1.0;
     m_lastTrustedPositionSeconds = start;
     m_hasMpvPosition = false;
+    m_ignoringStalePositions = false;
     m_seekCommandClock.invalidate();
     m_positionRegressionAllowedClock.invalidate();
     m_positionClock.invalidate();
@@ -37,6 +38,7 @@ void PlaybackPositionTracker::clear()
     m_requestedSeekStartSeconds = -1.0;
     m_lastTrustedPositionSeconds = 0.0;
     m_hasMpvPosition = false;
+    m_ignoringStalePositions = false;
     m_seekCommandClock.invalidate();
     m_positionRegressionAllowedClock.invalidate();
     m_positionClock.invalidate();
@@ -93,9 +95,15 @@ bool PlaybackPositionTracker::update(double seconds)
     if (!landedSeek && !regressionAllowed() && m_hasMpvPosition
         && m_lastTrustedPositionSeconds > kPositionRegressionToleranceSeconds
         && clamped + kPositionRegressionToleranceSeconds < m_lastTrustedPositionSeconds) {
-        qInfo() << "player: ignoring stale mpv position"
-                << "position=" << clamped << "ui=" << m_positionSeconds << "trusted=" << m_lastTrustedPositionSeconds;
+        if (!m_ignoringStalePositions) {
+            m_ignoringStalePositions = true;
+            qInfo() << "player: ignoring stale mpv position"
+                    << "position=" << clamped << "ui=" << m_positionSeconds
+                    << "trusted=" << m_lastTrustedPositionSeconds;
+        }
         clamped = clamp(m_lastTrustedPositionSeconds);
+    } else {
+        m_ignoringStalePositions = false;
     }
 
     m_lastTrustedPositionSeconds = clamped;

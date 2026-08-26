@@ -7,28 +7,52 @@ Item {
 
     required property var overlay
     property int seekKey: 0
-    property int seekRepeats: 0
     property int downRepeats: 0
     readonly property bool previewing: seekKey !== 0
+    property alias seekHold: seekHold
+
+    // A tap nudges by tapSeconds. A held key picks up where the tap left off
+    // and builds, over five seconds, to a rate set by the running time: about a
+    // third of the file every second, so the far end is always within reach.
+    readonly property real tapSeconds: 10
+    readonly property real holdInitialRate: 50
+    readonly property real holdMaximumRate: {
+        const duration = overlay.hasPlayer ? Number(overlay.player.durationSeconds) || 0 : 0
+        return Math.max(400, Math.min(3600, duration / 3))
+    }
 
     function reset() {
+        const wasSeeking = seekKey !== 0
         seekKey = 0
-        seekRepeats = 0
         downRepeats = 0
+        seekHold.stopTracking()
+        // A scrub the pointer owns is not ours to drop.
+        if (wasSeeking)
+            overlay.cancelSeekPreview()
     }
 
     function seekDelta(key) {
-        return key === Qt.Key_Left ? -10 : key === Qt.Key_Right ? 10 : 0
+        return key === Qt.Key_Left ? -1 : key === Qt.Key_Right ? 1 : 0
     }
 
-    function repeatedSeekDelta(delta) {
-        if (seekRepeats >= 16)
-            return delta * 12
-        if (seekRepeats >= 8)
-            return delta * 6
-        if (seekRepeats >= 4)
-            return delta * 3
-        return delta
+    // Every repeat moves the preview, never mpv: the seek lands once, when the
+    // key comes back up.
+    HoldNavigationController {
+        id: seekHold
+
+        stepDelay: 300
+        initialRate: root.holdInitialRate
+        maximumRate: root.holdMaximumRate
+        cruiseDuration: 700
+        // Five seconds from a standing start to full speed, held back early so
+        // the first seconds stay steerable and the last ones cover ground.
+        rampDuration: 4300
+        rampShape: 2.2
+        stepCallback: function (key, steps, source) {
+            const seconds = source === "press" ? root.tapSeconds : steps
+            root.overlay.seekPreviewBy(root.seekDelta(key) * seconds)
+        }
+        onHoldReleased: root.overlay.commitSeekPreview()
     }
 
     function pressed(key, repeat) {
@@ -36,15 +60,8 @@ Item {
         if (delta !== 0 && overlay.controlsVisible && overlay.focusZone !== "timeline")
             return true
         if (delta !== 0 && overlay.hasPlayer && overlay.canPreviewSeek()) {
-            if (!repeat || seekKey !== key) {
-                seekKey = key
-                seekRepeats = 0
-                overlay.seekBy(delta)
-            } else {
-                ++seekRepeats
-                overlay.seekBy(repeatedSeekDelta(delta))
-            }
-            return true
+            seekKey = key
+            return seekHold.routeKey(key, "press", repeat)
         }
         if (key === Qt.Key_Down && repeat && overlay.hasPlayer) {
             ++downRepeats
@@ -162,9 +179,15 @@ Item {
 
     function released(key, repeat) {
         if (key === seekKey) {
-            seekKey = 0
-            seekRepeats = 0
-            overlay.maybeRestartAutohide()
+            // A synthetic release from key auto-repeat is not the end of the
+            // gesture; the controller tells them apart. Either way the key is
+            // spoken for until it physically comes up, so a stale release
+            // cannot fall through and seek a second time.
+            seekHold.routeKey(key, "release", repeat)
+            if (!repeat) {
+                seekKey = 0
+                overlay.maybeRestartAutohide()
+            }
             return true
         }
         if (key === Qt.Key_Down && downRepeats > 0) {

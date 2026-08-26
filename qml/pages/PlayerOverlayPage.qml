@@ -319,6 +319,30 @@ FocusScope {
         return !controlsVisible || focusZone === "timeline"
     }
 
+    // Held seeking moves a preview along the timeline rather than asking mpv
+    // for a new position on every repeat: one seek lands at the end of the
+    // gesture, so the picture never thrashes and the seek bar stays smooth.
+    function seekPreviewBy(delta) {
+        if (!hasPlayer || delta === 0)
+            return
+        showControls("timeline")
+        if (!scrubbing) {
+            // Start from where the last gesture asked to land when its seek is
+            // still on the way, so quick taps in a row add up.
+            scrubSeconds = clampSeconds(player.seekAnchorSeconds())
+            scrubbing = true
+        }
+        scrubSeconds = clampSeconds(scrubSeconds + delta)
+    }
+
+    function commitSeekPreview() {
+        commitScrub()
+    }
+
+    function cancelSeekPreview() {
+        scrubbing = false
+    }
+
     function commitScrub() {
         if (!scrubbing)
             return false
@@ -742,8 +766,11 @@ FocusScope {
         }
         if (desktopControlsAvailable)
             return stopPlayback("overlay-back")
+        // Back abandons a scrub — a held seek included — rather than leaving
+        // playback, so read it before the input hand-back clears it.
+        const wasScrubbing = scrubbing
         input.reset()
-        if (scrubbing) {
+        if (wasScrubbing) {
             scrubbing = false
             controlsVisible = false
             autohide.stop()

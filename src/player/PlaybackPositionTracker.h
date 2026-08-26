@@ -34,6 +34,9 @@ private:
     double m_requestedSeekStartSeconds = -1.0;
     double m_lastTrustedPositionSeconds = 0.0;
     bool m_hasMpvPosition = false;
+    // A rejected position repeats with every mpv tick until it catches up.
+    // Only the first of a run is worth a line in the log.
+    bool m_ignoringStalePositions = false;
     QElapsedTimer m_positionClock;
     QElapsedTimer m_seekCommandClock;
     QElapsedTimer m_positionRegressionAllowedClock;
