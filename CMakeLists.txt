@@ -368,6 +368,8 @@ qt_add_qml_module(jellyfin-native
     VERSION 1.0
     QML_FILES
         qml/Main.qml
+        qml/browse/BrowseSurface.qml
+        qml/browse/ListBrowseView.qml
         qml/browse/RowStackView.qml
         qml/pages/HomePage.qml
         qml/pages/ItemDetailsPage.qml
@@ -380,6 +382,7 @@ qt_add_qml_module(jellyfin-native
         qml/pages/ProfileNavigation.js
         qml/pages/OpenSourceNoticesPage.qml
         qml/pages/PersonDetailsPage.qml
+        qml/pages/PlayerBrowsePanel.qml
         qml/pages/PlayerAudioSyncPanel.qml
         qml/pages/PlayerMusicStage.qml
         qml/pages/PlayerOverlayChrome.qml
@@ -413,6 +416,7 @@ qt_add_qml_module(jellyfin-native
         qml/primitives/OptionPickerDialog.qml
         qml/primitives/InputKeys.qml
         qml/primitives/MediaItemCard.qml
+        qml/primitives/MediaListRow.qml
         qml/primitives/MediaRow.qml
         qml/primitives/MetadataChip.qml
         qml/primitives/MenuListView.qml

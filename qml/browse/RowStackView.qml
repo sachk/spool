@@ -50,8 +50,10 @@ FocusScope {
     readonly property alias count: sectionList.count
     readonly property alias contentY: sectionList.contentY
 
+    readonly property int sectionCount: sections ? sections.length : 0
+
     function sectionAt(index) {
-        return index >= 0 && index < sections.length ? sections[index] : null
+        return index >= 0 && index < sectionCount ? sections[index] : null
     }
 
     function rowAt(index) {
@@ -74,7 +76,7 @@ FocusScope {
     }
 
     function nextPopulated(start, direction) {
-        for (let index = start; index >= 0 && index < sections.length; index += direction) {
+        for (let index = start; index >= 0 && index < sectionCount; index += direction) {
             if (isPopulated(index))
                 return index
         }
@@ -100,8 +102,8 @@ FocusScope {
     // there is. Search uses this to return you to the results you were last
     // looking at rather than always to Movies.
     function focusPreferred(key) {
-        for (let index = 0; index < sections.length; ++index) {
-            const section = sections[index]
+        for (let index = 0; index < sectionCount; ++index) {
+            const section = sectionAt(index)
             if (section && String(section.key || "") === String(key) && isPopulated(index))
                 return focusSection(index)
         }

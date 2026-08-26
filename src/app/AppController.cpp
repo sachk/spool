@@ -662,6 +662,21 @@ void AppController::commitQueueMove(int from, int to)
     m_syncPlay->requestMoveItem(queuePlaylistItemId(to), to);
 }
 
+bool AppController::previewQueueMoveRange(int from, int count, int to)
+{
+    return m_playQueue->moveRange(from, count, to);
+}
+
+void AppController::commitQueueMoveRange(int from, int count, int to)
+{
+    if (from == to || count <= 0 || !inSyncPlayGroup())
+        return;
+    // The preview has already laid the block down at `to`, so publish the rows
+    // where they now sit, top down, which is the order the group will apply.
+    for (int offset = 0; offset < count; ++offset)
+        m_syncPlay->requestMoveItem(queuePlaylistItemId(to + offset), to + offset);
+}
+
 void AppController::removeQueueItem(int index)
 {
     if (inSyncPlayGroup()) {
@@ -766,6 +781,26 @@ void AppController::playModel(MovieGridModel *model, bool shuffled)
     playQueuedItems(items, static_cast<int>(std::distance(items.begin(), firstPlayable)), false);
     if (shuffled)
         m_playQueue->setShuffled(true);
+}
+
+void AppController::queueEpisodicContainer(const QString& seriesId, const QString& seasonId, bool next)
+{
+    if (!m_api || seriesId.isEmpty())
+        return;
+    Async::runScoped(
+        this, m_api->fetchEpisodes(seriesId, seasonId),
+        [this, next](const std::vector<MovieItem>& episodes) {
+            if (episodes.empty()) {
+                setErrorText(QStringLiteral("There is nothing here to queue."));
+                return;
+            }
+            if (!m_playQueue->addToQueue(episodes, next))
+                setErrorText(QStringLiteral("This item cannot be queued."));
+        },
+        [this](const std::exception_ptr& error) {
+            qWarning() << "queue: episode lookup failed" << exceptionMessage(error);
+            setErrorText(QStringLiteral("Could not reach the server to queue that."));
+        });
 }
 
 void AppController::playEpisodicContainer(const QString& seriesId, const QString& seasonId)

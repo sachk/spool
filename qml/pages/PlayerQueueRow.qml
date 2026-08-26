@@ -4,8 +4,15 @@ import JellyfinWebOS
 import "../primitives"
 import "../theme"
 
-// One queue entry. The row carries enough to tell two tracks off an album or
-// two episodes of a series apart, which the old title-only menu row could not.
+// One row of the queue outline. Most rows are a queue entry; some also carry
+// the band for a folded run of episodes, and one carries the divider where
+// what the queue filled in for itself gives way to what the user added.
+//
+// The band belongs to the run's first row rather than to a row of its own, so
+// every visible row still maps to a real queue entry. When the run is open
+// the band sits above that row's own content and its members are ruled
+// together down the left edge -- shown as belonging to it without being
+// indented out of line with everything else.
 Item {
     id: row
 
@@ -22,26 +29,44 @@ Item {
     required property real progress
     required property int position
 
+    // Outline shape, from PlayQueueOutlineModel.
+    property string outlineKind: "item"
+    property string groupLabel: ""
+    property string groupDetail: ""
+    property int groupCount: 0
+    property bool inGroup: false
+    property bool userQueuedRunStart: false
+
     property bool current: false
     property bool highlighted: false
     property bool grabbed: false
     property bool reordering: false
     property bool pointerEnabled: false
+    // A drag is passing over this row and will land here if released.
+    property bool dropTarget: false
+
+    readonly property bool folded: outlineKind === "group"
+    readonly property bool unfolded: outlineKind === "groupOpen"
+    readonly property bool hasBand: folded || unfolded
+    // A folded row stands for its whole run, so there is no single entry to
+    // play or remove and no duration that would mean anything.
+    readonly property bool showsEntry: !folded
 
     // Hover-revealed controls, so a resting queue is just the list.
     readonly property bool pointerAffordances: pointerEnabled && rowHover.hovered
 
     signal activated
     signal removeRequested
-    signal dragStarted
-    signal dragMovedTo(real sceneY)
-    signal dragEnded
+    signal toggleRequested
 
     readonly property bool audio: entryType === "Audio" || entryType === "AudioBook"
     readonly property real artHeight: overlay.dp(audio ? 46 : 40)
     readonly property real artWidth: audio ? artHeight : Math.round(artHeight * 16 / 9)
+    readonly property real bandHeight: overlay.dp(Platform.isTV ? 50 : 40)
+    readonly property real entryHeight: overlay.dp(Platform.isTV ? 78 : 62)
+    readonly property real dividerHeight: userQueuedRunStart ? overlay.dp(Platform.isTV ? 34 : 28) : 0
 
-    implicitHeight: overlay.dp(Platform.isTV ? 78 : 62)
+    implicitHeight: dividerHeight + (hasBand ? bandHeight : 0) + (showsEntry ? entryHeight : 0)
 
     function durationText() {
         const ticks = Number(entry && entry.runtimeTicks ? entry.runtimeTicks : 0)
@@ -70,162 +95,277 @@ Item {
         return audio ? "square" : "landscape"
     }
 
+    // Where the run that opened above this row is ruled, so its members read
+    // as one block without being pushed out of line.
     Rectangle {
-        anchors.fill: parent
-        anchors.leftMargin: -overlay.dp(8)
-        anchors.rightMargin: -overlay.dp(8)
-        radius: Theme.radiusSmall
-        color: row.grabbed ? Theme.focusedFill : row.highlighted ? Theme.bgHover : "transparent"
-        border.width: row.grabbed || row.highlighted ? Theme.focusBorderWidth : 0
-        border.color: row.grabbed ? Theme.accent : Qt.alpha(Theme.accent, 0.55)
+        visible: row.inGroup
+        x: -overlay.dp(4)
+        y: row.dividerHeight
+        width: Math.max(1, overlay.dp(2))
+        height: row.height - row.dividerHeight
+        radius: width / 2
+        color: Qt.alpha(Theme.accent, 0.45)
     }
 
-    RowLayout {
-        anchors.fill: parent
-        spacing: overlay.dp(12)
+    // The seam between what the queue filled in and what the user added.
+    Item {
+        id: divider
 
-        // Position, or the state that replaces it: playing, or picked up.
-        Item {
-            Layout.preferredWidth: overlay.dp(24)
-            Layout.fillHeight: true
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.top: parent.top
+        height: row.dividerHeight
+        visible: row.userQueuedRunStart
 
-            SecondaryText {
-                anchors.centerIn: parent
-                visible: !row.current && !row.grabbed
-                text: String(row.position)
-                color: Theme.textMuted
-                font.pixelSize: Metrics.metaSizePx
-            }
-
-            MaterialIcon {
-                anchors.centerIn: parent
-                visible: row.current && !row.grabbed
-                name: "graphic_eq"
-                iconSize: overlay.dp(18)
-                iconColor: Theme.accent
-            }
-
-            MaterialIcon {
-                anchors.centerIn: parent
-                visible: row.grabbed
-                name: "drag_indicator"
-                iconSize: overlay.dp(18)
-                iconColor: Theme.accent
-            }
-        }
-
-        ImageCard {
-            Layout.preferredWidth: row.artWidth
-            Layout.preferredHeight: row.artHeight
-            imageUrl: Art.url(row.entry, row.artworkKind(), Math.round(row.artWidth * 2))
-            fallbackIcon: row.audio ? "music_note" : row.entryType === "Episode" ? "tv" : "movie"
-            fallbackTint: Theme.bgHover
-
-            // Resume position, on the artwork where the eye already is.
-            Rectangle {
-                anchors.left: parent.left
-                anchors.right: parent.right
-                anchors.bottom: parent.bottom
-                height: overlay.dp(3)
-                visible: row.progress > 0
-                color: Qt.alpha("#000000", 0.55)
-
-                Rectangle {
-                    anchors.left: parent.left
-                    anchors.top: parent.top
-                    anchors.bottom: parent.bottom
-                    width: Math.round(parent.width * Math.min(1, Math.max(0, row.progress)))
-                    color: Theme.accent
-                }
-            }
-        }
-
-        ColumnLayout {
-            Layout.fillWidth: true
-            spacing: 0
-
-            AppText {
-                Layout.fillWidth: true
-                text: row.primaryText()
-                color: row.playable ? (row.current ? Theme.accent : Theme.textPrimary) : Theme.textDisabled
-                font.pixelSize: Metrics.bodySizePx
-                font.weight: row.current ? Font.DemiBold : Font.Normal
-                maximumLineCount: 1
-                elide: Text.ElideRight
-            }
-
-            SecondaryText {
-                Layout.fillWidth: true
-                visible: row.subtitle.length > 0
-                text: row.subtitle
-                color: Theme.textSecondary
-                font.pixelSize: Metrics.metaSizePx
-                maximumLineCount: 1
-                elide: Text.ElideRight
-            }
+        Rectangle {
+            anchors.left: parent.left
+            anchors.right: dividerLabel.left
+            anchors.rightMargin: overlay.dp(10)
+            anchors.verticalCenter: parent.verticalCenter
+            height: 1
+            color: Theme.borderStrong
         }
 
         SecondaryText {
-            visible: !removeButton.visible && text.length > 0
-            text: row.durationText()
+            id: dividerLabel
+            anchors.horizontalCenter: parent.horizontalCenter
+            anchors.verticalCenter: parent.verticalCenter
+            text: "Added by you"
             color: Theme.textMuted
             font.pixelSize: Metrics.metaSizePx
         }
 
-        // Pointer-only. A remote removes through the row's own menu, and an
-        // extra focusable button would sit between every row and the next.
-        IconButton {
-            id: removeButton
-            visible: row.pointerAffordances && !row.reordering
-            focusPolicy: Qt.NoFocus
-            chromeless: true
-            iconName: "delete"
-            accessibleName: "Remove from queue"
-            onClicked: row.removeRequested()
+        Rectangle {
+            anchors.left: dividerLabel.right
+            anchors.leftMargin: overlay.dp(10)
+            anchors.right: parent.right
+            anchors.verticalCenter: parent.verticalCenter
+            height: 1
+            color: Theme.borderStrong
+        }
+    }
+
+    // The band for a folded run: how many rows it stands for, and where they
+    // begin and end.
+    Item {
+        id: band
+
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.top: parent.top
+        anchors.topMargin: row.dividerHeight
+        height: row.hasBand ? row.bandHeight : 0
+        visible: row.hasBand
+
+        Rectangle {
+            anchors.fill: parent
+            anchors.leftMargin: -overlay.dp(8)
+            anchors.rightMargin: -overlay.dp(8)
+            radius: Theme.radiusSmall
+            color: row.grabbed ? Theme.focusedFill : (row.highlighted && !row.unfolded) ? Theme.bgHover : row.unfolded
+                                                                                          ? Qt.alpha(Theme.accentPanel,
+                                                                                                     0.35) : "transparent"
+            border.width: row.grabbed || (row.highlighted && !row.unfolded) ? Theme.focusBorderWidth : 0
+            border.color: row.grabbed ? Theme.accent : Qt.alpha(Theme.accent, 0.55)
+        }
+
+        RowLayout {
+            anchors.fill: parent
+            spacing: overlay.dp(12)
+
+            Item {
+                Layout.preferredWidth: overlay.dp(24)
+                Layout.fillHeight: true
+
+                MaterialIcon {
+                    anchors.centerIn: parent
+                    name: "chevron_right"
+                    iconSize: overlay.dp(20)
+                    iconColor: row.highlighted ? Theme.accent : Theme.textSecondary
+                    rotation: row.unfolded ? 90 : 0
+
+                    Behavior on rotation {
+                        enabled: !Theme.reducedMotion
+                        NumberAnimation {
+                            duration: 120
+                            easing.type: Easing.OutCubic
+                        }
+                    }
+                }
+            }
+
+            AppText {
+                Layout.fillWidth: true
+                text: row.groupLabel
+                color: row.highlighted ? Theme.textPrimary : Theme.textSecondary
+                font.pixelSize: Metrics.bodySizePx
+                font.weight: Font.DemiBold
+                maximumLineCount: 1
+                elide: Text.ElideRight
+            }
+
+            SecondaryText {
+                visible: row.groupDetail.length > 0
+                text: row.groupDetail
+                color: Theme.textMuted
+                font.pixelSize: Metrics.metaSizePx
+                maximumLineCount: 1
+                elide: Text.ElideRight
+            }
+        }
+
+        TapHandler {
+            enabled: row.pointerEnabled || !Platform.isTV
+            onTapped: row.toggleRequested()
+        }
+    }
+
+    // The queue entry itself.
+    Item {
+        id: entryBody
+
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.top: band.bottom
+        anchors.bottom: parent.bottom
+        visible: row.showsEntry
+
+        Rectangle {
+            anchors.fill: parent
+            anchors.leftMargin: -overlay.dp(8)
+            anchors.rightMargin: -overlay.dp(8)
+            radius: Theme.radiusSmall
+            color: row.grabbed ? Theme.focusedFill : row.highlighted ? Theme.bgHover : "transparent"
+            border.width: row.grabbed || row.highlighted ? Theme.focusBorderWidth : 0
+            border.color: row.grabbed ? Theme.accent : Qt.alpha(Theme.accent, 0.55)
+        }
+
+        // Where a dragged row would land if it were let go now.
+        Rectangle {
+            anchors.left: parent.left
+            anchors.right: parent.right
+            anchors.top: parent.top
+            anchors.leftMargin: -overlay.dp(8)
+            anchors.rightMargin: -overlay.dp(8)
+            height: Math.max(2, overlay.dp(2))
+            radius: height / 2
+            visible: row.dropTarget
+            color: Theme.accent
+        }
+
+        RowLayout {
+            anchors.fill: parent
+            spacing: overlay.dp(12)
+
+            // Position, or the state that replaces it: playing, or picked up.
+            Item {
+                Layout.preferredWidth: overlay.dp(24)
+                Layout.fillHeight: true
+
+                SecondaryText {
+                    anchors.centerIn: parent
+                    visible: !row.current && !row.grabbed
+                    text: String(row.position)
+                    color: Theme.textMuted
+                    font.pixelSize: Metrics.metaSizePx
+                }
+
+                MaterialIcon {
+                    anchors.centerIn: parent
+                    visible: row.current && !row.grabbed
+                    name: "graphic_eq"
+                    iconSize: overlay.dp(18)
+                    iconColor: Theme.accent
+                }
+
+                MaterialIcon {
+                    anchors.centerIn: parent
+                    visible: row.grabbed
+                    name: "drag_indicator"
+                    iconSize: overlay.dp(18)
+                    iconColor: Theme.accent
+                }
+            }
+
+            ImageCard {
+                Layout.preferredWidth: row.artWidth
+                Layout.preferredHeight: row.artHeight
+                imageUrl: Art.url(row.entry, row.artworkKind(), Math.round(row.artWidth * 2))
+                fallbackIcon: row.audio ? "music_note" : row.entryType === "Episode" ? "tv" : "movie"
+                fallbackTint: Theme.bgHover
+
+                // Resume position, on the artwork where the eye already is.
+                Rectangle {
+                    anchors.left: parent.left
+                    anchors.right: parent.right
+                    anchors.bottom: parent.bottom
+                    height: overlay.dp(3)
+                    visible: row.progress > 0
+                    color: Qt.alpha("#000000", 0.55)
+
+                    Rectangle {
+                        anchors.left: parent.left
+                        anchors.top: parent.top
+                        anchors.bottom: parent.bottom
+                        width: Math.round(parent.width * Math.min(1, Math.max(0, row.progress)))
+                        color: Theme.accent
+                    }
+                }
+            }
+
+            ColumnLayout {
+                Layout.fillWidth: true
+                spacing: 0
+
+                AppText {
+                    Layout.fillWidth: true
+                    text: row.primaryText()
+                    color: row.playable ? (row.current ? Theme.accent : Theme.textPrimary) : Theme.textDisabled
+                    font.pixelSize: Metrics.bodySizePx
+                    font.weight: row.current ? Font.DemiBold : Font.Normal
+                    maximumLineCount: 1
+                    elide: Text.ElideRight
+                }
+
+                SecondaryText {
+                    Layout.fillWidth: true
+                    visible: row.subtitle.length > 0
+                    text: row.subtitle
+                    color: Theme.textSecondary
+                    font.pixelSize: Metrics.metaSizePx
+                    maximumLineCount: 1
+                    elide: Text.ElideRight
+                }
+            }
+
+            SecondaryText {
+                visible: !removeButton.visible && text.length > 0
+                text: row.durationText()
+                color: Theme.textMuted
+                font.pixelSize: Metrics.metaSizePx
+            }
+
+            // Pointer-only. A remote removes through the row's own menu, and an
+            // extra focusable button would sit between every row and the next.
+            IconButton {
+                id: removeButton
+                visible: row.pointerAffordances && !row.reordering
+                focusPolicy: Qt.NoFocus
+                chromeless: true
+                iconName: "delete"
+                accessibleName: "Remove from queue"
+                onClicked: row.removeRequested()
+            }
+        }
+
+        TapHandler {
+            enabled: row.playable && !row.reordering
+            onTapped: row.activated()
         }
     }
 
     HoverHandler {
         id: rowHover
         enabled: row.playable
-    }
-
-    // The whole row is the handle. The list stops flicking for the duration
-    // (PlayerQueuePanel clears interactive), so the two no longer compete for
-    // the same vertical drag, and the wheel still scrolls.
-    DragHandler {
-        id: rowDrag
-        enabled: row.pointerEnabled
-        target: null
-        xAxis.enabled: false
-        yAxis.enabled: true
-
-        onActiveChanged: {
-            if (active) {
-                row.dragStarted()
-                return
-            }
-            row.dragEnded()
-            // The release that ends a drag must not also read as a tap. It used
-            // to, so letting go of a row you had just moved started playing it.
-            tapSuppression.restart()
-        }
-
-        onCentroidChanged: if (active)
-                               row.dragMovedTo(centroid.scenePosition.y)
-    }
-
-    Timer {
-        id: tapSuppression
-        interval: 250
-    }
-
-    TapHandler {
-        enabled: row.playable && !row.reordering
-        onTapped: {
-            if (rowDrag.active || tapSuppression.running)
-                return
-            row.activated()
-        }
     }
 }

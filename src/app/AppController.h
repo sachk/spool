@@ -135,9 +135,14 @@ public:
     Q_INVOKABLE bool queueEditable() const;
     Q_INVOKABLE bool previewQueueMove(int from, int to);
     Q_INVOKABLE void commitQueueMove(int from, int to);
+    // The same pair for a folded run dragged as one block.
+    Q_INVOKABLE bool previewQueueMoveRange(int from, int count, int to);
+    Q_INVOKABLE void commitQueueMoveRange(int from, int count, int to);
     Q_INVOKABLE void removeQueueItem(int index);
     Q_INVOKABLE void playNextFromItem(const MovieItem& item);
     Q_INVOKABLE void addToQueueFromItem(const MovieItem& item);
+    // Queue every episode of a season or series without opening it first.
+    Q_INVOKABLE void queueEpisodicContainer(const QString& seriesId, const QString& seasonId, bool next);
     Q_INVOKABLE void playModel(MovieGridModel *model, bool shuffled = false);
     Q_INVOKABLE void playEpisodicContainer(const QString& seriesId, const QString& seasonId = {});
     Q_INVOKABLE void cancelEpisodicPlaybackSelection();

@@ -27,7 +27,9 @@ FocusScope {
     property bool audioSyncVisible: false
     property bool subtitleSettingsVisible: false
     property bool queuePanelVisible: false
-    readonly property real queuePanelWidth: queuePanel.panelWidth
+    readonly property real queuePanelWidth: browsePanelVisible ? browsePanel.panelWidth : queuePanel.panelWidth
+    property bool browsePanelVisible: false
+    readonly property var browsePanel: browsePanelLoader.item
     property string audioSyncRow: "delay"
     property int audioSyncStepIndex: 2
     property string syncTarget: "audioFile"
@@ -541,8 +543,30 @@ FocusScope {
         })
     }
 
+    // The sheet sits in the queue's own slot and Back returns to the queue,
+    // so adding several things is one gesture in and one gesture out.
+    function openBrowsePanel() {
+        browsePanelVisible = true
+        showControls("actions")
+        Qt.callLater(function () {
+            browsePanel.forceActiveFocus()
+            browsePanel.focusContent()
+        })
+    }
+
+    function closeBrowsePanel() {
+        if (!browsePanelVisible)
+            return
+        browsePanelVisible = false
+        showControls("actions")
+        Qt.callLater(function () {
+            queuePanel.forceActiveFocus()
+            queuePanel.focusRow(playQueue ? playQueue.currentIndex : 0)
+        })
+    }
+
     function queuePanelLongPress() {
-        return queuePanelVisible ? queuePanel.longPress() : false
+        return queuePanelVisible && !browsePanelVisible ? queuePanel.longPress() : false
     }
 
     function queuePanelFinishGesture() {
@@ -554,6 +578,7 @@ FocusScope {
         if (!queuePanelVisible)
             return
         queuePanel.cancelReorder()
+        browsePanelVisible = false
         queuePanelVisible = false
         showControls("actions")
     }
@@ -783,6 +808,8 @@ FocusScope {
         }
         // The panel answers first: while a row is picked up, Back puts it back
         // rather than closing out from under the move.
+        if (browsePanelVisible)
+            return browsePanel.back()
         if (queuePanelVisible)
             return queuePanel.back()
         if (audioSyncVisible) {
@@ -801,6 +828,8 @@ FocusScope {
     function routeKey(key, phase, repeat) {
         if (subtitleSettingsVisible)
             return subtitleSettings.routeKey(key, phase, repeat)
+        if (browsePanelVisible)
+            return browsePanel.routeKey(key, phase, repeat)
         if (queuePanelVisible)
             return queuePanel.routeKey(key, phase, repeat)
         if (syncPlayMenuOpen && InputKeys.isDirection(key))
@@ -815,6 +844,10 @@ FocusScope {
     function activate() {
         if (subtitleSettingsVisible) {
             subtitleSettings.activate()
+            return
+        }
+        if (browsePanelVisible) {
+            browsePanel.activate()
             return
         }
         if (queuePanelVisible) {
@@ -920,11 +953,33 @@ FocusScope {
     PlayerQueuePanel {
         id: queuePanel
         anchors.fill: parent
-        visible: overlay.queuePanelVisible
+        visible: overlay.queuePanelVisible && !overlay.browsePanelVisible
         enabled: visible
         z: 59
         overlay: overlay
         onDismissed: overlay.closeQueuePanel()
+        onAddRequested: overlay.openBrowsePanel()
+    }
+
+    // Built once the queue has been opened at least once, so a session that
+    // never touches the queue never pays for it.
+    Loader {
+        id: browsePanelLoader
+
+        // Named rather than written as `overlay: overlay` inside the
+        // component: there, the name resolves to the property being assigned
+        // and binds it to itself.
+        readonly property var host: overlay
+
+        anchors.fill: parent
+        active: overlay.queuePanelVisible || overlay.browsePanelVisible
+        visible: overlay.browsePanelVisible
+        enabled: visible
+        z: 59
+        sourceComponent: PlayerBrowsePanel {
+            overlay: browsePanelLoader.host
+            onDismissed: browsePanelLoader.host.closeBrowsePanel()
+        }
     }
 
     PlayerOverlayChrome {
