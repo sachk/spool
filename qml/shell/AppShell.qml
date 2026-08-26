@@ -224,13 +224,15 @@ KeyRouter {
     }
 
     // Linux native rendering goes through the platform FreeType/fontconfig
-    // path, including the user's antialiasing and subpixel policy. The TV
-    // keeps full hinting for its 1080p scene; other desktops retain Qt's
-    // scalable distance-field rendering.
+    // path, including the user's antialiasing and subpixel policy. Light
+    // hinting keeps baselines aligned without snapping stems to whole pixels,
+    // which is what small labels were being coarsened by. The TV keeps full
+    // hinting for its 1080p scene; other desktops retain Qt's scalable
+    // distance-field rendering.
     Component.onCompleted: {
         if (!Platform.isTV && Qt.platform.os === "linux") {
             Theme.normalTextRenderType = Text.NativeRendering
-            Typography.sansHinting = Font.PreferDefaultHinting
+            Typography.sansHinting = Font.PreferVerticalHinting
         } else if (!Platform.isTV) {
             Theme.normalTextRenderType = Text.QtRendering
         }

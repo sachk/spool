@@ -23,7 +23,11 @@ QSurfaceFormat platformSurfaceFormat()
     QSurfaceFormat format;
     format.setRenderableType(QSurfaceFormat::OpenGL);
     format.setVersion(3, 3);
-    format.setAlphaBufferSize(8);
+    // An opaque surface is what lets Qt Quick hand native text to the system's
+    // subpixel antialiasing; an alpha channel drops it back to grayscale, which
+    // is what made small labels look ragged next to the rest of the desktop.
+    // Nothing shows through the window — it is black behind the video.
+    format.setAlphaBufferSize(0);
     return format;
 }
 
