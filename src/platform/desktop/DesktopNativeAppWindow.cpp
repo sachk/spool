@@ -1,6 +1,7 @@
 #include "platform/NativeAppWindow.h"
 
 #include <QExposeEvent>
+#include <QRegularExpression>
 #include <QResizeEvent>
 
 namespace JellyfinNative {
@@ -14,7 +15,16 @@ NativeAppWindow::NativeAppWindow(const QString& appId, QWindow *parent)
     setColor(Qt::black);
     setResizeMode(QQuickView::SizeRootObjectToView);
     setTitle(QStringLiteral("Spool for Jellyfin"));
-    resize(1280, 720);
+
+    // SPOOL_WINDOW_SIZE=1200x1200 opens on a shape no window manager will
+    // hand you by dragging. The layout is meant to flow into any of them, and
+    // this is how that gets looked at and measured rather than assumed.
+    QSize initial(1280, 720);
+    static const QRegularExpression geometry(QStringLiteral("^(\\d{2,5})[xX](\\d{2,5})$"));
+    const QRegularExpressionMatch match = geometry.match(qEnvironmentVariable("SPOOL_WINDOW_SIZE").trimmed());
+    if (match.hasMatch())
+        initial = QSize(match.captured(1).toInt(), match.captured(2).toInt());
+    resize(initial);
 }
 
 NativeAppWindow::~NativeAppWindow() = default;

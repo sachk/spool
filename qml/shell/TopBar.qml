@@ -12,6 +12,10 @@ import "../primitives"
 FocusScope {
     id: root
     property string currentRoute: "home"
+    // Which edge of the shell the rail is fixed to. It moves to the bottom
+    // where the viewport is narrow enough that the top of it is out of reach
+    // of a thumb, and its vertical keys follow it.
+    property string edge: "top"
     signal navigate(string route)
     signal contentRequested
 
@@ -122,7 +126,10 @@ FocusScope {
         const menu = syncMenuLoader.item
         if (menu && menu.menuOpen)
             return menu.routeKey(key, phase, repeat)
-        if (key === Qt.Key_Down) {
+        // The rail leaves towards wherever the content is, which is below it
+        // on a page and above it once it has moved down within thumb reach.
+        const towardsContent = root.edge === "bottom" ? Qt.Key_Up : Qt.Key_Down
+        if (key === towardsContent) {
             contentRequested()
             return true
         }
@@ -134,7 +141,7 @@ FocusScope {
             focusIndex(focusedIndex() - 1)
             return true
         }
-        return key === Qt.Key_Up
+        return InputKeys.isVertical(key)
     }
 
     TapHandler {

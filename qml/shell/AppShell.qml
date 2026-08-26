@@ -9,6 +9,11 @@ KeyRouter {
     onWidthChanged: Metrics.viewportWidth = width
     onHeightChanged: Metrics.viewportHeight = height
 
+    readonly property string lane: Metrics.lane(width)
+    // A rail across the top of a viewport this narrow is a reach rather than
+    // a glance, so it moves to the bottom where a thumb already is.
+    readonly property bool navBarAtBottom: lane === "compact"
+
     // The shell is the one place that knows how big the window is and what
     // the user asked the interface to be scaled to. It hands both to Metrics
     // so nothing under qml/theme has to reach for a backend singleton.
@@ -17,6 +22,22 @@ KeyRouter {
         property: "zoomPercent"
         value: Settings.uiScalePercent
         restoreMode: Binding.RestoreNone
+    }
+
+    // Which kind of pointer last touched the app, watched rather than
+    // declared: the same build runs on a television with no pointer at all,
+    // a desktop with a mouse, and a phone with neither. Both handlers are
+    // passive, so nothing here takes an event away from what is under it.
+    PointHandler {
+        acceptedDevices: PointerDevice.TouchScreen
+        onActiveChanged: if (active)
+                             Metrics.coarsePointer = true
+    }
+
+    HoverHandler {
+        acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
+        onHoveredChanged: if (hovered)
+                              Metrics.coarsePointer = false
     }
     focus: true
     backspaceNavigatesInTextInput: Platform.isTV
@@ -745,19 +766,24 @@ KeyRouter {
         visible: !(root.hasPlayer && root.playerHoldsScreen)
     }
 
-    ColumnLayout {
+    Item {
         id: contentLayer
         anchors.fill: parent
         anchors.topMargin: -root.keyboardAvoidance
         anchors.bottomMargin: root.keyboardAvoidance
-        spacing: 0
         visible: App.initialized && !(root.hasPlayer && root.playerHoldsScreen)
         enabled: visible
 
         TopBar {
             id: navBar
-            Layout.fillWidth: true
-            Layout.preferredHeight: route === "login" ? 0 : Metrics.topBarHeightPx
+            anchors.left: parent.left
+            anchors.right: parent.right
+            // Anchored to one edge or the other rather than ordered in a
+            // layout, so moving it is a binding rather than a rebuild.
+            anchors.top: root.navBarAtBottom ? undefined : parent.top
+            anchors.bottom: root.navBarAtBottom ? parent.bottom : undefined
+            height: route === "login" ? 0 : Metrics.topBarHeightPx
+            edge: root.navBarAtBottom ? "bottom" : "top"
             visible: route !== "login"
             z: 1
             currentRoute: root.route
@@ -778,8 +804,10 @@ KeyRouter {
 
         RouteStack {
             id: routeStack
-            Layout.fillWidth: true
-            Layout.fillHeight: true
+            anchors.left: parent.left
+            anchors.right: parent.right
+            anchors.top: root.navBarAtBottom ? parent.top : navBar.bottom
+            anchors.bottom: root.navBarAtBottom ? navBar.top : parent.bottom
             route: root.route
             shell: root
             startupReady: App.initialized
