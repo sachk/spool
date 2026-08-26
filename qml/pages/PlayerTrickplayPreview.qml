@@ -34,7 +34,7 @@ Item {
     anchors.right: parent.right
     anchors.bottom: parent.bottom
     anchors.bottomMargin: dp(200)
-    height: ready ? Math.round((trickplayData.height || 0) * scaleFactor) + dp(24) : 0
+    height: ready ? Math.round((trickplayData.height || 0) * scaleFactor) + dp(32) : 0
     visible: ready
     z: 22
 
@@ -44,7 +44,7 @@ Item {
         x: Math.max(root.dp(52), Math.min(parent.width - imageWidth - root.dp(52), root.previewRatio * parent.width
                                           - imageWidth / 2))
         width: imageWidth
-        height: imageHeight + root.dp(24)
+        height: imageHeight + root.dp(32)
 
         Rectangle {
             id: frame
@@ -74,7 +74,9 @@ Item {
             anchors.topMargin: root.dp(4)
             text: root.overlay.formatClock(root.previewSeconds)
             color: Theme.textPrimary
-            font.pixelSize: root.dp(16)
+            // The same size as the clock under the title: this is the same
+            // reading, just closer to the frame it belongs to.
+            font.pixelSize: root.dp(22)
             font.weight: Font.Medium
         }
     }

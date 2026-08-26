@@ -98,6 +98,28 @@ JELLYFIN_TEST_MAIN("play-queue-controller")
     require(queue.get(1).value(QStringLiteral("director")).toString()
             == QStringLiteral("Jane Director, Sam Co-Director, Pat Third +1 more"),
         "queue snapshots should cap long director lists and exclude cast members");
+
+    PersonItem joel;
+    joel.name = QStringLiteral("Joel Coen");
+    joel.type = QStringLiteral("Director");
+    PersonItem ethan;
+    ethan.name = QStringLiteral("Ethan Coen");
+    ethan.type = QStringLiteral("Director");
+    require(queue.updatePeople(QStringLiteral("b"), { joel, actor, ethan }),
+        "movie credits should update matching queue items");
+    require(queue.get(1).value(QStringLiteral("director")).toString() == QStringLiteral("Joel and Ethan Coen"),
+        "directors sharing a family name should read as one credit in listed order");
+
+    require(queue.updatePeople(QStringLiteral("b"), { director, coDirector }),
+        "movie credits should update matching queue items");
+    require(queue.get(1).value(QStringLiteral("director")).toString()
+            == QStringLiteral("Jane Director and Sam Co-Director"),
+        "two unrelated directors should both be named");
+
+    require(queue.updatePeople(QStringLiteral("b"), { director, actor }),
+        "movie credits should update matching queue items");
+    require(queue.get(1).value(QStringLiteral("director")).toString() == QStringLiteral("Jane Director"),
+        "a single director should read as the name alone");
     require(queue.canGoPrevious() && queue.canGoNext(), "middle current item should allow both directions");
     require(episodeSnapshot.value(QStringLiteral("resumeTicks")).toLongLong() == 200'000'000
             && episodeSnapshot.value(QStringLiteral("runtimeTicks")).toLongLong() == 1'000'000'000,

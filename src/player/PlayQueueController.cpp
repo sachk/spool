@@ -16,6 +16,37 @@ namespace {
         return item.title.isEmpty() ? item.seriesName : item.title;
     }
 
+    QString familyName(const QString& name)
+    {
+        const qsizetype separator = name.lastIndexOf(QLatin1Char(' '));
+        return separator < 0 ? QString() : name.mid(separator + 1);
+    }
+
+    // Siblings and spouses direct together often enough to be worth the
+    // collapse: "Joel Coen, Ethan Coen" reads as "Joel and Ethan Coen".
+    void collapseSharedFamilyName(QStringList& names)
+    {
+        if (names.size() < 2)
+            return;
+        const QString family = familyName(names.constLast());
+        if (family.isEmpty())
+            return;
+        for (const QString& name : names) {
+            if (familyName(name) != family)
+                return;
+        }
+        for (qsizetype index = 0; index < names.size() - 1; ++index)
+            names[index].chop(family.size() + 1);
+    }
+
+    QString joinNames(const QStringList& names)
+    {
+        if (names.size() < 2)
+            return names.value(0);
+        const QStringList leading = names.mid(0, names.size() - 1);
+        return leading.join(QStringLiteral(", ")) + QStringLiteral(" and ") + names.constLast();
+    }
+
     QString directorText(const MovieItem& item)
     {
         constexpr qsizetype maxNames = 3;
@@ -29,8 +60,10 @@ namespace {
             ++directorCount;
         }
         const qsizetype hiddenCount = directorCount - names.size();
-        const QString visibleNames = names.join(QStringLiteral(", "));
-        return hiddenCount > 0 ? QStringLiteral("%1 +%2 more").arg(visibleNames).arg(hiddenCount) : visibleNames;
+        if (hiddenCount > 0)
+            return QStringLiteral("%1 +%2 more").arg(names.join(QStringLiteral(", "))).arg(hiddenCount);
+        collapseSharedFamilyName(names);
+        return joinNames(names);
     }
 
     double playbackProgress(const MovieItem& item)

@@ -306,7 +306,9 @@ Item {
 
         ColumnLayout {
             anchors.fill: parent
-            spacing: root.dp(16)
+            // A title on its own sits closer to the clock beneath it; a
+            // metadata line in between earns the wider gap.
+            spacing: metadataLine.visible ? root.dp(16) : root.dp(8)
 
             RowLayout {
                 Layout.fillWidth: true
@@ -314,7 +316,7 @@ Item {
 
                 ColumnLayout {
                     Layout.fillWidth: true
-                    spacing: root.dp(6)
+                    spacing: metadataLine.visible ? root.dp(6) : 0
                     AppText {
                         Layout.fillWidth: true
                         Layout.preferredHeight: visible ? implicitHeight : 0
@@ -330,6 +332,7 @@ Item {
                     }
 
                     AppText {
+                        id: metadataLine
                         Layout.fillWidth: true
                         Layout.preferredHeight: visible ? implicitHeight : 0
                         visible: !root.overlay.audioOnly && root.overlay.overlayMetadataText.length > 0
@@ -349,6 +352,7 @@ Item {
 
             PlayerTransportBar {
                 id: actionRow
+                Layout.topMargin: metadataLine.visible ? 0 : root.dp(8)
                 overlay: root.overlay
             }
 
