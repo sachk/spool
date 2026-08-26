@@ -44,6 +44,7 @@ extern "C" {
     X(mpv_free_node_contents)                                                                                          \
     X(mpv_command)                                                                                                     \
     X(mpv_command_async)                                                                                               \
+    X(mpv_command_ret)                                                                                                 \
     X(mpv_command_string)                                                                                              \
     X(mpv_error_string)                                                                                                \
     X(mpv_get_audio_decode_cpu_time_ns)                                                                                \
@@ -395,6 +396,13 @@ int mpv_command(mpv_handle *ctx, const char **args)
     if (!JellyfinNative::WebOSMpvRuntime::ensureLoaded())
         return MPV_ERROR_GENERIC;
     return g_api.mpv_command(ctx, args);
+}
+
+int mpv_command_ret(mpv_handle *ctx, const char **args, mpv_node *result)
+{
+    if (!JellyfinNative::WebOSMpvRuntime::ensureLoaded())
+        return MPV_ERROR_GENERIC;
+    return g_api.mpv_command_ret(ctx, args, result);
 }
 
 int mpv_command_async(mpv_handle *ctx, uint64_t reply_userdata, const char **args)

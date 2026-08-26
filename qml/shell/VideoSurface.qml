@@ -112,9 +112,22 @@ FocusScope {
                                   Qt.callLater(() => InputKeys.focus(inputShield))
     }
 
+    // Audio playback has no video output for mpv to draw its stats page into,
+    // so the UI draws it — over the now playing stage, which is what it is
+    // there to cover.
     Loader {
         anchors.fill: parent
-        active: root.active && root.diagnosticsVisible
+        active: root.active && Player.mediaKind === "audio" && Player.debugOsdVisible
+        z: 5
+        sourceComponent: PlayerStatsPanel {}
+    }
+
+    // Performance stats bring the app's own numbers up with mpv's, for this
+    // file only: the flag lives with the playback session, so it never outlasts
+    // the file the way the settings switch does.
+    Loader {
+        anchors.fill: parent
+        active: root.active && (root.diagnosticsVisible || Player.debugOsdVisible)
         z: 4
         sourceComponent: DiagnosticsOverlay {
             route: "player"

@@ -132,6 +132,8 @@ public:
     // Where a fresh seek gesture should start from: the target of a seek still
     // in flight, so chained gestures compound instead of cancelling out.
     Q_INVOKABLE double seekAnchorSeconds();
+    // mpv's own stats page as text, for a window that has to paint it itself.
+    Q_INVOKABLE QString mpvStatsPage();
     void prepareForBackground();
     void teardownForBackground();
     void resyncForForeground();

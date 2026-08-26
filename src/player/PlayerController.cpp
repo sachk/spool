@@ -1117,15 +1117,76 @@ void PlayerController::previewSeekBy(double deltaSeconds)
     beginRelativeSeekCommand(deltaSeconds);
 }
 
+namespace {
+
+    // mpv's own stats page, laid out the way its stats script lays it out and
+    // formatted by mpv's property expansion, so the readings are mpv's rather
+    // than a re-derivation of them. Audio playback runs without a video output
+    // and so without an OSD to draw the real page on; this is how it reaches a
+    // window that has to paint the page itself.
+    constexpr const char *kStatsTemplate = "${?filename:File: ${filename}\n}"
+                                           "${?file-format:Format: ${file-format}}"
+                                           "${?file-size:   Size: ${file-size}}"
+                                           "${?duration:   Length: ${duration}}\n"
+                                           "${?time-pos:Position: ${time-pos}"
+                                           "${?percent-pos:   ${percent-pos}%}\n}"
+                                           "${?video-codec:Video: ${video-codec}"
+                                           "${?video-params/w:   ${video-params/w}x${video-params/h}}"
+                                           "${?container-fps:   ${container-fps} fps}"
+                                           "${?hwdec-current:   hwdec ${hwdec-current}}\n}"
+                                           "${?audio-codec:Audio: ${audio-codec}\n}"
+                                           "${?audio-params/format:   Decoded: ${audio-params/format}"
+                                           "   ${audio-params/samplerate} Hz   ${audio-params/hr-channels}\n}"
+                                           "${?current-ao:   Output: ${current-ao}}"
+                                           "${?audio-out-params/format:   ${audio-out-params/format}"
+                                           "   ${audio-out-params/samplerate} Hz   ${audio-out-params/hr-channels}}\n"
+                                           "${?audio-bitrate:   Bitrate: ${audio-bitrate}}"
+                                           "${?avsync:   A-V: ${avsync}}"
+                                           "${?speed:   Speed: ${speed}x}\n"
+                                           "${?demuxer-cache-duration:Cache: ${demuxer-cache-duration} s}"
+                                           "${?demuxer-cache-state/fw-bytes:   ${demuxer-cache-state/fw-bytes} ahead}"
+                                           "${?cache-speed:   ${cache-speed}}\n"
+                                           "${?decoder-frame-drop-count:Dropped: ${decoder-frame-drop-count} decoder}"
+                                           "${?frame-drop-count:   ${frame-drop-count} output}";
+
+    QString expandMpvStatsPage(mpv_handle *handle)
+    {
+        const char *args[] = { "expand-text", kStatsTemplate, nullptr };
+        mpv_node result {};
+        if (mpv_command_ret(handle, args, &result) < 0)
+            return QString();
+        const QString text
+            = result.format == MPV_FORMAT_STRING && result.u.string ? QString::fromUtf8(result.u.string) : QString();
+        mpv_free_node_contents(&result);
+        return text.trimmed();
+    }
+
+} // namespace
+
 double PlayerController::seekAnchorSeconds()
 {
     return seekAnchorPosition();
 }
 
+QString PlayerController::mpvStatsPage()
+{
+    auto *handle = m_mpvLifecycle.handle();
+    if (!handle || !m_sessionActive)
+        return QString();
+    return expandMpvStatsPage(handle);
+}
+
 void PlayerController::toggleDebugOsd()
 {
-    if (!mpvCommand({ QByteArrayLiteral("script-binding"), QByteArrayLiteral("stats/display-stats-toggle") }))
+    // mpv's stats page is drawn by the video output. Audio playback has none,
+    // so the flag alone is what matters there: the UI draws the page instead.
+    const bool mpvDrawsStats = m_mediaKind == QStringLiteral("video");
+    if (mpvDrawsStats) {
+        if (!mpvCommand({ QByteArrayLiteral("script-binding"), QByteArrayLiteral("stats/display-stats-toggle") }))
+            return;
+    } else if (!m_sessionActive) {
         return;
+    }
     m_debugOsdVisible = !m_debugOsdVisible;
     emit playbackStateChanged();
 }
@@ -1720,7 +1781,7 @@ void PlayerController::handleMpvEvent(mpv_event *event)
             // Every play request builds a fresh mpv core, which starts with the
             // stats overlay off. A restart the viewer did not ask for, like a
             // quality change, should not take their stats away with it.
-            if (m_debugOsdVisible)
+            if (m_debugOsdVisible && m_mediaKind == QStringLiteral("video"))
                 mpvCommand({ QByteArrayLiteral("script-binding"), QByteArrayLiteral("stats/display-stats-toggle") });
             notifyPlaybackStateChanged();
             startProgressReporting();
