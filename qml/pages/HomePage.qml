@@ -266,7 +266,7 @@ FocusScope {
             useSeriesPoster: modelData.source === "latestLibrary"
             preferEpisodeTitle: modelData.source === "latestLibrary"
             focusVisible: root.navigationFocusVisible
-            cardWidth: cardKind === "poster" || cardKind === "square" ? Metrics.homePosterWidth(root.width) : Metrics.homeLandscapeWidth(
+            cardWidth: cardKind === "poster" || cardKind === "square" ? Metrics.cardWidth(root.width) : Metrics.landscapeCardWidth(
                                                                             root.width)
 
             cardGap: Metrics.gapPx

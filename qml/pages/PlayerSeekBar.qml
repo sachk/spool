@@ -63,7 +63,9 @@ Item {
         anchors.bottom: parent.bottom
         anchors.bottomMargin: root.dp(18)
         height: root.focused ? root.dp(16) : root.dp(10)
-        radius: height / 2
+        // Barely softened rather than a pill: a rounded cap on a progress bar
+        // reads as part of the fill and blurs where playback actually sits.
+        radius: Math.max(1, root.dp(2))
         color: Theme.borderStrong
 
         Rectangle {

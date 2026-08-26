@@ -279,7 +279,7 @@ FocusScope {
             title: "Suggestions"
             model: root.search ? root.search.suggestions : null
             shell: root.shell
-            cardWidth: Metrics.homePosterWidth(root.width)
+            cardWidth: Metrics.cardWidth(root.width)
             cardGap: Metrics.gapPx
             enabledRow: root.query.length < 2
             reserveWhenEmpty: root.query.length < 2 && root.suggestionsBusy
@@ -329,7 +329,7 @@ FocusScope {
                 cardKind: "poster"
                 useSeriesPoster: resultKind === "episodes"
                 preferEpisodeTitle: resultKind === "episodes"
-                cardWidth: Metrics.homePosterWidth(root.width)
+                cardWidth: Metrics.cardWidth(root.width)
                 cardGap: Metrics.gapPx
                 onCurrentIndexChanged: if (activeFocus)
                 root.preferredKind = resultKind

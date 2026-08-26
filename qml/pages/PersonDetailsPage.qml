@@ -182,7 +182,7 @@ FocusScope {
             shell: root.shell
             cardKind: episodeRow ? "landscape" : "poster"
             preferEpisodeTitle: episodeRow
-            cardWidth: episodeRow ? Metrics.homeLandscapeWidth(root.width) : Metrics.homePosterWidth(root.width)
+            cardWidth: episodeRow ? Metrics.landscapeCardWidth(root.width) : Metrics.cardWidth(root.width)
             cardGap: Metrics.gapPx
             itemContextSource: "person"
             itemContextReturnRoute: "personDetails"

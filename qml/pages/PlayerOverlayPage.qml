@@ -37,8 +37,9 @@ FocusScope {
     property double timelineHoverSeconds: 0
 
     readonly property bool previewing: input.previewing
-    readonly property real uiScale: Math.max(0.65, Math.min(1.25, Math.max(0.78, Math.min(1.0, height / 1440))
-                                                            * Metrics.uiScale))
+    // The same yardstick the pages behind size their cards with, so controls
+    // stay in proportion to them however the window is shaped.
+    readonly property real uiScale: Math.max(0.65, Math.min(1.25, Metrics.chromeScale(width, height) * Metrics.uiScale))
     readonly property int actionTargetSize: dp(audioOnly ? 54 : 68)
     readonly property var audioSyncSteps: [1, 5, 10, 100]
     readonly property bool audioSelectable: hasPlayer && player.audioTracks.length > 1
