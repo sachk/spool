@@ -122,8 +122,9 @@ Item {
             }
             SecondaryText {
                 Layout.maximumWidth: Metrics.scaled(396)
-                text: "UI  " + root.width + "x" + root.height + "  " + Metrics.densityForWidth(root.width) + "  "
-                      + root.route + (root.focusedItemId.length > 0 ? "  ·  " + root.focusedItemId : "")
+                text: "UI  " + root.width + "x" + root.height + "  " + Metrics.scale.toFixed(2) + "  " + Metrics.lane(
+                          root.width) + "  " + root.route + (root.focusedItemId.length > 0 ? "  ·  "
+                                                                                             + root.focusedItemId : "")
                 elide: Text.ElideRight
             }
         }

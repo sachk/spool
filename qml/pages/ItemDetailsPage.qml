@@ -70,7 +70,7 @@ FocusScope {
     readonly property bool hasProgress: Number(item.resumeTicks || 0) > 0 && Number(item.runtimeTicks || 0) > 0
     readonly property int detailTitlePx: Math.min(68, Metrics.titleSizePx + 24)
     readonly property int contentMargin: Metrics.pageMarginPx
-    readonly property int rowPosterWidth: Metrics.detailRowPosterWidth(width)
+    readonly property int rowPosterWidth: Metrics.detailRowPosterWidth()
     readonly property int rowLandscapeWidth: Math.round(rowPosterWidth * 1.75)
     readonly property int rowGap: Math.max(14, Metrics.gapPx)
     readonly property bool compactEpisodicDetail: typeText === "Season" || typeText === "Episode"

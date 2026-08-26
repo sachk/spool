@@ -729,7 +729,6 @@ FocusScope {
             property var row
             property int rowIndex: -1
             width: parent ? parent.width : settingsList.width
-            metricsWidth: root.width
             focus: false
             focusPolicy: Qt.NoFocus
             rowFocus: settingsList.activeFocus && settingsList.currentIndex === rowIndex

@@ -205,7 +205,6 @@ FocusScope {
                     iconName: modelData.icon || ""
                     actionable: rowActionable
                     highlighted: ListView.isCurrentItem && list.activeFocus
-                    metricsWidth: menu.width
                     checkIconName: ""
                     onHovered: list.currentIndex = index
                     onActivated: menu.activateEntry(index)

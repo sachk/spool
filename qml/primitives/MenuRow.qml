@@ -16,7 +16,6 @@ Item {
     property bool highlighted: false
     property bool actionable: true
     property bool pointerActivationEnabled: true
-    property int metricsWidth: root.Window.window ? root.Window.window.width : 1920
     // Rows are sized for a remote by default. A pointer opens the same menu as
     // a dropdown beside its button, where that scale reads as oversized and
     // costs the width the labels need.

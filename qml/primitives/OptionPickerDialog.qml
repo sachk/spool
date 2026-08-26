@@ -147,7 +147,6 @@ FocusScope {
                 checked: index === root.currentIndex
                 highlighted: optionList.activeFocus && optionList.currentIndex === index
                 pointerActivationEnabled: false
-                metricsWidth: root.width
                 onHovered: optionList.currentIndex = index
                 onActivated: root.selected(index)
                 MouseArea {

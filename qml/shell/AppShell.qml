@@ -6,7 +6,18 @@ import "RoutePolicy.js" as RoutePolicy
 
 KeyRouter {
     id: root
-    onWidthChanged: Metrics.refWidth = width
+    onWidthChanged: Metrics.viewportWidth = width
+    onHeightChanged: Metrics.viewportHeight = height
+
+    // The shell is the one place that knows how big the window is and what
+    // the user asked the interface to be scaled to. It hands both to Metrics
+    // so nothing under qml/theme has to reach for a backend singleton.
+    Binding {
+        target: Metrics
+        property: "zoomPercent"
+        value: Settings.uiScalePercent
+        restoreMode: Binding.RestoreNone
+    }
     focus: true
     backspaceNavigatesInTextInput: Platform.isTV
     webOsScanCodes: Platform.isTV

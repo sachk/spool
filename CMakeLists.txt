@@ -760,6 +760,7 @@ if(BUILD_TESTING AND NOT CMAKE_CROSSCOMPILING)
             player-overlay-input tests/qml/tst_PlayerOverlayInput.qml
             option-picker-input tests/qml/tst_OptionPickerInput.qml
             media-row tests/qml/tst_MediaRow.qml
+            metrics tests/qml/tst_Metrics.qml
             tls-trust-dialogs tests/qml/tst_TlsTrustDialogs.qml
             nav-grid tests/qml/tst_NavGrid.qml
             viewport-focus-recovery tests/qml/tst_ViewportFocusRecovery.qml

@@ -596,7 +596,6 @@ FocusScope {
             property var spec
             property int rowIndex: -1
             width: list.width
-            metricsWidth: root.width
             focus: false
             focusPolicy: Qt.NoFocus
             rowFocus: list.activeFocus && list.currentIndex === rowIndex

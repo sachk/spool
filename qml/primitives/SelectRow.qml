@@ -6,7 +6,6 @@ SettingRow {
 
     property var options: []
     property int currentIndex: 0
-    property real metricsWidth: 1920
     readonly property string selectedText: options.length > 0 ? String(options[Math.max(0, Math.min(options.length - 1,
                                                                                                     currentIndex))]) :
                                                                 ""

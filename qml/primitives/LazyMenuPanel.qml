@@ -91,7 +91,6 @@ Loader {
                                                                                                       ? "radio_button_unchecked" :
                                                                                                         "check_box_outline_blank")
                     highlighted: ListView.isCurrentItem && list.activeFocus
-                    metricsWidth: Metrics.refWidth
                     rowHeight: modelData && modelData.detail ? 54 : 48
                     checkIconName: ""
                     onHovered: list.currentIndex = index

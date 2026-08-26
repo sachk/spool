@@ -488,7 +488,6 @@ Item {
                         compact: menuDialog.dropdown
                         checked: root.overlay.menuItemSelected(index)
                         highlighted: menuList.currentIndex === index
-                        metricsWidth: root.width
                         stepperVisible: root.overlay.debugAction(index) === "speed"
                         stepperEnabled: !SyncPlay.enabled
                         stepperText: root.overlay.formatPlaybackSpeed(root.overlay.player.effectivePlaybackSpeed)

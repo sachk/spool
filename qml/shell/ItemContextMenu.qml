@@ -368,7 +368,6 @@ FocusScope {
                 iconName: modelData.icon || "more_horiz"
                 checked: Boolean(modelData.checked)
                 highlighted: ListView.isCurrentItem
-                metricsWidth: root.windowWidth
                 rowHeight: root.menuRowHeight
                 compact: true
                 onHovered: menuList.currentIndex = index
