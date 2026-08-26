@@ -13,6 +13,7 @@
 #include "common/TlsTrust.h"
 #include "diagnostics/Diagnostics.h"
 #include "diagnostics/InputLatencyMonitor.h"
+#include "diagnostics/RenderBenchmark.h"
 #include "diagnostics/SystemPerformanceMonitor.h"
 #include "discovery/DiscoveryController.h"
 #include "platform/NativeAppWindow.h"
@@ -636,6 +637,25 @@ int main(int argc, char **argv)
         return 1;
     }
     logLine("startup: QML source loaded in %lld ms", static_cast<long long>(startupTimer.elapsed()));
+
+    // Inert unless SPOOL_BENCH names a script. When it does, the app comes up
+    // as it always does and is then walked through a set of route switches
+    // with what each one cost written out, so page-switch cost is a number in
+    // CI rather than an impression.
+    if (auto *benchmark = JellyfinNative::RenderBenchmark::createIfRequested(
+            controller.get(), router.get(), &inputLatencyMonitor, &window, &app)) {
+        if (controller->initialized()) {
+            benchmark->start();
+        } else {
+            QObject::connect(
+                controller.get(), &JellyfinNative::AppController::initializedChanged, benchmark,
+                [benchmark, controller = controller.get()] {
+                    if (controller->initialized())
+                        benchmark->start();
+                },
+                Qt::SingleShotConnection);
+        }
+    }
 
     if (launchTest) {
         QObject::connect(

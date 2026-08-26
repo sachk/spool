@@ -864,6 +864,31 @@ void InputLatencyMonitor::handleUiTransitionFrame(qint64 frameNs)
         sample.stageNs[index] = m_uiTransition.marks[index].elapsedNs;
 
     const QString line = Detail::formatUiLatency(sample);
+    const auto ms = [](qint64 nanoseconds) { return static_cast<double>(nanoseconds) / 1000000.0; };
+    m_lastRouteMetrics = QVariantMap {
+        { QStringLiteral("name"), sample.name },
+        { QStringLiteral("routeFrom"), sample.routeFrom },
+        { QStringLiteral("routeTo"), sample.routeTo },
+        { QStringLiteral("cacheHit"), sample.cacheHit },
+        { QStringLiteral("wallMs"), ms(sample.totalNs) },
+        { QStringLiteral("guiCpuMs"), ms(sample.guiCpuNs) },
+        { QStringLiteral("presentMs"), ms(sample.presentNs) },
+        { QStringLiteral("syncMs"), ms(sample.syncNs) },
+        { QStringLiteral("renderMs"), ms(sample.renderNs) },
+        { QStringLiteral("swapWaitMs"), ms(sample.swapWaitNs) },
+        { QStringLiteral("maxGapMs"), ms(sample.maxGapNs) },
+        { QStringLiteral("frameBudgetMs"), ms(sample.budgetNs) },
+        { QStringLiteral("budgetIntervals"), sample.budgetIntervals },
+        { QStringLiteral("actualSwaps"), sample.actualSwaps },
+        { QStringLiteral("delegatesCreated"), sample.delegatesCreated },
+        { QStringLiteral("delegatesDestroyed"), sample.delegatesDestroyed },
+        { QStringLiteral("instanceMs"), ms(sample.stageNs[0]) },
+        { QStringLiteral("shellMs"), ms(sample.stageNs[1]) },
+        { QStringLiteral("modelReadyMs"), ms(sample.stageNs[2]) },
+        { QStringLiteral("firstDelegateMs"), ms(sample.stageNs[3]) },
+        { QStringLiteral("viewportMs"), ms(sample.stageNs[4]) },
+        { QStringLiteral("contentReadyMs"), ms(sample.stageNs[5]) },
+    };
     const auto milliseconds
         = [](qint64 nanoseconds) { return QString::number(static_cast<double>(nanoseconds) / 1000000.0, 'f', 2); };
     m_lastRouteSample = QStringLiteral("%1  %2 ms / %3 ms CPU  %4 swaps  %5+/%6- delegates")
@@ -972,6 +997,11 @@ double InputLatencyMonitor::frameBudgetMs() const
 QString InputLatencyMonitor::lastRouteSample() const
 {
     return m_lastRouteSample;
+}
+
+QVariantMap InputLatencyMonitor::lastRouteMetrics() const
+{
+    return m_lastRouteMetrics;
 }
 
 void InputLatencyMonitor::handleUiGapTimer()

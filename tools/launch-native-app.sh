@@ -8,6 +8,10 @@ usage() {
 usage: $(basename "$0") [path-to-jellyfin-native-or-app-bundle]
 
 Runs the native app launch test in an isolated environment and requires a rendered frame.
+
+With SPOOL_BENCH set, runs the render benchmark instead of the launch test:
+the app comes up the same way and is then walked through route switches,
+writing what each one cost to SPOOL_BENCH_OUT.
 EOF
 }
 
@@ -129,6 +133,19 @@ else
 fi
 export LC_NUMERIC=C
 
+# Benchmark mode reuses this script's isolation wholesale -- same offscreen
+# platform, same throwaway home -- because a measurement taken in a different
+# environment from the launch test is not comparable to it.
+app_args=(--launch-test)
+if [[ -n "${SPOOL_BENCH:-}" ]]; then
+  app_args=()
+  if [[ -n "${SPOOL_BENCH_OUT:-}" ]]; then
+    mkdir -p "$(dirname "$SPOOL_BENCH_OUT")"
+    SPOOL_BENCH_OUT="$(cd "$(dirname "$SPOOL_BENCH_OUT")" && pwd)/$(basename "$SPOOL_BENCH_OUT")"
+    export SPOOL_BENCH_OUT
+  fi
+fi
+
 if [[ "$bundled_app" == "1" ]]; then
   env -i \
     HOME="$HOME" \
@@ -143,7 +160,12 @@ if [[ "$bundled_app" == "1" ]]; then
     QT_QUICK_BACKEND="$QT_QUICK_BACKEND" \
     QSG_RHI_BACKEND="$QSG_RHI_BACKEND" \
     LC_NUMERIC="$LC_NUMERIC" \
-    "$candidate" --launch-test
+    SPOOL_BENCH="${SPOOL_BENCH:-}" \
+    SPOOL_BENCH_OUT="${SPOOL_BENCH_OUT:-}" \
+    SPOOL_BENCH_COLD="${SPOOL_BENCH_COLD:-}" \
+    SPOOL_BENCH_ITERATIONS="${SPOOL_BENCH_ITERATIONS:-}" \
+    SPOOL_WINDOW_SIZE="${SPOOL_WINDOW_SIZE:-}" \
+    "$candidate" "${app_args[@]}"
 else
-  "$candidate" --launch-test
+  "$candidate" "${app_args[@]}"
 fi

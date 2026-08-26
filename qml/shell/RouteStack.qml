@@ -141,12 +141,16 @@ FocusScope {
         activeRoute = route
         InputLatency.mark(uiTransitionToken, "shell")
         dropTransientPages()
-        if (Platform.isTV)
-            Qt.callLater(evictInactiveMediaPages)
-        // Desktop can amortize cold route construction during idle. On TV,
-        // even an invisible page build blocks the single GUI thread and made
-        // launch look as if Settings or another stale route had opened.
-        if (Session.authenticated && !Platform.isTV && !prewarmScheduled) {
+        noteUse(loader.pageCacheKey)
+        Qt.callLater(evictBeyondBudget)
+        // Every platform amortizes cold construction during idle now. It was
+        // desktop-only because an invisible build was thought to block the
+        // GUI thread, but the loaders incubate asynchronously: the walk
+        // through a cold route shows a worst frame gap under a millisecond
+        // while it builds. What made a television slow was never the
+        // prewarming; it was dropping every page the moment it left the
+        // screen and paying to build it again on the way back.
+        if (Session.authenticated && !prewarmScheduled) {
             prewarmScheduled = true
             prewarmQueue = ["settings", "subtitleSettings", "libraryGrid", "itemDetails", "personDetails"]
             prewarmTimer.start()
@@ -164,25 +168,53 @@ FocusScope {
         }
     }
 
-    function evictInactiveMediaPages() {
-        if (!Platform.isTV)
-            return
-        for (const key of ["home", "libraryGrid", "itemDetails", "personDetails", "search", "openSourceNotices"]) {
+    // How many built pages to keep besides the one on screen. Memory is a
+    // real constraint and worth asking about; being a television is not. A
+    // set-top box with three gigabytes and a laptop with three gigabytes have
+    // the same answer, and the laptop stops being treated as though its
+    // memory were free.
+    readonly property int residentPageBudget: {
+        const bytes = Number(NativeWindow.systemMemoryBytes || 0)
+        if (!(bytes > 0))
+            return 3
+        const gigabytes = bytes / (1024 * 1024 * 1024)
+        if (gigabytes < 1.2)
+            return 1
+        if (gigabytes < 2.5)
+            return 3
+        return gigabytes < 6 ? 5 : 8
+    }
+
+    // Least-recently-shown first, so what gets dropped is what has not been
+    // looked at rather than whatever the platform happened to distrust.
+    property var useOrder: []
+
+    function noteUse(key) {
+        const order = useOrder.filter(entry => entry !== key)
+        order.push(key)
+        useOrder = order
+    }
+
+    function evictBeyondBudget() {
+        const order = useOrder.filter(key => Boolean(pages[key]))
+        let excess = order.length - residentPageBudget
+        for (let index = 0; index < order.length && excess > 0; ++index) {
+            const key = order[index]
             const loader = pages[key]
-            if (loader && loader !== activeLoader) {
-                delete pages[key]
-                loader.destroy()
-                console.info("route host: released inactive", key)
-            }
+            if (!loader || loader === activeLoader)
+                continue
+            delete pages[key]
+            loader.destroy()
+            --excess
+            console.info("route host: released", key)
         }
+        useOrder = order.filter(key => Boolean(pages[key]))
     }
 
     // Memory-pressure eviction: keep the active page plus the cheap,
     // frequently visited residents (home/settings/libraryGrid).
     function trim() {
-        const candidates = Platform.isTV ? ["home", "settings", "libraryGrid", "itemDetails", "personDetails", "search",
-                                            "openSourceNotices"] : ["itemDetails", "personDetails", "search",
-                                                                    "openSourceNotices"]
+        const candidates = useOrder.filter(key => Boolean(pages[key]))
         for (const key of candidates) {
             const loader = pages[key]
             if (loader && loader !== activeLoader) {
@@ -257,6 +289,12 @@ FocusScope {
         repeat: true
         onTriggered: {
             if (root.prewarmQueue.length === 0) {
+                stop()
+                return
+            }
+            // Never build past what is going to be kept: filling the budget
+            // with pages nobody asked for would evict the ones they did.
+            if (Object.keys(root.pages).length >= root.residentPageBudget) {
                 stop()
                 return
             }

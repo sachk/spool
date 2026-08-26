@@ -183,6 +183,67 @@ jobs:
       - name: Launch-test host app UI
         run: nix develop .#native -c bash tools/launch-native-app.sh build/linux-release/install/bin/jellyfin-native
 
+      # A page switch is meant to cost one frame. That is a number, so it is
+      # measured every commit rather than noticed once it has got bad.
+      - name: Restore render benchmark baseline
+        uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5.0.3
+        with:
+          path: .render-benchmark
+          key: render-benchmark-${{ runner.os }}-${{ github.sha }}
+          restore-keys: |
+            render-benchmark-${{ runner.os }}-
+
+      - name: Measure render latency
+        run: |
+          mkdir -p dist/render-benchmark
+          nix develop .#native -c env \
+            SPOOL_BENCH=routes \
+            SPOOL_BENCH_OUT="$PWD/dist/render-benchmark/warm.json" \
+            SPOOL_BENCH_ITERATIONS=4 \
+            bash tools/launch-native-app.sh build/linux-release/install/bin/jellyfin-native
+          # The same walk with every page dropped between switches: what a
+          # memory-starved device pays, tracked but not gated.
+          nix develop .#native -c env \
+            SPOOL_BENCH=routes \
+            SPOOL_BENCH_COLD=1 \
+            SPOOL_BENCH_OUT="$PWD/dist/render-benchmark/cold.json" \
+            SPOOL_BENCH_ITERATIONS=4 \
+            bash tools/launch-native-app.sh build/linux-release/install/bin/jellyfin-native
+
+      - name: Report render latency
+        run: |
+          status=0
+          nix develop .#native -c python3 tools/compare-render-benchmark.py \
+            dist/render-benchmark/warm.json \
+            --baseline .render-benchmark/warm.json \
+            --markdown dist/render-benchmark/warm.md || status=$?
+          nix develop .#native -c python3 tools/compare-render-benchmark.py \
+            dist/render-benchmark/cold.json \
+            --baseline .render-benchmark/cold.json \
+            --markdown dist/render-benchmark/cold.md || true
+          cat dist/render-benchmark/warm.md dist/render-benchmark/cold.md >> "$GITHUB_STEP_SUMMARY"
+          exit "$status"
+
+      - name: Upload render benchmark
+        if: ${{ always() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.0
+        with:
+          name: spool-render-benchmark
+          path: dist/render-benchmark
+
+      - name: Promote this run to the baseline
+        if: ${{ success() && github.ref == 'refs/heads/master' }}
+        run: |
+          mkdir -p .render-benchmark
+          cp dist/render-benchmark/warm.json dist/render-benchmark/cold.json .render-benchmark/
+
+      - name: Save render benchmark baseline
+        if: ${{ success() && github.ref == 'refs/heads/master' }}
+        uses: actions/cache/save@caa296126883cff596d87d8935842f9db880ef25 # v5.0.3
+        with:
+          path: .render-benchmark
+          key: render-benchmark-${{ runner.os }}-${{ github.sha }}
+
       - name: Package AppImage
         run: nix develop .#native -c bash tools/package-appimage.sh
       - name: Audit extracted AppImage

@@ -177,6 +177,8 @@ set(SPOOL_SHELL_SOURCES
     src/diagnostics/Diagnostics.h
     src/diagnostics/InputLatencyMonitor.cpp
     src/diagnostics/InputLatencyMonitor.h
+    src/diagnostics/RenderBenchmark.cpp
+    src/diagnostics/RenderBenchmark.h
     src/diagnostics/SystemPerformanceMonitor.cpp
     src/diagnostics/SystemPerformanceMonitor.h
 )

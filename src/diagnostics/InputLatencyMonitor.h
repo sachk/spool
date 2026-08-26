@@ -5,6 +5,7 @@
 #include <QObject>
 #include <QString>
 #include <QTimer>
+#include <QVariantMap>
 
 #include <array>
 #include <atomic>
@@ -221,6 +222,9 @@ class InputLatencyMonitor final : public QObject {
     Q_PROPERTY(quint64 missedFrameCount READ missedFrameCount NOTIFY statisticsChanged)
     Q_PROPERTY(double frameBudgetMs READ frameBudgetMs NOTIFY frameBudgetChanged)
     Q_PROPERTY(QString lastRouteSample READ lastRouteSample NOTIFY routeSampleChanged)
+    // The same numbers as the log line, in a shape a harness can read
+    // without parsing prose that was written for a person.
+    Q_PROPERTY(QVariantMap lastRouteMetrics READ lastRouteMetrics NOTIFY routeSampleChanged)
 
 public:
     explicit InputLatencyMonitor(QObject *parent = nullptr);
@@ -244,6 +248,7 @@ public:
     quint64 missedFrameCount() const;
     double frameBudgetMs() const;
     QString lastRouteSample() const;
+    QVariantMap lastRouteMetrics() const;
 
     Q_INVOKABLE void clearStatistics();
     Q_INVOKABLE quint64 beginUiTransition(
@@ -317,6 +322,7 @@ private:
     };
 
     UiTransition m_uiTransition;
+    QVariantMap m_lastRouteMetrics;
     QChronoTimer m_uiGapTimer;
     QString m_lastRouteSample;
     qint64 m_lastInputBeginNs = -1;
