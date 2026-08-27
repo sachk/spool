@@ -82,7 +82,7 @@ QtObject {
     readonly property int radiusMedium: Metrics.scaled(6)
     readonly property int radiusLarge: Metrics.scaled(10)
     readonly property int radiusPanel: Metrics.scaled(12)
-    readonly property int focusBorderWidth: Math.max(2, Metrics.scaled(2))
+    readonly property int focusBorderWidth: Metrics.focusRingPx
     readonly property int hoverBorderWidth: Math.max(1, Metrics.scaled(1))
 
     // Native text uses the platform rasterizer and honours font hinting.

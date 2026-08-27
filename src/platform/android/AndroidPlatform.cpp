@@ -64,6 +64,7 @@ const PlatformCapabilities& platformCapabilities()
         .deviceName = QStringLiteral("Android TV"),
         .rendererName = QStringLiteral("libmpv OpenGL ES"),
         .isTV = true,
+        .hasSystemFonts = false,
         .hasDesktopPointer = false,
     };
 #else
@@ -71,6 +72,9 @@ const PlatformCapabilities& platformCapabilities()
         .deviceName = QStringLiteral("Android"),
         .rendererName = QStringLiteral("libmpv OpenGL ES"),
         .isTV = false,
+        // The Android media stack is built without a system font provider, so
+        // libass can only use the fonts the app ships with it.
+        .hasSystemFonts = false,
         .hasDesktopPointer = false,
     };
 #endif

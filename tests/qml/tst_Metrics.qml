@@ -20,6 +20,7 @@ TestCase {
     function init() {
         viewport(1920, 1080, 100)
         metrics.coarsePointer = false
+        metrics.pixelsPerMm = 3.8
     }
 
     // The reference viewport every size in the app was drawn against. If this
@@ -140,6 +141,32 @@ TestCase {
         metrics.coarsePointer = true
         verify(metrics.controlHeightPx >= 44)
         verify(metrics.controlHeightPx >= remote)
+    }
+
+    // Everything else is a function of the viewport, which is the right
+    // yardstick for reading distance. A fingertip is a fixed size, so the
+    // things you touch have to grow with the panel's density rather than
+    // shrink into it.
+    function test_touchTargetsFollowPanelDensity() {
+        viewport(1224, 924, 100)
+        metrics.coarsePointer = true
+        const sparse = metrics.touchTargetPx
+        const sparseRing = metrics.focusRingPx
+        metrics.pixelsPerMm = 6.8
+        verify(metrics.touchTargetPx > sparse)
+        verify(metrics.touchTargetPx >= Math.round(9 * 6.8))
+        verify(metrics.focusRingPx > sparseRing)
+        verify(metrics.controlHeightPx >= metrics.touchTargetPx)
+    }
+
+    // A remote and a mouse are not fingers, however dense the panel is.
+    function test_densityDoesNotEnlargeRemoteTargets() {
+        viewport(1920, 1080, 100)
+        const ring = metrics.focusRingPx
+        metrics.pixelsPerMm = 12
+        compare(metrics.touchTargetPx, 0)
+        compare(metrics.focusRingPx, ring)
+        compare(metrics.controlHeightPx, 48)
     }
 
     // Zoom and viewport are independent axes and compose.

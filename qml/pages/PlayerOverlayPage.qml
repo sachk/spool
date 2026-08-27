@@ -42,7 +42,9 @@ FocusScope {
     // The same yardstick the pages behind size their cards with, so controls
     // stay in proportion to them however the window is shaped.
     readonly property real uiScale: Math.max(0.65, Math.min(1.25, Metrics.chromeScale * Metrics.uiScale))
-    readonly property int actionTargetSize: dp(audioOnly ? 54 : 68)
+    // Floored to a fingertip: the overlay's own scale follows the user's zoom,
+    // which says nothing about how big these end up on a dense panel.
+    readonly property int actionTargetSize: Math.max(Metrics.touchTargetPx, dp(audioOnly ? 54 : 68))
     readonly property var audioSyncSteps: [1, 5, 10, 100]
     readonly property bool audioSelectable: hasPlayer && player.audioTracks.length > 1
     // Nothing hides over a now playing stage, and the controls that only make

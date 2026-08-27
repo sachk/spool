@@ -367,6 +367,13 @@ bool PlayerController::configureAndInitializeMpv(mpv_handle *handle, bool embedd
     auto applicationOptions = MpvOptionProfile::applicationOptions(platform, m_audioOutputMode, mpvLogPath(),
         m_demuxerMaxBytes, m_demuxerMaxBackBytes, parallelRequests, embeddedVideo, mpvShaderCachePath());
     applicationOptions.push_back({ "sub-fonts-dir", m_subtitleFontsPath });
+    // mpv's OSD — the performance stats overlay among it — is drawn by libass
+    // too, and it looks for fonts under its own options rather than the
+    // subtitle ones. Builds without a system font provider found nothing at
+    // all and drew an empty overlay, so name the bundled family the app
+    // already ships for subtitles.
+    applicationOptions.push_back({ "osd-fonts-dir", m_subtitleFontsPath });
+    applicationOptions.push_back({ "osd-font", QByteArrayLiteral("IBM Plex Sans Var") });
 
     if (!applyOptions(handle, MpvOptionProfile::preInitializeOptions(m_mpvConfigPolicy))
         || !applyOptions(handle, applicationOptions))

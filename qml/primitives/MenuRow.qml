@@ -20,7 +20,8 @@ Item {
     // a dropdown beside its button, where that scale reads as oversized and
     // costs the width the labels need.
     property bool compact: false
-    property int rowHeight: Metrics.scaled(detail.length > 0 ? (compact ? 44 : 54) : (compact ? 36 : 46))
+    property int rowHeight: Math.max(Metrics.touchTargetPx, Metrics.scaled(detail.length > 0 ? (compact ? 44 : 54) : (compact
+                                                                                                                      ? 36 : 46)))
     property string checkIconName: "done"
     property bool stepperVisible: false
     property bool stepperEnabled: true

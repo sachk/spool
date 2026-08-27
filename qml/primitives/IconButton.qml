@@ -15,7 +15,7 @@ T.Control {
     property alias acceptedButtons: tap.acceptedButtons
     signal clicked
 
-    width: Metrics.scaled(44)
+    width: Math.max(Metrics.touchTargetPx, Metrics.scaled(44))
     height: width
     focusPolicy: Qt.StrongFocus
 

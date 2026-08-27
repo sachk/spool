@@ -10,6 +10,13 @@ QtObject {
     // Set by the shell when the last thing to touch the app was a finger.
     // Taps need a floor that a remote and a mouse do not.
     property bool coarsePointer: false
+    // Pixels per millimetre, pushed by the shell. Every other size in this file
+    // is a pure function of the viewport, which is the right yardstick for
+    // reading: a phone is held about half as far away as a monitor, so type
+    // half the size subtends the same angle. A fingertip is not held closer,
+    // so the things you touch are the one thing that has to be measured in
+    // millimetres or a dense panel shrinks them out of reach.
+    property real pixelsPerMm: 3.8
 
     // The user's zoom, pushed here by the shell alongside the viewport. This
     // file is a pure function of what it is handed, so it can be reasoned
@@ -52,7 +59,14 @@ QtObject {
     readonly property int pageMarginPx: pageMargin(viewportWidth)
     readonly property int gapPx: scaled(22)
     // A finger needs about nine millimetres whatever the yardstick says.
-    readonly property int controlHeightPx: Math.max(coarsePointer ? 44 : 0, scaled(48))
+    // The 44 keeps the floor the app has always had on a ~96 dpi touchscreen,
+    // where nine millimetres works out smaller; a dense panel takes the
+    // millimetres instead.
+    readonly property int touchTargetPx: coarsePointer ? Math.max(44, Math.round(9 * pixelsPerMm)) : 0
+    readonly property int controlHeightPx: Math.max(touchTargetPx, scaled(48))
+    // The selection ring is read from touching distance, so it gets a physical
+    // floor too — two pixels is a hairline on a phone panel.
+    readonly property int focusRingPx: Math.max(scaled(2), coarsePointer ? Math.round(0.5 * pixelsPerMm) : 0)
     readonly property int sectionGapPx: scaled(28)
     readonly property int iconSizePx: scaled(22)
     readonly property int titleSizePx: scaled(34)

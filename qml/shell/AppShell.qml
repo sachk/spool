@@ -34,6 +34,13 @@ KeyRouter {
                              Metrics.coarsePointer = true
     }
 
+    Binding {
+        target: Metrics
+        property: "pixelsPerMm"
+        value: Screen.pixelDensity > 0 ? Screen.pixelDensity : 3.8
+        restoreMode: Binding.RestoreNone
+    }
+
     HoverHandler {
         acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
         onHoveredChanged: if (hovered)
@@ -262,6 +269,11 @@ KeyRouter {
     // hinting for its 1080p scene; other desktops retain Qt's scalable
     // distance-field rendering.
     Component.onCompleted: {
+        // A phone is a finger until something says otherwise. The pointer
+        // handlers above only fire once the app has been touched, so without
+        // this the first frame is laid out to a mouse's sizes.
+        if (!Platform.hasDesktopPointer && !Platform.isTV)
+            Metrics.coarsePointer = true
         if (!Platform.isTV && Qt.platform.os === "linux") {
             Theme.normalTextRenderType = Text.NativeRendering
             Typography.sansHinting = Font.PreferVerticalHinting
