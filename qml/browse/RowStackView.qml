@@ -250,6 +250,8 @@ FocusScope {
         reuseItems: true
         cacheBuffer: 0
         boundsBehavior: Flickable.StopAtBounds
+        flickDeceleration: Metrics.flickDecelerationPx
+        maximumFlickVelocity: Metrics.maximumFlickVelocityPx
         keyNavigationEnabled: false
         focus: true
 

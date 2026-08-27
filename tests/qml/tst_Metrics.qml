@@ -159,6 +159,20 @@ TestCase {
         verify(metrics.controlHeightPx >= metrics.touchTargetPx)
     }
 
+    // A fling is a physical gesture: the same velocity has to carry the content
+    // the same distance across the glass whatever the panel's density, and a
+    // sparse panel keeps Qt's own defaults.
+    function test_flickPhysicsFollowPanelDensity() {
+        compare(metrics.flickDecelerationPx, 1500)
+        compare(metrics.maximumFlickVelocityPx, 2500)
+        metrics.pixelsPerMm = 6.8
+        verify(metrics.flickDecelerationPx > 1500)
+        verify(metrics.maximumFlickVelocityPx > 2500)
+        const ratio = 6.8 / metrics.referencePixelsPerMm
+        compare(metrics.flickDecelerationPx, Math.round(1500 * ratio))
+        compare(metrics.maximumFlickVelocityPx, Math.round(2500 * ratio))
+    }
+
     // A remote and a mouse are not fingers, however dense the panel is.
     function test_densityDoesNotEnlargeRemoteTargets() {
         viewport(1920, 1080, 100)

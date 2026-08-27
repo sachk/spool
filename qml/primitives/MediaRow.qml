@@ -293,6 +293,8 @@ FocusScope {
         clip: true
         orientation: ListView.Horizontal
         boundsBehavior: Flickable.StopAtBounds
+        flickDeceleration: Metrics.flickDecelerationPx
+        maximumFlickVelocity: Metrics.maximumFlickVelocityPx
         spacing: root.cardGap
         cacheBuffer: root.atomicPopulate ? 0 : Math.round(root.cardWidth + root.cardGap)
         leftMargin: root.focusPadding
