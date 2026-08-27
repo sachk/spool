@@ -660,12 +660,44 @@ int main(int argc, char **argv)
     if (launchTest) {
         QObject::connect(
             &window, &QQuickWindow::frameSwapped, &app,
-            [&app] {
+            [&app, &window] {
                 // frameSwapped may be emitted by the render thread. Return to
-                // the GUI thread before beginning the normal shutdown path.
+                // the GUI thread before inspecting QML or beginning shutdown.
                 QMetaObject::invokeMethod(
                     &app,
-                    [&app] {
+                    [&app, &window] {
+                        QObject *rootObject = window.rootObject();
+                        QObject *contentLayer = rootObject
+                            ? rootObject->findChild<QObject *>(QStringLiteral("shellContentLayer"))
+                            : nullptr;
+                        QObject *navBar = rootObject
+                            ? rootObject->findChild<QObject *>(QStringLiteral("shellNavigationBar"))
+                            : nullptr;
+                        QObject *routeStack = rootObject
+                            ? rootObject->findChild<QObject *>(QStringLiteral("shellRouteStack"))
+                            : nullptr;
+                        const double contentHeight = contentLayer ? contentLayer->property("height").toDouble() : 0.0;
+                        const double contentWidth = contentLayer ? contentLayer->property("width").toDouble() : 0.0;
+                        const double navHeight = navBar ? navBar->property("height").toDouble() : 0.0;
+                        const double navY = navBar ? navBar->property("y").toDouble() : 0.0;
+                        const double routeHeight = routeStack ? routeStack->property("height").toDouble() : 0.0;
+                        const double routeWidth = routeStack ? routeStack->property("width").toDouble() : 0.0;
+                        const double routeY = routeStack ? routeStack->property("y").toDouble() : 0.0;
+                        const bool navAtTop = navY <= 1.0 && routeY + 1.0 >= navHeight;
+                        const bool navAtBottom = routeY <= 1.0 && navY + 1.0 >= routeHeight;
+                        const bool shellGeometryValid = contentWidth > 0.0 && contentHeight > 0.0 && navHeight >= 0.0
+                            && navHeight < contentHeight && routeWidth + 1.0 >= contentWidth && routeHeight > 0.0
+                            && routeHeight + navHeight + 1.0 >= contentHeight && routeY >= 0.0 && navY >= 0.0
+                            && routeY + routeHeight <= contentHeight + 1.0 && navY + navHeight <= contentHeight + 1.0
+                            && (navAtTop || navAtBottom);
+                        if (!shellGeometryValid) {
+                            logLine("launch test: invalid shell geometry content=%.1fx%.1f nav=%.1f@%.1f "
+                                    "route=%.1fx%.1f@%.1f",
+                                contentWidth, contentHeight, navHeight, navY, routeWidth, routeHeight, routeY);
+                            JellyfinNative::Diagnostics::setInstanceState(QStringLiteral("launch_test_invalid_shell"));
+                            app.exit(1);
+                            return;
+                        }
                         logLine("launch test: application UI rendered");
                         JellyfinNative::Diagnostics::setInstanceState(QStringLiteral("launch_test_rendered"));
                         app.exit(0);

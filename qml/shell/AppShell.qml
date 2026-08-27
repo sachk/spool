@@ -768,6 +768,7 @@ KeyRouter {
 
     Item {
         id: contentLayer
+        objectName: "shellContentLayer"
         anchors.fill: parent
         anchors.topMargin: -root.keyboardAvoidance
         anchors.bottomMargin: root.keyboardAvoidance
@@ -776,12 +777,14 @@ KeyRouter {
 
         TopBar {
             id: navBar
+            objectName: "shellNavigationBar"
             anchors.left: parent.left
             anchors.right: parent.right
-            // Anchored to one edge or the other rather than ordered in a
-            // layout, so moving it is a binding rather than a rebuild.
-            anchors.top: root.navBarAtBottom ? undefined : parent.top
-            anchors.bottom: root.navBarAtBottom ? parent.bottom : undefined
+            // Keep this as ordinary geometry. Conditional anchor bindings are
+            // not ordered when the initial compact lane settles to the real
+            // window lane; top and bottom can briefly coexist and leave the
+            // bar stretched across the viewport.
+            y: root.navBarAtBottom ? Math.max(0, parent.height - height) : 0
             height: route === "login" ? 0 : Metrics.topBarHeightPx
             edge: root.navBarAtBottom ? "bottom" : "top"
             visible: route !== "login"
@@ -804,10 +807,11 @@ KeyRouter {
 
         RouteStack {
             id: routeStack
+            objectName: "shellRouteStack"
             anchors.left: parent.left
             anchors.right: parent.right
-            anchors.top: root.navBarAtBottom ? parent.top : navBar.bottom
-            anchors.bottom: root.navBarAtBottom ? navBar.top : parent.bottom
+            y: root.navBarAtBottom ? 0 : navBar.height
+            height: Math.max(0, parent.height - navBar.height)
             route: root.route
             shell: root
             startupReady: App.initialized
