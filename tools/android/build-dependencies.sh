@@ -51,6 +51,11 @@ SOURCE_ROOT="$ROOT/build/android/sources/third-party"
 BUILD_ROOT="$ROOT/build/android/deps-build/$ABI"
 CROSS_FILE="$BUILD_ROOT/android-$ABI.ini"
 
+# The Nix setup hooks publish every host build input through these, and a
+# cross build that picks any of them up finds host libraries under the target's
+# find-root rules or, worse, links against them.
+unset CMAKE_PREFIX_PATH CMAKE_INCLUDE_PATH CMAKE_LIBRARY_PATH CMAKE_FRAMEWORK_PATH \
+  QT_ADDITIONAL_PACKAGES_PREFIX_PATH
 export PATH="$TOOLCHAIN/bin:$PATH"
 export PKG_CONFIG_PATH="$PREFIX/lib/pkgconfig"
 export PKG_CONFIG_LIBDIR="$PREFIX/lib/pkgconfig"
@@ -59,7 +64,7 @@ unset PKG_CONFIG_SYSROOT_DIR
 fetch_sources() {
   mkdir -p "$SOURCE_ROOT" "$BUILD_ROOT"
   local source
-  for source in openssl freetype lua ffmpeg qcoro fribidi harfbuzz libass libplacebo; do
+  for source in openssl curl freetype lua ffmpeg qcoro fribidi harfbuzz libass libplacebo; do
     prepare_manifest_source "$ROOT" "$MANIFEST" "$source" "$SOURCE_ROOT/$source"
   done
   local path url sha archive
@@ -173,6 +178,72 @@ Cflags: -I\${includedir}
 EOF
 }
 
+# The network stack every platform shares. mpv's curl stream backend is what
+# the app tunes its parallel range requests through, and it also keeps TLS out
+# of FFmpeg, which cannot link OpenSSL 3 without the version3 licence flag the
+# capability manifest forbids.
+build_curl() {
+  [[ -f "$PREFIX/lib/libcurl.a" ]] && return
+  local build="$BUILD_ROOT/curl"
+  rm -rf "$build"
+  cmake -S "$SOURCE_ROOT/curl" -B "$build" -GNinja \
+    -DCMAKE_TOOLCHAIN_FILE="$ANDROID_NDK_ROOT/build/cmake/android.toolchain.cmake" \
+    -DANDROID_ABI="$ABI" \
+    -DANDROID_PLATFORM="android-$API" \
+    -DCMAKE_BUILD_TYPE=MinSizeRel \
+    -DCMAKE_INSTALL_PREFIX="$PREFIX" \
+    -DCMAKE_PREFIX_PATH="$PREFIX" \
+    -DCMAKE_POSITION_INDEPENDENT_CODE=ON \
+    -DOPENSSL_ROOT_DIR="$PREFIX" \
+    -DOPENSSL_INCLUDE_DIR="$PREFIX/include" \
+    -DOPENSSL_CRYPTO_LIBRARY="$PREFIX/lib/libcrypto.so" \
+    -DOPENSSL_SSL_LIBRARY="$PREFIX/lib/libssl.so" \
+    -DOPENSSL_USE_STATIC_LIBS=OFF \
+    -DBUILD_CURL_EXE=OFF \
+    -DBUILD_LIBCURL_DOCS=OFF \
+    -DBUILD_MISC_DOCS=OFF \
+    -DBUILD_EXAMPLES=OFF \
+    -DBUILD_SHARED_LIBS=OFF \
+    -DBUILD_STATIC_LIBS=ON \
+    -DBUILD_TESTING=OFF \
+    -DCURL_BROTLI=OFF \
+    -DCURL_DISABLE_ALTSVC=ON \
+    -DCURL_DISABLE_DICT=ON \
+    -DCURL_DISABLE_DOH=ON \
+    -DCURL_DISABLE_FILE=ON \
+    -DCURL_DISABLE_FTP=ON \
+    -DCURL_DISABLE_GOPHER=ON \
+    -DCURL_DISABLE_HSTS=ON \
+    -DCURL_DISABLE_IMAP=ON \
+    -DCURL_DISABLE_IPFS=ON \
+    -DCURL_DISABLE_LDAP=ON \
+    -DCURL_DISABLE_LDAPS=ON \
+    -DCURL_DISABLE_MQTT=ON \
+    -DCURL_DISABLE_NETRC=ON \
+    -DCURL_DISABLE_POP3=ON \
+    -DCURL_DISABLE_RTSP=ON \
+    -DCURL_DISABLE_SMB=ON \
+    -DCURL_DISABLE_SMTP=ON \
+    -DCURL_DISABLE_TELNET=ON \
+    -DCURL_DISABLE_TFTP=ON \
+    -DCURL_DISABLE_WEBSOCKETS=ON \
+    -DCURL_USE_GSSAPI=OFF \
+    -DCURL_USE_LIBPSL=OFF \
+    -DCURL_USE_LIBSSH2=OFF \
+    -DCURL_USE_OPENSSL=ON \
+    -DCURL_CA_FALLBACK=ON \
+    -DCURL_ZLIB=OFF \
+    -DENABLE_ARES=OFF \
+    -DENABLE_THREADED_RESOLVER=ON \
+    -DENABLE_CURL_MANUAL=OFF \
+    -DUSE_LIBIDN2=OFF \
+    -DUSE_NGHTTP2=OFF \
+    -DUSE_NGTCP2=OFF \
+    -DUSE_NGHTTP3=OFF
+  cmake --build "$build" --parallel "$JOBS"
+  cmake --install "$build"
+}
+
 build_meson() {
   local name="$1"
   shift
@@ -213,10 +284,17 @@ build_ffmpeg() {
   local build="$BUILD_ROOT/ffmpeg"
   rm -rf "$build"
   mkdir -p "$build"
-  mapfile -t feature_flags < <(
-    python3 "$ROOT/tools/ffmpeg-capabilities.py" \
-      --manifest "$ROOT/tools/manifests/ffmpeg-capabilities.json" configure --platform android
-  )
+  # Generate into a file first: a process substitution feeding mapfile hides a
+  # non-zero exit, and an empty flag list silently configures FFmpeg with its
+  # own defaults instead of the manifest's.
+  local flags_file="$build/ffmpeg-configure-flags"
+  python3 "$ROOT/tools/ffmpeg-capabilities.py" \
+    --manifest "$ROOT/tools/manifests/ffmpeg-capabilities.json" configure --platform android >"$flags_file"
+  mapfile -t feature_flags <"$flags_file"
+  [[ ${#feature_flags[@]} -gt 0 ]] || {
+    echo "error: no FFmpeg capability flags were generated" >&2
+    exit 1
+  }
   (
     cd "$build"
     "$SOURCE_ROOT/ffmpeg/configure" \
@@ -240,7 +318,7 @@ build_mpv() {
     --cross-file "$CROSS_FILE" --prefix "$PREFIX" --default-library shared \
     -Dcplayer=false -Dlibmpv=true -Dbuild-date=false -Dtests=false \
     -Dlua=lua -Djavascript=disabled -Dmanpage-build=disabled \
-    -Dlibarchive=disabled -Dlibbluray=disabled -Dlibcurl=disabled \
+    -Dlibarchive=disabled -Dlibbluray=disabled -Dlibcurl=enabled \
     -Dgl=enabled -Degl=disabled -Degl-android=enabled -Dvulkan=disabled \
     -Dandroid-media-ndk=enabled -Daudiotrack=enabled -Daaudio=enabled
   meson compile -C "$build" -j "$JOBS"
@@ -252,6 +330,7 @@ build_all() {
   write_cross_file
   describe_parallel_jobs "$JOBS" "Android dependencies" "${ANDROID_DEPS_MEMORY_PER_JOB_MIB:-1024}" "${ANDROID_DEPS_MEMORY_RESERVE_MIB:-2048}"
   build_openssl
+  build_curl
   build_freetype
   build_lua
   build_text_and_gpu_deps

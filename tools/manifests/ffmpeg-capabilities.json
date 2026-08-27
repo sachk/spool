@@ -175,20 +175,21 @@
     "android": {
       "gpl": true,
       "configureFlags": [
-        "--enable-network",
         "--enable-jni",
         "--enable-mediacodec",
-        "--enable-openssl"
+        "--enable-network"
+      ],
+      "decoders": [
+        "av1_mediacodec",
+        "h264_mediacodec",
+        "hevc_mediacodec",
+        "mpeg2_mediacodec",
+        "mpeg4_mediacodec",
+        "vp8_mediacodec",
+        "vp9_mediacodec"
       ],
       "hardwareAccelerators": [],
-      "protocols": [
-        "crypto",
-        "data",
-        "http",
-        "https",
-        "tcp",
-        "tls"
-      ]
+      "protocols": []
     },
     "linux": {
       "gpl": true,

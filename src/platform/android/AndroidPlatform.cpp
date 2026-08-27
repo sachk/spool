@@ -11,9 +11,11 @@
 #include "platform/common/CredentialStoreFileBackend.h"
 
 #include <QCoreApplication>
+#include <QDebug>
 #include <QDir>
 #include <QFile>
 #include <QFontDatabase>
+#include <QJniEnvironment>
 #include <QJniObject>
 #include <QStandardPaths>
 
@@ -204,9 +206,19 @@ std::unique_ptr<ScreenSaverBackend> createPlatformScreenSaverBackend()
     return std::make_unique<AndroidScreenSaverBackend>();
 }
 
+// libmpv statically links FFmpeg and re-exports this. FFmpeg's MediaCodec
+// decoders and mpv's AudioTrack output both reach Android through JNI and
+// refuse to start until a virtual machine has been registered, and nothing in
+// libmpv registers one — that is the embedding application's job.
+extern "C" int av_jni_set_java_vm(void *vm, void *log_ctx);
+
 bool configurePlatformEnvironment(const QString&)
 {
     qputenv("QT_QUICK_CONTROLS_STYLE", QByteArrayLiteral("Basic"));
+    if (JavaVM *vm = QJniEnvironment::javaVM())
+        av_jni_set_java_vm(vm, nullptr);
+    else
+        qWarning() << "android: no Java VM to register; hardware decoding is unavailable";
     return true;
 }
 

@@ -15,6 +15,10 @@ from collections.abc import Iterable
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 DEFAULT_MANIFEST = ROOT / "tools" / "manifests" / "ffmpeg-capabilities.json"
+# Every platform the app builds FFmpeg for. A platform missing from here is
+# rejected by the CLI rather than quietly falling back to FFmpeg's defaults.
+SUPPORTED_PLATFORMS = ("android", "linux", "macos", "webos", "windows")
+
 CATEGORIES = {
     "protocols": "protocol",
     "demuxers": "demuxer",
@@ -65,10 +69,13 @@ def load_manifest(path: pathlib.Path) -> dict:
     image_decoders = data.get("forbiddenImageDecoders")
     if not isinstance(image_decoders, list) or image_decoders != sorted(set(image_decoders)):
         raise ValueError("forbiddenImageDecoders must be sorted and contain no duplicates")
-    enabled_images = set(image_decoders) & set(data["decoders"])
+    all_decoders = set(data["decoders"])
+    for platform_data in data.get("platforms", {}).values():
+        all_decoders |= set(platform_data.get("decoders", []))
+    enabled_images = set(image_decoders) & all_decoders
     if enabled_images:
         raise ValueError(f"FFmpeg image decoders must remain disabled: {sorted(enabled_images)}")
-    for platform in ("linux", "macos", "webos", "windows"):
+    for platform in SUPPORTED_PLATFORMS:
         if platform not in data.get("platforms", {}):
             raise ValueError(f"missing platform capability set: {platform}")
         if not isinstance(data["platforms"][platform].get("gpl"), bool):
@@ -91,6 +98,21 @@ def platform_protocols(data: dict, platform: str) -> list[str]:
     return sorted(set(data["protocols"]) | set(data["platforms"][platform].get("protocols", [])))
 
 
+# A platform's own decoders sit alongside the shared set rather than replacing
+# it: Android's MediaCodec wrappers exist nowhere else, and the software
+# decoders stay as the fallback when the hardware refuses a stream.
+def platform_decoders(data: dict, platform: str) -> list[str]:
+    return sorted(set(data["decoders"]) | set(data["platforms"][platform].get("decoders", [])))
+
+
+def platform_values(data: dict, platform: str, key: str) -> list[str]:
+    if key == "protocols":
+        return platform_protocols(data, platform)
+    if key == "decoders":
+        return platform_decoders(data, platform)
+    return data[key]
+
+
 def configure_flags(data: dict, platform: str) -> list[str]:
     if platform not in data["platforms"]:
         raise ValueError(f"unknown FFmpeg platform: {platform}")
@@ -101,7 +123,7 @@ def configure_flags(data: dict, platform: str) -> list[str]:
         flags.append("--enable-gpl")
     flags.extend(f"--enable-{library}" for library in data["libraries"])
     for key, configure_name in CATEGORIES.items():
-        values = platform_protocols(data, platform) if key == "protocols" else data[key]
+        values = platform_values(data, platform, key)
         flags.extend(f"--enable-{configure_name}={value}" for value in values)
     flags.extend(
         f"--enable-hwaccel={value}" for value in data["platforms"][platform]["hardwareAccelerators"]
@@ -171,7 +193,7 @@ def cpp_header(data: dict, platform: str) -> str:
     arrays = {
         "Protocols": platform_protocols(data, platform),
         "Demuxers": [RUNTIME_DEMUXER_NAMES.get(value, value) for value in data["demuxers"]],
-        "Decoders": [RUNTIME_DECODER_NAMES.get(value, value) for value in data["decoders"]],
+        "Decoders": [RUNTIME_DECODER_NAMES.get(value, value) for value in platform_decoders(data, platform)],
         "Encoders": data["encoders"],
         "HardwareAccelerators": data["platforms"][platform]["hardwareAccelerators"],
         "Filters": data["filters"],
@@ -209,8 +231,7 @@ def audit_configuration(data: dict, platform: str, configuration: str) -> None:
         raise ValueError(f"effective FFmpeg GPL policy does not match platform {platform}")
     allowed: dict[str, set[str]] = {}
     for key, configure_name in CATEGORIES.items():
-        values = platform_protocols(data, platform) if key == "protocols" else data[key]
-        allowed[configure_name] = set(values)
+        allowed[configure_name] = set(platform_values(data, platform, key))
     allowed["hwaccel"] = set(data["platforms"][platform]["hardwareAccelerators"])
     enabled = list(split_enabled_values(configuration))
     enabled.extend(split_enabled_components(configuration))
@@ -255,17 +276,17 @@ def parse_args() -> argparse.Namespace:
 
     for command in ("configure", "meson"):
         child = subparsers.add_parser(command)
-        child.add_argument("--platform", required=True, choices=("linux", "macos", "webos", "windows"))
+        child.add_argument("--platform", required=True, choices=SUPPORTED_PLATFORMS)
 
     audit = subparsers.add_parser("audit-config")
-    audit.add_argument("--platform", required=True, choices=("linux", "macos", "webos", "windows"))
+    audit.add_argument("--platform", required=True, choices=SUPPORTED_PLATFORMS)
     audit.add_argument("configuration", nargs="+", type=pathlib.Path)
 
     closure = subparsers.add_parser("audit-closure")
     closure.add_argument("paths", nargs="+", type=pathlib.Path)
 
     header = subparsers.add_parser("cpp-header")
-    header.add_argument("--platform", required=True, choices=("linux", "macos", "webos", "windows"))
+    header.add_argument("--platform", required=True, choices=SUPPORTED_PLATFORMS)
     header.add_argument("--output", required=True, type=pathlib.Path)
 
     subparsers.add_parser("validate")
