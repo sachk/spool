@@ -572,18 +572,9 @@
               (nativeQtPackages cachedPkgs);
           cachedRuntimeLibPath =
             cachedPkgs.lib.makeLibraryPath (nativeRuntimePackages cachedPkgs);
-          cachedMacosRunner = pkgs.writeShellScript "jellyfin-native-cached-run" ''
-            export DYLD_LIBRARY_PATH="${cachedPackage}/lib:${cachedRuntimeLibPath}''${DYLD_LIBRARY_PATH:+:$DYLD_LIBRARY_PATH}"
-            export QT_PLUGIN_PATH="${cachedQtPluginPath}"
-            export QML2_IMPORT_PATH="${cachedQmlImportPath}"
-            export QML_IMPORT_PATH="$QML2_IMPORT_PATH"
-            export LC_NUMERIC=C
-            exec "${cachedPackage}/Applications/Spool.app/Contents/MacOS/Spool" "$@"
-          '';
-          cachedProgram =
-            if pkgs.stdenv.hostPlatform.isDarwin
-            then "${cachedMacosRunner}"
-            else "${cachedPackage}/bin/jellyfin-native";
+          cachedPackageDerivation =
+            builtins.unsafeDiscardStringContext cachedPackage.drvPath;
+          immutableRevision = self ? rev && !(self ? dirtyRev);
           stagedSourceId = builtins.substring 0 12
             (builtins.hashString "sha256" "${self}-${mpv-src}");
           buildScript =
@@ -598,6 +589,10 @@
             if pkgs.stdenv.hostPlatform.isDarwin
             then "build/macos/run-install/Spool.app/Contents/MacOS/Spool"
             else "build/linux-release/install/bin/jellyfin-native";
+          nativeBuildStamp =
+            if pkgs.stdenv.hostPlatform.isDarwin
+            then "build/macos/.jellyfin-nix-source-id"
+            else "build/linux-release/.jellyfin-nix-source-id";
           mpvLibraryPath =
             if pkgs.stdenv.hostPlatform.isDarwin
             then "build/macos/mpv-prefix/lib"
@@ -752,6 +747,61 @@
             buildBeforeRun = true;
           };
 
+          # A commit does not change the source tree the checkout build was
+          # made from. Reuse that exact build before asking Cachix for the
+          # immutable package; if there is no matching checkout build, clean
+          # revisions retain the package substitution path and dirty trees
+          # retain the incremental build path.
+          defaultRunner =
+            assert builtins.getContext cachedPackageDerivation == {};
+            pkgs.writeShellScriptBin "jellyfin-native-default" ''
+            export PATH="${pkgs.lib.makeBinPath [ pkgs.nix pkgs.bashInteractive pkgs.coreutils ]}:$PATH"
+            set -euo pipefail
+
+            is_repo_root() {
+              [ -f "$1/CMakeLists.txt" ] && [ -f "$1/tools/build-macos.sh" ] && [ -f "$1/mpv/meson.build" ]
+            }
+
+            if [ -n "''${JELLYFIN_REPO:-}" ]; then
+              CHECKOUT="$JELLYFIN_REPO"
+              if ! is_repo_root "$CHECKOUT"; then
+                echo "error: JELLYFIN_REPO does not point to a usable jellyfin-webos checkout: $CHECKOUT" >&2
+                exit 1
+              fi
+            elif is_repo_root "$PWD"; then
+              CHECKOUT="$PWD"
+            else
+              CHECKOUT=""
+            fi
+
+            if [ -n "$CHECKOUT" ]; then
+              BIN="$CHECKOUT/${binaryPath}"
+              BUILD_STAMP="$CHECKOUT/${nativeBuildStamp}"
+              if [ -x "$BIN" ] && [ -f "$BUILD_STAMP" ] && [ "$(cat "$BUILD_STAMP")" = "${stagedSourceId}" ]; then
+                echo "native checkout build is current (${stagedSourceId}); reusing it"
+                cd "$CHECKOUT"
+                exec "${runner}/bin/jellyfin-native-run" "$@"
+              fi
+            fi
+
+            if ! ${if immutableRevision then "true" else "false"}; then
+              exec "${runner}/bin/jellyfin-native-run" "$@"
+            fi
+
+            echo "no current checkout build; checking immutable package caches"
+            CACHED_OUT="$(nix-store --realise "${cachedPackageDerivation}")"
+            export LC_NUMERIC=C
+            ${if pkgs.stdenv.hostPlatform.isDarwin then ''
+              export DYLD_LIBRARY_PATH="$CACHED_OUT/lib:${cachedRuntimeLibPath}''${DYLD_LIBRARY_PATH:+:$DYLD_LIBRARY_PATH}"
+              export QT_PLUGIN_PATH="${cachedQtPluginPath}"
+              export QML2_IMPORT_PATH="${cachedQmlImportPath}"
+              export QML_IMPORT_PATH="$QML2_IMPORT_PATH"
+              exec "$CACHED_OUT/Applications/Spool.app/Contents/MacOS/Spool" "$@"
+            '' else ''
+              exec "$CACHED_OUT/bin/jellyfin-native" "$@"
+            ''}
+          '';
+
           # Same build and ctest invocation the release workflow runs.
           tester = makeRunner {
             name = "jellyfin-native-tests";
@@ -798,15 +848,12 @@
             program = "${builder}/bin/jellyfin-native-build";
           };
 
-          # A dirty Git flake keeps the incremental checkout build. Clean
-          # revisions execute the immutable package that release CI publishes
-          # to Cachix, so `nix run` only substitutes and launches it.
+          # Prefer an exact checkout build even after its source is committed.
+          # Without one, dirty trees build incrementally and clean revisions
+          # realise the immutable package that release CI publishes to Cachix.
           default = {
             type = "app";
-            program =
-              if self ? rev && !(self ? dirtyRev)
-              then cachedProgram
-              else "${runner}/bin/jellyfin-native-run";
+            program = "${defaultRunner}/bin/jellyfin-native-default";
           };
 
           run = {
