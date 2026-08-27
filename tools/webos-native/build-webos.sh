@@ -6,6 +6,14 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 source "$ROOT/tools/lib/manifest-sources.sh"
 MANIFEST="${WEBOS_THIRD_PARTY_MANIFEST:-$ROOT/tools/manifests/webos-third-party.json}"
 PHASE="${1:-all}"
+SDK_ROOT="${WEBOS_SDK_ROOT:-$ROOT/build/webos-sdk/arm-webos-linux-gnueabi_sdk-buildroot}"
+
+case "$PHASE" in
+  all|qt-target|dependencies|app|stage)
+    WEBOS_SDK_ROOT="$SDK_ROOT" "$ROOT/tools/webos-native/restore-toolchain.sh"
+    ;;
+esac
+
 
 fetch_archive() {
   local source_name="$1"

@@ -25,7 +25,7 @@ default_url="$(manifest_toolchain_field archiveUrl)"
 default_sha="$(manifest_toolchain_field archiveSha256)"
 url="${WEBOS_TOOLCHAIN_ARCHIVE_URL:-$default_url}"
 sha="${WEBOS_TOOLCHAIN_ARCHIVE_SHA256:-$default_sha}"
-sdk_root="$SDK_PARENT/$sdk_layout"
+sdk_root="${WEBOS_SDK_ROOT:-$SDK_PARENT/$sdk_layout}"
 gcc="$sdk_root/bin/$triplet-gcc"
 
 if [[ -x "$gcc" ]]; then

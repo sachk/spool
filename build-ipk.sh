@@ -80,6 +80,7 @@ fi
 
 QT6_PREFIX="${QT6_PREFIX:-$ROOT/build/qt6-611-target-static-install}"
 if (( DO_BUILD || DO_STAGE )); then
+  WEBOS_SDK_ROOT="$SDK_ROOT" "$WEBOS_TOOLS_ROOT/restore-toolchain.sh"
   ensure_webos_sdk_host_tools "$SDK_ROOT"
 
   if [[ ! -f "$QT6_PREFIX/lib/libQt6Core.a" ]]; then
