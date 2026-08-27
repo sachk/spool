@@ -59,7 +59,7 @@ unset PKG_CONFIG_SYSROOT_DIR
 fetch_sources() {
   mkdir -p "$SOURCE_ROOT" "$BUILD_ROOT"
   local source
-  for source in openssl freetype ffmpeg qcoro fribidi harfbuzz libass libplacebo; do
+  for source in openssl freetype lua ffmpeg qcoro fribidi harfbuzz libass libplacebo; do
     prepare_manifest_source "$ROOT" "$MANIFEST" "$source" "$SOURCE_ROOT/$source"
   done
   local path url sha archive
@@ -137,6 +137,42 @@ build_freetype() {
   )
 }
 
+# mpv's stats overlay, and every other builtin script, is Lua. Without it the
+# player has no performance overlay at all. Lua ships a plain makefile rather
+# than a cross-aware build, so point it at the NDK toolchain and write the
+# pkg-config file mpv looks for.
+build_lua() {
+  [[ -f "$PREFIX/lib/pkgconfig/lua.pc" ]] && return
+  local build="$BUILD_ROOT/lua"
+  rm -rf "$build"
+  cp -R "$SOURCE_ROOT/lua" "$build"
+  chmod -R u+w "$build"
+  make -C "$build/src" \
+    CC="$CC -std=gnu99" \
+    AR="$AR rcu" \
+    RANLIB="$RANLIB" \
+    MYCFLAGS="-fPIC" \
+    SYSLIBS="-ldl -lm" \
+    liblua.a
+  install -Dm644 "$build/src/liblua.a" "$PREFIX/lib/liblua.a"
+  local header
+  for header in lua.h luaconf.h lualib.h lauxlib.h lua.hpp; do
+    install -Dm644 "$build/src/$header" "$PREFIX/include/$header"
+  done
+  mkdir -p "$PREFIX/lib/pkgconfig"
+  cat >"$PREFIX/lib/pkgconfig/lua.pc" <<EOF
+prefix=$PREFIX
+libdir=\${prefix}/lib
+includedir=\${prefix}/include
+
+Name: Lua
+Description: Lua 5.2 scripting language
+Version: $(manifest_source_field "$MANIFEST" lua version)
+Libs: -L\${libdir} -llua -lm -ldl
+Cflags: -I\${includedir}
+EOF
+}
+
 build_meson() {
   local name="$1"
   shift
@@ -203,7 +239,7 @@ build_mpv() {
   meson setup "$build" "$ROOT/mpv" \
     --cross-file "$CROSS_FILE" --prefix "$PREFIX" --default-library shared \
     -Dcplayer=false -Dlibmpv=true -Dbuild-date=false -Dtests=false \
-    -Dlua=disabled -Djavascript=disabled -Dmanpage-build=disabled \
+    -Dlua=lua -Djavascript=disabled -Dmanpage-build=disabled \
     -Dlibarchive=disabled -Dlibbluray=disabled -Dlibcurl=disabled \
     -Dgl=enabled -Degl=disabled -Degl-android=enabled -Dvulkan=disabled \
     -Dandroid-media-ndk=enabled -Daudiotrack=enabled -Daaudio=enabled
@@ -217,6 +253,7 @@ build_all() {
   describe_parallel_jobs "$JOBS" "Android dependencies" "${ANDROID_DEPS_MEMORY_PER_JOB_MIB:-1024}" "${ANDROID_DEPS_MEMORY_RESERVE_MIB:-2048}"
   build_openssl
   build_freetype
+  build_lua
   build_text_and_gpu_deps
   build_ffmpeg
   build_mpv

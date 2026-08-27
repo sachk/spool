@@ -40,6 +40,17 @@ namespace JellyfinNative {
 
 namespace {
 
+    // Warnings and errors are what a player problem report needs;
+    // SPOOL_MPV_LOG_LEVEL accepts any level mpv understands when more detail is
+    // wanted.
+    const char *mpvLogLevel()
+    {
+        static const QByteArray level = qEnvironmentVariableIsSet("SPOOL_MPV_LOG_LEVEL")
+            ? qgetenv("SPOOL_MPV_LOG_LEVEL")
+            : QByteArrayLiteral("warn");
+        return level.constData();
+    }
+
     constexpr auto kMpvLogFileName = "com.sachk.spool-mpv.log";
 
     constexpr uint64_t kTimePosRefreshReply = 0x6a666e7074730001ULL;
@@ -362,6 +373,10 @@ bool PlayerController::configureAndInitializeMpv(mpv_handle *handle, bool embedd
         return false;
     if (mpv_initialize(handle) < 0)
         return false;
+    // mpv's own log file lives in application-private storage, which is
+    // unreadable on Android. Mirror its messages into the app log so player
+    // problems are diagnosable wherever the app runs.
+    mpv_request_log_messages(handle, mpvLogLevel());
 
     return applyMpvRuntimeOptions(MpvOptionApplyMode::Runtime, handle);
 }
@@ -2007,6 +2022,16 @@ void PlayerController::handleMpvEvent(mpv_event *event)
                 stopProgressReporting(false);
         });
         break;
+    case MPV_EVENT_LOG_MESSAGE: {
+        const auto *message = static_cast<mpv_event_log_message *>(event->data);
+        if (!message)
+            break;
+        QByteArray text = QByteArray(message->text).trimmed();
+        if (text.isEmpty())
+            break;
+        qInfo().nospace() << "mpv/" << message->prefix << " [" << message->level << "] " << text.constData();
+        break;
+    }
     default:
         break;
     }

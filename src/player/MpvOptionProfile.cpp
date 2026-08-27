@@ -308,8 +308,15 @@ std::vector<MpvOption> MpvOptionProfile::applicationOptions(Platform platform, c
             options.push_back({ "hwdec", "auto-safe" });
 #endif
         }
-        if (normalizedAudioOutput != QStringLiteral("auto"))
+        if (normalizedAudioOutput != QStringLiteral("auto")) {
             options.push_back({ "ao", normalizedAudioOutput.toUtf8() });
+        } else if (android) {
+            // AAudio is mpv's first choice on Android, but its clock stops
+            // driving the core after a seek, which freezes the picture while
+            // the file still reports itself as playing. AudioTrack is the
+            // mature Android backend and restarts cleanly.
+            options.push_back({ "ao", "audiotrack,opensles,null" });
+        }
     }
 
     const MpvOption applicationOptions[] = {
