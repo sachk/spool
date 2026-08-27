@@ -37,21 +37,22 @@ namespace {
     private:
         static bool setKeepScreenOn(bool enabled)
         {
-            bool applied = false;
-            auto task = QNativeInterface::QAndroidApplication::runOnAndroidMainThread([enabled, &applied] {
+            // Post and return. Waiting on the task deadlocks: this runs on the
+            // Qt thread from inside a playback-state signal, and the Android UI
+            // thread regularly blocks on the Qt thread while the window changes,
+            // so each would be waiting for the other.
+            QNativeInterface::QAndroidApplication::runOnAndroidMainThread([enabled] {
                 const QJniObject activity = QNativeInterface::QAndroidApplication::context();
                 const QJniObject window = activity.callObjectMethod("getWindow", "()Landroid/view/Window;");
                 if (!window.isValid())
                     return;
-                constexpr jint keepScreenOn = 0x00000080;
+                constexpr jint keepScreenOn = 0x00000080; // WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON
                 if (enabled)
                     window.callMethod<void>("addFlags", "(I)V", keepScreenOn);
                 else
                     window.callMethod<void>("clearFlags", "(I)V", keepScreenOn);
-                applied = true;
             });
-            task.waitForFinished();
-            return applied;
+            return true;
         }
     };
 }

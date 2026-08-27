@@ -198,8 +198,7 @@ namespace {
                     qInfo() << "player: render backend" << backend;
                     break;
                 }
-                qWarning() << "player: render backend" << backend
-                           << "unavailable:" << mpv_error_string(err);
+                qWarning() << "player: render backend" << backend << "unavailable:" << mpv_error_string(err);
             }
             if (err < 0) {
                 const QString message = QStringLiteral("Failed to initialize video rendering: %1")
@@ -329,7 +328,16 @@ bool MpvVideoItem::waitForRenderContext(int timeoutMs)
     timeout.start(timeoutMs);
     if (!completed->load())
         waitLoop.exec(QEventLoop::ExcludeUserInputEvents);
-    return completed->load() && m_renderCtxAtomic.load() != nullptr;
+    const bool ready = completed->load() && m_renderCtxAtomic.load() != nullptr;
+    if (!ready) {
+        // The handoff runs on the render thread, so it only happens once the
+        // scene graph draws this item. Report what kept it from being drawn.
+        qWarning() << "player: render context handoff did not complete within" << timeoutMs
+                   << "ms handedOff=" << completed->load() << "visible=" << isVisible() << "size=" << width() << "x"
+                   << height() << "window=" << (window() != nullptr)
+                   << "windowExposed=" << (window() && window()->isExposed());
+    }
+    return ready;
 }
 
 bool MpvVideoItem::releaseMpvHandle(int timeoutMs)
