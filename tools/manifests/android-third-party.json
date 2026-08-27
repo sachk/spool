@@ -1,0 +1,67 @@
+{
+  "schemaVersion": 1,
+  "sources": {
+    "openssl": {
+      "version": "3.5.4",
+      "url": "https://github.com/openssl/openssl/releases/download/openssl-3.5.4/openssl-3.5.4.tar.gz",
+      "sha256": "967311f84955316969bdb1d8d4b983718ef42338639c621ec4c34fddef355e99"
+    },
+    "freetype": {
+      "version": "2.14.3",
+      "url": "https://download-mirror.savannah.gnu.org/releases/freetype/freetype-2.14.3.tar.xz",
+      "sha256": "36bc4f1cc413335368ee656c42afca65c5a3987e8768cc28cf11ba775e785a5f"
+    },
+    "ffmpeg": {
+      "version": "8.1.2",
+      "url": "https://ffmpeg.org/releases/ffmpeg-8.1.2.tar.xz",
+      "sha256": "464beb5e7bf0c311e68b45ae2f04e9cc2af88851abb4082231742a74d97b524c"
+    },
+    "qcoro": {
+      "revision": "d1b52b5db2ff9560185c39a4ed9f944dc610c235",
+      "url": "https://codeload.github.com/danvratil/qcoro/tar.gz/d1b52b5db2ff9560185c39a4ed9f944dc610c235",
+      "sha256": "4bff7513c5c8e301b66308df05795043b1792ed16381a484e5c990171b8ff19e"
+    },
+    "fribidi": {
+      "revision": "069a7e3d31e6aa74f2068a8e0804106ce7906639",
+      "url": "https://codeload.github.com/fribidi/fribidi/tar.gz/069a7e3d31e6aa74f2068a8e0804106ce7906639",
+      "sha256": "25eea1fc1fbc9a8b87682f59bea935c54871ae504fbc51459288064d876bd4a7"
+    },
+    "harfbuzz": {
+      "revision": "cce964cb4f3f29a9addbb079b52c7a712fba93b8",
+      "url": "https://codeload.github.com/harfbuzz/harfbuzz/tar.gz/cce964cb4f3f29a9addbb079b52c7a712fba93b8",
+      "sha256": "4ef53558f28bc4a2645a4bc1d1a77c64d98756054e54fd5ee5c81912ee16c64e"
+    },
+    "libass": {
+      "revision": "f9fd3d20dff1cd84b7c74c8ae7f79711ad7736fa",
+      "url": "https://codeload.github.com/libass/libass/tar.gz/f9fd3d20dff1cd84b7c74c8ae7f79711ad7736fa",
+      "sha256": "f720b449bdf8354afd193ca90795ea7b2f9fec05c85ca9709c8ea69d4290157d"
+    },
+    "libplacebo": {
+      "revision": "a7a18af88ff0a17c04840dcb3246047bb6b46df3",
+      "url": "https://codeload.github.com/haasn/libplacebo/tar.gz/a7a18af88ff0a17c04840dcb3246047bb6b46df3",
+      "sha256": "ba0c8c011c19cb74bcee26646d2d6070447151da89a9abdd01c9034e768de8b2",
+      "vendoredSources": {
+        "3rdparty/fast_float": {
+          "url": "https://codeload.github.com/fastfloat/fast_float/tar.gz/97b54ca9e75f5303507699d27c6b4f4efe4641a1",
+          "sha256": "2b132274539286e41f37857cac22aa8441d21bd86d55de825a3342b149f66801"
+        },
+        "3rdparty/glad": {
+          "url": "https://codeload.github.com/Dav1dde/glad/tar.gz/73db193f853e2ee079bf3ca8a64aa2eaf6459043",
+          "sha256": "33dbeae44d8315ece57e14eba4b1b4a02ac5406d1c4f49cd20048c91522a6b9a"
+        },
+        "3rdparty/jinja": {
+          "url": "https://codeload.github.com/pallets/jinja/tar.gz/15206881c006c79667fe5154fe80c01c65410679",
+          "sha256": "b88a20dcc2e34072fcf4159325bc6c34cd4b29a81a8b83d15d2f28ba561da296"
+        },
+        "3rdparty/markupsafe": {
+          "url": "https://codeload.github.com/pallets/markupsafe/tar.gz/297fc8e356e6836a62087949245d09a28e9f1b13",
+          "sha256": "da7c010c9c81a66ac73036558c1fcb6212b50482f43211cd1254035b94f82414"
+        },
+        "3rdparty/Vulkan-Headers": {
+          "url": "https://codeload.github.com/KhronosGroup/Vulkan-Headers/tar.gz/74d8a6cb930c68ef617b202c3ff3c59d919e086b",
+          "sha256": "75967a8288ff16044a86d1af462b96d2e75c435937efb75f2bb4102ab0382f29"
+        }
+      }
+    }
+  }
+}

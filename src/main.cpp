@@ -73,6 +73,9 @@
 #ifdef Q_OS_UNIX
 #include <sys/stat.h>
 #endif
+#ifdef SPOOL_ANDROID
+#include <android/log.h>
+#endif
 
 namespace {
 
@@ -124,6 +127,13 @@ void writeStandardError(const QByteArray& line)
         return;
     DWORD written = 0;
     WriteFile(handle, line.constData(), static_cast<DWORD>(line.size()), &written, nullptr);
+#elif defined(SPOOL_ANDROID)
+    // Android discards a process's stderr, so logcat is the only place these
+    // lines can be read from a device or an emulator.
+    QByteArray message = line;
+    while (message.endsWith('\n'))
+        message.chop(1);
+    __android_log_write(ANDROID_LOG_INFO, "Spool", message.constData());
 #else
     fwrite(line.constData(), 1, static_cast<size_t>(line.size()), stderr);
 #endif
@@ -243,7 +253,7 @@ void logQmlWarnings(const QList<QQmlError>& warnings)
         logLine("[qml] %s", qPrintable(warning.toString()));
 }
 
-#ifndef JELLYFIN_NATIVE_WEBOS
+#if !defined(JELLYFIN_NATIVE_WEBOS) && !defined(SPOOL_ANDROID)
 QIcon applicationIcon(bool playerSelected)
 {
     const QString variant = playerSelected ? QStringLiteral("spool-film") : QStringLiteral("spool");
@@ -348,15 +358,15 @@ int main(int argc, char **argv)
 
     logLine("startup: constructing QGuiApplication");
     QGuiApplication app(argc, argv);
-    JellyfinNative::TerminationSignalHandler terminationSignals(app);
-    if (!registerBundledFonts(appRootPath))
-        return 1;
-    logLine("startup: QGuiApplication constructed");
     app.setApplicationName(QStringLiteral("Spool for Jellyfin"));
     app.setApplicationVersion(QString::fromLatin1(kAppVersion));
     app.setOrganizationName(QStringLiteral("sachk"));
     app.setApplicationDisplayName(QStringLiteral("Spool for Jellyfin"));
-#ifndef JELLYFIN_NATIVE_WEBOS
+    JellyfinNative::TerminationSignalHandler terminationSignals(app);
+    if (!registerBundledFonts(appRootPath))
+        return 1;
+    logLine("startup: QGuiApplication constructed");
+#if !defined(JELLYFIN_NATIVE_WEBOS) && !defined(SPOOL_ANDROID)
     const QIcon defaultApplicationIcon = applicationIcon(false);
     const QIcon playerApplicationIcon = applicationIcon(true);
     app.setWindowIcon(defaultApplicationIcon);
@@ -491,7 +501,7 @@ int main(int argc, char **argv)
     };
     QObject::connect(player.get(), &JellyfinNative::PlayerController::playbackStateChanged, &app, updateScreenSaver);
     QObject::connect(player.get(), &JellyfinNative::PlayerController::sessionActiveChanged, &app, updateScreenSaver);
-#ifndef JELLYFIN_NATIVE_WEBOS
+#if !defined(JELLYFIN_NATIVE_WEBOS) && !defined(SPOOL_ANDROID)
     const auto updateApplicationIcon
         = [&app, &window, player = player.get(), &defaultApplicationIcon, &playerApplicationIcon] {
               const QIcon& icon = player->sessionActive() ? playerApplicationIcon : defaultApplicationIcon;
@@ -569,7 +579,7 @@ int main(int argc, char **argv)
     window.engine()->addImageProvider(
         QStringLiteral("artwork"), new JellyfinNative::ArtworkImageProvider(artworkService.get()));
     window.engine()->addImageProvider(QStringLiteral("mpv-overlay"), window.createOverlayImageProvider());
-#ifndef JELLYFIN_NATIVE_WEBOS
+#if !defined(JELLYFIN_NATIVE_WEBOS) && !defined(SPOOL_ANDROID)
     window.engine()->addImportPath(appRootPath + QStringLiteral("/qt-qml"));
 #endif
     QObject::connect(window.engine(), &QQmlEngine::warnings, &logQmlWarnings);

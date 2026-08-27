@@ -11,6 +11,31 @@
   10-foot / remote navigation: build around GridView / ListView + FocusScope + KeyNavigation + Keys. KeyNavigation is specifically for arrow/tab-based focus jumps, and FocusScope exists to keep reusable focus regions sane, which is exactly the problem space for D-pad TV UIs.
   HTTP asset caching: QNetworkDiskCache for posters, backdrops, and image responses. It is basic, but it plugs directly into QNetworkAccessManager; just remember it is basic by design and defaults to a 50 MB limit, so you will probably want to raise that.
 
+## Android development
+
+The Android toolchain is pinned by the flake to Qt 6.11.1, SDK 36, Build
+Tools 36.0.0 and NDK 27.2.12479018. `nixpkgs` tracks `nixos-unstable`; the
+headless emulator and its Google APIs x86_64 system image come from that
+channel rather than nixpkgs master.
+
+Build the emulator ABI locally:
+
+```sh
+nix develop .#android -c bash tools/android/build-dependencies.sh
+nix develop .#android -c bash tools/android/build-qt6.sh
+nix develop .#android -c bash tools/android/build-apks.sh
+```
+
+The last command builds both `spool-phone-x86_64.apk` and
+`spool-tv-x86_64.apk` under `dist/android`, signed with a debug keystore
+generated on first use at `build/android/debug.keystore` so they install.
+Build release-device APKs by setting `ANDROID_ABI=arm64-v8a` on all three
+commands. Launch-test both variants in the pinned headless emulator with:
+
+```sh
+nix develop .#android -c bash tools/android/emulator-launch-test.sh
+```
+
 # Name
 
 ## Fast Jellyfin client for LG TVs and desktop

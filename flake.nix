@@ -29,6 +29,36 @@
     let
       systems = [ "x86_64-linux" "aarch64-darwin" "x86_64-darwin" ];
 
+      androidSdkArgs = {
+        platformVersions = [ "36" ];
+        buildToolsVersions = [ "36.0.0" ];
+        includeNDK = true;
+        ndkVersions = [ "27.2.12479018" ];
+      };
+      androidEnvironment = pkgs:
+        let
+          # The root nixpkgs input is nixos-unstable. Keep the emulator on
+          # that binary-packaged channel rather than following nixpkgs master.
+          composition = pkgs.androidenv.composeAndroidPackages androidSdkArgs;
+          emulator = pkgs.androidenv.emulateApp {
+            name = "spool-android-emulator";
+            platformVersion = "36";
+            abiVersion = "x86_64";
+            systemImageType = "google_apis";
+            configOptions = {
+              "hw.keyboard" = "yes";
+              "hw.ramSize" = "4096";
+              "vm.heapSize" = "512";
+            };
+            sdkExtraArgs = androidSdkArgs;
+            androidEmulatorFlags =
+              "-no-window -no-audio -no-boot-anim -no-snapshot -gpu swiftshader_indirect";
+          };
+        in {
+          sdk = composition.androidsdk;
+          inherit emulator;
+        };
+
       # Only Intel macOS needs the older branch; every other system stays on
       # the pin the rest of the project is built and tested against.
       nixpkgsFor = system:
@@ -165,7 +195,10 @@
         nixpkgs.lib.genAttrs systems (system:
           f (import (nixpkgsFor system) {
             inherit system;
-            config.allowUnfree = true;
+            config = {
+              allowUnfree = true;
+              android_sdk.accept_license = true;
+            };
             overlays = [ libplaceboOverlay ffmpegSlimOverlay tailoredQtOverlay qcoroOverlay ];
           }));
       # Native artifacts use a tailored Qt without ICU, Vulkan, foreign SQL
@@ -374,6 +407,7 @@
           spoolQt6.qtdeclarative
           spoolQt6.qtimageformats
           spoolQt6.qtsvg
+          spoolQt6.qtshadertools
           spoolQt6.qtwebsockets
         ])
         ++ pkgs.lib.optionals pkgs.stdenv.hostPlatform.isLinux (with pkgs; [
@@ -533,6 +567,8 @@
         let
           system = pkgs.stdenv.hostPlatform.system;
           lintPkgs = import (nixpkgsFor system) { inherit system; };
+          android = androidEnvironment pkgs;
+          androidQtHost = cachedNativeQtPackage pkgs;
         in {
         default = pkgs.mkShell {
           packages = sourceBuildPackages pkgs;
@@ -557,6 +593,37 @@
           packages = nativePackages pkgs;
           shellHook = nativeShellHook pkgs;
         };
+
+        android = pkgs.mkShell {
+          packages = with pkgs; [
+            android.sdk
+            android.emulator
+            androidQtHost
+            autoconf
+            automake
+            bashInteractive
+            ccache
+            cmake
+            curl
+            git
+            jdk17_headless
+            jq
+            libtool
+            meson
+            nasm
+            ninja
+            perl
+            pkg-config
+            python3
+            yasm
+          ];
+          ANDROID_HOME = "${android.sdk}/libexec/android-sdk";
+          ANDROID_SDK_ROOT = "${android.sdk}/libexec/android-sdk";
+          ANDROID_NDK_ROOT = "${android.sdk}/libexec/android-sdk/ndk/27.2.12479018";
+          JAVA_HOME = pkgs.jdk17_headless.home;
+          SPOOL_ANDROID_QT_HOST = "${androidQtHost}";
+          shellHook = gitHooksShellHook;
+        };
       });
 
       apps = forAllSystems (pkgs:
@@ -564,6 +631,7 @@
           system = pkgs.stdenv.hostPlatform.system;
           cachedPkgs = cachePkgsFor system;
           cachedPackage = cachedNativePackage cachedPkgs;
+          android = androidEnvironment pkgs;
           cachedQtPluginPath =
             cachedPkgs.lib.makeSearchPath cachedPkgs.spoolQt6.qtbase.qtPluginPrefix
               (nativeQtPackages cachedPkgs);
@@ -876,6 +944,11 @@
             program = "${imageDebugBuilder}/bin/jellyfin-native-image-debug-build";
           };
         } // pkgs.lib.optionalAttrs pkgs.stdenv.hostPlatform.isLinux {
+          android-emulator = {
+            type = "app";
+            program = "${android.emulator}/bin/run-test-emulator";
+          };
+
           gammaray = {
             type = "app";
             program = "${gammarayRunner}/bin/jellyfin-native-gammaray";

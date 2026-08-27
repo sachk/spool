@@ -13,7 +13,7 @@ if(WIN32)
 endif()
 
 set(JELLYFIN_NATIVE_WEBOS_DEFAULT OFF)
-if(CMAKE_CROSSCOMPILING)
+if(CMAKE_CROSSCOMPILING AND NOT ANDROID)
     set(JELLYFIN_NATIVE_WEBOS_DEFAULT ON)
 endif()
 option(JELLYFIN_NATIVE_WEBOS "Build the webOS Starfish/native-surface client" ${JELLYFIN_NATIVE_WEBOS_DEFAULT})
@@ -77,7 +77,7 @@ if(JELLYFIN_NATIVE_WEBOS)
 else()
     set(JELLYFIN_QT_MIN_VERSION 6.11)
     list(APPEND JELLYFIN_QT_COMPONENTS Svg)
-    if(UNIX AND NOT APPLE)
+    if(UNIX AND NOT APPLE AND NOT ANDROID)
         list(APPEND JELLYFIN_QT_COMPONENTS DBus)
     endif()
 endif()
@@ -299,7 +299,10 @@ if(NOT JELLYFIN_NATIVE_DEV_BUILD)
     if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
         foreach(target IN LISTS JELLYFIN_NATIVE_TARGETS)
             target_compile_options(${target} PRIVATE -ffunction-sections -fdata-sections)
-            if(UNIX AND NOT APPLE)
+            if(ANDROID)
+                target_compile_options(${target} PRIVATE -fPIC)
+                target_link_options(${target} PRIVATE -Wl,--gc-sections -Wl,--as-needed -Wl,-z,relro,-z,now)
+            elseif(UNIX AND NOT APPLE)
                 if(CMAKE_SYSTEM_PROCESSOR MATCHES "^(arm|ARM)")
                     target_compile_options(${target} PRIVATE -fPIC)
                     if(target STREQUAL "jellyfin-native")
@@ -475,7 +478,7 @@ if(JELLYFIN_NATIVE_WEBOS)
     )
 endif()
 
-if(NOT JELLYFIN_NATIVE_WEBOS)
+if(NOT JELLYFIN_NATIVE_WEBOS AND NOT ANDROID)
     qt_add_resources(jellyfin-native "application_icons"
         PREFIX "/icons"
         BASE "${CMAKE_CURRENT_SOURCE_DIR}/app/icons"
@@ -495,6 +498,19 @@ if(NOT JELLYFIN_NATIVE_WEBOS)
         PREFIX "/startup"
         BASE "${CMAKE_CURRENT_SOURCE_DIR}/app"
         FILES app/splash.png
+    )
+endif()
+
+if(ANDROID)
+    qt_add_resources(jellyfin-native "android_fonts"
+        PREFIX "/fonts"
+        BASE "${CMAKE_CURRENT_SOURCE_DIR}/qml/fonts"
+        FILES
+            qml/fonts/AtkinsonHyperlegible-Bold.otf
+            qml/fonts/AtkinsonHyperlegible-Regular.otf
+            qml/fonts/IBMPlexSans-Variable.ttf
+            qml/fonts/PTRootUI-Variable.ttf
+            qml/fonts/MaterialIcons-Regular.ttf
     )
 endif()
 
@@ -851,7 +867,7 @@ set_target_properties(jellyfin-native PROPERTIES
 if(APPLE)
     set_property(TARGET jellyfin-native PROPERTY OUTPUT_NAME "Spool")
 endif()
-if(UNIX AND NOT APPLE)
+if(UNIX AND NOT APPLE AND NOT ANDROID)
     set_property(TARGET jellyfin-native PROPERTY INSTALL_RPATH "$ORIGIN/../lib")
 endif()
 target_compile_definitions(jellyfin-native PRIVATE
@@ -859,24 +875,27 @@ target_compile_definitions(jellyfin-native PRIVATE
 )
 
 install(TARGETS jellyfin-native
+    LIBRARY DESTINATION lib
     BUNDLE DESTINATION .
     RUNTIME DESTINATION bin
 )
 
-set(JELLYFIN_FONT_INSTALL_DIRECTORY "fonts")
-if(APPLE)
-    set(JELLYFIN_FONT_INSTALL_DIRECTORY "Spool.app/Contents/fonts")
+if(NOT ANDROID)
+    set(JELLYFIN_FONT_INSTALL_DIRECTORY "fonts")
+    if(APPLE)
+        set(JELLYFIN_FONT_INSTALL_DIRECTORY "Spool.app/Contents/fonts")
+    endif()
+    install(FILES
+        qml/fonts/AtkinsonHyperlegible-Bold.otf
+        qml/fonts/AtkinsonHyperlegible-Regular.otf
+        qml/fonts/IBMPlexSans-Variable.ttf
+        qml/fonts/PTRootUI-Variable.ttf
+        qml/fonts/MaterialIcons-Regular.ttf
+        DESTINATION "${JELLYFIN_FONT_INSTALL_DIRECTORY}"
+    )
 endif()
-install(FILES
-    qml/fonts/AtkinsonHyperlegible-Bold.otf
-    qml/fonts/AtkinsonHyperlegible-Regular.otf
-    qml/fonts/IBMPlexSans-Variable.ttf
-    qml/fonts/PTRootUI-Variable.ttf
-    qml/fonts/MaterialIcons-Regular.ttf
-    DESTINATION "${JELLYFIN_FONT_INSTALL_DIRECTORY}"
-)
 
-if(UNIX AND NOT APPLE AND NOT JELLYFIN_NATIVE_WEBOS)
+if(UNIX AND NOT APPLE AND NOT ANDROID AND NOT JELLYFIN_NATIVE_WEBOS)
     install(FILES app/com.sachk.spool.desktop
         DESTINATION share/applications
     )

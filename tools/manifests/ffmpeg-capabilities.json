@@ -172,6 +172,24 @@
     "vp9_superframe_split"
   ],
   "platforms": {
+    "android": {
+      "gpl": true,
+      "configureFlags": [
+        "--enable-network",
+        "--enable-jni",
+        "--enable-mediacodec",
+        "--enable-openssl"
+      ],
+      "hardwareAccelerators": [],
+      "protocols": [
+        "crypto",
+        "data",
+        "http",
+        "https",
+        "tcp",
+        "tls"
+      ]
+    },
     "linux": {
       "gpl": true,
       "configureFlags": [
