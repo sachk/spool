@@ -20,8 +20,11 @@ GridView {
     property int holdCruiseDuration: 700
     property int holdRampDuration: 1700
     property real holdTraversalSeconds: 5
+    // Scales the rate axis only; hold delay, cruise and ramp timing stay put.
+    property real holdSpeedMultiplier: 1
     readonly property real holdMaximumRate: Math.max(30, count / Math.max(1, holdTraversalSeconds))
-    readonly property real holdInitialRate: Math.min(40, holdMaximumRate)
+                                            * holdSpeedMultiplier
+    readonly property real holdInitialRate: Math.min(40 * holdSpeedMultiplier, holdMaximumRate)
     property int holdTickInterval: 16
     readonly property real focusRecoveryVisibleThreshold: 0.7
     property var nowProvider: function () {

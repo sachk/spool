@@ -1060,6 +1060,7 @@ FocusScope {
                 readonly property int focusPadding: Math.max(2, Metrics.scaled(2))
                 property int geometryAnchorIndex: -1
                 holdTraversalSeconds: root.listMode && count > 200 ? 3.5 : 5
+                holdSpeedMultiplier: root.listMode ? 1 : 0.5
                 Layout.fillWidth: true
                 Layout.fillHeight: true
                 focus: true

@@ -99,6 +99,7 @@ TestCase {
         grid.currentIndex = 0
         fakeNow = 1000
         grid.holdTraversalSeconds = 5
+        grid.holdSpeedMultiplier = 1
         holdStartedSpy.clear()
         currentIndexSpy.clear()
         pagedModel.clear()
@@ -190,6 +191,20 @@ TestCase {
         verify(grid.accelerationRate(grid.holdDelay + grid.holdCruiseDuration + 500) > grid.holdInitialRate)
         compare(grid.accelerationRate(grid.holdDelay + grid.holdCruiseDuration + grid.holdRampDuration),
                 grid.holdMaximumRate)
+    }
+
+    function test_holdSpeedMultiplierScalesWholeCurve() {
+        modelSize = 5000
+        const timestamps = [grid.holdDelay, grid.holdDelay + grid.holdCruiseDuration, grid.holdDelay
+                            + grid.holdCruiseDuration + grid.holdRampDuration / 2, grid.holdDelay
+                            + grid.holdCruiseDuration + grid.holdRampDuration]
+        const fullRates = timestamps.map(timestamp => grid.accelerationRate(timestamp))
+
+        grid.holdSpeedMultiplier = 0.5
+        compare(grid.holdInitialRate, 20)
+        compare(grid.holdMaximumRate, 500)
+        for (let index = 0; index < timestamps.length; ++index)
+            compare(grid.accelerationRate(timestamps[index]), fullRates[index] * 0.5)
     }
 
     function test_largeLibraryMaximumTraversesInThreePointFiveSeconds() {
