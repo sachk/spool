@@ -22,6 +22,11 @@ on:
         required: true
         default: true
         type: boolean
+      build_android:
+        description: "Build Android and Android TV APKs"
+        required: true
+        default: true
+        type: boolean
       build_webos:
         description: "Build webOS IPK"
         required: true
@@ -644,6 +649,97 @@ jobs:
         with:
           name: spool-for-jellyfin-webos-ipk
           path: build/*.ipk
+          retention-days: 1
+
+  android-apks:
+    name: Android and Android TV APKs
+    runs-on: ubuntu-24.04
+    timeout-minutes: 150
+    needs: lint
+    if: ${{ github.event_name != 'workflow_dispatch' || inputs.build_android }}
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.0.2
+        with:
+          submodules: recursive
+
+      - uses: nixbuild/nix-quick-install-action@2c9db80fb984ceb1bcaa77cdda3fdf8cfba92035 # v34
+        with:
+          nix_conf: |
+            experimental-features = nix-command flakes
+      - uses: nix-community/cache-nix-action@7df957e333c1e5da7721f60227dbba6d06080569 # v7.0.1
+        with:
+          primary-key: nix-android-${{ runner.os }}-${{ hashFiles('flake.nix', 'flake.lock') }}
+          restore-prefixes-first-match: nix-android-${{ runner.os }}-
+
+      # The build scripts skip work whose install marker is already present, so a
+      # near-miss restore would be reused as if it were current. The key covers
+      # every input that changes the cached tree and there are no restore-keys:
+      # a miss rebuilds from source rather than resuming someone else's tree.
+      - name: Resolve mpv submodule revision
+        id: mpv-rev
+        run: echo "sha=$(git rev-parse HEAD:mpv)" >>"$GITHUB_OUTPUT"
+
+      - uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5.0.3
+        id: android-cache
+        with:
+          path: |
+            build/android/qt
+            build/android/deps
+            build/android/qcoro
+          key: android3-${{ runner.os }}-${{ steps.mpv-rev.outputs.sha }}-${{ hashFiles('flake.nix', 'flake.lock', 'CMakeLists.txt', 'cmake/platform/Android.cmake', 'tools/android/**', 'tools/lib/*.sh', 'tools/manifests/android-third-party.json', 'tools/manifests/ffmpeg-capabilities.json', 'tools/manifests/qt-android-6.11.json') }}
+
+      - name: Build cached Android toolchains
+        if: ${{ steps.android-cache.outputs.cache-hit != 'true' }}
+        run: |
+          for abi in arm64-v8a x86_64; do
+            nix develop .#android -c env \
+              ANDROID_ABI="$abi" \
+              QT_ANDROID_MEMORY_PER_JOB_MIB=2500 \
+              ANDROID_DEPS_MEMORY_PER_JOB_MIB=2500 \
+              bash -c '
+                bash tools/android/build-dependencies.sh all
+                bash tools/android/build-qt6.sh all
+              '
+          done
+
+      - name: Build phone and TV APK variants together
+        run: |
+          for abi in arm64-v8a x86_64; do
+            nix develop .#android -c env ANDROID_ABI="$abi" bash tools/android/build-apks.sh
+          done
+
+      - name: Save Android toolchain cache
+        if: ${{ steps.android-cache.outputs.cache-hit != 'true' }}
+        uses: actions/cache/save@caa296126883cff596d87d8935842f9db880ef25 # v5.0.3
+        with:
+          path: |
+            build/android/qt
+            build/android/deps
+            build/android/qcoro
+          key: ${{ steps.android-cache.outputs.cache-primary-key }}
+
+      - name: Launch-test both variants in headless emulator
+        run: |
+          nix develop .#android -c bash tools/android/emulator-launch-test.sh \
+            dist/android/spool-phone-x86_64.apk \
+            dist/android/spool-tv-x86_64.apk
+
+      - name: Upload launch-test diagnostics
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.0
+        with:
+          name: spool-for-jellyfin-android-launch-test
+          path: |
+            build/android/launch-test
+            build/android/emulator.log
+          retention-days: 1
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.0
+        with:
+          name: spool-for-jellyfin-android-apks
+          path: |
+            dist/android/spool-phone-arm64-v8a.apk
+            dist/android/spool-tv-arm64-v8a.apk
           retention-days: 1
 
   windows-x64:
