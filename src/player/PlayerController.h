@@ -241,6 +241,7 @@ private:
     bool beginSeekCommand(double targetSeconds, const QByteArray& flags);
     QByteArrayList buildSeekCommand(double targetSeconds, const QByteArray& flags) const;
     bool beginRelativeSeekCommand(double deltaSeconds);
+    void stepChapter(int delta);
     void flushPendingSeek();
     void updatePlaybackStatusText();
     void notifyPlaybackStateChanged();

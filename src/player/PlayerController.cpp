@@ -217,12 +217,17 @@ PlayerController::PlayerController(NativeAppWindow *window, JellyfinApiFacade *a
             emit positionChanged();
     });
     connect(&m_seekWatchdogTimer, &QTimer::timeout, this, [this]() {
-        if (!m_sessionActive || !m_seeking)
+        if (!m_sessionActive || !(m_seeking || m_positionTracker.seekInFlight()))
             return;
 
+        // mpv coalesces seeks queued in the same iteration into one restart, so
+        // a seek can be waiting for a confirmation that will never arrive. Give
+        // its position back to mpv rather than leaving the seek bar pinned to a
+        // target nothing is going to confirm.
         qInfo() << "player: clearing stale seek state";
         m_seeking = false;
-        m_positionTracker.cancelSeek();
+        m_positionTracker.abandonSeeks();
+        requestMpvPositionRefresh("seek watchdog");
         notifyPlaybackStateChanged();
     });
     connect(&m_progressTimer, &QTimer::timeout, this, [this]() {
@@ -1336,20 +1341,29 @@ void PlayerController::updateReportedStreamSelection(bool sendProgress)
             m_volume.load(), m_muted.load());
 }
 
-void PlayerController::nextChapter()
+void PlayerController::stepChapter(int delta)
 {
     if (!m_tracks.hasChapters())
         return;
-    m_positionTracker.allowRegression();
-    mpvCommand({ QByteArrayLiteral("add"), QByteArrayLiteral("chapter"), QByteArrayLiteral("1") });
+    // Where a chapter step lands is mpv's to say, so the position stands until
+    // it says so -- but it is still a seek, and the samples on the way to it
+    // belong to where playback was, not to where it is going.
+    m_positionTracker.beginBlindSeek();
+    m_seekWatchdogTimer.start();
+    if (mpvCommand({ QByteArrayLiteral("add"), QByteArrayLiteral("chapter"), QByteArray::number(delta) }))
+        return;
+    m_seekWatchdogTimer.stop();
+    m_positionTracker.abandonSeeks();
+}
+
+void PlayerController::nextChapter()
+{
+    stepChapter(1);
 }
 
 void PlayerController::previousChapter()
 {
-    if (!m_tracks.hasChapters())
-        return;
-    m_positionTracker.allowRegression();
-    mpvCommand({ QByteArrayLiteral("add"), QByteArrayLiteral("chapter"), QByteArrayLiteral("-1") });
+    stepChapter(-1);
 }
 
 void PlayerController::stop()
@@ -1760,7 +1774,15 @@ bool PlayerController::beginSeekCommand(double targetSeconds, const QByteArray& 
 
     const double clampedTarget = clampedPosition(targetSeconds);
     m_seeking = true;
-    m_positionTracker.beginSeek(clampedTarget);
+    // A seek waiting for its first dispatch is re-aimed rather than counted
+    // again: only one command is going out, so only one restart comes back.
+    if (m_pendingSeek)
+        m_positionTracker.replaceSeek(clampedTarget);
+    else
+        m_positionTracker.beginSeek(clampedTarget);
+    // The bar follows the gesture at once, and lands back on mpv's own
+    // position when the seek settles.
+    emit positionChanged();
     notifyPlaybackStateChanged();
 
     if (!m_seekDispatchReady) {
@@ -1780,7 +1802,7 @@ bool PlayerController::beginSeekCommand(double targetSeconds, const QByteArray& 
 
     m_seeking = false;
     m_seekWatchdogTimer.stop();
-    m_positionTracker.cancelSeek();
+    m_positionTracker.abandonSeeks();
     notifyPlaybackStateChanged();
     return false;
 }
@@ -1811,7 +1833,7 @@ void PlayerController::flushPendingSeek()
 
     m_seeking = false;
     m_seekWatchdogTimer.stop();
-    m_positionTracker.cancelSeek();
+    m_positionTracker.abandonSeeks();
     notifyPlaybackStateChanged();
 }
 
@@ -1841,10 +1863,21 @@ void PlayerController::handleMpvEvent(mpv_event *event)
             const bool hadPendingSeek = m_pendingSeek;
             m_seekDispatchReady = true;
             if (hadPendingSeek) {
+                // The seek has not been issued yet, so this restart belongs to
+                // the file starting, not to it.
                 flushPendingSeek();
-            } else if (m_seeking) {
-                m_seeking = false;
-                m_seekWatchdogTimer.stop();
+            } else {
+                // This is how a seek is known to have landed: from here mpv's
+                // clock is the position again, so ask for it rather than
+                // waiting out a tick of its own.
+                m_positionTracker.settleSeek();
+                if (!m_positionTracker.seekInFlight()) {
+                    m_seeking = false;
+                    m_seekWatchdogTimer.stop();
+                    requestMpvPositionRefresh("seek settled");
+                } else {
+                    m_seekWatchdogTimer.start();
+                }
             }
             notifyPlaybackStateChanged();
         });
@@ -1907,7 +1940,9 @@ void PlayerController::handleMpvEvent(mpv_event *event)
             const bool seeking = *static_cast<int *>(property->data);
             QMetaObject::invokeMethod(this, [this, seeking]() {
                 m_seeking = seeking;
-                if (m_seeking)
+                // mpv can clear this before it restarts playback. The seek is
+                // not settled until the restart, so the watchdog stays armed.
+                if (m_seeking || m_positionTracker.seekInFlight())
                     m_seekWatchdogTimer.start();
                 else
                     m_seekWatchdogTimer.stop();
@@ -2101,7 +2136,10 @@ double PlayerController::clampedPosition(double seconds) const
 
 double PlayerController::seekAnchorPosition()
 {
-    return m_positionTracker.seekAnchor();
+    // While a seek is in flight the tracker already reads as its target, so a
+    // gesture chained onto one compounds instead of starting again from the
+    // position mpv has not left yet.
+    return m_positionTracker.position();
 }
 
 void PlayerController::requestMpvPositionRefresh(const char *reason)
@@ -2119,13 +2157,10 @@ void PlayerController::requestMpvPositionRefresh(const char *reason)
 void PlayerController::setPositionSeconds(double seconds, bool notifySegments)
 {
     // Tearing down mpv leaves its last position events queued for the main
-    // thread, so they land *after* play() has reset the tracker for the new
-    // item and re-seed it with the outgoing item's position. Every genuine
-    // position from the new file then looks like a backwards jump and gets
-    // rejected, so the seek bar sat at the old value for as many seconds as the
-    // previous item had played. Until the new file is loaded the tracker
-    // already holds the requested start position, and nothing mpv says about
-    // the old one is worth hearing.
+    // thread, so they land after play() has reset the tracker for the new item
+    // -- and they are about the item that just ended. Until the new file is
+    // loaded the tracker already holds the requested start position, and
+    // nothing mpv says about the old one is worth hearing.
     if (!m_fileLoaded)
         return;
 

@@ -1,47 +1,25 @@
 #include "PlaybackPositionTracker.h"
 
-#include <QDebug>
 #include <QtGlobal>
 
 #include <cmath>
 
 namespace JellyfinNative {
 
-namespace {
-
-    constexpr qint64 kSeekTargetFreshnessMs = 10000;
-    constexpr qint64 kMpvPostSeekRegressionMs = 5000;
-    constexpr double kPositionRegressionToleranceSeconds = 3.0;
-
-} // namespace
-
 void PlaybackPositionTracker::reset(double startSeconds)
 {
     const double start = std::isfinite(startSeconds) ? qMax(0.0, startSeconds) : 0.0;
     m_positionSeconds = start;
     m_durationSeconds = 0.0;
-    m_requestedSeekTargetSeconds = -1.0;
-    m_requestedSeekStartSeconds = -1.0;
-    m_lastTrustedPositionSeconds = start;
+    m_issuedSeeks = 0;
+    m_settledSeeks = 0;
     m_hasMpvPosition = false;
-    m_ignoringStalePositions = false;
-    m_seekCommandClock.invalidate();
-    m_positionRegressionAllowedClock.invalidate();
     m_positionClock.invalidate();
 }
 
 void PlaybackPositionTracker::clear()
 {
-    m_positionSeconds = 0.0;
-    m_durationSeconds = 0.0;
-    m_requestedSeekTargetSeconds = -1.0;
-    m_requestedSeekStartSeconds = -1.0;
-    m_lastTrustedPositionSeconds = 0.0;
-    m_hasMpvPosition = false;
-    m_ignoringStalePositions = false;
-    m_seekCommandClock.invalidate();
-    m_positionRegressionAllowedClock.invalidate();
-    m_positionClock.invalidate();
+    reset(0.0);
 }
 
 double PlaybackPositionTracker::position() const
@@ -51,8 +29,13 @@ double PlaybackPositionTracker::position() const
 
 double PlaybackPositionTracker::estimatedPosition(double playbackSpeed, bool advancing) const
 {
-    if (!advancing || !m_hasMpvPosition || !m_positionClock.isValid() || !std::isfinite(playbackSpeed))
+    // A seek in flight is holding the position at its target; running the
+    // clock forward from there would drift the seek bar away from the place
+    // the next gesture is going to be measured from.
+    if (!advancing || seekInFlight() || !m_hasMpvPosition || !m_positionClock.isValid()
+        || !std::isfinite(playbackSpeed)) {
         return m_positionSeconds;
+    }
     return clamp(m_positionSeconds + static_cast<double>(m_positionClock.elapsed()) * playbackSpeed / 1'000.0);
 }
 
@@ -65,7 +48,6 @@ void PlaybackPositionTracker::setDuration(double seconds)
 {
     m_durationSeconds = std::isfinite(seconds) ? qMax(0.0, seconds) : 0.0;
     m_positionSeconds = clamp(m_positionSeconds);
-    m_lastTrustedPositionSeconds = clamp(m_lastTrustedPositionSeconds);
 }
 
 double PlaybackPositionTracker::clamp(double seconds) const
@@ -77,84 +59,56 @@ double PlaybackPositionTracker::clamp(double seconds) const
     return qMax(0.0, seconds);
 }
 
+void PlaybackPositionTracker::beginSeek(double targetSeconds)
+{
+    ++m_issuedSeeks;
+    m_positionSeconds = clamp(targetSeconds);
+    m_positionClock.invalidate();
+}
+
+void PlaybackPositionTracker::beginBlindSeek()
+{
+    ++m_issuedSeeks;
+    m_positionClock.invalidate();
+}
+
+void PlaybackPositionTracker::replaceSeek(double targetSeconds)
+{
+    if (!seekInFlight()) {
+        beginSeek(targetSeconds);
+        return;
+    }
+    m_positionSeconds = clamp(targetSeconds);
+    m_positionClock.invalidate();
+}
+
+void PlaybackPositionTracker::settleSeek()
+{
+    if (seekInFlight())
+        ++m_settledSeeks;
+}
+
+void PlaybackPositionTracker::abandonSeeks()
+{
+    m_settledSeeks = m_issuedSeeks;
+}
+
+bool PlaybackPositionTracker::seekInFlight() const
+{
+    return m_settledSeeks < m_issuedSeeks;
+}
+
 bool PlaybackPositionTracker::update(double seconds)
 {
-    double clamped = clamp(seconds);
-    bool landedSeek = false;
-    if (m_requestedSeekTargetSeconds >= 0.0 && seekIsFresh(kSeekTargetFreshnessMs)) {
-        const double midpoint = (m_requestedSeekStartSeconds + m_requestedSeekTargetSeconds) / 2.0;
-        const bool movingForward = m_requestedSeekTargetSeconds > m_requestedSeekStartSeconds;
-        const bool movingBackward = m_requestedSeekTargetSeconds < m_requestedSeekStartSeconds;
-        if ((movingForward && clamped < midpoint) || (movingBackward && clamped > midpoint))
-            return false;
-        landedSeek = true;
-        m_requestedSeekTargetSeconds = -1.0;
-        m_requestedSeekStartSeconds = -1.0;
-        m_seekCommandClock.invalidate();
-    }
-    if (!landedSeek && !regressionAllowed() && m_hasMpvPosition
-        && m_lastTrustedPositionSeconds > kPositionRegressionToleranceSeconds
-        && clamped + kPositionRegressionToleranceSeconds < m_lastTrustedPositionSeconds) {
-        if (!m_ignoringStalePositions) {
-            m_ignoringStalePositions = true;
-            qInfo() << "player: ignoring stale mpv position"
-                    << "position=" << clamped << "ui=" << m_positionSeconds
-                    << "trusted=" << m_lastTrustedPositionSeconds;
-        }
-        clamped = clamp(m_lastTrustedPositionSeconds);
-    } else {
-        m_ignoringStalePositions = false;
-    }
+    if (!std::isfinite(seconds) || seekInFlight())
+        return false;
 
-    m_lastTrustedPositionSeconds = clamped;
+    const double clamped = clamp(seconds);
     m_hasMpvPosition = true;
     m_positionClock.restart();
-    if (m_positionRegressionAllowedClock.isValid()
-        && m_positionRegressionAllowedClock.elapsed() < kSeekTargetFreshnessMs) {
-        m_positionRegressionAllowedClock.invalidate();
-    }
-
     const bool changed = std::abs(m_positionSeconds - clamped) >= 0.05;
     m_positionSeconds = clamped;
     return changed;
-}
-
-double PlaybackPositionTracker::seekAnchor()
-{
-    if (m_requestedSeekTargetSeconds >= 0.0 && seekIsFresh(kSeekTargetFreshnessMs))
-        return clamp(m_requestedSeekTargetSeconds);
-
-    return m_positionSeconds;
-}
-
-void PlaybackPositionTracker::beginSeek(double targetSeconds)
-{
-    m_requestedSeekStartSeconds = m_positionSeconds;
-    m_requestedSeekTargetSeconds = clamp(targetSeconds);
-    m_seekCommandClock.restart();
-}
-
-void PlaybackPositionTracker::cancelSeek()
-{
-    m_requestedSeekTargetSeconds = -1.0;
-    m_requestedSeekStartSeconds = -1.0;
-    m_seekCommandClock.invalidate();
-}
-
-bool PlaybackPositionTracker::seekIsFresh(qint64 freshnessMs) const
-{
-    return m_seekCommandClock.isValid() && m_seekCommandClock.elapsed() < freshnessMs;
-}
-
-void PlaybackPositionTracker::allowRegression()
-{
-    m_positionRegressionAllowedClock.restart();
-}
-
-bool PlaybackPositionTracker::regressionAllowed() const
-{
-    return m_positionRegressionAllowedClock.isValid()
-        && m_positionRegressionAllowedClock.elapsed() < kSeekTargetFreshnessMs;
 }
 
 } // namespace JellyfinNative
