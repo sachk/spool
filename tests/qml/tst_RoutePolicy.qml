@@ -110,6 +110,73 @@ TestCase {
         compare(RoutePolicy.modelIndexForItemId(modelFor([]), "missing", 9), -1)
     }
 
+    function test_detailsNavigationMode_data() {
+        return [
+                    {
+                        tag: "from home",
+                        route: "home",
+                        currentArgs: {},
+                        nextArgs: {
+                            itemId: "episode"
+                        },
+                        source: "latest",
+                        mode: "push"
+                    },
+                    {
+                        tag: "episode to its series",
+                        route: "itemDetails",
+                        currentArgs: {
+                            itemId: "episode"
+                        },
+                        nextArgs: {
+                            itemId: "series"
+                        },
+                        source: "series-link",
+                        mode: "push"
+                    },
+                    {
+                        tag: "similar item",
+                        route: "itemDetails",
+                        currentArgs: {
+                            itemId: "movie"
+                        },
+                        nextArgs: {
+                            itemId: "other-movie"
+                        },
+                        source: "similar",
+                        mode: "push"
+                    },
+                    {
+                        tag: "same item again",
+                        route: "itemDetails",
+                        currentArgs: {
+                            itemId: "movie"
+                        },
+                        nextArgs: {
+                            itemId: "movie"
+                        },
+                        source: "resume",
+                        mode: "replace"
+                    },
+                    {
+                        tag: "back from playback",
+                        route: "itemDetails",
+                        currentArgs: {
+                            itemId: "episode"
+                        },
+                        nextArgs: {
+                            itemId: "next-episode"
+                        },
+                        source: "playback",
+                        mode: "replace"
+                    }
+                ]
+    }
+
+    function test_detailsNavigationMode(data) {
+        compare(RoutePolicy.detailsNavigationMode(data.route, data.currentArgs, data.nextArgs, data.source), data.mode)
+    }
+
     function test_detailsContextResolvesModelAndItem() {
         const fallback = modelFor([
                                       {

@@ -374,7 +374,7 @@ KeyRouter {
             console.warn("details route ignored: missing item id", source || "", Math.max(0, Number(focusIndex || 0)))
             return false
         }
-        if (route === "itemDetails") {
+        if (RoutePolicy.detailsNavigationMode(route, routeArgs, args, source) === "replace") {
             Router.replace("itemDetails", args)
             InputKeys.focus(routeStack)
         } else {

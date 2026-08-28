@@ -77,6 +77,25 @@ function normalizeDetailsRoute(request, fallbackModel, currentRoute) {
     }
 }
 
+// Whether opening a details page from wherever we are should go on the stack
+// or take the current frame's place.
+//
+// Details to details is a step further into the library -- an episode to its
+// series, an item to something similar -- so it is pushed and Back comes back
+// to where it was opened from. Landing back on details after playback is not a
+// step: it stands in for the page playback was started from, and pushing it
+// would put a page nobody navigated to between Back and the library. Reopening
+// the same item is not a step either.
+function detailsNavigationMode(currentRoute, currentArgs, nextArgs, source) {
+    if (String(currentRoute || "") !== "itemDetails")
+        return "push"
+    if (String(source || "") === "playback")
+        return "replace"
+    const currentId = String((currentArgs || ({})).itemId || "")
+    const nextId = String((nextArgs || ({})).itemId || "")
+    return currentId.length > 0 && currentId === nextId ? "replace" : "push"
+}
+
 function detailsRouteAt(model, index, source, returnRoute, currentRoute) {
     const focusIndex = Math.max(0, Number(index || 0))
     const item = modelItem(model, focusIndex)
