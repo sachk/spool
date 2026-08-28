@@ -17,7 +17,7 @@ T.Control {
 
     width: Math.max(Metrics.touchTargetPx, Metrics.scaled(44))
     height: width
-    focusPolicy: Qt.StrongFocus
+    focusPolicy: Metrics.keyboardFocusActive ? Qt.StrongFocus : Qt.NoFocus
 
     background: Rectangle {
         radius: Theme.radiusSmall
@@ -27,9 +27,13 @@ T.Control {
                                                                                                  root.selected
                                                                                                  ? Theme.bgPanel :
                                                                                                    "transparent"
-        border.width: root.chromeless ? 0 : root.activeFocus ? Theme.focusBorderWidth : root.selected
-                                                               || root.pointerHovered ? Theme.hoverBorderWidth : 0
-        border.color: root.activeFocus ? Theme.textPrimary : root.selected ? Theme.accent : Theme.borderStrong
+        border.width: root.chromeless ? 0 : Metrics.keyboardFocusActive && root.activeFocus ? Theme.focusBorderWidth :
+                                                                                              root.selected
+                                                                                              || root.pointerHovered
+                                                                                              ? Theme.hoverBorderWidth :
+                                                                                                0
+        border.color: Metrics.keyboardFocusActive && root.activeFocus ? Theme.textPrimary : root.selected ? Theme.accent :
+                                                                                                            Theme.borderStrong
         antialiasing: true
 
         Rectangle {
@@ -37,7 +41,8 @@ T.Control {
             anchors.margins: -Metrics.scaled(4)
             radius: parent.radius + Metrics.scaled(4)
             color: "transparent"
-            border.width: !root.chromeless && root.railStyle && root.activeFocus ? Theme.focusBorderWidth : 0
+            border.width: !root.chromeless && root.railStyle && Metrics.keyboardFocusActive && root.activeFocus
+                          ? Theme.focusBorderWidth : 0
             border.color: Theme.accent
             opacity: 0.55
         }
@@ -49,7 +54,8 @@ T.Control {
             visible: root.iconName.length > 0
             name: root.iconName
             iconSize: Metrics.scaled(root.railStyle ? 24 : 22)
-            iconColor: root.activeFocus || root.selected ? Theme.accent : Theme.textSecondary
+            iconColor: Metrics.keyboardFocusActive && root.activeFocus || root.selected ? Theme.accent :
+                                                                                          Theme.textSecondary
         }
 
         AppText {
@@ -58,7 +64,8 @@ T.Control {
             text: root.iconText
             font.pixelSize: Metrics.scaled(20)
             font.weight: Font.DemiBold
-            color: root.activeFocus ? Theme.textPrimary : root.selected ? Theme.accent : Theme.textSecondary
+            color: Metrics.keyboardFocusActive && root.activeFocus ? Theme.textPrimary : root.selected ? Theme.accent :
+                                                                                                         Theme.textSecondary
             horizontalAlignment: Text.AlignHCenter
             verticalAlignment: Text.AlignVCenter
         }

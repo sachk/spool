@@ -25,11 +25,13 @@ PlaybackReporter::PlaybackReporter(JellyfinApiFacade *api, QObject *parent)
     connect(&m_progressRetryTimer, &QTimer::timeout, this, &PlaybackReporter::sendProgress);
 }
 
-void PlaybackReporter::start(const PlaybackSession& session, double playbackRate)
+void PlaybackReporter::start(const PlaybackSession& session, double playbackRate, int volume, bool muted)
 {
     ++m_generation;
     m_session = session;
     m_startPlaybackRate = playbackRate;
+    m_startVolume = volume;
+    m_startMuted = muted;
     m_active = true;
     m_startInFlight = false;
     m_startReported = false;
@@ -49,7 +51,7 @@ bool PlaybackReporter::setStreamIndexes(int audioStreamIndex, int subtitleStream
     return true;
 }
 
-void PlaybackReporter::reportProgress(qint64 positionTicks, bool paused, double playbackRate)
+void PlaybackReporter::reportProgress(qint64 positionTicks, bool paused, double playbackRate, int volume, bool muted)
 {
     if (!m_active || !m_api)
         return;
@@ -57,6 +59,8 @@ void PlaybackReporter::reportProgress(qint64 positionTicks, bool paused, double 
     m_pendingPositionTicks = positionTicks;
     m_pendingPaused = paused;
     m_pendingPlaybackRate = playbackRate;
+    m_pendingVolume = volume;
+    m_pendingMuted = muted;
     m_progressPending = true;
     if (!m_progressInFlight && !m_progressRetryTimer.isActive())
         sendProgress();
@@ -102,7 +106,7 @@ void PlaybackReporter::sendStart()
     const PlaybackSession session = m_session;
     const quint64 generation = m_generation;
     Async::runScoped(
-        this, m_api->reportPlaybackStart(session, m_startPlaybackRate),
+        this, m_api->reportPlaybackStart(session, m_startPlaybackRate, m_startVolume, m_startMuted),
         [this, generation]() {
             if (generation != m_generation)
                 return;
@@ -132,9 +136,11 @@ void PlaybackReporter::sendProgress()
     const qint64 positionTicks = m_pendingPositionTicks;
     const bool paused = m_pendingPaused;
     const double playbackRate = m_pendingPlaybackRate;
+    const int volume = m_pendingVolume;
+    const bool muted = m_pendingMuted;
     const quint64 generation = m_generation;
     Async::runScoped(
-        this, m_api->reportPlaybackProgress(session, positionTicks, paused, playbackRate),
+        this, m_api->reportPlaybackProgress(session, positionTicks, paused, playbackRate, volume, muted),
         [this, generation]() {
             if (generation != m_generation)
                 return;

@@ -30,8 +30,11 @@ KeyRouter {
     // passive, so nothing here takes an event away from what is under it.
     PointHandler {
         acceptedDevices: PointerDevice.TouchScreen
-        onActiveChanged: if (active)
+        onActiveChanged: if (active) {
                              Metrics.coarsePointer = true
+                             Metrics.keyboardFocusActive = false
+                             root.focus = true
+                         }
     }
 
     Binding {
@@ -43,8 +46,10 @@ KeyRouter {
 
     HoverHandler {
         acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
-        onHoveredChanged: if (hovered)
+        onHoveredChanged: if (hovered) {
                               Metrics.coarsePointer = false
+                              Metrics.keyboardFocusActive = true
+                          }
     }
     focus: true
     backspaceNavigatesInTextInput: Platform.isTV
@@ -180,6 +185,15 @@ KeyRouter {
             remoteMessage.visible = true
             remoteMessageTimer.restart()
         }
+        function onRemoteContentRequested(itemId, itemType, title) {
+            root.exitPlaybackForRemoteNavigation("remote-content")
+            root.pushRoute("itemDetails", {
+                               "itemId": itemId,
+                               "itemType": itemType || "Video",
+                               "title": title || "Selected item",
+                               "returnRoute": root.route
+                           })
+        }
     }
     function showToastAction(message, actionText, callback) {
         toast.showAction(message, actionText, callback)
@@ -272,8 +286,10 @@ KeyRouter {
         // A phone is a finger until something says otherwise. The pointer
         // handlers above only fire once the app has been touched, so without
         // this the first frame is laid out to a mouse's sizes.
-        if (!Platform.hasDesktopPointer && !Platform.isTV)
+        if (!Platform.hasDesktopPointer && !Platform.isTV) {
             Metrics.coarsePointer = true
+            Metrics.keyboardFocusActive = false
+        }
         if (!Platform.isTV && Qt.platform.os === "linux") {
             Theme.normalTextRenderType = Text.NativeRendering
             Typography.sansHinting = Font.PreferVerticalHinting
@@ -423,6 +439,11 @@ KeyRouter {
                 videoSurface.toggleOsd()
             return
         }
+        if (action === "fullscreen") {
+            if (!Platform.isTV && !Platform.isAndroid)
+                NativeWindow.toggleFullScreen()
+            return
+        }
         if (action === "context-menu") {
             if (player.visible)
                 videoSurface.openPlaybackSettings()
@@ -506,6 +527,10 @@ KeyRouter {
             releaseTextInput()
             return true
         }
+        if (navBar.visible && navBar.remoteControlMenuOpen) {
+            navBar.closeRemoteMenu()
+            return true
+        }
         if (navBar.visible && navBar.syncPlayMenuOpen) {
             navBar.closeSyncPlayMenu()
             return true
@@ -556,8 +581,10 @@ KeyRouter {
     }
 
     function forward() {
-        if (tlsTrustPending || textInputActive || (navBar.visible && navBar.syncPlayMenuOpen) || diagnosticsVisible
-                || itemMenuOpen || managementOverlayVisible || mediaInfoVisible || playerSessionActive)
+        if (tlsTrustPending || textInputActive || (navBar.visible && (navBar.syncPlayMenuOpen
+                                                                      || navBar.remoteControlMenuOpen))
+                || diagnosticsVisible || itemMenuOpen || managementOverlayVisible || mediaInfoVisible
+                || playerSessionActive)
             return true
         if (!Router.canForward)
             return false
@@ -677,6 +704,8 @@ KeyRouter {
     }
 
     function globalShortcut(key, phase, repeat, modifiers) {
+        if (phase === "press" && key !== 0)
+            Metrics.keyboardFocusActive = true
         if (phase === "release" && key === uiScaleShortcutKey) {
             uiScaleShortcutKey = 0
             return true
@@ -765,10 +794,15 @@ KeyRouter {
 
         PointHandler {
             acceptedButtons: Qt.LeftButton
-            onActiveChanged: if (active && navBar.syncPlayMenuOpen && !navBar.containsSyncPlayPoint(root,
-                                                                                                    point.position.x,
-                                                                                                    point.position.y))
-                                 navBar.closeSyncPlayMenu(false)
+            onActiveChanged: if (active) {
+                                 if (navBar.remoteControlMenuOpen && !navBar.containsRemoteControlPoint(root,
+                                                                                                        point.position.x,
+                                                                                                        point.position.y))
+                                     navBar.closeRemoteMenu(false)
+                                 if (navBar.syncPlayMenuOpen && !navBar.containsSyncPlayPoint(root, point.position.x,
+                                                                                              point.position.y))
+                                     navBar.closeSyncPlayMenu(false)
+                             }
         }
     }
 

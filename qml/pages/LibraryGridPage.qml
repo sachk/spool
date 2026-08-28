@@ -1350,7 +1350,8 @@ FocusScope {
                         kind: root.squareArtwork ? "square" : "poster"
                         preferEpisodeTitle: false
                         useSeriesPoster: true
-                        focused: root.navigationFocusVisible && grid.activeFocus && gridDelegate.GridView.isCurrentItem
+                        focused: Metrics.keyboardFocusActive && root.navigationFocusVisible && grid.activeFocus
+                                 && gridDelegate.GridView.isCurrentItem
                         artworkVisible: true
                         artworkEnabled: grid.artworkIndexResident(index)
 
@@ -1415,7 +1416,8 @@ FocusScope {
                         color: "transparent"
                         radius: Math.max(0, Theme.radiusMedium - Theme.focusBorderWidth)
                         border.width: Theme.focusBorderWidth
-                        border.color: root.navigationFocusVisible && grid.activeFocus ? Theme.accent : "transparent"
+                        border.color: Metrics.keyboardFocusActive && root.navigationFocusVisible && grid.activeFocus
+                                      ? Theme.accent : "transparent"
                     }
                 }
 

@@ -14,6 +14,7 @@
 #include "HomeModelController.h"
 #include "LibraryManagementController.h"
 #include "QuickConnectController.h"
+#include "RemoteControlController.h"
 #include "SearchController.h"
 #include "SessionController.h"
 #include "SettingsController.h"
@@ -91,6 +92,10 @@ public:
     SyncPlayController *syncPlay()
     {
         return m_syncPlay;
+    }
+    RemoteControlController *remoteControl()
+    {
+        return m_remoteControl;
     }
     SettingsController *settings()
     {
@@ -172,6 +177,7 @@ signals:
     void toastMessage(const QString& message);
     void remoteUiActionRequested(const QString& action);
     void remoteMessageRequested(const QString& message);
+    void remoteContentRequested(const QString& itemId, const QString& itemType, const QString& title);
     void clearLogsRequested();
 
 private:
@@ -218,6 +224,7 @@ private:
     ArtworkService *m_artwork = nullptr;
     PlayerController *m_player = nullptr;
     SyncPlayController *m_syncPlay = nullptr;
+    RemoteControlController *m_remoteControl = nullptr;
     PlayQueueController *m_playQueue = nullptr;
     ContentModelController *m_content = nullptr;
     BrowseSessionController *m_browse = nullptr;
@@ -245,6 +252,7 @@ private:
     bool m_initialized = false;
     QString m_busyText;
     QString m_errorText;
+    QString m_remoteRepeatMode = QStringLiteral("RepeatNone");
     RequestGeneration m_libraryLoadGeneration;
     RequestGeneration m_playbackLoadGeneration;
     RequestGeneration m_syncPlayQueueRequestGeneration;

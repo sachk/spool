@@ -10,6 +10,9 @@ QtObject {
     // Set by the shell when the last thing to touch the app was a finger.
     // Taps need a floor that a remote and a mouse do not.
     property bool coarsePointer: false
+    // A finger-driven app should not paint or retain a keyboard selection.
+    // The first directional/key input turns this back on.
+    property bool keyboardFocusActive: true
     // Pixels per millimetre, pushed by the shell. Every other size in this file
     // is a pure function of the viewport, which is the right yardstick for
     // reading: a phone is held about half as far away as a monitor, so type

@@ -598,6 +598,8 @@ int main(int argc, char **argv)
     QQmlPropertyMap *platformInfo = QQmlPropertyMap::create(&app);
     platformInfo->insert(QStringLiteral("isTV"), capabilities.isTV);
     platformInfo->insert(QStringLiteral("isWebOS"), capabilities.isWebOS);
+    platformInfo->insert(QStringLiteral("isAndroid"), capabilities.isAndroid);
+    platformInfo->insert(QStringLiteral("isMobile"), capabilities.isMobile);
     platformInfo->insert(QStringLiteral("hasSystemFonts"), capabilities.hasSystemFonts);
     platformInfo->insert(QStringLiteral("hasDesktopPointer"), capabilities.hasDesktopPointer);
     platformInfo->insert(QStringLiteral("supportsMpvConfig"), capabilities.supportsMpvConfig);
@@ -621,6 +623,7 @@ int main(int argc, char **argv)
     qmlRegisterSingletonInstance("JellyfinWebOS", 1, 0, "Player", controller->player());
     qmlRegisterSingletonInstance("JellyfinWebOS", 1, 0, "PlayQueue", controller->playQueue());
     qmlRegisterSingletonInstance("JellyfinWebOS", 1, 0, "SyncPlay", controller->syncPlay());
+    qmlRegisterSingletonInstance("JellyfinWebOS", 1, 0, "RemoteControl", controller->remoteControl());
     qmlRegisterSingletonInstance("JellyfinWebOS", 1, 0, "Management", controller->management());
     qmlRegisterSingletonInstance("JellyfinWebOS", 1, 0, "Router", router.get());
     qmlRegisterSingletonInstance("JellyfinWebOS", 1, 0, "NativeWindow", &window);

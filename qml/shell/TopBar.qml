@@ -21,34 +21,46 @@ FocusScope {
 
     readonly property bool syncPlayMenuOpen: syncMenuLoader.item ? syncMenuLoader.item.menuOpen : false
     property bool syncPlayMenuLoaded: false
+    readonly property bool remoteControlMenuOpen: remoteMenuLoader.item ? remoteMenuLoader.item.menuOpen : false
+    property bool remoteControlMenuLoaded: false
+    readonly property bool castVisible: Settings.castButtonEnabled
     readonly property var syncPlay: SyncPlay
     readonly property bool syncActive: syncPlay ? syncPlay.enabled : false
     readonly property var syncGroups: syncPlay ? syncPlay.groups : []
     readonly property bool syncAvailable: syncGroups && syncGroups.length > 0
     readonly property string selectedRoute: currentRoute === "libraryGrid" ? "home" : currentRoute
 
-    // Index space: [0 .. railRepeater.count-1] are nav buttons, the trailing
-    // index is the SyncPlay button.
+    // Index space: navigation buttons, optional Cast button, then SyncPlay.
+    function lastIndex() {
+        return railRepeater.count + (castVisible ? 1 : 0)
+    }
+
     function focusedIndex() {
         for (let i = 0; i < railRepeater.count; ++i) {
             const item = railRepeater.itemAt(i)
             if (item && item.hasButtonFocus())
                 return i
         }
-        if (syncButton.activeFocus)
+        if (castVisible && castButton.activeFocus)
             return railRepeater.count
+        if (syncButton.activeFocus)
+            return lastIndex()
         return 0
     }
 
     function focusIndex(index) {
-        const clamped = Math.max(0, Math.min(railRepeater.count, index))
-        if (clamped >= railRepeater.count) {
-            InputKeys.focus(syncButton)
+        const clamped = Math.max(0, Math.min(lastIndex(), index))
+        if (clamped < railRepeater.count) {
+            const item = railRepeater.itemAt(clamped)
+            if (item)
+                item.forceButtonFocus()
             return
         }
-        const item = railRepeater.itemAt(clamped)
-        if (item)
-            item.forceButtonFocus()
+        if (castVisible && clamped === railRepeater.count) {
+            InputKeys.focus(castButton)
+            return
+        }
+        InputKeys.focus(syncButton)
     }
 
     function focusCurrent() {
@@ -64,12 +76,33 @@ FocusScope {
             first.forceButtonFocus()
     }
 
+    function remoteMenu() {
+        remoteControlMenuLoaded = true
+        return remoteMenuLoader.item
+    }
+
+    function openRemoteMenu() {
+        closeSyncPlayMenu(false)
+        const menu = remoteMenu()
+        if (menu)
+            menu.openMenu()
+    }
+
+    function closeRemoteMenu(restoreFocus) {
+        const menu = remoteMenuLoader.item
+        if (menu)
+            menu.closeMenu()
+        if (restoreFocus !== false && castVisible)
+            InputKeys.focus(castButton)
+    }
+
     function syncMenu() {
         syncPlayMenuLoaded = true
         return syncMenuLoader.item
     }
 
     function openSyncMenu() {
+        closeRemoteMenu(false)
         if (syncPlay)
             syncPlay.refreshGroups()
         const menu = syncMenu()
@@ -85,6 +118,13 @@ FocusScope {
             InputKeys.focus(syncButton)
     }
 
+    function closeMenus(restoreFocus) {
+        if (remoteControlMenuOpen)
+            closeRemoteMenu(restoreFocus)
+        if (syncPlayMenuOpen)
+            closeSyncPlayMenu(restoreFocus)
+    }
+
     function containsSyncPlayPoint(item, x, y) {
         const buttonPoint = syncButton.mapFromItem(item, x, y)
         if (syncButton.contains(buttonPoint))
@@ -96,14 +136,32 @@ FocusScope {
         return menu.contains(menuPoint)
     }
 
+    function containsRemoteControlPoint(item, x, y) {
+        const buttonPoint = castButton.mapFromItem(item, x, y)
+        if (castButton.contains(buttonPoint))
+            return true
+        const menu = remoteMenuLoader.item
+        if (!menu || !menu.menuOpen)
+            return false
+        const menuPoint = menu.mapFromItem(item, x, y)
+        return menu.contains(menuPoint)
+    }
+
     function activate() {
-        const menu = syncMenuLoader.item
-        if (menu && menu.menuOpen) {
-            menu.activate()
+        const remote = remoteMenuLoader.item
+        if (remote && remote.menuOpen) {
+            remote.activate()
+            return
+        }
+        const sync = syncMenuLoader.item
+        if (sync && sync.menuOpen) {
+            sync.activate()
             return
         }
         const index = focusedIndex()
-        if (index >= railRepeater.count) {
+        if (castVisible && index === railRepeater.count) {
+            openRemoteMenu()
+        } else if (index >= lastIndex()) {
             openSyncMenu()
         } else {
             const item = railRepeater.itemAt(index)
@@ -113,19 +171,27 @@ FocusScope {
     }
 
     function back() {
-        if (!syncPlayMenuOpen)
-            return false
-        closeSyncPlayMenu()
-        return true
+        if (remoteControlMenuOpen) {
+            closeRemoteMenu()
+            return true
+        }
+        if (syncPlayMenuOpen) {
+            closeSyncPlayMenu()
+            return true
+        }
+        return false
     }
 
-    onActiveFocusChanged: if (!activeFocus && syncPlayMenuOpen)
-    closeSyncPlayMenu(false)
+    onActiveFocusChanged: if (!activeFocus)
+    closeMenus(false)
 
     function routeKey(key, phase, repeat) {
-        const menu = syncMenuLoader.item
-        if (menu && menu.menuOpen)
-            return menu.routeKey(key, phase, repeat)
+        const remote = remoteMenuLoader.item
+        if (remote && remote.menuOpen)
+            return remote.routeKey(key, phase, repeat)
+        const sync = syncMenuLoader.item
+        if (sync && sync.menuOpen)
+            return sync.routeKey(key, phase, repeat)
         // The rail leaves towards wherever the content is, which is below it
         // on a page and above it once it has moved down within thumb reach.
         const towardsContent = root.edge === "bottom" ? Qt.Key_Up : Qt.Key_Down
@@ -147,8 +213,11 @@ FocusScope {
     TapHandler {
         acceptedButtons: Qt.LeftButton
         onTapped: eventPoint => {
-            const local = syncButton.mapFromItem(root, eventPoint.position.x, eventPoint.position.y)
-            if (!syncButton.contains(local))
+            const remotePoint = castButton.mapFromItem(root, eventPoint.position.x, eventPoint.position.y)
+            if (!castButton.contains(remotePoint))
+                root.closeRemoteMenu(false)
+            const syncPoint = syncButton.mapFromItem(root, eventPoint.position.x, eventPoint.position.y)
+            if (!syncButton.contains(syncPoint))
                 root.closeSyncPlayMenu(false)
         }
     }
@@ -252,6 +321,43 @@ FocusScope {
         }
 
         Item {
+            visible: root.castVisible
+            Layout.alignment: Qt.AlignVCenter
+            Layout.preferredWidth: visible ? Metrics.scaled(50) : 0
+            Layout.fillHeight: true
+
+            IconButton {
+                id: castButton
+                anchors.centerIn: parent
+                iconName: RemoteControl.targetSelected ? "cast_connected" : "cast"
+                accessibleName: RemoteControl.targetSelected ? "Remote control — " + RemoteControl.selectedTargetName :
+                                                               "Play on"
+                railStyle: true
+                selected: root.remoteControlMenuOpen || RemoteControl.targetSelected
+                onClicked: {
+                    if (root.remoteControlMenuOpen)
+                    root.closeRemoteMenu(false)
+                    else
+                    root.openRemoteMenu()
+                }
+
+                Rectangle {
+                    visible: RemoteControl.targetSelected
+                    width: Metrics.scaled(9)
+                    height: width
+                    radius: width / 2
+                    anchors.right: parent.right
+                    anchors.top: parent.top
+                    anchors.rightMargin: Metrics.scaled(7)
+                    anchors.topMargin: Metrics.scaled(7)
+                    color: Theme.success
+                    border.width: Theme.focusBorderWidth
+                    border.color: Theme.bgRaised
+                }
+            }
+        }
+
+        Item {
             Layout.alignment: Qt.AlignVCenter
             Layout.preferredWidth: Metrics.scaled(50)
             Layout.fillHeight: true
@@ -286,6 +392,21 @@ FocusScope {
                     border.color: Theme.bgRaised
                 }
             }
+        }
+    }
+
+    Loader {
+        id: remoteMenuLoader
+        width: Metrics.scaled(360)
+        anchors.top: parent.bottom
+        anchors.right: parent.right
+        anchors.topMargin: Metrics.scaled(6)
+        anchors.rightMargin: Metrics.scaled(64)
+        z: 50
+        active: root.remoteControlMenuLoaded
+        sourceComponent: RemoteControlMenu {
+            onRequestClose: root.closeRemoteMenu()
+            onRemoteRequested: root.navigate("remoteControl")
         }
     }
 

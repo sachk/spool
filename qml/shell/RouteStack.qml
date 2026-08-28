@@ -33,6 +33,8 @@ FocusScope {
             return "personDetails"
         case "search":
             return "search"
+        case "remoteControl":
+            return "remoteControl"
         case "openSourceNotices":
             return "openSourceNotices"
         case "settings":
@@ -56,6 +58,8 @@ FocusScope {
             return Qt.resolvedUrl("../pages/PersonDetailsPage.qml")
         case "search":
             return Qt.resolvedUrl("../pages/SearchPage.qml")
+        case "remoteControl":
+            return Qt.resolvedUrl("../pages/RemoteControlPage.qml")
         case "openSourceNotices":
             return Qt.resolvedUrl("../pages/OpenSourceNoticesPage.qml")
         case "settings":

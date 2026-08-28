@@ -47,6 +47,8 @@ JELLYFIN_TEST_MAIN("settings-controller")
     require(settings.value(QStringLiteral("playback/rememberSeriesAudioTrack")).toBool(),
         "fresh profile did not remember per-series audio tracks by default");
     require(settings.playerControlTooltipsEnabled(), "fresh profile unexpectedly hid player control tooltips");
+    require(settings.castButtonEnabled(), "desktop Cast button default was not enabled");
+    require(settings.remoteControlTargetEnabled(), "desktop remote-control target default was not enabled");
 
     settings.setValue(QStringLiteral("playback/forwardCacheSizeMiB"), QStringLiteral("256"));
     require(settings.value(QStringLiteral("playback/forwardCacheSizeMiB")).toString() == QStringLiteral("256"),
@@ -57,6 +59,10 @@ JELLYFIN_TEST_MAIN("settings-controller")
     settings.setValue(QStringLiteral("playback/rememberSeriesAudioTrack"), false);
     require(!settings.value(QStringLiteral("playback/rememberSeriesAudioTrack")).toBool(),
         "series audio-track retention toggle was not updated");
+    settings.setValue(QStringLiteral("remote/showCastButton"), false);
+    settings.setValue(QStringLiteral("remote/acceptCommands"), false);
+    require(!settings.castButtonEnabled(), "Cast button toggle was not applied");
+    require(!settings.remoteControlTargetEnabled(), "remote target toggle was not applied");
 
     settings.setAudioDelayMs(120);
     require(settings.audioDelayMs() == 120, "audio delay setter did not update the global desktop value");
@@ -137,6 +143,8 @@ JELLYFIN_TEST_MAIN("settings-controller")
         "persisted forward cache size was not restored");
     require(!restored.value(QStringLiteral("playback/rememberSeriesAudioTrack")).toBool(),
         "series audio-track retention toggle was not restored");
+    require(!restored.castButtonEnabled(), "persisted Cast button toggle was not restored");
+    require(!restored.remoteControlTargetEnabled(), "persisted remote target toggle was not restored");
     require(!restored.playerControlTooltipsEnabled(), "persisted control-tooltip sessions were not restored");
 
     database.shutdown();

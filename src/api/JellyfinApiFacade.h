@@ -48,6 +48,11 @@ public:
     AuthSession session() const;
     void setPlaybackPreferences(qint64 manualMaxStreamingBitrate, bool unlimitedLocalNetwork, bool preferRemux);
     void setVideoCodecCapabilities(QStringList videoCodecs, bool restrictVideoCodecs);
+    void setRemoteControlTargetEnabled(bool enabled);
+    bool remoteControlTargetEnabled() const
+    {
+        return m_remoteControlTargetEnabled;
+    }
     int playbackParallelRequests() const;
     QCoro::Task<void> refreshPlaybackNetworkState();
 
@@ -112,6 +117,13 @@ public:
     QString trickplayTileUrl(const QString& itemId, int width, int tileIndex) const;
     QCoro::Task<PlaybackSession> negotiatePlayback(MovieItem movie, bool forceTranscode = false);
 
+    QCoro::Task<QJsonArray> fetchControllableSessions();
+    QCoro::Task<void> sendRemotePlay(QString sessionId, QStringList itemIds, QString playCommand,
+        qint64 startPositionTicks = -1, int startIndex = -1, QString mediaSourceId = {}, int audioStreamIndex = -2,
+        int subtitleStreamIndex = -2);
+    QCoro::Task<void> sendRemotePlaystate(QString sessionId, QString command, qint64 seekPositionTicks = -1);
+    QCoro::Task<void> sendRemoteGeneralCommand(QString sessionId, QString command, QJsonObject arguments = {});
+
     // SyncPlay REST endpoints used alongside SyncPlayController's WebSocket.
     QCoro::Task<QJsonArray> fetchSyncPlayGroups();
     QCoro::Task<void> createSyncPlayGroup(QString name);
@@ -135,9 +147,9 @@ public:
     QCoro::Task<void> syncPlaySetPlaylistItem(QString playlistItemId);
 
     QCoro::Task<void> postCapabilities();
-    QCoro::Task<void> reportPlaybackStart(PlaybackSession session, double playbackRate = 1.0);
+    QCoro::Task<void> reportPlaybackStart(PlaybackSession session, double playbackRate, int volume, bool muted);
     QCoro::Task<void> reportPlaybackProgress(
-        PlaybackSession session, qint64 positionTicks, bool paused, double playbackRate = 1.0);
+        PlaybackSession session, qint64 positionTicks, bool paused, double playbackRate, int volume, bool muted);
     QCoro::Task<void> reportPlaybackStopped(
         PlaybackSession session, qint64 positionTicks, bool failed, double playbackRate = 1.0);
 
@@ -204,6 +216,7 @@ private:
     bool m_unlimitedLocalNetwork = false;
     QStringList m_videoCodecs;
     bool m_restrictVideoCodecs = false;
+    bool m_remoteControlTargetEnabled = true;
     bool m_preferRemux = true;
     bool m_authExpirationReported = false;
     bool m_shuttingDown = false;

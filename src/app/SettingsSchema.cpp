@@ -251,6 +251,11 @@ const QVector<SettingSpec>& settingSpecs()
         pageSpec("theme/renderMode", "Appearance", "Text rendering", "Curve stays sharp at any scale",
             SettingType::Select, kTextRenderModeChoices)
             .advanced(),
+        toggleSpec("remote/showCastButton", "Remote Control", "Show Cast button",
+            "Choose and control another Jellyfin client", true, SettingTarget::CastButtonEnabled),
+        toggleSpec("remote/acceptCommands", "Remote Control", "Allow remote control",
+            "Let other Jellyfin clients play and control media on this device", true,
+            SettingTarget::RemoteControlTargetEnabled),
         selectSpec("audio/trackMode", "Playback", "Audio track", "Which track plays when a video starts", "Default",
             kAudioTrackModeChoices, SettingTarget::AudioTrackMode),
         toggleSpec("playback/rememberSeriesAudioTrack", "Playback", "Remember audio track per series",

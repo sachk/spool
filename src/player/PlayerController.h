@@ -64,6 +64,7 @@ class PlayerController final : public QObject {
     Q_PROPERTY(int subtitleDelayMs READ subtitleDelayMs WRITE setSubtitleDelayMs NOTIFY subtitleDelayMsChanged)
     Q_PROPERTY(QString audioOutputMode READ audioOutputMode WRITE setAudioOutputMode NOTIFY audioOutputModeChanged)
     Q_PROPERTY(int volume READ volume WRITE setVolume NOTIFY volumeChanged)
+    Q_PROPERTY(bool muted READ muted WRITE setMuted NOTIFY volumeChanged)
     Q_PROPERTY(double playbackSpeed READ playbackSpeed WRITE setPlaybackSpeed NOTIFY playbackSpeedChanged)
     Q_PROPERTY(double effectivePlaybackSpeed READ effectivePlaybackSpeed NOTIFY effectivePlaybackSpeedChanged)
     Q_PROPERTY(QString activeSegmentType READ activeSegmentType NOTIFY segmentsChanged)
@@ -112,6 +113,7 @@ public:
     int subtitleDelayMs() const;
     QString audioOutputMode() const;
     int volume() const;
+    bool muted() const;
     double playbackSpeed() const;
     double effectivePlaybackSpeed() const;
     QString activeSegmentType() const;
@@ -158,6 +160,8 @@ public:
     Q_INVOKABLE void setAudioOutputMode(const QString& mode);
     Q_INVOKABLE void setVolume(int volume);
     Q_INVOKABLE void adjustVolume(int delta);
+    Q_INVOKABLE void setMuted(bool muted);
+    Q_INVOKABLE void toggleMuted();
     Q_INVOKABLE void setPlaybackSpeed(double speed);
     void setSyncPlaybackSpeed(double speed);
     void clearSyncPlaybackSpeed();
@@ -297,6 +301,7 @@ private:
     std::atomic<int> m_fileAudioDelayMs = 0;
     std::atomic<int> m_subtitleDelayMs = 0;
     std::atomic<int> m_volume = 100;
+    std::atomic_bool m_muted = false;
     double m_playbackSpeed = 1.0;
     double m_syncPlaybackSpeed = 1.0;
     bool m_syncPlaybackSpeedActive = false;

@@ -16,9 +16,9 @@ class PlaybackReporter final : public QObject {
 public:
     explicit PlaybackReporter(JellyfinApiFacade *api, QObject *parent = nullptr);
 
-    void start(const PlaybackSession& session, double playbackRate = 1.0);
+    void start(const PlaybackSession& session, double playbackRate, int volume, bool muted);
     bool setStreamIndexes(int audioStreamIndex, int subtitleStreamIndex);
-    void reportProgress(qint64 positionTicks, bool paused, double playbackRate = 1.0);
+    void reportProgress(qint64 positionTicks, bool paused, double playbackRate, int volume, bool muted);
     void stop(qint64 positionTicks, bool failed, double playbackRate = 1.0);
 
 signals:
@@ -37,6 +37,10 @@ private:
     bool m_pendingPaused = false;
     double m_pendingPlaybackRate = 1.0;
     double m_startPlaybackRate = 1.0;
+    int m_startVolume = 100;
+    int m_pendingVolume = 100;
+    bool m_startMuted = false;
+    bool m_pendingMuted = false;
     bool m_active = false;
     bool m_startInFlight = false;
     bool m_startReported = false;

@@ -25,6 +25,8 @@ FocusScope {
     property string itemContextReturnRoute: ""
     property var wheelFlickable: null
     property bool focusVisible: true
+    property bool keyboardFocusActive: Metrics.keyboardFocusActive
+    property int pointerPressedIndex: -1
     property int modelRevision: 0
     readonly property bool delegatesPresented: presentation.delegatesReady
 
@@ -162,6 +164,20 @@ FocusScope {
         activated(index, itemAt(index))
     }
 
+    function beginPointerSelection(index) {
+        pointerPressedIndex = index
+    }
+
+    function commitPointerSelection() {
+        const index = pointerPressedIndex
+        pointerPressedIndex = -1
+        if (index < 0)
+            return -1
+        pointerSelected()
+        currentIndex = index
+        return index
+    }
+
     function activate() {
         activateIndex(currentIndex)
     }
@@ -231,7 +247,7 @@ FocusScope {
             fallbackTint: libraryCard ? Theme.libraryTint(cardData.name) : "transparent"
             useSeriesPoster: root.useSeriesPoster
             preferEpisodeTitle: root.preferEpisodeTitle
-            focused: root.focusVisible && card.index === listView.currentIndex && listView.activeFocus
+            focused: root.keyboardFocusActive && root.focusVisible && card.index === listView.currentIndex
             artworkVisible: true
 
             Component.onCompleted: root.schedulePresentation()
@@ -316,7 +332,8 @@ FocusScope {
                 color: "transparent"
                 radius: Math.max(0, Theme.radiusMedium - Theme.focusBorderWidth)
                 border.width: Theme.focusBorderWidth
-                border.color: root.focusVisible && listView.activeFocus ? Theme.accent : "transparent"
+                border.color: root.keyboardFocusActive && root.focusVisible && listView.activeFocus ? Theme.accent :
+                                                                                                      "transparent"
             }
         }
 
@@ -332,7 +349,7 @@ FocusScope {
         }
 
         MouseArea {
-            property int pressedIndex: -1
+            objectName: "mediaRowPointerArea"
             property bool longPressed: false
             anchors.fill: parent
             z: 3
@@ -340,31 +357,31 @@ FocusScope {
             pressAndHoldInterval: 520
             onPressed: mouse => {
                 longPressed = false
-                pressedIndex = listView.indexAt(mouse.x + listView.contentX, mouse.y + listView.contentY)
-                if (pressedIndex >= 0) {
-                    root.pointerSelected()
-                    root.currentIndex = pressedIndex
-                }
+                root.beginPointerSelection(listView.indexAt(mouse.x + listView.contentX, mouse.y + listView.contentY))
             }
             onReleased: if (longPressed && root.shell)
             root.shell.finishItemMenuOpeningGesture()
-            onCanceled: if (longPressed && root.shell)
-            root.shell.finishItemMenuOpeningGesture()
+            onCanceled: {
+                root.pointerPressedIndex = -1
+                if (longPressed && root.shell)
+                root.shell.finishItemMenuOpeningGesture()
+            }
             onClicked: mouse => {
-                if (pressedIndex < 0)
+                const selectedIndex = root.commitPointerSelection()
+                if (selectedIndex < 0)
                     return
                 if (longPressed) {
                     longPressed = false
                     return
                 }
                 if (mouse.button === Qt.RightButton && root.shell)
-                    root.openItemContext(pressedIndex, listView.itemAtIndex(pressedIndex))
+                    root.openItemContext(selectedIndex, listView.itemAtIndex(selectedIndex))
                 else
-                    root.activateIndex(pressedIndex)
+                    root.activateIndex(selectedIndex)
             }
-            onPressAndHold: if (pressedIndex >= 0 && root.shell) {
+            onPressAndHold: if (root.pointerPressedIndex >= 0 && root.shell) {
                 longPressed = true
-                root.openItemContext(pressedIndex, listView.itemAtIndex(pressedIndex), true)
+                root.openItemContext(root.pointerPressedIndex, listView.itemAtIndex(root.pointerPressedIndex), true)
             }
         }
     }

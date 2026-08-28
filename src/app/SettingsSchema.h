@@ -30,6 +30,8 @@ enum class SettingPlatform {
 enum class SettingTarget {
     External,
     NightMode,
+    CastButtonEnabled,
+    RemoteControlTargetEnabled,
     ToneMappingVisualization,
     ManualStreamingBitrate,
     MaxStreamingBitrate,

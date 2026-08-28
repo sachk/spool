@@ -399,7 +399,13 @@ void SyncPlayController::handleSocketTextMessage(const QString& message)
     if (type == QStringLiteral("KeepAlive"))
         return;
 
-    const QJsonObject data = object.value(QStringLiteral("Data")).toObject();
+    const QJsonValue dataValue = object.value(QStringLiteral("Data"));
+    if (type == QStringLiteral("Sessions")) {
+        emit sessionsUpdated(dataValue.toArray());
+        return;
+    }
+
+    const QJsonObject data = dataValue.toObject();
     if (type == QStringLiteral("SyncPlayCommand"))
         handleSyncPlayCommand(data);
     else if (type == QStringLiteral("SyncPlayGroupUpdate"))

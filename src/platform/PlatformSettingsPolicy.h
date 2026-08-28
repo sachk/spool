@@ -20,6 +20,8 @@ QStringList platformSystemSubtitleFonts();
 
 int platformDefaultUiScalePercent();
 bool platformUsesPerOutputAudioDelay();
+bool platformDefaultCastButtonEnabled();
+bool platformDefaultRemoteControlTargetEnabled();
 QString normalizedPlatformAudioRoute(const QString& output);
 QString platformAudioRouteDisplayName(const QString& output);
 QString platformAudioDelayStorageKey(const QString& output);

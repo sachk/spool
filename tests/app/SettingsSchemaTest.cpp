@@ -61,7 +61,7 @@ QString choiceLabel(const SettingSpec& spec, const QString& value)
         if (value == QString::fromLatin1(spec.choices[i].value))
             return QString::fromLatin1(spec.choices[i].label);
     }
-    return { };
+    return {};
 }
 
 QVariantMap schemaRow(const QString& key)
@@ -71,7 +71,7 @@ QVariantMap schemaRow(const QString& key)
         if (row.value(QStringLiteral("key")).toString() == key)
             return row;
     }
-    return { };
+    return {};
 }
 
 QHash<QString, QString> choicesByLabelFromRow(const QVariantMap& row)
@@ -91,6 +91,8 @@ void requiredPersistedKeysArePresentExactlyOnce()
 {
     const QStringList expectedKeys {
         QStringLiteral("appearance/uiScalePercent"),
+        QStringLiteral("remote/showCastButton"),
+        QStringLiteral("remote/acceptCommands"),
         QStringLiteral("audio/trackMode"),
         QStringLiteral("playback/rememberSeriesAudioTrack"),
         QStringLiteral("settings/nightMode"),

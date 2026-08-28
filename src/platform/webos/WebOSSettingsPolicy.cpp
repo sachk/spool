@@ -33,6 +33,14 @@ bool platformUsesPerOutputAudioDelay()
 {
     return true;
 }
+bool platformDefaultCastButtonEnabled()
+{
+    return false;
+}
+bool platformDefaultRemoteControlTargetEnabled()
+{
+    return true;
+}
 QString normalizedPlatformAudioRoute(const QString& output)
 {
     return AudioSyncPolicy::normalizedOutputKey(output);

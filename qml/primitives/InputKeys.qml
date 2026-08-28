@@ -5,7 +5,7 @@ import QtQuick
 QtObject {
     readonly property real focusRecoveryVisibleThreshold: 0.7
     function focus(item) {
-        if (item)
+        if (item && (Metrics.keyboardFocusActive || isTextInputItem(item)))
             item.forceActiveFocus()
     }
 

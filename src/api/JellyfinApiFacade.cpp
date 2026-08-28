@@ -94,7 +94,7 @@ namespace {
             if (!stringValue.isEmpty())
                 return stringValue;
         }
-        return { };
+        return {};
     }
 
     QString includeItemTypesForCollection(QString collectionType)
@@ -428,6 +428,13 @@ void JellyfinApiFacade::setVideoCodecCapabilities(QStringList videoCodecs, bool 
     qInfo() << "playback capabilities: video codecs=" << m_videoCodecs << "restricted=" << m_restrictVideoCodecs;
     emit deviceProfileChanged();
 }
+void JellyfinApiFacade::setRemoteControlTargetEnabled(bool enabled)
+{
+    if (m_remoteControlTargetEnabled == enabled)
+        return;
+    m_remoteControlTargetEnabled = enabled;
+    emit deviceProfileChanged();
+}
 
 int JellyfinApiFacade::playbackParallelRequests() const
 {
@@ -492,7 +499,7 @@ void JellyfinApiFacade::setPlaybackActive(bool active)
         return;
     m_measurementDeferred = false;
     Async::runScoped(
-        this, refreshPlaybackNetworkState(), []() { },
+        this, refreshPlaybackNetworkState(), []() {},
         [](const std::exception_ptr& error) {
             qWarning() << "playback bandwidth: deferred measurement failed" << exceptionMessage(error);
         });
@@ -571,7 +578,7 @@ void JellyfinApiFacade::handleNetworkRouteChanged()
     m_inLocalNetwork = false;
     restoreRememberedMeasurement();
     Async::runScoped(
-        this, refreshPlaybackNetworkState(), []() { },
+        this, refreshPlaybackNetworkState(), []() {},
         [](const std::exception_ptr& error) {
             qWarning() << "playback bandwidth: re-measurement failed" << exceptionMessage(error);
         });
@@ -718,7 +725,7 @@ void JellyfinApiFacade::cancelRequests()
 QCoro::Task<AuthSession> JellyfinApiFacade::authenticateByName(QString username, QString password)
 {
     const QJsonDocument response
-        = co_await requestJson(HttpMethod::Post, QStringLiteral("/Users/AuthenticateByName"), { },
+        = co_await requestJson(HttpMethod::Post, QStringLiteral("/Users/AuthenticateByName"), {},
             QJsonDocument(QJsonObject {
                 { QStringLiteral("Username"), username },
                 { QStringLiteral("Pw"), password },
@@ -760,7 +767,7 @@ QCoro::Task<QJsonObject> JellyfinApiFacade::pollQuickConnect(QString secret)
 QCoro::Task<AuthSession> JellyfinApiFacade::authenticateWithQuickConnect(QString secret)
 {
     const QJsonDocument response
-        = co_await requestJson(HttpMethod::Post, QStringLiteral("/Users/AuthenticateWithQuickConnect"), { },
+        = co_await requestJson(HttpMethod::Post, QStringLiteral("/Users/AuthenticateWithQuickConnect"), {},
             QJsonDocument(QJsonObject {
                 { QStringLiteral("Secret"), secret },
             }));
@@ -853,7 +860,7 @@ QCoro::Task<PagedMovieItems> JellyfinApiFacade::fetchBrowsePage(
     BrowseDescriptor descriptor, int startIndex, int limit, QVariantMap queryOptions)
 {
     if (!descriptor.isValid())
-        co_return PagedMovieItems { { }, 0, std::max(0, startIndex), std::clamp(limit, 1, 200) };
+        co_return PagedMovieItems { {}, 0, std::max(0, startIndex), std::clamp(limit, 1, 200) };
 
     QString path = QStringLiteral("/Items");
     QStringList allowedTypes;
@@ -1044,7 +1051,7 @@ QCoro::Task<QVariantMap> JellyfinApiFacade::fetchLibraryFilterOptions(QString li
 QCoro::Task<MovieItem> JellyfinApiFacade::fetchItemDetails(QString itemId)
 {
     if (itemId.isEmpty() || m_session.userId.isEmpty())
-        co_return MovieItem { };
+        co_return MovieItem {};
 
     QUrlQuery query = ItemsQuery().fields(detailItemFields()).images().toUrlQuery();
 
@@ -1059,7 +1066,7 @@ QCoro::Task<std::vector<MovieItem>> JellyfinApiFacade::fetchItemsByIds(QStringLi
     itemIds.removeAll(QString());
     itemIds.removeDuplicates();
     if (itemIds.isEmpty() || m_session.userId.isEmpty())
-        co_return std::vector<MovieItem> { };
+        co_return std::vector<MovieItem> {};
 
     std::vector<MovieItem> result;
     result.reserve(static_cast<size_t>(itemIds.size()));
@@ -1183,7 +1190,7 @@ QCoro::Task<std::vector<MovieItem>> JellyfinApiFacade::searchItems(QString searc
 {
     searchTerm = searchTerm.trimmed();
     if (searchTerm.isEmpty())
-        co_return std::vector<MovieItem> { };
+        co_return std::vector<MovieItem> {};
 
     const QStringList searchableTypes {
         QStringLiteral("Movie"),
@@ -1253,7 +1260,7 @@ QCoro::Task<std::vector<MovieItem>> JellyfinApiFacade::fetchSearchSuggestions(in
                           .includeItemTypes(QStringLiteral("Movie,Series"))
                           .mediaTypes(QStringLiteral("Video"))
                           .fields(libraryItemFields())
-                          .sort(QStringLiteral("IsFavoriteOrLiked,Random"), { })
+                          .sort(QStringLiteral("IsFavoriteOrLiked,Random"), {})
                           .images()
                           .enableTotalRecordCount(false)
                           .limit(limit, 60)
@@ -1272,7 +1279,7 @@ QCoro::Task<std::vector<MovieItem>> JellyfinApiFacade::fetchSearchSuggestions(in
 QCoro::Task<std::vector<MovieItem>> JellyfinApiFacade::fetchSimilarItems(QString itemId, int limit)
 {
     if (itemId.isEmpty())
-        co_return std::vector<MovieItem> { };
+        co_return std::vector<MovieItem> {};
 
     QUrlQuery query
         = ItemsQuery().userId(m_session.userId).limit(limit, 60).fields(libraryItemFields()).images().toUrlQuery();
@@ -1338,11 +1345,11 @@ QCoro::Task<PersonCredits> JellyfinApiFacade::fetchItemsByPerson(QString personI
 QCoro::Task<std::vector<MovieItem>> JellyfinApiFacade::fetchManagementTargets(QString itemType)
 {
     if (m_session.userId.isEmpty())
-        co_return std::vector<MovieItem> { };
+        co_return std::vector<MovieItem> {};
 
     itemType = itemType.trimmed();
     if (itemType != QStringLiteral("Playlist") && itemType != QStringLiteral("BoxSet"))
-        co_return std::vector<MovieItem> { };
+        co_return std::vector<MovieItem> {};
 
     QUrlQuery query = ItemsQuery()
                           .userId(m_session.userId)
@@ -1379,7 +1386,7 @@ QCoro::Task<QString> JellyfinApiFacade::createPlaylist(QString name, QStringList
         { QStringLiteral("IsPublic"), false },
     };
     const QJsonObject response
-        = (co_await requestJson(HttpMethod::Post, QStringLiteral("/Playlists"), { }, QJsonDocument(body))).object();
+        = (co_await requestJson(HttpMethod::Post, QStringLiteral("/Playlists"), {}, QJsonDocument(body))).object();
     co_return response.value(QStringLiteral("Id")).toString();
 }
 
@@ -1548,13 +1555,80 @@ QCoro::Task<std::vector<MediaSegment>> JellyfinApiFacade::fetchMediaSegments(QSt
 QString JellyfinApiFacade::trickplayTileUrl(const QString& itemId, int width, int tileIndex) const
 {
     if (m_serverUrl.isEmpty() || itemId.isEmpty() || width <= 0 || tileIndex < 0)
-        return { };
+        return {};
 
     QUrl url = serverUrlWithPath(m_serverUrl,
         { QStringLiteral("Videos"), itemId, QStringLiteral("Trickplay"), QString::number(width),
             QStringLiteral("%1.jpg").arg(tileIndex) });
 
     return url.toString(QUrl::FullyEncoded);
+}
+QCoro::Task<QJsonArray> JellyfinApiFacade::fetchControllableSessions()
+{
+    QUrlQuery query;
+    query.addQueryItem(QStringLiteral("controllableByUserId"), m_session.userId);
+    const QJsonDocument document = co_await requestJson(HttpMethod::Get, QStringLiteral("/Sessions"), query);
+    co_return document.isArray() ? document.array() : document.object().value(QStringLiteral("Items")).toArray();
+}
+
+QCoro::Task<void> JellyfinApiFacade::sendRemotePlay(QString sessionId, QStringList itemIds, QString playCommand,
+    qint64 startPositionTicks, int startIndex, QString mediaSourceId, int audioStreamIndex, int subtitleStreamIndex)
+{
+    sessionId = sessionId.trimmed();
+    itemIds.removeAll(QString());
+    if (sessionId.isEmpty() || itemIds.isEmpty())
+        throw std::runtime_error("Remote play needs a target and at least one item");
+
+    QUrlQuery query;
+    query.addQueryItem(QStringLiteral("playCommand"), playCommand.isEmpty() ? QStringLiteral("PlayNow") : playCommand);
+    query.addQueryItem(QStringLiteral("itemIds"), itemIds.join(QLatin1Char(',')));
+    if (startPositionTicks >= 0)
+        query.addQueryItem(QStringLiteral("startPositionTicks"), QString::number(startPositionTicks));
+    if (startIndex >= 0)
+        query.addQueryItem(QStringLiteral("startIndex"), QString::number(startIndex));
+    if (!mediaSourceId.isEmpty())
+        query.addQueryItem(QStringLiteral("mediaSourceId"), mediaSourceId);
+    if (audioStreamIndex >= -1)
+        query.addQueryItem(QStringLiteral("audioStreamIndex"), QString::number(audioStreamIndex));
+    if (subtitleStreamIndex >= -1)
+        query.addQueryItem(QStringLiteral("subtitleStreamIndex"), QString::number(subtitleStreamIndex));
+
+    const QString encodedSession = QString::fromLatin1(QUrl::toPercentEncoding(sessionId));
+    co_await requestBytes(
+        HttpMethod::Post, QStringLiteral("/Sessions/%1/Playing").arg(encodedSession), query, QJsonDocument());
+}
+
+QCoro::Task<void> JellyfinApiFacade::sendRemotePlaystate(QString sessionId, QString command, qint64 seekPositionTicks)
+{
+    sessionId = sessionId.trimmed();
+    command = command.trimmed();
+    if (sessionId.isEmpty() || command.isEmpty())
+        throw std::runtime_error("Remote playstate command needs a target and command");
+
+    QUrlQuery query;
+    if (seekPositionTicks >= 0)
+        query.addQueryItem(QStringLiteral("seekPositionTicks"), QString::number(seekPositionTicks));
+    if (!m_session.userId.isEmpty())
+        query.addQueryItem(QStringLiteral("controllingUserId"), m_session.userId);
+    const QString encodedSession = QString::fromLatin1(QUrl::toPercentEncoding(sessionId));
+    const QString encodedCommand = QString::fromLatin1(QUrl::toPercentEncoding(command));
+    co_await requestBytes(HttpMethod::Post,
+        QStringLiteral("/Sessions/%1/Playing/%2").arg(encodedSession, encodedCommand), query, QJsonDocument());
+}
+
+QCoro::Task<void> JellyfinApiFacade::sendRemoteGeneralCommand(QString sessionId, QString command, QJsonObject arguments)
+{
+    sessionId = sessionId.trimmed();
+    command = command.trimmed();
+    if (sessionId.isEmpty() || command.isEmpty())
+        throw std::runtime_error("Remote general command needs a target and command");
+
+    QJsonObject body { { QStringLiteral("Name"), command } };
+    if (!arguments.isEmpty())
+        body.insert(QStringLiteral("Arguments"), arguments);
+    const QString encodedSession = QString::fromLatin1(QUrl::toPercentEncoding(sessionId));
+    co_await requestNoContent(
+        HttpMethod::Post, QStringLiteral("/Sessions/%1/Command").arg(encodedSession), QJsonDocument(body));
 }
 
 QCoro::Task<QJsonArray> JellyfinApiFacade::fetchSyncPlayGroups()
@@ -1764,36 +1838,52 @@ QCoro::Task<PlaybackSession> JellyfinApiFacade::negotiatePlayback(MovieItem movi
 
 QCoro::Task<void> JellyfinApiFacade::postCapabilities()
 {
+    QJsonArray supportedCommands;
+    if (m_remoteControlTargetEnabled) {
+        supportedCommands = {
+            QStringLiteral("MoveUp"),
+            QStringLiteral("MoveDown"),
+            QStringLiteral("MoveLeft"),
+            QStringLiteral("MoveRight"),
+            QStringLiteral("PageUp"),
+            QStringLiteral("PageDown"),
+            QStringLiteral("PreviousLetter"),
+            QStringLiteral("NextLetter"),
+            QStringLiteral("Select"),
+            QStringLiteral("Back"),
+            QStringLiteral("SendKey"),
+            QStringLiteral("SendString"),
+            QStringLiteral("VolumeUp"),
+            QStringLiteral("VolumeDown"),
+            QStringLiteral("Mute"),
+            QStringLiteral("Unmute"),
+            QStringLiteral("ToggleMute"),
+            QStringLiteral("SetVolume"),
+            QStringLiteral("SetAudioStreamIndex"),
+            QStringLiteral("SetSubtitleStreamIndex"),
+            QStringLiteral("ToggleOsd"),
+            QStringLiteral("ToggleOsdMenu"),
+            QStringLiteral("ToggleContextMenu"),
+            QStringLiteral("ToggleStats"),
+            QStringLiteral("ToggleFullscreen"),
+            QStringLiteral("GoHome"),
+            QStringLiteral("GoToSettings"),
+            QStringLiteral("GoToSearch"),
+            QStringLiteral("DisplayContent"),
+            QStringLiteral("DisplayMessage"),
+            QStringLiteral("SetRepeatMode"),
+            QStringLiteral("SetShuffleQueue"),
+            QStringLiteral("SetPlaybackOrder"),
+            QStringLiteral("SetMaxStreamingBitrate"),
+            QStringLiteral("Play"),
+        };
+    }
     const QJsonObject body = {
-        { QStringLiteral("PlayableMediaTypes"), QJsonArray { QStringLiteral("Video"), QStringLiteral("Audio") } },
-        { QStringLiteral("SupportedCommands"),
-            QJsonArray {
-                QStringLiteral("MoveUp"),
-                QStringLiteral("MoveDown"),
-                QStringLiteral("MoveLeft"),
-                QStringLiteral("MoveRight"),
-                QStringLiteral("Select"),
-                QStringLiteral("Back"),
-                QStringLiteral("VolumeUp"),
-                QStringLiteral("VolumeDown"),
-                QStringLiteral("SetVolume"),
-                QStringLiteral("SetAudioStreamIndex"),
-                QStringLiteral("SetSubtitleStreamIndex"),
-                QStringLiteral("ToggleOsd"),
-                QStringLiteral("ToggleContextMenu"),
-                QStringLiteral("ToggleStats"),
-                QStringLiteral("GoHome"),
-                QStringLiteral("GoToSettings"),
-                QStringLiteral("GoToSearch"),
-                QStringLiteral("Play"),
-                // Pause, Unpause and Stop are PlaystateCommand values, not
-                // GeneralCommandType. Listing them here made the server reject
-                // the whole payload — "The JSON value could not be converted to
-                // GeneralCommandType" — so every capability report failed and
-                // the session advertised nothing at all.
-                QStringLiteral("DisplayMessage"),
-            } },
-        { QStringLiteral("SupportsMediaControl"), true },
+        { QStringLiteral("PlayableMediaTypes"),
+            m_remoteControlTargetEnabled ? QJsonArray { QStringLiteral("Video"), QStringLiteral("Audio") }
+                                         : QJsonArray {} },
+        { QStringLiteral("SupportedCommands"), supportedCommands },
+        { QStringLiteral("SupportsMediaControl"), m_remoteControlTargetEnabled },
         { QStringLiteral("SupportsPersistentIdentifier"), true },
         { QStringLiteral("DeviceProfile"), buildDeviceProfile() },
     };
@@ -1813,7 +1903,8 @@ QJsonArray nowPlayingQueueJson(const std::vector<PlaybackQueueItem>& queue)
     return array;
 }
 
-QCoro::Task<void> JellyfinApiFacade::reportPlaybackStart(PlaybackSession session, double playbackRate)
+QCoro::Task<void> JellyfinApiFacade::reportPlaybackStart(
+    PlaybackSession session, double playbackRate, int volume, bool muted)
 {
     QJsonObject body = {
         { QStringLiteral("CanSeek"), true },
@@ -1825,6 +1916,8 @@ QCoro::Task<void> JellyfinApiFacade::reportPlaybackStart(PlaybackSession session
         { QStringLiteral("AudioStreamIndex"), session.audioStreamIndex },
         { QStringLiteral("SubtitleStreamIndex"), session.subtitleStreamIndex },
         { QStringLiteral("PlaybackRate"), playbackRate },
+        { QStringLiteral("VolumeLevel"), std::clamp(volume, 0, 100) },
+        { QStringLiteral("IsMuted"), muted },
     };
     if (!session.nowPlayingQueue.empty())
         body.insert(QStringLiteral("NowPlayingQueue"), nowPlayingQueueJson(session.nowPlayingQueue));
@@ -1833,7 +1926,7 @@ QCoro::Task<void> JellyfinApiFacade::reportPlaybackStart(PlaybackSession session
 }
 
 QCoro::Task<void> JellyfinApiFacade::reportPlaybackProgress(
-    PlaybackSession session, qint64 positionTicks, bool paused, double playbackRate)
+    PlaybackSession session, qint64 positionTicks, bool paused, double playbackRate, int volume, bool muted)
 {
     QJsonObject body = {
         { QStringLiteral("CanSeek"), true },
@@ -1846,6 +1939,8 @@ QCoro::Task<void> JellyfinApiFacade::reportPlaybackProgress(
         { QStringLiteral("AudioStreamIndex"), session.audioStreamIndex },
         { QStringLiteral("SubtitleStreamIndex"), session.subtitleStreamIndex },
         { QStringLiteral("PlaybackRate"), playbackRate },
+        { QStringLiteral("VolumeLevel"), std::clamp(volume, 0, 100) },
+        { QStringLiteral("IsMuted"), muted },
     };
     if (!session.nowPlayingQueue.empty())
         body.insert(QStringLiteral("NowPlayingQueue"), nowPlayingQueueJson(session.nowPlayingQueue));
@@ -1925,7 +2020,7 @@ QCoro::Task<QJsonDocument> JellyfinApiFacade::requestJson(
 
 QCoro::Task<void> JellyfinApiFacade::requestNoContent(HttpMethod method, QString path, QJsonDocument body)
 {
-    co_await requestBytes(method, path, { }, body);
+    co_await requestBytes(method, path, {}, body);
 }
 
 QCoro::Task<QByteArray> JellyfinApiFacade::requestBytes(
@@ -1953,7 +2048,7 @@ QCoro::Task<QByteArray> JellyfinApiFacade::requestBytes(
             reply = m_rest.get(request);
             break;
         case HttpMethod::Post:
-            reply = body.isNull() ? m_rest.post(request, QByteArray { }) : m_rest.post(request, body);
+            reply = body.isNull() ? m_rest.post(request, QByteArray {}) : m_rest.post(request, body);
             break;
         case HttpMethod::Delete:
             reply = m_rest.deleteResource(request);
@@ -1963,7 +2058,7 @@ QCoro::Task<QByteArray> JellyfinApiFacade::requestBytes(
         m_activeReplies.insert(reply);
         reply = co_await reply;
         m_activeReplies.remove(reply);
-        const QByteArray payload = reply && reply->isReadable() ? reply->readAll() : QByteArray { };
+        const QByteArray payload = reply && reply->isReadable() ? reply->readAll() : QByteArray {};
         const QString errorText = reply ? reply->errorString() : QStringLiteral("Network reply disappeared");
         const int statusCode = reply ? reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt() : 500;
         const auto networkError = reply ? reply->error() : QNetworkReply::UnknownNetworkError;
@@ -2045,9 +2140,9 @@ PlaybackSession JellyfinApiFacade::buildPlaybackSession(
         movie.resumeTicks,
         movie.runtimeTicks,
         mediaStreamsFromApiJson(selectedSource.value(QStringLiteral("MediaStreams")).toArray()),
-        { },
+        {},
         trickplay,
-        { },
+        {},
     };
 }
 

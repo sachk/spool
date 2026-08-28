@@ -24,6 +24,7 @@
 
 #include <QDebug>
 #include <QGuiApplication>
+#include <QInputMethodEvent>
 #include <QJsonArray>
 #include <QKeyEvent>
 #include <QPixmapCache>
@@ -100,6 +101,7 @@ AppController::AppController(DatabaseManager *database, DiscoveryController *dis
 {
     m_playQueue = new PlayQueueController(api, this);
     m_syncPlay = new SyncPlayController(api, player, m_playQueue, tlsTrust, this);
+    m_remoteControl = new RemoteControlController(api, this);
     m_quickConnect = new QuickConnectController(api, this);
     m_settings = new SettingsController(database, api, player, this);
     m_session = new SessionController(database, api, this);
@@ -120,6 +122,8 @@ AppController::AppController(DatabaseManager *database, DiscoveryController *dis
     connect(m_browse, &BrowseSessionController::moreItemsRequested, this, &AppController::loadMoreCurrentItems);
     connect(m_api, &JellyfinApiFacade::authenticationExpired, m_session, &SessionController::expireSession);
     connect(m_syncPlay, &SyncPlayController::errorText, this, &AppController::showToast);
+    connect(m_remoteControl, &RemoteControlController::errorText, this, &AppController::showToast);
+    connect(m_syncPlay, &SyncPlayController::sessionsUpdated, m_remoteControl, &RemoteControlController::applySessions);
     connect(m_database, &DatabaseManager::recoveryNotice, this, &AppController::showToast);
     connect(m_syncPlay, &SyncPlayController::remotePlayCommand, this, &AppController::handleRemotePlay);
     connect(m_syncPlay, &SyncPlayController::remotePlaystateCommand, this, &AppController::handleRemotePlaystate);
@@ -165,6 +169,8 @@ AppController::AppController(DatabaseManager *database, DiscoveryController *dis
         emit defaultProfileChanged();
     });
     connect(m_session, &SessionController::authenticatedChanged, this, [this](const AuthSession&) {
+        m_syncPlay->connectSocket();
+        m_remoteControl->start();
         m_discovery->stop();
         if (m_artwork)
             m_artwork->setAuthorizationHeader(m_api->authorizationHeader());
@@ -393,6 +399,7 @@ void AppController::useProfile(const QString& profileId)
     setErrorText({});
     m_quickConnect->cancel();
     m_syncPlay->disconnectSocket();
+    m_remoteControl->stop();
     m_session->activateProfile(profileId);
 }
 
@@ -412,12 +419,14 @@ void AppController::logout()
     if (m_player->visible())
         m_player->stopWithReason(QStringLiteral("logout"));
     m_syncPlay->disconnectSocket();
+    m_remoteControl->stop();
     m_session->logout();
 }
 
 void AppController::resetApplicationState()
 {
     m_syncPlay->disconnectSocket();
+    m_remoteControl->stop();
     m_settings->clearRemote();
     m_prefetch->stop();
     if (m_artwork) {
@@ -704,6 +713,8 @@ void AppController::removeQueueItem(int index)
 
 void AppController::playNextFromItem(const MovieItem& item)
 {
+    if (m_remoteControl->playItems({ item }, 0, QStringLiteral("PlayNext"), false))
+        return;
     if (enqueueForGroup(item, true))
         return;
     if (!m_playQueue->playNext(item))
@@ -712,6 +723,8 @@ void AppController::playNextFromItem(const MovieItem& item)
 
 void AppController::addToQueueFromItem(const MovieItem& item)
 {
+    if (m_remoteControl->playItems({ item }, 0, QStringLiteral("PlayLast"), false))
+        return;
     if (enqueueForGroup(item, false))
         return;
     if (!m_playQueue->addToQueue(item))
@@ -760,6 +773,8 @@ void AppController::loadMoreCurrentItems()
 
 void AppController::playQueuedItems(const std::vector<MovieItem>& items, int startIndex, bool fromStart)
 {
+    if (m_remoteControl->playItems(items, startIndex, QStringLiteral("PlayNow"), fromStart))
+        return;
     if (!m_playQueue->playNow(items, startIndex)) {
         showToast(QStringLiteral("This item cannot be queued."));
         return;
@@ -771,6 +786,10 @@ void AppController::playModel(MovieGridModel *model, bool shuffled)
 {
     if (!model)
         return;
+    if (shuffled && m_remoteControl->targetSelected()) {
+        m_remoteControl->playItems(model->movies(), 0, QStringLiteral("PlayShuffle"), false);
+        return;
+    }
     const std::vector<MovieItem>& items = model->movies();
     const auto firstPlayable = std::find_if(
         items.begin(), items.end(), [](const MovieItem& item) { return !item.id.isEmpty() && isPlayableItem(item); });
@@ -790,6 +809,9 @@ void AppController::queueEpisodicContainer(const QString& seriesId, const QStrin
     Async::runScoped(
         this, m_api->fetchEpisodes(seriesId, seasonId),
         [this, next](const std::vector<MovieItem>& episodes) {
+            if (m_remoteControl->playItems(episodes, next ? 0 : static_cast<int>(episodes.size()) - 1,
+                    next ? QStringLiteral("PlayNext") : QStringLiteral("PlayLast"), false))
+                return;
             if (episodes.empty()) {
                 setErrorText(QStringLiteral("There is nothing here to queue."));
                 return;
@@ -854,6 +876,8 @@ void AppController::cancelEpisodicPlaybackSelection()
 
 void AppController::playQueuedItem(const MovieItem& item, bool fromStart)
 {
+    if (m_remoteControl->playItems({ item }, 0, QStringLiteral("PlayNow"), fromStart))
+        return;
     if (item.itemType == QStringLiteral("Episode") && !item.seriesId.isEmpty()) {
         playEpisodeWithContext(item, 0, fromStart);
         return;
@@ -995,6 +1019,8 @@ void AppController::playQueueCurrent(bool fromStart)
 
 void AppController::handleRemotePlay(const QJsonObject& data)
 {
+    if (!m_api->remoteControlTargetEnabled())
+        return;
     QStringList itemIds;
     for (const QJsonValue& value : data.value(QStringLiteral("ItemIds")).toArray()) {
         const QString id = value.toString();
@@ -1050,6 +1076,8 @@ void AppController::handleRemotePlay(const QJsonObject& data)
 
 void AppController::handleRemotePlaystate(const QJsonObject& data)
 {
+    if (!m_api->remoteControlTargetEnabled())
+        return;
     const QString command = data.value(QStringLiteral("Command")).toString();
     qInfo() << "remote: playstate" << command;
     if (command == QStringLiteral("Stop")) {
@@ -1080,32 +1108,66 @@ void AppController::handleRemotePlaystate(const QJsonObject& data)
 
 void AppController::handleRemoteGeneralCommand(const QJsonObject& data)
 {
+    if (!m_api->remoteControlTargetEnabled())
+        return;
     const QString command = data.value(QStringLiteral("Name")).toString();
     const QJsonObject arguments = data.value(QStringLiteral("Arguments")).toObject();
+    const auto argumentInt = [&arguments](const QString& key, int fallback = 0) {
+        bool ok = false;
+        const int value = arguments.value(key).toVariant().toInt(&ok);
+        return ok ? value : fallback;
+    };
     qInfo() << "remote: general command" << command;
 
     if (command == QStringLiteral("SetVolume")) {
-        m_player->setVolume(arguments.value(QStringLiteral("Volume")).toString().toInt());
+        m_player->setVolume(argumentInt(QStringLiteral("Volume"), m_player->volume()));
     } else if (command == QStringLiteral("VolumeUp")) {
         m_player->adjustVolume(5);
     } else if (command == QStringLiteral("VolumeDown")) {
         m_player->adjustVolume(-5);
+    } else if (command == QStringLiteral("Mute")) {
+        m_player->setMuted(true);
+    } else if (command == QStringLiteral("Unmute")) {
+        m_player->setMuted(false);
+    } else if (command == QStringLiteral("ToggleMute")) {
+        m_player->toggleMuted();
     } else if (command == QStringLiteral("SetAudioStreamIndex")) {
-        m_player->selectAudioStreamIndex(arguments.value(QStringLiteral("Index")).toString().toInt());
+        m_player->selectAudioStreamIndex(argumentInt(QStringLiteral("Index"), -1));
     } else if (command == QStringLiteral("SetSubtitleStreamIndex")) {
-        m_player->selectSubtitleStreamIndex(arguments.value(QStringLiteral("Index")).toString().toInt());
+        m_player->selectSubtitleStreamIndex(argumentInt(QStringLiteral("Index"), -1));
+    } else if (command == QStringLiteral("SetRepeatMode")) {
+        const QString mode = arguments.value(QStringLiteral("RepeatMode")).toString();
+        if (mode == QStringLiteral("RepeatNone") || mode == QStringLiteral("RepeatAll")
+            || mode == QStringLiteral("RepeatOne"))
+            m_remoteRepeatMode = mode;
+    } else if (command == QStringLiteral("SetShuffleQueue")) {
+        m_playQueue->setShuffled(
+            arguments.value(QStringLiteral("ShuffleMode")).toString() == QStringLiteral("Shuffle"));
+    } else if (command == QStringLiteral("SetPlaybackOrder")) {
+        m_playQueue->setShuffled(
+            arguments.value(QStringLiteral("PlaybackOrder")).toString() == QStringLiteral("Shuffle"));
+    } else if (command == QStringLiteral("SetMaxStreamingBitrate")) {
+        selectStreamingQuality(arguments.value(QStringLiteral("Bitrate")).toVariant().toLongLong());
     } else if (command == QStringLiteral("ToggleStats")) {
         m_player->toggleDebugOsd();
     } else if (command == QStringLiteral("ToggleOsd")) {
         emit remoteUiActionRequested(QStringLiteral("toggle-osd"));
-    } else if (command == QStringLiteral("ToggleContextMenu")) {
+    } else if (command == QStringLiteral("ToggleOsdMenu") || command == QStringLiteral("ToggleContextMenu")) {
         emit remoteUiActionRequested(QStringLiteral("context-menu"));
+    } else if (command == QStringLiteral("ToggleFullscreen")) {
+        emit remoteUiActionRequested(QStringLiteral("fullscreen"));
     } else if (command == QStringLiteral("GoHome")) {
         emit remoteUiActionRequested(QStringLiteral("home"));
     } else if (command == QStringLiteral("GoToSettings")) {
         emit remoteUiActionRequested(QStringLiteral("settings"));
     } else if (command == QStringLiteral("GoToSearch")) {
         emit remoteUiActionRequested(QStringLiteral("search"));
+    } else if (command == QStringLiteral("DisplayContent")) {
+        const QString itemId = arguments.value(QStringLiteral("ItemId")).toString();
+        if (!itemId.isEmpty()) {
+            emit remoteContentRequested(itemId, arguments.value(QStringLiteral("ItemType")).toString(),
+                arguments.value(QStringLiteral("ItemName")).toString());
+        }
     } else if (command == QStringLiteral("Play") || command == QStringLiteral("Unpause")) {
         if (m_player->paused())
             m_syncPlay->enabled() ? m_syncPlay->requestTogglePause() : m_player->togglePause();
@@ -1114,20 +1176,39 @@ void AppController::handleRemoteGeneralCommand(const QJsonObject& data)
             m_syncPlay->enabled() ? m_syncPlay->requestTogglePause() : m_player->togglePause();
     } else if (command == QStringLiteral("Stop")) {
         m_player->stopWithReason(QStringLiteral("remote-stop"));
+    } else if (command == QStringLiteral("PlayNext")) {
+        playQueueNext();
     } else if (command == QStringLiteral("DisplayMessage")) {
         const QString message = arguments.value(QStringLiteral("Text")).toString().trimmed();
         if (!message.isEmpty())
             emit remoteMessageRequested(message);
+    } else if (command == QStringLiteral("SendString")) {
+        const QString text = arguments.value(QStringLiteral("String")).toString();
+        QObject *focusObject = QGuiApplication::focusObject();
+        if (!text.isEmpty() && focusObject) {
+            QInputMethodEvent input;
+            input.setCommitString(text);
+            QCoreApplication::sendEvent(focusObject, &input);
+        }
     } else {
         const QHash<QString, int> keys = {
             { QStringLiteral("MoveUp"), Qt::Key_Up },
             { QStringLiteral("MoveDown"), Qt::Key_Down },
             { QStringLiteral("MoveLeft"), Qt::Key_Left },
             { QStringLiteral("MoveRight"), Qt::Key_Right },
+            { QStringLiteral("PageUp"), Qt::Key_PageUp },
+            { QStringLiteral("PageDown"), Qt::Key_PageDown },
+            { QStringLiteral("PreviousLetter"), Qt::Key_PageUp },
+            { QStringLiteral("NextLetter"), Qt::Key_PageDown },
             { QStringLiteral("Select"), Qt::Key_Return },
             { QStringLiteral("Back"), Qt::Key_Back },
+            { QStringLiteral("Home"), Qt::Key_Home },
+            { QStringLiteral("End"), Qt::Key_End },
+            { QStringLiteral("Space"), Qt::Key_Space },
         };
-        const auto found = keys.constFind(command);
+        const QString keyName
+            = command == QStringLiteral("SendKey") ? arguments.value(QStringLiteral("Key")).toString() : command;
+        const auto found = keys.constFind(keyName);
         if (found != keys.cend() && QGuiApplication::focusWindow()) {
             QKeyEvent press(QEvent::KeyPress, *found, Qt::NoModifier);
             QKeyEvent release(QEvent::KeyRelease, *found, Qt::NoModifier);
@@ -1467,13 +1548,19 @@ void AppController::handlePlaybackStopped(const QString& itemId, qint64 position
         setPlaybackTransition(false);
         return;
     }
-    if (m_playQueue->next()) {
-        // The player surface comes down the moment mpv reports end-of-file and
-        // does not come back until the next item has been negotiated and
-        // decoded — most of a second, during which the shell would fall back to
-        // the details page behind it. Hold the surface across the gap.
+    bool continueQueue = false;
+    if (m_remoteRepeatMode == QStringLiteral("RepeatOne")) {
+        continueQueue = m_playQueue->currentIndex() >= 0;
+    } else {
+        continueQueue = m_playQueue->next();
+        if (!continueQueue && m_remoteRepeatMode == QStringLiteral("RepeatAll") && m_playQueue->rowCount() > 0)
+            continueQueue = m_playQueue->playAt(0);
+    }
+    if (continueQueue) {
+        // Hold the surface across the gap while the next (or repeated) item is
+        // negotiated and decoded.
         setPlaybackTransition(true);
-        playQueueCurrent(false);
+        playQueueCurrent(m_remoteRepeatMode == QStringLiteral("RepeatOne"));
     } else {
         setPlaybackTransition(false);
         m_playQueue->enqueueEpisodeSuccessors(m_activePlaybackItem);

@@ -108,6 +108,7 @@ set(SPOOL_PLATFORM_SOURCES
     src/platform/NativeAppWindow.h
     src/platform/PlatformApplicationServices.h
     src/platform/PlatformCapabilities.h
+    src/platform/PlatformRemoteMediaSession.h
     src/platform/PlatformPaths.h
     src/platform/PlatformPerformanceSampler.h
     src/platform/PlatformPlaybackRuntime.h
@@ -119,6 +120,7 @@ set(SPOOL_PLATFORM_SOURCES
     src/platform/ScreenSaverInhibitor.h
     src/platform/common/NativeAppWindowCommon.cpp
     src/platform/common/ScreenSaverInhibitor.cpp
+    src/platform/common/PlatformRemoteMediaSession.cpp
 )
 
 # libmpv facade and playback state.
@@ -218,6 +220,8 @@ set(SPOOL_JELLYFIN_SOURCES
     src/app/LibraryQuery.h
     src/app/QuickConnectController.cpp
     src/app/QuickConnectController.h
+    src/app/RemoteControlController.cpp
+    src/app/RemoteControlController.h
     src/app/SearchController.cpp
     src/app/SearchController.h
     src/app/SessionController.cpp
@@ -400,6 +404,7 @@ qt_add_qml_module(jellyfin-native
         qml/pages/PlayerStatsPanel.qml
         qml/pages/PlayerTransportBar.qml
         qml/pages/PlayerTrickplayPreview.qml
+        qml/pages/RemoteControlPage.qml
         qml/pages/SearchPage.qml
         qml/pages/SettingsPage.qml
         qml/pages/SettingsNavigation.js
@@ -454,6 +459,7 @@ qt_add_qml_module(jellyfin-native
         qml/shell/OverlayDialog.qml
         qml/shell/RoutePolicy.js
         qml/shell/RouteStack.qml
+        qml/shell/RemoteControlMenu.qml
         qml/shell/SyncPlayMenu.qml
         qml/shell/TlsTrustDialog.qml
         qml/shell/ToastLayer.qml
@@ -613,6 +619,7 @@ if(BUILD_TESTING AND NOT CMAKE_CROSSCOMPILING)
         router-controller tests/app/RouterControllerTest.cpp
         library-query tests/app/LibraryQueryTest.cpp
         content-model-controller tests/app/ContentModelControllerTest.cpp
+        remote-control-controller tests/app/RemoteControlControllerTest.cpp
         sync-play-clock tests/app/SyncPlayClockTest.cpp
         sync-play-queue-handoff tests/app/SyncPlayQueueHandoffTest.cpp
         sync-play-drift-policy tests/app/SyncPlayDriftPolicyTest.cpp

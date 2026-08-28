@@ -41,6 +41,8 @@ class SettingsController final : public QObject {
     Q_PROPERTY(QVariantMap values READ values NOTIFY settingsValuesChanged)
     Q_PROPERTY(
         bool playerControlTooltipsEnabled READ playerControlTooltipsEnabled NOTIFY playerControlTooltipsEnabledChanged)
+    Q_PROPERTY(bool castButtonEnabled READ castButtonEnabled NOTIFY remoteControlSettingsChanged)
+    Q_PROPERTY(bool remoteControlTargetEnabled READ remoteControlTargetEnabled NOTIFY remoteControlSettingsChanged)
 
 public:
     SettingsController(
@@ -69,6 +71,14 @@ public:
     bool playerControlTooltipsEnabled() const
     {
         return m_playerControlTooltipSessions < 3;
+    }
+    bool castButtonEnabled() const
+    {
+        return m_castButtonEnabled;
+    }
+    bool remoteControlTargetEnabled() const
+    {
+        return m_remoteControlTargetEnabled;
     }
 
     static QStringList localSettingKeys();
@@ -106,6 +116,7 @@ signals:
     void settingChanged(const QString& key);
     void settingsValuesChanged();
     void playerControlTooltipsEnabledChanged();
+    void remoteControlSettingsChanged();
     void errorOccurred(const QString& message);
 
 private:
@@ -126,6 +137,8 @@ private:
     QVariantMap m_values;
     bool m_remoteLoadStarted = false;
     bool m_nightModeEnabled = false;
+    bool m_castButtonEnabled = true;
+    bool m_remoteControlTargetEnabled = true;
     bool m_toneMappingVisualizationEnabled = false;
     bool m_manualStreamingBitrate = false;
     int m_maxStreamingBitrateMbps = 120;

@@ -24,6 +24,31 @@
 namespace JellyfinNative {
 namespace {
     constexpr SettingChoice kAndroidAudioChoices[] = { { "auto", "Automatic" } };
+    QString androidDeviceName()
+    {
+        const QJniObject context = QNativeInterface::QAndroidApplication::context();
+        if (context.isValid()) {
+            const QJniObject resolver
+                = context.callObjectMethod("getContentResolver", "()Landroid/content/ContentResolver;");
+            const QJniObject key = QJniObject::fromString(QStringLiteral("device_name"));
+            const QJniObject configured = QJniObject::callStaticObjectMethod("android/provider/Settings$Global",
+                "getString", "(Landroid/content/ContentResolver;Ljava/lang/String;)Ljava/lang/String;",
+                resolver.object<jobject>(), key.object<jstring>());
+            const QString name = configured.toString().trimmed();
+            if (!name.isEmpty() && name.compare(QStringLiteral("null"), Qt::CaseInsensitive) != 0)
+                return name;
+        }
+
+        const QString model
+            = QJniObject::getStaticObjectField<jstring>("android/os/Build", "MODEL").toString().trimmed();
+        if (!model.isEmpty())
+            return model;
+#ifdef SPOOL_ANDROID_TV
+        return QStringLiteral("Android TV");
+#else
+        return QStringLiteral("Android device");
+#endif
+    }
 
     class AndroidScreenSaverBackend final : public ScreenSaverBackend {
     public:
@@ -63,17 +88,20 @@ const PlatformCapabilities& platformCapabilities()
 {
 #ifdef SPOOL_ANDROID_TV
     static const PlatformCapabilities capabilities {
-        .deviceName = QStringLiteral("Android TV"),
+        .deviceName = androidDeviceName(),
         .rendererName = QStringLiteral("libmpv OpenGL ES"),
         .isTV = true,
+        .isAndroid = true,
         .hasSystemFonts = false,
         .hasDesktopPointer = false,
     };
 #else
     static const PlatformCapabilities capabilities {
-        .deviceName = QStringLiteral("Android"),
+        .deviceName = androidDeviceName(),
         .rendererName = QStringLiteral("libmpv OpenGL ES"),
         .isTV = false,
+        .isAndroid = true,
+        .isMobile = true,
         // The Android media stack is built without a system font provider, so
         // libass can only use the fonts the app ships with it.
         .hasSystemFonts = false,
@@ -162,6 +190,22 @@ int platformDefaultUiScalePercent()
 bool platformUsesPerOutputAudioDelay()
 {
     return false;
+}
+bool platformDefaultCastButtonEnabled()
+{
+#ifdef SPOOL_ANDROID_TV
+    return false;
+#else
+    return true;
+#endif
+}
+bool platformDefaultRemoteControlTargetEnabled()
+{
+#ifdef SPOOL_ANDROID_TV
+    return true;
+#else
+    return false;
+#endif
 }
 QString normalizedPlatformAudioRoute(const QString& output)
 {

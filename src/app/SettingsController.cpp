@@ -120,8 +120,12 @@ void SettingsController::applyLocalValues(const QVariantMap& storedValues)
             continue;
         }
         const QVariant rawValue = storedValues.value(key);
-        const QVariant stored
-            = !rawValue.isValid() || rawValue.toString().isEmpty() ? settingDefaultValue(spec) : rawValue;
+        QVariant defaultValue = settingDefaultValue(spec);
+        if (spec.target == SettingTarget::CastButtonEnabled)
+            defaultValue = platformDefaultCastButtonEnabled();
+        else if (spec.target == SettingTarget::RemoteControlTargetEnabled)
+            defaultValue = platformDefaultRemoteControlTargetEnabled();
+        const QVariant stored = !rawValue.isValid() || rawValue.toString().isEmpty() ? defaultValue : rawValue;
         const QVariant normalized = normalizedSettingValue(spec, stored);
         m_values.insert(key, normalized);
         applySchemaValue(spec, normalized, false);
@@ -174,6 +178,7 @@ void SettingsController::applyLocalValues(const QVariantMap& storedValues)
     emit subtitleSettingsChanged();
     emit buttonRemapChanged();
     emit appearanceChanged();
+    emit remoteControlSettingsChanged();
 }
 
 void SettingsController::loadRemote()
@@ -435,6 +440,14 @@ void SettingsController::applySchemaValue(const SettingSpec& spec, const QVarian
         if (apply && m_player)
             m_player->setNightModeEnabled(m_nightModeEnabled);
         break;
+    case SettingTarget::CastButtonEnabled:
+        m_castButtonEnabled = value.toBool();
+        break;
+    case SettingTarget::RemoteControlTargetEnabled:
+        m_remoteControlTargetEnabled = value.toBool();
+        if (m_api)
+            m_api->setRemoteControlTargetEnabled(m_remoteControlTargetEnabled);
+        break;
     case SettingTarget::ToneMappingVisualization:
         m_toneMappingVisualizationEnabled = value.toBool();
         if (apply && m_player)
@@ -658,6 +671,10 @@ void SettingsController::emitSchemaSignals(const SettingSpec& spec)
         break;
     case SettingTarget::NightMode:
         emit nightModeChanged();
+        break;
+    case SettingTarget::CastButtonEnabled:
+    case SettingTarget::RemoteControlTargetEnabled:
+        emit remoteControlSettingsChanged();
         break;
     case SettingTarget::ToneMappingVisualization:
     case SettingTarget::ManualStreamingBitrate:

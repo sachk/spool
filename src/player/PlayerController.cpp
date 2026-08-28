@@ -231,7 +231,8 @@ PlayerController::PlayerController(NativeAppWindow *window, JellyfinApiFacade *a
 
         logMemoryStats();
 
-        m_reporter.reportProgress(secondsToTicks(m_positionTracker.position()), m_paused, effectivePlaybackSpeed());
+        m_reporter.reportProgress(secondsToTicks(m_positionTracker.position()), m_paused, effectivePlaybackSpeed(),
+            m_volume.load(), m_muted.load());
     });
     connect(&m_reporter, &PlaybackReporter::reportFailed, this, [](const QString& operation, const QString& message) {
         Diagnostics::logEvent(QStringLiteral("player"), QStringLiteral("report_failed"),
@@ -628,6 +629,10 @@ QString PlayerController::audioOutputMode() const
 int PlayerController::volume() const
 {
     return m_volume.load();
+}
+bool PlayerController::muted() const
+{
+    return m_muted.load();
 }
 
 double PlayerController::playbackSpeed() const
@@ -1327,7 +1332,8 @@ void PlayerController::updateReportedStreamSelection(bool sendProgress)
         : -1;
     const bool reportChanged = m_reporter.setStreamIndexes(m_session.audioStreamIndex, m_session.subtitleStreamIndex);
     if (reportChanged && sendProgress && m_sessionActive)
-        m_reporter.reportProgress(secondsToTicks(m_positionTracker.position()), m_paused, effectivePlaybackSpeed());
+        m_reporter.reportProgress(secondsToTicks(m_positionTracker.position()), m_paused, effectivePlaybackSpeed(),
+            m_volume.load(), m_muted.load());
 }
 
 void PlayerController::nextChapter()
@@ -1463,6 +1469,9 @@ void PlayerController::setVolume(int volume)
     mpvCommand({ QByteArrayLiteral("no-osd"), QByteArrayLiteral("set"), QByteArrayLiteral("volume"),
         QByteArray::number(clampedVolume) });
     emit volumeChanged();
+    if (m_sessionActive)
+        m_reporter.reportProgress(secondsToTicks(m_positionTracker.position()), m_paused, effectivePlaybackSpeed(),
+            m_volume.load(), m_muted.load());
 }
 
 void PlayerController::adjustVolume(int delta)
@@ -1470,6 +1479,23 @@ void PlayerController::adjustVolume(int delta)
     if (delta == 0)
         return;
     setVolume(m_volume.load() + delta);
+}
+void PlayerController::setMuted(bool muted)
+{
+    if (m_muted.load() == muted)
+        return;
+    m_muted = muted;
+    mpvCommand({ QByteArrayLiteral("no-osd"), QByteArrayLiteral("set"), QByteArrayLiteral("mute"),
+        muted ? QByteArrayLiteral("yes") : QByteArrayLiteral("no") });
+    emit volumeChanged();
+    if (m_sessionActive)
+        m_reporter.reportProgress(secondsToTicks(m_positionTracker.position()), m_paused, effectivePlaybackSpeed(),
+            m_volume.load(), m_muted.load());
+}
+
+void PlayerController::toggleMuted()
+{
+    setMuted(!m_muted.load());
 }
 
 void PlayerController::setPlaybackSpeed(double speed)
@@ -1632,7 +1658,7 @@ void PlayerController::startProgressReporting()
     m_progressTimer.start();
 
     updateReportedStreamSelection(false);
-    m_reporter.start(m_session, effectivePlaybackSpeed());
+    m_reporter.start(m_session, effectivePlaybackSpeed(), m_volume.load(), m_muted.load());
 }
 
 void PlayerController::stopProgressReporting(bool failed, bool completed)

@@ -198,6 +198,7 @@ signals:
     void remotePlayCommand(const QJsonObject& data);
     void remotePlaystateCommand(const QJsonObject& data);
     void remoteGeneralCommand(const QJsonObject& data);
+    void sessionsUpdated(const QJsonArray& sessions);
     void queuePlaybackRequested(qint64 positionTicks);
 
 private:
