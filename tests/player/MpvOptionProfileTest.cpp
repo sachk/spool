@@ -348,6 +348,8 @@ JELLYFIN_TEST_MAIN("mpv-option-profile")
         "text subtitle size should remain proportional to the player viewport");
     require(valueFor(subtitleOptions, "sub-bold") == "yes", "subtitle bold preference was not mapped");
     require(valueFor(subtitleOptions, "sub-pos") == "40", "subtitle vertical percentage was not mapped");
+    require(valueFor(subtitleOptions, "sub-margin-y") == "0",
+        "text subtitles should sit where image subtitles do, without a bottom margin of their own");
     require(valueFor(subtitleOptions, "sub-color") == "#FF00FFCC", "subtitle color was not converted to ARGB");
     require(valueFor(subtitleOptions, "sub-border-size") == "4.5", "uniform shadow should increase border size");
     require(valueFor(subtitleOptions, "sub-shadow-offset") == "0", "uniform shadow should disable shadow offset");

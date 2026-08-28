@@ -409,6 +409,13 @@ std::vector<MpvOption> MpvOptionProfile::subtitleOptions(
         { "sub-sdf-shadow-dither", mpvBool(prefs.bitmapShadowDither) },
         { "sub-bold", mpvBool(prefs.textWeight == QStringLiteral("bold")) },
         { "sub-pos", QByteArray::number(vertical) },
+        // Text and image subtitles have to sit in the same place at the same
+        // setting. An image subtitle is moved by its ink box, so at 100 it
+        // touches the bottom of the picture; libass falls back to the style's
+        // bottom margin there, which left text a whole line higher than the
+        // burned-in subtitles of the same film. No margin, no discrepancy: the
+        // vertical position means the same thing for both.
+        { "sub-margin-y", "0" },
         { "sub-color", subtitleColor },
         { "sub-border-size", shadow.borderSize },
         { "sub-border-color", "#FF000000" },
