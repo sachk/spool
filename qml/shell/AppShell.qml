@@ -299,12 +299,20 @@ KeyRouter {
         }
     }
 
+    // Every platform states its own text rendering rather than inheriting a
+    // default, so that tuning one cannot quietly move another.
+    //
+    // A television draws a 1080p scene that the panel upscales to 4K over an
+    // RGBW subpixel layout: there is no subpixel geometry worth rendering for,
+    // and anything soft at 1080p is softer again by the time it reaches the
+    // screen. It takes the platform rasterizer with full hinting, which is
+    // what keeps stems on whole pixels and glyphs crisp through the upscale.
+    //
     // Linux native rendering goes through the platform FreeType/fontconfig
     // path, including the user's antialiasing and subpixel policy. Light
     // hinting keeps baselines aligned without snapping stems to whole pixels,
-    // which is what small labels were being coarsened by. The TV keeps full
-    // hinting for its 1080p scene; other desktops retain Qt's scalable
-    // distance-field rendering.
+    // which is what small labels were being coarsened by. Other desktops
+    // retain Qt's scalable distance-field rendering.
     Component.onCompleted: {
         // A phone is a finger until something says otherwise. The pointer
         // handlers above only fire once the app has been touched, so without
@@ -313,10 +321,13 @@ KeyRouter {
             Metrics.coarsePointer = true
             Metrics.keyboardFocusActive = false
         }
-        if (!Platform.isTV && Qt.platform.os === "linux") {
+        if (Platform.isTV) {
+            Theme.normalTextRenderType = Text.NativeRendering
+            Typography.sansHinting = Font.PreferFullHinting
+        } else if (Qt.platform.os === "linux") {
             Theme.normalTextRenderType = Text.NativeRendering
             Typography.sansHinting = Font.PreferVerticalHinting
-        } else if (!Platform.isTV) {
+        } else {
             Theme.normalTextRenderType = Text.QtRendering
         }
         // The TV keeps its two-step text entry: there the field taking focus

@@ -317,9 +317,14 @@ Item {
                 ColumnLayout {
                     Layout.fillWidth: true
                     spacing: metadataLine.visible ? root.dp(6) : 0
+                    // Whole pixels: a line's natural height carries a fraction
+                    // from the font's metrics, and the line under it inherits
+                    // that as its offset. The television rasterizes text with
+                    // the platform's own hinting, which has nothing to give a
+                    // glyph landing half a pixel down.
                     AppText {
                         Layout.fillWidth: true
-                        Layout.preferredHeight: visible ? implicitHeight : 0
+                        Layout.preferredHeight: visible ? Math.ceil(implicitHeight) : 0
                         visible: !root.overlay.audioOnly && (!root.overlay.episodeQueue
                                                              || root.overlay.showEpisodeTitle)
 
@@ -334,7 +339,7 @@ Item {
                     AppText {
                         id: metadataLine
                         Layout.fillWidth: true
-                        Layout.preferredHeight: visible ? implicitHeight : 0
+                        Layout.preferredHeight: visible ? Math.ceil(implicitHeight) : 0
                         visible: !root.overlay.audioOnly && root.overlay.overlayMetadataText.length > 0
                         text: root.overlay.overlayMetadataText
                         color: Theme.textSecondary
