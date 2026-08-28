@@ -21,6 +21,17 @@ class PlayQueueController final : public QAbstractListModel {
     Q_PROPERTY(bool shuffled READ shuffled WRITE setShuffled NOTIFY queueChanged)
     Q_PROPERTY(bool canGoNext READ canGoNext NOTIFY currentIndexChanged)
     Q_PROPERTY(bool canGoPrevious READ canGoPrevious NOTIFY currentIndexChanged)
+    // What is playing, as the same snapshot get() hands out. A queue can be
+    // replaced under an unchanged index -- one item swapped for another at the
+    // same position, which is what starting a second thing in a row does -- so
+    // a binding written as get(currentIndex) is not told anything happened and
+    // goes on naming the item that was playing before. This is notified by
+    // every queue mutation, index change or not.
+    Q_PROPERTY(QVariantMap currentEntry READ currentEntry NOTIFY queueChanged)
+    // Whether the queue is a playlist rather than a run of episodes, which is
+    // what decides whether it can be stepped through. Asked of the model so it
+    // is answered against the queue as it is now.
+    Q_PROPERTY(bool hasPlaylistItems READ hasPlaylistItems NOTIFY queueChanged)
     // The same queue with its automatically filled runs folded up, which is
     // what the panel lists. Owned here so there is one outline per queue.
     Q_PROPERTY(JellyfinNative::PlayQueueOutlineModel *outline READ outline CONSTANT)
@@ -95,6 +106,11 @@ public:
     {
         return index >= 0 && index < rowCount() && m_userQueued[static_cast<size_t>(index)];
     }
+    QVariantMap currentEntry() const
+    {
+        return get(currentIndex());
+    }
+    bool hasPlaylistItems() const;
     MovieItem currentItem() const
     {
         const int index = currentIndex();

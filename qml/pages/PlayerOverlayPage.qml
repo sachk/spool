@@ -50,8 +50,11 @@ FocusScope {
     // Nothing hides over a now playing stage, and the controls that only make
     // sense against a picture are left out of it.
     readonly property bool audioOnly: hasPlayer && player.mediaKind === "audio"
-    readonly property var currentQueueItem: playQueue && playQueue.currentIndex >= 0 && playQueue.currentIndex
-                                            < playQueue.count ? playQueue.get(playQueue.currentIndex) : ({})
+    // Asked of the queue rather than indexed out of it: swapping one item for
+    // another at the same position never moves currentIndex, and a binding on
+    // get(currentIndex) went on titling the overlay with what had been playing
+    // before -- which is how an episode lost the series line above it.
+    readonly property var currentQueueItem: playQueue ? playQueue.currentEntry : ({})
     readonly property bool syncPlayMenuOpen: chrome.syncPlayMenuOpen
     readonly property string episodeContextText: {
         if (!episodeQueue)
@@ -80,16 +83,7 @@ FocusScope {
                                                  currentQueueItem.title || "").trim().length > 0
     readonly property string overlayTitle: episodeQueue ? String(currentQueueItem.title || "") : hasPlayer
                                                           ? player.title : ""
-    readonly property bool playlistQueue: {
-        if (!playQueue)
-            return false
-        for (let index = 0; index < playQueue.count; ++index) {
-            const item = playQueue.get(index)
-            if (item && String(item.playlistItemId || "").length > 0)
-                return true
-        }
-        return false
-    }
+    readonly property bool playlistQueue: playQueue ? playQueue.hasPlaylistItems : false
     readonly property bool episodeQueue: String(currentQueueItem.itemType || "") === "Episode"
     readonly property bool episodeContextMissing: episodeQueue && playQueue.count <= 1 && String(
                                                       currentQueueItem.seriesId || "").length > 0

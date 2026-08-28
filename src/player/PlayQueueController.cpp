@@ -227,6 +227,12 @@ QVariantMap PlayQueueController::get(int index) const
     return itemSnapshot(m_entries[static_cast<size_t>(index)]);
 }
 
+bool PlayQueueController::hasPlaylistItems() const
+{
+    return std::any_of(
+        m_entries.cbegin(), m_entries.cend(), [](const MovieItem& item) { return !item.playlistItemId.isEmpty(); });
+}
+
 bool PlayQueueController::updateResumeTicks(const QString& itemId, qint64 resumeTicks)
 {
     if (itemId.isEmpty())

@@ -217,8 +217,35 @@ JELLYFIN_TEST_MAIN("play-queue-controller")
     require(!queue.matchesQueue(mirrored, queue.currentIndex()),
         "a shuffled queue plays in a different order than its rows, so it never matches");
 
+    // Starting one thing straight after another leaves the playing row where
+    // it was, so nothing about the index changes. The overlay titles itself
+    // from currentEntry for exactly this: it has to name the new item.
+    std::vector<MovieItem> firstRun = { item(QStringLiteral("s1"), QStringLiteral("First")) };
+    firstRun[0].seriesName = QStringLiteral("First Show");
+    std::vector<MovieItem> secondRun = { item(QStringLiteral("s2"), QStringLiteral("Second")) };
+    secondRun[0].seriesName = QStringLiteral("Second Show");
+    require(queue.playNow(firstRun, 0), "a single-item queue should be accepted");
+    require(queue.currentEntry().value(QStringLiteral("movieId")).toString() == QStringLiteral("s1"),
+        "currentEntry should name the playing item");
+    int queueNotifications = 0;
+    QObject::connect(
+        &queue, &PlayQueueController::queueChanged, &queue, [&queueNotifications]() { ++queueNotifications; });
+    const int unchangedIndex = queue.currentIndex();
+    require(queue.playNow(secondRun, 0), "a replacement queue should be accepted");
+    require(queue.currentIndex() == unchangedIndex, "the replacement should keep the playing row where it was");
+    require(queueNotifications > 0, "replacing the queue should notify currentEntry even with the index unmoved");
+    require(queue.currentEntry().value(QStringLiteral("movieId")).toString() == QStringLiteral("s2")
+            && queue.currentEntry().value(QStringLiteral("seriesName")).toString() == QStringLiteral("Second Show"),
+        "currentEntry should follow a queue swapped under an unchanged index");
+
+    require(queue.playNow(entries, 1), "a fresh queue should accept the sample entries");
+    require(queue.hasPlaylistItems(), "a queue built from playlist rows should say so");
+    require(queue.playNow(secondRun, 0), "a replacement queue should be accepted");
+    require(!queue.hasPlaylistItems(), "a queue of plain episodes carries no playlist rows");
+
     queue.clear();
     require(queue.count() == 0 && queue.currentIndex() == -1, "clear should empty queue and reset current index");
+    require(queue.currentEntry().isEmpty(), "an empty queue should have no current entry");
 
     MovieItem blocked = item(QStringLiteral("x"), QStringLiteral("Blocked"));
     blocked.itemType = QStringLiteral("Series");
