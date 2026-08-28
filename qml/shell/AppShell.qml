@@ -154,12 +154,35 @@ KeyRouter {
         function onPointerForwardRequested() {
             root.forward()
         }
+        function onPlatformSurfaceExposed(exposed) {
+            if (exposed)
+                root.restoreInputFocus()
+        }
+    }
+
+    // Coming back from the background can leave the scene with nothing
+    // focused: the window is handed the remote's keys again, but the key
+    // router they are meant for no longer has active focus, so every press
+    // goes nowhere until something else happens to take it. Put focus back
+    // where the shell already says input belongs.
+    function restoreInputFocus() {
+        const window = root.Window.window
+        if (textInputActive || (window && window.activeFocusItem))
+            return
+        // activeTarget is already the shell's answer to where input belongs,
+        // dialog or player or page, so it is the right thing to hand back to.
+        InputKeys.focus(activeTarget || navigationTarget)
     }
 
     Connections {
         target: root.Window.window
         function onActiveFocusItemChanged() {
             root.refreshKeyboardAvoidance()
+            // Deferred, because a page being swapped out drops focus for the
+            // rest of the turn before whatever replaces it takes focus back.
+            // restoreInputFocus stands down if that happened.
+            if (!root.Window.window.activeFocusItem)
+                Qt.callLater(root.restoreInputFocus)
         }
     }
 

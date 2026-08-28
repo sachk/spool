@@ -72,6 +72,7 @@ struct NativeAppWindow::PlatformData {
     std::string windowId;
     int fullscreenRequestGeneration = 0;
     bool fullscreenConfirmationPending = false;
+    int foregroundAttempts = 0;
     QMutex cropMutex;
     CropRegion pendingCrop;
     bool cropUpdateQueued = false;
@@ -159,9 +160,27 @@ void NativeAppWindow::bringToFront()
     showFullScreen();
     requestActivate();
     requestUpdate();
-    if (!ensureShellSurface())
+    if (ensureShellSurface()) {
+        m_platform->foregroundAttempts = 0;
+        requestPlatformFullscreen();
         return;
-    requestPlatformFullscreen();
+    }
+
+    // A relaunch can reach us before the compositor has handed the window its
+    // surface back, and nothing else re-issues the request: the app then sits
+    // behind whatever is in front of it, with the remote's keys going there,
+    // until something happens to ask again. Keep asking until there is a
+    // surface to ask with.
+    constexpr int kForegroundRetryMs = 100;
+    constexpr int kMaxForegroundAttempts = 20;
+    if (m_platform->foregroundAttempts >= kMaxForegroundAttempts) {
+        qWarning() << "webOS shell: no surface to bring to the front after"
+                   << kMaxForegroundAttempts * kForegroundRetryMs << "ms";
+        m_platform->foregroundAttempts = 0;
+        return;
+    }
+    ++m_platform->foregroundAttempts;
+    QTimer::singleShot(kForegroundRetryMs, this, [this]() { bringToFront(); });
 }
 
 void NativeAppWindow::requestPlatformFullscreen()
