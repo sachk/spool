@@ -34,6 +34,7 @@ extern "C" {
     X(mpv_destroy)                                                                                                     \
     X(mpv_terminate_destroy)                                                                                           \
     X(mpv_wait_event)                                                                                                  \
+    X(mpv_request_log_messages)                                                                                        \
     X(mpv_observe_property)                                                                                            \
     X(mpv_set_option_string)                                                                                           \
     X(mpv_set_property)                                                                                                \
@@ -334,6 +335,13 @@ mpv_event *mpv_wait_event(mpv_handle *ctx, double timeout)
     if (!JellyfinNative::WebOSMpvRuntime::ensureLoaded())
         return nullptr;
     return g_api.mpv_wait_event(ctx, timeout);
+}
+
+int mpv_request_log_messages(mpv_handle *ctx, const char *min_level)
+{
+    if (!JellyfinNative::WebOSMpvRuntime::ensureLoaded())
+        return MPV_ERROR_GENERIC;
+    return g_api.mpv_request_log_messages(ctx, min_level);
 }
 
 int mpv_observe_property(mpv_handle *mpv, uint64_t reply_userdata, const char *name, mpv_format format)

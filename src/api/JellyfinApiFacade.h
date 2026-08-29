@@ -37,6 +37,10 @@ public:
 
     void setDeviceIdentity(const QString& deviceId, const QString& deviceName, const QString& clientVersion);
     void setDeviceId(const QString& deviceId);
+    // Some platforms only learn their user-visible name asynchronously. The
+    // name rides the authorization header of every request, so the server
+    // picks a later one up on its own.
+    void setDeviceName(const QString& deviceName);
     QString deviceId() const;
 
     // Forwarded into the QNetworkRequestFactory common headers so every API
@@ -114,6 +118,7 @@ public:
     QCoro::Task<void> setItemPlayed(QString itemId, bool played);
     QCoro::Task<void> setItemPlaybackPosition(QString itemId, qint64 positionTicks);
     QCoro::Task<std::vector<MediaSegment>> fetchMediaSegments(QString itemId);
+    QCoro::Task<TrickplayInfo> fetchTrickplayInfo(QString itemId, QString mediaSourceId = {});
     QString trickplayTileUrl(const QString& itemId, int width, int tileIndex) const;
     QCoro::Task<PlaybackSession> negotiatePlayback(MovieItem movie, bool forceTranscode = false);
 

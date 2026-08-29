@@ -40,6 +40,10 @@
 #include <QJsonObject>
 #include <QList>
 #include <QLoggingCategory>
+
+#if defined(JELLYFIN_NATIVE_WEBOS)
+#include "platform/webos/WebOSDeviceName.h"
+#endif
 #include <QMessageLogContext>
 #include <QMetaObject>
 #include <QNetworkAccessManager>
@@ -480,6 +484,15 @@ int main(int argc, char **argv)
     auto discovery = std::make_unique<JellyfinNative::DiscoveryController>(&tlsTrust);
     auto api = std::make_unique<JellyfinNative::JellyfinApiFacade>(networkAccessManager, &tlsTrust);
     api->setDeviceIdentity({}, capabilities.deviceName, QString::fromLatin1(kAppVersion));
+#if defined(JELLYFIN_NATIVE_WEBOS)
+    // webOS reports the name the owner gave the set only on request, and
+    // again whenever they change it. Marshal it onto the API's thread, since
+    // the luna callback does not belong to us.
+    JellyfinNative::requestWebOSDeviceName([apiPointer = api.get()](const QString& name) {
+        QMetaObject::invokeMethod(
+            apiPointer, [apiPointer, name]() { apiPointer->setDeviceName(name); }, Qt::QueuedConnection);
+    });
+#endif
     JellyfinNative::configurePlatformPlaybackCapabilities(*api, app);
 
     const JellyfinNative::CpuTopology cpuTopology = JellyfinNative::detectCpuTopology();

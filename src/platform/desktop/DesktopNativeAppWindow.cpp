@@ -60,6 +60,13 @@ void NativeAppWindow::toggleFullScreen()
     emit fullScreenChanged();
 }
 
+// The desktop window manager owns this decision; the shell only ever asks
+// because Android needs it to.
+void NativeAppWindow::setImmersive(bool immersive)
+{
+    m_immersive = immersive;
+}
+
 QString NativeAppWindow::windowId() const
 {
     return {};

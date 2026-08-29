@@ -350,6 +350,15 @@ void JellyfinApiFacade::setDeviceId(const QString& deviceId)
     m_deviceId = deviceId;
 }
 
+void JellyfinApiFacade::setDeviceName(const QString& deviceName)
+{
+    const QString trimmed = deviceName.trimmed();
+    if (trimmed.isEmpty() || trimmed == m_deviceName)
+        return;
+    m_deviceName = trimmed;
+    applyCommonHeaders();
+}
+
 QString JellyfinApiFacade::deviceId() const
 {
     return m_deviceId;
@@ -1552,6 +1561,19 @@ QCoro::Task<std::vector<MediaSegment>> JellyfinApiFacade::fetchMediaSegments(QSt
     co_return result;
 }
 
+QCoro::Task<TrickplayInfo> JellyfinApiFacade::fetchTrickplayInfo(QString itemId, QString mediaSourceId)
+{
+    if (itemId.isEmpty() || m_session.userId.isEmpty())
+        co_return TrickplayInfo {};
+
+    const QUrlQuery query = ItemsQuery().fields(QStringLiteral("Trickplay")).toUrlQuery();
+    const QJsonObject item = (co_await requestJson(HttpMethod::Get,
+                                  QStringLiteral("/Users/%1/Items/%2").arg(m_session.userId, itemId), query))
+                                 .object();
+    co_return PlaybackNegotiation::selectTrickplay(
+        item.value(QStringLiteral("Trickplay")).toObject(), mediaSourceId, 320);
+}
+
 QString JellyfinApiFacade::trickplayTileUrl(const QString& itemId, int width, int tileIndex) const
 {
     if (m_serverUrl.isEmpty() || itemId.isEmpty() || width <= 0 || tileIndex < 0)
@@ -2036,7 +2058,9 @@ QCoro::Task<QByteArray> JellyfinApiFacade::requestBytes(
         if (m_shuttingDown)
             throw std::runtime_error("Request canceled during shutdown");
 
-        const QNetworkRequest request = createRequest(path, query);
+        QNetworkRequest request = createRequest(path, query);
+        if (method == HttpMethod::Post && body.isNull())
+            request.setHeader(QNetworkRequest::ContentTypeHeader, QStringLiteral("application/json"));
         Diagnostics::NetworkRequest diagnosticsRequest(methodName, request.url().toString(QUrl::FullyEncoded));
         QNetworkReply *reply = nullptr;
 

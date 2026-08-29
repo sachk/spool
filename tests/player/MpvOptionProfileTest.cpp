@@ -92,8 +92,8 @@ JELLYFIN_TEST_MAIN("mpv-option-profile")
     const auto android = profileOptions(MpvConfigPolicy {}, MpvOptionProfile::Platform::Android, QStringLiteral("auto"),
         QByteArrayLiteral("/tmp/mpv.log"));
     require(valueFor(android, "vo") == "libmpv", "Android should render through libmpv");
-    require(valueFor(android, "hwdec") == "mediacodec,mediacodec-copy",
-        "Android should prefer zero-copy MediaCodec and fall back to copied hardware frames");
+    require(valueFor(android, "hwdec") == "mediacodec-copy",
+        "Android must copy MediaCodec frames back: zero-copy crashes libplacebo under the Qt scene graph");
     require(valueFor(android, "audio-fallback-to-null") == "yes",
         "Android playback should continue silently when no audio output device is available");
 

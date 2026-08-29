@@ -232,6 +232,13 @@ void NativeAppWindow::toggleFullScreen()
     emit fullScreenChanged();
 }
 
+// A television has no system bars to clear, so the window is always the whole
+// screen and there is nothing to switch.
+void NativeAppWindow::setImmersive(bool immersive)
+{
+    m_immersive = immersive;
+}
+
 bool NativeAppWindow::prepareForPlaybackSurface()
 {
     if (!prepareForUiSurface())

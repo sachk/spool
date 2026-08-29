@@ -300,7 +300,13 @@ std::vector<MpvOption> MpvOptionProfile::applicationOptions(Platform platform, c
         options.push_back({ "vo", "libmpv" });
         options.push_back({ "audio-fallback-to-null", "yes" });
         if (android) {
-            options.push_back({ "hwdec", "mediacodec,mediacodec-copy" });
+            // Zero-copy MediaCodec hands libplacebo an external-OES frame that
+            // the renderer walks off the end of: playback dies inside
+            // pl_render_image on the scene graph's render thread within
+            // seconds. That path needs mpv to own an Android Surface, which it
+            // cannot while it renders through the Qt scene graph, so decode in
+            // hardware and read the frames back.
+            options.push_back({ "hwdec", "mediacodec-copy" });
         } else {
 #if defined(Q_OS_LINUX)
             options.push_back({ "hwdec", "auto-copy" });

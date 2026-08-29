@@ -108,6 +108,8 @@ function(jellyfin_configure_webos_targets native_target core_target)
         src/platform/webos/WebOSPlatformCapabilities.cpp
         src/platform/webos/WebOSPlaybackRuntime.cpp
         src/platform/webos/WebOSPlatformStartup.cpp
+        src/platform/webos/WebOSDeviceName.cpp
+        src/platform/webos/WebOSDeviceName.h
         src/platform/webos/WebOSScreenSaverInhibitor.cpp
         src/platform/common/UnixProcessIntegration.cpp
     )

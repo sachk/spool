@@ -63,6 +63,10 @@ public:
         m_systemMemoryBytes = qMax<qint64>(0, bytes);
     }
     Q_INVOKABLE void toggleFullScreen();
+    // Whether the window should cover the system's own bars. Only Android
+    // acts on it: elsewhere the window manager already decides, and the shell
+    // asking has no meaning.
+    Q_INVOKABLE void setImmersive(bool immersive);
     void clearOverlay();
     QQuickImageProvider *createOverlayImageProvider();
     QImage copyOverlayImage() const;
@@ -118,6 +122,7 @@ private:
     qint64 m_systemMemoryBytes = 0;
     Qt::MouseButton m_pointerNavigationButton = Qt::NoButton;
     std::unique_ptr<PlatformData> m_platform;
+    bool m_immersive = false;
 };
 
 } // namespace JellyfinNative

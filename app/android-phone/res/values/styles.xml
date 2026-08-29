@@ -3,10 +3,12 @@
     <style name="AppTheme" parent="android:style/Theme.Material.NoActionBar">
         <item name="android:fontFamily">sans</item>
         <item name="android:windowActionModeOverlay">true</item>
-        <item name="android:windowFullscreen">true</item>
         <item name="android:windowNoTitle">true</item>
         <item name="android:colorAccent">#00A4DC</item>
         <item name="android:navigationBarColor">#101010</item>
+        <!-- Browsing shares the screen with the clock, the notification
+             shade and the gesture bar. Playback asks for the whole panel at
+             runtime instead. -->
         <item name="android:statusBarColor">#101010</item>
     </style>
 </resources>
