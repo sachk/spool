@@ -29,7 +29,7 @@
     "qcoro": {
       "revision": "d1b52b5db2ff9560185c39a4ed9f944dc610c235",
       "url": "https://codeload.github.com/danvratil/qcoro/tar.gz/d1b52b5db2ff9560185c39a4ed9f944dc610c235",
-      "sha256": "4bff7513c5c8e301b66308df05795043b1792ed16381a484e5c990171b8ff19e"
+      "sha256": "90ca6d468a8a4e8b0f420eca63698dfea53f02c18d67ad40e534f4950c51759a"
     },
     "fribidi": {
       "revision": "069a7e3d31e6aa74f2068a8e0804106ce7906639",
