@@ -21,7 +21,7 @@ void require(bool condition, const char *message)
     std::exit(EXIT_FAILURE);
 }
 
-QJsonObject session(QString id, QString name, bool controllable, QString title = {})
+QJsonObject session(QString id, QString name, bool controllable, QString title = {}, bool paused = true)
 {
     QJsonObject session {
         { QStringLiteral("Id"), id },
@@ -48,7 +48,7 @@ QJsonObject session(QString id, QString name, bool controllable, QString title =
         session.insert(QStringLiteral("PlayState"),
             QJsonObject {
                 { QStringLiteral("PositionTicks"), 300'000'000 },
-                { QStringLiteral("IsPaused"), true },
+                { QStringLiteral("IsPaused"), paused },
                 { QStringLiteral("VolumeLevel"), 37 },
                 { QStringLiteral("IsMuted"), false },
             });
@@ -62,6 +62,9 @@ JELLYFIN_TEST_MAIN("remote-control-controller")
 {
     QCoreApplication app(argc, argv);
     RemoteControlController remote(nullptr);
+    QString feedback;
+    QObject::connect(
+        &remote, &RemoteControlController::feedbackText, [&feedback](const QString& text) { feedback = text; });
 
     remote.applySessions(QJsonArray {
         session(QStringLiteral("hidden"), QStringLiteral("Phone"), false),
@@ -75,12 +78,29 @@ JELLYFIN_TEST_MAIN("remote-control-controller")
     remote.selectTarget(QStringLiteral("living-room"));
     require(remote.targetSelected(), "available target was not selected");
     require(remote.selectedTargetName() == QStringLiteral("Living Room"), "selected target name was not retained");
+    require(feedback == QStringLiteral("Connected to Living Room"),
+        "selecting a target did not report the connection without requiring navigation");
     require(remote.nowPlayingItem().value(QStringLiteral("title")).toString() == QStringLiteral("Arrival"),
         "selected target now-playing item was not normalized");
     require(remote.positionTicks() == 300'000'000, "selected target position was not applied");
     require(remote.runtimeTicks() == 1'200'000'000, "selected target duration was not applied");
     require(remote.volume() == 37, "selected target volume was not applied");
     require(remote.supports(QStringLiteral("MoveUp")), "selected target commands were not applied");
+
+    remote.togglePause();
+    require(!remote.paused(), "play command did not update the remote state immediately");
+    remote.applySessions(QJsonArray {
+        session(QStringLiteral("living-room"), QStringLiteral("Living Room"), true, QStringLiteral("Arrival"), true),
+    });
+    require(!remote.paused(), "stale target state reverted an optimistic play command");
+    remote.applySessions(QJsonArray {
+        session(QStringLiteral("living-room"), QStringLiteral("Living Room"), true, QStringLiteral("Arrival"), false),
+    });
+    require(!remote.paused(), "confirmed play state was not retained");
+    remote.applySessions(QJsonArray {
+        session(QStringLiteral("living-room"), QStringLiteral("Living Room"), true, QStringLiteral("Arrival"), true),
+    });
+    require(remote.paused(), "reported pause state remained stuck after command confirmation");
 
     remote.applySessions(QJsonArray {});
     require(!remote.targetSelected(), "disappeared target remained selected");

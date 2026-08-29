@@ -86,11 +86,11 @@ SettingRow {
             value: root.sliderPosition(root.value)
             barHeight: Metrics.scaled(7)
             handleSize: Metrics.scaled(18)
-            onMoved: {
+            onMoved: newValue => {
                 root.interactionStarted()
-                root.preview(root.valueFromSlider(value))
+                root.preview(root.valueFromSlider(newValue))
             }
-            onCommitted: root.commit(root.valueFromSlider(value))
+            onCommitted: newValue => root.commit(root.valueFromSlider(newValue))
         },
         Rectangle {
             readonly property int pad: Metrics.scaled(12)

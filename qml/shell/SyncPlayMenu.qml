@@ -112,9 +112,14 @@ FocusScope {
         const entry = entries[index]
         if (!entry || !syncPlay)
             return
-        if (entry.kind === "join")
+        if (entry.kind === "join") {
             syncPlay.joinGroup(entry.groupId)
-        else if (entry.kind === "create")
+            // The device that is playing is the one the group has to contain,
+            // so the target joins on its own behalf rather than being driven
+            // from here.
+            if (RemoteControl.targetSelected)
+                RemoteControl.requestSyncPlayJoin(entry.groupId)
+        } else if (entry.kind === "create")
             syncPlay.createGroup(defaultGroupName())
         else if (entry.kind === "leave")
             syncPlay.leaveGroup()

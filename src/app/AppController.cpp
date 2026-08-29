@@ -20,6 +20,8 @@
 #include "SearchController.h"
 #include "SessionController.h"
 #include "SettingsController.h"
+#include "SpoolLink.h"
+#include "SpoolRemoteProtocol.h"
 #include "UserItemStateController.h"
 
 #include <QDebug>
@@ -123,6 +125,9 @@ AppController::AppController(DatabaseManager *database, DiscoveryController *dis
     connect(m_api, &JellyfinApiFacade::authenticationExpired, m_session, &SessionController::expireSession);
     connect(m_syncPlay, &SyncPlayController::errorText, this, &AppController::showToast);
     connect(m_remoteControl, &RemoteControlController::errorText, this, &AppController::showToast);
+    connect(m_remoteControl, &RemoteControlController::feedbackText, this, &AppController::showToast);
+    if (SpoolLink *link = m_remoteControl->link())
+        connect(link, &SpoolLink::messageReceived, this, &AppController::handleSpoolMessage);
     connect(m_syncPlay, &SyncPlayController::sessionsUpdated, m_remoteControl, &RemoteControlController::applySessions);
     connect(m_database, &DatabaseManager::recoveryNotice, this, &AppController::showToast);
     connect(m_syncPlay, &SyncPlayController::remotePlayCommand, this, &AppController::handleRemotePlay);
@@ -427,6 +432,8 @@ void AppController::resetApplicationState()
 {
     m_syncPlay->disconnectSocket();
     m_remoteControl->stop();
+    m_remotePlaybackRequestGeneration.invalidate();
+    m_remotePlaybackFingerprint.clear();
     m_settings->clearRemote();
     m_prefetch->stop();
     if (m_artwork) {
@@ -508,7 +515,20 @@ void AppController::playFromModel(QObject *model, int index, bool fromStart)
         return;
 
     if (auto *queue = qobject_cast<PlayQueueController *>(model)) {
-        if (queue != m_playQueue || !queue->playAt(index)) {
+        if (queue != m_playQueue) {
+            showToast(QStringLiteral("This item is no longer in the play queue."));
+            return;
+        }
+        // Opening an item from the queue is still a play request, and it must
+        // land wherever every other one does.
+        if (m_remoteControl->targetSelected()) {
+            const MovieItem item = m_playQueue->itemAt(index);
+            if (!item.id.isEmpty()) {
+                playQueuedItem(item, fromStart);
+                return;
+            }
+        }
+        if (!queue->playAt(index)) {
             showToast(QStringLiteral("This item is no longer in the play queue."));
             return;
         }
@@ -528,8 +548,10 @@ void AppController::playFromModel(QObject *model, int index, bool fromStart)
         playQueuedItem(item, fromStart);
     else if (item.itemType == QStringLiteral("Audio") && !item.albumId.isEmpty() && !modelIsOrderedList(movieModel))
         playAlbumFrom(item, fromStart);
-    else
+    else if (modelIsOrderedList(movieModel))
         playQueuedItems(movieModel->movies(), index, fromStart);
+    else
+        playQueuedItem(item, fromStart);
 }
 
 // Whether the list a track was picked out of is one the user assembled or
@@ -633,6 +655,13 @@ void AppController::playQueueItem(int index)
         // Jumping the group, not just this client.
         m_syncPlay->requestPlayItem(queuePlaylistItemId(index));
         return;
+    }
+    if (m_remoteControl->targetSelected()) {
+        const MovieItem item = m_playQueue->itemAt(index);
+        if (!item.id.isEmpty()) {
+            playQueuedItem(item, false);
+            return;
+        }
     }
     if (!m_playQueue->playAt(index))
         return;
@@ -1033,10 +1062,24 @@ void AppController::handleRemotePlay(const QJsonObject& data)
     const QString command = data.value(QStringLiteral("PlayCommand")).toString(QStringLiteral("PlayNow"));
     const int requestedIndex = data.value(QStringLiteral("StartIndex")).toInt(0);
     const qint64 startTicks = data.value(QStringLiteral("StartPositionTicks")).toVariant().toLongLong();
+    const QString fingerprint
+        = QStringLiteral("%1\n%2\n%3\n%4")
+              .arg(command, QString::number(requestedIndex), QString::number(startTicks), itemIds.join(QChar(0x1f)));
+    if (fingerprint == m_remotePlaybackFingerprint) {
+        qInfo() << "remote: ignored duplicate play request" << command << itemIds.size() << "items";
+        return;
+    }
+
+    m_remotePlaybackFingerprint = fingerprint;
+    const RequestGeneration::Token generation = m_remotePlaybackRequestGeneration.next();
+    setBusy(true, QStringLiteral("Starting remote playback…"));
     qInfo() << "remote: play" << command << itemIds.size() << "items, index" << requestedIndex;
     Async::runScoped(
         this, m_api->fetchItemsByIds(itemIds),
-        [this, itemIds, command, requestedIndex, startTicks](const std::vector<MovieItem>& fetched) {
+        [this, generation, fingerprint, itemIds, command, requestedIndex, startTicks](
+            const std::vector<MovieItem>& fetched) {
+            if (!m_remotePlaybackRequestGeneration.isCurrent(generation))
+                return;
             std::vector<MovieItem> ordered;
             ordered.reserve(static_cast<size_t>(itemIds.size()));
             for (const QString& id : itemIds) {
@@ -1046,6 +1089,8 @@ void AppController::handleRemotePlay(const QJsonObject& data)
                     ordered.push_back(*found);
             }
             if (ordered.empty()) {
+                m_remotePlaybackFingerprint.clear();
+                setBusy(false);
                 showToast(QStringLiteral("The remote playback item is unavailable."));
                 return;
             }
@@ -1053,25 +1098,60 @@ void AppController::handleRemotePlay(const QJsonObject& data)
             if (command == QStringLiteral("PlayNext")) {
                 for (auto item = ordered.rbegin(); item != ordered.rend(); ++item)
                     m_playQueue->playNext(*item);
+                m_remotePlaybackFingerprint.clear();
+                setBusy(false);
                 return;
             }
             if (command == QStringLiteral("PlayLast")) {
                 for (const MovieItem& item : ordered)
                     m_playQueue->addToQueue(item);
+                m_remotePlaybackFingerprint.clear();
+                setBusy(false);
                 return;
             }
 
             const int index = std::clamp(requestedIndex, 0, static_cast<int>(ordered.size()) - 1);
             ordered[static_cast<size_t>(index)].resumeTicks = std::max<qint64>(0, startTicks);
-            if (command == QStringLiteral("PlayShuffle")) {
-                m_playQueue->playNow(ordered, index);
+            const bool queued = m_playQueue->playNow(ordered, index);
+            if (queued && command == QStringLiteral("PlayShuffle"))
                 m_playQueue->setShuffled(true);
-            } else {
-                m_playQueue->playNow(ordered, index);
+            if (!queued) {
+                m_remotePlaybackFingerprint.clear();
+                setBusy(false);
+                showToast(QStringLiteral("The remote playback item could not be queued."));
+                return;
             }
             startQueuedPlayback(startTicks <= 0);
+            QTimer::singleShot(10'000, this, [this, fingerprint]() {
+                if (m_remotePlaybackFingerprint == fingerprint)
+                    m_remotePlaybackFingerprint.clear();
+            });
         },
-        [this](const std::exception_ptr& error) { showToast(exceptionMessage(error)); }, "remote playback request");
+        [this, generation](const std::exception_ptr& error) {
+            if (!m_remotePlaybackRequestGeneration.isCurrent(generation))
+                return;
+            m_remotePlaybackFingerprint.clear();
+            setBusy(false);
+            showToast(exceptionMessage(error));
+        },
+        "remote playback request");
+}
+
+void AppController::handleSpoolMessage(const SpoolRemoteProtocol::Message& message)
+{
+    if (const auto preview = SpoolRemoteProtocol::seekPreview(message)) {
+        // A preview for something this client is not playing would scrub an
+        // overlay over the wrong picture; a teardown is always safe.
+        if (!preview->active || (m_player->sessionActive() && preview->itemId == m_activePlaybackItem.id))
+            emit remoteSeekPreviewRequested(preview->positionTicks, preview->active);
+        return;
+    }
+    if (const auto join = SpoolRemoteProtocol::syncPlayJoin(message)) {
+        qInfo() << "remote: joining SyncPlay group" << join->groupId << "on request";
+        m_syncPlay->joinGroup(join->groupId);
+        return;
+    }
+    qInfo() << "remote: ignoring unknown Spool command" << message.command;
 }
 
 void AppController::handleRemotePlaystate(const QJsonObject& data)
@@ -1119,7 +1199,13 @@ void AppController::handleRemoteGeneralCommand(const QJsonObject& data)
     };
     qInfo() << "remote: general command" << command;
 
-    if (command == QStringLiteral("SetVolume")) {
+    if (const auto message = SpoolRemoteProtocol::decode(command, arguments)) {
+        // Link signalling never reaches the application; everything else is
+        // handled the same whether it arrived here or over the direct path.
+        SpoolLink *link = m_remoteControl->link();
+        if (!link || !link->handleServerMessage(*message))
+            handleSpoolMessage(*message);
+    } else if (command == QStringLiteral("SetVolume")) {
         m_player->setVolume(argumentInt(QStringLiteral("Volume"), m_player->volume()));
     } else if (command == QStringLiteral("VolumeUp")) {
         m_player->adjustVolume(5);

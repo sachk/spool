@@ -1,4 +1,5 @@
 #include "RemoteControlController.h"
+#include "SpoolRemoteProtocol.h"
 
 #include "../api/JellyfinApiFacade.h"
 #include "../common/AsyncTask.h"
@@ -10,9 +11,18 @@
 #include <QJsonValue>
 
 #include <algorithm>
+#include <cstdlib>
 
 namespace JellyfinNative {
 namespace {
+
+    // How far the target's own report may sit from where a seek put it before
+    // the reading is treated as confirmation. One poll interval of playback
+    // plus room for the report itself being a moment stale.
+    constexpr qint64 kSeekConfirmToleranceTicks = 25'000'000;
+    // How long to keep holding an unconfirmed seek. Past this the target is
+    // assumed to have ignored it and its own report wins again.
+    constexpr qint64 kSeekConfirmTimeoutMs = 8'000;
 
     qint64 jsonInteger(const QJsonValue& value)
     {
@@ -49,13 +59,23 @@ RemoteControlController::RemoteControlController(JellyfinApiFacade *api, QObject
     , m_api(api)
     , m_mediaSession(createPlatformRemoteMediaSession(this))
 {
+    m_link = new SpoolLink(api, this);
     m_refreshTimer.setInterval(5'000);
     connect(&m_refreshTimer, &QTimer::timeout, this, &RemoteControlController::refreshTargets);
+    m_pendingRefreshTimer.setInterval(1'000);
+    connect(&m_pendingRefreshTimer, &QTimer::timeout, this, &RemoteControlController::refreshTargets);
+    m_pendingTimeoutTimer.setSingleShot(true);
+    m_pendingTimeoutTimer.setInterval(30'000);
+    connect(&m_pendingTimeoutTimer, &QTimer::timeout, this, [this]() {
+        const QString targetName = m_selectedTargetName;
+        m_playGeneration.invalidate();
+        setPlaybackPending(false);
+        refreshTargets();
+        emit feedbackText(QStringLiteral("Playback did not start on %1").arg(targetName));
+    });
 
-    connect(m_mediaSession.get(), &PlatformRemoteMediaSession::playRequested, this,
-        [this]() { sendPlaystate(QStringLiteral("Unpause")); });
-    connect(m_mediaSession.get(), &PlatformRemoteMediaSession::pauseRequested, this,
-        [this]() { sendPlaystate(QStringLiteral("Pause")); });
+    connect(m_mediaSession.get(), &PlatformRemoteMediaSession::playRequested, this, [this]() { requestPaused(false); });
+    connect(m_mediaSession.get(), &PlatformRemoteMediaSession::pauseRequested, this, [this]() { requestPaused(true); });
     connect(m_mediaSession.get(), &PlatformRemoteMediaSession::playPauseRequested, this,
         &RemoteControlController::togglePause);
     connect(
@@ -97,6 +117,22 @@ void RemoteControlController::setBusy(bool busy)
     m_busy = busy;
     emit busyChanged();
 }
+void RemoteControlController::setPlaybackPending(bool pending)
+{
+    if (m_playbackPending == pending)
+        return;
+    m_playbackPending = pending;
+    if (pending) {
+        m_pendingTimeoutTimer.start();
+    } else {
+        m_pendingRefreshTimer.stop();
+        m_pendingTimeoutTimer.stop();
+        m_pendingTargetSessionId.clear();
+        m_pendingItemId.clear();
+        m_pendingTitle.clear();
+    }
+    emit playbackPendingChanged();
+}
 
 void RemoteControlController::refreshTargets()
 {
@@ -121,10 +157,13 @@ void RemoteControlController::applySessions(const QJsonArray& sessions)
     QHash<QString, QJsonObject> nextSessions;
     QVariantList nextTargets;
     const QString localDeviceId = m_api ? m_api->deviceId() : QString();
+    QString localSessionId;
 
     for (const QJsonValue& value : sessions) {
         const QJsonObject session = value.toObject();
         const QString id = session.value(QStringLiteral("Id")).toString();
+        if (!localDeviceId.isEmpty() && session.value(QStringLiteral("DeviceId")).toString() == localDeviceId)
+            localSessionId = id;
         if (id.isEmpty() || session.value(QStringLiteral("DeviceId")).toString() == localDeviceId)
             continue;
         const QJsonObject capabilities = session.value(QStringLiteral("Capabilities")).toObject();
@@ -150,10 +189,20 @@ void RemoteControlController::applySessions(const QJsonArray& sessions)
             < 0;
     });
 
+    if (!localSessionId.isEmpty() && localSessionId != m_localSessionId) {
+        m_localSessionId = localSessionId;
+        m_link->setLocalSessionId(localSessionId);
+        // A peer can only answer once it has somewhere to answer to.
+        if (!m_selectedSessionId.isEmpty())
+            m_link->connectToPeer(m_selectedSessionId);
+    }
+    const bool targetListChanged = m_targets != nextTargets;
     m_sessions = std::move(nextSessions);
     m_targets = std::move(nextTargets);
-    qInfo() << "remote control: discovered" << m_targets.size() << "controllable client(s)";
-    emit targetsChanged();
+    if (targetListChanged) {
+        qInfo() << "remote control: discovered" << m_targets.size() << "controllable client(s)";
+        emit targetsChanged();
+    }
 
     if (!m_selectedSessionId.isEmpty() && !m_sessions.contains(m_selectedSessionId)) {
         clearTarget();
@@ -175,8 +224,13 @@ void RemoteControlController::selectTarget(const QString& sessionId)
         applySelectedSession();
         return;
     }
+    m_playGeneration.invalidate();
+    setPlaybackPending(false);
     m_selectedSessionId = normalized;
+    m_link->connectToPeer(normalized);
     applySelectedSession();
+    // The shell announces this one, so it can time it with the matching
+    // disconnect notice rather than at the generic toast duration.
     emit targetChanged();
 }
 
@@ -186,6 +240,7 @@ void RemoteControlController::clearTarget()
         clearSelectedState();
         return;
     }
+    m_link->reset();
     m_selectedSessionId.clear();
     m_selectedTargetName.clear();
     m_selectedTargetDetail.clear();
@@ -196,6 +251,21 @@ void RemoteControlController::clearTarget()
 void RemoteControlController::clearSelectedState()
 {
     m_queueGeneration.invalidate();
+    m_playGeneration.invalidate();
+    m_pauseGeneration.invalidate();
+    m_pendingPaused.reset();
+    m_pendingPauseDeadlineMs = 0;
+    m_pendingSeekTicks.reset();
+    m_pendingSeekAtMs = 0;
+    m_pendingSeekDeadlineMs = 0;
+    setPlaybackPending(false);
+    m_trickplayGeneration.invalidate();
+    m_trickplayTimeline.clear();
+    m_trickplayItemId.clear();
+    m_trickplayMediaSourceId.clear();
+    m_previewSentTicks = -1;
+    m_previewSentActive = false;
+    emit trickplayChanged();
     m_nowPlayingItem.clear();
     m_queue.clear();
     m_audioTracks.clear();
@@ -222,6 +292,8 @@ void RemoteControlController::applySelectedSession()
     if (session.isEmpty())
         return;
 
+    const QString previousTargetName = m_selectedTargetName;
+    const QString previousTargetDetail = m_selectedTargetDetail;
     m_selectedTargetName = session.value(QStringLiteral("DeviceName")).toString().trimmed();
     if (m_selectedTargetName.isEmpty())
         m_selectedTargetName = session.value(QStringLiteral("Client")).toString().trimmed();
@@ -233,15 +305,62 @@ void RemoteControlController::applySelectedSession()
     if (!user.isEmpty())
         detailParts.push_back(user);
     m_selectedTargetDetail = detailParts.join(QStringLiteral(" · "));
+    const bool targetInfoChanged
+        = previousTargetName != m_selectedTargetName || previousTargetDetail != m_selectedTargetDetail;
 
     const QJsonObject nowPlaying = session.value(QStringLiteral("NowPlayingItem")).toObject();
     const QJsonObject playState = session.value(QStringLiteral("PlayState")).toObject();
+    if (m_playbackPending && m_selectedSessionId == m_pendingTargetSessionId) {
+        const QString nowPlayingId = nowPlaying.value(QStringLiteral("Id")).toString();
+        if (nowPlayingId == m_pendingItemId) {
+            setPlaybackPending(false);
+        } else {
+            if (targetInfoChanged)
+                emit targetChanged();
+            emit stateChanged();
+            return;
+        }
+    }
     m_nowPlayingItem = normalizedNowPlayingItem(nowPlaying);
-    m_positionTicks = jsonInteger(playState.value(QStringLiteral("PositionTicks")));
+    loadTrickplay(nowPlaying.value(QStringLiteral("Id")).toString(),
+        nowPlaying.value(QStringLiteral("MediaSourceId")).toString());
+    const qint64 reportedTicks = jsonInteger(playState.value(QStringLiteral("PositionTicks")));
     m_runtimeTicks = jsonInteger(nowPlaying.value(QStringLiteral("RunTimeTicks")));
-    m_stateReceivedAtMs = QDateTime::currentMSecsSinceEpoch();
+    const qint64 nowMs = QDateTime::currentMSecsSinceEpoch();
     m_playbackRate = playState.value(QStringLiteral("PlaybackRate")).toDouble(1.0);
-    m_paused = playState.value(QStringLiteral("IsPaused")).toBool(true);
+    if (m_pendingSeekTicks && nowMs <= m_pendingSeekDeadlineMs) {
+        // Hold the position this device asked for until the target's own
+        // report reaches it, so the bar stays where the user put it.
+        const qint64 elapsedTicks
+            = m_paused ? 0 : static_cast<qint64>((nowMs - m_pendingSeekAtMs) * 10'000.0 * m_playbackRate);
+        const qint64 expected = *m_pendingSeekTicks + elapsedTicks;
+        if (std::llabs(reportedTicks - expected) <= kSeekConfirmToleranceTicks) {
+            m_pendingSeekTicks.reset();
+            m_pendingSeekDeadlineMs = 0;
+            m_positionTicks = reportedTicks;
+            m_stateReceivedAtMs = nowMs;
+        } else {
+            m_positionTicks = *m_pendingSeekTicks;
+            m_stateReceivedAtMs = m_pendingSeekAtMs;
+        }
+    } else {
+        m_pendingSeekTicks.reset();
+        m_pendingSeekDeadlineMs = 0;
+        m_positionTicks = reportedTicks;
+        m_stateReceivedAtMs = nowMs;
+    }
+    const bool reportedPaused = playState.value(QStringLiteral("IsPaused")).toBool(true);
+    if (m_pendingPaused && m_stateReceivedAtMs <= m_pendingPauseDeadlineMs) {
+        if (reportedPaused == *m_pendingPaused) {
+            m_pendingPaused.reset();
+            m_pendingPauseDeadlineMs = 0;
+        } else
+            m_paused = *m_pendingPaused;
+    } else {
+        m_pendingPauseDeadlineMs = 0;
+        m_pendingPaused.reset();
+        m_paused = reportedPaused;
+    }
     m_muted = playState.value(QStringLiteral("IsMuted")).toBool(false);
     m_volume = std::clamp(playState.value(QStringLiteral("VolumeLevel")).toInt(100), 0, 100);
     m_repeatMode = playState.value(QStringLiteral("RepeatMode")).toString(QStringLiteral("RepeatNone"));
@@ -288,7 +407,8 @@ void RemoteControlController::applySelectedSession()
     m_rawQueue = session.value(QStringLiteral("NowPlayingQueue")).toArray();
     refreshQueueDetails(m_rawQueue);
     updateMediaSession();
-    emit targetChanged();
+    if (targetInfoChanged)
+        emit targetChanged();
     emit stateChanged();
 }
 
@@ -314,9 +434,13 @@ void RemoteControlController::refreshQueueDetails(const QJsonArray& rawQueue)
         return;
     }
 
+    const QJsonObject selectedSession = m_sessions.value(m_selectedSessionId);
+    const QString currentPlaylistItemId = selectedSession.value(QStringLiteral("PlaylistItemId")).toString();
+    const QString currentItemId
+        = selectedSession.value(QStringLiteral("NowPlayingItem")).toObject().value(QStringLiteral("Id")).toString();
     Async::runScoped(
         this, m_api->fetchItemsByIds(ids),
-        [this, generation, rawQueue](const std::vector<MovieItem>& items) {
+        [this, generation, rawQueue, currentPlaylistItemId, currentItemId](const std::vector<MovieItem>& items) {
             if (generation != m_queueGeneration.current())
                 return;
             QVariantList queue;
@@ -329,6 +453,9 @@ void RemoteControlController::refreshQueueDetails(const QJsonArray& rawQueue)
                 QVariantMap row = item == items.cend() ? QVariantMap {} : metaToJson(*item).toVariantMap();
                 row.insert(QStringLiteral("movieId"), id);
                 row.insert(QStringLiteral("playlistItemId"), raw.value(QStringLiteral("PlaylistItemId")).toString());
+                const QString playlistItemId = raw.value(QStringLiteral("PlaylistItemId")).toString();
+                row.insert(QStringLiteral("current"),
+                    !currentPlaylistItemId.isEmpty() ? playlistItemId == currentPlaylistItemId : id == currentItemId);
                 queue.push_back(row);
             }
             m_queue = std::move(queue);
@@ -340,6 +467,95 @@ void RemoteControlController::refreshQueueDetails(const QJsonArray& rawQueue)
             reportCommandError(QStringLiteral("load remote queue"), error);
         },
         "remote queue details");
+}
+
+void RemoteControlController::loadTrickplay(const QString& itemId, const QString& mediaSourceId)
+{
+    const QString normalizedMediaSourceId = mediaSourceId.trimmed();
+    if (itemId == m_trickplayItemId
+        && (normalizedMediaSourceId.isEmpty() || normalizedMediaSourceId == m_trickplayMediaSourceId))
+        return;
+
+    m_trickplayItemId = itemId;
+    m_trickplayMediaSourceId = normalizedMediaSourceId;
+    m_trickplayTimeline.clear();
+    emit trickplayChanged();
+    const RequestGeneration::Token generation = m_trickplayGeneration.next();
+    if (!m_api || itemId.isEmpty())
+        return;
+
+    Async::runScoped(
+        this, m_api->fetchTrickplayInfo(itemId, normalizedMediaSourceId),
+        [this, generation, itemId](const TrickplayInfo& trickplay) {
+            if (!m_trickplayGeneration.isCurrent(generation) || m_trickplayItemId != itemId)
+                return;
+            PlaybackSession session;
+            session.itemId = itemId;
+            session.trickplay = trickplay;
+            m_trickplayTimeline.setSession(session);
+            emit trickplayChanged();
+        },
+        [this, generation, itemId](const std::exception_ptr& error) {
+            if (!m_trickplayGeneration.isCurrent(generation) || m_trickplayItemId != itemId)
+                return;
+            qInfo() << "remote trickplay: metadata unavailable for" << itemId << ":" << exceptionMessage(error);
+        },
+        "remote trickplay metadata");
+}
+
+QVariantMap RemoteControlController::trickplayForTicks(qint64 positionTicks) const
+{
+    QVariantMap result;
+    if (!m_api || !m_trickplayTimeline.trickplayAvailable()) {
+        result.insert(QStringLiteral("available"), false);
+        return result;
+    }
+
+    const PlaybackTimeline::TrickplayFrame frame
+        = m_trickplayTimeline.trickplayFrameAt(std::max<qint64>(0, positionTicks) / 10'000'000.0);
+    if (!frame.available) {
+        result.insert(QStringLiteral("available"), false);
+        return result;
+    }
+    result.insert(QStringLiteral("available"), true);
+    result.insert(QStringLiteral("url"),
+        m_api->trickplayTileUrl(m_trickplayItemId, m_trickplayTimeline.trickplayWidth(), frame.sheetIndex));
+    result.insert(QStringLiteral("width"), frame.width);
+    result.insert(QStringLiteral("height"), frame.height);
+    result.insert(QStringLiteral("offsetX"), frame.offsetX);
+    result.insert(QStringLiteral("offsetY"), frame.offsetY);
+    result.insert(QStringLiteral("sheetWidth"), frame.sheetWidth);
+    result.insert(QStringLiteral("sheetHeight"), frame.sheetHeight);
+    return result;
+}
+
+void RemoteControlController::previewSeek(qint64 positionTicks, bool active)
+{
+    if (!targetSelected() || !m_link || m_trickplayItemId.isEmpty())
+        return;
+    const qint64 ticks = std::max<qint64>(0, positionTicks);
+    if (ticks == m_previewSentTicks && active == m_previewSentActive)
+        return;
+    m_previewSentTicks = ticks;
+    m_previewSentActive = active;
+    // Only the newest position is worth showing, so an older one still
+    // waiting for the link is replaced rather than queued behind it. The
+    // teardown is not: it is what puts the other screen back.
+    m_link->send(m_selectedSessionId, SpoolRemoteProtocol::seekPreviewMessage(m_trickplayItemId, ticks, active),
+        active ? SpoolLink::Delivery::Coalesced : SpoolLink::Delivery::Reliable);
+}
+
+void RemoteControlController::cancelSeekPreview()
+{
+    if (m_previewSentActive)
+        previewSeek(m_previewSentTicks, false);
+}
+
+void RemoteControlController::requestSyncPlayJoin(const QString& groupId)
+{
+    if (!targetSelected() || !m_link || groupId.isEmpty())
+        return;
+    m_link->send(m_selectedSessionId, SpoolRemoteProtocol::syncPlayJoinMessage(groupId));
 }
 
 bool RemoteControlController::supports(const QString& command) const
@@ -356,6 +572,47 @@ qint64 RemoteControlController::predictedPositionTicks() const
     return m_runtimeTicks > 0 ? std::min(predicted, m_runtimeTicks) : predicted;
 }
 
+void RemoteControlController::stagePendingPlayback(
+    const std::vector<MovieItem>& items, qint64 startPositionTicks, const QString& command)
+{
+    if (command != QStringLiteral("PlayNow") && command != QStringLiteral("PlayShuffle"))
+        return;
+
+    QVariantList queue;
+    QJsonArray rawQueue;
+    QVariantMap selectedItem;
+    queue.reserve(static_cast<qsizetype>(items.size()));
+    for (int index = 0; index < static_cast<int>(items.size()); ++index) {
+        const MovieItem& item = items[static_cast<size_t>(index)];
+        if (item.id.isEmpty() || !isPlayableItem(item))
+            continue;
+        QVariantMap row = metaToJson(item).toVariantMap();
+        row.insert(QStringLiteral("movieId"), item.id);
+        row.insert(QStringLiteral("current"), item.id == m_pendingItemId);
+        queue.push_back(row);
+        rawQueue.append(QJsonObject { { QStringLiteral("Id"), item.id } });
+        if (item.id == m_pendingItemId)
+            selectedItem = row;
+    }
+    if (selectedItem.isEmpty() && !queue.isEmpty())
+        selectedItem = queue.front().toMap();
+
+    m_queueGeneration.invalidate();
+    m_nowPlayingItem = selectedItem;
+    m_queue = std::move(queue);
+    m_rawQueue = std::move(rawQueue);
+    m_audioTracks.clear();
+    m_subtitleTracks.clear();
+    m_positionTicks = std::max<qint64>(0, startPositionTicks);
+    loadTrickplay(selectedItem.value(QStringLiteral("movieId")).toString());
+    m_runtimeTicks = selectedItem.value(QStringLiteral("runtimeTicks")).toLongLong();
+    m_stateReceivedAtMs = QDateTime::currentMSecsSinceEpoch();
+    m_playbackRate = 1.0;
+    m_paused = false;
+    updateMediaSession();
+    emit stateChanged();
+}
+
 bool RemoteControlController::playItems(
     const std::vector<MovieItem>& items, int startIndex, const QString& command, bool fromStart)
 {
@@ -364,6 +621,7 @@ bool RemoteControlController::playItems(
     QStringList ids;
     int remoteStartIndex = -1;
     qint64 startPositionTicks = -1;
+    QString title;
     for (int index = 0; index < static_cast<int>(items.size()); ++index) {
         const MovieItem& item = items[static_cast<size_t>(index)];
         if (item.id.isEmpty() || !isPlayableItem(item))
@@ -371,6 +629,7 @@ bool RemoteControlController::playItems(
         if (index == startIndex) {
             remoteStartIndex = ids.size();
             startPositionTicks = fromStart ? 0 : std::max<qint64>(0, item.resumeTicks);
+            title = item.title;
         }
         ids.push_back(item.id);
     }
@@ -380,7 +639,8 @@ bool RemoteControlController::playItems(
     }
     if (remoteStartIndex < 0)
         remoteStartIndex = 0;
-    runPlay(ids, command, remoteStartIndex, startPositionTicks);
+    if (runPlay(ids, command, remoteStartIndex, startPositionTicks, title))
+        stagePendingPlayback(items, startPositionTicks, command);
     return true;
 }
 
@@ -390,16 +650,56 @@ void RemoteControlController::playItemIds(
     runPlay(itemIds, command, startIndex, startPositionTicks);
 }
 
-void RemoteControlController::runPlay(QStringList itemIds, QString command, int startIndex, qint64 startPositionTicks)
+bool RemoteControlController::runPlay(
+    QStringList itemIds, QString command, int startIndex, qint64 startPositionTicks, QString pendingTitle)
 {
     if (!targetSelected() || !m_api)
-        return;
+        return false;
+    itemIds.removeAll(QString());
+    if (itemIds.isEmpty())
+        return false;
+
+    const bool startsPlayback = command == QStringLiteral("PlayNow") || command == QStringLiteral("PlayShuffle");
+    if (startsPlayback && m_playbackPending)
+        return false;
+
     const QString target = m_selectedSessionId;
+    const RequestGeneration::Token generation = m_playGeneration.next();
+    if (startsPlayback) {
+        const int requestedIndex = std::clamp(startIndex, 0, static_cast<int>(itemIds.size()) - 1);
+        m_pendingTargetSessionId = target;
+        m_pendingItemId = itemIds.at(requestedIndex);
+        m_pendingTitle = pendingTitle.trimmed();
+        setPlaybackPending(true);
+        const QString subject = m_pendingTitle.isEmpty() ? QStringLiteral("playback") : m_pendingTitle;
+        emit feedbackText(QStringLiteral("Starting %1 on %2…").arg(subject, m_selectedTargetName));
+    }
+
     Async::runScoped(
         this, m_api->sendRemotePlay(target, std::move(itemIds), std::move(command), startPositionTicks, startIndex),
-        [this]() { QTimer::singleShot(300, this, &RemoteControlController::refreshTargets); },
-        [this](const std::exception_ptr& error) { reportCommandError(QStringLiteral("start remote playback"), error); },
+        [this, generation, startsPlayback]() {
+            if (!m_playGeneration.isCurrent(generation))
+                return;
+            if (startsPlayback) {
+                refreshTargets();
+                m_pendingRefreshTimer.start();
+            } else {
+                QTimer::singleShot(300, this, &RemoteControlController::refreshTargets);
+            }
+        },
+        [this, generation, startsPlayback](const std::exception_ptr& error) {
+            if (!m_playGeneration.isCurrent(generation))
+                return;
+            if (startsPlayback) {
+                const QString targetName = m_selectedTargetName;
+                setPlaybackPending(false);
+                refreshTargets();
+                emit feedbackText(QStringLiteral("Could not start playback on %1").arg(targetName));
+            }
+            reportCommandError(QStringLiteral("start remote playback"), error);
+        },
         "remote play command");
+    return true;
 }
 
 void RemoteControlController::sendPlaystate(const QString& command, qint64 seekPositionTicks)
@@ -407,10 +707,20 @@ void RemoteControlController::sendPlaystate(const QString& command, qint64 seekP
     if (!targetSelected() || !m_api)
         return;
     const QString target = m_selectedSessionId;
+    const bool pauseCommand = command == QStringLiteral("Pause") || command == QStringLiteral("Unpause");
+    const RequestGeneration::Token pauseGeneration
+        = pauseCommand ? m_pauseGeneration.next() : m_pauseGeneration.current();
     Async::runScoped(
         this, m_api->sendRemotePlaystate(target, command, seekPositionTicks),
         [this]() { QTimer::singleShot(250, this, &RemoteControlController::refreshTargets); },
-        [this, command](const std::exception_ptr& error) { reportCommandError(command, error); },
+        [this, command, pauseCommand, pauseGeneration](const std::exception_ptr& error) {
+            if (pauseCommand && m_pauseGeneration.isCurrent(pauseGeneration)) {
+                m_pendingPaused.reset();
+                m_pendingPauseDeadlineMs = 0;
+                refreshTargets();
+            }
+            reportCommandError(command, error);
+        },
         "remote playstate command");
 }
 
@@ -426,13 +736,22 @@ void RemoteControlController::sendGeneralCommand(const QString& command, const Q
         "remote general command");
 }
 
-void RemoteControlController::togglePause()
+void RemoteControlController::requestPaused(bool paused)
 {
-    sendPlaystate(m_paused ? QStringLiteral("Unpause") : QStringLiteral("Pause"));
-    m_paused = !m_paused;
+    if (!targetSelected())
+        return;
+    m_pendingPaused = paused;
+    m_pendingPauseDeadlineMs = QDateTime::currentMSecsSinceEpoch() + 8'000;
+    m_paused = paused;
     m_stateReceivedAtMs = QDateTime::currentMSecsSinceEpoch();
     updateMediaSession();
     emit stateChanged();
+    sendPlaystate(paused ? QStringLiteral("Pause") : QStringLiteral("Unpause"));
+}
+
+void RemoteControlController::togglePause()
+{
+    requestPaused(!m_paused);
 }
 
 void RemoteControlController::stopPlayback()
@@ -455,6 +774,9 @@ void RemoteControlController::seek(qint64 positionTicks)
     const qint64 clamped = std::clamp<qint64>(positionTicks, 0, m_runtimeTicks > 0 ? m_runtimeTicks : positionTicks);
     m_positionTicks = clamped;
     m_stateReceivedAtMs = QDateTime::currentMSecsSinceEpoch();
+    m_pendingSeekTicks = clamped;
+    m_pendingSeekAtMs = m_stateReceivedAtMs;
+    m_pendingSeekDeadlineMs = m_stateReceivedAtMs + kSeekConfirmTimeoutMs;
     sendPlaystate(QStringLiteral("Seek"), clamped);
     updateMediaSession();
     emit stateChanged();

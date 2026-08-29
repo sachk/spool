@@ -1,4 +1,5 @@
 import QtQuick
+import "../theme"
 import "../primitives"
 
 FocusScope {
@@ -192,7 +193,13 @@ FocusScope {
         return dispatchNormalized(event, key, phase, repeat)
     }
 
-    Keys.onPressed: event => event.accepted = dispatch(event, "press")
+    Keys.onPressed: event => {
+        // A key press means the pointer is no longer what is being used, which
+        // is the only reliable signal that a pointer which vanished without a
+        // leave event is gone.
+        Metrics.pointerActive = false
+        event.accepted = dispatch(event, "press")
+    }
     Keys.onReleased: event => event.accepted = dispatch(event, "release")
 
     Timer {

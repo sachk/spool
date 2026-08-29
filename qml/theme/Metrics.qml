@@ -13,6 +13,10 @@ QtObject {
     // A finger-driven app should not paint or retain a keyboard selection.
     // The first directional/key input turns this back on.
     property bool keyboardFocusActive: true
+    // Whether a pointer is the thing currently driving the interface. A
+    // television's pointer hides itself without sending a leave event, so a
+    // hover can otherwise stay painted on a control nobody is pointing at.
+    property bool pointerActive: false
     // Pixels per millimetre, pushed by the shell. Every other size in this file
     // is a pure function of the viewport, which is the right yardstick for
     // reading: a phone is held about half as far away as a monitor, so type

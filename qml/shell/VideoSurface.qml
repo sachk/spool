@@ -58,6 +58,10 @@ FocusScope {
         focusInput()
     }
 
+    function showRemoteSeekPreview(seconds, active) {
+        playerOverlay.showRemoteSeekPreview(seconds, active)
+    }
+
     // Registered dynamically by main.cpp, so no static .qmltypes entry exists.
     // qmllint disable import unresolved-type
     MpvVideoItem {

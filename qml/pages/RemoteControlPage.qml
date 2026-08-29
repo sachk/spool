@@ -13,6 +13,14 @@ FocusScope {
     readonly property bool contentReady: true
     readonly property var item: RemoteControl.nowPlayingItem || ({})
     readonly property bool hasMedia: Boolean(item.movieId || item.title)
+    readonly property real remoteButtonSize: Math.max(Metrics.touchTargetPx, Math.min(Metrics.scaled(96), (width - 2
+                                                                                                           * Metrics.pageMarginPx
+                                                                                                           - Metrics.scaled(
+                                                                                                               52)) / 3.17))
+    readonly property real primaryRemoteButtonSize: Math.min(Metrics.scaled(112), remoteButtonSize * 1.17)
+    readonly property var seekPreviewData: positionSlider.dragging && RemoteControl.trickplayAvailable
+                                           ? RemoteControl.trickplayForTicks(shownPositionTicks) : ({})
+    readonly property bool seekPreviewReady: seekPreviewData && seekPreviewData.available === true
 
     focus: true
 
@@ -42,6 +50,24 @@ FocusScope {
                 selected = index
         const next = tracks[(selected + 1) % tracks.length]
         select(Number(next.index))
+    }
+    function openTargetKeyboard() {
+        remoteKeyboard.text = ""
+        InputKeys.focus(remoteKeyboard)
+        Qt.inputMethod.show()
+    }
+
+    function commitTargetKeyboard() {
+        const text = remoteKeyboard.text
+        remoteKeyboard.text = ""
+        if (text.length > 0)
+            RemoteControl.sendGeneralCommand("SendString", {
+                                                 "String": text
+                                             })
+        Qt.inputMethod.hide()
+        Qt.callLater(function () {
+            InputKeys.focus(keyboardButton)
+        })
     }
 
     function routeKey(key, phase, repeat) {
@@ -79,6 +105,13 @@ FocusScope {
         function onTargetChanged() {
             if (RemoteControl.targetSelected)
                 RemoteControl.refreshTargets()
+        }
+    }
+    Connections {
+        target: Qt.inputMethod
+        function onVisibleChanged() {
+            if (!Qt.inputMethod.visible && remoteKeyboard.activeFocus)
+                root.commitTargetKeyboard()
         }
     }
 
@@ -202,7 +235,11 @@ FocusScope {
 
                         AppText {
                             Layout.fillWidth: true
-                            text: root.hasMedia ? String(root.item.title || "Playing") : "Nothing playing"
+                            text: RemoteControl.playbackPending ? "Starting " + (RemoteControl.pendingTitle
+                                                                                 || "playback") : root.hasMedia ? String(
+                                                                                                                      root.item.title
+                                                                                                                      || "Playing") :
+                                                                                                                  "Nothing playing"
                             color: Theme.textPrimary
                             font.pixelSize: Metrics.bodySizePx + Metrics.scaled(5)
                             font.weight: Font.DemiBold
@@ -212,7 +249,9 @@ FocusScope {
 
                         SecondaryText {
                             Layout.fillWidth: true
-                            text: String(root.item.seriesName || root.item.albumArtist || root.item.album || "")
+                            text: RemoteControl.playbackPending ? "Waiting for " + RemoteControl.selectedTargetName :
+                                                                  String(root.item.seriesName || root.item.albumArtist
+                                                                         || root.item.album || "")
                             font.pixelSize: Metrics.bodySizePx
                             visible: text.length > 0
                         }
@@ -220,141 +259,209 @@ FocusScope {
                 }
             }
 
-            ColumnLayout {
+            Surface {
                 Layout.fillWidth: true
+                Layout.preferredHeight: playbackColumn.implicitHeight + Metrics.scaled(32)
                 visible: RemoteControl.targetSelected && root.hasMedia
-                spacing: Metrics.scaled(10)
+                elevated: true
+                baseColor: Theme.bgRaised
 
-                InlineSlider {
-                    id: positionSlider
-                    Layout.fillWidth: true
-                    Layout.leftMargin: Metrics.scaled(8)
-                    Layout.rightMargin: Metrics.scaled(8)
-                    from: 0
-                    to: Math.max(1, RemoteControl.runtimeTicks)
-                    value: root.shownPositionTicks
-                    interactionMargin: Metrics.scaled(16)
-                    barHeight: Metrics.scaled(6)
-                    handleSize: Metrics.scaled(20)
-                    onMoved: root.shownPositionTicks = value
-                    onCommitted: RemoteControl.seek(Math.round(value))
-                }
-
-                RowLayout {
-                    Layout.fillWidth: true
-
-                    SecondaryText {
-                        text: root.formatTicks(root.shownPositionTicks)
-                    }
-                    Item {
-                        Layout.fillWidth: true
-                    }
-                    SecondaryText {
-                        text: root.formatTicks(RemoteControl.runtimeTicks)
-                    }
-                }
-
-                RowLayout {
-                    Layout.alignment: Qt.AlignHCenter
-                    spacing: Metrics.scaled(8)
-
-                    IconButton {
-                        iconName: "skip_previous"
-                        accessibleName: "Previous"
-                        onClicked: RemoteControl.previousTrack()
-                    }
-                    IconButton {
-                        iconName: "replay_10"
-                        accessibleName: "Back 10 seconds"
-                        onClicked: RemoteControl.seekRelative(-100000000)
-                    }
-                    IconButton {
-                        width: Math.max(Metrics.touchTargetPx, Metrics.scaled(62))
-                        height: width
-                        iconName: RemoteControl.paused ? "play_arrow" : "pause"
-                        accessibleName: RemoteControl.paused ? "Play" : "Pause"
-                        selected: true
-                        onClicked: RemoteControl.togglePause()
-                    }
-                    IconButton {
-                        iconName: "forward_10"
-                        accessibleName: "Forward 10 seconds"
-                        onClicked: RemoteControl.seekRelative(100000000)
-                    }
-                    IconButton {
-                        iconName: "skip_next"
-                        accessibleName: "Next"
-                        onClicked: RemoteControl.nextTrack()
-                    }
-                    IconButton {
-                        iconName: "stop"
-                        accessibleName: "Stop"
-                        onClicked: RemoteControl.stopPlayback()
-                    }
-                }
-
-                RowLayout {
-                    Layout.fillWidth: true
+                ColumnLayout {
+                    id: playbackColumn
+                    anchors.fill: parent
+                    anchors.margins: Metrics.scaled(16)
                     spacing: Metrics.scaled(12)
 
-                    IconButton {
-                        iconName: RemoteControl.muted ? "volume_off" : "volume_up"
-                        accessibleName: RemoteControl.muted ? "Unmute" : "Mute"
-                        onClicked: RemoteControl.toggleMute()
+                    SectionHeader {
+                        Layout.fillWidth: true
+                        title: "Playback"
+                    }
+
+                    Item {
+                        Layout.alignment: Qt.AlignHCenter
+                        Layout.preferredWidth: Math.min(content.width - Metrics.scaled(16), Metrics.scaled(320))
+                        Layout.preferredHeight: 0
+                        visible: root.seekPreviewReady
+                        z: 10
+
+                        Column {
+                            anchors.bottom: parent.top
+                            anchors.bottomMargin: Metrics.scaled(8)
+                            anchors.horizontalCenter: parent.horizontalCenter
+                            width: parent.width
+                            spacing: Metrics.scaled(4)
+
+                            Rectangle {
+                                id: previewFrame
+                                readonly property real imageScale: root.seekPreviewReady && root.seekPreviewData.width
+                                                                   > 0 ? width / root.seekPreviewData.width : 1
+                                width: parent.width
+                                height: root.seekPreviewReady && root.seekPreviewData.width > 0 ? width
+                                                                                                  * root.seekPreviewData.height
+                                                                                                  / root.seekPreviewData.width :
+                                                                                                  0
+                                radius: Theme.radiusLarge
+                                color: "black"
+                                border.width: 1
+                                border.color: Theme.borderStrong
+                                clip: true
+
+                                Image {
+                                    source: root.seekPreviewReady ? "image://artwork/" + encodeURIComponent(
+                                                                        root.seekPreviewData.url) : ""
+                                    x: root.seekPreviewReady ? root.seekPreviewData.offsetX * previewFrame.imageScale :
+                                                               0
+                                    y: root.seekPreviewReady ? root.seekPreviewData.offsetY * previewFrame.imageScale :
+                                                               0
+                                    width: root.seekPreviewReady ? root.seekPreviewData.sheetWidth
+                                                                   * previewFrame.imageScale : 0
+                                    height: root.seekPreviewReady ? root.seekPreviewData.sheetHeight
+                                                                    * previewFrame.imageScale : 0
+                                    fillMode: Image.Stretch
+                                    cache: true
+                                    asynchronous: true
+                                }
+                            }
+
+                            AppText {
+                                id: previewClock
+                                anchors.horizontalCenter: parent.horizontalCenter
+                                text: root.formatTicks(root.shownPositionTicks)
+                                color: Theme.textPrimary
+                                font.pixelSize: Metrics.bodySizePx
+                                font.weight: Font.Medium
+                            }
+                        }
                     }
 
                     InlineSlider {
-                        id: volumeSlider
-                        Layout.fillWidth: true
+                        id: positionSlider
+                        Layout.leftMargin: Metrics.scaled(8)
+                        Layout.rightMargin: Metrics.scaled(8)
                         from: 0
-                        to: 100
-                        value: RemoteControl.volume
-                        stepSize: 1
+                        to: Math.max(1, RemoteControl.runtimeTicks)
+                        value: root.shownPositionTicks
                         interactionMargin: Metrics.scaled(16)
-                        onCommitted: RemoteControl.setVolume(Math.round(value))
+                        barHeight: Metrics.scaled(8)
+                        handleSize: Metrics.scaled(22)
+                        accented: true
+                        onMoved: newValue => {
+                            root.shownPositionTicks = newValue
+                            if (dragging)
+                                RemoteControl.previewSeek(Math.round(newValue), true)
+                        }
+                        onCommitted: newValue => {
+                            RemoteControl.cancelSeekPreview()
+                            RemoteControl.seek(Math.round(newValue))
+                        }
                     }
 
-                    SecondaryText {
-                        text: RemoteControl.volume + "%"
-                        color: Theme.textSecondary
-                    }
-                }
+                    RowLayout {
 
-                RowLayout {
-                    Layout.fillWidth: true
-                    spacing: Metrics.scaled(8)
+                        SecondaryText {
+                            text: root.formatTicks(root.shownPositionTicks)
+                        }
+                        Item {}
+                        SecondaryText {
+                            text: root.formatTicks(RemoteControl.runtimeTicks)
+                        }
+                    }
 
-                    ActionButton {
-                        Layout.fillWidth: true
-                        visible: RemoteControl.audioTracks.length > 1
-                        text: "Audio: " + root.selectedTrackLabel(RemoteControl.audioTracks, "Default")
-                        iconName: "audiotrack"
-                        onClicked: root.cycleTrack(RemoteControl.audioTracks, function (index) {
-                            RemoteControl.selectAudioTrack(index)
-                        })
+                    RowLayout {
+                        Layout.alignment: Qt.AlignHCenter
+                        spacing: Metrics.scaled(8)
+
+                        IconButton {
+                            iconName: "skip_previous"
+                            accessibleName: "Previous"
+                            onClicked: RemoteControl.previousTrack()
+                        }
+                        IconButton {
+                            iconName: "replay_10"
+                            accessibleName: "Back 10 seconds"
+                            onClicked: RemoteControl.seekRelative(-100000000)
+                        }
+                        IconButton {
+                            width: Math.max(Metrics.touchTargetPx, Metrics.scaled(62))
+                            height: width
+                            iconName: RemoteControl.paused ? "play_arrow" : "pause"
+                            accessibleName: RemoteControl.paused ? "Play" : "Pause"
+                            selected: true
+                            onClicked: RemoteControl.togglePause()
+                        }
+                        IconButton {
+                            iconName: "forward_10"
+                            accessibleName: "Forward 10 seconds"
+                            onClicked: RemoteControl.seekRelative(100000000)
+                        }
+                        IconButton {
+                            iconName: "skip_next"
+                            accessibleName: "Next"
+                            onClicked: RemoteControl.nextTrack()
+                        }
+                        IconButton {
+                            iconName: "stop"
+                            accessibleName: "Stop"
+                            onClicked: RemoteControl.stopPlayback()
+                        }
                     }
-                    ActionButton {
-                        Layout.fillWidth: true
-                        visible: RemoteControl.subtitleTracks.length > 0
-                        text: "Subtitles: " + root.selectedTrackLabel(RemoteControl.subtitleTracks, "Off")
-                        iconName: "subtitles"
-                        onClicked: root.cycleTrack(RemoteControl.subtitleTracks, function (index) {
-                            RemoteControl.selectSubtitleTrack(index)
-                        })
+
+                    RowLayout {
+                        spacing: Metrics.scaled(12)
+
+                        IconButton {
+                            iconName: RemoteControl.muted ? "volume_off" : "volume_up"
+                            accessibleName: RemoteControl.muted ? "Unmute" : "Mute"
+                            onClicked: RemoteControl.toggleMute()
+                        }
+
+                        InlineSlider {
+                            id: volumeSlider
+                            from: 0
+                            to: 100
+                            value: RemoteControl.volume
+                            stepSize: 1
+                            interactionMargin: Metrics.scaled(16)
+                            onCommitted: newValue => RemoteControl.setVolume(Math.round(newValue))
+                        }
+
+                        SecondaryText {
+                            text: RemoteControl.volume + "%"
+                            color: Theme.textSecondary
+                        }
                     }
-                    ActionButton {
-                        text: RemoteControl.repeatMode === "RepeatNone" ? "Repeat off" : RemoteControl.repeatMode
-                        iconName: "repeat"
-                        onClicked: RemoteControl.setRepeatMode(RemoteControl.repeatMode === "RepeatNone" ? "RepeatAll" :
-                                                                                                           RemoteControl.repeatMode
-                                                                                                           === "RepeatAll"
-                                                                                                           ? "RepeatOne" :
-                                                                                                             "RepeatNone")
-                    }
-                    ActionButton {
-                        text: RemoteControl.shuffled ? "Shuffled" : "Shuffle"
-                        iconName: "shuffle"
-                        onClicked: RemoteControl.setShuffled(!RemoteControl.shuffled)
+
+                    RowLayout {
+                        spacing: Metrics.scaled(8)
+
+                        ActionButton {
+                            visible: RemoteControl.audioTracks.length > 1
+                            text: "Audio: " + root.selectedTrackLabel(RemoteControl.audioTracks, "Default")
+                            iconName: "audiotrack"
+                            onClicked: root.cycleTrack(RemoteControl.audioTracks, function (index) {
+                                RemoteControl.selectAudioTrack(index)
+                            })
+                        }
+                        ActionButton {
+                            visible: RemoteControl.subtitleTracks.length > 0
+                            text: "Subtitles: " + root.selectedTrackLabel(RemoteControl.subtitleTracks, "Off")
+                            iconName: "subtitles"
+                            onClicked: root.cycleTrack(RemoteControl.subtitleTracks, function (index) {
+                                RemoteControl.selectSubtitleTrack(index)
+                            })
+                        }
+                        ActionButton {
+                            text: RemoteControl.repeatMode === "RepeatNone" ? "Repeat off" : RemoteControl.repeatMode
+                            iconName: "repeat"
+                            onClicked: RemoteControl.setRepeatMode(RemoteControl.repeatMode === "RepeatNone"
+                                                                   ? "RepeatAll" : RemoteControl.repeatMode
+                                                                     === "RepeatAll" ? "RepeatOne" : "RepeatNone")
+                        }
+                        ActionButton {
+                            text: RemoteControl.shuffled ? "Shuffled" : "Shuffle"
+                            iconName: "shuffle"
+                            onClicked: RemoteControl.setShuffled(!RemoteControl.shuffled)
+                        }
                     }
                 }
             }
@@ -370,59 +477,78 @@ FocusScope {
                     id: navigationColumn
                     anchors.fill: parent
                     anchors.margins: Metrics.scaled(16)
-                    spacing: Metrics.scaled(10)
+                    spacing: Metrics.scaled(14)
 
                     SectionHeader {
                         Layout.fillWidth: true
-                        title: "Touch remote"
+                        title: "Navigation"
+                    }
+
+                    SecondaryText {
+                        Layout.fillWidth: true
+                        text: "Control the screen on " + RemoteControl.selectedTargetName
                     }
 
                     GridLayout {
                         Layout.alignment: Qt.AlignHCenter
                         columns: 3
-                        rowSpacing: Metrics.scaled(6)
-                        columnSpacing: Metrics.scaled(6)
+                        rowSpacing: Metrics.scaled(10)
+                        columnSpacing: Metrics.scaled(10)
 
                         Item {
-                            Layout.preferredWidth: Metrics.touchTargetPx
-                            Layout.preferredHeight: Metrics.touchTargetPx
+                            Layout.preferredWidth: root.remoteButtonSize
+                            Layout.preferredHeight: root.remoteButtonSize
                         }
                         IconButton {
+                            width: root.remoteButtonSize
+                            height: width
                             iconName: "keyboard_arrow_up"
                             accessibleName: "Up"
                             onClicked: RemoteControl.sendGeneralCommand("MoveUp")
                         }
                         Item {
-                            Layout.preferredWidth: Metrics.touchTargetPx
-                            Layout.preferredHeight: Metrics.touchTargetPx
+                            Layout.preferredWidth: root.remoteButtonSize
+                            Layout.preferredHeight: root.remoteButtonSize
                         }
                         IconButton {
+                            width: root.remoteButtonSize
+                            height: width
                             iconName: "keyboard_arrow_left"
                             accessibleName: "Left"
                             onClicked: RemoteControl.sendGeneralCommand("MoveLeft")
                         }
                         IconButton {
+                            width: root.primaryRemoteButtonSize
+                            height: width
                             iconName: "radio_button_checked"
                             accessibleName: "Select"
                             selected: true
                             onClicked: RemoteControl.sendGeneralCommand("Select")
                         }
                         IconButton {
+                            width: root.remoteButtonSize
+                            height: width
                             iconName: "keyboard_arrow_right"
                             accessibleName: "Right"
                             onClicked: RemoteControl.sendGeneralCommand("MoveRight")
                         }
                         IconButton {
+                            width: root.remoteButtonSize
+                            height: width
                             iconName: "arrow_back"
                             accessibleName: "Back"
                             onClicked: RemoteControl.sendGeneralCommand("Back")
                         }
                         IconButton {
+                            width: root.remoteButtonSize
+                            height: width
                             iconName: "keyboard_arrow_down"
                             accessibleName: "Down"
                             onClicked: RemoteControl.sendGeneralCommand("MoveDown")
                         }
                         IconButton {
+                            width: root.remoteButtonSize
+                            height: width
                             iconName: "menu"
                             accessibleName: "Menu"
                             onClicked: RemoteControl.sendGeneralCommand("ToggleContextMenu")
@@ -430,90 +556,56 @@ FocusScope {
                     }
 
                     RowLayout {
-                        Layout.alignment: Qt.AlignHCenter
+                        Layout.fillWidth: true
                         spacing: Metrics.scaled(8)
-                        IconButton {
+
+                        ActionButton {
+                            Layout.fillWidth: true
+                            text: "Home"
                             iconName: "home"
-                            accessibleName: "Home"
                             onClicked: RemoteControl.sendGeneralCommand("GoHome")
                         }
-                        IconButton {
+                        ActionButton {
+                            Layout.fillWidth: true
+                            text: "Search"
                             iconName: "search"
-                            accessibleName: "Search"
                             onClicked: RemoteControl.sendGeneralCommand("GoToSearch")
                         }
-                        IconButton {
+                        ActionButton {
+                            id: keyboardButton
+                            Layout.fillWidth: true
+                            visible: !Platform.isTV
+                            text: "Keyboard"
+                            iconName: "keyboard"
+                            onClicked: root.openTargetKeyboard()
+                        }
+                    }
+
+                    RowLayout {
+                        Layout.fillWidth: true
+                        spacing: Metrics.scaled(8)
+
+                        ActionButton {
+                            Layout.fillWidth: true
+                            text: "Settings"
                             iconName: "settings"
-                            accessibleName: "Settings"
                             onClicked: RemoteControl.sendGeneralCommand("GoToSettings")
                         }
-                        IconButton {
-                            iconName: "more_horiz"
-                            accessibleName: "Toggle display controls"
+                        ActionButton {
+                            Layout.fillWidth: true
+                            text: "Player overlay"
+                            iconName: "picture_in_picture_alt"
                             onClicked: RemoteControl.sendGeneralCommand("ToggleOsd")
                         }
                     }
-                }
-            }
 
-            ColumnLayout {
-                Layout.fillWidth: true
-                visible: RemoteControl.targetSelected
-                spacing: Metrics.scaled(8)
-
-                SectionHeader {
-                    Layout.fillWidth: true
-                    title: "Type on target"
-                }
-                TextFieldRow {
-                    id: typeField
-                    Layout.fillWidth: true
-                    label: "Text"
-                    placeholderText: "Send text to the focused field"
-                    onAccepted: sendTextButton.clicked()
-                }
-                ActionButton {
-                    id: sendTextButton
-                    Layout.alignment: Qt.AlignRight
-                    text: "Send text"
-                    iconName: "send"
-                    enabled: typeField.text.length > 0
-                    onClicked: {
-                        RemoteControl.sendGeneralCommand("SendString", {
-                                                             "String": typeField.text
-                                                         })
-                        typeField.text = ""
-                    }
-                }
-
-                SectionHeader {
-                    Layout.fillWidth: true
-                    title: "Message"
-                }
-                TextFieldRow {
-                    id: messageTitle
-                    Layout.fillWidth: true
-                    label: "Title"
-                    placeholderText: "Message title"
-                }
-                TextFieldRow {
-                    id: messageText
-                    Layout.fillWidth: true
-                    label: "Message"
-                    placeholderText: "Message shown on the target"
-                }
-                ActionButton {
-                    Layout.alignment: Qt.AlignRight
-                    text: "Send message"
-                    iconName: "message"
-                    enabled: messageText.text.length > 0
-                    onClicked: {
-                        RemoteControl.sendGeneralCommand("DisplayMessage", {
-                                                             "Header": messageTitle.text,
-                                                             "Text": messageText.text
-                                                         })
-                        messageTitle.text = ""
-                        messageText.text = ""
+                    TextInput {
+                        id: remoteKeyboard
+                        Layout.preferredWidth: 1
+                        Layout.preferredHeight: 1
+                        opacity: 0
+                        inputMethodHints: Qt.ImhNoPredictiveText
+                        onAccepted: root.commitTargetKeyboard()
                     }
                 }
             }
@@ -525,7 +617,7 @@ FocusScope {
 
                 SectionHeader {
                     Layout.fillWidth: true
-                    title: "Queue"
+                    title: "Playback queue"
                 }
 
                 Repeater {
@@ -536,7 +628,7 @@ FocusScope {
                         required property var modelData
                         Layout.fillWidth: true
                         Layout.preferredHeight: Metrics.controlHeightPx + Metrics.scaled(10)
-                        baseColor: Theme.bgPanel
+                        baseColor: modelData.current ? Theme.accentPanel : Theme.bgPanel
 
                         RowLayout {
                             anchors.fill: parent
@@ -546,7 +638,9 @@ FocusScope {
 
                             AppText {
                                 Layout.fillWidth: true
-                                text: modelData.title || modelData.seriesName || "Queue item " + (index + 1)
+                                text: (modelData.current ? "Now playing · " : "") + (modelData.title
+                                                                                     || modelData.seriesName
+                                                                                     || "Queue item " + (index + 1))
                                 color: Theme.textPrimary
                                 font.pixelSize: Metrics.bodySizePx
                                 elide: Text.ElideRight

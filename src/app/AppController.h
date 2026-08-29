@@ -18,6 +18,7 @@
 #include "SearchController.h"
 #include "SessionController.h"
 #include "SettingsController.h"
+#include "SpoolRemoteProtocol.h"
 #include "SyncPlayController.h"
 
 #include <QCoroTask>
@@ -178,6 +179,7 @@ signals:
     void remoteUiActionRequested(const QString& action);
     void remoteMessageRequested(const QString& message);
     void remoteContentRequested(const QString& itemId, const QString& itemType, const QString& title);
+    void remoteSeekPreviewRequested(qint64 positionTicks, bool active);
     void clearLogsRequested();
 
 private:
@@ -212,6 +214,7 @@ private:
     void playQueueCurrent(bool fromStart = false);
     void startQueuedPlayback(bool fromStart = false);
     void handleRemotePlay(const QJsonObject& data);
+    void handleSpoolMessage(const SpoolRemoteProtocol::Message& message);
     void handleRemotePlaystate(const QJsonObject& data);
     void handleRemoteGeneralCommand(const QJsonObject& data);
     // Folder-like containers open their child listing; everything else plays directly.
@@ -256,6 +259,8 @@ private:
     RequestGeneration m_libraryLoadGeneration;
     RequestGeneration m_playbackLoadGeneration;
     RequestGeneration m_syncPlayQueueRequestGeneration;
+    RequestGeneration m_remotePlaybackRequestGeneration;
+    QString m_remotePlaybackFingerprint;
     bool m_shuttingDown = false;
     bool m_codecFallbackAttempted = false;
     // The ceiling a quality change moved away from, kept only until that

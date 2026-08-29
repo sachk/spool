@@ -10,7 +10,11 @@ T.Control {
     property bool checked: false
     property bool railStyle: false
     property bool chromeless: false
-    property bool pointerHovered: hover.hovered
+    property bool pointerHovered: hover.hovered && Metrics.pointerActive
+    // The glyph as a share of the button. The defaults reproduce the sizes
+    // these buttons have always drawn at; a caller that makes the button
+    // bigger gets a bigger icon instead of a small one adrift in a large box.
+    property real iconRatio: railStyle ? 0.545 : 0.5
     property string accessibleName: ""
     property alias acceptedButtons: tap.acceptedButtons
     signal clicked
@@ -53,7 +57,7 @@ T.Control {
             anchors.centerIn: parent
             visible: root.iconName.length > 0
             name: root.iconName
-            iconSize: Metrics.scaled(root.railStyle ? 24 : 22)
+            iconSize: Math.round(root.width * root.iconRatio)
             iconColor: Metrics.keyboardFocusActive && root.activeFocus || root.selected ? Theme.accent :
                                                                                           Theme.textSecondary
         }

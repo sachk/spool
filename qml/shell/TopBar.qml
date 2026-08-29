@@ -5,8 +5,8 @@ import QtQuick.Layouts
 import "../theme"
 import "../primitives"
 
-// Horizontal top navigation bar. Hosts the primary routes on the left and the
-// SyncPlay control on the right (mirroring jellyfin-web's AppToolbar). D-pad:
+// Horizontal top navigation bar. Hosts primary routes on the left and playback
+// destination, remote-control, and SyncPlay actions on the right. D-pad:
 // Left/Right move between bar items, Down enters the content area, and pages
 // return focus here by pressing Up at their top edge.
 FocusScope {
@@ -24,15 +24,16 @@ FocusScope {
     readonly property bool remoteControlMenuOpen: remoteMenuLoader.item ? remoteMenuLoader.item.menuOpen : false
     property bool remoteControlMenuLoaded: false
     readonly property bool castVisible: Settings.castButtonEnabled
+    readonly property bool remoteVisible: RemoteControl.targetSelected
     readonly property var syncPlay: SyncPlay
     readonly property bool syncActive: syncPlay ? syncPlay.enabled : false
     readonly property var syncGroups: syncPlay ? syncPlay.groups : []
     readonly property bool syncAvailable: syncGroups && syncGroups.length > 0
     readonly property string selectedRoute: currentRoute === "libraryGrid" ? "home" : currentRoute
 
-    // Index space: navigation buttons, optional Cast button, then SyncPlay.
+    // Index space: navigation buttons, optional Remote and Cast buttons, then SyncPlay.
     function lastIndex() {
-        return railRepeater.count + (castVisible ? 1 : 0)
+        return railRepeater.count + (castVisible ? 1 : 0) + (remoteVisible ? 1 : 0)
     }
 
     function focusedIndex() {
@@ -41,8 +42,10 @@ FocusScope {
             if (item && item.hasButtonFocus())
                 return i
         }
-        if (castVisible && castButton.activeFocus)
+        if (remoteVisible && remoteButton.activeFocus)
             return railRepeater.count
+        if (castVisible && castButton.activeFocus)
+            return railRepeater.count + (remoteVisible ? 1 : 0)
         if (syncButton.activeFocus)
             return lastIndex()
         return 0
@@ -56,7 +59,11 @@ FocusScope {
                 item.forceButtonFocus()
             return
         }
-        if (castVisible && clamped === railRepeater.count) {
+        if (remoteVisible && clamped === railRepeater.count) {
+            InputKeys.focus(remoteButton)
+            return
+        }
+        if (castVisible && clamped === railRepeater.count + (remoteVisible ? 1 : 0)) {
             InputKeys.focus(castButton)
             return
         }
@@ -140,6 +147,11 @@ FocusScope {
         const buttonPoint = castButton.mapFromItem(item, x, y)
         if (castButton.contains(buttonPoint))
             return true
+        if (remoteVisible) {
+            const remoteButtonPoint = remoteButton.mapFromItem(item, x, y)
+            if (remoteButton.contains(remoteButtonPoint))
+                return true
+        }
         const menu = remoteMenuLoader.item
         if (!menu || !menu.menuOpen)
             return false
@@ -159,7 +171,10 @@ FocusScope {
             return
         }
         const index = focusedIndex()
-        if (castVisible && index === railRepeater.count) {
+        if (remoteVisible && index === railRepeater.count) {
+            closeRemoteMenu(false)
+            navigate("remoteControl")
+        } else if (castVisible && index === railRepeater.count + (remoteVisible ? 1 : 0)) {
             openRemoteMenu()
         } else if (index >= lastIndex()) {
             openSyncMenu()
@@ -330,10 +345,10 @@ FocusScope {
                 id: castButton
                 anchors.centerIn: parent
                 iconName: RemoteControl.targetSelected ? "cast_connected" : "cast"
-                accessibleName: RemoteControl.targetSelected ? "Remote control — " + RemoteControl.selectedTargetName :
+                accessibleName: RemoteControl.targetSelected ? "Play on — " + RemoteControl.selectedTargetName :
                                                                "Play on"
                 railStyle: true
-                selected: root.remoteControlMenuOpen || RemoteControl.targetSelected
+                selected: root.remoteControlMenuOpen
                 onClicked: {
                     if (root.remoteControlMenuOpen)
                     root.closeRemoteMenu(false)
@@ -351,6 +366,39 @@ FocusScope {
                     anchors.rightMargin: Metrics.scaled(7)
                     anchors.topMargin: Metrics.scaled(7)
                     color: Theme.success
+                    border.width: Theme.focusBorderWidth
+                    border.color: Theme.bgRaised
+                }
+            }
+        }
+        Item {
+            visible: root.remoteVisible
+            Layout.alignment: Qt.AlignVCenter
+            Layout.preferredWidth: visible ? Metrics.scaled(50) : 0
+            Layout.fillHeight: true
+
+            IconButton {
+                id: remoteButton
+                anchors.centerIn: parent
+                iconName: "settings_remote"
+                accessibleName: "Remote control — " + RemoteControl.selectedTargetName
+                railStyle: true
+                selected: root.currentRoute === "remoteControl"
+                onClicked: {
+                    root.closeRemoteMenu(false)
+                    root.navigate("remoteControl")
+                }
+
+                Rectangle {
+                    visible: RemoteControl.playbackPending
+                    width: Metrics.scaled(9)
+                    height: width
+                    radius: width / 2
+                    anchors.right: parent.right
+                    anchors.top: parent.top
+                    anchors.rightMargin: Metrics.scaled(7)
+                    anchors.topMargin: Metrics.scaled(7)
+                    color: Theme.accent
                     border.width: Theme.focusBorderWidth
                     border.color: Theme.bgRaised
                 }
@@ -406,7 +454,6 @@ FocusScope {
         active: root.remoteControlMenuLoaded
         sourceComponent: RemoteControlMenu {
             onRequestClose: root.closeRemoteMenu()
-            onRemoteRequested: root.navigate("remoteControl")
         }
     }
 

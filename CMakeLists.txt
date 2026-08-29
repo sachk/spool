@@ -222,6 +222,12 @@ set(SPOOL_JELLYFIN_SOURCES
     src/app/QuickConnectController.h
     src/app/RemoteControlController.cpp
     src/app/RemoteControlController.h
+    src/app/SpoolLink.cpp
+    src/app/SpoolLink.h
+    src/app/SpoolLinkCodec.cpp
+    src/app/SpoolLinkCodec.h
+    src/app/SpoolRemoteProtocol.cpp
+    src/app/SpoolRemoteProtocol.h
     src/app/SearchController.cpp
     src/app/SearchController.h
     src/app/SessionController.cpp
@@ -460,6 +466,7 @@ qt_add_qml_module(jellyfin-native
         qml/shell/RoutePolicy.js
         qml/shell/RouteStack.qml
         qml/shell/RemoteControlMenu.qml
+        qml/shell/RemoteNowPlayingBar.qml
         qml/shell/SyncPlayMenu.qml
         qml/shell/TlsTrustDialog.qml
         qml/shell/ToastLayer.qml
@@ -620,6 +627,8 @@ if(BUILD_TESTING AND NOT CMAKE_CROSSCOMPILING)
         library-query tests/app/LibraryQueryTest.cpp
         content-model-controller tests/app/ContentModelControllerTest.cpp
         remote-control-controller tests/app/RemoteControlControllerTest.cpp
+        spool-remote-protocol tests/app/SpoolRemoteProtocolTest.cpp
+        spool-link-codec tests/app/SpoolLinkCodecTest.cpp
         sync-play-clock tests/app/SyncPlayClockTest.cpp
         sync-play-queue-handoff tests/app/SyncPlayQueueHandoffTest.cpp
         sync-play-drift-policy tests/app/SyncPlayDriftPolicyTest.cpp
@@ -810,6 +819,7 @@ if(BUILD_TESTING AND NOT CMAKE_CROSSCOMPILING)
             input-latency-warning tests/qml/tst_InputLatencyWarning.qml
             player-seek-bar-hover tests/qml/tst_PlayerSeekBarHover.qml
             list-scroll-bar tests/qml/tst_ListScrollBar.qml
+            inline-slider tests/qml/tst_InlineSlider.qml
         )
         # The subtitle panel test has never run on macOS; it was narrowed to
         # Windows alone while chasing that, which silently dropped Linux too.

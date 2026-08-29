@@ -22,7 +22,7 @@ RowLayout {
         readonly property bool focused: root.overlay.isControlsActive() && root.overlay.focusZone === "actions"
                                         && root.overlay.actionIndex === globalIndex
         readonly property bool selected: action === "syncplay" && root.overlay.syncPlayMenuOpen
-        readonly property bool emphasized: focused || selected || hover.hovered
+        readonly property bool emphasized: focused || selected || (hover.hovered && Metrics.pointerActive)
         readonly property string tooltip: Settings.playerControlTooltipsEnabled ? root.overlay.actionTooltip(action) :
                                                                                   ""
         readonly property bool waitingForSyncPlay: action === "pause" && SyncPlay.enabled && SyncPlay.waitingForPlayback
@@ -178,8 +178,10 @@ RowLayout {
             barHeight: root.overlay.dp(8)
             handleSize: root.overlay.dp(20)
             interactionMargin: handleSize
-            onMoved: if (root.overlay.hasPlayer)
-            root.overlay.player.setVolume(Math.round(value))
+            onMoved: newValue => {
+                if (root.overlay.hasPlayer)
+                    root.overlay.player.setVolume(Math.round(newValue))
+            }
         }
 
         AppText {

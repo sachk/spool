@@ -33,6 +33,7 @@ KeyRouter {
         onActiveChanged: if (active) {
                              Metrics.coarsePointer = true
                              Metrics.keyboardFocusActive = false
+                             Metrics.pointerActive = false
                              root.focus = true
                          }
     }
@@ -49,6 +50,7 @@ KeyRouter {
         onHoveredChanged: if (hovered) {
                               Metrics.coarsePointer = false
                               Metrics.keyboardFocusActive = true
+                              Metrics.pointerActive = true
                           }
     }
     focus: true
@@ -57,6 +59,14 @@ KeyRouter {
 
     readonly property string route: Router.route
     readonly property var routeArgs: Router.args || ({})
+    property bool remoteConnectionKnown: false
+    property string lastRemoteTargetName: ""
+    onRouteChanged: if (route === "remoteControl" && !RemoteControl.targetSelected) {
+                        Qt.callLater(function () {
+                            if (root.route === "remoteControl" && !RemoteControl.targetSelected)
+                                root.goHome()
+                        })
+                    }
     property bool diagnosticsVisible: false
     property string switchUserReturnProfileId: ""
     property string switchUserReturnRoute: ""
@@ -104,6 +114,20 @@ KeyRouter {
     readonly property bool busyValue: App.busy
     readonly property string busyTextValue: App.busyText
     property real keyboardAvoidance: 0
+
+    // The room the system's own furniture takes: the clock and notifications
+    // at the top, the gesture bar at the bottom, a cutout at either side.
+    // Read from the shell rather than from the layer it insets, because an
+    // item that moves itself by its own safe area never settles.
+    readonly property bool interfaceSharesScreen: !(root.hasPlayer && root.playerHoldsScreen)
+    readonly property real safeTopPx: interfaceSharesScreen ? root.SafeArea.margins.top : 0
+    readonly property real safeBottomPx: interfaceSharesScreen ? root.SafeArea.margins.bottom : 0
+    readonly property real safeLeftPx: interfaceSharesScreen ? root.SafeArea.margins.left : 0
+    readonly property real safeRightPx: interfaceSharesScreen ? root.SafeArea.margins.right : 0
+
+    // Playback takes the whole panel; everything else leaves the system's
+    // bars visible and stays clear of them.
+    onInterfaceSharesScreenChanged: NativeWindow.setImmersive(!interfaceSharesScreen)
 
     function refreshKeyboardAvoidance() {
         if (!Qt.inputMethod.visible) {
@@ -217,6 +241,31 @@ KeyRouter {
                                "returnRoute": root.route
                            })
         }
+        function onRemoteSeekPreviewRequested(positionTicks, active) {
+            videoSurface.showRemoteSeekPreview(Number(positionTicks) / 10000000, active)
+        }
+    }
+
+    Connections {
+        target: RemoteControl
+        function onTargetChanged() {
+            if (RemoteControl.targetSelected) {
+                const name = RemoteControl.selectedTargetName || "remote device"
+                if (!root.remoteConnectionKnown || root.lastRemoteTargetName !== name)
+                    toast.show("Connected to " + name, toast.briefDurationMs)
+                root.remoteConnectionKnown = true
+                root.lastRemoteTargetName = name
+                return
+            }
+            if (!root.remoteConnectionKnown)
+                return
+            const targetName = root.lastRemoteTargetName || "remote device"
+            root.remoteConnectionKnown = false
+            root.lastRemoteTargetName = ""
+            if (root.route === "remoteControl")
+                root.goHome()
+            toast.show("Disconnected from " + targetName, toast.briefDurationMs)
+        }
     }
     function showToastAction(message, actionText, callback) {
         toast.showAction(message, actionText, callback)
@@ -322,8 +371,12 @@ KeyRouter {
             Metrics.keyboardFocusActive = false
         }
         if (Platform.isTV) {
+            // Full hinting snaps stems to whole pixels, which is what makes
+            // the television's text look chiselled at a viewing distance.
+            // Hinting the vertical metrics alone keeps the weight and the
+            // baseline crisp while curves antialias smoothly.
             Theme.normalTextRenderType = Text.NativeRendering
-            Typography.sansHinting = Font.PreferFullHinting
+            Typography.sansHinting = Font.PreferVerticalHinting
         } else if (Qt.platform.os === "linux") {
             Theme.normalTextRenderType = Text.NativeRendering
             Typography.sansHinting = Font.PreferVerticalHinting
@@ -334,6 +387,8 @@ KeyRouter {
         // is what raises the on-screen keyboard, so the row stays the D-pad
         // target until Select is pressed.
         Theme.textEntryFollowsFocus = !Platform.isTV
+        root.remoteConnectionKnown = RemoteControl.targetSelected
+        root.lastRemoteTargetName = RemoteControl.targetSelected ? RemoteControl.selectedTargetName : ""
         if (App.initialized)
             root.applyInitializedRoute()
     }
@@ -850,8 +905,10 @@ KeyRouter {
         id: contentLayer
         objectName: "shellContentLayer"
         anchors.fill: parent
-        anchors.topMargin: -root.keyboardAvoidance
-        anchors.bottomMargin: root.keyboardAvoidance
+        anchors.topMargin: -root.keyboardAvoidance + root.safeTopPx
+        anchors.bottomMargin: root.keyboardAvoidance + root.safeBottomPx
+        anchors.leftMargin: root.safeLeftPx
+        anchors.rightMargin: root.safeRightPx
         visible: App.initialized && !(root.hasPlayer && root.playerHoldsScreen)
         enabled: visible
 
@@ -885,19 +942,39 @@ KeyRouter {
             onContentRequested: root.focusContent()
         }
 
+        // Space the now-playing bar takes out of the page, so content ends
+        // above it rather than under it.
+        readonly property real nowPlayingReserve: nowPlayingBar.visible ? nowPlayingBar.height : 0
+
         RouteStack {
             id: routeStack
             objectName: "shellRouteStack"
             anchors.left: parent.left
             anchors.right: parent.right
             y: root.navBarAtBottom ? 0 : navBar.height
-            height: Math.max(0, parent.height - navBar.height)
+            height: Math.max(0, parent.height - navBar.height - contentLayer.nowPlayingReserve)
             route: root.route
             shell: root
             startupReady: App.initialized
             focus: !(root.hasPlayer && root.playerHoldsScreen)
             onActiveFocusChanged: if (activeFocus)
                                       root.navigationTarget = routeStack
+        }
+
+        RemoteNowPlayingBar {
+            id: nowPlayingBar
+            objectName: "shellRemoteNowPlayingBar"
+            anchors.left: parent.left
+            anchors.right: parent.right
+            // Above the navigation when it sits at the bottom, against the
+            // viewport edge when it does not.
+            y: root.navBarAtBottom ? Math.max(0, navBar.y - height) : Math.max(0, parent.height - height)
+            z: 2
+            // The remote control page is this bar in full, so it would only
+            // duplicate itself there.
+            visible: shown && root.route !== "remoteControl" && root.route !== "login"
+            enabled: visible
+            onOpenRequested: root.pushRoute("remoteControl")
         }
     }
 
@@ -1035,6 +1112,9 @@ KeyRouter {
     ToastLayer {
         id: toast
         anchors.fill: parent
+        // Toasts sit against the bottom edge, which is where the gesture bar
+        // is.
+        anchors.bottomMargin: root.safeBottomPx
         z: 70
     }
 

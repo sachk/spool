@@ -12,7 +12,6 @@ FocusScope {
     property var entries: []
     property int currentIndex: 0
     signal requestClose
-    signal remoteRequested
 
     visible: menuOpen
     implicitHeight: panel.implicitHeight
@@ -26,9 +25,9 @@ FocusScope {
         const out = []
         if (RemoteControl.targetSelected) {
             out.push({
-                         kind: "open",
-                         label: RemoteControl.selectedTargetName || "Remote control",
-                         detail: RemoteControl.selectedTargetDetail || "Open controls",
+                         kind: "status",
+                         label: "Controlling " + (RemoteControl.selectedTargetName || "selected device"),
+                         detail: RemoteControl.selectedTargetDetail || "Connected",
                          icon: "cast_connected"
                      })
             out.push({
@@ -102,9 +101,6 @@ FocusScope {
             return
         if (entry.kind === "target") {
             RemoteControl.selectTarget(entry.sessionId)
-            remoteRequested()
-        } else if (entry.kind === "open") {
-            remoteRequested()
         } else if (entry.kind === "disconnect") {
             RemoteControl.clearTarget()
         } else if (entry.kind === "refresh") {

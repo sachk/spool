@@ -2,6 +2,8 @@
 
 #include "../common/JellyfinTypes.h"
 #include "../common/RequestGeneration.h"
+#include "../player/PlaybackTimeline.h"
+#include "SpoolLink.h"
 
 #include <QHash>
 #include <QJsonArray>
@@ -13,6 +15,7 @@
 #include <QVariantMap>
 
 #include <memory>
+#include <optional>
 #include <vector>
 
 namespace JellyfinNative {
@@ -40,6 +43,9 @@ class RemoteControlController final : public QObject {
     Q_PROPERTY(QString repeatMode READ repeatMode NOTIFY stateChanged)
     Q_PROPERTY(bool shuffled READ shuffled NOTIFY stateChanged)
     Q_PROPERTY(bool busy READ busy NOTIFY busyChanged)
+    Q_PROPERTY(bool playbackPending READ playbackPending NOTIFY playbackPendingChanged)
+    Q_PROPERTY(QString pendingTitle READ pendingTitle NOTIFY playbackPendingChanged)
+    Q_PROPERTY(bool trickplayAvailable READ trickplayAvailable NOTIFY trickplayChanged)
 
 public:
     explicit RemoteControlController(JellyfinApiFacade *api, QObject *parent = nullptr);
@@ -117,6 +123,18 @@ public:
     {
         return m_busy;
     }
+    bool playbackPending() const
+    {
+        return m_playbackPending;
+    }
+    QString pendingTitle() const
+    {
+        return m_pendingTitle;
+    }
+    bool trickplayAvailable() const
+    {
+        return m_trickplayTimeline.trickplayAvailable();
+    }
 
     void start();
     void stop();
@@ -130,6 +148,17 @@ public:
     Q_INVOKABLE qint64 predictedPositionTicks() const;
     Q_INVOKABLE void playItemIds(const QStringList& itemIds, const QString& command = QStringLiteral("PlayNow"),
         int startIndex = 0, qint64 startPositionTicks = -1);
+    Q_INVOKABLE QVariantMap trickplayForTicks(qint64 positionTicks) const;
+    Q_INVOKABLE void previewSeek(qint64 positionTicks, bool active);
+    Q_INVOKABLE void cancelSeekPreview();
+    // Asks the target to join a SyncPlay group itself. Membership is the
+    // client's own to hold, so the group sees the device that is playing
+    // rather than the one holding the remote.
+    Q_INVOKABLE void requestSyncPlayJoin(const QString& groupId);
+    SpoolLink *link() const
+    {
+        return m_link;
+    }
     Q_INVOKABLE void sendPlaystate(const QString& command, qint64 seekPositionTicks = -1);
     Q_INVOKABLE void sendGeneralCommand(const QString& command, const QVariantMap& arguments = {});
     Q_INVOKABLE void togglePause();
@@ -154,20 +183,30 @@ signals:
     void targetChanged();
     void stateChanged();
     void busyChanged();
+    void playbackPendingChanged();
+    void trickplayChanged();
+    void feedbackText(const QString& text);
     void errorText(const QString& text);
 
 private:
     void setBusy(bool busy);
+    void setPlaybackPending(bool pending);
+    void requestPaused(bool paused);
+    void stagePendingPlayback(const std::vector<MovieItem>& items, qint64 startPositionTicks, const QString& command);
     void applySelectedSession();
     void clearSelectedState();
     void refreshQueueDetails(const QJsonArray& rawQueue);
+    void loadTrickplay(const QString& itemId, const QString& mediaSourceId = {});
     void updateMediaSession();
-    void runPlay(QStringList itemIds, QString command, int startIndex, qint64 startPositionTicks);
+    bool runPlay(
+        QStringList itemIds, QString command, int startIndex, qint64 startPositionTicks, QString pendingTitle = {});
     void reportCommandError(const QString& action, const std::exception_ptr& error);
 
     JellyfinApiFacade *m_api = nullptr;
     std::unique_ptr<PlatformRemoteMediaSession> m_mediaSession;
     QTimer m_refreshTimer;
+    QTimer m_pendingRefreshTimer;
+    QTimer m_pendingTimeoutTimer;
     QHash<QString, QJsonObject> m_sessions;
     QVariantList m_targets;
     QString m_selectedSessionId;
@@ -179,16 +218,40 @@ private:
     QVariantList m_subtitleTracks;
     QStringList m_supportedCommands;
     QJsonArray m_rawQueue;
+    QString m_pendingTargetSessionId;
+    QString m_pendingItemId;
+    QString m_pendingTitle;
     RequestGeneration m_queueGeneration;
+    RequestGeneration m_playGeneration;
+    RequestGeneration m_pauseGeneration;
+    RequestGeneration m_trickplayGeneration;
+    PlaybackTimeline m_trickplayTimeline;
+    QString m_trickplayItemId;
+    QString m_trickplayMediaSourceId;
+    // Pacing and coalescing belong to the transport, which knows what the
+    // path can carry; this only has to say what is worth sending.
+    SpoolLink *m_link = nullptr;
+    QString m_localSessionId;
+    qint64 m_previewSentTicks = -1;
+    bool m_previewSentActive = false;
     qint64 m_positionTicks = 0;
     qint64 m_runtimeTicks = 0;
     qint64 m_stateReceivedAtMs = 0;
+    qint64 m_pendingPauseDeadlineMs = 0;
+    // Where a seek this device asked for put the other end. The server keeps
+    // reporting the position from before the seek until the target reports its
+    // own, so the bar would snap back and only jump forward seconds later.
+    std::optional<qint64> m_pendingSeekTicks;
+    qint64 m_pendingSeekAtMs = 0;
+    qint64 m_pendingSeekDeadlineMs = 0;
     double m_playbackRate = 1.0;
     int m_volume = 100;
     bool m_paused = true;
+    std::optional<bool> m_pendingPaused;
     bool m_muted = false;
     bool m_shuffled = false;
     bool m_busy = false;
+    bool m_playbackPending = false;
     QString m_repeatMode = QStringLiteral("RepeatNone");
 };
 
