@@ -19,6 +19,7 @@ class MpvOptionProfile final {
 public:
     enum class Platform {
         Desktop,
+        Android,
         WebOS,
     };
 

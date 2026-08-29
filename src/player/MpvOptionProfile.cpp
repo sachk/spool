@@ -230,6 +230,7 @@ std::vector<MpvOption> MpvOptionProfile::applicationOptions(Platform platform, c
     int parallelRequests, bool softwareVideo, const QByteArray& shaderCachePath)
 {
     const bool webOS = platform == Platform::WebOS;
+    const bool android = platform == Platform::Android;
     softwareVideo = webOS && softwareVideo;
     const NetworkProfile network = networkProfile(platform, parallelRequests);
     const QString normalizedAudioOutput = webOS ? audioOutputMode : normalizedAudioOutputMode(audioOutputMode);
@@ -298,11 +299,15 @@ std::vector<MpvOption> MpvOptionProfile::applicationOptions(Platform platform, c
     } else {
         options.push_back({ "vo", "libmpv" });
         options.push_back({ "audio-fallback-to-null", "yes" });
+        if (android) {
+            options.push_back({ "hwdec", "mediacodec,mediacodec-copy" });
+        } else {
 #if defined(Q_OS_LINUX)
-        options.push_back({ "hwdec", "auto-copy" });
+            options.push_back({ "hwdec", "auto-copy" });
 #else
-        options.push_back({ "hwdec", "auto-safe" });
+            options.push_back({ "hwdec", "auto-safe" });
 #endif
+        }
         if (normalizedAudioOutput != QStringLiteral("auto"))
             options.push_back({ "ao", normalizedAudioOutput.toUtf8() });
     }

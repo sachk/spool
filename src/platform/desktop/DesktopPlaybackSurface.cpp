@@ -5,6 +5,7 @@
 #include <QDebug>
 #include <QMetaObject>
 #include <QObject>
+#include <QtGlobal>
 
 namespace JellyfinNative {
 namespace {
@@ -21,7 +22,11 @@ void runAfterPlatformMpvLoaded(std::function<void()> callback)
 }
 MpvOptionProfile::Platform platformMpvOptionProfile()
 {
+#if defined(Q_OS_ANDROID)
+    return MpvOptionProfile::Platform::Android;
+#else
     return MpvOptionProfile::Platform::Desktop;
+#endif
 }
 bool platformUsesEmbeddedVideo(const PlaybackSession&)
 {

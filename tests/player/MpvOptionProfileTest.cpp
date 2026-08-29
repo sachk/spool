@@ -89,6 +89,14 @@ JELLYFIN_TEST_MAIN("mpv-option-profile")
     require(valueFor(desktop, "osc") == "no", "desktop should disable mpv's script UI");
     require(valueFor(desktop, "load-stats-overlay") == "yes", "desktop should load mpv's playback statistics");
 
+    const auto android = profileOptions(MpvConfigPolicy {}, MpvOptionProfile::Platform::Android, QStringLiteral("auto"),
+        QByteArrayLiteral("/tmp/mpv.log"));
+    require(valueFor(android, "vo") == "libmpv", "Android should render through libmpv");
+    require(valueFor(android, "hwdec") == "mediacodec,mediacodec-copy",
+        "Android should prefer zero-copy MediaCodec and fall back to copied hardware frames");
+    require(valueFor(android, "audio-fallback-to-null") == "yes",
+        "Android playback should continue silently when no audio output device is available");
+
     MpvConfigPolicy standardConfig;
     standardConfig.mode = MpvConfigPolicy::Mode::Standard;
     const auto desktopStandard = profileOptions(
