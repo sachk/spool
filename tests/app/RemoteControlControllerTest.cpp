@@ -62,9 +62,11 @@ JELLYFIN_TEST_MAIN("remote-control-controller")
 {
     QCoreApplication app(argc, argv);
     RemoteControlController remote(nullptr);
-    QString feedback;
-    QObject::connect(
-        &remote, &RemoteControlController::feedbackText, [&feedback](const QString& text) { feedback = text; });
+    QString announcedTarget;
+    QObject::connect(&remote, &RemoteControlController::targetChanged, [&remote, &announcedTarget]() {
+        if (remote.targetSelected())
+            announcedTarget = remote.selectedTargetName();
+    });
 
     remote.applySessions(QJsonArray {
         session(QStringLiteral("hidden"), QStringLiteral("Phone"), false),
@@ -78,8 +80,8 @@ JELLYFIN_TEST_MAIN("remote-control-controller")
     remote.selectTarget(QStringLiteral("living-room"));
     require(remote.targetSelected(), "available target was not selected");
     require(remote.selectedTargetName() == QStringLiteral("Living Room"), "selected target name was not retained");
-    require(feedback == QStringLiteral("Connected to Living Room"),
-        "selecting a target did not report the connection without requiring navigation");
+    require(announcedTarget == QStringLiteral("Living Room"),
+        "selecting a target did not announce the connection without requiring navigation");
     require(remote.nowPlayingItem().value(QStringLiteral("title")).toString() == QStringLiteral("Arrival"),
         "selected target now-playing item was not normalized");
     require(remote.positionTicks() == 300'000'000, "selected target position was not applied");

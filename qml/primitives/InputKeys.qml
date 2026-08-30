@@ -90,7 +90,7 @@ QtObject {
         const contentX = Number(view.contentX)
         const contentY = Number(view.contentY)
         view.currentIndex = index
-        focus(view)
+        view.forceActiveFocus()
         if (Number.isFinite(contentX))
             view.contentX = contentX
         if (Number.isFinite(contentY))
