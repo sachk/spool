@@ -230,10 +230,34 @@ jobs:
             dist/render-benchmark/warm.json \
             --baseline .render-benchmark/warm.json \
             --markdown dist/render-benchmark/warm.md || status=$?
+
+          # maxGapMs is wall-clock time, so a hosted-runner scheduling pause can
+          # produce a one-off failure. Repeat a failed warm sample once; a real
+          # regression must fail both independent runs.
+          if (( status != 0 )); then
+            mv dist/render-benchmark/warm.md dist/render-benchmark/warm-first.md
+            nix develop .#native -c env \
+              SPOOL_BENCH=routes \
+              SPOOL_BENCH_OUT="$PWD/dist/render-benchmark/warm.json" \
+              SPOOL_BENCH_ITERATIONS=4 \
+              bash tools/launch-native-app.sh build/linux-release/install/bin/jellyfin-native
+            status=0
+            nix develop .#native -c python3 tools/compare-render-benchmark.py \
+              dist/render-benchmark/warm.json \
+              --baseline .render-benchmark/warm.json \
+              --markdown dist/render-benchmark/warm.md || status=$?
+          fi
+
           nix develop .#native -c python3 tools/compare-render-benchmark.py \
             dist/render-benchmark/cold.json \
             --baseline .render-benchmark/cold.json \
             --markdown dist/render-benchmark/cold.md || true
+          if [[ -f dist/render-benchmark/warm-first.md ]]; then
+            {
+              cat dist/render-benchmark/warm-first.md
+              printf '\n> The initial warm sample failed; the workflow repeated it once to exclude a hosted-runner scheduling pause.\n\n'
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
           cat dist/render-benchmark/warm.md dist/render-benchmark/cold.md >> "$GITHUB_STEP_SUMMARY"
           exit "$status"
 
