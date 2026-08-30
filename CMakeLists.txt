@@ -165,6 +165,8 @@ set(SPOOL_SHELL_SOURCES
     src/app/SettingsController.h
     src/app/SettingsSchema.cpp
     src/app/SettingsSchema.h
+    src/app/UpdateManifest.cpp
+    src/app/UpdateManifest.h
     src/cache/DatabaseManager.cpp
     src/cache/DatabaseManager.h
     src/common/AsyncTask.h
@@ -469,6 +471,7 @@ qt_add_qml_module(jellyfin-native
         qml/shell/RemoteNowPlayingBar.qml
         qml/shell/SyncPlayMenu.qml
         qml/shell/TlsTrustDialog.qml
+        qml/shell/UpdateDialog.qml
         qml/shell/ToastLayer.qml
         qml/shell/TopBar.qml
         qml/shell/VideoSurface.qml
@@ -632,6 +635,7 @@ if(BUILD_TESTING AND NOT CMAKE_CROSSCOMPILING)
         sync-play-clock tests/app/SyncPlayClockTest.cpp
         sync-play-queue-handoff tests/app/SyncPlayQueueHandoffTest.cpp
         sync-play-drift-policy tests/app/SyncPlayDriftPolicyTest.cpp
+        update-manifest tests/app/UpdateManifestTest.cpp
     )
     set(JELLYFIN_TESTS_cache
         database-manager tests/cache/DatabaseManagerTest.cpp

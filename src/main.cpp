@@ -26,6 +26,9 @@
 #include "platform/ScreenSaverInhibitor.h"
 #include "player/MpvVideoItem.h"
 #include "player/PlayerController.h"
+#if defined(SPOOL_ANDROID)
+#include "platform/android/AndroidUpdateController.h"
+#endif
 
 #include <QCoreApplication>
 #include <QDateTime>
@@ -414,6 +417,12 @@ int main(int argc, char **argv)
     diskCache->setCacheDirectory(cachePath + QStringLiteral("/network-cache"));
     diskCache->setMaximumCacheSize(memoryBudget.networkDiskCacheBytes);
     networkAccessManager->setCache(diskCache);
+    QObject *platformUpdateController = nullptr;
+#if defined(SPOOL_ANDROID)
+    auto updateController = std::make_unique<JellyfinNative::AndroidUpdateController>(networkAccessManager, cachePath);
+    platformUpdateController = updateController.get();
+    updateController->start();
+#endif
 
     JellyfinNative::DatabaseManager database;
     QObject::connect(
@@ -618,6 +627,7 @@ int main(int argc, char **argv)
     platformInfo->insert(QStringLiteral("supportsMpvConfig"), capabilities.supportsMpvConfig);
     platformInfo->insert(QStringLiteral("usesPerOutputAudioDelay"), capabilities.usesPerOutputAudioDelay);
     platformInfo->insert(QStringLiteral("deviceName"), capabilities.deviceName);
+    platformInfo->insert(QStringLiteral("updateController"), QVariant::fromValue(platformUpdateController));
     platformInfo->insert(QStringLiteral("rendererName"), capabilities.rendererName);
     qmlRegisterSingletonInstance("JellyfinWebOS", 1, 0, "App", controller.get());
     qmlRegisterSingletonInstance("JellyfinWebOS", 1, 0, "Art", artworkService.get());

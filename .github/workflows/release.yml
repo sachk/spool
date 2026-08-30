@@ -99,12 +99,16 @@ jobs:
           MACOS_SIGNED: ${{ vars.ENABLE_MACOS_SIGNING == 'true' }}
           TAG: ${{ github.ref_name }}
           REPO: ${{ github.repository }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           base="https://github.com/$REPO/releases/download/$TAG"
+          gh api --method POST "repos/$REPO/releases/generate-notes" \
+            -f tag_name="$TAG" --jq .body >generated-notes.md
 
-          # The asset list is mostly SBOM and scan sidecars, which bury the six
-          # files anyone actually installs. Build the table from what is really
+
+          # The asset list is mostly SBOM and scan sidecars, which bury the
+          # files people actually install. Build the table from what is really
           # on disk so a renamed or dropped package leaves no dead link. Every
           # sidecar ends in .json, so matching each package's own suffix keeps
           # them out without naming them.
@@ -122,8 +126,12 @@ jobs:
           add_row 'Windows — portable' '*-Windows-x64-Portable.exe'
           add_row 'Linux — AppImage' '*-x86_64.AppImage'
           add_row 'LG webOS TV' '*_arm.ipk'
+          add_row 'Android phone' 'spool-phone-arm64-v8a.apk'
+          add_row 'Android TV' 'spool-tv-arm64-v8a.apk'
 
           {
+            cat generated-notes.md
+            echo
             if (( ${#rows[@]} )); then
               echo '## Downloads'
               echo
@@ -152,7 +160,78 @@ jobs:
             --repo "$GITHUB_REPOSITORY" \
             "${assets[@]}" \
             --verify-tag \
-            --generate-notes \
             --notes-file release-notes.md \
             --prerelease \
             --latest=false
+      - name: Generate Android update metadata
+        env:
+          TAG: ${{ github.ref_name }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          phone='release-assets/spool-phone-arm64-v8a.apk'
+          tv='release-assets/spool-tv-arm64-v8a.apk'
+          test -f "$phone"
+          test -f "$tv"
+          version="${TAG#v}"
+          IFS=. read -r major minor patch <<<"$version"
+          version_code=$((major * 100000000 + minor * 100000 + patch * 100 + 99))
+          base="https://github.com/$REPO/releases/download/$TAG"
+          mkdir -p update-pages/updates
+          jq -n \
+            --arg version "$version" \
+            --argjson versionCode "$version_code" \
+            --arg releaseUrl "https://github.com/$REPO/releases/tag/$TAG" \
+            --rawfile notes generated-notes.md \
+            --arg phoneUrl "$base/$(basename "$phone")" \
+            --arg phoneSha "$(sha256sum "$phone" | cut -d' ' -f1)" \
+            --argjson phoneSize "$(stat -c%s "$phone")" \
+            --arg tvUrl "$base/$(basename "$tv")" \
+            --arg tvSha "$(sha256sum "$tv" | cut -d' ' -f1)" \
+            --argjson tvSize "$(stat -c%s "$tv")" \
+            '{
+              schemaVersion: 1,
+              releases: [{
+                channel: "release",
+                version: $version,
+                versionCode: $versionCode,
+                releaseUrl: $releaseUrl,
+                notes: $notes,
+                assets: {
+                  "phone-arm64-v8a": {url: $phoneUrl, sha256: $phoneSha, size: $phoneSize},
+                  "tv-arm64-v8a": {url: $tvUrl, sha256: $tvSha, size: $tvSize}
+                }
+              }]
+            }' >update-pages/updates/android.json
+          jq -e '.schemaVersion == 1 and (.releases | length) == 1' update-pages/updates/android.json
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.0
+        with:
+          name: spool-android-update-pages
+          path: update-pages
+          retention-days: 1
+
+  deploy-update-metadata:
+    name: Publish Android update metadata
+    needs: publish
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: spool-android-update-pages
+          path: update-pages
+      - uses: actions/configure-pages@983d7736d9b0ae728b81ab479565c72886d7745b # v5
+        with:
+          enablement: true
+      - uses: actions/upload-pages-artifact@7b1f4a764d45c48632c6b24a0339c27f5614fb0b # v4
+        with:
+          path: update-pages
+      - name: Deploy GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e # v4

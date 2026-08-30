@@ -89,13 +89,13 @@ KeyRouter {
     textInputActive: Qt.inputMethod.visible || InputKeys.isTextInputItem(root.Window.window
                                                                          ? root.Window.window.activeFocusItem : null)
     property var navigationTarget: routeStack
-    activeTarget: tlsTrustPending ? tlsTrustDialog : managementOverlayVisible ? managementOverlayLoader.item :
-                                                                                itemMenuOpen
-                                                                                ? itemContextMenuLoader.item :
-                                                                                  mediaInfoVisible
-                                                                                  ? mediaInfoOverlayLoader.item :
-                                                                                    hasPlayer && player.visible
-                                                                                    ? videoSurface : navigationTarget
+    activeTarget: updateDialog.open ? updateDialog : tlsTrustPending ? tlsTrustDialog : managementOverlayVisible
+                                                                       ? managementOverlayLoader.item : itemMenuOpen
+                                                                         ? itemContextMenuLoader.item :
+                                                                           mediaInfoVisible
+                                                                           ? mediaInfoOverlayLoader.item : hasPlayer
+                                                                             && player.visible ? videoSurface :
+                                                                                                 navigationTarget
     backHandler: function () {
         return root.back()
     }
@@ -610,6 +610,8 @@ KeyRouter {
     }
 
     function back() {
+        if (updateDialog.open)
+            return updateDialog.back()
         if (tlsTrustPending)
             return tlsTrustDialog.back()
         if (textInputActive) {
@@ -1141,6 +1143,11 @@ KeyRouter {
             anchors.fill: parent
             onClicked: App.clearError()
         }
+    }
+    UpdateDialog {
+        id: updateDialog
+        updater: Platform.updateController
+        z: 260
     }
     TlsTrustDialog {
         id: tlsTrustDialog

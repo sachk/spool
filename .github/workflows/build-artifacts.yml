@@ -61,6 +61,14 @@ on:
         required: false
       CACHIX_AUTH_TOKEN:
         required: false
+      ANDROID_RELEASE_KEYSTORE_BASE64:
+        required: false
+      ANDROID_RELEASE_KEYSTORE_PASSWORD:
+        required: false
+      ANDROID_RELEASE_KEY_ALIAS:
+        required: false
+      ANDROID_RELEASE_KEY_PASSWORD:
+        required: false
 
 permissions:
   contents: read
@@ -702,11 +710,40 @@ jobs:
               '
           done
 
+      - name: Prepare Android release keystore
+        if: ${{ inputs.release }}
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_RELEASE_KEYSTORE_BASE64 }}
+        run: |
+          set -euo pipefail
+          test -n "$KEYSTORE_BASE64"
+          printf '%s' "$KEYSTORE_BASE64" | base64 --decode >"$RUNNER_TEMP/spool-release.p12"
+          chmod 600 "$RUNNER_TEMP/spool-release.p12"
+
       - name: Build phone and TV APK variants together
+        env:
+          SPOOL_ANDROID_KEYSTORE_PATH: ${{ inputs.release && format('{0}/spool-release.p12', runner.temp) || '' }}
+          SPOOL_ANDROID_KEYSTORE_ALIAS: ${{ secrets.ANDROID_RELEASE_KEY_ALIAS }}
+          SPOOL_ANDROID_KEYSTORE_STORE_PASS: ${{ secrets.ANDROID_RELEASE_KEYSTORE_PASSWORD }}
+          SPOOL_ANDROID_KEYSTORE_KEY_PASS: ${{ secrets.ANDROID_RELEASE_KEY_PASSWORD }}
         run: |
           for abi in arm64-v8a x86_64; do
             nix develop .#android -c env ANDROID_ABI="$abi" bash tools/android/build-apks.sh
           done
+
+      - name: Verify Android release signing identity
+        if: ${{ inputs.release }}
+        env:
+          EXPECTED_CERT_SHA256: 0c9deff0513eed6d43521df31ad6d2d8e928c029b146d902f4bcc25a883c1fb8
+        run: |
+          set -euo pipefail
+          nix develop .#android -c bash -c "
+            for apk in dist/android/*.apk; do
+              output=\"\$(\"\$ANDROID_HOME/build-tools/36.0.0/apksigner\" verify --verbose --print-certs \"\$apk\")\"
+              printf '%s\n' \"\$output\"
+              grep -Fq \"Signer #1 certificate SHA-256 digest: \$EXPECTED_CERT_SHA256\" <<<\"\$output\"
+            done
+          "
 
       - name: Save Android toolchain cache
         if: ${{ steps.android-cache.outputs.cache-hit != 'true' }}

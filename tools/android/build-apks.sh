@@ -43,19 +43,33 @@ esac
   exit 1
 }
 
-# androiddeployqt emits an unsigned release APK, which Android refuses to
-# install. Sign with a local debug key so the APKs are installable; release
-# signing is a separate, credentialed step.
-KEYSTORE="$ROOT/build/android/debug.keystore"
+# androiddeployqt emits an unsigned release APK. Release jobs supply a durable
+# upload key; development and pull-request builds use an installable debug key.
 prepare_keystore() {
-  if [[ ! -f "$KEYSTORE" ]]; then
-    mkdir -p "$(dirname "$KEYSTORE")"
-    keytool -genkeypair -keystore "$KEYSTORE" -alias spooldebug \
+  if [[ -n "${SPOOL_ANDROID_KEYSTORE_PATH:-}" ]]; then
+    [[ -f "$SPOOL_ANDROID_KEYSTORE_PATH" ]] || {
+      echo "error: release keystore is missing at $SPOOL_ANDROID_KEYSTORE_PATH" >&2
+      exit 1
+    }
+    : "${SPOOL_ANDROID_KEYSTORE_ALIAS:?release keystore alias is required}"
+    : "${SPOOL_ANDROID_KEYSTORE_STORE_PASS:?release keystore password is required}"
+    : "${SPOOL_ANDROID_KEYSTORE_KEY_PASS:?release key password is required}"
+    export QT_ANDROID_KEYSTORE_PATH="$SPOOL_ANDROID_KEYSTORE_PATH"
+    export QT_ANDROID_KEYSTORE_ALIAS="$SPOOL_ANDROID_KEYSTORE_ALIAS"
+    export QT_ANDROID_KEYSTORE_STORE_PASS="$SPOOL_ANDROID_KEYSTORE_STORE_PASS"
+    export QT_ANDROID_KEYSTORE_KEY_PASS="$SPOOL_ANDROID_KEYSTORE_KEY_PASS"
+    return
+  fi
+
+  local keystore="$ROOT/build/android/debug.keystore"
+  if [[ ! -f "$keystore" ]]; then
+    mkdir -p "$(dirname "$keystore")"
+    keytool -genkeypair -keystore "$keystore" -alias spooldebug \
       -storepass spooldebug -keypass spooldebug \
       -keyalg RSA -keysize 2048 -validity 10000 \
       -dname "CN=Spool Debug, OU=Spool, O=Spool, L=None, ST=None, C=AU"
   fi
-  export QT_ANDROID_KEYSTORE_PATH="$KEYSTORE"
+  export QT_ANDROID_KEYSTORE_PATH="$keystore"
   export QT_ANDROID_KEYSTORE_ALIAS=spooldebug
   export QT_ANDROID_KEYSTORE_STORE_PASS=spooldebug
   export QT_ANDROID_KEYSTORE_KEY_PASS=spooldebug
