@@ -93,6 +93,16 @@ jobs:
         with:
           primary-key: nix-lint-${{ runner.os }}-${{ hashFiles('flake.nix', 'flake.lock') }}
           restore-prefixes-first-match: nix-lint-${{ runner.os }}-
+          gc-max-store-size-linux: 2G
+          # Stale entries under the same prefix are dead weight against a
+          # shared 10 GB quota, and nothing restores them once the key moves.
+          # A tag run does not write at all: it can read master's copy, and a
+          # second scoped copy is what filled the quota before.
+          save: ${{ !inputs.release }}
+          purge: true
+          purge-prefixes: nix-lint-${{ runner.os }}-
+          purge-created: P7D
+          purge-primary-key: never
 
       - name: Check commit whitespace
         run: git show --check --format= HEAD
@@ -151,6 +161,13 @@ jobs:
         with:
           primary-key: nix-native-${{ runner.os }}-${{ hashFiles('flake.nix', 'flake.lock') }}
           restore-prefixes-first-match: nix-native-${{ runner.os }}-
+          gc-max-store-size-linux: 4G
+          # Cache hygiene: see the lint job above.
+          save: ${{ !inputs.release }}
+          purge: true
+          purge-prefixes: nix-native-${{ runner.os }}-
+          purge-created: P7D
+          purge-primary-key: never
       - uses: cachix/cachix-action@3ba601ff5bbb07c7220846facfa2cd81eeee15a1 # v16
         if: ${{ env.CACHIX_AUTH_TOKEN != '' }}
         with:
@@ -225,39 +242,19 @@ jobs:
 
       - name: Report render latency
         run: |
+          # No retry here. The run measures the machine's own idle timer drift
+          # beside every sample and gates on the per-route median, so a
+          # scheduling pause neither fails the run nor needs a second one to
+          # rule it out.
           status=0
           nix develop .#native -c python3 tools/compare-render-benchmark.py \
             dist/render-benchmark/warm.json \
             --baseline .render-benchmark/warm.json \
             --markdown dist/render-benchmark/warm.md || status=$?
-
-          # maxGapMs is wall-clock time, so a hosted-runner scheduling pause can
-          # produce a one-off failure. Repeat a failed warm sample once; a real
-          # regression must fail both independent runs.
-          if (( status != 0 )); then
-            mv dist/render-benchmark/warm.md dist/render-benchmark/warm-first.md
-            nix develop .#native -c env \
-              SPOOL_BENCH=routes \
-              SPOOL_BENCH_OUT="$PWD/dist/render-benchmark/warm.json" \
-              SPOOL_BENCH_ITERATIONS=4 \
-              bash tools/launch-native-app.sh build/linux-release/install/bin/jellyfin-native
-            status=0
-            nix develop .#native -c python3 tools/compare-render-benchmark.py \
-              dist/render-benchmark/warm.json \
-              --baseline .render-benchmark/warm.json \
-              --markdown dist/render-benchmark/warm.md || status=$?
-          fi
-
           nix develop .#native -c python3 tools/compare-render-benchmark.py \
             dist/render-benchmark/cold.json \
             --baseline .render-benchmark/cold.json \
             --markdown dist/render-benchmark/cold.md || true
-          if [[ -f dist/render-benchmark/warm-first.md ]]; then
-            {
-              cat dist/render-benchmark/warm-first.md
-              printf '\n> The initial warm sample failed; the workflow repeated it once to exclude a hosted-runner scheduling pause.\n\n'
-            } >> "$GITHUB_STEP_SUMMARY"
-          fi
           cat dist/render-benchmark/warm.md dist/render-benchmark/cold.md >> "$GITHUB_STEP_SUMMARY"
           exit "$status"
 
@@ -366,6 +363,12 @@ jobs:
           primary-key: nix-native-${{ runner.os }}-${{ matrix.arch }}-${{ hashFiles('flake.nix', 'flake.lock') }}
           restore-prefixes-first-match: nix-native-${{ runner.os }}-${{ matrix.arch }}-
           gc-max-store-size-macos: 8G
+          # Cache hygiene: see the lint job above.
+          save: ${{ !inputs.release }}
+          purge: true
+          purge-prefixes: nix-native-${{ runner.os }}-${{ matrix.arch }}-
+          purge-created: P7D
+          purge-primary-key: never
       - uses: cachix/cachix-action@3ba601ff5bbb07c7220846facfa2cd81eeee15a1 # v16
         if: ${{ env.CACHIX_AUTH_TOKEN != '' }}
         with:
@@ -533,6 +536,13 @@ jobs:
         with:
           primary-key: nix-${{ runner.os }}-${{ hashFiles('flake.nix', 'flake.lock') }}
           restore-prefixes-first-match: nix-${{ runner.os }}-
+          gc-max-store-size-linux: 4G
+          # Cache hygiene: see the lint job above.
+          save: ${{ !inputs.release }}
+          purge: true
+          purge-prefixes: nix-${{ runner.os }}-
+          purge-created: P7D
+          purge-primary-key: never
       - uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5.0.3
         id: webos-cache
         with:
@@ -571,8 +581,12 @@ jobs:
             nix develop -c bash tools/webos-native/build-webos.sh "$phase"
           done
 
+      # A release runs on a tag, and a tag gets its own cache scope: anything
+      # saved here is a second copy of what master already holds, against a
+      # quota both share. A tag run can still restore master's copy, so master
+      # is left as the only writer.
       - name: Save webOS dependency cache
-        if: ${{ steps.webos-cache.outputs.cache-hit != 'true' }}
+        if: ${{ steps.webos-cache.outputs.cache-hit != 'true' && !inputs.release }}
         uses: actions/cache/save@caa296126883cff596d87d8935842f9db880ef25 # v5.0.3
         with:
           path: |
@@ -689,6 +703,8 @@ jobs:
     timeout-minutes: 150
     needs: lint
     if: ${{ github.event_name != 'workflow_dispatch' || inputs.build_android }}
+    env:
+      CACHIX_AUTH_TOKEN: ${{ secrets.CACHIX_AUTH_TOKEN }}
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.0.2
         with:
@@ -698,10 +714,27 @@ jobs:
         with:
           nix_conf: |
             experimental-features = nix-command flakes
-      - uses: nix-community/cache-nix-action@7df957e333c1e5da7721f60227dbba6d06080569 # v7.0.1
+      # The Android dev shell closure is around 9 GB. Kept in the Actions
+      # cache it consumed most of a 10 GB repository quota by itself and
+      # evicted the toolchain cache below -- the small one that saves an hour
+      # of Qt and mpv builds. Cachix holds the store instead, which is what it
+      # is for, and leaves the quota to the things only this repository has.
+      - uses: cachix/cachix-action@3ba601ff5bbb07c7220846facfa2cd81eeee15a1 # v16
+        if: ${{ env.CACHIX_AUTH_TOKEN != '' }}
         with:
-          primary-key: nix-android-${{ runner.os }}-${{ hashFiles('flake.nix', 'flake.lock') }}
-          restore-prefixes-first-match: nix-android-${{ runner.os }}-
+          name: spool
+          authToken: ${{ secrets.CACHIX_AUTH_TOKEN }}
+          skipPush: true
+
+      # Realising the shell into a profile is what makes its closure a root
+      # that can be pushed; without one there is nothing to name.
+      - name: Materialise and publish the Android dev shell
+        run: |
+          nix develop --accept-flake-config .#android \
+            --profile "$RUNNER_TEMP/android-shell" -c true
+          if [[ -n "$CACHIX_AUTH_TOKEN" ]]; then
+            cachix push spool "$RUNNER_TEMP/android-shell"
+          fi
 
       # The build scripts skip work whose install marker is already present, so a
       # near-miss restore would be reused as if it were current. The key covers
@@ -770,7 +803,7 @@ jobs:
           "
 
       - name: Save Android toolchain cache
-        if: ${{ steps.android-cache.outputs.cache-hit != 'true' }}
+        if: ${{ steps.android-cache.outputs.cache-hit != 'true' && !inputs.release }}
         uses: actions/cache/save@caa296126883cff596d87d8935842f9db880ef25 # v5.0.3
         with:
           path: |
@@ -876,7 +909,7 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'QCoro installation failed.' }
 
       - name: Save Qt and QCoro
-        if: steps.qt-cache.outputs.cache-hit != 'true'
+        if: ${{ steps.qt-cache.outputs.cache-hit != 'true' && !inputs.release }}
         uses: actions/cache/save@caa296126883cff596d87d8935842f9db880ef25 # v5.0.3
         with:
           path: |
@@ -904,7 +937,7 @@ jobs:
         run: tools\windows\build-mpv.ps1 -Clean
 
       - name: Save source-built libmpv
-        if: steps.mpv-cache.outputs.cache-hit != 'true'
+        if: ${{ steps.mpv-cache.outputs.cache-hit != 'true' && !inputs.release }}
         uses: actions/cache/save@caa296126883cff596d87d8935842f9db880ef25 # v5.0.3
         with:
           path: build/windows-deps/mpv
