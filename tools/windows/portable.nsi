@@ -18,11 +18,13 @@ Unicode true
 
 Name "Spool for Jellyfin Portable"
 OutFile "${OUTPUT_FILE}"
+Icon "${SOURCE_ROOT}\app\icons\spool.ico"
 RequestExecutionLevel user
 SilentInstall silent
 AutoCloseWindow true
+ManifestDPIAware true
 SetCompressor /SOLID lzma
-InstallDir "$LocalAppData\Spool for Jellyfin\Portable\${VERSION}-${PAYLOAD_ID}"
+InstallDir "$LocalAppData\spool-jellyfin\portable\${VERSION}-${PAYLOAD_ID}"
 
 VIProductVersion "${VERSION}.0"
 VIAddVersionKey /LANG=1033 "ProductName" "Spool for Jellyfin Portable"
@@ -44,9 +46,34 @@ Section
 launch:
     ClearErrors
     Exec '"$InstDir\jellyfin-native.exe"'
-    IfErrors 0 done
+    IfErrors launch_failed
+    Call PruneOldPayloads
+    Goto done
+
+launch_failed:
     MessageBox MB_ICONSTOP "Spool for Jellyfin could not be launched."
     SetErrorLevel 1
 
 done:
 SectionEnd
+
+Function PruneOldPayloads
+    ; The application is already running. Keep this silent launcher alive in
+    ; the background briefly, then remove every obsolete extracted payload.
+    Sleep 10000
+    FindFirst $0 $1 "$LocalAppData\spool-jellyfin\portable\*"
+
+prune_loop:
+    StrCmp $1 "" prune_done
+    StrCmp $1 "." prune_next
+    StrCmp $1 ".." prune_next
+    StrCmp $1 "${VERSION}-${PAYLOAD_ID}" prune_next
+    RMDir /r "$LocalAppData\spool-jellyfin\portable\$1"
+
+prune_next:
+    FindNext $0 $1
+    Goto prune_loop
+
+prune_done:
+    FindClose $0
+FunctionEnd

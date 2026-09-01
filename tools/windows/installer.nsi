@@ -17,10 +17,16 @@ Unicode true
 
 Name "Spool for Jellyfin"
 OutFile "${OUTPUT_FILE}"
+Icon "${SOURCE_ROOT}\app\icons\spool.ico"
+UninstallIcon "${SOURCE_ROOT}\app\icons\spool.ico"
 InstallDir "$LocalAppData\Programs\Spool for Jellyfin"
 InstallDirRegKey HKCU "Software\Spool for Jellyfin" "InstallDir"
 RequestExecutionLevel user
+ManifestDPIAware true
 SetCompressor /SOLID lzma
+ShowInstDetails nevershow
+ShowUninstDetails nevershow
+BrandingText "Spool for Jellyfin"
 
 VIProductVersion "${VERSION}.0"
 VIAddVersionKey /LANG=1033 "ProductName" "Spool for Jellyfin"
@@ -30,12 +36,11 @@ VIAddVersionKey /LANG=1033 "ProductVersion" "${VERSION}"
 VIAddVersionKey /LANG=1033 "LegalCopyright" "Spool for Jellyfin contributors"
 
 !define MUI_ABORTWARNING
+!define MUI_ICON "${SOURCE_ROOT}\app\icons\spool.ico"
+!define MUI_UNICON "${SOURCE_ROOT}\app\icons\spool.ico"
 !define MUI_FINISHPAGE_RUN "$InstDir\jellyfin-native.exe"
 !define MUI_FINISHPAGE_RUN_TEXT "Launch Spool for Jellyfin"
 
-!insertmacro MUI_PAGE_WELCOME
-!insertmacro MUI_PAGE_LICENSE "${SOURCE_ROOT}\LICENSE"
-!insertmacro MUI_PAGE_DIRECTORY
 !insertmacro MUI_PAGE_INSTFILES
 !insertmacro MUI_PAGE_FINISH
 
