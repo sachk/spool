@@ -191,7 +191,8 @@ void configurePersistentRhiPipelineCache(QQuickWindow& window, const QString& ca
     const QString cacheFile = QDir(rhiCacheDir).filePath(QStringLiteral("qt-rhi-pipeline-cache.bin"));
     QQuickGraphicsConfiguration graphicsConfig;
     graphicsConfig.setAutomaticPipelineCache(true);
-    graphicsConfig.setPipelineCacheLoadFile(cacheFile);
+    if (QFileInfo::exists(cacheFile))
+        graphicsConfig.setPipelineCacheLoadFile(cacheFile);
     graphicsConfig.setPipelineCacheSaveFile(cacheFile);
     window.setGraphicsConfiguration(graphicsConfig);
 }
@@ -370,9 +371,57 @@ int main(int argc, char **argv)
     app.setOrganizationName(QStringLiteral("sachk"));
     app.setApplicationDisplayName(QStringLiteral("Spool for Jellyfin"));
     JellyfinNative::TerminationSignalHandler terminationSignals(app);
+    logLine("startup: QGuiApplication constructed");
+
+    // Put a native surface on screen at the first valid opportunity. QWindow
+    // and scene-graph setup must remain on the GUI thread; everything below
+    // this point can overlap the render thread's first-frame work instead of
+    // delaying it.
+    JellyfinNative::InputLatencyMonitor inputLatencyMonitor;
+    JellyfinNative::NativeAppWindow window(QString::fromLatin1(kAppId));
+#ifdef JELLYFIN_NATIVE_WEBOS
+    window.rootContext()->setContextProperty(QStringLiteral("startupSplashImageUrl"),
+        QUrl::fromLocalFile(QDir(appRootPath).filePath(QStringLiteral("splash.png"))));
+#else
+    window.rootContext()->setContextProperty(
+        QStringLiteral("startupSplashImageUrl"), QUrl(QStringLiteral("qrc:/startup/splash.png")));
+#endif
+    JellyfinNative::configurePlatformWindow(window);
+    inputLatencyMonitor.attachWindow(&window);
+    window.setInputLatencyMonitor(&inputLatencyMonitor);
+    const auto directSingleShot = static_cast<Qt::ConnectionType>(Qt::DirectConnection | Qt::SingleShotConnection);
+    const auto traceFirstFrameSignal = [&window, &startupTimer, directSingleShot](auto signal, const char *name) {
+        QObject::connect(
+            &window, signal, &window,
+            [&window, &startupTimer, name] {
+                const qint64 elapsedMs = startupTimer.elapsed();
+                QMetaObject::invokeMethod(
+                    &window, [elapsedMs, name] { logLine("startup: first frame %s at %lld ms", name, elapsedMs); },
+                    Qt::QueuedConnection);
+            },
+            directSingleShot);
+    };
+    traceFirstFrameSignal(&QQuickWindow::beforeFrameBegin, "begin");
+    traceFirstFrameSignal(&QQuickWindow::beforeSynchronizing, "sync_begin");
+    traceFirstFrameSignal(&QQuickWindow::afterSynchronizing, "sync_end");
+    traceFirstFrameSignal(&QQuickWindow::beforeRendering, "render_begin");
+    traceFirstFrameSignal(&QQuickWindow::afterRendering, "render_end");
+    traceFirstFrameSignal(&QQuickWindow::frameSwapped, "swapped");
+    traceFirstFrameSignal(&QQuickWindow::afterFrameEnd, "end");
+    window.setSource(QUrl(QStringLiteral("qrc:/startup/StartupSplash.qml")));
+    if (window.status() == QQuickView::Error) {
+        logQmlWarnings(window.errors());
+        return 1;
+    }
+    configurePersistentRhiPipelineCache(window, cachePath);
+    if (!window.prepareForUiSurface()) {
+        logLine("failed to initialize the native UI surface");
+        return 1;
+    }
+    logLine("startup: prepareForUiSurface completed in %lld ms", static_cast<long long>(startupTimer.elapsed()));
+
     if (!registerBundledFonts(appRootPath))
         return 1;
-    logLine("startup: QGuiApplication constructed");
 #if !defined(JELLYFIN_NATIVE_WEBOS) && !defined(SPOOL_ANDROID)
     const QIcon defaultApplicationIcon = applicationIcon(false);
     const QIcon playerApplicationIcon = applicationIcon(true);
@@ -405,6 +454,7 @@ int main(int argc, char **argv)
     }
 
     const JellyfinNative::MemoryBudget memoryBudget = JellyfinNative::MemoryBudget::detect();
+    window.setSystemMemoryBytes(memoryBudget.memTotalBytes);
     logLine("memory budget: memTotal=%lld networkDisk=%lld qmlImageDisk=%lld artworkBytes=%d demuxer=%s/%s",
         static_cast<long long>(memoryBudget.memTotalBytes), static_cast<long long>(memoryBudget.networkDiskCacheBytes),
         static_cast<long long>(memoryBudget.qmlImageDiskCacheBytes), memoryBudget.artworkByteCacheBytes,
@@ -430,56 +480,9 @@ int main(int argc, char **argv)
             logLine("database initialization failed: %s", qPrintable(message));
             app.exit(1);
         });
-    JellyfinNative::InputLatencyMonitor inputLatencyMonitor;
     JellyfinNative::SystemPerformanceMonitor systemPerformanceMonitor;
     systemPerformanceMonitor.setAudioDecodeCpuTimeProvider(
         [] { return JellyfinNative::platformAudioDecodeCpuTimeNs(); });
-    JellyfinNative::NativeAppWindow window(QString::fromLatin1(kAppId));
-#ifdef JELLYFIN_NATIVE_WEBOS
-    window.rootContext()->setContextProperty(QStringLiteral("startupSplashImageUrl"),
-        QUrl::fromLocalFile(QDir(appRootPath).filePath(QStringLiteral("splash.png"))));
-#else
-    window.rootContext()->setContextProperty(
-        QStringLiteral("startupSplashImageUrl"), QUrl(QStringLiteral("qrc:/startup/splash.png")));
-#endif
-    window.setSystemMemoryBytes(memoryBudget.memTotalBytes);
-    JellyfinNative::configurePlatformWindow(window);
-    inputLatencyMonitor.attachWindow(&window);
-    window.setInputLatencyMonitor(&inputLatencyMonitor);
-    const auto directSingleShot = static_cast<Qt::ConnectionType>(Qt::DirectConnection | Qt::SingleShotConnection);
-    const auto traceFirstFrameSignal = [&window, &startupTimer, directSingleShot](auto signal, const char *name) {
-        QObject::connect(
-            &window, signal, &window,
-            [&window, &startupTimer, name] {
-                const qint64 elapsedMs = startupTimer.elapsed();
-                QMetaObject::invokeMethod(
-                    &window, [elapsedMs, name] { logLine("startup: first frame %s at %lld ms", name, elapsedMs); },
-                    Qt::QueuedConnection);
-            },
-            directSingleShot);
-    };
-    traceFirstFrameSignal(&QQuickWindow::beforeFrameBegin, "begin");
-    traceFirstFrameSignal(&QQuickWindow::beforeSynchronizing, "sync_begin");
-    traceFirstFrameSignal(&QQuickWindow::afterSynchronizing, "sync_end");
-    traceFirstFrameSignal(&QQuickWindow::beforeRendering, "render_begin");
-    traceFirstFrameSignal(&QQuickWindow::afterRendering, "render_end");
-    traceFirstFrameSignal(&QQuickWindow::frameSwapped, "swapped");
-    traceFirstFrameSignal(&QQuickWindow::afterFrameEnd, "end");
-    window.setSource(QUrl(QStringLiteral("qrc:/startup/StartupSplash.qml")));
-    if (window.status() == QQuickView::Error) {
-        logQmlWarnings(window.errors());
-        return 1;
-    }
-    configurePersistentRhiPipelineCache(window, cachePath);
-    {
-        JellyfinNative::Diagnostics::Phase phase(QStringLiteral("startup"), QStringLiteral("prepare_ui_surface"));
-        if (!window.prepareForUiSurface()) {
-            logLine("failed to initialize the native UI surface");
-            return 1;
-        }
-    }
-    logLine("startup: prepareForUiSurface completed in %lld ms", static_cast<long long>(startupTimer.elapsed()));
-
     // Start the SQLite worker before constructing the controllers. Device
     // identity and session reads are awaited after the first frame.
     {

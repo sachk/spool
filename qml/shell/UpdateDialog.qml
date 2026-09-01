@@ -8,6 +8,12 @@ FocusScope {
 
     required property var updater
     readonly property string stage: updater ? updater.stage : "idle"
+    readonly property string updateVersion: updater ? updater.version : ""
+    readonly property string updateErrorText: updater ? updater.errorText : ""
+    readonly property real updateProgress: updater ? updater.progress : 0
+    readonly property double updateReceivedBytes: updater ? updater.receivedBytes : 0
+    readonly property double updateTotalBytes: updater ? updater.totalBytes : 0
+    readonly property double updateBytesPerSecond: updater ? updater.bytesPerSecond : 0
     readonly property bool open: stage === "available" || stage === "downloading" || stage === "ready" || stage === "permission"
                                  || stage === "error"
     property int actionIndex: 0
@@ -121,12 +127,12 @@ FocusScope {
             AppText {
                 Layout.fillWidth: true
                 visible: root.stage !== "available"
-                text: root.stage === "downloading" ? "Spool " + root.updater.version + " is downloading." : root.stage
-                                                     === "ready" ? "Spool " + root.updater.version
+                text: root.stage === "downloading" ? "Spool " + root.updateVersion + " is downloading." : root.stage
+                                                     === "ready" ? "Spool " + root.updateVersion
                                                                    + " was downloaded and its SHA-256 checksum verified. Install it when you are ready." :
                                                                    root.stage === "permission"
                                                                    ? "Android needs your permission before Spool can open the installer. On the next screen, enable “Allow from this source”, then return here. You will still choose Install before Android asks for final confirmation." :
-                                                                     root.updater.errorText
+                                                                     root.updateErrorText
                 color: root.stage === "error" ? Theme.errorText : Theme.textSecondary
                 font.pixelSize: Metrics.bodySizePx
                 wrapMode: Text.Wrap
@@ -139,7 +145,7 @@ FocusScope {
 
                 AppText {
                     Layout.fillWidth: true
-                    text: "Spool " + root.updater.version + " is ready. Would you like to update now?"
+                    text: "Spool " + root.updateVersion + " is ready. Would you like to update now?"
                     color: Theme.textSecondary
                     font.pixelSize: Metrics.bodySizePx
                     wrapMode: Text.Wrap
@@ -206,7 +212,7 @@ FocusScope {
                     clip: true
 
                     Rectangle {
-                        width: parent.width * root.updater.progress
+                        width: parent.width * root.updateProgress
                         height: parent.height
                         radius: parent.radius
                         color: Theme.accent
@@ -215,12 +221,12 @@ FocusScope {
 
                 AppText {
                     Layout.fillWidth: true
-                    text: root.formatMegabytes(root.updater.receivedBytes) + " of " + root.formatMegabytes(
-                              root.updater.totalBytes) + "  ·  " + (root.updater.bytesPerSecond > 0 ? (
-                                                                                                          root.updater.bytesPerSecond
-                                                                                                          / 1000000).toFixed(
-                                                                                                          1) + " MB/s" :
-                                                                                                      "Starting…")
+                    text: root.formatMegabytes(root.updateReceivedBytes) + " of " + root.formatMegabytes(
+                              root.updateTotalBytes) + "  ·  " + (root.updateBytesPerSecond > 0 ? (
+                                                                                                      root.updateBytesPerSecond
+                                                                                                      / 1000000).toFixed(
+                                                                                                      1) + " MB/s" :
+                                                                                                  "Starting…")
                     color: Theme.textMuted
                     font.pixelSize: Metrics.metaSizePx
                     horizontalAlignment: Text.AlignHCenter
