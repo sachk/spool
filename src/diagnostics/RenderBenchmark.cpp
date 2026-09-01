@@ -4,6 +4,7 @@
 #include "../app/RouterController.h"
 #include "InputLatencyMonitor.h"
 
+#include <QChronoTimer>
 #include <QCoreApplication>
 #include <QDateTime>
 #include <QDir>
@@ -15,6 +16,9 @@
 #include <QQuickWindow>
 #include <QTimer>
 #include <QtGlobal>
+
+#include <algorithm>
+#include <chrono>
 
 namespace JellyfinNative {
 namespace {
@@ -58,6 +62,7 @@ RenderBenchmark::RenderBenchmark(
     , m_iterations(envInt("SPOOL_BENCH_ITERATIONS", 3))
     , m_warmup(envInt("SPOOL_BENCH_WARMUP", 1))
     , m_stepTimeoutMs(envInt("SPOOL_BENCH_TIMEOUT_MS", 8000))
+    , m_settleMs(envInt("SPOOL_BENCH_SETTLE_MS", 120))
     , m_forceCold(qEnvironmentVariableIntValue("SPOOL_BENCH_COLD") != 0)
 {
     // Every route switch ends by publishing what it cost. That is the signal
@@ -74,6 +79,39 @@ RenderBenchmark::RenderBenchmark(
         if (m_window)
             m_window->requestUpdate();
     });
+
+    m_idleProbe = new QChronoTimer(this);
+    connect(m_idleProbe, &QChronoTimer::timeout, this, [this] {
+        const qint64 nowNs = m_idleClock.nsecsElapsed();
+        m_idleWorstNs = std::max(m_idleWorstNs, std::max<qint64>(0, nowNs - m_idleExpectedNs));
+        m_idleExpectedNs = nowNs + budgetNs();
+    });
+}
+
+qint64 RenderBenchmark::budgetNs() const
+{
+    const double budgetMs = m_latency ? m_latency->frameBudgetMs() : 16.67;
+    return static_cast<qint64>((budgetMs > 0.0 ? budgetMs : 16.67) * 1000000.0);
+}
+
+void RenderBenchmark::beginIdleProbe()
+{
+    m_idleWorstNs = 0;
+    m_idleClock.start();
+    m_idleExpectedNs = budgetNs();
+    m_idleProbe->setInterval(std::chrono::nanoseconds(budgetNs()));
+    m_idleProbe->start();
+}
+
+void RenderBenchmark::finishIdleProbe()
+{
+    if (!m_idleProbe->isActive())
+        return;
+    m_idleProbe->stop();
+    // Warmup passes are not recorded, and neither is their noise: the two
+    // have to describe the same stretch of the run to be comparable.
+    if (m_pass >= 0)
+        m_idleGaps.append(static_cast<double>(m_idleWorstNs) / 1000000.0);
 }
 
 void RenderBenchmark::start()
@@ -152,8 +190,14 @@ void RenderBenchmark::recordSample()
         m_samples.append(metrics);
     }
     // Let the frame settle before asking for the next route, so one
-    // transition's tail is not charged to the next one's head.
-    QTimer::singleShot(120, this, [this] { step(); });
+    // transition's tail is not charged to the next one's head. The app has
+    // nothing to do in that window, which is exactly when the machine's own
+    // scheduling jitter can be measured.
+    beginIdleProbe();
+    QTimer::singleShot(m_settleMs, this, [this] {
+        finishIdleProbe();
+        step();
+    });
 }
 
 void RenderBenchmark::finish()
@@ -167,6 +211,13 @@ void RenderBenchmark::finish()
     report.insert(QStringLiteral("script"), QJsonArray::fromStringList(m_script));
     report.insert(QStringLiteral("iterations"), m_iterations);
     report.insert(QStringLiteral("cold"), m_forceCold);
+    report.insert(QStringLiteral("frameBudgetMs"), m_latency ? m_latency->frameBudgetMs() : 16.67);
+    // What a frame-budget timer drifted by while the app was doing nothing.
+    // A transition gap only means something when it is worse than this.
+    QJsonArray idleGaps;
+    for (const QVariant& gap : std::as_const(m_idleGaps))
+        idleGaps.append(gap.toDouble());
+    report.insert(QStringLiteral("idleGapsMs"), idleGaps);
     report.insert(QStringLiteral("samples"), samples);
 
     const QByteArray json = QJsonDocument(report).toJson(QJsonDocument::Indented);

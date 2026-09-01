@@ -1,5 +1,6 @@
 #pragma once
 
+#include <QChronoTimer>
 #include <QElapsedTimer>
 #include <QObject>
 #include <QStringList>
@@ -40,6 +41,14 @@ private:
 
     void step();
     void recordSample();
+    // Between steps the app is idle, so any lateness a frame-budget timer
+    // shows there is the machine's, not the app's. Measured the same way
+    // maxGapMs is, so the two are directly comparable, and measured beside
+    // every sample rather than once, because a shared runner is not equally
+    // busy from one minute to the next.
+    qint64 budgetNs() const;
+    void beginIdleProbe();
+    void finishIdleProbe();
     void finish();
 
     AppController *m_app = nullptr;
@@ -52,11 +61,23 @@ private:
     QQuickWindow *m_window = nullptr;
     QTimer *m_pump = nullptr;
 
+    // The idle probe is the same kind of timer on the same interval as the
+    // transition gap timer, so a pause that would show up as a dropped frame
+    // shows up here too, and the two numbers mean the same thing.
+    QChronoTimer *m_idleProbe = nullptr;
+    qint64 m_idleExpectedNs = 0;
+    qint64 m_idleWorstNs = 0;
+    QElapsedTimer m_idleClock;
+    QVariantList m_idleGaps;
+
     QStringList m_script;
     QString m_outputPath;
     int m_iterations = 3;
     int m_warmup = 1;
     int m_stepTimeoutMs = 8000;
+    // How long to sit still between steps. Doubles as the idle-probe window,
+    // so the noise floor is sampled over the same span a transition occupies.
+    int m_settleMs = 120;
     // Drop every cached page before each step, so the walk measures what a
     // route costs to build rather than what it costs to reveal. This is the
     // case a television lives in, where memory keeps nothing resident.

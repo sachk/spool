@@ -64,7 +64,11 @@ FocusScope {
     onIsFixedBrowseViewChanged: if (isFixedBrowseView)
     closeMenus()
     focus: true
-    readonly property bool contentReady: grid.count > 0 && gridReveal.firstDelegateReady
+    // An empty library is an answer, not a wait. The page is showing its empty
+    // state and the transition that brought it up is over; requiring a
+    // delegate that was never coming used to hold that transition open until
+    // the route host gave up on it.
+    readonly property bool contentReady: grid.count === 0 || gridReveal.firstDelegateReady
     // Grid position to restore across model resets (sort/filter/library
     // changes); the page itself is resident, so this survives navigation.
     property int savedIndex: shell ? Number(shell.routeArgs.focusIndex || 0) : 0

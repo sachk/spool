@@ -1,5 +1,6 @@
 import QtQuick
 import "../primitives"
+import "PageReadiness.js" as PageReadiness
 
 FocusScope {
     id: root
@@ -109,6 +110,7 @@ FocusScope {
         const cacheHit = warm ? "hit" : promoted ? "promoted" : "miss"
         uiTransitionToken = InputLatency.beginUiTransition("route:" + route + (warm ? ":warm" : ":cold"), activeRoute, route,
                                                            cacheHit)
+        settleWatchdog.restart()
         if (warm) {
             InputLatency.mark(uiTransitionToken, "instance")
             activatePending()
@@ -230,14 +232,45 @@ FocusScope {
         }
     }
 
-    function completeUiTransitionIfReady() {
-        if (!activeItem || uiTransitionToken === 0)
-            return
-        if (typeof activeItem.contentReady !== "undefined" && !activeItem.contentReady)
-            return
+    function finishUiTransition() {
+        settleWatchdog.stop()
         InputLatency.mark(uiTransitionToken, "model_ready")
         InputLatency.mark(uiTransitionToken, "content_ready")
         uiTransitionToken = 0
+    }
+
+    function completeUiTransitionIfReady() {
+        if (!activeItem || uiTransitionToken === 0)
+            return
+        if (!PageReadiness.isSettled(activeItem))
+            return
+        finishUiTransition()
+    }
+
+    // No page gets to hold a transition open forever. A page whose readiness
+    // could never become true -- an empty library waiting on a delegate that
+    // was never coming, a settings list that unset its own readiness and had
+    // nothing left to set it again -- used to leave the transition unclosed,
+    // which held the startup splash up and dropped the route out of the
+    // render benchmark without saying so. Closing it late and loudly is
+    // better than either.
+    //
+    // This is a backstop, not a schedule: reaching it means a page is wrong,
+    // and the warning is there to be acted on. Long enough that a page which
+    // legitimately waits on the network -- person details sits on
+    // Content.personItemsBusy -- settles on its own first, and short enough
+    // to stay inside the benchmark's own step timeout, so a stuck route
+    // records a bad sample rather than vanishing from the report.
+    Timer {
+        id: settleWatchdog
+        interval: 5000
+        onTriggered: {
+            if (root.uiTransitionToken === 0)
+                return
+            console.warn("route host:", root.route, "never reported itself settled;", "closing its transition after",
+                         interval, "ms")
+            root.finishUiTransition()
+        }
     }
 
     function beginStartup() {

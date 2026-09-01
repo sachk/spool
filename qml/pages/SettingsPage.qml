@@ -21,7 +21,15 @@ FocusScope {
     property Item choiceDialogAnchor: null
     readonly property var choiceDialog: choiceDialogLoader.item
     readonly property var mpvFolderDialog: mpvFolderDialogLoader.item
-    property bool contentReady: false
+    // Rows are rebuilt whenever the settings tree changes -- a disclosure
+    // opens, the advanced filter flips -- and readiness used to be unset on
+    // every rebuild, then set again only by a row delegate being constructed.
+    // On a warm revisit the delegates already existed, so nothing set it
+    // again and the page never reported itself settled: the route host waited
+    // out its timeout on every visit here. Derived from the view now, so a
+    // rebuild cannot strand it. No rows is a settled answer; rows are settled
+    // once the first one is laid out.
+    readonly property bool contentReady: settingsRows.count === 0 || settingsReveal.firstDelegateReady
     property bool certificateManagerVisible: false
     property bool diagnosticsExportVisible: false
     property string diagnosticsExportPreview: ""
@@ -160,7 +168,6 @@ FocusScope {
             settingsList.positionViewAtIndex(target, ListView.Contain)
         if (takeFocus !== false)
             InputKeys.focus(settingsList)
-        contentReady = settingsRows.count === 0
         return target
     }
 
@@ -418,7 +425,6 @@ FocusScope {
         settingsList.autoPositionCurrentItem = true
         if (settledIndex >= 0)
             settingsList.positionViewAtIndex(settledIndex, ListView.Contain)
-        contentReady = settingsRows.count === 0
     }
 
     function activateRow(row, index) {
@@ -594,6 +600,23 @@ FocusScope {
         if (activeFocus)
             focusEntry()
     })
+    // The same primitive the library grid uses to decide when its view has
+    // actually put something on screen. It drives itself: rows appearing
+    // flips `enabled`, which schedules the check, which keeps retrying until
+    // the first delegate exists. Only the first one is looked at -- that is
+    // what readiness turns on, and walking the rest would cost more than it
+    // could tell us.
+    AtomicViewReveal {
+        id: settingsReveal
+
+        view: settingsList
+        latencyMonitor: InputLatency
+        transitionToken: root.uiTransitionToken
+        enabled: settingsRows.count > 0
+        firstIndex: 0
+        lastIndex: 0
+    }
+
     Connections {
         target: Settings
 
@@ -641,11 +664,7 @@ FocusScope {
             required property int sourceIndex
             readonly property var rowData: root.rowsByKey[rowKey]
             width: settingsList.width
-            Component.onCompleted: {
-                InputLatency.noteDelegate("settings_row", 1)
-                if (index === 0)
-                root.contentReady = true
-            }
+            Component.onCompleted: InputLatency.noteDelegate("settings_row", 1)
             Component.onDestruction: InputLatency.noteDelegate("settings_row", -1)
             readonly property var controlItem: rowLoader.item
             spacing: Metrics.scaled(10)

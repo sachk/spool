@@ -3,6 +3,7 @@ import QtQuick.Layouts
 import "../theme"
 import "../primitives"
 import "RoutePolicy.js" as RoutePolicy
+import "PageReadiness.js" as PageReadiness
 
 KeyRouter {
     id: root
@@ -981,9 +982,9 @@ KeyRouter {
     }
 
     Rectangle {
-        readonly property bool contentReady: routeStack.activeRoute.length > 0 && routeStack.activeItem && (
-                                                 typeof routeStack.activeItem.contentReady === "undefined"
-                                                 || routeStack.activeItem.contentReady)
+        readonly property bool contentReady: routeStack.activeRoute.length > 0 && PageReadiness.isSettled(
+                                                 routeStack.activeItem)
+
         property bool dismissed: false
 
         anchors.fill: parent

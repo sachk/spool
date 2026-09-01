@@ -465,6 +465,7 @@ qt_add_qml_module(jellyfin-native
         qml/shell/RememberedCertificatesDialog.qml
         qml/shell/MediaInfoOverlay.qml
         qml/shell/OverlayDialog.qml
+        qml/shell/PageReadiness.js
         qml/shell/RoutePolicy.js
         qml/shell/RouteStack.qml
         qml/shell/RemoteControlMenu.qml
@@ -798,6 +799,12 @@ if(BUILD_TESTING AND NOT CMAKE_CROSSCOMPILING)
         COMMAND "${Python3_EXECUTABLE}"
             "${CMAKE_CURRENT_SOURCE_DIR}/tests/tools/NetworkShaperTest.py"
             "${CMAKE_CURRENT_SOURCE_DIR}/tools/network-shaper.py"
+    )
+
+    add_test(NAME render-benchmark-report
+        COMMAND "${Python3_EXECUTABLE}"
+            "${CMAKE_CURRENT_SOURCE_DIR}/tests/tools/RenderBenchmarkReportTest.py"
+            "${CMAKE_CURRENT_SOURCE_DIR}/tools/compare-render-benchmark.py"
     )
 
     find_program(QMLTESTRUNNER_EXECUTABLE NAMES qmltestrunner)
