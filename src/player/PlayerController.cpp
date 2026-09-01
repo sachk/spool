@@ -7,6 +7,7 @@
 #include "../diagnostics/Diagnostics.h"
 #include "../platform/MpvConfigPolicy.h"
 #include "../platform/NativeAppWindow.h"
+#include "../platform/PlatformPaths.h"
 #include "../platform/PlatformPlaybackSurface.h"
 #include "../platform/PlatformSystemProbes.h"
 #include "MpvOptionProfile.h"
@@ -25,7 +26,6 @@ extern "C" {
 #include <QFile>
 #include <QMetaObject>
 #include <QPointer>
-#include <QStandardPaths>
 #include <QUrl>
 #include <QtGlobal>
 
@@ -51,7 +51,7 @@ namespace {
         return level.constData();
     }
 
-    constexpr auto kMpvLogFileName = "com.sachk.spool-mpv.log";
+    constexpr auto kMpvLogFileName = "spool-jellyfin-mpv.log";
 
     constexpr uint64_t kTimePosRefreshReply = 0x6a666e7074730001ULL;
     constexpr auto kNightModeFilter
@@ -93,7 +93,7 @@ namespace {
     {
         const QByteArray logDir = qgetenv("JELLYFIN_NATIVE_LOG_DIR");
         if (logDir.isEmpty()) {
-            const QString fallback = QStandardPaths::writableLocation(QStandardPaths::CacheLocation);
+            const QString fallback = startupCacheRoot({ });
             return QFile::encodeName(QDir(fallback).filePath(QString::fromLatin1(kMpvLogFileName)));
         }
 
@@ -106,8 +106,7 @@ namespace {
 
     QByteArray mpvShaderCachePath()
     {
-        const QString cacheDirectory = QDir(QStandardPaths::writableLocation(QStandardPaths::CacheLocation))
-                                           .filePath(QStringLiteral("mpv-shaders"));
+        const QString cacheDirectory = QDir(startupCacheRoot({ })).filePath(QStringLiteral("mpv-shaders"));
         return QFile::encodeName(cacheDirectory);
     }
 
@@ -741,7 +740,7 @@ bool PlayerController::applyMpvSubtitleOptions(MpvOptionApplyMode mode, mpv_hand
         = MpvOptionProfile::subtitleOptions(m_subtitlePreferences, m_tracks.subtitlesEnabled(), m_hdrPlayback);
     const auto previousOptions = previousPreferences
         ? MpvOptionProfile::subtitleOptions(*previousPreferences, m_tracks.subtitlesEnabled(), m_hdrPlayback)
-        : std::vector<MpvOption> {};
+        : std::vector<MpvOption> { };
     for (const MpvOption& option : options) {
         const auto previous = std::find_if(previousOptions.begin(), previousOptions.end(),
             [&option](const MpvOption& candidate) { return candidate.name == option.name; });
@@ -984,8 +983,8 @@ void PlayerController::play(const PlaybackSession& session, bool startPaused)
     }
 
     const QByteArray urlBytes = session.url.toUtf8();
-    const QByteArray token = m_api ? m_api->session().accessToken.toUtf8() : QByteArray {};
-    const QByteArray header = token.isEmpty() ? QByteArray {} : QByteArrayLiteral("X-Emby-Token: ") + token;
+    const QByteArray token = m_api ? m_api->session().accessToken.toUtf8() : QByteArray { };
+    const QByteArray header = token.isEmpty() ? QByteArray { } : QByteArrayLiteral("X-Emby-Token: ") + token;
     if (!setRequiredMpvProperty(handle, "http-header-fields", header.constData())) {
         m_mpvLifecycle.cancelFileLoad();
         m_errorText = QStringLiteral("libmpv rejected the authenticated media request.");
@@ -1001,8 +1000,7 @@ void PlayerController::play(const PlaybackSession& session, bool startPaused)
     if (m_api && m_tlsTrust) {
         const QSslCertificate certificate = m_tlsTrust->trustedCertificate(QUrl(m_api->serverUrl()));
         if (!certificate.isNull()) {
-            const QString trustDirectory
-                = QStandardPaths::writableLocation(QStandardPaths::CacheLocation) + QStringLiteral("/tls");
+            const QString trustDirectory = QDir(startupCacheRoot({ })).filePath(QStringLiteral("tls"));
             const QString trustPath = trustDirectory + QLatin1Char('/')
                 + QString::fromLatin1(TlsTrustController::fingerprint(certificate)) + QStringLiteral(".pem");
             const QByteArray certificatePem = certificate.toPem();
@@ -1184,7 +1182,7 @@ namespace {
     QString expandMpvStatsPage(mpv_handle *handle)
     {
         const char *args[] = { "expand-text", kStatsTemplate, nullptr };
-        mpv_node result {};
+        mpv_node result { };
         if (mpv_command_ret(handle, args, &result) < 0)
             return QString();
         const QString text

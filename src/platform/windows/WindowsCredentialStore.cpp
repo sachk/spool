@@ -12,7 +12,7 @@ namespace {
 
     QString target(const QString& profileId)
     {
-        return QStringLiteral("JellyfinNative/%1").arg(profileId);
+        return QStringLiteral("spool-jellyfin/%1").arg(profileId);
     }
 
 } // namespace
@@ -65,7 +65,7 @@ void clear()
     }
     DWORD count = 0;
     PCREDENTIALW *credentials = nullptr;
-    if (!CredEnumerateW(L"JellyfinNative/*", 0, &count, &credentials))
+    if (!CredEnumerateW(L"spool-jellyfin/*", 0, &count, &credentials))
         return;
     for (DWORD index = 0; index < count; ++index)
         CredDeleteW(credentials[index]->TargetName, CRED_TYPE_GENERIC, 0);

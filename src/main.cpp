@@ -175,12 +175,15 @@ FILE *openAppLogFile(const QString& appRootPath)
 void configurePersistentStartupCaches(const QString& cacheRoot)
 {
     const QString qtShaderCache = QDir(cacheRoot).filePath(QStringLiteral("qtshadercache"));
+    const QString qmlDiskCache = QDir(cacheRoot).filePath(QStringLiteral("qmlcache"));
     QDir().mkpath(qtShaderCache);
+    QDir().mkpath(qmlDiskCache);
 
     // Qt snapshots these locations during platform and renderer setup. Keep
     // shader caches in app-owned persistent storage and never clear them.
     qputenv("XDG_CACHE_HOME", QFile::encodeName(cacheRoot));
     qputenv("QT_SHADER_CACHE_PATH", QFile::encodeName(qtShaderCache));
+    qputenv("QML_DISK_CACHE_PATH", QFile::encodeName(qmlDiskCache));
 }
 
 void configurePersistentRhiPipelineCache(QQuickWindow& window, const QString& cacheRoot)
@@ -368,7 +371,7 @@ int main(int argc, char **argv)
     QGuiApplication app(argc, argv);
     app.setApplicationName(QStringLiteral("Spool for Jellyfin"));
     app.setApplicationVersion(QString::fromLatin1(kAppVersion));
-    app.setOrganizationName(QStringLiteral("sachk"));
+    app.setOrganizationName(QStringLiteral("spool-jellyfin"));
     app.setApplicationDisplayName(QStringLiteral("Spool for Jellyfin"));
     JellyfinNative::TerminationSignalHandler terminationSignals(app);
     logLine("startup: QGuiApplication constructed");
@@ -495,7 +498,7 @@ int main(int argc, char **argv)
     JellyfinNative::TlsTrustController tlsTrust;
     auto discovery = std::make_unique<JellyfinNative::DiscoveryController>(&tlsTrust);
     auto api = std::make_unique<JellyfinNative::JellyfinApiFacade>(networkAccessManager, &tlsTrust);
-    api->setDeviceIdentity({}, capabilities.deviceName, QString::fromLatin1(kAppVersion));
+    api->setDeviceIdentity({ }, capabilities.deviceName, QString::fromLatin1(kAppVersion));
 #if defined(JELLYFIN_NATIVE_WEBOS)
     // webOS reports the name the owner gave the set only on request, and
     // again whenever they change it. Marshal it onto the API's thread, since

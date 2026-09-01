@@ -217,7 +217,7 @@ if (-not $launchProcess.WaitForExit(45000)) {
 }
 $launchProcess.Refresh()
 if ($launchProcess.ExitCode -ne 0) {
-    $launchLog = Join-Path $env:LOCALAPPDATA 'com.sachk.spool\logs\jellyfin-native.log'
+    $launchLog = Join-Path $env:LOCALAPPDATA 'spool-jellyfin\logs\jellyfin-native.log'
     if (Test-Path -LiteralPath $launchLog) {
         Write-Host '--- staged executable launch log ---'
         Get-Content -LiteralPath $launchLog

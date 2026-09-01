@@ -9,20 +9,20 @@
 namespace JellyfinNative {
 
 namespace {
-    QString localDataRoot()
+    QString spoolRoot()
     {
         const QString configured = QString::fromLocal8Bit(qgetenv("LOCALAPPDATA"));
         return configured.isEmpty() ? QStandardPaths::writableLocation(QStandardPaths::AppLocalDataLocation)
-                                    : QDir(configured).filePath(QStringLiteral("com.sachk.spool"));
+                                    : QDir(configured).filePath(QStringLiteral("spool-jellyfin"));
     }
 } // namespace
 
 QString resolveAppRoot(const char *)
 {
-    wchar_t executablePath[32768] {};
+    wchar_t executablePath[32768] { };
     const DWORD length = GetModuleFileNameW(nullptr, executablePath, static_cast<DWORD>(std::size(executablePath)));
     if (length == 0 || length >= std::size(executablePath))
-        return {};
+        return { };
     return QFileInfo(QString::fromWCharArray(executablePath, static_cast<qsizetype>(length))).absolutePath();
 }
 
@@ -36,17 +36,17 @@ QString startupCacheRoot(const QString&)
     const QByteArray configured = qgetenv("JELLYFIN_NATIVE_CACHE_HOME");
     if (!configured.isEmpty())
         return QString::fromLocal8Bit(configured);
-    return QDir(localDataRoot()).filePath(QStringLiteral("cache"));
+    return QDir(spoolRoot()).filePath(QStringLiteral("cache"));
 }
 
 QString persistentDataRoot()
 {
-    return localDataRoot();
+    return QDir(spoolRoot()).filePath(QStringLiteral("data"));
 }
 
 QStringList appLogDirectories(const QString&)
 {
-    return { QDir(localDataRoot()).filePath(QStringLiteral("logs")) };
+    return { QDir(spoolRoot()).filePath(QStringLiteral("logs")) };
 }
 
 QString appLogFileName()
