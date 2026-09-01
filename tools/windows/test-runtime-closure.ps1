@@ -16,6 +16,15 @@ $dumpbin = (Get-Command dumpbin.exe -ErrorAction Stop).Source
 $binaries = @(Get-ChildItem -LiteralPath $stage -Recurse -File |
     Where-Object Extension -In @('.dll', '.exe') |
     Sort-Object FullName)
+$applicationExecutable = Join-Path $stage 'jellyfin-native.exe'
+$applicationHeaders = @(& $dumpbin /nologo /headers $applicationExecutable)
+if ($LASTEXITCODE -ne 0) {
+    throw "dumpbin could not inspect $applicationExecutable"
+}
+if (-not ($applicationHeaders -match '^\s*2\s+subsystem \(Windows GUI\)\s*$')) {
+    throw 'jellyfin-native.exe must use the Windows GUI subsystem so packaged launches do not open a terminal.'
+}
+
 $providers = @{}
 foreach ($binary in $binaries) {
     $name = $binary.Name.ToLowerInvariant()

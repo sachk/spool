@@ -19,6 +19,10 @@ function(jellyfin_resolve_windows_dependencies)
 endfunction()
 
 function(jellyfin_configure_windows_targets native_target core_target)
+    # Packaged desktop launches must not allocate a console. Diagnostics are
+    # written to the app-owned log directory even when no stderr handle exists.
+    set_target_properties(${native_target} PROPERTIES WIN32_EXECUTABLE TRUE)
+
     target_sources(${core_target} PRIVATE
         src/platform/windows/WindowsSettingsPolicy.cpp
         src/platform/windows/WindowsCredentialStore.cpp
