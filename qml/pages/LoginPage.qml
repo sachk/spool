@@ -502,8 +502,7 @@ FocusScope {
             TextFieldRow {
                 id: addressRow
                 Layout.fillWidth: true
-                label: "Server address"
-                placeholderText: "192.168.1.10:8096 or https://jellyfin.example.com"
+                placeholderText: "Server address"
                 text: root.manualDraft
                 inputMethodHints: Qt.ImhUrlCharactersOnly | Qt.ImhNoPredictiveText | Qt.ImhNoAutoUppercase
                 onTextEdited: text => {
@@ -582,7 +581,10 @@ FocusScope {
             Item {
                 id: discoveryBox
                 Layout.fillWidth: true
-                Layout.fillHeight: true
+                Layout.fillHeight: false
+                Layout.topMargin: Metrics.scaled(8)
+                Layout.preferredHeight: Math.max(Metrics.scaled(96), Math.min(discoveredList.contentHeight, Metrics.scaled(
+                                                                                  302)))
                 Layout.minimumHeight: Metrics.scaled(96)
                 Layout.maximumHeight: Metrics.scaled(302)
 
