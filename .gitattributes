@@ -1,0 +1,24 @@
+# Line endings are decided here, not by whatever each machine happens to be
+# configured with. Without this file a Windows clone using Git's default
+# core.autocrlf=true rewrites every file on checkout, and every tracked file
+# then reports as modified -- 515 of them in this repository, which buries
+# real work in noise and invites someone to commit the churn.
+#
+# Text is stored LF in the repository and checked out LF everywhere. Git's own
+# detection decides what counts as text; the explicit rules below cover the
+# cases where it would guess wrong or where a tool demands otherwise.
+* text=auto eol=lf
+
+# Windows batch interpreters read these byte by byte and mis-parse a lone LF,
+# so these are the one thing that has to keep CRLF on disk.
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
+# Patches carry their own payload; re-ending them changes what they apply to.
+*.patch -text
+
+# Assets, keys, and fonts: never line-ending converted, never diffed as text.
+*.png binary
+*.otf binary
+*.ttf binary
+*.pem binary
