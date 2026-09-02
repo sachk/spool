@@ -3,7 +3,6 @@ import QtQuick.Layouts
 import "../theme"
 import "../primitives"
 import "RoutePolicy.js" as RoutePolicy
-import "PageReadiness.js" as PageReadiness
 
 KeyRouter {
     id: root
@@ -982,25 +981,27 @@ KeyRouter {
     }
 
     Rectangle {
-        readonly property bool contentReady: routeStack.activeRoute.length > 0 && PageReadiness.isSettled(
-                                                 routeStack.activeItem)
+        readonly property bool contentReady: routeStack.activeRoute.length > 0
 
         property bool dismissed: false
 
         anchors.fill: parent
         color: "black"
-        visible: !dismissed
+        visible: !Platform.isAndroid && !dismissed
         z: 70
 
         onContentReadyChanged: if (contentReady)
                                    dismissed = true
 
-        Image {
+        Loader {
             anchors.fill: parent
-            source: startupSplashImageUrl
-            fillMode: Image.PreserveAspectFit
-            asynchronous: false
-            cache: true
+            active: !Platform.isAndroid
+            sourceComponent: Image {
+                source: startupSplashImageUrl
+                fillMode: Image.PreserveAspectFit
+                asynchronous: false
+                cache: true
+            }
         }
     }
 

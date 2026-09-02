@@ -46,6 +46,7 @@ QTDECLARATIVE_TARBALL="$SRC_DIR/qtdeclarative-everywhere-src-$QT_VERSION.tar.xz"
 QTWEBSOCKETS_TARBALL="$SRC_DIR/qtwebsockets-everywhere-src-$QT_VERSION.tar.xz"
 QTWAYLAND_TARBALL="$SRC_DIR/qtwayland-everywhere-src-$QT_VERSION.tar.xz"
 QTIMAGEFORMATS_TARBALL="$SRC_DIR/qtimageformats-everywhere-src-$QT_VERSION.tar.xz"
+QTSVG_TARBALL="$SRC_DIR/qtsvg-everywhere-src-$QT_VERSION.tar.xz"
 
 QTBASE_SRC="$SRC_DIR/qtbase-everywhere-src-$QT_VERSION"
 QTSHADERTOOLS_SRC="$SRC_DIR/qtshadertools-everywhere-src-$QT_VERSION"
@@ -54,6 +55,7 @@ QTDECLARATIVE_SRC="$SRC_DIR/qtdeclarative-everywhere-src-$QT_VERSION"
 QTWEBSOCKETS_SRC="$SRC_DIR/qtwebsockets-everywhere-src-$QT_VERSION"
 QTWAYLAND_SRC="$SRC_DIR/qtwayland-everywhere-src-$QT_VERSION"
 QTIMAGEFORMATS_SRC="$SRC_DIR/qtimageformats-everywhere-src-$QT_VERSION"
+QTSVG_SRC="$SRC_DIR/qtsvg-everywhere-src-$QT_VERSION"
 
 QT_BUILD_TAG="${QT_SERIES//./}"
 HOST_BUILD_ROOT="$ROOT/build/qt6-$QT_BUILD_TAG-host"
@@ -123,6 +125,7 @@ cmake_clean_env() {
     -u Qt6ShaderTools_DIR \
     -u Qt6LinguistTools_DIR \
     -u Qt6WebSockets_DIR \
+    -u Qt6Svg_DIR \
     -u Qt6WaylandClient_DIR \
     -u Qt6WaylandScannerTools_DIR \
     -u PKG_CONFIG \
@@ -292,6 +295,7 @@ fetch_sources() {
   download_submodule qtwebsockets "$QTWEBSOCKETS_TARBALL"
   download_submodule qtwayland "$QTWAYLAND_TARBALL"
   download_submodule qtimageformats "$QTIMAGEFORMATS_TARBALL"
+  download_submodule qtsvg "$QTSVG_TARBALL"
 
   extract_if_needed "$QTBASE_TARBALL" "$QTBASE_SRC"
   extract_if_needed "$QTSHADERTOOLS_TARBALL" "$QTSHADERTOOLS_SRC"
@@ -300,6 +304,7 @@ fetch_sources() {
   extract_if_needed "$QTWEBSOCKETS_TARBALL" "$QTWEBSOCKETS_SRC"
   extract_if_needed "$QTWAYLAND_TARBALL" "$QTWAYLAND_SRC"
   extract_if_needed "$QTIMAGEFORMATS_TARBALL" "$QTIMAGEFORMATS_SRC"
+  extract_if_needed "$QTSVG_TARBALL" "$QTSVG_SRC"
 
   apply_local_patches
 }
@@ -792,6 +797,19 @@ build_all_target_modules() {
   else
     configure_target_module qtimageformats "$QTIMAGEFORMATS_SRC"
     build_target_module qtimageformats
+  fi
+
+  local svg_marker
+  if [[ "$QT_STATIC" == "1" ]]; then
+    svg_marker="plugins/imageformats/libqsvg.a"
+  else
+    svg_marker="plugins/imageformats/libqsvg.so"
+  fi
+  if target_module_up_to_date qtsvg "$svg_marker"; then
+    log "target qtsvg: up to date, skipping"
+  else
+    configure_target_module qtsvg "$QTSVG_SRC"
+    build_target_module qtsvg
   fi
 
 

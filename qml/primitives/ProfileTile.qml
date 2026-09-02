@@ -1,8 +1,8 @@
 import QtQuick
 import "../theme"
 
-// A saved account on the picker: initial-avatar tile, name, and the server it
-// belongs to. Everything it draws is derived from the account itself so the
+// A saved account in the picker: initial-avatar tile, name, and the server it
+// belongs to. Everything it draws is derived from the account itself, so the
 // picker only has to hand it the profile fields.
 FocusScope {
     id: root
@@ -14,6 +14,8 @@ FocusScope {
     property bool needsSignIn: false
     property bool addTile: false
     property bool focused: activeFocus
+
+    readonly property int labelHeight: Metrics.scaled(addTile ? 34 : 66)
 
     readonly property string initial: {
         const name = String(username).trim()
@@ -34,18 +36,9 @@ FocusScope {
     signal contextRequested
 
     width: tileSize
-    height: tileSize + Metrics.scaled(76)
+    height: tileSize + labelHeight
     focus: true
     focusPolicy: Qt.StrongFocus
-    scale: focused && !Theme.reducedMotion ? 1.055 : 1.0
-
-    Behavior on scale {
-        enabled: !Theme.reducedMotion
-        NumberAnimation {
-            duration: 120
-            easing.type: Easing.OutCubic
-        }
-    }
 
     Rectangle {
         id: avatar
@@ -53,25 +46,26 @@ FocusScope {
         anchors.horizontalCenter: parent.horizontalCenter
         width: root.tileSize
         height: root.tileSize
-        radius: Theme.radiusMedium
+        radius: Theme.radiusLarge
         color: root.addTile ? Theme.bgRaised : root.avatarColor
-        border.width: root.focused ? Theme.focusBorderWidth : hover.hovered ? Theme.hoverBorderWidth : 0
-        border.color: root.focused ? Theme.accent : Theme.borderStrong
+        border.width: root.focused ? Theme.focusBorderWidth : root.addTile || (hover.hovered && Metrics.pointerActive)
+                                     ? Theme.hoverBorderWidth : 0
+        border.color: root.focused ? Theme.accent : Theme.border
         antialiasing: true
 
         MaterialIcon {
             anchors.centerIn: parent
             visible: root.addTile
             name: "add"
-            iconSize: Math.round(root.tileSize * 0.34)
-            iconColor: Theme.accent
+            iconSize: Math.round(root.tileSize * 0.3)
+            iconColor: root.focused ? Theme.accent : Theme.textSecondary
         }
 
         AppText {
             anchors.centerIn: parent
             visible: !root.addTile
             text: root.initial
-            font.pixelSize: Math.round(root.tileSize * 0.42)
+            font.pixelSize: Math.round(root.tileSize * 0.4)
             font.weight: Font.DemiBold
         }
 
@@ -79,7 +73,7 @@ FocusScope {
             anchors.right: parent.right
             anchors.top: parent.top
             anchors.margins: Metrics.scaled(8)
-            width: Metrics.scaled(30)
+            width: Metrics.scaled(28)
             height: width
             radius: width / 2
             visible: root.needsSignIn
@@ -90,55 +84,46 @@ FocusScope {
             MaterialIcon {
                 anchors.centerIn: parent
                 name: "lock"
-                iconSize: Metrics.scaled(17)
+                iconSize: Metrics.scaled(16)
                 iconColor: Theme.errorText
             }
         }
     }
 
+    // Selection reads as a ring standing off the tile rather than a heavier
+    // border on it: across a room the gap is what carries, and the artwork
+    // underneath keeps its own edge.
     Rectangle {
-        anchors.top: avatar.bottom
-        anchors.topMargin: Metrics.scaled(8)
-        anchors.horizontalCenter: parent.horizontalCenter
-        width: root.focused ? Math.round(root.tileSize * 0.74) : 0
-        height: Metrics.scaled(3)
-        radius: Metrics.scaled(2)
-        color: Theme.accentAlternate
-        opacity: root.focused ? 1 : 0
+        anchors.fill: avatar
+        anchors.margins: -Metrics.scaled(5)
+        radius: avatar.radius + Metrics.scaled(5)
+        color: "transparent"
+        border.width: root.focused ? Theme.focusBorderWidth : 0
+        border.color: Theme.accent
+        opacity: root.focused ? 0.6 : 0
+        antialiasing: true
 
-        Behavior on width {
+        Behavior on opacity {
             enabled: !Theme.reducedMotion
             NumberAnimation {
-                duration: 120
-                easing.type: Easing.OutCubic
+                duration: 110
             }
         }
     }
 
     Column {
         anchors.top: avatar.bottom
-        anchors.topMargin: Metrics.scaled(14)
+        anchors.topMargin: Metrics.scaled(12)
         anchors.left: parent.left
         anchors.right: parent.right
-        spacing: Metrics.scaled(3)
+        spacing: Metrics.scaled(2)
 
         AppText {
             width: parent.width
             text: root.username
-            font.pixelSize: Metrics.scaled(18)
+            color: root.focused ? Theme.textPrimary : Theme.textSecondary
+            font.pixelSize: Metrics.scaled(16)
             font.weight: Font.DemiBold
-            horizontalAlignment: Text.AlignHCenter
-            maximumLineCount: 1
-            elide: Text.ElideRight
-        }
-
-        AppText {
-            width: parent.width
-            visible: !root.addTile
-            text: root.serverName
-            color: Theme.textSecondary
-            font.pixelSize: Metrics.scaled(13)
-            font.weight: Font.Medium
             horizontalAlignment: Text.AlignHCenter
             maximumLineCount: 1
             elide: Text.ElideRight
@@ -146,11 +131,21 @@ FocusScope {
 
         SecondaryText {
             width: parent.width
-            visible: !root.addTile
-            text: root.serverAddress
+            visible: !root.addTile && root.serverName.length > 0
+            text: root.serverName
             color: Theme.textMuted
-            font.pixelSize: Metrics.scaled(11)
-            font.weight: Font.Medium
+            font.pixelSize: Metrics.scaled(13)
+            horizontalAlignment: Text.AlignHCenter
+            maximumLineCount: 1
+            elide: Text.ElideRight
+        }
+
+        SecondaryText {
+            width: parent.width
+            visible: !root.addTile && root.serverAddress.length > 0
+            text: root.serverAddress
+            color: Theme.textDisabled
+            font.pixelSize: Metrics.scaled(12)
             horizontalAlignment: Text.AlignHCenter
             maximumLineCount: 1
             elide: Text.ElideRight

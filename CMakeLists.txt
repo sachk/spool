@@ -65,6 +65,7 @@ set(JELLYFIN_QT_COMPONENTS
     OpenGL
     LinguistTools
     WebSockets
+    Svg
 )
 if(JELLYFIN_NATIVE_WEBOS)
     set(OPENSSL_USE_STATIC_LIBS FALSE)
@@ -76,7 +77,6 @@ if(JELLYFIN_NATIVE_WEBOS)
     )
 else()
     set(JELLYFIN_QT_MIN_VERSION 6.11)
-    list(APPEND JELLYFIN_QT_COMPONENTS Svg)
     if(UNIX AND NOT APPLE AND NOT ANDROID)
         list(APPEND JELLYFIN_QT_COMPONENTS DBus)
     endif()
@@ -395,7 +395,11 @@ qt_add_qml_module(jellyfin-native
         qml/shell/ItemActivation.js
         qml/primitives/ModelAccess.js
         qml/pages/LoginPage.qml
+        qml/pages/LoginAccountStep.qml
+        qml/pages/LoginBrandPanel.qml
         qml/pages/LoginProfileDialogs.qml
+        qml/pages/LoginProfilePicker.qml
+        qml/pages/LoginServerStep.qml
         qml/pages/ProfileNavigation.js
         qml/pages/OpenSourceNoticesPage.qml
         qml/pages/PersonDetailsPage.qml
@@ -495,27 +499,29 @@ if(JELLYFIN_NATIVE_WEBOS)
     )
 endif()
 
-if(NOT JELLYFIN_NATIVE_WEBOS AND NOT ANDROID)
-    qt_add_resources(jellyfin-native "application_icons"
-        PREFIX "/icons"
-        BASE "${CMAKE_CURRENT_SOURCE_DIR}/app/icons"
-        FILES
-            app/icons/spool.svg
-            app/icons/spool-film.svg
-    )
-endif()
-
-qt_add_resources(jellyfin-native "startup_splash_qml"
-    PREFIX "/startup"
-    BASE "${CMAKE_CURRENT_SOURCE_DIR}/qml/shell"
-    FILES qml/shell/StartupSplash.qml
+# The mark is part of the interface now, not only the desktop entry, so every
+# platform carries its SVG source and requires QtSvg to render it.
+qt_add_resources(jellyfin-native "application_icons"
+    PREFIX "/icons"
+    BASE "${CMAKE_CURRENT_SOURCE_DIR}/app/icons"
+    FILES
+        app/icons/spool.svg
+        app/icons/spool-film.svg
 )
-if(NOT JELLYFIN_NATIVE_WEBOS)
-    qt_add_resources(jellyfin-native "startup_splash_image"
+
+if(NOT ANDROID)
+    qt_add_resources(jellyfin-native "startup_splash_qml"
         PREFIX "/startup"
-        BASE "${CMAKE_CURRENT_SOURCE_DIR}/app"
-        FILES app/splash.png
+        BASE "${CMAKE_CURRENT_SOURCE_DIR}/qml/shell"
+        FILES qml/shell/StartupSplash.qml
     )
+    if(NOT JELLYFIN_NATIVE_WEBOS)
+        qt_add_resources(jellyfin-native "startup_splash_image"
+            PREFIX "/startup"
+            BASE "${CMAKE_CURRENT_SOURCE_DIR}/app"
+            FILES app/splash.png
+        )
+    endif()
 endif()
 
 if(ANDROID)
@@ -601,10 +607,10 @@ target_link_libraries(jellyfin-core PUBLIC
     Qt6::WebSockets
 )
 
-target_link_libraries(jellyfin-native PRIVATE jellyfin-core)
-if(NOT JELLYFIN_NATIVE_WEBOS)
-    target_link_libraries(jellyfin-native PRIVATE Qt6::Svg)
-endif()
+target_link_libraries(jellyfin-native PRIVATE
+    jellyfin-core
+    Qt6::Svg
+)
 
 
 if(BUILD_TESTING AND NOT CMAKE_CROSSCOMPILING)

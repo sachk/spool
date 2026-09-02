@@ -382,10 +382,10 @@ int main(int argc, char **argv)
     // delaying it.
     JellyfinNative::InputLatencyMonitor inputLatencyMonitor;
     JellyfinNative::NativeAppWindow window(QString::fromLatin1(kAppId));
-#ifdef JELLYFIN_NATIVE_WEBOS
+#if defined(JELLYFIN_NATIVE_WEBOS)
     window.rootContext()->setContextProperty(QStringLiteral("startupSplashImageUrl"),
         QUrl::fromLocalFile(QDir(appRootPath).filePath(QStringLiteral("splash.png"))));
-#else
+#elif !defined(SPOOL_ANDROID)
     window.rootContext()->setContextProperty(
         QStringLiteral("startupSplashImageUrl"), QUrl(QStringLiteral("qrc:/startup/splash.png")));
 #endif
@@ -411,17 +411,19 @@ int main(int argc, char **argv)
     traceFirstFrameSignal(&QQuickWindow::afterRendering, "render_end");
     traceFirstFrameSignal(&QQuickWindow::frameSwapped, "swapped");
     traceFirstFrameSignal(&QQuickWindow::afterFrameEnd, "end");
+    configurePersistentRhiPipelineCache(window, cachePath);
+#if !defined(SPOOL_ANDROID)
     window.setSource(QUrl(QStringLiteral("qrc:/startup/StartupSplash.qml")));
     if (window.status() == QQuickView::Error) {
         logQmlWarnings(window.errors());
         return 1;
     }
-    configurePersistentRhiPipelineCache(window, cachePath);
     if (!window.prepareForUiSurface()) {
         logLine("failed to initialize the native UI surface");
         return 1;
     }
     logLine("startup: prepareForUiSurface completed in %lld ms", static_cast<long long>(startupTimer.elapsed()));
+#endif
 
     if (!registerBundledFonts(appRootPath))
         return 1;
@@ -498,7 +500,7 @@ int main(int argc, char **argv)
     JellyfinNative::TlsTrustController tlsTrust;
     auto discovery = std::make_unique<JellyfinNative::DiscoveryController>(&tlsTrust);
     auto api = std::make_unique<JellyfinNative::JellyfinApiFacade>(networkAccessManager, &tlsTrust);
-    api->setDeviceIdentity({ }, capabilities.deviceName, QString::fromLatin1(kAppVersion));
+    api->setDeviceIdentity({}, capabilities.deviceName, QString::fromLatin1(kAppVersion));
 #if defined(JELLYFIN_NATIVE_WEBOS)
     // webOS reports the name the owner gave the set only on request, and
     // again whenever they change it. Marshal it onto the API's thread, since
@@ -678,6 +680,28 @@ int main(int argc, char **argv)
         logQmlWarnings(window.errors());
         return 1;
     }
+#if defined(SPOOL_ANDROID)
+    if (!window.prepareForUiSurface()) {
+        logLine("failed to initialize the native UI surface");
+        return 1;
+    }
+    const auto dismissSystemSplashAfterFirstContentFrame = [&window, &app] {
+        QObject::connect(
+            &window, &QQuickWindow::frameSwapped, &app,
+            [] { QNativeInterface::QAndroidApplication::hideSplashScreen(); }, Qt::SingleShotConnection);
+    };
+    if (controller->initialized()) {
+        dismissSystemSplashAfterFirstContentFrame();
+    } else {
+        QObject::connect(
+            controller.get(), &JellyfinNative::AppController::initializedChanged, &app,
+            [controller = controller.get(), dismissSystemSplashAfterFirstContentFrame] {
+                if (controller->initialized())
+                    dismissSystemSplashAfterFirstContentFrame();
+            },
+            Qt::SingleShotConnection);
+    }
+#endif
     logLine("startup: QML source loaded in %lld ms", static_cast<long long>(startupTimer.elapsed()));
 
     // Inert unless SPOOL_BENCH names a script. When it does, the app comes up

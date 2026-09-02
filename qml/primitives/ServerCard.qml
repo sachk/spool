@@ -2,9 +2,9 @@ import QtQuick
 import QtQuick.Layouts
 import "../theme"
 
-// One server row. Discovered, saved and just-typed servers all use this, so
-// the status column has to carry a live connection attempt as well as a
-// settled result; `tone` is what colours it.
+// One server, as a list row. Discovered servers, the address being typed and
+// the server already chosen all use this, so the trailing column has to carry
+// a live connection attempt as well as a settled result; `tone` colours it.
 FocusScope {
     id: root
 
@@ -16,6 +16,9 @@ FocusScope {
     property string tone: "neutral"
     property bool selectable: true
     property bool focused: activeFocus
+    // Rows inside a list well take their frame from the well. A row standing
+    // on its own is a panel and has to draw one.
+    property bool inset: false
 
     readonly property color toneColor: tone === "positive" ? Theme.success : tone === "pending" ? Theme.pending : tone
                                                                                                   === "negative"
@@ -24,38 +27,61 @@ FocusScope {
 
     signal accepted
 
-    implicitHeight: Metrics.scaled(detail.length > 0 ? 112 : 94)
+    implicitHeight: Math.max(Metrics.touchTargetPx, Metrics.scaled(detail.length > 0 ? 82 : 64))
     focusPolicy: Qt.StrongFocus
 
     Rectangle {
         anchors.fill: parent
+        anchors.margins: root.inset ? Metrics.scaled(3) : 0
         radius: Theme.radiusMedium
-        color: root.focused ? Theme.accentPanel : hover.hovered ? Theme.bgHover : Theme.bgRaised
-        border.width: root.focused ? Theme.focusBorderWidth : 1
-        border.color: root.focused ? Theme.accent : hover.hovered ? Theme.borderStrong : Theme.border
-        opacity: root.selectable ? 1.0 : 0.68
+        color: root.focused ? Theme.accentPanel : hover.hovered && Metrics.pointerActive ? Theme.bgHover : root.inset
+                                                                                           ? "transparent" :
+                                                                                             Theme.bgRaised
+        border.width: root.focused ? Theme.focusBorderWidth : root.inset ? 0 : 1
+        border.color: root.focused ? Theme.accent : Theme.border
+        opacity: root.selectable ? 1 : 0.62
         antialiasing: true
     }
 
     RowLayout {
         anchors.fill: parent
-        anchors.margins: Metrics.scaled(18)
-        spacing: Metrics.scaled(16)
+        anchors.leftMargin: Metrics.scaled(16)
+        anchors.rightMargin: Metrics.scaled(14)
+        spacing: Metrics.scaled(14)
 
-        MaterialIcon {
-            name: "dns"
-            iconSize: Metrics.scaled(30)
-            iconColor: root.focused ? Theme.accent : Theme.textSecondary
+        Item {
+            Layout.preferredWidth: Metrics.scaled(24)
+            Layout.preferredHeight: Metrics.scaled(24)
+            Layout.alignment: Qt.AlignVCenter
+
+            MaterialIcon {
+                anchors.centerIn: parent
+                visible: root.tone !== "pending"
+                name: root.tone === "negative" ? "error_outline" : "dns"
+                iconSize: Metrics.scaled(22)
+                iconColor: root.focused ? Theme.accent : root.tone === "neutral" ? Theme.textMuted : root.toneColor
+            }
+
+            // Reaching a server is the one thing on this screen that takes
+            // long enough to need saying so while it happens.
+            BusySpinner {
+                anchors.centerIn: parent
+                width: Metrics.scaled(18)
+                height: width
+                visible: root.tone === "pending"
+                color: Theme.pending
+            }
         }
 
         ColumnLayout {
             Layout.fillWidth: true
-            spacing: Metrics.scaled(5)
+            Layout.alignment: Qt.AlignVCenter
+            spacing: Metrics.scaled(2)
 
             AppText {
                 Layout.fillWidth: true
                 text: root.title
-                font.pixelSize: Metrics.bodySizePx + Metrics.scaled(3)
+                font.pixelSize: Metrics.bodySizePx + Metrics.scaled(2)
                 font.weight: Font.Medium
                 maximumLineCount: 1
                 elide: Text.ElideRight
@@ -63,9 +89,10 @@ FocusScope {
 
             SecondaryText {
                 Layout.fillWidth: true
+                visible: root.serverAddress.length > 0
                 text: root.serverAddress
                 color: Theme.textMuted
-                font.pixelSize: Metrics.metaSizePx + Metrics.scaled(3)
+                font.pixelSize: Metrics.metaSizePx
                 maximumLineCount: 1
                 elide: Text.ElideRight
             }
@@ -74,7 +101,7 @@ FocusScope {
                 Layout.fillWidth: true
                 visible: root.detail.length > 0
                 text: root.detail
-                color: Theme.textMuted
+                color: root.tone === "negative" ? Theme.errorText : Theme.textMuted
                 font.pixelSize: Metrics.metaSizePx
                 maximumLineCount: 1
                 elide: Text.ElideRight
@@ -82,12 +109,21 @@ FocusScope {
         }
 
         AppText {
+            Layout.alignment: Qt.AlignVCenter
             visible: root.status.length > 0
             text: root.status
             color: root.toneColor
-            font.pixelSize: Metrics.metaSizePx + Metrics.scaled(3)
+            font.pixelSize: Metrics.metaSizePx
             font.weight: Font.Medium
             maximumLineCount: 1
+        }
+
+        MaterialIcon {
+            Layout.alignment: Qt.AlignVCenter
+            visible: root.selectable
+            name: "chevron_right"
+            iconSize: Metrics.scaled(20)
+            iconColor: root.focused ? Theme.accent : Theme.textDisabled
         }
     }
 

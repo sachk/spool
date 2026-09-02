@@ -10,10 +10,10 @@ QtObject {
     readonly property color border: "#2A2A2A"
     readonly property color borderStrong: "#3A3A3A"
 
-    readonly property color textPrimary: "#E8E8E8"
-    readonly property color textSecondary: "#A0A0A0"
-    readonly property color textMuted: "#6A6A6A"
-    readonly property color textDisabled: "#4A4A4A"
+    readonly property color textPrimary: "#EDEDED"
+    readonly property color textSecondary: "#C6C6C6"
+    readonly property color textMuted: "#9C9C9C"
+    readonly property color textDisabled: "#767676"
     readonly property color accentText: "#061017"
 
     // Jellyfin draws a library with no artwork as its collection glyph on a

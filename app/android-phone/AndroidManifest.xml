@@ -31,6 +31,8 @@
             </intent-filter>
             <meta-data android:name="android.app.lib_name" android:value="-- %%INSERT_APP_LIB_NAME%% --" />
             <meta-data android:name="android.app.arguments" android:value="-- %%INSERT_APP_ARGUMENTS%% --" />
+            <meta-data android:name="android.app.splash_screen_drawable" android:resource="@mipmap/ic_launcher" />
+            <meta-data android:name="android.app.splash_screen_sticky" android:value="true" />
         </activity>
         <receiver
             android:name="com.sachk.spool.RemoteMediaSessionBridge$ControlReceiver"
