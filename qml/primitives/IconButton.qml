@@ -16,12 +16,21 @@ T.Control {
     // bigger gets a bigger icon instead of a small one adrift in a large box.
     property real iconRatio: railStyle ? 0.545 : 0.5
     property string accessibleName: ""
+    // A click normally leaves the keyboard selection on what was clicked, so
+    // a remote or a keyboard carries on from there. A button that navigates
+    // away wants the opposite: the selection belongs to the page it opens,
+    // and a ring painted on the button first only flashes on the way out --
+    // it lands on mouse press, so it is on screen for the whole time a finger
+    // rests on the button before the page even starts changing. Focusing it
+    // by keyboard still works: that goes through forceActiveFocus, which no
+    // focus policy gates.
+    property bool focusOnClick: true
     property alias acceptedButtons: tap.acceptedButtons
     signal clicked
 
     width: Math.max(Metrics.touchTargetPx, Metrics.scaled(44))
     height: width
-    focusPolicy: Metrics.keyboardFocusActive ? Qt.StrongFocus : Qt.NoFocus
+    focusPolicy: Metrics.keyboardFocusActive && root.focusOnClick ? Qt.StrongFocus : Qt.NoFocus
 
     background: Rectangle {
         radius: Theme.radiusSmall
@@ -78,7 +87,8 @@ T.Control {
     TapHandler {
         id: tap
         onTapped: {
-            InputKeys.focus(root)
+            if (root.focusOnClick)
+                InputKeys.focus(root)
             root.clicked()
         }
     }

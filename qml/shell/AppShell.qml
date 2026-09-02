@@ -14,6 +14,18 @@ KeyRouter {
     // a glance, so it moves to the bottom where a thumb already is.
     readonly property bool navBarAtBottom: lane === "compact"
 
+    // The chrome frames the page that is on screen, not the one just asked
+    // for. A route change lands on `route` at once, but the page it names
+    // incubates asynchronously -- and the login page is evicted every time it
+    // leaves, so it is always a cold load. Sizing the bar from `route` moved
+    // and resized the outgoing page in the meantime: leaving home, the whole
+    // screen jumped up by the height of the bar and grew into the space it
+    // left, held that for a frame or two, and only then was replaced. Coming
+    // back it jumped the other way. Following the route that is actually
+    // showing leaves the outgoing page alone and moves the chrome in the same
+    // frame the incoming page appears.
+    readonly property string chromeRoute: routeStack.activeRoute.length > 0 ? routeStack.activeRoute : route
+
     // The shell is the one place that knows how big the window is and what
     // the user asked the interface to be scaled to. It hands both to Metrics
     // so nothing under qml/theme has to reach for a backend singleton.
@@ -924,11 +936,14 @@ KeyRouter {
             // window lane; top and bottom can briefly coexist and leave the
             // bar stretched across the viewport.
             y: root.navBarAtBottom ? Math.max(0, parent.height - height) : 0
-            height: route === "login" ? 0 : Metrics.topBarHeightPx
+            height: root.chromeRoute === "login" ? 0 : Metrics.topBarHeightPx
             edge: root.navBarAtBottom ? "bottom" : "top"
-            visible: route !== "login"
+            visible: root.chromeRoute !== "login"
             z: 1
-            currentRoute: root.route
+            // Same reason as the height above: the rail marks where you are,
+            // not where you are going, so it does not blink its selection off
+            // for the frames a page takes to arrive.
+            currentRoute: root.chromeRoute
             onActiveFocusChanged: if (activeFocus)
                                       root.navigationTarget = navBar
             onNavigate: r => {
@@ -974,7 +989,7 @@ KeyRouter {
             z: 2
             // The remote control page is this bar in full, so it would only
             // duplicate itself there.
-            visible: shown && root.route !== "remoteControl" && root.route !== "login"
+            visible: shown && root.chromeRoute !== "remoteControl" && root.chromeRoute !== "login"
             enabled: visible
             onOpenRequested: root.pushRoute("remoteControl")
         }

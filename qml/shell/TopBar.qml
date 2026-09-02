@@ -299,6 +299,8 @@ FocusScope {
                     accessibleName: modelData.route === "switchUser" && Session.activeProfileLabel.length > 0
                                     ? "Switch user — " + Session.activeProfileLabel : modelData.label
                     railStyle: true
+                    // The rail changes pages; the selection goes with them.
+                    focusOnClick: false
                     selected: root.selectedRoute === modelData.route
                     onClicked: {
                         root.closeSyncPlayMenu(false)
@@ -383,6 +385,7 @@ FocusScope {
                 iconName: "settings_remote"
                 accessibleName: "Remote control — " + RemoteControl.selectedTargetName
                 railStyle: true
+                focusOnClick: false
                 selected: root.currentRoute === "remoteControl"
                 onClicked: {
                     root.closeRemoteMenu(false)
