@@ -27,7 +27,7 @@ QStringList platformSystemSubtitleFonts()
 
 int platformDefaultUiScalePercent()
 {
-    return 150;
+    return 130;
 }
 
 const char *platformDefaultArtworkFormat()

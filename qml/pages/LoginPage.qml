@@ -31,6 +31,24 @@ FocusScope {
     // Room, not hardware. A keyboard covering half the panel and a phone held
     // sideways are the same problem and take the same answer: drop everything
     // that is not the form and pin what is left to the top.
+    // A step is laid out at its natural size and then shrunk to fit if that
+    // does not leave room, rather than being clipped at the bottom edge. The
+    // interface scale is a user setting and defaults to 150% on a television,
+    // so a form that fits at 100% can easily not fit here -- and the part that
+    // falls off is the bottom, which is where Quick Connect's code appears.
+    // Scaling keeps every control reachable at any zoom instead of trusting
+    // that the content happened to be short enough.
+    readonly property real stepFitMargin: Metrics.scaled(12)
+
+    function stepFitScale(needed, available) {
+        if (!(needed > 0) || !(available > 0))
+            return 1
+        const room = available - root.stepFitMargin
+        // Below this the text stops being legible across a room, and something
+        // has gone wrong that shrinking further will not rescue.
+        return Math.max(0.65, Math.min(1, room / needed))
+    }
+
     readonly property bool dense: keyboardVisible || Metrics.units(height) < 620
 
     readonly property string fallbackServerName: "Jellyfin Server"
@@ -292,8 +310,11 @@ FocusScope {
             anchors.right: parent.right
             anchors.top: parent.top
             anchors.topMargin: root.dense ? 0 : Math.max(0, Math.round((parent.height - height) * 0.16))
-            height: Math.min(parent.height, implicitHeight)
+            readonly property real fitScale: root.stepFitScale(implicitHeight, parent.height)
+            height: Math.min(parent.height, implicitHeight * fitScale)
             implicitHeight: childrenRect.height
+            scale: fitScale
+            transformOrigin: Item.Top
             visible: root.addMode && root.addStep === 1
             enabled: visible
             dense: root.dense
@@ -306,8 +327,11 @@ FocusScope {
             anchors.right: parent.right
             anchors.top: parent.top
             anchors.topMargin: root.dense ? 0 : Math.max(0, Math.round((parent.height - height) * 0.16))
-            height: Math.min(parent.height, implicitHeight)
+            readonly property real fitScale: root.stepFitScale(implicitHeight, parent.height)
+            height: Math.min(parent.height, implicitHeight * fitScale)
             implicitHeight: childrenRect.height
+            scale: fitScale
+            transformOrigin: Item.Top
             visible: root.addMode && root.addStep === 2
             enabled: visible
             dense: root.dense
