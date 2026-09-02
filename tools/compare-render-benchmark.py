@@ -20,6 +20,18 @@ And nothing is judged on a single sample. A route fails on its median, so a
 regression has to be present in most of its samples; one outlier cannot fail a
 run, which is precisely what a scheduling pause produces.
 
+There is a third thing the idle probe cannot see, and it is the one that used
+to fail this build most often. The probe measures the machine while the app is
+idle, so it catches a scheduler that is busy elsewhere -- but not the render
+thread legitimately painting. Under QT_QUICK_BACKEND=software every pixel is
+rasterised on the CPU, and on a two-core runner that is tens of milliseconds
+during which the gui thread's timer cannot fire. It looks exactly like a
+dropped frame and is not one: it is llvmpipe's throughput, on a paint path no
+user runs. So frame gaps are reported but not gated when the run was software
+rasterised. What stays gated there is the work the app actually did -- cpu
+time, construct time, swap and delegate counts -- which is what a regression
+in this codebase would move.
+
 Usage:
   compare-render-benchmark.py current.json [--baseline baseline.json]
                               [--budget-ms 16.7] [--tolerance 0.25]
@@ -64,6 +76,10 @@ GATED_AGAINST_BASELINE = ("guiCpuMs", "instanceMs")
 # and so has spread; this keeps a marginally noisier stretch from reading as a
 # regression.
 NOISE_MARGIN = 1.5
+
+# Backends that rasterise on the CPU. A frame gap measured on one of these is
+# mostly the cost of painting in software, so it is reported and not gated.
+CPU_RASTERISED_BACKENDS = {"software"}
 
 # A baseline comparison also has to clear an absolute margin. Some of these
 # metrics sit near zero on a warm page -- construct time is microseconds when
@@ -178,6 +194,10 @@ def main() -> int:
     budget = args.budget_ms or float(samples[0].get("frameBudgetMs", 16.7))
     cold = report.get("cold", False)
     floor = noise_floor(report)
+    backend = str(report.get("quickBackend", "")).strip().lower()
+    # An older report carries no backend at all. Treat that as "unknown", which
+    # gates as before rather than silently letting everything through.
+    software = backend in CPU_RASTERISED_BACKENDS
     # A gap has to clear both the frame budget and whatever the machine was
     # doing anyway. With no floor measured, the budget stands alone.
     threshold = budget if floor is None else max(budget, floor * NOISE_MARGIN)
@@ -194,6 +214,11 @@ def main() -> int:
         lines.append("")
         lines.append(f"Machine noise floor {floor:.1f} ms (idle timer drift, 90th percentile) · "
                      f"gap threshold {threshold:.1f} ms")
+    if software:
+        lines.append("")
+        lines.append("Painted by the software rasteriser, so frame gaps below are reported but "
+                     "not gated: they measure CPU rasterisation on this machine, not a path any "
+                     "user runs.")
     lines.append("")
     header = "| route | " + " | ".join(label for _, label in METRICS) + " | worst gap |"
     lines.append(header)
@@ -235,7 +260,7 @@ def main() -> int:
     #
     # The median, not the worst: a route has to be over the line in most of its
     # samples. A single late frame is what a shared runner hands out for free.
-    if not cold:
+    if not cold and not software:
         for route in sorted(current):
             median_gap = current[route]["maxGapMs"]
             if median_gap > threshold:

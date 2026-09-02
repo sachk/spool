@@ -28,10 +28,13 @@ def sample(route: str, gap: float, *, wall: float = 6.0, cpu: float = 2.0, const
     }
 
 
-def report(samples: list[dict], *, idle: list[float] | None = None, cold: bool = False) -> dict:
+def report(samples: list[dict], *, idle: list[float] | None = None, cold: bool = False,
+           backend: str | None = None) -> dict:
     document = {"iterations": 4, "cold": cold, "samples": samples}
     if idle is not None:
         document["idleGapsMs"] = idle
+    if backend is not None:
+        document["quickBackend"] = backend
     return document
 
 
@@ -82,6 +85,18 @@ def main() -> int:
 
     # Cold runs are tracked, not gated: rebuilding a page cannot be free.
     run(script, report(regressed, idle=[0.5] * 4, cold=True))
+
+    # The same sustained gap, painted by the software rasteriser. On a small
+    # runner that is CPU rasterisation time, not a dropped frame, and the idle
+    # probe cannot see it because the app is not idle while it paints. Reported,
+    # not gated -- this is what used to fail the build for no good reason.
+    output = run(script, report(regressed, idle=[0.5] * 4, backend="software"))
+    assert "not gated" in output, output
+    assert "Regressions" not in output, output
+
+    # A real GPU backend still gates: there the gap means what it says.
+    output = run(script, report(regressed, idle=[0.5] * 4, backend="rhi"), expected=1)
+    assert "median frame gap" in output, output
 
     # A report from before the idle probe existed still gates on the budget,
     # rather than silently passing everything for want of a noise floor.

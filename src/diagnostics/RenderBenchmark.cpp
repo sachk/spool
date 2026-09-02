@@ -212,6 +212,11 @@ void RenderBenchmark::finish()
     report.insert(QStringLiteral("iterations"), m_iterations);
     report.insert(QStringLiteral("cold"), m_forceCold);
     report.insert(QStringLiteral("frameBudgetMs"), m_latency ? m_latency->frameBudgetMs() : 16.67);
+    // Which paint path produced these numbers. It decides whether the frame
+    // gaps mean anything: the software backend rasterises on the CPU, so on a
+    // small runner a gap is mostly llvmpipe's throughput rather than anything
+    // this application did.
+    report.insert(QStringLiteral("quickBackend"), qEnvironmentVariable("QT_QUICK_BACKEND"));
     // What a frame-budget timer drifted by while the app was doing nothing.
     // A transition gap only means something when it is worse than this.
     QJsonArray idleGaps;

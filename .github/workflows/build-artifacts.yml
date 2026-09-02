@@ -740,6 +740,11 @@ jobs:
       # near-miss restore would be reused as if it were current. The key covers
       # every input that changes the cached tree and there are no restore-keys:
       # a miss rebuilds from source rather than resuming someone else's tree.
+      #
+      # CMakeLists.txt is deliberately not in the key. It builds the app, not
+      # the toolchain -- neither build-qt6.sh nor build-dependencies.sh reads
+      # it -- so hashing it bought nothing and cost an hour and a half of Qt
+      # and mpv rebuilds every time an unrelated target or test was touched.
       - name: Resolve mpv submodule revision
         id: mpv-rev
         run: echo "sha=$(git rev-parse HEAD:mpv)" >>"$GITHUB_OUTPUT"
@@ -751,7 +756,7 @@ jobs:
             build/android/qt
             build/android/deps
             build/android/qcoro
-          key: android3-${{ runner.os }}-${{ steps.mpv-rev.outputs.sha }}-${{ hashFiles('flake.nix', 'flake.lock', 'CMakeLists.txt', 'cmake/platform/Android.cmake', 'tools/android/**', 'tools/lib/*.sh', 'tools/manifests/android-third-party.json', 'tools/manifests/ffmpeg-capabilities.json', 'tools/manifests/qt-android-6.11.json') }}
+          key: android4-${{ runner.os }}-${{ steps.mpv-rev.outputs.sha }}-${{ hashFiles('flake.nix', 'flake.lock', 'cmake/platform/Android.cmake', 'tools/android/**', 'tools/lib/*.sh', 'tools/manifests/android-third-party.json', 'tools/manifests/ffmpeg-capabilities.json', 'tools/manifests/qt-android-6.11.json') }}
 
       - name: Build cached Android toolchains
         if: ${{ steps.android-cache.outputs.cache-hit != 'true' }}
