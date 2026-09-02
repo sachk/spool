@@ -26,6 +26,19 @@ namespace {
         return count;
     }
 
+    // Cores the kernel has, not the ones awake right now. A webOS TV parks
+    // cores when idle, so `hardware_concurrency()` -- which reports what is
+    // online at that instant -- can read 2 on a 4-core set. The probe runs
+    // once at startup, so believing it would size the decode pool for the
+    // quietest moment of the boot.
+    int installedCpuCount()
+    {
+        QFile present(QStringLiteral("/sys/devices/system/cpu/present"));
+        if (!present.open(QIODevice::ReadOnly | QIODevice::Text))
+            return 0;
+        return cpuListSize(QString::fromUtf8(present.readAll()).trimmed());
+    }
+
     int threadsPerCore()
     {
         QFile siblings(QStringLiteral("/sys/devices/system/cpu/cpu0/topology/thread_siblings_list"));
@@ -51,9 +64,9 @@ namespace {
 PlatformCpuProbe platformCpuProbe(int logicalCpus)
 {
     const int siblings = threadsPerCore();
-    return { std::max(1, (logicalCpus + siblings - 1) / siblings),
-        siblings > 1 ? QStringLiteral("hardware_concurrency+thread_siblings")
-                     : QStringLiteral("hardware_concurrency") };
+    const int installed = std::max(logicalCpus, installedCpuCount());
+    return { std::max(1, (installed + siblings - 1) / siblings), installed,
+        siblings > 1 ? QStringLiteral("cpu_present+thread_siblings") : QStringLiteral("cpu_present") };
 }
 
 PlatformMemoryPolicy platformMemoryPolicy()

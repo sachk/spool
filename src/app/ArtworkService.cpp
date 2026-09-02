@@ -1,5 +1,6 @@
 #include "ArtworkService.h"
 #include "../common/TlsTrust.h"
+#include "../platform/PlatformSettingsPolicy.h"
 #include "ArtworkImageProvider.h"
 
 #include <QBuffer>
@@ -16,6 +17,7 @@
 #include <QRunnable>
 #include <QSet>
 #include <QUrlQuery>
+
 #include <chrono>
 
 #include <algorithm>
@@ -467,11 +469,11 @@ QString ArtworkService::url(const QVariant& value, const QString& kind, int widt
     }
     if (value.canConvert<LibraryItem>()) {
         const LibraryItem item = value.value<LibraryItem>();
-        return buildUrl(item.id, item.imageTag, QStringLiteral("Primary"), width > 0 ? width : 280, 75);
+        return buildUrl(item.id, item.imageTag, QStringLiteral("Primary"), width > 0 ? width : 280, 0);
     }
     if (value.canConvert<PersonItem>()) {
         const PersonItem item = value.value<PersonItem>();
-        return buildUrl(item.id, item.imageTag, QStringLiteral("Primary"), width > 0 ? width : 360, 80);
+        return buildUrl(item.id, item.imageTag, QStringLiteral("Primary"), width > 0 ? width : 360, 5);
     }
     return {};
 }
@@ -494,14 +496,34 @@ void ArtworkService::setUiWidth(int width)
         m_uiWidth = width;
 }
 
+QString ArtworkService::artworkFormat() const
+{
+    return m_artworkFormat.isEmpty() ? QString::fromLatin1(platformDefaultArtworkFormat()) : m_artworkFormat;
+}
+
+int ArtworkService::qualityForOffset(int offset) const
+{
+    const int base = artworkFormat() == QLatin1String("jpeg") ? m_jpegQuality : m_webpQuality;
+    return std::clamp(base + offset, 1, 100);
+}
+
+void ArtworkService::setArtworkEncoding(const QString& format, int webpQuality, int jpegQuality)
+{
+    const QString normalized = (format == QLatin1String("webp") || format == QLatin1String("jpeg"))
+        ? format
+        : QString::fromLatin1(platformDefaultArtworkFormat());
+    m_artworkFormat = normalized;
+    m_webpQuality = std::clamp(webpQuality, 1, 100);
+    m_jpegQuality = std::clamp(jpegQuality, 1, 100);
+}
+
 QString ArtworkService::movieUrl(const MovieItem& item, const QString& kind, int width) const
 {
     QString itemId = item.id;
     QString tag = item.posterTag;
     QString imageType = QStringLiteral("Primary");
-    QString format = QStringLiteral("webp");
     int maxWidth = width > 0 ? width : 280;
-    int quality = 75;
+    int qualityOffset = 0;
     int fillWidth = 0;
     int fillHeight = 0;
 
@@ -518,10 +540,10 @@ QString ArtworkService::movieUrl(const MovieItem& item, const QString& kind, int
             tag = item.seriesPrimaryImageTag;
         }
         maxWidth = width > 0 ? width : 360;
-        quality = 80;
+        qualityOffset = 5;
     } else if (kind == QStringLiteral("square")) {
         maxWidth = width > 0 ? width : 320;
-        quality = 80;
+        qualityOffset = 5;
     } else if (kind == QStringLiteral("landscape")) {
         if (!item.thumbTag.isEmpty()) {
             tag = item.thumbTag;
@@ -534,7 +556,7 @@ QString ArtworkService::movieUrl(const MovieItem& item, const QString& kind, int
             tag = item.seriesPrimaryImageTag;
         }
         maxWidth = width > 0 ? width : (m_uiWidth >= 3000 ? 640 : 400);
-        quality = m_uiWidth >= 3000 ? 70 : 68;
+        qualityOffset = m_uiWidth >= 3000 ? -5 : -7;
         if (imageType != QStringLiteral("Primary")) {
             fillWidth = maxWidth;
             fillHeight = maxWidth * 9 / 16;
@@ -548,29 +570,46 @@ QString ArtworkService::movieUrl(const MovieItem& item, const QString& kind, int
             imageType = QStringLiteral("Thumb");
         }
         maxWidth = width > 0 ? width : 1920;
-        quality = 82;
+        qualityOffset = 7;
     } else if (kind == QStringLiteral("logo")) {
+        // Logos need their transparency, so they are PNG whatever the user
+        // picked. PNG is lossless, which makes the quality parameter inert --
+        // pinning it keeps every client on one URL for the same logo.
         tag = item.logoTag;
         imageType = QStringLiteral("Logo");
-        format = QStringLiteral("png");
         maxWidth = width > 0 ? width : 720;
-        quality = 90;
+        return buildLosslessUrl(itemId, tag, imageType, maxWidth);
     } else if (kind == QStringLiteral("banner")) {
         tag = item.bannerTag;
         imageType = QStringLiteral("Banner");
         maxWidth = width > 0 ? width : 1000;
-        quality = 86;
+        qualityOffset = 11;
     } else if (kind == QStringLiteral("thumb")) {
         tag = item.thumbTag;
         imageType = QStringLiteral("Thumb");
         maxWidth = width > 0 ? width : 720;
-        quality = 82;
+        qualityOffset = 7;
     }
-    return buildUrl(itemId, tag, imageType, maxWidth, quality, format, fillWidth, fillHeight);
+    return buildUrl(itemId, tag, imageType, maxWidth, qualityOffset, fillWidth, fillHeight);
+}
+
+QString ArtworkService::buildLosslessUrl(
+    const QString& itemId, const QString& tag, const QString& imageType, int maxWidth) const
+{
+    if (m_serverUrl.isEmpty() || itemId.isEmpty() || tag.isEmpty() || imageType.isEmpty())
+        return {};
+    QUrl url = serverUrlWithPath(m_serverUrl, { QStringLiteral("Items"), itemId, QStringLiteral("Images"), imageType });
+    QUrlQuery query;
+    query.addQueryItem(QStringLiteral("maxWidth"), QString::number(maxWidth));
+    query.addQueryItem(QStringLiteral("quality"), QStringLiteral("90"));
+    query.addQueryItem(QStringLiteral("format"), QStringLiteral("png"));
+    query.addQueryItem(QStringLiteral("tag"), tag);
+    url.setQuery(query);
+    return url.toString(QUrl::FullyEncoded);
 }
 
 QString ArtworkService::buildUrl(const QString& itemId, const QString& tag, const QString& imageType, int maxWidth,
-    int quality, const QString& format, int fillWidth, int fillHeight) const
+    int qualityOffset, int fillWidth, int fillHeight) const
 {
     if (m_serverUrl.isEmpty() || itemId.isEmpty() || tag.isEmpty() || imageType.isEmpty())
         return {};
@@ -582,8 +621,8 @@ QString ArtworkService::buildUrl(const QString& itemId, const QString& tag, cons
     } else {
         query.addQueryItem(QStringLiteral("maxWidth"), QString::number(maxWidth));
     }
-    query.addQueryItem(QStringLiteral("quality"), QString::number(quality));
-    query.addQueryItem(QStringLiteral("format"), format);
+    query.addQueryItem(QStringLiteral("quality"), QString::number(qualityForOffset(qualityOffset)));
+    query.addQueryItem(QStringLiteral("format"), artworkFormat());
     query.addQueryItem(QStringLiteral("tag"), tag);
     url.setQuery(query);
     return url.toString(QUrl::FullyEncoded);

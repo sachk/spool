@@ -8,6 +8,9 @@ namespace JellyfinNative {
 
 struct PlatformCpuProbe {
     int physicalCores = 0;
+    // CPUs the kernel knows about, including any currently parked. Zero means
+    // the platform cannot tell, in which case the online count stands.
+    int installedCpus = 0;
     QString source;
 };
 

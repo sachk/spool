@@ -54,6 +54,14 @@ public:
     QString itemUrl(const MovieItem& item, bool landscape, int width = 0) const override;
     void setServerUrl(QString serverUrl);
     void setUiWidth(int width);
+    // Which codec to ask the server for, and how hard it should compress.
+    // Format is "webp" or "jpeg"; anything else falls back to the platform
+    // default. The two qualities are kept apart because the same number means
+    // different things to the two encoders -- JPEG needs about 82 to match
+    // what WebP does at 75 -- and because a client that switches format
+    // should land on URLs other clients of that format already asked for, so
+    // the server's own encoded-image cache is shared rather than duplicated.
+    void setArtworkEncoding(const QString& format, int webpQuality, int jpegQuality);
     QQuickImageResponse *requestImageResponse(const QString& id, const QSize& requestedSize);
     void prefetch(const QStringList& urls) override;
     void cancelPrefetches() override;
@@ -102,11 +110,22 @@ private:
     void flushTimingBatch();
     void invokeWorker(std::function<void(ArtworkFetchWorker *)> call);
     QString movieUrl(const MovieItem& item, const QString& kind, int width) const;
-    QString buildUrl(const QString& itemId, const QString& tag, const QString& imageType, int maxWidth, int quality,
-        const QString& format = QStringLiteral("webp"), int fillWidth = 0, int fillHeight = 0) const;
+    QString buildUrl(const QString& itemId, const QString& tag, const QString& imageType, int maxWidth,
+        int qualityOffset, int fillWidth = 0, int fillHeight = 0) const;
+    QString buildLosslessUrl(const QString& itemId, const QString& tag, const QString& imageType, int maxWidth) const;
+    // Lossy artwork is requested at the user's base quality shifted by a
+    // per-kind offset, so one slider moves every kind together while keeping
+    // the relative tuning between them. The offsets are relative to a poster,
+    // and the shipped defaults reproduce the qualities the app requested
+    // before the setting existed.
+    int qualityForOffset(int offset) const;
+    QString artworkFormat() const;
 
     QString m_cacheDirectory;
     QString m_serverUrl;
+    QString m_artworkFormat;
+    int m_webpQuality = 75;
+    int m_jpegQuality = 82;
     int m_uiWidth = 1920;
     qint64 m_networkCacheBytes = 0;
     std::shared_ptr<ArtworkByteCache> m_byteCache;

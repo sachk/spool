@@ -36,6 +36,11 @@ int platformDefaultUiScalePercent()
     return 100;
 }
 
+const char *platformDefaultArtworkFormat()
+{
+    return "webp";
+}
+
 bool platformUsesPerOutputAudioDelay()
 {
     return false;

@@ -187,6 +187,15 @@ int platformDefaultUiScalePercent()
 #endif
 }
 
+const char *platformDefaultArtworkFormat()
+{
+#ifdef SPOOL_ANDROID_TV
+    return "jpeg";
+#else
+    return "webp";
+#endif
+}
+
 bool platformUsesPerOutputAudioDelay()
 {
     return false;
@@ -226,7 +235,7 @@ int platformAutomaticAudioDelayMs(const QString&, int, int)
 
 PlatformCpuProbe platformCpuProbe(int logicalCpus)
 {
-    return { std::max(1, logicalCpus), QStringLiteral("hardware_concurrency") };
+    return { std::max(1, logicalCpus), 0, QStringLiteral("hardware_concurrency") };
 }
 
 PlatformMemoryPolicy platformMemoryPolicy()

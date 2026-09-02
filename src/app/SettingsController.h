@@ -14,6 +14,7 @@
 namespace JellyfinNative {
 
 class DatabaseManager;
+class ArtworkService;
 class JellyfinApiFacade;
 class PlayerController;
 struct SettingSpec;
@@ -45,8 +46,8 @@ class SettingsController final : public QObject {
     Q_PROPERTY(bool remoteControlTargetEnabled READ remoteControlTargetEnabled NOTIFY remoteControlSettingsChanged)
 
 public:
-    SettingsController(
-        DatabaseManager *database, JellyfinApiFacade *api, PlayerController *player, QObject *parent = nullptr);
+    SettingsController(DatabaseManager *database, JellyfinApiFacade *api, PlayerController *player,
+        ArtworkService *artwork, QObject *parent = nullptr);
 
     int uiScalePercent() const
     {
@@ -124,6 +125,7 @@ private:
     void applySchemaValue(const SettingSpec& spec, const QVariant& value, bool apply);
     void emitSchemaSignals(const SettingSpec& spec);
     void applyPlaybackPreferences();
+    void applyArtworkEncoding();
     void applyAudioDelayToPlayer();
     void loadCurrentAudioDelay();
     void applyLoadedAudioDelay(const QString& output, int delayMs);
@@ -134,6 +136,10 @@ private:
     DatabaseManager *m_database = nullptr;
     JellyfinApiFacade *m_api = nullptr;
     PlayerController *m_player = nullptr;
+    ArtworkService *m_artwork = nullptr;
+    QString m_artworkFormat = QStringLiteral("auto");
+    int m_artworkWebpQuality = 75;
+    int m_artworkJpegQuality = 82;
     QVariantMap m_values;
     bool m_remoteLoadStarted = false;
     bool m_nightModeEnabled = false;

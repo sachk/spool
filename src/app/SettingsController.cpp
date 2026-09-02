@@ -5,6 +5,7 @@
 #include "../common/AsyncTask.h"
 #include "../platform/PlatformSettingsPolicy.h"
 #include "../player/PlayerController.h"
+#include "ArtworkService.h"
 #include "SettingsSchema.h"
 
 #include <QDebug>
@@ -32,12 +33,13 @@ namespace {
 
 } // namespace
 
-SettingsController::SettingsController(
-    DatabaseManager *database, JellyfinApiFacade *api, PlayerController *player, QObject *parent)
+SettingsController::SettingsController(DatabaseManager *database, JellyfinApiFacade *api, PlayerController *player,
+    ArtworkService *artwork, QObject *parent)
     : QObject(parent)
     , m_database(database)
     , m_api(api)
     , m_player(player)
+    , m_artwork(artwork)
     , m_uiScalePercent(platformDefaultUiScalePercent())
 {
 }
@@ -168,6 +170,7 @@ void SettingsController::applyLocalValues(const QVariantMap& storedValues)
         m_player->setForwardCacheSizeMiB(m_forwardCacheSizeMiB);
         m_player->setMpvConfigPolicy(configPolicy);
     }
+    applyArtworkEncoding();
     applyPlaybackPreferences();
     if (m_player)
         m_player->setSubtitlePreferences(m_subtitlePreferences);
@@ -493,6 +496,21 @@ void SettingsController::applySchemaValue(const SettingSpec& spec, const QVarian
     case SettingTarget::UiScale:
         m_uiScalePercent = value.toInt();
         break;
+    case SettingTarget::ArtworkFormat:
+        m_artworkFormat = value.toString();
+        if (apply)
+            applyArtworkEncoding();
+        break;
+    case SettingTarget::ArtworkWebpQuality:
+        m_artworkWebpQuality = value.toInt();
+        if (apply)
+            applyArtworkEncoding();
+        break;
+    case SettingTarget::ArtworkJpegQuality:
+        m_artworkJpegQuality = value.toInt();
+        if (apply)
+            applyArtworkEncoding();
+        break;
     case SettingTarget::AudioTrackMode:
         m_subtitlePreferences.audioMode = value.toString();
         if (apply) {
@@ -691,6 +709,10 @@ void SettingsController::emitSchemaSignals(const SettingSpec& spec)
     case SettingTarget::UiScale:
         emit appearanceChanged();
         break;
+    case SettingTarget::ArtworkFormat:
+    case SettingTarget::ArtworkWebpQuality:
+    case SettingTarget::ArtworkJpegQuality:
+        break;
     case SettingTarget::AudioTrackMode:
     case SettingTarget::RememberSeriesAudioTrack:
         break;
@@ -733,6 +755,19 @@ void SettingsController::emitSchemaSignals(const SettingSpec& spec)
     case SettingTarget::MpvConfigDirectory:
         break;
     }
+}
+
+void SettingsController::applyArtworkEncoding()
+{
+    if (!m_artwork)
+        return;
+    // "auto" is resolved here rather than in the schema so the stored value
+    // stays portable: the same profile restored on a TV and on a desktop asks
+    // each for the format that suits it.
+    const QString format = m_artworkFormat == QLatin1String("auto")
+        ? QString::fromLatin1(platformDefaultArtworkFormat())
+        : m_artworkFormat;
+    m_artwork->setArtworkEncoding(format, m_artworkWebpQuality, m_artworkJpegQuality);
 }
 
 void SettingsController::applyPlaybackPreferences()

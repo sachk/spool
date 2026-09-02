@@ -32,7 +32,7 @@ namespace {
 PlatformCpuProbe platformCpuProbe(int logicalCpus)
 {
     const int physical = physicalCoreCount();
-    return { physical > 0 ? physical : logicalCpus,
+    return { physical > 0 ? physical : logicalCpus, 0,
         physical > 0 ? QStringLiteral("GetLogicalProcessorInformationEx") : QStringLiteral("hardware_concurrency") };
 }
 

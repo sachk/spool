@@ -29,6 +29,11 @@ int platformDefaultUiScalePercent()
 {
     return 150;
 }
+
+const char *platformDefaultArtworkFormat()
+{
+    return "jpeg";
+}
 bool platformUsesPerOutputAudioDelay()
 {
     return true;

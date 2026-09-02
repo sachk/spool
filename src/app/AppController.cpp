@@ -105,7 +105,7 @@ AppController::AppController(DatabaseManager *database, DiscoveryController *dis
     m_syncPlay = new SyncPlayController(api, player, m_playQueue, tlsTrust, this);
     m_remoteControl = new RemoteControlController(api, this);
     m_quickConnect = new QuickConnectController(api, this);
-    m_settings = new SettingsController(database, api, player, this);
+    m_settings = new SettingsController(database, api, player, artwork, this);
     m_session = new SessionController(database, api, this);
     m_prefetch = new LibraryPrefetchController(api, artwork, this);
     m_browse = new BrowseSessionController(m_prefetch, this);

@@ -1,5 +1,8 @@
 #include "app/SettingsController.h"
+
+#include "app/ArtworkService.h"
 #include "cache/DatabaseManager.h"
+#include "platform/PlatformSettingsPolicy.h"
 
 #include "TestMain.h"
 
@@ -10,7 +13,10 @@
 #include <cstdlib>
 #include <iostream>
 
+using JellyfinNative::ArtworkService;
 using JellyfinNative::DatabaseManager;
+using JellyfinNative::MovieItem;
+using JellyfinNative::platformDefaultArtworkFormat;
 using JellyfinNative::SettingsController;
 
 namespace {
@@ -35,8 +41,33 @@ JELLYFIN_TEST_MAIN("settings-controller")
     require(database.initialize(directory.filePath(QStringLiteral("settings.sqlite"))),
         "settings database did not initialize");
 
-    SettingsController settings(&database, nullptr, nullptr);
+    ArtworkService artwork(QString(), 0, 1024, 1, nullptr);
+    artwork.setServerUrl(QStringLiteral("https://example.test"));
+    MovieItem poster;
+    poster.id = QStringLiteral("item1");
+    poster.posterTag = QStringLiteral("tag1");
+    const QVariant posterValue = QVariant::fromValue(poster);
+    const auto posterUrl = [&] { return artwork.url(posterValue, QStringLiteral("poster")); };
+
+    SettingsController settings(&database, nullptr, nullptr, &artwork);
     QCoro::waitFor(settings.loadLocalAsync());
+
+    // A fresh profile leaves the codec to the platform, and the artwork
+    // service has to be told before the first poster is requested rather than
+    // when the settings page is first opened.
+    require(posterUrl().contains(QStringLiteral("format=") + QString::fromLatin1(platformDefaultArtworkFormat())),
+        "artwork did not start on the platform's default format");
+    require(posterUrl().contains(QStringLiteral("quality=75")), "artwork did not start at the default webp quality");
+
+    settings.setValue(QStringLiteral("artwork/format"), QStringLiteral("jpeg"));
+    require(posterUrl().contains(QStringLiteral("format=jpeg")), "changing the artwork format did not reach artwork");
+    require(posterUrl().contains(QStringLiteral("quality=82")),
+        "switching to jpeg did not pick up the jpeg quality default");
+    settings.setValue(QStringLiteral("artwork/jpegQuality"), QStringLiteral("90"));
+    require(posterUrl().contains(QStringLiteral("quality=90")), "changing the jpeg quality did not reach artwork");
+    settings.setValue(QStringLiteral("artwork/format"), QStringLiteral("webp"));
+    require(
+        posterUrl().contains(QStringLiteral("quality=75")), "switching back to webp did not restore the webp quality");
     require(settings.uiScalePercent() == 100, "desktop UI scale default was not 100 percent");
     require(!settings.value(QStringLiteral("playback/manualStreamingBitrate")).toBool(),
         "fresh profile unexpectedly enabled the manual streaming limit");
@@ -84,7 +115,7 @@ JELLYFIN_TEST_MAIN("settings-controller")
     require(QCoro::waitFor(database.loadSettingAsync(QStringLiteral("subtitles/alwaysOverridePositionAndSize")))
             == QStringLiteral("true"),
         "subtitle geometry override was not persisted");
-    SettingsController restoredSubtitleSettings(&database, nullptr, nullptr);
+    SettingsController restoredSubtitleSettings(&database, nullptr, nullptr, nullptr);
     QCoro::waitFor(restoredSubtitleSettings.loadLocalAsync());
     require(restoredSubtitleSettings.value(QStringLiteral("subtitles/alwaysOverridePositionAndSize")).toBool(),
         "persisted subtitle geometry override was not restored");
@@ -135,7 +166,7 @@ JELLYFIN_TEST_MAIN("settings-controller")
             == QStringLiteral("3"),
         "completed control-tooltip sessions were not persisted");
 
-    SettingsController restored(&database, nullptr, nullptr);
+    SettingsController restored(&database, nullptr, nullptr, nullptr);
     QCoro::waitFor(restored.loadLocalAsync());
     require(restored.uiScalePercent() == 135, "persisted UI scale was not restored");
     require(restored.audioDelayMs() == 120, "persisted global desktop audio delay was not restored");

@@ -19,8 +19,12 @@ namespace {
 
 CpuTopology detectCpuTopology()
 {
-    const int logical = std::max(1, static_cast<int>(std::thread::hardware_concurrency()));
-    const PlatformCpuProbe probe = platformCpuProbe(logical);
+    const int online = std::max(1, static_cast<int>(std::thread::hardware_concurrency()));
+    const PlatformCpuProbe probe = platformCpuProbe(online);
+    // Size the pool for the cores the machine has, not the ones that happened
+    // to be awake during startup. This runs once, and a parked core comes back
+    // as soon as there is work for it.
+    const int logical = std::max(online, probe.installedCpus);
     const int physical = std::max(1, probe.physicalCores);
     const bool smt = logical > physical;
     int decodeThreads = environmentDecodeThreads();

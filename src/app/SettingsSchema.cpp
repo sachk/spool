@@ -15,6 +15,8 @@ namespace {
     constexpr SettingChoice kRailLabelChoices[]
         = { { "Never", "Never" }, { "On focus", "On focus" }, { "Always", "Always" } };
     constexpr SettingChoice kTextRenderModeChoices[] = { { "0", "Standard" }, { "1", "Curve" } };
+    constexpr SettingChoice kArtworkFormatChoices[]
+        = { { "auto", "Automatic" }, { "webp", "WebP (smaller downloads)" }, { "jpeg", "JPEG (faster to decode)" } };
     constexpr SettingChoice kTechnicalMetadataChoices[]
         = { { "Always", "Always" }, { "On details only", "Details page only" }, { "Hidden", "Never" } };
     // "%1" is replaced with the user's preferred-language name when shown.
@@ -250,6 +252,17 @@ const QVector<SettingSpec>& settingSpecs()
         pageSpec("theme/antialiasedText", "Appearance", "Smooth text", "", SettingType::Toggle).advanced(),
         pageSpec("theme/renderMode", "Appearance", "Text rendering", "Curve stays sharp at any scale",
             SettingType::Select, kTextRenderModeChoices)
+            .advanced(),
+        selectSpec("artwork/format", "Appearance", "Artwork format",
+            "Automatic picks JPEG on TVs, where decoding costs more than downloading", "auto", kArtworkFormatChoices,
+            SettingTarget::ArtworkFormat)
+            .advanced(),
+        sliderSpec("artwork/webpQuality", "Appearance", "WebP quality", "Applies to artwork fetched as WebP", "75", 40,
+            100, 1, "", SettingTarget::ArtworkWebpQuality)
+            .advanced(),
+        sliderSpec("artwork/jpegQuality", "Appearance", "JPEG quality",
+            "JPEG needs a higher number than WebP to look the same", "82", 40, 100, 1, "",
+            SettingTarget::ArtworkJpegQuality)
             .advanced(),
         toggleSpec("remote/showCastButton", "Remote Control", "Show Cast button",
             "Choose and control another Jellyfin client", true, SettingTarget::CastButtonEnabled),

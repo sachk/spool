@@ -19,7 +19,7 @@ namespace {
 PlatformCpuProbe platformCpuProbe(int logicalCpus)
 {
     const int physical = static_cast<int>(sysctlInteger("hw.physicalcpu"));
-    return { physical > 0 ? physical : logicalCpus,
+    return { physical > 0 ? physical : logicalCpus, 0,
         physical > 0 ? QStringLiteral("hw.physicalcpu") : QStringLiteral("hardware_concurrency") };
 }
 
