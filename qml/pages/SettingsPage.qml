@@ -657,12 +657,19 @@ FocusScope {
         onEdgeUp: if (root.shell)
         root.shell.focusNavBar()
         delegate: Column {
+            id: settingsDelegate
             required property int index
             required property string rowKey
             required property bool showHeader
             required property bool advanced
             required property int sourceIndex
             readonly property var rowData: root.rowsByKey[rowKey]
+            // The view marks exactly one delegate as current, so the highlight
+            // cannot land on two rows at once. Comparing a per-row copy of the
+            // index against currentIndex could: rows the model inserts or
+            // removes shift every delegate below them, and any copy taken
+            // before the shift then matches a row it no longer belongs to.
+            readonly property bool rowCurrent: ListView.isCurrentItem && settingsList.activeFocus
             width: settingsList.width
             Component.onCompleted: InputLatency.noteDelegate("settings_row", 1)
             Component.onDestruction: InputLatency.noteDelegate("settings_row", -1)
@@ -678,16 +685,17 @@ FocusScope {
                 id: rowLoader
                 width: Math.max(0, parent.width - (parent.advanced ? Metrics.scaled(24) : 0))
                 x: parent.advanced ? Metrics.scaled(24) : 0
-                property var row: rowData
-                property int rowIndex: index
+                // Bindings, not assignments: the loaded row reads these back
+                // through its parent so a model change reaches it. Copying
+                // them into the item once at load time froze them for the
+                // life of a delegate that outlives several model shapes.
+                readonly property var row: settingsDelegate.rowData
+                readonly property int rowIndex: settingsDelegate.index
+                readonly property bool rowCurrent: settingsDelegate.rowCurrent
                 sourceComponent: rowData.type === "toggle" ? toggleComponent : rowData.type === "select"
                                                              ? selectComponent : rowData.type === "slider"
                                                                ? sliderComponent : rowData.type === "text"
                                                                  ? textComponent : settingComponent
-                onLoaded: {
-                    item.row = row
-                    item.rowIndex = rowIndex
-                }
             }
         }
     }
@@ -696,13 +704,13 @@ FocusScope {
         id: settingComponent
         SettingRow {
             id: settingRow
-            property var row
-            property int rowIndex: -1
+            readonly property var row: parent ? parent.row : null
+            readonly property int rowIndex: parent ? parent.rowIndex : -1
             readonly property bool isSubmenu: row && row.type === "submenu"
             width: parent ? parent.width : settingsList.width
             focus: false
             focusPolicy: Qt.NoFocus
-            rowFocus: settingsList.activeFocus && settingsList.currentIndex === rowIndex
+            rowFocus: parent ? parent.rowCurrent : false
             title: row ? row.title : ""
             description: row ? root.rowDescription(row) : ""
             valueText: row ? root.rowValueText(row) : ""
@@ -726,12 +734,12 @@ FocusScope {
     Component {
         id: toggleComponent
         ToggleRow {
-            property var row
-            property int rowIndex: -1
+            readonly property var row: parent ? parent.row : null
+            readonly property int rowIndex: parent ? parent.rowIndex : -1
             width: parent ? parent.width : settingsList.width
             focus: false
             focusPolicy: Qt.NoFocus
-            rowFocus: settingsList.activeFocus && settingsList.currentIndex === rowIndex
+            rowFocus: parent ? parent.rowCurrent : false
             title: row ? row.title : ""
             description: row ? root.rowDescription(row) : ""
             checked: row ? Boolean(root.settingsValue(row)) : false
@@ -745,12 +753,12 @@ FocusScope {
     Component {
         id: selectComponent
         SelectRow {
-            property var row
-            property int rowIndex: -1
+            readonly property var row: parent ? parent.row : null
+            readonly property int rowIndex: parent ? parent.rowIndex : -1
             width: parent ? parent.width : settingsList.width
             focus: false
             focusPolicy: Qt.NoFocus
-            rowFocus: settingsList.activeFocus && settingsList.currentIndex === rowIndex
+            rowFocus: parent ? parent.rowCurrent : false
             title: row ? row.title : ""
             description: row ? root.rowDescription(row) : ""
             onOpened: {
@@ -766,10 +774,10 @@ FocusScope {
     Component {
         id: sliderComponent
         SliderRow {
-            property var row
-            property int rowIndex: -1
+            readonly property var row: parent ? parent.row : null
+            readonly property int rowIndex: parent ? parent.rowIndex : -1
             width: parent ? parent.width : settingsList.width
-            selected: settingsList.activeFocus && settingsList.currentIndex === rowIndex
+            selected: parent ? parent.rowCurrent : false
             title: row ? row.title : ""
             description: row ? root.rowDescription(row) : ""
             from: row ? Number(row.from) : 0
@@ -786,12 +794,12 @@ FocusScope {
         id: textComponent
 
         Surface {
-            property var row
-            property int rowIndex: -1
+            readonly property var row: parent ? parent.row : null
+            readonly property int rowIndex: parent ? parent.rowIndex : -1
             width: parent ? parent.width : settingsList.width
             implicitHeight: textContent.implicitHeight + Metrics.scaled(28)
             elevated: true
-            focused: settingsList.activeFocus && settingsList.currentIndex === rowIndex
+            focused: parent ? parent.rowCurrent : false
 
             function activate() {
                 if (browseButton.visible && browseButton.activeFocus)

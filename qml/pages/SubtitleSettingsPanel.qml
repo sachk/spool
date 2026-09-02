@@ -447,6 +447,10 @@ FocusScope {
             readonly property var spec: modelData.spec
             readonly property bool isSection: modelData.section === true
             readonly property Item control: rowLoader.item
+            // The view guarantees a single current delegate; a per-row copy of
+            // the index does not survive the model changing shape underneath
+            // it, and two rows can then answer to the same currentIndex.
+            readonly property bool rowCurrent: ListView.isCurrentItem && list.activeFocus
 
             width: list.width
             implicitHeight: isSection ? sectionHeader.implicitHeight + Metrics.scaled(18) : rowLoader.implicitHeight
@@ -465,6 +469,12 @@ FocusScope {
                 id: rowLoader
                 anchors.fill: delegateItem.isSection ? undefined : parent
                 active: !delegateItem.isSection
+                // Bound rather than assigned once at load: the loaded row
+                // reads these back through its parent, so it keeps up when
+                // the model shifts around a delegate that outlives it.
+                readonly property var spec: delegateItem.spec
+                readonly property int rowIndex: delegateItem.index
+                readonly property bool rowCurrent: delegateItem.rowCurrent
                 sourceComponent: delegateItem.isSection ? null : delegateItem.spec.type === "toggle" ? toggleComponent :
                                                                                                        delegateItem.spec.type
                                                                                                        === "slider"
@@ -473,10 +483,6 @@ FocusScope {
                                                                                                          === "select"
                                                                                                          ? selectComponent :
                                                                                                            actionComponent
-                onLoaded: {
-                    item.spec = delegateItem.spec
-                    item.rowIndex = delegateItem.index
-                }
             }
         }
     }
@@ -543,15 +549,15 @@ FocusScope {
         id: actionComponent
         SettingRow {
             id: actionRow
-            property var spec
-            property int rowIndex: -1
+            readonly property var spec: parent ? parent.spec : null
+            readonly property int rowIndex: parent ? parent.rowIndex : -1
             // The chevron says "this row unfolds in place" the way the select
             // rows do, so the submenu needs no word for it.
             readonly property bool isSubmenu: spec !== undefined && spec !== null && spec.type === "submenu"
             width: list.width
             focus: false
             focusPolicy: Qt.NoFocus
-            rowFocus: list.activeFocus && list.currentIndex === rowIndex
+            rowFocus: parent ? parent.rowCurrent : false
             title: spec ? spec.title : ""
             description: spec ? spec.description : ""
             valueText: isSubmenu ? "" : "Reset"
@@ -574,12 +580,12 @@ FocusScope {
     Component {
         id: toggleComponent
         ToggleRow {
-            property var spec
-            property int rowIndex: -1
+            readonly property var spec: parent ? parent.spec : null
+            readonly property int rowIndex: parent ? parent.rowIndex : -1
             width: list.width
             focus: false
             focusPolicy: Qt.NoFocus
-            rowFocus: list.activeFocus && list.currentIndex === rowIndex
+            rowFocus: parent ? parent.rowCurrent : false
             title: spec ? spec.title : ""
             description: spec ? spec.description : ""
             checked: spec ? Boolean(root.specValue(spec)) : false
@@ -593,12 +599,12 @@ FocusScope {
     Component {
         id: selectComponent
         SelectRow {
-            property var spec
-            property int rowIndex: -1
+            readonly property var spec: parent ? parent.spec : null
+            readonly property int rowIndex: parent ? parent.rowIndex : -1
             width: list.width
             focus: false
             focusPolicy: Qt.NoFocus
-            rowFocus: list.activeFocus && list.currentIndex === rowIndex
+            rowFocus: parent ? parent.rowCurrent : false
             title: spec ? spec.title : ""
             description: spec ? spec.description : ""
             options: spec ? root.choiceLabels(spec) : []
@@ -614,10 +620,10 @@ FocusScope {
     Component {
         id: sliderComponent
         SliderRow {
-            property var spec
-            property int rowIndex: -1
+            readonly property var spec: parent ? parent.spec : null
+            readonly property int rowIndex: parent ? parent.rowIndex : -1
             width: list.width
-            selected: list.activeFocus && list.currentIndex === rowIndex
+            selected: parent ? parent.rowCurrent : false
             title: spec ? spec.title : ""
             description: spec ? spec.description : ""
             from: spec ? Number(spec.from) : 0

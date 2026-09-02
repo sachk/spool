@@ -833,6 +833,7 @@ if(BUILD_TESTING AND NOT CMAKE_CROSSCOMPILING)
             profile-navigation tests/qml/tst_ProfileNavigation.qml
             settings-navigation tests/qml/tst_SettingsNavigation.qml
             settings-disclosure tests/qml/tst_SettingsDisclosure.qml
+            settings-row-identity tests/qml/tst_SettingsRowIdentity.qml
             atomic-view-reveal tests/qml/tst_AtomicViewReveal.qml
             input-latency-warning tests/qml/tst_InputLatencyWarning.qml
             player-seek-bar-hover tests/qml/tst_PlayerSeekBarHover.qml
