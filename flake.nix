@@ -63,6 +63,17 @@
       # the pin the rest of the project is built and tested against.
       nixpkgsFor = system:
         if system == "x86_64-darwin" then nixpkgs-x86-darwin else nixpkgs;
+      ffmpeg9FullFor = pkgs:
+        if pkgs ? ffmpeg_9-full
+        then pkgs.ffmpeg_9-full
+        # The x86_64-darwin maintenance branch predates FFmpeg 9. Its generic
+        # derivation supports newer upstream versions, but FFmpeg 9 removed CELT.
+        else pkgs.ffmpeg-full.override {
+          version = "9.0";
+          hash = "sha256-LbHwxvylAPh5lb/H+o+9eMVTB9X+tphrxYYX0cqAL0k=";
+          withCelt = false;
+        };
+
 
       libplaceboOverlay = final: prev: {
         spoolLibplacebo = prev.libplacebo.overrideAttrs (_: {
@@ -117,7 +128,7 @@
             !(nixpkgs.lib.hasPrefix "--enable-" flag)
             || builtins.elem flag structuralEnableFlags;
         in {
-        spoolFfmpeg = (prev.ffmpeg-full.override
+        spoolFfmpeg = ((ffmpeg9FullFor prev).override
           (nixpkgs.lib.genAttrs ffmpegCapabilities.disabledNixFeatures (_: false))).overrideAttrs (old: {
             doCheck = false;
             configureFlags =
@@ -187,9 +198,8 @@
         });
       };
       cacheDependencyOverlay = final: prev: {
-        # Use each platform pin's full FFmpeg package. The x86_64-darwin
-        # maintenance branch provides FFmpeg 8 while current nixpkgs provides 9.
-        spoolFfmpeg = prev.ffmpeg-full;
+        # Keep cached releases on the same vulnerability-fixed FFmpeg major.
+        spoolFfmpeg = ffmpeg9FullFor prev;
       };
 
       forAllSystems = f:
