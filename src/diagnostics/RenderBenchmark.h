@@ -56,6 +56,7 @@ private:
     bool openLibraryNamed(const QString& name);
     QQuickItem *routeStackItem();
     QVariant invokeOnActivePage(const QString& function);
+    void applyViewMode();
     void beginScrollWalk();
     void scrollStep();
     void finishScrollStep();
@@ -85,6 +86,7 @@ private:
     // Library walk state.
     QString m_libraryName;
     bool m_listMode = false;
+    bool m_viewModeApplied = false;
     int m_scrollSteps = 0;
     int m_scrollPosition = 0;
     bool m_scrolling = false;

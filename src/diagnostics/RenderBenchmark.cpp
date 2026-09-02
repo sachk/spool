@@ -175,13 +175,20 @@ QVariant RenderBenchmark::invokeOnActivePage(const QString& function)
     return result;
 }
 
+// Toggling is a flip rather than a set, so it has to happen exactly once.
+void RenderBenchmark::applyViewMode()
+{
+    if (!m_listMode || m_viewModeApplied)
+        return;
+    qInfo() << "render benchmark: switching to list mode";
+    invokeOnActivePage(QStringLiteral("toggleViewMode"));
+    m_viewModeApplied = true;
+}
+
 void RenderBenchmark::beginScrollWalk()
 {
     qInfo() << "render benchmark: walking" << m_libraryName << (m_listMode ? "as a list" : "as a grid");
-    if (m_listMode) {
-        qInfo() << "render benchmark: switching to list mode";
-        invokeOnActivePage(QStringLiteral("toggleViewMode"));
-    }
+    applyViewMode();
     m_scrollPosition = 0;
     m_pump->start();
     // Times how long the library has had to arrive, which is what the first
@@ -303,6 +310,11 @@ void RenderBenchmark::start()
             finish();
             return;
         }
+        // Switch the view before the walk rather than after it. The scroll
+        // walk used to be the only thing that ran in list mode, which left
+        // every route switch measured as a grid however the run was asked
+        // for -- so a list-mode comparison silently compared two grids.
+        applyViewMode();
         QTimer::singleShot(0, this, [this] { step(); });
     });
     waiter->start();
