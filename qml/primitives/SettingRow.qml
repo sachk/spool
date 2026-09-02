@@ -17,7 +17,7 @@ T.Control {
     signal clicked
     focusPolicy: Qt.StrongFocus
     focus: true
-    implicitHeight: Math.max(Metrics.scaled(68), textColumn.implicitHeight + Metrics.scaled(28))
+    implicitHeight: Math.max(Metrics.scaled(68), implicitContentHeight + Metrics.scaled(28))
     leftPadding: Metrics.scaled(14)
     rightPadding: Metrics.scaled(14)
     topPadding: Metrics.scaled(14)
@@ -44,7 +44,6 @@ T.Control {
         spacing: Metrics.scaled(18)
 
         ColumnLayout {
-            id: textColumn
             Layout.fillWidth: true
             spacing: Metrics.scaled(3)
             AppText {
