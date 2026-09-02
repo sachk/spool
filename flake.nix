@@ -67,12 +67,17 @@
         if pkgs ? ffmpeg_9-full
         then pkgs.ffmpeg_9-full
         # The x86_64-darwin maintenance branch predates FFmpeg 9. Its generic
-        # derivation supports newer upstream versions, but FFmpeg 9 removed CELT.
-        else pkgs.ffmpeg-full.override {
+        # derivation supports newer upstream versions; discard its two obsolete
+        # FFmpeg 8 configure switches when building the newer source.
+        else (pkgs.ffmpeg-full.override {
           version = "9.0";
           hash = "sha256-LbHwxvylAPh5lb/H+o+9eMVTB9X+tphrxYYX0cqAL0k=";
           withCelt = false;
-        };
+        }).overrideAttrs (old: {
+          configureFlags = builtins.filter (flag:
+            !builtins.elem flag [ "--disable-libcelt" "--disable-libshaderc" ])
+            old.configureFlags;
+        });
 
 
       libplaceboOverlay = final: prev: {
