@@ -116,14 +116,44 @@ configure_isolated_qt_paths() {
   export QT_PLUGIN_PATH="$(join_colon_paths "${plugin_paths[@]}")"
 }
 
-export HOME="$work/home"
-export XDG_CACHE_HOME="$work/cache"
-export XDG_CONFIG_HOME="$work/config"
-export XDG_DATA_HOME="$work/data"
-export XDG_RUNTIME_DIR="$work/runtime"
+# A throwaway profile is the point of this script: the launch test has to prove
+# the app comes up for someone who has never run it, and CI has nothing else.
+#
+# Benchmarking wants the opposite. What a page costs to paint needs a real GPU,
+# which needs the compositor socket in the session's own XDG_RUNTIME_DIR, and
+# what a library page costs needs a library, which needs a signed-in profile.
+# SPOOL_BENCH_HOST_SESSION=1 borrows both from the developer running it. It is
+# never set in CI, and it is refused unless a benchmark is what is being run,
+# so it cannot quietly turn the launch test into a non-hermetic one.
+use_host_session=0
+if [[ "${SPOOL_BENCH_HOST_SESSION:-0}" == "1" ]]; then
+  if [[ -z "${SPOOL_BENCH:-}" ]]; then
+    echo "error: SPOOL_BENCH_HOST_SESSION only applies to benchmark runs" >&2
+    exit 1
+  fi
+  use_host_session=1
+fi
+
+if [[ "$use_host_session" == "1" ]]; then
+  echo "note: benchmarking against this session's own profile and compositor" >&2
+else
+  export HOME="$work/home"
+  export XDG_CACHE_HOME="$work/cache"
+  export XDG_CONFIG_HOME="$work/config"
+  export XDG_DATA_HOME="$work/data"
+  export XDG_RUNTIME_DIR="$work/runtime"
+fi
 export JELLYFIN_DIAGNOSTICS_DIR="$work/diagnostics"
 export QT_QPA_PLATFORM="${JELLYFIN_LAUNCH_TEST_QPA_PLATFORM:-offscreen}"
-export QT_QUICK_BACKEND="${QT_QUICK_BACKEND:-software}"
+# Software rasterisation is the default because it is the only thing a headless
+# CI runner can do, and the launch test only needs a frame to exist. Measuring
+# what a page costs to paint needs a real GPU, so an explicitly set value wins
+# here -- including an empty one, which is how Qt is asked for its default RHI
+# backend. Hence +x rather than :-, which cannot tell empty from unset.
+if [[ -z "${QT_QUICK_BACKEND+x}" ]]; then
+  QT_QUICK_BACKEND=software
+fi
+export QT_QUICK_BACKEND
 export QSG_RHI_BACKEND="${QSG_RHI_BACKEND:-opengl}"
 if [[ "$bundled_app" == "1" ]]; then
   unset QT_PLUGIN_PATH QML_IMPORT_PATH QML2_IMPORT_PATH NIXPKGS_QT6_QML_IMPORT_PATH QMAKEPATH

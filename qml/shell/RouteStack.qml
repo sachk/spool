@@ -297,65 +297,76 @@ FocusScope {
         return Boolean(activeItem && activeItem.routeKey && activeItem.routeKey(key, phase, repeat))
     }
 
+    // Test and benchmark hook: call a named function on whatever page is on
+    // screen, and say whether it happened. This exists so an automated run can
+    // drive a page the way a person would -- page down, switch to list -- from
+    // outside, without the harness having to know how any page is built. The
+    // application itself never calls it.
+    function invokeOnActivePage(name: string): var {
+    if (!activeItem || typeof activeItem[name] !== "function")
+    return undefined
+    return activeItem[name]()
+}
+
     function typeAhead(text) {
         return Boolean(activeItem && activeItem.typeAhead && activeItem.typeAhead(text))
     }
 
-    function activate() {
-        if (activeItem && activeItem.activate)
+        function activate() {
+            if (activeItem && activeItem.activate)
             activeItem.activate()
-    }
-
-    function longPress() {
-        return Boolean(activeItem && activeItem.longPress && activeItem.longPress())
-    }
-
-    function back() {
-        return Boolean(activeItem && activeItem.back && activeItem.back())
-    }
-
-    // Cold page construction costs 300-700 ms on TV hardware while warm hits
-    // land in tens of ms, so build every resident page during post-launch
-    // idle, one at a time to keep the GUI thread responsive between them.
-    property var prewarmQueue: []
-    property bool prewarmScheduled: false
-
-    Timer {
-        id: prewarmTimer
-        interval: 1500
-        repeat: true
-        onTriggered: {
-            if (root.prewarmQueue.length === 0) {
-                stop()
-                return
-            }
-            // Never build past what is going to be kept: filling the budget
-            // with pages nobody asked for would evict the ones they did.
-            if (Object.keys(root.pages).length >= root.residentPageBudget) {
-                stop()
-                return
-            }
-            const key = root.prewarmQueue.shift()
-            if (!root.pages[key]) {
-                root.loaderFor(key)
-                console.info("route host: prewarming", key)
-            }
-            interval = 600
         }
-    }
 
-    Component {
-        id: pageLoaderComponent
+            function longPress() {
+                return Boolean(activeItem && activeItem.longPress && activeItem.longPress())
+            }
 
-        Loader {
-            id: pageLoader
-            property string pageCacheKey: ""
-            anchors.fill: parent
-            asynchronous: true
-            visible: false
-            onLoaded: root.handleLoaded(pageLoader)
-            onStatusChanged: if (status === Loader.Error)
-                                 console.warn("route host: failed to load", source)
-        }
-    }
-}
+                function back() {
+                    return Boolean(activeItem && activeItem.back && activeItem.back())
+                }
+
+                    // Cold page construction costs 300-700 ms on TV hardware while warm hits
+                    // land in tens of ms, so build every resident page during post-launch
+                    // idle, one at a time to keep the GUI thread responsive between them.
+                    property var prewarmQueue: []
+                    property bool prewarmScheduled: false
+
+                    Timer {
+                        id: prewarmTimer
+                        interval: 1500
+                        repeat: true
+                        onTriggered: {
+                            if (root.prewarmQueue.length === 0) {
+                                stop()
+                                return
+                            }
+                            // Never build past what is going to be kept: filling the budget
+                            // with pages nobody asked for would evict the ones they did.
+                            if (Object.keys(root.pages).length >= root.residentPageBudget) {
+                                stop()
+                                return
+                            }
+                            const key = root.prewarmQueue.shift()
+                            if (!root.pages[key]) {
+                                root.loaderFor(key)
+                                console.info("route host: prewarming", key)
+                            }
+                            interval = 600
+                        }
+                    }
+
+                    Component {
+                        id: pageLoaderComponent
+
+                        Loader {
+                            id: pageLoader
+                            property string pageCacheKey: ""
+                            anchors.fill: parent
+                            asynchronous: true
+                            visible: false
+                            onLoaded: root.handleLoaded(pageLoader)
+                            onStatusChanged: if (status === Loader.Error)
+                                                 console.warn("route host: failed to load", source)
+                        }
+                    }
+                }

@@ -5,9 +5,11 @@
 #include <QObject>
 #include <QStringList>
 #include <QTimer>
+#include <QVariant>
 #include <QVariantList>
 
 class QQuickWindow;
+class QQuickItem;
 
 namespace JellyfinNative {
 class InputLatencyMonitor;
@@ -47,6 +49,16 @@ private:
     // every sample rather than once, because a shared runner is not equally
     // busy from one minute to the next.
     qint64 budgetNs() const;
+    // Opens a named library and walks it, so the numbers come from a real
+    // grid full of real artwork rather than an empty page. Scrolling is where
+    // a library actually costs something: every screen is a fresh set of
+    // delegates and a fresh set of images to decode and upload.
+    bool openLibraryNamed(const QString& name);
+    QQuickItem *routeStackItem();
+    QVariant invokeOnActivePage(const QString& function);
+    void beginScrollWalk();
+    void scrollStep();
+    void finishScrollStep();
     void beginIdleProbe();
     void finishIdleProbe();
     void finish();
@@ -69,6 +81,20 @@ private:
     qint64 m_idleWorstNs = 0;
     QElapsedTimer m_idleClock;
     QVariantList m_idleGaps;
+
+    // Library walk state.
+    QString m_libraryName;
+    bool m_listMode = false;
+    int m_scrollSteps = 0;
+    int m_scrollPosition = 0;
+    bool m_scrolling = false;
+    qint64 m_scrollStartNs = 0;
+    qint64 m_scrollWorstGapNs = 0;
+    qint64 m_scrollExpectedGapNs = 0;
+    QElapsedTimer m_scrollClock;
+    QChronoTimer *m_scrollGapTimer = nullptr;
+    QTimer *m_scrollPoll = nullptr;
+    QVariantList m_scrollSamples;
 
     QStringList m_script;
     QString m_outputPath;

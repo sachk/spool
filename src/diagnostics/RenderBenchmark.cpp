@@ -1,6 +1,7 @@
 #include "RenderBenchmark.h"
 
 #include "../app/AppController.h"
+#include "../app/ArtworkService.h"
 #include "../app/RouterController.h"
 #include "InputLatencyMonitor.h"
 
@@ -13,6 +14,7 @@
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QQuickItem>
 #include <QQuickWindow>
 #include <QTimer>
 #include <QtGlobal>
@@ -45,8 +47,20 @@ RenderBenchmark *RenderBenchmark::createIfRequested(
     if (script.isEmpty())
         return nullptr;
     auto *benchmark = new RenderBenchmark(app, router, latency, window, parent);
-    if (script != QStringLiteral("routes"))
+    // "library" walks one library's grid instead of the route set: open it,
+    // then page down through it waiting for the artwork on each screen. That
+    // is the part of this application that costs the most on a television and
+    // the part the route walk cannot see, because a route switch reveals a
+    // page that is already built and already holding its pictures.
+    if (script == QStringLiteral("library")) {
+        benchmark->m_script = { QStringLiteral("libraryGrid") };
+        if (benchmark->m_scrollSteps <= 0)
+            benchmark->m_scrollSteps = 12;
+        if (benchmark->m_libraryName.isEmpty())
+            benchmark->m_libraryName = QStringLiteral("Movies");
+    } else if (script != QStringLiteral("routes")) {
         benchmark->m_script = script.split(QLatin1Char(','), Qt::SkipEmptyParts);
+    }
     return benchmark;
 }
 
@@ -63,6 +77,9 @@ RenderBenchmark::RenderBenchmark(
     , m_warmup(envInt("SPOOL_BENCH_WARMUP", 1))
     , m_stepTimeoutMs(envInt("SPOOL_BENCH_TIMEOUT_MS", 8000))
     , m_settleMs(envInt("SPOOL_BENCH_SETTLE_MS", 120))
+    , m_libraryName(qEnvironmentVariable("SPOOL_BENCH_LIBRARY").trimmed())
+    , m_listMode(qEnvironmentVariableIntValue("SPOOL_BENCH_LIST_MODE") != 0)
+    , m_scrollSteps(envInt("SPOOL_BENCH_SCROLL_STEPS", 0))
     , m_forceCold(qEnvironmentVariableIntValue("SPOOL_BENCH_COLD") != 0)
 {
     // Every route switch ends by publishing what it cost. That is the signal
@@ -80,6 +97,27 @@ RenderBenchmark::RenderBenchmark(
             m_window->requestUpdate();
     });
 
+    m_scrollGapTimer = new QChronoTimer(this);
+    connect(m_scrollGapTimer, &QChronoTimer::timeout, this, [this] {
+        const qint64 nowNs = m_scrollClock.nsecsElapsed();
+        m_scrollWorstGapNs = std::max(m_scrollWorstGapNs, std::max<qint64>(0, nowNs - m_scrollExpectedGapNs));
+        m_scrollExpectedGapNs = nowNs + budgetNs();
+    });
+
+    // A screen of a library is settled when every image it asked for has
+    // arrived. Polling the artwork service is what makes that observable
+    // without the harness knowing anything about the page it is driving.
+    m_scrollPoll = new QTimer(this);
+    m_scrollPoll->setInterval(4);
+    connect(m_scrollPoll, &QTimer::timeout, this, [this] {
+        if (!m_scrolling)
+            return;
+        auto *artwork = m_app ? m_app->artwork() : nullptr;
+        const int outstanding = artwork ? artwork->outstandingRequests() : 0;
+        if (outstanding == 0 || m_scrollClock.elapsed() > m_stepTimeoutMs)
+            finishScrollStep();
+    });
+
     m_idleProbe = new QChronoTimer(this);
     connect(m_idleProbe, &QChronoTimer::timeout, this, [this] {
         const qint64 nowNs = m_idleClock.nsecsElapsed();
@@ -92,6 +130,115 @@ qint64 RenderBenchmark::budgetNs() const
 {
     const double budgetMs = m_latency ? m_latency->frameBudgetMs() : 16.67;
     return static_cast<qint64>((budgetMs > 0.0 ? budgetMs : 16.67) * 1000000.0);
+}
+
+bool RenderBenchmark::openLibraryNamed(const QString& name)
+{
+    auto *libraries = m_app ? m_app->libraries() : nullptr;
+    if (!libraries) {
+        qWarning() << "render benchmark: no library list to search";
+        return false;
+    }
+    for (int index = 0; index < libraries->count(); ++index) {
+        if (libraries->libraryAt(index).name.compare(name, Qt::CaseInsensitive) == 0) {
+            qInfo() << "render benchmark: opening library" << name;
+            m_app->openLibrary(index);
+            return true;
+        }
+    }
+    QStringList available;
+    for (int index = 0; index < libraries->count(); ++index)
+        available.append(libraries->libraryAt(index).name);
+    qWarning() << "render benchmark: no library named" << name << "- have" << available;
+    return false;
+}
+
+QQuickItem *RenderBenchmark::routeStackItem()
+{
+    if (!m_window)
+        return nullptr;
+    // AppShell already names the instance; this is not a hook added for the
+    // benchmark, just the one handle it needs.
+    return m_window->findChild<QQuickItem *>(QStringLiteral("shellRouteStack"));
+}
+
+QVariant RenderBenchmark::invokeOnActivePage(const QString& function)
+{
+    QQuickItem *stack = routeStackItem();
+    if (!stack)
+        return {};
+    QVariant result;
+    // The QML function declares its parameter as `string`, so the meta-method
+    // takes a QString: handing it a QVariant silently matches nothing.
+    QMetaObject::invokeMethod(
+        stack, "invokeOnActivePage", Qt::DirectConnection, Q_RETURN_ARG(QVariant, result), Q_ARG(QString, function));
+    return result;
+}
+
+void RenderBenchmark::beginScrollWalk()
+{
+    qInfo() << "render benchmark: walking" << m_libraryName << (m_listMode ? "as a list" : "as a grid");
+    if (m_listMode) {
+        qInfo() << "render benchmark: switching to list mode";
+        invokeOnActivePage(QStringLiteral("toggleViewMode"));
+    }
+    m_scrollPosition = 0;
+    m_pump->start();
+    // Times how long the library has had to arrive, which is what the first
+    // step's patience is measured against.
+    m_scrollClock.start();
+    QTimer::singleShot(m_settleMs * 4, this, [this] { scrollStep(); });
+}
+
+void RenderBenchmark::scrollStep()
+{
+    if (m_scrollPosition >= m_scrollSteps) {
+        m_pump->stop();
+        finish();
+        return;
+    }
+    const QVariant moved = invokeOnActivePage(QStringLiteral("scrollPageDown"));
+    if (!moved.toBool()) {
+        // Before the first screen, "nowhere to scroll" means the library has
+        // not finished arriving rather than that it is one screen long. Wait
+        // for it; afterwards the same answer really is the end.
+        if (m_scrollPosition == 0 && m_scrollClock.elapsed() < m_stepTimeoutMs) {
+            QTimer::singleShot(100, this, [this] { scrollStep(); });
+            return;
+        }
+        qInfo() << "render benchmark: reached the end of the library after" << m_scrollPosition << "screens";
+        m_pump->stop();
+        finish();
+        return;
+    }
+    ++m_scrollPosition;
+    m_scrollWorstGapNs = 0;
+    m_scrollClock.start();
+    m_scrollExpectedGapNs = budgetNs();
+    m_scrollGapTimer->setInterval(std::chrono::nanoseconds(budgetNs()));
+    m_scrollGapTimer->start();
+    m_scrolling = true;
+    m_scrollPoll->start();
+}
+
+void RenderBenchmark::finishScrollStep()
+{
+    m_scrolling = false;
+    m_scrollPoll->stop();
+    m_scrollGapTimer->stop();
+    QVariantMap sample;
+    sample.insert(QStringLiteral("screen"), m_scrollPosition);
+    if (auto *artwork = m_app ? m_app->artwork() : nullptr) {
+        const auto totals = artwork->decodeTotals();
+        sample.insert(QStringLiteral("decodeMsTotal"), static_cast<double>(totals.decodeNs) / 1000000.0);
+        sample.insert(QStringLiteral("decodedPixelsTotal"), static_cast<double>(totals.pixels));
+        sample.insert(QStringLiteral("decodedImagesTotal"), totals.images);
+    }
+    sample.insert(QStringLiteral("settleMs"), static_cast<double>(m_scrollClock.nsecsElapsed()) / 1000000.0);
+    sample.insert(QStringLiteral("maxGapMs"), static_cast<double>(m_scrollWorstGapNs) / 1000000.0);
+    sample.insert(QStringLiteral("frameBudgetMs"), m_latency ? m_latency->frameBudgetMs() : 16.67);
+    m_scrollSamples.append(sample);
+    QTimer::singleShot(m_settleMs, this, [this] { scrollStep(); });
 }
 
 void RenderBenchmark::beginIdleProbe()
@@ -134,7 +281,31 @@ void RenderBenchmark::start()
     // just-in-time compile do not get counted as the steady state.
     m_pass = -m_warmup;
     m_position = -1;
-    QTimer::singleShot(0, this, [this] { step(); });
+    if (m_libraryName.isEmpty()) {
+        QTimer::singleShot(0, this, [this] { step(); });
+        return;
+    }
+
+    // The library list arrives from the server some time after the window
+    // does, so asking for one at startup finds an empty list. Wait for it
+    // rather than reporting that the library does not exist.
+    auto *waiter = new QTimer(this);
+    waiter->setInterval(50);
+    const qint64 deadline = QDateTime::currentMSecsSinceEpoch() + m_stepTimeoutMs;
+    connect(waiter, &QTimer::timeout, this, [this, waiter, deadline] {
+        auto *libraries = m_app ? m_app->libraries() : nullptr;
+        const bool ready = libraries && libraries->count() > 0;
+        if (!ready && QDateTime::currentMSecsSinceEpoch() < deadline)
+            return;
+        waiter->stop();
+        waiter->deleteLater();
+        if (!ready || !openLibraryNamed(m_libraryName)) {
+            finish();
+            return;
+        }
+        QTimer::singleShot(0, this, [this] { step(); });
+    });
+    waiter->start();
 }
 
 void RenderBenchmark::step()
@@ -143,6 +314,10 @@ void RenderBenchmark::step()
     if (m_position >= m_script.size()) {
         m_position = 0;
         if (++m_pass >= m_iterations) {
+            if (m_scrollSteps > 0 && m_scrollSamples.isEmpty()) {
+                beginScrollWalk();
+                return;
+            }
             finish();
             return;
         }
@@ -224,6 +399,12 @@ void RenderBenchmark::finish()
         idleGaps.append(gap.toDouble());
     report.insert(QStringLiteral("idleGapsMs"), idleGaps);
     report.insert(QStringLiteral("samples"), samples);
+    QJsonArray scrollSamples;
+    for (const QVariant& sample : std::as_const(m_scrollSamples))
+        scrollSamples.append(QJsonObject::fromVariantMap(sample.toMap()));
+    report.insert(QStringLiteral("scrollSamples"), scrollSamples);
+    report.insert(QStringLiteral("library"), m_libraryName);
+    report.insert(QStringLiteral("listMode"), m_listMode);
 
     const QByteArray json = QJsonDocument(report).toJson(QJsonDocument::Indented);
     if (m_outputPath.isEmpty()) {
@@ -238,7 +419,7 @@ void RenderBenchmark::finish()
             qWarning() << "render benchmark: could not write" << m_outputPath;
         }
     }
-    QCoreApplication::exit(m_samples.isEmpty() ? 1 : 0);
+    QCoreApplication::exit(m_samples.isEmpty() && m_scrollSamples.isEmpty() ? 1 : 0);
 }
 
 } // namespace JellyfinNative

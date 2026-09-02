@@ -611,6 +611,17 @@ void ArtworkService::prefetch(const QStringList& urls)
         [urls = std::move(uncached)](ArtworkFetchWorker *worker) mutable { worker->prefetch(std::move(urls)); });
 }
 
+ArtworkService::DecodeTotals ArtworkService::decodeTotals() const
+{
+    QMutexLocker locker(&m_decodeTotalsMutex);
+    return m_decodeTotals;
+}
+
+int ArtworkService::outstandingRequests() const
+{
+    return static_cast<int>(m_responses.size()) + static_cast<int>(m_pendingDeliveries.size());
+}
+
 void ArtworkService::setAuthorizationHeader(QString header)
 {
     invokeWorker([header = std::move(header)](
@@ -720,6 +731,12 @@ void ArtworkService::startDecode(ArtworkImageResponse *response, QByteArray byte
             return;
         timing.decodeQueueNs = std::max<qint64>(0, decodeStartedNs - queuedNs);
         timing.decodeNs = std::max<qint64>(0, decodeFinishedNs - decodeStartedNs);
+        {
+            QMutexLocker locker(&m_decodeTotalsMutex);
+            m_decodeTotals.decodeNs += timing.decodeNs;
+            m_decodeTotals.pixels += static_cast<qint64>(image.width()) * image.height();
+            m_decodeTotals.images += 1;
+        }
         timing.resultSize = image.size();
         QMetaObject::invokeMethod(
             this,

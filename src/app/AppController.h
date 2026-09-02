@@ -58,6 +58,10 @@ public:
     {
         return &m_discoveredServers;
     }
+    ArtworkService *artwork() const
+    {
+        return m_artwork;
+    }
     LibraryListModel *libraries()
     {
         return &m_libraries;

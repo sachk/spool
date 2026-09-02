@@ -27,3 +27,6 @@ __pycache__/
 /TODO.md
 /qt-openapi.md
 /redesign.md
+
+# Notes and scratch work that belong to this machine rather than the project.
+local-docs/

@@ -59,6 +59,21 @@ public:
     void cancelPrefetches() override;
     void releaseMemory(bool aggressive);
     void setAuthorizationHeader(QString header);
+    // How much artwork is still on its way: requests that have not produced an
+    // image yet, plus images decoded but not yet handed to the scene graph.
+    // Zero means everything asked for has arrived, which is what "wait until
+    // the pictures are there" means for an automated run.
+    int outstandingRequests() const;
+    // Cumulative decode work since the process started: how long decoding has
+    // taken on the pool threads, and how many pixels came out of it. Both are
+    // what a source size actually changes, and unlike wall-clock settle time
+    // they do not depend on how fast the GPU or the network happen to be.
+    struct DecodeTotals {
+        qint64 decodeNs = 0;
+        qint64 pixels = 0;
+        int images = 0;
+    };
+    DecodeTotals decodeTotals() const;
 
     int requestImage(QUrl url, QSize requestedSize, ArtworkImageResponse *response);
     void cancelRequest(int requestId);
@@ -95,6 +110,8 @@ private:
     int m_uiWidth = 1920;
     qint64 m_networkCacheBytes = 0;
     std::shared_ptr<ArtworkByteCache> m_byteCache;
+    mutable QMutex m_decodeTotalsMutex;
+    DecodeTotals m_decodeTotals;
     QThreadPool m_decodePool;
     QThread m_workerThread;
     ArtworkFetchWorker *m_worker = nullptr;

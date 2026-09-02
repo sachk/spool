@@ -636,6 +636,33 @@ FocusScope {
         listMode = !listMode
     }
 
+    // Test and benchmark hook: page the view down by one screen and say
+    // whether there was anywhere to go. Driving this directly rather than
+    // through key handling means an automated run covers the same distance
+    // every time whatever happens to hold focus, and the false at the end is
+    // how it knows it has reached the bottom.
+    // Test and benchmark hook: what an automated run needs to know about the
+    // view without reaching into it -- whether the library has arrived, how
+    // far there is to scroll, and which layout is showing.
+    function viewState(): var {
+        return {
+            "count": grid.count,
+            "contentHeight": grid.contentHeight,
+            "height": grid.height,
+            "contentY": grid.contentY,
+            "listMode": root.listMode
+        }
+    }
+
+    function scrollPageDown(): bool {
+        const maximum = Math.max(0, grid.contentHeight - grid.height)
+        if (maximum <= 0 || grid.contentY >= maximum - 1)
+            return false
+        grid.contentY = Math.min(maximum, grid.contentY + grid.height)
+        grid.requestMoreIfNeeded()
+        return true
+    }
+
     // The preview controls stay resident. Only their bound item changes, so
     // title and synopsis update immediately while artwork decodes separately.
     readonly property var paneItem: {
