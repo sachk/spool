@@ -117,7 +117,7 @@
             !(nixpkgs.lib.hasPrefix "--enable-" flag)
             || builtins.elem flag structuralEnableFlags;
         in {
-        spoolFfmpeg = (prev.ffmpeg_8-full.override
+        spoolFfmpeg = (prev.ffmpeg_9-full.override
           (nixpkgs.lib.genAttrs ffmpegCapabilities.disabledNixFeatures (_: false))).overrideAttrs (old: {
             doCheck = false;
             configureFlags =
@@ -188,7 +188,7 @@
       };
       cacheDependencyOverlay = final: prev: {
         # Cached `nix run` packages use the widely substituted nixpkgs build.
-        spoolFfmpeg = prev.ffmpeg;
+        spoolFfmpeg = prev.ffmpeg_9-full;
       };
 
       forAllSystems = f:
