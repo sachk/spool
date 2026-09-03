@@ -72,13 +72,18 @@ FocusScope {
         }
     }
 
-    function loaderFor(key) {
+    function loaderFor(key, synchronous) {
         if (pages[key]) {
             console.info("route host: hit", key)
             return pages[key]
         }
         const loader = pageLoaderComponent.createObject(root)
         loader.pageCacheKey = key
+        // Set before the source, so the very first incubation is the
+        // synchronous one. Flipping it afterwards only catches a build that is
+        // already under way.
+        if (synchronous)
+            loader.asynchronous = false
         loader.setSource(pageSource(key), {
                              "shell": root.shell
                          })
@@ -99,7 +104,11 @@ FocusScope {
         const key = pageKey(route)
         const existing = pages[key]
         const promoted = existing && existing.status === Loader.Loading
-        const loader = loaderFor(key)
+        // Somebody is looking at the screen waiting for this page. The
+        // incubator's whole purpose is to protect frames it does not know are
+        // being wasted: it spreads a cold build over eighteen of them and the
+        // gui thread sits idle for half that window. Build it in one go.
+        const loader = loaderFor(key, true)
         pendingLoader = loader
         // Finish in-flight incubation synchronously when someone is actively
         // waiting on this exact page: a promoted prewarm the user beat to the
