@@ -49,14 +49,13 @@
       "drawn at its natural pixel size and the layer-list's android:width is",
       "ignored, which drew the mark at 206dp instead of the requested size. A",
       "bucketed bitmap is scaled by density/bucket, so its dp size is exact.",
-      "systemIconCanvasDp is measured on a device, not documented. Android says",
-      "the launch icon sits in a 288dp box; a mark occupying 0.5664 of the",
-      "drawable came out 153dp, which puts the real box at 270dp. Everything",
-      "here is chosen so both frames land the mark on the same 153dp."
+      "systemIconCanvasDp is the box the platform draws its launch icon into.",
+      "The documented 288dp is right; an earlier 270 here was fitted to a",
+      "measurement of the broken frame above and made the icon 6% too big."
     ],
     "phoneCoreWidthDp": 406,
     "tvCoreWidthDp": 320,
-    "systemIconCanvasDp": 270,
+    "systemIconCanvasDp": 288,
     "coreDensityBucket": 640,
     "systemIconSourceWidth": 1280
   },
