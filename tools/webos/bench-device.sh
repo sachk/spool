@@ -67,6 +67,32 @@ luna() {
     "${LUNA_BIN:-luna-send} -n 1 '$uri' '$payload'" 2>&1 | tr -d '\r' | sed 's/^/    luna: /'
 }
 
+# A panel that goes to sleep mid-run does not stop the walk. It quietly changes
+# what is being measured -- present and swap stretch against a panel that is no
+# longer refreshing -- and the run still writes a plausible-looking report. So
+# check before, and check again afterwards: a number taken against a sleeping
+# screen should announce itself rather than pass for a good one.
+power_state() {
+  ssh -F /dev/null -tt -o StrictHostKeyChecking=no "$HOST" \
+    "${LUNA_BIN:-luna-send} -n 1 'luna://com.webos.service.tvpower/power/getPowerState' '{}'" 2>/dev/null \
+    | tr -d '\r' | sed -n 's/.*"state"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' | head -1
+}
+
+require_awake() {
+  local state
+  state="$(power_state)"
+  if [[ "$state" != "Active" ]]; then
+    echo "==> screen reports '${state:-unknown}'; asking for it to come on"
+    luna "luna://com.webos.service.tvpower/power/turnOnScreen" "{}" >/dev/null 2>&1 || true
+    sleep 3
+    state="$(power_state)"
+  fi
+  if [[ "$state" != "Active" ]]; then
+    echo "error: screen is '${state:-unknown}', not Active -- the walk would measure a sleeping panel" >&2
+    exit 1
+  fi
+}
+
 restore() {
   echo "==> restoring $APP_ID"
   luna "luna://com.webos.applicationManager/closeByAppId" "{\"id\":\"$APP_ID\"}" || true
@@ -90,6 +116,7 @@ env_lines+=("export SPOOL_BENCH_LIBRARY='$LIBRARY'")
 [[ -n "$LIST_MODE" ]] && env_lines+=("export SPOOL_BENCH_LIST_MODE=1")
 [[ -n "$SCROLL_STEPS" ]] && env_lines+=("export SPOOL_BENCH_SCROLL_STEPS='$SCROLL_STEPS'")
 
+require_awake
 echo "==> preparing $label on $HOST"
 luna "luna://com.webos.applicationManager/closeByAppId" "{\"id\":\"$APP_ID\"}" || true
 tv "cd '$APP_DIR/bin' \
@@ -113,5 +140,10 @@ until tv "[ -s '$remote_out' ]" 2>/dev/null; do
 done
 
 scp -o StrictHostKeyChecking=no "$HOST:$remote_out" "$local_out" >/dev/null
+finished_state="$(power_state)"
+if [[ "$finished_state" != "Active" ]]; then
+  echo "WARNING: screen was '${finished_state:-unknown}' when the run finished." >&2
+  echo "WARNING: it slept partway through -- treat $local_out as suspect and rerun." >&2
+fi
 echo "==> $local_out"
 python3 tools/webos/summarise-device-benchmark.py "$local_out"

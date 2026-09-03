@@ -158,7 +158,12 @@ FocusScope {
         // screen and paying to build it again on the way back.
         if (Session.authenticated && !prewarmScheduled) {
             prewarmScheduled = true
-            prewarmQueue = ["settings", "subtitleSettings", "libraryGrid", "itemDetails", "personDetails"]
+            // Most-wanted first. The budget stops this queue partway through on
+            // a small television, so whatever stands at the front is what
+            // actually gets built. It used to be the two settings pages, which
+            // are rarely opened, while the library and details pages -- the
+            // expensive ones on the path everybody walks -- never got a turn.
+            prewarmQueue = ["libraryGrid", "itemDetails", "personDetails", "settings", "subtitleSettings"]
             prewarmTimer.start()
         }
         completeUiTransitionIfReady()
@@ -195,6 +200,17 @@ FocusScope {
     // looked at rather than whatever the platform happened to distrust.
     property var useOrder: []
 
+    // Home is the page every journey comes back to and the most expensive one
+    // to rebuild, so it is never what gets dropped to make room. Least-recently-
+    // shown order was picking it at exactly the wrong moment: while you are
+    // several pages deep, home is by definition the thing looked at longest ago,
+    // so it went first and the way back cost a full cold build.
+    //
+    // Empty when the budget cannot afford to hold home as well as whatever is
+    // on screen, so the smallest devices keep the budget they were given. Real
+    // memory pressure still takes home either way -- see trim().
+    readonly property string pinnedPageKey: residentPageBudget >= 2 ? "home" : ""
+
     function noteUse(key) {
         const order = useOrder.filter(entry => entry !== key)
         order.push(key)
@@ -202,24 +218,37 @@ FocusScope {
     }
 
     function evictBeyondBudget() {
-        const order = useOrder.filter(key => Boolean(pages[key]))
+        const shown = useOrder.filter(key => Boolean(pages[key]));
+        // Prewarmed pages never pass through noteUse(), so an order taken from
+        // useOrder alone could not see them: the budget said three while the
+        // process was holding five. Count every resident page, and spend the
+        // excess on the ones nobody has looked at before the ones they have.
+        const unshown = Object.keys(pages).filter(key => shown.indexOf(key) < 0)
+        const order = unshown.concat(shown)
         let excess = order.length - residentPageBudget
         for (let index = 0; index < order.length && excess > 0; ++index) {
             const key = order[index]
             const loader = pages[key]
-            if (!loader || loader === activeLoader)
+            if (!loader || loader === activeLoader || key === pinnedPageKey)
                 continue
             delete pages[key]
             loader.destroy()
             --excess
             console.info("route host: released", key)
         }
-        useOrder = order.filter(key => Boolean(pages[key]))
+        useOrder = shown.filter(key => Boolean(pages[key]))
     }
 
     // Memory-pressure eviction: keep the active page plus the cheap,
     // frequently visited residents (home/settings/libraryGrid).
     function trim() {
+        // The platform just asked for memory back, so stop building pages
+        // nobody has asked for. The queue is abandoned rather than paused:
+        // anything still on it is built on demand if it is ever actually
+        // wanted, and rebuilding into sustained pressure is how a low-memory
+        // television ends up doing nothing but construct and release.
+        prewarmTimer.stop()
+        prewarmQueue = []
         const candidates = useOrder.filter(key => Boolean(pages[key]))
         for (const key of candidates) {
             const loader = pages[key]
@@ -346,6 +375,14 @@ FocusScope {
                                 stop()
                                 return
                             }
+                            // Not while somebody is waiting for a page. These are the
+                            // expensive pages now that the queue is ordered by cost, and
+                            // incubating one while a switch is still coming together spends
+                            // the television's one useful core on a page nobody asked for
+                            // instead of the one on screen. The queue is not going
+                            // anywhere; take the next tick instead.
+                            if (root.pendingLoader || (root.activeItem && !PageReadiness.isSettled(root.activeItem)))
+                                return
                             const key = root.prewarmQueue.shift()
                             if (!root.pages[key]) {
                                 root.loaderFor(key)
