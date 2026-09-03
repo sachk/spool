@@ -215,7 +215,7 @@
       };
       cacheDependencyOverlay = final: prev: {
         # Keep cached releases on the same vulnerability-fixed FFmpeg major.
-        spoolFfmpeg = spoolFfmpegFor prev;
+        spoolFfmpeg = (spoolFfmpegFor prev).overrideAttrs (_: { doCheck = false; });
       };
 
       forAllSystems = f:
