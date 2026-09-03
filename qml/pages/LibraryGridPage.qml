@@ -1155,7 +1155,9 @@ FocusScope {
                     // and would otherwise grab every press over the bar.
                     z: 4
                     flickable: grid
-                    interactive: !Platform.isTV
+                    // The magic remote points and drags, so a television is
+                    // not on its own a reason to make the bar inert.
+                    interactive: Platform.hasPointer
                     minimumSize: 0.04
                     onScrolled: root.beginPointerNavigation(null)
                 }
@@ -1280,7 +1282,11 @@ FocusScope {
                     y: Math.max(0, Math.min(grid.height - height, desiredY))
                     width: Metrics.scaled(52) + neckWidth
                     height: Metrics.scaled(48)
-                    opacity: root.listMode && (alphabetFeedback.running || libraryScrollBar.pressed) ? 1 : 0
+                    // Directional navigation scrolls the view without touching
+                    // the bar, so the bar says where it has gone: the callout
+                    // reads the same whether a remote walked the grid there or
+                    // a pointer dragged the handle.
+                    opacity: alphabetFeedback.running || libraryScrollBar.pressed ? 1 : 0
                     visible: opacity > 0
                     preferredRendererType: Shape.CurveRenderer
                     z: 21

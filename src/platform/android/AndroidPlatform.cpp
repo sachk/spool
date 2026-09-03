@@ -94,6 +94,8 @@ const PlatformCapabilities& platformCapabilities()
         .isAndroid = true,
         .hasSystemFonts = false,
         .hasDesktopPointer = false,
+        // A leanback remote is a d-pad; there is nothing here to drag with.
+        .hasPointer = false,
     };
 #else
     static const PlatformCapabilities capabilities {

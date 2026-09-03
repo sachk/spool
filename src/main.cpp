@@ -679,6 +679,7 @@ int main(int argc, char **argv)
     platformInfo->insert(QStringLiteral("isMobile"), capabilities.isMobile);
     platformInfo->insert(QStringLiteral("hasSystemFonts"), capabilities.hasSystemFonts);
     platformInfo->insert(QStringLiteral("hasDesktopPointer"), capabilities.hasDesktopPointer);
+    platformInfo->insert(QStringLiteral("hasPointer"), capabilities.hasPointer);
     platformInfo->insert(QStringLiteral("supportsMpvConfig"), capabilities.supportsMpvConfig);
     platformInfo->insert(QStringLiteral("usesPerOutputAudioDelay"), capabilities.usesPerOutputAudioDelay);
     platformInfo->insert(QStringLiteral("deviceName"), capabilities.deviceName);
