@@ -19,6 +19,8 @@ fi
 WEBOS_TOOLS_ROOT="${WEBOS_TOOLS_ROOT:-$ROOT/tools/webos-native}"
 # shellcheck source=tools/lib/build-common.sh
 source "$ROOT/tools/lib/build-common.sh"
+# shellcheck source=tools/lib/manifest-sources.sh
+source "$ROOT/tools/lib/manifest-sources.sh"
 # shellcheck source=tools/webos-native/nixos-sdk-compat.sh
 source "$ROOT/tools/webos-native/nixos-sdk-compat.sh"
 
@@ -218,12 +220,26 @@ if [[ -f "$MPV_BUILD/build.ninja" ]] && grep -Fq "$PREFIX/lib/libcurl.a" "$MPV_B
   rm -rf "$MPV_BUILD"
 fi
 
+# mpv links FFmpeg by soname, and meson has no reason to relink when the
+# library underneath it changes major version -- nothing it tracks has moved.
+# The stale libmpv then reaches staging asking for a soname the package no
+# longer carries, and the ELF audit is what finds out. Key the build directory
+# on the FFmpeg pin instead, so the version moving is what rebuilds it.
+MPV_FFMPEG_STAMP="$MPV_BUILD/.spool-ffmpeg-source"
+MPV_FFMPEG_PIN="$(toolchain_field "$ROOT" ffmpeg.sha256)"
+if [[ -f "$MPV_BUILD/build.ninja" ]] \
+    && { [[ ! -f "$MPV_FFMPEG_STAMP" ]] || [[ "$(<"$MPV_FFMPEG_STAMP")" != "$MPV_FFMPEG_PIN" ]]; }; then
+  echo "Removing mpv build cache built against a different FFmpeg"
+  rm -rf "$MPV_BUILD"
+fi
+
 if [[ -f "$MPV_BUILD/build.ninja" ]]; then
   meson setup --reconfigure "$MPV_BUILD" "$MPV_SRC" "${MPV_SETUP_ARGS[@]}"
 else
   meson setup "$MPV_BUILD" "$MPV_SRC" "${MPV_SETUP_ARGS[@]}"
 fi
 meson compile -C "$MPV_BUILD" -j "$WEBOS_BUILD_JOBS"
+printf '%s' "$MPV_FFMPEG_PIN" >"$MPV_FFMPEG_STAMP"
 
 if [[ -n "$APP_PGO_FLAGS" ]]; then
   export CFLAGS="$CFLAGS $APP_PGO_FLAGS"
