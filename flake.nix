@@ -63,17 +63,25 @@
       # the pin the rest of the project is built and tested against.
       nixpkgsFor = system:
         if system == "x86_64-darwin" then nixpkgs-x86-darwin else nixpkgs;
-      ffmpeg9FullFor = pkgs:
+      # tools/manifests/toolchain.json is the single place the Qt and FFmpeg
+      # versions are set. Everything below reads it rather than repeating a
+      # version of its own, so no channel can drift a platform off the pin.
+      toolchain = builtins.fromJSON (builtins.readFile ./tools/manifests/toolchain.json);
+      ffmpegPin = toolchain.ffmpeg;
+      # Our own FFmpeg, not the channel's: every system builds the same
+      # upstream release regardless of which nixpkgs it came in on.
+      spoolFfmpegFor = pkgs:
+        let pinned = base: base.override {
+              inherit (ffmpegPin) version;
+              hash = ffmpegPin.sri;
+            };
+        in
         if pkgs ? ffmpeg_9-full
-        then pkgs.ffmpeg_9-full
+        then pinned pkgs.ffmpeg_9-full
         # The x86_64-darwin maintenance branch predates FFmpeg 9. Its generic
         # derivation supports newer upstream versions; discard its two obsolete
         # FFmpeg 8 configure switches when building the newer source.
-        else (pkgs.ffmpeg-full.override {
-          version = "9.0";
-          hash = "sha256-LbHwxvylAPh5lb/H+o+9eMVTB9X+tphrxYYX0cqAL0k=";
-          withCelt = false;
-        }).overrideAttrs (old: {
+        else (pinned (pkgs.ffmpeg-full.override { withCelt = false; })).overrideAttrs (old: {
           configureFlags = builtins.filter (flag:
             !builtins.elem flag [ "--disable-libcelt" "--disable-libshaderc" ])
             old.configureFlags;
@@ -133,7 +141,7 @@
             !(nixpkgs.lib.hasPrefix "--enable-" flag)
             || builtins.elem flag structuralEnableFlags;
         in {
-        spoolFfmpeg = ((ffmpeg9FullFor prev).override
+        spoolFfmpeg = ((spoolFfmpegFor prev).override
           (nixpkgs.lib.genAttrs ffmpegCapabilities.disabledNixFeatures (_: false))).overrideAttrs (old: {
             doCheck = false;
             configureFlags =
@@ -204,7 +212,7 @@
       };
       cacheDependencyOverlay = final: prev: {
         # Keep cached releases on the same vulnerability-fixed FFmpeg major.
-        spoolFfmpeg = ffmpeg9FullFor prev;
+        spoolFfmpeg = spoolFfmpegFor prev;
       };
 
       forAllSystems = f:

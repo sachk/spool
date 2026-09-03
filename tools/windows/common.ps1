@@ -49,6 +49,18 @@ function Get-RepositoryRoot {
     return (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
 }
 
+# tools\manifests\toolchain.json is the single place the Qt and FFmpeg
+# versions are set; nothing here should repeat one.
+function Get-ToolchainManifest {
+    $manifest = Join-Path (Get-RepositoryRoot) 'tools\manifests\toolchain.json'
+    return Get-Content -LiteralPath $manifest -Raw | ConvertFrom-Json
+}
+
+function Get-DefaultQtRoot {
+    $qt = (Get-ToolchainManifest).qt
+    return "C:\Qt\$($qt.version)\$($qt.windowsKit)"
+}
+
 function Initialize-WindowsBuildEnvironment {
     Import-MsvcEnvironment
 
@@ -57,7 +69,7 @@ function Initialize-WindowsBuildEnvironment {
         $env:PATH = "$cmakeBin;$env:PATH"
     }
 
-    $qtRoot = if ($env:JELLYFIN_QT_ROOT) { $env:JELLYFIN_QT_ROOT } else { 'C:\Qt\6.11.1\msvc2022_64' }
+    $qtRoot = if ($env:JELLYFIN_QT_ROOT) { $env:JELLYFIN_QT_ROOT } else { Get-DefaultQtRoot }
     $qcoroRoot = if ($env:JELLYFIN_QCORO_ROOT) { $env:JELLYFIN_QCORO_ROOT } else { 'C:\Qt\qcoro-0.13-msvc2022' }
     $mpvRoot = if ($env:JELLYFIN_MPV_ROOT) { $env:JELLYFIN_MPV_ROOT } else { Join-Path (Get-RepositoryRoot) 'build\windows-deps\mpv' }
 

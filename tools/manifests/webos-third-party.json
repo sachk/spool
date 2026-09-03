@@ -1,11 +1,6 @@
 {
   "schemaVersion": 1,
   "sources": {
-    "ffmpeg": {
-      "version": "9.0",
-      "url": "https://ffmpeg.org/releases/ffmpeg-9.0.tar.xz",
-      "sha256": "7f607a00dd0d28a729d5a4811205812eef01cf6ef6155025febb6f36a9062d52"
-    },
     "curl": {
       "version": "8.21.0",
       "url": "https://curl.se/download/curl-8.21.0.tar.xz",

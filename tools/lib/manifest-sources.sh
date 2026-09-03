@@ -170,3 +170,36 @@ prepare_manifest_source() {
     fi
   done < <(manifest_source_patches "$manifest" "$source_name")
 }
+
+# The toolchain manifest is the single source of truth for the Qt and FFmpeg
+# versions every platform builds against. Read a dotted path out of it, e.g.
+# `toolchain_field "$ROOT" ffmpeg.url`.
+toolchain_field() {
+  local root="$1"
+  local path="$2"
+  python3 -c '
+import json
+import sys
+
+with open(sys.argv[1] + "/tools/manifests/toolchain.json", encoding="utf-8") as handle:
+    value = json.load(handle)
+for key in sys.argv[2].split("."):
+    value = value[key]
+print(value)
+' "$root" "$path"
+}
+
+# FFmpeg is pinned centrally rather than repeated per platform, so the cross
+# builds fetch it straight from the toolchain manifest.
+prepare_toolchain_ffmpeg() {
+  local root="$1"
+  local destination="$2"
+  local url sha archive
+
+  url="$(toolchain_field "$root" ffmpeg.url)"
+  sha="$(toolchain_field "$root" ffmpeg.sha256)"
+  archive="$root/build/downloads/ffmpeg-$sha.archive"
+
+  download_verified "$url" "$sha" "$archive"
+  extract_verified_source "$archive" "$sha" "$destination"
+}

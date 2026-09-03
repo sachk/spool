@@ -77,6 +77,22 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  toolchain:
+    name: Toolchain versions
+    runs-on: ubuntu-24.04
+    outputs:
+      qt_version: ${{ steps.versions.outputs.qt_version }}
+      qt_series: ${{ steps.versions.outputs.qt_series }}
+      qt_windows_kit: ${{ steps.versions.outputs.qt_windows_kit }}
+      ffmpeg_version: ${{ steps.versions.outputs.ffmpeg_version }}
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.0.2
+      - name: Read the pinned Qt and FFmpeg versions
+        id: versions
+        run: |
+          bash tools/toolchain-versions.sh --check
+          bash tools/toolchain-versions.sh >> "$GITHUB_OUTPUT"
+
   lint:
     name: Lint scripts
     runs-on: ubuntu-24.04
@@ -120,6 +136,9 @@ jobs:
           mapfile -t scripts < <(git ls-files '*.py' | sort -u)
           printf 'checking %d scripts\n' "${#scripts[@]}"
           nix develop .#lint -c python3 -m py_compile "${scripts[@]}"
+
+      - name: Check the toolchain pin is the only Qt and FFmpeg version
+        run: bash tools/toolchain-versions.sh --check
 
       - name: Validate FFmpeg capability manifest
         run: |
@@ -192,7 +211,7 @@ jobs:
       - uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5.0.3
         with:
           path: .ccache
-          key: linux5-${{ runner.os }}-${{ hashFiles('flake.nix', 'flake.lock', 'mpv/meson.build', 'mpv/meson.options', 'tools/manifests/mpv-native.json', 'tools/manifests/ffmpeg-capabilities.json', 'tools/manifests/linuxdeploy.json', 'tools/ffmpeg-capabilities.py', 'tools/package-audit.py', 'tools/build-linux-release.sh', 'tools/package-appimage.sh', 'tools/lib/build-common.sh', 'tools/lib/qt-deploy.sh', 'CMakeLists.txt') }}
+          key: linux5-${{ runner.os }}-${{ hashFiles('flake.nix', 'flake.lock', 'mpv/meson.build', 'mpv/meson.options', 'tools/manifests/mpv-native.json', 'tools/manifests/ffmpeg-capabilities.json', 'tools/manifests/toolchain.json', 'tools/manifests/linuxdeploy.json', 'tools/ffmpeg-capabilities.py', 'tools/package-audit.py', 'tools/build-linux-release.sh', 'tools/package-appimage.sh', 'tools/lib/build-common.sh', 'tools/lib/qt-deploy.sh', 'CMakeLists.txt') }}
           restore-keys: |
             linux5-${{ runner.os }}-
 
@@ -400,7 +419,7 @@ jobs:
             build/macos/mpv-prefix
             build/macos/app
             ~/Library/Caches/ccache
-          key: macos-${{ matrix.arch }}-${{ hashFiles('flake.nix', 'flake.lock', 'mpv/meson.build', 'tools/manifests/mpv-native.json', 'tools/manifests/ffmpeg-capabilities.json', 'tools/ffmpeg-capabilities.py', 'tools/package-audit.py', 'tools/build-macos.sh', 'tools/package-macos-dmg.sh', 'tools/sign-macos.sh', 'tools/lib/build-common.sh', 'tools/lib/qt-deploy.sh', 'CMakeLists.txt') }}
+          key: macos-${{ matrix.arch }}-${{ hashFiles('flake.nix', 'flake.lock', 'mpv/meson.build', 'tools/manifests/mpv-native.json', 'tools/manifests/ffmpeg-capabilities.json', 'tools/manifests/toolchain.json', 'tools/ffmpeg-capabilities.py', 'tools/package-audit.py', 'tools/build-macos.sh', 'tools/package-macos-dmg.sh', 'tools/sign-macos.sh', 'tools/lib/build-common.sh', 'tools/lib/qt-deploy.sh', 'CMakeLists.txt') }}
           restore-keys: |
             macos-${{ matrix.arch }}-
 
@@ -556,7 +575,7 @@ jobs:
             build/third_party
             .ccache
             mpv/build/webos-libmpv
-          key: webos3-${{ runner.os }}-${{ hashFiles('flake.nix', 'flake.lock', 'mpv/meson.build', 'build-ipk.sh', 'tools/package-audit.py', 'tools/lib/*.sh', 'tools/manifests/ffmpeg-capabilities.json', 'tools/manifests/mpv-native.json', 'tools/manifests/qt-webos-6.11.json', 'tools/manifests/webos-third-party.json', 'tools/webos-native/**') }}
+          key: webos3-${{ runner.os }}-${{ hashFiles('flake.nix', 'flake.lock', 'mpv/meson.build', 'build-ipk.sh', 'tools/package-audit.py', 'tools/lib/*.sh', 'tools/manifests/ffmpeg-capabilities.json', 'tools/manifests/toolchain.json', 'tools/manifests/mpv-native.json', 'tools/manifests/qt-webos-6.11.json', 'tools/manifests/webos-third-party.json', 'tools/webos-native/**') }}
           restore-keys: |
             webos3-${{ runner.os }}-
             webos2-${{ runner.os }}-
@@ -756,7 +775,7 @@ jobs:
             build/android/qt
             build/android/deps
             build/android/qcoro
-          key: android4-${{ runner.os }}-${{ steps.mpv-rev.outputs.sha }}-${{ hashFiles('flake.nix', 'flake.lock', 'cmake/platform/Android.cmake', 'tools/android/**', 'tools/lib/*.sh', 'tools/manifests/android-third-party.json', 'tools/manifests/ffmpeg-capabilities.json', 'tools/manifests/qt-android-6.11.json') }}
+          key: android4-${{ runner.os }}-${{ steps.mpv-rev.outputs.sha }}-${{ hashFiles('flake.nix', 'flake.lock', 'cmake/platform/Android.cmake', 'tools/android/**', 'tools/lib/*.sh', 'tools/manifests/android-third-party.json', 'tools/manifests/ffmpeg-capabilities.json', 'tools/manifests/toolchain.json', 'tools/manifests/qt-android-6.11.json') }}
 
       - name: Build cached Android toolchains
         if: ${{ steps.android-cache.outputs.cache-hit != 'true' }}
@@ -845,12 +864,12 @@ jobs:
     name: Windows x64 portable and installer
     runs-on: windows-2025
     timeout-minutes: 75
-    needs: lint
+    needs: [toolchain, lint]
     if: ${{ github.event_name != 'workflow_dispatch' || inputs.build_windows }}
     env:
-      QT_VERSION: 6.11.1
-      QT_ARCH: win64_msvc2022_64
-      JELLYFIN_QT_ROOT: C:\Qt\6.11.1\msvc2022_64
+      QT_VERSION: ${{ needs.toolchain.outputs.qt_version }}
+      QT_ARCH: win64_${{ needs.toolchain.outputs.qt_windows_kit }}
+      JELLYFIN_QT_ROOT: C:\Qt\${{ needs.toolchain.outputs.qt_version }}\${{ needs.toolchain.outputs.qt_windows_kit }}
       JELLYFIN_QCORO_ROOT: C:\Qt\qcoro-0.13-msvc2022
       QCORO_REVISION: d1b52b5db2ff9560185c39a4ed9f944dc610c235
 
@@ -876,9 +895,9 @@ jobs:
         uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5.0.3
         with:
           path: |
-            C:\Qt\6.11.1\msvc2022_64
+            C:\Qt\${{ needs.toolchain.outputs.qt_version }}\${{ needs.toolchain.outputs.qt_windows_kit }}
             C:\Qt\qcoro-0.13-msvc2022
-          key: windows-qt-6.11.1-qcoro-d1b52b5db2ff9560185c39a4ed9f944dc610c235-v2
+          key: windows-qt-${{ needs.toolchain.outputs.qt_version }}-qcoro-d1b52b5db2ff9560185c39a4ed9f944dc610c235-v2
 
       - name: Install Qt from pinned official archives
         if: steps.qt-cache.outputs.cache-hit != 'true'
@@ -918,9 +937,9 @@ jobs:
         uses: actions/cache/save@caa296126883cff596d87d8935842f9db880ef25 # v5.0.3
         with:
           path: |
-            C:\Qt\6.11.1\msvc2022_64
+            C:\Qt\${{ needs.toolchain.outputs.qt_version }}\${{ needs.toolchain.outputs.qt_windows_kit }}
             C:\Qt\qcoro-0.13-msvc2022
-          key: windows-qt-6.11.1-qcoro-d1b52b5db2ff9560185c39a4ed9f944dc610c235-v2
+          key: windows-qt-${{ needs.toolchain.outputs.qt_version }}-qcoro-d1b52b5db2ff9560185c39a4ed9f944dc610c235-v2
 
       - name: Read mpv revision
         id: mpv-revision
@@ -933,7 +952,7 @@ jobs:
         uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5.0.3
         with:
           path: build/windows-deps/mpv
-          key: windows-mpv-${{ runner.os }}-${{ steps.mpv-revision.outputs.revision }}-${{ hashFiles('tools/windows/build-mpv.ps1', 'tools/windows/common.ps1', 'tools/manifests/mpv-native.json', 'tools/manifests/ffmpeg-capabilities.json', 'tools/ffmpeg-capabilities.py') }}
+          key: windows-mpv-${{ runner.os }}-${{ steps.mpv-revision.outputs.revision }}-${{ hashFiles('tools/windows/build-mpv.ps1', 'tools/windows/common.ps1', 'tools/manifests/mpv-native.json', 'tools/manifests/ffmpeg-capabilities.json', 'tools/manifests/toolchain.json', 'tools/ffmpeg-capabilities.py') }}
 
       - name: Build libmpv from the fork
         if: steps.mpv-cache.outputs.cache-hit != 'true'
@@ -946,7 +965,7 @@ jobs:
         uses: actions/cache/save@caa296126883cff596d87d8935842f9db880ef25 # v5.0.3
         with:
           path: build/windows-deps/mpv
-          key: windows-mpv-${{ runner.os }}-${{ steps.mpv-revision.outputs.revision }}-${{ hashFiles('tools/windows/build-mpv.ps1', 'tools/windows/common.ps1', 'tools/manifests/mpv-native.json', 'tools/manifests/ffmpeg-capabilities.json', 'tools/ffmpeg-capabilities.py') }}
+          key: windows-mpv-${{ runner.os }}-${{ steps.mpv-revision.outputs.revision }}-${{ hashFiles('tools/windows/build-mpv.ps1', 'tools/windows/common.ps1', 'tools/manifests/mpv-native.json', 'tools/manifests/ffmpeg-capabilities.json', 'tools/manifests/toolchain.json', 'tools/ffmpeg-capabilities.py') }}
 
       - name: Build application
         shell: pwsh

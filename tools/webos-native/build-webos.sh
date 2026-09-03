@@ -24,6 +24,14 @@ fetch_archive() {
   download_verified "$url" "$sha" "$ROOT/build/downloads/$filename"
 }
 
+fetch_toolchain_ffmpeg() {
+  local version url sha
+  version="$(toolchain_field "$ROOT" ffmpeg.version)"
+  url="$(toolchain_field "$ROOT" ffmpeg.url)"
+  sha="$(toolchain_field "$ROOT" ffmpeg.sha256)"
+  download_verified "$url" "$sha" "$ROOT/build/downloads/ffmpeg-$version.tar.xz"
+}
+
 run_phase() {
   local phase="$1"
   case "$phase" in
@@ -32,7 +40,7 @@ run_phase() {
       "$ROOT/tools/webos-native/build-third-party.sh" fetch
       "$ROOT/tools/webos-native/build-curl.sh" fetch
       "$ROOT/tools/webos-native/build-qcoro.sh" fetch
-      fetch_archive ffmpeg ffmpeg-9.0.tar.xz
+      fetch_toolchain_ffmpeg
       ;;
     qt-host)
       "$ROOT/tools/webos-native/build-qt6-611.sh" host

@@ -64,9 +64,10 @@ unset PKG_CONFIG_SYSROOT_DIR
 fetch_sources() {
   mkdir -p "$SOURCE_ROOT" "$BUILD_ROOT"
   local source
-  for source in openssl curl freetype lua ffmpeg qcoro fribidi harfbuzz libass libplacebo; do
+  for source in openssl curl freetype lua qcoro fribidi harfbuzz libass libplacebo; do
     prepare_manifest_source "$ROOT" "$MANIFEST" "$source" "$SOURCE_ROOT/$source"
   done
+  prepare_toolchain_ffmpeg "$ROOT" "$SOURCE_ROOT/ffmpeg"
   local path url sha archive
   while IFS=$'\t' read -r path url sha; do
     [[ -n "$path" ]] || continue
@@ -280,7 +281,12 @@ build_text_and_gpu_deps() {
 }
 
 build_ffmpeg() {
-  [[ -f "$PREFIX/lib/pkgconfig/libavcodec.pc" ]] && return
+  # Keyed on the pinned source, not merely on "something is installed", so a
+  # tree built against the previous FFmpeg rebuilds when the pin moves.
+  local stamp="$PREFIX/lib/pkgconfig/.spool-ffmpeg-source"
+  local pin
+  pin="$(toolchain_field "$ROOT" ffmpeg.sha256)"
+  [[ -f "$PREFIX/lib/pkgconfig/libavcodec.pc" && -f "$stamp" && "$(<"$stamp")" == "$pin" ]] && return
   local build="$BUILD_ROOT/ffmpeg"
   rm -rf "$build"
   mkdir -p "$build"
@@ -308,6 +314,7 @@ build_ffmpeg() {
     make -j"$JOBS"
     make install
   )
+  printf '%s' "$pin" >"$stamp"
 }
 
 build_mpv() {

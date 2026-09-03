@@ -1,0 +1,31 @@
+{
+  "schemaVersion": 1,
+  "comment": [
+    "The one place the toolchain versions live. Nix, the webOS and Android",
+    "cross builds, the Windows scripts and the Actions workflows all read",
+    "these fields rather than repeating a version string of their own."
+  ],
+  "qt": {
+    "version": "6.11.1",
+    "series": "6.11",
+    "windowsKit": "msvc2022_64"
+  },
+  "ffmpeg": {
+    "version": "9.0.1",
+    "url": "https://ffmpeg.org/releases/ffmpeg-9.0.1.tar.xz",
+    "sha256": "cf38e0e28c7e5605942c4a77755349b0145804a397af37eb1fb4c77cb237f635",
+    "sri": "sha256-zzjg4ox+VgWULEp3dVNJsBRYBKOXrzfrH7THfLI39jU=",
+    "windows": {
+      "comment": [
+        "MSVC has no way to build FFmpeg's own configure, so the Windows",
+        "static closure takes FFmpeg as an mpv meson subproject from the",
+        "GStreamer meson port. That port stops at 8.1.x -- there is no",
+        "meson-9.x branch -- so Windows is the one platform that cannot be",
+        "on the version above. Move it the moment a 9.x port exists."
+      ],
+      "version": "8.1.2",
+      "wrapUrl": "https://gitlab.freedesktop.org/gstreamer/meson-ports/ffmpeg.git",
+      "wrapRevision": "ff59522f2ef9058d67925373982c7b674a0f1fe9"
+    }
+  }
+}

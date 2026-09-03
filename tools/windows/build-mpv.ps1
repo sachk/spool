@@ -74,15 +74,19 @@ try {
     [IO.File]::WriteAllText($curlProject, $curlProjectText, [Text.UTF8Encoding]::new($false))
     [IO.File]::WriteAllText($curlLibrary, $curlLibraryText, [Text.UTF8Encoding]::new($false))
 
-    @'
+    # MSVC cannot run FFmpeg's own configure, so Windows takes FFmpeg as a
+    # meson subproject from the GStreamer port. Its pin lives in
+    # toolchain.json beside the tarball every other platform builds.
+    $windowsFfmpeg = (Get-ToolchainManifest).ffmpeg.windows
+    @"
 [wrap-git]
-url = https://gitlab.freedesktop.org/gstreamer/meson-ports/ffmpeg.git
-revision = ff59522f2ef9058d67925373982c7b674a0f1fe9
+url = $($windowsFfmpeg.wrapUrl)
+revision = $($windowsFfmpeg.wrapRevision)
 depth = 1
 
 [provide]
 dependency_names = libavcodec, libavdevice, libavfilter, libavformat, libavutil, libswresample, libswscale
-'@ | Set-Content -LiteralPath (Join-Path $subprojects 'ffmpeg.wrap') -Encoding ascii
+"@ | Set-Content -LiteralPath (Join-Path $subprojects 'ffmpeg.wrap') -Encoding ascii
 
     @'
 [wrap-git]

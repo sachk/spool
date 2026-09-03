@@ -2,8 +2,10 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+# shellcheck source=tools/lib/manifest-sources.sh
+source "$ROOT/tools/lib/manifest-sources.sh"
 ABI="${ANDROID_ABI:-x86_64}"
-QT_VERSION="${QT_VERSION:-6.11.1}"
+QT_VERSION="${QT_VERSION:-$(toolchain_field "$ROOT" qt.version)}"
 QT_PREFIX="${QT_ANDROID_PREFIX:-$ROOT/build/android/qt/$QT_VERSION/android_${ABI//-/_}}"
 DEPS_PREFIX="${ANDROID_DEPS_PREFIX:-$ROOT/build/android/deps/$ABI}"
 JOBS="${ANDROID_BUILD_JOBS:-$(nproc)}"
