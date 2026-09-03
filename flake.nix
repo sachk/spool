@@ -635,6 +635,7 @@
             cmake
             curl
             git
+            imagemagick
             jdk17_headless
             jq
             libtool
