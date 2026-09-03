@@ -29,9 +29,25 @@ That runs the three cached stages -- `build-dependencies.sh`, `build-qt6.sh`,
 `build-apks.sh` -- which can also be invoked on their own.
 
 It builds both `spool-phone-x86_64.apk` and `spool-tv-x86_64.apk` under
-`dist/android`, signed with a debug keystore generated on first use at
-`build/android/debug.keystore` so they install. Build release-device APKs by
-setting `ANDROID_ABI=arm64-v8a`. Launch-test both variants in the pinned headless emulator with:
+`dist/android`; name a subset in `SPOOL_ANDROID_VARIANTS`. Build
+release-device APKs by setting `ANDROID_ABI=arm64-v8a`.
+
+Signing uses the real upload key when
+`~/.local/share/spool/signing/android-upload-credentials.json` exists, which
+is what makes a local build installable over an app already on a device:
+
+```json
+{
+  "keystore": "/home/you/.local/share/spool/signing/android-upload.p12",
+  "alias": "spool-upload",
+  "storePassword": "...",
+  "keyPassword": "..."
+}
+```
+
+Keep it and the keystore outside the repository. Without it the build falls
+back to a debug key generated at `build/android/debug.keystore`, which
+installs on a clean device and nowhere else. Launch-test both variants in the pinned headless emulator with:
 
 ```sh
 nix develop .#android -c bash tools/android/emulator-launch-test.sh
