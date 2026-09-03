@@ -440,9 +440,12 @@ mpv_meson_build() {
   fi
 
   local dependency_fingerprint dependency_marker cached_fingerprint=""
+  local pkg_config_executable
   dependency_marker="$build/.jellyfin-dependency-env"
-  dependency_fingerprint="$(printf '%s\n%s\n%s\n' \
-    "${PKG_CONFIG_PATH:-}" "${CMAKE_PREFIX_PATH:-}" "${setup_args[*]}" | sha256sum)"
+  pkg_config_executable="$(command -v pkg-config)"
+  dependency_fingerprint="$(printf '%s\n%s\n%s\n%s\n' \
+    "$pkg_config_executable" "${PKG_CONFIG_PATH:-}" "${CMAKE_PREFIX_PATH:-}" \
+    "${setup_args[*]}" | sha256sum)"
   dependency_fingerprint="${dependency_fingerprint%% *}"
   [[ -f "$dependency_marker" ]] && read -r cached_fingerprint <"$dependency_marker"
 
