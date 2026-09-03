@@ -882,9 +882,11 @@ jobs:
         shell: pwsh
         run: |
           choco install meson --version=1.9.1 -y --no-progress
-          choco install nasm nsis -y --no-progress
+          choco install nasm nsis imagemagick.tool -y --no-progress
           $env:PATH = "C:\Program Files\LLVM\bin;C:\Program Files\Meson;C:\Program Files\NASM;${env:ProgramFiles(x86)}\NSIS;$env:PATH"
-          foreach ($tool in @('cmake', 'ninja', 'clang', 'lld-link', 'meson', 'nasm', 'makensis')) {
+          # The launch screen carries the version, so it is rendered at
+          # configure time rather than kept in the tree.
+          foreach ($tool in @('cmake', 'ninja', 'clang', 'lld-link', 'meson', 'nasm', 'makensis', 'magick')) {
             $command = Get-Command $tool -ErrorAction SilentlyContinue
             if (-not $command) { throw "Required build tool is missing: $tool" }
             Write-Host "$tool -> $($command.Source)"

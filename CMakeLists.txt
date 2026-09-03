@@ -90,6 +90,43 @@ qt_standard_project_setup(
 )
 include(cmake/platform/Common.cmake)
 
+# The launch screen carries the version, so it is rendered per build rather
+# than kept in the tree. tools/generate-splash.sh is the whole of the drawing;
+# configuring is enough to get it, so no platform needs a second command.
+if(ANDROID)
+    if(SPOOL_ANDROID_TV)
+        set(spool_splash_platform "android-tv")
+    else()
+        set(spool_splash_platform "android-phone")
+    endif()
+elseif(JELLYFIN_NATIVE_WEBOS)
+    set(spool_splash_platform "webos")
+else()
+    set(spool_splash_platform "desktop")
+endif()
+set(SPOOL_SPLASH_DIR "${CMAKE_CURRENT_BINARY_DIR}/splash/${spool_splash_platform}" CACHE PATH
+    "Directory the generated launch screen is written to")
+set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
+    "${CMAKE_CURRENT_SOURCE_DIR}/VERSION"
+    "${CMAKE_CURRENT_SOURCE_DIR}/app/icons/spool.svg"
+    "${CMAKE_CURRENT_SOURCE_DIR}/tools/generate-splash.sh"
+    "${CMAKE_CURRENT_SOURCE_DIR}/tools/manifests/splash.json"
+)
+execute_process(
+    COMMAND bash "${CMAKE_CURRENT_SOURCE_DIR}/tools/generate-splash.sh"
+        --platform "${spool_splash_platform}"
+        --out "${SPOOL_SPLASH_DIR}"
+        --version "${PROJECT_VERSION}"
+    RESULT_VARIABLE spool_splash_result
+    OUTPUT_VARIABLE spool_splash_output
+    ERROR_VARIABLE spool_splash_output
+)
+if(NOT spool_splash_result EQUAL 0)
+    message(FATAL_ERROR "Rendering the launch screen failed:\n${spool_splash_output}")
+endif()
+message(STATUS "${spool_splash_output}")
+
+
 jellyfin_resolve_platform_dependencies()
 
 # The source groups below mark the seam a spool-jellyfin / spool-plex /
@@ -509,19 +546,39 @@ qt_add_resources(jellyfin-native "application_icons"
         app/icons/spool-film.svg
 )
 
-if(NOT ANDROID)
-    qt_add_resources(jellyfin-native "startup_splash_qml"
-        PREFIX "/startup"
-        BASE "${CMAKE_CURRENT_SOURCE_DIR}/qml/shell"
-        FILES qml/shell/StartupSplash.qml
-    )
-    if(NOT JELLYFIN_NATIVE_WEBOS)
-        qt_add_resources(jellyfin-native "startup_splash_image"
-            PREFIX "/startup"
-            BASE "${CMAKE_CURRENT_SOURCE_DIR}/app"
-            FILES app/splash.png
-        )
+# The dp the Android system frame is drawn at, so Qt's first frame lands on
+# the same pixels. Read from the same manifest the drawable was written from.
+file(READ "${CMAKE_CURRENT_SOURCE_DIR}/tools/manifests/splash.json" spool_splash_manifest)
+string(JSON spool_splash_core_width GET "${spool_splash_manifest}" core width)
+string(JSON spool_splash_core_height GET "${spool_splash_manifest}" core height)
+string(JSON spool_splash_fraction GET "${spool_splash_manifest}" desktop coreWidthFraction)
+if(ANDROID)
+    if(SPOOL_ANDROID_TV)
+        string(JSON spool_splash_dp GET "${spool_splash_manifest}" android tvCoreWidthDp)
+    else()
+        string(JSON spool_splash_dp GET "${spool_splash_manifest}" android phoneCoreWidthDp)
     endif()
+    target_compile_definitions(jellyfin-native PRIVATE SPOOL_SPLASH_CORE_WIDTH_DP=${spool_splash_dp})
+endif()
+target_compile_definitions(jellyfin-native PRIVATE
+    SPOOL_SPLASH_CORE_ASPECT=${spool_splash_core_width}.0/${spool_splash_core_height}.0
+    SPOOL_SPLASH_CORE_WIDTH_FRACTION=${spool_splash_fraction}
+)
+
+qt_add_resources(jellyfin-native "startup_splash_qml"
+    PREFIX "/startup"
+    BASE "${CMAKE_CURRENT_SOURCE_DIR}/qml/shell"
+    FILES
+        qml/shell/StartupSplash.qml
+        qml/shell/SplashContent.qml
+)
+# webOS reads its launch screen off disk, where appinfo.json already names it.
+if(NOT JELLYFIN_NATIVE_WEBOS)
+    qt_add_resources(jellyfin-native "startup_splash_image"
+        PREFIX "/startup"
+        BASE "${SPOOL_SPLASH_DIR}"
+        FILES "${SPOOL_SPLASH_DIR}/splash-core.png"
+    )
 endif()
 
 if(ANDROID)

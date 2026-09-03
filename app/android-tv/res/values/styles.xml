@@ -5,6 +5,10 @@
         <item name="android:windowActionModeOverlay">true</item>
         <item name="android:windowFullscreen">true</item>
         <item name="android:windowNoTitle">true</item>
+        <!-- Black from the very first frame the system paints, so the
+             launch screen never arrives over a lighter window. -->
+        <item name="android:windowBackground">@android:color/black</item>
+        <item name="android:windowSplashScreenBackground">@android:color/black</item>
         <item name="android:colorAccent">#00A4DC</item>
         <item name="android:navigationBarColor">#101010</item>
         <item name="android:statusBarColor">#101010</item>

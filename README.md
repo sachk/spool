@@ -13,24 +13,25 @@
 
 ## Android development
 
-The Android toolchain is pinned by the flake to Qt 6.11.1, SDK 36, Build
-Tools 36.0.0 and NDK 27.2.12479018. `nixpkgs` tracks `nixos-unstable`; the
+The Android toolchain is pinned to SDK 36, Build Tools 36.0.0 and NDK
+27.2.12479018 by the flake, and to the Qt and FFmpeg versions in
+`tools/manifests/toolchain.json`, which every platform reads. `nixpkgs` tracks `nixos-unstable`; the
 headless emulator and its Google APIs x86_64 system image come from that
 channel rather than nixpkgs master.
 
-Build the emulator ABI locally:
+Build the emulator ABI locally, in one command:
 
 ```sh
-nix develop .#android -c bash tools/android/build-dependencies.sh
-nix develop .#android -c bash tools/android/build-qt6.sh
-nix develop .#android -c bash tools/android/build-apks.sh
+nix develop .#android -c bash tools/android/build.sh
 ```
 
-The last command builds both `spool-phone-x86_64.apk` and
-`spool-tv-x86_64.apk` under `dist/android`, signed with a debug keystore
-generated on first use at `build/android/debug.keystore` so they install.
-Build release-device APKs by setting `ANDROID_ABI=arm64-v8a` on all three
-commands. Launch-test both variants in the pinned headless emulator with:
+That runs the three cached stages -- `build-dependencies.sh`, `build-qt6.sh`,
+`build-apks.sh` -- which can also be invoked on their own.
+
+It builds both `spool-phone-x86_64.apk` and `spool-tv-x86_64.apk` under
+`dist/android`, signed with a debug keystore generated on first use at
+`build/android/debug.keystore` so they install. Build release-device APKs by
+setting `ANDROID_ABI=arm64-v8a`. Launch-test both variants in the pinned headless emulator with:
 
 ```sh
 nix develop .#android -c bash tools/android/emulator-launch-test.sh

@@ -28,6 +28,7 @@
 #include "player/PlayerController.h"
 #if defined(SPOOL_ANDROID)
 #include "platform/android/AndroidUpdateController.h"
+#include <QJniObject>
 #endif
 
 #include <QCoreApplication>
@@ -60,6 +61,7 @@
 #include <QQuickGraphicsConfiguration>
 #include <QQuickWindow>
 #include <QSGRendererInterface>
+#include <QScreen>
 #include <QStandardPaths>
 #include <QSurfaceFormat>
 #include <QThread>
@@ -296,6 +298,41 @@ bool registerBundledFonts(const QString& appRootPath)
     return true;
 }
 
+// The size the system's launch frame drew the mark at. Android is the only
+// platform that puts one up before Qt, and it draws the mark at an explicit dp
+// size out of tools/manifests/splash.json, which CMake bakes in here. Every
+// other platform sizes the mark against the viewport instead.
+double splashCoreWidthDp()
+{
+#if defined(SPOOL_SPLASH_CORE_WIDTH_DP)
+    return static_cast<double>(SPOOL_SPLASH_CORE_WIDTH_DP);
+#else
+    return 0.0;
+#endif
+}
+
+// QML units per Android dp. Qt's own scaling already folds part of the
+// display's density into the coordinate system, so divide it back out rather
+// than assuming which of the two conventions this Qt build uses.
+double splashPixelsPerDp()
+{
+#if defined(SPOOL_ANDROID)
+    const QJniObject context = QNativeInterface::QAndroidApplication::context();
+    if (!context.isValid())
+        return 0.0;
+    const QJniObject metrics = context.callObjectMethod("getResources", "()Landroid/content/res/Resources;")
+                                   .callObjectMethod("getDisplayMetrics", "()Landroid/util/DisplayMetrics;");
+    if (!metrics.isValid())
+        return 0.0;
+    const double density = static_cast<double>(metrics.getField<jfloat>("density"));
+    const QScreen *screen = QGuiApplication::primaryScreen();
+    const double ratio = screen ? screen->devicePixelRatio() : 1.0;
+    return ratio > 0.0 ? density / ratio : density;
+#else
+    return 0.0;
+#endif
+}
+
 } // namespace
 
 int main(int argc, char **argv)
@@ -382,13 +419,23 @@ int main(int argc, char **argv)
     // delaying it.
     JellyfinNative::InputLatencyMonitor inputLatencyMonitor;
     JellyfinNative::NativeAppWindow window(QString::fromLatin1(kAppId));
+    // The launch screen. Everything that draws it -- the frame put up before
+    // the shell exists, the shell's own overlay, the slow-start page -- reads
+    // these, so all three land on the same pixels and the handover from the
+    // system's launch frame shows nothing.
 #if defined(JELLYFIN_NATIVE_WEBOS)
     window.rootContext()->setContextProperty(QStringLiteral("startupSplashImageUrl"),
-        QUrl::fromLocalFile(QDir(appRootPath).filePath(QStringLiteral("splash.png"))));
-#elif !defined(SPOOL_ANDROID)
+        QUrl::fromLocalFile(QDir(appRootPath).filePath(QStringLiteral("splash-core.png"))));
+#else
     window.rootContext()->setContextProperty(
-        QStringLiteral("startupSplashImageUrl"), QUrl(QStringLiteral("qrc:/startup/splash.png")));
+        QStringLiteral("startupSplashImageUrl"), QUrl(QStringLiteral("qrc:/startup/splash-core.png")));
 #endif
+    window.rootContext()->setContextProperty(
+        QStringLiteral("startupSplashCoreAspect"), static_cast<double>(SPOOL_SPLASH_CORE_ASPECT));
+    window.rootContext()->setContextProperty(
+        QStringLiteral("startupSplashCoreWidthFraction"), static_cast<double>(SPOOL_SPLASH_CORE_WIDTH_FRACTION));
+    window.rootContext()->setContextProperty(QStringLiteral("startupSplashCoreWidthDp"), splashCoreWidthDp());
+    window.rootContext()->setContextProperty(QStringLiteral("startupSplashPixelsPerDp"), splashPixelsPerDp());
     JellyfinNative::configurePlatformWindow(window);
     inputLatencyMonitor.attachWindow(&window);
     window.setInputLatencyMonitor(&inputLatencyMonitor);
@@ -685,22 +732,15 @@ int main(int argc, char **argv)
         logLine("failed to initialize the native UI surface");
         return 1;
     }
-    const auto dismissSystemSplashAfterFirstContentFrame = [&window, &app] {
-        QObject::connect(
-            &window, &QQuickWindow::frameSwapped, &app,
-            [] { QNativeInterface::QAndroidApplication::hideSplashScreen(); }, Qt::SingleShotConnection);
-    };
-    if (controller->initialized()) {
-        dismissSystemSplashAfterFirstContentFrame();
-    } else {
-        QObject::connect(
-            controller.get(), &JellyfinNative::AppController::initializedChanged, &app,
-            [controller = controller.get(), dismissSystemSplashAfterFirstContentFrame] {
-                if (controller->initialized())
-                    dismissSystemSplashAfterFirstContentFrame();
-            },
-            Qt::SingleShotConnection);
-    }
+    // Hand the launch screen over the moment Qt has actually drawn one. The
+    // shell's first frame is the same picture the system frame is showing --
+    // same mark, same size, same black -- so this swaps one for the other with
+    // nothing on screen changing, and the shell then holds it until a page has
+    // painted. Waiting any longer than the first frame only leaves a launch
+    // screen Qt could already have taken over.
+    QObject::connect(
+        &window, &QQuickWindow::frameSwapped, &app, [] { QNativeInterface::QAndroidApplication::hideSplashScreen(); },
+        Qt::SingleShotConnection);
 #endif
     logLine("startup: QML source loaded in %lld ms", static_cast<long long>(startupTimer.elapsed()));
 

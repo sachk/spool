@@ -1,15 +1,14 @@
 import QtQuick
 
-Rectangle {
+// The frame Qt puts on screen before the shell exists. It is the same picture
+// the shell's own launch overlay draws, so nothing moves when the shell
+// replaces it.
+SplashContent {
     width: 1920
     height: 1080
-    color: "black"
-
-    Image {
-        anchors.fill: parent
-        source: startupSplashImageUrl
-        fillMode: Image.PreserveAspectFit
-        asynchronous: false
-        cache: true
-    }
+    pixelsPerDp: startupSplashPixelsPerDp
+    coreWidthDp: startupSplashCoreWidthDp
+    coreWidthFraction: startupSplashCoreWidthFraction
+    coreAspect: startupSplashCoreAspect
+    coreSource: startupSplashImageUrl
 }

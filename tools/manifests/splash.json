@@ -1,0 +1,53 @@
+{
+  "schemaVersion": 1,
+  "comment": [
+    "The launch screen, in one place. Every platform draws the same block --",
+    "mark, wordmark, version -- centred on black, so the frame the system",
+    "puts up and the first frame Qt paints are the same picture.",
+    "Numbers are pixels at the 1920x1080 reference the interface is drawn",
+    "against; the generator supersamples by renderScale and downsamples."
+  ],
+  "reference": {
+    "width": 1920,
+    "height": 1080
+  },
+  "renderScale": 4,
+  "core": {
+    "width": 640,
+    "height": 480,
+    "background": "#000000"
+  },
+  "logo": {
+    "size": 260,
+    "offsetY": -82
+  },
+  "wordmark": {
+    "text": "Spool",
+    "pointSize": 90,
+    "weight": 600,
+    "color": "#EDEDED",
+    "offsetY": 118
+  },
+  "version": {
+    "pointSize": 30,
+    "weight": 500,
+    "color": "#9C9C9C",
+    "offsetY": 196,
+    "prefix": "v"
+  },
+  "android": {
+    "comment": [
+      "A layer-list item takes an explicit dp size, so the system frame and",
+      "the QML frame are the same size on every screen without either of",
+      "them having to guess the other's. Chosen to land near the 59% of the",
+      "short edge the reference layout gives a television."
+    ],
+    "phoneCoreWidthDp": 224,
+    "tvCoreWidthDp": 320,
+    "sourceWidth": 1280
+  },
+  "desktop": {
+    "comment": "Core width as a fraction of the viewport's shorter edge.",
+    "coreWidthFraction": 0.5926
+  }
+}

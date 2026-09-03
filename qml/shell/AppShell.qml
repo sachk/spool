@@ -581,6 +581,18 @@ KeyRouter {
         InputKeys.focus(routeStack)
     }
 
+    // The way out of a start that is not arriving: back to the server list,
+    // with discovery running again, without waiting for whatever is not
+    // answering.
+    function chooseServer() {
+        switchUser()
+        Qt.callLater(function () {
+            const page = routeStack.activeItem
+            if (page && page.openAddAccount)
+                page.openAddAccount()
+        })
+    }
+
     function cancelSwitchUser() {
         if (!canCancelSwitchUser)
             return false
@@ -995,27 +1007,90 @@ KeyRouter {
         }
     }
 
-    Rectangle {
-        readonly property bool contentReady: routeStack.activeRoute.length > 0
+    // The launch screen, held until the first page has something to show.
+    //
+    // The bar is the page being settled, not merely created: startup should be
+    // the system's launch frame, then this same picture, then a home screen
+    // that has already been painted. It is deliberately not artwork -- the
+    // first row's delegates existing is enough, and waiting for every visible
+    // poster would hold a black screen over a usable page.
+    Item {
+        id: startupSplash
 
+        readonly property bool contentSettled: routeStack.startupSettled
         property bool dismissed: false
+        // A start that is taking this long is a server that is not answering,
+        // not a slow machine, so say so and offer the way out rather than
+        // leaving a still picture up.
+        readonly property bool slow: slowStart.triggered && !dismissed
 
         anchors.fill: parent
-        color: "black"
-        visible: !Platform.isAndroid && !dismissed
+        visible: !dismissed
+        enabled: visible
         z: 70
 
-        onContentReadyChanged: if (contentReady)
-                                   dismissed = true
+        onContentSettledChanged: if (contentSettled)
+                                     dismissed = true
+
+        Timer {
+            id: slowStart
+            property bool triggered: false
+            interval: 1000
+            running: !startupSplash.dismissed
+            onTriggered: triggered = true
+        }
+
+        // The overlay covers the shell, so while it is asking a question the
+        // one control on it is where a remote has to land.
+        onSlowChanged: if (slow)
+                           InputKeys.focus(switchServerButton)
+        onDismissedChanged: if (dismissed)
+                                InputKeys.focus(routeStack)
 
         Loader {
+            id: splashContent
             anchors.fill: parent
-            active: !Platform.isAndroid
-            sourceComponent: Image {
-                source: startupSplashImageUrl
-                fillMode: Image.PreserveAspectFit
-                asynchronous: false
-                cache: true
+            // The same file the pre-shell frame draws, drawn the same way, so
+            // replacing that frame with this one changes nothing on screen.
+            source: "qrc:/startup/SplashContent.qml"
+            onLoaded: {
+                item.pixelsPerDp = Qt.binding(() => startupSplashPixelsPerDp)
+                item.coreWidthDp = Qt.binding(() => startupSplashCoreWidthDp)
+                item.coreWidthFraction = Qt.binding(() => startupSplashCoreWidthFraction)
+                item.coreAspect = Qt.binding(() => startupSplashCoreAspect)
+                item.coreSource = Qt.binding(() => startupSplashImageUrl)
+            }
+        }
+
+        // Grows out of the launch screen rather than replacing it: the mark
+        // stays exactly where it was and the waiting appears underneath.
+        ColumnLayout {
+            anchors.horizontalCenter: parent.horizontalCenter
+            y: (splashContent.item ? splashContent.item.markBottomY : parent.height / 2) + Metrics.scaled(36)
+            spacing: Metrics.scaled(22)
+            opacity: startupSplash.slow ? 1 : 0
+            visible: opacity > 0
+
+            Behavior on opacity {
+                NumberAnimation {
+                    duration: Theme.reducedMotion ? 0 : 180
+                }
+            }
+
+            BusySpinner {
+                Layout.alignment: Qt.AlignHCenter
+                Layout.preferredWidth: Metrics.scaled(34)
+                Layout.preferredHeight: Metrics.scaled(34)
+                running: startupSplash.slow
+                color: Theme.textMuted
+            }
+
+            ActionButton {
+                id: switchServerButton
+                Layout.alignment: Qt.AlignHCenter
+                text: "Switch server"
+                kind: "secondary"
+                onClicked: root.chooseServer()
             }
         }
     }

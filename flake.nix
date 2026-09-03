@@ -73,7 +73,10 @@
       spoolFfmpegFor = pkgs:
         let pinned = base: base.override {
               inherit (ffmpegPin) version;
-              hash = ffmpegPin.sri;
+              # The release tarball the webOS and Android cross builds fetch,
+              # rather than the channel's git checkout, so every platform is
+              # building the same bytes.
+              source = pkgs.fetchurl { inherit (ffmpegPin) url; hash = ffmpegPin.sri; };
             };
         in
         if pkgs ? ffmpeg_9-full

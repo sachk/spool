@@ -258,7 +258,15 @@ python3 "$ROOT/tools/render-appinfo.py" \
   "$APP_DIR/appinfo.json"
 cp -f "$APP_SOURCE_DIR/icons/png/spool/80.png" "$APP_DIR/icon.png"
 cp -f "$APP_SOURCE_DIR/icons/png/spool/130.png" "$APP_DIR/large-icon.png"
-cp -f "$APP_SOURCE_DIR/splash.png" "$APP_DIR/splash.png"
+# Rendered by the app build, because it carries the version: the full-screen
+# frame appinfo.json names, and the same block on its own for Qt to draw.
+SPLASH_DIR="${SPOOL_SPLASH_DIR:-$CMAKE_BUILD_DIR/splash/webos}"
+[[ -f "$SPLASH_DIR/splash.png" ]] || {
+  echo "error: launch screen missing at $SPLASH_DIR; run '$0 app' first" >&2
+  exit 1
+}
+cp -f "$SPLASH_DIR/splash.png" "$APP_DIR/splash.png"
+cp -f "$SPLASH_DIR/splash-core.png" "$APP_DIR/splash-core.png"
 cp -f "$INSTALL_DIR/fonts/"* "$APP_DIR/fonts/"
 mkdir -p "$APP_DIR/notices"
 cp -f "$ROOT/app/notices/OPEN_SOURCE_NOTICES.txt" "$ROOT/LICENSE" \

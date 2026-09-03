@@ -19,6 +19,10 @@ FocusScope {
     property var activeLoader: null
     property var pendingLoader: null
     property string activeRoute: ""
+    // True once the first route has something on screen. The startup overlay
+    // waits on this, so what follows the launch screen is a page that has
+    // already painted rather than an empty frame of one.
+    property bool startupSettled: false
     readonly property Item activeItem: activeLoader ? activeLoader.item : null
     readonly property bool directionRelease: Boolean(activeItem && activeItem.directionRelease)
 
@@ -154,6 +158,9 @@ FocusScope {
         }
         InputKeys.focus(item)
         activeRoute = route
+        // A page with nothing to wait for is settled the moment it exists and
+        // never emits a readiness change, so ask here as well.
+        noteStartupSettled()
         InputLatency.mark(uiTransitionToken, "shell")
         dropTransientPages()
         noteUse(loader.pageCacheKey)
@@ -278,11 +285,17 @@ FocusScope {
     }
 
     function completeUiTransitionIfReady() {
+        noteStartupSettled()
         if (!activeItem || uiTransitionToken === 0)
             return
         if (!PageReadiness.isSettled(activeItem))
             return
         finishUiTransition()
+    }
+
+    function noteStartupSettled() {
+        if (!startupSettled && activeItem && PageReadiness.isSettled(activeItem))
+            startupSettled = true
     }
 
     // No page gets to hold a transition open forever. A page whose readiness
@@ -307,6 +320,7 @@ FocusScope {
                 return
             console.warn("route host:", root.route, "never reported itself settled;", "closing its transition after",
                          interval, "ms")
+            root.startupSettled = true
             root.finishUiTransition()
         }
     }

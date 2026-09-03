@@ -28,6 +28,15 @@ library; the grouping exists so the split stays mechanical.
 - Keep backend branding out of shared code. Settings copy, theme colour names
   and network user agents should read as the product, not as Jellyfin.
 
+## Pinned Versions and Generated Assets
+
+- `tools/manifests/toolchain.json` sets the Qt and FFmpeg versions for every
+  platform. Nothing else may name one; `tools/toolchain-versions.sh --check`
+  is what CI runs to keep the Qt module manifests honest.
+- The launch screen carries the version, so it is rendered per build by
+  `tools/generate-splash.sh` from `tools/manifests/splash.json` and is not
+  committed. Configuring the app is enough to get it on every platform.
+
 ## Local Development
 
 - Launch the native release app with `nix run`. Clean Git revisions substitute the immutable package from Cachix; dirty tracked changes use the incremental checkout build.

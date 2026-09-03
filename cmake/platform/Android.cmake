@@ -69,6 +69,9 @@ function(jellyfin_configure_android_targets native_target core_target)
         DESTINATION "${android_package_source}")
     file(COPY "${android_variant_package_source}/"
         DESTINATION "${android_package_source}")
+    # The launch screen is rendered per build because it carries the version.
+    file(COPY "${SPOOL_SPLASH_DIR}/res/"
+        DESTINATION "${android_package_source}/res")
 
     # Android rejects versioned sonames, so bundle only plain .so files, and only
     # from the Android dependency prefix.
