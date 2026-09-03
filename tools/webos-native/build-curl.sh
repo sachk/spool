@@ -49,6 +49,7 @@ cmake -S "$SRC_DIR" -B "$BUILD_DIR" -GNinja \
   -DBUILD_STATIC_LIBS=OFF \
   -DBUILD_TESTING=OFF \
   -DCURL_BROTLI=OFF \
+  -DCURL_CA_BUNDLE=/etc/ssl/certs/ca-certificates.crt \
   -DCURL_DISABLE_ALTSVC=ON \
   -DCURL_DISABLE_DICT=ON \
   -DCURL_DISABLE_DOH=ON \
