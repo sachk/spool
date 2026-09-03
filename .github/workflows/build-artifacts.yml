@@ -760,12 +760,22 @@ jobs:
       # every input that changes the cached tree and there are no restore-keys:
       # a miss rebuilds from source rather than resuming someone else's tree.
       #
-      # Host-shell changes do not alter the target toolchain. Android SDK/NDK
-      # versions come from qt-android-6.11.json, so ordinary flake edits must
-      # not invalidate this expensive cache.
-      - name: Resolve mpv submodule revision
-        id: mpv-rev
-        run: echo "sha=$(git rev-parse HEAD:mpv)" >>"$GITHUB_OUTPUT"
+      # The NDK and the host Qt tools are what the dev shell contributes to that
+      # tree, so the key names their store paths rather than hashing flake.nix.
+      # A store path moves exactly when the toolchain does: adding an unrelated
+      # package to the shell no longer throws away an hour and a half of Qt and
+      # mpv builds, and a real toolchain bump can no longer be papered over with
+      # a tree built against the previous one.
+      - name: Resolve toolchain cache inputs
+        id: cache-inputs
+        run: |
+          set -euo pipefail
+          echo "mpv=$(git rev-parse HEAD:mpv)" >>"$GITHUB_OUTPUT"
+          toolchain="$(nix develop .#android -c sh -c \
+            'printf "%s\n%s\n" "$ANDROID_NDK_ROOT" "$SPOOL_ANDROID_QT_HOST"')"
+          printf 'toolchain inputs:\n%s\n' "$toolchain"
+          echo "toolchain=$(printf '%s' "$toolchain" | sha256sum | cut -c1-16)" \
+            >>"$GITHUB_OUTPUT"
 
       - uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5.0.3
         id: android-cache
@@ -774,7 +784,7 @@ jobs:
             build/android/qt
             build/android/deps
             build/android/qcoro
-          key: android4-${{ runner.os }}-${{ steps.mpv-rev.outputs.sha }}-${{ hashFiles('tools/android/build-dependencies.sh', 'tools/android/build-qt6.sh', 'tools/ffmpeg-capabilities.py', 'tools/lib/build-common.sh', 'tools/lib/manifest-sources.sh', 'tools/manifests/android-third-party.json', 'tools/manifests/ffmpeg-capabilities.json', 'tools/manifests/toolchain.json', 'tools/manifests/qt-android-6.11.json') }}
+          key: android5-${{ runner.os }}-${{ steps.cache-inputs.outputs.mpv }}-${{ steps.cache-inputs.outputs.toolchain }}-${{ hashFiles('tools/android/build-dependencies.sh', 'tools/android/build-qt6.sh', 'tools/ffmpeg-capabilities.py', 'tools/lib/build-common.sh', 'tools/lib/manifest-sources.sh', 'tools/manifests/android-third-party.json', 'tools/manifests/ffmpeg-capabilities.json', 'tools/manifests/toolchain.json', 'tools/manifests/qt-android-6.11.json') }}
 
       - name: Build cached Android toolchains
         if: ${{ steps.android-cache.outputs.cache-hit != 'true' }}

@@ -8,6 +8,14 @@ PNG_SIZES=(16 20 22 24 32 40 48 64 80 128 130 256 512 1024)
 WINDOWS_ICON_SIZES=(16 20 24 32 40 48 64 128 256)
 
 if ! command -v magick >/dev/null 2>&1 || ! command -v oxipng >/dev/null 2>&1; then
+  # nix-shell is on PATH even where flakes are the only channel, and there it
+  # cannot resolve <nixpkgs>. Say what is missing rather than exec'ing into a
+  # Nix evaluation error. See tools/generate-splash.sh for the same guard.
+  if ! command -v nix-shell >/dev/null 2>&1 ||
+    ! nix-instantiate --find-file nixpkgs >/dev/null 2>&1; then
+    echo "error: ImageMagick (magick) and oxipng are required to render the icons" >&2
+    exit 1
+  fi
   printf -v quoted_script '%q' "$0"
   exec nix-shell -p imagemagick oxipng --run "exec bash $quoted_script"
 fi

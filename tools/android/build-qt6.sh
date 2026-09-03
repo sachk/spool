@@ -13,7 +13,15 @@ QT_BASE_URL="$(manifest_qt_field "$MANIFEST" baseUrl)"
 QT_HOST_PATH="${SPOOL_ANDROID_QT_HOST:-}"
 ANDROID_API="${ANDROID_API:-28}"
 JOBS="$(recommended_parallel_jobs "${QT_ANDROID_MEMORY_PER_JOB_MIB:-1536}" "${QT_ANDROID_MEMORY_RESERVE_MIB:-2048}")"
-unset CMAKE_PREFIX_PATH Qt6_DIR
+# The Nix setup hooks publish every host build input through these, the same way
+# build-dependencies.sh and build-apks.sh guard against. Qt's own find modules
+# reach a host library through any one of them and link it into a target
+# library: adding ImageMagick to the dev shell was enough for qtimageformats to
+# find the host libwebp and fail the arm64 link. A host package must not be able
+# to change what this builds.
+unset CMAKE_PREFIX_PATH CMAKE_INCLUDE_PATH CMAKE_LIBRARY_PATH CMAKE_FRAMEWORK_PATH \
+  Qt6_DIR QT_ADDITIONAL_PACKAGES_PREFIX_PATH QT_ADDITIONAL_HOST_PACKAGES_PREFIX_PATH \
+  QMAKEPATH QML2_IMPORT_PATH QT_PLUGIN_PATH
 
 case "$ABI" in
   arm64-v8a)
@@ -38,6 +46,12 @@ PREFIX="$INSTALL_ROOT/$QT_ABI_DIR"
 ANDROID_DEPS_PREFIX="${ANDROID_DEPS_PREFIX:-$ROOT/build/android/deps/$ABI}"
 NDK_SYSROOT="$ANDROID_NDK_ROOT/toolchains/llvm/prebuilt/linux-x86_64/sysroot"
 NDK_LIBDIR="$NDK_SYSROOT/usr/lib/$NDK_TRIPLE/$ANDROID_API"
+# The other half of the same guard: pkg-config is the search path CMake's find
+# modules fall back to, so point it at the Android prefix alone. LIBDIR replaces
+# the built-in system directories rather than adding to them.
+export PKG_CONFIG_PATH="$ANDROID_DEPS_PREFIX/lib/pkgconfig"
+export PKG_CONFIG_LIBDIR="$ANDROID_DEPS_PREFIX/lib/pkgconfig"
+unset PKG_CONFIG_SYSROOT_DIR
 
 require_environment() {
   : "${ANDROID_HOME:?run through nix develop .#android}"
@@ -131,16 +145,29 @@ module_marker() {
     qtshadertools) printf '%s\n' 'lib/cmake/Qt6ShaderTools/Qt6ShaderToolsConfig.cmake' ;;
     qtdeclarative) printf '%s\n' 'lib/cmake/Qt6Quick/Qt6QuickConfig.cmake' ;;
     qtsvg) printf '%s\n' 'lib/cmake/Qt6Svg/Qt6SvgConfig.cmake' ;;
-    qtimageformats) printf '%s\n' 'plugins/imageformats/libplugins_imageformats_qwebp_arm64-v8a.so' ;;
+    qtimageformats) printf '%s\n' "plugins/imageformats/libplugins_imageformats_qwebp_$ABI.so" ;;
     qtwebsockets) printf '%s\n' 'lib/cmake/Qt6WebSockets/Qt6WebSocketsConfig.cmake' ;;
+  esac
+}
+
+# Which third-party libraries a module builds against is a property of the
+# Android target, not of whatever the host happens to have installed. Qt decides
+# it by probing, so say it outright: the bundled copies are the only ones built
+# for this ABI, and the formats with no Android source at all stay off.
+module_extra_args() {
+  case "$1" in
+    qtimageformats)
+      printf '%s\n' -DINPUT_webp=qt -DINPUT_tiff=qt -DINPUT_jasper=no -DINPUT_mng=no
+      ;;
   esac
 }
 
 build_module() {
   local module="$1" marker build_dir
+  local -a extra_args=()
+  mapfile -t extra_args < <(module_extra_args "$module")
   marker="$(module_marker "$module")"
-  if [[ ",${QT_ANDROID_FORCE_MODULES:-}," != *",$module,"* ]] &&
-    { [[ -e "$PREFIX/$marker" ]] || { [[ "$module" == qtimageformats ]] && compgen -G "$PREFIX/plugins/imageformats/*qwebp*.so" >/dev/null; }; }; then
+  if [[ ",${QT_ANDROID_FORCE_MODULES:-}," != *",$module,"* && -e "$PREFIX/$marker" ]]; then
     printf 'Android Qt %s %s for %s is current\n' "$QT_VERSION" "$module" "$ABI"
     return
   fi
@@ -185,7 +212,9 @@ build_module() {
     -DQT_HOST_PATH_CMAKE_DIR="$QT_HOST_PATH/lib/cmake" \
     -DQT_BUILD_TESTS=OFF \
     -DQT_NO_TARGET_QMLTESTRUNNER=ON \
-    -DQT_BUILD_EXAMPLES=OFF
+    -DQT_BUILD_EXAMPLES=OFF \
+    -DCMAKE_PREFIX_PATH="$ANDROID_DEPS_PREFIX" \
+    "${extra_args[@]}"
   cmake --build "$build_dir" --parallel "$JOBS"
   cmake --install "$build_dir"
 }

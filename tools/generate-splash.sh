@@ -38,9 +38,13 @@ case "$PLATFORM" in
 esac
 
 # Same self-bootstrap as the icon generator: a machine without ImageMagick
-# borrows one rather than making the caller install it first.
+# borrows one rather than making the caller install it first. A flakes-only Nix
+# has nix-shell on PATH but no <nixpkgs> to give it, so check for the channel
+# and not just the command -- otherwise the useful error below is replaced by a
+# Nix evaluation trace that says nothing about launch screens.
 if ! command -v magick >/dev/null 2>&1; then
-  if command -v nix-shell >/dev/null 2>&1; then
+  if command -v nix-shell >/dev/null 2>&1 &&
+    nix-instantiate --find-file nixpkgs >/dev/null 2>&1; then
     quoted=()
     for arg in "$0" --platform "$PLATFORM" --out "$OUT_DIR" --version "$VERSION"; do
       printf -v one '%q' "$arg"
