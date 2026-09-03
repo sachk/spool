@@ -1,5 +1,4 @@
 import QtQuick
-import QtQuick.Effects
 import "../theme"
 
 Item {
@@ -13,7 +12,6 @@ Item {
     property bool artworkVisible: true
     property bool artworkEnabled: true
     property bool bordered: true
-    property bool rounded: false
     readonly property bool artworkReady: !artworkEnabled || imageUrl.length === 0 || artwork.status === Image.Ready || artwork.status
                                          === Image.Error
 
@@ -58,15 +56,6 @@ Item {
             }
         }
 
-        Rectangle {
-            id: artworkMask
-            anchors.fill: artwork
-            radius: Theme.radiusMedium
-            color: "white"
-            visible: false
-            layer.enabled: true
-        }
-
         Image {
             id: artwork
             anchors.fill: parent
@@ -80,12 +69,23 @@ Item {
             cache: !Platform.isTV
             smooth: true
             mipmap: false
-            layer.enabled: root.rounded
-            layer.effect: MultiEffect {
-                autoPaddingEnabled: false
-                maskEnabled: true
-                maskSource: artworkMask
-            }
+            // Artwork corners are square. Rounding them meant giving every
+            // tile its own layer and a MultiEffect mask -- a framebuffer and a
+            // second render pass each, twenty-nine of them during a switch to
+            // home. That was affordable while the incubator spread a cold
+            // build over eighteen frames and the render thread only used 6 of
+            // its 16.7 ms; once the build happened in one go it became the
+            // thing holding the switch up, at 21.9 ms a frame.
+            //
+            // Dropping it takes a cold switch to home from 245 ms to 165 and
+            // the library scroll's median settle from 77 ms to 41. Against a
+            // captured frame the difference is 0.68% of pixels, because the
+            // frame behind still carries its own radius and border, which is
+            // what actually reads as the card's shape.
+            //
+            // Baking the radius into the decode is the way to have both, but
+            // it needs the provider to return the tile's exact aspect, or
+            // PreserveAspectCrop crops the baked corners off.
             opacity: root.artworkVisible ? 1 : 0
             Behavior on opacity {
                 NumberAnimation {

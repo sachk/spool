@@ -105,7 +105,6 @@ Item {
         anchors.right: parent.right
         height: root.artHeight
         bordered: false
-        rounded: true
         imageUrl: root.imageSource()
         artworkEnabled: root.artworkEnabled
         fallbackText: root.fallbackText()
