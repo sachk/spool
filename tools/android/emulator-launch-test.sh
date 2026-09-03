@@ -6,7 +6,10 @@ PHONE_APK="${1:-$ROOT/dist/android/spool-phone-x86_64.apk}"
 TV_APK="${2:-$ROOT/dist/android/spool-tv-x86_64.apk}"
 EMULATOR_LOG="${ANDROID_EMULATOR_LOG:-$ROOT/build/android/emulator.log}"
 ARTIFACT_DIR="${ANDROID_LAUNCH_TEST_DIR:-$ROOT/build/android/launch-test}"
-QT_ACTIVITY=org.qtproject.qt.android.bindings.QtActivity
+# Both variants launch through the app's own QtActivity subclass, which owns the
+# launch screen's exit. Naming it here is what catches a manifest that fell back
+# to Qt's stock activity and dropped that handover.
+SPOOL_ACTIVITY=com.sachk.spool.SpoolActivity
 
 : "${ANDROID_HOME:?run through nix develop .#android}"
 ADB="$ANDROID_HOME/platform-tools/adb"
@@ -78,12 +81,19 @@ fail() {
 }
 
 launch_apk() {
-  local apk="$1" package="$2" category="$3" component
+  local apk="$1" package="$2" category="$3" component activity
   "$ADB" install -r "$apk"
   component="$(launcher_component "$package" "$category")"
   [[ -n "$component" ]] || fail "$package" "$package advertises no $category launcher activity"
-  [[ "$component" == "$package/$QT_ACTIVITY" ]] ||
-    fail "$package" "$package launcher is $component, expected $package/$QT_ACTIVITY"
+  # resolve-activity abbreviates a class that sits under the package's own
+  # namespace, so the phone package reports .SpoolActivity where the TV package,
+  # whose name it does not share, reports the class in full.
+  activity="${component#*/}"
+  if [[ "$activity" == .* ]]; then
+    activity="$package$activity"
+  fi
+  [[ "$activity" == "$SPOOL_ACTIVITY" ]] ||
+    fail "$package" "$package launcher is $activity, expected $SPOOL_ACTIVITY"
 
   "$ADB" shell am force-stop "$package"
   "$ADB" logcat -c
