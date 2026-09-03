@@ -56,11 +56,20 @@ namespace {
         return value;
     }
 
-    bool onReply(LSHandle *, LSMessage *message, void *userdata)
+    // The header calls the third argument userdata, and what arrives is the
+    // HContext. Rather than depend on which, look the pointer up as both --
+    // the labels came out as garbage bytes when this trusted the name.
+    bool onReply(LSHandle *, LSMessage *message, void *ctx)
     {
-        const auto *state = static_cast<const AttemptState *>(userdata);
+        const char *label = "?";
+        for (const auto& state : attempts()) {
+            if (state.get() == ctx || state->context.get() == ctx) {
+                label = state->label.constData();
+                break;
+            }
+        }
         const char *payload = message ? LSMessageGetPayload(message) : nullptr;
-        qInfo("selfupdate-probe: %s <- %s", state ? state->label.constData() : "?", payload ? payload : "(no payload)");
+        qInfo("selfupdate-probe: %s <- %s", label, payload ? payload : "(no payload)");
         return true;
     }
 
@@ -75,14 +84,16 @@ namespace {
         state->context->userdata = state.get();
 
         qInfo("selfupdate-probe: %s -> %s %s", attempt.label, attempt.uri, attempt.payload.constData());
-        const int result = HLunaServiceCall(attempt.uri, attempt.payload.constData(), state->context.get());
+        HContext *context = state->context.get();
+        // Registered before the call, because a reply can arrive before this
+        // function returns and the callback resolves its label from here.
+        attempts().push_back(std::move(state));
+        const int result = HLunaServiceCall(attempt.uri, attempt.payload.constData(), context);
         if (result != 0) {
             // A non-zero return is the bus refusing to dispatch at all, which
             // is itself an answer: the call never reached the service.
             qInfo("selfupdate-probe: %s !! HLunaServiceCall returned %d (call not dispatched)", attempt.label, result);
-            return;
         }
-        attempts().push_back(std::move(state));
     }
 
     // What the bus thinks this app is allowed to do. On a set installed

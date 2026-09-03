@@ -24,7 +24,10 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 app_id="com.sachk.spool"
 host="${TV_HOST:-}"
 do_build=0
-serve_port="${SPOOL_PROBE_PORT:-8099}"
+# The same port verify-device.sh uses: reaching the television needs a port
+# the host firewall lets through, and this is the one that is already open.
+# They never overlap because the server below starts once the install is done.
+serve_port="${SPOOL_PROBE_PORT:-18927}"
 outdir="$ROOT/build/webos-selfupdate-probe"
 settle="${SPOOL_PROBE_SETTLE:-30}"
 
@@ -77,31 +80,42 @@ probe_ipk="$(find_newest_ipk)"
 [[ -n "$probe_ipk" ]] || { echo "no IPK found; pass --build" >&2; exit 1; }
 [[ -n "$ipk" ]] || ipk="$probe_ipk"
 
-# Serve the target the probe will ask the television to fetch.
 serve_root="$outdir/serve"
 mkdir -p "$serve_root"
 cp -f "$ipk" "$serve_root/spool-update.ipk"
-python3 -m http.server "$serve_port" --directory "$serve_root" >"$outdir/server.log" 2>&1 &
-server_pid=$!
-trap 'kill "$server_pid" 2>/dev/null || true' EXIT
-sleep 1
 
 printf 'probe IPK:   %s\n' "$probe_ipk"
 printf 'update IPK:  http://%s:%s/spool-update.ipk\n' "$host_ip" "$serve_port"
 
-nix develop "$ROOT" -c bash "$ROOT/tools/webos/verify-device.sh" --host "$host" "$probe_ipk"
+# Install the way the repository always installs, then launch over LS2 the way
+# the benchmark script does -- the ares CLI is not on the PATH here and this
+# needs nothing that is not already used elsewhere.
+nix develop "$ROOT" -c bash "$ROOT/tools/webos/verify-device.sh" --no-launch --host "$host" "$probe_ipk"
 
+# Only now serve what the probe will ask for: the installer above wants this
+# port too, and binding the address the television will use, because a wildcard
+# bind is not what the firewall opened.
+python3 -m http.server "$serve_port" --bind "$host_ip" --directory "$serve_root" \
+  >"$outdir/server.log" 2>&1 &
+server_pid=$!
+trap 'kill "$server_pid" 2>/dev/null || true' EXIT
+sleep 1
+curl -sf -o /dev/null --max-time 5 "http://$host_ip:$serve_port/spool-update.ipk" \
+  || { echo "the update IPK is not being served; the probe would measure that instead" >&2; exit 1; }
+
+ssh -F /dev/null "$host" \
+  "${LUNA_BIN:-luna-send} -n 1 'luna://com.webos.applicationManager/launch' '{\"id\":\"$app_id\"}'"
 # The probe fires five seconds in and gives the calls twenty to answer.
 printf 'waiting %ss for the probe to finish\n' "$settle"
 sleep "$settle"
 
-log_remote="/var/log/${app_id}.log"
-ssh -F /dev/null "$host" "cat /tmp/${app_id}.log 2>/dev/null || cat '$log_remote' 2>/dev/null || true" \
-  >"$outdir/app.log" || true
-# The app's own log location varies by firmware; fall back to the journal.
+# The app logs beside itself, under the application directory rather than in
+# /tmp -- /tmp holds a stale copy from an older layout and reading that first
+# is how this reported "no probe output" while the transcript sat next door.
+app_log="/media/developer/apps/usr/palm/applications/${app_id}/.cache/logs/${app_id}.log"
+ssh -F /dev/null "$host" "cat '$app_log' 2>/dev/null || true" >"$outdir/app.log" || true
 if ! grep -q "selfupdate-probe" "$outdir/app.log" 2>/dev/null; then
-  ssh -F /dev/null "$host" "journalctl -t ${app_id} --no-pager -n 2000 2>/dev/null \
-    || logread 2>/dev/null || true" >>"$outdir/app.log" || true
+  ssh -F /dev/null "$host" "cat /tmp/${app_id}.log 2>/dev/null || true" >>"$outdir/app.log" || true
 fi
 
 printf '\n--- probe transcript ---\n'
