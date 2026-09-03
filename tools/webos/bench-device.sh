@@ -96,6 +96,10 @@ require_awake() {
 restore() {
   echo "==> restoring $APP_ID"
   luna "luna://com.webos.applicationManager/closeByAppId" "{\"id\":\"$APP_ID\"}" || true
+  # Put the television back on the input somebody was actually watching. A
+  # benchmark that leaves the set staring at a closed app is a benchmark that
+  # gets noticed by the person who owns the room.
+  luna "luna://com.webos.applicationManager/launch" "{\"id\":\"${SPOOL_TV_RETURN_APP:-com.webos.app.hdmi1}\"}" || true
   tv "cd '$APP_DIR/bin' \
       && if [ -f jellyfin-native.real ]; then mv -f jellyfin-native.real jellyfin-native; fi \
       && cd '$APP_DIR' \
