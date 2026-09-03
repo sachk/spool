@@ -260,6 +260,9 @@ private:
     SyncPlaySeekResume m_seekResume;
     int m_syncCorrectionAttempts = 0;
     bool m_socketDesired = false;
+    // Consecutive socket failures with a reconnect still wanted; reset by a
+    // successful connect and by giving up on the socket deliberately.
+    int m_socketFailures = 0;
     bool m_timeSyncInFlight = false;
     bool m_timeSyncErrorReported = false;
     bool m_playerStateKnown = false;

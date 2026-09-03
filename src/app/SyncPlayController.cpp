@@ -28,6 +28,13 @@ namespace {
     constexpr int kGreedyTimeSyncIntervalMs = 1'000;
     constexpr int kSteadyTimeSyncIntervalMs = 60'000;
     constexpr int kReconnectDelayMs = 3'000;
+    // A socket that drops and comes back is not news. Suspending the app tears
+    // the connection down underneath us -- "software caused connection abort"
+    // on the way out, a refusal or two on the way back in -- and the reconnect
+    // below is what that is for. Only say something once reconnecting has
+    // failed this many times running, which is long enough that the only
+    // survivors are faults a person could actually act on.
+    constexpr int kSocketFailuresBeforeReporting = 4;
     // Browser clients can hide large rate changes in their media pipeline.
     // mpv has to retime real audio output, so keep small clock errors inaudible
     // and seek once rate correction would take too long.
@@ -116,6 +123,7 @@ SyncPlayController::SyncPlayController(JellyfinApiFacade *api, PlayerController 
 
     connect(&m_socket, &QWebSocket::connected, this, [this]() {
         qInfo() << "syncplay: websocket connected";
+        m_socketFailures = 0;
         m_reconnectTimer.stop();
         beginTimeSync();
         m_correctionTimer.start();
@@ -133,7 +141,18 @@ SyncPlayController::SyncPlayController(JellyfinApiFacade *api, PlayerController 
     if (tlsTrust)
         tlsTrust->attachWebSocket(&m_socket, [this]() { return socketUrl(); }, QStringLiteral("SyncPlay"));
     connect(&m_socket, &QWebSocket::errorOccurred, this, [this](QAbstractSocket::SocketError) {
-        emit errorText(QStringLiteral("SyncPlay socket error: %1").arg(m_socket.errorString()));
+        const QString reason = m_socket.errorString();
+        // Not while we still intend to reconnect and have not been failing at
+        // it: the app being backgrounded and brought back produces exactly
+        // this, and a toast for something the app fixes by itself a moment
+        // later is noise about a problem the person does not have.
+        if (m_socketDesired && ++m_socketFailures < kSocketFailuresBeforeReporting) {
+            qInfo() << "syncplay: websocket error" << reason << "(attempt" << m_socketFailures << "of"
+                    << kSocketFailuresBeforeReporting << "before reporting)";
+            return;
+        }
+        qWarning() << "syncplay: websocket error" << reason;
+        emit errorText(QStringLiteral("SyncPlay socket error: %1").arg(reason));
     });
     connect(&m_timeSyncTimer, &QTimer::timeout, this, &SyncPlayController::requestTimeSync);
     connect(&m_commandTimer, &QTimer::timeout, this, &SyncPlayController::executeScheduledCommand);
@@ -202,6 +221,7 @@ void SyncPlayController::connectSocket()
 void SyncPlayController::disconnectSocket()
 {
     m_socketDesired = false;
+    m_socketFailures = 0;
     m_reconnectTimer.stop();
     m_timeSyncTimer.stop();
     m_commandTimer.stop();
