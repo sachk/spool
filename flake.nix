@@ -263,6 +263,7 @@
         freetype
         git
         gnumake
+        imagemagick
         jq
         lcms2
         libarchive
@@ -360,6 +361,7 @@
         freetype
         git
         gnumake
+        imagemagick
         jq
         lcms2
         libarchive
