@@ -110,8 +110,8 @@ jobs:
           primary-key: nix-lint-${{ runner.os }}-${{ hashFiles('flake.nix', 'flake.lock') }}
           restore-prefixes-first-match: nix-lint-${{ runner.os }}-
           gc-max-store-size-linux: 2G
-          # Stale entries under the same prefix are dead weight against a
-          # shared 10 GB quota, and nothing restores them once the key moves.
+          # Stale entries under the same prefix are dead weight against the
+          # shared repository quota, and nothing restores them once the key moves.
           # A tag run does not write at all: it can read master's copy, and a
           # second scoped copy is what filled the quota before.
           save: ${{ !inputs.release }}
@@ -733,9 +733,9 @@ jobs:
         with:
           nix_conf: |
             experimental-features = nix-command flakes
-      # The Android dev shell closure is around 9 GB. Kept in the Actions
-      # cache it consumed most of a 10 GB repository quota by itself and
-      # evicted the toolchain cache below -- the small one that saves an hour
+      # The Android dev shell closure is around 9 GB. Keeping it in the
+      # Actions cache consumed most of the repository quota and evicted the
+      # toolchain cache below -- the small one that saves an hour
       # of Qt and mpv builds. Cachix holds the store instead, which is what it
       # is for, and leaves the quota to the things only this repository has.
       - uses: cachix/cachix-action@3ba601ff5bbb07c7220846facfa2cd81eeee15a1 # v16
@@ -760,10 +760,9 @@ jobs:
       # every input that changes the cached tree and there are no restore-keys:
       # a miss rebuilds from source rather than resuming someone else's tree.
       #
-      # CMakeLists.txt is deliberately not in the key. It builds the app, not
-      # the toolchain -- neither build-qt6.sh nor build-dependencies.sh reads
-      # it -- so hashing it bought nothing and cost an hour and a half of Qt
-      # and mpv rebuilds every time an unrelated target or test was touched.
+      # Host-shell changes do not alter the target toolchain. Android SDK/NDK
+      # versions come from qt-android-6.11.json, so ordinary flake edits must
+      # not invalidate this expensive cache.
       - name: Resolve mpv submodule revision
         id: mpv-rev
         run: echo "sha=$(git rev-parse HEAD:mpv)" >>"$GITHUB_OUTPUT"
@@ -775,7 +774,7 @@ jobs:
             build/android/qt
             build/android/deps
             build/android/qcoro
-          key: android4-${{ runner.os }}-${{ steps.mpv-rev.outputs.sha }}-${{ hashFiles('flake.nix', 'flake.lock', 'cmake/platform/Android.cmake', 'tools/android/**', 'tools/lib/*.sh', 'tools/manifests/android-third-party.json', 'tools/manifests/ffmpeg-capabilities.json', 'tools/manifests/toolchain.json', 'tools/manifests/qt-android-6.11.json') }}
+          key: android4-${{ runner.os }}-${{ steps.mpv-rev.outputs.sha }}-${{ hashFiles('tools/android/build-dependencies.sh', 'tools/android/build-qt6.sh', 'tools/ffmpeg-capabilities.py', 'tools/lib/build-common.sh', 'tools/lib/manifest-sources.sh', 'tools/manifests/android-third-party.json', 'tools/manifests/ffmpeg-capabilities.json', 'tools/manifests/toolchain.json', 'tools/manifests/qt-android-6.11.json') }}
 
       - name: Build cached Android toolchains
         if: ${{ steps.android-cache.outputs.cache-hit != 'true' }}

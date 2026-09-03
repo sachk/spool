@@ -29,11 +29,13 @@
     let
       systems = [ "x86_64-linux" "aarch64-darwin" "x86_64-darwin" ];
 
+      androidToolchain =
+        builtins.fromJSON (builtins.readFile ./tools/manifests/qt-android-6.11.json);
       androidSdkArgs = {
-        platformVersions = [ "36" ];
-        buildToolsVersions = [ "36.0.0" ];
+        platformVersions = [ androidToolchain.android.compileSdk ];
+        buildToolsVersions = [ androidToolchain.android.buildTools ];
         includeNDK = true;
-        ndkVersions = [ "27.2.12479018" ];
+        ndkVersions = [ androidToolchain.android.ndkVersion ];
       };
       androidEnvironment = pkgs:
         let
@@ -649,7 +651,7 @@
           ];
           ANDROID_HOME = "${android.sdk}/libexec/android-sdk";
           ANDROID_SDK_ROOT = "${android.sdk}/libexec/android-sdk";
-          ANDROID_NDK_ROOT = "${android.sdk}/libexec/android-sdk/ndk/27.2.12479018";
+          ANDROID_NDK_ROOT = "${android.sdk}/libexec/android-sdk/ndk/${androidToolchain.android.ndkVersion}";
           JAVA_HOME = pkgs.jdk17_headless.home;
           SPOOL_ANDROID_QT_HOST = "${androidQtHost}";
           shellHook = gitHooksShellHook;
