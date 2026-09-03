@@ -1052,14 +1052,17 @@ KeyRouter {
             anchors.fill: parent
             // The same file the pre-shell frame draws, drawn the same way, so
             // replacing that frame with this one changes nothing on screen.
-            source: "qrc:/startup/SplashContent.qml"
-            onLoaded: {
-                item.pixelsPerDp = Qt.binding(() => startupSplashPixelsPerDp)
-                item.coreWidthDp = Qt.binding(() => startupSplashCoreWidthDp)
-                item.coreWidthFraction = Qt.binding(() => startupSplashCoreWidthFraction)
-                item.coreAspect = Qt.binding(() => startupSplashCoreAspect)
-                item.coreSource = Qt.binding(() => startupSplashImageUrl)
-            }
+            // setSource with initial properties, not source + assignment:
+            // the values are in place before the component completes, and
+            // they come from the singleton rather than the view context,
+            // which is what resolves from a component the shell loads.
+            Component.onCompleted: setSource("qrc:/startup/SplashContent.qml", {
+                                                 "pixelsPerDp": Platform.splashPixelsPerDp,
+                                                 "coreWidthDp": Platform.splashCoreWidthDp,
+                                                 "coreWidthFraction": Platform.splashCoreWidthFraction,
+                                                 "coreAspect": Platform.splashCoreAspect,
+                                                 "coreSource": Platform.splashImageUrl
+                                             })
         }
 
         // Grows out of the launch screen rather than replacing it: the mark

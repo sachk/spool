@@ -14,6 +14,14 @@ import QtQuick
 Rectangle {
     id: root
 
+    // Every default here is a literal, and the two callers hand in real values
+    // by whichever route works where they run. An earlier version read the
+    // context directly and one of the two callers silently got undefined,
+    // which made the whole expression below NaN -- and a NaN width does not
+    // fail, it quietly leaves the image at its natural size, so the mark came
+    // out at the size of the source PNG and nothing said a word.
+    objectName: "startupSplashCore"
+
     // Pixels per Android dp. Zero on platforms that size the mark against the
     // viewport instead, which is every platform without a system launch frame
     // to match.
@@ -22,14 +30,23 @@ Rectangle {
     property real coreWidthDp: 0
     // Fraction of the shorter edge the mark takes when nothing else dictates.
     property real coreWidthFraction: 0.5926
-    property real coreAspect: 4 / 3
+    property real coreAspect: 1
     property url coreSource: ""
 
-    readonly property real coreWidth: pixelsPerDp > 0 && coreWidthDp > 0 ? Math.round(coreWidthDp * pixelsPerDp) :
-                                                                           Math.round(Math.min(width, height)
-                                                                                      * coreWidthFraction)
+    // Matching the frame the system already has on screen beats sizing against
+    // the viewport, so the dp path wins wherever there is one to match.
+    readonly property bool matchesSystemFrame: pixelsPerDp > 0 && coreWidthDp > 0
+    readonly property real coreWidth: matchesSystemFrame ? Math.round(coreWidthDp * pixelsPerDp) : Math.round(Math.min(
+                                                                                                                  width, height)
+                                                                                                              * coreWidthFraction)
 
     color: "black"
+
+    // A launch screen that quietly picked the wrong rule drew the mark at
+    // twice the size the system had just drawn it, and nothing said so.
+    Component.onCompleted: console.info("splash:", matchesSystemFrame ? "system-matched" : "viewport-sized",
+                                        "pixelsPerDp=" + pixelsPerDp, "coreWidthDp=" + coreWidthDp, "coreWidth="
+                                        + coreWidth, "viewport=" + width + "x" + height)
 
     Image {
         id: core

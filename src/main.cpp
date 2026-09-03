@@ -48,6 +48,9 @@
 #if defined(JELLYFIN_NATIVE_WEBOS)
 #include "platform/webos/WebOSDeviceName.h"
 #endif
+#if defined(SPOOL_WEBOS_SELFUPDATE_PROBE)
+#include "platform/webos/WebOSSelfUpdateProbe.h"
+#endif
 #include <QMessageLogContext>
 #include <QMetaObject>
 #include <QNetworkAccessManager>
@@ -311,23 +314,60 @@ double splashCoreWidthDp()
 #endif
 }
 
+// webOS reads its launch image off disk, where appinfo.json already names it;
+// everywhere else it is in the binary.
+QUrl splashImageUrl(const QString& appRootPath)
+{
+#if defined(JELLYFIN_NATIVE_WEBOS)
+    return QUrl::fromLocalFile(QDir(appRootPath).filePath(QStringLiteral("splash-core.png")));
+#else
+    Q_UNUSED(appRootPath);
+    return QUrl(QStringLiteral("qrc:/startup/splash-core.png"));
+#endif
+}
+
 // QML units per Android dp. Qt's own scaling already folds part of the
 // display's density into the coordinate system, so divide it back out rather
 // than assuming which of the two conventions this Qt build uses.
+//
+// Getting this wrong is not a rounding error: the mark is sized in dp to match
+// the frame the system already has on screen, and falling through to the
+// viewport rule instead drew it at twice the size, so the handover jumped.
+// Hence the second opinion and the log line -- a zero here has to be visible.
 double splashPixelsPerDp()
 {
 #if defined(SPOOL_ANDROID)
-    const QJniObject context = QNativeInterface::QAndroidApplication::context();
-    if (!context.isValid())
-        return 0.0;
-    const QJniObject metrics = context.callObjectMethod("getResources", "()Landroid/content/res/Resources;")
-                                   .callObjectMethod("getDisplayMetrics", "()Landroid/util/DisplayMetrics;");
-    if (!metrics.isValid())
-        return 0.0;
-    const double density = static_cast<double>(metrics.getField<jfloat>("density"));
-    const QScreen *screen = QGuiApplication::primaryScreen();
-    const double ratio = screen ? screen->devicePixelRatio() : 1.0;
-    return ratio > 0.0 ? density / ratio : density;
+    // Answered once. Asking twice gave two different answers: the second call
+    // failed the platform lookup and fell back to a logical-DPI reading five
+    // times too small, so whichever caller ran second got a launch screen
+    // sized from a number the first caller never saw.
+    static const double cached = [] {
+        double density = 0.0;
+        const char *source = "none";
+        const QJniObject context = QNativeInterface::QAndroidApplication::context();
+        if (context.isValid()) {
+            const QJniObject resources = context.callObjectMethod("getResources", "()Landroid/content/res/Resources;");
+            const QJniObject metrics = resources.isValid()
+                ? resources.callObjectMethod("getDisplayMetrics", "()Landroid/util/DisplayMetrics;")
+                : QJniObject();
+            if (metrics.isValid()) {
+                density = static_cast<double>(metrics.getField<jfloat>("density"));
+                source = "displayMetrics";
+            }
+        }
+        const QScreen *screen = QGuiApplication::primaryScreen();
+        // Android's dp is defined against 160 dpi, so Qt's own reading of the
+        // display answers the same question when the platform one does not.
+        if (density <= 0.0 && screen) {
+            density = screen->logicalDotsPerInch() / 160.0;
+            source = "logicalDpi";
+        }
+        const double ratio = screen ? screen->devicePixelRatio() : 1.0;
+        const double perDp = density > 0.0 && ratio > 0.0 ? density / ratio : density;
+        logLine("splash: density=%.3f (%s) dpr=%.3f pixelsPerDp=%.3f", density, source, ratio, perDp);
+        return perDp > 0.0 ? perDp : 0.0;
+    }();
+    return cached;
 #else
     return 0.0;
 #endif
@@ -423,13 +463,7 @@ int main(int argc, char **argv)
     // the shell exists, the shell's own overlay, the slow-start page -- reads
     // these, so all three land on the same pixels and the handover from the
     // system's launch frame shows nothing.
-#if defined(JELLYFIN_NATIVE_WEBOS)
-    window.rootContext()->setContextProperty(QStringLiteral("startupSplashImageUrl"),
-        QUrl::fromLocalFile(QDir(appRootPath).filePath(QStringLiteral("splash-core.png"))));
-#else
-    window.rootContext()->setContextProperty(
-        QStringLiteral("startupSplashImageUrl"), QUrl(QStringLiteral("qrc:/startup/splash-core.png")));
-#endif
+    window.rootContext()->setContextProperty(QStringLiteral("startupSplashImageUrl"), splashImageUrl(appRootPath));
     window.rootContext()->setContextProperty(
         QStringLiteral("startupSplashCoreAspect"), static_cast<double>(SPOOL_SPLASH_CORE_ASPECT));
     window.rootContext()->setContextProperty(
@@ -685,6 +719,16 @@ int main(int argc, char **argv)
     platformInfo->insert(QStringLiteral("deviceName"), capabilities.deviceName);
     platformInfo->insert(QStringLiteral("updateController"), QVariant::fromValue(platformUpdateController));
     platformInfo->insert(QStringLiteral("rendererName"), capabilities.rendererName);
+    // The launch screen's geometry, alongside the context properties the
+    // pre-shell frame reads. The shell reaches it through this singleton
+    // instead, because that is what reliably resolves from a component the
+    // shell loads rather than one the view loads itself.
+    platformInfo->insert(QStringLiteral("splashPixelsPerDp"), splashPixelsPerDp());
+    platformInfo->insert(QStringLiteral("splashCoreWidthDp"), splashCoreWidthDp());
+    platformInfo->insert(
+        QStringLiteral("splashCoreWidthFraction"), static_cast<double>(SPOOL_SPLASH_CORE_WIDTH_FRACTION));
+    platformInfo->insert(QStringLiteral("splashCoreAspect"), static_cast<double>(SPOOL_SPLASH_CORE_ASPECT));
+    platformInfo->insert(QStringLiteral("splashImageUrl"), splashImageUrl(appRootPath));
     qmlRegisterSingletonInstance("JellyfinWebOS", 1, 0, "App", controller.get());
     qmlRegisterSingletonInstance("JellyfinWebOS", 1, 0, "Art", artworkService.get());
     qmlRegisterSingletonInstance("JellyfinWebOS", 1, 0, "Browse", controller->browse());
@@ -744,6 +788,37 @@ int main(int argc, char **argv)
         Qt::SingleShotConnection);
 #endif
     logLine("startup: QML source loaded in %lld ms", static_cast<long long>(startupTimer.elapsed()));
+
+    // What the launch screen actually resolved. QML's own console does not
+    // reach logcat on Android, and this is precisely the platform where the
+    // mark has to agree with a frame the system drew, so read it back here.
+    QObject::connect(
+        &window, &QQuickWindow::frameSwapped, &app,
+        [&window] {
+            QObject *root = window.rootObject();
+            if (!root) {
+                logLine("splash: no root object when reading back");
+                return;
+            }
+            QObject *splash = root->findChild<QObject *>(QStringLiteral("startupSplashCore"));
+            if (!splash) {
+                logLine("splash: launch screen item absent from a tree of %lld objects",
+                    static_cast<long long>(root->findChildren<QObject *>().size()));
+                return;
+            }
+            logLine("splash: coreWidth=%.1f pixelsPerDp=%.3f coreWidthDp=%.1f fraction=%.4f viewport=%.0fx%.0f",
+                splash->property("coreWidth").toDouble(), splash->property("pixelsPerDp").toDouble(),
+                splash->property("coreWidthDp").toDouble(), splash->property("coreWidthFraction").toDouble(),
+                splash->property("width").toDouble(), splash->property("height").toDouble());
+        },
+        static_cast<Qt::ConnectionType>(Qt::QueuedConnection | Qt::SingleShotConnection));
+
+#if defined(SPOOL_WEBOS_SELFUPDATE_PROBE)
+    // Diagnostic builds only. Runs five seconds in, once the app is up and
+    // behaving normally, so the bus sees the calls from a settled app rather
+    // than from something still starting.
+    JellyfinNative::startSelfUpdateProbe();
+#endif
 
     // Inert unless SPOOL_BENCH names a script. When it does, the app comes up
     // as it always does and is then walked through a set of route switches

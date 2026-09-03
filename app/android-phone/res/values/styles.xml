@@ -7,7 +7,12 @@
         <!-- Black from the very first frame the system paints, so the
              launch screen never arrives over a lighter window. -->
         <item name="android:windowBackground">@android:color/black</item>
+        <!-- API 31+ draws its own launch frame before the activity exists.
+             Left alone it boxes the launcher icon on it; this is the mark,
+             at the size and position the launch screen gives it, so Qt's
+             first frame only adds the words below it. -->
         <item name="android:windowSplashScreenBackground">@android:color/black</item>
+        <item name="android:windowSplashScreenAnimatedIcon">@drawable/spool_splash_icon</item>
         <item name="android:colorAccent">#00A4DC</item>
         <item name="android:navigationBarColor">#101010</item>
         <!-- Browsing shares the screen with the clock, the notification
