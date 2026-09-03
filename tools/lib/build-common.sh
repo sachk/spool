@@ -443,7 +443,7 @@ mpv_meson_build() {
   local pkg_config_executable
   dependency_marker="$build/.jellyfin-dependency-env"
   pkg_config_executable="$(command -v pkg-config)"
-  dependency_fingerprint="$(printf '%s\n%s\n%s\n%s\n' \
+  dependency_fingerprint="$(printf '2\n%s\n%s\n%s\n%s\n' \
     "$pkg_config_executable" "${PKG_CONFIG_PATH:-}" "${CMAKE_PREFIX_PATH:-}" \
     "${setup_args[*]}" | sha256sum)"
   dependency_fingerprint="${dependency_fingerprint%% *}"
@@ -452,13 +452,11 @@ mpv_meson_build() {
   if [[ ! -f "$build/build.ninja" ]]; then
     meson setup "$build" "$src" "${setup_args[@]}"
   elif [[ "$cached_fingerprint" != "$dependency_fingerprint" ]]; then
-    # Unchanged dependency versions can move to new Nix store paths and
-    # require libmpv to relink, but clearing every cache slows local launches.
-    if ! meson setup --reconfigure --clearcache "$build" "$src" "${setup_args[@]}"; then
-      echo "mpv reconfigure failed; retrying with a clean build directory" >&2
-      rm -rf "$build"
-      meson setup "$build" "$src" "${setup_args[@]}"
-    fi
+    # Meson can retain resolved dependency objects after --clearcache. A
+    # changed Nix shell must start clean or it may keep linking an old ABI.
+    echo "mpv dependency environment changed; wiping cached build directory" >&2
+    rm -rf "$build"
+    meson setup "$build" "$src" "${setup_args[@]}"
   fi
   # A matching fingerprint means this build dir is already configured for these
   # inputs. Edits to meson.build still land: ninja reruns meson setup itself.
