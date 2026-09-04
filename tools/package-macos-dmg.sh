@@ -49,6 +49,25 @@ if [[ "${CI:-}" == true ]]; then
   # window metadata.
   create_dmg_args+=(--skip-jenkins)
 fi
+# create-dmg reports failure when Finder still holds the scratch image at
+# detach time -- "couldn't unmount: Resource busy" -- which happens after the
+# image itself is finished, and ejects a moment later anyway. --skip-jenkins
+# above narrows the window without closing it. Rather than trust the exit code
+# either way, ask whether there is a valid image: a detach race then costs a
+# warning, and a real packaging failure still fails.
+set +e
 create-dmg "${create_dmg_args[@]}" "$DMG_PATH" "$APP_BUNDLE"
+create_dmg_status=$?
+set -e
+if (( create_dmg_status != 0 )); then
+  if [[ -f "$DMG_PATH" ]] && hdiutil verify "$DMG_PATH" >/dev/null 2>&1; then
+    printf 'warning: create-dmg exited %d but the image verifies; continuing\n' \
+      "$create_dmg_status" >&2
+  else
+    printf 'error: create-dmg failed with %d and produced no valid image\n' \
+      "$create_dmg_status" >&2
+    exit "$create_dmg_status"
+  fi
+fi
 
 printf '%s\n' "$DMG_PATH"
