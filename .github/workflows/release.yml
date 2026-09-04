@@ -126,9 +126,12 @@ jobs:
           add_row 'Windows — portable' '*-Windows-x64-Portable.exe'
           add_row 'Linux — AppImage' '*-x86_64.AppImage'
           add_row 'LG webOS TV' '*_arm.ipk'
-          add_row 'Android phone' 'spool-phone-arm64-v8a.apk'
+          add_row 'Android phone — 64-bit ARM' 'spool-phone-arm64-v8a.apk'
+          add_row 'Android phone — 32-bit ARM' 'spool-phone-armeabi-v7a.apk'
+          add_row 'Android phone — x86-64' 'spool-phone-x86_64.apk'
           add_row 'Android TV — 64-bit ARM' 'spool-tv-arm64-v8a.apk'
           add_row 'Android TV — 32-bit ARM' 'spool-tv-armeabi-v7a.apk'
+          add_row 'Android TV — x86-64' 'spool-tv-x86_64.apk'
 
           {
             cat generated-notes.md
@@ -170,12 +173,15 @@ jobs:
           REPO: ${{ github.repository }}
         run: |
           set -euo pipefail
-          phone='release-assets/spool-phone-arm64-v8a.apk'
-          tv='release-assets/spool-tv-arm64-v8a.apk'
+          phone_arm64='release-assets/spool-phone-arm64-v8a.apk'
+          phone_armv7='release-assets/spool-phone-armeabi-v7a.apk'
+          phone_x86_64='release-assets/spool-phone-x86_64.apk'
+          tv_arm64='release-assets/spool-tv-arm64-v8a.apk'
           tv_armv7='release-assets/spool-tv-armeabi-v7a.apk'
-          test -f "$phone"
-          test -f "$tv"
-          test -f "$tv_armv7"
+          tv_x86_64='release-assets/spool-tv-x86_64.apk'
+          for apk in "$phone_arm64" "$phone_armv7" "$phone_x86_64" "$tv_arm64" "$tv_armv7" "$tv_x86_64"; do
+            test -f "$apk"
+          done
           version="${TAG#v}"
           IFS=. read -r major minor patch <<<"$version"
           version_code=$((major * 100000000 + minor * 100000 + patch * 100 + 99))
@@ -186,15 +192,24 @@ jobs:
             --argjson versionCode "$version_code" \
             --arg releaseUrl "https://github.com/$REPO/releases/tag/$TAG" \
             --rawfile notes generated-notes.md \
-            --arg phoneUrl "$base/$(basename "$phone")" \
-            --arg phoneSha "$(sha256sum "$phone" | cut -d' ' -f1)" \
-            --argjson phoneSize "$(stat -c%s "$phone")" \
-            --arg tvUrl "$base/$(basename "$tv")" \
-            --arg tvSha "$(sha256sum "$tv" | cut -d' ' -f1)" \
-            --argjson tvSize "$(stat -c%s "$tv")" \
+            --arg phoneArm64Url "$base/$(basename "$phone_arm64")" \
+            --arg phoneArm64Sha "$(sha256sum "$phone_arm64" | cut -d' ' -f1)" \
+            --argjson phoneArm64Size "$(stat -c%s "$phone_arm64")" \
+            --arg phoneArmv7Url "$base/$(basename "$phone_armv7")" \
+            --arg phoneArmv7Sha "$(sha256sum "$phone_armv7" | cut -d' ' -f1)" \
+            --argjson phoneArmv7Size "$(stat -c%s "$phone_armv7")" \
+            --arg phoneX8664Url "$base/$(basename "$phone_x86_64")" \
+            --arg phoneX8664Sha "$(sha256sum "$phone_x86_64" | cut -d' ' -f1)" \
+            --argjson phoneX8664Size "$(stat -c%s "$phone_x86_64")" \
+            --arg tvArm64Url "$base/$(basename "$tv_arm64")" \
+            --arg tvArm64Sha "$(sha256sum "$tv_arm64" | cut -d' ' -f1)" \
+            --argjson tvArm64Size "$(stat -c%s "$tv_arm64")" \
             --arg tvArmv7Url "$base/$(basename "$tv_armv7")" \
             --arg tvArmv7Sha "$(sha256sum "$tv_armv7" | cut -d' ' -f1)" \
             --argjson tvArmv7Size "$(stat -c%s "$tv_armv7")" \
+            --arg tvX8664Url "$base/$(basename "$tv_x86_64")" \
+            --arg tvX8664Sha "$(sha256sum "$tv_x86_64" | cut -d' ' -f1)" \
+            --argjson tvX8664Size "$(stat -c%s "$tv_x86_64")" \
             '{
               schemaVersion: 1,
               releases: [{
@@ -204,9 +219,12 @@ jobs:
                 releaseUrl: $releaseUrl,
                 notes: $notes,
                 assets: {
-                  "phone-arm64-v8a": {url: $phoneUrl, sha256: $phoneSha, size: $phoneSize},
-                  "tv-arm64-v8a": {url: $tvUrl, sha256: $tvSha, size: $tvSize},
-                  "tv-armeabi-v7a": {url: $tvArmv7Url, sha256: $tvArmv7Sha, size: $tvArmv7Size}
+                  "phone-arm64-v8a": {url: $phoneArm64Url, sha256: $phoneArm64Sha, size: $phoneArm64Size},
+                  "phone-armeabi-v7a": {url: $phoneArmv7Url, sha256: $phoneArmv7Sha, size: $phoneArmv7Size},
+                  "phone-x86_64": {url: $phoneX8664Url, sha256: $phoneX8664Sha, size: $phoneX8664Size},
+                  "tv-arm64-v8a": {url: $tvArm64Url, sha256: $tvArm64Sha, size: $tvArm64Size},
+                  "tv-armeabi-v7a": {url: $tvArmv7Url, sha256: $tvArmv7Sha, size: $tvArmv7Size},
+                  "tv-x86_64": {url: $tvX8664Url, sha256: $tvX8664Sha, size: $tvX8664Size}
                 }
               }]
             }' >update-pages/updates/android.json

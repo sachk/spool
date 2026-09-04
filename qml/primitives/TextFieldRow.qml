@@ -14,6 +14,7 @@ T.Control {
     property alias echoMode: field.echoMode
     property int enterKeyType: Qt.EnterKeyDefault
     property string label: ""
+    property string accessibleName: label.length > 0 ? label : placeholderText
     readonly property bool editing: field.activeFocus
     readonly property bool masked: field.echoMode === TextInput.Password
 
@@ -89,6 +90,7 @@ T.Control {
 
     T.TextField {
         id: field
+        Accessible.name: row.accessibleName
         EnterKey.type: row.enterKeyType
         anchors.fill: parent
         anchors.leftMargin: Metrics.scaled(15)
@@ -121,7 +123,7 @@ T.Control {
         // hint is the difference between a labelled box and a guess.
         SecondaryText {
             anchors.fill: parent
-            visible: field.text.length === 0 && field.placeholderText.length > 0
+            visible: field.displayText.length === 0 && field.placeholderText.length > 0
             text: field.placeholderText
             color: Theme.textDisabled
             font.pixelSize: Metrics.bodySizePx + Metrics.scaled(2)

@@ -89,6 +89,7 @@ FocusScope {
         TextFieldRow {
             id: usernameRow
             Layout.fillWidth: true
+            accessibleName: "Username"
             text: Session.username
             inputMethodHints: Qt.ImhNoPredictiveText | Qt.ImhNoAutoUppercase
             enterKeyType: Qt.EnterKeyNext
@@ -108,6 +109,7 @@ FocusScope {
             id: passwordRow
             Layout.fillWidth: true
             Layout.bottomMargin: Metrics.scaled(10)
+            accessibleName: "Password"
             text: Session.password
             echoMode: TextInput.Password
             inputMethodHints: Qt.ImhSensitiveData | Qt.ImhNoPredictiveText

@@ -78,6 +78,16 @@ require_environment() {
   }
 }
 
+apply_qt_patches() {
+  local patch_file="$ROOT/tools/android/patches/qt-android-tv-keyboard.patch"
+  if patch --dry-run --forward --silent -d "$SOURCE_ROOT/qtbase" -p1 <"$patch_file" >/dev/null 2>&1; then
+    patch --forward --silent -d "$SOURCE_ROOT/qtbase" -p1 <"$patch_file"
+  elif ! patch --dry-run --reverse --silent -d "$SOURCE_ROOT/qtbase" -p1 <"$patch_file" >/dev/null 2>&1; then
+    echo "error: Qt Android TV keyboard patch does not apply cleanly" >&2
+    exit 1
+  fi
+}
+
 module_names() {
   python3 -c 'import json,sys; print("\n".join(x["name"] for x in json.load(open(sys.argv[1]))["modules"]))' "$MANIFEST"
 }
@@ -93,12 +103,13 @@ fetch_sources() {
     download_verified "$QT_BASE_URL/$module-everywhere-src-$QT_VERSION.tar.xz" "$sha" "$archive"
     extract_verified_source "$archive" "$sha" "$source"
   done < <(module_names)
+  apply_qt_patches
 }
 
 qt_prefix_current() {
   [[ -f "$PREFIX/lib/cmake/Qt6/Qt6ConfigVersionImpl.cmake" ]] || return 1
   grep -Fqx "set(PACKAGE_VERSION \"$QT_VERSION\")" "$PREFIX/lib/cmake/Qt6/Qt6ConfigVersionImpl.cmake"
-  [[ -f "$PREFIX/.spool-android-qt-$ABI-api-$ANDROID_API" ]]
+  [[ -f "$PREFIX/.spool-android-qt-$ABI-api-$ANDROID_API-tv-keyboard-v1" ]]
 }
 
 build_qtbase() {
@@ -141,7 +152,7 @@ build_qtbase() {
   )
   cmake --build "$BUILD_ROOT/qtbase" --parallel "$JOBS"
   cmake --install "$BUILD_ROOT/qtbase"
-  printf '1\n' >"$PREFIX/.spool-android-qt-$ABI-api-$ANDROID_API"
+  printf '1\n' >"$PREFIX/.spool-android-qt-$ABI-api-$ANDROID_API-tv-keyboard-v1"
 }
 
 module_marker() {

@@ -1,0 +1,10 @@
+diff --git a/src/android/jar/src/org/qtproject/qt/android/QtInputDelegate.java b/src/android/jar/src/org/qtproject/qt/android/QtInputDelegate.java
+index 842c2577d1..eb1b1d41f8 100644
+--- a/src/android/jar/src/org/qtproject/qt/android/QtInputDelegate.java
++++ b/src/android/jar/src/org/qtproject/qt/android/QtInputDelegate.java
+@@ -217,3 +217,5 @@ class QtInputDelegate implements QtInputConnection.QtInputConnectionListener, Qt
++            m_currentEditText.setFocusable(true);
++            m_currentEditText.setFocusableInTouchMode(true);
+             m_currentEditText.setEditTextOptions(enterKeyType, inputHints);
+             m_currentEditText.setLayoutParams(new QtLayout.LayoutParams(width, height, x, y));
+             m_currentEditText.requestFocus();
