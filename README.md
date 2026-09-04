@@ -53,6 +53,10 @@ installs on a clean device and nowhere else. Launch-test both variants in the pi
 nix develop .#android -c bash tools/android/emulator-launch-test.sh
 ```
 
+On Android, **Export diagnostics** packages the app log, mpv log, rotated
+logs, and system report into a ZIP and opens the system share menu. It does
+not require ADB or broad storage permissions.
+
 # Name
 
 ## Fast Jellyfin client for LG TVs and desktop

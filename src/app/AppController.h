@@ -185,6 +185,7 @@ signals:
     void remoteContentRequested(const QString& itemId, const QString& itemType, const QString& title);
     void remoteSeekPreviewRequested(qint64 positionTicks, bool active);
     void clearLogsRequested();
+    void diagnosticsReportSaved(const QString& path);
 
 private:
     int claimInstanceSlot();

@@ -357,7 +357,11 @@ QString supportReportPreview()
 
 QString saveSupportReport()
 {
+#ifdef Q_OS_ANDROID
+    QString directory = qEnvironmentVariable("JELLYFIN_NATIVE_LOG_DIR");
+#else
     QString directory = QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation);
+#endif
     if (directory.isEmpty())
         directory = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
     if (directory.isEmpty() || !QDir().mkpath(directory))

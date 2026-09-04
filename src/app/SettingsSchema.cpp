@@ -437,7 +437,7 @@ const QVector<SettingSpec>& settingSpecs()
             "Server certificates you chose to trust", SettingType::Action),
 
         pageSpec("action/exportDiagnostics", "Diagnostics", "Export diagnostics",
-            "Saves a report with personal details removed", SettingType::Action),
+            "Collects support information for you to review and send", SettingType::Action),
         pageSpec("action/clearLogs", "Diagnostics", "Clear logs", "", SettingType::Action),
         pageSpec("shell/diagnostics", "Diagnostics", "Diagnostics overlay", "Live playback and performance figures",
             SettingType::Toggle)

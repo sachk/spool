@@ -901,9 +901,9 @@ FocusScope {
         active: root.diagnosticsExportVisible
         z: 200
         sourceComponent: ConfirmationDialog {
-            title: "Save diagnostics report?"
+            title: Platform.isAndroid ? "Share diagnostics?" : "Save diagnostics report?"
             message: root.diagnosticsExportPreview
-            confirmText: "Save"
+            confirmText: Platform.isAndroid ? "Share" : "Save"
             onAccepted: {
                 App.saveDiagnosticsReport()
                 root.diagnosticsExportVisible = false

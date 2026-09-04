@@ -4,15 +4,18 @@
 #include "player/PlayerController.h"
 
 #include <QGuiApplication>
+#include <QJniObject>
 
 namespace JellyfinNative {
 
 struct PlatformApplicationServices::PlatformData {
     explicit PlatformData(AppController& controller)
-        : player(controller.player())
+        : controller(&controller)
+        , player(controller.player())
     {
     }
 
+    AppController *controller = nullptr;
     PlayerController *player = nullptr;
 };
 
@@ -26,8 +29,9 @@ PlatformApplicationServices::~PlatformApplicationServices() = default;
 
 void PlatformApplicationServices::start()
 {
-    QObject::connect(qGuiApp, &QGuiApplication::applicationStateChanged, qGuiApp,
-        [platform = m_platform.get()](Qt::ApplicationState state) {
+    PlatformData *platform = m_platform.get();
+    QObject::connect(
+        qGuiApp, &QGuiApplication::applicationStateChanged, qGuiApp, [platform](Qt::ApplicationState state) {
             if (!platform->player)
                 return;
             if (state == Qt::ApplicationActive) {
@@ -36,6 +40,17 @@ void PlatformApplicationServices::start()
                 if (platform->player->sessionActive() && !platform->player->paused())
                     platform->player->setPaused(true);
             }
+        });
+
+    QObject::connect(
+        platform->controller, &AppController::diagnosticsReportSaved, qGuiApp, [platform](const QString& reportPath) {
+            const QJniObject context = QNativeInterface::QAndroidApplication::context();
+            const QJniObject path = QJniObject::fromString(reportPath);
+            const jboolean opened = QJniObject::callStaticMethod<jboolean>("com/sachk/spool/AndroidUpdateBridge",
+                "shareDiagnostics", "(Landroid/content/Context;Ljava/lang/String;)Z", context.object<jobject>(),
+                path.object<jstring>());
+            if (!opened)
+                emit platform->controller->toastMessage(QStringLiteral("Could not open Android’s share menu."));
         });
 }
 

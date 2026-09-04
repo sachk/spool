@@ -1415,14 +1415,28 @@ void AppController::clearLogs()
 }
 QString AppController::diagnosticsPreview() const
 {
+#ifdef SPOOL_ANDROID
+    return QStringLiteral(
+        "Creates a ZIP containing the app log, mpv log, rotated logs, and a system report, then opens Android’s "
+        "share menu. Logs are intended for private support channels; review the recipient before sending.\n\n%1")
+        .arg(Diagnostics::supportReportPreview());
+#else
     return Diagnostics::supportReportPreview();
+#endif
 }
 
 QString AppController::saveDiagnosticsReport()
 {
     const QString path = Diagnostics::saveSupportReport();
-    emit toastMessage(
-        path.isEmpty() ? QStringLiteral("Could not save diagnostics.") : QStringLiteral("Diagnostics saved."));
+    if (path.isEmpty()) {
+        emit toastMessage(QStringLiteral("Could not save diagnostics."));
+        return {};
+    }
+#ifdef SPOOL_ANDROID
+    emit diagnosticsReportSaved(path);
+#else
+    emit toastMessage(QStringLiteral("Diagnostics saved to %1").arg(path));
+#endif
     return path;
 }
 

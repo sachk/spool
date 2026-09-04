@@ -24,6 +24,7 @@
 namespace JellyfinNative {
 namespace {
     constexpr SettingChoice kAndroidAudioChoices[] = { { "auto", "Automatic" } };
+
     QString androidDeviceName()
     {
         const QJniObject context = QNativeInterface::QAndroidApplication::context();

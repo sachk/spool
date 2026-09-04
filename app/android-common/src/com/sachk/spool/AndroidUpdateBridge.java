@@ -8,6 +8,15 @@ import android.net.Uri;
 import android.provider.Settings;
 import android.util.Log;
 import androidx.core.content.FileProvider;
+import java.io.BufferedInputStream;
+import java.io.BufferedOutputStream;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.util.Arrays;
+import java.util.Comparator;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipOutputStream;
 import java.io.File;
 
 public final class AndroidUpdateBridge {
@@ -47,6 +56,72 @@ public final class AndroidUpdateBridge {
         } catch (RuntimeException exception) {
             Log.e(TAG, "Could not launch APK installer", exception);
             return false;
+        }
+    }
+
+    public static boolean shareDiagnostics(Context context, String reportPath)
+    {
+        if (context == null || reportPath == null)
+            return false;
+        try {
+            File report = new File(reportPath);
+            File logs = report.getParentFile();
+            if (!report.isFile() || logs == null || !logs.isDirectory())
+                return false;
+
+            File exportDirectory = new File(context.getCacheDir(), "diagnostics");
+            if (!exportDirectory.isDirectory() && !exportDirectory.mkdirs())
+                return false;
+            File archive = new File(exportDirectory, "Spool-Diagnostics.zip");
+            writeZip(logs, archive);
+
+            Uri uri = FileProvider.getUriForFile(context, context.getPackageName() + ".qtprovider", archive);
+            Intent intent = new Intent(Intent.ACTION_SEND);
+            intent.setType("application/zip");
+            intent.putExtra(Intent.EXTRA_STREAM, uri);
+            intent.putExtra(Intent.EXTRA_SUBJECT, "Spool diagnostics");
+            intent.setClipData(ClipData.newRawUri("Spool diagnostics", uri));
+            intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+            if (intent.resolveActivity(context.getPackageManager()) == null)
+                return false;
+            return startResolvedActivity(context, Intent.createChooser(intent, "Share diagnostics"));
+        } catch (IOException | RuntimeException exception) {
+            Log.e(TAG, "Could not share diagnostics", exception);
+            return false;
+        }
+    }
+
+    private static void writeZip(File root, File archive) throws IOException
+    {
+        try (ZipOutputStream output = new ZipOutputStream(new BufferedOutputStream(new FileOutputStream(archive)))) {
+            addDirectoryToZip(root, root, output);
+        }
+    }
+
+    private static void addDirectoryToZip(File root, File directory, ZipOutputStream output) throws IOException
+    {
+        File[] files = directory.listFiles();
+        if (files == null)
+            throw new IOException("Could not read diagnostics directory");
+        Arrays.sort(files, Comparator.comparing(File::getName));
+        byte[] buffer = new byte[64 * 1024];
+        for (File file : files) {
+            if (file.equals(root) || file.equals(directory))
+                continue;
+            if (file.isDirectory()) {
+                addDirectoryToZip(root, file, output);
+                continue;
+            }
+            if (!file.isFile())
+                continue;
+            String entryName = root.toPath().relativize(file.toPath()).toString().replace(File.separatorChar, '/');
+            output.putNextEntry(new ZipEntry(entryName));
+            try (BufferedInputStream input = new BufferedInputStream(new FileInputStream(file))) {
+                int count;
+                while ((count = input.read(buffer)) != -1)
+                    output.write(buffer, 0, count);
+            }
+            output.closeEntry();
         }
     }
 
