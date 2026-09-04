@@ -6,7 +6,6 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 source "$ROOT/tools/lib/manifest-sources.sh"
 ABI="${ANDROID_ABI:-x86_64}"
 QT_VERSION="${QT_VERSION:-$(toolchain_field "$ROOT" qt.version)}"
-QT_PREFIX="${QT_ANDROID_PREFIX:-$ROOT/build/android/qt/$QT_VERSION/android_${ABI//-/_}}"
 DEPS_PREFIX="${ANDROID_DEPS_PREFIX:-$ROOT/build/android/deps/$ABI}"
 JOBS="${ANDROID_BUILD_JOBS:-$(nproc)}"
 # The Nix setup hooks export every host build input through these variables, and
@@ -27,12 +26,15 @@ export QT_ADDITIONAL_PACKAGES_PREFIX_PATH="$ROOT/build/android/qcoro/$ABI:$DEPS_
 NDK_PREFIX_PATH=/usr
 
 case "$ABI" in
-  arm64-v8a | x86_64) ;;
+  arm64-v8a) QT_ABI_DIR=android_arm64_v8a ;;
+  armeabi-v7a) QT_ABI_DIR=android_armv7 ;;
+  x86_64) QT_ABI_DIR=android_x86_64 ;;
   *)
     echo "error: unsupported Android ABI: $ABI" >&2
     exit 1
     ;;
 esac
+QT_PREFIX="${QT_ANDROID_PREFIX:-$ROOT/build/android/qt/$QT_VERSION/$QT_ABI_DIR}"
 
 : "${ANDROID_HOME:?run through nix develop .#android}"
 : "${ANDROID_NDK_ROOT:?run through nix develop .#android}"

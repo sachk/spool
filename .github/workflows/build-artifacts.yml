@@ -717,9 +717,22 @@ jobs:
           retention-days: 1
 
   android-apks:
-    name: Android and Android TV APKs
+    name: Android ${{ matrix.abi }} APKs
     runs-on: ubuntu-24.04
     timeout-minutes: 150
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - abi: arm64-v8a
+            variants: phone tv
+            publish: true
+          - abi: armeabi-v7a
+            variants: tv
+            publish: true
+          - abi: x86_64
+            variants: phone tv
+            publish: false
     needs: lint
     if: ${{ github.event_name != 'workflow_dispatch' || inputs.build_android }}
     env:
@@ -771,6 +784,7 @@ jobs:
         run: |
           set -euo pipefail
           echo "mpv=$(git rev-parse HEAD:mpv)" >>"$GITHUB_OUTPUT"
+          # shellcheck disable=SC2016
           toolchain="$(nix develop .#android -c sh -c \
             'printf "%s\n%s\n" "$ANDROID_NDK_ROOT" "$SPOOL_ANDROID_QT_HOST"')"
           printf 'toolchain inputs:\n%s\n' "$toolchain"
@@ -784,21 +798,19 @@ jobs:
             build/android/qt
             build/android/deps
             build/android/qcoro
-          key: android5-${{ runner.os }}-${{ steps.cache-inputs.outputs.mpv }}-${{ steps.cache-inputs.outputs.toolchain }}-${{ hashFiles('tools/android/build-dependencies.sh', 'tools/android/build-qt6.sh', 'tools/ffmpeg-capabilities.py', 'tools/lib/build-common.sh', 'tools/lib/manifest-sources.sh', 'tools/manifests/android-third-party.json', 'tools/manifests/ffmpeg-capabilities.json', 'tools/manifests/toolchain.json', 'tools/manifests/qt-android-6.11.json') }}
+          key: android6-${{ matrix.abi }}-${{ runner.os }}-${{ steps.cache-inputs.outputs.mpv }}-${{ steps.cache-inputs.outputs.toolchain }}-${{ hashFiles('tools/android/build-dependencies.sh', 'tools/android/build-qt6.sh', 'tools/ffmpeg-capabilities.py', 'tools/lib/build-common.sh', 'tools/lib/manifest-sources.sh', 'tools/manifests/android-third-party.json', 'tools/manifests/ffmpeg-capabilities.json', 'tools/manifests/toolchain.json', 'tools/manifests/qt-android-6.11.json') }}
 
       - name: Build cached Android toolchains
         if: ${{ steps.android-cache.outputs.cache-hit != 'true' }}
         run: |
-          for abi in arm64-v8a x86_64; do
-            nix develop .#android -c env \
-              ANDROID_ABI="$abi" \
-              QT_ANDROID_MEMORY_PER_JOB_MIB=2500 \
-              ANDROID_DEPS_MEMORY_PER_JOB_MIB=2500 \
-              bash -c '
-                bash tools/android/build-dependencies.sh all
-                bash tools/android/build-qt6.sh all
-              '
-          done
+          nix develop .#android -c env \
+            ANDROID_ABI="${{ matrix.abi }}" \
+            QT_ANDROID_MEMORY_PER_JOB_MIB=2500 \
+            ANDROID_DEPS_MEMORY_PER_JOB_MIB=2500 \
+            bash -c '
+              bash tools/android/build-dependencies.sh all
+              bash tools/android/build-qt6.sh all
+            '
 
       - name: Prepare Android release keystore
         if: ${{ inputs.release }}
@@ -810,16 +822,15 @@ jobs:
           printf '%s' "$KEYSTORE_BASE64" | base64 --decode >"$RUNNER_TEMP/spool-release.p12"
           chmod 600 "$RUNNER_TEMP/spool-release.p12"
 
-      - name: Build phone and TV APK variants together
+      - name: Build requested Android APK variants
         env:
           SPOOL_ANDROID_KEYSTORE_PATH: ${{ inputs.release && format('{0}/spool-release.p12', runner.temp) || '' }}
           SPOOL_ANDROID_KEYSTORE_ALIAS: ${{ secrets.ANDROID_RELEASE_KEY_ALIAS }}
           SPOOL_ANDROID_KEYSTORE_STORE_PASS: ${{ secrets.ANDROID_RELEASE_KEYSTORE_PASSWORD }}
           SPOOL_ANDROID_KEYSTORE_KEY_PASS: ${{ secrets.ANDROID_RELEASE_KEY_PASSWORD }}
-        run: |
-          for abi in arm64-v8a x86_64; do
-            nix develop .#android -c env ANDROID_ABI="$abi" bash tools/android/build-apks.sh
-          done
+          ANDROID_ABI: ${{ matrix.abi }}
+          SPOOL_ANDROID_VARIANTS: ${{ matrix.variants }}
+        run: nix develop .#android -c bash tools/android/build-apks.sh
 
       - name: Verify Android release signing identity
         if: ${{ inputs.release }}
@@ -846,13 +857,14 @@ jobs:
           key: ${{ steps.android-cache.outputs.cache-primary-key }}
 
       - name: Launch-test both variants in headless emulator
+        if: ${{ matrix.abi == 'x86_64' }}
         run: |
           nix develop .#android -c bash tools/android/emulator-launch-test.sh \
             dist/android/spool-phone-x86_64.apk \
             dist/android/spool-tv-x86_64.apk
 
       - name: Upload launch-test diagnostics
-        if: failure()
+        if: ${{ failure() && matrix.abi == 'x86_64' }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.0
         with:
           name: spool-for-jellyfin-android-launch-test
@@ -862,11 +874,10 @@ jobs:
           retention-days: 1
 
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.0
+        if: ${{ matrix.publish }}
         with:
-          name: spool-for-jellyfin-android-apks
-          path: |
-            dist/android/spool-phone-arm64-v8a.apk
-            dist/android/spool-tv-arm64-v8a.apk
+          name: spool-for-jellyfin-android-apks-${{ matrix.abi }}
+          path: dist/android/*.apk
           retention-days: 1
 
   windows-x64:

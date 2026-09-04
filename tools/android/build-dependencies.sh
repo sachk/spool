@@ -27,6 +27,13 @@ case "$ABI" in
     FFMPEG_ARCH=aarch64
     OPENSSL_TARGET=android-arm64
     ;;
+  armeabi-v7a)
+    TRIPLE=armv7a-linux-androideabi
+    CPU_FAMILY=arm
+    CPU=armv7
+    FFMPEG_ARCH=arm
+    OPENSSL_TARGET=android-arm
+    ;;
   x86_64)
     TRIPLE=x86_64-linux-android
     CPU_FAMILY=x86_64

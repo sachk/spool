@@ -28,6 +28,10 @@ case "$ABI" in
     QT_ABI_DIR=android_arm64_v8a
     NDK_TRIPLE=aarch64-linux-android
     ;;
+  armeabi-v7a)
+    QT_ABI_DIR=android_armv7
+    NDK_TRIPLE=arm-linux-androideabi
+    ;;
   x86_64)
     QT_ABI_DIR=android_x86_64
     NDK_TRIPLE=x86_64-linux-android

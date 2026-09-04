@@ -127,7 +127,8 @@ jobs:
           add_row 'Linux — AppImage' '*-x86_64.AppImage'
           add_row 'LG webOS TV' '*_arm.ipk'
           add_row 'Android phone' 'spool-phone-arm64-v8a.apk'
-          add_row 'Android TV' 'spool-tv-arm64-v8a.apk'
+          add_row 'Android TV — 64-bit ARM' 'spool-tv-arm64-v8a.apk'
+          add_row 'Android TV — 32-bit ARM' 'spool-tv-armeabi-v7a.apk'
 
           {
             cat generated-notes.md
@@ -171,8 +172,10 @@ jobs:
           set -euo pipefail
           phone='release-assets/spool-phone-arm64-v8a.apk'
           tv='release-assets/spool-tv-arm64-v8a.apk'
+          tv_armv7='release-assets/spool-tv-armeabi-v7a.apk'
           test -f "$phone"
           test -f "$tv"
+          test -f "$tv_armv7"
           version="${TAG#v}"
           IFS=. read -r major minor patch <<<"$version"
           version_code=$((major * 100000000 + minor * 100000 + patch * 100 + 99))
@@ -189,6 +192,9 @@ jobs:
             --arg tvUrl "$base/$(basename "$tv")" \
             --arg tvSha "$(sha256sum "$tv" | cut -d' ' -f1)" \
             --argjson tvSize "$(stat -c%s "$tv")" \
+            --arg tvArmv7Url "$base/$(basename "$tv_armv7")" \
+            --arg tvArmv7Sha "$(sha256sum "$tv_armv7" | cut -d' ' -f1)" \
+            --argjson tvArmv7Size "$(stat -c%s "$tv_armv7")" \
             '{
               schemaVersion: 1,
               releases: [{
@@ -199,7 +205,8 @@ jobs:
                 notes: $notes,
                 assets: {
                   "phone-arm64-v8a": {url: $phoneUrl, sha256: $phoneSha, size: $phoneSize},
-                  "tv-arm64-v8a": {url: $tvUrl, sha256: $tvSha, size: $tvSize}
+                  "tv-arm64-v8a": {url: $tvUrl, sha256: $tvSha, size: $tvSize},
+                  "tv-armeabi-v7a": {url: $tvArmv7Url, sha256: $tvArmv7Sha, size: $tvArmv7Size}
                 }
               }]
             }' >update-pages/updates/android.json
