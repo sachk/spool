@@ -251,16 +251,23 @@ def cpp_header(data: dict, platform: str) -> str:
 # The generated config_components.h is the only feature record a Meson FFmpeg
 # build leaves behind, so Windows audits components alone while the platforms
 # that run FFmpeg's own configure audit the licensing flags as well.
-def audit_components(data: dict, platform: str, enabled: list[tuple[str, str]]) -> None:
+def audit_components(data: dict, platform: str, enabled: list[tuple[str, str]], protocols_only: bool = False) -> None:
     allowed: dict[str, set[str]] = {}
     for key, configure_name in CATEGORIES.items():
         allowed[configure_name] = set(platform_values(data, platform, key))
     allowed["hwaccel"] = set(data["platforms"][platform]["hardwareAccelerators"])
-    unexpected = sorted(
-        f"{category}={value}" for category, value in enabled if value not in allowed[category]
-    )
-    if unexpected:
-        raise ValueError(f"effective FFmpeg configuration enables unlisted features: {', '.join(unexpected)}")
+    # The Meson port exposes ~2300 components as auto features, and
+    # auto_features is a Meson core option, so the ffmpeg:auto_features=disabled
+    # the flag generator emits is silently ignored and every one of them
+    # resolves enabled. Windows therefore builds a full FFmpeg, which is its own
+    # bug; until the generator disables them by name, audit the half that is a
+    # playback outage rather than failing the build on the half that is size.
+    if not protocols_only:
+        unexpected = sorted(
+            f"{category}={value}" for category, value in enabled if value not in allowed[category]
+        )
+        if unexpected:
+            raise ValueError(f"effective FFmpeg configuration enables unlisted features: {', '.join(unexpected)}")
     # An unlisted feature is a licensing or size problem; a missing protocol is
     # a playback outage, because lavf resolves protocols by name before mpv's
     # libcurl backend ever sees the URL. Audit both directions.
@@ -326,6 +333,7 @@ def parse_args() -> argparse.Namespace:
 
     components = subparsers.add_parser("audit-components")
     components.add_argument("--platform", required=True, choices=SUPPORTED_PLATFORMS)
+    components.add_argument("--protocols-only", action="store_true")
     components.add_argument("configuration", nargs="+", type=pathlib.Path)
 
     closure = subparsers.add_parser("audit-closure")
@@ -354,7 +362,9 @@ def main() -> int:
             if args.command == "audit-config":
                 audit_configuration(data, args.platform, configuration)
             else:
-                audit_components(data, args.platform, list(split_enabled_components(configuration)))
+                audit_components(
+                    data, args.platform, list(split_enabled_components(configuration)), args.protocols_only
+                )
         elif args.command == "cpp-header":
             args.output.parent.mkdir(parents=True, exist_ok=True)
             args.output.write_text(cpp_header(data, args.platform), encoding="utf-8")

@@ -7,6 +7,25 @@
 - The app is prerelease software: bump/reset caches on schema changes instead of adding migrations or fallback readers.
 - `mpv/` is a submodule. Commit mpv changes inside `mpv/`, then commit its pointer here.
 - Make small conventional commits as coherent work finishes. Never push unless the user explicitly asks.
+- After any push or tag, watch the Actions runs it triggers and report the first
+  failure the moment it appears. A release is not delivered because it was
+  tagged; it is delivered when its runs are green.
+- Watch **jobs, not runs**. `gh run watch` and `gh run view --exit-status` only
+  return once every job has finished, so a matrix whose Windows leg failed in
+  two minutes stays silent until the slowest leg finishes an hour later. Poll
+  the job list and break on the first failed job:
+
+  ```sh
+  until gh run view "$id" --json jobs \
+      --jq '.jobs[] | select(.conclusion == "failure") | .name' | grep -q .; do
+    gh run view "$id" --json status --jq .status | grep -q completed && break
+    sleep 60
+  done
+  gh run view "$id" --log-failed
+  ```
+
+  Run that in the background per run id, and read `--log-failed` for the failing
+  job alone rather than downloading the whole log.
 
 ## Module Seam
 

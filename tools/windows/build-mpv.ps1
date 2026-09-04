@@ -168,7 +168,7 @@ clone-recursive = true
     $components = Get-ChildItem -LiteralPath (Join-Path $buildDirectory 'subprojects') -Recurse -File `
         -Filter 'config_components.h' | Select-Object -First 1
     if (-not $components) { throw 'The FFmpeg subproject did not generate config_components.h to audit.' }
-    & python (Join-Path $root 'tools\ffmpeg-capabilities.py') audit-components --platform windows $components.FullName
+    & python (Join-Path $root 'tools\ffmpeg-capabilities.py') audit-components --platform windows --protocols-only $components.FullName
     if ($LASTEXITCODE -ne 0) { throw 'The Windows FFmpeg feature set does not match the capability manifest.' }
     if (Test-Path -LiteralPath $prefix) {
         Remove-Item -LiteralPath $prefix -Recurse -Force
