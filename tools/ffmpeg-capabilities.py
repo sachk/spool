@@ -153,6 +153,45 @@ def configure_flags(data: dict, platform: str) -> list[str]:
     return flags
 
 
+# The Meson port declares every component as an auto feature. auto_features is
+# a Meson core option and cannot be scoped to a subproject, so the
+# ffmpeg:auto_features=disabled below is accepted and ignored, and each of the
+# ~2300 components resolves enabled -- a full FFmpeg, which is not what any
+# other platform builds. Meson has no wildcard, so the only way to say no is by
+# name, read out of the pinned port's own option list rather than a copy here
+# that would rot the first time the pin moves.
+MESON_COMPONENT_SUFFIXES = ("protocol", "demuxer", "decoder", "encoder", "muxer", "parser", "bsf", "filter", "hwaccel")
+MESON_OPTION_PATTERN = re.compile(r"^option\('([a-z0-9_]+)'", re.MULTILINE)
+
+
+def meson_component_options(option_text: str) -> dict[str, list[str]]:
+    found: dict[str, list[str]] = {suffix: [] for suffix in MESON_COMPONENT_SUFFIXES}
+    for name in MESON_OPTION_PATTERN.findall(option_text):
+        for suffix in MESON_COMPONENT_SUFFIXES:
+            if name.endswith(f"_{suffix}"):
+                found[suffix].append(name)
+                break
+    return found
+
+
+def meson_disable_flags(data: dict, platform: str, option_text: str) -> list[str]:
+    allowed: dict[str, set[str]] = {}
+    for key, suffix in CATEGORIES.items():
+        values = platform_values(data, platform, key)
+        if key == "filters":
+            values = [MESON_FILTER_NAMES.get(value, value) for value in values]
+        allowed[suffix] = {f"{value}_{suffix}" for value in values}
+    allowed["hwaccel"] = {
+        f"{value}_hwaccel" for value in data["platforms"][platform]["hardwareAccelerators"]
+    }
+    flags = []
+    for suffix, options in meson_component_options(option_text).items():
+        for option in options:
+            if option not in allowed.get(suffix, set()):
+                flags.append(f"ffmpeg:{option}=disabled")
+    return sorted(flags)
+
+
 def meson_flags(data: dict, platform: str) -> list[str]:
     if platform != "windows":
         raise ValueError("the Meson FFmpeg fallback is currently Windows-only")
@@ -326,6 +365,8 @@ def parse_args() -> argparse.Namespace:
     for command in ("configure", "meson"):
         child = subparsers.add_parser(command)
         child.add_argument("--platform", required=True, choices=SUPPORTED_PLATFORMS)
+        if command == "meson":
+            child.add_argument("--component-options", type=pathlib.Path)
 
     audit = subparsers.add_parser("audit-config")
     audit.add_argument("--platform", required=True, choices=SUPPORTED_PLATFORMS)
@@ -354,7 +395,12 @@ def main() -> int:
         if args.command == "configure":
             print("\n".join(configure_flags(data, args.platform)))
         elif args.command == "meson":
-            print("\n".join(meson_flags(data, args.platform)))
+            flags = meson_flags(data, args.platform)
+            if args.component_options:
+                flags += meson_disable_flags(
+                    data, args.platform, args.component_options.read_text(encoding="utf-8")
+                )
+            print("\n".join(flags))
         elif args.command in ("audit-config", "audit-components"):
             configuration = "\n".join(
                 path.read_text(encoding="utf-8", errors="replace") for path in args.configuration

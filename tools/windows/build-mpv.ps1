@@ -88,6 +88,16 @@ depth = 1
 dependency_names = libavcodec, libavdevice, libavfilter, libavformat, libavutil, libswresample, libswscale
 "@ | Set-Content -LiteralPath (Join-Path $subprojects 'ffmpeg.wrap') -Encoding ascii
 
+    # Fetched before configuring so the feature generator can read the pinned
+    # port's own option list rather than a copy in this repository that would
+    # rot the first time the wrap revision moves.
+    meson subprojects download ffmpeg
+    if ($LASTEXITCODE -ne 0) { throw 'Failed to download the pinned FFmpeg source.' }
+    $ffmpegComponentOptions = Join-Path $subprojects 'ffmpeg\meson_options.txt'
+    if (-not (Test-Path -LiteralPath $ffmpegComponentOptions)) {
+        throw "The FFmpeg subproject did not provide meson_options.txt to derive its feature set from."
+    }
+
     @'
 [wrap-git]
 url = https://github.com/libass/libass
@@ -138,7 +148,7 @@ clone-recursive = true
         '--buildtype', 'release',
         '--default-library', 'shared',
         '--wrap-mode', 'forcefallback'
-    ) + @(Get-MpvFeatureArguments -Platform windows -IncludeSubprojects)
+    ) + @(Get-MpvFeatureArguments -Platform windows -IncludeSubprojects -ComponentOptions $ffmpegComponentOptions)
 
     if (Test-Path (Join-Path $buildDirectory 'build.ninja')) {
         $setupArguments = @('setup', '--reconfigure') + $setupArguments[1..($setupArguments.Count - 1)]
@@ -168,7 +178,7 @@ clone-recursive = true
     $components = Get-ChildItem -LiteralPath (Join-Path $buildDirectory 'subprojects') -Recurse -File `
         -Filter 'config_components.h' | Select-Object -First 1
     if (-not $components) { throw 'The FFmpeg subproject did not generate config_components.h to audit.' }
-    & python (Join-Path $root 'tools\ffmpeg-capabilities.py') audit-components --platform windows --protocols-only $components.FullName
+    & python (Join-Path $root 'tools\ffmpeg-capabilities.py') audit-components --platform windows $components.FullName
     if ($LASTEXITCODE -ne 0) { throw 'The Windows FFmpeg feature set does not match the capability manifest.' }
     if (Test-Path -LiteralPath $prefix) {
         Remove-Item -LiteralPath $prefix -Recurse -Force

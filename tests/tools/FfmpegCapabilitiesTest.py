@@ -61,6 +61,40 @@ def main() -> int:
     assert {"ffmpeg:network=enabled", "ffmpeg:schannel=enabled"} <= meson
     assert {"ffmpeg:https_protocol=enabled", "ffmpeg:tls_protocol=enabled"} <= meson
     assert "ffmpeg:mjpeg_decoder=enabled" not in meson
+
+    # Meson has no wildcard and auto_features cannot be scoped to a
+    # subproject, so anything the port declares and the manifest omits has to
+    # be refused by name or it is built.
+    with tempfile.TemporaryDirectory() as options_directory:
+        options = Path(options_directory) / "meson_options.txt"
+        options.write_text(
+            "option('hls_demuxer', type: 'feature', value: 'auto')\n"
+            "option('mjpeg_decoder', type: 'feature', value: 'auto')\n"
+            "option('https_protocol', type: 'feature', value: 'auto')\n"
+            "option('gopher_protocol', type: 'feature', value: 'auto')\n"
+            "option('asrc_abuffer_filter', type: 'feature', value: 'auto')\n"
+            "option('showinfo_filter', type: 'feature', value: 'auto')\n"
+            "option('gpl', type: 'feature', value: 'disabled')\n",
+            encoding="utf-8",
+        )
+        scoped = set(
+            run(
+                script, manifest, "meson", "--platform", "windows", "--component-options", str(options)
+            ).stdout.splitlines()
+        )
+        assert "ffmpeg:mjpeg_decoder=disabled" in scoped
+        assert "ffmpeg:gopher_protocol=disabled" in scoped
+        assert "ffmpeg:showinfo_filter=disabled" in scoped
+        assert "ffmpeg:hls_demuxer=enabled" in scoped
+        assert "ffmpeg:https_protocol=enabled" in scoped
+        # The manifest names this filter abuffer; the port calls the option
+        # asrc_abuffer, and disabling it by the wrong name would silently drop
+        # the audio graph's source.
+        assert "ffmpeg:asrc_abuffer_filter=disabled" not in scoped
+        # An option that is not a component must be left alone entirely.
+        assert not any(flag.startswith("ffmpeg:gpl=") and flag.endswith("disabled") for flag in scoped - meson)
+        for name in ("mjpeg_decoder", "gopher_protocol", "showinfo_filter"):
+            assert f"ffmpeg:{name}=enabled" not in scoped
     assert "ffmpeg:png_decoder=enabled" not in meson
     assert "ffmpeg:webp_decoder=enabled" not in meson
 

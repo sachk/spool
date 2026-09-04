@@ -118,7 +118,8 @@ function Initialize-WindowsMpvBuildEnvironment {
 function Get-MpvFeatureArguments {
     param(
         [Parameter(Mandatory)] [string] $Platform,
-        [switch] $IncludeSubprojects
+        [switch] $IncludeSubprojects,
+        [string] $ComponentOptions
     )
 
     $manifestPath = Join-Path (Get-RepositoryRoot) 'tools\manifests\mpv-native.json'
@@ -133,7 +134,15 @@ function Get-MpvFeatureArguments {
         $arguments += @($manifest.subprojects.$Platform)
         if ($Platform -eq 'windows') {
             $generator = Join-Path (Get-RepositoryRoot) 'tools\ffmpeg-capabilities.py'
-            $generated = @(& python $generator meson --platform windows)
+            # The port declares every component as an auto feature, and Meson's
+            # auto_features is a core option that cannot be scoped to a
+            # subproject, so anything not named here is built. Hand the
+            # generator the port's own option list and let it say no by name.
+            $generatorArguments = @('meson', '--platform', 'windows')
+            if ($ComponentOptions -and (Test-Path -LiteralPath $ComponentOptions)) {
+                $generatorArguments += @('--component-options', $ComponentOptions)
+            }
+            $generated = @(& python $generator @generatorArguments)
             if ($LASTEXITCODE -ne 0) {
                 throw 'Generating the manifest-controlled Windows FFmpeg feature set failed.'
             }
