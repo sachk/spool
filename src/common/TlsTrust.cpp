@@ -1,10 +1,13 @@
 #include "TlsTrust.h"
 
 #include <QCryptographicHash>
+#include <QDir>
 #include <QMetaObject>
 #include <QNetworkAccessManager>
+#include <QSaveFile>
 #include <QSettings>
 #include <QSslConfiguration>
+#include <QStandardPaths>
 #include <QThread>
 #include <QWebSocket>
 
@@ -25,7 +28,58 @@ namespace {
         return messages.join(QStringLiteral("\n"));
     }
 
+    // The remembered certificates, read straight from settings rather than
+    // through a controller: the bundle is written before any of the UI exists.
+    QList<QSslCertificate> rememberedCertificates()
+    {
+        QList<QSslCertificate> certificates;
+        QSettings settings;
+        settings.beginGroup(QStringLiteral("tls/trusted"));
+        const QStringList groups = settings.childGroups();
+        for (const QString& group : groups) {
+            settings.beginGroup(group);
+            const QByteArray storedFingerprint = settings.value(QStringLiteral("fingerprint")).toByteArray().toLower();
+            const QByteArray pem = settings.value(QStringLiteral("certificatePem")).toByteArray();
+            settings.endGroup();
+            const QSslCertificate certificate(pem, QSsl::Pem);
+            // Same check the controller makes before trusting one: a settings
+            // file edited by hand must not widen what playback accepts.
+            if (!certificate.isNull() && TlsTrustController::fingerprint(certificate) == storedFingerprint)
+                certificates.push_back(certificate);
+        }
+        settings.endGroup();
+        return certificates;
+    }
+
 } // namespace
+
+QString writeTrustBundle()
+{
+    QList<QSslCertificate> certificates = QSslConfiguration::defaultConfiguration().caCertificates();
+    certificates += rememberedCertificates();
+    if (certificates.isEmpty())
+        return {};
+
+    const QString directory = QStandardPaths::writableLocation(QStandardPaths::AppLocalDataLocation);
+    if (directory.isEmpty() || !QDir().mkpath(directory))
+        return {};
+
+    const QString path = QDir(directory).filePath(QStringLiteral("ca-bundle.pem"));
+    QSaveFile file(path);
+    if (!file.open(QIODevice::WriteOnly | QIODevice::Truncate))
+        return {};
+    for (const QSslCertificate& certificate : std::as_const(certificates)) {
+        const QByteArray pem = certificate.toPem();
+        if (!pem.isEmpty() && file.write(pem) != pem.size())
+            return {};
+    }
+    // Rewritten every launch so a certificate the viewer forgets, or a platform
+    // store that changes under the app, does not linger in playback's trust.
+    if (!file.commit())
+        return {};
+    QFile::setPermissions(path, QFileDevice::ReadOwner | QFileDevice::WriteOwner);
+    return path;
+}
 
 TlsTrustController::TlsTrustController(QObject *parent)
     : QObject(parent)

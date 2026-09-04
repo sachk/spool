@@ -26,6 +26,19 @@ class QWebSocket;
 
 namespace JellyfinNative {
 
+// Writes everything the app trusts -- the platform store Qt resolves, plus any
+// certificate the viewer chose to remember -- to a PEM file and returns its
+// path, or an empty string if it could not be written.
+//
+// libcurl carries playback and does not share Qt's trust. Left to itself it
+// falls back to a CA location chosen when curl was compiled, which is a
+// standing guess about the device: Android 14 moved the system store into the
+// Conscrypt APEX, so a build naming /system/etc/security/cacerts verifies
+// nothing on a current phone even though Qt, which asks Java, is fine. Reading
+// the answer out of Qt keeps one trust store for the whole app, and is what
+// lets a remembered self-signed certificate reach playback at all.
+QString writeTrustBundle();
+
 class TlsTrustController final : public QObject {
     Q_OBJECT
     Q_PROPERTY(bool pending READ pending NOTIFY pendingChanged)

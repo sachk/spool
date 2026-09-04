@@ -369,9 +369,18 @@ bool PlayerController::configureAndInitializeMpv(mpv_handle *handle, bool embedd
     qInfo().nospace() << "player: curl profile source=MpvOptionProfile platform="
                       << platformPlaybackBackendName(embeddedVideo) << " requestsPerStream=" << network.parallelRequests
                       << " rangeBytes=" << network.rangeBytes << " ringBytes=" << network.ringBytes;
-    auto applicationOptions = MpvOptionProfile::applicationOptions(platform, m_audioOutputMode, mpvLogPath(),
-        m_demuxerMaxBytes, m_demuxerMaxBackBytes, parallelRequests, embeddedVideo, mpvShaderCachePath(),
-        MpvOptionProfile::systemCertificateBundle());
+    // Qt's trust first: it resolves the platform store through the OS rather
+    // than a path chosen when libcurl was compiled, and it is the only place a
+    // certificate the viewer remembered can reach playback. The path probe
+    // stays behind it for the case where the bundle cannot be written.
+    QByteArray certificateBundle = QFile::encodeName(writeTrustBundle());
+    if (certificateBundle.isEmpty())
+        certificateBundle = MpvOptionProfile::systemCertificateBundle();
+    if (certificateBundle.isEmpty())
+        qWarning() << "player: no certificate bundle; playback TLS will use libcurl's built-in trust";
+    auto applicationOptions
+        = MpvOptionProfile::applicationOptions(platform, m_audioOutputMode, mpvLogPath(), m_demuxerMaxBytes,
+            m_demuxerMaxBackBytes, parallelRequests, embeddedVideo, mpvShaderCachePath(), certificateBundle);
     applicationOptions.push_back({ "sub-fonts-dir", m_subtitleFontsPath });
     // mpv's OSD — the performance stats overlay among it — is drawn by libass
     // too, and it looks for fonts under its own options rather than the
