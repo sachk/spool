@@ -147,8 +147,11 @@ clone-recursive = true
         '--libdir', 'lib',
         '--buildtype', 'release',
         '--default-library', 'shared',
-        '--wrap-mode', 'forcefallback'
-    ) + @(Get-MpvFeatureArguments -Platform windows -IncludeSubprojects -ComponentOptions $ffmpegComponentOptions)
+        '--wrap-mode', 'forcefallback',
+        '--native-file', (Write-FfmpegNativeFile `
+            -ComponentOptions $ffmpegComponentOptions `
+            -Destination (Join-Path $dependencyRoot 'ffmpeg-features.ini'))
+    ) + @(Get-MpvFeatureArguments -Platform windows -IncludeSubprojects)
 
     if (Test-Path (Join-Path $buildDirectory 'build.ninja')) {
         $setupArguments = @('setup', '--reconfigure') + $setupArguments[1..($setupArguments.Count - 1)]

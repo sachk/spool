@@ -229,6 +229,27 @@ def meson_flags(data: dict, platform: str) -> list[str]:
     )
     flags.extend(("ffmpeg:sdl2=disabled", "ffmpeg:bzlib=disabled", "ffmpeg:iconv=disabled", "ffmpeg:lzma=disabled"))
     return flags
+# Windows caps a command line at 32767 characters and refusing ~2200 components
+# by name is far past it: meson.exe fails to start at all, with "The filename or
+# extension is too long". Meson reads the same settings from a native file, so
+# the FFmpeg options travel as a file and only mpv's own stay on the argv.
+def meson_native_file(flags: Iterable[str]) -> str:
+    builtin: list[str] = []
+    project: list[str] = []
+    for flag in flags:
+        name, _, value = flag.partition("=")
+        name = name.removeprefix("ffmpeg:")
+        # auto_features is a Meson core option: it is global, cannot be scoped
+        # to a subproject, and is the reason every component had to be named.
+        # Carrying it here would only reassert something Meson ignores.
+        if name == "auto_features":
+            continue
+        entry = f"{name} = '{value}'"
+        (builtin if name == "default_library" else project).append(entry)
+    lines = ["[ffmpeg:built-in options]", *sorted(builtin), "", "[ffmpeg:project options]", *sorted(project), ""]
+    return "\n".join(lines)
+
+
 def split_enabled_values(configuration: str) -> Iterable[tuple[str, str]]:
     pattern = re.compile(
         r"--enable-(protocol|demuxer|parser|decoder|encoder|filter|muxer|bsf|hwaccel)=([^\s'\"]+)"
@@ -290,7 +311,18 @@ def cpp_header(data: dict, platform: str) -> str:
 # The generated config_components.h is the only feature record a Meson FFmpeg
 # build leaves behind, so Windows audits components alone while the platforms
 # that run FFmpeg's own configure audit the licensing flags as well.
+# The Meson port writes filters into config_components.h under its own option
+# names, which FFmpeg's configure does not: it keeps filters out of that header
+# entirely. Read them back through the same mapping the flag generator uses, or
+# the manifest's abuffer looks like an unlisted asrc_abuffer.
+MESON_FILTER_OPTIONS = {option: name for name, option in MESON_FILTER_NAMES.items()}
+
+
 def audit_components(data: dict, platform: str, enabled: list[tuple[str, str]], protocols_only: bool = False) -> None:
+    enabled = [
+        (category, MESON_FILTER_OPTIONS.get(value, value) if category == "filter" else value)
+        for category, value in enabled
+    ]
     allowed: dict[str, set[str]] = {}
     for key, configure_name in CATEGORIES.items():
         allowed[configure_name] = set(platform_values(data, platform, key))
@@ -367,6 +399,7 @@ def parse_args() -> argparse.Namespace:
         child.add_argument("--platform", required=True, choices=SUPPORTED_PLATFORMS)
         if command == "meson":
             child.add_argument("--component-options", type=pathlib.Path)
+            child.add_argument("--native-file", type=pathlib.Path)
 
     audit = subparsers.add_parser("audit-config")
     audit.add_argument("--platform", required=True, choices=SUPPORTED_PLATFORMS)
@@ -400,7 +433,11 @@ def main() -> int:
                 flags += meson_disable_flags(
                     data, args.platform, args.component_options.read_text(encoding="utf-8")
                 )
-            print("\n".join(flags))
+            if args.native_file:
+                args.native_file.parent.mkdir(parents=True, exist_ok=True)
+                args.native_file.write_text(meson_native_file(flags), encoding="utf-8")
+            else:
+                print("\n".join(flags))
         elif args.command in ("audit-config", "audit-components"):
             configuration = "\n".join(
                 path.read_text(encoding="utf-8", errors="replace") for path in args.configuration

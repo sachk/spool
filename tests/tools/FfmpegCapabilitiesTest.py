@@ -95,6 +95,27 @@ def main() -> int:
         assert not any(flag.startswith("ffmpeg:gpl=") and flag.endswith("disabled") for flag in scoped - meson)
         for name in ("mjpeg_decoder", "gopher_protocol", "showinfo_filter"):
             assert f"ffmpeg:{name}=enabled" not in scoped
+
+        # Windows will not start a process with thousands of -D arguments, so
+        # the same settings have to reach Meson as a native file instead.
+        native = Path(options_directory) / "ffmpeg-features.ini"
+        run(
+            script, manifest, "meson", "--platform", "windows",
+            "--component-options", str(options), "--native-file", str(native),
+        )
+        text = native.read_text(encoding="utf-8")
+        assert "[ffmpeg:project options]" in text
+        assert "[ffmpeg:built-in options]" in text
+        assert "mjpeg_decoder = 'disabled'" in text
+        assert "https_protocol = 'enabled'" in text
+        # default_library is a Meson built-in, not one of the port's options,
+        # and belongs in the other section or Meson rejects the file.
+        builtin, _, project = text.partition("[ffmpeg:project options]")
+        assert "default_library = 'static'" in builtin
+        assert "default_library" not in project
+        # auto_features is a core option Meson will not scope to a subproject;
+        # carrying it would only reassert the thing being worked around.
+        assert "auto_features" not in text
     assert "ffmpeg:png_decoder=enabled" not in meson
     assert "ffmpeg:webp_decoder=enabled" not in meson
 

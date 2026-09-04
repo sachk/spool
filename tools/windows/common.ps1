@@ -61,6 +61,28 @@ function Get-DefaultQtRoot {
     return "C:\Qt\$($qt.version)\$($qt.windowsKit)"
 }
 
+# Windows caps a command line at 32767 characters. Refusing ~2200 FFmpeg
+# components by name -- which is the only way to refuse them, because Meson has
+# no wildcard and its auto_features cannot be scoped to a subproject -- is well
+# past that, and meson.exe fails to start at all with "The filename or extension
+# is too long". Meson reads the same settings from a native file.
+function Write-FfmpegNativeFile {
+    param(
+        [Parameter(Mandatory)] [string] $ComponentOptions,
+        [Parameter(Mandatory)] [string] $Destination
+    )
+
+    $generator = Join-Path (Get-RepositoryRoot) 'tools\ffmpeg-capabilities.py'
+    & python $generator meson --platform windows --component-options $ComponentOptions --native-file $Destination
+    if ($LASTEXITCODE -ne 0) {
+        throw 'Generating the manifest-controlled Windows FFmpeg feature set failed.'
+    }
+    if (-not (Test-Path -LiteralPath $Destination)) {
+        throw "The FFmpeg feature set was not written to $Destination."
+    }
+    return $Destination
+}
+
 function Initialize-WindowsBuildEnvironment {
     Import-MsvcEnvironment
 
@@ -115,11 +137,13 @@ function Initialize-WindowsMpvBuildEnvironment {
     $env:WINDRES = 'llvm-rc'
 }
 
+# The FFmpeg feature set is not returned here: it is thousands of options, far
+# past what Windows will accept on a command line, so it travels as a Meson
+# native file instead. See Write-FfmpegNativeFile.
 function Get-MpvFeatureArguments {
     param(
         [Parameter(Mandatory)] [string] $Platform,
-        [switch] $IncludeSubprojects,
-        [string] $ComponentOptions
+        [switch] $IncludeSubprojects
     )
 
     $manifestPath = Join-Path (Get-RepositoryRoot) 'tools\manifests\mpv-native.json'
@@ -132,22 +156,6 @@ function Get-MpvFeatureArguments {
     $arguments = @($manifest.common) + @($platformArguments)
     if ($IncludeSubprojects -and $manifest.subprojects.$Platform) {
         $arguments += @($manifest.subprojects.$Platform)
-        if ($Platform -eq 'windows') {
-            $generator = Join-Path (Get-RepositoryRoot) 'tools\ffmpeg-capabilities.py'
-            # The port declares every component as an auto feature, and Meson's
-            # auto_features is a core option that cannot be scoped to a
-            # subproject, so anything not named here is built. Hand the
-            # generator the port's own option list and let it say no by name.
-            $generatorArguments = @('meson', '--platform', 'windows')
-            if ($ComponentOptions -and (Test-Path -LiteralPath $ComponentOptions)) {
-                $generatorArguments += @('--component-options', $ComponentOptions)
-            }
-            $generated = @(& python $generator @generatorArguments)
-            if ($LASTEXITCODE -ne 0) {
-                throw 'Generating the manifest-controlled Windows FFmpeg feature set failed.'
-            }
-            $arguments += $generated
-        }
     }
     return @($arguments | ForEach-Object { "-D$_" })
 }
