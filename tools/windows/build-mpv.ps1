@@ -159,6 +159,17 @@ clone-recursive = true
     # resources while compiling the large static FFmpeg closure.
     meson compile -C $buildDirectory --jobs 4
     if ($LASTEXITCODE -ne 0) { throw 'Building Windows libmpv failed.' }
+
+    # FFmpeg is linked into libmpv here rather than installed, so the
+    # compliance test the other platforms run against a shared library has
+    # nothing to load. Audit the feature set Meson generated instead, which is
+    # what keeps Windows from quietly shipping an FFmpeg without the https
+    # protocol lavf's HLS demuxer resolves before every transcoded segment.
+    $components = Get-ChildItem -LiteralPath (Join-Path $buildDirectory 'subprojects') -Recurse -File `
+        -Filter 'config_components.h' | Select-Object -First 1
+    if (-not $components) { throw 'The FFmpeg subproject did not generate config_components.h to audit.' }
+    & python (Join-Path $root 'tools\ffmpeg-capabilities.py') audit-components --platform windows $components.FullName
+    if ($LASTEXITCODE -ne 0) { throw 'The Windows FFmpeg feature set does not match the capability manifest.' }
     if (Test-Path -LiteralPath $prefix) {
         Remove-Item -LiteralPath $prefix -Recurse -Force
     }

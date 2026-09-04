@@ -44,6 +44,22 @@ RUNTIME_DEMUXER_NAMES = {
 RUNTIME_DECODER_NAMES = {
     "movtext": "mov_text",
 }
+# libcurl, not FFmpeg, performs every network transfer: mpv points lavf's
+# io_open callback at stream_curl. lavf's HLS demuxer still resolves each
+# playlist and segment URL with avio_find_protocol_name() before it calls that
+# callback, so a build without these protocols registered rejects every
+# transcoded stream with "https or dtls protocol not found" long before curl
+# is consulted. tls and tcp come with https whether they are listed or not;
+# naming them keeps the audit's allow-list closed.
+TLS_PROTOCOLS = ("http", "https", "tcp", "tls")
+# Configure switches that also have to reach the Meson FFmpeg fallback, which
+# takes its features as options rather than a configure line.
+MESON_CONFIGURE_OPTIONS = {
+    "--enable-network": "network=enabled",
+    "--disable-network": "network=disabled",
+    "--enable-schannel": "schannel=enabled",
+    "--disable-schannel": "schannel=disabled",
+}
 
 
 def load_manifest(path: pathlib.Path) -> dict:
@@ -86,6 +102,12 @@ def load_manifest(path: pathlib.Path) -> dict:
             or hardware_accelerators != sorted(set(hardware_accelerators))
         ):
             raise ValueError(f"{platform} hardwareAccelerators must be sorted and contain no duplicates")
+    missing_tls = sorted(set(TLS_PROTOCOLS) - set(data["protocols"]))
+    if missing_tls:
+        raise ValueError(
+            "protocols must keep the network set lavf's HLS demuxer resolves by name: "
+            + ", ".join(missing_tls)
+        )
     forbidden = set(data.get("forbiddenConfigureFlags", []))
     emitted = set(configure_flags(data, "webos"))
     overlap = forbidden & emitted
@@ -146,10 +168,17 @@ def meson_flags(data: dict, platform: str) -> list[str]:
         "ffmpeg:postproc=disabled",
         "ffmpeg:w32threads=enabled",
         "ffmpeg:x86asm=enabled",
-        "ffmpeg:network=disabled",
         "ffmpeg:d3d11va=enabled",
         "ffmpeg:dxva2=enabled",
     ]
+    # auto_features=disabled above turns off everything this does not name, so
+    # the platform's configure switches have to be carried across rather than
+    # left to Meson's detection.
+    for flag in data["platforms"][platform]["configureFlags"]:
+        option = MESON_CONFIGURE_OPTIONS.get(flag)
+        if option is None:
+            raise ValueError(f"no Meson option is known for the {platform} configure flag {flag}")
+        flags.append(f"ffmpeg:{option}")
     flags.extend(f"ffmpeg:{library}=enabled" for library in data["libraries"])
     for key, suffix in CATEGORIES.items():
         values = platform_protocols(data, platform) if key == "protocols" else data[key]
@@ -219,6 +248,27 @@ def cpp_header(data: dict, platform: str) -> str:
     return "\n".join(lines)
 
 
+# The generated config_components.h is the only feature record a Meson FFmpeg
+# build leaves behind, so Windows audits components alone while the platforms
+# that run FFmpeg's own configure audit the licensing flags as well.
+def audit_components(data: dict, platform: str, enabled: list[tuple[str, str]]) -> None:
+    allowed: dict[str, set[str]] = {}
+    for key, configure_name in CATEGORIES.items():
+        allowed[configure_name] = set(platform_values(data, platform, key))
+    allowed["hwaccel"] = set(data["platforms"][platform]["hardwareAccelerators"])
+    unexpected = sorted(
+        f"{category}={value}" for category, value in enabled if value not in allowed[category]
+    )
+    if unexpected:
+        raise ValueError(f"effective FFmpeg configuration enables unlisted features: {', '.join(unexpected)}")
+    # An unlisted feature is a licensing or size problem; a missing protocol is
+    # a playback outage, because lavf resolves protocols by name before mpv's
+    # libcurl backend ever sees the URL. Audit both directions.
+    absent = sorted(allowed["protocol"] - {value for category, value in enabled if category == "protocol"})
+    if absent:
+        raise ValueError(f"effective FFmpeg configuration is missing protocols: {', '.join(absent)}")
+
+
 def audit_configuration(data: dict, platform: str, configuration: str) -> None:
     missing = [flag for flag in data["requiredDisableFlags"] if flag not in configuration]
     if missing:
@@ -229,17 +279,9 @@ def audit_configuration(data: dict, platform: str, configuration: str) -> None:
     gpl_enabled = "--enable-gpl" in configuration
     if gpl_enabled != data["platforms"][platform]["gpl"]:
         raise ValueError(f"effective FFmpeg GPL policy does not match platform {platform}")
-    allowed: dict[str, set[str]] = {}
-    for key, configure_name in CATEGORIES.items():
-        allowed[configure_name] = set(platform_values(data, platform, key))
-    allowed["hwaccel"] = set(data["platforms"][platform]["hardwareAccelerators"])
     enabled = list(split_enabled_values(configuration))
     enabled.extend(split_enabled_components(configuration))
-    unexpected = sorted(
-        f"{category}={value}" for category, value in enabled if value not in allowed[category]
-    )
-    if unexpected:
-        raise ValueError(f"effective FFmpeg configuration enables unlisted features: {', '.join(unexpected)}")
+    audit_components(data, platform, enabled)
 
 
 def candidate_files(paths: list[pathlib.Path]) -> Iterable[pathlib.Path]:
@@ -282,6 +324,10 @@ def parse_args() -> argparse.Namespace:
     audit.add_argument("--platform", required=True, choices=SUPPORTED_PLATFORMS)
     audit.add_argument("configuration", nargs="+", type=pathlib.Path)
 
+    components = subparsers.add_parser("audit-components")
+    components.add_argument("--platform", required=True, choices=SUPPORTED_PLATFORMS)
+    components.add_argument("configuration", nargs="+", type=pathlib.Path)
+
     closure = subparsers.add_parser("audit-closure")
     closure.add_argument("paths", nargs="+", type=pathlib.Path)
 
@@ -301,11 +347,14 @@ def main() -> int:
             print("\n".join(configure_flags(data, args.platform)))
         elif args.command == "meson":
             print("\n".join(meson_flags(data, args.platform)))
-        elif args.command == "audit-config":
+        elif args.command in ("audit-config", "audit-components"):
             configuration = "\n".join(
                 path.read_text(encoding="utf-8", errors="replace") for path in args.configuration
             )
-            audit_configuration(data, args.platform, configuration)
+            if args.command == "audit-config":
+                audit_configuration(data, args.platform, configuration)
+            else:
+                audit_components(data, args.platform, list(split_enabled_components(configuration)))
         elif args.command == "cpp-header":
             args.output.parent.mkdir(parents=True, exist_ok=True)
             args.output.write_text(cpp_header(data, args.platform), encoding="utf-8")

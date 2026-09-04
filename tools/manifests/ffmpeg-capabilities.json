@@ -21,9 +21,21 @@
     "swresample",
     "swscale"
   ],
+  "comment": [
+    "protocols must keep http, https, tcp and tls even though libcurl, not",
+    "FFmpeg, performs every network transfer. lavf's HLS demuxer resolves a",
+    "segment URL with avio_find_protocol_name() before it ever reaches the",
+    "io_open callback mpv points at libcurl, so a build without the https",
+    "protocol registered fails every transcoded stream with \"https or dtls",
+    "protocol not found\" while direct play keeps working."
+  ],
   "protocols": [
     "file",
-    "pipe"
+    "http",
+    "https",
+    "pipe",
+    "tcp",
+    "tls"
   ],
   "demuxers": [
     "aac",
@@ -177,7 +189,8 @@
       "configureFlags": [
         "--enable-jni",
         "--enable-mediacodec",
-        "--enable-network"
+        "--enable-network",
+        "--enable-openssl"
       ],
       "decoders": [
         "av1_mediacodec",
@@ -196,6 +209,7 @@
       "configureFlags": [
         "--enable-cuda",
         "--enable-ffnvcodec",
+        "--enable-gnutls",
         "--enable-network",
         "--enable-nvdec",
         "--enable-vaapi",
@@ -238,6 +252,7 @@
       "gpl": true,
       "configureFlags": [
         "--enable-network",
+        "--enable-gnutls",
         "--enable-audiotoolbox",
         "--enable-videotoolbox"
       ],
@@ -257,7 +272,8 @@
     "webos": {
       "gpl": true,
       "configureFlags": [
-        "--disable-network"
+        "--enable-network",
+        "--enable-openssl"
       ],
       "hardwareAccelerators": [],
       "protocols": []
@@ -265,7 +281,8 @@
     "windows": {
       "gpl": true,
       "configureFlags": [
-        "--disable-network"
+        "--enable-network",
+        "--enable-schannel"
       ],
       "hardwareAccelerators": [
         "av1_d3d11va",

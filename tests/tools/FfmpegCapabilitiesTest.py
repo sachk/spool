@@ -45,9 +45,17 @@ def main() -> int:
         assert "--enable-decoder=mjpeg" not in flags, platform
         assert "--enable-decoder=png" not in flags, platform
         assert "--enable-decoder=webp" not in flags, platform
+        # lavf's HLS demuxer resolves segment URLs by protocol name before mpv's
+        # libcurl backend is consulted, so every platform has to register these.
+        assert {"--enable-protocol=https", "--enable-protocol=tls"} <= flags, platform
 
     meson = set(run(script, manifest, "meson", "--platform", "windows").stdout.splitlines())
     assert {"ffmpeg:gpl=enabled", "ffmpeg:version3=disabled", "ffmpeg:nonfree=disabled"} <= meson
+    # Windows takes FFmpeg as a Meson subproject rather than through configure,
+    # so the network switches its platform entry carries have to survive the
+    # translation or its HLS playback silently loses every transcode.
+    assert {"ffmpeg:network=enabled", "ffmpeg:schannel=enabled"} <= meson
+    assert {"ffmpeg:https_protocol=enabled", "ffmpeg:tls_protocol=enabled"} <= meson
     assert "ffmpeg:mjpeg_decoder=enabled" not in meson
     assert "ffmpeg:png_decoder=enabled" not in meson
     assert "ffmpeg:webp_decoder=enabled" not in meson
@@ -56,8 +64,12 @@ def main() -> int:
         config = Path(directory) / "config.log"
         components = Path(directory) / "config_components.h"
         config.write_text(" ".join(sorted(required | {"--enable-gpl"})) + "\n", encoding="utf-8")
+        enabled_protocols = "".join(
+            f"#define CONFIG_{name.upper()}_PROTOCOL 1\n"
+            for name in json.loads(manifest.read_text(encoding="utf-8"))["protocols"]
+        )
         components.write_text(
-            "#define CONFIG_H264_DECODER 1\n#define CONFIG_FILE_PROTOCOL 1\n",
+            "#define CONFIG_H264_DECODER 1\n" + enabled_protocols,
             encoding="utf-8",
         )
 
@@ -72,7 +84,25 @@ def main() -> int:
         run(script, lgpl_manifest, "cpp-header", "--platform", "macos", "--output", str(lgpl_header))
         assert "inline constexpr bool kGplEnabled = false;" in lgpl_header.read_text(encoding="utf-8")
         run(script, manifest, "audit-config", "--platform", "webos", str(config), str(components))
-        components.write_text("#define CONFIG_MJPEG_DECODER 1\n", encoding="utf-8")
+        run(script, manifest, "audit-components", "--platform", "windows", str(components))
+        # A build that quietly drops https keeps playing direct streams and
+        # fails every transcode, so the audit has to reject it as loudly as it
+        # rejects a feature nobody asked for.
+        without_https = Path(directory) / "config_components_no_https.h"
+        without_https.write_text(
+            enabled_protocols.replace("#define CONFIG_HTTPS_PROTOCOL 1\n", ""), encoding="utf-8"
+        )
+        missing = run(
+            script,
+            manifest,
+            "audit-components",
+            "--platform",
+            "windows",
+            str(without_https),
+            expected=1,
+        )
+        assert "missing protocols: https" in missing.stderr
+        components.write_text("#define CONFIG_MJPEG_DECODER 1\n" + enabled_protocols, encoding="utf-8")
         rejected = run(
             script,
             manifest,

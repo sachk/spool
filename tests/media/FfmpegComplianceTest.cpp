@@ -146,6 +146,21 @@ int main()
         while (const char *protocol = avio_enum_protocols(&opaque, 0))
             visit(protocol);
     });
+    for (const std::string_view name : FfmpegCapabilities::kProtocols) {
+        bool present = false;
+        void *opaque = nullptr;
+        while (const char *protocol = avio_enum_protocols(&opaque, 0))
+            present = present || protocol == name;
+        require(present, "FFmpeg is missing allowed protocol: " + std::string(name));
+    }
+    // libcurl performs every network transfer, not FFmpeg, so it is tempting to
+    // build FFmpeg without its network protocols. lavf's HLS demuxer resolves
+    // each playlist and segment URL by name first and refuses the stream when
+    // the lookup comes back empty, whatever io_open would have done with it.
+    // Repeat that lookup here: an FFmpeg without https plays direct streams
+    // perfectly and cannot play a single transcode.
+    require(primaryName(avio_find_protocol_name("https://example.invalid/master.m3u8")) == "https",
+        "FFmpeg cannot resolve https, so lavf's HLS demuxer will reject every transcoded stream");
     requireFixtureOpens("direct-mpeg2.mkv", "matroska");
     requireFixtureOpens("remux-h264.mp4", "mov");
     requireFixtureOpens("transcode.m3u8", "hls");
