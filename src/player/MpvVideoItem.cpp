@@ -170,12 +170,6 @@ namespace {
             // control_cb (null here) and returns VO_NOTIMPL immediately — stats
             // simply don't show GPU pass timings, and direct rendering / mpv
             // screenshots are disabled, neither of which we use.
-            // gpu-next is the desktop renderer, but libplacebo wants OpenGL 3.3
-            // and rejects software rasterisers outright. A Mac that has fallen
-            // back to the Apple Software Renderer reports 2.1, so gpu-next
-            // cannot start there at all. gpu drives the same render API on those
-            // contexts, and trying it is the difference between playback and a
-            // black screen.
 #ifdef JELLYFIN_NATIVE_WEBOS
             static constexpr const char *backends[] = { "gpu" };
 #else
