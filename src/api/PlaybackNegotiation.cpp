@@ -218,9 +218,24 @@ QString PlaybackNegotiation::buildUrl(
 }
 
 QJsonObject PlaybackNegotiation::buildDeviceProfile(
-    qint64 maxStreamingBitrate, const QStringList& videoCodecs, bool restrictVideoCodecs)
+    qint64 maxStreamingBitrate, int maxHeight, const QStringList& videoCodecs, bool restrictVideoCodecs)
 {
     const qint64 bitrate = std::clamp<qint64>(maxStreamingBitrate, 1'000'000, 1'000'000'000);
+    QJsonArray codecProfiles;
+    if (maxHeight > 0) {
+        codecProfiles.push_back(QJsonObject {
+            { QStringLiteral("Type"), QStringLiteral("Video") },
+            { QStringLiteral("Conditions"),
+                QJsonArray { QJsonObject {
+                    { QStringLiteral("Condition"), QStringLiteral("LessThanEqual") },
+                    { QStringLiteral("Property"), QStringLiteral("Height") },
+                    { QStringLiteral("Value"), QString::number(maxHeight) },
+                    // Not required: a source already below the ceiling should
+                    // direct play rather than be transcoded up to it.
+                    { QStringLiteral("IsRequired"), false },
+                } } },
+        });
+    }
     QJsonArray directPlayProfiles;
     const QStringList normalizedVideoCodecs = normalizedCodecs(videoCodecs);
     if (!restrictVideoCodecs) {
@@ -261,7 +276,7 @@ QJsonObject PlaybackNegotiation::buildDeviceProfile(
                 },
             } },
         { QStringLiteral("ContainerProfiles"), QJsonArray {} },
-        { QStringLiteral("CodecProfiles"), QJsonArray {} },
+        { QStringLiteral("CodecProfiles"), codecProfiles },
         { QStringLiteral("SubtitleProfiles"), localSubtitleProfiles() },
         { QStringLiteral("ResponseProfiles"), QJsonArray {} },
     };

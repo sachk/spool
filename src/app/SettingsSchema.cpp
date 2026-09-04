@@ -25,6 +25,17 @@ namespace {
     constexpr SettingChoice kSubtitleModeChoices[] = { { "Default", "Default (whatever the file marks)" },
         { "Smart", "Smart (%1 when the audio is another language)" }, { "OnlyForced", "Only forced" },
         { "Always", "Always (%1 when available)" }, { "None", "Off" } };
+    // Resolution is offered on its own so it can be answered on its own: the
+    // bitrate ceiling below caps how many bits arrive, this caps how large a
+    // picture the server may send, and neither implies the other.
+    constexpr SettingChoice kMaxStreamingHeightChoices[] = {
+        { "0", "Source resolution" },
+        { "2160", "4K" },
+        { "1080", "1080p" },
+        { "720", "720p" },
+        { "480", "480p" },
+        { "360", "360p" },
+    };
     constexpr SettingChoice kMpvConfigModeChoices[]
         = { { "disabled", "Off" }, { "standard", "Standard mpv directory" }, { "custom", "Custom directory" } };
     constexpr SettingChoice kSubtitleStylingChoices[] = { { "Auto", "Automatic" },
@@ -297,6 +308,9 @@ const QVector<SettingSpec>& settingSpecs()
             .onDesktop()
             .whenSetTo("playback/mpvConfigMode", "custom"),
 
+        selectSpec("playback/maxStreamingHeight", "Streaming", "Resolution limit",
+            "Anything larger is scaled down by the server", "0", kMaxStreamingHeightChoices,
+            SettingTarget::MaxStreamingHeight),
         toggleSpec("playback/manualStreamingBitrate", "Streaming", "Set my own bitrate limit",
             "Otherwise the limit is measured for you", false, SettingTarget::ManualStreamingBitrate),
         sliderSpec("playback/maxStreamingBitrateMbps", "Streaming", "Bitrate limit",

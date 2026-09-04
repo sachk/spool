@@ -146,6 +146,7 @@ private:
     bool m_castButtonEnabled = true;
     bool m_remoteControlTargetEnabled = true;
     bool m_toneMappingVisualizationEnabled = false;
+    int m_maxStreamingHeight = 0;
     bool m_manualStreamingBitrate = false;
     int m_maxStreamingBitrateMbps = 120;
     bool m_unlimitedLocalBitrate = false;

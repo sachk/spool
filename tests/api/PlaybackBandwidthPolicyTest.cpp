@@ -106,6 +106,32 @@ JELLYFIN_TEST_MAIN("playback-bandwidth-policy")
             && fullLadder.constFirst().label.contains(QStringLiteral("Mbps")),
         "a rung should name both the resolution and the ceiling");
 
+    // The rung carries its resolution rather than only spelling it in the
+    // label: the label was all there was, so the server heard a bitrate and
+    // nothing about size, and 480p lowered the bitrate alone.
+    for (const PlaybackBandwidthPolicy::QualityOption& rung : fullLadder) {
+        require(rung.height > 0, "every rung should carry the resolution it promises");
+        require(rung.label.startsWith(PlaybackBandwidthPolicy::describeResolution(rung.height)),
+            "a rung's label should be the resolution it actually asks the server for");
+    }
+    for (int index = 1; index < fullLadder.size(); ++index) {
+        require(fullLadder[index].height <= fullLadder[index - 1].height,
+            "resolution should never climb as the ladder descends");
+    }
+    require(PlaybackBandwidthPolicy::describeResolution(2160) == QStringLiteral("4K"),
+        "2160p is sold as 4K everywhere else, so name it that here");
+    require(PlaybackBandwidthPolicy::describeResolution(480) == QStringLiteral("480p"),
+        "every other rung is named by its height");
+    require(PlaybackBandwidthPolicy::describeResolution(0) == QStringLiteral("Source"),
+        "no ceiling means the source resolution, not an unnamed one");
+
+    // The standalone ladder exists so resolution can be answered without
+    // reasoning about megabits.
+    const QList<int> resolutions = PlaybackBandwidthPolicy::resolutionLadder();
+    require(!resolutions.isEmpty(), "a resolution ceiling should be offerable on its own");
+    for (int index = 1; index < resolutions.size(); ++index)
+        require(resolutions[index] < resolutions[index - 1], "the resolution ladder should descend");
+
     const QList<PlaybackBandwidthPolicy::QualityOption> ladder = PlaybackBandwidthPolicy::qualityLadder(12'000'000);
     require(!ladder.isEmpty(), "a modest source should still offer lower rungs");
     for (const PlaybackBandwidthPolicy::QualityOption& rung : ladder) {

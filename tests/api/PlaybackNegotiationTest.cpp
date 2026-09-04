@@ -150,7 +150,30 @@ JELLYFIN_TEST_MAIN("playback-negotiation")
             == QStringLiteral("hevc,h264,av1,vp9"),
         "desktop transcodes should advertise every fMP4 HLS video codec in preference order");
 
-    const QJsonObject webOsProfile = PlaybackNegotiation::buildDeviceProfile(25'000'000,
+    // A bitrate ceiling on its own leaves the picture the size it started:
+    // the server re-encodes at the source resolution and only spends fewer
+    // bits, which is how a rung labelled 480p used to change nothing but the
+    // bitrate. The ceiling has to reach the profile as a codec condition.
+    require(
+        PlaybackNegotiation::buildDeviceProfile(25'000'000).value(QStringLiteral("CodecProfiles")).toArray().isEmpty(),
+        "no resolution ceiling should leave the profile free of codec conditions");
+    const QJsonArray cappedProfiles
+        = PlaybackNegotiation::buildDeviceProfile(25'000'000, 480).value(QStringLiteral("CodecProfiles")).toArray();
+    require(cappedProfiles.size() == 1, "a resolution ceiling should add exactly one video codec profile");
+    const QJsonObject cappedProfile = cappedProfiles.first().toObject();
+    require(cappedProfile.value(QStringLiteral("Type")).toString() == QStringLiteral("Video"),
+        "a resolution ceiling should constrain video");
+    const QJsonArray conditions = cappedProfile.value(QStringLiteral("Conditions")).toArray();
+    require(conditions.size() == 1, "a resolution ceiling should be one condition");
+    const QJsonObject condition = conditions.first().toObject();
+    require(condition.value(QStringLiteral("Property")).toString() == QStringLiteral("Height")
+            && condition.value(QStringLiteral("Condition")).toString() == QStringLiteral("LessThanEqual")
+            && condition.value(QStringLiteral("Value")).toString() == QStringLiteral("480"),
+        "the ceiling should ask the server for a height at or below the chosen rung");
+    require(!condition.value(QStringLiteral("IsRequired")).toBool(),
+        "a source already below the ceiling should direct play rather than transcode up to it");
+
+    const QJsonObject webOsProfile = PlaybackNegotiation::buildDeviceProfile(25'000'000, 0,
         { QStringLiteral("VP9"), QStringLiteral("h264"), QStringLiteral("hevc"), QStringLiteral("mpeg1video"),
             QStringLiteral("mpeg2video"), QStringLiteral("mpeg4"), QStringLiteral("h263"), QStringLiteral("vc1") },
         true);

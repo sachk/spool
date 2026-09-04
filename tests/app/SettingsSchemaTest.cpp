@@ -99,6 +99,7 @@ void requiredPersistedKeysArePresentExactlyOnce()
         QStringLiteral("audio/trackMode"),
         QStringLiteral("playback/rememberSeriesAudioTrack"),
         QStringLiteral("settings/nightMode"),
+        QStringLiteral("playback/maxStreamingHeight"),
         QStringLiteral("playback/manualStreamingBitrate"),
         QStringLiteral("playback/maxStreamingBitrateMbps"),
         QStringLiteral("playback/unlimitedLocalBitrate"),
@@ -207,6 +208,39 @@ void audioOutputChoicesMatchPlatform()
     require(!expectedChoices.contains(QStringLiteral("starfish-pcm")),
         QStringLiteral("desktop audio choices must not expose Starfish"));
 #endif
+}
+
+void resolutionAndBitrateAreSettledSeparately()
+{
+    // Two ceilings, two questions. A viewer sparing a slow decoder wants a
+    // smaller picture at the bitrate they have; a viewer on a metered
+    // connection wants fewer bits at the size they have. Neither answer
+    // should be buried in the other, and the resolution limit must not be
+    // conditioned on the manual-bitrate toggle the way the slider is.
+    const SettingSpec& height = requiredSpec(QStringLiteral("playback/maxStreamingHeight"));
+    const SettingSpec& bitrateLimit = requiredSpec(QStringLiteral("playback/maxStreamingBitrateMbps"));
+    require(
+        height.type == SettingType::Select, QStringLiteral("the resolution limit should be a choice, not megabits"));
+    require(
+        height.group == bitrateLimit.group, QStringLiteral("both ceilings belong beside each other under Streaming"));
+    require(settingDefaultValue(height).toInt() == 0,
+        QStringLiteral("the resolution limit should default to leaving the source alone"));
+    require(height.target == SettingTarget::MaxStreamingHeight,
+        QStringLiteral("the resolution limit must reach the device profile, not the bitrate ceiling"));
+    require(height.dependsOnKey == nullptr || QString::fromLatin1(height.dependsOnKey).isEmpty(),
+        QStringLiteral("capping resolution must not require opting into a manual bitrate first"));
+    require(bitrateLimit.target == SettingTarget::MaxStreamingBitrate,
+        QStringLiteral("the bitrate ceiling should be unchanged by the resolution one"));
+
+    bool sawSource = false;
+    bool saw480 = false;
+    for (qsizetype index = 0; index < height.choiceCount; ++index) {
+        const QString value = QString::fromLatin1(height.choices[index].value);
+        sawSource |= value == QStringLiteral("0");
+        saw480 |= value == QStringLiteral("480");
+    }
+    require(sawSource, QStringLiteral("the resolution limit should offer leaving the source alone"));
+    require(saw480, QStringLiteral("the resolution limit should offer the rungs the overlay offers"));
 }
 
 void normalizersPreservePersistedValueSemantics()
@@ -515,6 +549,7 @@ JELLYFIN_TEST_MAIN("settings-schema")
     QCoreApplication app(argc, argv);
     requiredPersistedKeysArePresentExactlyOnce();
     audioOutputChoicesMatchPlatform();
+    resolutionAndBitrateAreSettledSeparately();
     normalizersPreservePersistedValueSemantics();
     subtitleGeometryOverrideMatchesSchemaContract();
     schemaModelExposesEverySpecOnce();

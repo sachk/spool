@@ -456,6 +456,11 @@ void SettingsController::applySchemaValue(const SettingSpec& spec, const QVarian
         if (apply && m_player)
             m_player->setToneMappingVisualizationEnabled(m_toneMappingVisualizationEnabled);
         break;
+    case SettingTarget::MaxStreamingHeight:
+        m_maxStreamingHeight = value.toInt();
+        if (apply)
+            applyPlaybackPreferences();
+        break;
     case SettingTarget::ManualStreamingBitrate:
         m_manualStreamingBitrate = value.toBool();
         if (apply)
@@ -695,6 +700,7 @@ void SettingsController::emitSchemaSignals(const SettingSpec& spec)
         emit remoteControlSettingsChanged();
         break;
     case SettingTarget::ToneMappingVisualization:
+    case SettingTarget::MaxStreamingHeight:
     case SettingTarget::ManualStreamingBitrate:
     case SettingTarget::MaxStreamingBitrate:
     case SettingTarget::UnlimitedLocalBitrate:
@@ -776,7 +782,7 @@ void SettingsController::applyPlaybackPreferences()
         return;
     const qint64 manualBitrate
         = m_manualStreamingBitrate ? static_cast<qint64>(m_maxStreamingBitrateMbps) * 1'000'000 : 0;
-    m_api->setPlaybackPreferences(manualBitrate, m_unlimitedLocalBitrate, m_preferRemux);
+    m_api->setPlaybackPreferences(manualBitrate, m_unlimitedLocalBitrate, m_preferRemux, m_maxStreamingHeight);
 }
 
 void SettingsController::applyAudioDelayToPlayer()

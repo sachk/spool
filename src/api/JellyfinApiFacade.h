@@ -50,7 +50,8 @@ public:
 
     void setSession(const AuthSession& session);
     AuthSession session() const;
-    void setPlaybackPreferences(qint64 manualMaxStreamingBitrate, bool unlimitedLocalNetwork, bool preferRemux);
+    void setPlaybackPreferences(
+        qint64 manualMaxStreamingBitrate, bool unlimitedLocalNetwork, bool preferRemux, int maxStreamingHeight = 0);
     void setVideoCodecCapabilities(QStringList videoCodecs, bool restrictVideoCodecs);
     void setRemoteControlTargetEnabled(bool enabled);
     bool remoteControlTargetEnabled() const
@@ -75,6 +76,15 @@ public:
     // capping playback at home tomorrow. Zero restores automatic selection.
     void setSessionBitrateOverride(qint64 bitrate);
     qint64 sessionBitrateOverride() const;
+
+    // Resolution is settled separately from bitrate: a viewer sparing a slow
+    // decoder wants a smaller picture at the bitrate they already have, and a
+    // viewer on a metered connection wants fewer bits at the size they already
+    // have. The session override outranks the Settings ceiling and lasts only
+    // as long as this session; zero means no ceiling from that source.
+    void setSessionHeightOverride(int height);
+    int sessionHeightOverride() const;
+    int maxStreamingHeight() const;
     QString authorizationHeader(const QString& tokenOverride = {}) const;
     void cancelRequests();
 
@@ -208,6 +218,8 @@ private:
     qint64 m_maxStreamingBitrate = 20'000'000;
     qint64 m_manualMaxStreamingBitrate = 0;
     qint64 m_sessionBitrateOverride = 0;
+    int m_maxStreamingHeight = 0;
+    int m_sessionHeightOverride = 0;
     qint64 m_measuredStreamingBitrate = 0;
     QString m_measuredNetworkSignature;
     int m_playbackParallelRequests = 1;

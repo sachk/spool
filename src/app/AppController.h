@@ -169,7 +169,7 @@ public:
     // the current position because the server decides direct play against the
     // ceiling it was handed at negotiation time.
     Q_INVOKABLE QVariantList streamingQualityOptions() const;
-    Q_INVOKABLE void selectStreamingQuality(qint64 bitrate);
+    Q_INVOKABLE void selectStreamingQuality(qint64 bitrate, int height = 0);
 
 signals:
     void busyChanged();
@@ -272,6 +272,7 @@ private:
     // stream loads, so a stream the server cannot deliver falls back to the
     // one that was playing instead of ending playback.
     qint64 m_qualityFallbackBitrate = -1;
+    int m_qualityFallbackHeight = 0;
     // Held for the process lifetime so a second local instance picks the next
     // slot and reports a device identity of its own.
     std::unique_ptr<QLockFile> m_instanceLock;

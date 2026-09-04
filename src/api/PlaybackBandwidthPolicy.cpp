@@ -127,28 +127,44 @@ QString PlaybackBandwidthPolicy::formatBitrate(qint64 bitsPerSecond)
     return QString::number(std::llround(mbps * 1000.0)) + QStringLiteral(" kbps");
 }
 
+QList<int> PlaybackBandwidthPolicy::resolutionLadder()
+{
+    return { 2160, 1080, 720, 480, 360 };
+}
+
+QString PlaybackBandwidthPolicy::describeResolution(int height)
+{
+    if (height <= 0)
+        return QStringLiteral("Source");
+    // 2160p is universally sold as 4K, and nothing else in the ladder is.
+    if (height >= 2160)
+        return QStringLiteral("4K");
+    return QString::number(height) + QLatin1Char('p');
+}
+
 QList<PlaybackBandwidthPolicy::QualityOption> PlaybackBandwidthPolicy::qualityLadder(qint64 sourceBitrate)
 {
     struct Rung {
         qint64 bitrate;
-        const char *resolution;
+        int height;
     };
     // The rungs jellyfin-web offers, so a viewer who knows one client is not
-    // surprised by the other.
+    // surprised by the other. The height is carried rather than spelled, so
+    // the rung the viewer picked is the rung the server is asked for.
     static constexpr Rung rungs[] = {
-        { 120'000'000, "4K" },
-        { 80'000'000, "4K" },
-        { 60'000'000, "1080p" },
-        { 40'000'000, "1080p" },
-        { 20'000'000, "1080p" },
-        { 15'000'000, "1080p" },
-        { 10'000'000, "720p" },
-        { 8'000'000, "720p" },
-        { 6'000'000, "720p" },
-        { 4'000'000, "480p" },
-        { 3'000'000, "480p" },
-        { 2'000'000, "480p" },
-        { 1'000'000, "360p" },
+        { 120'000'000, 2160 },
+        { 80'000'000, 2160 },
+        { 60'000'000, 1080 },
+        { 40'000'000, 1080 },
+        { 20'000'000, 1080 },
+        { 15'000'000, 1080 },
+        { 10'000'000, 720 },
+        { 8'000'000, 720 },
+        { 6'000'000, 720 },
+        { 4'000'000, 480 },
+        { 3'000'000, 480 },
+        { 2'000'000, 480 },
+        { 1'000'000, 360 },
     };
 
     QList<QualityOption> options;
@@ -156,8 +172,8 @@ QList<PlaybackBandwidthPolicy::QualityOption> PlaybackBandwidthPolicy::qualityLa
     for (const Rung& rung : rungs) {
         if (sourceBitrate > 0 && rung.bitrate >= sourceBitrate)
             continue;
-        options.push_back(QualityOption {
-            rung.bitrate, QString::fromLatin1(rung.resolution) + QStringLiteral(" · ") + formatBitrate(rung.bitrate) });
+        options.push_back(QualityOption { rung.bitrate, rung.height,
+            describeResolution(rung.height) + QStringLiteral(" · ") + formatBitrate(rung.bitrate) });
     }
     return options;
 }

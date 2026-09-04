@@ -249,8 +249,11 @@ AppController::AppController(DatabaseManager *database, DiscoveryController *dis
             // quality, not the thing they were watching.
             if (m_qualityFallbackBitrate >= 0) {
                 const qint64 restoredBitrate = m_qualityFallbackBitrate;
+                const int restoredHeight = m_qualityFallbackHeight;
                 m_qualityFallbackBitrate = -1;
+                m_qualityFallbackHeight = 0;
                 m_api->setSessionBitrateOverride(restoredBitrate);
+                m_api->setSessionHeightOverride(restoredHeight);
                 emit streamingQualityChanged();
                 const MovieItem resumeItem = PlaybackFailurePolicy::retryItem(m_activePlaybackItem, positionTicks);
                 setBusy(true, QStringLiteral("Restoring the previous quality…"));
@@ -1233,7 +1236,8 @@ void AppController::handleRemoteGeneralCommand(const QJsonObject& data)
         m_playQueue->setShuffled(
             arguments.value(QStringLiteral("PlaybackOrder")).toString() == QStringLiteral("Shuffle"));
     } else if (command == QStringLiteral("SetMaxStreamingBitrate")) {
-        selectStreamingQuality(arguments.value(QStringLiteral("Bitrate")).toVariant().toLongLong());
+        selectStreamingQuality(arguments.value(QStringLiteral("Bitrate")).toVariant().toLongLong(),
+            arguments.value(QStringLiteral("Height")).toVariant().toInt());
     } else if (command == QStringLiteral("ToggleStats")) {
         m_player->toggleDebugOsd();
     } else if (command == QStringLiteral("ToggleOsd")) {
@@ -1601,18 +1605,24 @@ QVariantList AppController::streamingQualityOptions() const
             { QStringLiteral("label"), rung.label },
             { QStringLiteral("detail"), QString() },
             { QStringLiteral("bitrate"), rung.bitrate },
+            { QStringLiteral("height"), rung.height },
             { QStringLiteral("selected"), override == rung.bitrate },
         });
     }
     return options;
 }
 
-void AppController::selectStreamingQuality(qint64 bitrate)
+void AppController::selectStreamingQuality(qint64 bitrate, int height)
 {
     const qint64 previousBitrate = m_api->sessionBitrateOverride();
-    if (previousBitrate == bitrate)
+    const int previousHeight = m_api->sessionHeightOverride();
+    if (previousBitrate == bitrate && previousHeight == height)
         return;
     m_api->setSessionBitrateOverride(bitrate);
+    // The rung's resolution travels with its bitrate. Without this the server
+    // was told a ceiling in megabits and nothing about size, so it re-encoded
+    // at the source resolution and "480p" only ever meant "fewer bits".
+    m_api->setSessionHeightOverride(height);
     emit streamingQualityChanged();
 
     // The server chose direct play or transcoding against the ceiling it was
@@ -1626,6 +1636,7 @@ void AppController::selectStreamingQuality(qint64 bitrate)
     const int audioStreamIndex = m_activeAudioStreamIndex;
     const int subtitleStreamIndex = m_activeSubtitleStreamIndex;
     m_qualityFallbackBitrate = previousBitrate;
+    m_qualityFallbackHeight = previousHeight;
     // Renegotiating is a network round trip. Leaving the old core up for it
     // keeps the picture on screen until the replacement is ready to start;
     // play() still tears it down synchronously before the new one begins.

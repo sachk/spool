@@ -58,8 +58,19 @@ public:
 
     struct QualityOption {
         qint64 bitrate = 0;
+        // The vertical resolution the rung promises. A bitrate ceiling alone
+        // makes the server re-encode at the source resolution, so the label
+        // said 480p while the picture stayed 1080p; this is what makes the
+        // promise reach the device profile.
+        int height = 0;
         QString label;
     };
+
+    // Vertical resolutions offered as a standalone ceiling, coarsest first.
+    // Nothing here is a bitrate: a viewer capping resolution to spare a panel
+    // or a decoder should not have to reason about megabits.
+    static QList<int> resolutionLadder();
+    static QString describeResolution(int height);
 
     static QString formatBitrate(qint64 bitsPerSecond);
     // The ladder a viewer can pick from, coarsest first. Rungs at or above the

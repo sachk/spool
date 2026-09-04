@@ -33,6 +33,7 @@ enum class SettingTarget {
     CastButtonEnabled,
     RemoteControlTargetEnabled,
     ToneMappingVisualization,
+    MaxStreamingHeight,
     ManualStreamingBitrate,
     MaxStreamingBitrate,
     UnlimitedLocalBitrate,

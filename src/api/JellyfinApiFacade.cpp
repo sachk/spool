@@ -413,13 +413,20 @@ void JellyfinApiFacade::preconnectToServer()
 }
 
 void JellyfinApiFacade::setPlaybackPreferences(
-    qint64 manualMaxStreamingBitrate, bool unlimitedLocalNetwork, bool preferRemux)
+    qint64 manualMaxStreamingBitrate, bool unlimitedLocalNetwork, bool preferRemux, int maxStreamingHeight)
 {
     m_manualMaxStreamingBitrate = manualMaxStreamingBitrate > 0
         ? std::clamp<qint64>(manualMaxStreamingBitrate, 1'000'000, PlaybackBandwidthPolicy::MaximumBitrate)
         : 0;
     m_unlimitedLocalNetwork = unlimitedLocalNetwork;
     m_preferRemux = preferRemux;
+    const int normalizedHeight = maxStreamingHeight > 0 ? maxStreamingHeight : 0;
+    if (m_maxStreamingHeight != normalizedHeight) {
+        m_maxStreamingHeight = normalizedHeight;
+        // The profile is what carries the ceiling, so a changed ceiling has to
+        // reach anything holding one.
+        emit deviceProfileChanged();
+    }
     updateEffectiveStreamingBitrate();
 }
 
@@ -483,6 +490,28 @@ void JellyfinApiFacade::setSessionBitrateOverride(qint64 bitrate)
 qint64 JellyfinApiFacade::sessionBitrateOverride() const
 {
     return m_sessionBitrateOverride;
+}
+
+void JellyfinApiFacade::setSessionHeightOverride(int height)
+{
+    const int normalized = height > 0 ? height : 0;
+    if (normalized == m_sessionHeightOverride)
+        return;
+    m_sessionHeightOverride = normalized;
+    emit deviceProfileChanged();
+}
+
+int JellyfinApiFacade::sessionHeightOverride() const
+{
+    return m_sessionHeightOverride;
+}
+
+int JellyfinApiFacade::maxStreamingHeight() const
+{
+    // The session override wins outright rather than taking the lower of the
+    // two: a viewer who asks the overlay for 1080p on a device configured to
+    // 480p is asking for 1080p now.
+    return m_sessionHeightOverride > 0 ? m_sessionHeightOverride : m_maxStreamingHeight;
 }
 
 PlaybackBandwidthPolicy::Source JellyfinApiFacade::streamingBitrateSource() const
@@ -2129,7 +2158,8 @@ bool JellyfinApiFacade::shouldExpireSession(const QString& path) const
 
 QJsonObject JellyfinApiFacade::buildDeviceProfile() const
 {
-    return PlaybackNegotiation::buildDeviceProfile(m_maxStreamingBitrate, m_videoCodecs, m_restrictVideoCodecs);
+    return PlaybackNegotiation::buildDeviceProfile(
+        m_maxStreamingBitrate, maxStreamingHeight(), m_videoCodecs, m_restrictVideoCodecs);
 }
 
 PlaybackSession JellyfinApiFacade::buildPlaybackSession(

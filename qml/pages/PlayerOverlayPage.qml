@@ -471,7 +471,7 @@ FocusScope {
             const option = qualityOptions[index]
             if (!option)
                 return
-            App.selectStreamingQuality(option.bitrate)
+            App.selectStreamingQuality(option.bitrate, option.height || 0)
         } else if (kind === "debug") {
             const action = debugAction(index);
             // The speed row is a stepper, not a destination.
