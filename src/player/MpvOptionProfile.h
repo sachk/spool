@@ -5,6 +5,7 @@
 
 #include <QByteArray>
 #include <QString>
+#include <QStringList>
 
 #include <vector>
 
@@ -37,11 +38,15 @@ public:
     static QByteArray loadFileOptions(const PlaybackSession& session);
     static bool useWebOSSoftwareVideo(const PlaybackSession& session);
 
+    static QByteArray certificateBundle(const QStringList& candidates);
+    static QByteArray systemCertificateBundle();
+
     static std::vector<MpvOption> preInitializeOptions(const MpvConfigPolicy& policy);
     static std::vector<MpvOption> applicationOptions(Platform platform, const QString& audioOutputMode,
         const QByteArray& logPath, const QByteArray& demuxerMaxBytes = QByteArrayLiteral("64M"),
         const QByteArray& demuxerMaxBackBytes = QByteArrayLiteral("32M"), int parallelRequests = 1,
-        bool softwareVideo = false, const QByteArray& shaderCachePath = {});
+        bool softwareVideo = false, const QByteArray& shaderCachePath = {},
+        const QByteArray& certificateBundlePath = {});
     static std::vector<MpvOption> subtitleOptions(
         const SubtitlePreferences& preferences, bool subtitlesEnabled, bool hdrPlayback = false);
 };

@@ -1,6 +1,9 @@
 #include "MpvOptionProfile.h"
 
+#include <QFile>
+#include <QFileInfo>
 #include <QLocale>
+#include <QStringList>
 #include <QUrl>
 #include <QtGlobal>
 
@@ -225,9 +228,46 @@ bool MpvOptionProfile::useWebOSSoftwareVideo(const PlaybackSession& session)
     return false;
 }
 
+// libcurl carries every byte of playback, so its trust store is the one that
+// has to be right. Only Windows finds it on its own, through Schannel and the
+// system certificate store; the OpenSSL builds elsewhere look at a compiled-in
+// path that is correct for the machine that built them and not for the device
+// running them. Name the bundle explicitly instead, honouring the environment
+// override first so a sandbox or a Nix wrapper can point playback at the same
+// certificates as the rest of the process.
+QByteArray MpvOptionProfile::certificateBundle(const QStringList& candidates)
+{
+    for (const QString& candidate : candidates) {
+        if (!candidate.isEmpty() && QFileInfo(candidate).isFile())
+            return QFile::encodeName(candidate);
+    }
+    return {};
+}
+
+QByteArray MpvOptionProfile::systemCertificateBundle()
+{
+#if defined(Q_OS_WIN)
+    // Schannel reads the Windows certificate store; a bundle file would only
+    // freeze today's roots into the installer.
+    return {};
+#else
+    QStringList candidates {
+        qEnvironmentVariable("SSL_CERT_FILE"),
+        qEnvironmentVariable("CURL_CA_BUNDLE"),
+        QStringLiteral("/etc/ssl/certs/ca-certificates.crt"),
+        QStringLiteral("/etc/pki/tls/certs/ca-bundle.crt"),
+        QStringLiteral("/etc/ssl/ca-bundle.pem"),
+        QStringLiteral("/etc/ssl/cert.pem"),
+        QStringLiteral("/usr/local/etc/openssl/cert.pem"),
+    };
+    return certificateBundle(candidates);
+#endif
+}
+
 std::vector<MpvOption> MpvOptionProfile::applicationOptions(Platform platform, const QString& audioOutputMode,
     const QByteArray& logPath, const QByteArray& demuxerMaxBytes, const QByteArray& demuxerMaxBackBytes,
-    int parallelRequests, bool softwareVideo, const QByteArray& shaderCachePath)
+    int parallelRequests, bool softwareVideo, const QByteArray& shaderCachePath,
+    const QByteArray& certificateBundlePath)
 {
     const bool webOS = platform == Platform::WebOS;
     const bool android = platform == Platform::Android;
@@ -253,6 +293,8 @@ std::vector<MpvOption> MpvOptionProfile::applicationOptions(Platform platform, c
         { "curl-parallel-requests", QByteArray::number(network.parallelRequests) },
         { "force-window", "no" },
     };
+    if (!certificateBundlePath.isEmpty())
+        options.push_back({ "tls-ca-file", certificateBundlePath });
     if (!webOS) {
         options.push_back({ "ytdl", "no" });
         if (!shaderCachePath.isEmpty())

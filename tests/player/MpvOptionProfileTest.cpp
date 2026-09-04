@@ -3,6 +3,7 @@
 #include "TestMain.h"
 
 #include <QCoreApplication>
+#include <QFile>
 #include <QFileInfo>
 #include <QTemporaryDir>
 #include <QUrl>
@@ -56,6 +57,35 @@ void require(bool condition, const char *message)
 JELLYFIN_TEST_MAIN("mpv-option-profile")
 {
     QCoreApplication app(argc, argv);
+
+    // libcurl carries playback, and outside Windows it needs to be told where
+    // the machine keeps its roots; an OpenSSL default baked in by the build
+    // host is not a trust store on the device.
+    {
+        QTemporaryDir bundleDirectory;
+        require(bundleDirectory.isValid(), "the certificate bundle fixture needs a temporary directory");
+        const QString bundle = bundleDirectory.filePath(QStringLiteral("ca-certificates.crt"));
+        QFile file(bundle);
+        require(file.open(QIODevice::WriteOnly), "the certificate bundle fixture could not be written");
+        file.close();
+        require(MpvOptionProfile::certificateBundle({ QString(), bundle }) == QFile::encodeName(bundle),
+            "the first readable candidate must be the chosen certificate bundle");
+        require(MpvOptionProfile::certificateBundle({ bundleDirectory.path() }).isEmpty(),
+            "a directory is not a certificate bundle");
+        require(MpvOptionProfile::certificateBundle({}).isEmpty(),
+            "no candidate leaves the bundle unset rather than pointing at nothing");
+
+        const std::vector<MpvOption> options = MpvOptionProfile::applicationOptions(MpvOptionProfile::Platform::Desktop,
+            QStringLiteral("auto"), QByteArrayLiteral("/tmp/mpv.log"), QByteArrayLiteral("64M"),
+            QByteArrayLiteral("32M"), 1, false, QByteArrayLiteral("/tmp/shaders"), QFile::encodeName(bundle));
+        require(valueFor(options, "tls-ca-file") == QFile::encodeName(bundle),
+            "a resolved certificate bundle must reach mpv as tls-ca-file");
+        require(valueFor(profileOptions(MpvConfigPolicy {}, MpvOptionProfile::Platform::Desktop, QStringLiteral("auto"),
+                             QByteArrayLiteral("/tmp/mpv.log")),
+                    "tls-ca-file")
+                    .isEmpty(),
+            "an unresolved certificate bundle must leave curl's own default alone");
+    }
 
     const auto desktopNetwork = MpvOptionProfile::networkProfile(MpvOptionProfile::Platform::Desktop);
     require(desktopNetwork.ringBytes == 4 * 1024 * 1024, "desktop curl ring profile changed");
