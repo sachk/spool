@@ -300,7 +300,17 @@
         "wmv3_d3d11va",
         "wmv3_dxva2"
       ],
-      "protocols": []
+      "protocolsComment": [
+        "udp carries nothing here. The Meson port is FFmpeg 8.1.2, whose",
+        "tls_schannel.c calls ff_udp_get_last_recv_addr outside the",
+        "CONFIG_DTLS_PROTOCOL guard, so enabling Schannel without the udp",
+        "protocol leaves the symbol undefined and libmpv fails to link. 9.0.1",
+        "guards it, which is why every other platform resolves UDP_PROTOCOL to",
+        "0 and links. Drop this when Windows moves off the port."
+      ],
+      "protocols": [
+        "udp"
+      ]
     }
   },
   "disabledNixFeatures": [

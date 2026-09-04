@@ -123,10 +123,18 @@ def main() -> int:
         config = Path(directory) / "config.log"
         components = Path(directory) / "config_components.h"
         config.write_text(" ".join(sorted(required)) + "\n", encoding="utf-8")
-        enabled_protocols = "".join(
-            f"#define CONFIG_{name.upper()}_PROTOCOL 1\n"
-            for name in json.loads(manifest.read_text(encoding="utf-8"))["protocols"]
-        )
+        # A platform may add protocols of its own -- Windows needs udp so the
+        # port's Schannel backend links -- so the fixture has to be built for
+        # the platform being audited rather than from the shared list alone.
+        manifest_data = json.loads(manifest.read_text(encoding="utf-8"))
+
+        def protocol_defines(platform: str) -> str:
+            names = sorted(
+                set(manifest_data["protocols"]) | set(manifest_data["platforms"][platform].get("protocols", []))
+            )
+            return "".join(f"#define CONFIG_{name.upper()}_PROTOCOL 1\n" for name in names)
+
+        enabled_protocols = protocol_defines("webos")
         components.write_text(
             "#define CONFIG_H264_DECODER 1\n" + enabled_protocols,
             encoding="utf-8",
@@ -148,13 +156,15 @@ def main() -> int:
         run(script, manifest, "cpp-header", "--platform", "macos", "--output", str(lgpl_header))
         assert "inline constexpr bool kGplEnabled = false;" in lgpl_header.read_text(encoding="utf-8")
         run(script, manifest, "audit-config", "--platform", "webos", str(config), str(components))
-        run(script, manifest, "audit-components", "--platform", "windows", str(components))
+        windows_components = Path(directory) / "config_components_windows.h"
+        windows_components.write_text("#define CONFIG_H264_DECODER 1\n" + protocol_defines("windows"), encoding="utf-8")
+        run(script, manifest, "audit-components", "--platform", "windows", str(windows_components))
         # A build that quietly drops https keeps playing direct streams and
         # fails every transcode, so the audit has to reject it as loudly as it
         # rejects a feature nobody asked for.
         without_https = Path(directory) / "config_components_no_https.h"
         without_https.write_text(
-            enabled_protocols.replace("#define CONFIG_HTTPS_PROTOCOL 1\n", ""), encoding="utf-8"
+            protocol_defines("windows").replace("#define CONFIG_HTTPS_PROTOCOL 1\n", ""), encoding="utf-8"
         )
         missing = run(
             script,
