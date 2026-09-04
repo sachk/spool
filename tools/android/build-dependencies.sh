@@ -191,7 +191,13 @@ EOF
 # of FFmpeg, which cannot link OpenSSL 3 without the version3 licence flag the
 # capability manifest forbids.
 build_curl() {
-  [[ -f "$PREFIX/lib/libcurl.a" ]] && return
+  # curl carries the trust store playback depends on, so its configuration is
+  # part of the stamp: a tree built before the CA path was named must not be
+  # mistaken for a current one.
+  local stamp="$PREFIX/lib/.spool-curl-configuration"
+  local pin
+  pin="$(sha256sum "${BASH_SOURCE[0]}" | cut -d" " -f1)"
+  [[ -f "$PREFIX/lib/libcurl.a" && -f "$stamp" && "$(<"$stamp")" == "$pin" ]] && return
   local build="$BUILD_ROOT/curl"
   rm -rf "$build"
   cmake -S "$SOURCE_ROOT/curl" -B "$build" -GNinja \
@@ -240,6 +246,7 @@ build_curl() {
     -DCURL_USE_LIBSSH2=OFF \
     -DCURL_USE_OPENSSL=ON \
     -DCURL_CA_FALLBACK=ON \
+    -DCURL_CA_PATH=/system/etc/security/cacerts \
     -DCURL_ZLIB=OFF \
     -DENABLE_ARES=OFF \
     -DENABLE_THREADED_RESOLVER=ON \
@@ -250,6 +257,7 @@ build_curl() {
     -DUSE_NGHTTP3=OFF
   cmake --build "$build" --parallel "$JOBS"
   cmake --install "$build"
+  printf '%s' "$pin" >"$stamp"
 }
 
 build_meson() {
@@ -288,11 +296,12 @@ build_text_and_gpu_deps() {
 }
 
 build_ffmpeg() {
-  # Keyed on the pinned source, not merely on "something is installed", so a
-  # tree built against the previous FFmpeg rebuilds when the pin moves.
+  # Keyed on the pinned source and the capability manifest, not merely on
+  # "something is installed", so a tree rebuilds both when the pin moves and
+  # when the feature set changes underneath an unchanged tarball.
   local stamp="$PREFIX/lib/pkgconfig/.spool-ffmpeg-source"
   local pin
-  pin="$(toolchain_field "$ROOT" ffmpeg.sha256)"
+  pin="$(toolchain_field "$ROOT" ffmpeg.sha256):$(sha256sum "$ROOT/tools/manifests/ffmpeg-capabilities.json" | cut -d" " -f1)"
   [[ -f "$PREFIX/lib/pkgconfig/libavcodec.pc" && -f "$stamp" && "$(<"$stamp")" == "$pin" ]] && return
   local build="$BUILD_ROOT/ffmpeg"
   rm -rf "$build"
@@ -325,7 +334,15 @@ build_ffmpeg() {
 }
 
 build_mpv() {
-  [[ -f "$PREFIX/lib/libmpv.so" ]] && return
+  # FFmpeg and curl are static here, so their contents end up inside libmpv.so
+  # and nothing meson tracks moves when they are rebuilt. A cached libmpv then
+  # keeps the feature set it was linked against -- which is how an FFmpeg
+  # without the https protocol survives a rebuild that was meant to add it.
+  # Key the library on the stamps those two builds leave behind.
+  local stamp="$PREFIX/lib/.spool-mpv-dependencies"
+  local pin
+  pin="$(cat "$PREFIX/lib/pkgconfig/.spool-ffmpeg-source" "$PREFIX/lib/.spool-curl-configuration" 2>/dev/null || true)"
+  [[ -f "$PREFIX/lib/libmpv.so" && -f "$stamp" && "$(<"$stamp")" == "$pin" ]] && return
   local build="$BUILD_ROOT/mpv"
   rm -rf "$build"
   meson setup "$build" "$ROOT/mpv" \
@@ -337,6 +354,7 @@ build_mpv() {
     -Dandroid-media-ndk=enabled -Daudiotrack=enabled -Daaudio=enabled
   meson compile -C "$build" -j "$JOBS"
   meson install -C "$build"
+  printf '%s' "$pin" >"$stamp"
 }
 
 build_all() {
