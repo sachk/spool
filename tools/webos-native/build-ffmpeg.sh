@@ -72,8 +72,8 @@ python3 "$ROOT/tools/ffmpeg-capabilities.py" --manifest "$FFMPEG_CAPABILITY_MANI
   audit-config --platform webos ffbuild/config.log config_components.h
 cp -f ffbuild/config.log "$BUILD_DIR/config.log"
 
-grep -q "^license='GPL version 2 or later'$" ffbuild/config.log || {
-  echo "error: FFmpeg did not configure as GPL-2.0-or-later" >&2
+grep -q "^license='LGPL version 2.1 or later'$" ffbuild/config.log || {
+  echo "error: FFmpeg did not configure as LGPL-2.1-or-later" >&2
   exit 1
 }
 

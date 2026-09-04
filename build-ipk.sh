@@ -341,7 +341,11 @@ do
   stage_elf_shared_library "$pattern" "$STAGE_LIB" "$READELF_BIN" >/dev/null
 done
 
-for tls_consumer in "$STAGE_BIN/jellyfin-native" "$CURL_STAGED_LIBRARY"; do
+# libavformat is on this list because lavf's HLS demuxer resolves every
+# segment URL by protocol name before mpv's libcurl backend is consulted, and
+# an FFmpeg without a TLS backend registers no https protocol to find. It
+# moves no bytes; libcurl still carries playback.
+for tls_consumer in "$STAGE_BIN/jellyfin-native" "$CURL_STAGED_LIBRARY" "$AVFORMAT_STAGED_LIBRARY"; do
   TLS_DYNAMIC_SECTION="$("$READELF_BIN" -d "$tls_consumer")"
   if [[ "$TLS_DYNAMIC_SECTION" != *"[libssl.so"* && "$TLS_DYNAMIC_SECTION" != *"[libcrypto.so"* ]]; then
     echo "error: $(basename "$tls_consumer") does not use the packaged shared OpenSSL build" >&2
@@ -353,11 +357,7 @@ if [[ "$MPV_DYNAMIC_SECTION" != *"[libcurl.so"* ]]; then
   echo "error: $(basename "$MPV_STAGED_LIBRARY") does not use packaged shared curl" >&2
   exit 1
 fi
-AVFORMAT_DYNAMIC_SECTION="$("$READELF_BIN" -d "$AVFORMAT_STAGED_LIBRARY")"
-if [[ "$AVFORMAT_DYNAMIC_SECTION" == *"[libssl.so"* || "$AVFORMAT_DYNAMIC_SECTION" == *"[libcrypto.so"* ]]; then
-  echo "error: $(basename "$AVFORMAT_STAGED_LIBRARY") unexpectedly retains a TLS dependency" >&2
-  exit 1
-fi
+
 
 # Keep every private dependency rooted in the package instead of binding to
 # firmware libraries with the same SONAME.

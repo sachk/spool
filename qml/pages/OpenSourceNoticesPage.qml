@@ -24,7 +24,7 @@ FocusScope {
         },
         {
             "name": "FFmpeg",
-            "license": "LGPL-2.1-or-later / GPL-2.0-or-later",
+            "license": "LGPL-2.1-or-later",
             "source": "ffmpeg.org"
         },
         {

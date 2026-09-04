@@ -40,7 +40,11 @@ def main() -> int:
     for platform in ("linux", "macos", "webos"):
         flags = set(run(script, manifest, "configure", "--platform", platform).stdout.splitlines())
         assert required <= flags, (platform, required - flags)
-        assert "--enable-gpl" in flags, platform
+        # The app is MPL-2.0 and nothing in the component set is GPL-only, so
+        # FFmpeg builds as LGPL-2.1-or-later. That is also what lets it link
+        # the OpenSSL the cross builds already carry: FFmpeg refuses OpenSSL
+        # under --enable-gpl without --enable-version3.
+        assert "--enable-gpl" not in flags, platform
         assert not ({"--enable-version3", "--enable-nonfree"} & flags), platform
         assert "--enable-decoder=mjpeg" not in flags, platform
         assert "--enable-decoder=png" not in flags, platform
@@ -50,7 +54,7 @@ def main() -> int:
         assert {"--enable-protocol=https", "--enable-protocol=tls"} <= flags, platform
 
     meson = set(run(script, manifest, "meson", "--platform", "windows").stdout.splitlines())
-    assert {"ffmpeg:gpl=enabled", "ffmpeg:version3=disabled", "ffmpeg:nonfree=disabled"} <= meson
+    assert {"ffmpeg:gpl=disabled", "ffmpeg:version3=disabled", "ffmpeg:nonfree=disabled"} <= meson
     # Windows takes FFmpeg as a Meson subproject rather than through configure,
     # so the network switches its platform entry carries have to survive the
     # translation or its HLS playback silently loses every transcode.
@@ -63,7 +67,7 @@ def main() -> int:
     with tempfile.TemporaryDirectory() as directory:
         config = Path(directory) / "config.log"
         components = Path(directory) / "config_components.h"
-        config.write_text(" ".join(sorted(required | {"--enable-gpl"})) + "\n", encoding="utf-8")
+        config.write_text(" ".join(sorted(required)) + "\n", encoding="utf-8")
         enabled_protocols = "".join(
             f"#define CONFIG_{name.upper()}_PROTOCOL 1\n"
             for name in json.loads(manifest.read_text(encoding="utf-8"))["protocols"]
@@ -73,15 +77,20 @@ def main() -> int:
             encoding="utf-8",
         )
 
-        lgpl_manifest = Path(directory) / "ffmpeg-capabilities-lgpl.json"
-        lgpl_data = json.loads(manifest.read_text(encoding="utf-8"))
-        lgpl_data["platforms"]["macos"]["gpl"] = False
-        lgpl_manifest.write_text(json.dumps(lgpl_data), encoding="utf-8")
-        lgpl_flags = set(run(script, lgpl_manifest, "configure", "--platform", "macos").stdout.splitlines())
-        assert "--disable-gpl" in lgpl_flags
-        assert "--enable-gpl" not in lgpl_flags
+        # The GPL branch has no platform using it any more, so exercise it
+        # against a manifest that opts one in rather than letting it rot.
+        gpl_manifest = Path(directory) / "ffmpeg-capabilities-gpl.json"
+        gpl_data = json.loads(manifest.read_text(encoding="utf-8"))
+        gpl_data["platforms"]["macos"]["gpl"] = True
+        gpl_manifest.write_text(json.dumps(gpl_data), encoding="utf-8")
+        gpl_flags = set(run(script, gpl_manifest, "configure", "--platform", "macos").stdout.splitlines())
+        assert "--disable-gpl" in gpl_flags
+        assert "--enable-gpl" in gpl_flags
+        gpl_header = Path(directory) / "FfmpegCapabilitiesGpl.h"
+        run(script, gpl_manifest, "cpp-header", "--platform", "macos", "--output", str(gpl_header))
+        assert "inline constexpr bool kGplEnabled = true;" in gpl_header.read_text(encoding="utf-8")
         lgpl_header = Path(directory) / "FfmpegCapabilities.h"
-        run(script, lgpl_manifest, "cpp-header", "--platform", "macos", "--output", str(lgpl_header))
+        run(script, manifest, "cpp-header", "--platform", "macos", "--output", str(lgpl_header))
         assert "inline constexpr bool kGplEnabled = false;" in lgpl_header.read_text(encoding="utf-8")
         run(script, manifest, "audit-config", "--platform", "webos", str(config), str(components))
         run(script, manifest, "audit-components", "--platform", "windows", str(components))
