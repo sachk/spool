@@ -832,6 +832,26 @@ if(BUILD_TESTING AND NOT CMAKE_CROSSCOMPILING)
         # Windows packages expose libmpv but do not ship FFmpeg development
         # libraries or pkg-config; keep its manifest generator test below,
         # but only build the linked compliance test where FFmpeg is available.
+        # pkg_check_modules caches its result, so a tree carried over from an
+        # earlier build keeps resolving whichever FFmpeg it first found. The
+        # compliance test then audits a library the app no longer links, and
+        # reports the previous build's licence and feature set. The capability
+        # manifest is already a configure dependency; make the lookup follow it
+        # rather than the cache.
+        # pkg_check_modules caches both its search result and the absolute path
+        # it resolved for every library, so a build tree carried over from an
+        # earlier run keeps linking whichever FFmpeg it first found. The
+        # compliance test then audits a library the app no longer links and
+        # reports the previous build's licence and feature set. Clearing the
+        # prefix is the documented way to make the lookup happen again; the
+        # capability manifest is already a configure dependency, so this is what
+        # makes the audit follow it.
+        get_cmake_property(JELLYFIN_CACHE_VARIABLES CACHE_VARIABLES)
+        foreach(cache_variable IN LISTS JELLYFIN_CACHE_VARIABLES)
+            if(cache_variable MATCHES "^(pkgcfg_lib_FFMPEG_AUDIT_|__pkg_config_checked_FFMPEG_AUDIT|FFMPEG_AUDIT_)")
+                unset(${cache_variable} CACHE)
+            endif()
+        endforeach()
         pkg_check_modules(FFMPEG_AUDIT REQUIRED IMPORTED_TARGET libavutil libavcodec libavformat libavfilter)
         add_executable(ffmpeg-compliance-tests tests/media/FfmpegComplianceTest.cpp)
         set_target_properties(ffmpeg-compliance-tests PROPERTIES
