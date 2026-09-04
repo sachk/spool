@@ -19,10 +19,10 @@ namespace {
 
 QString resolveAppRoot(const char *)
 {
-    wchar_t executablePath[32768] { };
+    wchar_t executablePath[32768] {};
     const DWORD length = GetModuleFileNameW(nullptr, executablePath, static_cast<DWORD>(std::size(executablePath)));
     if (length == 0 || length >= std::size(executablePath))
-        return { };
+        return {};
     return QFileInfo(QString::fromWCharArray(executablePath, static_cast<qsizetype>(length))).absolutePath();
 }
 
@@ -51,7 +51,7 @@ QStringList appLogDirectories(const QString&)
 
 QString appLogFileName()
 {
-    return QStringLiteral("jellyfin-native.log");
+    return QStringLiteral("spool.log");
 }
 
 } // namespace JellyfinNative

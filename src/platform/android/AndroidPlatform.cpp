@@ -159,7 +159,7 @@ QStringList appLogDirectories(const QString&)
 
 QString appLogFileName()
 {
-    return QStringLiteral("jellyfin-native.log");
+    return QStringLiteral("spool.log");
 }
 
 const PlatformAudioOutputPolicy& platformAudioOutputPolicy()
