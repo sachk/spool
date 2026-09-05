@@ -153,6 +153,16 @@ void NativeAppWindow::publishPendingOverlayImage()
         m_overlayPublishQueued = false;
         if (image.isNull() && m_overlayImage.isNull())
             return;
+        // An overlay that is drawn but never composited, and one that is never
+        // drawn at all, look exactly alike from outside the app: a picture with
+        // no subtitles on it. Say when it starts and when it stops.
+        if (m_overlayImage.isNull() != image.isNull()) {
+            if (image.isNull())
+                qInfo() << "overlay: mpv overlay cleared";
+            else
+                qInfo().nospace() << "overlay: mpv drew " << image.width() << "x" << image.height() << " at " << x
+                                  << "," << y;
+        }
         m_overlayImage = std::move(image);
         m_overlayX = x;
         m_overlayY = y;

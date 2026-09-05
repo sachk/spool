@@ -71,6 +71,12 @@ FocusScope {
     }
     // qmllint enable import unresolved-type
 
+    // What mpv drew, on the outputs that hand it over rather than compositing
+    // it into the picture themselves. Subtitles belong under the player's
+    // chrome, the same as they do everywhere else -- but this image carries
+    // mpv's stats page too, and a diagnostic that the controls can cover is
+    // not a diagnostic. So while the stats page is up, the whole of it comes
+    // to the front, above every part of the player.
     Image {
         x: NativeWindow.overlayX
         y: NativeWindow.overlayY
@@ -80,7 +86,7 @@ FocusScope {
         source: visible ? "image://mpv-overlay/live?rev=" + NativeWindow.overlayRevision : ""
         cache: false
         fillMode: Image.Stretch
-        z: 1
+        z: Player.debugOsdVisible ? 6 : 1
     }
 
     Loader {
