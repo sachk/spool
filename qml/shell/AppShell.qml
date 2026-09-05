@@ -6,8 +6,6 @@ import "RoutePolicy.js" as RoutePolicy
 
 KeyRouter {
     id: root
-    onWidthChanged: Metrics.viewportWidth = width
-    onHeightChanged: Metrics.viewportHeight = height
 
     readonly property string lane: Metrics.lane(width)
     // A rail across the top of a viewport this narrow is a reach rather than
@@ -29,6 +27,30 @@ KeyRouter {
     // The shell is the one place that knows how big the window is and what
     // the user asked the interface to be scaled to. It hands both to Metrics
     // so nothing under qml/theme has to reach for a backend singleton.
+    //
+    // Bindings rather than onWidthChanged handlers: a handler only runs when
+    // the value changes *after* the item exists, so until the platform
+    // reported real geometry every size came off the 1920x1080 fallback in
+    // Metrics. On a phone or a television reporting half that in logical
+    // pixels the settled scale is much smaller, so the first frames drew the
+    // top-row icons visibly too large and they shrank on the first update. A
+    // binding is evaluated for the first frame as well.
+    Binding {
+        target: Metrics
+        property: "viewportWidth"
+        value: root.width
+        when: root.width > 0
+        restoreMode: Binding.RestoreNone
+    }
+
+    Binding {
+        target: Metrics
+        property: "viewportHeight"
+        value: root.height
+        when: root.height > 0
+        restoreMode: Binding.RestoreNone
+    }
+
     Binding {
         target: Metrics
         property: "zoomPercent"
@@ -48,6 +70,22 @@ KeyRouter {
                              Metrics.pointerActive = false
                              root.focus = true
                          }
+    }
+
+    // Qt's logical pixel on Android is exactly an Android dp, and Android has
+    // already decided what a dp should be for the panel in front of it: a
+    // handset reports a few hundred dp across because it is held at arm's
+    // length, and a television reports about 960x540 because it is watched
+    // from across a room. Scoring that television viewport at 1.0 is what
+    // lets both Android form factors start at 100% zoom, instead of a 150%
+    // default correcting a desktop-shaped yardstick.
+    //
+    // sqrt(960 * 540) = 720.
+    Binding {
+        target: Metrics
+        property: "baselinePx"
+        value: Platform.isAndroid ? 720 : 1440
+        restoreMode: Binding.RestoreNone
     }
 
     Binding {

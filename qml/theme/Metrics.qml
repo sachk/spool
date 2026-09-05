@@ -1,12 +1,18 @@
 pragma Singleton
 import QtQuick
+import QtQuick.Window
 
 QtObject {
     // The viewport the shell is drawn into, pushed here by AppShell. Every
     // size in the app is a multiple of the yardstick these two numbers make,
     // so there is one place to reason about how big anything should be.
-    property real viewportWidth: 1920
-    property real viewportHeight: 1080
+    //
+    // The defaults are the screen rather than a fixed 1920x1080, because they
+    // are what the very first frame is drawn against. A literal desktop
+    // viewport made a phone's first frames a third too large until the shell
+    // reported its real size.
+    property real viewportWidth: Screen.width > 0 ? Screen.width : 1920
+    property real viewportHeight: Screen.height > 0 ? Screen.height : 1080
     // Set by the shell when the last thing to touch the app was a finger.
     // Taps need a floor that a remote and a mouse do not.
     property bool coarsePointer: false
@@ -32,11 +38,19 @@ QtObject {
     readonly property int uiScalePercent: Math.max(80, Math.min(180, zoomPercent))
     readonly property real uiScale: uiScalePercent / 100
 
-    // sqrt(1920 * 1080): the viewport every size in this file was drawn
-    // against. A viewport's geometric mean is its shape in one number, so a
-    // square panel and a widescreen one of the same area land on the same
-    // sizes and neither needs an aspect ratio to be named anywhere.
-    readonly property real baselinePx: 1440
+    // The viewport that scores 1.0, as a geometric mean. A viewport's
+    // geometric mean is its shape in one number, so a square panel and a
+    // widescreen one of the same area land on the same sizes and neither
+    // needs an aspect ratio named anywhere.
+    //
+    // Its unit is whatever Qt calls a logical pixel, and that is not the same
+    // thing everywhere: on a desktop it is roughly a 96dpi pixel, so the
+    // default is sqrt(1920 * 1080), the viewport this file was drawn against.
+    // On Android it is exactly an Android dp, which is a different and better
+    // yardstick -- the platform has already accounted for how far away the
+    // panel is held -- so the shell substitutes Android's own. Set by
+    // AppShell; see the binding there for why.
+    property real baselinePx: 1440
     readonly property real viewportRatio: Math.sqrt(Math.max(1, viewportWidth) * Math.max(1, viewportHeight))
                                           / baselinePx
 
