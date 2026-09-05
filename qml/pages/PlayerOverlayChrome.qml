@@ -18,14 +18,37 @@ Item {
     function dp(value) {
         return overlay ? overlay.dp(value) : Math.round(value)
     }
-    function handlePointerMove(position) {
+    // Where the pointer was last seen, so movement can be told from mere
+    // presence. Seeding it without acting is what makes a pointer that is
+    // simply already there -- because the chrome appeared underneath it, or
+    // because it was left on the seek bar -- count as nothing.
+    function notePointer(position) {
+        lastPointerX = Math.round(position.x)
+        lastPointerY = Math.round(position.y)
+    }
+
+    // A person using the controls moves the pointer. A pointer resting on
+    // them does not, and must not renew the hide timer: an overlay raised by
+    // somebody scrubbing on another device would otherwise stay up for as
+    // long as the pointer happened to be sitting over it. The threshold
+    // absorbs the sub-pixel jitter a still hand and a scaled surface produce.
+    function pointerMoved(position) {
         const x = Math.round(position.x)
         const y = Math.round(position.y)
-        if (x === lastPointerX && y === lastPointerY)
-            return
+        if (lastPointerX < 0 || lastPointerY < 0) {
+            notePointer(position)
+            return false
+        }
+        if (Math.abs(x - lastPointerX) < 2 && Math.abs(y - lastPointerY) < 2)
+            return false
         lastPointerX = x
         lastPointerY = y
-        overlay.showControlsFromPointer()
+        return true
+    }
+
+    function handlePointerMove(position) {
+        if (pointerMoved(position))
+            overlay.showControlsFromPointer()
     }
 
     function artworkSource(url) {
@@ -107,8 +130,10 @@ Item {
         }
     }
     HoverHandler {
+        // Entering is presence, not use: it only records where the pointer
+        // is. Point changes are where actual movement shows up.
         onHoveredChanged: if (hovered)
-        root.handlePointerMove(point.position)
+        root.notePointer(point.position)
         onPointChanged: if (hovered)
         root.handlePointerMove(point.position)
     }

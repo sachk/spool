@@ -38,6 +38,12 @@ FocusScope {
     property bool timelineHovering: false
     property double timelineHoverSeconds: 0
     property bool remoteScrubbing: false
+    // Why the controls are currently on screen: "local" if somebody at this
+    // screen asked for them, "remote" if another device's scrubbing raised
+    // them, empty when they are down. A remote-raised overlay belongs to a
+    // person who is not looking at this pointer, so hovering must not keep it
+    // alive; only real use here promotes it to "local".
+    property string controlsReason: ""
     // When the last Back that reached the chrome was pressed, so a second one
     // can be recognised as a repeat rather than as a fresh intention.
     property real lastChromeBackMs: 0
@@ -270,6 +276,22 @@ FocusScope {
         return menuKind.length > 0 || syncPlayMenuOpen
     }
 
+    // Raise the controls and say who they belong to. Only the remote-scrub
+    // path needs this; everything else is local by definition.
+    function raiseControls(reason, preferredZone) {
+        showControls(preferredZone)
+        controlsReason = reason
+    }
+
+    // Hover is the one signal that says nothing about who is watching, so a
+    // renewal that came from it is dropped while the overlay belongs to
+    // another device's scrubbing.
+    function maybeRestartAutohideFromHover() {
+        if (controlsReason === "remote")
+            return
+        maybeRestartAutohide()
+    }
+
     function isPinned() {
         return audioOnly || scrubbing || isMenuOpen() || audioSyncVisible || queuePanelVisible
     }
@@ -286,6 +308,10 @@ FocusScope {
     function showControls(preferredZone) {
         if (preferredZone)
             focusZone = preferredZone
+        // Every direct caller is somebody at this screen -- a key, a click, a
+        // wheel, a menu closing. The remote path goes through raiseControls,
+        // which overrides this afterwards.
+        controlsReason = "local"
         controlsVisible = true
         if (isPinned())
             autohide.stop()
@@ -293,11 +319,17 @@ FocusScope {
             restartAutohide()
     }
 
+    // Called only for real pointer movement, never for mere presence. A
+    // stationary pointer sitting over the seek bar used to renew the timer
+    // forever, so an overlay raised by someone scrubbing from another device
+    // never went away on its own.
     function showControlsFromPointer() {
-        if (!controlsVisible)
-            showControls("timeline")
-        else
-            maybeRestartAutohide()
+        if (!controlsVisible) {
+            raiseControls("local", "timeline")
+            return
+        }
+        controlsReason = "local"
+        maybeRestartAutohide()
     }
 
     function maybeRestartAutohide() {
@@ -311,6 +343,7 @@ FocusScope {
         input.reset()
         autohide.stop()
         controlsVisible = false
+        controlsReason = ""
         focusZone = "timeline"
         actionIndex = pauseActionIndex
         return true
@@ -349,13 +382,16 @@ FocusScope {
                 return
             remoteScrubbing = false
             scrubbing = false
+            // Unpinned now, so the timer runs again -- and because the reason
+            // is still "remote", a pointer parked on the chrome cannot keep
+            // renewing it.
             maybeRestartAutohide()
             return
         }
         if (!hasPlayer)
             return
         remoteScrubbing = true
-        showControls("timeline")
+        raiseControls("remote", "timeline")
         scrubSeconds = clampSeconds(seconds)
         scrubbing = true
         autohide.stop()

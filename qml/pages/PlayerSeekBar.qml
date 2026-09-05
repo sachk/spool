@@ -149,7 +149,7 @@ Item {
         onEntered: updateHover(mouseX)
         onExited: {
             root.overlay.timelineHovering = false
-            root.overlay.maybeRestartAutohide()
+            root.overlay.maybeRestartAutohideFromHover()
         }
         onPressed: mouse => updatePosition(mouse)
         onPositionChanged: mouse => {
