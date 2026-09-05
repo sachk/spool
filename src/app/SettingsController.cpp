@@ -159,6 +159,8 @@ void SettingsController::applyLocalValues(const QVariantMap& storedValues)
             defaultValue = platformDefaultRemoteControlTargetEnabled();
         else if (spec.target == SettingTarget::RenderQuality)
             defaultValue = QString::fromLatin1(platformDefaultRenderQuality());
+        else if (spec.target == SettingTarget::VideoOutputMode)
+            defaultValue = QString::fromLatin1(platformDefaultVideoOutput());
         const QVariant stored = !rawValue.isValid() || rawValue.toString().isEmpty() ? defaultValue : rawValue;
         const QVariant normalized = normalizedSettingValue(spec, stored);
         m_values.insert(key, normalized);

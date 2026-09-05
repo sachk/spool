@@ -34,6 +34,11 @@ const char *platformDefaultRenderQuality();
 // the display pipeline to scale and present it. Where it can, that is the rung
 // below the cheapest GPU profile rather than a dead end.
 bool platformSupportsDirectVideoOutput();
+// Which of those two a device starts on. A part that cannot shade a 4K frame
+// sixty times a second should never have been asked to in the first place, so
+// it is handed the display pipeline from the outset rather than being demoted
+// to it after a viewer has watched the first few seconds stutter.
+const char *platformDefaultVideoOutput();
 bool platformUsesPerOutputAudioDelay();
 bool platformDefaultCastButtonEnabled();
 bool platformDefaultRemoteControlTargetEnabled();

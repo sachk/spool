@@ -234,6 +234,14 @@ bool platformSupportsDirectVideoOutput()
     return true;
 }
 
+const char *platformDefaultVideoOutput()
+{
+    // A television box is the case direct output exists for. Handsets have a
+    // GPU with room to spare for a screen a fraction of the size, and get the
+    // processing that buys.
+    return platformCapabilities().isTV ? "direct" : "enhanced";
+}
+
 bool platformUsesPerOutputAudioDelay()
 {
     return false;

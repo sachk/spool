@@ -51,6 +51,11 @@ bool platformSupportsDirectVideoOutput()
     return false;
 }
 
+const char *platformDefaultVideoOutput()
+{
+    return "enhanced";
+}
+
 bool platformUsesPerOutputAudioDelay()
 {
     return false;
