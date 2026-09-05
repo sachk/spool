@@ -31,6 +31,14 @@ FocusScope {
     readonly property bool syncAvailable: syncGroups && syncGroups.length > 0
     readonly property string selectedRoute: currentRoute === "libraryGrid" ? "home" : currentRoute
 
+    // A rail cell is never narrower than the button inside it. It used to be
+    // a flat scaled(50) while the button took the touch-target floor, so on a
+    // phone a 72px button sat in a 41px cell: the buttons overlapped by more
+    // than half their width and a tap near a boundary went to whichever
+    // happened to be stacked last. With a pointer the reverse held, and the
+    // few pixels either side of each button were dead.
+    readonly property int railCellWidth: Math.max(Metrics.scaled(50), Metrics.touchTargetPx)
+
     // Index space: navigation buttons, optional Remote and Cast buttons, then SyncPlay.
     function lastIndex() {
         return railRepeater.count + (castVisible ? 1 : 0) + (remoteVisible ? 1 : 0)
@@ -252,7 +260,10 @@ FocusScope {
         anchors.fill: parent
         anchors.leftMargin: Metrics.scaled(14)
         anchors.rightMargin: Metrics.scaled(14)
-        spacing: Metrics.scaled(4)
+        // Butted together, so the hit areas tile with nothing between them.
+        // The separation the eye sees is padding inside each button, which
+        // does not shrink what can be pressed.
+        spacing: 0
 
         Repeater {
             id: railRepeater
@@ -289,7 +300,7 @@ FocusScope {
                 function hasButtonFocus() {
                     return button.activeFocus
                 }
-                Layout.preferredWidth: Metrics.scaled(50)
+                Layout.preferredWidth: root.railCellWidth
                 Layout.fillHeight: true
 
                 IconButton {
@@ -340,7 +351,7 @@ FocusScope {
         Item {
             visible: root.castVisible
             Layout.alignment: Qt.AlignVCenter
-            Layout.preferredWidth: visible ? Metrics.scaled(50) : 0
+            Layout.preferredWidth: visible ? root.railCellWidth : 0
             Layout.fillHeight: true
 
             IconButton {
@@ -376,7 +387,7 @@ FocusScope {
         Item {
             visible: root.remoteVisible
             Layout.alignment: Qt.AlignVCenter
-            Layout.preferredWidth: visible ? Metrics.scaled(50) : 0
+            Layout.preferredWidth: visible ? root.railCellWidth : 0
             Layout.fillHeight: true
 
             IconButton {
@@ -410,7 +421,7 @@ FocusScope {
 
         Item {
             Layout.alignment: Qt.AlignVCenter
-            Layout.preferredWidth: Metrics.scaled(50)
+            Layout.preferredWidth: root.railCellWidth
             Layout.fillHeight: true
 
             IconButton {
