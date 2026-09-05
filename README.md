@@ -28,9 +28,14 @@ nix develop .#android -c bash tools/android/build.sh
 That runs the three cached stages -- `build-dependencies.sh`, `build-qt6.sh`,
 `build-apks.sh` -- which can also be invoked on their own.
 
-It builds both `spool-phone-x86_64.apk` and `spool-tv-x86_64.apk` under
-`dist/android`; name a subset in `SPOOL_ANDROID_VARIANTS`. Build
-release-device APKs by setting `ANDROID_ABI=arm64-v8a`.
+It builds `spool-x86_64.apk` under `dist/android`. One package serves both
+phones and televisions -- the form factor is asked of the system at runtime --
+so the only build-time choice is the architecture, set with `ANDROID_ABI`.
+
+`tools/android/build-universal-apk.sh` merges per-ABI APKs from one build into
+the single `spool-universal.apk` the release page offers, for people who do not
+know their device's architecture. The in-app updater never fetches it: the
+update manifest is keyed by ABI and that file is deliberately absent from it.
 
 Signing uses the real upload key when
 `~/.local/share/spool/signing/android-upload-credentials.json` exists, which

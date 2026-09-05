@@ -126,12 +126,14 @@ jobs:
           add_row 'Windows — portable' '*-Windows-x64-Portable.exe'
           add_row 'Linux — AppImage' '*-x86_64.AppImage'
           add_row 'LG webOS TV' '*_arm.ipk'
-          add_row 'Android phone — 64-bit ARM' 'spool-phone-arm64-v8a.apk'
-          add_row 'Android phone — 32-bit ARM' 'spool-phone-armeabi-v7a.apk'
-          add_row 'Android phone — x86-64' 'spool-phone-x86_64.apk'
-          add_row 'Android TV — 64-bit ARM' 'spool-tv-arm64-v8a.apk'
-          add_row 'Android TV — 32-bit ARM' 'spool-tv-armeabi-v7a.apk'
-          add_row 'Android TV — x86-64' 'spool-tv-x86_64.apk'
+          # One package serves phones and televisions, so the only remaining
+          # choice is architecture -- and the universal APK exists so that
+          # somebody who does not know theirs does not have to make it. It
+          # goes first for that reason.
+          add_row 'Android phone or TV — Universal' 'spool-universal.apk'
+          add_row 'Android phone or TV — 64-bit ARM' 'spool-arm64-v8a.apk'
+          add_row 'Android phone or TV — 32-bit ARM' 'spool-armeabi-v7a.apk'
+          add_row 'Android phone or TV — x86-64' 'spool-x86_64.apk'
 
           {
             cat generated-notes.md
@@ -173,43 +175,34 @@ jobs:
           REPO: ${{ github.repository }}
         run: |
           set -euo pipefail
-          phone_arm64='release-assets/spool-phone-arm64-v8a.apk'
-          phone_armv7='release-assets/spool-phone-armeabi-v7a.apk'
-          phone_x86_64='release-assets/spool-phone-x86_64.apk'
-          tv_arm64='release-assets/spool-tv-arm64-v8a.apk'
-          tv_armv7='release-assets/spool-tv-armeabi-v7a.apk'
-          tv_x86_64='release-assets/spool-tv-x86_64.apk'
-          for apk in "$phone_arm64" "$phone_armv7" "$phone_x86_64" "$tv_arm64" "$tv_armv7" "$tv_x86_64"; do
-            test -f "$apk"
-          done
           version="${TAG#v}"
           IFS=. read -r major minor patch <<<"$version"
           version_code=$((major * 100000000 + minor * 100000 + patch * 100 + 99))
           base="https://github.com/$REPO/releases/download/$TAG"
           mkdir -p update-pages/updates
+
+          # Keyed by ABI alone: one package now serves both form factors, so
+          # the architecture is the whole of the choice. This is the same key
+          # AndroidUpdateController::assetKey() builds from SPOOL_ANDROID_ABI.
+          assets='{}'
+          for abi in arm64-v8a armeabi-v7a x86_64; do
+            apk="release-assets/spool-$abi.apk"
+            test -f "$apk"
+            assets="$(jq -n \
+              --argjson acc "$assets" \
+              --arg key "$abi" \
+              --arg url "$base/$(basename "$apk")" \
+              --arg sha "$(sha256sum "$apk" | cut -d' ' -f1)" \
+              --argjson size "$(stat -c%s "$apk")" \
+              '$acc + {($key): {url: $url, sha256: $sha, size: $size}}')"
+          done
+
           jq -n \
             --arg version "$version" \
             --argjson versionCode "$version_code" \
             --arg releaseUrl "https://github.com/$REPO/releases/tag/$TAG" \
             --rawfile notes generated-notes.md \
-            --arg phoneArm64Url "$base/$(basename "$phone_arm64")" \
-            --arg phoneArm64Sha "$(sha256sum "$phone_arm64" | cut -d' ' -f1)" \
-            --argjson phoneArm64Size "$(stat -c%s "$phone_arm64")" \
-            --arg phoneArmv7Url "$base/$(basename "$phone_armv7")" \
-            --arg phoneArmv7Sha "$(sha256sum "$phone_armv7" | cut -d' ' -f1)" \
-            --argjson phoneArmv7Size "$(stat -c%s "$phone_armv7")" \
-            --arg phoneX8664Url "$base/$(basename "$phone_x86_64")" \
-            --arg phoneX8664Sha "$(sha256sum "$phone_x86_64" | cut -d' ' -f1)" \
-            --argjson phoneX8664Size "$(stat -c%s "$phone_x86_64")" \
-            --arg tvArm64Url "$base/$(basename "$tv_arm64")" \
-            --arg tvArm64Sha "$(sha256sum "$tv_arm64" | cut -d' ' -f1)" \
-            --argjson tvArm64Size "$(stat -c%s "$tv_arm64")" \
-            --arg tvArmv7Url "$base/$(basename "$tv_armv7")" \
-            --arg tvArmv7Sha "$(sha256sum "$tv_armv7" | cut -d' ' -f1)" \
-            --argjson tvArmv7Size "$(stat -c%s "$tv_armv7")" \
-            --arg tvX8664Url "$base/$(basename "$tv_x86_64")" \
-            --arg tvX8664Sha "$(sha256sum "$tv_x86_64" | cut -d' ' -f1)" \
-            --argjson tvX8664Size "$(stat -c%s "$tv_x86_64")" \
+            --argjson assets "$assets" \
             '{
               schemaVersion: 1,
               releases: [{
@@ -218,17 +211,18 @@ jobs:
                 versionCode: $versionCode,
                 releaseUrl: $releaseUrl,
                 notes: $notes,
-                assets: {
-                  "phone-arm64-v8a": {url: $phoneArm64Url, sha256: $phoneArm64Sha, size: $phoneArm64Size},
-                  "phone-armeabi-v7a": {url: $phoneArmv7Url, sha256: $phoneArmv7Sha, size: $phoneArmv7Size},
-                  "phone-x86_64": {url: $phoneX8664Url, sha256: $phoneX8664Sha, size: $phoneX8664Size},
-                  "tv-arm64-v8a": {url: $tvArm64Url, sha256: $tvArm64Sha, size: $tvArm64Size},
-                  "tv-armeabi-v7a": {url: $tvArmv7Url, sha256: $tvArmv7Sha, size: $tvArmv7Size},
-                  "tv-x86_64": {url: $tvX8664Url, sha256: $tvX8664Sha, size: $tvX8664Size}
-                }
+                assets: $assets
               }]
             }' >update-pages/updates/android.json
           jq -e '.schemaVersion == 1 and (.releases | length) == 1' update-pages/updates/android.json
+
+          # The universal APK is for people choosing a download by hand. An
+          # installed build must never be offered it: it carries a second
+          # architecture the device will never load and would roughly double
+          # the update. Nothing above adds it, and this is what keeps it so.
+          test -f release-assets/spool-universal.apk
+          ! jq -e '[.releases[].assets[].url] | any(endswith("spool-universal.apk"))' \
+            update-pages/updates/android.json >/dev/null
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.0
         with:
           name: spool-android-update-pages

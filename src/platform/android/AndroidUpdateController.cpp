@@ -394,12 +394,11 @@ bool AndroidUpdateController::launchInstaller() const
 
 QString AndroidUpdateController::assetKey() const
 {
-#ifdef SPOOL_ANDROID_TV
-    const QString variant = QStringLiteral("tv");
-#else
-    const QString variant = QStringLiteral("phone");
-#endif
-    return variant + QLatin1Char('-') + QStringLiteral(SPOOL_ANDROID_ABI);
+    // One package serves both form factors, so the architecture is the whole
+    // of the choice. The universal APK the release page offers is deliberately
+    // absent from the manifest: there is no key that resolves to it, so an
+    // installed build can only ever update to the APK built for its own ABI.
+    return QStringLiteral(SPOOL_ANDROID_ABI);
 }
 
 } // namespace JellyfinNative
