@@ -45,6 +45,9 @@ class PlayerController final : public QObject {
     Q_PROPERTY(bool embeddedVideoOutput READ embeddedVideoOutput NOTIFY playbackStateChanged)
     Q_PROPERTY(qint64 decoderDroppedFrames READ decoderDroppedFrames NOTIFY performanceStatsChanged)
     Q_PROPERTY(qint64 outputDroppedFrames READ outputDroppedFrames NOTIFY performanceStatsChanged)
+    Q_PROPERTY(qint64 delayedFrames READ delayedFrames NOTIFY performanceStatsChanged)
+    Q_PROPERTY(double outputFps READ outputFps NOTIFY performanceStatsChanged)
+    Q_PROPERTY(double containerFps READ containerFps NOTIFY performanceStatsChanged)
     Q_PROPERTY(bool subtitlesEnabled READ subtitlesEnabled NOTIFY tracksChanged)
     Q_PROPERTY(QStringList subtitleTracks READ subtitleTracks NOTIFY tracksChanged)
     Q_PROPERTY(int selectedSubtitleIndex READ selectedSubtitleIndex NOTIFY tracksChanged)
@@ -94,6 +97,18 @@ public:
     bool embeddedVideoOutput() const;
     qint64 decoderDroppedFrames() const;
     qint64 outputDroppedFrames() const;
+    qint64 delayedFrames() const
+    {
+        return m_delayedFrames;
+    }
+    double outputFps() const
+    {
+        return m_outputFps;
+    }
+    double containerFps() const
+    {
+        return m_containerFps;
+    }
     bool subtitlesEnabled() const;
     QStringList subtitleTracks() const;
     int selectedSubtitleIndex() const;
@@ -300,6 +315,14 @@ private:
     bool m_debugOsdVisible = false;
     qint64 m_decoderDroppedFrames = 0;
     qint64 m_outputDroppedFrames = 0;
+    // Frames the renderer presented late, and how fast it is actually
+    // managing to put them up against how fast the file says they should
+    // arrive. Dropped frames alone miss the failure that matters most: with
+    // audio-synced video a renderer that cannot keep up does not drop
+    // anything, it just runs slow and drags the picture behind the sound.
+    qint64 m_delayedFrames = 0;
+    double m_outputFps = 0.0;
+    double m_containerFps = 0.0;
     MpvOptionProfile::RenderQuality m_renderQuality = MpvOptionProfile::RenderQuality::Balanced;
     // The opening seconds are where a device that cannot keep up says so:
     // the picture is being scaled and tone-mapped from the first frame, and

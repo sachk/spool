@@ -206,24 +206,31 @@ PlayerController::PlayerController(NativeAppWindow *window, JellyfinApiFacade *a
     connect(&m_renderStrainTimer, &QTimer::timeout, this, [this]() {
         if (!m_sessionActive || m_renderStrainReported)
             return;
-        // Output drops are the renderer failing to present in time. Decoder
-        // drops are a different illness -- a stream the hardware cannot keep
-        // up with -- and a cheaper render profile would not help them.
+        // Counting dropped frames was not enough, and the Chromecast proved
+        // it: a 4K HDR file played visibly slow, the picture dragging behind
+        // the sound, while both drop counters sat at zero. With video synced
+        // to audio, a renderer that cannot keep up does not drop frames -- it
+        // presents them late and simply runs slow. So the question asked here
+        // is whether the picture is actually arriving at the rate the file
+        // says it should.
         constexpr qint64 tolerableDrops = 10;
-        qInfo() << "player: opening-seconds frame drops output=" << m_outputDroppedFrames
-                << "decoder=" << m_decoderDroppedFrames
-                << "quality=" << MpvOptionProfile::renderQualityName(m_renderQuality).constData();
-        if (m_outputDroppedFrames <= tolerableDrops)
+        constexpr qint64 tolerableDelays = 10;
+        constexpr double sustainedFraction = 0.85;
+        const bool tooSlow
+            = m_containerFps > 0.0 && m_outputFps > 0.0 && m_outputFps < m_containerFps * sustainedFraction;
+        // Decoder drops are a different illness -- a stream the hardware
+        // cannot decode -- and no amount of cheaper rendering helps them, so
+        // they are reported but never acted on.
+        const bool strained = tooSlow || m_outputDroppedFrames > tolerableDrops || m_delayedFrames > tolerableDelays;
+        qInfo() << "player: opening-seconds render check output-drops=" << m_outputDroppedFrames
+                << "decoder-drops=" << m_decoderDroppedFrames << "late=" << m_delayedFrames << "fps=" << m_outputFps
+                << "of" << m_containerFps
+                << "quality=" << MpvOptionProfile::renderQualityName(m_renderQuality).constData()
+                << "strained=" << strained;
+        if (!strained)
             return;
         m_renderStrainReported = true;
-        emit renderQualityStrained(m_outputDroppedFrames);
-    });
-    connect(&m_backgroundTeardownTimer, &QTimer::timeout, this, [this]() {
-        if (!platformUsesBackgroundPlaybackPolicy() || !m_sessionActive)
-            return;
-        qInfo() << "player: stopping after sustained background/hidden app state";
-        stopWithReason(QStringLiteral("background"));
-        teardownMpv();
+        emit renderQualityStrained(m_outputDroppedFrames + m_delayedFrames);
     });
     connect(&m_backGuardTimer, &QTimer::timeout, this, [this]() {
         if (!m_sessionActive || m_backAllowed)
@@ -441,6 +448,9 @@ void PlayerController::observeMpvProperties(mpv_handle *handle)
     mpv_observe_property(handle, 0, "hwdec-current", MPV_FORMAT_STRING);
     mpv_observe_property(handle, 0, "decoder-frame-drop-count", MPV_FORMAT_INT64);
     mpv_observe_property(handle, 0, "frame-drop-count", MPV_FORMAT_INT64);
+    mpv_observe_property(handle, 0, "vo-delayed-frame-count", MPV_FORMAT_INT64);
+    mpv_observe_property(handle, 0, "estimated-vf-fps", MPV_FORMAT_DOUBLE);
+    mpv_observe_property(handle, 0, "container-fps", MPV_FORMAT_DOUBLE);
 }
 
 void PlayerController::scheduleMpvTeardown()
@@ -1768,6 +1778,9 @@ void PlayerController::resetPlaybackUiState()
     m_debugOsdVisible = false;
     m_decoderDroppedFrames = 0;
     m_outputDroppedFrames = 0;
+    m_delayedFrames = 0;
+    m_outputFps = 0.0;
+    m_containerFps = 0.0;
     m_renderStrainTimer.stop();
     m_renderStrainReported = false;
     m_timeline.clear();
@@ -1966,6 +1979,25 @@ void PlayerController::handleMpvEvent(mpv_event *event)
             QMetaObject::invokeMethod(this, [this, percent]() {
                 m_bufferingPercent = percent;
                 notifyPlaybackStateChanged();
+            });
+        } else if (strcmp(property->name, "vo-delayed-frame-count") == 0 && property->format == MPV_FORMAT_INT64) {
+            const qint64 count = *static_cast<int64_t *>(property->data);
+            QMetaObject::invokeMethod(this, [this, count]() {
+                if (m_delayedFrames == count)
+                    return;
+                m_delayedFrames = count;
+                emit performanceStatsChanged();
+            });
+        } else if ((strcmp(property->name, "estimated-vf-fps") == 0 || strcmp(property->name, "container-fps") == 0)
+            && property->format == MPV_FORMAT_DOUBLE) {
+            const bool container = strcmp(property->name, "container-fps") == 0;
+            const double fps = *static_cast<double *>(property->data);
+            QMetaObject::invokeMethod(this, [this, container, fps]() {
+                double& current = container ? m_containerFps : m_outputFps;
+                if (qFuzzyCompare(current, fps))
+                    return;
+                current = fps;
+                emit performanceStatsChanged();
             });
         } else if ((strcmp(property->name, "decoder-frame-drop-count") == 0
                        || strcmp(property->name, "frame-drop-count") == 0)

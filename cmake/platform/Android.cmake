@@ -25,7 +25,13 @@ endfunction()
 function(jellyfin_configure_android_targets native_target core_target)
     target_sources(${core_target} PRIVATE
         src/platform/android/AndroidPlatform.cpp
-        src/platform/desktop/UnsupportedPerformanceSampler.cpp
+        # Android is Linux, and every file this reads -- /proc/stat,
+        # /proc/self/stat, the per-thread task entries, loadavg and meminfo --
+        # is readable by an ordinary app. It was only ever on the unsupported
+        # sampler because nobody had tried, which is why the diagnostics
+        # overlay showed no CPU figures on the one platform where they matter
+        # most.
+        src/platform/common/LinuxPerformanceSampler.cpp
         src/platform/desktop/DesktopMpvConfigPolicy.cpp
         src/platform/desktop/DesktopPlaybackSurface.cpp
     )

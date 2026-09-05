@@ -16,7 +16,11 @@ Item {
         return Math.round(value / (1024 * 1024)) + " MiB"
     }
 
+    // A platform with no sampler reports zero for everything, and "0.0%" next
+    // to stuttering playback reads as a measurement rather than an absence.
     function cpu(value) {
+        if (!SystemPerformance.available)
+            return "n/a"
         return Number(value || 0).toFixed(1) + "%"
     }
 
@@ -66,7 +70,13 @@ Item {
             }
             SecondaryText {
                 text: "Dropped frames  decoder " + Player.decoderDroppedFrames + "  output "
-                      + Player.outputDroppedFrames
+                      + Player.outputDroppedFrames + "  late " + Player.delayedFrames
+            }
+            // The number that catches a renderer falling behind. Video synced
+            // to audio does not drop frames when it cannot keep up; it runs
+            // slow, and only the rate shows it.
+            SecondaryText {
+                text: "Frame rate  " + Player.outputFps.toFixed(2) + " of " + Player.containerFps.toFixed(2) + " fps"
             }
             SecondaryText {
                 text: "Load  " + SystemPerformance.loadOne.toFixed(2) + "  " + SystemPerformance.loadFive.toFixed(2)
