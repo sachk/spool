@@ -82,6 +82,10 @@ TestCase {
         keyRouter.globalHandler = null
         keyRouter.platformSendsRepeats = false
         keyRouter.platformSilent = false
+        keyRouter.platformPairsHolds = false
+        keyRouter.lastReleaseKey = 0
+        keyRouter.lastReleaseAt = 0
+        keyRouter.heldReleaseKey = 0
         keyRouter.stopSustaining()
     }
 
@@ -293,5 +297,33 @@ TestCase {
         keyRouter.emitSustainedRepeat()
         compare(routeCalls, before)
         compare(keyRouter.sustainedKey, 0)
+    }
+
+    function test_aPressRightAfterItsOwnReleaseIsStillTheSameHold() {
+        keyRouter.noteRelease(Qt.Key_Down)
+        verify(keyRouter.pressContinuesHold(Qt.Key_Down))
+        // And having been caught once, the platform is not given the benefit
+        // of the doubt again: every later release is held back.
+        verify(keyRouter.platformPairsHolds)
+    }
+
+    function test_aPressLongAfterItsReleaseIsANewPress() {
+        keyRouter.noteRelease(Qt.Key_Down)
+        keyRouter.lastReleaseAt = Date.now() - keyRouter.releaseGrace - 1
+        verify(!keyRouter.pressContinuesHold(Qt.Key_Down))
+        verify(!keyRouter.platformPairsHolds)
+    }
+
+    function test_aDifferentKeyIsNotTheSameHold() {
+        keyRouter.noteRelease(Qt.Key_Down)
+        verify(!keyRouter.pressContinuesHold(Qt.Key_Up))
+        verify(!keyRouter.platformPairsHolds)
+    }
+
+    function test_aHeldBackReleaseIsCancelledByThePressThatFollowsIt() {
+        keyRouter.platformPairsHolds = true
+        keyRouter.heldReleaseKey = Qt.Key_Right
+        verify(keyRouter.pressContinuesHold(Qt.Key_Right))
+        compare(keyRouter.heldReleaseKey, 0)
     }
 }

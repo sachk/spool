@@ -54,12 +54,40 @@ FocusScope {
     property double sustainedStartedAt: 0
     property bool sustainedRepeating: false
 
+    // A third dialect, and the one an Android television box speaks. Holding a
+    // direction on the Chromecast's remote produces neither a held key nor an
+    // auto-repeat: it produces whole press/release pairs, about 70ms down and
+    // 150-250ms apart, for as long as the key is held. Read literally that is
+    // a person tapping six times a second, and every view in the app reads it
+    // literally -- which is why a hold there steps, stutters and stops.
+    //
+    // A release that is followed by a press of the same key this soon was
+    // never a release. Once one has been seen the dialect is known, and from
+    // then on releases are held back for that long: if the press arrives the
+    // key was still down and the press is the repeat the platform declined to
+    // send, and if it does not the release was real and goes through this much
+    // later. That lateness is the entire cost, it is paid only on platforms
+    // that have already been caught lying, and the very first hold of a
+    // session is what catches them -- from its second press onwards it is
+    // already a hold.
+    property int releaseGrace: 300
+    property bool platformPairsHolds: false
+    property int lastReleaseKey: 0
+    property double lastReleaseAt: 0
+    property int heldReleaseKey: 0
+    property int heldReleaseModifiers: 0
+
     focus: true
-    onActiveTargetChanged: pressedDirectionKey = 0
+    onActiveTargetChanged: {
+        flushHeldRelease()
+        pressedDirectionKey = 0
+    }
     // A window that loses focus never sends the release for whatever was down
     // when it went away.
-    onActiveFocusChanged: if (!activeFocus)
+    onActiveFocusChanged: if (!activeFocus) {
+                              flushHeldRelease()
                               stopSustaining()
+                          }
     Keys.priority: Keys.BeforeItem
 
     function stopSustaining() {
@@ -90,6 +118,46 @@ FocusScope {
             console.info("input: no key repeats from this platform; holding a direction is driven here")
         platformSilent = true
         deliverDirection(sustainedKey, true, sustainedModifiers)
+    }
+
+    // Every release is remembered, whether or not it is held back, because the
+    // first one cannot be: until a press has followed one this closely there
+    // is nothing to say the platform is doing it on purpose.
+    function noteRelease(key) {
+        lastReleaseKey = key
+        lastReleaseAt = Date.now()
+    }
+
+    // True when this press is the far side of a release that was not real.
+    function pressContinuesHold(key) {
+        if (heldReleaseKey === key) {
+            heldReleaseTimer.stop()
+            heldReleaseKey = 0
+            return true
+        }
+        // A different key is genuinely down now, so whatever was waiting is up.
+        if (heldReleaseKey)
+            flushHeldRelease()
+        if (platformPairsHolds || key !== lastReleaseKey || Date.now() - lastReleaseAt >= releaseGrace)
+            return false
+        console.info("input: this platform holds a key by repeating press and release")
+        platformPairsHolds = true
+        return true
+    }
+
+    function flushHeldRelease() {
+        if (!heldReleaseKey)
+            return
+        const key = heldReleaseKey
+        const modifiers = heldReleaseModifiers
+        heldReleaseKey = 0
+        heldReleaseTimer.stop()
+        // The event is long gone by now; a release only ever needed its
+        // modifiers, and no release carries text.
+        dispatchNormalized({
+                               "modifiers": modifiers,
+                               "text": ""
+                           }, key, "release", false)
     }
 
     function backspaceNavigates() {
@@ -145,7 +213,8 @@ FocusScope {
         pressedDirectionKey = key
         if (effectiveRepeat) {
             // The platform repeats, in whichever dialect. Stand down for good.
-            if (!platformSendsRepeats)
+            // The paired dialect has already said so in its own words.
+            if (!platformSendsRepeats && !platformPairsHolds)
                 console.info("input: the platform sends its own key repeats")
             platformSendsRepeats = true
             stopSustaining()
@@ -274,7 +343,19 @@ FocusScope {
         const repeat = Boolean(event.isAutoRepeat)
         if (key === 0)
             return true
-        return dispatchNormalized(event, key, phase, repeat)
+        if (phase === "release") {
+            noteRelease(key)
+            // Qt's own auto-repeat releases are already understood downstream
+            // and are never the dialect this holds back.
+            if (platformPairsHolds && !repeat) {
+                heldReleaseKey = key
+                heldReleaseModifiers = event.modifiers
+                heldReleaseTimer.restart()
+                return true
+            }
+            return dispatchNormalized(event, key, phase, repeat)
+        }
+        return dispatchNormalized(event, key, phase, repeat || pressContinuesHold(key))
     }
 
     Keys.onPressed: event => {
@@ -295,6 +376,13 @@ FocusScope {
                                                                                 router.sustainedHoldProbeDelay)
         repeat: true
         onTriggered: router.emitSustainedRepeat()
+    }
+
+    Timer {
+        id: heldReleaseTimer
+        interval: router.releaseGrace
+        repeat: false
+        onTriggered: router.flushHeldRelease()
     }
 
     Timer {
