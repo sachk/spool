@@ -1,4 +1,5 @@
 import QtQuick
+import "../theme"
 
 ListView {
     id: root
@@ -23,6 +24,8 @@ ListView {
     clip: true
     keyNavigationEnabled: false
     boundsBehavior: Flickable.StopAtBounds
+    flickDeceleration: Metrics.flickDecelerationPx
+    maximumFlickVelocity: Metrics.maximumFlickVelocityPx
 
     function entryAt(index) {
         if (index < 0 || index >= count)

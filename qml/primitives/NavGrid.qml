@@ -1,4 +1,5 @@
 import QtQuick
+import "../theme"
 
 GridView {
     id: root
@@ -34,6 +35,14 @@ GridView {
     focus: true
     keyNavigationEnabled: false
     highlightMoveDuration: 0
+    // The same physical flick has to carry the same distance across the glass
+    // here as in every row beside it. Qt's defaults are in pixels, so on a
+    // dense panel this grid braked over a much shorter physical distance than
+    // the home rows and the browse list, which already scale them -- which is
+    // what made a moderate flick through a library feel like it was slowing
+    // down early, as if something were about to be tapped.
+    flickDeceleration: Metrics.flickDecelerationPx
+    maximumFlickVelocity: Metrics.maximumFlickVelocityPx
 
     onActiveFocusChanged: if (!activeFocus)
                               stopAccelerating()
