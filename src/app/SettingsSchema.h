@@ -83,6 +83,8 @@ enum class SettingTarget {
     MpvConfigMode,
     MpvConfigDirectory,
     AutomaticUpdates,
+    RenderQuality,
+    AutoAdjustRenderQuality,
 };
 
 enum class SettingNormalizer {

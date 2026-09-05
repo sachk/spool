@@ -51,6 +51,12 @@ public:
     // this class deliberately knows nothing about platform updaters.
     Q_SIGNAL void automaticUpdatesChanged(bool enabled);
 
+    // Drops the picture-quality setting one rung and reports the name it
+    // landed on, or an empty string if it was already at the bottom or the
+    // viewer has asked to be left alone. Persisted like any other change, so
+    // the next playback starts where this one ended up.
+    QString stepDownRenderQuality();
+
     SettingsController(DatabaseManager *database, JellyfinApiFacade *api, PlayerController *player,
         ArtworkService *artwork, QObject *parent = nullptr);
 
@@ -164,6 +170,8 @@ private:
     bool m_localSettingsLoaded = false;
     RequestGeneration m_audioOutputLoadGeneration;
     QString m_audioOutputMode = QStringLiteral("auto");
+    QString m_renderQuality = QStringLiteral("balanced");
+    bool m_autoAdjustRenderQuality = true;
     QString m_mpvConfigMode = QStringLiteral("disabled");
     QString m_mpvConfigDirectory;
     int m_uiScalePercent;

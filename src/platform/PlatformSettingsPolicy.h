@@ -25,6 +25,11 @@ int platformDefaultUiScalePercent();
 // take it off the CPU. Everything with a desktop-class CPU spends the cycles
 // and takes the smaller download instead.
 const char *platformDefaultArtworkFormat();
+// Which picture-quality rung a device starts on before it has shown what it
+// can actually sustain. Coarse on purpose: the frame-drop measurement over the
+// first seconds of playback is what really decides, so this only has to be
+// close enough that most devices are never corrected.
+const char *platformDefaultRenderQuality();
 bool platformUsesPerOutputAudioDelay();
 bool platformDefaultCastButtonEnabled();
 bool platformDefaultRemoteControlTargetEnabled();

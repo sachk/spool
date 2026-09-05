@@ -11,6 +11,15 @@
 namespace JellyfinNative {
 namespace {
 
+    // Named for what is traded, not for a number: each rung down gives up
+    // scaler taps, linear-light resampling and measured tone curves, in that
+    // order.
+    constexpr SettingChoice kRenderQualityChoices[] = {
+        { "maximum", "Maximum" },
+        { "high", "High" },
+        { "balanced", "Balanced" },
+        { "fast", "Fast" },
+    };
     constexpr SettingChoice kAccentChoices[] = { { "0", "Blue" }, { "1", "Purple" }, { "2", "Indigo" } };
     constexpr SettingChoice kRailLabelChoices[]
         = { { "Never", "Never" }, { "On focus", "On focus" }, { "Always", "Always" } };
@@ -302,6 +311,13 @@ const QVector<SettingSpec>& settingSpecs()
             .onDesktop(),
         sliderSpec("playback/controlFadeDelaySeconds", "Playback", "Hide player controls after", "", "4", 1, 10, 1, "s",
             SettingTarget::External),
+        selectSpec("playback/renderQuality", "Playback", "Picture quality",
+            "How much work the GPU does on each frame. Lowered automatically if playback drops frames", "balanced",
+            kRenderQualityChoices, SettingTarget::RenderQuality)
+            .advanced(),
+        toggleSpec("playback/autoAdjustQuality", "Playback", "Adjust quality automatically",
+            "Step down a rung when playback drops frames on this device", true, SettingTarget::AutoAdjustRenderQuality)
+            .advanced(),
         selectSpec("settings/audioOutputMode", "Playback", "Audio output", "Applies the next time something plays",
             audioOutput.defaultValue, audioOutput.choices, audioOutput.choiceCount, SettingTarget::AudioOutput,
             SettingNormalizer::AudioOutput)

@@ -3,6 +3,7 @@
 #include "../common/JellyfinTypes.h"
 #include "../platform/MpvConfigPolicy.h"
 #include "MpvLifecycle.h"
+#include "MpvOptionProfile.h"
 #include "PlaybackPositionTracker.h"
 #include "PlaybackReporter.h"
 #include "PlaybackTimeline.h"
@@ -158,6 +159,13 @@ public:
     Q_INVOKABLE void setFileAudioDelayMs(int delayMs);
     Q_INVOKABLE void setSubtitleDelayMs(int delayMs);
     Q_INVOKABLE void setAudioOutputMode(const QString& mode);
+    // Applies to the next thing that plays: the render options are set on a
+    // fresh mpv core, and every play request builds one.
+    void setRenderQuality(MpvOptionProfile::RenderQuality quality);
+    MpvOptionProfile::RenderQuality renderQuality() const
+    {
+        return m_renderQuality;
+    }
     Q_INVOKABLE void setVolume(int volume);
     Q_INVOKABLE void adjustVolume(int delta);
     Q_INVOKABLE void setMuted(bool muted);
@@ -178,6 +186,10 @@ signals:
     void hdrPlaybackChanged();
     void playbackStateChanged();
     void performanceStatsChanged();
+    // Raised once per playback when the opening seconds drop more frames than
+    // this device can be asked to absorb. Carries what was measured so the
+    // decision about what to do with it can be made, and explained, elsewhere.
+    void renderQualityStrained(qint64 droppedFrames);
     void tracksChanged();
     void segmentsChanged();
     void trickplayChanged();
@@ -288,6 +300,12 @@ private:
     bool m_debugOsdVisible = false;
     qint64 m_decoderDroppedFrames = 0;
     qint64 m_outputDroppedFrames = 0;
+    MpvOptionProfile::RenderQuality m_renderQuality = MpvOptionProfile::RenderQuality::Balanced;
+    // The opening seconds are where a device that cannot keep up says so:
+    // the picture is being scaled and tone-mapped from the first frame, and
+    // nothing has warmed a cache yet.
+    QTimer m_renderStrainTimer;
+    bool m_renderStrainReported = false;
     bool m_embeddedVideoOutput = false;
     PlaybackTrackState m_tracks;
     bool m_restoreStreamSelection = false;

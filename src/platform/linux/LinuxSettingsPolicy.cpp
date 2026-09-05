@@ -41,6 +41,11 @@ const char *platformDefaultArtworkFormat()
     return "webp";
 }
 
+const char *platformDefaultRenderQuality()
+{
+    return "high";
+}
+
 bool platformUsesPerOutputAudioDelay()
 {
     return false;

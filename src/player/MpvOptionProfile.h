@@ -24,6 +24,16 @@ public:
         WebOS,
     };
 
+    // How much work libplacebo is asked to do per frame. Until this existed
+    // the GPU path ran at libplacebo's own defaults everywhere, which a
+    // desktop absorbs and a television box does not.
+    enum class RenderQuality {
+        Maximum,
+        High,
+        Balanced,
+        Fast,
+    };
+
     struct NetworkProfile {
         int ringBytes;
         int rangeBytes;
@@ -31,6 +41,9 @@ public:
     };
 
     static NetworkProfile networkProfile(Platform platform, int parallelRequests = 1);
+    static QByteArray renderQualityName(RenderQuality quality);
+    static RenderQuality renderQualityFromName(const QString& name);
+    static std::vector<MpvOption> renderQualityOptions(RenderQuality quality);
     static bool isHdrPlayback(const QList<MediaStreamInfo>& streams);
     static bool isHdrTransfer(const QByteArray& transfer);
     static bool isHdrOutput(bool starfishOutput, bool hdrInput, const QByteArray& targetTransfer);
@@ -46,7 +59,7 @@ public:
         const QByteArray& logPath, const QByteArray& demuxerMaxBytes = QByteArrayLiteral("64M"),
         const QByteArray& demuxerMaxBackBytes = QByteArrayLiteral("32M"), int parallelRequests = 1,
         bool softwareVideo = false, const QByteArray& shaderCachePath = {},
-        const QByteArray& certificateBundlePath = {});
+        const QByteArray& certificateBundlePath = {}, RenderQuality quality = RenderQuality::Balanced);
     static std::vector<MpvOption> subtitleOptions(
         const SubtitlePreferences& preferences, bool subtitlesEnabled, bool hdrPlayback = false);
 };

@@ -267,7 +267,7 @@ QByteArray MpvOptionProfile::systemCertificateBundle()
 std::vector<MpvOption> MpvOptionProfile::applicationOptions(Platform platform, const QString& audioOutputMode,
     const QByteArray& logPath, const QByteArray& demuxerMaxBytes, const QByteArray& demuxerMaxBackBytes,
     int parallelRequests, bool softwareVideo, const QByteArray& shaderCachePath,
-    const QByteArray& certificateBundlePath)
+    const QByteArray& certificateBundlePath, RenderQuality quality)
 {
     const bool webOS = platform == Platform::WebOS;
     const bool android = platform == Platform::Android;
@@ -341,6 +341,11 @@ std::vector<MpvOption> MpvOptionProfile::applicationOptions(Platform platform, c
     } else {
         options.push_back({ "vo", "libmpv" });
         options.push_back({ "audio-fallback-to-null", "yes" });
+        // Everything above this line ran at libplacebo's defaults before,
+        // which is a great deal of work for a Mali-class part to do sixty
+        // times a second.
+        const std::vector<MpvOption> renderOptions = renderQualityOptions(quality);
+        options.insert(options.end(), renderOptions.begin(), renderOptions.end());
         if (android) {
             // Zero-copy MediaCodec hands libplacebo an external-OES frame that
             // the renderer walks off the end of: playback dies inside
@@ -390,6 +395,102 @@ std::vector<MpvOption> MpvOptionProfile::applicationOptions(Platform platform, c
         options.insert(options.end(), std::begin(desktopScriptOptions), std::end(desktopScriptOptions));
     }
     return options;
+}
+
+QByteArray MpvOptionProfile::renderQualityName(RenderQuality quality)
+{
+    switch (quality) {
+    case RenderQuality::Maximum:
+        return QByteArrayLiteral("maximum");
+    case RenderQuality::High:
+        return QByteArrayLiteral("high");
+    case RenderQuality::Balanced:
+        return QByteArrayLiteral("balanced");
+    case RenderQuality::Fast:
+        return QByteArrayLiteral("fast");
+    }
+    return QByteArrayLiteral("balanced");
+}
+
+MpvOptionProfile::RenderQuality MpvOptionProfile::renderQualityFromName(const QString& name)
+{
+    const QString normalized = name.trimmed().toLower();
+    if (normalized == QStringLiteral("maximum"))
+        return RenderQuality::Maximum;
+    if (normalized == QStringLiteral("high"))
+        return RenderQuality::High;
+    if (normalized == QStringLiteral("fast"))
+        return RenderQuality::Fast;
+    return RenderQuality::Balanced;
+}
+
+// The four rungs differ in the three things that actually cost a frame:
+// how many taps the scalers take, whether the picture is resampled in linear
+// light, and whether the tone curve is fitted to measured peaks. Everything
+// else follows from those.
+std::vector<MpvOption> MpvOptionProfile::renderQualityOptions(RenderQuality quality)
+{
+    switch (quality) {
+    case RenderQuality::Maximum:
+        return {
+            { "scale", "ewa_lanczossharp" },
+            { "cscale", "ewa_lanczossharp" },
+            { "dscale", "mitchell" },
+            { "correct-downscaling", "yes" },
+            { "linear-downscaling", "yes" },
+            { "sigmoid-upscaling", "yes" },
+            { "deband", "yes" },
+            { "dither-depth", "auto" },
+            { "tone-mapping", "bt.2446a" },
+            { "hdr-compute-peak", "yes" },
+        };
+    case RenderQuality::High:
+        return {
+            { "scale", "lanczos" },
+            { "cscale", "lanczos" },
+            { "dscale", "mitchell" },
+            { "correct-downscaling", "yes" },
+            { "linear-downscaling", "yes" },
+            { "sigmoid-upscaling", "yes" },
+            { "deband", "no" },
+            { "dither-depth", "auto" },
+            { "tone-mapping", "bt.2390" },
+            { "hdr-compute-peak", "yes" },
+        };
+    case RenderQuality::Balanced:
+        return {
+            { "scale", "spline36" },
+            { "cscale", "bilinear" },
+            { "dscale", "bilinear" },
+            { "correct-downscaling", "no" },
+            { "linear-downscaling", "no" },
+            { "sigmoid-upscaling", "no" },
+            { "deband", "no" },
+            { "interpolation", "no" },
+            { "dither-depth", "auto" },
+            { "tone-mapping", "bt.2390" },
+            // Measuring each frame's peak costs a compute pass and a readback.
+            // A static curve is most of the picture for none of that.
+            { "hdr-compute-peak", "no" },
+        };
+    case RenderQuality::Fast:
+        // Deliberately the same shape as the webOS software-decode profile:
+        // nothing per-pixel beyond a bilinear tap.
+        return {
+            { "scale", "bilinear" },
+            { "cscale", "bilinear" },
+            { "dscale", "bilinear" },
+            { "correct-downscaling", "no" },
+            { "linear-downscaling", "no" },
+            { "sigmoid-upscaling", "no" },
+            { "deband", "no" },
+            { "interpolation", "no" },
+            { "dither-depth", "no" },
+            { "tone-mapping", "hable" },
+            { "hdr-compute-peak", "no" },
+        };
+    }
+    return {};
 }
 
 std::vector<MpvOption> MpvOptionProfile::subtitleOptions(

@@ -212,6 +212,19 @@ AppController::AppController(DatabaseManager *database, DiscoveryController *dis
     });
 
     connect(m_player, &PlayerController::playbackStopped, this, &AppController::handlePlaybackStopped);
+    // The device has just shown it cannot sustain the picture it was asked
+    // for. Move down one rung and say so plainly; the setting persists, so
+    // the next thing that plays starts where this one ended up rather than
+    // dropping frames again on the way to the same conclusion.
+    connect(m_player, &PlayerController::renderQualityStrained, this, [this](qint64 droppedFrames) {
+        if (!m_settings)
+            return;
+        const QString lowered = m_settings->stepDownRenderQuality();
+        if (lowered.isEmpty())
+            return;
+        qInfo() << "player: lowering picture quality to" << lowered << "after" << droppedFrames << "dropped frames";
+        showToast(QStringLiteral("Switched to faster playback for this device."));
+    });
     connect(m_player, &PlayerController::playbackStateChanged, this, [this]() {
         if (m_player->fileLoaded())
             m_qualityFallbackBitrate = -1;

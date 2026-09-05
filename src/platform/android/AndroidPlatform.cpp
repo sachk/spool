@@ -221,6 +221,14 @@ const char *platformDefaultArtworkFormat()
     return platformCapabilities().isTV ? "jpeg" : "webp";
 }
 
+const char *platformDefaultRenderQuality()
+{
+    // Television boxes are the weak end of Android by a wide margin: an
+    // Amlogic part with a two-core Mali driving a 4K panel. Handsets carry
+    // GPUs several classes above that for a screen a fraction of the size.
+    return platformCapabilities().isTV ? "fast" : "balanced";
+}
+
 bool platformUsesPerOutputAudioDelay()
 {
     return false;

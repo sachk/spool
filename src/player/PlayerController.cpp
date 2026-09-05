@@ -197,6 +197,27 @@ PlayerController::PlayerController(NativeAppWindow *window, JellyfinApiFacade *a
     m_seekWatchdogTimer.setInterval(2500);
     m_backgroundTeardownTimer.setSingleShot(true);
     m_backgroundTeardownTimer.setInterval(750);
+    // Five seconds of real playback is enough to tell a device that cannot
+    // keep up from one that merely stuttered while the cache filled, and it
+    // is short enough that the viewer is still watching the opening titles
+    // when the answer arrives.
+    m_renderStrainTimer.setSingleShot(true);
+    m_renderStrainTimer.setInterval(5000);
+    connect(&m_renderStrainTimer, &QTimer::timeout, this, [this]() {
+        if (!m_sessionActive || m_renderStrainReported)
+            return;
+        // Output drops are the renderer failing to present in time. Decoder
+        // drops are a different illness -- a stream the hardware cannot keep
+        // up with -- and a cheaper render profile would not help them.
+        constexpr qint64 tolerableDrops = 10;
+        qInfo() << "player: opening-seconds frame drops output=" << m_outputDroppedFrames
+                << "decoder=" << m_decoderDroppedFrames
+                << "quality=" << MpvOptionProfile::renderQualityName(m_renderQuality).constData();
+        if (m_outputDroppedFrames <= tolerableDrops)
+            return;
+        m_renderStrainReported = true;
+        emit renderQualityStrained(m_outputDroppedFrames);
+    });
     connect(&m_backgroundTeardownTimer, &QTimer::timeout, this, [this]() {
         if (!platformUsesBackgroundPlaybackPolicy() || !m_sessionActive)
             return;
@@ -378,9 +399,9 @@ bool PlayerController::configureAndInitializeMpv(mpv_handle *handle, bool embedd
         certificateBundle = MpvOptionProfile::systemCertificateBundle();
     if (certificateBundle.isEmpty())
         qWarning() << "player: no certificate bundle; playback TLS will use libcurl's built-in trust";
-    auto applicationOptions
-        = MpvOptionProfile::applicationOptions(platform, m_audioOutputMode, mpvLogPath(), m_demuxerMaxBytes,
-            m_demuxerMaxBackBytes, parallelRequests, embeddedVideo, mpvShaderCachePath(), certificateBundle);
+    auto applicationOptions = MpvOptionProfile::applicationOptions(platform, m_audioOutputMode, mpvLogPath(),
+        m_demuxerMaxBytes, m_demuxerMaxBackBytes, parallelRequests, embeddedVideo, mpvShaderCachePath(),
+        certificateBundle, m_renderQuality);
     applicationOptions.push_back({ "sub-fonts-dir", m_subtitleFontsPath });
     // mpv's OSD — the performance stats overlay among it — is drawn by libass
     // too, and it looks for fonts under its own options rather than the
@@ -1719,6 +1740,14 @@ void PlayerController::stopProgressReporting(bool failed, bool completed)
     emit playbackStopped(session.itemId, positionTicks, completed);
 }
 
+void PlayerController::setRenderQuality(MpvOptionProfile::RenderQuality quality)
+{
+    if (m_renderQuality == quality)
+        return;
+    m_renderQuality = quality;
+    qInfo() << "player: render quality" << MpvOptionProfile::renderQualityName(quality).constData();
+}
+
 void PlayerController::resetPlaybackUiState()
 {
     m_visible = false;
@@ -1739,6 +1768,8 @@ void PlayerController::resetPlaybackUiState()
     m_debugOsdVisible = false;
     m_decoderDroppedFrames = 0;
     m_outputDroppedFrames = 0;
+    m_renderStrainTimer.stop();
+    m_renderStrainReported = false;
     m_timeline.clear();
     rebuildTrickplaySheetUrls();
     m_statusText = QStringLiteral("Ready");
@@ -1856,6 +1887,10 @@ void PlayerController::handleMpvEvent(mpv_event *event)
         QMetaObject::invokeMethod(this, [this]() {
             qInfo() << "player: file loaded";
             m_fileLoaded = true;
+            // Only video can strain the renderer, and only once per playback:
+            // a step down rebuilds the core, which lands back here.
+            if (!m_renderStrainReported && m_mediaKind == QStringLiteral("video"))
+                m_renderStrainTimer.start();
             // Every play request builds a fresh mpv core, which starts with the
             // stats overlay off. A restart the viewer did not ask for, like a
             // quality change, should not take their stats away with it.

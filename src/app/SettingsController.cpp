@@ -12,6 +12,8 @@
 #include <QJsonArray>
 #include <QSet>
 
+#include <iterator>
+
 namespace JellyfinNative {
 
 namespace {
@@ -108,6 +110,27 @@ QCoro::Task<void> SettingsController::loadLocalAsync()
     applyLocalValues(co_await m_database->loadValuesAsync(localSettingKeys()));
 }
 
+QString SettingsController::stepDownRenderQuality()
+{
+    if (!m_autoAdjustRenderQuality)
+        return {};
+    // Ordered worst-effort-last; there is nowhere to go from the bottom.
+    static constexpr const char *rungs[] = { "maximum", "high", "balanced", "fast" };
+    constexpr int rungCount = static_cast<int>(std::size(rungs));
+    int current = rungCount - 1;
+    for (int index = 0; index < rungCount; ++index) {
+        if (m_renderQuality == QLatin1String(rungs[index])) {
+            current = index;
+            break;
+        }
+    }
+    if (current >= rungCount - 1)
+        return {};
+    const QString next = QString::fromLatin1(rungs[current + 1]);
+    setValue(QStringLiteral("playback/renderQuality"), next);
+    return next;
+}
+
 void SettingsController::applyLocalValues(const QVariantMap& storedValues)
 {
 
@@ -127,6 +150,8 @@ void SettingsController::applyLocalValues(const QVariantMap& storedValues)
             defaultValue = platformDefaultCastButtonEnabled();
         else if (spec.target == SettingTarget::RemoteControlTargetEnabled)
             defaultValue = platformDefaultRemoteControlTargetEnabled();
+        else if (spec.target == SettingTarget::RenderQuality)
+            defaultValue = QString::fromLatin1(platformDefaultRenderQuality());
         const QVariant stored = !rawValue.isValid() || rawValue.toString().isEmpty() ? defaultValue : rawValue;
         const QVariant normalized = normalizedSettingValue(spec, stored);
         m_values.insert(key, normalized);
@@ -497,6 +522,14 @@ void SettingsController::applySchemaValue(const SettingSpec& spec, const QVarian
         m_audioOutputMode = value.toString();
         if (apply && m_player)
             m_player->setAudioOutputMode(m_audioOutputMode);
+        break;
+    case SettingTarget::AutoAdjustRenderQuality:
+        m_autoAdjustRenderQuality = value.toBool();
+        break;
+    case SettingTarget::RenderQuality:
+        m_renderQuality = value.toString();
+        if (m_player)
+            m_player->setRenderQuality(MpvOptionProfile::renderQualityFromName(m_renderQuality));
         break;
     case SettingTarget::UiScale:
         m_uiScalePercent = value.toInt();

@@ -34,6 +34,13 @@ const char *platformDefaultArtworkFormat()
 {
     return "jpeg";
 }
+
+const char *platformDefaultRenderQuality()
+{
+    // Starfish decodes and presents; libplacebo is only reached for legacy
+    // codecs, and that path already carries a profile of its own.
+    return "fast";
+}
 bool platformUsesPerOutputAudioDelay()
 {
     return true;
