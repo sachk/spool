@@ -193,6 +193,7 @@ private:
     void setPlaybackPending(bool pending);
     void requestPaused(bool paused);
     void stagePendingPlayback(const std::vector<MovieItem>& items, qint64 startPositionTicks, const QString& command);
+    void beginPendingPlayback(const QString& target, const QString& itemId, const QString& title);
     void applySelectedSession();
     void clearSelectedState();
     void refreshQueueDetails(const QJsonArray& rawQueue);
@@ -220,6 +221,11 @@ private:
     QJsonArray m_rawQueue;
     QString m_pendingTargetSessionId;
     QString m_pendingItemId;
+    // What the target was playing when the command went out. It bounds how
+    // long an unconfirmed request may hold the displayed item: as soon as the
+    // target reports something that is neither this nor what was asked for,
+    // somebody has driven it directly and this device should follow.
+    QString m_pendingPreviousItemId;
     QString m_pendingTitle;
     RequestGeneration m_queueGeneration;
     RequestGeneration m_playGeneration;

@@ -129,6 +129,7 @@ void RemoteControlController::setPlaybackPending(bool pending)
         m_pendingTimeoutTimer.stop();
         m_pendingTargetSessionId.clear();
         m_pendingItemId.clear();
+        m_pendingPreviousItemId.clear();
         m_pendingTitle.clear();
     }
     emit playbackPendingChanged();
@@ -312,13 +313,23 @@ void RemoteControlController::applySelectedSession()
     const QJsonObject playState = session.value(QStringLiteral("PlayState")).toObject();
     if (m_playbackPending && m_selectedSessionId == m_pendingTargetSessionId) {
         const QString nowPlayingId = nowPlaying.value(QStringLiteral("Id")).toString();
+        // Empty while the target is between items, which is most of what a
+        // start looks like from here.
+        const bool unchanged = nowPlayingId.isEmpty() || nowPlayingId == m_pendingPreviousItemId;
         if (nowPlayingId == m_pendingItemId) {
             setPlaybackPending(false);
-        } else {
+        } else if (unchanged) {
+            // The command has not landed yet. Hold the item the user chose
+            // rather than flicking back to the one being replaced.
             if (targetInfoChanged)
                 emit targetChanged();
             emit stateChanged();
             return;
+        } else {
+            // Playing something nobody here asked for: the target was driven
+            // directly, so follow it now instead of showing a stale item for
+            // the rest of the timeout.
+            setPlaybackPending(false);
         }
     }
     m_nowPlayingItem = normalizedNowPlayingItem(nowPlaying);
@@ -639,9 +650,29 @@ bool RemoteControlController::playItems(
     }
     if (remoteStartIndex < 0)
         remoteStartIndex = 0;
-    if (runPlay(ids, command, remoteStartIndex, startPositionTicks, title))
-        stagePendingPlayback(items, startPositionTicks, command);
+    // The result is the caller's, not swallowed: every caller treats a true
+    // here as "handled remotely, do not play locally", so reporting success
+    // for a command that never went out strands the user with nothing playing
+    // anywhere.
+    if (!runPlay(ids, command, remoteStartIndex, startPositionTicks, title))
+        return false;
+    stagePendingPlayback(items, startPositionTicks, command);
     return true;
+}
+
+void RemoteControlController::beginPendingPlayback(const QString& target, const QString& itemId, const QString& title)
+{
+    m_pendingPreviousItemId = m_nowPlayingItem.value(QStringLiteral("movieId")).toString();
+    m_pendingTargetSessionId = target;
+    m_pendingItemId = itemId;
+    m_pendingTitle = title;
+    // Restarted for each request, so superseding one does not inherit the
+    // remains of the earlier request's timeout.
+    m_pendingTimeoutTimer.start();
+    if (m_playbackPending)
+        return;
+    m_playbackPending = true;
+    emit playbackPendingChanged();
 }
 
 void RemoteControlController::playItemIds(
@@ -660,17 +691,16 @@ bool RemoteControlController::runPlay(
         return false;
 
     const bool startsPlayback = command == QStringLiteral("PlayNow") || command == QStringLiteral("PlayShuffle");
-    if (startsPlayback && m_playbackPending)
-        return false;
-
     const QString target = m_selectedSessionId;
+    // Taking a generation retires the previous one, so a request still in
+    // flight stops being able to change anything here. That is what lets a
+    // newer choice supersede an older one: refusing it instead left the
+    // target playing the old item, left this device showing the old item, and
+    // discarded what the user actually asked for without saying so.
     const RequestGeneration::Token generation = m_playGeneration.next();
     if (startsPlayback) {
         const int requestedIndex = std::clamp(startIndex, 0, static_cast<int>(itemIds.size()) - 1);
-        m_pendingTargetSessionId = target;
-        m_pendingItemId = itemIds.at(requestedIndex);
-        m_pendingTitle = pendingTitle.trimmed();
-        setPlaybackPending(true);
+        beginPendingPlayback(target, itemIds.at(requestedIndex), pendingTitle.trimmed());
         const QString subject = m_pendingTitle.isEmpty() ? QStringLiteral("playback") : m_pendingTitle;
         emit feedbackText(QStringLiteral("Starting %1 on %2…").arg(subject, m_selectedTargetName));
     }
