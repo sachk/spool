@@ -1,18 +1,21 @@
 pragma Singleton
 import QtQuick
-import QtQuick.Window
 
 QtObject {
     // The viewport the shell is drawn into, pushed here by AppShell. Every
     // size in the app is a multiple of the yardstick these two numbers make,
     // so there is one place to reason about how big anything should be.
     //
-    // The defaults are the screen rather than a fixed 1920x1080, because they
-    // are what the very first frame is drawn against. A literal desktop
-    // viewport made a phone's first frames a third too large until the shell
-    // reported its real size.
-    property real viewportWidth: Screen.width > 0 ? Screen.width : 1920
-    property real viewportHeight: Screen.height > 0 ? Screen.height : 1080
+    // Only ever read before the shell exists, which is why the literals do no
+    // harm: AppShell binds both, and a binding is evaluated in time for the
+    // first frame where the change handlers it replaced were not.
+    //
+    // Not seeded from Screen. That is an attached property and there is no
+    // Item here for it to attach to, so it reads back as nothing and the
+    // fallback is what would be used anyway -- an expression that looks like
+    // it consults the display while never once doing so.
+    property real viewportWidth: 1920
+    property real viewportHeight: 1080
     // Set by the shell when the last thing to touch the app was a finger.
     // Taps need a floor that a remote and a mouse do not.
     property bool coarsePointer: false
