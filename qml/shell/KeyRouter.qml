@@ -21,9 +21,74 @@ FocusScope {
     property int typeAheadKey: 0
     property int pressedDirectionKey: 0
 
+    // Auto-repeat is a courtesy, not a guarantee, and every hold in the app is
+    // built on it: a row that scrolls, a seek that runs, a slider that steps
+    // all wait for the platform to say "still held" and stop the moment it
+    // stops saying so. webOS says it in a dialect of its own -- synthetic
+    // release/press pairs, sometimes without the flag, which is what
+    // pressedDirectionKey below is for. Android does not say it at all, so
+    // holding a direction there did nothing anywhere in the app.
+    //
+    // Rather than teach every view a third dialect, this speaks for the
+    // platform where the platform is silent: a direction still down after the
+    // delay repeats on a cadence until its release arrives. Views see exactly
+    // the auto-repeat they already understand and none of them changes.
+    //
+    // The first hold of a session waits long enough that any platform which
+    // repeats at all has already spoken -- desktop key repeat starts around
+    // half a second on most systems -- so a slow deliberate press is never
+    // mistaken for a hold on a platform that was going to handle it. Once one
+    // hold has run with nothing heard, the wait drops to Android's own 400ms,
+    // which is what the cadence below is too.
+    property int sustainedHoldProbeDelay: 700
+    property int sustainedHoldDelay: 400
+    property int sustainedHoldInterval: 50
+    // Nothing is held forever. A release that never arrives -- webOS has form
+    // here -- would otherwise leave the app scrolling on its own.
+    property int sustainedHoldLimit: 20000
+
+    property bool platformSendsRepeats: false
+    property bool platformSilent: false
+    property int sustainedKey: 0
+    property int sustainedModifiers: 0
+    property double sustainedStartedAt: 0
+    property bool sustainedRepeating: false
+
     focus: true
     onActiveTargetChanged: pressedDirectionKey = 0
+    // A window that loses focus never sends the release for whatever was down
+    // when it went away.
+    onActiveFocusChanged: if (!activeFocus)
+                              stopSustaining()
     Keys.priority: Keys.BeforeItem
+
+    function stopSustaining() {
+        sustainedTimer.stop()
+        sustainedKey = 0
+        sustainedRepeating = false
+    }
+
+    function beginSustaining(key, modifiers) {
+        if (platformSendsRepeats)
+            return
+        sustainedKey = key
+        sustainedModifiers = modifiers
+        sustainedStartedAt = Date.now()
+        sustainedRepeating = false
+        sustainedTimer.restart()
+    }
+
+    function emitSustainedRepeat() {
+        if (!sustainedKey)
+            return
+        if (Date.now() - sustainedStartedAt > sustainedHoldLimit) {
+            stopSustaining()
+            return
+        }
+        sustainedRepeating = true
+        platformSilent = true
+        deliverDirection(sustainedKey, true, sustainedModifiers)
+    }
 
     function backspaceNavigates() {
         return backspaceNavigatesInTextInput || !textInputActive
@@ -61,8 +126,10 @@ FocusScope {
     function routeDirection(key, phase, repeat, modifiers) {
         if (phase === "release") {
             // Qt-generated auto-repeat releases are not physical releases.
-            if (!repeat && pressedDirectionKey === key)
+            if (!repeat && pressedDirectionKey === key) {
                 pressedDirectionKey = 0
+                stopSustaining()
+            }
             if (activeTarget && activeTarget.directionRelease)
                 router.deliver(activeTarget, key, phase, repeat)
             return true
@@ -74,8 +141,21 @@ FocusScope {
         // between presses and therefore remain independent.
         const effectiveRepeat = repeat || pressedDirectionKey === key
         pressedDirectionKey = key
-        const handled = router.deliver(activeTarget, key, phase, effectiveRepeat)
-        return handled || Boolean(globalHandler && globalHandler(key, phase, effectiveRepeat, modifiers))
+        if (effectiveRepeat) {
+            // The platform repeats, in whichever dialect. Stand down for good.
+            platformSendsRepeats = true
+            stopSustaining()
+        } else {
+            beginSustaining(key, modifiers)
+        }
+        return deliverDirection(key, effectiveRepeat, modifiers)
+    }
+
+    // The delivery half of a directional press, without the bookkeeping, so a
+    // repeat this file made for itself takes exactly the path a real one does.
+    function deliverDirection(key, repeat, modifiers) {
+        const handled = router.deliver(activeTarget, key, "press", repeat)
+        return handled || Boolean(globalHandler && globalHandler(key, "press", repeat, modifiers))
     }
 
     function deliver(target, key, phase, repeat) {
@@ -201,6 +281,17 @@ FocusScope {
         event.accepted = dispatch(event, "press")
     }
     Keys.onReleased: event => event.accepted = dispatch(event, "release")
+
+    Timer {
+        id: sustainedTimer
+        // Changing this restarts the timer, which is exactly what is wanted:
+        // the wait to be sure of a hold, then the cadence of one.
+        interval: router.sustainedRepeating ? router.sustainedHoldInterval : (router.platformSilent
+                                                                              ? router.sustainedHoldDelay :
+                                                                                router.sustainedHoldProbeDelay)
+        repeat: true
+        onTriggered: router.emitSustainedRepeat()
+    }
 
     Timer {
         id: longPressTimer

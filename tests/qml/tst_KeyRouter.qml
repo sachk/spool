@@ -80,6 +80,9 @@ TestCase {
         keyRouter.backspaceNavigatesInTextInput = false
         keyRouter.webOsScanCodes = false
         keyRouter.globalHandler = null
+        keyRouter.platformSendsRepeats = false
+        keyRouter.platformSilent = false
+        keyRouter.stopSustaining()
     }
 
     function test_directionUsesRouterHelper() {
@@ -237,5 +240,58 @@ TestCase {
         verify(keyRouter.dispatchNormalized(event, Qt.Key_Plus, "press", false))
         compare(globalCalls, 1)
         compare(routeCalls, 0)
+    }
+
+    function test_heldDirectionRepeatsWhereThePlatformSendsNoRepeat() {
+        keyRouter.routeDirection(Qt.Key_Down, "press", false, Qt.NoModifier)
+        compare(routeCalls, 1)
+        compare(lastRouteRepeat, false)
+        compare(keyRouter.sustainedKey, Qt.Key_Down);
+
+        // The stand-in cadence, which the view sees as ordinary auto-repeat.
+        keyRouter.emitSustainedRepeat()
+        compare(routeCalls, 2)
+        compare(lastRouteRepeat, true)
+        keyRouter.emitSustainedRepeat()
+        compare(routeCalls, 3)
+        compare(lastRouteRepeat, true)
+
+        keyRouter.routeDirection(Qt.Key_Down, "release", false, Qt.NoModifier)
+        compare(keyRouter.sustainedKey, 0)
+        keyRouter.emitSustainedRepeat()
+        compare(routeCalls, 4)
+        // Having held once with nothing heard from the platform, the next hold
+        // need not wait out the probe.
+        verify(keyRouter.platformSilent)
+    }
+
+    function test_platformRepeatSilencesTheStandIn() {
+        keyRouter.routeDirection(Qt.Key_Down, "press", false, Qt.NoModifier)
+        compare(keyRouter.sustainedKey, Qt.Key_Down)
+        keyRouter.routeDirection(Qt.Key_Down, "press", true, Qt.NoModifier)
+        verify(keyRouter.platformSendsRepeats)
+        compare(keyRouter.sustainedKey, 0);
+
+        // And never speaks again, even for a fresh press.
+        keyRouter.routeDirection(Qt.Key_Down, "release", false, Qt.NoModifier)
+        keyRouter.routeDirection(Qt.Key_Down, "press", false, Qt.NoModifier)
+        compare(keyRouter.sustainedKey, 0)
+    }
+
+    function test_autoRepeatReleaseDoesNotEndTheHold() {
+        keyRouter.routeDirection(Qt.Key_Right, "press", false, Qt.NoModifier)
+        keyRouter.routeDirection(Qt.Key_Right, "release", true, Qt.NoModifier)
+        compare(keyRouter.sustainedKey, Qt.Key_Right)
+        keyRouter.routeDirection(Qt.Key_Right, "release", false, Qt.NoModifier)
+        compare(keyRouter.sustainedKey, 0)
+    }
+
+    function test_aHoldThatOutlastsTheLimitStops() {
+        keyRouter.routeDirection(Qt.Key_Up, "press", false, Qt.NoModifier)
+        keyRouter.sustainedStartedAt = Date.now() - keyRouter.sustainedHoldLimit - 1
+        const before = routeCalls
+        keyRouter.emitSustainedRepeat()
+        compare(routeCalls, before)
+        compare(keyRouter.sustainedKey, 0)
     }
 }
