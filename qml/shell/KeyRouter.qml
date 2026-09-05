@@ -86,6 +86,8 @@ FocusScope {
             return
         }
         sustainedRepeating = true
+        if (!platformSilent)
+            console.info("input: no key repeats from this platform; holding a direction is driven here")
         platformSilent = true
         deliverDirection(sustainedKey, true, sustainedModifiers)
     }
@@ -143,6 +145,8 @@ FocusScope {
         pressedDirectionKey = key
         if (effectiveRepeat) {
             // The platform repeats, in whichever dialect. Stand down for good.
+            if (!platformSendsRepeats)
+                console.info("input: the platform sends its own key repeats")
             platformSendsRepeats = true
             stopSustaining()
         } else {
