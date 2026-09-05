@@ -82,6 +82,7 @@ TestCase {
         keyRouter.globalHandler = null
         keyRouter.platformSendsRepeats = false
         keyRouter.platformSilent = false
+        keyRouter.platformMayPairHolds = true
         keyRouter.platformPairsHolds = false
         keyRouter.lastReleaseKey = 0
         keyRouter.lastReleaseAt = 0
@@ -312,6 +313,35 @@ TestCase {
         keyRouter.lastReleaseAt = Date.now() - keyRouter.releaseGrace - 1
         verify(!keyRouter.pressContinuesHold(Qt.Key_Down))
         verify(!keyRouter.platformPairsHolds)
+    }
+
+    // Only the platform that speaks this dialect is listened to for it.
+    function test_aPlatformThatNeverPairsHoldsIsNotSecondGuessed() {
+        keyRouter.platformMayPairHolds = false
+        keyRouter.noteRelease(Qt.Key_Down)
+        verify(!keyRouter.pressContinuesHold(Qt.Key_Down))
+        verify(!keyRouter.platformPairsHolds)
+    }
+
+    // A hold on this remote arrives too slowly and too unevenly to keep a view
+    // watchdog fed, so the cadence between its presses is driven here.
+    function test_aPairedHoldIsDrivenAtTheStandInCadence() {
+        keyRouter.platformPairsHolds = true
+        keyRouter.routeDirection(Qt.Key_Down, "press", false, Qt.NoModifier)
+        keyRouter.routeDirection(Qt.Key_Down, "press", false, Qt.NoModifier)
+        compare(keyRouter.sustainedKey, Qt.Key_Down)
+        verify(keyRouter.sustainedRepeating)
+        // And the platform is never mistaken for one that repeats on its own,
+        // which would stand the cadence down for the rest of the session.
+        verify(!keyRouter.platformSendsRepeats)
+
+        const before = routeCalls
+        keyRouter.emitSustainedRepeat()
+        compare(routeCalls, before + 1)
+        compare(lastRouteRepeat, true)
+
+        keyRouter.routeDirection(Qt.Key_Down, "release", false, Qt.NoModifier)
+        compare(keyRouter.sustainedKey, 0)
     }
 
     function test_aDifferentKeyIsNotTheSameHold() {

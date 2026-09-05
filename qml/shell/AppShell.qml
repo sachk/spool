@@ -106,6 +106,7 @@ KeyRouter {
     focus: true
     backspaceNavigatesInTextInput: Platform.isTV
     webOsScanCodes: Platform.isTV
+    platformMayPairHolds: Platform.isAndroid && Platform.isTV
 
     readonly property string route: Router.route
     readonly property var routeArgs: Router.args || ({})

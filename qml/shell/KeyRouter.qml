@@ -70,6 +70,13 @@ FocusScope {
     // that have already been caught lying, and the very first hold of a
     // session is what catches them -- from its second press onwards it is
     // already a hold.
+    //
+    // Only a television box is asked to prove it: a release that is really a
+    // release, mistaken for a hold, is a far worse trade on a desktop or a
+    // handset than the hold it would buy, and neither has ever spoken this
+    // dialect. The remote still has to demonstrate it before anything is held
+    // back, so a set-top box driven by a well-behaved remote is untouched too.
+    property bool platformMayPairHolds: false
     property int releaseGrace: 300
     property bool platformPairsHolds: false
     property int lastReleaseKey: 0
@@ -106,6 +113,18 @@ FocusScope {
         sustainedTimer.restart()
     }
 
+    // The stand-in, driven by a platform that does say when a key is down.
+    // The cadence is the same; only what starts and stops it differs.
+    function sustainPairedHold(key, modifiers) {
+        if (sustainedKey !== key) {
+            sustainedKey = key
+            sustainedStartedAt = Date.now()
+        }
+        sustainedModifiers = modifiers
+        sustainedRepeating = true
+        sustainedTimer.restart()
+    }
+
     function emitSustainedRepeat() {
         if (!sustainedKey)
             return
@@ -114,9 +133,10 @@ FocusScope {
             return
         }
         sustainedRepeating = true
-        if (!platformSilent)
+        if (!platformSilent && !platformPairsHolds)
             console.info("input: no key repeats from this platform; holding a direction is driven here")
-        platformSilent = true
+        if (!platformPairsHolds)
+            platformSilent = true
         deliverDirection(sustainedKey, true, sustainedModifiers)
     }
 
@@ -138,7 +158,8 @@ FocusScope {
         // A different key is genuinely down now, so whatever was waiting is up.
         if (heldReleaseKey)
             flushHeldRelease()
-        if (platformPairsHolds || key !== lastReleaseKey || Date.now() - lastReleaseAt >= releaseGrace)
+        if (!platformMayPairHolds || platformPairsHolds || key !== lastReleaseKey || Date.now() - lastReleaseAt
+                >= releaseGrace)
             return false
         console.info("input: this platform holds a key by repeating press and release")
         platformPairsHolds = true
@@ -211,10 +232,17 @@ FocusScope {
         // between presses and therefore remain independent.
         const effectiveRepeat = repeat || pressedDirectionKey === key
         pressedDirectionKey = key
-        if (effectiveRepeat) {
+        if (effectiveRepeat && platformPairsHolds) {
+            // Knowing the key is down is not the same as saying so often
+            // enough. This remote re-presses every 150 to 270ms, and a view
+            // watchdog that gives a hold 220ms to speak again ends it on the
+            // slow ones -- which is a hold that accelerates for a while and
+            // then stops for no reason the user can see. The platform says
+            // whether the key is down; between its presses, this says it.
+            sustainPairedHold(key, modifiers)
+        } else if (effectiveRepeat) {
             // The platform repeats, in whichever dialect. Stand down for good.
-            // The paired dialect has already said so in its own words.
-            if (!platformSendsRepeats && !platformPairsHolds)
+            if (!platformSendsRepeats)
                 console.info("input: the platform sends its own key repeats")
             platformSendsRepeats = true
             stopSustaining()
