@@ -12,6 +12,7 @@ namespace JellyfinNative {
 class SystemPerformanceMonitor final : public QObject {
     Q_OBJECT
     Q_PROPERTY(bool available READ available NOTIFY metricsChanged)
+    Q_PROPERTY(bool systemStatsAvailable READ systemStatsAvailable NOTIFY metricsChanged)
     Q_PROPERTY(bool threadBreakdownAvailable READ threadBreakdownAvailable NOTIFY metricsChanged)
     Q_PROPERTY(bool preciseThreadCpuAvailable READ preciseThreadCpuAvailable NOTIFY metricsChanged)
     Q_PROPERTY(double processCpuPercent READ processCpuPercent NOTIFY metricsChanged)
@@ -36,6 +37,10 @@ public:
     bool available() const
     {
         return m_available;
+    }
+    bool systemStatsAvailable() const
+    {
+        return m_systemStatsAvailable;
     }
     bool threadBreakdownAvailable() const
     {
@@ -112,6 +117,8 @@ private:
     QTimer m_timer;
     std::function<qint64()> m_audioDecodeCpuTimeProvider;
     bool m_available = false;
+    bool m_systemStatsAvailable = false;
+    bool m_sampleLogged = false;
     bool m_threadBreakdownAvailable = false;
     bool m_preciseThreadCpuAvailable = false;
     double m_processCpuPercent = 0.0;

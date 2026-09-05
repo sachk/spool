@@ -24,6 +24,16 @@ Item {
         return Number(value || 0).toFixed(1) + "%"
     }
 
+    // System-wide figures are a separate question from this process's own. An
+    // Android app may read /proc/self but not /proc/stat, /proc/meminfo or
+    // /proc/loadavg, so on a television every one of these is genuinely
+    // unknowable while the app's own CPU is not.
+    function systemCpu(value) {
+        if (!SystemPerformance.systemStatsAvailable)
+            return "n/a"
+        return Number(value || 0).toFixed(1) + "%"
+    }
+
     function signedMs(value) {
         const number = Number(value || 0)
         return (number > 0 ? "+" : "") + number.toFixed(2) + " ms"
@@ -57,7 +67,7 @@ Item {
                 font.weight: Font.DemiBold
             }
             SecondaryText {
-                text: "CPU  system " + root.cpu(SystemPerformance.systemCpuPercent) + "  app " + root.cpu(
+                text: "CPU  system " + root.systemCpu(SystemPerformance.systemCpuPercent) + "  app " + root.cpu(
                           SystemPerformance.processCpuPercent)
             }
             SecondaryText {
@@ -79,6 +89,7 @@ Item {
                 text: "Frame rate  " + Player.outputFps.toFixed(2) + " of " + Player.containerFps.toFixed(2) + " fps"
             }
             SecondaryText {
+                visible: SystemPerformance.systemStatsAvailable
                 text: "Load  " + SystemPerformance.loadOne.toFixed(2) + "  " + SystemPerformance.loadFive.toFixed(2)
                       + "  " + SystemPerformance.loadFifteen.toFixed(2)
             }

@@ -1,5 +1,7 @@
 #include "SystemPerformanceMonitor.h"
 
+#include <QDebug>
+
 #include <utility>
 
 namespace JellyfinNative {
@@ -27,7 +29,18 @@ void SystemPerformanceMonitor::sample()
     if (!m_sampler.sample(audioDecodeCpuTimeNs, sample))
         return;
 
+    // Said once, because "the overlay shows nothing" is otherwise
+    // indistinguishable from "the machine is idle", and the answer differs by
+    // platform: some have no sampler at all, and some read everything but the
+    // per-thread breakdown.
+    if (!m_sampleLogged) {
+        m_sampleLogged = true;
+        qInfo() << "performance: sampler process" << sample.available << "system" << sample.systemStatsAvailable
+                << "threadBreakdown" << sample.threadBreakdownAvailable << "preciseThreadCpu"
+                << sample.preciseThreadCpuAvailable;
+    }
     m_available = sample.available;
+    m_systemStatsAvailable = sample.systemStatsAvailable;
     m_threadBreakdownAvailable = sample.threadBreakdownAvailable;
     m_preciseThreadCpuAvailable = sample.preciseThreadCpuAvailable;
     m_processCpuPercent = sample.processCpuPercent;

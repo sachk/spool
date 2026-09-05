@@ -7,7 +7,14 @@
 namespace JellyfinNative {
 
 struct PlatformPerformanceSample {
+    // Whether this process's own CPU time could be read. On Android that is
+    // all an ordinary app gets: /proc/self is its own, but the system-wide
+    // files are denied to untrusted_app -- silently, because the policy
+    // dontaudits most of them. Gating everything on the system figures threw
+    // away the per-process and per-thread numbers, which are the ones that
+    // actually diagnose playback.
     bool available = false;
+    bool systemStatsAvailable = false;
     bool threadBreakdownAvailable = false;
     bool preciseThreadCpuAvailable = false;
     double processCpuPercent = 0.0;

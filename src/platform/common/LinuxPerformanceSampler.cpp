@@ -77,6 +77,10 @@ struct PlatformPerformanceSampler::PlatformData {
     quint64 previousProcessTicks = 0;
     quint64 previousSystemTotal = 0;
     quint64 previousSystemIdle = 0;
+    // Reading a file the kernel refuses costs a syscall and, on Android, an
+    // audit line every second for a figure that is never going to arrive.
+    // Ask once.
+    bool systemFilesReadable = true;
     qint64 previousSampleNs = 0;
     qint64 previousAudioDecodeCpuTimeNs = -1;
     long clockTicksPerSecond = 100;
@@ -163,11 +167,15 @@ bool PlatformPerformanceSampler::sample(qint64 audioDecodeCpuTimeNs, PlatformPer
             outputTotal += delta;
     }
 
-    const QList<QByteArray> loadFields = readFile(QStringLiteral("/proc/loadavg")).simplified().split(' ');
-    if (loadFields.size() >= 3) {
-        output.loadOne = loadFields.at(0).toDouble();
-        output.loadFive = loadFields.at(1).toDouble();
-        output.loadFifteen = loadFields.at(2).toDouble();
+    if (state.systemFilesReadable) {
+        const QList<QByteArray> loadFields = readFile(QStringLiteral("/proc/loadavg")).simplified().split(' ');
+        if (loadFields.size() >= 3) {
+            output.loadOne = loadFields.at(0).toDouble();
+            output.loadFive = loadFields.at(1).toDouble();
+            output.loadFifteen = loadFields.at(2).toDouble();
+        } else {
+            state.systemFilesReadable = false;
+        }
     }
     for (const QByteArray& line : readFile(QStringLiteral("/proc/self/status")).split('\n')) {
         const QList<QByteArray> fields = line.simplified().split(' ');
@@ -222,7 +230,8 @@ bool PlatformPerformanceSampler::sample(qint64 audioDecodeCpuTimeNs, PlatformPer
             + percentForTicks(audioOutputTicks, elapsedSeconds, state.clockTicksPerSecond);
     }
 
-    output.available = processOk && systemOk && output.systemTotalBytes > 0;
+    output.available = processOk;
+    output.systemStatsAvailable = systemOk && output.systemTotalBytes > 0;
     output.threadBreakdownAvailable = !threads.isEmpty();
     output.preciseThreadCpuAvailable = preciseAvailable;
     state.previousProcessTicks = processTicks;
