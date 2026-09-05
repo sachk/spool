@@ -1,11 +1,16 @@
 .pragma library
 
-function rowAvailable(row, isTV, hdrPlayback, valueForKey) {
+// `platform` is the Platform singleton. It is passed whole rather than as a
+// growing list of booleans, because every caller has it and each new
+// form-factor question would otherwise add another positional argument.
+function rowAvailable(row, platform, hdrPlayback, valueForKey) {
     if (!row)
         return false
-    if (row.platform === "desktop" && isTV)
+    if (row.platform === "desktop" && platform.isTV)
         return false
-    if (row.platform === "webos" && !isTV)
+    if (row.platform === "webos" && !platform.isWebOS)
+        return false
+    if (row.platform === "android" && !platform.isAndroid)
         return false
     if (row.requiresHdrPlayback && !hdrPlayback)
         return false

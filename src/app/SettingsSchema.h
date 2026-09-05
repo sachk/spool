@@ -25,6 +25,7 @@ enum class SettingPlatform {
     All,
     Desktop,
     WebOS,
+    Android,
 };
 
 enum class SettingTarget {
@@ -81,6 +82,7 @@ enum class SettingTarget {
     BlueButton,
     MpvConfigMode,
     MpvConfigDirectory,
+    AutomaticUpdates,
 };
 
 enum class SettingNormalizer {
@@ -130,6 +132,7 @@ struct SettingSpec {
     SettingSpec expert() const;
     SettingSpec onDesktop() const;
     SettingSpec onWebOS() const;
+    SettingSpec onAndroid() const;
     SettingSpec whenSetTo(const char *otherKey, const char *otherValue) const;
     SettingSpec duringHdrPlayback() const;
 };

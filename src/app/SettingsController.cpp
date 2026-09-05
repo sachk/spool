@@ -501,6 +501,11 @@ void SettingsController::applySchemaValue(const SettingSpec& spec, const QVarian
     case SettingTarget::UiScale:
         m_uiScalePercent = value.toInt();
         break;
+    case SettingTarget::AutomaticUpdates:
+        // Announced even on the initial load, which is what starts the first
+        // check: nothing checks for updates until settings have said it may.
+        emit automaticUpdatesChanged(value.toBool());
+        break;
     case SettingTarget::ArtworkFormat:
         m_artworkFormat = value.toString();
         if (apply)

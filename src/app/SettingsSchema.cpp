@@ -158,6 +158,8 @@ namespace {
             return QStringLiteral("desktop");
         case SettingPlatform::WebOS:
             return QStringLiteral("webos");
+        case SettingPlatform::Android:
+            return QStringLiteral("android");
         }
         return QStringLiteral("all");
     }
@@ -223,6 +225,13 @@ SettingSpec SettingSpec::onWebOS() const
 {
     SettingSpec spec = *this;
     spec.platform = SettingPlatform::WebOS;
+    return spec;
+}
+
+SettingSpec SettingSpec::onAndroid() const
+{
+    SettingSpec spec = *this;
+    spec.platform = SettingPlatform::Android;
     return spec;
 }
 
@@ -443,6 +452,12 @@ const QVector<SettingSpec>& settingSpecs()
             "input/blueButton", "Remote buttons", "Blue", "", "none", kButtonActionChoices, SettingTarget::BlueButton)
             .expert()
             .onWebOS(),
+
+        // Android is the only platform that can install its own update, so
+        // this is the only one where the choice means anything.
+        toggleSpec("updates/automatic", "Updates", "Automatic updates",
+            "Check for new versions and offer a quick update", true, SettingTarget::AutomaticUpdates)
+            .onAndroid(),
 
         pageSpec("session/account", "Account", "Signed in as", "", SettingType::ReadOnly),
         pageSpec("action/switchUser", "Account", "Switch profile", "", SettingType::Action),

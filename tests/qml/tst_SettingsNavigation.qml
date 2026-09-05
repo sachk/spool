@@ -25,34 +25,72 @@ TestCase {
         const values = {
             "playback/mpvConfigMode": "custom"
         }
-        const lookup = valueLookup(values)
+        const lookup = valueLookup(values);
+        // Stands in for the Platform singleton. webOS and Android TV are both
+        // televisions, so isTV alone cannot tell a webOS-only row from an
+        // Android one -- which is why each platform is asked about directly.
+        const desktop = {
+            "isTV": false,
+            "isWebOS": false,
+            "isAndroid": false
+        }
+        const webos = {
+            "isTV": true,
+            "isWebOS": true,
+            "isAndroid": false
+        }
+        const androidTv = {
+            "isTV": true,
+            "isWebOS": false,
+            "isAndroid": true
+        }
+        const androidPhone = {
+            "isTV": false,
+            "isWebOS": false,
+            "isAndroid": true
+        }
+
         verify(SettingsNavigation.rowAvailable({
                                                    "platform": "desktop"
-                                               }, false, false, lookup))
+                                               }, desktop, false, lookup))
         verify(!SettingsNavigation.rowAvailable({
                                                     "platform": "desktop"
-                                                }, true, false, lookup))
+                                                }, webos, false, lookup))
         verify(SettingsNavigation.rowAvailable({
                                                    "platform": "webos"
-                                               }, true, false, lookup))
+                                               }, webos, false, lookup))
         verify(!SettingsNavigation.rowAvailable({
                                                     "platform": "webos"
-                                                }, false, false, lookup))
+                                                }, desktop, false, lookup))
+        // A webOS row must not leak onto Android TV just because it is a
+        // television.
+        verify(!SettingsNavigation.rowAvailable({
+                                                    "platform": "webos"
+                                                }, androidTv, false, lookup))
+        verify(SettingsNavigation.rowAvailable({
+                                                   "platform": "android"
+                                               }, androidPhone, false, lookup))
+        verify(SettingsNavigation.rowAvailable({
+                                                   "platform": "android"
+                                               }, androidTv, false, lookup))
+        verify(!SettingsNavigation.rowAvailable({
+                                                    "platform": "android"
+                                                }, desktop, false, lookup))
         verify(SettingsNavigation.rowAvailable({
                                                    "dependsOnKey": "playback/mpvConfigMode",
                                                    "dependsOnValue": "custom"
-                                               }, false, false, lookup))
+                                               }, desktop, false, lookup))
         verify(!SettingsNavigation.rowAvailable({
                                                     "dependsOnKey": "playback/mpvConfigMode",
                                                     "dependsOnValue": "standard"
-                                                }, false, false, lookup))
-        verify(!SettingsNavigation.rowAvailable(null, false, false, lookup))
+                                                }, desktop, false, lookup))
+        verify(!SettingsNavigation.rowAvailable(null, desktop, false, lookup))
         verify(!SettingsNavigation.rowAvailable({
                                                     "requiresHdrPlayback": true
-                                                }, false, false, lookup))
+                                                }, desktop, false, lookup))
         verify(SettingsNavigation.rowAvailable({
                                                    "requiresHdrPlayback": true
-                                               }, false, true, lookup))
+                                               }, desktop, true, lookup))
     }
 
     function test_focusClampsAfterFiltering() {

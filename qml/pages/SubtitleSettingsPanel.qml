@@ -112,7 +112,7 @@ FocusScope {
 
         const resolve = function (key) {
             const spec = byKey[key]
-            const available = SettingsNavigation.rowAvailable(spec, Platform.isTV, Player.hdrPlayback, function (name) {
+            const available = SettingsNavigation.rowAvailable(spec, Platform, Player.hdrPlayback, function (name) {
                 const value = Settings.values[name]
                 return value === undefined ? "" : value
             })

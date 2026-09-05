@@ -18,6 +18,63 @@ FocusScope {
                                  || stage === "error"
     property int actionIndex: 0
 
+    // An update is a chore, so the words are kept to what the reader has to
+    // decide: what this is, roughly how long it takes, and what to press.
+    // Checksum verification still happens on every download; saying so only
+    // asks the reader to care about something they cannot act on.
+    readonly property string titleText: {
+        switch (stage) {
+        case "available":
+            return "Quick update"
+        case "downloading":
+            return "Updating"
+        case "ready":
+            return "Ready to install"
+        case "permission":
+            return "One-time permission"
+        default:
+            return "Update failed"
+        }
+    }
+    readonly property string bodyText: {
+        switch (stage) {
+        case "available":
+            return "Spool " + updateVersion + " is ready. This takes about 30 seconds."
+        case "downloading":
+            return ""
+        case "ready":
+            return "Spool " + updateVersion + " is verified and ready to install."
+        case "permission":
+            return "Android needs permission to install Spool updates. Turn it on, then come back."
+        default:
+            return updateErrorText
+        }
+    }
+    readonly property string primaryText: {
+        switch (stage) {
+        case "available":
+            return "Update"
+        case "downloading":
+            return "Cancel"
+        case "ready":
+            return "Install"
+        case "permission":
+            return "Open settings"
+        default:
+            return "Try again"
+        }
+    }
+    readonly property string secondaryText: {
+        switch (stage) {
+        case "ready":
+            return "Later"
+        case "error":
+            return "Close"
+        default:
+            return "Not now"
+        }
+    }
+
     anchors.fill: parent
     visible: open
     focus: visible
@@ -112,12 +169,7 @@ FocusScope {
 
             AppText {
                 Layout.fillWidth: true
-                text: root.stage === "available" ? "Update available" : root.stage === "downloading"
-                                                   ? "Downloading update" : root.stage === "ready" ? "Done" :
-                                                                                                     root.stage
-                                                                                                     === "permission"
-                                                                                                     ? "Allow update installation" :
-                                                                                                       "Update failed"
+                text: root.titleText
                 color: Theme.textPrimary
                 font.pixelSize: Metrics.titleSizePx
                 font.weight: Font.DemiBold
@@ -126,13 +178,8 @@ FocusScope {
 
             AppText {
                 Layout.fillWidth: true
-                visible: root.stage !== "available"
-                text: root.stage === "downloading" ? "Spool " + root.updateVersion + " is downloading." : root.stage
-                                                     === "ready" ? "Spool " + root.updateVersion
-                                                                   + " was downloaded and its SHA-256 checksum verified. Install it when you are ready." :
-                                                                   root.stage === "permission"
-                                                                   ? "Android needs your permission before Spool can open the installer. On the next screen, enable “Allow from this source”, then return here. You will still choose Install before Android asks for final confirmation." :
-                                                                     root.updateErrorText
+                visible: root.stage !== "available" && root.bodyText.length > 0
+                text: root.bodyText
                 color: root.stage === "error" ? Theme.errorText : Theme.textSecondary
                 font.pixelSize: Metrics.bodySizePx
                 wrapMode: Text.Wrap
@@ -145,7 +192,7 @@ FocusScope {
 
                 AppText {
                     Layout.fillWidth: true
-                    text: "Spool " + root.updateVersion + " is ready. Would you like to update now?"
+                    text: root.bodyText
                     color: Theme.textSecondary
                     font.pixelSize: Metrics.bodySizePx
                     wrapMode: Text.Wrap
@@ -245,12 +292,7 @@ FocusScope {
                 ActionButton {
                     id: secondaryButton
                     visible: root.stage !== "downloading"
-                    text: root.stage === "available" ? "Not now" : root.stage === "downloading" ? "Cancel" : root.stage
-                                                                                                  === "ready" ? "Later" :
-                                                                                                                root.stage
-                                                                                                                === "permission"
-                                                                                                                ? "Not now" :
-                                                                                                                  "Close"
+                    text: root.secondaryText
                     onActiveFocusChanged: if (activeFocus)
                                               root.actionIndex = root.stage === "available" ? 1 : 0
                     onClicked: {
@@ -264,14 +306,7 @@ FocusScope {
                 ActionButton {
                     id: primaryButton
                     visible: true
-                    text: root.stage === "available" ? "Download" : root.stage === "downloading" ? "Cancel download" :
-                                                                                                   root.stage
-                                                                                                   === "ready"
-                                                                                                   ? "Install" :
-                                                                                                     root.stage
-                                                                                                     === "permission"
-                                                                                                     ? "Open settings" :
-                                                                                                       "Try again"
+                    text: root.primaryText
                     kind: root.stage === "downloading" ? "secondary" : "primary"
                     onActiveFocusChanged: if (activeFocus)
                                               root.actionIndex = root.stage === "available" ? 2 : root.stage

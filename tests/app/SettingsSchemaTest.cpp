@@ -143,6 +143,7 @@ void requiredPersistedKeysArePresentExactlyOnce()
         QStringLiteral("input/greenButton"),
         QStringLiteral("input/yellowButton"),
         QStringLiteral("input/blueButton"),
+        QStringLiteral("updates/automatic"),
     };
     const QSet<QString> expected = stringSet(expectedKeys);
 

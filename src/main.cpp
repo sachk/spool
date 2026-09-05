@@ -560,9 +560,12 @@ int main(int argc, char **argv)
     networkAccessManager->setCache(diskCache);
     QObject *platformUpdateController = nullptr;
 #if defined(SPOOL_ANDROID)
+    // Constructed here because QML binds to it before the shell exists, but
+    // deliberately not started here: the first check waits for settings to
+    // load, so the toggle governs it from the very first launch rather than
+    // after an update dialog has already appeared. See the connection below.
     auto updateController = std::make_unique<JellyfinNative::AndroidUpdateController>(networkAccessManager, cachePath);
     platformUpdateController = updateController.get();
-    updateController->start();
 #endif
 
     JellyfinNative::DatabaseManager database;
@@ -630,6 +633,14 @@ int main(int argc, char **argv)
 #endif
     auto controller = std::make_unique<JellyfinNative::AppController>(
         &database, discovery.get(), api.get(), artworkService.get(), player.get(), &tlsTrust);
+#if defined(SPOOL_ANDROID)
+    // Settings decide whether the app looks for its own updates; the platform
+    // controller decides what looking means. Joining them here keeps the
+    // settings layer free of any knowledge of Android.
+    QObject::connect(controller->settings(), &JellyfinNative::SettingsController::automaticUpdatesChanged,
+        updateController.get(),
+        [updater = updateController.get()](bool enabled) { updater->setAutomaticUpdatesEnabled(enabled); });
+#endif
     QObject::connect(controller.get(), &JellyfinNative::AppController::clearLogsRequested, &app, [appRootPath]() {
         const std::lock_guard lock(g_logMutex);
         if (g_logFile) {

@@ -40,7 +40,7 @@ FocusScope {
     }
 
     function rowAvailable(row) {
-        return SettingsNavigation.rowAvailable(row, Platform.isTV, Player.hdrPlayback, function (key) {
+        return SettingsNavigation.rowAvailable(row, Platform, Player.hdrPlayback, function (key) {
             return settingsValue({
                                      "key": key,
                                      "defaultValue": ""

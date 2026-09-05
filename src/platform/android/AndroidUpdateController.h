@@ -46,7 +46,11 @@ public:
     bool allowPrerelease() const;
     void setAllowPrerelease(bool allow);
 
-    void start();
+    // Whether the app checks for updates on its own. Settings owns the
+    // value; this owns what it means. Turning it off mid-flight puts the
+    // controller back to idle, so a dialog the user just opted out of does
+    // not stay on screen.
+    void setAutomaticUpdatesEnabled(bool enabled);
     Q_INVOKABLE void decline();
     Q_INVOKABLE void download();
     Q_INVOKABLE void cancelDownload();
@@ -85,6 +89,7 @@ private:
     QString m_cacheRoot;
     Stage m_stage = Stage::Idle;
     bool m_allowPrerelease = false;
+    bool m_automaticUpdates = false;
     bool m_waitingForPermission = false;
     AndroidUpdateRelease m_release;
     QString m_errorText;

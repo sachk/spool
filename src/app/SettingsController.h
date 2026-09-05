@@ -46,6 +46,11 @@ class SettingsController final : public QObject {
     Q_PROPERTY(bool remoteControlTargetEnabled READ remoteControlTargetEnabled NOTIFY remoteControlSettingsChanged)
 
 public:
+    // Emitted whenever the stored value is applied, including the first time
+    // settings load. Whoever can actually install an update connects to it;
+    // this class deliberately knows nothing about platform updaters.
+    Q_SIGNAL void automaticUpdatesChanged(bool enabled);
+
     SettingsController(DatabaseManager *database, JellyfinApiFacade *api, PlayerController *player,
         ArtworkService *artwork, QObject *parent = nullptr);
 

@@ -130,8 +130,16 @@ void AndroidUpdateController::setAllowPrerelease(bool allow)
     emit allowPrereleaseChanged();
 }
 
-void AndroidUpdateController::start()
+void AndroidUpdateController::setAutomaticUpdatesEnabled(bool enabled)
 {
+    if (m_automaticUpdates == enabled)
+        return;
+    m_automaticUpdates = enabled;
+    qInfo() << "update: automatic updates" << (enabled ? "enabled" : "disabled");
+    if (!enabled) {
+        decline();
+        return;
+    }
     if (m_stage == Stage::Idle)
         checkForUpdate();
 }
