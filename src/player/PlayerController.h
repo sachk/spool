@@ -294,6 +294,11 @@ private:
     void changePlaybackSpeed(double speed, bool syncOverride, bool clearSyncOverride = false);
     void updateHdrOutput(bool applySubtitleOptions);
 
+    // The video's display size, tracked so a platform that shapes its own
+    // video plane can be told. Both halves arrive as separate property
+    // changes, so neither is acted on until the pair is complete.
+    int m_videoWidth = 0;
+    int m_videoHeight = 0;
     NativeAppWindow *m_window = nullptr;
     JellyfinApiFacade *m_api = nullptr;
     PlaybackSession m_session;

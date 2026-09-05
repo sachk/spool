@@ -1,9 +1,11 @@
 package com.sachk.spool;
 
 import android.app.Activity;
+import android.view.Gravity;
 import android.view.SurfaceHolder;
 import android.view.SurfaceView;
 import android.view.ViewGroup;
+import android.widget.FrameLayout;
 
 /**
  * The video plane, underneath everything Qt draws.
@@ -21,10 +23,54 @@ import android.view.ViewGroup;
  * makes Qt ask for setZOrderMediaOverlay.
  */
 public final class VideoSurfaceBridge {
-    private static SurfaceView view;
+    private static VideoSurface view;
 
     private VideoSurfaceBridge()
     {
+    }
+
+    /**
+     * A surface shaped like the video in it.
+     *
+     * Nothing scales the picture on this path: MediaCodec fills the whole
+     * Surface, and the Surface is whatever size the view was laid out at. So
+     * a view that filled the screen would stretch every video that is not
+     * exactly the panel's shape. Letterboxing is this view's job, and it is
+     * the only place it can be done.
+     */
+    private static final class VideoSurface extends SurfaceView {
+        private int videoWidth;
+        private int videoHeight;
+
+        VideoSurface(Activity activity)
+        {
+            super(activity);
+        }
+
+        void setVideoSize(int width, int height)
+        {
+            if (width == videoWidth && height == videoHeight)
+                return;
+            videoWidth = width;
+            videoHeight = height;
+            requestLayout();
+        }
+
+        @Override
+        protected void onMeasure(int widthSpec, int heightSpec)
+        {
+            int width = MeasureSpec.getSize(widthSpec);
+            int height = MeasureSpec.getSize(heightSpec);
+            if (videoWidth > 0 && videoHeight > 0 && width > 0 && height > 0) {
+                // Long multiplication rather than a float ratio, so a 4K frame
+                // in a 1080p window lands on the same answer either way round.
+                if ((long) width * videoHeight > (long) height * videoWidth)
+                    width = (int) ((long) height * videoWidth / videoHeight);
+                else
+                    height = (int) ((long) width * videoHeight / videoWidth);
+            }
+            setMeasuredDimension(width, height);
+        }
     }
 
     /** Called on the Qt thread; the view work is posted to the UI thread. */
@@ -33,7 +79,7 @@ public final class VideoSurfaceBridge {
         activity.runOnUiThread(() -> {
             if (view != null)
                 return;
-            SurfaceView created = new SurfaceView(activity);
+            VideoSurface created = new VideoSurface(activity);
             // Never setZOrderOnTop: see the class comment.
             created.setZOrderMediaOverlay(false);
             created.setClickable(false);
@@ -60,10 +106,19 @@ public final class VideoSurfaceBridge {
                 }
             });
             ViewGroup content = activity.findViewById(android.R.id.content);
-            content.addView(created, 0,
-                new ViewGroup.LayoutParams(
-                    ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+            FrameLayout.LayoutParams params = new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT, Gravity.CENTER);
+            content.addView(created, 0, params);
             view = created;
+        });
+    }
+
+    /** The video's display size, so the plane can be letterboxed to match. */
+    public static void setVideoSize(Activity activity, int width, int height)
+    {
+        activity.runOnUiThread(() -> {
+            if (view != null)
+                view.setVideoSize(width, height);
         });
     }
 

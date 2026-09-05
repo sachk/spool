@@ -132,5 +132,8 @@ void platformAudioTrackChanged(int index)
 {
     qInfo() << "player: webOS audio track changed" << index;
 }
+// Starfish is told the video's shape through its own media pipeline, so
+// there is no surface here for this to reshape.
+void platformVideoSizeChanged(int, int) { }
 
 } // namespace JellyfinNative

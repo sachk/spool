@@ -35,5 +35,10 @@ bool applyPlatformSubtitlePreload(
 
 bool platformUsesBackgroundPlaybackPolicy();
 void platformAudioTrackChanged(int index);
+// The video's display size, once mpv knows it. A platform that hands the
+// decoder a surface has to shape that surface itself, because the decoder
+// fills whatever it is given and a mismatch stretches the picture. Ignored
+// where the scene graph already letterboxes.
+void platformVideoSizeChanged(int width, int height);
 
 } // namespace JellyfinNative

@@ -3,11 +3,11 @@
 #include "platform/NativeAppWindow.h"
 #include "player/MpvVideoItem.h"
 
+#include <QCoreApplication>
 #include <QDebug>
 #include <QJniObject>
 #include <QMetaObject>
 #include <QMutex>
-#include <QNativeInterface>
 #include <QObject>
 #include <QPointer>
 #include <QWaitCondition>
@@ -138,7 +138,7 @@ bool configurePlatformMpvSurface(
     // wid is UPDATE_VO rather than fixed, so setting it here -- after
     // mpv_initialize, like webOS sets its Starfish window -- still reaches the
     // VO when it is created.
-    const auto wid = static_cast<int64_t>(reinterpret_cast<intptr_t>(surface.object<jobject>()));
+    auto wid = static_cast<int64_t>(reinterpret_cast<intptr_t>(surface.object<jobject>()));
     if (mpv_set_property(handle, "wid", MPV_FORMAT_INT64, &wid) < 0) {
         errorMessage = QStringLiteral("Failed to configure the native video surface.");
         return false;
@@ -222,5 +222,16 @@ bool platformUsesBackgroundPlaybackPolicy()
 }
 
 void platformAudioTrackChanged(int) { }
+
+void platformVideoSizeChanged(int width, int height)
+{
+    if (!g_underlaidWindow || width <= 0 || height <= 0)
+        return;
+    const QJniObject context = activity();
+    if (!context.isValid())
+        return;
+    QJniObject::callStaticMethod<void>(kBridge, "setVideoSize", "(Landroid/app/Activity;II)V",
+        context.object<jobject>(), static_cast<jint>(width), static_cast<jint>(height));
+}
 
 } // namespace JellyfinNative

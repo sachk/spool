@@ -93,5 +93,6 @@ bool platformUsesBackgroundPlaybackPolicy()
     return false;
 }
 void platformAudioTrackChanged(int) { }
+void platformVideoSizeChanged(int, int) { }
 
 } // namespace JellyfinNative

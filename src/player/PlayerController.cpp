@@ -319,6 +319,8 @@ void PlayerController::teardownMpv(bool async)
     else
         m_mpvLifecycle.destroy();
     m_embeddedVideoOutput = false;
+    m_videoWidth = 0;
+    m_videoHeight = 0;
 }
 
 void PlayerController::scheduleIdleMpvPreparation()
@@ -451,6 +453,10 @@ void PlayerController::observeMpvProperties(mpv_handle *handle)
     mpv_observe_property(handle, 0, "vo-delayed-frame-count", MPV_FORMAT_INT64);
     mpv_observe_property(handle, 0, "estimated-vf-fps", MPV_FORMAT_DOUBLE);
     mpv_observe_property(handle, 0, "container-fps", MPV_FORMAT_DOUBLE);
+    // Display size rather than storage size: it is already through the
+    // aspect-ratio correction, which is what a video plane has to match.
+    mpv_observe_property(handle, 0, "dwidth", MPV_FORMAT_INT64);
+    mpv_observe_property(handle, 0, "dheight", MPV_FORMAT_INT64);
 }
 
 void PlayerController::scheduleMpvTeardown()
@@ -2057,6 +2063,15 @@ void PlayerController::handleMpvEvent(mpv_event *event)
             QMetaObject::invokeMethod(this, [decoderName]() {
                 qInfo() << "player: hardware decoder"
                         << (decoderName.isEmpty() ? QByteArrayLiteral("none") : decoderName);
+            });
+        } else if ((strcmp(property->name, "dwidth") == 0 || strcmp(property->name, "dheight") == 0)
+            && property->format == MPV_FORMAT_INT64) {
+            const bool isWidth = strcmp(property->name, "dwidth") == 0;
+            const auto value = static_cast<int>(*static_cast<int64_t *>(property->data));
+            QMetaObject::invokeMethod(this, [this, isWidth, value]() {
+                (isWidth ? m_videoWidth : m_videoHeight) = value;
+                if (m_videoWidth > 0 && m_videoHeight > 0)
+                    platformVideoSizeChanged(m_videoWidth, m_videoHeight);
             });
         } else if (strcmp(property->name, "video-params/transfer") == 0 && property->format == MPV_FORMAT_STRING) {
             const auto *transferValue = static_cast<char **>(property->data);
