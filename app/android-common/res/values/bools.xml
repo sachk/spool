@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- A television has no status bar or gesture bar to share the panel
+         with, so the app takes the whole of it from the first frame. A
+         handset gets the fullscreen panel only during playback, asked for at
+         runtime. The television copy of this file is what makes that choice,
+         so there is one theme rather than two that drift apart. -->
+    <bool name="spool_window_fullscreen">false</bool>
+</resources>

@@ -6,7 +6,7 @@
 # block centred, so the frame the operating system shows and the first frame
 # Qt paints are the same picture and the handover is invisible.
 #
-#   tools/generate-splash.sh --platform desktop|webos|android-phone|android-tv \
+#   tools/generate-splash.sh --platform desktop|webos|android \
 #                            --out DIR [--version X.Y.Z]
 #
 # The version is part of the picture, so this runs per build rather than
@@ -33,7 +33,7 @@ done
 [[ -n "$VERSION" ]] || VERSION="$(tr -d '[:space:]' <"$APP_ROOT/VERSION")"
 
 case "$PLATFORM" in
-  desktop | webos | android-phone | android-tv) ;;
+  desktop | webos | android) ;;
   *) echo "error: unsupported splash platform: $PLATFORM" >&2; exit 2 ;;
 esac
 
@@ -135,49 +135,73 @@ case "$PLATFORM" in
       "$reference_core" -gravity center -composite \
       -depth 8 -strip -define png:color-type=2 "$OUT_DIR/splash.png"
     ;;
-  android-phone | android-tv)
-    if [[ "$PLATFORM" == android-tv ]]; then
-      core_dp="$(field android.tvCoreWidthDp)"
-    else
-      core_dp="$(field android.phoneCoreWidthDp)"
-    fi
-    # A bucketed bitmap is scaled by density/bucket, so its dp size is exact.
-    # A nodpi one is drawn at its natural pixel size and the layer-list's
-    # android:width is ignored, which is what drew the mark half again too big.
-    core_bucket_px=$((core_dp * ANDROID_CORE_BUCKET / 160))
-    render_core "$core_bucket_px" "$((core_bucket_px * CORE_H / CORE_W))" "$OUT_DIR/splash-core.png"
-    mkdir -p "$OUT_DIR/res/drawable-xxxhdpi" "$OUT_DIR/res/drawable-nodpi" "$OUT_DIR/res/drawable"
-    cp -f "$OUT_DIR/splash-core.png" "$OUT_DIR/res/drawable-xxxhdpi/spool_splash_core.png"
+  android)
+    # One package serves both form factors, so both launch screens ship and
+    # the platform picks between them with the -television qualifier. The
+    # qualifier sorts before density, so a television at xhdpi still resolves
+    # the television bitmap rather than the handset one a density nearer.
+    mkdir -p "$OUT_DIR/res/drawable" \
+      "$OUT_DIR/res/drawable-xxxhdpi" "$OUT_DIR/res/drawable-nodpi" \
+      "$OUT_DIR/res/drawable-television-xxxhdpi" "$OUT_DIR/res/drawable-television-nodpi"
 
-    # From API 31 the platform draws its own launch icon, centred, into a box
-    # of systemIconCanvasDp, before the activity exists -- so it, not the
-    # window background, is the first frame. Left alone it uses the launcher
-    # icon, which is a square bitmap and reads as a boxed icon on black.
-    # Draw the mark into that box at exactly the size the core gives it, on
-    # transparency, so the platform's frame and Qt's put the same mark at the
-    # same size in the same place and only the words appear afterwards.
-    icon_canvas_px=$((ANDROID_SOURCE_W))
-    mark_dp=$((core_dp * LOGO_SIZE / CORE_W))
-    mark_px=$((icon_canvas_px * mark_dp / ANDROID_ICON_CANVAS_DP))
-    magick -size "${icon_canvas_px}x${icon_canvas_px}" xc:none \
-      \( -background none -density 4096 "$LOGO_SVG" -resize "${mark_px}x${mark_px}"\! \) \
-      -gravity center -composite \
-      -depth 8 -strip "$OUT_DIR/res/drawable-nodpi/spool_splash_icon.png"
-    # Measured, not assumed: the two frames only agree if these agree. The
-    # mark is the only bright thing in the top half of either image -- the
-    # words sit below centre -- so the trim box of that half is its diameter.
+    render_android_form_factor() {
+      local core_dp="$1" res_suffix="$2" label="$3"
+      # A bucketed bitmap is scaled by density/bucket, so its dp size is exact.
+      # A nodpi one is drawn at its natural pixel size and the layer-list's
+      # android:width is ignored, which is what drew the mark half again too big.
+      local core_bucket_px=$((core_dp * ANDROID_CORE_BUCKET / 160))
+      local core="$OUT_DIR/res/drawable$res_suffix-xxxhdpi/spool_splash_core.png"
+      render_core "$core_bucket_px" "$((core_bucket_px * CORE_H / CORE_W))" "$core"
+
+      # From API 31 the platform draws its own launch icon, centred, into a box
+      # of systemIconCanvasDp, before the activity exists -- so it, not the
+      # window background, is the first frame. Left alone it uses the launcher
+      # icon, which is a square bitmap and reads as a boxed icon on black.
+      # Draw the mark into that box at exactly the size the core gives it, on
+      # transparency, so the platform's frame and Qt's put the same mark at the
+      # same size in the same place and only the words appear afterwards.
+      local icon="$OUT_DIR/res/drawable$res_suffix-nodpi/spool_splash_icon.png"
+      local icon_canvas_px=$((ANDROID_SOURCE_W))
+      local mark_dp=$((core_dp * LOGO_SIZE / CORE_W))
+      local mark_px=$((icon_canvas_px * mark_dp / ANDROID_ICON_CANVAS_DP))
+      magick -size "${icon_canvas_px}x${icon_canvas_px}" xc:none \
+        \( -background none -density 4096 "$LOGO_SVG" -resize "${mark_px}x${mark_px}"\! \) \
+        -gravity center -composite \
+        -depth 8 -strip "$icon"
+
+      # Measured, not assumed: the two frames only agree if these agree. The
+      # mark is the only bright thing in the top half of either image -- the
+      # words sit below centre -- so the trim box of that half is its diameter.
+      local core_mark_px icon_mark_px
+      core_mark_px="$(mark_width "$core")"
+      icon_mark_px="$(mark_width "$icon")"
+      printf '  %s window background: mark %ddp\n' \
+        "$label" "$((core_mark_px * core_dp / core_bucket_px))"
+      printf '  %s system launch icon: mark %ddp as the platform will draw it\n' \
+        "$label" "$((icon_mark_px * ANDROID_ICON_CANVAS_DP / ANDROID_SOURCE_W))"
+    }
+
     mark_width() {
       magick "$1" -crop 100%x50%+0+0 +repage -threshold 39% -format '%@' info: | sed 's/x.*//'
     }
-    core_mark_px="$(mark_width "$OUT_DIR/splash-core.png")"
-    icon_mark_px="$(mark_width "$OUT_DIR/res/drawable-nodpi/spool_splash_icon.png")"
-    printf '  window background: mark %ddp\n' \
-      "$((core_mark_px * core_dp / core_bucket_px))"
-    printf '  system launch icon: mark %ddp as the platform will draw it\n' \
-      "$((icon_mark_px * ANDROID_ICON_CANVAS_DP / ANDROID_SOURCE_W))"
+
+    phone_dp="$(field android.phoneCoreWidthDp)"
+    tv_dp="$(field android.tvCoreWidthDp)"
+    render_android_form_factor "$phone_dp" "" "handset"
+    render_android_form_factor "$tv_dp" "-television" "television"
+
+    # Qt scales its own copy to whichever dp the running device asked for, so
+    # one bitmap serves both; render it at the larger of the two so the
+    # television only ever scales down.
+    larger_dp="$phone_dp"
+    ((tv_dp > larger_dp)) && larger_dp="$tv_dp"
+    larger_px=$((larger_dp * ANDROID_CORE_BUCKET / 160))
+    render_core "$larger_px" "$((larger_px * CORE_H / CORE_W))" "$OUT_DIR/splash-core.png"
+
     # Black everywhere, the core centred at an explicit dp size. Qt reads the
     # same dp out of the manifest, so its first frame lands on the same
-    # pixels this one did and the handover shows nothing.
+    # pixels this one did and the handover shows nothing. One layer-list
+    # serves both: @drawable/spool_splash_core resolves per form factor.
     cat >"$OUT_DIR/res/drawable/spool_splash.xml" <<XML
 <?xml version="1.0" encoding="utf-8"?>
 <!-- Generated by tools/generate-splash.sh; do not edit. -->

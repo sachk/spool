@@ -54,20 +54,14 @@ function(jellyfin_configure_android_targets native_target core_target)
         SPOOL_ANDROID_ABI="${ANDROID_ABI}"
         SPOOL_ANDROID_VERSION_CODE=${android_version_code}
     )
-    if(SPOOL_ANDROID_TV)
-        set(android_variant_package_source "${CMAKE_CURRENT_SOURCE_DIR}/app/android-tv")
-        set(android_package_name "com.sachk.spool.tv")
-        target_compile_definitions(${core_target} PRIVATE SPOOL_ANDROID_TV=1)
-        target_compile_definitions(${native_target} PRIVATE SPOOL_ANDROID_TV=1)
-    else()
-        set(android_variant_package_source "${CMAKE_CURRENT_SOURCE_DIR}/app/android-phone")
-        set(android_package_name "com.sachk.spool")
-    endif()
+    # One package for televisions and handsets. What genuinely differs between
+    # them is a bool resource and a launch screen, both of which the platform
+    # picks with the -television qualifier; everything else is asked of the
+    # system at runtime. See androidIsTelevision() in AndroidPlatform.cpp.
+    set(android_package_name "com.sachk.spool")
     set(android_package_source "${CMAKE_CURRENT_BINARY_DIR}/android-package")
     file(REMOVE_RECURSE "${android_package_source}")
     file(COPY "${CMAKE_CURRENT_SOURCE_DIR}/app/android-common/"
-        DESTINATION "${android_package_source}")
-    file(COPY "${android_variant_package_source}/"
         DESTINATION "${android_package_source}")
     # The launch screen is rendered per build because it carries the version.
     file(COPY "${SPOOL_SPLASH_DIR}/res/"

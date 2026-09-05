@@ -307,8 +307,13 @@ bool registerBundledFonts(const QString& appRootPath)
 // other platform sizes the mark against the viewport instead.
 double splashCoreWidthDp()
 {
-#if defined(SPOOL_SPLASH_CORE_WIDTH_DP)
-    return static_cast<double>(SPOOL_SPLASH_CORE_WIDTH_DP);
+#if defined(SPOOL_SPLASH_CORE_WIDTH_DP_PHONE)
+    // The dp the platform's own launch frame drew the mark at. One package
+    // ships both launch screens under the -television resource qualifier, so
+    // this has to make the same choice the resource system just made or Qt's
+    // first frame lands on different pixels than the frame it replaces.
+    return static_cast<double>(
+        JellyfinNative::platformCapabilities().isTV ? SPOOL_SPLASH_CORE_WIDTH_DP_TV : SPOOL_SPLASH_CORE_WIDTH_DP_PHONE);
 #else
     return 0.0;
 #endif

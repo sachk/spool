@@ -94,11 +94,7 @@ include(cmake/platform/Common.cmake)
 # than kept in the tree. tools/generate-splash.sh is the whole of the drawing;
 # configuring is enough to get it, so no platform needs a second command.
 if(ANDROID)
-    if(SPOOL_ANDROID_TV)
-        set(spool_splash_platform "android-tv")
-    else()
-        set(spool_splash_platform "android-phone")
-    endif()
+    set(spool_splash_platform "android")
 elseif(JELLYFIN_NATIVE_WEBOS)
     set(spool_splash_platform "webos")
 else()
@@ -553,12 +549,15 @@ string(JSON spool_splash_core_width GET "${spool_splash_manifest}" core width)
 string(JSON spool_splash_core_height GET "${spool_splash_manifest}" core height)
 string(JSON spool_splash_fraction GET "${spool_splash_manifest}" desktop coreWidthFraction)
 if(ANDROID)
-    if(SPOOL_ANDROID_TV)
-        string(JSON spool_splash_dp GET "${spool_splash_manifest}" android tvCoreWidthDp)
-    else()
-        string(JSON spool_splash_dp GET "${spool_splash_manifest}" android phoneCoreWidthDp)
-    endif()
-    target_compile_definitions(jellyfin-native PRIVATE SPOOL_SPLASH_CORE_WIDTH_DP=${spool_splash_dp})
+    # One package draws either launch screen, so both sizes are compiled in and
+    # the running device picks between them the same way the resource qualifier
+    # does. See splashCoreWidthDp() in main.cpp.
+    string(JSON spool_splash_tv_dp GET "${spool_splash_manifest}" android tvCoreWidthDp)
+    string(JSON spool_splash_phone_dp GET "${spool_splash_manifest}" android phoneCoreWidthDp)
+    target_compile_definitions(jellyfin-native PRIVATE
+        SPOOL_SPLASH_CORE_WIDTH_DP_TV=${spool_splash_tv_dp}
+        SPOOL_SPLASH_CORE_WIDTH_DP_PHONE=${spool_splash_phone_dp}
+    )
 endif()
 target_compile_definitions(jellyfin-native PRIVATE
     SPOOL_SPLASH_CORE_ASPECT=${spool_splash_core_width}.0/${spool_splash_core_height}.0

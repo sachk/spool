@@ -25,6 +25,41 @@ namespace JellyfinNative {
 namespace {
     constexpr SettingChoice kAndroidAudioChoices[] = { { "auto", "Automatic" } };
 
+    // Which form factor this package is running on. One APK serves handsets
+    // and televisions, so this is asked of the system rather than baked in at
+    // build time. It is settled once and never changes for the process: the
+    // manifest lets the activity survive a uiMode change, but no device turns
+    // into a different kind of device while the app is open.
+    bool androidIsTelevision()
+    {
+        const QJniObject context = QNativeInterface::QAndroidApplication::context();
+        if (!context.isValid())
+            return false;
+
+        // The system's own answer, and the one the platform itself uses to
+        // decide which launcher the app belongs in.
+        const QJniObject service = QJniObject::fromString(QStringLiteral("uimode"));
+        const QJniObject uiMode = context.callObjectMethod(
+            "getSystemService", "(Ljava/lang/String;)Ljava/lang/Object;", service.object<jstring>());
+        if (uiMode.isValid()) {
+            constexpr jint televisionMode = 4; // Configuration.UI_MODE_TYPE_TELEVISION
+            if (uiMode.callMethod<jint>("getCurrentModeType") == televisionMode)
+                return true;
+        }
+
+        // Some boxes report a normal ui mode and still ship only the leanback
+        // launcher, so having the feature at all settles it the other way.
+        const QJniObject packages
+            = context.callObjectMethod("getPackageManager", "()Landroid/content/pm/PackageManager;");
+        if (packages.isValid()) {
+            const QJniObject feature = QJniObject::fromString(QStringLiteral("android.software.leanback"));
+            if (packages.callMethod<jboolean>("hasSystemFeature", "(Ljava/lang/String;)Z", feature.object<jstring>())) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     QString androidDeviceName()
     {
         const QJniObject context = QNativeInterface::QAndroidApplication::context();
@@ -44,11 +79,7 @@ namespace {
             = QJniObject::getStaticObjectField<jstring>("android/os/Build", "MODEL").toString().trimmed();
         if (!model.isEmpty())
             return model;
-#ifdef SPOOL_ANDROID_TV
-        return QStringLiteral("Android TV");
-#else
-        return QStringLiteral("Android device");
-#endif
+        return androidIsTelevision() ? QStringLiteral("Android TV") : QStringLiteral("Android device");
     }
 
     class AndroidScreenSaverBackend final : public ScreenSaverBackend {
@@ -87,30 +118,24 @@ namespace {
 
 const PlatformCapabilities& platformCapabilities()
 {
-#ifdef SPOOL_ANDROID_TV
-    static const PlatformCapabilities capabilities {
-        .deviceName = androidDeviceName(),
-        .rendererName = QStringLiteral("libmpv OpenGL ES"),
-        .isTV = true,
-        .isAndroid = true,
-        .hasSystemFonts = false,
-        .hasDesktopPointer = false,
-        // A leanback remote is a d-pad; there is nothing here to drag with.
-        .hasPointer = false,
-    };
-#else
-    static const PlatformCapabilities capabilities {
-        .deviceName = androidDeviceName(),
-        .rendererName = QStringLiteral("libmpv OpenGL ES"),
-        .isTV = false,
-        .isAndroid = true,
-        .isMobile = true,
-        // The Android media stack is built without a system font provider, so
-        // libass can only use the fonts the app ships with it.
-        .hasSystemFonts = false,
-        .hasDesktopPointer = false,
-    };
-#endif
+    static const PlatformCapabilities capabilities = [] {
+        const bool television = androidIsTelevision();
+        qInfo() << "android: form factor" << (television ? "television" : "handset");
+        PlatformCapabilities probed {
+            .deviceName = androidDeviceName(),
+            .rendererName = QStringLiteral("libmpv OpenGL ES"),
+            .isTV = television,
+            .isAndroid = true,
+            .isMobile = !television,
+            // The Android media stack is built without a system font provider,
+            // so libass can only use the fonts the app ships with it.
+            .hasSystemFonts = false,
+            .hasDesktopPointer = false,
+            // A leanback remote is a d-pad; there is nothing there to drag with.
+            .hasPointer = !television,
+        };
+        return probed;
+    }();
     return capabilities;
 }
 
@@ -183,20 +208,17 @@ QStringList platformSystemSubtitleFonts()
 
 int platformDefaultUiScalePercent()
 {
-#ifdef SPOOL_ANDROID_TV
-    return 150;
-#else
+    // Both form factors start at 100. The interface is sized from the density
+    // the system reports, so a television already arrives at a ten-foot size
+    // without a zoom default standing in for it; see Metrics.viewportRatio.
     return 100;
-#endif
 }
 
 const char *platformDefaultArtworkFormat()
 {
-#ifdef SPOOL_ANDROID_TV
-    return "jpeg";
-#else
-    return "webp";
-#endif
+    // A television decodes WebP in software and pays about three times the
+    // cost of JPEG for it, which a handset's decoder does not.
+    return platformCapabilities().isTV ? "jpeg" : "webp";
 }
 
 bool platformUsesPerOutputAudioDelay()
@@ -205,19 +227,11 @@ bool platformUsesPerOutputAudioDelay()
 }
 bool platformDefaultCastButtonEnabled()
 {
-#ifdef SPOOL_ANDROID_TV
-    return false;
-#else
-    return true;
-#endif
+    return !platformCapabilities().isTV;
 }
 bool platformDefaultRemoteControlTargetEnabled()
 {
-#ifdef SPOOL_ANDROID_TV
-    return true;
-#else
-    return false;
-#endif
+    return platformCapabilities().isTV;
 }
 QString normalizedPlatformAudioRoute(const QString& output)
 {

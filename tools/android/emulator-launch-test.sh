@@ -2,14 +2,14 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-PHONE_APK="${1:-$ROOT/dist/android/spool-phone-x86_64.apk}"
-TV_APK="${2:-$ROOT/dist/android/spool-tv-x86_64.apk}"
+APK="${1:-$ROOT/dist/android/spool-x86_64.apk}"
 EMULATOR_LOG="${ANDROID_EMULATOR_LOG:-$ROOT/build/android/emulator.log}"
 ARTIFACT_DIR="${ANDROID_LAUNCH_TEST_DIR:-$ROOT/build/android/launch-test}"
-# Both variants launch through the app's own QtActivity subclass, which owns the
-# launch screen's exit. Naming it here is what catches a manifest that fell back
-# to Qt's stock activity and dropped that handover.
+# The app launches through its own QtActivity subclass, which owns the launch
+# screen's exit. Naming it here is what catches a manifest that fell back to
+# Qt's stock activity and dropped that handover.
 SPOOL_ACTIVITY=com.sachk.spool.SpoolActivity
+SPOOL_PACKAGE=com.sachk.spool
 
 : "${ANDROID_HOME:?run through nix develop .#android}"
 ADB="$ANDROID_HOME/platform-tools/adb"
@@ -17,12 +17,8 @@ ADB="$ANDROID_HOME/platform-tools/adb"
   echo "error: adb missing at $ADB" >&2
   exit 1
 }
-[[ -f "$PHONE_APK" ]] || {
-  echo "error: phone APK missing at $PHONE_APK" >&2
-  exit 1
-}
-[[ -f "$TV_APK" ]] || {
-  echo "error: TV APK missing at $TV_APK" >&2
+[[ -f "$APK" ]] || {
+  echo "error: APK missing at $APK" >&2
   exit 1
 }
 
@@ -59,8 +55,8 @@ done
   exit 1
 }
 
-# Resolves through the launcher category the variant actually advertises, so a
-# TV package that never registered a leanback entry point fails here rather
+# Resolves through each launcher category in turn. One package now has to
+# answer to both, so a manifest that lost either entry point fails here rather
 # than passing on the activity class name alone.
 launcher_component() {
   local package="$1" category="$2"
@@ -80,14 +76,12 @@ fail() {
   exit 1
 }
 
-launch_apk() {
-  local apk="$1" package="$2" category="$3" component activity
-  "$ADB" install -r "$apk"
+launch_category() {
+  local package="$1" category="$2" component activity
   component="$(launcher_component "$package" "$category")"
   [[ -n "$component" ]] || fail "$package" "$package advertises no $category launcher activity"
   # resolve-activity abbreviates a class that sits under the package's own
-  # namespace, so the phone package reports .SpoolActivity where the TV package,
-  # whose name it does not share, reports the class in full.
+  # namespace, so this reports .SpoolActivity rather than the full class name.
   activity="${component#*/}"
   if [[ "$activity" == .* ]]; then
     activity="$package$activity"
@@ -114,11 +108,15 @@ launch_apk() {
   ! "$ADB" logcat -d -b crash -b main | grep -qE 'FATAL EXCEPTION|Fatal signal' ||
     fail "$package" "Android reported a fatal launch failure for $package"
 
-  "$ADB" exec-out screencap -p >"$ARTIFACT_DIR/$package-screen.png"
+  local shot="$ARTIFACT_DIR/$package-${category##*.}-screen.png"
+  "$ADB" exec-out screencap -p >"$shot"
   "$ADB" shell am force-stop "$package"
-  printf '%s launched; screenshot at %s\n' "$package" "$ARTIFACT_DIR/$package-screen.png"
+  printf '%s launched through %s; screenshot at %s\n' "$package" "$category" "$shot"
 }
 
-launch_apk "$PHONE_APK" com.sachk.spool android.intent.category.LAUNCHER
-launch_apk "$TV_APK" com.sachk.spool.tv android.intent.category.LEANBACK_LAUNCHER
-printf 'phone and Android TV APK launch tests passed\n'
+"$ADB" install -r "$APK"
+# One package, both entry points. A handset resolves the first and a television
+# the second, and the universal APK is only universal if it answers to both.
+launch_category "$SPOOL_PACKAGE" android.intent.category.LAUNCHER
+launch_category "$SPOOL_PACKAGE" android.intent.category.LEANBACK_LAUNCHER
+printf 'universal APK launch test passed for both launcher categories\n'
