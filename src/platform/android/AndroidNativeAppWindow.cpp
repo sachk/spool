@@ -3,21 +3,76 @@
 #include <QExposeEvent>
 #include <QResizeEvent>
 
+#include <video/out/android_overlay.h>
+
 namespace JellyfinNative {
 
-struct NativeAppWindow::PlatformData { };
+struct NativeAppWindow::PlatformData {
+    // Where mpv draws subtitles when the video plane is not ours to draw on.
+    // MediaCodec owns that surface; this is the layer Qt already keeps above
+    // it, reached by exactly the two calls the Starfish output uses on webOS.
+    struct OverlayImageBuffer {
+        QImage image;
+        int x = 0;
+        int y = 0;
+    };
+
+    explicit PlatformData(NativeAppWindow *window)
+        : owner(window)
+    {
+    }
+
+    NativeAppWindow *owner = nullptr;
+
+    static uint8_t *overlayAcquire(void *data, int x, int y, int width, int height, int *stride, void **buffer)
+    {
+        auto *platform = static_cast<PlatformData *>(data);
+        if (!platform || !platform->owner || !stride || !buffer || width <= 0 || height <= 0)
+            return nullptr;
+        static_assert(Q_BYTE_ORDER == Q_LITTLE_ENDIAN, "OSD direct path assumes little-endian QImage layout");
+        auto *frame = new OverlayImageBuffer { QImage(width, height, QImage::Format_ARGB32_Premultiplied), x, y };
+        if (frame->image.isNull()) {
+            delete frame;
+            return nullptr;
+        }
+        *stride = frame->image.bytesPerLine();
+        *buffer = frame;
+        return frame->image.bits();
+    }
+
+    static void overlayPresent(void *data, void *buffer, bool visible)
+    {
+        auto *platform = static_cast<PlatformData *>(data);
+        auto *frame = static_cast<OverlayImageBuffer *>(buffer);
+        if (!platform || !platform->owner) {
+            delete frame;
+            return;
+        }
+        if (!visible || !frame || frame->image.isNull()) {
+            delete frame;
+            platform->owner->scheduleOverlayImage({});
+            return;
+        }
+        platform->owner->scheduleOverlayImage(std::move(frame->image), frame->x, frame->y);
+        delete frame;
+    }
+};
 
 NativeAppWindow::NativeAppWindow(const QString& appId, QWindow *parent)
     : QQuickView(parent)
     , m_appId(appId)
-    , m_platform(std::make_unique<PlatformData>())
+    , m_platform(std::make_unique<PlatformData>(this))
 {
     setColor(Qt::black);
     setResizeMode(QQuickView::SizeRootObjectToView);
     setTitle(QStringLiteral("Spool for Jellyfin"));
+    android_overlay_set_callbacks(&PlatformData::overlayAcquire, &PlatformData::overlayPresent, m_platform.get());
 }
 
-NativeAppWindow::~NativeAppWindow() = default;
+NativeAppWindow::~NativeAppWindow()
+{
+    android_overlay_set_callbacks(nullptr, nullptr, nullptr);
+}
 
 void NativeAppWindow::setVideoUnderlayActive(bool active)
 {

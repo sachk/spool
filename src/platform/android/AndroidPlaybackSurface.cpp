@@ -143,6 +143,16 @@ bool configurePlatformMpvSurface(
         errorMessage = QStringLiteral("Failed to configure the native video surface.");
         return false;
     }
+    // The video output places nothing itself -- the Java view is sized to the
+    // frame and centred -- but it still has to know the window to work out
+    // where subtitles belong, black bars included. In panel pixels, which is
+    // what it rasterises the OSD in.
+    const qreal ratio = window.devicePixelRatio() > 0 ? window.devicePixelRatio() : 1.0;
+    const auto windowWidth = QByteArray::number(qRound(window.width() * ratio));
+    const auto windowHeight = QByteArray::number(qRound(window.height() * ratio));
+    mpv_set_property_string(handle, "vo-mediacodec-embed-window-width", windowWidth.constData());
+    mpv_set_property_string(handle, "vo-mediacodec-embed-window-height", windowHeight.constData());
+
     // Nothing Qt paints may hide the video plane underneath it.
     window.setVideoUnderlayActive(true);
     g_underlaidWindow = &window;

@@ -38,21 +38,26 @@ public:
     void bringToFront();
     QString windowId() const;
     int overlayRevision() const;
+    // The overlay is rasterised in the pixels the panel actually has, which is
+    // what makes subtitles sharp, but QML is laid out in logical ones. On a
+    // display that reports a ratio of one these are the same number and this
+    // costs nothing; on a television reporting two, returning the raw size
+    // would draw the subtitles at twice their width.
     int overlayX() const
     {
-        return m_overlayX;
+        return toLogical(m_overlayX);
     }
     int overlayY() const
     {
-        return m_overlayY;
+        return toLogical(m_overlayY);
     }
     int overlayWidth() const
     {
-        return m_overlayImage.width();
+        return toLogical(m_overlayImage.width());
     }
     int overlayHeight() const
     {
-        return m_overlayImage.height();
+        return toLogical(m_overlayImage.height());
     }
     bool fullScreen() const
     {
@@ -115,6 +120,12 @@ private:
     InputLatencyMonitor *m_inputLatencyMonitor = nullptr;
     QString m_appId;
     mutable QMutex m_overlayMutex;
+    int toLogical(int devicePixels) const
+    {
+        const qreal ratio = devicePixelRatio();
+        return ratio > 0 ? qRound(devicePixels / ratio) : devicePixels;
+    }
+
     QImage m_overlayImage;
     QImage m_pendingOverlayImage;
     int m_overlayX = 0;
