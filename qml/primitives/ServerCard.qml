@@ -20,10 +20,18 @@ FocusScope {
     // on its own is a panel and has to draw one.
     property bool inset: false
 
-    readonly property color toneColor: tone === "positive" ? Theme.success : tone === "pending" ? Theme.pending : tone
-                                                                                                  === "negative"
-                                                                                                  ? Theme.errorText :
-                                                                                                    Theme.textSecondary
+    readonly property color toneColor: {
+        switch (tone) {
+        case "positive":
+            return Theme.online
+        case "pending":
+            return Theme.pending
+        case "negative":
+            return Theme.errorText
+        default:
+            return Theme.textSecondary
+        }
+    }
 
     signal accepted
 
@@ -59,7 +67,7 @@ FocusScope {
                 visible: root.tone !== "pending"
                 name: root.tone === "negative" ? "error_outline" : "dns"
                 iconSize: Metrics.scaled(22)
-                iconColor: root.focused ? Theme.accent : root.tone === "neutral" ? Theme.textMuted : root.toneColor
+                iconColor: root.focused ? Theme.accent : root.tone === "negative" ? Theme.errorText : Theme.textMuted
             }
 
             // Reaching a server is the one thing on this screen that takes

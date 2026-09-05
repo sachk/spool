@@ -169,7 +169,7 @@ FocusScope {
                 return
             root.probeState = "offline"
             root.advanceWhenOnline = false
-            root.probeStatus = TlsTrust.pending ? "Not trusted" : "No server"
+            root.probeStatus = TlsTrust.pending ? "Certificate not trusted" : "Couldn't connect"
             root.probeDetail = TlsTrust.pending ? TlsTrust.pendingFingerprint : message
         }
     }
@@ -203,7 +203,7 @@ FocusScope {
                 AppText {
                     Layout.fillWidth: true
                     visible: !root.dense
-                    text: "Connect to a server"
+                    text: "Sign in to your server"
                     font.pixelSize: Metrics.titleSizePx
                     font.weight: Font.DemiBold
                     elide: Text.ElideRight
@@ -304,7 +304,7 @@ FocusScope {
 
             AppText {
                 Layout.alignment: Qt.AlignVCenter
-                text: root.scanning ? "Scanning" : discoveredList.count > 0 ? discoveredList.count + " found" : "Idle"
+                text: root.scanning ? "Searching…" : discoveredList.count > 0 ? discoveredList.count + " found" : ""
                 color: Theme.textPrimary
                 font.pixelSize: Metrics.metaSizePx
                 font.weight: Font.Medium
@@ -400,9 +400,12 @@ FocusScope {
 
                 SecondaryText {
                     anchors.horizontalCenter: parent.horizontalCenter
-                    text: root.scanning ? "Looking for servers" : "Nothing found on this network"
+                    width: Math.min(implicitWidth, root.width - Metrics.scaled(48))
+                    text: root.scanning ? "Searching your network…" : "No servers found"
                     color: Theme.textMuted
                     font.pixelSize: Metrics.metaSizePx
+                    horizontalAlignment: Text.AlignHCenter
+                    wrapMode: Text.WordWrap
                 }
             }
         }

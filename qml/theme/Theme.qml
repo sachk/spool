@@ -63,6 +63,11 @@ QtObject {
     readonly property color accentAlternate: accentIndex === 1 ? paletteBlue : palettePurple
     readonly property color accentPanel: accentIndex === 1 ? "#2C1E31" : accentIndex === 2 ? "#20223C" : "#182A32"
     readonly property color success: "#3FB950"
+    // A server answering is the ordinary case, not an achievement. Saying so
+    // in signal green put the loudest colour on this palette against every
+    // healthy row; this one is desaturated to sit among the greys, so the
+    // saturated colours are left to the states that actually want attention.
+    readonly property color online: "#8FB39A"
     // Work in progress: reaching a server, waiting on an approval elsewhere.
     readonly property color pending: "#E3B341"
     readonly property color errorPanel: "#2A1717"
