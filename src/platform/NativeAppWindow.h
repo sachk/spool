@@ -27,6 +27,10 @@ public:
     bool prepareForUiSurface();
     void setInputLatencyMonitor(InputLatencyMonitor *monitor);
     bool prepareForPlaybackSurface();
+    // Direct playback puts video on a plane beneath this window, so the
+    // window has to stop painting its own opaque background over it. A no-op
+    // where video always goes through the scene graph.
+    void setVideoUnderlayActive(bool active);
     // Bring the surface to the foreground. On webOS this re-issues
     // wl_webos_shell_surface_set_state(FULLSCREEN); on host Qt it
     // falls back to show()/requestActivate(). Safe to call from the

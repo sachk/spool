@@ -890,7 +890,7 @@ void PlayerController::play(const PlaybackSession& session, bool startPaused)
 {
     const QString nextMediaKind = mediaKindForSession(session);
     const bool needsVideoSurface = nextMediaKind == QStringLiteral("video");
-    const bool embeddedVideo = needsVideoSurface && platformUsesEmbeddedVideo(session);
+    const bool embeddedVideo = needsVideoSurface && platformUsesEmbeddedVideo(session, m_directVideoOutput);
     Diagnostics::Task task(QStringLiteral("player_play"),
         { { QStringLiteral("itemId"), session.itemId }, { QStringLiteral("title"), session.title },
             { QStringLiteral("mediaKind"), nextMediaKind } });
@@ -1748,6 +1748,14 @@ void PlayerController::stopProgressReporting(bool failed, bool completed)
     if (wasSessionActive != m_sessionActive)
         emit sessionActiveChanged();
     emit playbackStopped(session.itemId, positionTicks, completed);
+}
+
+void PlayerController::setDirectVideoOutput(bool direct)
+{
+    if (m_directVideoOutput == direct)
+        return;
+    m_directVideoOutput = direct;
+    qInfo() << "player: video output" << (direct ? "direct" : "enhanced");
 }
 
 void PlayerController::setRenderQuality(MpvOptionProfile::RenderQuality quality)

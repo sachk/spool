@@ -33,7 +33,7 @@ function(jellyfin_configure_android_targets native_target core_target)
         # most.
         src/platform/common/LinuxPerformanceSampler.cpp
         src/platform/desktop/DesktopMpvConfigPolicy.cpp
-        src/platform/desktop/DesktopPlaybackSurface.cpp
+        src/platform/android/AndroidPlaybackSurface.cpp
     )
     target_sources(${native_target} PRIVATE
         src/platform/android/AndroidNativeAppWindow.cpp

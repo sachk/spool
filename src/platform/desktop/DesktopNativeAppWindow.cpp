@@ -29,6 +29,11 @@ NativeAppWindow::NativeAppWindow(const QString& appId, QWindow *parent)
 
 NativeAppWindow::~NativeAppWindow() = default;
 
+void NativeAppWindow::setVideoUnderlayActive(bool)
+{
+    // Nothing to get out of the way of here.
+}
+
 bool NativeAppWindow::prepareForUiSurface()
 {
     if (!isVisible())

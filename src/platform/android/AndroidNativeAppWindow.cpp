@@ -19,6 +19,14 @@ NativeAppWindow::NativeAppWindow(const QString& appId, QWindow *parent)
 
 NativeAppWindow::~NativeAppWindow() = default;
 
+void NativeAppWindow::setVideoUnderlayActive(bool active)
+{
+    // Black is right for everything else: it is what the launch screen hands
+    // over to and what letterboxing should be. During direct playback it is
+    // the one thing that would hide the video plane underneath.
+    setColor(active ? QColor(0, 0, 0, 0) : Qt::black);
+}
+
 bool NativeAppWindow::prepareForUiSurface()
 {
     if (!isVisible())

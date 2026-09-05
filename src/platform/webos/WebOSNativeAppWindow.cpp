@@ -140,6 +140,11 @@ NativeAppWindow::~NativeAppWindow()
         wl_registry_destroy(m_platform->registry);
 }
 
+void NativeAppWindow::setVideoUnderlayActive(bool)
+{
+    // Nothing to get out of the way of here.
+}
+
 bool NativeAppWindow::prepareForUiSurface()
 {
     showFullScreen();

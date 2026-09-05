@@ -144,6 +144,7 @@ void requiredPersistedKeysArePresentExactlyOnce()
         QStringLiteral("input/yellowButton"),
         QStringLiteral("input/blueButton"),
         QStringLiteral("updates/automatic"),
+        QStringLiteral("playback/videoOutput"),
         QStringLiteral("playback/renderQuality"),
         QStringLiteral("playback/autoAdjustQuality"),
     };

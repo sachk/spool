@@ -229,6 +229,11 @@ const char *platformDefaultRenderQuality()
     return platformCapabilities().isTV ? "fast" : "balanced";
 }
 
+bool platformSupportsDirectVideoOutput()
+{
+    return true;
+}
+
 bool platformUsesPerOutputAudioDelay()
 {
     return false;
@@ -311,7 +316,11 @@ QSurfaceFormat platformSurfaceFormat()
 
 void configurePlatformWindow(NativeAppWindow& window)
 {
-    window.setFlags(Qt::Window | Qt::FramelessWindowHint);
+    // Qt's Android surface asks for setZOrderMediaOverlay when the window
+    // stays on top, which is what puts the interface above the video plane
+    // direct playback adds beneath it. Set before the window is shown,
+    // because Qt reads the flags when it creates the surface.
+    window.setFlags(Qt::Window | Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint);
 }
 
 namespace CredentialStore {

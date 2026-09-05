@@ -172,6 +172,7 @@ private:
     QString m_audioOutputMode = QStringLiteral("auto");
     QString m_renderQuality = QStringLiteral("balanced");
     bool m_autoAdjustRenderQuality = true;
+    QString m_videoOutputMode = QStringLiteral("enhanced");
     QString m_mpvConfigMode = QStringLiteral("disabled");
     QString m_mpvConfigDirectory;
     int m_uiScalePercent;

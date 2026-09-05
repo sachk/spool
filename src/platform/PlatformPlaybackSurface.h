@@ -17,7 +17,10 @@ struct PlaybackSession;
 bool platformIdleMpvPreparationEnabled();
 void runAfterPlatformMpvLoaded(std::function<void()> callback);
 MpvOptionProfile::Platform platformMpvOptionProfile();
-bool platformUsesEmbeddedVideo(const PlaybackSession& session);
+// Whether video goes through the Qt scene graph. `directRequested` carries
+// the viewer's choice for platforms that offer one; the rest ignore it,
+// because what they can do is decided by the file, not by a setting.
+bool platformUsesEmbeddedVideo(const PlaybackSession& session, bool directRequested);
 QString platformPlaybackBackendName(bool embeddedVideo);
 
 bool configurePlatformMpvSurface(

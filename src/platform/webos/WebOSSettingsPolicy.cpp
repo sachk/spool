@@ -41,6 +41,11 @@ const char *platformDefaultRenderQuality()
     // codecs, and that path already carries a profile of its own.
     return "fast";
 }
+
+bool platformSupportsDirectVideoOutput()
+{
+    return false;
+}
 bool platformUsesPerOutputAudioDelay()
 {
     return true;

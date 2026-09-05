@@ -11,6 +11,14 @@
 namespace JellyfinNative {
 namespace {
 
+    // Enhanced puts every frame through libplacebo, which is where the
+    // scaling, tone mapping and debanding live. Direct hands the decoder its
+    // own surface and lets the display pipeline do that work instead: far
+    // cheaper, and the only thing a weak television box can sustain at 4K.
+    constexpr SettingChoice kVideoOutputChoices[] = {
+        { "enhanced", "Enhanced" },
+        { "direct", "Direct" },
+    };
     // Named for what is traded, not for a number: each rung down gives up
     // scaler taps, linear-light resampling and measured tone curves, in that
     // order.
@@ -311,6 +319,11 @@ const QVector<SettingSpec>& settingSpecs()
             .onDesktop(),
         sliderSpec("playback/controlFadeDelaySeconds", "Playback", "Hide player controls after", "", "4", 1, 10, 1, "s",
             SettingTarget::External),
+        selectSpec("playback/videoOutput", "Playback", "Video output",
+            "Enhanced processes each frame on the GPU. Direct sends it straight to the display", "enhanced",
+            kVideoOutputChoices, SettingTarget::VideoOutputMode)
+            .onAndroid()
+            .advanced(),
         selectSpec("playback/renderQuality", "Playback", "Picture quality",
             "How much work the GPU does on each frame. Lowered automatically if playback drops frames", "balanced",
             kRenderQualityChoices, SettingTarget::RenderQuality)

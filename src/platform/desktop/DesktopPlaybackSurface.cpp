@@ -28,7 +28,7 @@ MpvOptionProfile::Platform platformMpvOptionProfile()
     return MpvOptionProfile::Platform::Desktop;
 #endif
 }
-bool platformUsesEmbeddedVideo(const PlaybackSession&)
+bool platformUsesEmbeddedVideo(const PlaybackSession&, bool)
 {
     return true;
 }

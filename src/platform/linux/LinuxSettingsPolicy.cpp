@@ -46,6 +46,11 @@ const char *platformDefaultRenderQuality()
     return "high";
 }
 
+bool platformSupportsDirectVideoOutput()
+{
+    return false;
+}
+
 bool platformUsesPerOutputAudioDelay()
 {
     return false;

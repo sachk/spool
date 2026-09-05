@@ -30,6 +30,10 @@ const char *platformDefaultArtworkFormat();
 // first seconds of playback is what really decides, so this only has to be
 // close enough that most devices are never corrected.
 const char *platformDefaultRenderQuality();
+// Whether this platform can hand the decoder a surface of its own and leave
+// the display pipeline to scale and present it. Where it can, that is the rung
+// below the cheapest GPU profile rather than a dead end.
+bool platformSupportsDirectVideoOutput();
 bool platformUsesPerOutputAudioDelay();
 bool platformDefaultCastButtonEnabled();
 bool platformDefaultRemoteControlTargetEnabled();

@@ -40,7 +40,7 @@ MpvOptionProfile::Platform platformMpvOptionProfile()
 {
     return MpvOptionProfile::Platform::WebOS;
 }
-bool platformUsesEmbeddedVideo(const PlaybackSession& session)
+bool platformUsesEmbeddedVideo(const PlaybackSession& session, bool)
 {
     return MpvOptionProfile::useWebOSSoftwareVideo(session);
 }

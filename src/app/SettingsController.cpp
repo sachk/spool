@@ -124,8 +124,15 @@ QString SettingsController::stepDownRenderQuality()
             break;
         }
     }
-    if (current >= rungCount - 1)
-        return {};
+    if (current >= rungCount - 1) {
+        // Nothing cheaper to render with. On a platform that can hand the
+        // decoder its own surface, the next step is to stop rendering
+        // ourselves at all.
+        if (m_videoOutputMode == QLatin1String("direct") || !platformSupportsDirectVideoOutput())
+            return {};
+        setValue(QStringLiteral("playback/videoOutput"), QStringLiteral("direct"));
+        return QStringLiteral("direct");
+    }
     const QString next = QString::fromLatin1(rungs[current + 1]);
     setValue(QStringLiteral("playback/renderQuality"), next);
     return next;
@@ -522,6 +529,11 @@ void SettingsController::applySchemaValue(const SettingSpec& spec, const QVarian
         m_audioOutputMode = value.toString();
         if (apply && m_player)
             m_player->setAudioOutputMode(m_audioOutputMode);
+        break;
+    case SettingTarget::VideoOutputMode:
+        m_videoOutputMode = value.toString();
+        if (m_player)
+            m_player->setDirectVideoOutput(m_videoOutputMode == QLatin1String("direct"));
         break;
     case SettingTarget::AutoAdjustRenderQuality:
         m_autoAdjustRenderQuality = value.toBool();

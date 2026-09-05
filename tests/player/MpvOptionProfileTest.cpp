@@ -35,11 +35,11 @@ std::vector<MpvOption> profileOptions(const MpvConfigPolicy& policy, MpvOptionPr
     const QString& audioOutputMode, const QByteArray& logPath,
     const QByteArray& demuxerMaxBytes = QByteArrayLiteral("64M"),
     const QByteArray& demuxerMaxBackBytes = QByteArrayLiteral("32M"), int parallelRequests = 1,
-    bool softwareVideo = false, const QByteArray& shaderCachePath = QByteArrayLiteral("/tmp/mpv-shaders"))
+    bool embeddedVideo = false, const QByteArray& shaderCachePath = QByteArrayLiteral("/tmp/mpv-shaders"))
 {
     std::vector<MpvOption> options = MpvOptionProfile::preInitializeOptions(policy);
     std::vector<MpvOption> applicationOptions = MpvOptionProfile::applicationOptions(platform, audioOutputMode, logPath,
-        demuxerMaxBytes, demuxerMaxBackBytes, parallelRequests, softwareVideo, shaderCachePath);
+        demuxerMaxBytes, demuxerMaxBackBytes, parallelRequests, embeddedVideo, shaderCachePath);
     options.insert(options.end(), applicationOptions.cbegin(), applicationOptions.cend());
     return options;
 }
@@ -119,13 +119,27 @@ JELLYFIN_TEST_MAIN("mpv-option-profile")
     require(valueFor(desktop, "osc") == "no", "desktop should disable mpv's script UI");
     require(valueFor(desktop, "load-stats-overlay") == "yes", "desktop should load mpv's playback statistics");
 
+    // Enhanced: the Qt scene-graph path, which is what embeddedVideo selects.
     const auto android = profileOptions(MpvConfigPolicy {}, MpvOptionProfile::Platform::Android, QStringLiteral("auto"),
-        QByteArrayLiteral("/tmp/mpv.log"));
+        QByteArrayLiteral("/tmp/mpv.log"), QByteArrayLiteral("64M"), QByteArrayLiteral("32M"), 1, true);
     require(valueFor(android, "vo") == "libmpv", "Android should render through libmpv");
     require(valueFor(android, "hwdec") == "mediacodec-copy",
         "Android must copy MediaCodec frames back: zero-copy crashes libplacebo under the Qt scene graph");
     require(valueFor(android, "audio-fallback-to-null") == "yes",
         "Android playback should continue silently when no audio output device is available");
+    require(!valueFor(android, "scale").isEmpty(), "the Qt scene-graph path should carry a render quality profile");
+
+    // Direct output is the whole point of the second path: nothing of ours
+    // touches the frame, so none of libplacebo's knobs may be set either.
+    const auto androidDirect
+        = profileOptions(MpvConfigPolicy {}, MpvOptionProfile::Platform::Android, QStringLiteral("auto"),
+            QByteArrayLiteral("/tmp/mpv.log"), QByteArrayLiteral("64M"), QByteArrayLiteral("32M"), 1, false);
+    require(valueFor(androidDirect, "vo") == "mediacodec_embed",
+        "Android direct output should present through MediaCodec's own surface");
+    require(valueFor(androidDirect, "hwdec") == "mediacodec",
+        "Android direct output should decode straight into that surface rather than copying back");
+    require(valueFor(androidDirect, "scale").isEmpty(),
+        "direct output does not reach libplacebo, so a render quality profile would be meaningless");
 
     MpvConfigPolicy standardConfig;
     standardConfig.mode = MpvConfigPolicy::Mode::Standard;

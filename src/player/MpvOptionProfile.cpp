@@ -266,15 +266,18 @@ QByteArray MpvOptionProfile::systemCertificateBundle()
 
 std::vector<MpvOption> MpvOptionProfile::applicationOptions(Platform platform, const QString& audioOutputMode,
     const QByteArray& logPath, const QByteArray& demuxerMaxBytes, const QByteArray& demuxerMaxBackBytes,
-    int parallelRequests, bool softwareVideo, const QByteArray& shaderCachePath,
+    int parallelRequests, bool embeddedVideo, const QByteArray& shaderCachePath,
     const QByteArray& certificateBundlePath, RenderQuality quality)
 {
     const bool webOS = platform == Platform::WebOS;
     const bool android = platform == Platform::Android;
-    softwareVideo = webOS && softwareVideo;
+    // embeddedVideo means "we render it ourselves", which is the Qt scene
+    // graph everywhere and, on webOS, the software-decode path it reaches for
+    // legacy codecs. It used to be clamped to webOS here because nowhere else
+    // had a second option; Android does now.
     const NetworkProfile network = networkProfile(platform, parallelRequests);
     const QString normalizedAudioOutput = webOS ? audioOutputMode : normalizedAudioOutputMode(audioOutputMode);
-    const bool starfishAudio = webOS && !softwareVideo
+    const bool starfishAudio = webOS && !embeddedVideo
         && (audioOutputMode == QStringLiteral("starfish") || audioOutputMode == QStringLiteral("starfish-pcm"));
 
     std::vector<MpvOption> options {
@@ -302,11 +305,11 @@ std::vector<MpvOption> MpvOptionProfile::applicationOptions(Platform platform, c
     }
 
     if (webOS) {
-        options.push_back({ "initial-audio-sync", softwareVideo ? "yes" : "no" });
-        options.push_back({ "vo", softwareVideo ? "libmpv" : "starfish" });
-        options.push_back({ "vd", softwareVideo ? "lavc" : "starfish" });
+        options.push_back({ "initial-audio-sync", embeddedVideo ? "yes" : "no" });
+        options.push_back({ "vo", embeddedVideo ? "libmpv" : "starfish" });
+        options.push_back({ "vd", embeddedVideo ? "lavc" : "starfish" });
         options.push_back({ "ao", starfishAudio ? "starfish,null" : "alsa,null" });
-        if (!softwareVideo)
+        if (!embeddedVideo)
             options.push_back({ "vo-starfish-audio-hint", starfishAudio ? "yes" : "no" });
         else {
             options.push_back({ "hwdec", "no" });
@@ -330,7 +333,7 @@ std::vector<MpvOption> MpvOptionProfile::applicationOptions(Platform platform, c
         options.push_back({ "audio-format", starfishAudio ? "s16" : "s32" });
         options.push_back({ "audio-samplerate", starfishAudio ? "192000" : "48000" });
         if (!starfishAudio) {
-            options.push_back({ "audio-buffer", softwareVideo ? "0.100" : "0.050" });
+            options.push_back({ "audio-buffer", embeddedVideo ? "0.100" : "0.050" });
             options.push_back({ "alsa-buffer-time", "40000" });
             options.push_back({ "alsa-periods", "8" });
             options.push_back({ "alsa-no-hw-pause", "yes" });
@@ -338,6 +341,23 @@ std::vector<MpvOption> MpvOptionProfile::applicationOptions(Platform platform, c
         } else {
             options.push_back({ "ao-starfish-feed-ahead", "0.4" });
         }
+    } else if (android && !embeddedVideo) {
+        // Direct output. MediaCodec decodes into a Surface of its own and the
+        // system compositor puts the interface on top, so no frame is ever
+        // read back, uploaded, scaled or tone-mapped by us. That is the whole
+        // point on a television box: a Mali-G31 cannot shade 4K sixty times a
+        // second, and asking it to leaves even the player's own controls
+        // stuttering. The display pipeline does the scaling and the HDR.
+        //
+        // No render-quality options here: libplacebo is not in this path, so
+        // there is nothing for them to tune.
+        options.push_back({ "vo", "mediacodec_embed" });
+        options.push_back({ "hwdec", "mediacodec" });
+        options.push_back({ "audio-fallback-to-null", "yes" });
+        if (normalizedAudioOutput != QStringLiteral("auto"))
+            options.push_back({ "ao", normalizedAudioOutput.toUtf8() });
+        else
+            options.push_back({ "ao", "audiotrack,opensles,null" });
     } else {
         options.push_back({ "vo", "libmpv" });
         options.push_back({ "audio-fallback-to-null", "yes" });
