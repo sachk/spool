@@ -274,7 +274,7 @@ const QVector<SettingSpec>& settingSpecs()
     const PlatformAudioOutputPolicy& audioOutput = platformAudioOutputPolicy();
     static const QVector<SettingSpec> specs {
 
-        sliderSpec("appearance/uiScalePercent", "Appearance", "Interface scale", "", "100", 80, 180, 5, "%",
+        sliderSpec("appearance/uiScalePercent", "Appearance", "Interface scale", "", "100", 50, 180, 5, "%",
             SettingTarget::UiScale),
         pageSpec("theme/accent", "Appearance", "Accent colour", "", SettingType::Select, kAccentChoices),
         pageSpec("theme/reducedMotion", "Appearance", "Reduced motion", "Turns off focus and page animation",

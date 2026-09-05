@@ -100,8 +100,8 @@ JELLYFIN_TEST_MAIN("settings-controller")
     require(QCoro::waitFor(database.loadSettingAsync(QStringLiteral("settings/audioDelayMs"))) == QStringLiteral("120"),
         "global desktop audio delay was not persisted");
 
-    settings.setUiScalePercent(70);
-    require(settings.uiScalePercent() == 80, "UI scale setter did not clamp to its lower bound");
+    settings.setUiScalePercent(40);
+    require(settings.uiScalePercent() == 50, "UI scale setter did not clamp to its lower bound");
     settings.setUiScalePercent(135);
     require(settings.uiScalePercent() == 135, "UI scale setter did not apply the selected scale");
 

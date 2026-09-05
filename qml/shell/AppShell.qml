@@ -853,7 +853,7 @@ KeyRouter {
     }
 
     function setUiScale(percent) {
-        Settings.setUiScalePercent(Math.max(80, Math.min(180, Math.round(Number(percent || 100) / 5) * 5)))
+        Settings.setUiScalePercent(Math.max(50, Math.min(180, Math.round(Number(percent || 100) / 5) * 5)))
     }
 
     function globalShortcut(key, phase, repeat, modifiers) {

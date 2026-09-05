@@ -38,7 +38,7 @@ QtObject {
     // file is a pure function of what it is handed, so it can be reasoned
     // about — and tested — without the rest of the app standing around it.
     property int zoomPercent: 100
-    readonly property int uiScalePercent: Math.max(80, Math.min(180, zoomPercent))
+    readonly property int uiScalePercent: Math.max(50, Math.min(180, zoomPercent))
     readonly property real uiScale: uiScalePercent / 100
 
     // The viewport that scores 1.0, as a geometric mean. A viewport's

@@ -192,4 +192,13 @@ TestCase {
         viewport(1920, 1080, 400)
         compare(metrics.uiScalePercent, 180, "zoom must stay clamped")
     }
+
+    // The floor is a long way below the default because zooming out is how a
+    // television that reports a generous density is told to fit more on.
+    function test_zoomFloorReachesHalf() {
+        viewport(1920, 1080, 50)
+        compare(metrics.uiScalePercent, 50)
+        viewport(1920, 1080, 10)
+        compare(metrics.uiScalePercent, 50, "zoom must stay clamped")
+    }
 }

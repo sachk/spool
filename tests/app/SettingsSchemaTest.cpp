@@ -279,8 +279,10 @@ void normalizersPreservePersistedValueSemantics()
     require(normalizedSettingValue(controlFade, QStringLiteral("11")).toInt() == 10,
         QStringLiteral("playback control fade delay above 10 seconds was not clamped"));
     const SettingSpec& uiScale = requiredSpec(QStringLiteral("appearance/uiScalePercent"));
-    require(normalizedSettingValue(uiScale, QStringLiteral("65")).toInt() == 80,
+    require(normalizedSettingValue(uiScale, QStringLiteral("45")).toInt() == 50,
         QStringLiteral("UI scale below the floor was not clamped"));
+    require(normalizedSettingValue(uiScale, QStringLiteral("65")).toInt() == 65,
+        QStringLiteral("UI scale above the floor was clamped"));
     require(normalizedSettingValue(uiScale, QStringLiteral("181")).toInt() == 180,
         QStringLiteral("UI scale above the ceiling was not clamped"));
     require(serializedSettingValue(uiScale, QStringLiteral("115")) == QStringLiteral("115"),

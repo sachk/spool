@@ -208,10 +208,15 @@ QStringList platformSystemSubtitleFonts()
 
 int platformDefaultUiScalePercent()
 {
-    // Both form factors start at 100. The interface is sized from the density
-    // the system reports, so a television already arrives at a ten-foot size
-    // without a zoom default standing in for it; see Metrics.viewportRatio.
-    return 100;
+    // Both form factors start at 80. The interface is still sized from the
+    // density the system reports -- a television arrives at a ten-foot size on
+    // its own, without a zoom default standing in for it; see
+    // Metrics.viewportRatio. But Android's own answer is generous: it reports
+    // the density it wants text at, not the density it wants a wall of artwork
+    // at, and taken literally it fits noticeably less on screen than the same
+    // panel does elsewhere. Eight tenths of what the system asks for is what
+    // that density means here.
+    return 80;
 }
 
 const char *platformDefaultArtworkFormat()
