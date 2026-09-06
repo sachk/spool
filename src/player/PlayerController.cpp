@@ -592,9 +592,38 @@ bool PlayerController::hdrPlayback() const
 {
     return m_hdrPlayback;
 }
+// What the window presents into is Spool's decision, not something to be read
+// back out of mpv: an embedded target has no display for mpv to interrogate,
+// which is why the desktop reports SDR for everything while it renders into a
+// framebuffer. Ask the swapchain, resolve the profile, and tell mpv.
+void PlayerController::updateRenderTarget()
+{
+    if (platformMpvOptionProfile() != MpvOptionProfile::Platform::Desktop)
+        return;
+    const RenderTargetProfile resolved
+        = RenderTargetPolicy::resolve(RenderTargetPolicy::probe(m_window), m_hdrPreference);
+    if (resolved == m_renderTarget)
+        return;
+    m_renderTarget = resolved;
+    qInfo() << "player: render target" << (m_renderTarget.isHdr() ? "HDR" : "SDR")
+            << "sdrWhite=" << m_renderTarget.sdrWhiteNits << "peak=" << m_renderTarget.maxLuminanceNits;
+
+    // A user's own configuration keeps the last word here as everywhere else.
+    // Spool describes the target it created; what to do with it is theirs.
+    if (usesUserMpvConfig())
+        return;
+    if (auto *handle = m_mpvLifecycle.handle())
+        applyOptions(handle, RenderTargetPolicy::targetOptions(m_renderTarget));
+    updateHdrOutput(true);
+}
+
 void PlayerController::updateHdrOutput(bool applySubtitleOptions)
 {
-    const bool hdrOutput = MpvOptionProfile::isHdrOutput(m_starfishVideoOutput, m_hdrInput, m_targetTransfer);
+    // On an embedded target the transfer function mpv reports is the one Spool
+    // asked for, so the profile is the more direct answer and the only one
+    // available before the first frame.
+    const bool hdrOutput
+        = m_renderTarget.isHdr() || MpvOptionProfile::isHdrOutput(m_starfishVideoOutput, m_hdrInput, m_targetTransfer);
     if (m_hdrPlayback == hdrOutput)
         return;
     m_hdrPlayback = hdrOutput;
@@ -1099,6 +1128,11 @@ void PlayerController::play(const PlaybackSession& session, bool startPaused)
         return;
     }
     auto *handle = m_mpvLifecycle.handle();
+    // The scene graph has a swapchain by now, which it does not when mpv is
+    // first configured, so this is the first moment the target can be asked
+    // about at all.
+    updateRenderTarget();
+
     // An idle-prepared mpv was configured before this session's HDR policy
     // was known. Reapply subtitle options now so HDR paperwhite is correct
     // from the first rendered subtitle, not only after a settings change.

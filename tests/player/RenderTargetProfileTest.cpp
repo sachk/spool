@@ -50,20 +50,17 @@ JELLYFIN_TEST_MAIN("render-target-profile")
     QCoreApplication app(argc, argv);
 
     const DisplayOutputCapabilities sdrOnly;
-    require(!RenderTargetPolicy::resolve(sdrOnly, HdrOutputPreference::Always, true).isHdr(),
+    require(!RenderTargetPolicy::resolve(sdrOnly, HdrOutputPreference::Always).isHdr(),
         "a backend with no HDR swapchain stays SDR however loudly it is asked");
-    require(RenderTargetPolicy::targetOptions(RenderTargetPolicy::resolve(sdrOnly, HdrOutputPreference::Auto, true))
-                .empty(),
+    require(RenderTargetPolicy::targetOptions(RenderTargetPolicy::resolve(sdrOnly, HdrOutputPreference::Auto)).empty(),
         "an SDR target should name no mpv target options at all");
 
-    require(!RenderTargetPolicy::resolve(hdrDisplay(), HdrOutputPreference::Never, true).isHdr(),
+    require(!RenderTargetPolicy::resolve(hdrDisplay(), HdrOutputPreference::Never).isHdr(),
         "Never should hold an HDR display in SDR");
-    require(!RenderTargetPolicy::resolve(hdrDisplay(), HdrOutputPreference::Auto, false).isHdr(),
-        "Auto should leave an SDR source in SDR rather than tone map it into HDR");
-    require(RenderTargetPolicy::resolve(hdrDisplay(), HdrOutputPreference::Always, false).isHdr(),
-        "Always is what someone whose display never leaves HDR asks for");
+    require(RenderTargetPolicy::resolve(hdrDisplay(), HdrOutputPreference::Auto).isHdr(),
+        "Auto should follow a display that says it is in HDR mode");
 
-    const RenderTargetProfile scrgb = RenderTargetPolicy::resolve(hdrDisplay(), HdrOutputPreference::Auto, true);
+    const RenderTargetProfile scrgb = RenderTargetPolicy::resolve(hdrDisplay(), HdrOutputPreference::Auto);
     require(scrgb.format == RenderTargetProfile::Format::ExtendedSrgbLinear && scrgb.isHdr(),
         "an HDR source on an scRGB-capable display should present scRGB");
     const auto scrgbOptions = RenderTargetPolicy::targetOptions(scrgb);
@@ -74,7 +71,7 @@ JELLYFIN_TEST_MAIN("render-target-profile")
         "the operating system's SDR white should reach mpv in nits");
 
     const RenderTargetProfile pq
-        = RenderTargetPolicy::resolve(hdrDisplay(RenderTargetProfile::Format::Pq), HdrOutputPreference::Auto, true);
+        = RenderTargetPolicy::resolve(hdrDisplay(RenderTargetProfile::Format::Pq), HdrOutputPreference::Auto);
     const auto pqOptions = RenderTargetPolicy::targetOptions(pq);
     require(valueFor(pqOptions, "target-trc") == "pq" && valueFor(pqOptions, "target-prim") == "bt.2020",
         "an HDR10 target is PQ over BT.2020");
@@ -82,7 +79,7 @@ JELLYFIN_TEST_MAIN("render-target-profile")
     DisplayOutputCapabilities silent = hdrDisplay();
     silent.maxLuminanceNits = 0.0f;
     silent.sdrWhiteNits = 0.0f;
-    const RenderTargetProfile guessed = RenderTargetPolicy::resolve(silent, HdrOutputPreference::Always, true);
+    const RenderTargetProfile guessed = RenderTargetPolicy::resolve(silent, HdrOutputPreference::Always);
     const auto guessedOptions = RenderTargetPolicy::targetOptions(guessed);
     require(valueFor(guessedOptions, "target-peak").isEmpty(),
         "a display that reports no peak should leave mpv to its own detection");
@@ -91,9 +88,9 @@ JELLYFIN_TEST_MAIN("render-target-profile")
 
     DisplayOutputCapabilities absurd = hdrDisplay();
     absurd.maxLuminanceNits = 250000.0f;
-    require(valueFor(RenderTargetPolicy::targetOptions(
-                         RenderTargetPolicy::resolve(absurd, HdrOutputPreference::Always, true)),
-                "target-peak")
+    require(
+        valueFor(RenderTargetPolicy::targetOptions(RenderTargetPolicy::resolve(absurd, HdrOutputPreference::Always)),
+            "target-peak")
             == "10000",
         "a peak beyond what mpv accepts should be clamped, not passed through and rejected");
 

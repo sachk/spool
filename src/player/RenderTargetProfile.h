@@ -5,6 +5,8 @@
 
 #include <vector>
 
+class QQuickWindow;
+
 namespace JellyfinNative {
 
 struct MpvOption;
@@ -16,12 +18,17 @@ struct MpvOption;
 // luminance range are decided here and pushed down; reading them back out of
 // mpv is how the current OpenGL path ends up reporting SDR for everything.
 //
-// Four things decide the target and they are kept apart on purpose: what the
-// source carries, what the graphics backend can present, what the operating
-// system reports about the display, and what the user asked for. Any one of
-// them alone is a wrong answer -- HDR metadata on a file says nothing about
-// the monitor, and an HDR-capable monitor is not a reason to put an SDR film
-// through a PQ pipeline.
+// Three things decide it and they are kept apart on purpose: what the graphics
+// backend can present, what the operating system reports about the display,
+// and what the user asked for. None of them alone is an answer -- a monitor in
+// HDR mode says nothing about whether the backend has an HDR swapchain to
+// reach it with.
+//
+// What the source carries is deliberately not among them. The swapchain is
+// chosen when the window is created and Qt gives no way to change it after,
+// so a target that followed the file would be a target that cannot exist.
+// Source characteristics decide tone mapping and how bright the overlay is
+// drawn, which is a different question asked later.
 struct RenderTargetProfile {
     enum class Format {
         // 8-bit sRGB. Every backend has this, and it is what the OpenGL
@@ -71,13 +78,13 @@ struct DisplayOutputCapabilities {
 
 // The user's say, which overrides the automatic answer in both directions.
 enum class HdrOutputPreference {
-    // HDR when the display is in HDR mode and the source has something to put
-    // there. This is the only setting that looks at the source.
+    // HDR when the display is in HDR mode and the backend can present it.
     Auto,
-    // Never leave SDR, whatever the display says.
+    // Never leave SDR, whatever the display says. What someone whose desktop
+    // handles HDR badly, or who simply prefers the SDR pipeline, asks for.
     Never,
-    // Always present HDR where the display can, including for SDR sources,
-    // which is what someone with a display left permanently in HDR wants.
+    // Currently the same as Auto, and kept apart from it so that a display
+    // whose report cannot be trusted still has a way to be used.
     Always,
 };
 
@@ -87,9 +94,8 @@ public:
     static QByteArray preferenceName(HdrOutputPreference preference);
 
     // The target to present into. Returns an SDR profile whenever HDR was not
-    // asked for, is not available, or would gain nothing.
-    static RenderTargetProfile resolve(
-        const DisplayOutputCapabilities& display, HdrOutputPreference preference, bool sourceIsHdr);
+    // asked for or is not available.
+    static RenderTargetProfile resolve(const DisplayOutputCapabilities& display, HdrOutputPreference preference);
 
     // What mpv has to be told so it renders for that target. Empty for SDR:
     // mpv's own defaults are already an sRGB target, and naming them would
@@ -100,6 +106,12 @@ public:
     // OSD are drawn in the target's units, so on an HDR target they need
     // scaling or they arrive at whatever the shell's white happens to be.
     static float osdBrightnessScale(const RenderTargetProfile& profile);
+
+    // What the window's live swapchain says it can present, asked of the
+    // graphics backend rather than of the monitor. Returns nothing available
+    // when there is no swapchain yet, which is every moment before the scene
+    // graph has drawn once.
+    static DisplayOutputCapabilities probe(QQuickWindow *window);
 };
 
 } // namespace JellyfinNative

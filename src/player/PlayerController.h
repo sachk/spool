@@ -8,6 +8,7 @@
 #include "PlaybackReporter.h"
 #include "PlaybackTimeline.h"
 #include "PlaybackTrackState.h"
+#include "RenderTargetProfile.h"
 
 #include <QByteArray>
 #include <QByteArrayList>
@@ -298,6 +299,9 @@ private:
     void handleVideoRenderError(const QString& message);
     void changePlaybackSpeed(double speed, bool syncOverride, bool clearSyncOverride = false);
     void updateHdrOutput(bool applySubtitleOptions);
+    // Ask the window what it is presenting into and tell mpv, once a session
+    // is under way and the scene graph therefore has a swapchain to ask.
+    void updateRenderTarget();
 
     // The video's display size, tracked so a platform that shapes its own
     // video plane can be told. Both halves arrive as separate property
@@ -377,6 +381,8 @@ private:
     SubtitlePreferences m_subtitlePreferences;
     bool m_hdrPlayback = false;
     bool m_hdrInput = false;
+    RenderTargetProfile m_renderTarget;
+    HdrOutputPreference m_hdrPreference = HdrOutputPreference::Auto;
     bool m_starfishVideoOutput = false;
     QByteArray m_targetTransfer;
     PlaybackPositionTracker m_positionTracker;

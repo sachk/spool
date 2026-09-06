@@ -2,7 +2,13 @@
 
 #include "player/MpvOptionProfile.h"
 
+#include <QQuickWindow>
+#include <QSGRendererInterface>
 #include <QtGlobal>
+
+#if defined(JELLYFIN_MPV_ITEM_RHI)
+#include <rhi/qrhi.h>
+#endif
 
 #include <algorithm>
 #include <cmath>
@@ -65,7 +71,7 @@ QByteArray RenderTargetPolicy::preferenceName(HdrOutputPreference preference)
 }
 
 RenderTargetProfile RenderTargetPolicy::resolve(
-    const DisplayOutputCapabilities& display, HdrOutputPreference preference, bool sourceIsHdr)
+    const DisplayOutputCapabilities& display, HdrOutputPreference preference)
 {
     RenderTargetProfile profile;
     profile.sdrWhiteNits
@@ -76,12 +82,6 @@ RenderTargetProfile RenderTargetPolicy::resolve(
     // Every OpenGL context lands here, which is why this is asked of the
     // backend rather than of the monitor.
     if (!display.hdrAvailable || display.preferredFormat == RenderTargetProfile::Format::Sdr)
-        return profile;
-    // An SDR film on an HDR target gains nothing and costs a tone-mapping
-    // round trip, so Auto leaves it alone. Someone whose display sits in HDR
-    // permanently, and who would rather everything went through one pipeline,
-    // says Always.
-    if (preference == HdrOutputPreference::Auto && !sourceIsHdr)
         return profile;
 
     profile.format = display.preferredFormat;
@@ -113,6 +113,48 @@ std::vector<MpvOption> RenderTargetPolicy::targetOptions(const RenderTargetProfi
     if (const QByteArray white = nitsOption(profile.sdrWhiteNits); !white.isEmpty())
         options.push_back({ QByteArrayLiteral("hdr-reference-white"), white });
     return options;
+}
+
+DisplayOutputCapabilities RenderTargetPolicy::probe(QQuickWindow *window)
+{
+    DisplayOutputCapabilities display;
+#if defined(JELLYFIN_MPV_ITEM_RHI)
+    if (!window)
+        return display;
+    QSGRendererInterface *renderer = window->rendererInterface();
+    if (!renderer)
+        return display;
+    auto *swapchain
+        = static_cast<QRhiSwapChain *>(renderer->getResource(window, QSGRendererInterface::RhiSwapchainResource));
+    if (!swapchain)
+        return display;
+
+    // Ask the backend, not the monitor. OpenGL answers no to both of these
+    // however bright the display is, which is the whole reason the question is
+    // put this way round.
+    if (swapchain->isFormatSupported(QRhiSwapChain::HDRExtendedSrgbLinear)) {
+        display.preferredFormat = RenderTargetProfile::Format::ExtendedSrgbLinear;
+    } else if (swapchain->isFormatSupported(QRhiSwapChain::HDR10)) {
+        display.preferredFormat = RenderTargetProfile::Format::Pq;
+    } else {
+        return display;
+    }
+    display.hdrAvailable = true;
+
+    const QRhiSwapChainHdrInfo info = swapchain->hdrInfo();
+    display.sdrWhiteNits = info.sdrWhiteLevel > 0.0f ? info.sdrWhiteLevel : RenderTargetProfile::kDefaultSdrWhiteNits;
+    if (info.limitsType == QRhiSwapChainHdrInfo::LuminanceInNits) {
+        display.minLuminanceNits = info.limits.luminanceInNits.minLuminance;
+        display.maxLuminanceNits = info.limits.luminanceInNits.maxLuminance;
+    } else {
+        // The other report is relative, with 1.0 at the display's SDR white,
+        // so it only becomes a luminance once that white is known.
+        display.maxLuminanceNits = info.limits.colorComponentValue.maxColorComponentValue * display.sdrWhiteNits;
+    }
+#else
+    Q_UNUSED(window);
+#endif
+    return display;
 }
 
 float RenderTargetPolicy::osdBrightnessScale(const RenderTargetProfile& profile)

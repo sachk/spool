@@ -442,10 +442,27 @@ int main(int argc, char **argv)
     qInstallMessageHandler(qtMessageHandler);
     QLoggingCategory::setFilterRules(QStringLiteral("qt.*.debug=false\nqt.*.info=false"));
 
-    // Production playback needs OpenGL for MpvVideoItem's FBO. Launch tests
-    // validate the QML scene on headless runners, where no OpenGL adapter is
-    // guaranteed, so use Qt Quick's deterministic software renderer.
-    QQuickWindow::setGraphicsApi(launchTest ? QSGRendererInterface::Software : QSGRendererInterface::OpenGL);
+    // Launch tests validate the QML scene on headless runners, where no
+    // adapter of any kind is guaranteed, so use Qt Quick's deterministic
+    // software renderer.
+    //
+    // Otherwise OpenGL, which is the only backend the player has been shown to
+    // work on. Vulkan is what an HDR swapchain needs and what libplacebo can
+    // share a device with, and the video item can already render through it --
+    // but nothing has yet run that path on real hardware, so it is asked for
+    // rather than assumed. SPOOL_RENDER_API=vulkan is how to ask.
+    QSGRendererInterface::GraphicsApi graphicsApi = QSGRendererInterface::OpenGL;
+    if (launchTest) {
+        graphicsApi = QSGRendererInterface::Software;
+    } else if (qgetenv("SPOOL_RENDER_API").toLower() == "vulkan") {
+#if QT_CONFIG(vulkan)
+        graphicsApi = QSGRendererInterface::Vulkan;
+        logLine("startup: SPOOL_RENDER_API asked for Vulkan");
+#else
+        logLine("startup: SPOOL_RENDER_API asked for Vulkan, which this build has no support for");
+#endif
+    }
+    QQuickWindow::setGraphicsApi(graphicsApi);
 
     QSurfaceFormat::setDefaultFormat(JellyfinNative::platformSurfaceFormat());
 
