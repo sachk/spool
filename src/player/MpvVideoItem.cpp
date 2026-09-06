@@ -16,10 +16,13 @@
 #include <QSGRendererInterface>
 #include <rhi/qrhi.h>
 #include <rhi/qrhi_platform.h>
-// Whether this Qt was built with Vulkan, asked in the only way that cannot
-// disagree with itself: QT_CONFIG reads a feature macro that a mixed set of
-// include paths can answer for a different Qt than the one supplying headers.
-#if __has_include(<QVulkanInstance>)
+// Whether this build can actually compile Vulkan, asked of both halves of what
+// that needs. Qt having the feature is not enough -- the Windows Qt has
+// QVulkanInstance while the Vulkan headers themselves are absent -- and
+// QT_CONFIG is no help either, since it reads a feature macro that a mixed set
+// of include paths can answer for a different Qt than the one supplying the
+// headers.
+#if __has_include(<QVulkanInstance>) && __has_include(<vulkan/vulkan.h>)
 #define JELLYFIN_MPV_ITEM_VULKAN 1
 #include <QVulkanInstance>
 #include <vulkan/vulkan.h>
