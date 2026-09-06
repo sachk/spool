@@ -76,6 +76,10 @@ public:
     // acts on it: elsewhere the window manager already decides, and the shell
     // asking has no meaning.
     Q_INVOKABLE void setImmersive(bool immersive);
+    // Leave the app entirely and hand the screen back to whatever launched
+    // it. Only a platform where that is a thing a user asks for implements
+    // it; elsewhere a window is closed, not exited.
+    Q_INVOKABLE void exitToLauncher();
     void clearOverlay();
     QQuickImageProvider *createOverlayImageProvider();
     QImage copyOverlayImage() const;

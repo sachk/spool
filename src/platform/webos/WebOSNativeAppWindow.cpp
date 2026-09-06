@@ -244,6 +244,11 @@ void NativeAppWindow::setImmersive(bool immersive)
     m_immersive = immersive;
 }
 
+void NativeAppWindow::exitToLauncher()
+{
+    close();
+}
+
 bool NativeAppWindow::prepareForPlaybackSurface()
 {
     if (!prepareForUiSurface())

@@ -112,12 +112,27 @@ KeyRouter {
     readonly property var routeArgs: Router.args || ({})
     property bool remoteConnectionKnown: false
     property string lastRemoteTargetName: ""
-    onRouteChanged: if (route === "remoteControl" && !RemoteControl.targetSelected) {
-                        Qt.callLater(function () {
-                            if (root.route === "remoteControl" && !RemoteControl.targetSelected)
-                                root.goHome()
-                        })
-                    }
+    onRouteChanged: {
+        root.exitArmedAt = 0
+        if (route === "remoteControl" && !RemoteControl.targetSelected) {
+            Qt.callLater(function () {
+                if (root.route === "remoteControl" && !RemoteControl.targetSelected)
+                    root.goHome()
+            })
+        }
+    }
+
+    // Back is how an Android app is left, and at the top of the stack there is
+    // nowhere further to go. Nothing here ever exited, so the press did
+    // nothing at all and the only way out was the launcher. Two presses leave;
+    // the first says so, because back is the most-hit key on a remote and one
+    // stray press should not close what someone is halfway through.
+    //
+    // Nowhere else asks for this. A desktop window is closed, not exited, and
+    // webOS has its own way home that does not come through here.
+    readonly property bool backExitsAtRoot: Platform.isAndroid
+    property int exitConfirmWindowMs: 3000
+    property double exitArmedAt: 0
     property bool diagnosticsVisible: false
     property string switchUserReturnProfileId: ""
     property string switchUserReturnRoute: ""
@@ -725,13 +740,26 @@ KeyRouter {
             return true
         }
         if (route === "home" || route === "login")
-            return false
+            return backAtRoot()
         if (Router.canPop) {
             Router.pop(route === "personDetails" ? "itemDetails" : "home")
             InputKeys.focus(routeStack)
             return true
         }
         return false
+    }
+
+    function backAtRoot() {
+        if (!backExitsAtRoot)
+            return false
+        if (exitArmedAt > 0 && Date.now() - exitArmedAt <= exitConfirmWindowMs) {
+            exitArmedAt = 0
+            NativeWindow.exitToLauncher()
+            return true
+        }
+        exitArmedAt = Date.now()
+        toast.show("Press back again to exit", toast.briefDurationMs)
+        return true
     }
 
     function forward() {

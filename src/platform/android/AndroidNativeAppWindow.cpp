@@ -1,6 +1,8 @@
 #include "platform/NativeAppWindow.h"
 
+#include <QCoreApplication>
 #include <QExposeEvent>
+#include <QJniObject>
 #include <QResizeEvent>
 
 #include <video/out/android_overlay.h>
@@ -117,6 +119,20 @@ void NativeAppWindow::setImmersive(bool immersive)
         showFullScreen();
     else
         showMaximized();
+}
+
+// Back at the top of the stack is how an Android app is left, and until now
+// nothing here had anywhere to send it: the press did nothing and the only way
+// out was the launcher itself. Finishing the task rather than quitting the
+// process is what the system expects -- the app leaves the screen at once, and
+// Android decides when to reclaim it.
+void NativeAppWindow::exitToLauncher()
+{
+    QNativeInterface::QAndroidApplication::runOnAndroidMainThread([]() {
+        QJniObject activity = QNativeInterface::QAndroidApplication::context();
+        if (activity.isValid())
+            activity.callMethod<void>("finishAndRemoveTask");
+    });
 }
 
 QString NativeAppWindow::windowId() const

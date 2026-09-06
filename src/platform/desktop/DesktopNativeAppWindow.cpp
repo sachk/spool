@@ -72,6 +72,11 @@ void NativeAppWindow::setImmersive(bool immersive)
     m_immersive = immersive;
 }
 
+void NativeAppWindow::exitToLauncher()
+{
+    close();
+}
+
 QString NativeAppWindow::windowId() const
 {
     return {};
