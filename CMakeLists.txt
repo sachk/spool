@@ -77,6 +77,11 @@ if(JELLYFIN_NATIVE_WEBOS)
     )
 else()
     set(JELLYFIN_QT_MIN_VERSION 6.11)
+    # rhi/qrhi.h is how the video item reaches the graphics device it shares
+    # with libplacebo, and how the swapchain is asked what the display can show.
+    if(NOT ANDROID)
+        list(APPEND JELLYFIN_QT_COMPONENTS GuiPrivate)
+    endif()
     if(UNIX AND NOT APPLE AND NOT ANDROID)
         list(APPEND JELLYFIN_QT_COMPONENTS DBus)
     endif()
@@ -364,6 +369,16 @@ if(NOT JELLYFIN_NATIVE_DEV_BUILD)
             endif()
         endforeach()
     endif()
+endif()
+# Desktop renders the video item through the RHI, so the scene graph can be
+# Vulkan and the target can be a floating-point image an HDR swapchain will
+# accept. Android and webOS keep the framebuffer item. This is a compile
+# definition rather than a platform check in the header because moc has to
+# agree with the compiler about which class the item derives from.
+if(NOT ANDROID AND NOT JELLYFIN_NATIVE_WEBOS)
+    foreach(target IN LISTS JELLYFIN_NATIVE_TARGETS)
+        target_compile_definitions(${target} PUBLIC JELLYFIN_MPV_ITEM_RHI=1)
+    endforeach()
 endif()
 if(JELLYFIN_DIAGNOSTICS)
     foreach(target IN LISTS JELLYFIN_NATIVE_TARGETS)
@@ -664,6 +679,9 @@ target_link_libraries(jellyfin-core PUBLIC
     Qt6::OpenGL
     Qt6::WebSockets
 )
+if(NOT ANDROID)
+    target_link_libraries(jellyfin-core PUBLIC Qt6::GuiPrivate)
+endif()
 
 target_link_libraries(jellyfin-native PRIVATE
     jellyfin-core

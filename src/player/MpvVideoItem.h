@@ -2,23 +2,38 @@
 
 #include <QMutex>
 #include <QPointer>
-#include <QQuickFramebufferObject>
 #include <QtQmlIntegration/qqmlintegration.h>
 
 #include <atomic>
 #include <memory>
+
+// JELLYFIN_MPV_ITEM_RHI comes from CMake, which knows the platform before any
+// Qt header does -- and so does moc, which would otherwise disagree with the
+// compiler about which class this derives from.
+#if defined(JELLYFIN_MPV_ITEM_RHI)
+#include <QQuickRhiItem>
+#define JELLYFIN_MPV_ITEM_BASE QQuickRhiItem
+#else
+#include <QQuickFramebufferObject>
+#define JELLYFIN_MPV_ITEM_BASE QQuickFramebufferObject
+#endif
 
 struct mpv_handle;
 struct mpv_render_context;
 
 namespace JellyfinNative {
 
-// QQuickFramebufferObject that hosts libmpv's render API. PlayerController
-// hands us an mpv_handle via setMpvHandle(); the scene-graph render thread
-// then creates an mpv_render_context bound to Qt's OpenGL context and renders
-// each frame into our FBO. Used by desktop playback and the webOS software
+// The scene-graph item that hosts libmpv's render API. PlayerController hands
+// us an mpv_handle via setMpvHandle(); the render thread then creates an
+// mpv_render_context bound to Qt's graphics device and renders each frame into
+// the item's own target. Used by desktop playback and the webOS software
 // decoder path, where a standalone mpv Wayland window cannot be embedded.
-class MpvVideoItem : public QQuickFramebufferObject {
+//
+// Desktop renders through the RHI, so the scene graph can be Vulkan and the
+// target can be a floating-point image an HDR swapchain will accept. Android
+// and webOS keep the framebuffer item: neither has an HDR swapchain to reach,
+// and neither can be tested from here.
+class MpvVideoItem : public JELLYFIN_MPV_ITEM_BASE {
     Q_OBJECT
     QML_NAMED_ELEMENT(MpvVideoItem)
 
@@ -40,7 +55,11 @@ public:
 
     static MpvVideoItem *instance();
 
+#if defined(JELLYFIN_MPV_ITEM_RHI)
+    QQuickRhiItemRenderer *createRenderer() override;
+#else
     Renderer *createRenderer() const override;
+#endif
 
     // Renderer-side: atomically read the latest handle update and clear the
     // dirty flag. `dirty` is true only on the first sync after setMpvHandle().
