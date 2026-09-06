@@ -20,7 +20,10 @@ QSurfaceFormat platformSurfaceFormat()
 {
     QSurfaceFormat format;
     format.setRenderableType(QSurfaceFormat::OpenGL);
-    format.setVersion(3, 3);
+    // macOS exposes modern OpenGL only through a core profile. A profile-less
+    // request can leave Qt with legacy GL, which libplacebo cannot initialize.
+    format.setVersion(4, 1);
+    format.setProfile(QSurfaceFormat::CoreProfile);
     format.setAlphaBufferSize(8);
     return format;
 }

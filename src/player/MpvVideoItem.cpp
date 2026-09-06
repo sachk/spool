@@ -6,6 +6,7 @@
 #include <QOpenGLContext>
 #include <QOpenGLFramebufferObject>
 #include <QOpenGLFramebufferObjectFormat>
+#include <QOpenGLFunctions>
 #include <QPointer>
 #include <QQuickWindow>
 #include <QTimer>
@@ -154,6 +155,13 @@ namespace {
 
         void createRenderContext(mpv_handle *next)
         {
+            if (auto *gl = QOpenGLContext::currentContext()) {
+                auto *functions = gl->functions();
+                qInfo() << "player: OpenGL context" << gl->format()
+                        << "vendor=" << reinterpret_cast<const char *>(functions->glGetString(GL_VENDOR))
+                        << "renderer=" << reinterpret_cast<const char *>(functions->glGetString(GL_RENDERER))
+                        << "version=" << reinterpret_cast<const char *>(functions->glGetString(GL_VERSION));
+            }
             mpv_opengl_init_params glInit {};
             glInit.get_proc_address = &getProcAddressGl;
             // Deliberately do NOT set MPV_RENDER_PARAM_ADVANCED_CONTROL.
