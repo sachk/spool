@@ -57,6 +57,32 @@ void require(bool condition, const char *message)
 JELLYFIN_TEST_MAIN("mpv-option-profile")
 {
     QCoreApplication app(argc, argv);
+#ifdef Q_OS_MACOS
+    constexpr auto controlModifier = Qt::MetaModifier;
+    constexpr auto metaModifier = Qt::ControlModifier;
+#else
+    constexpr auto controlModifier = Qt::ControlModifier;
+    constexpr auto metaModifier = Qt::MetaModifier;
+#endif
+    require(MpvOptionProfile::inputKey(Qt::Key_J, Qt::NoModifier, "j") == "j", "lowercase mpv key");
+    require(MpvOptionProfile::inputKey(Qt::Key_J, Qt::ShiftModifier, "J") == "J",
+        "shifted character is not double shifted");
+    require(MpvOptionProfile::inputKey(Qt::Key_J, controlModifier, QString(QChar(10))) == "Ctrl+j",
+        "control key text is not printable");
+    require(MpvOptionProfile::inputKey(Qt::Key_F5, Qt::ShiftModifier, {}) == "Shift+F5", "modified function key");
+    require(
+        MpvOptionProfile::inputKey(Qt::Key_Shift, Qt::ShiftModifier, {}).isEmpty(), "modifier alone is not an mpv key");
+    require(MpvOptionProfile::inputKey(Qt::Key_Plus, Qt::ShiftModifier, "+") == "+", "literal plus remains a key");
+    require(MpvOptionProfile::inputKey(Qt::Key_BracketLeft, controlModifier, QString(QChar(27))) == "Ctrl+[",
+        "control punctuation uses the physical printable key");
+    require(MpvOptionProfile::inputKey(Qt::Key_J, metaModifier, "j") == "Meta+j",
+        "platform command/super modifier retains mpv naming");
+    require(MpvOptionProfile::inputKey(Qt::Key_1, Qt::KeypadModifier, "1") == "KP1",
+        "keypad digits remain distinct from number-row bindings");
+    require(MpvOptionProfile::inputKey(Qt::Key_Plus, Qt::KeypadModifier, "+") == "KP_ADD",
+        "keypad arithmetic uses mpv names");
+    require(MpvOptionProfile::inputKey(Qt::Key_J, Qt::NoModifier, "joined").isEmpty(),
+        "multi-character IME commits are not key bindings");
 
     // libcurl carries playback, and outside Windows it needs to be told where
     // the machine keeps its roots; an OpenSSL default baked in by the build

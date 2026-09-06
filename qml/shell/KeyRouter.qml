@@ -363,7 +363,13 @@ FocusScope {
             return false
         if (InputKeys.isAccept(key))
             return phase === "press" ? pressAccept(key, repeat) : releaseAccept(key, repeat)
-        return router.deliver(activeTarget, key, phase, repeat)
+        if (router.deliver(activeTarget, key, phase, repeat))
+            return true
+        // What no one here has a use for is not nothing: a page may forward it
+        // somewhere with bindings of its own. Text entry keeps its keys.
+        return Boolean(activeTarget && activeTarget.unhandledKey && activeTarget.unhandledKey(key, phase, repeat,
+                                                                                              event.modifiers,
+                                                                                              event.text))
     }
 
     function dispatch(event, phase) {

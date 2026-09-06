@@ -56,6 +56,12 @@ Item {
     }
 
     function pressed(key, repeat) {
+        // These actions run on release, but their press belongs to Spool too.
+        // Otherwise an unhandled press could also trigger the user's mpv binding.
+        if (key === Qt.Key_F || key === Qt.Key_I || key === Qt.Key_Info || key === Qt.Key_Q || key === Qt.Key_S || key
+                === Qt.Key_A || key === Qt.Key_T || InputKeys.isMedia(key) || InputKeys.isMediaPrevious(key)
+                || InputKeys.isMediaNext(key) || InputKeys.isColor(key))
+            return true
         const delta = seekDelta(key)
         if (delta !== 0 && overlay.controlsVisible && overlay.focusZone !== "timeline")
             return true

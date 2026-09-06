@@ -33,6 +33,10 @@ FocusScope {
         return playerOverlay.routeKey(key, phase, repeat)
     }
 
+    function unhandledKey(key, phase, repeat, modifiers, text) {
+        return playerOverlay.unhandledKey(key, phase, repeat, modifiers, text)
+    }
+
     function activate() {
         playerOverlay.activate()
     }

@@ -12,6 +12,7 @@ TestCase {
     property int finishOpeningCalls: 0
     property int typeAheadCalls: 0
     property int globalCalls: 0
+    property int fallbackCalls: 0
     property string typeAheadText: ""
     property bool routeResult: true
     property bool typeAheadResult: true
@@ -31,6 +32,10 @@ TestCase {
         QtObject {
             id: target
             property bool directionRelease: true
+            function unhandledKey(key, phase, repeat, modifiers, text) {
+                ++testCase.fallbackCalls
+                return true
+            }
 
             function routeKey(key, phase, repeat) {
                 ++testCase.routeCalls
@@ -68,6 +73,7 @@ TestCase {
         typeAheadCalls = 0
         typeAheadText = ""
         globalCalls = 0
+        fallbackCalls = 0
         routeResult = true
         typeAheadResult = true
         lastRouteRepeat = false
@@ -93,6 +99,25 @@ TestCase {
     function test_directionUsesRouterHelper() {
         verify(keyRouter.deliver(target, Qt.Key_Right, "press", false))
         compare(routeCalls, 1)
+    }
+
+    function test_fallbackOnlyReceivesUnhandledKeysOutsideTextEntry() {
+        typeAheadResult = false
+        const event = {
+            "key": Qt.Key_J,
+            "text": "j",
+            "modifiers": Qt.NoModifier,
+            "nativeScanCode": 0,
+            "isAutoRepeat": false
+        }
+        verify(keyRouter.dispatchNormalized(event, Qt.Key_J, "press", false))
+        compare(fallbackCalls, 0)
+        routeResult = false
+        verify(keyRouter.dispatchNormalized(event, Qt.Key_J, "press", false))
+        compare(fallbackCalls, 1)
+        keyRouter.textInputActive = true
+        verify(!keyRouter.dispatchNormalized(event, Qt.Key_J, "press", false))
+        compare(fallbackCalls, 1)
     }
 
     function test_unmarkedPressWhilePhysicallyDownBecomesRepeat() {

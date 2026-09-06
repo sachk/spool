@@ -190,6 +190,20 @@ TestCase {
         compare(input.downRepeats, 0)
     }
 
+    function test_reservedKeyPressCannotReachMpv() {
+        verify(input.pressed(Qt.Key_F, false))
+        compare(fullscreenToggles, 0)
+        verify(input.released(Qt.Key_F, false))
+        compare(fullscreenToggles, 1)
+    }
+
+    function test_unusedKeyFallsThroughWithoutRevealingControls() {
+        overlayStub.controlsVisible = false
+        verify(!input.pressed(Qt.Key_J, false))
+        verify(!input.released(Qt.Key_J, false))
+        compare(controlsShown, 0)
+    }
+
     function test_fTogglesFullscreen() {
         verify(input.released(Qt.Key_F, false))
         compare(fullscreenToggles, 1)

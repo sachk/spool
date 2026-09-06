@@ -182,6 +182,18 @@ PlayerController::PlayerController(NativeAppWindow *window, JellyfinApiFacade *a
     , m_tlsTrust(tlsTrust)
     , m_subtitleFontsPath(QFile::encodeName(subtitleFontsPath))
 {
+    if (m_window) {
+        connect(m_window, &QWindow::activeChanged, this, [this]() {
+            if (!m_window->isActive())
+                releaseMpvKeys();
+        });
+        connect(m_window, &NativeAppWindow::fullScreenChanged, this, [this]() {
+            if (platformMpvOptionProfile() == MpvOptionProfile::Platform::Desktop) {
+                if (auto *handle = m_mpvLifecycle.handle())
+                    setMpvProperty(handle, "fullscreen", m_window->fullScreen() ? "yes" : "no");
+            }
+        });
+    }
     if (m_api) {
         connect(m_api, &JellyfinApiFacade::sessionTokenChanged, this, [this]() {
             if (auto *handle = m_mpvLifecycle.handle())
@@ -301,6 +313,7 @@ void PlayerController::prepareForShutdown()
 
 void PlayerController::teardownMpv(bool async)
 {
+    releaseMpvKeys();
     ++m_mpvTeardownGeneration;
     Diagnostics::Phase phase(QStringLiteral("shutdown"), QStringLiteral("player_teardown_mpv"));
     m_idleMpvPreparationEnabled = false;
@@ -420,17 +433,95 @@ bool PlayerController::configureAndInitializeMpv(mpv_handle *handle, bool embedd
     applicationOptions.push_back({ "osd-fonts-dir", m_subtitleFontsPath });
     applicationOptions.push_back({ "osd-font", QByteArrayLiteral("IBM Plex Sans Var") });
 
+    mpv_request_log_messages(handle, mpvLogLevel());
     if (!applyOptions(handle, MpvOptionProfile::preInitializeOptions(m_mpvConfigPolicy))
         || !applyOptions(handle, applicationOptions))
         return false;
-    if (mpv_initialize(handle) < 0)
+    if (usesUserMpvConfig() && !applyMpvRuntimeOptions(MpvOptionApplyMode::Initial, handle))
+        return false;
+    int initializeResult;
+#if !defined(JELLYFIN_NATIVE_WEBOS) && !defined(Q_OS_ANDROID)
+    // Command-line precedence is applied by mpv after its own config parser,
+    // before scripts or force-window can create a native player window.
+    char embeddingOptions[][40] = {
+        "--vo=libmpv",
+        "--gpu-api=opengl",
+        "--gpu-context=auto",
+        "--wid=-1",
+        "--force-window=no",
+        "--idle=yes",
+        "--keep-open=no",
+        "--input-vo-keyboard=no",
+        "--input-cursor=no",
+        "--terminal=no",
+        "--osc=no",
+    };
+    char *embeddingArguments[std::size(embeddingOptions) + 1] {};
+    for (size_t i = 0; i < std::size(embeddingOptions); ++i)
+        embeddingArguments[i] = embeddingOptions[i];
+    if (usesUserMpvConfig())
+        qInfo() << "player: user mpv config enabled; embedding overrides vo, gpu-api, gpu-context,"
+                   " wid, force-window, idle, keep-open, input-vo-keyboard, input-cursor, terminal and osc";
+    initializeResult = mpv_initialize_opts(handle, embeddingArguments);
+#else
+    initializeResult = mpv_initialize(handle);
+#endif
+    if (initializeResult < 0)
         return false;
     // mpv's own log file lives in application-private storage, which is
     // unreadable on Android. Mirror its messages into the app log so player
     // problems are diagnosable wherever the app runs.
     mpv_request_log_messages(handle, mpvLogLevel());
 
-    return applyMpvRuntimeOptions(MpvOptionApplyMode::Runtime, handle);
+    if (platform == MpvOptionProfile::Platform::Desktop) {
+        for (const char *name : { "mpv-version", "ffmpeg-version", "hwdec", "gpu-api", "gpu-context" }) {
+            char *value = mpv_get_property_string(handle, name);
+            qInfo() << "player: initialized mpv" << name << (value ? value : "unavailable");
+            mpv_free(value);
+        }
+    }
+    return usesUserMpvConfig() || applyMpvRuntimeOptions(MpvOptionApplyMode::Runtime, handle);
+}
+
+bool PlayerController::usesUserMpvConfig() const
+{
+    if (m_mpvLifecycle.handle())
+        return m_activeUserMpvConfig;
+    return platformMpvOptionProfile() == MpvOptionProfile::Platform::Desktop
+        && m_mpvConfigPolicy.mode != MpvConfigPolicy::Mode::Disabled;
+}
+
+bool PlayerController::forwardMpvKey(int key, int modifiers, const QString& text, bool pressed, bool repeat)
+{
+    auto *handle = m_mpvLifecycle.handle();
+    if (platformMpvOptionProfile() != MpvOptionProfile::Platform::Desktop || !handle || !m_sessionActive)
+        return false;
+    if (repeat)
+        return m_mpvKeys.contains(key); // mpv owns repeat timing; Qt repeat releases are synthetic.
+    if (pressed && m_mpvKeys.contains(key))
+        return true;
+    QByteArray name = pressed ? MpvOptionProfile::inputKey(key, modifiers, text) : m_mpvKeys.value(key);
+    if (name.isEmpty())
+        return false;
+    const char *command[] = { pressed ? "keydown" : "keyup", name.constData(), nullptr };
+    if (mpv_command_async(handle, 0, command) < 0)
+        return false;
+    if (pressed)
+        m_mpvKeys.insert(key, name);
+    else
+        m_mpvKeys.remove(key);
+    return true;
+}
+
+void PlayerController::releaseMpvKeys()
+{
+    if (m_mpvKeys.isEmpty())
+        return;
+    if (auto *handle = m_mpvLifecycle.handle()) {
+        const char *command[] = { "keyup", nullptr };
+        mpv_command_async(handle, 0, command);
+    }
+    m_mpvKeys.clear();
 }
 
 void PlayerController::observeMpvProperties(mpv_handle *handle)
@@ -448,6 +539,15 @@ void PlayerController::observeMpvProperties(mpv_handle *handle)
     mpv_observe_property(handle, 0, "video-params/transfer", MPV_FORMAT_STRING);
     mpv_observe_property(handle, 0, "video-target-params/transfer", MPV_FORMAT_STRING);
     mpv_observe_property(handle, 0, "hwdec-current", MPV_FORMAT_STRING);
+    if (platformMpvOptionProfile() == MpvOptionProfile::Platform::Desktop) {
+        for (const char *name : { "current-vo", "current-gpu-context", "video-codec", "video-dec-params/pixelformat" })
+            mpv_observe_property(handle, 0, name, MPV_FORMAT_STRING);
+        if (m_window)
+            setMpvProperty(handle, "fullscreen", m_window->fullScreen() ? "yes" : "no");
+        mpv_observe_property(handle, 0, "fullscreen", MPV_FORMAT_FLAG);
+        mpv_observe_property(handle, 0, "speed", MPV_FORMAT_DOUBLE);
+        mpv_observe_property(handle, 0, "mute", MPV_FORMAT_FLAG);
+    }
     mpv_observe_property(handle, 0, "decoder-frame-drop-count", MPV_FORMAT_INT64);
     mpv_observe_property(handle, 0, "frame-drop-count", MPV_FORMAT_INT64);
     mpv_observe_property(handle, 0, "vo-delayed-frame-count", MPV_FORMAT_INT64);
@@ -499,7 +599,7 @@ void PlayerController::updateHdrOutput(bool applySubtitleOptions)
         return;
     m_hdrPlayback = hdrOutput;
     emit hdrPlaybackChanged();
-    if (applySubtitleOptions) {
+    if (applySubtitleOptions && !usesUserMpvConfig()) {
         if (auto *handle = m_mpvLifecycle.handle())
             applyMpvSubtitleOptions(MpvOptionApplyMode::Runtime, handle, true);
     }
@@ -873,6 +973,7 @@ bool PlayerController::ensureMpv(bool needsVideoSurface, bool embeddedVideo)
     }
 
     m_embeddedVideoOutput = needsVideoSurface && embeddedVideo;
+    m_activeUserMpvConfig = usesUserMpvConfig();
     if (!m_mpvLifecycle.adopt(handle, [this](mpv_event *event) { handleMpvEvent(event); })) {
         if (needsVideoSurface)
             releasePlatformMpvSurface(m_embeddedVideoOutput);
@@ -1001,7 +1102,7 @@ void PlayerController::play(const PlaybackSession& session, bool startPaused)
     // An idle-prepared mpv was configured before this session's HDR policy
     // was known. Reapply subtitle options now so HDR paperwhite is correct
     // from the first rendered subtitle, not only after a settings change.
-    if (!applyMpvSubtitleOptions(MpvOptionApplyMode::Runtime, handle)) {
+    if (!usesUserMpvConfig() && !applyMpvSubtitleOptions(MpvOptionApplyMode::Runtime, handle)) {
         m_mpvLifecycle.cancelFileLoad();
         m_errorText = QStringLiteral("libmpv rejected the subtitle appearance.");
         stopProgressReporting(true);
@@ -1636,7 +1737,7 @@ void PlayerController::setSubtitlePreferences(const SubtitlePreferences& prefere
             << "subScale=" << preferences.scalePercent;
     if (auto *handle = m_mpvLifecycle.handle()) {
         applyMpvSubtitleOptions(MpvOptionApplyMode::Runtime, handle, preserveTrackSelection,
-            preserveTrackSelection ? &previousPreferences : nullptr);
+            preserveTrackSelection || usesUserMpvConfig() ? &previousPreferences : nullptr);
     } else {
         discardPreparedMpvForOptionChange("subtitle preferences change");
     }
@@ -1774,6 +1875,7 @@ void PlayerController::setRenderQuality(MpvOptionProfile::RenderQuality quality)
 
 void PlayerController::resetPlaybackUiState()
 {
+    releaseMpvKeys();
     m_visible = false;
     m_sessionActive = false;
     m_fileLoaded = false;
@@ -2057,6 +2159,33 @@ void PlayerController::handleMpvEvent(mpv_event *event)
                 m_volume = clampedVolume;
                 emit volumeChanged();
             });
+        } else if (strcmp(property->name, "fullscreen") == 0 && property->format == MPV_FORMAT_FLAG) {
+            const bool fullscreen = *static_cast<int *>(property->data);
+            QMetaObject::invokeMethod(this, [this, fullscreen]() {
+                if (m_window && m_window->fullScreen() != fullscreen)
+                    m_window->toggleFullScreen();
+            });
+        } else if (strcmp(property->name, "speed") == 0 && property->format == MPV_FORMAT_DOUBLE) {
+            const double speed = *static_cast<double *>(property->data);
+            QMetaObject::invokeMethod(this, [this, speed]() {
+                if (!m_syncPlaybackSpeedActive && !qFuzzyCompare(m_playbackSpeed, speed)) {
+                    m_playbackSpeed = speed;
+                    emit playbackSpeedChanged();
+                    emit effectivePlaybackSpeedChanged();
+                }
+            });
+        } else if (strcmp(property->name, "mute") == 0 && property->format == MPV_FORMAT_FLAG) {
+            const bool muted = *static_cast<int *>(property->data);
+            QMetaObject::invokeMethod(this, [this, muted]() {
+                if (m_muted.exchange(muted) != muted)
+                    emit volumeChanged();
+            });
+        } else if ((strcmp(property->name, "current-vo") == 0 || strcmp(property->name, "current-gpu-context") == 0
+                       || strcmp(property->name, "video-codec") == 0
+                       || strcmp(property->name, "video-dec-params/pixelformat") == 0)
+            && property->format == MPV_FORMAT_STRING) {
+            const auto value = *static_cast<char **>(property->data);
+            qInfo() << "player: output diagnostic" << property->name << (value ? value : "unavailable");
         } else if (strcmp(property->name, "hwdec-current") == 0 && property->format == MPV_FORMAT_STRING) {
             const auto *decoder = static_cast<char **>(property->data);
             const QByteArray decoderName(decoder && *decoder ? *decoder : "");
@@ -2186,6 +2315,7 @@ void PlayerController::handleMpvEvent(mpv_event *event)
             qInfo() << "player: mpv shutdown";
             if (m_sessionActive)
                 stopProgressReporting(false);
+            scheduleMpvTeardown();
         });
         break;
     case MPV_EVENT_LOG_MESSAGE: {

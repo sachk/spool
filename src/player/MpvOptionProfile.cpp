@@ -13,6 +13,165 @@
 
 namespace JellyfinNative {
 
+QByteArray MpvOptionProfile::inputKey(int key, int modifiers, const QString& text)
+{
+    QByteArray name;
+    const bool surrogatePair = text.size() == 2 && text.at(0).isHighSurrogate() && text.at(1).isLowSurrogate();
+    if (text.size() > 1 && !surrogatePair)
+        return {}; // IME commits are text, not a single mpv key.
+    // Qt swaps Control and Meta on macOS; mpv names the physical modifiers.
+#ifdef Q_OS_MACOS
+    const bool control = modifiers & Qt::ControlModifier;
+    const bool meta = modifiers & Qt::MetaModifier;
+    modifiers &= ~(Qt::ControlModifier | Qt::MetaModifier);
+    if (control)
+        modifiers |= Qt::MetaModifier;
+    if (meta)
+        modifiers |= Qt::ControlModifier;
+#endif
+    switch (key) {
+    case Qt::Key_Shift:
+    case Qt::Key_Control:
+    case Qt::Key_Alt:
+    case Qt::Key_Meta:
+    case Qt::Key_AltGr:
+        return {};
+    case Qt::Key_Space:
+        name = "SPACE";
+        break;
+    case Qt::Key_Return:
+        name = "ENTER";
+        break;
+    case Qt::Key_Enter:
+        name = "KP_ENTER";
+        break;
+    case Qt::Key_Escape:
+        name = "ESC";
+        break;
+    case Qt::Key_Tab:
+        name = "TAB";
+        break;
+    case Qt::Key_Backtab:
+        name = "TAB";
+        modifiers |= Qt::ShiftModifier;
+        break;
+    case Qt::Key_Backspace:
+        name = "BS";
+        break;
+    case Qt::Key_Delete:
+        name = "DEL";
+        break;
+    case Qt::Key_Insert:
+        name = "INS";
+        break;
+    case Qt::Key_Home:
+        name = "HOME";
+        break;
+    case Qt::Key_End:
+        name = "END";
+        break;
+    case Qt::Key_PageUp:
+        name = "PGUP";
+        break;
+    case Qt::Key_PageDown:
+        name = "PGDWN";
+        break;
+    case Qt::Key_Left:
+        name = "LEFT";
+        break;
+    case Qt::Key_Right:
+        name = "RIGHT";
+        break;
+    case Qt::Key_Up:
+        name = "UP";
+        break;
+    case Qt::Key_Down:
+        name = "DOWN";
+        break;
+    case Qt::Key_MediaPlay:
+        name = "PLAY";
+        break;
+    case Qt::Key_MediaPause:
+        name = "PAUSE";
+        break;
+    case Qt::Key_MediaTogglePlayPause:
+        name = "PLAYPAUSE";
+        break;
+    case Qt::Key_MediaStop:
+        name = "STOP";
+        break;
+    case Qt::Key_MediaNext:
+        name = "NEXT";
+        break;
+    case Qt::Key_MediaPrevious:
+        name = "PREV";
+        break;
+    default:
+        if (key >= Qt::Key_F1 && key <= Qt::Key_F24) {
+            name = "F" + QByteArray::number(key - Qt::Key_F1 + 1);
+        } else if ((text.size() == 1 && text.at(0).isPrint())
+            || (surrogatePair && QChar::isPrint(QChar::surrogateToUcs4(text.at(0), text.at(1))))) {
+            name = text.toUtf8();
+            modifiers &= ~Qt::ShiftModifier; // Shift is already represented by the character.
+        } else if (key >= Qt::Key_A && key <= Qt::Key_Z) {
+            name = QByteArray(1, char((modifiers & Qt::ShiftModifier) ? key : key + ('a' - 'A')));
+            modifiers &= ~Qt::ShiftModifier;
+        } else if (key >= Qt::Key_Exclam && key <= Qt::Key_AsciiTilde) {
+            name = QByteArray(1, char(key));
+        } else {
+            return {};
+        }
+    }
+    if (modifiers & Qt::KeypadModifier) {
+        if (key >= Qt::Key_0 && key <= Qt::Key_9) {
+            name = "KP" + QByteArray::number(key - Qt::Key_0);
+        } else {
+            switch (key) {
+            case Qt::Key_Plus:
+                name = "KP_ADD";
+                break;
+            case Qt::Key_Minus:
+                name = "KP_SUBTRACT";
+                break;
+            case Qt::Key_Asterisk:
+                name = "KP_MULTIPLY";
+                break;
+            case Qt::Key_Slash:
+                name = "KP_DIVIDE";
+                break;
+            case Qt::Key_Period:
+            case Qt::Key_Comma:
+                name = "KP_DEC";
+                break;
+            case Qt::Key_Delete:
+            case Qt::Key_Insert:
+            case Qt::Key_Home:
+            case Qt::Key_End:
+            case Qt::Key_PageUp:
+            case Qt::Key_PageDown:
+            case Qt::Key_Left:
+            case Qt::Key_Right:
+            case Qt::Key_Up:
+            case Qt::Key_Down:
+                name.prepend("KP_");
+                break;
+            default:
+                break;
+            }
+        }
+    }
+    QByteArray prefix;
+    if (modifiers & Qt::ControlModifier)
+        prefix += "Ctrl+";
+    if (modifiers & Qt::AltModifier)
+        prefix += "Alt+";
+    if (modifiers & Qt::MetaModifier)
+        prefix += "Meta+";
+    if (modifiers & Qt::ShiftModifier)
+        prefix += "Shift+";
+    return prefix + name;
+}
+
 namespace {
 
     QLocale::Language languageFromCode(QString code)

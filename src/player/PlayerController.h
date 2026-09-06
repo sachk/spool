@@ -11,6 +11,7 @@
 
 #include <QByteArray>
 #include <QByteArrayList>
+#include <QHash>
 #include <QObject>
 #include <QStringList>
 #include <QTimer>
@@ -142,6 +143,8 @@ public:
     Q_INVOKABLE void play(const JellyfinNative::PlaybackSession& session, bool startPaused = false);
     void setMediaSegments(const QString& itemId, const std::vector<MediaSegment>& segments);
     Q_INVOKABLE void togglePause();
+    Q_INVOKABLE bool forwardMpvKey(int key, int modifiers, const QString& text, bool pressed, bool repeat);
+    Q_INVOKABLE void releaseMpvKeys();
     void setPaused(bool paused);
     Q_INVOKABLE void seekBack();
     Q_INVOKABLE void seekForward();
@@ -243,6 +246,8 @@ public:
     void teardownMpv(bool async = false);
 
 private:
+    QHash<int, QByteArray> m_mpvKeys;
+    bool usesUserMpvConfig() const;
     int uiTrackIndexForStream(const QString& type, int streamIndex, int firstUiIndex) const;
     int streamIndexForUiTrack(const QString& type, int uiIndex, int firstUiIndex) const;
     void updateReportedStreamSelection(bool sendProgress);
@@ -365,6 +370,7 @@ private:
     QByteArray m_demuxerMaxBytes = QByteArrayLiteral("64M");
     QByteArray m_demuxerMaxBackBytes = QByteArrayLiteral("32M");
     MpvConfigPolicy m_mpvConfigPolicy;
+    bool m_activeUserMpvConfig = false;
     TlsTrustController *m_tlsTrust = nullptr;
     const QByteArray m_subtitleFontsPath;
     int m_forwardCacheSizeMiB = 0;

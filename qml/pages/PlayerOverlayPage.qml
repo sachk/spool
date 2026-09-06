@@ -894,6 +894,13 @@ FocusScope {
         return stopPlayback("overlay-back")
     }
 
+    function unhandledKey(key, phase, repeat, modifiers, text) {
+        if (!desktopControlsAvailable || !hasPlayer || subtitleSettingsVisible || browsePanelVisible
+                || queuePanelVisible || isMenuOpen() || audioSyncVisible)
+            return false
+        return player.forwardMpvKey(key, modifiers, text, phase === "press", repeat)
+    }
+
     function routeKey(key, phase, repeat) {
         if (subtitleSettingsVisible)
             return subtitleSettings.routeKey(key, phase, repeat)
@@ -957,6 +964,8 @@ FocusScope {
     }
 
     onVisibleChanged: {
+        if (!visible && desktopControlsAvailable && hasPlayer)
+            player.releaseMpvKeys()
         input.reset()
         autohide.stop()
         scrubbing = false

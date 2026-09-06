@@ -11,6 +11,66 @@
   10-foot / remote navigation: build around GridView / ListView + FocusScope + KeyNavigation + Keys. KeyNavigation is specifically for arrow/tab-based focus jumps, and FocusScope exists to keep reusable focus regions sane, which is exactly the problem space for D-pad TV UIs.
   HTTP asset caching: QNetworkDiskCache for posters, backdrops, and image responses. It is basic, but it plugs directly into QNetworkAccessManager; just remember it is basic by design and defaults to a 50 MB limit, so you will probably want to raise that.
 
+## Desktop mpv configuration and keys
+
+In expert playback settings, **mpv configuration** can be Off, Standard mpv
+directory, or Custom directory. Off ignores user mpv files. Standard uses mpv's
+own platform search paths; Custom uses the selected directory for `mpv.conf`,
+`input.conf`, scripts and related files. Changes take effect on the next playback.
+Spool never rewrites these files.
+
+Precedence, from lowest to highest:
+
+1. Spool's saved playback settings provide startup defaults.
+2. Enabled user configuration overrides those defaults. mpv itself loads
+   includes, profiles, scripts and bindings; Spool does not parse a subset.
+   Compatible scaling, tone mapping, shaders, subtitles, audio filters and
+   hardware-decoder choices are retained. Starting a file or detecting HDR does
+   not reapply Spool's subtitle appearance over the user configuration.
+3. Explicit playback controls and settings changes override their corresponding
+   runtime options. Changing subtitle preferences applies only the changed
+   options, rather than resetting unrelated user styling. A new playback loads
+   the user configuration again; startup-only settings such as audio output and
+   render quality remain defaults beneath that configuration.
+4. Spool retains its embedding and session requirements: `vo=libmpv`,
+   `gpu-api=opengl`, `gpu-context=auto`, `wid=-1`, `force-window=no`, `idle=yes`,
+   `keep-open=no`, `input-vo-keyboard=no`, `input-cursor=no`, `terminal=no` and
+   `osc=no`. These are enforced before mpv initializes input, scripts or output.
+   Spool also owns the initial window/fullscreen state, authenticated media
+   requests, TLS verification, resume position, SyncPlay and explicit track
+   restoration.
+
+This is still embedded OpenGL playback, not native Vulkan, D3D11 or Metal
+presentation, and it does not enable desktop HDR output. Native `gpu-context`
+names such as `winvk` or `d3d11` are not mapped to embedded backends. Scripts and
+dynamic profiles must not change the embedding options; native-window commands,
+renderer replacement and standalone mpv playlist management are unsupported.
+Config errors and embedding ownership are reported in player/mpv diagnostics.
+
+During desktop playback, Spool's shortcuts, dialogs and focused text/IME
+controls take precedence. Remaining keys reach mpv's `input.conf` machinery.
+Printable characters retain their case, named keys and keypad keys use mpv
+names, and modifiers are preserved (Command is `Meta` on macOS). mpv controls
+repeat timing; Qt's synthetic repeat releases do not release a held key.
+Leaving playback or losing window/focus ownership releases held keys.
+mpv's built-in bindings remain off unless enabled with
+`input-default-bindings=yes`.
+
+For example, an `input.conf` can contain:
+
+```text
+F6 cycle-values speed 1 1.25
+F7 cycle mute
+F8 cycle fullscreen
+F9 quit
+```
+
+`fullscreen` changes Spool's existing window, not a second mpv window.
+`quit` (including `quit-watch-later`) ends the playback session and releases
+the player; it does not close Spool. `stop` also returns to the application.
+Bindings which manipulate volume, mute or speed update the corresponding Spool
+controls. Closing Spool continues to use its normal application shutdown path.
+
 ## Android development
 
 The Android toolchain is pinned to SDK 36, Build Tools 36.0.0 and NDK

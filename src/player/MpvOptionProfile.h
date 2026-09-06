@@ -53,6 +53,7 @@ public:
 
     static QByteArray certificateBundle(const QStringList& candidates);
     static QByteArray systemCertificateBundle();
+    static QByteArray inputKey(int key, int modifiers, const QString& text);
 
     static std::vector<MpvOption> preInitializeOptions(const MpvConfigPolicy& policy);
     static std::vector<MpvOption> applicationOptions(Platform platform, const QString& audioOutputMode,
