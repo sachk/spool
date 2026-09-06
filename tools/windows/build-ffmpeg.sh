@@ -24,3 +24,8 @@ mapfile -t features < <(tr -d '\r' < configure-flags.txt)
     --pkg-config="$PKG_CONFIG" "${features[@]}"
 make -j4
 make install
+# FFmpeg's msvc toolchain installs each import library beside its DLL, in
+# bindir, while every .pc file it writes points a linker at libdir. Put them
+# where they are claimed to be, or meson resolves nothing and the mpv link
+# fails on a bare avcodec.lib.
+cp "$(cygpath -u "$prefix")"/bin/*.lib "$(cygpath -u "$prefix")/lib/"
