@@ -115,10 +115,36 @@ build_app() {
   cp -f "$apk" "$ROOT/dist/android/spool-${ABI}.apk"
 }
 
+# The universal APK is built from these, not spliced out of the per-ABI APKs:
+# res/values/libs.xml names every bundled library with its ABI in front of it,
+# and that file is compiled into resources.arsc, which is not something to edit
+# afterwards. Staging the Gradle project each ABI was packaged from lets one
+# job put the union of those arrays back and package it properly.
+#
+# The native libraries are left out. They are the largest thing here by two
+# orders of magnitude, and the universal build takes the stripped ones straight
+# out of this ABI's APK instead.
+stage_universal_inputs() {
+  local build="$ROOT/build/android/app-$ABI/android-build"
+  local staged="$ROOT/dist/android/universal-inputs/$ABI"
+  rm -rf "$staged"
+  mkdir -p "$staged/libs"
+  cp -a "$build/AndroidManifest.xml" "$build/build.gradle" "$build/gradle.properties" \
+    "$build/gradlew" "$build/gradle" "$build/res" "$build/src" "$build/assets" "$staged/"
+  cp -a "$build"/libs/*.jar "$staged/libs/"
+  # gradle.properties points Gradle at the Qt installation for the Java and
+  # resource sources every Qt app shares. Carry a copy so the universal build
+  # needs no Qt tree of its own, and name it by a path relative to the project.
+  cp -a "$QT_PREFIX/src/android/java" "$staged/qt-android"
+  sed -i -e 's#^qtAndroidDir=.*#qtAndroidDir=qt-android#' \
+    -e 's#^qt5AndroidDir=.*#qt5AndroidDir=qt-android#' "$staged/gradle.properties"
+}
+
 prepare_keystore
 build_qcoro
 # One package serves televisions and handsets. What used to be two builds per
 # ABI differing only in a manifest is now one; the form factor is asked of the
 # system at runtime and the launch screen comes from a resource qualifier.
 build_app
+stage_universal_inputs
 printf 'Android APK:\n  %s\n' "$ROOT/dist/android/spool-${ABI}.apk"
