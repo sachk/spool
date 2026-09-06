@@ -20,7 +20,7 @@ if ((Get-FileHash $archive -Algorithm SHA256).Hash -ine $pin.sha256) {
     throw "FFmpeg source checksum mismatch: $archive"
 }
 if (-not (Test-Path $source)) {
-    tar -xf $archive -C $deps
+    & "$env:SystemRoot\System32\tar.exe" -xf $archive -C $deps
     if ($LASTEXITCODE -ne 0) { throw 'Extracting FFmpeg failed.' }
 }
 if (-not (Test-Path $headers)) {
