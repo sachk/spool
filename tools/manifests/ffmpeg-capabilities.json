@@ -27,7 +27,11 @@
     "segment URL with avio_find_protocol_name() before it ever reaches the",
     "io_open callback mpv points at libcurl, so a build without the https",
     "protocol registered fails every transcoded stream with \"https or dtls",
-    "protocol not found\" while direct play keeps working."
+    "protocol not found\" while direct play keeps working.",
+    "Windows adds dtls and udp because schannel's TLS brings the DTLS",
+    "protocol with it, and DTLS selects udp. Neither is reachable from a",
+    "Jellyfin URL; they are listed so the audit sees the build FFmpeg",
+    "actually produces."
   ],
   "protocols": [
     "file",
@@ -329,7 +333,10 @@
         "wmv3_dxva2",
         "wmv3_nvdec"
       ],
-      "protocols": [],
+      "protocols": [
+        "dtls",
+        "udp"
+      ],
       "bitstreamFilters": [
         "dovi_split"
       ]
