@@ -993,6 +993,7 @@ jobs:
           }
 
       - name: Install upstream FFmpeg build environment
+        id: msys2
         uses: msys2/setup-msys2@66cd2cce69caa17b53920067426061ca1de3a884 # v2
         with:
           msystem: MSYS
@@ -1067,6 +1068,8 @@ jobs:
         if: steps.mpv-cache.outputs.cache-hit != 'true'
         timeout-minutes: 45
         shell: pwsh
+        env:
+          MSYS2_LOCATION: ${{ steps.msys2.outputs.msys2-location }}
         run: tools\windows\build-mpv.ps1 -Clean
 
       - name: Save source-built libmpv

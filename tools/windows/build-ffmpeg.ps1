@@ -10,10 +10,8 @@ $archive = Join-Path $deps "ffmpeg-$($pin.version).tar.xz"
 $headers = Join-Path $deps 'nv-codec-headers'
 $prefix = Join-Path $deps 'ffmpeg'
 $build = Join-Path $deps 'ffmpeg-build'
-$bash = 'C:\msys64\usr\bin\bash.exe'
-if (-not (Test-Path $bash)) {
-    throw 'Install MSYS2 with make, diffutils and pkgconf (C:\msys64) to build upstream FFmpeg.'
-}
+$msysRoot = Get-Msys2Root
+$bash = Join-Path $msysRoot 'usr\bin\bash.exe'
 New-Item -ItemType Directory -Force $deps | Out-Null
 if (-not (Test-Path $archive)) { Invoke-WebRequest $pin.url -OutFile $archive }
 if ((Get-FileHash $archive -Algorithm SHA256).Hash -ine $pin.sha256) {
@@ -51,4 +49,4 @@ if ($LASTEXITCODE -ne 0) { throw 'Windows FFmpeg capabilities failed verificatio
 if ($LASTEXITCODE -ne 0) { throw 'Windows FFmpeg runtime failed verification.' }
 # Ensure subsequent Meson builds use the existing clang/MSVC-compatible toolchain.
 Initialize-WindowsMpvBuildEnvironment
-$env:PKG_CONFIG = 'C:\msys64\usr\bin\pkgconf.exe'
+$env:PKG_CONFIG = Join-Path $msysRoot 'usr\bin\pkgconf.exe'

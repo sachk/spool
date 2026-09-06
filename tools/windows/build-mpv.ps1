@@ -5,6 +5,7 @@ param(
 
 . (Join-Path $PSScriptRoot 'common.ps1')
 Initialize-WindowsMpvBuildEnvironment
+$msysRoot = Get-Msys2Root
 
 $root = Get-RepositoryRoot
 $source = Join-Path $root 'mpv'
@@ -77,7 +78,8 @@ try {
     # FFmpeg is built from the same upstream source pin as every desktop.
     & (Join-Path $PSScriptRoot 'build-ffmpeg.ps1') -Clean:$Clean
     $ffmpegPrefix = Join-Path $dependencyRoot 'ffmpeg'
-    $env:PKG_CONFIG_PATH = (& C:\msys64\usr\bin\cygpath.exe -u "$ffmpegPrefix/lib/pkgconfig").Trim()
+    $env:PKG_CONFIG_PATH = (& (Join-Path $msysRoot 'usr\bin\cygpath.exe') -u "$ffmpegPrefix/lib/pkgconfig").Trim()
+    if ($LASTEXITCODE -ne 0) { throw 'Converting the FFmpeg pkg-config search path failed.' }
     # Discard the old Meson-port wrap when reusing a dependency checkout.
     Remove-Item (Join-Path $subprojects 'ffmpeg.wrap') -ErrorAction SilentlyContinue
 

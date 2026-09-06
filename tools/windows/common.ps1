@@ -49,6 +49,17 @@ function Get-RepositoryRoot {
     return (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
 }
 
+function Get-Msys2Root {
+    # CI supplies setup-msys2's actual installation; local installs use its usual path.
+    $root = if ($env:MSYS2_LOCATION) { $env:MSYS2_LOCATION } else { 'C:\msys64' }
+    foreach ($tool in @('bash.exe', 'cygpath.exe', 'make.exe', 'pkgconf.exe')) {
+        if (-not (Test-Path -LiteralPath (Join-Path $root "usr\bin\$tool") -PathType Leaf)) {
+            throw "Required MSYS2 tool is missing: $root\usr\bin\$tool. Install make, diffutils and pkgconf; set MSYS2_LOCATION for a non-default installation."
+        }
+    }
+    return $root
+}
+
 # tools\manifests\toolchain.json is the single place the Qt and FFmpeg
 # versions are set; nothing here should repeat one.
 function Get-ToolchainManifest {
