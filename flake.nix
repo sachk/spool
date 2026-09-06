@@ -170,29 +170,27 @@
               && input != final.unixodbcDrivers.mariadb
               && input != final.unixodbcDrivers.psql
               && input != final.unixodbcDrivers.sqlite
-              && (!final.stdenv.hostPlatform.isLinux || input != final.systemd)
-              && input != final.vulkan-headers
-              && input != final.vulkan-loader)
+              && (!final.stdenv.hostPlatform.isLinux || input != final.systemd))
               old.propagatedBuildInputs;
             buildInputs = builtins.filter (input:
               input != final.libmysqlclient
-              && input != final.libpq
-              && (!final.stdenv.hostPlatform.isDarwin || input != final.moltenvk))
+              && input != final.libpq)
               old.buildInputs;
-            cmakeFlags =
-              builtins.filter (flag: flag != "-DQT_FEATURE_vulkan=ON") old.cmakeFlags
-              ++ [
+            # Vulkan stays in. It is the only Qt backend that can present an
+            # HDR swapchain on Linux, and the one libplacebo can share a device
+            # with; without it the embedded player has nowhere to put an HDR
+            # frame. The loader is dlopened, so what this costs the closure is
+            # the headers at build time, not a driver at runtime.
+            cmakeFlags = old.cmakeFlags ++ [
                 "-DQT_FEATURE_glib=OFF"
                 "-DQT_FEATURE_icu=OFF"
                 "-DQT_FEATURE_sql_mysql=OFF"
                 "-DQT_FEATURE_sql_odbc=OFF"
                 "-DQT_FEATURE_sql_psql=OFF"
-                "-DQT_FEATURE_vulkan=OFF"
               ];
             postFixup = builtins.replaceStrings [
               ''patchelf --add-rpath "${final.libmysqlclient}/lib/mariadb" $out/lib/qt-6/plugins/sqldrivers/libqsqlmysql.so''
-              ''patchelf --add-rpath "${final.vulkan-loader}/lib" --add-needed "libvulkan.so" $out/lib/libQt6Gui.so''
-            ] [ "" "" ] (old.postFixup or "");
+            ] [ "" ] (old.postFixup or "");
           });
         })) // {
           # pythonPackages.qt6 expects this secondary package scope.
@@ -290,6 +288,10 @@
         rubberband
         rustup
         unzip
+        # mpv's Vulkan feature needs the headers and a loader to link against.
+        # The driver is the user's, found through the loader at runtime.
+        vulkan-headers
+        vulkan-loader
         which
         zlib
         zip

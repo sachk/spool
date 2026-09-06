@@ -109,7 +109,7 @@
       "egl-x11=enabled",
       "gl=enabled",
       "gl-x11=enabled",
-      "vulkan=disabled",
+      "vulkan=enabled",
       "vaapi=enabled",
       "vaapi-wayland=enabled",
       "vaapi-x11=enabled",
