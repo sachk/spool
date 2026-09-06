@@ -37,7 +37,7 @@ def main() -> int:
         "--disable-nonfree",
         "--disable-autodetect",
     }
-    for platform in ("linux", "macos", "webos"):
+    for platform in ("linux", "macos", "webos", "windows", "android"):
         flags = set(run(script, manifest, "configure", "--platform", platform).stdout.splitlines())
         assert required <= flags, (platform, required - flags)
         # The app is MPL-2.0 and nothing in the component set is GPL-only, so
@@ -53,71 +53,11 @@ def main() -> int:
         # libcurl backend is consulted, so every platform has to register these.
         assert {"--enable-protocol=https", "--enable-protocol=tls"} <= flags, platform
 
-    meson = set(run(script, manifest, "meson", "--platform", "windows").stdout.splitlines())
-    assert {"ffmpeg:gpl=disabled", "ffmpeg:version3=disabled", "ffmpeg:nonfree=disabled"} <= meson
-    # Windows takes FFmpeg as a Meson subproject rather than through configure,
-    # so the network switches its platform entry carries have to survive the
-    # translation or its HLS playback silently loses every transcode.
-    assert {"ffmpeg:network=enabled", "ffmpeg:schannel=enabled"} <= meson
-    assert {"ffmpeg:https_protocol=enabled", "ffmpeg:tls_protocol=enabled"} <= meson
-    assert "ffmpeg:mjpeg_decoder=enabled" not in meson
-
-    # Meson has no wildcard and auto_features cannot be scoped to a
-    # subproject, so anything the port declares and the manifest omits has to
-    # be refused by name or it is built.
-    with tempfile.TemporaryDirectory() as options_directory:
-        options = Path(options_directory) / "meson_options.txt"
-        options.write_text(
-            "option('hls_demuxer', type: 'feature', value: 'auto')\n"
-            "option('mjpeg_decoder', type: 'feature', value: 'auto')\n"
-            "option('https_protocol', type: 'feature', value: 'auto')\n"
-            "option('gopher_protocol', type: 'feature', value: 'auto')\n"
-            "option('asrc_abuffer_filter', type: 'feature', value: 'auto')\n"
-            "option('showinfo_filter', type: 'feature', value: 'auto')\n"
-            "option('gpl', type: 'feature', value: 'disabled')\n",
-            encoding="utf-8",
-        )
-        scoped = set(
-            run(
-                script, manifest, "meson", "--platform", "windows", "--component-options", str(options)
-            ).stdout.splitlines()
-        )
-        assert "ffmpeg:mjpeg_decoder=disabled" in scoped
-        assert "ffmpeg:gopher_protocol=disabled" in scoped
-        assert "ffmpeg:showinfo_filter=disabled" in scoped
-        assert "ffmpeg:hls_demuxer=enabled" in scoped
-        assert "ffmpeg:https_protocol=enabled" in scoped
-        # The manifest names this filter abuffer; the port calls the option
-        # asrc_abuffer, and disabling it by the wrong name would silently drop
-        # the audio graph's source.
-        assert "ffmpeg:asrc_abuffer_filter=disabled" not in scoped
-        # An option that is not a component must be left alone entirely.
-        assert not any(flag.startswith("ffmpeg:gpl=") and flag.endswith("disabled") for flag in scoped - meson)
-        for name in ("mjpeg_decoder", "gopher_protocol", "showinfo_filter"):
-            assert f"ffmpeg:{name}=enabled" not in scoped
-
-        # Windows will not start a process with thousands of -D arguments, so
-        # the same settings have to reach Meson as a native file instead.
-        native = Path(options_directory) / "ffmpeg-features.ini"
-        run(
-            script, manifest, "meson", "--platform", "windows",
-            "--component-options", str(options), "--native-file", str(native),
-        )
-        text = native.read_text(encoding="utf-8")
-        assert "[ffmpeg:project options]" in text
-        assert "[ffmpeg:built-in options]" in text
-        assert "mjpeg_decoder = 'disabled'" in text
-        assert "https_protocol = 'enabled'" in text
-        # default_library is a Meson built-in, not one of the port's options,
-        # and belongs in the other section or Meson rejects the file.
-        builtin, _, project = text.partition("[ffmpeg:project options]")
-        assert "default_library = 'static'" in builtin
-        assert "default_library" not in project
-        # auto_features is a core option Meson will not scope to a subproject;
-        # carrying it would only reassert the thing being worked around.
-        assert "auto_features" not in text
-    assert "ffmpeg:png_decoder=enabled" not in meson
-    assert "ffmpeg:webp_decoder=enabled" not in meson
+    for platform in ("android", "webos", "linux", "macos", "windows"):
+        flags = set(run(script, manifest, "configure", "--platform", platform).stdout.splitlines())
+        assert ("--enable-bsf=dovi_split" in flags) == (platform in ("linux", "macos", "windows"))
+    windows = set(run(script, manifest, "configure", "--platform", "windows").stdout.splitlines())
+    assert {"--enable-nvdec", "--enable-hwaccel=av1_nvdec", "--enable-hwaccel=hevc_d3d12va"} <= windows
 
     with tempfile.TemporaryDirectory() as directory:
         config = Path(directory) / "config.log"
@@ -132,7 +72,11 @@ def main() -> int:
             names = sorted(
                 set(manifest_data["protocols"]) | set(manifest_data["platforms"][platform].get("protocols", []))
             )
-            return "".join(f"#define CONFIG_{name.upper()}_PROTOCOL 1\n" for name in names)
+            text = "".join(f"#define CONFIG_{name.upper()}_PROTOCOL 1\n" for name in names)
+            for key, suffix in (("bitstreamFilters", "BSF"), ("hardwareAccelerators", "HWACCEL")):
+                values = set(manifest_data.get(key, [])) | set(manifest_data["platforms"][platform].get(key, []))
+                text += "".join(f"#define CONFIG_{name.upper()}_{suffix} 1\n" for name in sorted(values))
+            return text
 
         enabled_protocols = protocol_defines("webos")
         components.write_text(
@@ -159,6 +103,10 @@ def main() -> int:
         windows_components = Path(directory) / "config_components_windows.h"
         windows_components.write_text("#define CONFIG_H264_DECODER 1\n" + protocol_defines("windows"), encoding="utf-8")
         run(script, manifest, "audit-components", "--platform", "windows", str(windows_components))
+        without_fel = Path(directory) / "without_fel.h"
+        without_fel.write_text(protocol_defines("windows").replace("#define CONFIG_DOVI_SPLIT_BSF 1\n", ""))
+        missing_fel = run(script, manifest, "audit-components", "--platform", "windows", str(without_fel), expected=1)
+        assert "missing bsf: dovi_split" in missing_fel.stderr
         # A build that quietly drops https keeps playing direct streams and
         # fails every transcode, so the audit has to reject it as loudly as it
         # rejects a feature nobody asked for.

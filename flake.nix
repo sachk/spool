@@ -121,7 +121,7 @@
         ++ enableEach "encoder" ffmpegCapabilities.encoders
         ++ enableEach "filter" ffmpegCapabilities.filters
         ++ enableEach "muxer" ffmpegCapabilities.muxers
-        ++ enableEach "bsf" ffmpegCapabilities.bitstreamFilters
+        ++ enableEach "bsf" (ffmpegCapabilities.bitstreamFilters ++ (platformConfig.bitstreamFilters or []))
         ++ enableEach "hwaccel" platformConfig.hardwareAccelerators;
       ffmpegSlimOverlay = final: prev:
         let

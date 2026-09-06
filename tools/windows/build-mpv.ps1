@@ -74,29 +74,12 @@ try {
     [IO.File]::WriteAllText($curlProject, $curlProjectText, [Text.UTF8Encoding]::new($false))
     [IO.File]::WriteAllText($curlLibrary, $curlLibraryText, [Text.UTF8Encoding]::new($false))
 
-    # MSVC cannot run FFmpeg's own configure, so Windows takes FFmpeg as a
-    # meson subproject from the GStreamer port. Its pin lives in
-    # toolchain.json beside the tarball every other platform builds.
-    $windowsFfmpeg = (Get-ToolchainManifest).ffmpeg.windows
-    @"
-[wrap-git]
-url = $($windowsFfmpeg.wrapUrl)
-revision = $($windowsFfmpeg.wrapRevision)
-depth = 1
-
-[provide]
-dependency_names = libavcodec, libavdevice, libavfilter, libavformat, libavutil, libswresample, libswscale
-"@ | Set-Content -LiteralPath (Join-Path $subprojects 'ffmpeg.wrap') -Encoding ascii
-
-    # Fetched before configuring so the feature generator can read the pinned
-    # port's own option list rather than a copy in this repository that would
-    # rot the first time the wrap revision moves.
-    meson subprojects download ffmpeg
-    if ($LASTEXITCODE -ne 0) { throw 'Failed to download the pinned FFmpeg source.' }
-    $ffmpegComponentOptions = Join-Path $subprojects 'ffmpeg\meson_options.txt'
-    if (-not (Test-Path -LiteralPath $ffmpegComponentOptions)) {
-        throw "The FFmpeg subproject did not provide meson_options.txt to derive its feature set from."
-    }
+    # FFmpeg is built from the same upstream source pin as every desktop.
+    & (Join-Path $PSScriptRoot 'build-ffmpeg.ps1') -Clean:$Clean
+    $ffmpegPrefix = Join-Path $dependencyRoot 'ffmpeg'
+    $env:PKG_CONFIG_PATH = (& C:\msys64\usr\bin\cygpath.exe -u "$ffmpegPrefix/lib/pkgconfig").Trim()
+    # Discard the old Meson-port wrap when reusing a dependency checkout.
+    Remove-Item (Join-Path $subprojects 'ffmpeg.wrap') -ErrorAction SilentlyContinue
 
     @'
 [wrap-git]
@@ -147,10 +130,7 @@ clone-recursive = true
         '--libdir', 'lib',
         '--buildtype', 'release',
         '--default-library', 'shared',
-        '--wrap-mode', 'forcefallback',
-        '--native-file', (Write-FfmpegNativeFile `
-            -ComponentOptions $ffmpegComponentOptions `
-            -Destination (Join-Path $dependencyRoot 'ffmpeg-features.ini'))
+        '--force-fallback-for', 'curl,expat,freetype2,fribidi,harfbuzz,libpng,luajit,zlib,xxhash,libass,libplacebo'
     ) + @(Get-MpvFeatureArguments -Platform windows -IncludeSubprojects)
 
     if (Test-Path (Join-Path $buildDirectory 'build.ninja')) {
@@ -173,21 +153,12 @@ clone-recursive = true
     meson compile -C $buildDirectory --jobs 4
     if ($LASTEXITCODE -ne 0) { throw 'Building Windows libmpv failed.' }
 
-    # FFmpeg is linked into libmpv here rather than installed, so the
-    # compliance test the other platforms run against a shared library has
-    # nothing to load. Audit the feature set Meson generated instead, which is
-    # what keeps Windows from quietly shipping an FFmpeg without the https
-    # protocol lavf's HLS demuxer resolves before every transcoded segment.
-    $components = Get-ChildItem -LiteralPath (Join-Path $buildDirectory 'subprojects') -Recurse -File `
-        -Filter 'config_components.h' | Select-Object -First 1
-    if (-not $components) { throw 'The FFmpeg subproject did not generate config_components.h to audit.' }
-    & python (Join-Path $root 'tools\ffmpeg-capabilities.py') audit-components --platform windows $components.FullName
-    if ($LASTEXITCODE -ne 0) { throw 'The Windows FFmpeg feature set does not match the capability manifest.' }
     if (Test-Path -LiteralPath $prefix) {
         Remove-Item -LiteralPath $prefix -Recurse -Force
     }
     meson install -C $buildDirectory
     if ($LASTEXITCODE -ne 0) { throw 'Installing Windows libmpv failed.' }
+    Copy-Item (Join-Path $ffmpegPrefix 'bin\*.dll') (Join-Path $prefix 'bin')
 } finally {
     Pop-Location
 }

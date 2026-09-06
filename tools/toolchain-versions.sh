@@ -45,9 +45,8 @@ check_versions() {
   done
 
   if [[ $status -eq 0 ]]; then
-    printf 'toolchain: Qt %s, FFmpeg %s (Windows FFmpeg %s)\n' \
-      "$qt_version" "$(toolchain_field "$ROOT" ffmpeg.version)" \
-      "$(toolchain_field "$ROOT" ffmpeg.windows.version)"
+    printf 'toolchain: Qt %s, FFmpeg %s\n' \
+      "$qt_version" "$(toolchain_field "$ROOT" ffmpeg.version)"
   fi
   return "$status"
 }

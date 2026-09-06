@@ -246,7 +246,10 @@
         "wmv3_vaapi",
         "wmv3_vdpau"
       ],
-      "protocols": []
+      "protocols": [],
+      "bitstreamFilters": [
+        "dovi_split"
+      ]
     },
     "macos": {
       "gpl": false,
@@ -267,7 +270,10 @@
         "prores_videotoolbox",
         "vp9_videotoolbox"
       ],
-      "protocols": []
+      "protocols": [],
+      "bitstreamFilters": [
+        "dovi_split"
+      ]
     },
     "webos": {
       "gpl": false,
@@ -281,35 +287,51 @@
     "windows": {
       "gpl": false,
       "configureFlags": [
+        "--enable-cuda",
+        "--enable-d3d11va",
+        "--enable-d3d12va",
+        "--enable-dxva2",
+        "--enable-ffnvcodec",
         "--enable-network",
+        "--enable-nvdec",
         "--enable-schannel"
       ],
       "hardwareAccelerators": [
         "av1_d3d11va",
+        "av1_d3d12va",
         "av1_dxva2",
+        "av1_nvdec",
         "h264_d3d11va",
+        "h264_d3d12va",
         "h264_dxva2",
+        "h264_nvdec",
         "hevc_d3d11va",
+        "hevc_d3d12va",
         "hevc_dxva2",
+        "hevc_nvdec",
+        "mpeg1_nvdec",
         "mpeg2_d3d11va",
+        "mpeg2_d3d12va",
         "mpeg2_dxva2",
+        "mpeg2_nvdec",
+        "mpeg4_nvdec",
         "vc1_d3d11va",
+        "vc1_d3d12va",
         "vc1_dxva2",
+        "vc1_nvdec",
+        "vp8_nvdec",
         "vp9_d3d11va",
+        "vp9_d3d12va",
         "vp9_dxva2",
+        "vp9_nvdec",
         "wmv3_d3d11va",
-        "wmv3_dxva2"
+        "wmv3_d3d12va",
+        "wmv3_dxva2",
+        "wmv3_nvdec"
       ],
-      "protocolsComment": [
-        "udp carries nothing here. The Meson port is FFmpeg 8.1.2, whose",
-        "tls_schannel.c calls ff_udp_get_last_recv_addr outside the",
-        "CONFIG_DTLS_PROTOCOL guard, so enabling Schannel without the udp",
-        "protocol leaves the symbol undefined and libmpv fails to link. 9.0.1",
-        "guards it, which is why every other platform resolves UDP_PROTOCOL to",
-        "0 and links. Drop this when Windows moves off the port."
-      ],
-      "protocols": [
-        "udp"
+      "protocols": [],
+      "bitstreamFilters": [
+        "dovi_split"
       ]
     }
   },

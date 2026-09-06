@@ -157,8 +157,8 @@
       "shaderc=disabled",
       "spirv-cross=disabled",
       "amf=disabled",
-      "cuda-hwaccel=disabled",
-      "cuda-interop=disabled",
+      "cuda-hwaccel=enabled",
+      "cuda-interop=enabled",
       "win32-smtc=disabled"
     ]
   },
