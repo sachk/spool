@@ -4,6 +4,9 @@ on:
   push:
     branches:
       - master
+      # Feature branches get the same run master does, so that what a merge
+      # would do to CI is known before the merge rather than after it.
+      - "feature/**"
   pull_request:
   workflow_dispatch:
     inputs:
@@ -30,6 +33,11 @@ on:
       build_webos:
         description: "Build webOS IPK"
         required: true
+        default: false
+        type: boolean
+      release:
+        description: "Take the release path: sign with the release key and verify the signing identity. Publishes nothing."
+        required: false
         default: false
         type: boolean
       webos_toolchain_archive_url:
@@ -136,6 +144,9 @@ jobs:
           mapfile -t scripts < <(git ls-files '*.py' | sort -u)
           printf 'checking %d scripts\n' "${#scripts[@]}"
           nix develop .#lint -c python3 -m py_compile "${scripts[@]}"
+
+      - name: Check release artifacts stay separable from build inputs
+        run: bash tools/check-release-artifacts.sh
 
       - name: Check the toolchain pin is the only Qt and FFmpeg version
         run: bash tools/toolchain-versions.sh --check
@@ -874,7 +885,11 @@ jobs:
       # resources.arsc that names both architectures.
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.0
         with:
-          name: spool-for-jellyfin-android-universal-inputs-${{ matrix.abi }}
+          # Named outside the spool-* family on purpose: the release job
+          # collects every spool-* artifact, flattens them together and
+          # publishes whatever lands at the top. These are build inputs for one
+          # later job, not something anybody should be offered a download of.
+          name: internal-android-universal-inputs-${{ matrix.abi }}
           path: dist/android/universal-inputs/${{ matrix.abi }}
           retention-days: 1
 
@@ -918,12 +933,12 @@ jobs:
 
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
-          name: spool-for-jellyfin-android-universal-inputs-arm64-v8a
+          name: internal-android-universal-inputs-arm64-v8a
           path: dist/android/universal-inputs/arm64-v8a
 
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
-          name: spool-for-jellyfin-android-universal-inputs-armeabi-v7a
+          name: internal-android-universal-inputs-armeabi-v7a
           path: dist/android/universal-inputs/armeabi-v7a
 
       - name: Prepare Android release keystore
