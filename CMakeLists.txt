@@ -765,6 +765,12 @@ if(BUILD_TESTING AND NOT CMAKE_CROSSCOMPILING)
         list(APPEND JELLYFIN_TESTS_player
             mpv-video-item tests/player/MpvVideoItemTest.cpp
         )
+        # The same check over the Vulkan scene graph, which is the one an HDR
+        # swapchain can be asked for. Its own entry rather than a loop inside
+        # the test, so a machine with no Vulkan driver fails only this one.
+        list(APPEND JELLYFIN_TESTS_player
+            mpv-video-item-vulkan tests/player/MpvVideoItemTest.cpp
+        )
     endif()
 
     # WebOSAudioSyncPolicy is a webOS platform source, so desktop builds of

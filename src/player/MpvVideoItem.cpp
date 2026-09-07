@@ -24,6 +24,7 @@
 // headers.
 #if __has_include(<QVulkanInstance>) && __has_include(<vulkan/vulkan.h>)
 #define JELLYFIN_MPV_ITEM_VULKAN 1
+#include <QVersionNumber>
 #include <QVulkanInstance>
 #include <vulkan/vulkan.h>
 #endif
@@ -558,6 +559,7 @@ namespace {
                 vkInit.physical_device = native->physDev;
                 vkInit.device = native->dev;
                 vkInit.queue_family_index = native->gfxQueueFamilyIdx;
+                vkInit.device_features = queryDeviceFeatures(native->inst, native->physDev);
                 m_vulkan = true;
                 m_vkFormat = vulkanFormat(colorTexture());
                 params.push_back({ MPV_RENDER_PARAM_API_TYPE, const_cast<char *>(MPV_RENDER_API_TYPE_VULKAN) });
@@ -630,6 +632,38 @@ namespace {
         }
 
 #if defined(JELLYFIN_MPV_ITEM_VULKAN)
+        // libplacebo checks the features it requires against what the caller
+        // says the device was created with -- not against the device. Passing
+        // nothing is read as "nothing is enabled", and the import is refused
+        // for want of hostQueryReset even though Qt did enable it.
+        //
+        // Qt enables every feature the device reports as supported, less the
+        // two robustness ones it turns off, so that is what this reports.
+        const void *queryDeviceFeatures(QVulkanInstance *instance, VkPhysicalDevice physicalDevice)
+        {
+            auto getFeatures = reinterpret_cast<PFN_vkGetPhysicalDeviceFeatures2>(
+                instance->getInstanceProcAddr("vkGetPhysicalDeviceFeatures2"));
+            if (!getFeatures)
+                return nullptr;
+
+            m_vkFeatures = {};
+            m_vkFeatures.features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
+            m_vkFeatures.v11.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_1_FEATURES;
+            m_vkFeatures.v12.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES;
+            m_vkFeatures.v13.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES;
+            m_vkFeatures.features.pNext = &m_vkFeatures.v11;
+            m_vkFeatures.v11.pNext = &m_vkFeatures.v12;
+            // Only ask for a struct the implementation understands; a newer
+            // one in the chain is not something older drivers have to ignore.
+            if (instance->apiVersion() >= QVersionNumber(1, 3))
+                m_vkFeatures.v12.pNext = &m_vkFeatures.v13;
+            getFeatures(physicalDevice, &m_vkFeatures.features);
+
+            m_vkFeatures.features.features.robustBufferAccess = VK_FALSE;
+            m_vkFeatures.v13.robustImageAccess = VK_FALSE;
+            return &m_vkFeatures.features;
+        }
+
         // Qt does not say which VkFormat it gave the texture, so this mirrors
         // the mapping its Vulkan backend uses for the formats the item offers.
         static int vulkanFormat(QRhiTexture *texture)
@@ -702,6 +736,16 @@ namespace {
         bool m_firstVideoFrameSwapPending = false;
         bool m_vulkan = false;
         int m_vkFormat = 0;
+#if defined(JELLYFIN_MPV_ITEM_VULKAN)
+        // Kept alive because libplacebo is handed a pointer into it.
+        struct VulkanFeatures {
+            VkPhysicalDeviceFeatures2 features;
+            VkPhysicalDeviceVulkan11Features v11;
+            VkPhysicalDeviceVulkan12Features v12;
+            VkPhysicalDeviceVulkan13Features v13;
+        };
+        VulkanFeatures m_vkFeatures {};
+#endif
         GLuint m_glFbo = 0;
         GLuint m_glFboTexture = 0;
         QSize m_glFboSize;

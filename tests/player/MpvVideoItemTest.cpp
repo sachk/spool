@@ -97,7 +97,18 @@ bool isRightWayUp(const QImage& image)
 
 JELLYFIN_TEST_MAIN("mpv-video-item")
 {
-    QQuickWindow::setGraphicsApi(QSGRendererInterface::OpenGL);
+    // The same end-to-end check is worth running against either backend, and
+    // the Vulkan one is the whole reason the item moved to the RHI. OpenGL
+    // stays the default so CI and a plain local run test what ships.
+    const QByteArray api = qgetenv("SPOOL_TEST_RENDER_API").toLower();
+#if QT_CONFIG(vulkan)
+    if (api == "vulkan")
+        QQuickWindow::setGraphicsApi(QSGRendererInterface::Vulkan);
+    else
+#endif
+        QQuickWindow::setGraphicsApi(QSGRendererInterface::OpenGL);
+    if (api == "vulkan")
+        std::fprintf(stderr, "requested Vulkan scene graph\n");
     QSurfaceFormat format;
     format.setRenderableType(QSurfaceFormat::OpenGL);
     format.setVersion(3, 3);
@@ -120,7 +131,14 @@ JELLYFIN_TEST_MAIN("mpv-video-item")
 
     std::setlocale(LC_NUMERIC, "C");
     mpv_handle *handle = mpv_create();
-    if (!handle || mpv_set_option_string(handle, "terminal", "no") < 0
+    const bool verbose = !qgetenv("SPOOL_TEST_MPV_LOG").isEmpty();
+    if (verbose
+        && (mpv_set_option_string(handle, "terminal", "yes") < 0
+            || mpv_set_option_string(handle, "msg-level", "all=debug") < 0)) {
+        std::fprintf(stderr, "failed to enable mpv logging\n");
+        return 1;
+    }
+    if (!handle || mpv_set_option_string(handle, "terminal", verbose ? "yes" : "no") < 0
         || mpv_set_option_string(handle, "vo", "libmpv") < 0 || mpv_set_option_string(handle, "hwdec", "no") < 0
         || mpv_initialize(handle) < 0) {
         std::fprintf(stderr, "failed to initialize mpv\n");
@@ -163,3 +181,17 @@ JELLYFIN_TEST_MAIN("mpv-video-item")
     }
     return 0;
 }
+
+namespace {
+
+int vulkanEntry(int argc, char **argv)
+{
+    qputenv("SPOOL_TEST_RENDER_API", "vulkan");
+    return jellyfinTestBody(argc, argv);
+}
+
+// Registered by hand rather than with a second JELLYFIN_TEST_MAIN, which names
+// its body the same thing every time and so can only appear once per file.
+[[maybe_unused]] const bool vulkanRegistered = ::JellyfinTests::registerTest("mpv-video-item-vulkan", &vulkanEntry);
+
+} // namespace
