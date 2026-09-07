@@ -61,6 +61,22 @@ if (-not (Test-Path $glslangMarker)) {
     if ($LASTEXITCODE -ne 0) { throw 'Installing glslang failed.' }
 }
 
+# The Vulkan headers. libplacebo carries its own under 3rdparty and builds
+# against those, but does not put them in the dependency it hands to whoever
+# links it -- and mpv's own sources include libplacebo/vulkan.h, which includes
+# vulkan/vulkan.h. No loader comes with them: nothing calls a Vulkan entry
+# point here, the handles are only passed through to libplacebo.
+$vulkanMarker = Join-Path $prefix 'include\vulkan\vulkan.h'
+if (-not (Test-Path $vulkanMarker)) {
+    $source = Get-Pinned 'vulkan-headers' $pin.vulkanHeaders
+    $build = Join-Path $deps 'vulkan-headers-build'
+    if (Test-Path $build) { Remove-Item -LiteralPath $build -Recurse -Force }
+    cmake -S $source -B $build -GNinja -DCMAKE_INSTALL_PREFIX="$prefix"
+    if ($LASTEXITCODE -ne 0) { throw 'Configuring the Vulkan headers failed.' }
+    cmake --install $build
+    if ($LASTEXITCODE -ne 0) { throw 'Installing the Vulkan headers failed.' }
+}
+
 # SPIRV-Cross, shared: libplacebo asks pkg-config for spirv-cross-c-shared,
 # which only the shared build installs a .pc for.
 $spirvMarker = Join-Path $prefix 'lib\pkgconfig\spirv-cross-c-shared.pc'
@@ -87,6 +103,9 @@ if (-not (Test-Path $spirvMarker)) {
 }
 if (-not (Test-Path $glslangMarker)) {
     throw "glslang did not install its headers at $glslangMarker"
+}
+if (-not (Test-Path $vulkanMarker)) {
+    throw "the Vulkan headers did not install at $vulkanMarker"
 }
 # CMake leaves the environment as it found it, but the compiler probes above
 # can put a different toolchain first. Meson is configured after this and

@@ -234,7 +234,7 @@ jobs:
       - name: Run native tests
         run: |
           nix develop .#native -c ctest --test-dir build/linux-release/app \
-            -E '^mpv-video-item$' --parallel "$(nproc)" --output-on-failure
+            -E '^mpv-video-item' --parallel "$(nproc)" --output-on-failure
 
 
       - name: Lint compiled QML

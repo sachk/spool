@@ -21,8 +21,11 @@
       "libplacebo needs a GLSL compiler for both its Vulkan and D3D11 backends,",
       "and SPIRV-Cross to reach HLSL for the latter. Linux gets both from nixpkgs;",
       "Windows has neither, and Meson's WrapDB carries no glslang or shaderc, so",
-      "they are built from source there the way FFmpeg already is. Vulkan headers",
-      "are not among them: libplacebo carries its own under 3rdparty."
+      "they are built from source there the way FFmpeg already is.",
+      "The Vulkan headers come too: libplacebo has its own under 3rdparty but does",
+      "not hand them to whoever links against it, and mpv includes its vulkan.h.",
+      "None of this is the Vulkan SDK, and no loader is among it -- nothing here",
+      "calls a Vulkan entry point, it only passes handles through."
     ],
     "version": "vulkan-sdk-1.4.357.0",
     "glslang": {
@@ -32,6 +35,10 @@
     "spirvCross": {
       "url": "https://github.com/KhronosGroup/SPIRV-Cross/archive/refs/tags/vulkan-sdk-1.4.357.0.tar.gz",
       "sha256": "97c910326afdd44d794ce8561326fa675fd1958b27142f03295403044d639639"
+    },
+    "vulkanHeaders": {
+      "url": "https://github.com/KhronosGroup/Vulkan-Headers/archive/refs/tags/vulkan-sdk-1.4.357.0.tar.gz",
+      "sha256": "e87dce08116151f6b6d7de6b6faf41498e87e6cf848ff16fa3bd5402190ad4a3"
     }
   }
 }

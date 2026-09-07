@@ -89,6 +89,11 @@ try {
     $shaderPkgConfig = (& (Join-Path $msysRoot 'usr\bin\cygpath.exe') -u "$shaderTools/lib/pkgconfig").Trim()
     if ($LASTEXITCODE -ne 0) { throw 'Converting the shader tool pkg-config search path failed.' }
     $env:PKG_CONFIG_PATH = "$($env:PKG_CONFIG_PATH):$shaderPkgConfig"
+    # mpv's own sources include libplacebo/vulkan.h, so the Vulkan headers have
+    # to be on mpv's include path too, not only on libplacebo's.
+    $shaderInclude = Join-Path $shaderTools 'include'
+    $env:CFLAGS = "$env:CFLAGS -I$($shaderInclude -replace '\\', '/')".Trim()
+    $env:CXXFLAGS = "$env:CXXFLAGS -I$($shaderInclude -replace '\\', '/')".Trim()
     # Discard the old Meson-port wrap when reusing a dependency checkout.
     Remove-Item (Join-Path $subprojects 'ffmpeg.wrap') -ErrorAction SilentlyContinue
 

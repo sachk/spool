@@ -730,12 +730,13 @@
             if pkgs.stdenv.hostPlatform.isDarwin
             then "build/macos/app"
             else "build/linux-release/app";
-          # Mirrors the "Run native tests" CI steps. mpv-video-item needs a GPU
+          # Mirrors the "Run native tests" CI steps. Both mpv-video-item tests
+          # need a GPU, so the pattern is a prefix rather than an exact name
           # the Linux runner does not have, so CI skips it there and here.
           ctestExcludeArgs =
             if pkgs.stdenv.hostPlatform.isDarwin
             then ""
-            else "-E '^mpv-video-item$' ";
+            else "-E '^mpv-video-item' ";
           ctestJobs =
             if pkgs.stdenv.hostPlatform.isDarwin
             then "$(sysctl -n hw.ncpu)"
