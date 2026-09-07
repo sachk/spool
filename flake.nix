@@ -162,7 +162,20 @@
           qtbase = (qtPrev.qtbase.override {
             systemdSupport = false;
             withGtk3 = false;
-          }).overrideAttrs (old: {
+          }).overrideAttrs (old:
+          let
+            # Vulkan is the only Qt backend on Linux that can present an HDR
+            # swapchain, and the one libplacebo can share a device with, so it
+            # stays in there: without it the embedded player has nowhere to put
+            # an HDR frame. The loader is dlopened, so what it costs the closure
+            # is headers at build time, not a driver at runtime.
+            #
+            # macOS keeps it stripped. Its embedded renderer would go through
+            # MoltenVK and none of that work has started, so all enabling it
+            # would buy is a Qt that has to be built from source -- which on an
+            # x86_64 runner does not finish inside the six hours a job gets.
+            keepVulkan = final.stdenv.hostPlatform.isLinux;
+          in {
             propagatedBuildInputs = builtins.filter (input:
               input != final.glib
               && input != final.icu
@@ -170,27 +183,30 @@
               && input != final.unixodbcDrivers.mariadb
               && input != final.unixodbcDrivers.psql
               && input != final.unixodbcDrivers.sqlite
-              && (!final.stdenv.hostPlatform.isLinux || input != final.systemd))
+              && (!final.stdenv.hostPlatform.isLinux || input != final.systemd)
+              && (keepVulkan || (input != final.vulkan-headers && input != final.vulkan-loader)))
               old.propagatedBuildInputs;
             buildInputs = builtins.filter (input:
               input != final.libmysqlclient
-              && input != final.libpq)
+              && input != final.libpq
+              && (keepVulkan || !final.stdenv.hostPlatform.isDarwin || input != final.moltenvk))
               old.buildInputs;
-            # Vulkan stays in. It is the only Qt backend that can present an
-            # HDR swapchain on Linux, and the one libplacebo can share a device
-            # with; without it the embedded player has nowhere to put an HDR
-            # frame. The loader is dlopened, so what this costs the closure is
-            # the headers at build time, not a driver at runtime.
-            cmakeFlags = old.cmakeFlags ++ [
+            cmakeFlags =
+              (if keepVulkan then old.cmakeFlags
+               else builtins.filter (flag: flag != "-DQT_FEATURE_vulkan=ON") old.cmakeFlags)
+              ++ [
                 "-DQT_FEATURE_glib=OFF"
                 "-DQT_FEATURE_icu=OFF"
                 "-DQT_FEATURE_sql_mysql=OFF"
                 "-DQT_FEATURE_sql_odbc=OFF"
                 "-DQT_FEATURE_sql_psql=OFF"
-              ];
-            postFixup = builtins.replaceStrings [
+              ]
+              ++ final.lib.optional (!keepVulkan) "-DQT_FEATURE_vulkan=OFF";
+            postFixup = builtins.replaceStrings ([
               ''patchelf --add-rpath "${final.libmysqlclient}/lib/mariadb" $out/lib/qt-6/plugins/sqldrivers/libqsqlmysql.so''
-            ] [ "" ] (old.postFixup or "");
+            ] ++ final.lib.optional (!keepVulkan)
+              ''patchelf --add-rpath "${final.vulkan-loader}/lib" --add-needed "libvulkan.so" $out/lib/libQt6Gui.so'')
+              ([ "" ] ++ final.lib.optional (!keepVulkan) "") (old.postFixup or "");
           });
         })) // {
           # pythonPackages.qt6 expects this secondary package scope.
