@@ -47,9 +47,13 @@ if (-not (Test-Path $glslangMarker)) {
     $source = Get-Pinned 'glslang' $pin.glslang
     $build = Join-Path $deps 'glslang-build'
     if (Test-Path $build) { Remove-Item -LiteralPath $build -Recurse -Force }
+    # mpv and its subprojects use the static runtime, and a static library
+    # linked into them has to agree: lld-link refuses the mismatch outright.
     cmake -S $source -B $build -GNinja `
         -DCMAKE_BUILD_TYPE=Release `
         -DCMAKE_INSTALL_PREFIX="$prefix" `
+        -DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded `
+        -DUSE_MSVC_RUNTIME_LIBRARY_DLL=OFF `
         -DENABLE_OPT=OFF `
         -DENABLE_GLSLANG_BINARIES=OFF `
         -DGLSLANG_TESTS=OFF `
