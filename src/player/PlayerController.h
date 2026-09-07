@@ -303,6 +303,13 @@ private:
     // is under way and the scene graph therefore has a swapchain to ask.
     void updateRenderTarget();
 
+public:
+    // Both take effect on the next probe, which is the next time something
+    // plays: the swapchain itself is fixed when the window is created.
+    void setHdrOutputPreference(const QString& name);
+    void setHdrPeakNits(int nits);
+
+private:
     // The video's display size, tracked so a platform that shapes its own
     // video plane can be told. Both halves arrive as separate property
     // changes, so neither is acted on until the pair is complete.
@@ -383,6 +390,7 @@ private:
     bool m_hdrInput = false;
     RenderTargetProfile m_renderTarget;
     HdrOutputPreference m_hdrPreference = HdrOutputPreference::Auto;
+    RenderTargetOverrides m_renderTargetOverrides;
     bool m_starfishVideoOutput = false;
     QByteArray m_targetTransfer;
     PlaybackPositionTracker m_positionTracker;

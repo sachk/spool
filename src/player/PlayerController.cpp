@@ -601,7 +601,7 @@ void PlayerController::updateRenderTarget()
     if (platformMpvOptionProfile() != MpvOptionProfile::Platform::Desktop)
         return;
     const RenderTargetProfile resolved
-        = RenderTargetPolicy::resolve(RenderTargetPolicy::probe(m_window), m_hdrPreference);
+        = RenderTargetPolicy::resolve(RenderTargetPolicy::probe(m_window), m_hdrPreference, m_renderTargetOverrides);
     if (resolved == m_renderTarget)
         return;
     m_renderTarget = resolved;
@@ -615,6 +615,24 @@ void PlayerController::updateRenderTarget()
     if (auto *handle = m_mpvLifecycle.handle())
         applyOptions(handle, RenderTargetPolicy::targetOptions(m_renderTarget));
     updateHdrOutput(true);
+}
+
+void PlayerController::setHdrOutputPreference(const QString& name)
+{
+    const HdrOutputPreference preference = RenderTargetPolicy::preferenceFromName(name);
+    if (m_hdrPreference == preference)
+        return;
+    m_hdrPreference = preference;
+    updateRenderTarget();
+}
+
+void PlayerController::setHdrPeakNits(int nits)
+{
+    const float peak = std::max(0, nits);
+    if (qFuzzyCompare(m_renderTargetOverrides.maxLuminanceNits + 1.0f, peak + 1.0f))
+        return;
+    m_renderTargetOverrides.maxLuminanceNits = peak;
+    updateRenderTarget();
 }
 
 void PlayerController::updateHdrOutput(bool applySubtitleOptions)

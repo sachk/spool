@@ -545,6 +545,14 @@ void SettingsController::applySchemaValue(const SettingSpec& spec, const QVarian
         if (m_player)
             m_player->setRenderQuality(MpvOptionProfile::renderQualityFromName(m_renderQuality));
         break;
+    case SettingTarget::HdrOutputMode:
+        if (m_player)
+            m_player->setHdrOutputPreference(value.toString());
+        break;
+    case SettingTarget::HdrPeakBrightness:
+        if (m_player)
+            m_player->setHdrPeakNits(value.toInt());
+        break;
     case SettingTarget::UiScale:
         m_uiScalePercent = value.toInt();
         break;

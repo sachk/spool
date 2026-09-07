@@ -1,5 +1,7 @@
 #include "player/MpvVideoItem.h"
 
+#include "player/RenderTargetProfile.h"
+
 #include "TestMain.h"
 
 #include <QDir>
@@ -171,6 +173,14 @@ JELLYFIN_TEST_MAIN("mpv-video-item")
         rendered = containsVideoPixel(window.grabWindow());
         QThread::msleep(10);
     }
+
+    // Diagnostic, not an assertion: what the swapchain can present depends on
+    // the driver, the compositor and whether the display is in HDR mode, none
+    // of which a test can require.
+    const JellyfinNative::DisplayOutputCapabilities display = JellyfinNative::RenderTargetPolicy::probe(&window);
+    std::fprintf(stderr, "display: hdrAvailable=%d format=%d sdrWhite=%.0f min=%.4f max=%.0f\n",
+        int(display.hdrAvailable), int(display.preferredFormat), double(display.sdrWhiteNits),
+        double(display.minLuminanceNits), double(display.maxLuminanceNits));
 
     const bool upright = rendered && isRightWayUp(window.grabWindow());
     const bool released = videoItem.releaseMpvHandle();

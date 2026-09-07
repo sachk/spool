@@ -74,6 +74,22 @@ struct DisplayOutputCapabilities {
     float sdrWhiteNits = RenderTargetProfile::kDefaultSdrWhiteNits;
     float minLuminanceNits = 0.0f;
     float maxLuminanceNits = 0.0f;
+    // Whether those numbers came from the display or from Qt's own fixed
+    // fallback. Only D3D11, D3D12 and Vulkan-on-Windows ask the system; every
+    // other backend returns 1000 nits and 200 nits SDR white regardless of
+    // what is plugged in. Handing a guess to mpv as though it were measured is
+    // how a display ends up tone mapped to numbers nobody checked.
+    bool luminanceMeasured = false;
+};
+
+// What the viewer said, which beats both the display and the guess. On Linux
+// and macOS this is the only real number available: nothing here reports panel
+// luminance, and the desktops do not read it out of EDID either, so somebody
+// who wants their own peak respected has to say what it is.
+struct RenderTargetOverrides {
+    // Nits. Zero leaves whatever the display reported in place.
+    float maxLuminanceNits = 0.0f;
+    float sdrWhiteNits = 0.0f;
 };
 
 // The user's say, which overrides the automatic answer in both directions.
@@ -95,7 +111,8 @@ public:
 
     // The target to present into. Returns an SDR profile whenever HDR was not
     // asked for or is not available.
-    static RenderTargetProfile resolve(const DisplayOutputCapabilities& display, HdrOutputPreference preference);
+    static RenderTargetProfile resolve(const DisplayOutputCapabilities& display, HdrOutputPreference preference,
+        const RenderTargetOverrides& overrides = {});
 
     // What mpv has to be told so it renders for that target. Empty for SDR:
     // mpv's own defaults are already an sRGB target, and naming them would

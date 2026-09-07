@@ -28,6 +28,10 @@ namespace {
         { "balanced", "Balanced" },
         { "fast", "Fast" },
     };
+    constexpr SettingChoice kHdrOutputChoices[] = {
+        { "auto", "When the display is in HDR" },
+        { "never", "Never" },
+    };
     constexpr SettingChoice kAccentChoices[] = { { "0", "Blue" }, { "1", "Purple" }, { "2", "Indigo" } };
     constexpr SettingChoice kRailLabelChoices[]
         = { { "Never", "Never" }, { "On focus", "On focus" }, { "Always", "Always" } };
@@ -331,6 +335,18 @@ const QVector<SettingSpec>& settingSpecs()
         toggleSpec("playback/autoAdjustQuality", "Playback", "Adjust quality automatically",
             "Step down a rung when playback drops frames on this device", true, SettingTarget::AutoAdjustRenderQuality)
             .advanced(),
+        selectSpec("playback/hdrOutput", "Playback", "HDR output",
+            "Only a Vulkan, D3D11 or Metal window can present HDR, and on Linux only under Wayland", "auto",
+            kHdrOutputChoices, SettingTarget::HdrOutputMode)
+            .onDesktop()
+            .expert(),
+        sliderSpec("playback/hdrPeakNits", "Playback", "Display peak brightness",
+            "What the display can actually reach. Zero uses what it reports, which outside Windows is a fixed "
+            "guess rather than a measurement",
+            "0", 0, 4000, 50, " nits", SettingTarget::HdrPeakBrightness)
+            .onDesktop()
+            .expert()
+            .whenSetTo("playback/hdrOutput", "auto"),
         selectSpec("settings/audioOutputMode", "Playback", "Audio output", "Applies the next time something plays",
             audioOutput.defaultValue, audioOutput.choices, audioOutput.choiceCount, SettingTarget::AudioOutput,
             SettingNormalizer::AudioOutput)

@@ -147,6 +147,8 @@ void requiredPersistedKeysArePresentExactlyOnce()
         QStringLiteral("playback/videoOutput"),
         QStringLiteral("playback/renderQuality"),
         QStringLiteral("playback/autoAdjustQuality"),
+        QStringLiteral("playback/hdrOutput"),
+        QStringLiteral("playback/hdrPeakNits"),
     };
     const QSet<QString> expected = stringSet(expectedKeys);
 

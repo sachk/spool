@@ -71,11 +71,12 @@ QByteArray RenderTargetPolicy::preferenceName(HdrOutputPreference preference)
 }
 
 RenderTargetProfile RenderTargetPolicy::resolve(
-    const DisplayOutputCapabilities& display, HdrOutputPreference preference)
+    const DisplayOutputCapabilities& display, HdrOutputPreference preference, const RenderTargetOverrides& overrides)
 {
+    const float white = overrides.sdrWhiteNits >= kMinNits ? overrides.sdrWhiteNits : display.sdrWhiteNits;
+
     RenderTargetProfile profile;
-    profile.sdrWhiteNits
-        = display.sdrWhiteNits >= kMinNits ? display.sdrWhiteNits : RenderTargetProfile::kDefaultSdrWhiteNits;
+    profile.sdrWhiteNits = white >= kMinNits ? white : RenderTargetProfile::kDefaultSdrWhiteNits;
     if (preference == HdrOutputPreference::Never)
         return profile;
     // No HDR swapchain means no HDR, whatever the display or the user think.
@@ -86,7 +87,14 @@ RenderTargetProfile RenderTargetPolicy::resolve(
 
     profile.format = display.preferredFormat;
     profile.minLuminanceNits = std::max(0.0f, display.minLuminanceNits);
-    profile.maxLuminanceNits = std::max(0.0f, display.maxLuminanceNits);
+    // A number the viewer gave wins. Otherwise only a measured one is passed
+    // on: where Qt fabricates the luminance, saying nothing leaves mpv to its
+    // own detection, which is a better answer than a fixed 1000 nits pretending
+    // to describe the panel.
+    if (overrides.maxLuminanceNits >= kMinNits)
+        profile.maxLuminanceNits = overrides.maxLuminanceNits;
+    else if (display.luminanceMeasured)
+        profile.maxLuminanceNits = std::max(0.0f, display.maxLuminanceNits);
     return profile;
 }
 
@@ -142,6 +150,13 @@ DisplayOutputCapabilities RenderTargetPolicy::probe(QQuickWindow *window)
     display.hdrAvailable = true;
 
     const QRhiSwapChainHdrInfo info = swapchain->hdrInfo();
+    // Qt only asks the system on Windows -- QD3D11SwapChain, QD3D12SwapChain
+    // and QVkSwapChain under Q_OS_WIN, the last through DXGI. Everywhere else,
+    // including Metal, QRhiSwapChain::hdrInfo() returns a fixed 1000 nits and
+    // 200 nits SDR white whatever is plugged in.
+#if defined(Q_OS_WIN)
+    display.luminanceMeasured = true;
+#endif
     display.sdrWhiteNits = info.sdrWhiteLevel > 0.0f ? info.sdrWhiteLevel : RenderTargetProfile::kDefaultSdrWhiteNits;
     if (info.limitsType == QRhiSwapChainHdrInfo::LuminanceInNits) {
         display.minLuminanceNits = info.limits.luminanceInNits.minLuminance;

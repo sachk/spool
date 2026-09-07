@@ -40,6 +40,7 @@ DisplayOutputCapabilities hdrDisplay(
     display.sdrWhiteNits = 240.0f;
     display.minLuminanceNits = 0.005f;
     display.maxLuminanceNits = 1000.0f;
+    display.luminanceMeasured = true;
     return display;
 }
 
@@ -107,5 +108,38 @@ JELLYFIN_TEST_MAIN("render-target-profile")
         "the stored preference should round-trip and fall back to Auto");
     require(RenderTargetPolicy::preferenceName(HdrOutputPreference::Always) == "always",
         "the preference should write back the name it reads");
+
+    // Outside Windows nothing measures the panel, so a reported peak is Qt's
+    // own fixed guess. Saying nothing leaves mpv to detect, which beats
+    // passing 1000 nits off as a description of the display.
+    DisplayOutputCapabilities guessing = hdrDisplay();
+    guessing.luminanceMeasured = false;
+    require(
+        valueFor(RenderTargetPolicy::targetOptions(RenderTargetPolicy::resolve(guessing, HdrOutputPreference::Auto)),
+            "target-peak")
+            .isEmpty(),
+        "an unmeasured peak should not reach mpv as though it were measured");
+
+    RenderTargetOverrides manual;
+    manual.maxLuminanceNits = 600.0f;
+    require(valueFor(RenderTargetPolicy::targetOptions(
+                         RenderTargetPolicy::resolve(guessing, HdrOutputPreference::Auto, manual)),
+                "target-peak")
+            == "600",
+        "a peak the viewer set should be used where nothing measured one");
+    require(valueFor(RenderTargetPolicy::targetOptions(
+                         RenderTargetPolicy::resolve(hdrDisplay(), HdrOutputPreference::Auto, manual)),
+                "target-peak")
+            == "600",
+        "a peak the viewer set should beat even a measured one");
+
+    manual.sdrWhiteNits = 120.0f;
+    require(valueFor(RenderTargetPolicy::targetOptions(
+                         RenderTargetPolicy::resolve(hdrDisplay(), HdrOutputPreference::Auto, manual)),
+                "hdr-reference-white")
+            == "120",
+        "a reference white the viewer set should win too");
+    require(!RenderTargetPolicy::resolve(sdrOnly, HdrOutputPreference::Auto, manual).isHdr(),
+        "an override is not a reason to claim an HDR target that does not exist");
     return 0;
 }
