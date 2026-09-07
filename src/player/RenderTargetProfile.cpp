@@ -10,6 +10,10 @@
 #include <rhi/qrhi.h>
 #endif
 
+#if defined(Q_OS_LINUX) && !defined(Q_OS_ANDROID)
+#include "platform/linux/WaylandColorInfo.h"
+#endif
+
 #include <algorithm>
 #include <cmath>
 
@@ -149,14 +153,11 @@ DisplayOutputCapabilities RenderTargetPolicy::probe(QQuickWindow *window)
     }
     display.hdrAvailable = true;
 
-    const QRhiSwapChainHdrInfo info = swapchain->hdrInfo();
     // Qt only asks the system on Windows -- QD3D11SwapChain, QD3D12SwapChain
     // and QVkSwapChain under Q_OS_WIN, the last through DXGI. Everywhere else,
-    // including Metal, QRhiSwapChain::hdrInfo() returns a fixed 1000 nits and
-    // 200 nits SDR white whatever is plugged in.
-#if defined(Q_OS_WIN)
-    display.luminanceMeasured = true;
-#endif
+    // including Metal, this returns a fixed 1000 nits and 200 nits SDR white
+    // whatever is plugged in, so it is a starting point and not an answer.
+    const QRhiSwapChainHdrInfo info = swapchain->hdrInfo();
     display.sdrWhiteNits = info.sdrWhiteLevel > 0.0f ? info.sdrWhiteLevel : RenderTargetProfile::kDefaultSdrWhiteNits;
     if (info.limitsType == QRhiSwapChainHdrInfo::LuminanceInNits) {
         display.minLuminanceNits = info.limits.luminanceInNits.minLuminance;
@@ -166,6 +167,22 @@ DisplayOutputCapabilities RenderTargetPolicy::probe(QQuickWindow *window)
         // so it only becomes a luminance once that white is known.
         display.maxLuminanceNits = info.limits.colorComponentValue.maxColorComponentValue * display.sdrWhiteNits;
     }
+#if defined(Q_OS_WIN)
+    display.luminanceMeasured = true;
+#endif
+#if defined(Q_OS_LINUX) && !defined(Q_OS_ANDROID)
+    // The compositor does know, and on Wayland it will say. This is the number
+    // somebody set in their display settings, which nothing reads out of EDID
+    // and Qt never asks for, so it replaces the guess above rather than
+    // supplementing it.
+    if (const WaylandColorInfo wayland = waylandColorInfo(window); wayland.valid) {
+        display.maxLuminanceNits = wayland.maxLuminanceNits;
+        display.minLuminanceNits = wayland.minLuminanceNits;
+        if (wayland.referenceLuminanceNits > 0.0f)
+            display.sdrWhiteNits = wayland.referenceLuminanceNits;
+        display.luminanceMeasured = true;
+    }
+#endif
 #else
     Q_UNUSED(window);
 #endif
