@@ -69,9 +69,11 @@ namespace {
     // is synchronous and available before anything else has started.
     constexpr auto kStartupPreferenceKey = "render/hdrOutput";
 
+    // The application's own store, by the organisation and application names
+    // main() sets before this is ever reached -- not a second file of its own.
     QSettings startupStore()
     {
-        return QSettings(QStringLiteral("Spool"), QStringLiteral("Spool"));
+        return QSettings();
     }
 
 } // namespace

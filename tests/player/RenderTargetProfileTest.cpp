@@ -50,9 +50,12 @@ DisplayOutputCapabilities hdrDisplay(
 JELLYFIN_TEST_MAIN("render-target-profile")
 {
     QCoreApplication app(argc, argv);
-    // The startup store is QSettings, and these cases write to it. Test mode
-    // puts that under a throwaway path rather than the developer's own config.
+    // The startup store is the application's own QSettings, named by these.
+    // Test mode puts the file under a throwaway path rather than the
+    // developer's own config.
     QStandardPaths::setTestModeEnabled(true);
+    app.setOrganizationName(QStringLiteral("spool-jellyfin-test"));
+    app.setApplicationName(QStringLiteral("render-target-profile"));
 
     // Nothing asked, so nothing is requested: a window left alone stays SDR.
     RenderTargetPolicy::rememberPreference(HdrOutputPreference::Auto);
