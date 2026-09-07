@@ -84,6 +84,7 @@ try {
     # A GLSL compiler and SPIRV-Cross, which libplacebo needs for D3D11 and
     # Vulkan alike and which Windows has no other way to get.
     & (Join-Path $PSScriptRoot 'build-shader-tools.ps1') -Clean:$Clean
+    Initialize-WindowsMpvBuildEnvironment
     $shaderTools = Join-Path $dependencyRoot 'shader-tools'
     $shaderPkgConfig = (& (Join-Path $msysRoot 'usr\bin\cygpath.exe') -u "$shaderTools/lib/pkgconfig").Trim()
     if ($LASTEXITCODE -ne 0) { throw 'Converting the shader tool pkg-config search path failed.' }
@@ -152,6 +153,14 @@ clone-recursive = true
         $setupArguments = @('setup', '--reconfigure') + $setupArguments[1..($setupArguments.Count - 1)]
     } elseif (Test-Path -LiteralPath $buildDirectory) {
         Remove-Item -LiteralPath $buildDirectory -Recurse -Force
+    }
+    # Meson detects its compiler from scratch, and picks MSVC when CC is unset
+    # -- then looks for link.exe and finds Git's, which is not a linker. Say
+    # what it is about to be given, so a failure here names its own cause.
+    Write-Host "mpv toolchain: CC=$env:CC CXX=$env:CXX CC_LD=$env:CC_LD"
+    foreach ($tool in @('clang', 'lld-link', 'link')) {
+        $found = (Get-Command $tool -ErrorAction SilentlyContinue)
+        Write-Host "  $tool -> $(if ($found) { $found.Source } else { '<missing>' })"
     }
     & meson @setupArguments
     if ($LASTEXITCODE -ne 0) { throw 'Configuring the Windows libmpv build failed.' }

@@ -10,7 +10,9 @@ param([switch] $Clean)
 # under 3rdparty and uses those when they are present, so nothing here needs
 # the Vulkan SDK.
 . (Join-Path $PSScriptRoot 'common.ps1')
-Import-MsvcEnvironment
+# The same clang/MSVC toolchain mpv is built with, so these libraries are
+# compiled by the compiler that will link against them.
+Initialize-WindowsMpvBuildEnvironment
 $root = Get-RepositoryRoot
 $deps = Join-Path $root 'build\windows-deps'
 $pin = (Get-ToolchainManifest).shaderTools
@@ -86,4 +88,9 @@ if (-not (Test-Path $spirvMarker)) {
 if (-not (Test-Path $glslangMarker)) {
     throw "glslang did not install its headers at $glslangMarker"
 }
+# CMake leaves the environment as it found it, but the compiler probes above
+# can put a different toolchain first. Meson is configured after this and
+# detects its compiler from scratch, so hand it back the one it expects --
+# the same reason build-ffmpeg.ps1 ends this way.
+Initialize-WindowsMpvBuildEnvironment
 Write-Host "shader tools: $prefix"
