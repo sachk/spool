@@ -446,23 +446,44 @@ int main(int argc, char **argv)
     // adapter of any kind is guaranteed, so use Qt Quick's deterministic
     // software renderer.
     //
-    // Otherwise OpenGL, which is the only backend the player has been shown to
-    // work on. Vulkan is what an HDR swapchain needs and what libplacebo can
-    // share a device with, and the video item can already render through it --
-    // but nothing has yet run that path on real hardware, so it is asked for
-    // rather than assumed. SPOOL_RENDER_API=vulkan is how to ask.
+    // Windows takes Direct3D 11: it is Qt's own default there, the one backend
+    // whose swapchain reports what the display can really do rather than a
+    // fixed guess, and libplacebo shares its device and immediate context with
+    // nothing to synchronise. Elsewhere OpenGL, which cannot present HDR but is
+    // what the player has always run on.
+    //
+    // SPOOL_RENDER_API overrides both, because which backend performs better,
+    // or handles a particular user's shaders better, is a question about their
+    // hardware rather than about their operating system.
+#if defined(Q_OS_WIN)
+    QSGRendererInterface::GraphicsApi graphicsApi = QSGRendererInterface::Direct3D11;
+#else
     QSGRendererInterface::GraphicsApi graphicsApi = QSGRendererInterface::OpenGL;
+#endif
+    const QByteArray requestedApi = qgetenv("SPOOL_RENDER_API").toLower();
     if (launchTest) {
         graphicsApi = QSGRendererInterface::Software;
-    } else if (qgetenv("SPOOL_RENDER_API").toLower() == "vulkan") {
+    } else if (requestedApi == "opengl") {
+        graphicsApi = QSGRendererInterface::OpenGL;
+    } else if (requestedApi == "d3d11" || requestedApi == "direct3d11") {
+#if defined(Q_OS_WIN)
+        graphicsApi = QSGRendererInterface::Direct3D11;
+#else
+        logLine("startup: SPOOL_RENDER_API asked for Direct3D 11, which only Windows has");
+#endif
+    } else if (requestedApi == "vulkan") {
 #if QT_CONFIG(vulkan)
         graphicsApi = QSGRendererInterface::Vulkan;
-        logLine("startup: SPOOL_RENDER_API asked for Vulkan");
 #else
         logLine("startup: SPOOL_RENDER_API asked for Vulkan, which this build has no support for");
 #endif
     }
     QQuickWindow::setGraphicsApi(graphicsApi);
+    logLine("startup: scene graph on %s",
+        graphicsApi == QSGRendererInterface::Vulkan           ? "Vulkan"
+            : graphicsApi == QSGRendererInterface::Direct3D11 ? "Direct3D 11"
+            : graphicsApi == QSGRendererInterface::Software   ? "software"
+                                                              : "OpenGL");
 
     QSurfaceFormat::setDefaultFormat(JellyfinNative::platformSurfaceFormat());
 

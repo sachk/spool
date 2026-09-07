@@ -28,6 +28,10 @@
 #include <QVulkanInstance>
 #include <vulkan/vulkan.h>
 #endif
+#if defined(Q_OS_WIN) && __has_include(<d3d11.h>)
+#define JELLYFIN_MPV_ITEM_D3D11 1
+#include <d3d11.h>
+#endif
 #endif
 
 #include <vector>
@@ -38,6 +42,9 @@ extern "C" {
 #include <mpv/render_gl.h>
 #if defined(JELLYFIN_MPV_ITEM_VULKAN)
 #include <mpv/render_vk.h>
+#endif
+#if defined(JELLYFIN_MPV_ITEM_D3D11)
+#include <mpv/render_d3d11.h>
 #endif
 }
 
@@ -403,6 +410,24 @@ namespace {
             if (size.isEmpty())
                 return false;
 
+#if defined(JELLYFIN_MPV_ITEM_D3D11)
+            if (m_d3d11) {
+                const QRhiTexture::NativeTexture native = target->nativeTexture();
+                if (!native.object)
+                    return false;
+                mpv_d3d11_texture texture {};
+                texture.texture = reinterpret_cast<void *>(native.object);
+                texture.w = size.width();
+                texture.h = size.height();
+
+                mpv_render_param params[] = {
+                    { MPV_RENDER_PARAM_D3D11_TEXTURE, &texture },
+                    { MPV_RENDER_PARAM_INVALID, nullptr },
+                };
+                mpv_render_context_render(ctx, params);
+                return true;
+            }
+#endif
 #if defined(JELLYFIN_MPV_ITEM_VULKAN)
             if (m_vulkan) {
                 const QRhiTexture::NativeTexture native = target->nativeTexture();
@@ -528,6 +553,10 @@ namespace {
             std::vector<mpv_render_param> params;
             mpv_opengl_init_params glInit {};
             glInit.get_proc_address = &getProcAddressGl;
+#if defined(JELLYFIN_MPV_ITEM_D3D11)
+            mpv_d3d11_init_params d3d11Init {};
+            m_d3d11 = false;
+#endif
 #if defined(JELLYFIN_MPV_ITEM_VULKAN)
             mpv_vulkan_init_params vkInit {};
             m_vulkan = false;
@@ -538,8 +567,21 @@ namespace {
                 return;
             }
 
+#if defined(JELLYFIN_MPV_ITEM_D3D11)
+            if (rhi->backend() == QRhi::D3D11) {
+                const auto *native = static_cast<const QRhiD3D11NativeHandles *>(rhi->nativeHandles());
+                if (!native || !native->dev) {
+                    qCritical() << "MpvVideoItem: the Direct3D 11 device is not available";
+                    return;
+                }
+                d3d11Init.device = native->dev;
+                m_d3d11 = true;
+                params.push_back({ MPV_RENDER_PARAM_API_TYPE, const_cast<char *>(MPV_RENDER_API_TYPE_D3D11) });
+                params.push_back({ MPV_RENDER_PARAM_D3D11_INIT_PARAMS, &d3d11Init });
+            }
+#endif
 #if defined(JELLYFIN_MPV_ITEM_VULKAN)
-            if (rhi->backend() == QRhi::Vulkan) {
+            if (params.empty() && rhi->backend() == QRhi::Vulkan) {
                 const auto *native = static_cast<const QRhiVulkanNativeHandles *>(rhi->nativeHandles());
                 if (!native || !native->inst || !native->physDev || !native->dev) {
                     qCritical() << "MpvVideoItem: the Vulkan device is not available";
@@ -608,7 +650,7 @@ namespace {
                 newCtx = nullptr;
                 err = mpv_render_context_create(&newCtx, next, attempt.data());
                 if (err >= 0) {
-                    qInfo() << "player: render backend" << backend << "on" << (m_vulkan ? "Vulkan" : "OpenGL");
+                    qInfo() << "player: render backend" << backend << "on" << graphicsApiName();
                     break;
                 }
                 qWarning() << "player: render backend" << backend << "unavailable:" << mpv_error_string(err);
@@ -734,7 +776,17 @@ namespace {
         bool m_hasRenderedVideoFrame = false;
         bool m_swapPending = false;
         bool m_firstVideoFrameSwapPending = false;
+        const char *graphicsApiName() const
+        {
+#if defined(JELLYFIN_MPV_ITEM_D3D11)
+            if (m_d3d11)
+                return "Direct3D 11";
+#endif
+            return m_vulkan ? "Vulkan" : "OpenGL";
+        }
+
         bool m_vulkan = false;
+        bool m_d3d11 = false;
         int m_vkFormat = 0;
 #if defined(JELLYFIN_MPV_ITEM_VULKAN)
         // Kept alive because libplacebo is handed a pointer into it.

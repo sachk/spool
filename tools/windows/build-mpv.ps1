@@ -80,6 +80,14 @@ try {
     $ffmpegPrefix = Join-Path $dependencyRoot 'ffmpeg'
     $env:PKG_CONFIG_PATH = (& (Join-Path $msysRoot 'usr\bin\cygpath.exe') -u "$ffmpegPrefix/lib/pkgconfig").Trim()
     if ($LASTEXITCODE -ne 0) { throw 'Converting the FFmpeg pkg-config search path failed.' }
+
+    # A GLSL compiler and SPIRV-Cross, which libplacebo needs for D3D11 and
+    # Vulkan alike and which Windows has no other way to get.
+    & (Join-Path $PSScriptRoot 'build-shader-tools.ps1') -Clean:$Clean
+    $shaderTools = Join-Path $dependencyRoot 'shader-tools'
+    $shaderPkgConfig = (& (Join-Path $msysRoot 'usr\bin\cygpath.exe') -u "$shaderTools/lib/pkgconfig").Trim()
+    if ($LASTEXITCODE -ne 0) { throw 'Converting the shader tool pkg-config search path failed.' }
+    $env:PKG_CONFIG_PATH = "$($env:PKG_CONFIG_PATH):$shaderPkgConfig"
     # Discard the old Meson-port wrap when reusing a dependency checkout.
     Remove-Item (Join-Path $subprojects 'ffmpeg.wrap') -ErrorAction SilentlyContinue
 
@@ -132,7 +140,12 @@ clone-recursive = true
         '--libdir', 'lib',
         '--buildtype', 'release',
         '--default-library', 'shared',
-        '--force-fallback-for', 'curl,expat,freetype2,fribidi,harfbuzz,libpng,luajit,zlib,xxhash,libass,libplacebo'
+        '--force-fallback-for', 'curl,expat,freetype2,fribidi,harfbuzz,libpng,luajit,zlib,xxhash,libass,libplacebo',
+        # libplacebo looks for glslang under <vulkan-sdk>/lib and takes the
+        # headers from the same prefix, so the shader tools are handed to it
+        # as though they were an SDK. They are not one: the Vulkan headers it
+        # uses are its own, under 3rdparty.
+        "-Dlibplacebo:vulkan-sdk=$($shaderTools -replace '\\', '/')"
     ) + @(Get-MpvFeatureArguments -Platform windows -IncludeSubprojects)
 
     if (Test-Path (Join-Path $buildDirectory 'build.ninja')) {

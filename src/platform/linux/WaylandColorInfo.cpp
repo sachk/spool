@@ -49,7 +49,17 @@ namespace {
         qInfo() << "display: the compositor could not describe the output:" << message;
     }
 
-    const wp_image_description_v1_listener kDescriptionListener = { descriptionFailed, descriptionReady };
+    // Version 2 of the interface says the same thing with a wider id. The
+    // manager is bound at version 1, so this should not arrive -- but the
+    // listener has the slot either way, and an uninitialised one is a crash
+    // waiting for the day that bind version moves.
+    void descriptionReady2(void *data, wp_image_description_v1 *, uint32_t, uint32_t)
+    {
+        static_cast<Reader *>(data)->ready = true;
+    }
+
+    const wp_image_description_v1_listener kDescriptionListener
+        = { descriptionFailed, descriptionReady, descriptionReady2 };
 
     void infoLuminances(
         void *data, wp_image_description_info_v1 *, uint32_t minLum, uint32_t maxLum, uint32_t referenceLum)

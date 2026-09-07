@@ -15,5 +15,23 @@
     "url": "https://ffmpeg.org/releases/ffmpeg-9.0.1.tar.xz",
     "sha256": "cf38e0e28c7e5605942c4a77755349b0145804a397af37eb1fb4c77cb237f635",
     "sri": "sha256-zzjg4ox+VgWULEp3dVNJsBRYBKOXrzfrH7THfLI39jU="
+  },
+  "shaderTools": {
+    "comment": [
+      "libplacebo needs a GLSL compiler for both its Vulkan and D3D11 backends,",
+      "and SPIRV-Cross to reach HLSL for the latter. Linux gets both from nixpkgs;",
+      "Windows has neither, and Meson's WrapDB carries no glslang or shaderc, so",
+      "they are built from source there the way FFmpeg already is. Vulkan headers",
+      "are not among them: libplacebo carries its own under 3rdparty."
+    ],
+    "version": "vulkan-sdk-1.4.357.0",
+    "glslang": {
+      "url": "https://github.com/KhronosGroup/glslang/archive/refs/tags/vulkan-sdk-1.4.357.0.tar.gz",
+      "sha256": "81038794e20494556edbcc0fc70fa984d71d1b440f9c49adf2cbaaa60a519757"
+    },
+    "spirvCross": {
+      "url": "https://github.com/KhronosGroup/SPIRV-Cross/archive/refs/tags/vulkan-sdk-1.4.357.0.tar.gz",
+      "sha256": "97c910326afdd44d794ce8561326fa675fd1958b27142f03295403044d639639"
+    }
   }
 }
