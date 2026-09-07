@@ -437,6 +437,12 @@ void subtitleChoicesExplainTheirBehavior()
     require(hdrBrightness.value(QStringLiteral("defaultValue")).toInt() == 50
             && hdrBrightness.value(QStringLiteral("from")).toInt() == 5,
         QStringLiteral("HDR brightness should default to 50% and allow 5%"));
+    const QVariantMap hdrPeak = schemaRow(QStringLiteral("playback/hdrPeakNits"));
+    require(hdrPeak.value(QStringLiteral("dependsOnKey")).toString().isEmpty(),
+        QStringLiteral("display peak brightness should be reachable whenever HDR output can be forced on, "
+                       "not only when it is left on automatic"));
+    require(hdrPeak.value(QStringLiteral("defaultValue")).toInt() == 0,
+        QStringLiteral("display peak brightness should default to asking the display"));
     const QVariantMap verticalPosition = schemaRow(QStringLiteral("subtitles/verticalPositionPercent"));
     require(verticalPosition.value(QStringLiteral("defaultValue")).toInt() == 95,
         QStringLiteral("vertical subtitle position should default to 95%"));

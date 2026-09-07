@@ -5,6 +5,7 @@
 #include "TestMain.h"
 
 #include <QCoreApplication>
+#include <QStandardPaths>
 
 #include <cmath>
 #include <cstdlib>
@@ -49,6 +50,19 @@ DisplayOutputCapabilities hdrDisplay(
 JELLYFIN_TEST_MAIN("render-target-profile")
 {
     QCoreApplication app(argc, argv);
+    // The startup store is QSettings, and these cases write to it. Test mode
+    // puts that under a throwaway path rather than the developer's own config.
+    QStandardPaths::setTestModeEnabled(true);
+
+    // Nothing asked, so nothing is requested: a window left alone stays SDR.
+    RenderTargetPolicy::rememberPreference(HdrOutputPreference::Auto);
+    require(RenderTargetPolicy::startupSwapChainRequest().isEmpty(),
+        "automatic should not turn the window over to HDR while the interface is not corrected for it");
+    RenderTargetPolicy::rememberPreference(HdrOutputPreference::Never);
+    require(RenderTargetPolicy::startupSwapChainRequest().isEmpty(), "never should leave the window SDR");
+    RenderTargetPolicy::rememberPreference(HdrOutputPreference::Always);
+    require(RenderTargetPolicy::startupSwapChainRequest() == QByteArrayLiteral("scrgb"),
+        "always should ask Qt for the scRGB swapchain by the name Qt reads");
 
     const DisplayOutputCapabilities sdrOnly;
     require(!RenderTargetPolicy::resolve(sdrOnly, HdrOutputPreference::Always).isHdr(),

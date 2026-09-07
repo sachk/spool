@@ -5,6 +5,7 @@
 #include "../common/AsyncTask.h"
 #include "../platform/PlatformSettingsPolicy.h"
 #include "../player/PlayerController.h"
+#include "../player/RenderTargetProfile.h"
 #include "ArtworkService.h"
 #include "SettingsSchema.h"
 
@@ -548,6 +549,10 @@ void SettingsController::applySchemaValue(const SettingSpec& spec, const QVarian
     case SettingTarget::HdrOutputMode:
         if (m_player)
             m_player->setHdrOutputPreference(value.toString());
+        // The mpv side of this applies immediately; the swapchain side cannot,
+        // because Qt fixes a window's format when the window is created. Keep
+        // it somewhere readable before the next window exists.
+        RenderTargetPolicy::rememberPreference(RenderTargetPolicy::preferenceFromName(value.toString()));
         break;
     case SettingTarget::HdrPeakBrightness:
         if (m_player)

@@ -26,6 +26,7 @@
 #include "platform/ScreenSaverInhibitor.h"
 #include "player/MpvVideoItem.h"
 #include "player/PlayerController.h"
+#include "player/RenderTargetProfile.h"
 #if defined(SPOOL_ANDROID)
 #include "platform/android/AndroidUpdateController.h"
 #include <QJniObject>
@@ -514,6 +515,18 @@ int main(int argc, char **argv)
     window.rootContext()->setContextProperty(QStringLiteral("startupSplashCoreWidthDp"), splashCoreWidthDp());
     window.rootContext()->setContextProperty(QStringLiteral("startupSplashPixelsPerDp"), splashPixelsPerDp());
     JellyfinNative::configurePlatformWindow(window);
+    // Qt reads this when it creates the swapchain, at the window's first
+    // expose, and cannot change it afterwards -- so it has to be set here,
+    // before anything shows the window, from a store that answers without
+    // waiting. An empty request leaves the window SDR, and a request the
+    // display or backend cannot grant is ignored by Qt rather than fatal.
+    if (!launchTest) {
+        const QByteArray hdrRequest = JellyfinNative::RenderTargetPolicy::startupSwapChainRequest();
+        if (!hdrRequest.isEmpty()) {
+            window.setProperty("_qt_sg_hdr_format", hdrRequest);
+            logLine("startup: asking for a %s swapchain", hdrRequest.constData());
+        }
+    }
     inputLatencyMonitor.attachWindow(&window);
     window.setInputLatencyMonitor(&inputLatencyMonitor);
     const auto directSingleShot = static_cast<Qt::ConnectionType>(Qt::DirectConnection | Qt::SingleShotConnection);

@@ -29,7 +29,12 @@ namespace {
         { "fast", "Fast" },
     };
     constexpr SettingChoice kHdrOutputChoices[] = {
-        { "auto", "When the display is in HDR" },
+        // "Auto" does not yet turn the swapchain over. Qt Quick colour-manages
+        // nothing, so an HDR window changes how the whole interface looks as
+        // well as the video, and that is not something to do to somebody who
+        // only left the setting alone.
+        { "auto", "Automatic" },
+        { "always", "Always" },
         { "never", "Never" },
     };
     constexpr SettingChoice kAccentChoices[] = { { "0", "Blue" }, { "1", "Purple" }, { "2", "Indigo" } };
@@ -336,8 +341,9 @@ const QVector<SettingSpec>& settingSpecs()
             "Step down a rung when playback drops frames on this device", true, SettingTarget::AutoAdjustRenderQuality)
             .advanced(),
         selectSpec("playback/hdrOutput", "Playback", "HDR output",
-            "Only a Vulkan, D3D11 or Metal window can present HDR, and on Linux only under Wayland", "auto",
-            kHdrOutputChoices, SettingTarget::HdrOutputMode)
+            "Applies when Spool next starts. Automatic stays in SDR for now, because an HDR window changes "
+            "how the interface looks as well as the video. Needs Vulkan, D3D11 or Metal, and on Linux Wayland",
+            "auto", kHdrOutputChoices, SettingTarget::HdrOutputMode)
             .onDesktop()
             .expert(),
         sliderSpec("playback/hdrPeakNits", "Playback", "Display peak brightness",
@@ -345,8 +351,7 @@ const QVector<SettingSpec>& settingSpecs()
             "guess rather than a measurement",
             "0", 0, 4000, 50, " nits", SettingTarget::HdrPeakBrightness)
             .onDesktop()
-            .expert()
-            .whenSetTo("playback/hdrOutput", "auto"),
+            .expert(),
         selectSpec("settings/audioOutputMode", "Playback", "Audio output", "Applies the next time something plays",
             audioOutput.defaultValue, audioOutput.choices, audioOutput.choiceCount, SettingTarget::AudioOutput,
             SettingNormalizer::AudioOutput)

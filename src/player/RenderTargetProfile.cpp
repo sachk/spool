@@ -4,6 +4,7 @@
 
 #include <QQuickWindow>
 #include <QSGRendererInterface>
+#include <QSettings>
 #include <QtGlobal>
 
 #if defined(JELLYFIN_MPV_ITEM_RHI)
@@ -59,6 +60,44 @@ HdrOutputPreference RenderTargetPolicy::preferenceFromName(const QString& name)
     if (normalized == QStringLiteral("always") || normalized == QStringLiteral("on"))
         return HdrOutputPreference::Always;
     return HdrOutputPreference::Auto;
+}
+
+namespace {
+
+    // Not the application database: that opens well after the window, and the
+    // swapchain format is read once, at the window's first expose. QSettings
+    // is synchronous and available before anything else has started.
+    constexpr auto kStartupPreferenceKey = "render/hdrOutput";
+
+    QSettings startupStore()
+    {
+        return QSettings(QStringLiteral("Spool"), QStringLiteral("Spool"));
+    }
+
+} // namespace
+
+QByteArray RenderTargetPolicy::startupSwapChainRequest()
+{
+    // Only an explicit yes turns the swapchain over. Qt Quick applies no colour
+    // management of its own -- its materials write sRGB-encoded values straight
+    // into whatever buffer they are given -- so an HDR swapchain is also a
+    // change to how the whole interface looks, and that is not something to do
+    // to somebody who never asked for it. Auto stays SDR until the interface is
+    // corrected for the buffer it lands in.
+    const QString stored = startupStore().value(QLatin1String(kStartupPreferenceKey)).toString();
+    if (stored.isEmpty() || preferenceFromName(stored) != HdrOutputPreference::Always)
+        return {};
+    // scRGB rather than HDR10: it keeps SDR content at the same values it has
+    // now, needs no PQ encode of the interface, and is the format Qt reports
+    // support for most widely. Where the display cannot present it Qt falls
+    // back to SDR by itself.
+    return QByteArrayLiteral("scrgb");
+}
+
+void RenderTargetPolicy::rememberPreference(HdrOutputPreference preference)
+{
+    QSettings store = startupStore();
+    store.setValue(QLatin1String(kStartupPreferenceKey), QString::fromLatin1(preferenceName(preference)));
 }
 
 QByteArray RenderTargetPolicy::preferenceName(HdrOutputPreference preference)
@@ -145,12 +184,30 @@ DisplayOutputCapabilities RenderTargetPolicy::probe(QQuickWindow *window)
     // however bright the display is, which is the whole reason the question is
     // put this way round.
     if (swapchain->isFormatSupported(QRhiSwapChain::HDRExtendedSrgbLinear)) {
-        display.preferredFormat = RenderTargetProfile::Format::ExtendedSrgbLinear;
+        display.supportedFormat = RenderTargetProfile::Format::ExtendedSrgbLinear;
     } else if (swapchain->isFormatSupported(QRhiSwapChain::HDR10)) {
-        display.preferredFormat = RenderTargetProfile::Format::Pq;
-    } else {
-        return display;
+        display.supportedFormat = RenderTargetProfile::Format::Pq;
     }
+
+    // And then ask what it settled on. Qt chooses a window's swapchain format
+    // once, when the window is created, so this is a fact about the window in
+    // front of us rather than a preference -- support without a window that
+    // asked for it still presents SDR.
+    switch (swapchain->format()) {
+    case QRhiSwapChain::HDRExtendedSrgbLinear:
+    case QRhiSwapChain::HDRExtendedDisplayP3Linear:
+        // Both are linear with 1.0 at SDR white; they differ in primaries, and
+        // the P3 one is only reachable on Apple platforms.
+        display.preferredFormat = RenderTargetProfile::Format::ExtendedSrgbLinear;
+        break;
+    case QRhiSwapChain::HDR10:
+        display.preferredFormat = RenderTargetProfile::Format::Pq;
+        break;
+    case QRhiSwapChain::SDR:
+        break;
+    }
+    if (display.preferredFormat == RenderTargetProfile::Format::Sdr)
+        return display;
     display.hdrAvailable = true;
 
     // Qt only asks the system on Windows -- QD3D11SwapChain, QD3D12SwapChain

@@ -67,10 +67,21 @@ struct RenderTargetProfile {
 // What the graphics backend and the operating system between them say the
 // window can present. Filled from the live swapchain, never assumed.
 struct DisplayOutputCapabilities {
-    // False whenever the query failed or the backend has no HDR swapchain at
-    // all, which is the case for every OpenGL context.
+    // Whether the swapchain in front of us is presenting HDR right now, which
+    // is not the same question as whether it could. Qt fixes a window's
+    // swapchain format when the window is created, so a backend that supports
+    // HDR still presents SDR until it was asked at that moment -- and telling
+    // mpv to encode PQ or scRGB into an 8-bit sRGB swapchain is how the
+    // picture ends up wrong rather than merely un-improved.
     bool hdrAvailable = false;
+    // What the swapchain is actually presenting into. This is what mpv is told
+    // about.
     RenderTargetProfile::Format preferredFormat = RenderTargetProfile::Format::Sdr;
+    // The best HDR format this backend would accept if the window were created
+    // asking for it. Reported so the diagnostics can tell "your display and
+    // driver cannot do this" apart from "nothing asked for it", and never used
+    // to decide what mpv is told.
+    RenderTargetProfile::Format supportedFormat = RenderTargetProfile::Format::Sdr;
     float sdrWhiteNits = RenderTargetProfile::kDefaultSdrWhiteNits;
     float minLuminanceNits = 0.0f;
     float maxLuminanceNits = 0.0f;
@@ -108,6 +119,21 @@ class RenderTargetPolicy final {
 public:
     static HdrOutputPreference preferenceFromName(const QString& name);
     static QByteArray preferenceName(HdrOutputPreference preference);
+
+    // Qt reads the swapchain format when the window is first exposed, which is
+    // before the application database has answered anything -- and it fixes the
+    // format for the life of the window, so a late answer is no answer. So the
+    // choice is kept in the platform's own settings store, written whenever the
+    // setting changes and read back on the next launch.
+    //
+    // Returns what to put in the window's "_qt_sg_hdr_format" property, or an
+    // empty array to leave the window SDR. Qt ignores a format the display or
+    // backend cannot present and falls back to SDR on its own, so asking is
+    // safe even where it cannot be granted.
+    static QByteArray startupSwapChainRequest();
+    // Records the choice for the next launch. Takes effect when the window is
+    // next created, which is why the setting says as much.
+    static void rememberPreference(HdrOutputPreference preference);
 
     // The target to present into. Returns an SDR profile whenever HDR was not
     // asked for or is not available.
