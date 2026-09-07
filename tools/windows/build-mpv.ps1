@@ -94,6 +94,12 @@ try {
     $shaderInclude = Join-Path $shaderTools 'include'
     $env:CFLAGS = "$env:CFLAGS -I$($shaderInclude -replace '\\', '/')".Trim()
     $env:CXXFLAGS = "$env:CXXFLAGS -I$($shaderInclude -replace '\\', '/')".Trim()
+    # libplacebo hands its vulkan-sdk path to find_library for SPIRV but not
+    # for glslang, which is then looked for on the default search path alone --
+    # and found nowhere, silently, because it asks for it as optional. LIB is
+    # that default path for clang and lld-link, so the libraries end up where
+    # both the detection and the link will look.
+    $env:LIB = "$(Join-Path $shaderTools 'lib');$env:LIB"
     # Discard the old Meson-port wrap when reusing a dependency checkout.
     Remove-Item (Join-Path $subprojects 'ffmpeg.wrap') -ErrorAction SilentlyContinue
 
