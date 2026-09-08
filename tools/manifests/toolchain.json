@@ -10,6 +10,17 @@
     "series": "6.11",
     "windowsKit": "msvc2022_64"
   },
+  "qcoro": {
+    "comment": [
+      "QCoro is built from source on Windows, by tools/windows/install-qcoro.ps1,",
+      "which the Actions runner and a local checkout both call. The prefix name",
+      "is part of the pin: it is what common.ps1 looks for and what the runner",
+      "caches."
+    ],
+    "version": "0.13",
+    "revision": "d1b52b5db2ff9560185c39a4ed9f944dc610c235",
+    "windowsPrefix": "qcoro-0.13-msvc2022"
+  },
   "ffmpeg": {
     "version": "9.0.1",
     "url": "https://ffmpeg.org/releases/ffmpeg-9.0.1.tar.xz",
