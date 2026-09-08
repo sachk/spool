@@ -19,6 +19,7 @@
 #include "platform/NativeAppWindow.h"
 #include "platform/PlatformApplicationServices.h"
 #include "platform/PlatformCapabilities.h"
+#include "platform/PlatformDisplayOutput.h"
 #include "platform/PlatformPaths.h"
 #include "platform/PlatformPlaybackRuntime.h"
 #include "platform/PlatformProcess.h"
@@ -564,14 +565,14 @@ int main(int argc, char **argv)
         [&, outputSnapshotPending] {
             if (!*outputSnapshotPending)
                 return;
-            auto display = JellyfinNative::RenderTargetPolicy::probe(&window);
+            auto display = JellyfinNative::PlatformDisplayOutput::probe(&window);
             if (!display.surfaceReady)
                 return;
             *outputSnapshotPending = false;
             QMetaObject::invokeMethod(
                 &window,
                 [&, display]() mutable {
-                    JellyfinNative::RenderTargetPolicy::updateDisplayLuminance(display, &window);
+                    JellyfinNative::PlatformDisplayOutput::updateDisplayLuminance(display, &window);
                     bool scrgb = display.hdrAvailable
                         && display.preferredFormat == JellyfinNative::RenderTargetProfile::Format::ExtendedSrgbLinear;
 #if defined(Q_OS_LINUX) && !defined(Q_OS_ANDROID) && !defined(JELLYFIN_NATIVE_WEBOS)

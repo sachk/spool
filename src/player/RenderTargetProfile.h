@@ -5,8 +5,6 @@
 
 #include <vector>
 
-class QQuickWindow;
-
 namespace JellyfinNative {
 
 struct MpvOption;
@@ -143,16 +141,6 @@ public:
     // Complete managed output encoding, including resets for unknown luminance
     // and SDR. These describe our texture, not a user's tone-mapping algorithm.
     static std::vector<MpvOption> targetOptions(const RenderTargetProfile& profile);
-
-    // How bright diffuse white ends up, relative to SDR. Subtitles and the
-    // OSD are drawn in the target's units, so on an HDR target they need
-    // scaling or they arrive at whatever the shell's white happens to be.
-    static float osdBrightnessScale(const RenderTargetProfile& profile);
-
-    // Render-thread only: inspect the actual swapchain, not its requested format.
-    static DisplayOutputCapabilities probe(QQuickWindow *window);
-    // GUI-thread only: enrich the snapshot with platform display information.
-    static void updateDisplayLuminance(DisplayOutputCapabilities& display, QQuickWindow *window);
 };
 
 } // namespace JellyfinNative

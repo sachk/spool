@@ -115,13 +115,6 @@ JELLYFIN_TEST_MAIN("render-target-profile")
             == "10000",
         "a peak beyond what mpv accepts should be clamped, not passed through and rejected");
 
-    require(std::fabs(RenderTargetPolicy::osdBrightnessScale(scrgb) - 3.0f) < 0.01f,
-        "scRGB overlays need scaling from its 80-nit unity to the display's SDR white");
-    require(std::fabs(RenderTargetPolicy::osdBrightnessScale(pq) - 1.0f) < 0.01f,
-        "PQ carries absolute luminance, so its overlays are already placed");
-    require(std::fabs(RenderTargetPolicy::osdBrightnessScale(RenderTargetProfile()) - 1.0f) < 0.01f,
-        "an SDR target needs no overlay scaling");
-
     require(RenderTargetPolicy::preferenceFromName(QStringLiteral("Always")) == HdrOutputPreference::Always
             && RenderTargetPolicy::preferenceFromName(QStringLiteral("never")) == HdrOutputPreference::Never
             && RenderTargetPolicy::preferenceFromName(QStringLiteral("nonsense")) == HdrOutputPreference::Auto,

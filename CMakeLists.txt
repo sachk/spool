@@ -144,6 +144,7 @@ jellyfin_resolve_platform_dependencies()
 # Per-OS abstractions. No backend and no UI knowledge.
 set(SPOOL_PLATFORM_SOURCES
     src/platform/MpvConfigPolicy.h
+    src/platform/PlatformDisplayOutput.h
     src/platform/NativeAppWindow.h
     src/platform/PlatformApplicationServices.h
     src/platform/PlatformCapabilities.h
@@ -158,6 +159,7 @@ set(SPOOL_PLATFORM_SOURCES
     src/platform/PlatformSystemProbes.h
     src/platform/ScreenSaverInhibitor.h
     src/platform/common/NativeAppWindowCommon.cpp
+    src/platform/common/PlatformDisplayOutput.cpp
     src/platform/common/ScreenSaverInhibitor.cpp
     src/platform/common/PlatformRemoteMediaSession.cpp
 )
