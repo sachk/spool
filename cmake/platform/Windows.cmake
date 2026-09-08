@@ -9,6 +9,20 @@ function(jellyfin_resolve_windows_dependencies)
         HINTS "${MPV_ROOT}/lib"
         REQUIRED
     )
+    # The player's Vulkan path compiles only when the Vulkan headers are in this
+    # prefix, which build-mpv.ps1 puts there -- the sources ask __has_include,
+    # so a prefix without them yields a binary that offers Vulkan and then has
+    # no renderer for it. Nothing rebuilds when headers appear beside an already
+    # configured build, so say which way it went while it can still be acted on.
+    find_path(MPV_VULKAN_INCLUDE_DIR vulkan/vulkan.h HINTS "${MPV_ROOT}/include")
+    if(MPV_VULKAN_INCLUDE_DIR)
+        message(STATUS "libmpv prefix carries the Vulkan headers: the player's Vulkan path will build")
+    else()
+        message(STATUS
+            "libmpv prefix has no Vulkan headers: the player will build without Vulkan. "
+            "Run tools\\windows\\build-mpv.ps1 and configure again to change that.")
+    endif()
+
     if(NOT TARGET MPV::MPV)
         add_library(MPV::MPV UNKNOWN IMPORTED)
         set_target_properties(MPV::MPV PROPERTIES

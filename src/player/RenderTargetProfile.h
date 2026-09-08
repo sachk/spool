@@ -133,6 +133,24 @@ public:
     // next created, which is why the setting says as much.
     static void rememberPreference(HdrOutputPreference preference);
 
+    // Which backend the scene graph runs on. It decides what the swapchain can
+    // present -- OpenGL has no HDR format to offer at all -- so it is settled
+    // in the same place and at the same time as the format above, before
+    // QGuiApplication exists, and by the same store.
+    enum class GraphicsApiPreference {
+        // The platform's own default, which is what every build shipped before
+        // this setting existed.
+        Automatic,
+        OpenGL,
+        Direct3D11,
+        Vulkan,
+    };
+    static GraphicsApiPreference graphicsApiFromName(const QString& name);
+    static QByteArray graphicsApiName(GraphicsApiPreference preference);
+    // What the last launch recorded, or Automatic when nothing has been chosen.
+    static GraphicsApiPreference startupGraphicsApi();
+    static void rememberGraphicsApi(GraphicsApiPreference preference);
+
     // The target to present into. Returns an SDR profile whenever HDR was not
     // asked for or is not available.
     static RenderTargetProfile resolve(const DisplayOutputCapabilities& display, HdrOutputPreference preference,

@@ -4,6 +4,7 @@
 #include "../platform/PlatformSettingsPolicy.h"
 
 #include <QVariantMap>
+#include <QtGlobal>
 
 #include <algorithm>
 #include <cmath>
@@ -36,6 +37,24 @@ namespace {
         { "auto", "Automatic" },
         { "always", "Always" },
         { "never", "Never" },
+    };
+    // Only the backends this platform's build can actually create. The scene
+    // graph runs on one of these, and it decides what the swapchain can
+    // present: OpenGL has no HDR format to offer on any of them, so choosing it
+    // is choosing SDR.
+    constexpr SettingChoice kGraphicsApiChoices[] = {
+        { "auto", "Automatic" },
+#if defined(Q_OS_WIN)
+        { "d3d11", "Direct3D 11" },
+#endif
+    // Asked the way MpvVideoItem.cpp asks it, and for the same reason:
+    // QT_CONFIG reads a feature macro this translation unit has no answer
+    // for, and Qt owning QVulkanInstance says nothing about whether the
+    // Vulkan headers the player's own path needs are here.
+#if __has_include(<QVulkanInstance>) && __has_include(<vulkan/vulkan.h>)
+        { "vulkan", "Vulkan" },
+#endif
+        { "opengl", "OpenGL" },
     };
     constexpr SettingChoice kAccentChoices[] = { { "0", "Blue" }, { "1", "Purple" }, { "2", "Indigo" } };
     constexpr SettingChoice kRailLabelChoices[]
@@ -343,6 +362,12 @@ const QVector<SettingSpec>& settingSpecs()
             .advanced(),
         toggleSpec("playback/autoAdjustQuality", "Playback", "Adjust quality automatically",
             "Step down a rung when playback drops frames on this device", true, SettingTarget::AutoAdjustRenderQuality)
+            .advanced(),
+        selectSpec("playback/graphicsApi", "Playback", "Graphics backend",
+            "Applies when Spool next starts. Automatic picks the backend this platform presents HDR through. "
+            "OpenGL is the SDR compatibility choice",
+            "auto", kGraphicsApiChoices, SettingTarget::GraphicsApi)
+            .onDesktop()
             .advanced(),
         selectSpec("playback/hdrOutput", "Playback", "HDR output",
             "Applies when Spool next starts. Automatic enables HDR on supported Linux Wayland Vulkan and Windows "

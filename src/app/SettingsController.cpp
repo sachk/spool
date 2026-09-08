@@ -558,6 +558,12 @@ void SettingsController::applySchemaValue(const SettingSpec& spec, const QVarian
         // it somewhere readable before the next window exists.
         RenderTargetPolicy::rememberPreference(RenderTargetPolicy::preferenceFromName(value.toString()));
         break;
+    case SettingTarget::GraphicsApi:
+        // Qt fixes the scene graph's backend for the life of the process, so
+        // like the swapchain format this is recorded for the next launch and
+        // read back before QGuiApplication exists.
+        RenderTargetPolicy::rememberGraphicsApi(RenderTargetPolicy::graphicsApiFromName(value.toString()));
+        break;
     case SettingTarget::HdrPeakBrightness:
         if (m_player)
             m_player->setHdrPeakNits(value.toInt());

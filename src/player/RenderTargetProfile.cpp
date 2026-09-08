@@ -54,6 +54,7 @@ namespace {
     // swapchain format is read once, at the window's first expose. QSettings
     // is synchronous and available before anything else has started.
     constexpr auto kStartupPreferenceKey = "render/hdrOutput";
+    constexpr auto kStartupGraphicsApiKey = "render/graphicsApi";
 
     // The application's own store, by the organisation and application names
     // main() sets before this is ever reached -- not a second file of its own.
@@ -78,6 +79,44 @@ void RenderTargetPolicy::rememberPreference(HdrOutputPreference preference)
 {
     QSettings store = startupStore();
     store.setValue(QLatin1String(kStartupPreferenceKey), QString::fromLatin1(preferenceName(preference)));
+}
+
+RenderTargetPolicy::GraphicsApiPreference RenderTargetPolicy::graphicsApiFromName(const QString& name)
+{
+    const QString normalized = name.trimmed().toLower();
+    if (normalized == QStringLiteral("opengl") || normalized == QStringLiteral("gl"))
+        return GraphicsApiPreference::OpenGL;
+    if (normalized == QStringLiteral("d3d11") || normalized == QStringLiteral("direct3d11"))
+        return GraphicsApiPreference::Direct3D11;
+    if (normalized == QStringLiteral("vulkan"))
+        return GraphicsApiPreference::Vulkan;
+    return GraphicsApiPreference::Automatic;
+}
+
+QByteArray RenderTargetPolicy::graphicsApiName(GraphicsApiPreference preference)
+{
+    switch (preference) {
+    case GraphicsApiPreference::OpenGL:
+        return QByteArrayLiteral("opengl");
+    case GraphicsApiPreference::Direct3D11:
+        return QByteArrayLiteral("d3d11");
+    case GraphicsApiPreference::Vulkan:
+        return QByteArrayLiteral("vulkan");
+    case GraphicsApiPreference::Automatic:
+        break;
+    }
+    return QByteArrayLiteral("auto");
+}
+
+RenderTargetPolicy::GraphicsApiPreference RenderTargetPolicy::startupGraphicsApi()
+{
+    return graphicsApiFromName(startupStore().value(QLatin1String(kStartupGraphicsApiKey)).toString());
+}
+
+void RenderTargetPolicy::rememberGraphicsApi(GraphicsApiPreference preference)
+{
+    QSettings store = startupStore();
+    store.setValue(QLatin1String(kStartupGraphicsApiKey), QString::fromLatin1(graphicsApiName(preference)));
 }
 
 QByteArray RenderTargetPolicy::preferenceName(HdrOutputPreference preference)

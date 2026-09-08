@@ -460,7 +460,30 @@ int main(int argc, char **argv)
 #else
     QSGRendererInterface::GraphicsApi graphicsApi = QSGRendererInterface::OpenGL;
 #endif
-    const QByteArray requestedApi = qgetenv("SPOOL_RENDER_API").toLower();
+    // QSettings resolves which store it opens from the application identity,
+    // and the graphics-API choice below is read out of that store before there
+    // is an application object to carry it. These setters are static and do not
+    // need one -- set here rather than after QGuiApplication, or the read finds
+    // an empty store and every launch silently takes the platform default.
+    QCoreApplication::setOrganizationName(QStringLiteral("spool-jellyfin"));
+    QCoreApplication::setApplicationName(QStringLiteral("Spool for Jellyfin"));
+    QCoreApplication::setApplicationVersion(QString::fromLatin1(kAppVersion));
+
+    // The setting is what a viewer chose; the environment variable stays a
+    // developer override and wins over it.
+    QByteArray requestedApi = qgetenv("SPOOL_RENDER_API").toLower();
+    if (!requestedApi.isEmpty()) {
+        // An override outlives the shell that set it, and an application that
+        // restarts itself inherits it, so a setting that appears to be ignored
+        // is usually this. Say so rather than leaving it to be discovered.
+        logLine("startup: SPOOL_RENDER_API=%s overrides the graphics backend setting", requestedApi.constData());
+    } else {
+        const auto stored = JellyfinNative::RenderTargetPolicy::startupGraphicsApi();
+        if (stored != JellyfinNative::RenderTargetPolicy::GraphicsApiPreference::Automatic) {
+            requestedApi = JellyfinNative::RenderTargetPolicy::graphicsApiName(stored);
+            logLine("startup: graphics backend setting asks for %s", requestedApi.constData());
+        }
+    }
     if (launchTest) {
         graphicsApi = QSGRendererInterface::Software;
     } else if (requestedApi == "opengl") {
@@ -489,9 +512,8 @@ int main(int argc, char **argv)
 
     logLine("startup: constructing QGuiApplication");
     QGuiApplication app(argc, argv);
-    app.setApplicationName(QStringLiteral("Spool for Jellyfin"));
-    app.setApplicationVersion(QString::fromLatin1(kAppVersion));
-    app.setOrganizationName(QStringLiteral("spool-jellyfin"));
+    // The name, version and organisation are set above, before the settings
+    // store is read.
     app.setApplicationDisplayName(QStringLiteral("Spool for Jellyfin"));
     JellyfinNative::TerminationSignalHandler terminationSignals(app);
     logLine("startup: QGuiApplication constructed");
@@ -519,7 +541,9 @@ int main(int argc, char **argv)
 #elif defined(Q_OS_WIN)
     // Qt checks the window's output and Windows' Use HDR state before choosing
     // FP16. The native probe then verifies the actual buffer and DXGI signaling.
-    automaticHdr = allowHdrRequest && graphicsApi == QSGRendererInterface::Direct3D11;
+    // Vulkan asks for the same scRGB encoding through VK_EXT_swapchain_colorspace
+    // rather than DXGI, and Windows composites either one the same way.
+    automaticHdr = allowHdrRequest;
 #endif
     const QByteArray hdrRequest
         = allowHdrRequest ? JellyfinNative::RenderTargetPolicy::startupSwapChainRequest(automaticHdr) : QByteArray();

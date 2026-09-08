@@ -148,6 +148,7 @@ void requiredPersistedKeysArePresentExactlyOnce()
         QStringLiteral("playback/renderQuality"),
         QStringLiteral("playback/autoAdjustQuality"),
         QStringLiteral("playback/hdrOutput"),
+        QStringLiteral("playback/graphicsApi"),
         QStringLiteral("playback/hdrPeakNits"),
     };
 
