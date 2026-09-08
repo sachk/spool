@@ -20,6 +20,7 @@ function Test-QtInstallation {
         (Test-Path -LiteralPath (Join-Path $qtRoot 'lib\cmake\Qt6\Qt6Config.cmake')) -and
         (Test-Path -LiteralPath (Join-Path $qtRoot 'lib\cmake\Qt6WebSockets\Qt6WebSocketsConfig.cmake')) -and
         (Test-Path -LiteralPath (Join-Path $qtRoot 'lib\cmake\Qt6Svg\Qt6SvgConfig.cmake')) -and
+        (Test-Path -LiteralPath (Join-Path $qtRoot 'lib\cmake\Qt6ShaderTools\Qt6ShaderToolsConfig.cmake')) -and
         (Test-Path -LiteralPath (Join-Path $qtRoot 'plugins\imageformats\qwebp.dll'))
 }
 
