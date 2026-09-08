@@ -331,13 +331,19 @@ namespace {
     protected:
         void initialize(QRhiCommandBuffer *) override
         {
-            // A new target, so anything remembered about the old one is stale
-            // and the first frame has to be drawn again.
-            m_hasRenderedFrame = false;
-            m_hasRenderedVideoFrame = false;
-            m_swapPending = false;
-            m_firstVideoFrameSwapPending = false;
-            destroyGlFramebuffer();
+            // Qt may initialize on every synchronization, not just on resize.
+            // Invalidate the cached frame only when its backing image changes.
+            QRhiTexture *target = colorTexture();
+            const quint64 object = target ? target->nativeTexture().object : 0;
+            const QSize size = target ? target->pixelSize() : QSize();
+            const int format = target ? int(target->format()) : -1;
+            if (object != m_targetObject || size != m_targetSize || format != m_targetFormat) {
+                m_targetObject = object;
+                m_targetSize = size;
+                m_targetFormat = format;
+                m_hasRenderedFrame = false;
+                destroyGlFramebuffer();
+            }
         }
 
         void synchronize(QQuickRhiItem *rhiItem) override
@@ -372,7 +378,7 @@ namespace {
             }
 
             mpv_render_context *ctx = m_item->m_renderCtxAtomic.load();
-            if (!ctx)
+            if (!ctx || m_renderFailed)
                 return;
 
             const uint64_t updateFlags = mpv_render_context_update(ctx);
@@ -385,9 +391,9 @@ namespace {
             if (!target || !cb)
                 return;
 
-            // Everything mpv does here is its own submission, not Qt's. This is
-            // what makes that safe, and on Vulkan it is also what puts mpv's
-            // work in the queue ahead of the scene graph sampling the result.
+            // mpv submits before Qt submits this frame. beginExternal() flushes
+            // Qt's recording, not its queue; the render API performs the
+            // semaphore handover on their shared graphics queue.
             cb->beginExternal();
             const bool drew = renderInto(ctx, target);
             cb->endExternal();
@@ -424,8 +430,7 @@ namespace {
                     { MPV_RENDER_PARAM_D3D11_TEXTURE, &texture },
                     { MPV_RENDER_PARAM_INVALID, nullptr },
                 };
-                mpv_render_context_render(ctx, params);
-                return true;
+                return checkRenderResult(mpv_render_context_render(ctx, params));
             }
 #endif
 #if defined(JELLYFIN_MPV_ITEM_VULKAN)
@@ -435,11 +440,12 @@ namespace {
                     return false;
                 mpv_vulkan_image image {};
                 image.image = native.object;
-                image.format = m_vkFormat;
+                image.format = vulkanFormat(target);
                 // Only what mpv is actually asked to do with it. Claiming usage
                 // the image was not created with is how libplacebo ends up
                 // advertising a capability the driver will refuse.
-                image.usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
+                image.usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT
+                    | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
                 image.w = size.width();
                 image.h = size.height();
                 image.layout = native.layout;
@@ -448,11 +454,11 @@ namespace {
                     { MPV_RENDER_PARAM_VULKAN_IMAGE, &image },
                     { MPV_RENDER_PARAM_INVALID, nullptr },
                 };
-                mpv_render_context_render(ctx, params);
-                // mpv leaves it ready to be sampled; Qt tracks layouts itself
-                // and would otherwise transition from the one it last knew.
-                target->setNativeLayout(VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
-                return true;
+                const int err = mpv_render_context_render(ctx, params);
+                // The API updates layout after a successful handover even if
+                // drawing failed; a failure before handover leaves it intact.
+                target->setNativeLayout(image.layout);
+                return checkRenderResult(err);
             }
 #endif
             const GLuint texture = static_cast<GLuint>(target->nativeTexture().object);
@@ -475,8 +481,30 @@ namespace {
                 { MPV_RENDER_PARAM_FLIP_Y, &flipY },
                 { MPV_RENDER_PARAM_INVALID, nullptr },
             };
-            mpv_render_context_render(ctx, params);
-            return true;
+            return checkRenderResult(mpv_render_context_render(ctx, params));
+        }
+
+        bool checkRenderResult(int err)
+        {
+            if (err >= 0)
+                return true;
+            // No VO exists yet before a file starts playing.
+            if (err == MPV_ERROR_UNINITIALIZED)
+                return false;
+            m_renderFailed = true;
+            const QString message
+                = QStringLiteral("Video rendering failed on %1: %2")
+                      .arg(QString::fromLatin1(graphicsApiName()), QString::fromUtf8(mpv_error_string(err)));
+            qCritical() << "MpvVideoItem:" << message;
+            const QPointer<MpvVideoItem> guardedItem(m_item);
+            QMetaObject::invokeMethod(
+                m_item,
+                [guardedItem, message]() {
+                    if (guardedItem)
+                        emit guardedItem->renderError(message);
+                },
+                Qt::QueuedConnection);
+            return false;
         }
 
         bool ensureGlFramebuffer(GLuint texture, const QSize& size)
@@ -602,8 +630,11 @@ namespace {
                 vkInit.device = native->dev;
                 vkInit.queue_family_index = native->gfxQueueFamilyIdx;
                 vkInit.device_features = queryDeviceFeatures(native->inst, native->physDev);
+                if (!vkInit.device_features) {
+                    qCritical() << "MpvVideoItem: cannot describe Qt's enabled Vulkan features";
+                    return;
+                }
                 m_vulkan = true;
-                m_vkFormat = vulkanFormat(colorTexture());
                 params.push_back({ MPV_RENDER_PARAM_API_TYPE, const_cast<char *>(MPV_RENDER_API_TYPE_VULKAN) });
                 params.push_back({ MPV_RENDER_PARAM_VULKAN_INIT_PARAMS, &vkInit });
             }
@@ -643,6 +674,9 @@ namespace {
             mpv_render_context *newCtx = nullptr;
             int err = MPV_ERROR_UNSUPPORTED;
             for (const char *backend : backends) {
+                // The legacy renderer implements only the OpenGL render API.
+                if (backend == backends[1] && rhi->backend() != QRhi::OpenGLES2)
+                    break;
                 std::vector<mpv_render_param> attempt = params;
                 attempt.push_back({ MPV_RENDER_PARAM_BACKEND, const_cast<char *>(backend) });
                 attempt.push_back({ MPV_RENDER_PARAM_INVALID, nullptr });
@@ -688,6 +722,18 @@ namespace {
             if (!getFeatures)
                 return nullptr;
 
+            const auto getProperties = reinterpret_cast<PFN_vkGetPhysicalDeviceProperties>(
+                instance->getInstanceProcAddr("vkGetPhysicalDeviceProperties"));
+            if (!getProperties)
+                return nullptr;
+            VkPhysicalDeviceProperties properties {};
+            getProperties(physicalDevice, &properties);
+            const QVersionNumber deviceVersion(
+                VK_VERSION_MAJOR(properties.apiVersion), VK_VERSION_MINOR(properties.apiVersion));
+            const QVersionNumber apiVersion = qMin(instance->apiVersion(), deviceVersion);
+            if (apiVersion < QVersionNumber(1, 2))
+                return nullptr;
+
             m_vkFeatures = {};
             m_vkFeatures.features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
             m_vkFeatures.v11.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_1_FEATURES;
@@ -697,7 +743,7 @@ namespace {
             m_vkFeatures.v11.pNext = &m_vkFeatures.v12;
             // Only ask for a struct the implementation understands; a newer
             // one in the chain is not something older drivers have to ignore.
-            if (instance->apiVersion() >= QVersionNumber(1, 3))
+            if (apiVersion >= QVersionNumber(1, 3))
                 m_vkFeatures.v12.pNext = &m_vkFeatures.v13;
             getFeatures(physicalDevice, &m_vkFeatures.features);
 
@@ -732,6 +778,7 @@ namespace {
             m_hasRenderedVideoFrame = false;
             m_swapPending = false;
             m_firstVideoFrameSwapPending = false;
+            m_renderFailed = false;
             if (!m_item)
                 return;
             if (auto *ctx = m_item->m_renderCtxAtomic.exchange(nullptr)) {
@@ -776,6 +823,10 @@ namespace {
         bool m_hasRenderedVideoFrame = false;
         bool m_swapPending = false;
         bool m_firstVideoFrameSwapPending = false;
+        bool m_renderFailed = false;
+        quint64 m_targetObject = 0;
+        QSize m_targetSize;
+        int m_targetFormat = -1;
         const char *graphicsApiName() const
         {
 #if defined(JELLYFIN_MPV_ITEM_D3D11)
@@ -787,7 +838,6 @@ namespace {
 
         bool m_vulkan = false;
         bool m_d3d11 = false;
-        int m_vkFormat = 0;
 #if defined(JELLYFIN_MPV_ITEM_VULKAN)
         // Kept alive because libplacebo is handed a pointer into it.
         struct VulkanFeatures {
@@ -805,9 +855,7 @@ namespace {
         std::shared_ptr<std::atomic_bool> m_releaseCompleted;
         std::shared_ptr<std::atomic_bool> m_attachCompleted;
     };
-
 #endif // JELLYFIN_MPV_ITEM_RHI
-
 } // namespace
 
 MpvVideoItem *MpvVideoItem::s_instance = nullptr;

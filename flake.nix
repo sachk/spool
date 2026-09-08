@@ -444,6 +444,7 @@
           spoolQcoro
           spoolQt6.qttools
           spoolQt6.qtwebsockets
+          spoolQt6.qtshadertools
           (qmlToolWrappers pkgs pkgs.spoolQt6)
         ])
         ++ pkgs.lib.optionals pkgs.stdenv.hostPlatform.isLinux (with pkgs; [
@@ -519,7 +520,7 @@
         # (spoolQt6) for native Linux/macOS development. Do not use it for
         # tools/webos-native/build-qt6-611.sh.
         export SPOOL_QT_CMAKE_DIR="${pkgs.spoolQt6.qtbase}/lib/cmake/Qt6"
-        native_qt_cmake_path="${pkgs.spoolQt6.qtbase}:${pkgs.spoolQt6.qtdeclarative}:${pkgs.spoolQt6.qtsvg}:${pkgs.spoolQt6.qttools}:${pkgs.spoolQt6.qtwebsockets}"
+        native_qt_cmake_path="${pkgs.spoolQt6.qtbase}:${pkgs.spoolQt6.qtdeclarative}:${pkgs.spoolQt6.qtsvg}:${pkgs.spoolQt6.qttools}:${pkgs.spoolQt6.qtwebsockets}:${pkgs.spoolQt6.qtshadertools}"
         export CMAKE_PREFIX_PATH="$native_qt_cmake_path''${CMAKE_PREFIX_PATH:+:$CMAKE_PREFIX_PATH}"
         unset native_qt_cmake_path
         export JELLYFIN_NATIVE_SHELL=1
@@ -578,7 +579,7 @@
             export XDG_CACHE_HOME="$TMPDIR/cache"
             export JELLYFIN_NATIVE_SHELL=1
             export SPOOL_QT_CMAKE_DIR="${pkgs.spoolQt6.qtbase}/lib/cmake/Qt6"
-            export CMAKE_PREFIX_PATH="${pkgs.spoolQt6.qtbase}:${pkgs.spoolQt6.qtdeclarative}:${pkgs.spoolQt6.qtsvg}:${pkgs.spoolQt6.qttools}:${pkgs.spoolQt6.qtwebsockets}''${CMAKE_PREFIX_PATH:+:$CMAKE_PREFIX_PATH}"
+            export CMAKE_PREFIX_PATH="${pkgs.spoolQt6.qtbase}:${pkgs.spoolQt6.qtdeclarative}:${pkgs.spoolQt6.qtsvg}:${pkgs.spoolQt6.qttools}:${pkgs.spoolQt6.qtwebsockets}:${pkgs.spoolQt6.qtshadertools}''${CMAKE_PREFIX_PATH:+:$CMAKE_PREFIX_PATH}"
             mkdir -p "$HOME" "$XDG_CACHE_HOME"
 
             ${if pkgs.stdenv.hostPlatform.isDarwin then ''

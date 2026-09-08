@@ -341,15 +341,14 @@ const QVector<SettingSpec>& settingSpecs()
             "Step down a rung when playback drops frames on this device", true, SettingTarget::AutoAdjustRenderQuality)
             .advanced(),
         selectSpec("playback/hdrOutput", "Playback", "HDR output",
-            "Applies when Spool next starts. Automatic stays in SDR for now, because an HDR window changes "
-            "how the interface looks as well as the video. Needs Vulkan, D3D11 or Metal, and on Linux Wayland",
+            "Applies when Spool next starts. Automatic enables HDR on supported Linux Wayland Vulkan displays. "
+            "Other desktop paths currently need Always; unsupported outputs stay SDR",
             "auto", kHdrOutputChoices, SettingTarget::HdrOutputMode)
             .onDesktop()
             .expert(),
         sliderSpec("playback/hdrPeakNits", "Playback", "Display peak brightness",
-            "What the display can actually reach. Zero uses what it reports, which outside Windows is a fixed "
-            "guess rather than a measurement",
-            "0", 0, 4000, 50, " nits", SettingTarget::HdrPeakBrightness)
+            "What the display can actually reach. Zero uses OS or compositor-reported luminance when available", "0", 0,
+            4000, 50, " nits", SettingTarget::HdrPeakBrightness)
             .onDesktop()
             .expert(),
         selectSpec("settings/audioOutputMode", "Playback", "Audio output", "Applies the next time something plays",

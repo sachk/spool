@@ -1,6 +1,7 @@
 #include "platform/linux/WaylandColorInfo.h"
 
 #include <QGuiApplication>
+#include <QPlatformSurfaceEvent>
 #include <QScreen>
 #include <QWindow>
 #include <QtDebug>
@@ -22,6 +23,18 @@ namespace {
         WaylandColorInfo info;
         bool ready = false;
         bool failed = false;
+        bool supportsScrgb = false;
+    };
+
+    const wp_color_manager_v1_listener kManagerListener = {
+        [](void *, wp_color_manager_v1 *, uint32_t) {},
+        [](void *data, wp_color_manager_v1 *, uint32_t feature) {
+            if (feature == WP_COLOR_MANAGER_V1_FEATURE_WINDOWS_SCRGB)
+                static_cast<Reader *>(data)->supportsScrgb = true;
+        },
+        [](void *, wp_color_manager_v1 *, uint32_t) {},
+        [](void *, wp_color_manager_v1 *, uint32_t) {},
+        [](void *, wp_color_manager_v1 *) {},
     };
 
     void registryGlobal(void *data, wl_registry *registry, uint32_t name, const char *interface, uint32_t version)
@@ -31,6 +44,7 @@ namespace {
             return;
         reader->manager = static_cast<wp_color_manager_v1 *>(
             wl_registry_bind(registry, name, &wp_color_manager_v1_interface, qMin(version, 1u)));
+        wp_color_manager_v1_add_listener(reader->manager, &kManagerListener, reader);
     }
 
     void registryGlobalRemove(void *, wl_registry *, uint32_t) { }
@@ -193,6 +207,102 @@ WaylandColorInfo waylandColorInfo(QWindow *window)
     wl_event_queue_destroy(queue);
 
     return reader.info;
+}
+
+WaylandHdrSurface::WaylandHdrSurface(QWindow *window)
+    : QObject(window)
+    , m_window(window)
+{
+    window->installEventFilter(this);
+}
+
+WaylandHdrSurface::~WaylandHdrSurface()
+{
+    reset();
+}
+
+void WaylandHdrSurface::reset()
+{
+    if (m_surface)
+        wp_color_management_surface_v1_destroy(m_surface);
+    m_surface = nullptr;
+}
+
+bool WaylandHdrSurface::eventFilter(QObject *watched, QEvent *event)
+{
+    if (event->type() == QEvent::PlatformSurface) {
+        const auto type = static_cast<QPlatformSurfaceEvent *>(event)->surfaceEventType();
+        if (type == QPlatformSurfaceEvent::SurfaceAboutToBeDestroyed)
+            reset();
+        else if (type == QPlatformSurfaceEvent::SurfaceCreated && m_enabled)
+            setEnabled(true);
+    }
+    return QObject::eventFilter(watched, event);
+}
+
+bool WaylandHdrSurface::setEnabled(bool enabled)
+{
+    m_enabled = enabled;
+    if (!enabled) {
+        reset();
+        return true;
+    }
+    if (m_surface)
+        return true;
+
+    auto *native = QGuiApplication::platformNativeInterface();
+    if (!native)
+        return false;
+    auto *display = static_cast<wl_display *>(native->nativeResourceForIntegration("wl_display"));
+    auto *surface = static_cast<wl_surface *>(native->nativeResourceForWindow("surface", m_window));
+    if (!display || !surface)
+        return false;
+    auto *queue = wl_display_create_queue(display);
+    if (!queue)
+        return false;
+    auto *wrapper = onQueue(display, queue);
+    auto *surfaceWrapper = onQueue(surface, queue);
+    auto *registry = wrapper ? wl_display_get_registry(wrapper) : nullptr;
+    Reader reader;
+    wp_image_description_v1 *description = nullptr;
+    if (registry) {
+        wl_registry_add_listener(registry, &kRegistryListener, &reader);
+        if (wl_display_roundtrip_queue(display, queue) >= 0 && reader.manager)
+            wl_display_roundtrip_queue(display, queue);
+    }
+    if (reader.supportsScrgb && surfaceWrapper) {
+        description = wp_color_manager_v1_create_windows_scrgb(reader.manager);
+        wp_image_description_v1_add_listener(description, &kDescriptionListener, &reader);
+        // A description may only be installed after its ready event.
+        while (!reader.ready && !reader.failed) {
+            if (wl_display_dispatch_queue(display, queue) < 0)
+                break;
+        }
+        if (reader.ready) {
+            m_surface = wp_color_manager_v1_get_surface(reader.manager, surfaceWrapper);
+            wp_color_management_surface_v1_set_image_description(
+                m_surface, description, WP_COLOR_MANAGER_V1_RENDER_INTENT_PERCEPTUAL);
+            // This object has no events, but must not retain the temporary queue.
+            wl_proxy_set_queue(reinterpret_cast<wl_proxy *>(m_surface), nullptr);
+            // Qt/Vulkan commits this pending state with the next actual frame.
+            m_window->requestUpdate();
+            qInfo() << "wayland: retained windows_scrgb description for Vulkan pass-through surface";
+        }
+    }
+    if (description)
+        wp_image_description_v1_destroy(description);
+    if (reader.manager)
+        wp_color_manager_v1_destroy(reader.manager);
+    if (registry)
+        wl_registry_destroy(registry);
+    if (surfaceWrapper)
+        wl_proxy_wrapper_destroy(surfaceWrapper);
+    if (wrapper)
+        wl_proxy_wrapper_destroy(wrapper);
+    wl_event_queue_destroy(queue);
+    if (!m_surface)
+        qWarning() << "wayland: cannot describe scRGB surface; using SDR pixels";
+    return m_surface != nullptr;
 }
 
 } // namespace JellyfinNative

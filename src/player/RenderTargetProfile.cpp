@@ -9,6 +9,10 @@
 
 #if defined(JELLYFIN_MPV_ITEM_RHI)
 #include <rhi/qrhi.h>
+#if defined(Q_OS_LINUX) && !defined(Q_OS_ANDROID) && QT_CONFIG(vulkan)
+#include <QGuiApplication>
+#include <rhi/qrhi_platform.h>
+#endif
 #endif
 
 #if defined(Q_OS_LINUX) && !defined(Q_OS_ANDROID)
@@ -78,21 +82,13 @@ namespace {
 
 } // namespace
 
-QByteArray RenderTargetPolicy::startupSwapChainRequest()
+QByteArray RenderTargetPolicy::startupSwapChainRequest(bool automaticHdr)
 {
-    // Only an explicit yes turns the swapchain over. Qt Quick applies no colour
-    // management of its own -- its materials write sRGB-encoded values straight
-    // into whatever buffer they are given -- so an HDR swapchain is also a
-    // change to how the whole interface looks, and that is not something to do
-    // to somebody who never asked for it. Auto stays SDR until the interface is
-    // corrected for the buffer it lands in.
-    const QString stored = startupStore().value(QLatin1String(kStartupPreferenceKey)).toString();
-    if (stored.isEmpty() || preferenceFromName(stored) != HdrOutputPreference::Always)
+    const auto preference = preferenceFromName(startupStore().value(QLatin1String(kStartupPreferenceKey)).toString());
+    if (preference == HdrOutputPreference::Never || (preference == HdrOutputPreference::Auto && !automaticHdr))
         return {};
-    // scRGB rather than HDR10: it keeps SDR content at the same values it has
-    // now, needs no PQ encode of the interface, and is the format Qt reports
-    // support for most widely. Where the display cannot present it Qt falls
-    // back to SDR by itself.
+    // The shell converts SDR UI to linear BT.709 at the reported reference
+    // white. Do not request PQ/P3 until their composition paths exist.
     return QByteArrayLiteral("scrgb");
 }
 
@@ -145,27 +141,22 @@ RenderTargetProfile RenderTargetPolicy::resolve(
 
 std::vector<MpvOption> RenderTargetPolicy::targetOptions(const RenderTargetProfile& profile)
 {
-    std::vector<MpvOption> options;
-    if (!profile.isHdr())
-        return options;
-
-    if (profile.format == RenderTargetProfile::Format::Pq) {
-        options.push_back({ QByteArrayLiteral("target-prim"), QByteArrayLiteral("bt.2020") });
-        options.push_back({ QByteArrayLiteral("target-trc"), QByteArrayLiteral("pq") });
-    } else {
-        // libplacebo names this encoding, so mpv can be told exactly what the
-        // swapchain is rather than approximated with linear and a peak.
-        options.push_back({ QByteArrayLiteral("target-prim"), QByteArrayLiteral("bt.709") });
-        options.push_back({ QByteArrayLiteral("target-trc"), QByteArrayLiteral("scrgb") });
-    }
-
-    // Both of these stay unset when the display did not say. A number nobody
-    // measured is worse than mpv's own detection.
-    if (const QByteArray peak = nitsOption(profile.maxLuminanceNits); !peak.isEmpty())
-        options.push_back({ QByteArrayLiteral("target-peak"), peak });
-    if (const QByteArray white = nitsOption(profile.sdrWhiteNits); !white.isEmpty())
-        options.push_back({ QByteArrayLiteral("hdr-reference-white"), white });
-    return options;
+    const bool hdr = profile.isHdr();
+    const bool pq = profile.format == RenderTargetProfile::Format::Pq;
+    const QByteArray peak = hdr ? nitsOption(profile.maxLuminanceNits) : QByteArray();
+    // Describe the embedding target, not a tone-mapping recipe. In particular,
+    // reset luminance overrides when returning to SDR or an unknown display.
+    return {
+        { QByteArrayLiteral("target-prim"), pq ? QByteArrayLiteral("bt.2020") : QByteArrayLiteral("bt.709") },
+        { QByteArrayLiteral("target-trc"),
+            !hdr     ? QByteArrayLiteral("bt.1886")
+                : pq ? QByteArrayLiteral("pq")
+                     : QByteArrayLiteral("scrgb") },
+        { QByteArrayLiteral("target-peak"), peak.isEmpty() ? QByteArrayLiteral("auto") : peak },
+        { QByteArrayLiteral("target-contrast"), hdr ? QByteArrayLiteral("inf") : QByteArrayLiteral("auto") },
+        { QByteArrayLiteral("hdr-reference-white"),
+            hdr ? nitsOption(profile.sdrWhiteNits) : QByteArrayLiteral("auto") },
+    };
 }
 
 DisplayOutputCapabilities RenderTargetPolicy::probe(QQuickWindow *window)
@@ -181,6 +172,7 @@ DisplayOutputCapabilities RenderTargetPolicy::probe(QQuickWindow *window)
         = static_cast<QRhiSwapChain *>(renderer->getResource(window, QSGRendererInterface::RhiSwapchainResource));
     if (!swapchain)
         return display;
+    display.surfaceReady = true;
 
     // Ask the backend, not the monitor. OpenGL answers no to both of these
     // however bright the display is, which is the whole reason the question is
@@ -198,8 +190,6 @@ DisplayOutputCapabilities RenderTargetPolicy::probe(QQuickWindow *window)
     switch (swapchain->format()) {
     case QRhiSwapChain::HDRExtendedSrgbLinear:
     case QRhiSwapChain::HDRExtendedDisplayP3Linear:
-        // Both are linear with 1.0 at SDR white; they differ in primaries, and
-        // the P3 one is only reachable on Apple platforms.
         display.preferredFormat = RenderTargetProfile::Format::ExtendedSrgbLinear;
         break;
     case QRhiSwapChain::HDR10:
@@ -211,6 +201,34 @@ DisplayOutputCapabilities RenderTargetPolicy::probe(QQuickWindow *window)
     if (display.preferredFormat == RenderTargetProfile::Format::Sdr)
         return display;
     display.hdrAvailable = true;
+#if defined(Q_OS_LINUX) && !defined(Q_OS_ANDROID) && QT_CONFIG(vulkan)
+    if (renderer->graphicsApi() == QSGRendererInterface::Vulkan
+        && QGuiApplication::platformName().startsWith(QLatin1String("wayland"))) {
+        auto *rhi = static_cast<QRhi *>(renderer->getResource(window, QSGRendererInterface::RhiResource));
+        const auto *handles = static_cast<const QRhiVulkanNativeHandles *>(rhi->nativeHandles());
+        const auto getFormats = reinterpret_cast<PFN_vkGetPhysicalDeviceSurfaceFormatsKHR>(
+            handles->inst->getInstanceProcAddr("vkGetPhysicalDeviceSurfaceFormatsKHR"));
+        const VkSurfaceKHR surface = QVulkanInstance::surfaceForWindow(window);
+        uint32_t count = 0;
+        if (!getFormats || getFormats(handles->physDev, surface, &count, nullptr) != VK_SUCCESS || !count) {
+            display.hdrAvailable = false;
+            return display;
+        }
+        std::vector<VkSurfaceFormatKHR> formats(count);
+        if (getFormats(handles->physDev, surface, &count, formats.data()) != VK_SUCCESS) {
+            display.hdrAvailable = false;
+            return display;
+        }
+        const VkFormat format = display.preferredFormat == RenderTargetProfile::Format::Pq
+            ? VK_FORMAT_A2B10G10R10_UNORM_PACK32
+            : VK_FORMAT_R16G16B16A16_SFLOAT;
+        // Match QVkSwapChain::chooseFormats: PASS_THROUGH wins for this format.
+        display.needsWaylandDescription
+            = std::any_of(formats.begin(), formats.begin() + count, [format](const VkSurfaceFormatKHR& candidate) {
+                  return candidate.format == format && candidate.colorSpace == VK_COLOR_SPACE_PASS_THROUGH_EXT;
+              });
+    }
+#endif
 
     // Qt only asks the system on Windows -- QD3D11SwapChain, QD3D12SwapChain
     // and QVkSwapChain under Q_OS_WIN, the last through DXGI. Everywhere else,
@@ -229,7 +247,17 @@ DisplayOutputCapabilities RenderTargetPolicy::probe(QQuickWindow *window)
 #if defined(Q_OS_WIN)
     display.luminanceMeasured = true;
 #endif
-#if defined(Q_OS_LINUX) && !defined(Q_OS_ANDROID)
+#else
+    Q_UNUSED(window);
+#endif
+    return display;
+}
+
+void RenderTargetPolicy::updateDisplayLuminance(DisplayOutputCapabilities& display, QQuickWindow *window)
+{
+#if defined(Q_OS_LINUX) && !defined(Q_OS_ANDROID) && !defined(JELLYFIN_NATIVE_WEBOS)
+    if (!display.hdrAvailable)
+        return;
     // The compositor does know, and on Wayland it will say. This is the number
     // somebody set in their display settings, which nothing reads out of EDID
     // and Qt never asks for, so it replaces the guess above rather than
@@ -241,11 +269,10 @@ DisplayOutputCapabilities RenderTargetPolicy::probe(QQuickWindow *window)
             display.sdrWhiteNits = wayland.referenceLuminanceNits;
         display.luminanceMeasured = true;
     }
-#endif
 #else
+    Q_UNUSED(display);
     Q_UNUSED(window);
 #endif
-    return display;
 }
 
 float RenderTargetPolicy::osdBrightnessScale(const RenderTargetProfile& profile)

@@ -60,7 +60,9 @@ JELLYFIN_TEST_MAIN("render-target-profile")
     // Nothing asked, so nothing is requested: a window left alone stays SDR.
     RenderTargetPolicy::rememberPreference(HdrOutputPreference::Auto);
     require(RenderTargetPolicy::startupSwapChainRequest().isEmpty(),
-        "automatic should not turn the window over to HDR while the interface is not corrected for it");
+        "automatic should not turn the window over to HDR without automaticHdr enabled");
+    require(RenderTargetPolicy::startupSwapChainRequest(true) == QByteArrayLiteral("scrgb"),
+        "automatic with automaticHdr enabled should request scrgb");
     RenderTargetPolicy::rememberPreference(HdrOutputPreference::Never);
     require(RenderTargetPolicy::startupSwapChainRequest().isEmpty(), "never should leave the window SDR");
     RenderTargetPolicy::rememberPreference(HdrOutputPreference::Always);
@@ -70,8 +72,11 @@ JELLYFIN_TEST_MAIN("render-target-profile")
     const DisplayOutputCapabilities sdrOnly;
     require(!RenderTargetPolicy::resolve(sdrOnly, HdrOutputPreference::Always).isHdr(),
         "a backend with no HDR swapchain stays SDR however loudly it is asked");
-    require(RenderTargetPolicy::targetOptions(RenderTargetPolicy::resolve(sdrOnly, HdrOutputPreference::Auto)).empty(),
-        "an SDR target should name no mpv target options at all");
+    const auto sdrTargetOptions
+        = RenderTargetPolicy::targetOptions(RenderTargetPolicy::resolve(sdrOnly, HdrOutputPreference::Auto));
+    require(
+        valueFor(sdrTargetOptions, "target-trc") == "bt.1886" && valueFor(sdrTargetOptions, "target-prim") == "bt.709",
+        "an SDR target should specify bt.709 and bt.1886 target options to reset any prior HDR state");
 
     require(!RenderTargetPolicy::resolve(hdrDisplay(), HdrOutputPreference::Never).isHdr(),
         "Never should hold an HDR display in SDR");
@@ -82,11 +87,9 @@ JELLYFIN_TEST_MAIN("render-target-profile")
     require(scrgb.format == RenderTargetProfile::Format::ExtendedSrgbLinear && scrgb.isHdr(),
         "an HDR source on an scRGB-capable display should present scRGB");
     const auto scrgbOptions = RenderTargetPolicy::targetOptions(scrgb);
-    require(valueFor(scrgbOptions, "target-trc") == "scrgb", "scRGB is an encoding libplacebo names itself");
-    require(valueFor(scrgbOptions, "target-prim") == "bt.709", "scRGB carries BT.709 primaries");
+    require(valueFor(scrgbOptions, "target-trc") == "scrgb", "scRGB targets use scRGB transfer");
+    require(valueFor(scrgbOptions, "target-prim") == "bt.709", "scRGB encodes extended-range BT.709");
     require(valueFor(scrgbOptions, "target-peak") == "1000", "the display's peak should reach mpv in nits");
-    require(valueFor(scrgbOptions, "hdr-reference-white") == "240",
-        "the operating system's SDR white should reach mpv in nits");
 
     const RenderTargetProfile pq
         = RenderTargetPolicy::resolve(hdrDisplay(RenderTargetProfile::Format::Pq), HdrOutputPreference::Auto);
@@ -99,8 +102,8 @@ JELLYFIN_TEST_MAIN("render-target-profile")
     silent.sdrWhiteNits = 0.0f;
     const RenderTargetProfile guessed = RenderTargetPolicy::resolve(silent, HdrOutputPreference::Always);
     const auto guessedOptions = RenderTargetPolicy::targetOptions(guessed);
-    require(valueFor(guessedOptions, "target-peak").isEmpty(),
-        "a display that reports no peak should leave mpv to its own detection");
+    require(valueFor(guessedOptions, "target-peak") == "auto",
+        "a display that reports no peak should set target-peak to auto to reset previous values");
     require(std::fabs(guessed.sdrWhiteNits - RenderTargetProfile::kDefaultSdrWhiteNits) < 0.01f,
         "an unreported SDR white should fall back to the reference value");
 
@@ -134,8 +137,8 @@ JELLYFIN_TEST_MAIN("render-target-profile")
     require(
         valueFor(RenderTargetPolicy::targetOptions(RenderTargetPolicy::resolve(guessing, HdrOutputPreference::Auto)),
             "target-peak")
-            .isEmpty(),
-        "an unmeasured peak should not reach mpv as though it were measured");
+            == "auto",
+        "an unmeasured peak should leave target-peak as auto");
 
     RenderTargetOverrides manual;
     manual.maxLuminanceNits = 600.0f;

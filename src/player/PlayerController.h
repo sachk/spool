@@ -248,6 +248,7 @@ public:
 
 private:
     QHash<int, QByteArray> m_mpvKeys;
+    void logColorDiagnostics(mpv_handle *handle);
     bool usesUserMpvConfig() const;
     int uiTrackIndexForStream(const QString& type, int streamIndex, int firstUiIndex) const;
     int streamIndexForUiTrack(const QString& type, int uiIndex, int firstUiIndex) const;

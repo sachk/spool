@@ -31,6 +31,9 @@
 #include "platform/android/AndroidUpdateController.h"
 #include <QJniObject>
 #endif
+#if defined(Q_OS_LINUX) && !defined(Q_OS_ANDROID) && !defined(JELLYFIN_NATIVE_WEBOS)
+#include "platform/linux/WaylandColorInfo.h"
+#endif
 
 #include <QCoreApplication>
 #include <QDateTime>
@@ -447,17 +450,12 @@ int main(int argc, char **argv)
     // adapter of any kind is guaranteed, so use Qt Quick's deterministic
     // software renderer.
     //
-    // Windows takes Direct3D 11: it is Qt's own default there, the one backend
-    // whose swapchain reports what the display can really do rather than a
-    // fixed guess, and libplacebo shares its device and immediate context with
-    // nothing to synchronise. Elsewhere OpenGL, which cannot present HDR but is
-    // what the player has always run on.
-    //
-    // SPOOL_RENDER_API overrides both, because which backend performs better,
-    // or handles a particular user's shaders better, is a question about their
-    // hardware rather than about their operating system.
+    // Keep the renderer and Qt on the same API. Linux uses Vulkan for Wayland
+    // HDR; OpenGL remains an explicit SDR compatibility choice.
 #if defined(Q_OS_WIN)
     QSGRendererInterface::GraphicsApi graphicsApi = QSGRendererInterface::Direct3D11;
+#elif defined(Q_OS_LINUX) && !defined(Q_OS_ANDROID) && !defined(JELLYFIN_NATIVE_WEBOS) && QT_CONFIG(vulkan)
+    QSGRendererInterface::GraphicsApi graphicsApi = QSGRendererInterface::Vulkan;
 #else
     QSGRendererInterface::GraphicsApi graphicsApi = QSGRendererInterface::OpenGL;
 #endif
@@ -498,11 +496,49 @@ int main(int argc, char **argv)
     logLine("startup: QGuiApplication constructed");
 
     // Put a native surface on screen at the first valid opportunity. QWindow
+    QString autoplayItemId;
+    for (int i = 1; i < argc; ++i) {
+        const QString arg = QString::fromLocal8Bit(argv[i]);
+        if (arg == QStringLiteral("--play") && i + 1 < argc) {
+            autoplayItemId = QString::fromLocal8Bit(argv[++i]);
+        } else if (!arg.startsWith('-') && arg.length() >= 16) {
+            autoplayItemId = arg;
+        }
+    }
+    if (autoplayItemId.isEmpty()) {
+        autoplayItemId = QString::fromLocal8Bit(qgetenv("SPOOL_PLAY_ITEM"));
+    }
+
+    bool automaticHdr = false;
+    bool allowHdrRequest = !launchTest
+        && (graphicsApi == QSGRendererInterface::Vulkan || graphicsApi == QSGRendererInterface::Direct3D11);
+#if defined(Q_OS_LINUX) && !defined(Q_OS_ANDROID) && !defined(JELLYFIN_NATIVE_WEBOS)
+    allowHdrRequest = allowHdrRequest && QGuiApplication::platformName().startsWith(QLatin1String("wayland"));
+    automaticHdr = allowHdrRequest;
+#endif
+    const QByteArray hdrRequest
+        = allowHdrRequest ? JellyfinNative::RenderTargetPolicy::startupSwapChainRequest(automaticHdr) : QByteArray();
+#if !defined(Q_OS_ANDROID) && !defined(JELLYFIN_NATIVE_WEBOS)
+    if (!hdrRequest.isEmpty()) {
+        qputenv("QSG_RHI_HDR", hdrRequest);
+        logLine("startup: set QSG_RHI_HDR=%s in environment", hdrRequest.constData());
+    } else {
+        qunsetenv("QSG_RHI_HDR");
+    }
+#endif
+
     // and scene-graph setup must remain on the GUI thread; everything below
     // this point can overlap the render thread's first-frame work instead of
     // delaying it.
     JellyfinNative::InputLatencyMonitor inputLatencyMonitor;
     JellyfinNative::NativeAppWindow window(QString::fromLatin1(kAppId));
+#if defined(Q_OS_LINUX) && !defined(Q_OS_ANDROID) && !defined(JELLYFIN_NATIVE_WEBOS)
+    JellyfinNative::WaylandHdrSurface waylandHdrSurface(&window);
+#endif
+    window.setProperty("_qt_sg_hdr_format", hdrRequest);
+    logLine("startup: output request=%s qpa=%s", hdrRequest.isEmpty() ? "SDR" : hdrRequest.constData(),
+        qPrintable(QGuiApplication::platformName()));
+    window.rootContext()->setContextProperty(QStringLiteral("startupNativeWindow"), &window);
     // The launch screen. Everything that draws it -- the frame put up before
     // the shell exists, the shell's own overlay, the slow-start page -- reads
     // these, so all three land on the same pixels and the handover from the
@@ -515,18 +551,43 @@ int main(int argc, char **argv)
     window.rootContext()->setContextProperty(QStringLiteral("startupSplashCoreWidthDp"), splashCoreWidthDp());
     window.rootContext()->setContextProperty(QStringLiteral("startupSplashPixelsPerDp"), splashPixelsPerDp());
     JellyfinNative::configurePlatformWindow(window);
-    // Qt reads this when it creates the swapchain, at the window's first
-    // expose, and cannot change it afterwards -- so it has to be set here,
-    // before anything shows the window, from a store that answers without
-    // waiting. An empty request leaves the window SDR, and a request the
-    // display or backend cannot grant is ignored by Qt rather than fatal.
-    if (!launchTest) {
-        const QByteArray hdrRequest = JellyfinNative::RenderTargetPolicy::startupSwapChainRequest();
-        if (!hdrRequest.isEmpty()) {
-            window.setProperty("_qt_sg_hdr_format", hdrRequest);
-            logLine("startup: asking for a %s swapchain", hdrRequest.constData());
-        }
-    }
+#if !defined(Q_OS_ANDROID) && !defined(JELLYFIN_NATIVE_WEBOS)
+    // Access QRhi only on its render thread. Native display queries and QML
+    // notification stay on the GUI thread. Snapshot once per scene graph;
+    // live output-change subscriptions remain a separate follow-up.
+    auto outputSnapshotPending = std::make_shared<bool>(true);
+    QObject::connect(
+        &window, &QQuickWindow::sceneGraphInitialized, &window,
+        [outputSnapshotPending] { *outputSnapshotPending = true; }, Qt::DirectConnection);
+    QObject::connect(
+        &window, &QQuickWindow::beforeSynchronizing, &window,
+        [&, outputSnapshotPending] {
+            if (!*outputSnapshotPending)
+                return;
+            auto display = JellyfinNative::RenderTargetPolicy::probe(&window);
+            if (!display.surfaceReady)
+                return;
+            *outputSnapshotPending = false;
+            QMetaObject::invokeMethod(
+                &window,
+                [&, display]() mutable {
+                    JellyfinNative::RenderTargetPolicy::updateDisplayLuminance(display, &window);
+                    bool scrgb = display.hdrAvailable
+                        && display.preferredFormat == JellyfinNative::RenderTargetProfile::Format::ExtendedSrgbLinear;
+#if defined(Q_OS_LINUX) && !defined(Q_OS_ANDROID) && !defined(JELLYFIN_NATIVE_WEBOS)
+                    if (!waylandHdrSurface.setEnabled(scrgb && display.needsWaylandDescription))
+                        scrgb = false;
+#endif
+                    const qreal peak = display.luminanceMeasured ? display.maxLuminanceNits : 0.0;
+                    window.setHdrOutput(scrgb, display.sdrWhiteNits, peak);
+                    logLine("output: swapchain=%s supported=%d sdrWhite=%.1f peak=%.1f luminanceReported=%s",
+                        scrgb ? "scRGB" : "SDR", static_cast<int>(display.supportedFormat),
+                        double(display.sdrWhiteNits), double(peak), display.luminanceMeasured ? "yes" : "no");
+                },
+                Qt::QueuedConnection);
+        },
+        Qt::DirectConnection);
+#endif
     inputLatencyMonitor.attachWindow(&window);
     window.setInputLatencyMonitor(&inputLatencyMonitor);
     const auto directSingleShot = static_cast<Qt::ConnectionType>(Qt::DirectConnection | Qt::SingleShotConnection);
@@ -959,6 +1020,15 @@ int main(int argc, char **argv)
             app.exit(1);
         });
         window.requestUpdate();
+    }
+    if (!autoplayItemId.isEmpty()) {
+        QObject::connect(controller.get(), &JellyfinNative::AppController::initializedChanged, controller.get(),
+            [autoplayItemId, c = controller.get()]() {
+                if (c->initialized()) {
+                    logLine("startup: autoplay requested for item %s", qPrintable(autoplayItemId));
+                    QTimer::singleShot(300, c, [autoplayItemId, c]() { c->playItemId(autoplayItemId); });
+                }
+            });
     }
 
     QTimer::singleShot(1000, router.get(), [router = router.get()] { router->beginSession(false); });

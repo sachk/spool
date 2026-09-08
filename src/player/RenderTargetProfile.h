@@ -34,8 +34,8 @@ struct RenderTargetProfile {
         // 8-bit sRGB. Every backend has this, and it is what the OpenGL
         // framebuffer path can offer.
         Sdr,
-        // scRGB: linear, FP16, BT.709 primaries, 1.0 at the display's SDR
-        // white. Values run past 1.0, which is where the highlights live.
+        // scRGB: linear, FP16, BT.709 primaries, 1.0 at 80 nits.
+        // Values run past 1.0, which is where the highlights live.
         ExtendedSrgbLinear,
         // HDR10: PQ-encoded, BT.2020 primaries, absolute luminance.
         Pq,
@@ -67,6 +67,7 @@ struct RenderTargetProfile {
 // What the graphics backend and the operating system between them say the
 // window can present. Filled from the live swapchain, never assumed.
 struct DisplayOutputCapabilities {
+    bool surfaceReady = false;
     // Whether the swapchain in front of us is presenting HDR right now, which
     // is not the same question as whether it could. Qt fixes a window's
     // swapchain format when the window is created, so a backend that supports
@@ -74,6 +75,9 @@ struct DisplayOutputCapabilities {
     // mpv to encode PQ or scRGB into an 8-bit sRGB swapchain is how the
     // picture ends up wrong rather than merely un-improved.
     bool hdrAvailable = false;
+    // Qt substitutes Vulkan PASS_THROUGH on Wayland when available. In that
+    // case the application, not Mesa's WSI, must retain a surface description.
+    bool needsWaylandDescription = false;
     // What the swapchain is actually presenting into. This is what mpv is told
     // about.
     RenderTargetProfile::Format preferredFormat = RenderTargetProfile::Format::Sdr;
@@ -93,10 +97,7 @@ struct DisplayOutputCapabilities {
     bool luminanceMeasured = false;
 };
 
-// What the viewer said, which beats both the display and the guess. On Linux
-// and macOS this is the only real number available: nothing here reports panel
-// luminance, and the desktops do not read it out of EDID either, so somebody
-// who wants their own peak respected has to say what it is.
+// Viewer overrides take precedence over OS/compositor-reported luminance.
 struct RenderTargetOverrides {
     // Nits. Zero leaves whatever the display reported in place.
     float maxLuminanceNits = 0.0f;
@@ -110,8 +111,7 @@ enum class HdrOutputPreference {
     // Never leave SDR, whatever the display says. What someone whose desktop
     // handles HDR badly, or who simply prefers the SDR pipeline, asks for.
     Never,
-    // Currently the same as Auto, and kept apart from it so that a display
-    // whose report cannot be trusted still has a way to be used.
+    // Request HDR even on platforms where automatic selection is not enabled.
     Always,
 };
 
@@ -130,7 +130,7 @@ public:
     // empty array to leave the window SDR. Qt ignores a format the display or
     // backend cannot present and falls back to SDR on its own, so asking is
     // safe even where it cannot be granted.
-    static QByteArray startupSwapChainRequest();
+    static QByteArray startupSwapChainRequest(bool automaticHdr = false);
     // Records the choice for the next launch. Takes effect when the window is
     // next created, which is why the setting says as much.
     static void rememberPreference(HdrOutputPreference preference);
@@ -140,9 +140,8 @@ public:
     static RenderTargetProfile resolve(const DisplayOutputCapabilities& display, HdrOutputPreference preference,
         const RenderTargetOverrides& overrides = {});
 
-    // What mpv has to be told so it renders for that target. Empty for SDR:
-    // mpv's own defaults are already an sRGB target, and naming them would
-    // only take the decision away from a user's own configuration.
+    // Complete managed output encoding, including resets for unknown luminance
+    // and SDR. These describe our texture, not a user's tone-mapping algorithm.
     static std::vector<MpvOption> targetOptions(const RenderTargetProfile& profile);
 
     // How bright diffuse white ends up, relative to SDR. Subtitles and the
@@ -150,11 +149,10 @@ public:
     // scaling or they arrive at whatever the shell's white happens to be.
     static float osdBrightnessScale(const RenderTargetProfile& profile);
 
-    // What the window's live swapchain says it can present, asked of the
-    // graphics backend rather than of the monitor. Returns nothing available
-    // when there is no swapchain yet, which is every moment before the scene
-    // graph has drawn once.
+    // Render-thread only: inspect the actual swapchain, not its requested format.
     static DisplayOutputCapabilities probe(QQuickWindow *window);
+    // GUI-thread only: enrich the snapshot with platform display information.
+    static void updateDisplayLuminance(DisplayOutputCapabilities& display, QQuickWindow *window);
 };
 
 } // namespace JellyfinNative

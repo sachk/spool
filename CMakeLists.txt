@@ -64,6 +64,7 @@ set(JELLYFIN_QT_COMPONENTS
     Sql
     OpenGL
     LinguistTools
+    ShaderTools
     WebSockets
     Svg
 )
@@ -510,6 +511,7 @@ qt_add_qml_module(jellyfin-native
         qml/primitives/TextFieldRow.qml
         qml/primitives/ToggleRow.qml
         qml/shell/AppShell.qml
+        qml/shell/HdrUiLayer.qml
         qml/shell/KeyRouter.qml
         qml/shell/BusyOverlay.qml
         qml/shell/DiagnosticsOverlay.qml
@@ -533,6 +535,14 @@ qt_add_qml_module(jellyfin-native
         qml/theme/Metrics.qml
         qml/theme/Theme.qml
         qml/theme/Typography.qml
+)
+
+# Qt Quick consumes baked shader packages on every RHI backend. Keep the
+# resource independent of the QML module so the early startup frame can use it.
+qt_add_shaders(jellyfin-native "hdr_ui_shaders"
+    PREFIX "/shaders"
+    BASE "${CMAKE_CURRENT_SOURCE_DIR}/qml/shell/shaders"
+    FILES qml/shell/shaders/sdr-ui-to-scrgb.frag
 )
 if(NOT JELLYFIN_NATIVE_WEBOS)
     qt_target_qml_sources(jellyfin-native
@@ -587,6 +597,7 @@ qt_add_resources(jellyfin-native "startup_splash_qml"
     FILES
         qml/shell/StartupSplash.qml
         qml/shell/SplashContent.qml
+        qml/shell/HdrUiLayer.qml
 )
 # webOS reads its launch screen off disk, where appinfo.json already names it.
 if(NOT JELLYFIN_NATIVE_WEBOS)
