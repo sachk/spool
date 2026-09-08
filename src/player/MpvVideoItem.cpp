@@ -1,5 +1,6 @@
 #include "MpvVideoItem.h"
 
+#include <QColor>
 #include <QEventLoop>
 #include <QMetaObject>
 #include <QMutexLocker>
@@ -398,6 +399,23 @@ namespace {
             QRhiTexture *target = colorTexture();
             if (!target || !cb)
                 return;
+
+            // This texture is the item's own and it outlives the frame: Qt
+            // allocates it once and reuses it until the item is resized, so
+            // whatever mpv does not draw over stays on screen. The letterbox
+            // bars are that region, and what was last written there is the
+            // stats page the viewer just closed -- it sat in the bars until a
+            // resize reallocated the texture. Clear the target first; mpv draws
+            // the picture over it.
+            //
+            // Not on Vulkan: mpv is handed the image layout Qt is tracking, and
+            // a pass of our own moves the image out from under that handover.
+            if (rhi() && rhi()->backend() != QRhi::Vulkan) {
+                if (QRhiRenderTarget *renderTarget = this->renderTarget()) {
+                    cb->beginPass(renderTarget, QColor(Qt::black), { 1.0f, 0 });
+                    cb->endPass();
+                }
+            }
 
             // D3D11 executes Qt's pending commands before mpv uses the shared
             // immediate context; endExternal() invalidates Qt's state cache.
