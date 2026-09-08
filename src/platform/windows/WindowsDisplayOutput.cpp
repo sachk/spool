@@ -10,20 +10,14 @@
 #include <windows.h>
 #include <wrl/client.h>
 
-#include <rhi/qrhid3d11_p.h>
+// QD3D11SwapChain is how the DXGI swapchain behind QRhiSwapChain is reached.
+// An installed Qt keeps the backend headers under private/, not rhi/.
+#include <private/qrhid3d11_p.h>
 
 #include <cmath>
 #include <cwchar>
 #include <optional>
 #include <vector>
-
-#ifndef DISPLAYCONFIG_DEVICE_INFO_GET_SDR_WHITE_LEVEL
-#define DISPLAYCONFIG_DEVICE_INFO_GET_SDR_WHITE_LEVEL ((DISPLAYCONFIG_DEVICE_INFO_TYPE)11)
-typedef struct DISPLAYCONFIG_SDR_WHITE_LEVEL {
-    DISPLAYCONFIG_DEVICE_INFO_HEADER header;
-    ULONG SDRWhiteLevel;
-} DISPLAYCONFIG_SDR_WHITE_LEVEL;
-#endif
 
 namespace JellyfinNative {
 namespace {
@@ -137,21 +131,29 @@ DisplayOutputCapabilities windowsD3D11DisplayOutput(QRhiSwapChain *swapchain)
     display.preferredFormat
         = scrgb ? RenderTargetProfile::Format::ExtendedSrgbLinear : RenderTargetProfile::Format::Sdr;
 
-    ComPtr<IDXGIOutput> output;
-    ComPtr<IDXGIOutput6> output6;
-    DXGI_OUTPUT_DESC1 outputDesc {};
-    const bool outputReported = SUCCEEDED(native->GetContainingOutput(output.GetAddressOf()))
-        && SUCCEEDED(output.As(&output6)) && SUCCEEDED(output6->GetDesc1(&outputDesc));
-    // This describes Windows' current Advanced Color output, not the app's
-    // buffer encoding: Windows composites our scRGB into its HDR/PQ desktop.
-    const bool desktopHdr = outputReported && outputDesc.ColorSpace == DXGI_COLOR_SPACE_RGB_FULL_G2084_NONE_P2020;
-    if (desktopHdr)
-        display.supportedFormat = RenderTargetProfile::Format::ExtendedSrgbLinear;
     HWND hwnd = nullptr;
     if (auto *d3dSwapChain = static_cast<QD3D11SwapChain *>(swapchain)) {
         if (d3dSwapChain->window)
             hwnd = reinterpret_cast<HWND>(d3dSwapChain->window->winId());
     }
+
+    // GetContainingOutput answers only for a swapchain the compositor does not
+    // own: it fails with DXGI_ERROR_INVALID_CALL on a composition swapchain,
+    // which is what Qt creates when the surface format asks for alpha. The
+    // window is opaque for that reason among others -- see
+    // platformSurfaceFormat() -- and the display's luminance is readable here
+    // because of it.
+    ComPtr<IDXGIOutput> output;
+    ComPtr<IDXGIOutput6> output6;
+    DXGI_OUTPUT_DESC1 outputDesc {};
+    const bool outputReported = SUCCEEDED(native->GetContainingOutput(output.GetAddressOf()))
+        && SUCCEEDED(output.As(&output6)) && SUCCEEDED(output6->GetDesc1(&outputDesc));
+
+    // This describes Windows' current Advanced Color output, not the app's
+    // buffer encoding: Windows composites our scRGB into its HDR/PQ desktop.
+    const bool desktopHdr = outputReported && outputDesc.ColorSpace == DXGI_COLOR_SPACE_RGB_FULL_G2084_NONE_P2020;
+    if (desktopHdr)
+        display.supportedFormat = RenderTargetProfile::Format::ExtendedSrgbLinear;
     HMONITOR monitor
         = outputReported ? outputDesc.Monitor : (hwnd ? MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST) : nullptr);
 
