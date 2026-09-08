@@ -85,6 +85,7 @@ enum class SettingTarget {
     AutomaticUpdates,
     RenderQuality,
     AutoAdjustRenderQuality,
+    HardwareDecoding,
     HdrOutputMode,
     HdrPeakBrightness,
     VideoOutputMode,

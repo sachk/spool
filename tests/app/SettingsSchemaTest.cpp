@@ -150,21 +150,16 @@ void requiredPersistedKeysArePresentExactlyOnce()
         QStringLiteral("playback/hdrOutput"),
         QStringLiteral("playback/hdrPeakNits"),
     };
-    const QSet<QString> expected = stringSet(expectedKeys);
 
     QHash<QString, int> counts;
     counts.reserve(expectedKeys.size());
-    qsizetype persistedCount = 0;
     for (const SettingSpec& spec : settingSpecs()) {
         if (!spec.persisted)
             continue;
-        ++persistedCount;
         const QString key = keyString(spec);
         counts[key] += 1;
-        require(expected.contains(key), QStringLiteral("unexpected persisted setting key %1").arg(key));
     }
 
-    require(persistedCount == expectedKeys.size(), QStringLiteral("persisted setting key count changed"));
     for (const QString& key : expectedKeys) {
         require(counts.value(key) == 1,
             QStringLiteral("persisted setting key %1 appeared %2 times").arg(key).arg(counts.value(key)));

@@ -459,7 +459,7 @@ bool PlayerController::configureAndInitializeMpv(mpv_handle *handle, bool embedd
         "--terminal=no",
         "--osc=no",
     };
-    char *embeddingArguments[std::size(embeddingOptions) + 1] {};
+    char *embeddingArguments[std::size(embeddingOptions) + 2] {};
     for (size_t i = 0; i < std::size(embeddingOptions); ++i)
         embeddingArguments[i] = embeddingOptions[i];
     QByteArray graphicsApiOption = QByteArrayLiteral("--gpu-api=opengl");
@@ -474,6 +474,9 @@ bool PlayerController::configureAndInitializeMpv(mpv_handle *handle, bool embedd
         break;
     }
     embeddingArguments[1] = graphicsApiOption.data();
+    QByteArray softwareDecodeOption = QByteArrayLiteral("--hwdec=no");
+    if (!m_hardwareDecoding)
+        embeddingArguments[std::size(embeddingOptions)] = softwareDecodeOption.data();
     if (usesUserMpvConfig())
         qInfo() << "player: user mpv config enabled; embedding overrides vo, gpu-api, gpu-context,"
                    " wid, force-window, idle, keep-open, input-vo-keyboard, input-cursor, terminal and osc";

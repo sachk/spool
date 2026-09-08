@@ -333,6 +333,10 @@ const QVector<SettingSpec>& settingSpecs()
             kVideoOutputChoices, SettingTarget::VideoOutputMode)
             .onAndroid()
             .advanced(),
+        toggleSpec("playback/hardwareDecoding", "Playback", "Hardware decoding",
+            "Use the GPU to decode video when supported. Turn off to use the CPU. Applies to the next playback", true,
+            SettingTarget::HardwareDecoding)
+            .onDesktop(),
         selectSpec("playback/renderQuality", "Playback", "Picture quality",
             "How much work the GPU does on each frame. Lowered automatically if playback drops frames", "balanced",
             kRenderQualityChoices, SettingTarget::RenderQuality)

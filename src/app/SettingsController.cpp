@@ -546,6 +546,10 @@ void SettingsController::applySchemaValue(const SettingSpec& spec, const QVarian
         if (m_player)
             m_player->setRenderQuality(MpvOptionProfile::renderQualityFromName(m_renderQuality));
         break;
+    case SettingTarget::HardwareDecoding:
+        if (m_player)
+            m_player->setHardwareDecoding(value.toBool());
+        break;
     case SettingTarget::HdrOutputMode:
         if (m_player)
             m_player->setHdrOutputPreference(value.toString());
@@ -773,6 +777,7 @@ void SettingsController::emitSchemaSignals(const SettingSpec& spec)
     case SettingTarget::ForwardCacheSize:
     case SettingTarget::PlayerVolumeSlider:
     case SettingTarget::AudioOutput:
+    case SettingTarget::HardwareDecoding:
         break;
     case SettingTarget::AudioDelay:
         emit audioDelayChanged();

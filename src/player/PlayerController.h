@@ -181,6 +181,10 @@ public:
     // Applies to the next thing that plays: the render options are set on a
     // fresh mpv core, and every play request builds one.
     void setRenderQuality(MpvOptionProfile::RenderQuality quality);
+    void setHardwareDecoding(bool enabled)
+    {
+        m_hardwareDecoding = enabled;
+    }
     // Direct output keeps video off the Qt scene graph entirely. Applies to
     // the next thing that plays, like the quality profile.
     void setDirectVideoOutput(bool direct);
@@ -354,6 +358,7 @@ private:
     double m_containerFps = 0.0;
     MpvOptionProfile::RenderQuality m_renderQuality = MpvOptionProfile::RenderQuality::Balanced;
     bool m_directVideoOutput = false;
+    bool m_hardwareDecoding = true;
     // The opening seconds are where a device that cannot keep up says so:
     // the picture is being scaled and tone-mapped from the first frame, and
     // nothing has warmed a cache yet.
