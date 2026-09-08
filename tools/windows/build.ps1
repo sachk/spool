@@ -6,10 +6,15 @@ param(
 Initialize-WindowsBuildEnvironment
 $root = Get-RepositoryRoot
 $buildDir = Join-Path $root 'build\windows-release\app'
-$mpvLibrary = Join-Path $env:JELLYFIN_MPV_ROOT 'lib\mpv.lib'
-
-if (-not (Test-Path -LiteralPath $mpvLibrary)) {
-    & (Join-Path $PSScriptRoot 'build-mpv.ps1')
+if (-not (Test-MpvBuildCurrent -Prefix $env:JELLYFIN_MPV_ROOT)) {
+    # libmpv is built by clang and lld with a PATH, CC and CXX of its own; the
+    # application is built by MSVC. Run it in a child process so that
+    # environment cannot outlive it: in-process it did, and the resource
+    # compiler the app links with went missing behind LLVM's own tools
+    # (LNK1158: cannot run 'rc.exe'). The runner never saw this because there
+    # the two are separate steps, which is what this reproduces locally.
+    & (Get-Process -Id $PID).Path -NoProfile -ExecutionPolicy Bypass `
+        -File (Join-Path $PSScriptRoot 'build-mpv.ps1')
     if ($LASTEXITCODE -ne 0) { throw 'Building the Windows libmpv dependency failed.' }
 }
 

@@ -31,12 +31,26 @@ if ($Clean) {
 }
 
 # Work in a disposable mirror so Meson wraps never dirty the mpv submodule.
-# Use -Clean after changing the fork; ordinary retries retain downloaded wraps.
+# The mirror is a copy, so it goes stale the moment the submodule moves; re-seed
+# it then rather than building the previous fork again. Ordinary retries, where
+# the revision is unchanged, still retain the downloaded wraps.
+$sourceRevision = Get-MpvSourceRevision
+if ($sourceRevision -and (Test-Path -LiteralPath $buildSource)) {
+    $mirroredRevision = Read-MpvRevisionStamp -Directory $buildSource
+    if ($mirroredRevision -ne $sourceRevision) {
+        Write-Host "mpv source mirror is at '$(if ($mirroredRevision) { $mirroredRevision } else { 'an unrecorded revision' })'; re-seeding from $sourceRevision"
+        Remove-Item -LiteralPath $buildSource -Recurse -Force
+        if (Test-Path -LiteralPath $buildDirectory) {
+            Remove-Item -LiteralPath $buildDirectory -Recurse -Force
+        }
+    }
+}
 if (-not (Test-Path -LiteralPath $buildSource)) {
     New-Item -ItemType Directory -Force $buildSource | Out-Null
     Get-ChildItem -LiteralPath $source -Force |
         Where-Object { $_.Name -notin @('.git', 'build') } |
         Copy-Item -Destination $buildSource -Recurse -Force
+    Write-MpvRevisionStamp -Directory $buildSource -Revision $sourceRevision
 }
 New-Item -ItemType Directory -Force $packageCache | Out-Null
 
@@ -144,6 +158,19 @@ clone-recursive = true
         "python = import('python').find_installation('$pythonMesonPath')")
     [IO.File]::WriteAllText($libplaceboMeson, $libplaceboText, [Text.UTF8Encoding]::new($false))
 
+    # libplacebo hands vulkan-sdk/lib to the SPIRV lookup but not to the
+    # glslang one beside it. Meson resolves a static find_library from
+    # `clang++ --print-search-dirs`, which lists LLVM's own directories and
+    # never reads LIB, so glslang is looked for where it cannot be and is
+    # missed silently -- the link then fails on glslang::InitializeProcess.
+    # Give that call the same search path its neighbour already gets.
+    $glslangMeson = Join-Path $libplaceboRoot 'src\glsl\meson.build'
+    $glslangText = Get-Content -LiteralPath $glslangMeson -Raw
+    $glslangText = $glslangText.Replace(
+        "cxx.find_library('glslang', required: required, static: static)",
+        "cxx.find_library('glslang', required: required, static: static, dirs: vulkan_lib_dirs)")
+    [IO.File]::WriteAllText($glslangMeson, $glslangText, [Text.UTF8Encoding]::new($false))
+
     $setupArguments = @(
         'setup',
         $buildDirectory,
@@ -194,6 +221,25 @@ clone-recursive = true
     meson install -C $buildDirectory
     if ($LASTEXITCODE -ne 0) { throw 'Installing Windows libmpv failed.' }
     Copy-Item (Join-Path $ffmpegPrefix 'bin\*.dll') (Join-Path $prefix 'bin')
+    # libplacebo reaches SPIRV-Cross through its shared library, so that DLL is
+    # part of libmpv's runtime closure and has to sit beside it for staging.
+    Copy-Item (Join-Path $shaderTools 'bin\*.dll') (Join-Path $prefix 'bin')
+    # mpv's own render_vk.h includes vulkan.h, and libplacebo keeps its copy of
+    # the Vulkan headers under 3rdparty without handing them to whoever links
+    # against it. The prefix is what the application compiles against, so the
+    # headers travel with it -- that, and nothing else, is what decides whether
+    # the application can compile its Vulkan path on Windows. No loader is
+    # among them: this is not an SDK, and nothing here calls a Vulkan entry
+    # point that the driver's own vulkan-1.dll does not supply at run time.
+    foreach ($headers in @('vulkan', 'vk_video')) {
+        $source = Join-Path $shaderTools "include\$headers"
+        if (Test-Path -LiteralPath $source) {
+            Copy-Item -LiteralPath $source -Destination (Join-Path $prefix 'include') -Recurse -Force
+        }
+    }
+    # Name the revision this prefix was built from, so build.ps1 can tell a
+    # current libmpv from one the submodule has moved past.
+    Write-MpvRevisionStamp -Directory $prefix -Revision $sourceRevision
 } finally {
     Pop-Location
 }

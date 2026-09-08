@@ -72,6 +72,68 @@ function Get-DefaultQtRoot {
     return "C:\Qt\$($qt.version)\$($qt.windowsKit)"
 }
 
+function Get-DefaultQCoroRoot {
+    return "C:\Qt\$((Get-ToolchainManifest).qcoro.windowsPrefix)"
+}
+
+# A built libmpv is only as current as the mpv submodule it came from, and
+# neither the import library nor the disposable source mirror says which
+# revision that was. Record it, so a moved submodule rebuilds instead of being
+# linked against silently -- the failure mode is a missing symbol at link time,
+# or worse, an API that quietly behaves like the older fork.
+function Get-MpvSourceRevision {
+    $mpv = Join-Path (Get-RepositoryRoot) 'mpv'
+    if (-not (Test-Path -LiteralPath $mpv)) {
+        return $null
+    }
+    $revision = & git -C $mpv rev-parse HEAD 2>$null
+    if ($LASTEXITCODE -ne 0 -or -not $revision) {
+        return $null
+    }
+    return $revision.Trim()
+}
+
+function Get-MpvRevisionStampPath {
+    param([Parameter(Mandatory)] [string] $Directory)
+    return (Join-Path $Directory '.spool-mpv-revision')
+}
+
+function Read-MpvRevisionStamp {
+    param([Parameter(Mandatory)] [string] $Directory)
+    $stamp = Get-MpvRevisionStampPath -Directory $Directory
+    if (-not (Test-Path -LiteralPath $stamp)) {
+        return $null
+    }
+    return (Get-Content -LiteralPath $stamp -Raw).Trim()
+}
+
+function Write-MpvRevisionStamp {
+    param(
+        [Parameter(Mandatory)] [string] $Directory,
+        [string] $Revision
+    )
+    if (-not $Revision) {
+        return
+    }
+    [IO.File]::WriteAllText((Get-MpvRevisionStampPath -Directory $Directory), "$Revision`n",
+        [Text.UTF8Encoding]::new($false))
+}
+
+# True when $Prefix holds a libmpv built from the submodule as it stands now.
+# A repository with no usable git information cannot answer that, and says so
+# by accepting what is already built rather than rebuilding on every run.
+function Test-MpvBuildCurrent {
+    param([Parameter(Mandatory)] [string] $Prefix)
+    if (-not (Test-Path -LiteralPath (Join-Path $Prefix 'lib\mpv.lib'))) {
+        return $false
+    }
+    $revision = Get-MpvSourceRevision
+    if (-not $revision) {
+        return $true
+    }
+    return ((Read-MpvRevisionStamp -Directory $Prefix) -eq $revision)
+}
+
 function Initialize-WindowsBuildEnvironment {
     Import-MsvcEnvironment
 
@@ -81,7 +143,7 @@ function Initialize-WindowsBuildEnvironment {
     }
 
     $qtRoot = if ($env:JELLYFIN_QT_ROOT) { $env:JELLYFIN_QT_ROOT } else { Get-DefaultQtRoot }
-    $qcoroRoot = if ($env:JELLYFIN_QCORO_ROOT) { $env:JELLYFIN_QCORO_ROOT } else { 'C:\Qt\qcoro-0.13-msvc2022' }
+    $qcoroRoot = if ($env:JELLYFIN_QCORO_ROOT) { $env:JELLYFIN_QCORO_ROOT } else { Get-DefaultQCoroRoot }
     $mpvRoot = if ($env:JELLYFIN_MPV_ROOT) { $env:JELLYFIN_MPV_ROOT } else { Join-Path (Get-RepositoryRoot) 'build\windows-deps\mpv' }
 
     foreach ($path in @($qtRoot, $qcoroRoot)) {
