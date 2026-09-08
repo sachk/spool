@@ -462,18 +462,29 @@ bool PlayerController::configureAndInitializeMpv(mpv_handle *handle, bool embedd
     char *embeddingArguments[std::size(embeddingOptions) + 2] {};
     for (size_t i = 0; i < std::size(embeddingOptions); ++i)
         embeddingArguments[i] = embeddingOptions[i];
+    // --gpu-api picks one of mpv's own ra_ctx backends: a native context and
+    // swapchain of its own. The embedded path has neither -- it renders into
+    // the texture Qt owns, through libplacebo, and which backend that is comes
+    // from the render API the video item asks for. Naming an API here only
+    // constrains contexts that are never created, and names one this build may
+    // not have: Windows builds libmpv without its D3D11 context (libplacebo
+    // carries D3D11 instead), so --gpu-api=d3d11 is an unknown value there and
+    // mpv_initialize_opts fails on it. Leave the option at auto when mpv owns
+    // no surface.
     QByteArray graphicsApiOption = QByteArrayLiteral("--gpu-api=opengl");
-    switch (QQuickWindow::graphicsApi()) {
-    case QSGRendererInterface::Vulkan:
-        graphicsApiOption = QByteArrayLiteral("--gpu-api=vulkan");
-        break;
-    case QSGRendererInterface::Direct3D11:
-        graphicsApiOption = QByteArrayLiteral("--gpu-api=d3d11");
-        break;
-    default:
-        break;
+    if (!embeddedVideo) {
+        switch (QQuickWindow::graphicsApi()) {
+        case QSGRendererInterface::Vulkan:
+            graphicsApiOption = QByteArrayLiteral("--gpu-api=vulkan");
+            break;
+        case QSGRendererInterface::Direct3D11:
+            graphicsApiOption = QByteArrayLiteral("--gpu-api=d3d11");
+            break;
+        default:
+            break;
+        }
+        embeddingArguments[1] = graphicsApiOption.data();
     }
-    embeddingArguments[1] = graphicsApiOption.data();
     QByteArray softwareDecodeOption = QByteArrayLiteral("--hwdec=no");
     if (!m_hardwareDecoding)
         embeddingArguments[std::size(embeddingOptions)] = softwareDecodeOption.data();
@@ -485,8 +496,12 @@ bool PlayerController::configureAndInitializeMpv(mpv_handle *handle, bool embedd
     initializeResult = mpv_initialize(handle);
 #endif
     logColorDiagnostics(handle);
-    if (initializeResult < 0)
+    if (initializeResult < 0) {
+        // This runs before log messages are requested below, so a failure here
+        // reaches neither log on its own and reads as a silent retry loop.
+        qWarning() << "player: mpv initialization failed:" << mpv_error_string(initializeResult);
         return false;
+    }
     // mpv's own log file lives in application-private storage, which is
     // unreadable on Android. Mirror its messages into the app log so player
     // problems are diagnosable wherever the app runs.
@@ -1153,7 +1168,11 @@ void PlayerController::play(const PlaybackSession& session, bool startPaused)
         }
         qInfo() << "player: prepareForPlaybackSurface completed in" << playbackSurfaceTimer.elapsed() << "ms";
     } else if (embeddedVideo) {
-        qInfo() << "player: using embedded OpenGL software video surface";
+        qInfo() << "player: using the embedded video surface on"
+                << (QQuickWindow::graphicsApi() == QSGRendererInterface::Vulkan              ? "Vulkan"
+                           : QQuickWindow::graphicsApi() == QSGRendererInterface::Direct3D11 ? "Direct3D 11"
+                           : QQuickWindow::graphicsApi() == QSGRendererInterface::Software   ? "software"
+                                                                                             : "OpenGL");
     } else {
         qInfo() << "player: audio-only playback does not request a video surface";
     }
