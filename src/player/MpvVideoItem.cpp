@@ -367,12 +367,20 @@ namespace {
             if (!m_item)
                 return;
 
+            // libplacebo initialization and destruction also touch the D3D11
+            // immediate context (destruction clears its state). Execute Qt's
+            // pending commands first and invalidate its state cache afterwards.
+            const bool d3d11Handoff = m_handleDirty && cb && rhi() && rhi()->backend() == QRhi::D3D11;
+            if (d3d11Handoff)
+                cb->beginExternal();
             if (m_handleDirty) {
                 releaseRenderContext();
                 if (m_nextHandle)
                     createRenderContext(m_nextHandle);
                 m_nextHandle = nullptr;
                 m_handleDirty = false;
+                if (d3d11Handoff)
+                    cb->endExternal();
                 completeReleaseWaiter();
                 completeAttachHandoff();
             }
@@ -391,9 +399,9 @@ namespace {
             if (!target || !cb)
                 return;
 
-            // mpv submits before Qt submits this frame. beginExternal() flushes
-            // Qt's recording, not its queue; the render API performs the
-            // semaphore handover on their shared graphics queue.
+            // D3D11 executes Qt's pending commands before mpv uses the shared
+            // immediate context; endExternal() invalidates Qt's state cache.
+            // Vulkan uses the render API's semaphore handover on the shared queue.
             cb->beginExternal();
             const bool drew = renderInto(ctx, target);
             cb->endExternal();

@@ -20,11 +20,11 @@
     "mpv-src": {
       "flake": false,
       "locked": {
-        "lastModified": 1788768554,
-        "narHash": "sha256-rU0z0EhsH61Yh15Z+ErLTe+qJyKODTawuT5rO/TfKV8=",
+        "lastModified": 1788879097,
+        "narHash": "sha256-5ahKTMXJezvSCaBZ3AlPsfU2PNiwPQMgtjAgDqGk+ec=",
         "ref": "refs/heads/universal",
-        "rev": "64b1ef5be581890cbead3fa8a637d0c1e72ca5ed",
-        "revCount": 55609,
+        "rev": "c7a6c077cb053e41fb00608ecdd6d65f230dc980",
+        "revCount": 55610,
         "type": "git",
         "url": "file:./mpv"
       },

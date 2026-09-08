@@ -17,6 +17,9 @@
 #if defined(Q_OS_LINUX) && !defined(Q_OS_ANDROID)
 #include "platform/linux/WaylandColorInfo.h"
 #endif
+#if defined(Q_OS_WIN)
+#include "platform/windows/WindowsDisplayOutput.h"
+#endif
 
 #include <algorithm>
 #include <vector>
@@ -36,6 +39,10 @@ DisplayOutputCapabilities probe(QQuickWindow *window)
         = static_cast<QRhiSwapChain *>(renderer->getResource(window, QSGRendererInterface::RhiSwapchainResource));
     if (!swapchain)
         return display;
+#if defined(Q_OS_WIN)
+    if (renderer->graphicsApi() == QSGRendererInterface::Direct3D11)
+        return windowsD3D11DisplayOutput(swapchain);
+#endif
     display.surfaceReady = true;
 
     // Ask the backend, not the monitor. OpenGL answers no to both of these

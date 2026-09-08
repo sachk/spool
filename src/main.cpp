@@ -516,6 +516,10 @@ int main(int argc, char **argv)
 #if defined(Q_OS_LINUX) && !defined(Q_OS_ANDROID) && !defined(JELLYFIN_NATIVE_WEBOS)
     allowHdrRequest = allowHdrRequest && QGuiApplication::platformName().startsWith(QLatin1String("wayland"));
     automaticHdr = allowHdrRequest;
+#elif defined(Q_OS_WIN)
+    // Qt checks the window's output and Windows' Use HDR state before choosing
+    // FP16. The native probe then verifies the actual buffer and DXGI signaling.
+    automaticHdr = allowHdrRequest && graphicsApi == QSGRendererInterface::Direct3D11;
 #endif
     const QByteArray hdrRequest
         = allowHdrRequest ? JellyfinNative::RenderTargetPolicy::startupSwapChainRequest(automaticHdr) : QByteArray();

@@ -345,8 +345,8 @@ const QVector<SettingSpec>& settingSpecs()
             "Step down a rung when playback drops frames on this device", true, SettingTarget::AutoAdjustRenderQuality)
             .advanced(),
         selectSpec("playback/hdrOutput", "Playback", "HDR output",
-            "Applies when Spool next starts. Automatic enables HDR on supported Linux Wayland Vulkan displays. "
-            "Other desktop paths currently need Always; unsupported outputs stay SDR",
+            "Applies when Spool next starts. Automatic enables HDR on supported Linux Wayland Vulkan and Windows "
+            "Direct3D 11 displays with OS HDR enabled. Unsupported outputs stay SDR",
             "auto", kHdrOutputChoices, SettingTarget::HdrOutputMode)
             .onDesktop()
             .expert(),
