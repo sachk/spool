@@ -51,12 +51,17 @@ if (-not $VerifyOnly) {
         throw 'Chocolatey is required to install the Windows build tools. Install it from https://chocolatey.org/install, or install the tools yourself and re-run with -VerifyOnly.'
     }
     foreach ($package in $chocolateyPackages) {
-        if (Get-Command "$($package.Provides).exe" -ErrorAction SilentlyContinue) {
+        # A pinned package is installed even when something of that name is
+        # already on PATH: the pin is the point, and the runner images carry
+        # their own builds of some of these. Chocolatey is a no-op when the
+        # pinned version is the installed one.
+        $pinned = $package.ContainsKey('Version')
+        if (-not $pinned -and (Get-Command "$($package.Provides).exe" -ErrorAction SilentlyContinue)) {
             Write-Host "$($package.Name) is already installed"
             continue
         }
         $arguments = @('install', $package.Name, '-y', '--no-progress')
-        if ($package.Version) {
+        if ($pinned) {
             $arguments += "--version=$($package.Version)"
         }
         Write-Host "Installing $($package.Name)"
