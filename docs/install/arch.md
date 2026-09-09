@@ -30,9 +30,11 @@ makepkg -si
 
 `makepkg` downloads the portable tarball from the matching GitHub release, so
 the clone costs a few megabytes and the build costs nothing — there is no
-compiler involved. `sha256sums` is `SKIP` while the package is unpublished; if
-you want the check, copy the tarball's line out of `SHA256SUMS.txt` on the
-release first.
+compiler involved. The release workflow writes the published tarball's checksum
+into `PKGBUILD` and regenerates `.SRCINFO` as soon as the assets are up, so the
+recipe on `master` verifies what it downloads. Between a version bump and that
+release the checksum still belongs to the previous one, and the download it
+names does not exist yet either.
 
 Once registration reopens, the same two files go to the AUR unchanged.
 

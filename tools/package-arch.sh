@@ -10,25 +10,9 @@ set -euo pipefail
 
 APP_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 ARTIFACT_DIR="${ARTIFACT_DIR:-$APP_ROOT/dist}"
-IMAGE="${SPOOL_ARCH_IMAGE:-archlinux:base-devel}"
-
-if [[ "${SPOOL_ARCH_IN_CONTAINER:-0}" != 1 ]]; then
-  runtime="${SPOOL_CONTAINER_RUNTIME:-}"
-  if [[ -z "$runtime" ]]; then
-    for candidate in docker podman; do
-      command -v "$candidate" >/dev/null 2>&1 && { runtime="$candidate"; break; }
-    done
-  fi
-  [[ -n "$runtime" ]] || {
-    echo "error: building the Arch package needs docker or podman to run $IMAGE" >&2
-    exit 1
-  }
-  exec "$runtime" run --rm \
-    -e SPOOL_ARCH_IN_CONTAINER=1 \
-    -e "SOURCE_DATE_EPOCH=${SOURCE_DATE_EPOCH:-0}" \
-    -v "$APP_ROOT:/spool" -w /spool "$IMAGE" \
-    bash tools/package-arch.sh "$@"
-fi
+# shellcheck source=tools/lib/arch-container.sh
+source "$APP_ROOT/tools/lib/arch-container.sh"
+arch_container_reexec "$APP_ROOT" tools/package-arch.sh "$@"
 
 # shellcheck source=tools/lib/build-common.sh
 source "$APP_ROOT/tools/lib/build-common.sh"
@@ -50,14 +34,15 @@ grep -Fqx "pkgver=$APP_VERSION" "$PKGBUILD" || {
 
 work="$(mktemp -d)"
 trap 'rm -rf "$work"' EXIT
-id -u builder >/dev/null 2>&1 || useradd -m builder
 cp "$PKGBUILD" "$TARBALL" "$work/"
 mkdir -p "$work/out"
+arch_container_ensure_builder
 chown -R builder "$work"
 
 # The tarball is already beside the PKGBUILD, so nothing is downloaded and the
-# release checksum the AUR copy carries has nothing to match yet.
-runuser -u builder -- env -C "$work" \
+# recorded checksum -- which belongs to the previous release until this one is
+# published -- has nothing to say about the file being packaged.
+arch_container_runuser env -C "$work" \
   HOME=/home/builder PKGDEST="$work/out" SOURCE_DATE_EPOCH="${SOURCE_DATE_EPOCH:-0}" \
   makepkg --force --nodeps --skipchecksums --noconfirm
 
@@ -76,5 +61,5 @@ pacman --query --info --file "$package"
 
 mkdir -p "$ARTIFACT_DIR"
 install -m 0644 "$package" "$ARTIFACT_DIR/"
-chown "$(stat -c '%u:%g' "$APP_ROOT")" "$ARTIFACT_DIR/$(basename "$package")"
+arch_container_restore_owner "$APP_ROOT" "$ARTIFACT_DIR/$(basename "$package")"
 printf '%s\n' "$ARTIFACT_DIR/$(basename "$package")"

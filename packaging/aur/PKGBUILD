@@ -18,7 +18,8 @@ conflicts=('spool')
 options=('!strip' '!debug' '!lto')
 _bundle="Spool-for-Jellyfin-${pkgver}-linux-x86_64"
 source=("https://github.com/sachk/spool/releases/download/v${pkgver}/${_bundle}.tar.zst")
-# From SHA256SUMS.txt on the release above.
+# Written by tools/update-aur-checksums.sh from SHA256SUMS.txt once the release
+# above is published; SKIP until then.
 sha256sums=('SKIP')
 
 package() {
