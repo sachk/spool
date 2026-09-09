@@ -149,13 +149,8 @@ jobs:
               printf '%s\n' "${rows[@]}"
               echo
               echo "Checksums: [\`SHA256SUMS.txt\`]($base/SHA256SUMS.txt)."
-              echo "The \`.spdx.json\`, \`.cdx.json\` and \`.grype.json\` assets are per-package SBOMs and vulnerability scans — nothing you need in order to install."
               echo
             fi
-            echo '## Alpha installation trust'
-            echo
-            echo "This is prerelease software. Verify \`SHA256SUMS.txt\` and the GitHub artifact attestations before use."
-            echo 'The Windows installer and portable executable are **not Authenticode signed**.'
             if [[ "$MACOS_SIGNED" != true ]]; then
               echo 'The macOS DMG is **not Developer ID signed or notarized**.'
             fi
