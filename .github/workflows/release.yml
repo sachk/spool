@@ -111,7 +111,9 @@ jobs:
           # files people actually install. Build the table from what is really
           # on disk so a renamed or dropped package leaves no dead link. Every
           # sidecar ends in .json, so matching each package's own suffix keeps
-          # them out without naming them.
+          # them out without naming them. The Arch package ships as an asset
+          # with no row of its own: docs/install/arch.md is where somebody
+          # arrives at it from.
           rows=()
           add_row() {
             local label="$1" pattern="$2" name
@@ -125,6 +127,7 @@ jobs:
           add_row 'Windows — installer' '*-Windows-x64-Setup.exe'
           add_row 'Windows — portable' '*-Windows-x64-Portable.exe'
           add_row 'Linux — AppImage' '*-x86_64.AppImage'
+          add_row 'Linux — portable tarball' '*-linux-x86_64.tar.zst'
           add_row 'LG webOS TV' '*_arm.ipk'
           # One package serves phones and televisions, so the only remaining
           # choice is architecture -- and the universal APK exists so that
