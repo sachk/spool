@@ -15,6 +15,8 @@ import android.media.VolumeProvider;
 import android.media.session.MediaSession;
 import android.media.session.PlaybackState;
 import android.os.Build;
+import android.os.Handler;
+import android.os.Looper;
 
 public final class RemoteMediaSessionBridge {
     private static final String CHANNEL_ID = "remote_playback";
@@ -70,7 +72,7 @@ public final class RemoteMediaSessionBridge {
             {
                 nativeControl(7, -10000);
             }
-        });
+        }, new Handler(Looper.getMainLooper()));
         this.volumeProvider = new RemoteVolumeProvider();
         this.session.setPlaybackToRemote(volumeProvider);
         this.session.setSessionActivity(PendingIntent.getActivity(activity, 0,

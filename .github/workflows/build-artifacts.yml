@@ -375,9 +375,15 @@ jobs:
             connect-timeout = 30
             download-attempts = 5
 
+      - name: Resolve tailored Qt cache key
+        id: qt-cache-inputs
+        run: |
+          qt_derivation="$(nix eval --raw .#native-qt-cache.drvPath)"
+          echo "key=${qt_derivation##*/}" >>"$GITHUB_OUTPUT"
+
       - uses: nix-community/cache-nix-action@7df957e333c1e5da7721f60227dbba6d06080569 # v7.0.1
         with:
-          primary-key: nix-native-${{ runner.os }}-${{ matrix.arch }}-${{ hashFiles('flake.nix', 'flake.lock') }}
+          primary-key: nix-native-${{ runner.os }}-${{ matrix.arch }}-${{ steps.qt-cache-inputs.outputs.key }}
           restore-prefixes-first-match: nix-native-${{ runner.os }}-${{ matrix.arch }}-
           gc-max-store-size-macos: 8G
           # Cache hygiene: see the lint job above.
@@ -393,12 +399,10 @@ jobs:
           authToken: ${{ secrets.CACHIX_AUTH_TOKEN }}
           skipPush: true
       - name: Build and cache tailored Qt
-        env:
-          ARCH: ${{ matrix.arch }}
         run: |
           nix build --accept-flake-config .#native-qt-cache \
             --out-link "$RUNNER_TEMP/spool-native-qt" --print-build-logs
-          if [[ "$ARCH" == arm64 && -n "$CACHIX_AUTH_TOKEN" ]]; then
+          if [[ -n "$CACHIX_AUTH_TOKEN" ]]; then
             cachix push spool "$(readlink "$RUNNER_TEMP/spool-native-qt")"
           fi
       - name: Publish cached nix run package
@@ -787,7 +791,7 @@ jobs:
             build/android/qt
             build/android/deps
             build/android/qcoro
-          key: android6-${{ matrix.abi }}-${{ runner.os }}-${{ steps.cache-inputs.outputs.mpv }}-${{ steps.cache-inputs.outputs.toolchain }}-${{ hashFiles('tools/android/build-dependencies.sh', 'tools/android/build-qt6.sh', 'tools/ffmpeg-capabilities.py', 'tools/lib/build-common.sh', 'tools/lib/manifest-sources.sh', 'tools/manifests/android-third-party.json', 'tools/manifests/ffmpeg-capabilities.json', 'tools/manifests/toolchain.json', 'tools/manifests/qt-android-6.11.json') }}
+          key: android6-${{ matrix.abi }}-${{ runner.os }}-${{ steps.cache-inputs.outputs.mpv }}-${{ steps.cache-inputs.outputs.toolchain }}-${{ hashFiles('tools/android/build-dependencies.sh', 'tools/android/build-qt6.sh', 'tools/android/patches/*.patch', 'tools/ffmpeg-capabilities.py', 'tools/lib/build-common.sh', 'tools/lib/manifest-sources.sh', 'tools/manifests/android-third-party.json', 'tools/manifests/ffmpeg-capabilities.json', 'tools/manifests/toolchain.json', 'tools/manifests/qt-android-6.11.json') }}
 
       - name: Build cached Android toolchains
         if: ${{ steps.android-cache.outputs.cache-hit != 'true' }}
@@ -819,6 +823,27 @@ jobs:
           SPOOL_ANDROID_KEYSTORE_KEY_PASS: ${{ secrets.ANDROID_RELEASE_KEY_PASSWORD }}
           ANDROID_ABI: ${{ matrix.abi }}
         run: nix develop .#android -c bash tools/android/build-apks.sh
+
+      - name: Verify native libraries stay compressed
+        env:
+          ANDROID_ABI: ${{ matrix.abi }}
+        run: |
+          python3 - <<'PY'
+          import os
+          import zipfile
+
+          path = f"dist/android/spool-{os.environ['ANDROID_ABI']}.apk"
+          with zipfile.ZipFile(path) as apk:
+              libraries = [entry for entry in apk.infolist()
+                           if entry.filename.startswith("lib/") and entry.filename.endswith(".so")]
+              if not libraries:
+                  raise SystemExit(f"{path}: no native libraries")
+              uncompressed = [entry.filename for entry in libraries
+                              if entry.compress_type != zipfile.ZIP_DEFLATED]
+              if uncompressed:
+                  raise SystemExit(f"{path}: native libraries are not compressed: {uncompressed}")
+          print(f"{path}: native libraries are compressed ({os.path.getsize(path)} bytes)")
+          PY
 
       - name: Verify Android release signing identity
         if: ${{ inputs.release }}
